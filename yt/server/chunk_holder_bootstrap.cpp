@@ -153,15 +153,15 @@ void TChunkHolderBootstrap::Run()
         "/monitoring",
         ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/config",
         ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/stored_chunks",
         ~NYTree::CreateVirtualNode(~CreateStoredChunkMapService(~chunkStore)));
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/cached_chunks",
         ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~chunkCache)));
 
