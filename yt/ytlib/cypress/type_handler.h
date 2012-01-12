@@ -48,12 +48,13 @@ struct INodeTypeHandler
         const ICypressNode& node,
         const TTransactionId& transactionId) = 0;
 
-    //! Returns the runtime node.
+    //! Returns the (dynamic) node type.
     virtual EObjectType GetObjectType() = 0;
     
-    //! Returns the (static) node name.
+    //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;
 
+    // TODO(babenko): get rid
     //! Returns the type name.
     /*!
      *  This name is displayed via <tt>type</tt> attribute.
@@ -69,7 +70,7 @@ struct INodeTypeHandler
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::INode* manifest) = 0;
+        NYTree::IMapNode* manifest) = 0;
 
     //! Create a empty instance of the node.
     /*!

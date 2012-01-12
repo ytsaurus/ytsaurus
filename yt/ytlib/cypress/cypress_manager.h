@@ -88,7 +88,7 @@ public:
     TIntrusivePtr<ICypressNodeProxy> CreateDynamicNode(
         const TTransactionId& transactionId,
         const Stroka& typeName,
-        NYTree::INode* manifest);
+        NYTree::IMapNode* manifest);
 
     DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
 

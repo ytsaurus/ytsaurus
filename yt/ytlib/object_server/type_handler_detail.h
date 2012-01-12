@@ -51,12 +51,19 @@ public:
         return obj.GetObjectRefCounter();
     }
 
-    IObjectProxy::TPtr FindProxy(const TObjectId& id)
+    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id)
     {
         return
             Map->Contains(id)
             ? New< TObjectProxyBase<TObject> >(id, Map)
             : NULL;
+    }
+
+    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest)
+    {
+        UNUSED(manifest);
+        ythrow yexception() << Sprintf("Objects of type %s cannot be created from a manifest",
+            ~GetType().ToString());
     }
 
 protected:

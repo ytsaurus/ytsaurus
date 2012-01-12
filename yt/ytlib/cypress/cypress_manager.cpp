@@ -82,6 +82,12 @@ public:
         return Owner->FindNodeProxy(id, NullTransactionId);
     }
 
+    virtual TObjectId CreateFromManifest(IMapNode* manifest)
+    {
+        UNUSED(manifest);
+        ythrow yexception() << "Cypress objects cannot be created unbounded";
+    }
+
 private:
     TCypressManager* Owner;
     EObjectType Type;
@@ -399,7 +405,7 @@ ICypressNodeProxy::TPtr TCypressManager::CreateNode(
 ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
     const TTransactionId& transactionId,
     const Stroka& typeName,
-    INode* manifestNode)
+    IMapNode* manifest)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -415,7 +421,7 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
     TAutoPtr<ICypressNode> node = typeHandler->CreateFromManifest(
         nodeId,
         transactionId,
-        manifestNode);
+        manifest);
     ICypressNode* node_ = ~node;
 
     auto proxy = RegisterNode(nodeId, transactionId, ~typeHandler, node);

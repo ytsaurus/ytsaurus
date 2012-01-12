@@ -92,7 +92,7 @@ public:
     virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        INode* manifestNode)
+        IMapNode* manifestNode)
     {
         UNUSED(transactionId);
 

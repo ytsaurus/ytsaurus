@@ -425,11 +425,15 @@ protected:
             request->has_manifest()
             ? NYTree::DeserializeFromYson(request->manifest())
             : NYTree::GetEphemeralNodeFactory()->CreateMap();
+
+        if (manifestNode->GetType() != NYTree::ENodeType::Map) {
+            ythrow yexception() << "Manifest must be a map";
+        }
         
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
             typeName,
-            ~manifestNode);
+            ~manifestNode->AsMap());
 
         CreateRecursive(context->GetPath(), ~value);
 

@@ -80,7 +80,7 @@ public:
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        INode* manifest)
+        IMapNode* manifest)
     {
         UNUSED(transactionId);
         UNUSED(manifest);

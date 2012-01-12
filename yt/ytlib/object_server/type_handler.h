@@ -3,6 +3,8 @@
 #include "id.h"
 #include "object_proxy.h"
 
+#include <yt/ytlib/ytree/ytree.h>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -26,6 +28,12 @@ struct IObjectTypeHandler
     //! Given an object id, constructs a proxy for it.
     //! Returns NULL if no object with such id exists.
     virtual IObjectProxy::TPtr FindProxy(const TObjectId& id) = 0;
+
+    //! Creates an object with the given manifest.
+    /*!
+     *  \returns the id of the created object.
+     */
+    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

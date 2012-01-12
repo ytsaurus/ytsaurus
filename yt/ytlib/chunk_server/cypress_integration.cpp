@@ -315,7 +315,7 @@ public:
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::INode* manifest)
+        NYTree::IMapNode* manifest)
     {
         UNUSED(transactionId);
         UNUSED(manifest);
@@ -458,7 +458,7 @@ public:
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::INode* manifest)
+        NYTree::IMapNode* manifest)
     {
         UNUSED(transactionId);
         UNUSED(manifest);
