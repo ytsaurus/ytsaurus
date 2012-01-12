@@ -6,6 +6,7 @@
 #include "holder_lease_tracker.h"
 
 #include "../transaction_server/transaction_manager.h"
+#include <yt/ytlib/transaction_server/transaction.h>
 #include "../meta_state/meta_state_manager.h"
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/map.h"

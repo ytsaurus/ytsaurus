@@ -3,6 +3,8 @@
 #include "id.h"
 
 #include <yt/ytlib/misc/property.h>
+#include <yt/ytlib/meta_state/map.h>
+#include <yt/ytlib/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -52,6 +54,49 @@ public:
     TObjectWithIdBase(const TObjectId& id);
     TObjectWithIdBase(const TObjectWithIdBase& other);
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TObject>
+class TObjectProxyBase
+    : public IObjectProxy
+    , public NYTree::TYPathServiceBase
+{
+public:
+    typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
+
+    TObjectProxyBase(const TObjectId& id, TMap* map)
+        : Id(id)
+        , Map(map)
+    {
+        YASSERT(map);
+    }
+
+    TObjectId GetId() const
+    {
+        return Id;
+    }
+
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    {
+        UNUSED(context);
+        return false;
+    }
+
+protected:
+    TObjectId Id;
+    TMap* Map;
+
+    const TObject& GetImpl() const
+    {
+        return map->Get(Id);
+    }
+
+    TObject& GetImplForUpdate()
+    {
+        return Map->GetForUpdate(Id);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

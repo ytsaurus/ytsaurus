@@ -41,7 +41,6 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
     }
 }
 
-
 bool TTableNodeProxy::IsLogged(IServiceContext* context) const
 {
     Stroka verb = context->GetVerb();

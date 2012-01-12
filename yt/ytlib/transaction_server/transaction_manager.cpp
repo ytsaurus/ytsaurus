@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
+#include "common.h"
+#include "transaction.h"
+#include "transaction_proxy.h"
 
 #include <object_server/type_handler_detail.h>
 
@@ -22,12 +25,22 @@ class TTransactionManager::TTypeHandler
 public:
     TTypeHandler(TTransactionManager* owner)
         : TObjectTypeHandlerBase(&owner->TransactionMap)
+        , Owner(owner)
     { }
 
     virtual EObjectType GetType()
     {
         return EObjectType::Transaction;
     }
+
+    virtual IObjectProxy::TPtr GetProxy(const TTransactionId& id)
+    {
+        return New<TTransactionProxy>(Owner, id);
+    }
+
+private:
+    TTransactionManager* Owner;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +88,7 @@ TTransactionManager::InitiateStartTransaction()
         this);
 }
 
-TTransaction& TTransactionManager::StartTransaction()
+TTransaction& TTransactionManager::Start()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -103,7 +116,7 @@ TTransactionId TTransactionManager::DoStartTransaction(const TMsgStartTransactio
 {
     UNUSED(message);
 
-    auto& transaction = StartTransaction();
+    auto& transaction = Start();
     return transaction.GetId();
 }
 
@@ -119,7 +132,7 @@ TTransactionManager::InitiateCommitTransaction(const TTransactionId& id)
         this);
 }
 
-void TTransactionManager::CommitTransaction(TTransaction& transaction)
+void TTransactionManager::Commit(TTransaction& transaction)
 {
     auto id = transaction.GetId();
 
@@ -143,7 +156,7 @@ TVoid TTransactionManager::DoCommitTransaction(const TMsgCommitTransaction& mess
     auto id = TTransactionId::FromProto(message.transaction_id());
 
     auto& transaction = TransactionMap.GetForUpdate(id);
-    CommitTransaction(transaction);
+    Commit(transaction);
     return TVoid();
 }
 
@@ -159,7 +172,7 @@ TTransactionManager::InitiateAbortTransaction(const TTransactionId& id)
         this);
 }
 
-void TTransactionManager::AbortTransaction(TTransaction& transaction)
+void TTransactionManager::Abort(TTransaction& transaction)
 {
     auto id = transaction.GetId();
 
@@ -182,7 +195,7 @@ TVoid TTransactionManager::DoAbortTransaction(const TMsgAbortTransaction& messag
 
     auto id = TTransactionId::FromProto(message.transaction_id());
     auto& transaction = TransactionMap.GetForUpdate(id);
-    AbortTransaction(transaction);
+    Abort(transaction);
     return TVoid();
 }
 

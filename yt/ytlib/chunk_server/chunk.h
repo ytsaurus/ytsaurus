@@ -5,7 +5,7 @@
 #include "chunk.pb.h"
 
 #include <yt/ytlib/misc/property.h>
-#include <yt/ytlib/object_server/object.h>
+#include <yt/ytlib/object_server/object_detail.h>
 
 namespace NYT {
 namespace NChunkServer {

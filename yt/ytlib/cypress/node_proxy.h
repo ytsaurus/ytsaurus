@@ -34,9 +34,6 @@ struct ICypressNodeProxy
     //! Returns the physical node and allows its mutation.
     virtual ICypressNode& GetImplForUpdate() = 0;
 
-    //! Returns the handler of this node type.
-    virtual INodeTypeHandler::TPtr GetTypeHandler() const = 0;
-
     //! Returns true iff the change specified by the #context
     //! requires meta state logging.
     virtual bool IsLogged(NRpc::IServiceContext* context) const = 0;

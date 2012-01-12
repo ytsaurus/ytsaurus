@@ -141,12 +141,6 @@ public:
     }
 
     
-    virtual INodeTypeHandler::TPtr GetTypeHandler() const
-    {
-        return TypeHandler;
-    }
-
-
     virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
         Stroka verb = context->GetVerb();

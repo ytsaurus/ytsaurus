@@ -214,18 +214,26 @@ struct ICypressNode
     virtual ~ICypressNode()
     { }
 
+    //! Returns node type.
     virtual EObjectType GetObjectType() const = 0;
 
+    //! Makes a copy of the node.
+    /*!
+     *  \note
+     *  Used by TMetaStateMap.
+     */
     virtual TAutoPtr<ICypressNode> Clone() const = 0;
 
+    //! Saves the node into the snapshot stream.
     virtual void Save(TOutputStream* output) const = 0;
     
+    //! Loads the node from the snapshot stream.
     virtual void Load(TInputStream* input) = 0;
 
     //! Returns the id of the node (which is the key in the respective meta-map).
     virtual TBranchedNodeId GetId() const = 0;
 
-    // TODO: propertify
+    // TODO: maybe propertify?
     //! Gets the state of node.
     virtual ENodeState GetState() const = 0;
     //! Sets node state.

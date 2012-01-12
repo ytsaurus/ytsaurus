@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "transaction.h"
+#include "id.h"
 #include "transaction_manager.pb.h"
 
 #include "../misc/property.h"
@@ -17,7 +16,10 @@ namespace NYT {
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
+class TTransaction;
+class TTransactionProxy;
+
 //! Manages client transactions.
 class TTransactionManager
     : public NMetaState::TMetaStatePart
@@ -52,13 +54,13 @@ public:
         NObjectServer::TObjectManager* objectManager);
 
     NMetaState::TMetaChange<TTransactionId>::TPtr InitiateStartTransaction();
-    TTransaction& StartTransaction();
+    TTransaction& Start();
 
     NMetaState::TMetaChange<TVoid>::TPtr InitiateCommitTransaction(const TTransactionId& id);
-    void CommitTransaction(TTransaction& transaction);
+    void Commit(TTransaction& transaction);
 
     NMetaState::TMetaChange<TVoid>::TPtr InitiateAbortTransaction(const TTransactionId& id);
-    void AbortTransaction(TTransaction& transaction);
+    void Abort(TTransaction& transaction);
 
     void RenewLease(const TTransactionId& id);
 
@@ -67,6 +69,7 @@ public:
 private:
     typedef TTransactionManager TThis;
     class TTypeHandler;
+    friend class TTransactionProxy;
 
     TConfig::TPtr Config;
     NObjectServer::TObjectManager::TPtr ObjectManager;

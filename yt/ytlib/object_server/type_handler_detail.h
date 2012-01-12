@@ -1,8 +1,8 @@
 #pragma once
 
 #include "type_handler.h"
+#include "object_detail.h"
 
-#include <yt/ytlib/logging/log.h>
 #include <yt/ytlib/meta_state/map.h>
 
 namespace NYT {
@@ -49,6 +49,11 @@ public:
     {
         auto& obj = Map->Get(id);
         return obj.GetObjectRefCounter();
+    }
+
+    IObjectProxy::TPtr GetProxy(const TObjectId& id)
+    {
+        return New< TObjectProxyBase<TObject> >(id, Map);
     }
 
 protected:

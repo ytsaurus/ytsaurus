@@ -63,7 +63,7 @@ public:
      *  This call may block.
      *  Thread affinity: any.
      */
-    ITransaction::TPtr StartTransaction();
+    ITransaction::TPtr Start();
 
 private:
     typedef NTransactionServer::TTransactionServiceProxy TProxy;

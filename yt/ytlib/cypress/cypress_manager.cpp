@@ -77,6 +77,12 @@ public:
         return Owner->GetNodeRefCounter(id);
     }
 
+    virtual IObjectProxy::TPtr GetProxy(const TObjectId& id)
+    {
+        // TODO(babenko): implement this
+        YUNIMPLEMENTED();
+    }
+
 private:
     TCypressManager* Owner;
     EObjectType Type;

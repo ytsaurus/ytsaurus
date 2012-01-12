@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "object.h"
+#include "object_detail.h"
 
 namespace NYT {
 namespace NObjectServer {

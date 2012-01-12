@@ -1,6 +1,7 @@
 #pragma once
 
 #include "id.h"
+#include "object_proxy.h"
 
 namespace NYT {
 namespace NObjectServer {
@@ -19,6 +20,8 @@ struct IObjectTypeHandler
     virtual i32 RefObject(const TObjectId& id) = 0;
     virtual i32 UnrefObject(const TObjectId& id) = 0;
     virtual i32 GetObjectRefCounter(const TObjectId& id) = 0;
+
+    virtual IObjectProxy::TPtr GetProxy(const TObjectId& id) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

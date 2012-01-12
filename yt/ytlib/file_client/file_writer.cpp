@@ -70,7 +70,7 @@ TFileWriter::TFileWriter(
 
     LOG_INFO("Creating upload transaction");
     try {
-        UploadTransaction = TransactionManager->StartTransaction();
+        UploadTransaction = TransactionManager->Start();
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());

@@ -6,7 +6,7 @@
 #include <yt/ytlib/misc/property.h>
 #include <yt/ytlib/cypress/id.h>
 #include <yt/ytlib/chunk_server/id.h>
-#include <yt/ytlib/object_server/object.h>
+#include <yt/ytlib/object_server/object_detail.h>
 
 namespace NYT {
 namespace NTransactionServer {

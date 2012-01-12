@@ -228,7 +228,7 @@ TTransactionManager::TTransactionManager(
     YASSERT(channel);
 }
 
-ITransaction::TPtr TTransactionManager::StartTransaction()
+ITransaction::TPtr TTransactionManager::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
