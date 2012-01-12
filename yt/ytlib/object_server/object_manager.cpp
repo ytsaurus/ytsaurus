@@ -160,6 +160,29 @@ void TObjectManager::Clear()
     Counter = 0;
 }
 
+IObjectProxy::TPtr TObjectManager::FindProxy(const TObjectId& id)
+{
+    auto type = TypeFromId(id);
+    int typeValue = type.ToValue();
+    if (typeValue < 0 || typeValue >= MaxObjectType) {
+        return NULL;
+    }
+
+    auto handler = TypeToHandler[typeValue];
+    if (!handler) {
+        return NULL;
+    }
+
+    return handler->FindProxy(id);
+}
+
+IObjectProxy::TPtr TObjectManager::GetProxy(const TObjectId& id)
+{
+    auto proxy = FindProxy(id);
+    YASSERT(proxy);
+    return proxy;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer

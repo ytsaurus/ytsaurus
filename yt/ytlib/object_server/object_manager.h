@@ -51,6 +51,7 @@ public:
 
     //! Returns the handler for a given type.
     IObjectTypeHandler* GetHandler(EObjectType type) const;
+    
     //! Returns the handler for a given id.
     IObjectTypeHandler* GetHandler(const TObjectId& id) const;
 
@@ -68,6 +69,12 @@ public:
 
     //! Returns the current reference counter.
     i32 GetObjectRefCounter(const TObjectId& id);
+
+    //! Returns a proxy for the object with the given id or NULL if there's no such object.
+    IObjectProxy::TPtr FindProxy(const TObjectId& id);
+
+    //! Returns a proxy for the object with the given id or NULL. Fails if there's no such object.
+    IObjectProxy::TPtr GetProxy(const TObjectId& id);
 
 private:
     ui16 CellId;

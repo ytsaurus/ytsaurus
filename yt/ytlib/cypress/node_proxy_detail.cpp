@@ -476,21 +476,33 @@ IYPathService::TResolveResult TRootNodeProxy::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
 {
-    if (!path.empty() && path[0] == NodeIdMarker) {
-        TYPath suffixPath;
-        Stroka prefix;
-        ChopYPathToken(path.substr(1), &prefix, &suffixPath);
-
-        TNodeId nodeId;
-        if (!TNodeId::FromString(prefix, &nodeId)) {
-            ythrow yexception() << Sprintf("Error parsing node id %s", ~prefix.Quote());
-        }
-
-        auto node = GetProxy(nodeId);
-        return TResolveResult::There(~node, suffixPath);
-    } else {
+    if (path.empty() || path[0] != NodeIdMarker) {
         return TMapNodeProxy::ResolveRecursive(path, verb);
     }
+
+    TYPath suffixPath;
+    Stroka prefix;
+    ChopYPathToken(path.substr(1), &prefix, &suffixPath);
+
+    TObjectId id;
+    if (!TNodeId::FromString(prefix, &id)) {
+        ythrow yexception() << "Error parsing object id";
+    }
+
+    // First try to fetch a proxy of a Cypress node.
+    // This way we don't lose information about the current transaction.
+    auto nodeProxy = CypressManager->FindNodeProxy(id, TransactionId);
+    if (nodeProxy) {
+        return TResolveResult::There(~nodeProxy, suffixPath);
+    }
+
+    // Next try fetching a proxy for a generic object.
+    auto objectProxy = CypressManager->GetObjectManager()->FindProxy(id);
+    if (objectProxy) {
+        return TResolveResult::There(~objectProxy, suffixPath);
+    }
+
+    ythrow yexception() << Sprintf("No such object (Id: %s)", ~id.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

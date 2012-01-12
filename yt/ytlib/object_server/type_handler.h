@@ -15,13 +15,14 @@ struct IObjectTypeHandler
 
     virtual EObjectType GetType() = 0;
 
+    //! Returns true iff an object with the given id exists.
     virtual bool Exists(const TObjectId& id) = 0;
 
     virtual i32 RefObject(const TObjectId& id) = 0;
     virtual i32 UnrefObject(const TObjectId& id) = 0;
     virtual i32 GetObjectRefCounter(const TObjectId& id) = 0;
 
-    virtual IObjectProxy::TPtr GetProxy(const TObjectId& id) = 0;
+    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

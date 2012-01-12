@@ -327,12 +327,12 @@ public:
             INodeTypeHandler* typeHandler, \
             TCypressManager* cypressManager, \
             const TTransactionId& transactionId, \
-            const TNodeId& nodeId) \
+            const TNodeId& id) \
             : TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node>( \
                 typeHandler, \
                 cypressManager, \
                 transactionId, \
-                nodeId) \
+                id) \
         { } \
     }; \
     \

@@ -77,10 +77,9 @@ public:
         return Owner->GetNodeRefCounter(id);
     }
 
-    virtual IObjectProxy::TPtr GetProxy(const TObjectId& id)
+    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id)
     {
-        // TODO(babenko): implement this
-        YUNIMPLEMENTED();
+        return Owner->FindNodeProxy(id, NullTransactionId);
     }
 
 private:

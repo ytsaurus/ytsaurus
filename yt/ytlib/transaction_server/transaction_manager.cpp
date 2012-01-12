@@ -33,7 +33,7 @@ public:
         return EObjectType::Transaction;
     }
 
-    virtual IObjectProxy::TPtr GetProxy(const TTransactionId& id)
+    virtual IObjectProxy::TPtr FindProxy(const TTransactionId& id)
     {
         return New<TTransactionProxy>(Owner, id);
     }

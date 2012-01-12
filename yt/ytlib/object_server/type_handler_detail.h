@@ -51,9 +51,12 @@ public:
         return obj.GetObjectRefCounter();
     }
 
-    IObjectProxy::TPtr GetProxy(const TObjectId& id)
+    IObjectProxy::TPtr FindProxy(const TObjectId& id)
     {
-        return New< TObjectProxyBase<TObject> >(id, Map);
+        return
+            Map->Contains(id)
+            ? New< TObjectProxyBase<TObject> >(id, Map)
+            : NULL;
     }
 
 protected:
