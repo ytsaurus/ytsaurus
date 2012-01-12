@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "cell_manager.h"
+#include "meta_state_manager.h"
 
 #include <ytlib/actions/invoker_util.h>
 #include <ytlib/misc/thread_affinity.h>

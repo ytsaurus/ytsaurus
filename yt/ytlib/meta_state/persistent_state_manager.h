@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.h"
 #include "meta_state_manager.h"
 
 #include <ytlib/rpc/server.h>

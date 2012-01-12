@@ -3,6 +3,7 @@
 
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NMetaState {
