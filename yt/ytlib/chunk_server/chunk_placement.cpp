@@ -10,11 +10,6 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NChunkClient::TChunkId;
-using NChunkHolder::EJobType;
-
-////////////////////////////////////////////////////////////////////////////////
-
 static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,12 +216,12 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
 
     auto* sink = ChunkManager->FindReplicationSink(targetHolder.GetAddress());
     if (sink) {
-        if (static_cast<int>(sink->JobIds.size()) >= MaxReplicationFanIn) {
+        if (static_cast<int>(sink->JobIds().size()) >= MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.
             return false;
         }
 
-        FOREACH (const auto& jobId, sink->JobIds) {
+        FOREACH (const auto& jobId, sink->JobIds()) {
             const auto& job = ChunkManager->GetJob(jobId);
             if (job.GetChunkId() == chunk.GetId()) {
                 // Do not balance to a holder that is a replication target for the very same chunk.

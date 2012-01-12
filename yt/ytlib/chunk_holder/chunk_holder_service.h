@@ -64,11 +64,11 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkInfo);
     DECLARE_RPC_SERVICE_METHOD(NProto, PrecacheChunk);
 
-    void ValidateNoSession(const NChunkClient::TChunkId& chunkId);
-    void ValidateNoChunk(const NChunkClient::TChunkId& chunkId);
+    void ValidateNoSession(const TChunkId& chunkId);
+    void ValidateNoChunk(const TChunkId& chunkId);
 
-    TIntrusivePtr<TSession> GetSession(const NChunkClient::TChunkId& chunkId);
-    TIntrusivePtr<TChunk> GetChunk(const NChunkClient::TChunkId& chunkId);
+    TIntrusivePtr<TSession> GetSession(const TChunkId& chunkId);
+    TIntrusivePtr<TChunk> GetChunk(const TChunkId& chunkId);
 
     bool CheckThrottling() const;
 

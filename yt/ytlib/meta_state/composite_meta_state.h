@@ -18,8 +18,8 @@ public:
     typedef TIntrusivePtr<TMetaStatePart> TPtr;
 
     TMetaStatePart(
-        IMetaStateManager::TPtr metaStateManager,
-        TIntrusivePtr<TCompositeMetaState> metaState);
+        IMetaStateManager* metaStateManager,
+        TCompositeMetaState* metaState);
 
 protected:
     IMetaStateManager::TPtr MetaStateManager;

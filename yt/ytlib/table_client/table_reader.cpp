@@ -2,7 +2,6 @@
 #include "table_reader.h"
 
 #include "../misc/sync.h"
-#include "../chunk_server/common.h"
 
 namespace NYT {
 namespace NTableClient {

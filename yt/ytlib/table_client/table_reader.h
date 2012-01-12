@@ -5,6 +5,7 @@
 #include "../rpc/channel.h"
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_proxy.h"
+#include <yt/ytlib/cypress/id.h>
 #include "../table_server/table_ypath_proxy.h"
 #include "../chunk_client/block_cache.h"
 #include "../logging/tagged_logger.h"

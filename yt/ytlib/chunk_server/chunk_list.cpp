@@ -4,17 +4,17 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NObjectServer;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkList::TChunkList(const TChunkListId& id)
-    : Id_(id)
-    , RefCounter(0)
+    : TObjectWithIdBase(id)
 { }
 
 TChunkList::TChunkList(const TChunkList& other)
-    : Id_(other.Id_)
+    : TObjectWithIdBase(other)
     , ChildrenIds_(other.ChildrenIds_)
-    , RefCounter(other.RefCounter)
 { }
 
 TAutoPtr<TChunkList> TChunkList::Clone() const
@@ -34,21 +34,6 @@ TAutoPtr<TChunkList> TChunkList::Load(const TChunkListId& id, TInputStream* inpu
     ::Load(input, chunkList->ChildrenIds_);
     ::Load(input, chunkList->RefCounter);
     return chunkList;
-}
-
-i32 TChunkList::Ref()
-{
-    return ++RefCounter;
-}
-
-i32 TChunkList::Unref()
-{
-    return --RefCounter;
-}
-
-i32 TChunkList::GetRefCounter() const
-{
-    return RefCounter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,13 +1,7 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/new.h"
-#include "../misc/intrusive_ptr.h"
-#include "../misc/ref_counted_base.h"
-#include "../misc/guid.h"
-
-#include "../logging/log.h"
-#include "../actions/action.h"
+#include <yt/ytlib/logging/log.h>
+#include <yt/ytlib/transaction_server/id.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -16,11 +10,8 @@ namespace NTransactionClient {
 
 extern NLog::TLogger TransactionClientLogger;
 
-//! Identifies a transaction.
-typedef TGuid TTransactionId;
-
-//! Means "no transaction".
-extern TTransactionId NullTransactionId;
+using NTransactionServer::TTransactionId;
+using NTransactionServer::NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

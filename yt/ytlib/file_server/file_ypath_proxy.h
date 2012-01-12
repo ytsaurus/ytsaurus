@@ -5,7 +5,7 @@
 
 #include "../misc/configurable.h"
 #include "../ytree/ypath_proxy.h"
-#include "../chunk_server/common.h"
+#include <yt/ytlib/chunk_server/id.h>
 
 namespace NYT {
 namespace NFileServer {

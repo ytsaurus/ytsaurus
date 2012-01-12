@@ -9,7 +9,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(const TTransactionId& id)
-    : Id_(id)
+    : TObjectWithIdBase(id)
 { }
 
 TAutoPtr<TTransaction> TTransaction::Clone() const
@@ -21,6 +21,7 @@ void TTransaction::Save(TOutputStream* output) const
 {
     YASSERT(output);
 
+    ::Save(output, State_);
     ::Save(output, UnboundChunkTreeIds_);
     ::Save(output, LockIds_);
     ::Save(output, BranchedNodeIds_);
@@ -32,6 +33,7 @@ TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream
     YASSERT(input);
 
     auto* transaction = new TTransaction(id);
+    ::Load(input, transaction->State_);
     ::Load(input, transaction->UnboundChunkTreeIds_);
     ::Load(input, transaction->LockIds_);
     ::Load(input, transaction->BranchedNodeIds_);
@@ -40,7 +42,8 @@ TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream
 }
 
 TTransaction::TTransaction(const TTransaction& other)
-    : Id_(other.Id_)
+    : TObjectWithIdBase(other)
+    , State_(other.State_)
     , UnboundChunkTreeIds_(other.UnboundChunkTreeIds_)
     , LockIds_(other.LockIds_)
     , BranchedNodeIds_(other.BranchedNodeIds_)

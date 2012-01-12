@@ -7,7 +7,6 @@
 #include "../transaction_client/transaction.h"
 #include "../cypress/cypress_service_proxy.h"
 #include "../table_server/table_ypath_proxy.h"
-#include "../chunk_server/common.h"
 #include "../logging/tagged_logger.h"
 
 namespace NYT {

@@ -59,7 +59,7 @@ public:
 
     i64 GetCurrentSize() const;
 
-    NChunkClient::TChunkId GetChunkId() const;
+    NChunkServer::TChunkId GetChunkId() const;
 
 private:
     TSharedRef PrepareBlock(int channelIndex);

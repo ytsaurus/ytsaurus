@@ -7,6 +7,7 @@
 #include "../ytree/ypath_service.h"
 #include "../cypress/node_proxy_detail.h"
 #include "../chunk_server/chunk_manager.h"
+#include <yt/ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NFileServer {

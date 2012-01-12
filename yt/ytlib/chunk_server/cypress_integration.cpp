@@ -7,14 +7,16 @@
 #include "../cypress/virtual.h"
 #include "../cypress/node_proxy_detail.h"
 #include "../cypress/cypress_ypath_proxy.h"
+#include <yt/ytlib/chunk_client/common.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NYTree;
 using namespace NCypress;
-using namespace NChunkClient;
 using namespace NMetaState;
+using namespace NChunkClient;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,8 +100,7 @@ private:
             {
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("chunk_list_id").Scalar(chunk->GetChunkListId().ToString())
-                        .Item("ref_counter").Scalar(chunk->GetRefCounter())
+                        .Item("ref_counter").Scalar(chunk->GetObjectRefCounter())
                         .Item("stored_locations").DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, THolderId holderId)
                             {
                                 const auto& holder = ChunkManager->GetHolder(holderId);
@@ -226,7 +227,7 @@ private:
             {
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("ref_counter").Scalar(chunkList->GetRefCounter())
+                        .Item("ref_counter").Scalar(chunkList->GetObjectRefCounter())
                         .Item("children_ids").DoListFor(chunkList->ChildrenIds(), [=] (TFluentList fluent, TChunkId childId)
                             {
                                 fluent.Item().Scalar(childId.ToString());
@@ -506,7 +507,10 @@ INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
     YASSERT(cypressManager);
     YASSERT(chunkManager);
 
-    return New<THolderMapTypeHandler>(metaStateManager, cypressManager, chunkManager);
+    return New<THolderMapTypeHandler>(
+        metaStateManager,
+        cypressManager,
+        chunkManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

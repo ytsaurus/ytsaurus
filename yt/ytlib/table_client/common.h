@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-#include "../misc/common.h"
 #include "../logging/log.h"
 #include "../misc/configurable.h"
 

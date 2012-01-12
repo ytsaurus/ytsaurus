@@ -6,6 +6,7 @@
 #include "../meta_state/meta_state_manager.h"
 #include "../cypress/cypress_manager.h"
 #include "../cypress/node.h"
+#include <yt/ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NChunkServer {

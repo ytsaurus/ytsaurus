@@ -8,8 +8,9 @@
 namespace NYT {
 namespace NTableClient {
 
-using namespace NTransactionClient;
 using namespace NChunkClient;
+using namespace NTransactionServer;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,21 +1,21 @@
 #pragma once
 
-#include "common.h"
+#include "id.h"
 
-#include "../chunk_client/common.h"
-#include "../chunk_holder/chunk_holder_service_proxy.h"
+#include <yt/ytlib/misc/property.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): consider making it a full-fledged object
 struct TJob
 {
     TJob(
-        NChunkHolder::EJobType type,
-        const NChunkHolder::TJobId& jobId,
-        const NChunkClient::TChunkId& chunkId,
+        EJobType type,
+        const TJobId& jobId,
+        const TChunkId& chunkId,
         const Stroka& runnerAddress,
         const yvector<Stroka>& targetAddresses)
         : Type_(type)
@@ -46,10 +46,10 @@ struct TJob
         ::Save(output, TargetAddresses_);
     }
 
-    static TAutoPtr<TJob> Load(const NChunkHolder::TJobId& jobId, TInputStream* input)
+    static TAutoPtr<TJob> Load(const TJobId& jobId, TInputStream* input)
     {
-        NChunkHolder::EJobType type;
-        NChunkClient::TChunkId chunkId;
+        EJobType type;
+        TChunkId chunkId;
         Stroka runnerAddress;
         yvector<Stroka> targetAddresses;
         ::Load(input, type);
@@ -59,9 +59,9 @@ struct TJob
         return new TJob(type, jobId, chunkId, runnerAddress, targetAddresses);
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(NChunkHolder::EJobType, Type);
-    DEFINE_BYVAL_RO_PROPERTY(NChunkHolder::TJobId, JobId);
-    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
+    DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
     DEFINE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);
 };

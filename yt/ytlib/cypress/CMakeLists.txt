@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress )
 set( SRCS
   ${BASE}/common.cpp
+  ${BASE}/id.cpp
   ${BASE}/cypress_integration.cpp
   ${BASE}/cypress_manager.cpp
   ${BASE}/cypress_service.cpp
@@ -15,6 +16,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/common.h
+  ${BASE}/id.h
   ${BASE}/cypress_integration.h
   ${BASE}/cypress_manager.h
   ${BASE}/cypress_service.h

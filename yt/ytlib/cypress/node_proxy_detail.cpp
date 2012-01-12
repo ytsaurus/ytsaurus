@@ -7,6 +7,7 @@ namespace NCypress {
 
 using namespace NYTree;
 using namespace NRpc;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,16 +23,16 @@ TNodeFactory::TNodeFactory(
 TNodeFactory::~TNodeFactory()
 {
     FOREACH (const auto& nodeId, CreatedNodeIds) {
-        auto& impl = CypressManager->GetNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
-        impl.Unref();
+        CypressManager->GetObjectManager()->UnrefObject(nodeId);
     }
 }
 
 ICypressNodeProxy::TPtr TNodeFactory::DoCreate(ERuntimeNodeType type)
 {
     auto node = CypressManager->CreateNode(type, TransactionId);
-    node->GetImplForUpdate().Ref();
-    CreatedNodeIds.push_back(node->GetNodeId());
+    auto nodeId = node->GetNodeId();
+    CypressManager->GetObjectManager()->RefObject(nodeId);
+    CreatedNodeIds.push_back(nodeId);
     return node;
 }
 
@@ -464,7 +465,11 @@ TRootNodeProxy::TRootNodeProxy(
     TCypressManager* cypressManager,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
-    : TMapNodeProxy(typeHandler, cypressManager, transactionId, nodeId)
+    : TMapNodeProxy(
+        typeHandler,
+        cypressManager,
+        transactionId,
+        nodeId)
 { }
 
 IYPathService::TResolveResult TRootNodeProxy::ResolveRecursive(

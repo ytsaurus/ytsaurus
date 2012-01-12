@@ -88,10 +88,11 @@ public:
     {
         // Release the reference to the attributes, if any.
         if (node.GetAttributesId() != NullNodeId) {
-            auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-                node.GetAttributesId(),
-                NullTransactionId));
-            CypressManager->UnrefNode(attrImpl);
+            // TODO(babenko): fixme
+            //auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
+            //    node.GetAttributesId(),
+            //    NullTransactionId));
+            //CypressManager->UnrefNode(attrImpl);
         }
 
         DoDestroy(dynamic_cast<TImpl&>(node));
@@ -112,10 +113,11 @@ public:
 
         // Add a reference to the attributes, if any.
         if (committedNode.GetAttributesId() != NullNodeId) {
-            auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-                committedNode.GetAttributesId(),
-                NullTransactionId));
-            CypressManager->RefNode(attrImpl);
+            //auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
+            //    committedNode.GetAttributesId(),
+            //    NullTransactionId));
+            //CypressManager->RefNode(attrImpl);
+            // TODO(babenko): fixme
         }
 
         // Run custom branching.
@@ -133,10 +135,11 @@ public:
 
         // Drop the reference to attributes, if any.
         if (committedNode.GetAttributesId() != NullNodeId) {
-            auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-                committedNode.GetAttributesId(),
-                NullTransactionId));
-            CypressManager->UnrefNode(attrImpl);
+            //auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
+            //    committedNode.GetAttributesId(),
+            //    NullTransactionId));
+            //CypressManager->UnrefNode(attrImpl);
+            // TODO(babenko): fixme
         }
 
         // Replace the attributes with the branched copy.
@@ -263,9 +266,9 @@ public:
     virtual ERuntimeNodeType GetRuntimeType() const;
     virtual TBranchedNodeId GetId() const;
 
-    virtual i32 Ref();
-    virtual i32 Unref();
-    virtual i32 GetRefCounter() const;
+    virtual i32 RefObject();
+    virtual i32 UnrefObject();
+    virtual i32 GetObjectRefCounter() const;
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);
@@ -481,7 +484,8 @@ class TListNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TListNode>
 {
 public:
-    TListNodeTypeHandler(TCypressManager* cypressManager);
+    TListNodeTypeHandler(
+        TCypressManager* cypressManager);
 
     virtual ERuntimeNodeType GetRuntimeType();
     virtual NYTree::ENodeType GetNodeType();

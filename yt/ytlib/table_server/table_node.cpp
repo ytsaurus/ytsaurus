@@ -12,6 +12,7 @@ using namespace NCypress;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NChunkServer;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +55,7 @@ class TTableNodeTypeHandler
 public:
     TTableNodeTypeHandler(
         TCypressManager* cypressManager,
-        NChunkServer::TChunkManager* chunkManager)
+        TChunkManager* chunkManager)
         : TCypressNodeTypeHandlerBase<TTableNode>(cypressManager)
         , ChunkManager(chunkManager)
     {
@@ -90,8 +91,9 @@ public:
 
         // Create an empty chunk list and reference it from the node.
         auto& chunkList = ChunkManager->CreateChunkList();
-        ChunkManager->RefChunkTree(chunkList);
-        node->SetChunkListId(chunkList.GetId());
+        auto chunkListId = chunkList.GetId();
+        node->SetChunkListId(chunkListId);
+        CypressManager->GetObjectManager()->RefObject(chunkListId);
 
         return node.Release();
     }
@@ -111,7 +113,7 @@ public:
 protected:
     virtual void DoDestroy(TTableNode& node)
     {
-        ChunkManager->UnrefChunkTree(node.GetChunkListId());
+        CypressManager->GetObjectManager()->UnrefObject(node.GetChunkListId());
     }
 
     virtual void DoBranch(
@@ -122,13 +124,14 @@ protected:
         
         // Create composite chunk list and place it in the root of branchedNode.
         auto& compositeChunkList = ChunkManager->CreateChunkList();
-        branchedNode.SetChunkListId(compositeChunkList.GetId());
-        ChunkManager->RefChunkTree(compositeChunkList);
+        auto compositeChunkListId = compositeChunkList.GetId();
+        branchedNode.SetChunkListId(compositeChunkListId);
+        CypressManager->GetObjectManager()->RefObject(compositeChunkListId);
 
         // Make the original chunk list a child of the composite one.
         auto committedChunkListId = committedNode.GetChunkListId();
         compositeChunkList.ChildrenIds().push_back(committedChunkListId);
-        ChunkManager->RefChunkTree(committedChunkListId);
+        CypressManager->GetObjectManager()->RefObject(committedChunkListId);
     }
 
     virtual void DoMerge(
@@ -140,19 +143,20 @@ protected:
         // Obtain the chunk list of branchedNode.
         auto branchedChunkListId = branchedNode.GetChunkListId();
         auto& branchedChunkList = ChunkManager->GetChunkListForUpdate(branchedChunkListId);
-        YASSERT(branchedChunkList.GetRefCounter() == 1);
+        YASSERT(branchedChunkList.GetObjectRefCounter() == 1);
 
         // Replace the first child of the branched chunk list with the current chunk list of committedNode.
         YASSERT(branchedChunkList.ChildrenIds().size() >= 1);
         auto oldFirstChildId = branchedChunkList.ChildrenIds()[0];
         auto newFirstChildId = committedNode.GetChunkListId();
         branchedChunkList.ChildrenIds()[0] = newFirstChildId;
-        ChunkManager->RefChunkTree(newFirstChildId);
-        ChunkManager->UnrefChunkTree(oldFirstChildId);
+        CypressManager->GetObjectManager()->RefObject(newFirstChildId);
+        CypressManager->GetObjectManager()->UnrefObject(oldFirstChildId);
 
         // Replace the chunk list of committedNode.
+        auto committedNodeId = committedNode.GetId().NodeId;
         committedNode.SetChunkListId(branchedChunkListId);
-        ChunkManager->UnrefChunkTree(newFirstChildId);
+        CypressManager->GetObjectManager()->UnrefObject(newFirstChildId);
     }
 
 private:

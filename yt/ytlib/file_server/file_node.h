@@ -5,6 +5,7 @@
 #include "../misc/property.h"
 #include "../chunk_server/chunk_manager.h"
 #include "../cypress/node_detail.h"
+#include <yt/ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NFileServer {

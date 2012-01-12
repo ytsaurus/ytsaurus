@@ -303,13 +303,13 @@ protected:
     void AttachChild(ICypressNode& child)
     {
         child.SetParentId(NodeId);
-        CypressManager->RefNode(child);
+        CypressManager->GetObjectManager()->RefObject(child.GetId().NodeId);
     }
 
     void DetachChild(ICypressNode& child)
     {
         child.SetParentId(NullNodeId);
-        CypressManager->UnrefNode(child);
+        CypressManager->GetObjectManager()->UnrefObject(child.GetId().NodeId);
     }
 };
 

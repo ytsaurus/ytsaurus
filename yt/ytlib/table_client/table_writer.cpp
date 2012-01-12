@@ -83,7 +83,7 @@ void TTableWriter::Close()
     auto req = proxy.AttachChunkTrees();
     req->set_transaction_id(Transaction->GetId().ToProto());
     req->set_parent_id(ChunkListId.ToProto());
-    ToProto<NChunkClient::TChunkId, Stroka>(*req->mutable_chunk_tree_ids(), Writer->GetWrittenChunkIds());
+    ToProto<TChunkId, Stroka>(*req->mutable_chunk_tree_ids(), Writer->GetWrittenChunkIds());
     auto rsp = req->Invoke()->Get();
     if (!rsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error attaching chunks\n%s",

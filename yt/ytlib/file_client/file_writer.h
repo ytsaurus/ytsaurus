@@ -11,6 +11,7 @@
 #include "../chunk_client/remote_writer.h"
 #include "../chunk_server/chunk_service_proxy.h"
 #include "../logging/tagged_logger.h"
+#include <yt/ytlib/cypress/id.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -92,7 +93,7 @@ private:
 
     NChunkClient::TRemoteWriter::TPtr Writer;
     NCypress::TNodeId NodeId;
-    NChunkClient::TChunkId ChunkId;
+    NChunkServer::TChunkId ChunkId;
     ICodec* Codec;
 
     i64 Size;

@@ -11,6 +11,7 @@
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/meta_change.h"
 #include "../meta_state/map.h"
+#include <yt/ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -22,11 +23,11 @@ class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
     //! Called when a new transaction is started.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionStarted);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TTransaction&>, OnTransactionStarted);
     //! Called during transaction commit.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionCommitted);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TTransaction&>, OnTransactionCommitted);
     //! Called during transaction abort.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionAborted);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TTransaction&>, OnTransactionAborted);
 
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
@@ -46,8 +47,9 @@ public:
     //! Creates an instance.
     TTransactionManager(
         TConfig* config,
-        NMetaState::IMetaStateManager::TPtr metaStateManager,
-        NMetaState::TCompositeMetaState::TPtr metaState);
+        NMetaState::IMetaStateManager* metaStateManager,
+        NMetaState::TCompositeMetaState* metaState,
+        NObjectServer::TObjectManager* objectManager);
 
     NMetaState::TMetaChange<TTransactionId>::TPtr InitiateStartTransaction();
     TTransaction& StartTransaction();
@@ -64,10 +66,11 @@ public:
 
 private:
     typedef TTransactionManager TThis;
+    class TTypeHandler;
 
     TConfig::TPtr Config;
+    NObjectServer::TObjectManager::TPtr ObjectManager;
 
-    TIdGenerator<TTransactionId> TransactionIdGenerator;
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
 

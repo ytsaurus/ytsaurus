@@ -2,6 +2,9 @@
 #include "chunk_service.h"
 
 #include "../misc/string.h"
+#include <yt/ytlib/object_server/id.h>
+// TODO(babenko): fix this once ToString is moved to an appropriate place
+#include <yt/ytlib/chunk_holder/common.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -10,6 +13,7 @@ using namespace NRpc;
 using namespace NMetaState;
 using namespace NChunkHolder;
 using namespace NProto;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,19 +77,19 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
     }
 }
 
-void TChunkService::ValidateChunkTreeId(const TChunkTreeId& chunkTreeId)
+void TChunkService::ValidateChunkTreeId(const TChunkTreeId& treeId)
 {
-    auto kind = GetChunkTreeKind(chunkTreeId);
-    switch (kind) {
-        case EChunkTreeKind::Chunk:
-            ValidateChunkId(chunkTreeId);
+    auto type = TypeFromId(treeId);
+    switch (type) {
+        case EObjectType::Chunk:
+            ValidateChunkId(treeId);
             break;
-        case EChunkTreeKind::ChunkList:
-            ValidateChunkListId(chunkTreeId);
+        case EObjectType::ChunkList:
+            ValidateChunkListId(treeId);
             break;
         default:
             ythrow TServiceException(EErrorCode::NoSuchChunkTree) << 
-                Sprintf("No such chunk tree (ChunkTreeId: %s)", ~chunkTreeId.ToString());
+                Sprintf("No such chunk tree (ChunkTreeId: %s)", ~treeId.ToString());
     }
 }
 

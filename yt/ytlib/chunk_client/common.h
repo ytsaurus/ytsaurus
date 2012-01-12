@@ -3,8 +3,8 @@
 #include "../misc/common.h"
 #include "../misc/enum.h"
 #include "../misc/guid.h"
-
 #include "../logging/log.h"
+#include <yt/ytlib/chunk_server/id.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -15,14 +15,13 @@ extern NLog::TLogger ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NChunkServer::TChunkId;
+using NChunkServer::NullChunkId;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Represents an offset inside a chunk.
 typedef i64 TBlockOffset;
-
-//! Identifies a chunk.
-typedef TGuid TChunkId;
-
-//! Means "no chunk".
-extern TChunkId NullChunkId;
 
 DECLARE_ENUM(EChunkType,
     ((Unknown)(0))

@@ -1,9 +1,12 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
 
+#include <object_server/type_handler_detail.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
+using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NProto;
 
@@ -13,17 +16,34 @@ static NLog::TLogger& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTransactionManager::TTypeHandler
+    : public TObjectTypeHandlerBase<TTransaction>
+{
+public:
+    TTypeHandler(TTransactionManager* owner)
+        : TObjectTypeHandlerBase(&owner->TransactionMap)
+    { }
+
+    virtual EObjectType GetType()
+    {
+        return EObjectType::Transaction;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTransactionManager::TTransactionManager(
     TConfig* config,
-    IMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState)
+    IMetaStateManager* metaStateManager,
+    TCompositeMetaState* metaState,
+    TObjectManager* objectManager)
     : TMetaStatePart(metaStateManager, metaState)
     , Config(config)
-    // Some random number.
-    , TransactionIdGenerator(0x5fab718461fda630)
+    , ObjectManager(objectManager)
 {
     YASSERT(metaStateManager);
     YASSERT(metaState);
+    YASSERT(objectManager);
 
     RegisterMethod(this, &TThis::DoStartTransaction);
     RegisterMethod(this, &TThis::DoCommitTransaction);
@@ -37,6 +57,8 @@ TTransactionManager::TTransactionManager(
         FromMethod(&TTransactionManager::Save, TPtr(this)));
 
     metaState->RegisterPart(this);
+
+    objectManager->RegisterHandler(~New<TTypeHandler>(this));
 
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
 }
@@ -57,19 +79,22 @@ TTransaction& TTransactionManager::StartTransaction()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto id = TransactionIdGenerator.Next();
+    auto id = ObjectManager->GenerateId(EObjectType::Transaction);
 
     auto* transaction = new TTransaction(id);
     TransactionMap.Insert(id, transaction);
+    // Every active transaction has a fake reference to it.
+    ObjectManager->RefObject(id);
     
     if (IsLeader()) {
         CreateLease(*transaction);
     }
 
-    OnTransactionStarted_.Fire(*transaction);
-
+    transaction->SetState(ETransactionState::Active);
     LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s)",
         ~id.ToString());
+
+    OnTransactionStarted_.Fire(*transaction);
 
     return *transaction;
 }
@@ -96,17 +121,19 @@ TTransactionManager::InitiateCommitTransaction(const TTransactionId& id)
 
 void TTransactionManager::CommitTransaction(TTransaction& transaction)
 {
+    auto id = transaction.GetId();
+
     if (IsLeader()) {
         CloseLease(transaction);
     }
 
-    OnTransactionCommitted_.Fire(transaction);
-
-    auto id = transaction.GetId();
-    TransactionMap.Remove(id);
-
+    transaction.SetState(ETransactionState::Committed);
     LOG_INFO_IF(!IsRecovery(), "Transaction committed (TransactionId: %s)",
         ~id.ToString());
+
+    OnTransactionCommitted_.Fire(transaction);
+
+    ObjectManager->UnrefObject(id);
 }
 
 TVoid TTransactionManager::DoCommitTransaction(const TMsgCommitTransaction& message)
@@ -134,17 +161,19 @@ TTransactionManager::InitiateAbortTransaction(const TTransactionId& id)
 
 void TTransactionManager::AbortTransaction(TTransaction& transaction)
 {
+    auto id = transaction.GetId();
+
     if (IsLeader()) {
         CloseLease(transaction);
     }
 
-    OnTransactionAborted_.Fire(transaction);
-
-    auto id = transaction.GetId();
-    TransactionMap.Remove(id);
-
+    transaction.SetState(ETransactionState::Aborted);
     LOG_INFO_IF(!IsRecovery(), "Transaction aborted (TransactionId: %s)",
         ~id.ToString());
+
+    OnTransactionAborted_.Fire(transaction);
+
+    ObjectManager->UnrefObject(id);
 }
 
 TVoid TTransactionManager::DoAbortTransaction(const TMsgAbortTransaction& message)
@@ -172,13 +201,6 @@ TFuture<TVoid>::TPtr TTransactionManager::Save(const TCompositeMetaState::TSaveC
 
     auto* output = context.Output;
     auto invoker = context.Invoker;
-
-    auto transactionIdGenerator = TransactionIdGenerator;
-    invoker->Invoke(FromFunctor([=] ()
-        {
-            ::Save(output, transactionIdGenerator);
-        }));
-
     return TransactionMap.Save(invoker, output);
 }
 
@@ -186,7 +208,6 @@ void TTransactionManager::Load(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Load(input, TransactionIdGenerator);
     TransactionMap.Load(input);
 }
 
@@ -194,7 +215,6 @@ void TTransactionManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionIdGenerator.Reset();
     TransactionMap.Clear();
 }
 

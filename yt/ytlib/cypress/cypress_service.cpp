@@ -67,7 +67,8 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 
     ValidateTransactionId(transactionId);
 
-    auto rootNode = CypressManager->GetNodeProxy(RootNodeId, transactionId);
+    auto rootNodeId = CypressManager->GetRootNodeId();
+    auto rootNode = CypressManager->GetNodeProxy(rootNodeId, transactionId);
     auto rootService = IYPathService::FromNode(~rootNode);
 
     ExecuteVerb(

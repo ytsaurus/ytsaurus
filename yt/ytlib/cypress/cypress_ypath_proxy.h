@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "id.h"
 #include "cypress_ypath.pb.h"
 
 #include "../ytree/ypath_proxy.h"

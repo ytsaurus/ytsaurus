@@ -1,19 +1,28 @@
 #pragma once
 
 #include "common.h"
+#include "id.h"
 
-#include "../misc/property.h"
-#include "../chunk_server/common.h"
-#include "../cypress/common.h"
+#include <yt/ytlib/misc/property.h>
+#include <yt/ytlib/cypress/id.h>
+#include <yt/ytlib/chunk_server/id.h>
+#include <yt/ytlib/object_server/object.h>
 
 namespace NYT {
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(ETransactionState,
+    (Active)
+    (Committed)
+    (Aborted)
+);
+
 class TTransaction
+    : public NObjectServer::TObjectWithIdBase
 {
-    DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);
+    DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
 
     // Chunk Server stuff
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NChunkServer::TChunkTreeId>, UnboundChunkTreeIds);
@@ -33,6 +42,7 @@ public:
 
 private:
     TTransaction(const TTransaction& other);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,13 +24,13 @@ public:
 
     TSession(
         TSessionManager* sessionManager,
-        const NChunkClient::TChunkId& chunkId,
+        const TChunkId& chunkId,
         TLocation* location);
 
     ~TSession();
 
-    //! Returns TChunkId being uploaded.
-    NChunkClient::TChunkId GetChunkId() const;
+    //! Returns the TChunkId being uploaded.
+    TChunkId GetChunkId() const;
 
     //! Returns target chunk location.
     TLocation::TPtr GetLocation() const;
@@ -87,7 +87,7 @@ private:
     typedef yvector<TSlot> TWindow;
 
     TIntrusivePtr<TSessionManager> SessionManager;
-    NChunkClient::TChunkId ChunkId;
+    TChunkId ChunkId;
     TLocation::TPtr Location;
     
     TWindow Window;
@@ -152,7 +152,7 @@ public:
 
     //! Starts a new chunk upload session.
     TSession::TPtr StartSession(
-        const NChunkClient::TChunkId& chunkId);
+        const TChunkId& chunkId);
 
     //! Completes an earlier opened upload session.
     /*!
@@ -169,7 +169,7 @@ public:
     void CancelSession(TSession* session, const TError& error);
 
     //! Finds a session by TChunkId. Returns NULL when no session is found.
-    TSession::TPtr FindSession(const NChunkClient::TChunkId& chunkId) const;
+    TSession::TPtr FindSession(const TChunkId& chunkId) const;
 
     //! Returns the number of currently active session.
     int GetSessionCount() const;
@@ -185,7 +185,7 @@ private:
     TChunkStore::TPtr ChunkStore;
     IInvoker::TPtr ServiceInvoker;
 
-    typedef yhash_map<NChunkClient::TChunkId, TSession::TPtr> TSessionMap;
+    typedef yhash_map<TChunkId, TSession::TPtr> TSessionMap;
     TSessionMap SessionMap;
 
     void OnLeaseExpired(TSession::TPtr session);

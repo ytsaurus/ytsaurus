@@ -14,7 +14,7 @@ template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 TCypressServiceProxy::Execute(
     const NYTree::TYPath& path,
-    const NTransactionServer::TTransactionId& transactionId,
+    const TTransactionId& transactionId,
     TTypedRequest* innerRequest)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;

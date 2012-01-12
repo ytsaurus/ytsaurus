@@ -8,6 +8,7 @@ namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,19 +69,19 @@ TBranchedNodeId TCypressNodeBase::GetId() const
     return Id;
 }
 
-i32 TCypressNodeBase::Ref()
+i32 TCypressNodeBase::RefObject()
 {
     YASSERT(State_ != ENodeState::Branched);
     return ++RefCounter;
 }
 
-i32 TCypressNodeBase::Unref()
+i32 TCypressNodeBase::UnrefObject()
 {
     YASSERT(State_ != ENodeState::Branched);
     return --RefCounter;
 }
 
-i32 TCypressNodeBase::GetRefCounter() const
+i32 TCypressNodeBase::GetObjectRefCounter() const
 {
     return RefCounter;
 }
@@ -163,10 +164,7 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode& node)
 {
     // Drop references to the children.
     FOREACH (const auto& pair, node.NameToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            pair.Second(),
-            NullTransactionId));
-        CypressManager->UnrefNode(childImpl);
+        CypressManager->GetObjectManager()->UnrefObject(pair.second);
     }
 }
 
@@ -178,10 +176,7 @@ void TMapNodeTypeHandler::DoBranch(
 
     // Reference all children.
     FOREACH (const auto& pair, committedNode.NameToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            pair.Second(),
-            NullTransactionId));
-        CypressManager->RefNode(childImpl);
+        CypressManager->GetObjectManager()->RefObject(pair.second);
     }
 }
 
@@ -191,10 +186,7 @@ void TMapNodeTypeHandler::DoMerge(
 {
     // Drop all references held by the originator.
     FOREACH (const auto& pair, committedNode.NameToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            pair.Second(),
-            NullTransactionId));
-        CypressManager->UnrefNode(childImpl);
+        CypressManager->GetObjectManager()->UnrefObject(pair.second);
     }
 
     // Replace the child list with the branched copy.
@@ -290,10 +282,7 @@ void TListNodeTypeHandler::DoDestroy(TListNode& node)
 {
     // Drop references to the children.
     FOREACH (auto& nodeId, node.IndexToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            nodeId,
-            NullTransactionId));
-        CypressManager->UnrefNode(childImpl);
+        CypressManager->GetObjectManager()->UnrefObject(nodeId);
     }
 }
 
@@ -305,10 +294,7 @@ void TListNodeTypeHandler::DoBranch(
 
     // Reference all children.
     FOREACH (const auto& nodeId, committedNode.IndexToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            nodeId,
-            NullTransactionId));
-        CypressManager->RefNode(childImpl);
+        CypressManager->GetObjectManager()->RefObject(nodeId);
     }
 }
 
@@ -318,10 +304,7 @@ void TListNodeTypeHandler::DoMerge(
 {
     // Drop all references held by the originator.
     FOREACH (const auto& nodeId, committedNode.IndexToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            nodeId,
-            NullTransactionId));
-        CypressManager->UnrefNode(childImpl);
+        CypressManager->GetObjectManager()->UnrefObject(nodeId);
     }
 
     // Replace the child list with the branched copy.

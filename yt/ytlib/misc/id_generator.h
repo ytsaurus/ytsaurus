@@ -7,9 +7,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
-    template <class T>
-    class TIdGenerator;
-}
+
+template <class T>
+class TIdGenerator;
+
+} // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 void Save(TOutputStream* output, const NYT::TIdGenerator<T>& generator);
@@ -20,8 +24,6 @@ void Load(TInputStream* input, NYT::TIdGenerator<T>& generator);
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
 
 //! Generates a consequent deterministic ids of a given numeric type.
 /*! 
@@ -63,56 +65,6 @@ private:
     friend void ::Load<>(TInputStream* input, TThis& generator);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-//! A specialization for TGuid type.
-/*!
- *  The implementation keeps an auto-incrementing <tt>ui64</tt> counter in
- *  the lower part of the TGuid and some hash in the upper part.
- *  TODO(babenko): fix doc
- */
-template <>
-class TIdGenerator<TGuid>
-{
-public:
-    typedef TIdGenerator<TGuid> TThis;
-
-    TIdGenerator(ui64 seed)
-        : SeedLo(seed & 0xffffffff)
-        , SeedHi(seed >> 32)
-        , Current(1)
-    { }
-
-    TGuid Next()
-    {
-        ui64 counter = static_cast<ui64>(AtomicIncrement(Current));
-        ui32 hash = MurmurHash<ui32>(&counter, sizeof (counter), SeedLo);
-        return TGuid(
-            counter >> 32,
-            counter & 0xffffffff,
-            hash,
-            SeedHi);
-    }
-
-    void Reset()
-    {
-        Current = 0;
-    }
-
-    static bool IsValid(const TGuid& id, ui64 seed)
-    {
-        return id.Parts[3] == (seed >> 32);
-    }
-
-private:
-    ui32 SeedLo;
-    ui32 SeedHi;
-    TAtomic Current;
-
-    friend void ::Save<>(TOutputStream* output, const TThis& generator);
-    friend void ::Load<>(TInputStream* input, TThis& generator);
-};
-
 } // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,7 +87,3 @@ void Load(TInputStream* input, NYT::TIdGenerator<T>& generator)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
-
-

@@ -37,7 +37,7 @@ public:
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
         const NYTree::TYPath& path,
-        const NTransactionServer::TTransactionId& transactionId,
+        const TTransactionId& transactionId,
         TTypedRequest* innerRequest);
 
 };

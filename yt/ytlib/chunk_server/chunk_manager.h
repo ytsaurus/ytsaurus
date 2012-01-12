@@ -13,6 +13,7 @@
 #include "../meta_state/composite_meta_state.h"
 #include "../meta_state/meta_change.h"
 #include "../transaction_server/transaction_manager.h"
+#include <yt/ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -43,7 +44,8 @@ public:
         NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
         NTransactionServer::TTransactionManager* transactionManager,
-        IHolderRegistry* holderRegistry);
+        IHolderRegistry* holderRegistry,
+        NObjectServer::TObjectManager* objectManager);
 
     // TODO: provide Stop method
 
@@ -78,7 +80,7 @@ public:
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
     DECLARE_METAMAP_ACCESSORS(Holder, THolder, THolderId);
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
-    DECLARE_METAMAP_ACCESSORS(Job, TJob, NChunkHolder::TJobId);
+    DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
     //! Fired when a holder gets registered.
     /*!
@@ -100,20 +102,11 @@ public:
 
     TChunkList& CreateChunkList();
 
-    void RefChunkTree(const TChunkTreeId& treeId);
-    void UnrefChunkTree(const TChunkTreeId& treeId);
-
-    void RefChunkTree(TChunk& chunk);
-    void UnrefChunkTree(TChunk& chunk);
-
-    void RefChunkTree(TChunkList& chunkList);
-    void UnrefChunkTree(TChunkList& chunkList);
-
     void RunJobControl(
         const THolder& holder,
         const yvector<TJobInfo>& runningJobs,
         yvector<TJobStartInfo>* jobsToStart,
-        yvector<NChunkHolder::TJobId>* jobsToStop);
+        yvector<TJobId>* jobsToStop);
 
     //! Fills a given protobuf structure with the list of holder addresses.
     /*!
@@ -129,6 +122,8 @@ public:
 
 private:
     class TImpl;
+    class TChunkTypeHandler;
+    class TChunkListTypeHandler;
     
     TConfig::TPtr Config;
     TIntrusivePtr<TImpl> Impl;

@@ -11,7 +11,6 @@ namespace NTransactionServer {
 
 using namespace NYTree;
 using namespace NCypress;
-using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +38,7 @@ private:
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
-        auto id = TChunkId::FromString(key);
+        auto id = TTransactionId::FromString(key);
         auto* transaction = TransactionManager->FindTransaction(id);
         if (!transaction) {
             return NULL;

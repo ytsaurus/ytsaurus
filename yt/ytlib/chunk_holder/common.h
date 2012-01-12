@@ -12,9 +12,17 @@
 #include "../election/leader_lookup.h"
 #include "../misc/guid.h"
 #include "../logging/log.h"
+#include <yt/ytlib/chunk_server/id.h>
 
 namespace NYT {
 namespace NChunkHolder {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NChunkServer::TChunkId;
+using NChunkServer::TJobId;
+using NChunkServer::EJobType;
+using NChunkServer::EJobState;
 
 ////////////////////////////////////////////////////////////////////////////////
 

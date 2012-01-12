@@ -1,18 +1,13 @@
 #pragma once
 
-#include "common.h"
+#include "id.h"
 
 #include "../misc/property.h"
 #include "../ytree/ytree.h"
 #include "../ytree/ypath_service.h"
-#include "../transaction_server/common.h"
 
 namespace NYT {
 namespace NCypress {
-
-// TODO: get rid
-using NTransactionServer::TTransactionId;
-using NTransactionServer::NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -242,11 +237,11 @@ struct ICypressNode
     virtual yhash_set<TLockId>& LockIds() = 0;
 
     //! Increments the reference counter, returns the incremented value.
-    virtual i32 Ref() = 0;
+    virtual i32 RefObject() = 0;
     //! Decrements the reference counter, returns the decremented value.
-    virtual i32 Unref() = 0;
+    virtual i32 UnrefObject() = 0;
     //! Returns the current reference counter value.
-    virtual i32 GetRefCounter() const = 0;
+    virtual i32 GetObjectRefCounter() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

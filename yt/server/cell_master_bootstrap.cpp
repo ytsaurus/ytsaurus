@@ -8,6 +8,8 @@
 #include <yt/ytlib/meta_state/composite_meta_state.h>
 #include <yt/ytlib/meta_state/persistent_state_manager.h>
 
+#include <yt/ytlib/object_server/object_manager.h>
+
 #include <yt/ytlib/transaction_server/transaction_manager.h>
 #include <yt/ytlib/transaction_server/transaction_service.h>
 #include <yt/ytlib/transaction_server/cypress_integration.h>
@@ -69,10 +71,11 @@ using NMetaState::TCompositeMetaState;
 using NMetaState::EPeerStatus;
 using NMetaState::IMetaStateManager;
 
+using NObjectServer::TObjectManager;
+
 using NCypress::TCypressManager;
 using NCypress::TCypressService;
 using NCypress::CreateLockMapTypeHandler;
-using NCypress::RootNodeId;
 
 using NMonitoring::TMonitoringManager;
 using NMonitoring::GetYPathHttpHandler;
@@ -120,10 +123,16 @@ void TCellMasterBootstrap::Run()
         ~metaState,
         ~rpcServer);
 
+    auto objectManager = New<TObjectManager>(
+        ~metaStateManager,
+        ~metaState,
+        Config->CellId);
+
     auto transactionManager = New<TTransactionManager>(
-        ~New<TTransactionManager::TConfig>(),
-        metaStateManager,
-        metaState);
+        ~Config->TransactionManager,
+        ~metaStateManager,
+        ~metaState,
+        ~objectManager);
 
     auto transactionService = New<TTransactionService>(
         ~metaStateManager,
@@ -133,7 +142,8 @@ void TCellMasterBootstrap::Run()
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
         ~metaState,
-        ~transactionManager);
+        ~transactionManager,
+        ~objectManager);
 
     auto cypressService = New<TCypressService>(
         ~metaStateManager->GetStateInvoker(),
@@ -148,7 +158,8 @@ void TCellMasterBootstrap::Run()
         ~metaStateManager,
         ~metaState,
         ~transactionManager,
-        ~holderRegistry);
+        ~holderRegistry,
+        ~objectManager);
 
     auto chunkService = New<TChunkService>(
         ~metaStateManager,
@@ -188,42 +199,42 @@ void TCellMasterBootstrap::Run()
         ~controlQueue->GetInvoker());
     rpcServer->RegisterService(~orchidRpcService);
 
-    cypressManager->RegisterNodeType(~CreateChunkMapTypeHandler(
+    cypressManager->RegisterHandler(~CreateChunkMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateLostChunkMapTypeHandler(
+    cypressManager->RegisterHandler(~CreateLostChunkMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateOverreplicatedChunkMapTypeHandler(
+    cypressManager->RegisterHandler(~CreateOverreplicatedChunkMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateUnderreplicatedChunkMapTypeHandler(
+    cypressManager->RegisterHandler(~CreateUnderreplicatedChunkMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateChunkListMapTypeHandler(
+    cypressManager->RegisterHandler(~CreateChunkListMapTypeHandler(
         ~cypressManager,
         ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateTransactionMapTypeHandler(
+    cypressManager->RegisterHandler(~CreateTransactionMapTypeHandler(
         ~cypressManager,
         ~transactionManager));
-    cypressManager->RegisterNodeType(~CreateNodeMapTypeHandler(
+    cypressManager->RegisterHandler(~CreateNodeMapTypeHandler(
         ~cypressManager));
-    cypressManager->RegisterNodeType(~CreateLockMapTypeHandler(
+    cypressManager->RegisterHandler(~CreateLockMapTypeHandler(
         ~cypressManager));
-    cypressManager->RegisterNodeType(~CreateOrchidTypeHandler(
+    cypressManager->RegisterHandler(~CreateOrchidTypeHandler(
         ~cypressManager));
-    cypressManager->RegisterNodeType(~CreateHolderTypeHandler(
+    cypressManager->RegisterHandler(~CreateHolderTypeHandler(
         ~cypressManager,
         ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateHolderMapTypeHandler(
+    cypressManager->RegisterHandler(~CreateHolderMapTypeHandler(
         ~metaStateManager,
         ~cypressManager,
         ~chunkManager));
 
-    cypressManager->RegisterNodeType(~CreateFileTypeHandler(
+    cypressManager->RegisterHandler(~CreateFileTypeHandler(
         ~cypressManager,
         ~chunkManager));
-    cypressManager->RegisterNodeType(~CreateTableTypeHandler(
+    cypressManager->RegisterHandler(~CreateTableTypeHandler(
         ~cypressManager,
         ~chunkManager));
 
@@ -250,7 +261,7 @@ void TCellMasterBootstrap::Run()
                         return NULL;
                     }
                     return IYPathService::FromNode(~cypressManager->GetNodeProxy(
-                        RootNodeId,
+                        cypressManager->GetRootNodeId(),
                         NTransactionServer::NullTransactionId));
                 }),
             ~metaStateManager->GetStateInvoker()));

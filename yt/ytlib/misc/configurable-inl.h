@@ -50,6 +50,12 @@ inline void Read(i32& parameter, const NYTree::INode* node, const NYTree::TYPath
     parameter = CheckedStaticCast<i32>(node->AsInt64()->GetValue());
 }
 
+// ui16
+inline void Read(ui16& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
+{
+    parameter = CheckedStaticCast<ui16>(node->AsInt64()->GetValue());
+}
+
 // ui32
 inline void Read(ui32& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {

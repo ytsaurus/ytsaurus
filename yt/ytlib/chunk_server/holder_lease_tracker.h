@@ -4,6 +4,9 @@
 
 #include "../misc/lease_manager.h"
 
+// TODO(babenko): get rid
+#include "common.h"
+
 namespace NYT {
 namespace NChunkServer {
 

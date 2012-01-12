@@ -247,7 +247,7 @@ TGuid TGuid::Create()
 Stroka TGuid::ToString() const
 {
     char buf[1000];
-    sprintf(buf, "%x-%x-%x-%x", Parts[0], Parts[1], Parts[2], Parts[3]);
+    sprintf(buf, "%x-%x-%x-%x", Parts[3], Parts[2], Parts[1], Parts[0]);
     return buf;
 }
 
@@ -265,25 +265,26 @@ bool TGuid::FromString(const Stroka &str, TGuid* guid)
     if(sscanf(
         str.c_str(),
         "%x-%x-%x-%x",
-        &guid->Parts[0], &guid->Parts[1], &guid->Parts[2], &guid->Parts[3]) != 4)
+        &guid->Parts[3],
+        &guid->Parts[2],
+        &guid->Parts[1],
+        &guid->Parts[0]) != 4)
     {
         return false;
     }
     return true;
 }
 
-// we store TGuid in "bytes" protobuf type which is mapped to Stroka
+// We store TGuid in "bytes" protobuf type which is mapped to Stroka
 TGuid TGuid::FromProto(const Stroka& protoGuid)
 {
+    YASSERT(protoGuid.length() == sizeof (TGuid));
     return *(TGuid*) protoGuid.data();
 }
 
 Stroka TGuid::ToProto() const
 {
-    Stroka protoGuid;
-    const char* p = (const char*) this;
-    protoGuid.assign(p, p + sizeof(TGuid));
-    return protoGuid;
+    return Stroka((const char*) this, sizeof (TGuid));
 }
 
 bool operator == (const TGuid& lhs, const TGuid& rhs)
