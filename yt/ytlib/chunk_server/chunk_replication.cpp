@@ -153,8 +153,8 @@ void TChunkReplication::ProcessExistingJobs(
                     LOG_INFO("Job duration limit exceeded (JobId: %s, HolderId: %d, Duration: %d ms, MaxJobDuration: %d ms)",
                         ~jobId.ToString(),
                         holder.GetId(),
-                        (TInstant::Now() - job->GetStartTime()).MilliSeconds(),
-                        ChunkManager->Config->MaxJobDuration.MilliSeconds());
+                        static_cast<i64>((TInstant::Now() - job->GetStartTime()).MilliSeconds()),
+                        static_cast<i64>(ChunkManager->Config->MaxJobDuration.MilliSeconds()));
                 }
                 break;
 
