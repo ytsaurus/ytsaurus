@@ -46,11 +46,6 @@ public:
         , BlockStore(blockStore)
     {
         MasterChannel = CreateCellChannel(~config->Masters);
-
-        if (Config->CacheRemoteReader->PublishPeer) {
-            // TODO(babenko): refactor
-            Config->CacheRemoteReader->PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
-        }
     }
 
     void Register(TCachedChunk* chunk)

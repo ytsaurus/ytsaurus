@@ -479,7 +479,15 @@ private:
                     blockIndex);
                 auto block = response->Attachments()[index];
                 YASSERT(block);
-                Reader->BlockCache->Put(blockId, block, address);
+                
+                // If we don't publish peer we should forget source address
+                // to avoid updating peer in TPeerUpdater.
+                Stroka source;
+                if (Reader->Config->PublishPeer) {
+                    source = address;
+                }
+                Reader->BlockCache->Put(blockId, block, source);
+                
                 YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
                 ++receivedBlockCount;
             } else if (Reader->Config->FetchFromPeers) {

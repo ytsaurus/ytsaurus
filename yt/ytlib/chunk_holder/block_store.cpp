@@ -182,6 +182,17 @@ private:
 
         LOG_DEBUG("Finished loading block into cache (BlockId: %s)", ~blockId.ToString());
     }
+
+    void UpdatePeer()
+    {
+        auto blocks = GetAll();
+        FOREACH (const auto& block, blocks) {
+            auto source = block->Source();
+            if (!source.empty()) {
+                
+            }
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -249,6 +260,11 @@ i64 TBlockStore::GetPendingReadSize() const
 IBlockCache* TBlockStore::GetBlockCache()
 {
     return ~CacheImpl;
+}
+
+yvector<TCachedBlock::TPtr> TBlockStore::GetAllBlocks() const
+{
+    return StoreImpl->GetAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -85,6 +85,15 @@ struct TChunkHolderConfig
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
+    //! Period between peer updates (see TPeerUpdater).
+    TDuration PeerUpdatePeriod;
+
+    //! Updated expiration timeout (see TPeerUpdater).
+    TDuration PeerUpdateExpirationTimeout;
+
+    //! Peer address to publish. Not registered.
+    Stroka PeerAddress;
+
     i64 ResponseThrottlingSize;
 
     //! Regular storage locations.
@@ -103,8 +112,7 @@ struct TChunkHolderConfig
 
     //! Masters configuration.
     NElection::TLeaderLookup::TConfig::TPtr Masters;
-
-
+    
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -121,6 +129,8 @@ struct TChunkHolderConfig
         Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
         Register("rpc_port", RpcPort).Default(9000);
         Register("monitoring_port", MonitoringPort).Default(10000);
+        Register("peer_update_period", PeerUpdatePeriod).Default(TDuration::Seconds(30));
+        Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout).Default(TDuration::Seconds(40));
         Register("response_throttling_size", ResponseThrottlingSize).GreaterThan(0).Default(500 * 1024 * 1024);
         Register("chunk_store_locations", ChunkStorageLocations).NonEmpty();
         Register("chunk_cache_location", ChunkCacheLocation);

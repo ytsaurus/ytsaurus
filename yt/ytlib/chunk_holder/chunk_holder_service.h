@@ -67,6 +67,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, PingSession);
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkInfo);
     DECLARE_RPC_SERVICE_METHOD(NProto, PrecacheChunk);
+    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, UpdatePeer);
 
     void ValidateNoSession(const NChunkClient::TChunkId& chunkId);
     void ValidateNoChunk(const NChunkClient::TChunkId& chunkId);

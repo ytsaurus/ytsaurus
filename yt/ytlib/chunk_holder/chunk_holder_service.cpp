@@ -65,6 +65,7 @@ TChunkHolderService::TChunkHolderService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkInfo));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
+    RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(UpdatePeer));
 }
 
 // Do not remove this!
@@ -387,6 +388,18 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
                         ~result.ToString()));
             }
         }));
+}
+
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
+{
+    TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
+
+    FOREACH (const auto& block_id, request->block_ids()) {
+        TBlockId blockId(TGuid::FromProto(block_id.chunk_id()), block_id.block_index());
+        BlockTable->UpdatePeer(blockId, peer);
+    }
+
+    // TODO: add logging
 }
 
 ////////////////////////////////////////////////////////////////////////////////
