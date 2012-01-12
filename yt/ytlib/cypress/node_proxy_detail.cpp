@@ -476,7 +476,7 @@ IYPathService::TResolveResult TRootNodeProxy::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
 {
-    if (path.empty() || path[0] != NodeIdMarker) {
+    if (path.empty() || path[0] != ObjectIdMarker) {
         return TMapNodeProxy::ResolveRecursive(path, verb);
     }
 

@@ -2,6 +2,7 @@
 #include "transaction_manager.h"
 
 #include "../transaction_server/transaction_service_proxy.h"
+#include <yt/ytlib/cypress/cypress_ypath_proxy.h>
 #include "../actions/signal.h"
 #include "../misc/assert.h"
 #include "../misc/property.h"
@@ -10,6 +11,9 @@
 
 namespace NYT {
 namespace NTransactionClient {
+
+using namespace NCypress;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +40,10 @@ public:
 
         Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
 
-        auto req = Proxy.StartTransaction();
+        // TODO(babenko): refactor
+        TTransactionServiceProxy proxy2(cellChannel);
+        proxy2.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
+        auto req = proxy2.StartTransaction();
 
         LOG_INFO("Starting transaction");
         auto rsp = req->Invoke()->Get();
@@ -80,11 +87,13 @@ public:
 
         MakeStateTransition(EState::Committing);
 
-        auto req = Proxy.CommitTransaction();
-        req->set_transaction_id(Id.ToProto());
-
         LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
-        auto rsp = req->Invoke()->Get();
+
+        auto req = TTransactionYPathProxy::Commit();
+        auto rsp = Proxy.Execute(
+            YPathFromObjectId(Id),
+            NullTransactionId,
+            ~req)->Get();
 
         TGuard<TSpinLock> guard(SpinLock);
         if (!rsp->IsOK()) {
@@ -111,9 +120,11 @@ public:
         MakeStateTransition(EState::Aborted);
 
         // Fire and forget.
-        auto req = Proxy.AbortTransaction();
-        req->set_transaction_id(Id.ToProto());
-        req->Invoke();
+        auto req = TTransactionYPathProxy::Abort();
+        Proxy.Execute(
+            YPathFromObjectId(Id),
+            NullTransactionId,
+            ~req);
 
         DoAbort();
 
@@ -170,7 +181,7 @@ private:
     );
 
     TTransactionManager::TPtr TransactionManager;
-    TProxy Proxy;
+    TCypressServiceProxy Proxy;
 
     //! Protects state transitions.
     TSpinLock SpinLock;
@@ -224,8 +235,11 @@ TTransactionManager::TTransactionManager(
     NRpc::IChannel* channel)
     : Config(config)
     , Channel(channel)
+    , CypressProxy(channel)
 {
     YASSERT(channel);
+
+    CypressProxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
 ITransaction::TPtr TTransactionManager::Start()
@@ -245,15 +259,14 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
             return;
     }
 
-    TProxy proxy(~Channel);
-    proxy.SetTimeout(Config->MasterRpcTimeout);
-
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 
-    auto req = proxy.RenewTransactionLease();
-    req->set_transaction_id(id.ToProto());
-
-    req->Invoke()->Subscribe(FromMethod(
+    auto req = TTransactionYPathProxy::RenewLease();
+    CypressProxy.Execute(
+        YPathFromObjectId(id),
+        NullTransactionId,
+        ~req)
+    ->Subscribe(FromMethod(
         &TTransactionManager::OnPingResponse,
         TPtr(this), 
         id));
@@ -272,7 +285,7 @@ void TTransactionManager::UnregisterTransaction(const TTransactionId& id)
 }
 
 void TTransactionManager::OnPingResponse(
-    TProxy::TRspRenewTransactionLease::TPtr rsp,
+    TTransactionYPathProxy::TRspRenewLease::TPtr rsp,
     const TTransactionId& id)
 {
     TTransaction::TPtr transaction;
@@ -288,7 +301,7 @@ void TTransactionManager::OnPingResponse(
         return;
 
     if (!rsp->IsOK()) {
-        if (rsp->GetErrorCode() == TProxy::EErrorCode::NoSuchTransaction) {
+        if (rsp->GetErrorCode() == NYTree::EYPathErrorCode::ResolveError) {
             LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
                 ~id.ToString());
             transaction->AsyncAbort();

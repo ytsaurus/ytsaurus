@@ -7,16 +7,17 @@ namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char NodeIdMarker = '#';
+const char ObjectIdMarker = '#';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath YPathFromNodeId(const TNodeId& nodeId)
+TYPath YPathFromObjectId(const TObjectId& id)
 {
-    return YPathRoot + NodeIdMarker + nodeId.ToString();
+    return YPathRoot + ObjectIdMarker + id.ToString();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

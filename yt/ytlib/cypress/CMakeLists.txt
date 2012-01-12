@@ -6,7 +6,7 @@ set( SRCS
   ${BASE}/cypress_integration.cpp
   ${BASE}/cypress_manager.cpp
   ${BASE}/cypress_service.cpp
-  ${BASE}/cypress_ypath_rpc.cpp
+  ${BASE}/cypress_ypath_proxy.cpp
   ${BASE}/lock.cpp
   ${BASE}/node.cpp
   ${BASE}/node_detail.cpp

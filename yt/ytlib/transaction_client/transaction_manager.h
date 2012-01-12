@@ -6,6 +6,8 @@
 #include "../misc/configurable.h"
 #include "../rpc/channel.h"
 #include "../transaction_server/transaction_service_proxy.h"
+#include <yt/ytlib/cypress/cypress_service_proxy.h>
+#include <yt/ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -32,13 +34,6 @@ public:
         TDuration PingPeriod;
 
         //! A timeout for RPC requests to masters.
-        /*! 
-         *  Particularly useful for
-         *  #NTransactionServer::TTransactionServiceProxy::StartTransaction,
-         *  #NTransactionServer::TTransactionServiceProxy::CommitTransaction and
-         *  #NTransactionServer::TTransactionServiceProxy::AbortTransaction calls
-         *  since they are done synchronously.
-         */
         TDuration MasterRpcTimeout;
 
         TConfig()
@@ -66,11 +61,9 @@ public:
     ITransaction::TPtr Start();
 
 private:
-    typedef NTransactionServer::TTransactionServiceProxy TProxy;
-
     void PingTransaction(const TTransactionId& transactionId);
     void OnPingResponse(
-        TProxy::TRspRenewTransactionLease::TPtr rsp,
+        NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp,
         const TTransactionId& id);
 
     class TTransaction;
@@ -82,6 +75,7 @@ private:
 
     TConfig::TPtr Config;
     NRpc::IChannel::TPtr Channel;
+    NCypress::TCypressServiceProxy CypressProxy;
 
     TSpinLock SpinLock;
     TTransactionMap TransactionMap;

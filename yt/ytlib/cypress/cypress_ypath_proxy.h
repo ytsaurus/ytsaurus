@@ -4,6 +4,7 @@
 #include "cypress_ypath.pb.h"
 
 #include "../ytree/ypath_proxy.h"
+#include <yt/ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NCypress {
@@ -17,9 +18,11 @@ struct TCypressYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, Create);
 };
 
-extern const char NodeIdMarker;
+////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TYPath YPathFromNodeId(const TNodeId& nodeId);
+extern const char ObjectIdMarker;
+
+NYTree::TYPath YPathFromObjectId(const NObjectServer::TObjectId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
