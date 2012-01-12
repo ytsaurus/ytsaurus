@@ -2,7 +2,7 @@
 #include "json_adapter.h"
 #include "null_yson_consumer.h"
 
-#include <yt/ytlib/misc/assert.h>
+#include <ytlib/misc/assert.h>
 
 #include <library/json/json_writer.h>
 

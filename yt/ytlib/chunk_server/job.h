@@ -2,7 +2,7 @@
 
 #include "id.h"
 
-#include <yt/ytlib/misc/property.h>
+#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NChunkServer {

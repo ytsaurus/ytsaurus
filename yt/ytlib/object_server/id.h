@@ -2,8 +2,8 @@
 
 #include "common.h"
 
-#include <yt/ytlib/misc/enum.h>
-#include <yt/ytlib/misc/guid.h>
+#include <ytlib/misc/enum.h>
+#include <ytlib/misc/guid.h>
 
 namespace NYT {
 namespace NObjectServer {

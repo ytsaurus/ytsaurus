@@ -2,8 +2,8 @@
 
 #include "id.h"
 
-#include <yt/ytlib/ytree/ytree.h>
-#include <yt/ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NCypress {

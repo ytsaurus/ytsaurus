@@ -1,22 +1,22 @@
 #include "stdafx.h"
 #include "scheduler_bootstrap.h"
 
-#include <yt/ytlib/bus/nl_server.h>
+#include <ytlib/bus/nl_server.h>
 
-#include <yt/ytlib/ytree/tree_builder.h>
-#include <yt/ytlib/ytree/ephemeral.h>
-#include <yt/ytlib/ytree/virtual.h>
+#include <ytlib/ytree/tree_builder.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/virtual.h>
 
-#include <yt/ytlib/orchid/orchid_service.h>
+#include <ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/monitoring/monitoring_manager.h>
-#include <yt/ytlib/monitoring/ytree_integration.h>
-#include <yt/ytlib/monitoring/http_server.h>
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/statlog.h>
+#include <ytlib/monitoring/monitoring_manager.h>
+#include <ytlib/monitoring/ytree_integration.h>
+#include <ytlib/monitoring/http_server.h>
+#include <ytlib/monitoring/http_integration.h>
+#include <ytlib/monitoring/statlog.h>
 
-#include <yt/ytlib/ytree/yson_file_service.h>
-#include <yt/ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/yson_file_service.h>
+#include <ytlib/ytree/ypath_client.h>
 
 namespace NYT {
 

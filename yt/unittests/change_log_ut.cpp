@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/meta_state/change_log.h"
+#include <ytlib/meta_state/change_log.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>

@@ -5,7 +5,7 @@
 #include "foreach.h"
 #include "ref.h"
 
-#include <yt/ytlib/misc/assert.h>
+#include <ytlib/misc/assert.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/object_server/id.h>
+#include <ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NTransactionServer {

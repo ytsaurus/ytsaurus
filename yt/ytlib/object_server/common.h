@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/logging/log.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NObjectServer {

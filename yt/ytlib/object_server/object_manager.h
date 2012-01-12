@@ -3,8 +3,8 @@
 #include "common.h"
 #include "type_handler.h"
 
-#include <yt/ytlib/misc/thread_affinity.h>
-#include <yt/ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/meta_state/composite_meta_state.h>
 
 namespace NYT {
 namespace NObjectServer {

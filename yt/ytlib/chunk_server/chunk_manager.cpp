@@ -16,7 +16,7 @@
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
-#include <yt/ytlib/object_server/type_handler_detail.h>
+#include <ytlib/object_server/type_handler_detail.h>
 
 namespace NYT {
 namespace NChunkServer {

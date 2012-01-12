@@ -3,7 +3,7 @@
 #include "type_handler.h"
 #include "object_detail.h"
 
-#include <yt/ytlib/meta_state/map.h>
+#include <ytlib/meta_state/map.h>
 
 namespace NYT {
 namespace NObjectServer {

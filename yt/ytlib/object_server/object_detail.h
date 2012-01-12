@@ -3,9 +3,9 @@
 #include "id.h"
 #include "object_ypath.pb.h"
 
-#include <yt/ytlib/misc/property.h>
-#include <yt/ytlib/meta_state/map.h>
-#include <yt/ytlib/ytree/ypath_detail.h>
+#include <ytlib/misc/property.h>
+#include <ytlib/meta_state/map.h>
+#include <ytlib/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NObjectServer {

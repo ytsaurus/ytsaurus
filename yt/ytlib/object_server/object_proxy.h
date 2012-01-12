@@ -2,7 +2,7 @@
 
 #include "id.h"
 
-#include <yt/ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NObjectServer {

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/misc/preprocessor.h"
+#include <ytlib/misc/preprocessor.h>
 
 #include <contrib/testing/framework.h>
 

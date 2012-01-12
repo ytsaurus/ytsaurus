@@ -1,7 +1,7 @@
 #pragma once
 
-#include <yt/ytlib/object_server/id.h>
-#include <yt/ytlib/transaction_server/id.h>
+#include <ytlib/object_server/id.h>
+#include <ytlib/transaction_server/id.h>
 
 namespace NYT {
 namespace NCypress {

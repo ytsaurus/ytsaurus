@@ -4,8 +4,8 @@
 #include "transaction_manager.h"
 #include "transaction_ypath.pb.h"
 
-#include <yt/ytlib/object_server/object_detail.h>
-#include <yt/ytlib/ytree/ypath_service.h>
+#include <ytlib/object_server/object_detail.h>
+#include <ytlib/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NTransactionServer {

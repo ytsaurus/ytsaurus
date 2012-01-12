@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "holder.h"
 
-#include <yt/ytlib/misc/assert.h>
-#include <yt/ytlib/misc/serialize.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NChunkServer {

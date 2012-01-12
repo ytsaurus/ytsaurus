@@ -13,7 +13,7 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>
 #include <ytlib/transaction_server/transaction_manager.h>
-#include <yt/ytlib/object_server/object_manager.h>
+#include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NChunkServer {

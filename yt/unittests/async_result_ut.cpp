@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/actions/future.h"
+#include <ytlib/actions/future.h>
 
 #include <util/system/thread.h>
 

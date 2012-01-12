@@ -2,7 +2,7 @@
 
 #include "object_ypath.pb.h"
 
-#include <yt/ytlib/ytree/ypath_proxy.h>
+#include <ytlib/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NObjectServer {

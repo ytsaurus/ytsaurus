@@ -1,45 +1,45 @@
 #include "stdafx.h"
 #include "cell_master_bootstrap.h"
 
-#include <yt/ytlib/ytree/tree_builder.h>
-#include <yt/ytlib/ytree/ephemeral.h>
-#include <yt/ytlib/ytree/virtual.h>
+#include <ytlib/ytree/tree_builder.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/virtual.h>
 
-#include <yt/ytlib/meta_state/composite_meta_state.h>
-#include <yt/ytlib/meta_state/persistent_state_manager.h>
+#include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/persistent_state_manager.h>
 
-#include <yt/ytlib/object_server/object_manager.h>
+#include <ytlib/object_server/object_manager.h>
 
-#include <yt/ytlib/transaction_server/transaction_manager.h>
-#include <yt/ytlib/transaction_server/transaction_service.h>
-#include <yt/ytlib/transaction_server/cypress_integration.h>
+#include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/transaction_server/transaction_service.h>
+#include <ytlib/transaction_server/cypress_integration.h>
 
-#include <yt/ytlib/cypress/cypress_manager.h>
-#include <yt/ytlib/cypress/cypress_service.h>
-#include <yt/ytlib/cypress/cypress_integration.h>
+#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress/cypress_service.h>
+#include <ytlib/cypress/cypress_integration.h>
 
-#include <yt/ytlib/chunk_server/chunk_manager.h>
-#include <yt/ytlib/chunk_server/chunk_service.h>
-#include <yt/ytlib/chunk_server/cypress_integration.h>
+#include <ytlib/chunk_server/chunk_manager.h>
+#include <ytlib/chunk_server/chunk_service.h>
+#include <ytlib/chunk_server/cypress_integration.h>
 
-#include <yt/ytlib/monitoring/monitoring_manager.h>
-#include <yt/ytlib/monitoring/ytree_integration.h>
-#include <yt/ytlib/monitoring/http_server.h>
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/statlog.h>
+#include <ytlib/monitoring/monitoring_manager.h>
+#include <ytlib/monitoring/ytree_integration.h>
+#include <ytlib/monitoring/http_server.h>
+#include <ytlib/monitoring/http_integration.h>
+#include <ytlib/monitoring/statlog.h>
 
-#include <yt/ytlib/orchid/cypress_integration.h>
-#include <yt/ytlib/orchid/orchid_service.h>
+#include <ytlib/orchid/cypress_integration.h>
+#include <ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/file_server/file_node.h>
+#include <ytlib/file_server/file_node.h>
 
-#include <yt/ytlib/table_server/table_node.h>
+#include <ytlib/table_server/table_node.h>
 
-#include <yt/ytlib/ytree/yson_file_service.h>
-#include <yt/ytlib/ytree/ypath_service.h>
-#include <yt/ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/yson_file_service.h>
+#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/ypath_client.h>
 
-#include <yt/ytlib/bus/nl_server.h>
+#include <ytlib/bus/nl_server.h>
 
 namespace NYT {
 
