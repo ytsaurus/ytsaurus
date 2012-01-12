@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 
 #include <ytlib/misc/cache.h>
 #include <ytlib/chunk_client/block_cache.h>

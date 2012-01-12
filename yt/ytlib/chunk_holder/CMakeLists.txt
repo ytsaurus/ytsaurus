@@ -24,6 +24,7 @@ set( HDRS
   ${BASE}/chunk_registry.h
   ${BASE}/chunk_store.h
   ${BASE}/common.h
+  ${BASE}/config.h
   ${BASE}/job_executor.h
   ${BASE}/location.h
   ${BASE}/master_connector.h

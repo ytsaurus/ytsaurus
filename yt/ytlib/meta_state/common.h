@@ -18,7 +18,6 @@ extern NLog::TLogger MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: maybe remove this?
 using NElection::TPeerId;
 using NElection::TPeerPriority;
 using NElection::TEpoch;

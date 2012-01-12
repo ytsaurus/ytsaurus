@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 #include "chunk_holder_service_proxy.h"
 
 #include <ytlib/chunk_client/file_reader.h>

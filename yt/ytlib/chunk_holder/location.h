@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 
 #include <ytlib/logging/tagged_logger.h>
 
