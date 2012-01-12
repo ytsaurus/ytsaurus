@@ -7,6 +7,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
+#include <ytlib/chunk_client/block_id.h>
 
 namespace NYT {
 namespace NFileClient {

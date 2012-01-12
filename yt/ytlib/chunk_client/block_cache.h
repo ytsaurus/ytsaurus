@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "block_id.h"
 
 #include <ytlib/misc/ref.h>
 

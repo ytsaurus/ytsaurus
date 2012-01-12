@@ -7,6 +7,7 @@
 #include <ytlib/cypress/virtual.h>
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/chunk_client/block_id.h>
 
 namespace NYT {
 namespace NChunkServer {
