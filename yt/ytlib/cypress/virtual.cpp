@@ -156,7 +156,7 @@ public:
         UNUSED(transactionId);
 
         return new TVirtualNode(
-            TBranchedNodeId(nodeId, NullTransactionId),
+            nodeId,
             ObjectType,
             SerializeToYson(manifest));
     }

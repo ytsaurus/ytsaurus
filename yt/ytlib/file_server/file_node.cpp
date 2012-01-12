@@ -109,9 +109,7 @@ public:
             ythrow yexception() << Sprintf("Chunk is not confirmed (ChunkId: %s)", ~chunkId.ToString());
         }
 
-        TAutoPtr<TFileNode> node = new TFileNode(
-            TBranchedNodeId(nodeId, NullTransactionId),
-            GetObjectType());
+        TAutoPtr<TFileNode> node = new TFileNode(nodeId, GetObjectType());
 
         // File node references chunk list.
         auto& chunkList = ChunkManager->CreateChunkList();

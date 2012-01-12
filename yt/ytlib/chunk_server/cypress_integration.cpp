@@ -319,7 +319,7 @@ public:
     {
         UNUSED(transactionId);
         UNUSED(manifest);
-        return Create(TBranchedNodeId(nodeId, NullTransactionId));
+        return Create(nodeId);
     }
 
 private:
@@ -462,7 +462,7 @@ public:
     {
         UNUSED(transactionId);
         UNUSED(manifest);
-        return Create(TBranchedNodeId(nodeId, NullTransactionId));
+        return Create(nodeId);
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)

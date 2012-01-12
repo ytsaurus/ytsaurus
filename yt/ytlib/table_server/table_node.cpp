@@ -85,9 +85,7 @@ public:
         UNUSED(transactionId);
         UNUSED(manifest);
 
-        TAutoPtr<TTableNode> node = new TTableNode(
-            TBranchedNodeId(nodeId, NullTransactionId),
-            GetObjectType());
+        TAutoPtr<TTableNode> node = new TTableNode(nodeId, GetObjectType());
 
         // Create an empty chunk list and reference it from the node.
         auto& chunkList = ChunkManager->CreateChunkList();

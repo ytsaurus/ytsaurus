@@ -59,7 +59,7 @@ public:
 
     virtual bool Exists(const TObjectId& id)
     {
-        return Owner->FindNode(TBranchedNodeId(id, NullTransactionId)) != NULL;
+        return Owner->FindNode(id) != NULL;
     }
 
     virtual i32 RefObject(const TObjectId& id)
@@ -219,7 +219,7 @@ const ICypressNode* TCypressManager::FindTransactionNode(
     auto* impl = FindNode(TBranchedNodeId(nodeId, transactionId));
     if (!impl) {
         // Then try a non-branched one.
-        impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
+        impl = FindNode(nodeId);
     }
 
     return impl;
@@ -243,7 +243,7 @@ ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
     // Check if we're inside a transaction.
     // If not, find and return the non-branched node.
     if (transactionId == NullTransactionId) {
-        return FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        return FindNodeForUpdate(nodeId);
     }
 
     // Try to fetch a branched copy.
@@ -254,7 +254,7 @@ ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
     }
 
     // Then fetch an unbranched copy and check if we have a valid node at all.
-    auto* nonbranchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+    auto* nonbranchedImpl = FindNodeForUpdate(nodeId);
     if (!nonbranchedImpl) {
         return NULL;
     }
@@ -309,7 +309,7 @@ bool TCypressManager::IsLockNeeded(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     // Check if the node is still uncommitted.
-    const auto* impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
+    const auto* impl = FindNode(nodeId);
     if (impl && impl->GetState() == ENodeState::Uncommitted) {
         // No way to lock it anyway.
         return false;
@@ -318,7 +318,7 @@ bool TCypressManager::IsLockNeeded(
     // Walk up to the root and examine the locks.
     auto currentNodeId = nodeId;
     while (currentNodeId != NullNodeId) {
-        const auto& currentImpl = NodeMap.Get(TBranchedNodeId(currentNodeId, NullTransactionId));
+        const auto& currentImpl = NodeMap.Get(currentNodeId);
         FOREACH (const auto& lockId, currentImpl.LockIds()) {
             const auto& lock = GetLock(lockId);
             if (lock.GetTransactionId() == transactionId) {
@@ -346,7 +346,7 @@ TLockId TCypressManager::LockTransactionNode(
     YASSERT(transactionId != NullTransactionId);
 
     // NB: Locks are assigned to non-branched nodes.
-    const auto& impl = NodeMap.Get(TBranchedNodeId(nodeId, NullTransactionId));
+    const auto& impl = NodeMap.Get(nodeId);
 
     // Make sure that the node is committed.
     if (impl.GetState() != ENodeState::Committed) {
@@ -368,7 +368,7 @@ TLockId TCypressManager::LockTransactionNode(
     // Walk up to the root and apply locks.
     auto currentNodeId = nodeId;
     while (currentNodeId != NullNodeId) {
-        auto& impl = NodeMap.GetForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
+        auto& impl = NodeMap.GetForUpdate(currentNodeId);
         impl.LockIds().insert(lock.GetId());
         currentNodeId = impl.GetParentId();
     }
@@ -386,7 +386,7 @@ ICypressNodeProxy::TPtr TCypressManager::CreateNode(
 
     auto nodeId = ObjectManager->GenerateId(type);
 
-    TAutoPtr<ICypressNode> node = handler->Create(TBranchedNodeId(nodeId, NullTransactionId));
+    TAutoPtr<ICypressNode> node = handler->Create(nodeId);
 
     return RegisterNode(nodeId, transactionId, handler, node);
 }
@@ -443,7 +443,7 @@ ICypressNodeProxy::TPtr TCypressManager::RegisterNode(
 
     // Keep a pointer to the node (the ownership will be transferred to NodeMap).
     auto* node_ = ~node;
-    NodeMap.Insert(TBranchedNodeId(nodeId, NullTransactionId), node.Release());
+    NodeMap.Insert(nodeId, node.Release());
 
     LOG_INFO_IF(!IsRecovery(), "Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
         ~nodeId.ToString(),
@@ -654,7 +654,7 @@ i32 TCypressManager::RefNode(const TNodeId& nodeId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+    auto& node = NodeMap.GetForUpdate(nodeId);
     return node.RefObject();
 }
 
@@ -662,14 +662,14 @@ i32 TCypressManager::UnrefNode(const TNodeId& nodeId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+    auto& node = NodeMap.GetForUpdate(nodeId);
 
     i32 refCounter = node.UnrefObject();
     if (refCounter == 0) {
         DestroyNodeBehavior(node);
 
         GetHandler(node)->Destroy(node);
-        NodeMap.Remove(TBranchedNodeId(nodeId, NullTransactionId));
+        NodeMap.Remove(nodeId);
     }
 
     return refCounter;
@@ -677,7 +677,7 @@ i32 TCypressManager::UnrefNode(const TNodeId& nodeId)
 
 i32 TCypressManager::GetNodeRefCounter(const TNodeId& nodeId)
 {
-    const auto& node = NodeMap.Get(TBranchedNodeId(nodeId, NullTransactionId));
+    const auto& node = NodeMap.Get(nodeId);
     return node.GetObjectRefCounter();
 }
 
@@ -713,7 +713,7 @@ void TCypressManager::ReleaseLocks(TTransaction& transaction)
         // Walk up to the root and remove the locks.
         auto currentNodeId = lock.GetNodeId();
         while (currentNodeId != NullNodeId) {
-            auto& node = NodeMap.GetForUpdate(TBranchedNodeId(currentNodeId, NullTransactionId));
+            auto& node = NodeMap.GetForUpdate(currentNodeId);
             YVERIFY(node.LockIds().erase(lockId) == 1);
             currentNodeId = node.GetParentId();
         }
@@ -730,7 +730,7 @@ void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
 
     // Merge all branched nodes and remove them.
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        auto& node = NodeMap.GetForUpdate(nodeId);
         YASSERT(node.GetState() != ENodeState::Branched);
 
         auto& branchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transactionId));
@@ -776,7 +776,7 @@ void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.CreatedNodeIds()) {
-        auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, NullTransactionId));
+        auto& node = NodeMap.GetForUpdate(nodeId);
         node.SetState(ENodeState::Committed);
 
         LOG_INFO_IF(!IsRecovery(), "Node committed (NodeId: %s, TransactionId: %s)",

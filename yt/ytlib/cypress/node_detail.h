@@ -37,7 +37,7 @@ protected:
 
     TImpl& GetImpl()
     {
-        return CypressManager->GetNode(TBranchedNodeId(NodeId, NullTransactionId));
+        return CypressManager->GetNode(NodeId);
     }
 
     TIntrusivePtr<TProxy> GetProxy()

@@ -21,7 +21,17 @@ struct TBranchedNodeId
     //! #NullTransactionId if the node is not branched.
     TTransactionId TransactionId;
 
+    //! Initializes a null instance.
+    /*!
+     *  #NodeId id #NullNodeId, #TransactionId is #NullTransactionId.
+     */
     TBranchedNodeId();
+
+    //! Initializes an instance by given node. Sets #TransactionId to #NullTransactionId.
+    /*!
+     *  Can be used for implicit conversion from TNodeId to TBranchedNodeId.
+     */
+    TBranchedNodeId(const TNodeId& nodeId);
 
     //! Initializes an instance by given node and transaction ids.
     TBranchedNodeId(const TNodeId& nodeId, const TTransactionId& transactionId);
