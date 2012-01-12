@@ -63,7 +63,7 @@ INodeTypeHandler::TPtr CreateNodeMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::NodeMap,
+        EObjectType::NodeMap,
         // TODO: extract type name
         "node_map",
         ~New<TVirtualNodeMap>(cypressManager));
@@ -120,7 +120,7 @@ INodeTypeHandler::TPtr CreateLockMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::LockMap,
+        EObjectType::LockMap,
         // TODO: extract type name
         "lock_map",
         ~New<TVirtualLockMap>(cypressManager));

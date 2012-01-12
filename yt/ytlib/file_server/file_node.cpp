@@ -23,8 +23,8 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileNode::TFileNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
-    : TCypressNodeBase(id, runtimeType)
+TFileNode::TFileNode(const TBranchedNodeId& id, EObjectType objectType)
+    : TCypressNodeBase(id, objectType)
     , ChunkListId_(NullChunkListId)
 { }
 
@@ -33,9 +33,9 @@ TFileNode::TFileNode(const TBranchedNodeId& id, const TFileNode& other)
     , ChunkListId_(other.ChunkListId_)
 { }
 
-ERuntimeNodeType TFileNode::GetRuntimeType() const
+EObjectType TFileNode::GetObjectType() const
 {
-    return ERuntimeNodeType::File;
+    return EObjectType::File;
 }
 
 TAutoPtr<ICypressNode> TFileNode::Clone() const
@@ -74,9 +74,9 @@ public:
         RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));
     }
 
-    ERuntimeNodeType GetRuntimeType()
+    EObjectType GetObjectType()
     {
-        return ERuntimeNodeType::File;
+        return EObjectType::File;
     }
 
     ENodeType GetNodeType()
@@ -111,7 +111,7 @@ public:
 
         TAutoPtr<TFileNode> node = new TFileNode(
             TBranchedNodeId(nodeId, NullTransactionId),
-            GetRuntimeType());
+            GetObjectType());
 
         // File node references chunk list.
         auto& chunkList = ChunkManager->CreateChunkList();

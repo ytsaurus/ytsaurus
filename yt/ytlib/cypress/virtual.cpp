@@ -23,9 +23,9 @@ class TVirtualNode
 public:
     TVirtualNode(
         const TBranchedNodeId& id,
-        ERuntimeNodeType runtimeType,
+        EObjectType objectType,
         const TYson& manifest = "")
-        : TCypressNodeBase(id, runtimeType)
+        : TCypressNodeBase(id, objectType)
         , Manifest_(manifest)
     { }
 
@@ -102,11 +102,11 @@ public:
     TVirtualNodeTypeHandler(
         TCypressManager* cypressManager,
         TYPathServiceProducer* producer,
-        ERuntimeNodeType runtimeType,
+        EObjectType objectType,
         const Stroka& typeName)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(cypressManager)
         , Producer(producer)
-        , RuntimeType(runtimeType)
+        , ObjectType(objectType)
         , TypeName(typeName)
     {
         RegisterGetter("manifest", FromMethod(&TThis::GetManifest));
@@ -133,9 +133,9 @@ public:
             ~service);
     }
 
-    virtual ERuntimeNodeType GetRuntimeType()
+    virtual EObjectType GetObjectType()
     {
-        return RuntimeType;
+        return ObjectType;
     }
 
     virtual ENodeType GetNodeType()
@@ -157,19 +157,19 @@ public:
 
         return new TVirtualNode(
             TBranchedNodeId(nodeId, NullTransactionId),
-            RuntimeType,
+            ObjectType,
             SerializeToYson(manifest));
     }
 
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id)
     {
-        return new TVirtualNode(id, RuntimeType);
+        return new TVirtualNode(id, ObjectType);
     }
 
 private:
     TYPathServiceProducer::TPtr Producer;
-    ERuntimeNodeType RuntimeType;
+    EObjectType ObjectType;
     Stroka TypeName;
 
     static void GetManifest(const TGetAttributeParam& param)
@@ -182,7 +182,7 @@ private:
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    ERuntimeNodeType runtypeType,
+    EObjectType runtypeType,
     const Stroka& typeName,
     TYPathServiceProducer* producer)
 {
@@ -195,7 +195,7 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    ERuntimeNodeType runtypeType,
+    EObjectType runtypeType,
     const Stroka& typeName,
     IYPathService* service)
 {

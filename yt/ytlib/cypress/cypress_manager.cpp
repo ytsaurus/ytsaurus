@@ -45,13 +45,16 @@ class TCypressManager::TNodeTypeHandler
     : public IObjectTypeHandler
 {
 public:
-    TNodeTypeHandler(TCypressManager* owner)
+    TNodeTypeHandler(
+        TCypressManager* owner,
+        EObjectType type)
         : Owner(owner)
+        , Type(type)
     { }
 
     virtual EObjectType GetType()
     {
-        return EObjectType::Node;
+        return Type;
     }
 
     virtual i32 RefObject(const TObjectId& id)
@@ -71,6 +74,7 @@ public:
 
 private:
     TCypressManager* Owner;
+    EObjectType Type;
 
 };
 
@@ -85,7 +89,7 @@ TCypressManager::TCypressManager(
     , TransactionManager(transactionManager)
     , ObjectManager(objectManager)
     , NodeMap(TNodeMapTraits(this))
-    , RuntimeTypeToHandler(MaxRuntimeNodeType)
+    , TypeToHandler(MaxObjectType)
 {
     YASSERT(transactionManager);
     YASSERT(objectManager);
@@ -98,6 +102,8 @@ TCypressManager::TCypressManager(
     transactionManager->OnTransactionAborted().Subscribe(FromMethod(
         &TThis::OnTransactionAborted,
         TPtr(this)));
+
+    objectManager->RegisterHandler(~New<TLockTypeHandler>(this));
 
     RegisterHandler(~New<TStringNodeTypeHandler>(this));
     RegisterHandler(~New<TInt64NodeTypeHandler>(this));
@@ -116,29 +122,35 @@ TCypressManager::TCypressManager(
         FromMethod(&TCypressManager::Save, TPtr(this)));
 
     metaState->RegisterPart(this);
-
-    objectManager->RegisterHandler(~New<TLockTypeHandler>(this));
-    objectManager->RegisterHandler(~New<TNodeTypeHandler>(this));
 }
 
 void TCypressManager::RegisterHandler(INodeTypeHandler* handler)
 {
-    YVERIFY(TypeNameToHandler.insert(MakePair(handler->GetTypeName(), handler)).Second());
-    int type = static_cast<int>(handler->GetRuntimeType());
-    YVERIFY(RuntimeTypeToHandler.at(type) == NULL);
-    RuntimeTypeToHandler.at(type) = handler;
+    // No thread affinity is given here.
+    // This will be called during init-time only.
+
+    YASSERT(handler);
+    auto type = handler->GetObjectType();
+    int typeValue = type.ToValue();
+    YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
+    YASSERT(!TypeToHandler[typeValue]);
+    TypeToHandler[typeValue] = handler;
+
+    ObjectManager->RegisterHandler(~New<TNodeTypeHandler>(this, type));
 }
 
-INodeTypeHandler* TCypressManager::GetHandler(ERuntimeNodeType type)
+INodeTypeHandler* TCypressManager::GetHandler(EObjectType type)
 {
-    auto handler = RuntimeTypeToHandler[static_cast<int>(type)];
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto handler = TypeToHandler[static_cast<int>(type)];
     YASSERT(handler);
     return ~handler;
 }
 
 INodeTypeHandler* TCypressManager::GetHandler(const ICypressNode& node)
 {
-    return GetHandler(node.GetRuntimeType());
+    return GetHandler(node.GetObjectType());
 }
 
 void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
@@ -180,7 +192,7 @@ TNodeId TCypressManager::GetRootNodeId()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return CreateId(
-        EObjectType::Node,
+        EObjectType::RootNode,
         ObjectManager->GetCellId(),
         0xffffffffffffffff);
 }
@@ -359,14 +371,14 @@ TLockId TCypressManager::LockTransactionNode(
 }
 
 ICypressNodeProxy::TPtr TCypressManager::CreateNode(
-    ERuntimeNodeType type,
+    EObjectType type,
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto handler = GetHandler(type);
 
-    auto nodeId = ObjectManager->GenerateId(EObjectType::Node);
+    auto nodeId = ObjectManager->GenerateId(type);
 
     TAutoPtr<ICypressNode> node = handler->Create(TBranchedNodeId(nodeId, NullTransactionId));
 
@@ -387,7 +399,7 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
 
     auto typeHandler = it->Second();
     
-    auto nodeId = ObjectManager->GenerateId(EObjectType::Node);
+    auto nodeId = ObjectManager->GenerateId(typeHandler->GetObjectType());
 
     TAutoPtr<ICypressNode> node = typeHandler->CreateFromManifest(
         nodeId,
@@ -611,7 +623,7 @@ void TCypressManager::Clear()
     // Create the root.
     auto* rootImpl = new TMapNode(
         TBranchedNodeId(GetRootNodeId(), NullTransactionId),
-        ERuntimeNodeType::Root);
+        EObjectType::RootNode);
     rootImpl->SetState(ENodeState::Committed);
     ObjectManager->RefObject(rootImpl->GetId().NodeId);
     NodeMap.Insert(rootImpl->GetId(), rootImpl);
@@ -785,13 +797,13 @@ TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Clone(ICypressNode* valu
 
 void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* output) const
 {
-    ::Save(output, value->GetRuntimeType());
+    ::Save(output, value->GetObjectType());
     value->Save(output);
 }
 
 TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(const TBranchedNodeId& id, TInputStream* input) const
 {
-    ERuntimeNodeType type;
+    EObjectType type;
     ::Load(input, type);
     
     auto value = CypressManager->GetHandler(type)->Create(id);

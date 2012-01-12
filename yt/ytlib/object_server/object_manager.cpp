@@ -42,8 +42,8 @@ void TObjectManager::RegisterHandler(IObjectTypeHandler* handler)
     YASSERT(handler);
     int typeValue = handler->GetType().ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
-    YASSERT(!Handlers[typeValue]);
-    Handlers[typeValue] = handler;
+    YASSERT(!TypeToHandler[typeValue]);
+    TypeToHandler[typeValue] = handler;
 }
 
 IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
@@ -52,7 +52,7 @@ IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
 
     int typeValue = type.ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
-    auto handler = Handlers[typeValue];
+    auto handler = TypeToHandler[typeValue];
     YASSERT(handler);
     return ~handler;
 }

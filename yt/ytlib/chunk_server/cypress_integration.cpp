@@ -140,7 +140,7 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::ChunkMap,
+        EObjectType::ChunkMap,
         // TODO: extract type name
         "chunk_map",
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::All));
@@ -155,7 +155,7 @@ INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::LostChunkMap,
+        EObjectType::LostChunkMap,
         // TODO: extract type name
         "lost_chunk_map",
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Lost));
@@ -170,7 +170,7 @@ INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::OverreplicatedChunkMap,
+        EObjectType::OverreplicatedChunkMap,
         // TODO: extract type name
         "overreplicated_chunk_map",
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Overreplicated));
@@ -185,7 +185,7 @@ INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::UnderreplicatedChunkMap,
+        EObjectType::UnderreplicatedChunkMap,
         // TODO: extract type name
         "underreplicated_chunk_map",
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Underreplicated));
@@ -246,7 +246,7 @@ INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::ChunkListMap,
+        EObjectType::ChunkListMap,
         // TODO: extract type name
         "chunk_list_map",
         ~New<TVirtualChunkListMap>(chunkManager));
@@ -301,9 +301,9 @@ public:
         RegisterGetter("alive", FromMethod(&TThis::GetAlive, this));
     }
 
-    virtual ERuntimeNodeType GetRuntimeType()
+    virtual EObjectType GetObjectType()
     {
-        return ERuntimeNodeType::Holder;
+        return EObjectType::Holder;
     }
 
     virtual Stroka GetTypeName()
@@ -444,9 +444,9 @@ public:
         RegisterGetter("dead", FromMethod(&TThis::GetDeadHolders, this));
     }
 
-    virtual ERuntimeNodeType GetRuntimeType()
+    virtual EObjectType GetObjectType()
     {
-        return ERuntimeNodeType::HolderMap;
+        return EObjectType::HolderMap;
     }
 
     virtual Stroka GetTypeName()

@@ -32,12 +32,33 @@ DECLARE_ENUM(EObjectType,
     ((Transaction)(0))
 
     // Chunk Manager stuff
-    ((Chunk)(1))
-    ((ChunkList)(2))
+    ((Chunk)(100))
+    ((ChunkList)(101))
 
     // Cypress stuff
-    ((Lock)(3))
-    ((Node)(4))
+    //   Aux
+    ((Lock)(200))
+    //   Static
+    ((StringNode)(300))
+    ((Int64Node)(301))
+    ((DoubleNode)(302))
+    ((MapNode)(303))
+    ((ListNode)(304))
+    //   Dynamic
+    ((File)(400))
+    ((Table)(401))
+    ((ChunkMap)(402))
+    ((LostChunkMap)(403))
+    ((OverreplicatedChunkMap)(404))
+    ((UnderreplicatedChunkMap)(405))
+    ((ChunkListMap)(406))
+    ((TransactionMap)(407))
+    ((NodeMap)(408))
+    ((LockMap)(409))
+    ((Holder)(410))
+    ((HolderMap)(411))
+    ((OrchidNode)(412))
+    ((RootNode)(413))
 );
 
 //! Valid types are supposed to be in range [0, MaxObjectType - 1].
@@ -45,7 +66,7 @@ DECLARE_ENUM(EObjectType,
  *  \note
  *  An upper bound will do.
  */
-const int MaxObjectType = 256;
+const int MaxObjectType = 1024;
 
 EObjectType TypeFromId(const TObjectId& id);
 

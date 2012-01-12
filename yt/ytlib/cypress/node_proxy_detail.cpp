@@ -27,7 +27,7 @@ TNodeFactory::~TNodeFactory()
     }
 }
 
-ICypressNodeProxy::TPtr TNodeFactory::DoCreate(ERuntimeNodeType type)
+ICypressNodeProxy::TPtr TNodeFactory::DoCreate(EObjectType type)
 {
     auto node = CypressManager->CreateNode(type, TransactionId);
     auto nodeId = node->GetNodeId();
@@ -38,27 +38,27 @@ ICypressNodeProxy::TPtr TNodeFactory::DoCreate(ERuntimeNodeType type)
 
 IStringNode::TPtr TNodeFactory::CreateString()
 {
-    return DoCreate(ERuntimeNodeType::String)->AsString();
+    return DoCreate(EObjectType::StringNode)->AsString();
 }
 
 IInt64Node::TPtr TNodeFactory::CreateInt64()
 {
-    return DoCreate(ERuntimeNodeType::Int64)->AsInt64();
+    return DoCreate(EObjectType::Int64Node)->AsInt64();
 }
 
 IDoubleNode::TPtr TNodeFactory::CreateDouble()
 {
-    return DoCreate(ERuntimeNodeType::Double)->AsDouble();
+    return DoCreate(EObjectType::DoubleNode)->AsDouble();
 }
 
 IMapNode::TPtr TNodeFactory::CreateMap()
 {
-    return DoCreate(ERuntimeNodeType::Map)->AsMap();
+    return DoCreate(EObjectType::MapNode)->AsMap();
 }
 
 IListNode::TPtr TNodeFactory::CreateList()
 {
-    return DoCreate(ERuntimeNodeType::List)->AsList();
+    return DoCreate(EObjectType::ListNode)->AsList();
 }
 
 IEntityNode::TPtr TNodeFactory::CreateEntity()

@@ -69,7 +69,7 @@ public:
     virtual TAutoPtr<ICypressNode> Create(
         const TBranchedNodeId& id)
     {
-        return new TImpl(id, GetRuntimeType());
+        return new TImpl(id, GetObjectType());
     }
 
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
@@ -260,10 +260,10 @@ class TCypressNodeBase
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
 
 public:
-    TCypressNodeBase(const TBranchedNodeId& id, ERuntimeNodeType runtimeType);
+    TCypressNodeBase(const TBranchedNodeId& id, EObjectType objectType);
     TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
 
-    virtual ERuntimeNodeType GetRuntimeType() const;
+    virtual EObjectType GetObjectType() const;
     virtual TBranchedNodeId GetId() const;
 
     virtual i32 RefObject();
@@ -275,7 +275,7 @@ public:
 
 protected:
     TBranchedNodeId Id;
-    ERuntimeNodeType RuntimeType;
+    EObjectType ObjectType;
     i32 RefCounter;
 
 };
@@ -292,7 +292,7 @@ template <>
 struct TCypressScalarTypeTraits<Stroka>
     : NYTree::NDetail::TScalarTypeTraits<Stroka>
 {
-    static const ERuntimeNodeType::EDomain RuntimeType;
+    static const EObjectType::EDomain ObjectType;
     static const char* TypeName;
 };
 
@@ -300,7 +300,7 @@ template <>
 struct TCypressScalarTypeTraits<i64>
     : NYTree::NDetail::TScalarTypeTraits<i64>
 {
-    static const ERuntimeNodeType::EDomain RuntimeType;
+    static const EObjectType::EDomain ObjectType;
     static const char* TypeName;
 };
 
@@ -308,7 +308,7 @@ template <>
 struct TCypressScalarTypeTraits<double>
     : NYTree::NDetail::TScalarTypeTraits<double>
 {
-    static const ERuntimeNodeType::EDomain RuntimeType;
+    static const EObjectType::EDomain ObjectType;
     static const char* TypeName;
 };
 
@@ -325,8 +325,8 @@ class TScalarNode
     DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
-    TScalarNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
-        : TCypressNodeBase(id, runtimeType)
+    TScalarNode(const TBranchedNodeId& id, EObjectType objectType)
+        : TCypressNodeBase(id, objectType)
     { }
 
     TScalarNode(const TBranchedNodeId& id, const TThis& other)
@@ -367,9 +367,9 @@ public:
         : TCypressNodeTypeHandlerBase< TScalarNode<TValue> >(cypressManager)
     { }
 
-    virtual ERuntimeNodeType GetRuntimeType()
+    virtual EObjectType GetObjectType()
     {
-        return NDetail::TCypressScalarTypeTraits<TValue>::RuntimeType;
+        return NDetail::TCypressScalarTypeTraits<TValue>::ObjectType;
     }
 
     virtual NYTree::ENodeType GetNodeType()
@@ -412,7 +412,7 @@ class TMapNode
     DEFINE_BYREF_RW_PROPERTY(TChildToName, ChildToName);
 
 public:
-    TMapNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType);
+    TMapNode(const TBranchedNodeId& id, EObjectType objectType);
     TMapNode(const TBranchedNodeId& id, const TMapNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
@@ -431,7 +431,7 @@ class TMapNodeTypeHandler
 public:
     TMapNodeTypeHandler(TCypressManager* cypressManager);
 
-    virtual ERuntimeNodeType GetRuntimeType();
+    virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
     virtual Stroka GetTypeName();
 
@@ -468,7 +468,7 @@ class TListNode
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
 
 public:
-    explicit TListNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType);
+    explicit TListNode(const TBranchedNodeId& id, EObjectType objectType);
     TListNode(const TBranchedNodeId& id, const TListNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
@@ -487,7 +487,7 @@ public:
     TListNodeTypeHandler(
         TCypressManager* cypressManager);
 
-    virtual ERuntimeNodeType GetRuntimeType();
+    virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
     virtual Stroka GetTypeName();
 
@@ -520,7 +520,7 @@ class TRootNodeTypeHandler
 public:
     TRootNodeTypeHandler(TCypressManager* cypressManager);
 
-    virtual ERuntimeNodeType GetRuntimeType();
+    virtual EObjectType GetObjectType();
     virtual Stroka GetTypeName();
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(

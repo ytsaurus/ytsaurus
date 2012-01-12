@@ -16,8 +16,8 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableNode::TTableNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
-    : TCypressNodeBase(id, runtimeType)
+TTableNode::TTableNode(const TBranchedNodeId& id, EObjectType objectType)
+    : TCypressNodeBase(id, objectType)
 { }
 
 TTableNode::TTableNode(const TBranchedNodeId& id, const TTableNode& other)
@@ -25,9 +25,9 @@ TTableNode::TTableNode(const TBranchedNodeId& id, const TTableNode& other)
     , ChunkListId_(other.ChunkListId_)
 { }
 
-ERuntimeNodeType TTableNode::GetRuntimeType() const
+EObjectType TTableNode::GetObjectType() const
 {
-    return ERuntimeNodeType::Table;
+    return EObjectType::Table;
 }
 
 TAutoPtr<ICypressNode> TTableNode::Clone() const
@@ -62,9 +62,9 @@ public:
         RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
     }
 
-    ERuntimeNodeType GetRuntimeType()
+    EObjectType GetObjectType()
     {
-        return ERuntimeNodeType::Table;
+        return EObjectType::Table;
     }
 
     ENodeType GetNodeType()
@@ -87,7 +87,7 @@ public:
 
         TAutoPtr<TTableNode> node = new TTableNode(
             TBranchedNodeId(nodeId, NullTransactionId),
-            GetRuntimeType());
+            GetObjectType());
 
         // Create an empty chunk list and reference it from the node.
         auto& chunkList = ChunkManager->CreateChunkList();

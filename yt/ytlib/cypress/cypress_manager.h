@@ -40,7 +40,7 @@ public:
         NObjectServer::TObjectManager* objectManager);
 
     void RegisterHandler(INodeTypeHandler* handler);
-    INodeTypeHandler* GetHandler(ERuntimeNodeType type);
+    INodeTypeHandler* GetHandler(EObjectType type);
 
     DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TBranchedNodeId);
 
@@ -81,7 +81,7 @@ public:
         const TTransactionId& transactionId);
 
     TIntrusivePtr<ICypressNodeProxy> CreateNode(
-        ERuntimeNodeType type,
+        EObjectType type,
         const TTransactionId& transactionId);
 
     TIntrusivePtr<ICypressNodeProxy> CreateDynamicNode(
@@ -121,7 +121,7 @@ private:
     NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
     NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
-    yvector<INodeTypeHandler::TPtr> RuntimeTypeToHandler;
+    yvector<INodeTypeHandler::TPtr> TypeToHandler;
     yhash_map<Stroka, INodeTypeHandler::TPtr> TypeNameToHandler;
 
     yhash_map<TNodeId, INodeBehavior::TPtr> NodeBehaviors;
@@ -163,7 +163,7 @@ private:
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(
         const TTransactionId& transactionId,
-        ERuntimeNodeType type);
+        EObjectType type);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

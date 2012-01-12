@@ -14,13 +14,13 @@ using namespace NObjectServer;
 
 namespace NDetail {
 
-const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<Stroka>::RuntimeType = ERuntimeNodeType::String;
+const EObjectType::EDomain TCypressScalarTypeTraits<Stroka>::ObjectType = EObjectType::StringNode;
 const char* TCypressScalarTypeTraits<Stroka>::TypeName = "string";
 
-const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<i64>::RuntimeType = ERuntimeNodeType::Int64;
+const EObjectType::EDomain TCypressScalarTypeTraits<i64>::ObjectType = EObjectType::Int64Node;
 const char* TCypressScalarTypeTraits<i64>::TypeName = "int64";
 
-const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<double>::RuntimeType = ERuntimeNodeType::Double;
+const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjectType::DoubleNode;
 const char* TCypressScalarTypeTraits<double>::TypeName = "double";
 
 } // namespace NDetail
@@ -41,12 +41,12 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
+TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, EObjectType objectType)
     : ParentId_(NullNodeId)
     , AttributesId_(NullNodeId)
     , State_(ENodeState::Uncommitted)
     , Id(id)
-    , RuntimeType(runtimeType)
+    , ObjectType(objectType)
     , RefCounter(0)
 { }
 
@@ -55,13 +55,13 @@ TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNode
     , AttributesId_(other.AttributesId_)
     , State_(other.State_)
     , Id(id)
-    , RuntimeType(other.RuntimeType)
+    , ObjectType(other.ObjectType)
     , RefCounter(0)
 { }
 
-ERuntimeNodeType TCypressNodeBase::GetRuntimeType() const
+EObjectType TCypressNodeBase::GetObjectType() const
 {
-    return RuntimeType;
+    return ObjectType;
 }
 
 TBranchedNodeId TCypressNodeBase::GetId() const
@@ -106,8 +106,8 @@ void TCypressNodeBase::Load(TInputStream* input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNode::TMapNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
-    : TCypressNodeBase(id, runtimeType)
+TMapNode::TMapNode(const TBranchedNodeId& id, EObjectType objectType)
+    : TCypressNodeBase(id, objectType)
 { }
 
 TMapNode::TMapNode(const TBranchedNodeId& id, const TMapNode& other)
@@ -145,9 +145,9 @@ TMapNodeTypeHandler::TMapNodeTypeHandler(TCypressManager* cypressManager)
     RegisterGetter("size", FromMethod(&TThis::GetSize));
 }
 
-ERuntimeNodeType TMapNodeTypeHandler::GetRuntimeType()
+EObjectType TMapNodeTypeHandler::GetObjectType()
 {
-    return ERuntimeNodeType::Map;
+    return EObjectType::MapNode;
 }
 
 ENodeType TMapNodeTypeHandler::GetNodeType()
@@ -202,8 +202,8 @@ void TMapNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListNode::TListNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
-    : TCypressNodeBase(id, runtimeType)
+TListNode::TListNode(const TBranchedNodeId& id, EObjectType objectType)
+    : TCypressNodeBase(id, objectType)
 { }
 
 TListNode::TListNode(const TBranchedNodeId& id, const TListNode& other)
@@ -252,9 +252,9 @@ TListNodeTypeHandler::TListNodeTypeHandler(TCypressManager* cypressManager)
     RegisterGetter("size", FromMethod(&TThis::GetSize));
 }
 
-ERuntimeNodeType TListNodeTypeHandler::GetRuntimeType()
+EObjectType TListNodeTypeHandler::GetObjectType()
 {
-    return ERuntimeNodeType::List;
+    return EObjectType::ListNode;
 }
 
 ENodeType TListNodeTypeHandler::GetNodeType()
@@ -324,9 +324,9 @@ TRootNodeTypeHandler::TRootNodeTypeHandler(TCypressManager* cypressManager)
     : TMapNodeTypeHandler(cypressManager)
 { }
 
-ERuntimeNodeType TRootNodeTypeHandler::GetRuntimeType()
+EObjectType TRootNodeTypeHandler::GetObjectType()
 {
-    return ERuntimeNodeType::Root;
+    return EObjectType::RootNode;
 }
 
 Stroka TRootNodeTypeHandler::GetTypeName()

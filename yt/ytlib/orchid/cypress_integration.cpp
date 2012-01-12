@@ -130,7 +130,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(
     TCypressManager::TPtr cypressManager_ = cypressManager;
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::Orchid,
+        EObjectType::OrchidNode,
         // TODO: extract constant
         "orchid",
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr

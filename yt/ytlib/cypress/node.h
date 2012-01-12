@@ -110,7 +110,7 @@ struct INodeTypeHandler
         const TTransactionId& transactionId) = 0;
 
     //! Returns the runtime node.
-    virtual ERuntimeNodeType GetRuntimeType() = 0;
+    virtual EObjectType GetObjectType() = 0;
     
     //! Returns the (static) node name.
     virtual NYTree::ENodeType GetNodeType() = 0;
@@ -204,7 +204,7 @@ struct ICypressNode
     virtual ~ICypressNode()
     { }
 
-    virtual ERuntimeNodeType GetRuntimeType() const = 0;
+    virtual EObjectType GetObjectType() const = 0;
 
     virtual TAutoPtr<ICypressNode> Clone() const = 0;
 

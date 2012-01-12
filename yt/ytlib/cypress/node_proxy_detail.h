@@ -38,7 +38,7 @@ private:
     const TTransactionId TransactionId;
     yvector<TNodeId> CreatedNodeIds;
 
-    ICypressNodeProxy::TPtr DoCreate(ERuntimeNodeType type);
+    ICypressNodeProxy::TPtr DoCreate(EObjectType type);
 
 };
 

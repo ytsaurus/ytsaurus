@@ -18,12 +18,12 @@ class TFileNode
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkListId, ChunkListId);
 
 public:
-    TFileNode(const NCypress::TBranchedNodeId& id, NCypress::ERuntimeNodeType runtimeType);
+    TFileNode(const NCypress::TBranchedNodeId& id, NCypress::EObjectType objectType);
     TFileNode(const NCypress::TBranchedNodeId& id, const TFileNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
-    virtual NCypress::ERuntimeNodeType GetRuntimeType() const;
+    virtual NCypress::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
     

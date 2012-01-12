@@ -18,12 +18,12 @@ class TTableNode
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkListId, ChunkListId);
 
 public:
-    TTableNode(const NCypress::TBranchedNodeId& id, NCypress::ERuntimeNodeType runtimeType);
+    TTableNode(const NCypress::TBranchedNodeId& id, NCypress::EObjectType objectType);
     TTableNode(const NCypress::TBranchedNodeId& id, const TTableNode& other);
 
     virtual TAutoPtr<NCypress::ICypressNode> Clone() const;
 
-    virtual NCypress::ERuntimeNodeType GetRuntimeType() const;
+    virtual NCypress::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
     

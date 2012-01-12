@@ -73,7 +73,7 @@ private:
     ui16 CellId;
     ui64 Counter;
 
-    IObjectTypeHandler::TPtr Handlers[MaxObjectType];
+    IObjectTypeHandler::TPtr TypeToHandler[MaxObjectType];
 
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
     void Load(TInputStream* input);
