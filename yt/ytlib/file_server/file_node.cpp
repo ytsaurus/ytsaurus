@@ -23,12 +23,12 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileNode::TFileNode(const TBranchedNodeId& id, EObjectType objectType)
+TFileNode::TFileNode(const TVersionedNodeId& id, EObjectType objectType)
     : TCypressNodeBase(id, objectType)
     , ChunkListId_(NullChunkListId)
 { }
 
-TFileNode::TFileNode(const TBranchedNodeId& id, const TFileNode& other)
+TFileNode::TFileNode(const TVersionedNodeId& id, const TFileNode& other)
     : TCypressNodeBase(id, other)
     , ChunkListId_(other.ChunkListId_)
 { }

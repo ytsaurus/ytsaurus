@@ -18,8 +18,8 @@ class TTableNode
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkListId, ChunkListId);
 
 public:
-    TTableNode(const NCypress::TBranchedNodeId& id, NCypress::EObjectType objectType);
-    TTableNode(const NCypress::TBranchedNodeId& id, const TTableNode& other);
+    TTableNode(const NCypress::TVersionedNodeId& id, NCypress::EObjectType objectType);
+    TTableNode(const NCypress::TVersionedNodeId& id, const TTableNode& other);
 
     virtual TAutoPtr<NCypress::ICypressNode> Clone() const;
 

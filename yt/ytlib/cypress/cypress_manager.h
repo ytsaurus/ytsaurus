@@ -42,25 +42,25 @@ public:
     void RegisterHandler(INodeTypeHandler* handler);
     INodeTypeHandler* GetHandler(EObjectType type);
 
-    DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TBranchedNodeId);
+    DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
 
     TNodeId GetRootNodeId();
 
     NObjectServer::TObjectManager* GetObjectManager() const;
 
-    const ICypressNode* FindTransactionNode(
+    const ICypressNode* FindVersionedNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    const ICypressNode& GetTransactionNode(
+    const ICypressNode& GetVersionedNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    ICypressNode* FindTransactionNodeForUpdate(
+    ICypressNode* FindVersionedForUpdate(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    ICypressNode& GetTransactionNodeForUpdate(
+    ICypressNode& GetVersionedNodeForUpdate(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
@@ -108,7 +108,7 @@ private:
 
         TAutoPtr<ICypressNode> Clone(ICypressNode* value) const;
         void Save(ICypressNode* value, TOutputStream* output) const;
-        TAutoPtr<ICypressNode> Load(const TBranchedNodeId& id, TInputStream* input) const;
+        TAutoPtr<ICypressNode> Load(const TVersionedNodeId& id, TInputStream* input) const;
 
     private:
         TCypressManager::TPtr CypressManager;
@@ -118,7 +118,7 @@ private:
     NTransactionServer::TTransactionManager::TPtr TransactionManager;
     NObjectServer::TObjectManager::TPtr ObjectManager;
 
-    NMetaState::TMetaStateMap<TBranchedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
+    NMetaState::TMetaStateMap<TVersionedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
     NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
     yvector<INodeTypeHandler::TPtr> TypeToHandler;

@@ -16,11 +16,11 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableNode::TTableNode(const TBranchedNodeId& id, EObjectType objectType)
+TTableNode::TTableNode(const TVersionedNodeId& id, EObjectType objectType)
     : TCypressNodeBase(id, objectType)
 { }
 
-TTableNode::TTableNode(const TBranchedNodeId& id, const TTableNode& other)
+TTableNode::TTableNode(const TVersionedNodeId& id, const TTableNode& other)
     : TCypressNodeBase(id, other)
     , ChunkListId_(other.ChunkListId_)
 { }

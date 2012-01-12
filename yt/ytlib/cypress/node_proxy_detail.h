@@ -214,12 +214,12 @@ protected:
 
     const ICypressNode& GetImpl(const TNodeId& nodeId) const
     {
-        return CypressManager->GetTransactionNode(nodeId, TransactionId);
+        return CypressManager->GetVersionedNode(nodeId, TransactionId);
     }
 
     ICypressNode& GetImplForUpdate(const TNodeId& nodeId) const
     {
-        return CypressManager->GetTransactionNodeForUpdate(nodeId, TransactionId);
+        return CypressManager->GetVersionedNodeForUpdate(nodeId, TransactionId);
     }
 
 

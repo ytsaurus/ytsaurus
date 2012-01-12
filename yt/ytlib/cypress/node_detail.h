@@ -67,7 +67,7 @@ public:
     }
 
     virtual TAutoPtr<ICypressNode> Create(
-        const TBranchedNodeId& id)
+        const TVersionedNodeId& id)
     {
         return new TImpl(id, GetObjectType());
     }
@@ -89,7 +89,7 @@ public:
         // Release the reference to the attributes, if any.
         if (node.GetAttributesId() != NullNodeId) {
             // TODO(babenko): fixme
-            //auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
+            //auto& attrImpl = CypressManager->GetNodeForUpdate(TVersionedNodeId(
             //    node.GetAttributesId(),
             //    NullTransactionId));
             //CypressManager->UnrefNode(attrImpl);
@@ -108,12 +108,12 @@ public:
 
         // Create a branched copy.
         TAutoPtr<TImpl> branchedNode = new TImpl(
-            TBranchedNodeId(committedNode.GetId().NodeId, transactionId),
+            TVersionedNodeId(committedNode.GetId().NodeId, transactionId),
             typedNode);
 
         // Add a reference to the attributes, if any.
         if (committedNode.GetAttributesId() != NullNodeId) {
-            //auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
+            //auto& attrImpl = CypressManager->GetNodeForUpdate(TVersionedNodeId(
             //    committedNode.GetAttributesId(),
             //    NullTransactionId));
             //CypressManager->RefNode(attrImpl);
@@ -135,7 +135,7 @@ public:
 
         // Drop the reference to attributes, if any.
         if (committedNode.GetAttributesId() != NullNodeId) {
-            //auto& attrImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
+            //auto& attrImpl = CypressManager->GetNodeForUpdate(TVersionedNodeId(
             //    committedNode.GetAttributesId(),
             //    NullTransactionId));
             //CypressManager->UnrefNode(attrImpl);
@@ -258,11 +258,11 @@ class TCypressNodeBase
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
 
 public:
-    TCypressNodeBase(const TBranchedNodeId& id, EObjectType objectType);
-    TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other);
+    TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType);
+    TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other);
 
     virtual EObjectType GetObjectType() const;
-    virtual TBranchedNodeId GetId() const;
+    virtual TVersionedNodeId GetId() const;
 
     virtual i32 RefObject();
     virtual i32 UnrefObject();
@@ -272,7 +272,7 @@ public:
     virtual void Load(TInputStream* input);
 
 protected:
-    TBranchedNodeId Id;
+    TVersionedNodeId Id;
     EObjectType ObjectType;
     i32 RefCounter;
 
@@ -323,11 +323,11 @@ class TScalarNode
     DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
-    TScalarNode(const TBranchedNodeId& id, EObjectType objectType)
+    TScalarNode(const TVersionedNodeId& id, EObjectType objectType)
         : TCypressNodeBase(id, objectType)
     { }
 
-    TScalarNode(const TBranchedNodeId& id, const TThis& other)
+    TScalarNode(const TVersionedNodeId& id, const TThis& other)
         : TCypressNodeBase(id, other)
         , Value_(other.Value_)
     { }
@@ -410,8 +410,8 @@ class TMapNode
     DEFINE_BYREF_RW_PROPERTY(TChildToName, ChildToName);
 
 public:
-    TMapNode(const TBranchedNodeId& id, EObjectType objectType);
-    TMapNode(const TBranchedNodeId& id, const TMapNode& other);
+    TMapNode(const TVersionedNodeId& id, EObjectType objectType);
+    TMapNode(const TVersionedNodeId& id, const TMapNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
@@ -466,8 +466,8 @@ class TListNode
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
 
 public:
-    explicit TListNode(const TBranchedNodeId& id, EObjectType objectType);
-    TListNode(const TBranchedNodeId& id, const TListNode& other);
+    explicit TListNode(const TVersionedNodeId& id, EObjectType objectType);
+    TListNode(const TVersionedNodeId& id, const TListNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 

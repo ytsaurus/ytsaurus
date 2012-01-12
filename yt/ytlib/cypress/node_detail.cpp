@@ -30,7 +30,7 @@ const char* TCypressScalarTypeTraits<double>::TypeName = "double";
 } // namespace NCypress
 } // namespace NYT
 
-i32 hash<NYT::NCypress::TBranchedNodeId>::operator()(const NYT::NCypress::TBranchedNodeId& id) const
+i32 hash<NYT::NCypress::TVersionedNodeId>::operator()(const NYT::NCypress::TVersionedNodeId& id) const
 {
     return static_cast<i32>(THash<NYT::TGuid>()(id.NodeId)) * 497 +
         static_cast<i32>(THash<NYT::TGuid>()(id.TransactionId));
@@ -41,7 +41,7 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, EObjectType objectType)
+TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType)
     : ParentId_(NullNodeId)
     , AttributesId_(NullNodeId)
     , State_(ENodeState::Uncommitted)
@@ -50,7 +50,7 @@ TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, EObjectType object
     , RefCounter(0)
 { }
 
-TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other)
+TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other)
     : ParentId_(other.ParentId_)
     , AttributesId_(other.AttributesId_)
     , State_(other.State_)
@@ -64,7 +64,7 @@ EObjectType TCypressNodeBase::GetObjectType() const
     return ObjectType;
 }
 
-TBranchedNodeId TCypressNodeBase::GetId() const
+TVersionedNodeId TCypressNodeBase::GetId() const
 {
     return Id;
 }
@@ -106,11 +106,11 @@ void TCypressNodeBase::Load(TInputStream* input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNode::TMapNode(const TBranchedNodeId& id, EObjectType objectType)
+TMapNode::TMapNode(const TVersionedNodeId& id, EObjectType objectType)
     : TCypressNodeBase(id, objectType)
 { }
 
-TMapNode::TMapNode(const TBranchedNodeId& id, const TMapNode& other)
+TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
     : TCypressNodeBase(id, other)
 {
     NameToChild_ = other.NameToChild_;
@@ -202,11 +202,11 @@ void TMapNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListNode::TListNode(const TBranchedNodeId& id, EObjectType objectType)
+TListNode::TListNode(const TVersionedNodeId& id, EObjectType objectType)
     : TCypressNodeBase(id, objectType)
 { }
 
-TListNode::TListNode(const TBranchedNodeId& id, const TListNode& other)
+TListNode::TListNode(const TVersionedNodeId& id, const TListNode& other)
     : TCypressNodeBase(id, other)
 {
     IndexToChild_ = other.IndexToChild_;

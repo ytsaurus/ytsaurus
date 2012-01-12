@@ -22,7 +22,7 @@ class TVirtualNode
 
 public:
     TVirtualNode(
-        const TBranchedNodeId& id,
+        const TVersionedNodeId& id,
         EObjectType objectType,
         const TYson& manifest = "")
         : TCypressNodeBase(id, objectType)
@@ -30,7 +30,7 @@ public:
     { }
 
     TVirtualNode(
-        const TBranchedNodeId& id,
+        const TVersionedNodeId& id,
         const TVirtualNode& other)
         : TCypressNodeBase(id, other)
         , Manifest_(other.Manifest_)
@@ -162,7 +162,7 @@ public:
     }
 
     virtual TAutoPtr<ICypressNode> Create(
-        const TBranchedNodeId& id)
+        const TVersionedNodeId& id)
     {
         return new TVirtualNode(id, ObjectType);
     }

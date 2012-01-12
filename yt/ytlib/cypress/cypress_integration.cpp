@@ -37,8 +37,8 @@ private:
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
-        auto branchedNodeId = TBranchedNodeId::FromString(key);
-        auto* node = CypressManager->FindNode(branchedNodeId);
+        auto id = TVersionedNodeId::FromString(key);
+        auto* node = CypressManager->FindNode(id);
         if (!node) {
             return NULL;
         }

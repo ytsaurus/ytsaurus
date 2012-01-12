@@ -9,82 +9,10 @@
 namespace NYT {
 namespace NCypress {
 
-////////////////////////////////////////////////////////////////////////////////
-
-//! Identifies a node possibly branched by a transaction.
-struct TBranchedNodeId
-{
-    //! Id of the node itself.
-    TNodeId NodeId;
-
-    //! Id of the transaction that had branched the node.
-    //! #NullTransactionId if the node is not branched.
-    TTransactionId TransactionId;
-
-    //! Initializes a null instance.
-    /*!
-     *  #NodeId id #NullNodeId, #TransactionId is #NullTransactionId.
-     */
-    TBranchedNodeId();
-
-    //! Initializes an instance by given node. Sets #TransactionId to #NullTransactionId.
-    /*!
-     *  Can be used for implicit conversion from TNodeId to TBranchedNodeId.
-     */
-    TBranchedNodeId(const TNodeId& nodeId);
-
-    //! Initializes an instance by given node and transaction ids.
-    TBranchedNodeId(const TNodeId& nodeId, const TTransactionId& transactionId);
-
-    //! Checks that the id is branched, i.e. #TransactionId is not #NullTransactionId.
-    bool IsBranched() const;
-
-    //! Formats the id to string (for debugging and logging purposes mainly).
-    Stroka ToString() const;
-
-    static TBranchedNodeId FromString(const Stroka &s);
-};
-
-//! Compares TBranchedNodeId s for equality.
-bool operator == (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
-
-//! Compares TBranchedNodeId s for inequality.
-bool operator != (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
-
-//! Compares TBranchedNodeId s for "less than" (used to sort nodes in meta-map).
-bool operator <  (const TBranchedNodeId& lhs, const TBranchedNodeId& rhs);
-
-} // namespace NCypress
-} // namespace NYT
-
-DECLARE_PODTYPE(NYT::NCypress::TBranchedNodeId);
-
-//! A hasher for TBranchedNodeId.
-template <>
-struct hash<NYT::NCypress::TBranchedNodeId>
-{
-    i32 operator()(const NYT::NCypress::TBranchedNodeId& id) const;
-};
-
-namespace NYT {
-namespace NCypress {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Describes the state of the persisted node.
-DECLARE_ENUM(ENodeState,
-    // The node is present in the HEAD version.
-    (Committed)
-    // The node is a branched copy of another committed node.
-    (Branched)
-    // The node is created by the transaction and is thus new.
-    (Uncommitted)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct ICypressNode;
 struct ICypressNodeProxy;
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Describes a behavior object that lives as long as the node
 //! exists in Cypress.
@@ -102,6 +30,8 @@ struct INodeBehavior
     //! be destroyed.
     virtual void Destroy() = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Provides node type-specific services.
 struct INodeTypeHandler
@@ -149,7 +79,7 @@ struct INodeTypeHandler
      *  - a node (possibly dynamic) is being loaded from a snapshot
      */
     virtual TAutoPtr<ICypressNode> Create(
-        const TBranchedNodeId& id) = 0;
+        const TVersionedNodeId& id) = 0;
 
     //! Performs cleanup on node destruction.
     /*!
@@ -208,6 +138,16 @@ struct INodeTypeHandler
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes the state of the persisted node.
+DECLARE_ENUM(ENodeState,
+    // The node is present in the HEAD version.
+    (Committed)
+    // The node is a branched copy of another committed node.
+    (Branched)
+    // The node is created by the transaction and is thus new.
+    (Uncommitted)
+);
+
 //! Provides a common interface for all persistent nodes.
 struct ICypressNode
 {
@@ -231,7 +171,7 @@ struct ICypressNode
     virtual void Load(TInputStream* input) = 0;
 
     //! Returns the id of the node (which is the key in the respective meta-map).
-    virtual TBranchedNodeId GetId() const = 0;
+    virtual TVersionedNodeId GetId() const = 0;
 
     // TODO: maybe propertify?
     //! Gets the state of node.

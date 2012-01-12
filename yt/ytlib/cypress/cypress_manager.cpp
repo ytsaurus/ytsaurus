@@ -214,14 +214,14 @@ TObjectManager* TCypressManager::GetObjectManager() const
     return ~ObjectManager;
 }
 
-const ICypressNode* TCypressManager::FindTransactionNode(
+const ICypressNode* TCypressManager::FindVersionedNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     // First try to fetch a branched copy.
-    auto* impl = FindNode(TBranchedNodeId(nodeId, transactionId));
+    auto* impl = FindNode(TVersionedNodeId(nodeId, transactionId));
     if (!impl) {
         // Then try a non-branched one.
         impl = FindNode(nodeId);
@@ -230,16 +230,16 @@ const ICypressNode* TCypressManager::FindTransactionNode(
     return impl;
 }
 
-const ICypressNode& TCypressManager::GetTransactionNode(
+const ICypressNode& TCypressManager::GetVersionedNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
-    auto* impl = FindTransactionNode(nodeId, transactionId);
+    auto* impl = FindVersionedNode(nodeId, transactionId);
     YASSERT(impl);
     return *impl;
 }
 
-ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
+ICypressNode* TCypressManager::FindVersionedForUpdate(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -252,7 +252,7 @@ ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
     }
 
     // Try to fetch a branched copy.
-    auto* branchedImpl = FindNodeForUpdate(TBranchedNodeId(nodeId, transactionId));
+    auto* branchedImpl = FindNodeForUpdate(TVersionedNodeId(nodeId, transactionId));
     if (branchedImpl) {
         YASSERT(branchedImpl->GetState() == ENodeState::Branched);
         return branchedImpl;
@@ -272,13 +272,13 @@ ICypressNode* TCypressManager::FindTransactionNodeForUpdate(
     }
 }
 
-ICypressNode& TCypressManager::GetTransactionNodeForUpdate(
+ICypressNode& TCypressManager::GetVersionedNodeForUpdate(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* impl = FindTransactionNodeForUpdate(nodeId, transactionId);
+    auto* impl = FindVersionedForUpdate(nodeId, transactionId);
     YASSERT(impl);
     return *impl;
 }
@@ -290,7 +290,7 @@ ICypressNodeProxy::TPtr TCypressManager::FindNodeProxy(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YASSERT(nodeId != NullNodeId);
-    const auto* impl = FindTransactionNode(nodeId, transactionId);
+    const auto* impl = FindVersionedNode(nodeId, transactionId);
     if (!impl) {
         return NULL;
     }
@@ -489,7 +489,7 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     auto branchedNode = GetHandler(node)->Branch(node, transactionId);
     branchedNode->SetState(ENodeState::Branched);
     auto* branchedNodePtr = branchedNode.Release();
-    NodeMap.Insert(TBranchedNodeId(nodeId, transactionId), branchedNodePtr);
+    NodeMap.Insert(TVersionedNodeId(nodeId, transactionId), branchedNodePtr);
 
     // Register the branched node with a transaction.
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
@@ -632,7 +632,7 @@ void TCypressManager::Clear()
 
     // Create the root.
     auto* rootImpl = new TMapNode(
-        TBranchedNodeId(GetRootNodeId(), NullTransactionId),
+        TVersionedNodeId(GetRootNodeId(), NullTransactionId),
         EObjectType::RootNode);
     rootImpl->SetState(ENodeState::Committed);
     ObjectManager->RefObject(rootImpl->GetId().NodeId);
@@ -737,12 +737,12 @@ void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
         auto& node = NodeMap.GetForUpdate(nodeId);
         YASSERT(node.GetState() != ENodeState::Branched);
 
-        auto& branchedNode = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transactionId));
+        auto& branchedNode = NodeMap.GetForUpdate(TVersionedNodeId(nodeId, transactionId));
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
 
         GetHandler(node)->Merge(node, branchedNode);
 
-        NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
+        NodeMap.Remove(TVersionedNodeId(nodeId, transactionId));
 
         LOG_INFO_IF(!IsRecovery(), "Node merged (NodeId: %s, TransactionId: %s)",
             ~nodeId.ToString(),
@@ -764,9 +764,9 @@ void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        auto& node = NodeMap.GetForUpdate(TBranchedNodeId(nodeId, transactionId));
+        auto& node = NodeMap.GetForUpdate(TVersionedNodeId(nodeId, transactionId));
         GetHandler(node)->Destroy(node);
-        NodeMap.Remove(TBranchedNodeId(nodeId, transactionId));
+        NodeMap.Remove(TVersionedNodeId(nodeId, transactionId));
 
         LOG_INFO_IF(!IsRecovery(), "Branched node removed (NodeId: %s, TransactionId: %s)",
             ~nodeId.ToString(),
@@ -792,7 +792,7 @@ void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
 }
 
 DEFINE_METAMAP_ACCESSORS(TCypressManager, Lock, TLock, TLockId, LockMap);
-DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TBranchedNodeId, NodeMap);
+DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TVersionedNodeId, NodeMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -811,7 +811,7 @@ void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* o
     value->Save(output);
 }
 
-TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(const TBranchedNodeId& id, TInputStream* input) const
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(const TVersionedNodeId& id, TInputStream* input) const
 {
     EObjectType type;
     ::Load(input, type);
