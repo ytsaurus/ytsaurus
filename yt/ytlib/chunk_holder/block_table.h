@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "config.h"
 
 namespace NYT {
 namespace NChunkHolder {
