@@ -35,6 +35,8 @@ namespace {
             , Zeros(0)
         { }
 
+        // TRefCountedTracker calls BindToCookie() on object creation.
+        // So we have to stub it. 
         template<typename T>
         void BindToCookie(const T&)
         { }
@@ -72,14 +74,6 @@ namespace {
             arg.Decrements == decrements &&
             arg.Zeros == zeros;
     }
-
-    //! This is a simple typical reference-counted object.
-    class TSimpleObject : public TRefCountedBase
-    {};
-
-    //! This is a simple inherited reference-counted object.
-    class TAnotherObject : public TSimpleObject
-    {};
 
     //! This is an object which creates intrusive pointers to the self
     //! during its construction and also fires some events.
@@ -240,6 +234,14 @@ TEST(TIntrusivePtrTest, Swap)
 
 TEST(TIntrusivePtrTest, Cast)
 {
+    //! This is a simple typical reference-counted object.
+    class TSimpleObject : public TRefCountedBase
+    {};
+
+    //! This is a simple inherited reference-counted object.
+    class TAnotherObject : public TSimpleObject
+    {};
+
     TIntrusivePtr<TSimpleObject> foo = New<TSimpleObject>();
     TIntrusivePtr<TSimpleObject> bar = New<TAnotherObject>();
 
