@@ -12,7 +12,7 @@ message TRspLock
 
 message TReqCreate
 {
-    required bytes type = 1;
+    required int32 type = 1;
     optional bytes manifest = 2;
 }
 

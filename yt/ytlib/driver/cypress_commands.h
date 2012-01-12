@@ -3,6 +3,7 @@
 #include "command.h"
 
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NDriver {
@@ -132,15 +133,18 @@ struct TCreateRequest
 {
     NYTree::TYPath Path;
     NYTree::INode::TPtr Stream;
-    Stroka Type;
+    NObjectServer::EObjectType Type;
     NYTree::INode::TPtr Manifest;
 
     TCreateRequest()
     {
         Register("path", Path);
-        Register("stream", Stream).Default(NULL).CheckThat(~StreamSpecIsValid);
+        Register("stream", Stream)
+            .Default(NULL)
+            .CheckThat(~StreamSpecIsValid);
         Register("type", Type);
-        Register("manifest", Manifest).Default(NULL);
+        Register("manifest", Manifest)
+            .Default(NULL);
     }
 };
 

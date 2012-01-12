@@ -72,11 +72,6 @@ public:
         return ENodeType::Entity;
     }
 
-    Stroka GetTypeName()
-    {
-        return TableTypeName;
-    }
-
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,

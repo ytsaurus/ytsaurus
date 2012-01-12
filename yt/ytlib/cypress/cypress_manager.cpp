@@ -175,8 +175,8 @@ void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
     if (nodeId.IsBranched())
         return;
 
-    auto typeHandler = GetHandler(node);
-    auto behavior = typeHandler->CreateBehavior(node);
+    auto handler = GetHandler(node);
+    auto behavior = handler->CreateBehavior(node);
     if (!behavior)
         return;
 
@@ -404,27 +404,20 @@ ICypressNodeProxy::TPtr TCypressManager::CreateNode(
 
 ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
     const TTransactionId& transactionId,
-    const Stroka& typeName,
+    EObjectType type,
     IMapNode* manifest)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto it = TypeNameToHandler.find(typeName);
-    if (it == TypeNameToHandler.end()) {
-        ythrow yexception() << Sprintf("Unknown dynamic node type %s", ~typeName.Quote());
-    }
-
-    auto typeHandler = it->Second();
-    
-    auto nodeId = ObjectManager->GenerateId(typeHandler->GetObjectType());
-
-    TAutoPtr<ICypressNode> node = typeHandler->CreateFromManifest(
+    auto handler = GetHandler(type);
+    auto nodeId = ObjectManager->GenerateId(type);
+    TAutoPtr<ICypressNode> node = handler->CreateFromManifest(
         nodeId,
         transactionId,
         manifest);
     ICypressNode* node_ = ~node;
 
-    auto proxy = RegisterNode(nodeId, transactionId, ~typeHandler, node);
+    auto proxy = RegisterNode(nodeId, transactionId, handler, node);
 
     if (IsLeader()) {
         CreateNodeBehavior(*node_);
@@ -436,7 +429,7 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
 ICypressNodeProxy::TPtr TCypressManager::RegisterNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
-    INodeTypeHandler* typeHandler,
+    INodeTypeHandler* handler,
     TAutoPtr<ICypressNode> node)
 {
     // Set an appropriate state and register the node with the transaction (if any).
@@ -456,12 +449,12 @@ ICypressNodeProxy::TPtr TCypressManager::RegisterNode(
     auto* node_ = ~node;
     NodeMap.Insert(nodeId, node.Release());
 
-    LOG_INFO_IF(!IsRecovery(), "Node created (NodeId: %s, NodeType: %s, TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Node created (NodeId: %s, Type: %s, TransactionId: %s)",
         ~nodeId.ToString(),
-        ~typeHandler->GetTypeName(),
+        ~handler->GetObjectType().ToString(),
         ~transactionId.ToString());
 
-    return typeHandler->GetProxy(*node_, transactionId);
+    return handler->GetProxy(*node_, transactionId);
 }
 
 TLock& TCypressManager::CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId)

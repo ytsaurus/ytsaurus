@@ -413,13 +413,13 @@ protected:
 protected:
     DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
+        // TODO(babenko): validate type
+
         if (NYTree::IsFinalYPath(context->GetPath())) {
             // This should throw an exception.
             TBase::Create(request, response, context);
             return;
         }
-
-        Stroka typeName = request->type();
 
         NYTree::INode::TPtr manifestNode =
             request->has_manifest()
@@ -432,7 +432,7 @@ protected:
         
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
-            typeName,
+            EObjectType(request->type()),
             ~manifestNode->AsMap());
 
         CreateRecursive(context->GetPath(), ~value);

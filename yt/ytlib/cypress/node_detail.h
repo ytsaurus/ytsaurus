@@ -81,7 +81,7 @@ public:
         UNUSED(transactionId);
         UNUSED(manifest);
         ythrow yexception() << Sprintf("Nodes of type %s cannot be created from a manifest",
-            ~GetTypeName().Quote());
+            ~GetObjectType().ToString().Quote());
     }
 
     virtual void Destroy(ICypressNode& node)
@@ -238,7 +238,8 @@ protected:
     void GetType(const TGetAttributeParam& param)
     {
         NYTree::BuildYsonFluently(param.Consumer)
-            .Scalar(GetTypeName());
+            // TODO(babenko): convert camel case to underscore
+            .Scalar(GetObjectType().ToString());
     }
 
 private:
@@ -291,7 +292,6 @@ struct TCypressScalarTypeTraits<Stroka>
     : NYTree::NDetail::TScalarTypeTraits<Stroka>
 {
     static const EObjectType::EDomain ObjectType;
-    static const char* TypeName;
 };
 
 template <>
@@ -299,7 +299,6 @@ struct TCypressScalarTypeTraits<i64>
     : NYTree::NDetail::TScalarTypeTraits<i64>
 {
     static const EObjectType::EDomain ObjectType;
-    static const char* TypeName;
 };
 
 template <>
@@ -307,7 +306,6 @@ struct TCypressScalarTypeTraits<double>
     : NYTree::NDetail::TScalarTypeTraits<double>
 {
     static const EObjectType::EDomain ObjectType;
-    static const char* TypeName;
 };
 
 } // namespace NDetail
@@ -375,11 +373,6 @@ public:
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
-    virtual Stroka GetTypeName()
-    {
-        return NDetail::TCypressScalarTypeTraits<TValue>::TypeName;
-    }
-
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,
         const TTransactionId& transactionId);
@@ -431,7 +424,6 @@ public:
 
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
-    virtual Stroka GetTypeName();
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,
@@ -487,7 +479,6 @@ public:
 
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
-    virtual Stroka GetTypeName();
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,
@@ -519,7 +510,6 @@ public:
     TRootNodeTypeHandler(TCypressManager* cypressManager);
 
     virtual EObjectType GetObjectType();
-    virtual Stroka GetTypeName();
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,

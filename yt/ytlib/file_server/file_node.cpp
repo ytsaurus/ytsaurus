@@ -84,11 +84,6 @@ public:
         return ENodeType::Entity;
     }
 
-    Stroka GetTypeName()
-    {
-        return FileTypeName;
-    }
-
     virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,

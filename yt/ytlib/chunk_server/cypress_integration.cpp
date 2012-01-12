@@ -306,12 +306,6 @@ public:
         return EObjectType::Holder;
     }
 
-    virtual Stroka GetTypeName()
-    {
-        // TODO: extract type name
-        return "holder";
-    }
-
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
@@ -401,8 +395,7 @@ private:
         {
             auto request = TCypressYPathProxy::Create();
             request->SetPath(Sprintf("/%s", ~address));
-            request->set_type("holder");     
-            request->set_manifest("{}");     
+            request->set_type(EObjectType::Holder);
             ExecuteVerb(
                 ~node,
                 ~request,
@@ -412,7 +405,7 @@ private:
         {
             auto request = TCypressYPathProxy::Create();
             request->SetPath(Sprintf("/%s/orchid", ~address));
-            request->set_type("orchid");     
+            request->set_type(EObjectType::OrchidNode);     
             request->set_manifest(Sprintf("{remote_address=\"%s\"}", ~address));     
             ExecuteVerb(
                 ~node,
@@ -447,12 +440,6 @@ public:
     virtual EObjectType GetObjectType()
     {
         return EObjectType::HolderMap;
-    }
-
-    virtual Stroka GetTypeName()
-    {
-        // TODO: extract type name
-        return "holder_map";
     }
 
     virtual TAutoPtr<ICypressNode> CreateFromManifest(

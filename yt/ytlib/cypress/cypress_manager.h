@@ -87,7 +87,7 @@ public:
 
     TIntrusivePtr<ICypressNodeProxy> CreateDynamicNode(
         const TTransactionId& transactionId,
-        const Stroka& typeName,
+        NObjectServer::EObjectType type,
         NYTree::IMapNode* manifest);
 
     DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
@@ -123,7 +123,6 @@ private:
     NMetaState::TMetaStateMap<TLockId, TLock> LockMap;
 
     yvector<INodeTypeHandler::TPtr> TypeToHandler;
-    yhash_map<Stroka, INodeTypeHandler::TPtr> TypeNameToHandler;
 
     yhash_map<TNodeId, INodeBehavior::TPtr> NodeBehaviors;
 
@@ -147,7 +146,7 @@ private:
     ICypressNodeProxy::TPtr RegisterNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        INodeTypeHandler* typeHandler,
+        INodeTypeHandler* handler,
         TAutoPtr<ICypressNode> node);
 
     void ReleaseLocks(NTransactionServer::TTransaction& transaction);

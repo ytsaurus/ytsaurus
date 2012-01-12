@@ -54,15 +54,6 @@ struct INodeTypeHandler
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;
 
-    // TODO(babenko): get rid
-    //! Returns the type name.
-    /*!
-     *  This name is displayed via <tt>type</tt> attribute.
-     *  Also when creating a dynamic node the client must specify
-     *  <tt>type</tt> attribute in the manifest.
-     */
-    virtual Stroka GetTypeName() = 0;
-    
     //! Creates a dynamic node with a given manifest.
     /*!
      *  This is called during <tt>Create<tt> verb execution.

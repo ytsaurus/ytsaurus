@@ -15,13 +15,8 @@ using namespace NObjectServer;
 namespace NDetail {
 
 const EObjectType::EDomain TCypressScalarTypeTraits<Stroka>::ObjectType = EObjectType::StringNode;
-const char* TCypressScalarTypeTraits<Stroka>::TypeName = "string";
-
 const EObjectType::EDomain TCypressScalarTypeTraits<i64>::ObjectType = EObjectType::Int64Node;
-const char* TCypressScalarTypeTraits<i64>::TypeName = "int64";
-
 const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjectType::DoubleNode;
-const char* TCypressScalarTypeTraits<double>::TypeName = "double";
 
 } // namespace NDetail
 
@@ -155,11 +150,6 @@ ENodeType TMapNodeTypeHandler::GetNodeType()
     return ENodeType::Map;
 }
 
-Stroka TMapNodeTypeHandler::GetTypeName()
-{
-    return "map";
-}
-
 void TMapNodeTypeHandler::DoDestroy(TMapNode& node)
 {
     // Drop references to the children.
@@ -262,11 +252,6 @@ ENodeType TListNodeTypeHandler::GetNodeType()
     return ENodeType::List;
 }
 
-Stroka TListNodeTypeHandler::GetTypeName()
-{
-    return "list";
-}
-
 ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(
     const ICypressNode& node,
     const TTransactionId& transactionId)
@@ -327,11 +312,6 @@ TRootNodeTypeHandler::TRootNodeTypeHandler(TCypressManager* cypressManager)
 EObjectType TRootNodeTypeHandler::GetObjectType()
 {
     return EObjectType::RootNode;
-}
-
-Stroka TRootNodeTypeHandler::GetTypeName()
-{
-    return "root";
 }
 
 ICypressNodeProxy::TPtr TRootNodeTypeHandler::GetProxy(
