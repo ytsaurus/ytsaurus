@@ -80,16 +80,16 @@ if (MSVC)
 
   # These are configuration-specific compliation flags.
   # http://msdn.microsoft.com/en-us/library/fwkeyyhe.aspx
-  set( CMAKE_CXX_FLAGS_DEBUG "/ZI /Od /Oy- /Gm /RTC1 /GS" )
-  set( CMAKE_CXX_FLAGS_RELEASE "/O2 /Oi /Oy- /GL /Gm-" )
-  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL /Gm-" )
-  set( CMAKE_CXX_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL /Gm-" )
+  set( CMAKE_CXX_FLAGS_DEBUG "/Zi /Od /Oy- /GS" )
+  set( CMAKE_CXX_FLAGS_RELEASE "/O2 /Oi /Oy- /GL" )
+  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL" )
+  set( CMAKE_CXX_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL" )
 
 
-  set( CMAKE_C_FLAGS_DEBUG "/ZI /Od /Oy- /Gm /RTC1 /GS" )
-  set( CMAKE_C_FLAGS_RELEASE "/O2 /Oi /Oy- /GL /Gm-" )
-  set( CMAKE_C_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL /Gm-" )
-  set( CMAKE_C_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL /Gm-" )
+  set( CMAKE_C_FLAGS_DEBUG "/Zi /Od /Oy- /GS" )
+  set( CMAKE_C_FLAGS_RELEASE "/O2 /Oi /Oy- /GL" )
+  set( CMAKE_C_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL" )
+  set( CMAKE_C_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL" )
 
   set( CMAKE_EXE_LINKER_FLAGS_DEBUG "/DEBUG" )
   set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "/DEBUG" )
