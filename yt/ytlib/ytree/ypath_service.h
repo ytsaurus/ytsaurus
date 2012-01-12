@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "ytree_fwd.h"
 #include "yson_consumer.h"
 
 #include "../misc/property.h"
@@ -56,7 +57,6 @@ struct IYPathService
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) = 0;
     virtual void Invoke(NRpc::IServiceContext* context) = 0;
 
-    static IYPathService::TPtr FromNode(INode* node);
     static IYPathService::TPtr FromProducer(TYsonProducer* producer);
 };
 

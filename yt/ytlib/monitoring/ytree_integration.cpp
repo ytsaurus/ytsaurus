@@ -14,7 +14,7 @@ NYTree::TYPathServiceProvider::TPtr CreateMonitoringProvider(
     TMonitoringManager::TPtr monitoringManager_ = monitoringManager;
     return FromFunctor([=] ()
         {
-            return IYPathService::FromNode(~monitoringManager_->GetRoot());
+            return ~monitoringManager_->GetRoot();
         });
 }
 

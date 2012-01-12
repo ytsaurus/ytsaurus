@@ -148,9 +148,8 @@ void TChunkHolderBootstrap::Run()
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
-    auto orchidRootService = IYPathService::FromNode(~orchidRoot);
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/monitoring",
         ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
     SyncYPathSetNode(
@@ -172,7 +171,6 @@ void TChunkHolderBootstrap::Run()
     rpcServer->RegisterService(~orchidService);
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    auto orchidPathService = IYPathService::FromNode(~orchidRoot);
     httpServer->Register(
         "/statistics",
         ~NMonitoring::GetProfilingHttpHandler());
@@ -181,7 +179,7 @@ void TChunkHolderBootstrap::Run()
         ~NMonitoring::GetYPathHttpHandler(
             ~FromFunctor([=] () -> IYPathService::TPtr
                 {
-                    return orchidPathService;
+                    return orchidRoot;
                 }),
             ~controlQueue->GetInvoker()));
 

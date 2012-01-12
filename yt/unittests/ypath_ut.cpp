@@ -24,7 +24,7 @@ public:
 
     virtual void SetUp()
     {
-        RootService = IYPathService::FromNode(~GetEphemeralNodeFactory()->CreateMap());
+        RootService = GetEphemeralNodeFactory()->CreateMap();
     }
 
     static TYson TextifyYson(const TYson& data)

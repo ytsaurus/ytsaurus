@@ -7,6 +7,7 @@
 #include "forwarding_yson_consumer.h"
 
 #include "../actions/action_util.h"
+#include <yt/ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NYTree {
@@ -18,7 +19,7 @@ extern TYPath YPathRoot;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathServiceBase
-    : public IYPathService
+    : public virtual IYPathService
 {
 public:
     virtual void Invoke(NRpc::IServiceContext* context);

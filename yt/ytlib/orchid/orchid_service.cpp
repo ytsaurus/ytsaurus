@@ -49,9 +49,8 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         ~path,
         ~verb);
 
-    auto rootService = IYPathService::FromNode(~Root);
     ExecuteVerb(
-        ~rootService,
+        ~Root,
         ~requestMessage)
     ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
         {

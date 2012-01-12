@@ -184,13 +184,12 @@ void TCellMasterBootstrap::Run()
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
-    auto orchidRootService = IYPathService::FromNode(~orchidRoot);
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/monitoring",
         ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/config",
         ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
 
@@ -239,7 +238,6 @@ void TCellMasterBootstrap::Run()
         ~chunkManager));
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    auto orchidPathService = IYPathService::FromNode(~orchidRoot);
     httpServer->Register(
         "/statistics",
         ~NMonitoring::GetProfilingHttpHandler());
@@ -248,7 +246,7 @@ void TCellMasterBootstrap::Run()
         ~NMonitoring::GetYPathHttpHandler(
             ~FromFunctor([=] () -> IYPathService::TPtr
                 {
-                    return orchidPathService;
+                    return orchidRoot;
                 }),
             ~metaStateManager->GetStateInvoker()));
     httpServer->Register(
@@ -260,9 +258,9 @@ void TCellMasterBootstrap::Run()
                     if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
                         return NULL;
                     }
-                    return IYPathService::FromNode(~cypressManager->GetNodeProxy(
+                    return ~cypressManager->GetNodeProxy(
                         cypressManager->GetRootNodeId(),
-                        NTransactionServer::NullTransactionId));
+                        NTransactionServer::NullTransactionId);
                 }),
             ~metaStateManager->GetStateInvoker()));
 

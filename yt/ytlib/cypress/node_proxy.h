@@ -14,7 +14,7 @@ namespace NCypress {
 //! Extends NYTree::INode by adding functionality that is common to all
 //! logical Cypress nodes.
 struct ICypressNodeProxy
-    : virtual NYTree::INode
+    : public virtual NYTree::INode
 {
     typedef TIntrusivePtr<ICypressNodeProxy> TPtr;
 

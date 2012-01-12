@@ -73,14 +73,13 @@ void TMonitoringManager::Update()
         TIMEIT("stateman.updatetime", "tv",
 
         auto newRoot = GetEphemeralNodeFactory()->CreateMap();
-        auto newRootService = IYPathService::FromNode(~newRoot);
 
         FOREACH(const auto& pair, MonitoringMap) {
             TStringStream output;
             TYsonWriter writer(&output, TYsonWriter::EFormat::Binary);
             pair.second->Do(&writer);
 
-            SyncYPathSet(~newRootService, pair.first, output.Str());
+            SyncYPathSet(~newRoot, pair.first, output.Str());
         }
 
         if (IsStarted) {

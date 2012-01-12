@@ -69,10 +69,9 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 
     auto rootNodeId = CypressManager->GetRootNodeId();
     auto rootNode = CypressManager->GetNodeProxy(rootNodeId, transactionId);
-    auto rootService = IYPathService::FromNode(~rootNode);
 
     ExecuteVerb(
-        ~rootService,
+        ~rootNode,
         ~requestMessage,
         ~CypressManager)
     ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)

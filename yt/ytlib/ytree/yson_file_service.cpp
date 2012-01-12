@@ -23,7 +23,7 @@ public:
         UNUSED(verb);
 
         auto node = LoadFile();
-        return TResolveResult::There(~IYPathService::FromNode(~node), path);
+        return TResolveResult::There(~node, path);
     }
 
     virtual void Invoke(NRpc::IServiceContext* context)

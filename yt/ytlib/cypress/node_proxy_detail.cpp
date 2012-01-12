@@ -487,7 +487,7 @@ IYPathService::TResolveResult TRootNodeProxy::ResolveRecursive(
         }
 
         auto node = GetProxy(nodeId);
-        return TResolveResult::There(~IYPathService::FromNode(~node), suffixPath);
+        return TResolveResult::There(~node, suffixPath);
     } else {
         return TMapNodeProxy::ResolveRecursive(path, verb);
     }

@@ -175,9 +175,7 @@ public:
         param.Consumer = builder.Get();
         it->Second()->Do(param);
 
-        auto result = builder->EndTree();
-
-        return NYTree::IYPathService::FromNode(~result);
+        return builder->EndTree();
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)

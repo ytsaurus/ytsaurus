@@ -2,6 +2,7 @@
 #include "tree_builder.h"
 
 #include "../actions/action_util.h"
+#include <yt/ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NYTree {

@@ -595,8 +595,7 @@ TVoid TCypressManager::DoExecuteVerb(
         ~context->GetVerb(),
         ~proxy->GetTransactionId().ToString());
 
-    auto service = IYPathService::FromNode(~proxy);
-    service->Invoke(~context);
+    proxy->Invoke(~context);
 
     LOG_FATAL_IF(!context->IsReplied(), "Logged operation did not complete synchronously");
 

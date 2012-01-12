@@ -404,7 +404,7 @@ private:
             request->set_type("holder");     
             request->set_manifest("{}");     
             ExecuteVerb(
-                ~IYPathService::FromNode(~node),
+                ~node,
                 ~request,
                 ~CypressManager);
         }
@@ -415,7 +415,7 @@ private:
             request->set_type("orchid");     
             request->set_manifest(Sprintf("{remote_address=\"%s\"}", ~address));     
             ExecuteVerb(
-                ~IYPathService::FromNode(~node),
+                ~node,
                 ~request,
                 ~CypressManager);
         }

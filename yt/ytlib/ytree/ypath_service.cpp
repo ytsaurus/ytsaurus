@@ -10,22 +10,12 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TPtr IYPathService::FromNode(INode* node)
-{
-    YASSERT(node);
-    auto* service = dynamic_cast<IYPathService*>(node);
-    if (!service) {
-        ythrow yexception() << "Node does not support YPath";
-    }
-    return service;
-}
-
 IYPathService::TPtr IYPathService::FromProducer(TYsonProducer* producer)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
     producer->Do(~builder);
-    return FromNode(~builder->EndTree());
+    return builder->EndTree();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

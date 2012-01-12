@@ -105,7 +105,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
                 ythrow yexception() << "Node has no attributes";
             }
 
-            response->set_value(SyncYPathGet(~IYPathService::FromNode(~attributes), "/" + attributePath));
+            response->set_value(SyncYPathGet(~attributes, "/" + attributePath));
             context->Reply();
         }
     } else {
@@ -150,7 +150,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, GetNode)
 
         auto attributePath = ChopYPathAttributeMarker(path);
         auto value = SyncYPathGetNode(
-            ~IYPathService::FromNode(~attributes),
+            ~attributes,
             "/" + attributePath);
         response->set_value(reinterpret_cast<i64>(static_cast<INode*>(~value)));
         context->Reply();
@@ -205,7 +205,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
 
         auto attributes = EnsureAttributes();
         SyncYPathSet(
-            ~IYPathService::FromNode(~attributes),
+            ~attributes,
             "/" + attributePath,
             value);
         context->Reply();
@@ -245,7 +245,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, SetNode)
         auto value = reinterpret_cast<INode*>(request->value());
         auto attributePath = ChopYPathAttributeMarker(path);
         SyncYPathSetNode(
-            ~IYPathService::FromNode(~attributes),
+            ~attributes,
             "/" + attributePath,
             value);
         context->Reply();
@@ -300,7 +300,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
                 ythrow yexception() << "Node has no attributes";
             }
 
-            SyncYPathRemove(~IYPathService::FromNode(~attributes), "/" + attributePath);
+            SyncYPathRemove(~attributes, "/" + attributePath);
 
             if (attributes->GetChildCount() == 0) {
                 SetAttributes(NULL);
@@ -395,7 +395,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
     auto child = FindChild(prefix);
     if (child) {
-        return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
+        return IYPathService::TResolveResult::There(~child, suffixPath);
     }
 
     if (verb == "Set" || verb == "SetNode" || verb == "Create") {
@@ -467,7 +467,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
         int index = ParseChildIndex(prefix);
         auto child = FindChild(index);
         YASSERT(child);
-        return IYPathService::TResolveResult::There(~IYPathService::FromNode(~child), suffixPath);
+        return IYPathService::TResolveResult::There(~child, suffixPath);
     }
 }
 
