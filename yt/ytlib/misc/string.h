@@ -76,4 +76,32 @@ inline Stroka ConvertUnderscoreCaseToCamelCase(const Stroka& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool ParseBool(const Stroka& value)
+{
+    if (value == "true") {
+        return true;
+    } else if (value == "false") {
+        return false;
+    } else {
+        ythrow yexception()
+            << Sprintf("Could not parse boolean parameter (Value: %s)",
+                value.length() <= 10
+                    ? ~value
+                    : ~(value.substr(0, 10) + "..."));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+T ParseEnum(
+    const Stroka& value,
+    typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
+        NYT::NDetail::TEmpty())
+{
+    return T::FromString(ConvertUnderscoreCaseToCamelCase(value));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
