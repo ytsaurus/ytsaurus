@@ -40,10 +40,6 @@ struct ICypressNodeProxy
     //! Returns true iff the change specified by the #context
     //! requires meta state logging.
     virtual bool IsLogged(NRpc::IServiceContext* context) const = 0;
-
-    //! Returns true iff the change specified by the #context
-    //! requires an automatic transaction.
-    virtual bool IsTransactionRequired(NRpc::IServiceContext* context) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

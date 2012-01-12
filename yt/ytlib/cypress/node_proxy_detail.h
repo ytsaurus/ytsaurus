@@ -159,20 +159,6 @@ public:
         return false;
     }
 
-    virtual bool IsTransactionRequired(NRpc::IServiceContext* context) const
-    {
-        if (TransactionId != NullTransactionId) {
-            return false;
-        }
-        
-        Stroka verb = context->GetVerb();
-        if (verb == "Lock") {
-            return false;
-        }
-
-        return IsLogged(context);
-    }
-
 protected:
     const INodeTypeHandler::TPtr TypeHandler;
     const TCypressManager::TPtr CypressManager;
