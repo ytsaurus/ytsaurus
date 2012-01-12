@@ -90,9 +90,10 @@ void* TActionQueueBase::ThreadFunc(void* param)
 
 void TActionQueueBase::ThreadMain()
 {
-    try {
-        NThread::SetCurrentThreadName(~ThreadName);
-        while (Running) {
+    NThread::SetCurrentThreadName(~ThreadName);
+
+    while (Running) {
+        try {
             if (!DequeueAndExecute()) {
                 WakeupEvent.Reset();
                 if (!DequeueAndExecute()) {
