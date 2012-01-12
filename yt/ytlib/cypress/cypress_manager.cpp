@@ -57,6 +57,11 @@ public:
         return Type;
     }
 
+    virtual bool Exists(const TObjectId& id)
+    {
+        return Owner->FindNode(TBranchedNodeId(id, NullTransactionId)) != NULL;
+    }
+
     virtual i32 RefObject(const TObjectId& id)
     {
         return Owner->RefNode(id);
@@ -216,6 +221,7 @@ const ICypressNode* TCypressManager::FindTransactionNode(
         // Then try a non-branched one.
         impl = FindNode(TBranchedNodeId(nodeId, NullTransactionId));
     }
+
     return impl;
 }
 

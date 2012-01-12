@@ -23,6 +23,11 @@ public:
         YASSERT(map);
     }
 
+    virtual bool Exists(const TObjectId& id)
+    {
+        return Map->Contains(id);
+    }
+
     virtual i32 RefObject(const TObjectId& id)
     {
         auto& obj = Map->GetForUpdate(id);
