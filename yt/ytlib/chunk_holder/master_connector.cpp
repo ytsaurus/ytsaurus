@@ -6,6 +6,7 @@
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/chunk_server/holder_statistics.h>
 
 #include <util/system/hostname.h>
 

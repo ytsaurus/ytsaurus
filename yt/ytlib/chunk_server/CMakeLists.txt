@@ -12,6 +12,7 @@ set( SRCS
   ${BASE}/holder.cpp
   ${BASE}/holder_authority.cpp
   ${BASE}/holder_lease_tracker.cpp
+  ${BASE}/holder_statistics.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
 )
@@ -29,6 +30,7 @@ set( HDRS
   ${BASE}/holder.h
   ${BASE}/holder_authority.h
   ${BASE}/holder_lease_tracker.h
+  ${BASE}/holder_statistics.h
   ${BASE}/job.h
   ${BASE}/job_list.h
 )

@@ -4,6 +4,7 @@
 #include "chunk_placement.h"
 #include "chunk_replication.h"
 #include "holder_lease_tracker.h"
+#include "holder_statistics.h"
 
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/meta_state/meta_state_manager.h>
