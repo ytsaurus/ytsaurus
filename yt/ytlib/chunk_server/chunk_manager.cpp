@@ -69,6 +69,8 @@ public:
 
     virtual IObjectProxy::TPtr FindProxy(const TObjectId& id);
 
+    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest);
+
 private:
     TImpl* Owner;
 
@@ -259,11 +261,19 @@ public:
     }
 
 
+    TChunk& CreateChunk()
+    {
+        auto id = ObjectManager->GenerateId(EObjectType::Chunk);
+        auto* chunk = new TChunk(id);
+        ChunkMap.Insert(id, chunk);
+        return *chunk;
+    }
+
     TChunkList& CreateChunkList()
     {
-        auto chunkListId = ObjectManager->GenerateId(EObjectType::ChunkList);
-        auto* chunkList = new TChunkList(chunkListId);
-        ChunkListMap.Insert(chunkListId, chunkList);
+        auto id = ObjectManager->GenerateId(EObjectType::ChunkList);
+        auto* chunkList = new TChunkList(id);
+        ChunkListMap.Insert(id, chunkList);
         return *chunkList;
     }
 
@@ -1278,6 +1288,12 @@ IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::FindProxy(const TObject
     return New<TChunkListProxy>(Owner, id);
 }
 
+TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(NYTree::IMapNode* manifest)
+{
+    UNUSED(manifest);
+    return Owner->CreateChunkList().GetId();
+}
+
 void TChunkManager::TChunkListTypeHandler::OnObjectDestroyed(TChunkList& chunkList)
 {
     Owner->OnChunkListDestroyed(chunkList);
@@ -1369,6 +1385,11 @@ TMetaChange<TVoid>::TPtr TChunkManager::InitiateDetachChunkTrees(
     const TMsgDetachChunkTrees& message)
 {
     return Impl->InitiateDetachChunkTrees(message);
+}
+
+TChunk& TChunkManager::CreateChunk()
+{
+    return Impl->CreateChunk();
 }
 
 TChunkList& TChunkManager::CreateChunkList()

@@ -29,7 +29,6 @@ TSession::TSession(
     , WindowStart(0)
     , FirstUnwritten(0)
     , Size(0)
-    , HasChunkInfo(0)
     , Logger(ChunkHolderLogger)
 {
     YASSERT(sessionManager);

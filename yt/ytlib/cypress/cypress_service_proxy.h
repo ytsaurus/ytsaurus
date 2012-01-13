@@ -11,6 +11,11 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const NYTree::TYPath ObjectIdMarker;
+extern const NYTree::TYPath TransactionIdMarker;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCypressServiceProxy
     : public NRpc::TProxyBase
 {
@@ -36,15 +41,25 @@ public:
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
         TTypedRequest* innerRequest,
-        const NYTree::TYPath& path = "",
-        const TTransactionId& transactionId = NullTransactionId);
+        const NYTree::TYPath& path);
+
+    template <class TTypedRequest>
+    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+    Execute(
+        TTypedRequest* innerRequest);
 
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
         TTypedRequest* innerRequest,
-        const NObjectServer::TObjectId& objectId,
-        const TTransactionId& transactionId = NullTransactionId);
+        const NYTree::TYPath& path,
+        const TTransactionId& transactionId);
+
+    template <class TTypedRequest>
+    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+    Execute(
+        TTypedRequest* innerRequest,
+        const NObjectServer::TObjectId& objectId);
 
 };
 

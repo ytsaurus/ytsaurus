@@ -3,9 +3,7 @@ package NYT.NCypress.NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqExecute
-{
-    required bytes transaction_id = 1;
-}
+{ }
 
 message TRspExecute
 { }

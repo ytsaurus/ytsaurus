@@ -88,11 +88,7 @@ public:
     {
         // Release the reference to the attributes, if any.
         if (node.GetAttributesId() != NullNodeId) {
-            // TODO(babenko): fixme
-            //auto& attrImpl = CypressManager->GetNodeForUpdate(TVersionedNodeId(
-            //    node.GetAttributesId(),
-            //    NullTransactionId));
-            //CypressManager->UnrefNode(attrImpl);
+            CypressManager->GetObjectManager()->UnrefObject(node.GetAttributesId());
         }
 
         DoDestroy(dynamic_cast<TImpl&>(node));
@@ -113,11 +109,7 @@ public:
 
         // Add a reference to the attributes, if any.
         if (committedNode.GetAttributesId() != NullNodeId) {
-            //auto& attrImpl = CypressManager->GetNodeForUpdate(TVersionedNodeId(
-            //    committedNode.GetAttributesId(),
-            //    NullTransactionId));
-            //CypressManager->RefNode(attrImpl);
-            // TODO(babenko): fixme
+            CypressManager->GetObjectManager()->RefObject(committedNode.GetAttributesId());
         }
 
         // Run custom branching.
@@ -135,11 +127,7 @@ public:
 
         // Drop the reference to attributes, if any.
         if (committedNode.GetAttributesId() != NullNodeId) {
-            //auto& attrImpl = CypressManager->GetNodeForUpdate(TVersionedNodeId(
-            //    committedNode.GetAttributesId(),
-            //    NullTransactionId));
-            //CypressManager->UnrefNode(attrImpl);
-            // TODO(babenko): fixme
+            CypressManager->GetObjectManager()->UnrefObject(committedNode.GetAttributesId());
         }
 
         // Replace the attributes with the branched copy.

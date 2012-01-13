@@ -2,6 +2,7 @@
 #include "cypress_manager.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
+#include "cypress_service_proxy.h"
 #include "cypress_ypath_proxy.h"
 #include "cypress_ypath.pb.h"
 
@@ -172,10 +173,10 @@ class TCypressManager::TYPathProcessor
 public:
     TYPathProcessor(
         TCypressManager* owner,
-        const TNodeId& rootNodeId,
+        const TObjectId& rootId,
         const TTransactionId& transactionId)
         : Owner(owner)
-        , RootNodeId(rootNodeId)
+        , RootId(rootId)
         , TransactionId(transactionId)
     { }
 
@@ -185,24 +186,33 @@ public:
         IYPathService::TPtr* suffixService,
         TYPath* suffixPath) 
     {
-        TObjectId objectId;
-        if (TryParseObjectId(path, &objectId)) {
-            auto proxy = Owner->FindObjectProxy(objectId, TransactionId);
-            if (!proxy) {
-                ythrow yexception() << Sprintf("No such object (Id: %s)", ~objectId.ToString());
-            }
+        auto currentPath = path;
 
-            *suffixService = proxy;
-            *suffixPath = "";
-        } else {
-            auto rootNode = Owner->GetNodeProxy(RootNodeId, TransactionId);
-            ResolveYPath(
-                ~rootNode,
-                path,
-                verb,
-                suffixService,
-                suffixPath);
+        if (!currentPath.empty() && currentPath.has_prefix(TransactionIdMarker)) {
+            currentPath = currentPath.substr(1);
+            TransactionId = ParseId(currentPath);
+            if (!Owner->TransactionManager->FindTransaction(TransactionId)) {
+                ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)",
+                    ~TransactionId.ToString());
+            }
         }
+
+        if (!currentPath.empty() && currentPath.has_prefix(ObjectIdMarker)) {
+            currentPath = currentPath.substr(1);
+            RootId = ParseId(currentPath);
+        }
+
+        auto rootProxy = Owner->FindObjectProxy(RootId, TransactionId);
+        if (!rootProxy) {
+            ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~RootId.ToString());
+        }
+
+        ResolveYPath(
+            ~rootProxy,
+            path,
+            verb,
+            suffixService,
+            suffixPath);
     }
 
     virtual void Execute(
@@ -257,24 +267,27 @@ public:
 
 private:
     TCypressManager::TPtr Owner;
-    TNodeId RootNodeId;
+    TObjectId RootId;
     TTransactionId TransactionId;
 
-    bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
+    TObjectId ParseId(TYPath& path)
     {
-        if (path.empty()) {
-            *objectId = NullObjectId;
-            return true;
+        if (path.empty() || path[0] != '(') {
+            ythrow yexception() << "Missing '(' in YPath";
         }
 
-        if (path.has_prefix(ObjectIdMarker)) {
-            if (!TObjectId::FromString(path.substr(1), objectId)) {
-                ythrow yexception() << "Error parsing object id";
-            }
-            return true;
+        int index = path.find(')');
+        if (index == Stroka::npos) {
+            ythrow yexception() << "Missing ')' in YPath";
         }
 
-        return false;
+        TObjectId id;
+        if (!TObjectId::FromString(path.substr(1, index - 1), &id)) {
+            ythrow yexception() << "Error parsing id in YPath";
+        }
+
+        path = path.substr(index + 1);
+        return id;
     }
 };
 
@@ -723,13 +736,14 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
 }
 
 IYPathProcessor::TPtr TCypressManager::CreateProcessor(
-    const TNodeId& rootNodeId,
+    const TObjectId& rootId,
     const TTransactionId& transactionId)
 {
-    return New<TYPathProcessor>(this, rootNodeId, transactionId);
+    return New<TYPathProcessor>(this, rootId, transactionId);
 }
 
-IYPathProcessor::TPtr TCypressManager::CreateRootProcessor(const TTransactionId& transactionId)
+IYPathProcessor::TPtr TCypressManager::CreateRootProcessor(
+    const TTransactionId& transactionId)
 {
     return New<TYPathProcessor>(this, GetRootNodeId(), transactionId);
 }

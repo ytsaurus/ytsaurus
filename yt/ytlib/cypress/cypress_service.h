@@ -20,17 +20,13 @@ public:
     //! Creates an instance.
     TCypressService(
         IInvoker* invoker,
-        TCypressManager* cypressManager,
-        NTransactionServer::TTransactionManager* transactionManager);
+        TCypressManager* cypressManager);
 
 private:
     typedef TCypressService TThis;
     typedef TCypressServiceProxy::EErrorCode EErrorCode;
 
     TCypressManager::TPtr CypressManager;
-    NTransactionServer::TTransactionManager::TPtr TransactionManager;
-
-    void ValidateTransactionId(const TTransactionId& transactionId);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Execute);
 

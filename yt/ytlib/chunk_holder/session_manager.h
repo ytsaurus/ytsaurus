@@ -94,8 +94,6 @@ private:
     i32 WindowStart;
     i32 FirstUnwritten;
     i64 Size;
-    NProto::TChunkInfo ChunkInfo;
-    bool HasChunkInfo;
 
     Stroka FileName;
     NChunkClient::TChunkFileWriter::TPtr Writer;

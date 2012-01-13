@@ -98,6 +98,7 @@ public:
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
+    TChunk& CreateChunk();
     TChunkList& CreateChunkList();
 
     void RunJobControl(

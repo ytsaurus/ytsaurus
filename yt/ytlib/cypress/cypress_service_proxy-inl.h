@@ -16,21 +16,7 @@ template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 TCypressServiceProxy::Execute(
     TTypedRequest* innerRequest,
-    const NObjectServer::TObjectId& objectId,
-    const TTransactionId& transactionId)
-{
-    return Execute(
-        innerRequest,
-        YPathFromObjectId(objectId),
-        transactionId);
-}
-
-template <class TTypedRequest>
-TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-TCypressServiceProxy::Execute(
-    TTypedRequest* innerRequest,
-    const NYTree::TYPath& path,
-    const TTransactionId& transactionId)
+    const NYTree::TYPath& path)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
@@ -39,7 +25,6 @@ TCypressServiceProxy::Execute(
     }
 
     auto outerRequest = Execute();
-    outerRequest->set_transaction_id(transactionId.ToProto());
 
     auto innerRequestMessage = innerRequest->Serialize();
     NYTree::WrapYPathRequest(~outerRequest, ~innerRequestMessage);
@@ -61,6 +46,39 @@ TCypressServiceProxy::Execute(
             }
             return innerResponse;
         }));
+}
+
+template <class TTypedRequest>
+TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+TCypressServiceProxy::Execute(
+    TTypedRequest* innerRequest)
+{
+    return Execute(
+        innerRequest,
+        "");
+}
+
+template <class TTypedRequest>
+TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+TCypressServiceProxy::Execute(
+    TTypedRequest* innerRequest,
+    const NYTree::TYPath& path,
+    const TTransactionId& transactionId)
+{
+    return Execute(
+        innerRequest,
+        TransactionIdMarker + "(" + transactionId.ToString() + ")" + path);
+}
+
+template <class TTypedRequest>
+TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+TCypressServiceProxy::Execute(
+    TTypedRequest* innerRequest,
+    const NObjectServer::TObjectId& objectId)
+{
+    return Execute(
+        innerRequest,
+        ObjectIdMarker + "(" + objectId.ToString() + ")");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

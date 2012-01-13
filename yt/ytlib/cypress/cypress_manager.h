@@ -65,7 +65,7 @@ public:
         const TTransactionId& transactionId);
 
     TIntrusivePtr<NObjectServer::IObjectProxy> FindObjectProxy(
-        const NObjectServer::TObjectId& objectId,
+        const TObjectId& objectId,
         const TTransactionId& transactionId);
 
     TIntrusivePtr<ICypressNodeProxy> FindNodeProxy(
@@ -73,7 +73,7 @@ public:
         const TTransactionId& transactionId);
 
     TIntrusivePtr<NObjectServer::IObjectProxy> GetObjectProxy(
-        const NObjectServer::TObjectId& objectId,
+        const TObjectId& objectId,
         const TTransactionId& transactionId);
 
     TIntrusivePtr<ICypressNodeProxy> GetNodeProxy(
@@ -104,8 +104,9 @@ public:
     ICypressNode& BranchNode(ICypressNode& node, const TTransactionId& transactionId);
 
     NYTree::IYPathProcessor::TPtr CreateProcessor(
-        const TNodeId& rootNodeId,
+        const TObjectId& rootId = NullObjectId,
         const TTransactionId& transactionId = NullTransactionId);
+
     NYTree::IYPathProcessor::TPtr CreateRootProcessor(
         const TTransactionId& transactionId = NullTransactionId);
 

@@ -8,15 +8,17 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef NObjectServer::TObjectId TNodeId;
+using NObjectServer::TObjectId;
+using NObjectServer::NullObjectId;
+using NObjectServer::EObjectType;
+
+typedef TObjectId TNodeId;
 extern TNodeId NullNodeId;
 
-typedef NObjectServer::TObjectId TLockId;
+typedef TObjectId TLockId;
 
 using NTransactionServer::TTransactionId;
 using NTransactionServer::NullTransactionId;
-
-using NObjectServer::EObjectType;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -142,8 +142,7 @@ void TCellMasterBootstrap::Run()
 
     auto cypressService = New<TCypressService>(
         ~metaStateManager->GetStateInvoker(),
-        ~cypressManager,
-        ~transactionManager);
+        ~cypressManager);
     rpcServer->RegisterService(~cypressService);
 
     auto holderRegistry = CreateHolderAuthority(~cypressManager);
