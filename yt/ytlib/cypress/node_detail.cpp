@@ -305,28 +305,6 @@ void TListNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRootNodeTypeHandler::TRootNodeTypeHandler(TCypressManager* cypressManager)
-    : TMapNodeTypeHandler(cypressManager)
-{ }
-
-EObjectType TRootNodeTypeHandler::GetObjectType()
-{
-    return EObjectType::RootNode;
-}
-
-ICypressNodeProxy::TPtr TRootNodeTypeHandler::GetProxy(
-    const ICypressNode& node,
-    const TTransactionId& transactionId)
-{
-    return New<TRootNodeProxy>(
-        this,
-        ~CypressManager,
-        transactionId,
-        node.GetId().NodeId);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NCypress
 } // namespace NYT
 

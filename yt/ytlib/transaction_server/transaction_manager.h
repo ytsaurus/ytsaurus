@@ -1,7 +1,6 @@
 #pragma once
 
 #include "id.h"
-#include "transaction_manager.pb.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/id_generator.h>
@@ -12,6 +11,16 @@
 #include <ytlib/meta_state/meta_change.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/object_server/object_manager.h>
+
+
+// TODO(babenko): consider getting rid of this
+namespace NYT {
+namespace NCypress {
+
+class TCypressManager;
+
+}
+}
 
 namespace NYT {
 namespace NTransactionServer {
@@ -57,15 +66,11 @@ public:
         NMetaState::TCompositeMetaState* metaState,
         NObjectServer::TObjectManager* objectManager);
 
-    NMetaState::TMetaChange<TTransactionId>::TPtr InitiateStartTransaction();
+    void SetCypressManager(NCypress::TCypressManager* cypressManager);
+
     TTransaction& Start();
-
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateCommitTransaction(const TTransactionId& id);
     void Commit(TTransaction& transaction);
-
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateAbortTransaction(const TTransactionId& id);
     void Abort(TTransaction& transaction);
-
     void RenewLease(const TTransactionId& id);
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
@@ -77,13 +82,10 @@ private:
 
     TConfig::TPtr Config;
     NObjectServer::TObjectManager::TPtr ObjectManager;
+    TIntrusivePtr<NCypress::TCypressManager> CypressManager;
 
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
-
-    TTransactionId DoStartTransaction(const NProto::TMsgStartTransaction& message);
-    TVoid DoCommitTransaction(const NProto::TMsgCommitTransaction& message);
-    TVoid DoAbortTransaction(const NProto::TMsgAbortTransaction& message);
 
     virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();

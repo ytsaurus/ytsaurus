@@ -28,7 +28,6 @@ struct ICypressNodeProxy;
 
 class TCypressManager
     : public NMetaState::TMetaStatePart
-    , public NYTree::IYPathExecutor
 {
 public:
     typedef TCypressManager TThis;
@@ -65,8 +64,16 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
+    TIntrusivePtr<NObjectServer::IObjectProxy> FindObjectProxy(
+        const NObjectServer::TObjectId& objectId,
+        const TTransactionId& transactionId);
+
     TIntrusivePtr<ICypressNodeProxy> FindNodeProxy(
         const TNodeId& nodeId,
+        const TTransactionId& transactionId);
+
+    TIntrusivePtr<NObjectServer::IObjectProxy> GetObjectProxy(
+        const NObjectServer::TObjectId& objectId,
         const TTransactionId& transactionId);
 
     TIntrusivePtr<ICypressNodeProxy> GetNodeProxy(
@@ -96,11 +103,17 @@ public:
 
     ICypressNode& BranchNode(ICypressNode& node, const TTransactionId& transactionId);
 
-    void ExecuteVerb(NYTree::IYPathService* service, NRpc::IServiceContext* context);
+    NYTree::IYPathProcessor::TPtr CreateProcessor(
+        const TNodeId& rootNodeId,
+        const TTransactionId& transactionId = NullTransactionId);
+    NYTree::IYPathProcessor::TPtr CreateRootProcessor(
+        const TTransactionId& transactionId = NullTransactionId);
 
 private:
     class TLockTypeHandler;
     class TNodeTypeHandler;
+    class TYPathProcessor;
+    class TDefaultProxy;
 
     class TNodeMapTraits
     {
@@ -130,8 +143,11 @@ private:
     i32 UnrefNode(const TNodeId& nodeId);
     i32 GetNodeRefCounter(const TNodeId& nodeId);
 
-    TVoid DoExecuteLoggedVerb(const NProto::TMsgExecuteVerb& message);
-    TVoid DoExecuteVerb(ICypressNodeProxy::TPtr proxy, NRpc::IServiceContext::TPtr context);
+    TVoid DoReplayVerb(const NProto::TMsgExecuteVerb& message);
+    TVoid DoExecuteVerb(
+        const TTransactionId& transactionId,
+        NObjectServer::IObjectProxy::TPtr proxy,
+        NRpc::IServiceContext::TPtr context);
 
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
     void Load(TInputStream* input);

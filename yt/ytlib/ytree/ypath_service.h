@@ -64,17 +64,23 @@ typedef IFunc<NYTree::IYPathService::TPtr> TYPathServiceProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IYPathExecutor
+struct IYPathProcessor
     : public virtual TRefCountedBase
 {
-    typedef TIntrusivePtr<IYPathExecutor> TPtr;
+    typedef TIntrusivePtr<IYPathProcessor> TPtr;
 
-    virtual void ExecuteVerb(
+    virtual void Resolve(
+        const TYPath& path,
+        const Stroka& verb,
+        IYPathService::TPtr* suffixService,
+        TYPath* suffixPath) = 0;
+
+    virtual void Execute(
         IYPathService* service,
         NRpc::IServiceContext* context) = 0;
 };
 
-IYPathExecutor::TPtr GetDefaultExecutor();
+IYPathProcessor::TPtr CreateDefaultProcessor(IYPathService* rootService);
 
 ////////////////////////////////////////////////////////////////////////////////
 

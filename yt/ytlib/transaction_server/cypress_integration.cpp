@@ -64,8 +64,6 @@ NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(
     return CreateVirtualTypeHandler(
         cypressManager,
         EObjectType::TransactionMap,
-        // TODO: extract type name
-        "transaction_map",
         ~New<TVirtualTransactionMap>(transactionManager));
 }
 

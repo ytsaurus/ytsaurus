@@ -7,7 +7,6 @@ set( SRCS
   ${BASE}/transaction.cpp
   ${BASE}/transaction_proxy.cpp
   ${BASE}/transaction_manager.cpp
-  ${BASE}/transaction_service.cpp
 )
 set( HDRS
   ${BASE}/common.h
@@ -16,8 +15,6 @@ set( HDRS
   ${BASE}/transaction.h
   ${BASE}/transaction_proxy.h
   ${BASE}/transaction_manager.h
-  ${BASE}/transaction_service.h
-  ${BASE}/transaction_service_proxy.h
   ${BASE}/transaction_ypath_proxy.h
 )
 
@@ -27,5 +24,3 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/transaction_ypath.proto YT_SOURCE_FILES )
-protoc( ${BASE}/transaction_manager.proto YT_SOURCE_FILES )
-protoc( ${BASE}/transaction_service.proto YT_SOURCE_FILES )

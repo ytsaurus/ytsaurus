@@ -2,8 +2,7 @@
 #include "ypath_service.h"
 #include "tree_builder.h"
 #include "ephemeral.h"
-
-#include <ytlib/misc/singleton.h>
+#include "ypath_detail.h"
 
 namespace NYT {
 namespace NYTree {
@@ -20,21 +19,42 @@ IYPathService::TPtr IYPathService::FromProducer(TYsonProducer* producer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultYPathExecutor
-    : public IYPathExecutor
+class TDefaultYPathProcessor
+    : public IYPathProcessor
 {
 public:
-    virtual void ExecuteVerb(
+    TDefaultYPathProcessor(IYPathService* rootService)
+        : RootService(rootService)
+    { }
+
+    virtual void Resolve(
+        const TYPath& path,
+        const Stroka& verb,
+        IYPathService::TPtr* suffixService,
+        TYPath* suffixPath)
+    {
+        ResolveYPath(
+            ~RootService,
+            path,
+            verb,
+            suffixService,
+            suffixPath);
+    }
+
+    virtual void Execute(
         IYPathService* service,
         NRpc::IServiceContext* context)
     {
         service->Invoke(context);
     }
+
+private:
+    IYPathService::TPtr RootService;
 };
 
-IYPathExecutor::TPtr GetDefaultExecutor()
+IYPathProcessor::TPtr CreateDefaultProcessor(IYPathService* rootService)
 {
-    return RefCountedSingleton<TDefaultYPathExecutor>();
+    return New<TDefaultYPathProcessor>(rootService);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

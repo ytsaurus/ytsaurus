@@ -133,17 +133,15 @@ protected:
 //! Asynchronously executes an untyped YPath verb against a given service.
 TFuture<NBus::IMessage::TPtr>::TPtr
 ExecuteVerb(
-    IYPathService* rootService,
     NBus::IMessage* requestMessage,
-    IYPathExecutor* executor = ~GetDefaultExecutor());
+    IYPathProcessor* processor);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteVerb(
-    IYPathService* rootService,
     TTypedRequest* request,
-    IYPathExecutor* executor = ~GetDefaultExecutor());
+    IYPathProcessor* processor);
 
 //! Asynchronously executes "Get" verb. 
 TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* rootService, const TYPath& path);

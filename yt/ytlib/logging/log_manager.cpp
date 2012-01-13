@@ -174,7 +174,7 @@ public:
         return config;
     }
 
-    static TPtr CreateFromNode(INode* node, const TYPath& path = YPathRoot)
+    static TPtr CreateFromNode(INode* node, const TYPath& path = RootMarker)
     {
         auto config = New<TLogConfig>();
         config->LoadAndValidate(node, path);
@@ -247,7 +247,7 @@ public:
         Shutdown();
     }
 
-    void Configure(INode* node, const TYPath& path = YPathRoot)
+    void Configure(INode* node, const TYPath& path = RootMarker)
     {
         auto config = TLogConfig::CreateFromNode(node, path);
 

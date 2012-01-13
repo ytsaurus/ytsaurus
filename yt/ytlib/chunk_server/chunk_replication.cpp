@@ -109,7 +109,6 @@ void TChunkReplication::ProcessExistingJobs(
 
     yhash_set<TJobId> runningJobIds;
 
-    // TODO: check for timed out jobs
     FOREACH(const auto& jobInfo, runningJobs) {
         auto jobId = TJobId::FromProto(jobInfo.job_id());
         runningJobIds.insert(jobId);
@@ -229,7 +228,6 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 
     int requestedCount = desiredCount - (storedCount + plusCount);
     if (requestedCount <= 0) {
-        // TODO: is this possible?
         LOG_INFO("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),

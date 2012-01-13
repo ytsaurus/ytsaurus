@@ -503,20 +503,5 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-class TRootNodeTypeHandler
-    : public TMapNodeTypeHandler
-{
-public:
-    TRootNodeTypeHandler(TCypressManager* cypressManager);
-
-    virtual EObjectType GetObjectType();
-
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId);
-};
-
-//////////////////////////////////////////////////////////////////////////////// 
-
 } // namespace NCypress
 } // namespace NYT

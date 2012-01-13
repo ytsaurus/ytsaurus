@@ -11,7 +11,6 @@
 #include <ytlib/object_server/object_manager.h>
 
 #include <ytlib/transaction_server/transaction_manager.h>
-#include <ytlib/transaction_server/transaction_service.h>
 #include <ytlib/transaction_server/cypress_integration.h>
 
 #include <ytlib/cypress/cypress_manager.h>
@@ -56,7 +55,6 @@ using NYTree::IYPathService;
 using NYTree::SyncYPathSetNode;
 
 using NTransactionServer::TTransactionManager;
-using NTransactionServer::TTransactionService;
 using NTransactionServer::CreateTransactionMapTypeHandler;
 
 using NChunkServer::TChunkManagerConfig;
@@ -64,7 +62,7 @@ using NChunkServer::TChunkManager;
 using NChunkServer::TChunkService;
 using NChunkServer::CreateChunkMapTypeHandler;
 using NChunkServer::CreateChunkListMapTypeHandler;
-using NChunkServer::CreateHolderRegistry;
+using NChunkServer::CreateHolderAuthority;
 using NChunkServer::CreateHolderMapTypeHandler;
 
 using NMetaState::TCompositeMetaState;
@@ -134,16 +132,13 @@ void TCellMasterBootstrap::Run()
         ~metaState,
         ~objectManager);
 
-    auto transactionService = New<TTransactionService>(
-        ~metaStateManager,
-        ~transactionManager);
-    rpcServer->RegisterService(~transactionService);
-
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
         ~metaState,
         ~transactionManager,
         ~objectManager);
+
+    transactionManager->SetCypressManager(~cypressManager);
 
     auto cypressService = New<TCypressService>(
         ~metaStateManager->GetStateInvoker(),
@@ -151,7 +146,7 @@ void TCellMasterBootstrap::Run()
         ~transactionManager);
     rpcServer->RegisterService(~cypressService);
 
-    auto holderRegistry = CreateHolderRegistry(~cypressManager);
+    auto holderRegistry = CreateHolderAuthority(~cypressManager);
 
     auto chunkManager = New<TChunkManager>(
         ~New<TChunkManagerConfig>(),
@@ -229,7 +224,6 @@ void TCellMasterBootstrap::Run()
         ~metaStateManager,
         ~cypressManager,
         ~chunkManager));
-
     cypressManager->RegisterHandler(~CreateFileTypeHandler(
         ~cypressManager,
         ~chunkManager));

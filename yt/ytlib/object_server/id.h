@@ -58,7 +58,6 @@ DECLARE_ENUM(EObjectType,
     ((Holder)(410))
     ((HolderMap)(411))
     ((OrchidNode)(412))
-    ((RootNode)(413))
 );
 
 //! Valid types are supposed to be in range [0, MaxObjectType - 1].

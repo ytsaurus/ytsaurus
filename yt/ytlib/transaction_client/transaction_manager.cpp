@@ -6,7 +6,6 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/actions/signal.h>
-#include <ytlib/transaction_server/transaction_service_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -33,25 +32,22 @@ public:
         , Proxy(cellChannel)
         , State(EState::Active)
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
         YASSERT(cellChannel);
         YASSERT(transactionManager);
+        VERIFY_THREAD_AFFINITY(ClientThread);
 
         Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
 
-        // TODO(babenko): refactor
-        TTransactionServiceProxy proxy2(cellChannel);
-        proxy2.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
-        auto req = proxy2.StartTransaction();
-
         LOG_INFO("Starting transaction");
-        auto rsp = req->Invoke()->Get();
+        auto req = TCypressYPathProxy::Create();
+        req->set_type(EObjectType::Transaction);
+        auto rsp = Proxy.Execute(~req)->Get();
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
             State = EState::Aborted;
             LOG_ERROR_AND_THROW(yexception(), "Error starting transaction\n%s",  ~rsp->GetError().ToString());
         }
-        Id = TTransactionId::FromProto(rsp->transaction_id());
+        Id = TTransactionId::FromProto(rsp->id());
         State = EState::Active;
 
         LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());

@@ -57,6 +57,7 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 
     auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
     auto requestHeader = GetRequestHeader(~requestMessage);
+
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();
 
@@ -67,13 +68,11 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 
     ValidateTransactionId(transactionId);
 
-    auto rootNodeId = CypressManager->GetRootNodeId();
-    auto rootNode = CypressManager->GetNodeProxy(rootNodeId, transactionId);
+    auto processor = CypressManager->CreateProcessor(transactionId);
 
     ExecuteVerb(
-        ~rootNode,
         ~requestMessage,
-        ~CypressManager)
+        ~processor)
     ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
         {
             auto responseHeader = GetResponseHeader(~responseMessage);

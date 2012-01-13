@@ -16,12 +16,12 @@ class TChunkManager;
 
 //! Controls holder server-side leases.
 /*!
- *  Upon receiving a registration request from a holder
+ *  Upon receiving a registration request from a holder,
  *  TChunkManager registers its by calling #THolderExpiration::Register.
  *  
  *  It also extends the leases by calling #THolderExpiration::RenewHolderLeases.
  *  
- *  When a lease expires #THolderExpiration triggers holder unregistration
+ *  When a lease expires #THolderExpiration triggers holder deregistration
  *  by calling #TChunkManager::InitiateUnregisterHolder.
  *  The latter is a logged operation during which #THolderExpiration::Unregister
  *  gets called.

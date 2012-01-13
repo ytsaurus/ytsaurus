@@ -2,9 +2,12 @@
 #include "cypress_manager.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
+#include "cypress_ypath_proxy.h"
+#include "cypress_ypath.pb.h"
 
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/rpc/message.h>
 #include <ytlib/object_server/type_handler_detail.h>
 
@@ -96,6 +99,187 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCypressManager::TDefaultProxy
+    : public TYPathServiceBase
+    , public virtual IObjectProxy
+{
+public:
+    TDefaultProxy(
+        TCypressManager* owner,
+        const TTransactionId& transactionId)
+        : Owner(owner)
+        , TransactionId(transactionId)
+    { }
+
+    virtual bool IsLogged(IServiceContext* context) const
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Create") {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    virtual TObjectId GetId() const
+    {
+        return NullObjectId;
+    }
+
+private:
+    TCypressManager::TPtr Owner;
+    TTransactionId TransactionId;
+
+    virtual void DoInvoke(NRpc::IServiceContext* context)
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Create") {
+            CreateThunk(context);
+        } else {
+            TYPathServiceBase::DoInvoke(context);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
+    {
+        // TODO(babenko): validate type
+        auto type = EObjectType(request->type());
+        auto handler = Owner->ObjectManager->GetHandler(type);
+
+        NYTree::INode::TPtr manifestNode =
+            request->has_manifest()
+            ? NYTree::DeserializeFromYson(request->manifest())
+            : NYTree::GetEphemeralNodeFactory()->CreateMap();
+
+        if (manifestNode->GetType() != NYTree::ENodeType::Map) {
+            ythrow yexception() << "Manifest must be a map";
+        }
+
+        auto id = handler->CreateFromManifest(~manifestNode->AsMap());
+
+        response->set_id(id.ToProto());
+
+        context->Reply();
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressManager::TYPathProcessor
+    : public IYPathProcessor
+{
+public:
+    TYPathProcessor(
+        TCypressManager* owner,
+        const TNodeId& rootNodeId,
+        const TTransactionId& transactionId)
+        : Owner(owner)
+        , RootNodeId(rootNodeId)
+        , TransactionId(transactionId)
+    { }
+
+    virtual void Resolve(
+        const TYPath& path,
+        const Stroka& verb,
+        IYPathService::TPtr* suffixService,
+        TYPath* suffixPath) 
+    {
+        TObjectId objectId;
+        if (TryParseObjectId(path, &objectId)) {
+            auto proxy = Owner->FindObjectProxy(objectId, TransactionId);
+            if (!proxy) {
+                ythrow yexception() << Sprintf("No such object (Id: %s)", ~objectId.ToString());
+            }
+
+            *suffixService = proxy;
+            *suffixPath = "";
+        } else {
+            auto rootNode = Owner->GetNodeProxy(RootNodeId, TransactionId);
+            ResolveYPath(
+                ~rootNode,
+                path,
+                verb,
+                suffixService,
+                suffixPath);
+        }
+    }
+
+    virtual void Execute(
+        IYPathService* service,
+        NRpc::IServiceContext* context)
+    {
+        VERIFY_THREAD_AFFINITY(Owner->StateThread);
+
+        auto proxy = dynamic_cast<IObjectProxy*>(service);
+        if (!proxy || !proxy->IsLogged(context)) {
+            LOG_INFO("Executing a non-logged operation (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
+                ~context->GetPath(),
+                ~context->GetVerb(),
+                proxy ? ~proxy->GetId().ToString() : "N/A",
+                ~TransactionId.ToString());
+            service->Invoke(context);
+            return;
+        }
+
+        TMsgExecuteVerb message;
+        message.set_object_id(proxy->GetId().ToProto());
+        message.set_transaction_id(TransactionId.ToProto());
+
+        auto requestMessage = context->GetRequestMessage();
+        FOREACH (const auto& part, requestMessage->GetParts()) {
+            message.add_request_parts(part.Begin(), part.Size());
+        }
+
+        auto change = CreateMetaChange(
+            ~Owner->MetaStateManager,
+            message,
+            ~FromMethod(
+                &TCypressManager::DoExecuteVerb,
+                Owner,
+                TransactionId,
+                proxy,
+                context));
+
+        IServiceContext::TPtr context_ = context;
+        change
+            ->OnError(~FromFunctor([=] ()
+                {
+                    // TODO: fixme
+                    if (!context_->IsReplied()) {
+                        context_->Reply(TError(
+                            EYPathErrorCode::CommitError,
+                            "Error committing meta state changes"));
+                    }
+                }))
+            ->Commit();
+    }
+
+private:
+    TCypressManager::TPtr Owner;
+    TNodeId RootNodeId;
+    TTransactionId TransactionId;
+
+    bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
+    {
+        if (path.empty()) {
+            *objectId = NullObjectId;
+            return true;
+        }
+
+        if (path.has_prefix(ObjectIdMarker)) {
+            if (!TObjectId::FromString(path.substr(1), objectId)) {
+                ythrow yexception() << "Error parsing object id";
+            }
+            return true;
+        }
+
+        return false;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressManager::TCypressManager(
     IMetaStateManager* metaStateManager,
     TCompositeMetaState* metaState,
@@ -126,9 +310,8 @@ TCypressManager::TCypressManager(
     RegisterHandler(~New<TDoubleNodeTypeHandler>(this));
     RegisterHandler(~New<TMapNodeTypeHandler>(this));
     RegisterHandler(~New<TListNodeTypeHandler>(this));
-    RegisterHandler(~New<TRootNodeTypeHandler>(this));
 
-    RegisterMethod(this, &TThis::DoExecuteLoggedVerb);
+    RegisterMethod(this, &TThis::DoReplayVerb);
 
     metaState->RegisterLoader(
         "Cypress.1",
@@ -208,7 +391,7 @@ TNodeId TCypressManager::GetRootNodeId()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return CreateId(
-        EObjectType::RootNode,
+        EObjectType::MapNode,
         ObjectManager->GetCellId(),
         0xffffffffffffffff);
 }
@@ -289,6 +472,32 @@ ICypressNode& TCypressManager::GetVersionedNodeForUpdate(
     return *impl;
 }
 
+IObjectProxy::TPtr TCypressManager::FindObjectProxy(
+    const TObjectId& objectId,
+    const TTransactionId& transactionId)
+{
+    // NullObjectId is special case.
+    if (objectId == NullObjectId) {
+        return New<TDefaultProxy>(this, transactionId);
+    }
+
+    // First try to fetch a proxy of a Cypress node.
+    // This way we don't lose information about the current transaction.
+    auto nodeProxy = FindNodeProxy(objectId, transactionId);
+    if (nodeProxy) {
+        return nodeProxy;
+    }
+
+    // Next try fetching a proxy for a generic object.
+    auto objectProxy = ObjectManager->FindProxy(objectId);
+    if (objectProxy) {
+        return objectProxy;
+    }
+
+    // Nothing found.
+    return NULL;
+}
+
 ICypressNodeProxy::TPtr TCypressManager::FindNodeProxy(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
@@ -302,6 +511,15 @@ ICypressNodeProxy::TPtr TCypressManager::FindNodeProxy(
     }
 
     return GetHandler(*impl)->GetProxy(*impl, transactionId);
+}
+
+IObjectProxy::TPtr TCypressManager::GetObjectProxy(
+    const TObjectId& objectId,
+    const TTransactionId& transactionId)
+{
+    auto proxy = FindObjectProxy(objectId, transactionId);
+    YASSERT(proxy);
+    return proxy;
 }
 
 ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
@@ -504,106 +722,16 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     return *branchedNodePtr;
 }
 
-void TCypressManager::ExecuteVerb(IYPathService* service, IServiceContext* context)
+IYPathProcessor::TPtr TCypressManager::CreateProcessor(
+    const TNodeId& rootNodeId,
+    const TTransactionId& transactionId)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto proxy = dynamic_cast<ICypressNodeProxy*>(service);
-    if (!proxy || !proxy->IsLogged(context)) {
-        LOG_INFO("Executing a non-logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
-            ~context->GetPath(),
-            ~context->GetVerb(),
-            !proxy ? "N/A" : ~proxy->GetId().ToString(),
-            !proxy ? "N/A" : ~proxy->GetTransactionId().ToString());
-        service->Invoke(context);
-        return;
-    }
-
-    TMsgExecuteVerb message;
-    message.set_node_id(proxy->GetId().ToProto());
-    message.set_transaction_id(proxy->GetTransactionId().ToProto());
-
-    auto requestMessage = context->GetRequestMessage();
-    FOREACH (const auto& part, requestMessage->GetParts()) {
-        message.add_request_parts(part.Begin(), part.Size());
-    }
-
-    auto change = CreateMetaChange(
-        ~MetaStateManager,
-        message,
-        ~FromMethod(
-            &TCypressManager::DoExecuteVerb,
-            TPtr(this),
-            proxy,
-            context));
-
-    LOG_INFO("Executing a logged operation (Path: %s, Verb: %s, NodeId: %s, TransactionId: %s)",
-        ~context->GetPath(),
-        ~context->GetVerb(),
-        ~proxy->GetId().ToString(),
-        ~proxy->GetTransactionId().ToString());
-
-    IServiceContext::TPtr context_ = context;
-    change
-        ->OnError(~FromFunctor([=] ()
-            {
-                // TODO: fixme
-                if (!context_->IsReplied()) {
-                    context_->Reply(TError(
-                        EYPathErrorCode::CommitError,
-                        "Error committing meta state changes"));
-                }
-            }))
-        ->Commit();
+    return New<TYPathProcessor>(this, rootNodeId, transactionId);
 }
 
-TVoid TCypressManager::DoExecuteLoggedVerb(const TMsgExecuteVerb& message)
+IYPathProcessor::TPtr TCypressManager::CreateRootProcessor(const TTransactionId& transactionId)
 {
-    auto nodeId = TNodeId::FromProto(message.node_id());
-    auto transactionId = TTransactionId::FromProto(message.transaction_id());
-
-    yvector<TSharedRef> parts(message.request_parts_size());
-    for (int partIndex = 0; partIndex < static_cast<int>(message.request_parts_size()); ++partIndex) {
-        // Construct a non-owning TSharedRef to avoid copying.
-        // This is feasible since the message will outlive the request.
-        const auto& part = message.request_parts(partIndex);
-        parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
-    }
-
-    auto requestMessage = CreateMessageFromParts(MoveRV(parts));
-    auto header = GetRequestHeader(~requestMessage);
-    TYPath path = header.path();
-    Stroka verb = header.verb();
-
-    auto context = CreateYPathContext(
-        ~requestMessage,
-        path,
-        verb,
-        Logger.GetCategory(),
-        NULL);
-
-    auto proxy = GetNodeProxy(nodeId, transactionId);
-    DoExecuteVerb(proxy, context);
-
-    return TVoid();
-}
-
-TVoid TCypressManager::DoExecuteVerb(
-    ICypressNodeProxy::TPtr proxy,
-    IServiceContext::TPtr context)
-{
-    TTransaction* transaction = NULL;
-
-    LOG_INFO_IF(!IsRecovery(), "Executing a logged operation (Path: %s, Verb: %s, TransactionId: %s)",
-        ~context->GetPath(),
-        ~context->GetVerb(),
-        ~proxy->GetTransactionId().ToString());
-
-    proxy->Invoke(~context);
-
-    LOG_FATAL_IF(!context->IsReplied(), "Logged operation did not complete synchronously");
-
-    return TVoid();
+    return New<TYPathProcessor>(this, GetRootNodeId(), transactionId);
 }
 
 TFuture<TVoid>::TPtr TCypressManager::Save(const TCompositeMetaState::TSaveContext& context)
@@ -632,7 +760,7 @@ void TCypressManager::Clear()
     // Create the root.
     auto* rootImpl = new TMapNode(
         TVersionedNodeId(GetRootNodeId(), NullTransactionId),
-        EObjectType::RootNode);
+        EObjectType::MapNode);
     rootImpl->SetState(ENodeState::Committed);
     ObjectManager->RefObject(rootImpl->GetId().NodeId);
     NodeMap.Insert(rootImpl->GetId(), rootImpl);
@@ -788,6 +916,56 @@ void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
     }
 
     transaction.CreatedNodeIds().clear();
+}
+
+TVoid TCypressManager::DoReplayVerb(const TMsgExecuteVerb& message)
+{
+    auto objectId = TNodeId::FromProto(message.object_id());
+    auto transactionId = TTransactionId::FromProto(message.transaction_id());
+
+    yvector<TSharedRef> parts(message.request_parts_size());
+    for (int partIndex = 0; partIndex < static_cast<int>(message.request_parts_size()); ++partIndex) {
+        // Construct a non-owning TSharedRef to avoid copying.
+        // This is feasible since the message will outlive the request.
+        const auto& part = message.request_parts(partIndex);
+        parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
+    }
+
+    auto requestMessage = CreateMessageFromParts(MoveRV(parts));
+    auto header = GetRequestHeader(~requestMessage);
+    TYPath path = header.path();
+    Stroka verb = header.verb();
+
+    auto context = CreateYPathContext(
+        ~requestMessage,
+        path,
+        verb,
+        Logger.GetCategory(),
+        NULL);
+
+    auto proxy = GetObjectProxy(objectId, transactionId);
+
+    DoExecuteVerb(transactionId, proxy, context);
+
+    return TVoid();
+}
+
+TVoid TCypressManager::DoExecuteVerb(
+    const TTransactionId& transactionId,
+    IObjectProxy::TPtr proxy,
+    IServiceContext::TPtr context)
+{
+    LOG_INFO_IF(!IsRecovery(), "Executing a logged operation (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
+        ~context->GetPath(),
+        ~context->GetVerb(),
+        ~proxy->GetId().ToString(),
+        ~transactionId.ToString());
+
+    proxy->Invoke(~context);
+
+    LOG_FATAL_IF(!context->IsReplied(), "Logged operation did not complete synchronously");
+
+    return TVoid();
 }
 
 DEFINE_METAMAP_ACCESSORS(TCypressManager, Lock, TLock, TLockId, LockMap);

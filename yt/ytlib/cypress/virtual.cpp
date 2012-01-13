@@ -102,12 +102,10 @@ public:
     TVirtualNodeTypeHandler(
         TCypressManager* cypressManager,
         TYPathServiceProducer* producer,
-        EObjectType objectType,
-        const Stroka& typeName)
+        EObjectType objectType)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(cypressManager)
         , Producer(producer)
         , ObjectType(objectType)
-        , TypeName(typeName)
     {
         RegisterGetter("manifest", FromMethod(&TThis::GetManifest));
     }
@@ -143,11 +141,6 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual Stroka GetTypeName()
-    {
-        return TypeName;
-    }
-    
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
@@ -170,7 +163,6 @@ public:
 private:
     TYPathServiceProducer::TPtr Producer;
     EObjectType ObjectType;
-    Stroka TypeName;
 
     static void GetManifest(const TGetAttributeParam& param)
     {
@@ -183,27 +175,23 @@ private:
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
     EObjectType runtypeType,
-    const Stroka& typeName,
     TYPathServiceProducer* producer)
 {
     return New<TVirtualNodeTypeHandler>(
         cypressManager,
         producer,
-        runtypeType,
-        typeName);
+        runtypeType);
 }
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
     EObjectType runtypeType,
-    const Stroka& typeName,
     IYPathService* service)
 {
     IYPathService::TPtr service_ = service;
     return CreateVirtualTypeHandler(
         cypressManager,
         runtypeType,
-        typeName,
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
                 UNUSED(context);

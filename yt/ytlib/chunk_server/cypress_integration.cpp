@@ -141,8 +141,6 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
     return CreateVirtualTypeHandler(
         cypressManager,
         EObjectType::ChunkMap,
-        // TODO: extract type name
-        "chunk_map",
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::All));
 }
 
@@ -156,8 +154,6 @@ INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(
     return CreateVirtualTypeHandler(
         cypressManager,
         EObjectType::LostChunkMap,
-        // TODO: extract type name
-        "lost_chunk_map",
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Lost));
 }
 
@@ -171,8 +167,6 @@ INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(
     return CreateVirtualTypeHandler(
         cypressManager,
         EObjectType::OverreplicatedChunkMap,
-        // TODO: extract type name
-        "overreplicated_chunk_map",
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Overreplicated));
 }
 
@@ -186,8 +180,6 @@ INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(
     return CreateVirtualTypeHandler(
         cypressManager,
         EObjectType::UnderreplicatedChunkMap,
-        // TODO: extract type name
-        "underreplicated_chunk_map",
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Underreplicated));
 }
 
@@ -247,20 +239,18 @@ INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
     return CreateVirtualTypeHandler(
         cypressManager,
         EObjectType::ChunkListMap,
-        // TODO: extract type name
-        "chunk_list_map",
         ~New<TVirtualChunkListMap>(chunkManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THolderRegistry
-    : public IHolderRegistry
+class THolderAuthority
+    : public IHolderAuthority
 {
 public:
-    typedef TIntrusivePtr<THolderRegistry> TPtr;
+    typedef TIntrusivePtr<THolderAuthority> TPtr;
 
-    THolderRegistry(TCypressManager* cypressManager)
+    THolderAuthority(TCypressManager* cypressManager)
         : CypressManager(cypressManager)
     { }
 
@@ -275,10 +265,10 @@ private:
 
 };
 
-IHolderRegistry::TPtr CreateHolderRegistry(
+IHolderAuthority::TPtr CreateHolderAuthority(
     TCypressManager* cypressManager)
 {
-    return New<THolderRegistry>(cypressManager);
+    return New<THolderAuthority>(cypressManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -388,29 +378,26 @@ private:
         if (node->FindChild(address))
             return;
 
+
+        auto processor = CypressManager->CreateProcessor(NodeId);
+
         // TODO: use fluent
         // TODO: make a single transaction
         // TODO: extract literals
 
         {
-            auto request = TCypressYPathProxy::Create();
-            request->SetPath(Sprintf("/%s", ~address));
-            request->set_type(EObjectType::Holder);
-            ExecuteVerb(
-                ~node,
-                ~request,
-                ~CypressManager);
+            auto req = TCypressYPathProxy::Create();
+            req->SetPath(Sprintf("/%s", ~address));
+            req->set_type(EObjectType::Holder);
+            ExecuteVerb(~req, ~processor);
         }
 
         {
-            auto request = TCypressYPathProxy::Create();
-            request->SetPath(Sprintf("/%s/orchid", ~address));
-            request->set_type(EObjectType::OrchidNode);     
-            request->set_manifest(Sprintf("{remote_address=\"%s\"}", ~address));     
-            ExecuteVerb(
-                ~node,
-                ~request,
-                ~CypressManager);
+            auto req = TCypressYPathProxy::Create();
+            req->SetPath(Sprintf("/%s/orchid", ~address));
+            req->set_type(EObjectType::OrchidNode);     
+            req->set_manifest(Sprintf("{remote_address=\"%s\"}", ~address));     
+            ExecuteVerb(~req, ~processor);
         }
     }
 

@@ -11,15 +11,14 @@ namespace NYTree {
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteVerb(
-    IYPathService* rootService,
     TTypedRequest* request,
-    IYPathExecutor* executor)
+    IYPathProcessor* executor)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
     auto requestMessage = request->Serialize();
     return
-        ExecuteVerb(rootService, ~requestMessage, executor)
+        ExecuteVerb(~requestMessage, executor)
         ->Apply(FromFunctor([] (NBus::IMessage::TPtr responseMessage) -> TIntrusivePtr<TTypedResponse>
             {
                 auto response = New<TTypedResponse>();

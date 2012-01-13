@@ -84,19 +84,19 @@ public:
         NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
         TTransactionManager* transactionManager,
-        IHolderRegistry* holderRegistry,
+        IHolderAuthority* holderAuthority,
         TObjectManager* objectManager)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
         // TODO: this makes a cyclic reference, don't forget to drop it in Stop
         , Owner(owner)
         , TransactionManager(transactionManager)
-        , HolderRegistry(holderRegistry)
+        , HolderAuthority(holderAuthority)
         , ObjectManager(objectManager)
     {
         YASSERT(owner);
         YASSERT(transactionManager);
-        YASSERT(holderRegistry);
+        YASSERT(holderAuthority);
         YASSERT(objectManager);
 
         RegisterMethod(this, &TImpl::HeartbeatRequest);
@@ -287,7 +287,7 @@ private:
     TConfig::TPtr Config;
     TChunkManager::TPtr Owner;
     TTransactionManager::TPtr TransactionManager;
-    IHolderRegistry::TPtr HolderRegistry;
+    IHolderAuthority::TPtr HolderAuthority;
     TObjectManager::TPtr ObjectManager;
     
     TChunkPlacement::TPtr ChunkPlacement;
@@ -1112,7 +1112,7 @@ TChunkManager::TChunkManager(
     NMetaState::IMetaStateManager* metaStateManager,
     NMetaState::TCompositeMetaState* metaState,
     TTransactionManager* transactionManager,
-    IHolderRegistry* holderRegistry,
+    IHolderAuthority* holderAuthority,
     TObjectManager* objectManager)
     : Impl(New<TImpl>(
         config,
@@ -1120,7 +1120,7 @@ TChunkManager::TChunkManager(
         metaStateManager,
         metaState,
         transactionManager,
-        holderRegistry,
+        holderAuthority,
         objectManager))
 { }
 

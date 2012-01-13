@@ -68,7 +68,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
             std::sort(virtualNames.begin(), virtualNames.end());
             FOREACH (const auto& attributeName, virtualNames) {
                 auto attributeService = GetVirtualAttributeService(attributeName);
-                auto attributeValue = SyncYPathGet(~attributeService, NYTree::YPathRoot);
+                auto attributeValue = SyncYPathGet(~attributeService, NYTree::RootMarker);
                 writer.OnMapItem(attributeName);
                 writer.OnRaw(attributeValue);
             }

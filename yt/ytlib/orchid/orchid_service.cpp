@@ -42,6 +42,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
 
     auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
     auto requestHeader = GetRequestHeader(~requestMessage);
+
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();
 
@@ -49,9 +50,11 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         ~path,
         ~verb);
 
+    auto processor = CreateDefaultProcessor(~Root);
+
     ExecuteVerb(
-        ~Root,
-        ~requestMessage)
+        ~requestMessage,
+        ~processor)
     ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
         {
             auto responseHeader = GetResponseHeader(~responseMessage);

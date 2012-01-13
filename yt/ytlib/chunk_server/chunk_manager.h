@@ -44,7 +44,7 @@ public:
         NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
         NTransactionServer::TTransactionManager* transactionManager,
-        IHolderRegistry* holderRegistry,
+        IHolderAuthority* holderAuthority,
         NObjectServer::TObjectManager* objectManager);
 
     NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(

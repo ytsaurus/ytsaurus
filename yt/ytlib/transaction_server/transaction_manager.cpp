@@ -3,8 +3,11 @@
 #include "common.h"
 #include "transaction.h"
 #include "transaction_proxy.h"
+#include "transaction_ypath_proxy.h"
 
-#include <object_server/type_handler_detail.h>
+#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/object_server/type_handler_detail.h>
+#include <ytlib/cypress/cypress_manager.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -12,6 +15,7 @@ namespace NTransactionServer {
 using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,10 +68,6 @@ TTransactionManager::TTransactionManager(
     YASSERT(metaState);
     YASSERT(objectManager);
 
-    RegisterMethod(this, &TThis::DoStartTransaction);
-    RegisterMethod(this, &TThis::DoCommitTransaction);
-    RegisterMethod(this, &TThis::DoAbortTransaction);
-
     metaState->RegisterLoader(
         "TransactionManager.1",
         FromMethod(&TTransactionManager::Load, TPtr(this)));
@@ -80,18 +80,6 @@ TTransactionManager::TTransactionManager(
     objectManager->RegisterHandler(~New<TTypeHandler>(this));
 
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
-}
-
-TMetaChange<TTransactionId>::TPtr
-TTransactionManager::InitiateStartTransaction()
-{
-    TMsgStartTransaction message;
-
-    return CreateMetaChange(
-        ~MetaStateManager,
-        message,
-        &TThis::DoStartTransaction,
-        this);
 }
 
 TTransaction& TTransactionManager::Start()
@@ -118,26 +106,6 @@ TTransaction& TTransactionManager::Start()
     return *transaction;
 }
 
-TTransactionId TTransactionManager::DoStartTransaction(const TMsgStartTransaction& message)
-{
-    UNUSED(message);
-
-    auto& transaction = Start();
-    return transaction.GetId();
-}
-
-NMetaState::TMetaChange<TVoid>::TPtr
-TTransactionManager::InitiateCommitTransaction(const TTransactionId& id)
-{
-    TMsgCommitTransaction message;
-    message.set_transaction_id(id.ToProto());
-    return CreateMetaChange(
-        ~MetaStateManager,
-        message,
-        &TThis::DoCommitTransaction,
-        this);
-}
-
 void TTransactionManager::Commit(TTransaction& transaction)
 {
     auto id = transaction.GetId();
@@ -152,30 +120,8 @@ void TTransactionManager::Commit(TTransaction& transaction)
 
     OnTransactionCommitted_.Fire(transaction);
 
+    // Kill the fake reference.
     ObjectManager->UnrefObject(id);
-}
-
-TVoid TTransactionManager::DoCommitTransaction(const TMsgCommitTransaction& message)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto id = TTransactionId::FromProto(message.transaction_id());
-
-    auto& transaction = TransactionMap.GetForUpdate(id);
-    Commit(transaction);
-    return TVoid();
-}
-
-NMetaState::TMetaChange<TVoid>::TPtr
-TTransactionManager::InitiateAbortTransaction(const TTransactionId& id)
-{
-    TMsgAbortTransaction message;
-    message.set_transaction_id(id.ToProto());
-    return CreateMetaChange(
-        ~MetaStateManager,
-        message,
-        &TThis::DoAbortTransaction,
-        this);
 }
 
 void TTransactionManager::Abort(TTransaction& transaction)
@@ -192,17 +138,8 @@ void TTransactionManager::Abort(TTransaction& transaction)
 
     OnTransactionAborted_.Fire(transaction);
 
+    // Kill the fake reference.
     ObjectManager->UnrefObject(id);
-}
-
-TVoid TTransactionManager::DoAbortTransaction(const TMsgAbortTransaction& message)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto id = TTransactionId::FromProto(message.transaction_id());
-    auto& transaction = TransactionMap.GetForUpdate(id);
-    Abort(transaction);
-    return TVoid();
 }
 
 void TTransactionManager::RenewLease(const TTransactionId& id)
@@ -276,10 +213,15 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (!FindTransaction(id))
         return;
 
-    LOG_INFO("Transaction expired (TransactionId: %s)",
-        ~id.ToString());
+    LOG_INFO("Transaction expired (TransactionId: %s)", ~id.ToString());
 
-    InitiateAbortTransaction(id)->Commit();
+    auto req = TTransactionYPathProxy::Abort();
+    ExecuteVerb(~req, ~CypressManager->CreateProcessor(id));
+}
+
+void TTransactionManager::SetCypressManager(NCypress::TCypressManager* cypressManager)
+{
+    CypressManager = cypressManager;
 }
 
 DEFINE_METAMAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)

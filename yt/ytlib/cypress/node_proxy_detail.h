@@ -513,22 +513,5 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRootNodeProxy
-    : public TMapNodeProxy
-{
-public:
-    TRootNodeProxy(
-        INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId);
-
-protected:
-    virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NCypress
 } // namespace NYT

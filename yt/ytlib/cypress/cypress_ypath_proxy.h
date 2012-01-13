@@ -19,7 +19,7 @@ struct TCypressYPathProxy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const char ObjectIdMarker;
+extern const NYTree::TYPath ObjectIdMarker;
 
 NYTree::TYPath YPathFromObjectId(const NObjectServer::TObjectId& id);
 
