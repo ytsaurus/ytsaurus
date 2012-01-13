@@ -13,6 +13,10 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = ChunkHolderLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPeerUpdater::TPeerUpdater(
     TChunkHolderConfig* config,
     TBlockStore* blockStore,
@@ -40,17 +44,39 @@ void TPeerUpdater::Stop()
 
 void TPeerUpdater::Poll()
 {
+    LOG_INFO("Updating peers");
+
+    auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();
+
+    yhash_map<Stroka, TProxy::TReqUpdatePeer::TPtr> requests;
+
     auto blocks = BlockStore->GetAllBlocks();
     FOREACH (auto block, blocks) {
         const auto& source = block->Source();
         if (!source.Empty()) {
-            TProxy proxy(~ChannelCache->GetChannel(source));
-            auto request = proxy.UpdatePeer();
-            request->set_peer_address(Config->PeerAddress);
-            request->set_peer_expiration_time(
-                Config->PeerUpdateExpirationTimeout.ToDeadLine().GetValue());
-            request->Invoke();
+            TProxy::TReqUpdatePeer::TPtr request;
+            auto it = requests.find(source);
+            if (it != requests.end()) {
+                request = it->Second();
+            } else {
+                TProxy proxy(~ChannelCache->GetChannel(source));
+                request = proxy.UpdatePeer();
+                request->set_peer_address(Config->PeerAddress);
+                request->set_peer_expiration_time(expirationTime.GetValue());
+                requests.insert(MakePair(source, request));
+            }
+            auto* block_id = request->add_block_ids();
+            const auto& blockId = block->GetKey();
+            block_id->set_chunk_id(blockId.ChunkId.ToProto());
+            block_id->set_block_index(blockId.BlockIndex);
         }
+    }
+
+    FOREACH (const auto& pair, requests) {
+        LOG_DEBUG("Requesting peer update (Address: %s, ExpirationTime: %s)",
+            ~pair.First(),
+            ~expirationTime.ToString());
+        pair.Second()->Invoke();
     }
 }
 

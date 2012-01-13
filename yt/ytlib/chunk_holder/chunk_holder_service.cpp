@@ -401,8 +401,6 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
         TBlockId blockId(TGuid::FromProto(block_id.chunk_id()), block_id.block_index());
         BlockTable->UpdatePeer(blockId, peer);
     }
-
-    // TODO: add logging
 }
 
 ////////////////////////////////////////////////////////////////////////////////

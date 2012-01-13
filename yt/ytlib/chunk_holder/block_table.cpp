@@ -6,7 +6,7 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NChunkClient::TBlockId;
+static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +30,11 @@ const yvector<TPeerInfo>& TBlockTable::GetPeers(const TBlockId& blockId)
 
 void TBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
 {
+    LOG_DEBUG("Updating peer (BlockId: %s, Address: %s, ExpirationTime: %s)",
+        ~blockId.ToString(),
+        ~peer.Address,
+        ~peer.ExpirationTime.ToString());
+
     SweepAllExpiredPeers();
 
     auto& peers = GetMutablePeers(blockId);

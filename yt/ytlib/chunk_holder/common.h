@@ -4,13 +4,19 @@
 
 #include "chunk_service.pb.h"
 
+#include <ytlib/chunk_client/block_id.h>
+#include <ytlib/chunk_client/common.h>
+
 #include <ytlib/misc/guid.h>
 
-#include <ytlib/chunk_client/common.h>
 #include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NChunkHolder {
+
+////////////////////////////////////////////////////////////////////////////////
+
+    using NChunkClient::TBlockId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
