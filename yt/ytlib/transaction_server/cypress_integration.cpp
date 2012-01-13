@@ -28,7 +28,7 @@ private:
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& ids = TransactionManager->GetTransactionIds();
+        const auto& ids = TransactionManager->GetTransactionIds(sizeLimit);
         return ConvertToStrings(ids.begin(), Min(ids.size(), sizeLimit));
     }
 

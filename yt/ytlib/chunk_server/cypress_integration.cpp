@@ -65,7 +65,7 @@ private:
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         if (Filter == EChunkFilter::All) {
-            const auto& chunkIds = ChunkManager->GetChunkIds();
+            const auto& chunkIds = ChunkManager->GetChunkIds(sizeLimit);
             return ConvertToStrings(chunkIds.begin(), Min(chunkIds.size(), sizeLimit));
         } else {
             const auto& chunkIds = GetFilteredChunkIds();
@@ -206,7 +206,7 @@ private:
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& chunkListIds = ChunkManager->GetChunkListIds();
+        const auto& chunkListIds = ChunkManager->GetChunkListIds(sizeLimit);
         return ConvertToStrings(chunkListIds.begin(), Min(chunkListIds.size(), sizeLimit));
     }
 

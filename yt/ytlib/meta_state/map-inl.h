@@ -257,12 +257,12 @@ int TMetaStateMap<TKey, TValue, TTraits, THash>::GetSize() const
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
-yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys() const
+yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLimit) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     yvector<TKey> keys;
-    keys.reserve(Size);
+    keys.reserve(Min(static_cast<size_t>(Size), sizeLimit));
 
     switch (State) {
         case EState::HasPendingChanges:
@@ -270,6 +270,9 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys() const
             const_cast<TThis*>(this)->MergeTempTablesIfNeeded();
             FOREACH(const auto& pair, PrimaryMap) {
                 keys.push_back(pair.First());
+                if (keys.size() == sizeLimit) {
+                    break;
+                }
             }
             break;
         }
@@ -278,6 +281,9 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys() const
                 auto patchIt = PatchMap.find(pair.First());
                 if (patchIt == PatchMap.end() || patchIt->Second()) {
                     keys.push_back(pair.First());
+                    if (keys.size() == sizeLimit) {
+                        break;
+                    }
                 }
             }
             FOREACH(const auto& pair, PatchMap) {
@@ -285,6 +291,9 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys() const
                     auto primaryIt = PrimaryMap.find(pair.First());
                     if (primaryIt == PrimaryMap.end()) {
                         keys.push_back(pair.First());
+                        if (keys.size() == sizeLimit) {
+                            break;
+                        }
                     }
                 }
             }
