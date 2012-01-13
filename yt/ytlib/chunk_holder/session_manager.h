@@ -115,22 +115,25 @@ private:
     TSlot& GetSlot(i32 blockIndex);
     void ReleaseBlocks(i32 flushedBlockIndex);
 
-    IInvoker::TPtr GetInvoker();
+    IInvoker::TPtr GetIOInvoker();
 
     void OpenFile();
     void DoOpenFile();
 
-    void DeleteFile(const TError& error);
-    void DoDeleteFile(const TError& error);
+    TFuture<TVoid>::TPtr DeleteFile(const TError& error);
+    TVoid DoDeleteFile(const TError& error);
 
     TFuture<TVoid>::TPtr CloseFile(const TChunkAttributes& attributes);
     TVoid DoCloseFile(const TChunkAttributes& attributes);
+    TVoid OnFileClosed(TVoid);
 
     void EnqueueWrites();
     TVoid DoWrite(TCachedBlock::TPtr block, i32 blockIndex);
     void OnBlockWritten(TVoid, i32 blockIndex);
 
     TVoid OnBlockFlushed(TVoid, i32 blockIndex);
+
+    void ReleaseSpaceOccupiedByBlocks(TVoid);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

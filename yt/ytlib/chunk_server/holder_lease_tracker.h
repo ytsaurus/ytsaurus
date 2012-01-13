@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.h"
 #include "holder.h"
 
 #include <ytlib/misc/lease_manager.h>
