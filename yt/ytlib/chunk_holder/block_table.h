@@ -24,7 +24,9 @@ struct TPeerInfo
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-// Thread-unsafe
+/*!
+ *  Thread affinity: single.
+ */
 class TBlockTable
     : public TRefCountedBase
 {
