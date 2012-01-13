@@ -94,8 +94,6 @@ private:
     i32 WindowStart;
     i32 FirstUnwritten;
     i64 Size;
-    NProto::TChunkInfo ChunkInfo;
-    bool HasChunkInfo;
 
     Stroka FileName;
     NChunkClient::TChunkFileWriter::TPtr Writer;
@@ -122,6 +120,7 @@ private:
 
     TFuture<TVoid>::TPtr DeleteFile(const TError& error);
     TVoid DoDeleteFile(const TError& error);
+    TVoid OnFileDeleted(TVoid);
 
     TFuture<TVoid>::TPtr CloseFile(const TChunkAttributes& attributes);
     TVoid DoCloseFile(const TChunkAttributes& attributes);
@@ -133,7 +132,7 @@ private:
 
     TVoid OnBlockFlushed(TVoid, i32 blockIndex);
 
-    void ReleaseSpaceOccupiedByBlocks(TVoid);
+    void ReleaseSpaceOccupiedByBlocks();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
