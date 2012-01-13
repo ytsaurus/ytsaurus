@@ -33,11 +33,15 @@ public:
 
         TConfig()
         {
-            Register("cell_id", CellId).Default(0);
+            Register("cell_id", CellId)
+                .Default(0);
             Register("meta_state", MetaState);
-            Register("transaction_manager", TransactionManager);
-            Register("rpc_port", RpcPort).Default(9000);
-            Register("monitoring_port", MonitoringPort).Default(10000);
+            Register("transaction_manager", TransactionManager)
+                .DefaultNew();
+            Register("rpc_port", RpcPort)
+                .Default(9000);
+            Register("monitoring_port", MonitoringPort)
+                .Default(10000);
         }
     };
 

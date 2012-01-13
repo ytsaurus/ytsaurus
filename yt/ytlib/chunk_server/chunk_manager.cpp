@@ -45,12 +45,12 @@ public:
         return EObjectType::Chunk;
     }
 
-    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id);
-
 private:
     TImpl* Owner;
 
     virtual void OnObjectDestroyed(TChunk& chunk);
+
+    virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id);
 
 };
 
@@ -67,14 +67,14 @@ public:
         return EObjectType::ChunkList;
     }
 
-    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id);
-
     virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest);
 
 private:
     TImpl* Owner;
 
     virtual void OnObjectDestroyed(TChunkList& chunkList);
+
+    virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id);
 
 };
 
@@ -1179,7 +1179,7 @@ TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::FindProxy(const TObjectId& id)
+IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::CreateProxy(const TObjectId& id)
 {
     return New<TChunkProxy>(Owner, id);
 }
@@ -1283,7 +1283,7 @@ TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::FindProxy(const TObjectId& id)
+IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::CreateProxy(const TObjectId& id)
 {
     return New<TChunkListProxy>(Owner, id);
 }

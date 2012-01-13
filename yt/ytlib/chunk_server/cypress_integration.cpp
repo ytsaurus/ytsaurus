@@ -383,7 +383,6 @@ private:
 
         // TODO: use fluent
         // TODO: make a single transaction
-        // TODO: extract literals
 
         {
             auto req = TCypressYPathProxy::Create();

@@ -56,7 +56,7 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    ICypressNode* FindVersionedForUpdate(
+    ICypressNode* FindVersionedNodeForUpdate(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 

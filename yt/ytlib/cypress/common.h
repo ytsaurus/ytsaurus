@@ -10,9 +10,6 @@ namespace NCypress {
 
 extern NLog::TLogger CypressLogger;
 
-using NTransactionServer::TTransactionId;
-using NTransactionServer::NullTransactionId;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypress

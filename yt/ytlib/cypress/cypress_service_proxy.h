@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "id.h"
 #include "cypress_service.pb.h"
 
 #include <ytlib/ytree/ypath_client.h>
@@ -46,11 +46,6 @@ public:
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
-        TTypedRequest* innerRequest);
-
-    template <class TTypedRequest>
-    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-    Execute(
         TTypedRequest* innerRequest,
         const NYTree::TYPath& path,
         const TTransactionId& transactionId);
@@ -59,7 +54,13 @@ public:
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
     Execute(
         TTypedRequest* innerRequest,
-        const NObjectServer::TObjectId& objectId);
+        const TObjectId& objectId = NullObjectId,
+        const TTransactionId& transactionId = NullTransactionId);
+
+private:
+    static NYTree::TYPath GetObjectPath(const TObjectId& id);
+    static NYTree::TYPath GetTransactionPath(const TTransactionId& id);
+
 
 };
 

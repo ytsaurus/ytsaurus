@@ -105,11 +105,8 @@ class TCypressManager::TDefaultProxy
     , public virtual IObjectProxy
 {
 public:
-    TDefaultProxy(
-        TCypressManager* owner,
-        const TTransactionId& transactionId)
+    TDefaultProxy(TCypressManager* owner)
         : Owner(owner)
-        , TransactionId(transactionId)
     { }
 
     virtual bool IsLogged(IServiceContext* context) const
@@ -129,7 +126,6 @@ public:
 
 private:
     TCypressManager::TPtr Owner;
-    TTransactionId TransactionId;
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
@@ -145,6 +141,9 @@ private:
     {
         // TODO(babenko): validate type
         auto type = EObjectType(request->type());
+
+        context->SetRequestInfo("Type: %s", ~type.ToString());
+
         auto handler = Owner->ObjectManager->GetHandler(type);
 
         NYTree::INode::TPtr manifestNode =
@@ -159,6 +158,8 @@ private:
         auto id = handler->CreateFromManifest(~manifestNode->AsMap());
 
         response->set_id(id.ToProto());
+
+        context->SetResponseInfo("ObjectId: %s", ~id.ToString());
 
         context->Reply();
     }
@@ -191,7 +192,7 @@ public:
         if (!currentPath.empty() && currentPath.has_prefix(TransactionIdMarker)) {
             currentPath = currentPath.substr(1);
             TransactionId = ParseId(currentPath);
-            if (!Owner->TransactionManager->FindTransaction(TransactionId)) {
+            if (TransactionId != NullTransactionId && !Owner->TransactionManager->FindTransaction(TransactionId)) {
                 ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)",
                     ~TransactionId.ToString());
             }
@@ -207,9 +208,16 @@ public:
             ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~RootId.ToString());
         }
 
+        // TODO(babenko): this effectively allows empty paths, consider enforcing some stricter rules
+        if (currentPath.empty()) {
+            *suffixService = rootProxy;
+            *suffixPath = "";
+            return;
+        }
+
         ResolveYPath(
             ~rootProxy,
-            path,
+            currentPath,
             verb,
             suffixService,
             suffixPath);
@@ -441,7 +449,7 @@ const ICypressNode& TCypressManager::GetVersionedNode(
     return *impl;
 }
 
-ICypressNode* TCypressManager::FindVersionedForUpdate(
+ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -480,7 +488,7 @@ ICypressNode& TCypressManager::GetVersionedNodeForUpdate(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* impl = FindVersionedForUpdate(nodeId, transactionId);
+    auto* impl = FindVersionedNodeForUpdate(nodeId, transactionId);
     YASSERT(impl);
     return *impl;
 }
@@ -489,9 +497,9 @@ IObjectProxy::TPtr TCypressManager::FindObjectProxy(
     const TObjectId& objectId,
     const TTransactionId& transactionId)
 {
-    // NullObjectId is special case.
+    // NullObjectId is a special case.
     if (objectId == NullObjectId) {
-        return New<TDefaultProxy>(this, transactionId);
+        return New<TDefaultProxy>(this);
     }
 
     // First try to fetch a proxy of a Cypress node.
@@ -776,8 +784,8 @@ void TCypressManager::Clear()
         TVersionedNodeId(GetRootNodeId(), NullTransactionId),
         EObjectType::MapNode);
     rootImpl->SetState(ENodeState::Committed);
-    ObjectManager->RefObject(rootImpl->GetId().NodeId);
     NodeMap.Insert(rootImpl->GetId(), rootImpl);
+    ObjectManager->RefObject(rootImpl->GetId().NodeId);
 }
 
 void TCypressManager::OnLeaderRecoveryComplete()

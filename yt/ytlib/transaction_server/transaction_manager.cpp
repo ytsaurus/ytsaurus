@@ -107,11 +107,6 @@ public:
         return EObjectType::Transaction;
     }
 
-    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id)
-    {
-        return New<TTransactionProxy>(Owner, id);
-    }
-
     virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest)
     {
         UNUSED(manifest);
@@ -121,6 +116,10 @@ public:
 private:
     TTransactionManager* Owner;
 
+    virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id)
+    {
+        return New<TTransactionProxy>(Owner, id);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

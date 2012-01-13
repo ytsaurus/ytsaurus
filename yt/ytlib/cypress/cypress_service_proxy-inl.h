@@ -51,34 +51,25 @@ TCypressServiceProxy::Execute(
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 TCypressServiceProxy::Execute(
-    TTypedRequest* innerRequest)
-{
-    return Execute(
-        innerRequest,
-        "");
-}
-
-template <class TTypedRequest>
-TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-TCypressServiceProxy::Execute(
     TTypedRequest* innerRequest,
     const NYTree::TYPath& path,
     const TTransactionId& transactionId)
 {
     return Execute(
         innerRequest,
-        TransactionIdMarker + "(" + transactionId.ToString() + ")" + path);
+        GetTransactionPath(transactionId) + path);
 }
 
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 TCypressServiceProxy::Execute(
     TTypedRequest* innerRequest,
-    const NObjectServer::TObjectId& objectId)
+    const TObjectId& objectId,
+    const TTransactionId& transactionId)
 {
     return Execute(
         innerRequest,
-        ObjectIdMarker + "(" + objectId.ToString() + ")");
+        GetTransactionPath(transactionId) + GetObjectPath(objectId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

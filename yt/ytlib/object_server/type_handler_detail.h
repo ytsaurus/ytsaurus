@@ -53,10 +53,7 @@ public:
 
     virtual IObjectProxy::TPtr FindProxy(const TObjectId& id)
     {
-        return
-            Map->Contains(id)
-            ? New< TObjectProxyBase<TObject> >(id, Map)
-            : NULL;
+        return Map->Contains(id) ? CreateProxy(id) : NULL;
     }
 
     virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest)
@@ -74,7 +71,11 @@ protected:
     {
         UNUSED(obj);
     }
-    
+
+    virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id)
+    {
+        return New< TObjectProxyBase<TObject> >(id, Map);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
