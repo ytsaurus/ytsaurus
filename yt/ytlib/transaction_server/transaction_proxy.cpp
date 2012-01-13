@@ -23,6 +23,8 @@ void TTransactionProxy::DoInvoke(IServiceContext* context)
         CommitThunk(context);
     } else if (verb == "Abort") {
         AbortThunk(context);
+    } else if (verb == "RenewLease") {
+        RenewLeaseThunk(context);
     } else {
         TBase::DoInvoke(context);
     }
