@@ -4,6 +4,8 @@
 #include "chunk_placement.h"
 #include "chunk_replication.h"
 #include "holder_lease_tracker.h"
+#include "chunk_ypath.pb.h"
+#include "chunk_list_ypath.pb.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
@@ -43,6 +45,8 @@ public:
         return EObjectType::Chunk;
     }
 
+    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id);
+
 private:
     TImpl* Owner;
 
@@ -62,6 +66,8 @@ public:
     {
         return EObjectType::ChunkList;
     }
+
+    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id);
 
 private:
     TImpl* Owner;
@@ -279,10 +285,29 @@ public:
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
+    void FillHolderAddresses(
+        ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
+        const TChunk& chunk)
+    {
+        FOREACH (auto holderId, chunk.StoredLocations()) {
+            const THolder& holder = GetHolder(holderId);
+            addresses->Add()->assign(holder.GetAddress());
+        }
+
+        if (~chunk.CachedLocations()) {
+            FOREACH (auto holderId, *chunk.CachedLocations()) {
+                const THolder& holder = GetHolder(holderId);
+                addresses->Add()->assign(holder.GetAddress());
+            }
+        }
+    }
+
 private:
     typedef TImpl TThis;
     friend class TChunkTypeHandler;
+    friend class TChunkProxy;
     friend class TChunkListTypeHandler;
+    friend class TChunkListProxy;
 
     TConfig::TPtr Config;
     TChunkManager::TPtr Owner;
@@ -1081,12 +1106,73 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkI
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverreplicatedChunkIds, *ChunkReplication);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderreplicatedChunkIds, *ChunkReplication);
 
+///////////////////////////////////////////////////////////////////////////////
+
+class TChunkManager::TChunkProxy
+    : public NObjectServer::TObjectProxyBase<TChunk>
+{
+public:
+    TChunkProxy(TImpl* owner, const TChunkId& id)
+        : TBase(id, &owner->ChunkMap)
+        , Owner(owner)
+    { }
+
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    {
+        //Stroka verb = context->GetVerb();
+        //if (verb == "Commit" ||
+        //    verb == "Abort")
+        //{
+        //    return true;
+        //}
+        return TBase::IsLogged(context);;
+    }
+
+private:
+    typedef TObjectProxyBase<TChunk> TBase;
+
+    TIntrusivePtr<TImpl> Owner;
+
+    void DoInvoke(NRpc::IServiceContext* context)
+    {
+        //Stroka verb = context->GetVerb();
+        //if (verb == "Commit") {
+        //    CommitThunk(context);
+        //} else if (verb == "Abort") {
+        //    AbortThunk(context);
+        //} else if (verb == "RenewLease") {
+        //    RenewLeaseThunk(context);
+        //} else {
+        //    TBase::DoInvoke(context);
+        //}
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Fetch)
+    {
+        UNUSED(request);
+
+        const auto& impl = GetImpl();
+        Owner->FillHolderAddresses(response->mutable_holder_addresses(), impl);
+
+        context->SetResponseInfo("HolderAddresses: [%s]",
+            ~JoinToString(response->holder_addresses()));
+
+        context->Reply();
+    }
+
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
     : TObjectTypeHandlerBase(&owner->ChunkMap)
     , Owner(owner)
 { }
+
+IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::FindProxy(const TObjectId& id)
+{
+    return New<TChunkProxy>(Owner, id);
+}
 
 void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk& chunk)
 {
@@ -1095,17 +1181,109 @@ void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk& chunk)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TChunkManager::TChunkListProxy
+    : public NObjectServer::TObjectProxyBase<TChunkList>
+{
+public:
+    TChunkListProxy(TImpl* owner, const TChunkListId& id)
+        : TBase(id, &owner->ChunkListMap)
+        , Owner(owner)
+    { }
+
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Attach" ||
+            verb == "Detach")
+        {
+            return true;
+        }
+        return TBase::IsLogged(context);;
+    }
+
+private:
+    typedef TObjectProxyBase<TChunkList> TBase;
+
+    TIntrusivePtr<TImpl> Owner;
+
+    void DoInvoke(NRpc::IServiceContext* context)
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Attach") {
+            AttachThunk(context);
+        } else if (verb == "Detach") {
+            DetachThunk(context);
+        } else {
+            TBase::DoInvoke(context);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Attach)
+    {
+        UNUSED(response);
+
+        auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
+
+        context->SetRequestInfo("ChildrenIds: [%s]",
+            ~JoinToString(childrenIds));
+
+        auto& impl = GetImplForUpdate();
+
+        FOREACH (const auto& childId, childrenIds) {
+            // TODO(babenko): check that all attached chunks are confirmed.
+            impl.ChildrenIds().push_back(childId);
+            Owner->ObjectManager->RefObject(childId);
+        }
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Detach)
+    {
+        UNUSED(response);
+
+        auto childrenIdsList = FromProto<TChunkTreeId>(request->children_ids());
+        yhash_set<TChunkTreeId> childrenIdsSet(childrenIdsList.begin(), childrenIdsList.end());
+
+        context->SetRequestInfo("ChildrenIds: [%s]",
+            ~JoinToString(childrenIdsList));
+
+        auto& impl = GetImplForUpdate();
+
+        auto it = impl.ChildrenIds().begin();
+        while (it != impl.ChildrenIds().end()) {
+            auto jt = it;
+            ++jt;
+            const auto& childId = *it;
+            if (childrenIdsSet.find(childId) != childrenIdsSet.end()) {
+                impl.ChildrenIds().erase(it);
+                Owner->ObjectManager->UnrefObject(childId);
+            }
+            it = jt;
+        }
+
+        context->Reply();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
     : TObjectTypeHandlerBase(&owner->ChunkListMap)
     , Owner(owner)
 { }
+
+IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::FindProxy(const TObjectId& id)
+{
+    return New<TChunkListProxy>(Owner, id);
+}
 
 void TChunkManager::TChunkListTypeHandler::OnObjectDestroyed(TChunkList& chunkList)
 {
     Owner->OnChunkListDestroyed(chunkList);
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkManager(
     TConfig* config,
@@ -1215,17 +1393,7 @@ void TChunkManager::FillHolderAddresses(
     ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
     const TChunk& chunk)
 {
-    FOREACH (auto holderId, chunk.StoredLocations()) {
-        const THolder& holder = GetHolder(holderId);
-        addresses->Add()->assign(holder.GetAddress());
-    }
-
-    if (~chunk.CachedLocations()) {
-        FOREACH (auto holderId, *chunk.CachedLocations()) {
-            const THolder& holder = GetHolder(holderId);
-            addresses->Add()->assign(holder.GetAddress());
-        }
-    }
+    Impl->FillHolderAddresses(addresses, chunk);
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)

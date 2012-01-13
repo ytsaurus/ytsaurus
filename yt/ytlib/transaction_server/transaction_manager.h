@@ -28,7 +28,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction;
-class TTransactionProxy;
+class TChunkProxy;
 
 //! Manages client transactions.
 class TTransactionManager
@@ -77,7 +77,8 @@ public:
 
 private:
     typedef TTransactionManager TThis;
-    class TTypeHandler;
+    class TTransactionTypeHandler;
+    class TTransactionProxy;
     friend class TTransactionProxy;
 
     TConfig::TPtr Config;

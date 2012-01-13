@@ -91,7 +91,7 @@ protected:
 
     const TObject& GetImpl() const
     {
-        return map->Get(Id);
+        return Map->Get(Id);
     }
 
     TObject& GetImplForUpdate()

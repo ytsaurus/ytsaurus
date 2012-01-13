@@ -2,8 +2,8 @@
 #include "transaction_manager.h"
 #include "common.h"
 #include "transaction.h"
-#include "transaction_proxy.h"
 #include "transaction_ypath_proxy.h"
+#include "transaction_ypath.pb.h"
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/object_server/type_handler_detail.h>
@@ -23,11 +23,81 @@ static NLog::TLogger& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManager::TTypeHandler
+class TTransactionManager::TTransactionProxy
+    : public NObjectServer::TObjectProxyBase<TTransaction>
+{
+public:
+    TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
+        : TBase(id, &owner->TransactionMap)
+        , Owner(owner)
+    { }
+
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Commit" ||
+            verb == "Abort")
+        {
+            return true;
+        }
+        return TBase::IsLogged(context);;
+    }
+
+private:
+    typedef TObjectProxyBase<TTransaction> TBase;
+
+    TTransactionManager::TPtr Owner;
+
+    void DoInvoke(NRpc::IServiceContext* context)
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Commit") {
+            CommitThunk(context);
+        } else if (verb == "Abort") {
+            AbortThunk(context);
+        } else if (verb == "RenewLease") {
+            RenewLeaseThunk(context);
+        } else {
+            TBase::DoInvoke(context);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Commit)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        Owner->Commit(GetImplForUpdate());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Abort)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        Owner->Abort(GetImplForUpdate());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, RenewLease)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        Owner->RenewLease(GetId());
+        context->Reply();
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTransactionManager::TTransactionTypeHandler
     : public TObjectTypeHandlerBase<TTransaction>
 {
 public:
-    TTypeHandler(TTransactionManager* owner)
+    TTransactionTypeHandler(TTransactionManager* owner)
         : TObjectTypeHandlerBase(&owner->TransactionMap)
         , Owner(owner)
     { }
@@ -37,7 +107,7 @@ public:
         return EObjectType::Transaction;
     }
 
-    virtual IObjectProxy::TPtr FindProxy(const TTransactionId& id)
+    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id)
     {
         return New<TTransactionProxy>(Owner, id);
     }
@@ -77,7 +147,7 @@ TTransactionManager::TTransactionManager(
 
     metaState->RegisterPart(this);
 
-    objectManager->RegisterHandler(~New<TTypeHandler>(this));
+    objectManager->RegisterHandler(~New<TTransactionTypeHandler>(this));
 
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
 }

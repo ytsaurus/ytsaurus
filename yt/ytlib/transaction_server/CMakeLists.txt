@@ -5,7 +5,6 @@ set( SRCS
   ${BASE}/id.cpp
   ${BASE}/cypress_integration.cpp
   ${BASE}/transaction.cpp
-  ${BASE}/transaction_proxy.cpp
   ${BASE}/transaction_manager.cpp
 )
 set( HDRS
@@ -13,7 +12,6 @@ set( HDRS
   ${BASE}/id.h
   ${BASE}/cypress_integration.h
   ${BASE}/transaction.h
-  ${BASE}/transaction_proxy.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_ypath_proxy.h
 )

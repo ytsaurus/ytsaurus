@@ -121,7 +121,9 @@ public:
 private:
     class TImpl;
     class TChunkTypeHandler;
+    class TChunkProxy;
     class TChunkListTypeHandler;
+    class TChunkListProxy;
     
     TIntrusivePtr<TImpl> Impl;
 
