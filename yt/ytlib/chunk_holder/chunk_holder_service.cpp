@@ -315,8 +315,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
             // Register the peer that we had just sent the reply to.
             if (request->has_peer_address() && request->has_peer_expiration_time()) {
                 TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
-                FOREACH (const auto& blockIndex, request->block_indexes()) {
-                    BlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peer);
+                for (int index = 0; index < blockCount; ++index) {
+                    if (response->blocks(index).data_attached()) {
+                        i32 blockIndex = request->block_indexes(index);
+                        BlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peer);
+                    }
                 }
             }
         }));
