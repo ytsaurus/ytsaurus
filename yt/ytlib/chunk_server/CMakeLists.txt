@@ -24,6 +24,7 @@ set( HDRS
   ${BASE}/chunk_service.h
   ${BASE}/chunk_service_proxy.h
   ${BASE}/common.h
+  ${BASE}/config.h
   ${BASE}/cypress_integration.h
   ${BASE}/holder.h
   ${BASE}/holder_authority.h

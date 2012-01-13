@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 #include "holder.h"
 #include "chunk.h"
 #include "chunk_list.h"
