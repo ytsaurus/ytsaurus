@@ -67,11 +67,21 @@ void TBlockTable::SweepAllExpiredPeers()
         return;
     }
 
-    FOREACH (auto& pair, Table) {
-        SweepExpiredPeers(pair.Second());
+    // TODO: implement FilterMap/FilterSet
+    auto it = Table.begin();
+    while (it != Table.end()) {
+        auto jt = it;
+        ++jt;
+        SweepExpiredPeers(it->Second());
+        if (it->Second().empty()) {
+            Table.erase(it);
+        }
+        it = jt;
     }
-
+    
     LastSwept = TInstant::Now();
+
+    LOG_DEBUG("All expired peers were swept");
 }
 
 void TBlockTable::SweepExpiredPeers(yvector<TPeerInfo>& peers)
