@@ -291,12 +291,13 @@ TVoid TSession::DoDeleteFile(const TError& error)
     LOG_DEBUG("Chunk file deleted\n%s",
         ~error.ToString());
 
-    return  TVoid();
+    return TVoid();
 }
 
 TVoid TSession::OnFileDeleted(TVoid)
 {
     ReleaseSpaceOccupiedByBlocks();
+    return TVoid();
 }
 
 TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
