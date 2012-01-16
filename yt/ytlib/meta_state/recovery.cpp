@@ -90,8 +90,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
             LOG_DEBUG("Snapshot cannot be found locally and will be downloaded");
 
             TSnapshotDownloader snapshotDownloader(
-                // TODO: pass proper config
-                ~New<TSnapshotDownloader::TConfig>(),
+                ~Config->SnapshotDownloader,
                 CellManager);
 
             auto snapshotWriter = SnapshotStore->GetRawWriter(snapshotId);
@@ -233,9 +232,8 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
                 : remoteRecordCount;
             
             if (localRecordCount < desiredRecordCount) {
-                // TODO: provide config
                 TChangeLogDownloader changeLogDownloader(
-                    ~New<TChangeLogDownloader::TConfig>(),
+                    ~Config->ChangeLogDownloader,
                     CellManager);
                 auto changeLogResult = changeLogDownloader.Download(
                     TMetaVersion(segmentId, desiredRecordCount),

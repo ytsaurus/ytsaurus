@@ -76,11 +76,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
             auto attributes = GetAttributes();
             if (attributes) {
                 auto children = attributes->GetChildren();
-                auto sortedChildren = GetSortedIterators(children);
-                FOREACH (const auto& pair, sortedChildren) {
-                    writer.OnMapItem(pair->first);
+                std::sort(children.begin(), children.end());
+                FOREACH (const auto& pair, children) {
+                    writer.OnMapItem(pair.first);
                     TTreeVisitor visitor(&writer);
-                    visitor.Visit(~pair->second);
+                    visitor.Visit(~pair.second);
                 }
             }
 

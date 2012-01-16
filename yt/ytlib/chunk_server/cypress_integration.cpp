@@ -8,6 +8,7 @@
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/chunk_client/block_id.h>
+#include <ytlib/orchid/cypress_integration.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -16,6 +17,7 @@ using namespace NYTree;
 using namespace NCypress;
 using namespace NChunkClient;
 using namespace NMetaState;
+using namespace NOrchid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -412,8 +414,12 @@ private:
         {
             auto request = TCypressYPathProxy::Create();
             request->SetPath(Sprintf("/%s/orchid", ~address));
-            request->set_type("orchid");     
-            request->set_manifest(Sprintf("{remote_address=\"%s\"}", ~address));     
+            request->set_type("orchid");
+
+            auto manifest = New<TOrchidManifest>();
+            manifest->RemoteAddress = address;
+            request->set_manifest(SerializeToYson(~manifest));
+
             ExecuteVerb(
                 ~IYPathService::FromNode(~node),
                 ~request,

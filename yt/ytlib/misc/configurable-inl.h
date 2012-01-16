@@ -7,6 +7,7 @@
 #include "string.h"
 
 #include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/tree_visitor.h>
 
 #include <util/datetime/base.h>
 
@@ -147,6 +148,141 @@ inline void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, con
         Read(value, ~pair.Second(), NYTree::CombineYPaths(path, key));
         parameter.insert(MakePair(key, MoveRV(value)));
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TConfigurable::TPtr
+template <class T>
+inline void Write(
+    const TIntrusivePtr<T>& parameter,
+    NYTree::IYsonConsumer* consumer,
+    typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
+        NYT::NDetail::TEmpty())
+{
+    if (parameter) {
+        parameter->Save(consumer);
+    }
+}
+
+// i64
+inline void Write(i64 parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnInt64Scalar(parameter);
+}
+
+// i32
+inline void Write(i32 parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnInt64Scalar(parameter);
+}
+
+// ui32
+inline void Write(ui32 parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnInt64Scalar(parameter);
+}
+
+// ui16
+inline void Write(ui16 parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnInt64Scalar(parameter);
+}
+
+// double
+inline void Write(double parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnDoubleScalar(parameter);
+}
+
+// Stroka
+inline void Write(const Stroka& parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(parameter);
+}
+
+// bool
+inline void Write(bool parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(FormatBool(parameter));
+}
+
+// TDuration
+inline void Write(const TDuration& parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnInt64Scalar(parameter.MilliSeconds());
+}
+
+// TGuid
+inline void Write(const TGuid& parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnStringScalar(parameter.ToString());
+}
+
+// TEnumBase
+template <class T>
+inline void Write(
+    T& parameter,
+    NYTree::IYsonConsumer* consumer,
+    typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType =
+        NYT::NDetail::TEmpty())
+{
+    consumer->OnStringScalar(parameter.ToString());
+}
+
+// INode::TPtr
+inline void Write(const NYTree::INode::TPtr& parameter, NYTree::IYsonConsumer* consumer)
+{
+    if (parameter) {
+        NYTree::TTreeVisitor visitor(consumer, false);
+        visitor.Visit(~parameter);
+    }
+}
+
+// yvector
+template <class T>
+inline void Write(const yvector<T>& parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    FOREACH (const auto& value, parameter) {
+        consumer->OnListItem();
+        Write(value, consumer);
+    }
+    consumer->OnEndList();
+}
+
+// yhash_set
+template <class T>
+inline void Write(const yhash_set<T>& parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    auto sortedItems = GetSortedIterators(parameter);
+    FOREACH (const auto& value, sortedItems) {
+        consumer->OnListItem();
+        Write(*value, consumer);
+    }
+    consumer->OnEndList();
+}
+
+// yhash_map
+template <class T>
+inline void Write(const yhash_map<Stroka, T>& parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+    auto sortedItems = GetSortedIterators(parameter);
+    FOREACH (const auto& pair, sortedItems) {
+        consumer->OnMapItem(pair->First());
+        Write(pair->Second(), consumer);
+    }
+    consumer->OnEndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class T>
+void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
+{
+    Write(Parameter, consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
