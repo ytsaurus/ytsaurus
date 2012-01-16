@@ -47,7 +47,7 @@ public:
 
         ResolveYPath(
             ~RootService,
-            path,
+            currentPath,
             verb,
             suffixService,
             suffixPath);
