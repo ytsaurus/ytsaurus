@@ -68,6 +68,16 @@ void TConfigurable::Validate(const NYTree::TYPath& path) const
 void TConfigurable::DoValidate() const
 { }
 
+void TConfigurable::Save(IYsonConsumer* consumer) const
+{
+    consumer->OnBeginMap();
+    FOREACH (const auto& pair, Parameters) {
+        consumer->OnMapItem(pair.First());
+        pair.Second()->Save(consumer);
+    }
+    consumer->OnEndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConfig
