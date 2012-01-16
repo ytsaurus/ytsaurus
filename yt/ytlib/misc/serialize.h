@@ -41,23 +41,32 @@ void Write(TFile& file, const T& data)
     file.Write(&data, sizeof(T));
 }
 
+template <class TKey>
+yvector <typename yhash_set<TKey>::const_iterator> GetSortedIterators(
+    const yhash_set<TKey>& set)
+{
+    typedef typename yhash_set<TKey>::const_iterator TIterator;
+    yvector<TIterator> iterators;
+    iterators.reserve(set.size());
+    for (auto it = set.begin(); it != set.end(); ++it) {
+        iterators.push_back(it);
+    }
+    std::sort(
+        iterators.begin(),
+        iterators.end(),
+        [] (TIterator lhs, TIterator rhs) {
+            return *lhs < *rhs;
+        });
+    return iterators;
+}
+
 template <class TSet>
 void SaveSet(TOutputStream* output, const TSet& set)
 {
     typedef typename TSet::key_type TKey;
-    yvector<const TKey*> keys;
-    keys.reserve(set.size());
-    FOREACH(const auto& item, set) {
-        keys.push_back(&item);
-    }
-    std::sort(
-        keys.begin(),
-        keys.end(),
-        [] (const TKey* lhs, const TKey* rhs) {
-            return *lhs < *rhs;
-        });
-    ::SaveSize(output, keys.size());
-    FOREACH(const auto* ptr, keys) {
+    auto iterators = GetSortedIterators(set);
+    ::SaveSize(output, iterators.size());
+    FOREACH(const auto& ptr, iterators) {
         ::Save(output, *ptr);
     }
 }
@@ -102,10 +111,11 @@ void LoadNullableSet(TInputStream* input, TAutoPtr<TSet>& set)
     }
 }
 
-template <class TMap>
-yvector <typename TMap::const_iterator> GetSortedIterators(const TMap& map)
+template <class TKey, class TValue>
+yvector <typename yhash_map<TKey, TValue>::const_iterator> GetSortedIterators(
+    const yhash_map<TKey, TValue>& map)
 {
-    typedef typename TMap::const_iterator TIterator;
+    typedef typename yhash_map<TKey, TValue>::const_iterator TIterator;
     yvector<TIterator> iterators;
     iterators.reserve(map.size());
     for (auto it = map.begin(); it != map.end(); ++it) {

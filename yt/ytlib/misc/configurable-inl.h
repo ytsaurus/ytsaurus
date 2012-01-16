@@ -155,7 +155,7 @@ inline void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, con
 // TConfigurable::TPtr
 template <class T>
 inline void Write(
-    TIntrusivePtr<T>& parameter,
+    const TIntrusivePtr<T>& parameter,
     NYTree::IYsonConsumer* consumer,
     typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
         NYT::NDetail::TEmpty())
@@ -239,6 +239,7 @@ inline void Write(const yvector<T>& parameter, NYTree::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     FOREACH (const auto& value, parameter) {
+        consumer->OnListItem();
         Write(value, consumer);
     }
     consumer->OnEndList();
@@ -249,8 +250,10 @@ template <class T>
 inline void Write(const yhash_set<T>& parameter, NYTree::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
-    FOREACH (const auto& value, parameter) {
-        Write(value, consumer);
+    auto sortedItems = GetSortedIterators(parameter);
+    FOREACH (const auto& value, sortedItems) {
+        consumer->OnListItem();
+        Write(*value, consumer);
     }
     consumer->OnEndList();
 }
@@ -260,9 +263,10 @@ template <class T>
 inline void Write(const yhash_map<Stroka, T>& parameter, NYTree::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
-    FOREACH (const auto& pair, parameter) {
-        consumer->OnMapItem(pair.First());
-        Write(pair.Second(), consumer);
+    auto sortedItems = GetSortedIterators(parameter);
+    FOREACH (const auto& pair, sortedItems) {
+        consumer->OnMapItem(pair->First());
+        Write(pair->Second(), consumer);
     }
     consumer->OnEndMap();
 }
