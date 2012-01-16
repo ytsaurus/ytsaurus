@@ -64,7 +64,6 @@ TYson SerializeToYson(const TConfigurable* config, TYsonWriter::EFormat format)
     TStringStream output;
     TYsonWriter writer(&output, format);
     config->Save(&writer);
-    output.Flush();
     return output.Str();
 }
 

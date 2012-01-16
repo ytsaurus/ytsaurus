@@ -183,6 +183,12 @@ inline void Write(ui32 parameter, NYTree::IYsonConsumer* consumer)
     consumer->OnInt64Scalar(parameter);
 }
 
+// ui16
+inline void Write(ui16 parameter, NYTree::IYsonConsumer* consumer)
+{
+    consumer->OnInt64Scalar(parameter);
+}
+
 // double
 inline void Write(double parameter, NYTree::IYsonConsumer* consumer)
 {
