@@ -299,8 +299,9 @@ void TMasterConnector::OnChunkAdded(TChunk* chunk)
     if (!IncrementalHeartbeat)
         return;
 
-    LOG_DEBUG("Registered addition of chunk (ChunkId: %s)",
-        ~chunk->GetId().ToString());
+    LOG_DEBUG("Registered addition of chunk (ChunkId: %s, Location: %s)",
+        ~chunk->GetId().ToString(),
+        ~chunk->GetLocation()->GetPath());
 
     if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end())
         return;
@@ -317,8 +318,9 @@ void TMasterConnector::OnChunkRemoved(TChunk* chunk)
     if (!IncrementalHeartbeat)
         return;
 
-    LOG_DEBUG("Registered removal of chunk (ChunkId: %s)",
-        ~chunk->GetId().ToString());
+    LOG_DEBUG("Registered removal of chunk (ChunkId: %s, Location: %s)",
+        ~chunk->GetId().ToString(),
+        ~chunk->GetLocation()->GetPath());
 
     if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end())
         return;
