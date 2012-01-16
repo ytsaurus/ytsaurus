@@ -2,6 +2,7 @@
 
 #include "ephemeral.h"
 #include "yson_writer.h"
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NYTree {
@@ -33,6 +34,9 @@ TYson SerializeToYson(
 
 TYson SerializeToYson(
     TYsonProducer* producer,
+    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary);
+
+TYson SerializeToYson(const TConfigurable& config,
     TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary);
 
 ////////////////////////////////////////////////////////////////////////////////
