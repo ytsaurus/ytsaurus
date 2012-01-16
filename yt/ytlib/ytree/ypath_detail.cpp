@@ -17,9 +17,6 @@ using namespace NRpc::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = YTreeLogger;
-
-///////////////////////////////////////////////////////////////////////////////
-
 TYPath RootMarker("/");
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -59,10 +56,11 @@ void TYPathServiceBase::Invoke(IServiceContext* context)
 {
     try {
         DoInvoke(context);
-    } catch (...) {
-        context->Reply(TError(
-            EYPathErrorCode::GenericError,
-            CurrentExceptionMessage()));
+    } catch (const TServiceException& ex) {
+        throw;
+    }
+    catch (const std::exception& ex) {
+        context->Reply(TError(ex.what()));
     }
 }
 
@@ -161,19 +159,6 @@ void TNodeSetterBase::OnMyEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath ChopYPathRootMarker(const TYPath& path)
-{
-    if (path.empty()) {
-        ythrow yexception() << Sprintf("YPath cannot be empty, use \"%s\" to denote the root", ~RootMarker);
-    }
-
-    if (!path.has_prefix(RootMarker)) {
-        ythrow yexception() << Sprintf("YPath must start with \"%s\"", ~RootMarker);
-    }
-
-    return path.substr(RootMarker.size());
-}
-
 void ChopYPathToken(
     const TYPath& path,
     Stroka* prefix,
@@ -219,21 +204,29 @@ TYPath ComputeResolvedYPath(
 }
 
 TYPath CombineYPaths(
-    const TYPath& prefixPath,
-    const TYPath& suffixPath)
+    const TYPath& path1,
+    const TYPath& path2)
 {
-    if (prefixPath.empty() || suffixPath.empty()) {
-        return prefixPath + suffixPath;
+    if (path1.empty() || path2.empty()) {
+        return path1 + path2;
     }
-    if (prefixPath.back() == '/' && suffixPath[0] == '/') {
-        return prefixPath + suffixPath.substr(1);
-    }
-
-    if (prefixPath.back() != '/' && suffixPath[0] != '/') {
-        return prefixPath + '/' + suffixPath;
+    if (path1.back() == '/' && path2[0] == '/') {
+        return path1 + path2.substr(1);
     }
 
-    return prefixPath + suffixPath;
+    if (path1.back() != '/' && path2[0] != '/') {
+        return path1 + '/' + path2;
+    }
+
+    return path1 + path2;
+}
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3)
+{
+    return CombineYPaths(CombineYPaths(path1, path2), path3);
 }
 
 bool IsEmptyYPath(const TYPath& path)
@@ -342,7 +335,7 @@ void ResolveYPath(
     YASSERT(suffixPath);
 
     IYPathService::TPtr currentService = rootService;
-    auto currentPath = ChopYPathRootMarker(path);
+    auto currentPath = path;
 
     while (true) {
         IYPathService::TResolveResult result;

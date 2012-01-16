@@ -33,6 +33,18 @@ public:
         IYPathService::TPtr* suffixService,
         TYPath* suffixPath)
     {
+        auto currentPath = path;
+
+        if (currentPath.empty()) {
+            ythrow yexception() << "YPath cannot be empty";
+        }
+
+        if (currentPath.has_prefix(RootMarker)) {
+            currentPath = currentPath.substr(RootMarker.length());
+        } else {
+            ythrow yexception() << "Invalid YPath syntax";
+        }
+
         ResolveYPath(
             ~RootService,
             path,

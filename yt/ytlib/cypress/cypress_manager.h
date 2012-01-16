@@ -103,18 +103,14 @@ public:
 
     ICypressNode& BranchNode(ICypressNode& node, const TTransactionId& transactionId);
 
-    NYTree::IYPathProcessor::TPtr CreateProcessor(
-        const TObjectId& rootId = NullObjectId,
-        const TTransactionId& transactionId = NullTransactionId);
-
-    NYTree::IYPathProcessor::TPtr CreateRootProcessor(
-        const TTransactionId& transactionId = NullTransactionId);
+    NYTree::IYPathProcessor::TPtr CreateProcessor();
 
 private:
     class TLockTypeHandler;
     class TNodeTypeHandler;
+    class TServiceContextWrapper;
     class TYPathProcessor;
-    class TDefaultProxy;
+    class TSystemProxy;
 
     class TNodeMapTraits
     {

@@ -379,21 +379,24 @@ private:
             return;
 
 
-        auto processor = CypressManager->CreateProcessor(NodeId);
+        auto processor = CypressManager->CreateProcessor();
 
         // TODO: use fluent
         // TODO: make a single transaction
 
         {
-            auto req = TCypressYPathProxy::Create();
-            req->SetPath(Sprintf("/%s", ~address));
+            auto req = TCypressYPathProxy::Create(CombineYPaths(
+                FromObjectId(NodeId),
+                address));
             req->set_type(EObjectType::Holder);
             ExecuteVerb(~req, ~processor);
         }
 
         {
-            auto req = TCypressYPathProxy::Create();
-            req->SetPath(Sprintf("/%s/orchid", ~address));
+            auto req = TCypressYPathProxy::Create(CombineYPaths(
+                FromObjectId(NodeId),
+                address,
+                "orchid"));
             req->set_type(EObjectType::OrchidNode);     
             req->set_manifest(Sprintf("{remote_address=\"%s\"}", ~address));     
             ExecuteVerb(~req, ~processor);

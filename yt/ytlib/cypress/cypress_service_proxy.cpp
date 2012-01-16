@@ -10,20 +10,18 @@ using namespace NYTree;
 
 const TYPath ObjectIdMarker = "#";
 const TYPath TransactionIdMarker = "!";
+const TYPath SystemPath = "#0-0-0-0";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath TCypressServiceProxy::GetObjectPath(const TObjectId& id)
+TYPath FromObjectId(const TObjectId& id)
 {
-    return ObjectIdMarker + "(" + id.ToString() + ")";
+    return ObjectIdMarker + id.ToString();
 }
 
-TYPath TCypressServiceProxy::GetTransactionPath(const TTransactionId& id)
+TYPath WithTransaction(const TYPath& path, const TTransactionId& id)
 {
-    return
-        id == NullTransactionId
-        ? ""
-        : TransactionIdMarker + "(" + id.ToString() + ")";
+    return TransactionIdMarker + id.ToString() + path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

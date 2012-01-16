@@ -21,7 +21,7 @@ struct TCypressYPathProxy
 
 extern const NYTree::TYPath ObjectIdMarker;
 
-NYTree::TYPath YPathFromObjectId(const NObjectServer::TObjectId& id);
+NYTree::TYPath FromObjectId(const NObjectServer::TObjectId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

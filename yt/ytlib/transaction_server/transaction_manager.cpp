@@ -8,6 +8,7 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/object_server/type_handler_detail.h>
 #include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -16,6 +17,7 @@ using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NProto;
 using namespace NYTree;
+using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,8 +286,8 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 
     LOG_INFO("Transaction expired (TransactionId: %s)", ~id.ToString());
 
-    auto req = TTransactionYPathProxy::Abort();
-    ExecuteVerb(~req, ~CypressManager->CreateProcessor(id));
+    auto req = TTransactionYPathProxy::Abort(FromObjectId(id));
+    ExecuteVerb(~req, ~CypressManager->CreateProcessor());
 }
 
 void TTransactionManager::SetCypressManager(NCypress::TCypressManager* cypressManager)

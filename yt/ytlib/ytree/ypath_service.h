@@ -14,8 +14,6 @@ namespace NYTree {
 
 DECLARE_ENUM(EYPathErrorCode,
     ((ResolveError)(1))
-    ((GenericError)(2))
-    ((CommitError)(3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

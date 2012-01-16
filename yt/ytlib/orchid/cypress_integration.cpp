@@ -103,14 +103,12 @@ private:
             auto innerResponseMessage = UnwrapYPathResponse(~response);
             ReplyYPathWithMessage(~context, ~innerResponseMessage);
         } else {
-            context->Reply(TError(
-                EYPathErrorCode(EYPathErrorCode::GenericError),
-                Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
-                    ~path,
-                    ~verb,
-                    ~Manifest->RemoteAddress,
-                    ~Manifest->RemoteRoot,
-                    ~response->GetError().ToString())));
+            context->Reply(TError(Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
+                ~path,
+                ~verb,
+                ~Manifest->RemoteAddress,
+                ~Manifest->RemoteRoot,
+                ~response->GetError().ToString())));
         }
     }
 

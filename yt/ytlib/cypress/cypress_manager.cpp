@@ -100,12 +100,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager::TDefaultProxy
+class TCypressManager::TSystemProxy
     : public TYPathServiceBase
     , public virtual IObjectProxy
 {
 public:
-    TDefaultProxy(TCypressManager* owner)
+    TSystemProxy(TCypressManager* owner)
         : Owner(owner)
     { }
 
@@ -168,17 +168,117 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A wrapper that is used to postpone a reply until the change is committed by quorum.
+class TCypressManager::TServiceContextWrapper
+    : public IServiceContext
+{
+public:
+    TServiceContextWrapper(IServiceContext* underlyingContext)
+        : UnderlyingContext(underlyingContext)
+        , Replied(false)
+    { }
+
+    virtual NBus::IMessage::TPtr GetRequestMessage() const
+    {
+        return UnderlyingContext->GetRequestMessage();
+    }
+
+    virtual Stroka GetPath() const
+    {
+        return UnderlyingContext->GetPath();
+    }
+
+    virtual Stroka GetVerb() const
+    {
+        return UnderlyingContext->GetVerb();
+    }
+
+    virtual bool IsOneWay() const
+    {
+        return UnderlyingContext->IsOneWay();
+    }
+
+    virtual bool IsReplied() const
+    {
+        return Replied;
+    }
+
+    virtual void Reply(const TError& error)
+    {
+        YASSERT(!Replied);
+        Replied = true;
+        Error = error;
+    }
+
+    void Flush()
+    {
+        YASSERT(Replied);
+        UnderlyingContext->Reply(Error);
+    }
+
+    virtual TError GetError() const
+    {
+        return Error;
+    }
+
+    virtual TSharedRef GetRequestBody() const
+    {
+        return UnderlyingContext->GetRequestBody();
+    }
+
+    virtual void SetResponseBody(const TSharedRef& responseBody)
+    {
+        UnderlyingContext->SetResponseBody(responseBody);
+    }
+
+    virtual const yvector<TSharedRef>& RequestAttachments() const
+    {
+        return UnderlyingContext->RequestAttachments();
+    }
+
+    virtual yvector<TSharedRef>& ResponseAttachments()
+    {
+        return UnderlyingContext->ResponseAttachments();
+    }
+
+    virtual void SetRequestInfo(const Stroka& info)
+    {
+       UnderlyingContext->SetRequestInfo(info);
+    }
+
+    virtual Stroka GetRequestInfo() const
+    {
+        return UnderlyingContext->GetRequestInfo();
+    }
+
+    virtual void SetResponseInfo(const Stroka& info)
+    {
+        UnderlyingContext->SetRequestInfo(info);
+    }
+
+    virtual Stroka GetResponseInfo()
+    {
+        return UnderlyingContext->GetRequestInfo();
+    }
+
+    virtual IAction::TPtr Wrap(IAction* action) 
+    {
+        return UnderlyingContext->Wrap(action);
+    }
+
+private:
+    IServiceContext::TPtr UnderlyingContext;
+    TError Error;
+    bool Replied;
+
+};
+
 class TCypressManager::TYPathProcessor
     : public IYPathProcessor
 {
 public:
-    TYPathProcessor(
-        TCypressManager* owner,
-        const TObjectId& rootId,
-        const TTransactionId& transactionId)
+    TYPathProcessor(TCypressManager* owner)
         : Owner(owner)
-        , RootId(rootId)
-        , TransactionId(transactionId)
     { }
 
     virtual void Resolve(
@@ -193,26 +293,27 @@ public:
             currentPath = currentPath.substr(1);
             TransactionId = ParseId(currentPath);
             if (TransactionId != NullTransactionId && !Owner->TransactionManager->FindTransaction(TransactionId)) {
-                ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)",
-                    ~TransactionId.ToString());
+                ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)", ~TransactionId.ToString());
             }
         }
 
-        if (!currentPath.empty() && currentPath.has_prefix(ObjectIdMarker)) {
+        if (currentPath.empty()) {
+            ythrow yexception() << "YPath cannot be empty";
+        }
+
+        if (currentPath.has_prefix(RootMarker)) {
+            currentPath = currentPath.substr(RootMarker.length());
+            RootId = Owner->GetRootNodeId();
+        } else if (currentPath.has_prefix(ObjectIdMarker)) {
             currentPath = currentPath.substr(1);
             RootId = ParseId(currentPath);
+        } else {
+            ythrow yexception() << Sprintf("Invalid YPath syntax (Path: %s)", ~currentPath);
         }
 
         auto rootProxy = Owner->FindObjectProxy(RootId, TransactionId);
         if (!rootProxy) {
             ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~RootId.ToString());
-        }
-
-        // TODO(babenko): this effectively allows empty paths, consider enforcing some stricter rules
-        if (currentPath.empty()) {
-            *suffixService = rootProxy;
-            *suffixPath = "";
-            return;
         }
 
         ResolveYPath(
@@ -249,6 +350,9 @@ public:
             message.add_request_parts(part.Begin(), part.Size());
         }
 
+        auto context_ = IServiceContext::TPtr(context);
+        auto wrappedContext = New<TServiceContextWrapper>(context);
+
         auto change = CreateMetaChange(
             ~Owner->MetaStateManager,
             message,
@@ -257,18 +361,18 @@ public:
                 Owner,
                 TransactionId,
                 proxy,
-                context));
+                ~wrappedContext));
 
-        IServiceContext::TPtr context_ = context;
         change
+            ->OnSuccess(~FromFunctor([=] (TVoid)
+                {
+                    wrappedContext->Flush();
+                }))
             ->OnError(~FromFunctor([=] ()
                 {
-                    // TODO: fixme
-                    if (!context_->IsReplied()) {
-                        context_->Reply(TError(
-                            EYPathErrorCode::CommitError,
-                            "Error committing meta state changes"));
-                    }
+                    context_->Reply(TError(
+                        NRpc::EErrorCode::Unavailable,
+                        "Error committing meta state changes"));
                 }))
             ->Commit();
     }
@@ -278,23 +382,27 @@ private:
     TObjectId RootId;
     TTransactionId TransactionId;
 
+    static bool IsIdChar(char ch)
+    {
+        return
+            ch >= '0' && ch <= '9' ||
+            ch >= 'a' && ch <= 'f' ||
+            ch == '-';
+    }
+
     TObjectId ParseId(TYPath& path)
     {
-        if (path.empty() || path[0] != '(') {
-            ythrow yexception() << "Missing '(' in YPath";
-        }
-
-        int index = path.find(')');
-        if (index == Stroka::npos) {
-            ythrow yexception() << "Missing ')' in YPath";
+        int index = 0;
+        while (index < path.length() && IsIdChar(path[index])) {
+            ++index;
         }
 
         TObjectId id;
-        if (!TObjectId::FromString(path.substr(1, index - 1), &id)) {
+        if (!TObjectId::FromString(path.substr(0, index), &id)) {
             ythrow yexception() << "Error parsing id in YPath";
         }
 
-        path = path.substr(index + 1);
+        path = path.substr(index);
         return id;
     }
 };
@@ -499,7 +607,7 @@ IObjectProxy::TPtr TCypressManager::FindObjectProxy(
 {
     // NullObjectId is a special case.
     if (objectId == NullObjectId) {
-        return New<TDefaultProxy>(this);
+        return New<TSystemProxy>(this);
     }
 
     // First try to fetch a proxy of a Cypress node.
@@ -743,17 +851,9 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     return *branchedNodePtr;
 }
 
-IYPathProcessor::TPtr TCypressManager::CreateProcessor(
-    const TObjectId& rootId,
-    const TTransactionId& transactionId)
+IYPathProcessor::TPtr TCypressManager::CreateProcessor()
 {
-    return New<TYPathProcessor>(this, rootId, transactionId);
-}
-
-IYPathProcessor::TPtr TCypressManager::CreateRootProcessor(
-    const TTransactionId& transactionId)
-{
-    return New<TYPathProcessor>(this, GetRootNodeId(), transactionId);
+    return New<TYPathProcessor>(this);
 }
 
 TFuture<TVoid>::TPtr TCypressManager::Save(const TCompositeMetaState::TSaveContext& context)

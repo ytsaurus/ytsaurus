@@ -246,8 +246,6 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath ChopYPathRootMarker(const TYPath& path);
-
 void ChopYPathToken(
     const TYPath& path,
     Stroka* prefix,
@@ -258,8 +256,13 @@ TYPath ComputeResolvedYPath(
     const TYPath& unresolvedPath);
 
 TYPath CombineYPaths(
-    const TYPath& prefixPath,
-    const TYPath& suffixPath);
+    const TYPath& path1,
+    const TYPath& path2);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3);
 
 bool IsEmptyYPath(const TYPath& path);
 

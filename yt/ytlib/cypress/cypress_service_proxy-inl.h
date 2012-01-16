@@ -14,15 +14,9 @@ namespace NCypress {
 
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-TCypressServiceProxy::Execute(
-    TTypedRequest* innerRequest,
-    const NYTree::TYPath& path)
+TCypressServiceProxy::Execute(TTypedRequest* innerRequest)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
-
-    if (!path.empty()) {
-        innerRequest->SetPath(path);
-    }
 
     auto outerRequest = Execute();
 
@@ -40,36 +34,11 @@ TCypressServiceProxy::Execute(
             } else if (NRpc::IsRpcError(error)) {
                 innerResponse->SetError(error);
             } else {
-                innerResponse->SetError(TError(
-                    NYTree::EYPathErrorCode(NYTree::EYPathErrorCode::GenericError),
-                    outerResponse->GetError().GetMessage()));
+                // TODO(babenko): should we be erasing the error code here?
+                innerResponse->SetError(TError(outerResponse->GetError().GetMessage()));
             }
             return innerResponse;
         }));
-}
-
-template <class TTypedRequest>
-TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-TCypressServiceProxy::Execute(
-    TTypedRequest* innerRequest,
-    const NYTree::TYPath& path,
-    const TTransactionId& transactionId)
-{
-    return Execute(
-        innerRequest,
-        GetTransactionPath(transactionId) + path);
-}
-
-template <class TTypedRequest>
-TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-TCypressServiceProxy::Execute(
-    TTypedRequest* innerRequest,
-    const TObjectId& objectId,
-    const TTransactionId& transactionId)
-{
-    return Execute(
-        innerRequest,
-        GetTransactionPath(transactionId) + GetObjectPath(objectId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

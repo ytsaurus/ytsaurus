@@ -11,11 +11,6 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NYTree::TYPath ObjectIdMarker;
-extern const NYTree::TYPath TransactionIdMarker;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCypressServiceProxy
     : public NRpc::TProxyBase
 {
@@ -39,30 +34,22 @@ public:
 
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-    Execute(
-        TTypedRequest* innerRequest,
-        const NYTree::TYPath& path);
-
-    template <class TTypedRequest>
-    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-    Execute(
-        TTypedRequest* innerRequest,
-        const NYTree::TYPath& path,
-        const TTransactionId& transactionId);
-
-    template <class TTypedRequest>
-    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-    Execute(
-        TTypedRequest* innerRequest,
-        const TObjectId& objectId = NullObjectId,
-        const TTransactionId& transactionId = NullTransactionId);
+    Execute(TTypedRequest* innerRequest);
 
 private:
     static NYTree::TYPath GetObjectPath(const TObjectId& id);
     static NYTree::TYPath GetTransactionPath(const TTransactionId& id);
 
-
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NYTree::TYPath ObjectIdMarker;
+extern const NYTree::TYPath TransactionIdMarker;
+extern const NYTree::TYPath SystemPath;
+
+NYTree::TYPath FromObjectId(const TObjectId& id);
+NYTree::TYPath WithTransaction(const NYTree::TYPath& path, const TTransactionId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

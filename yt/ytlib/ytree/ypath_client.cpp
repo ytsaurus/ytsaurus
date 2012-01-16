@@ -149,8 +149,7 @@ ExecuteVerb(
 
 TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* rootService, const TYPath& path)
 {
-    auto request = TYPathProxy::Get();
-    request->SetPath(path);
+    auto request = TYPathProxy::Get(path);
     return
         ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))
         ->Apply(FromFunctor([] (TYPathProxy::TRspGet::TPtr response)
@@ -173,8 +172,7 @@ TYson SyncYPathGet(IYPathService* rootService, const TYPath& path)
 
 INode::TPtr SyncYPathGetNode(IYPathService* rootService, const TYPath& path)
 {
-    auto request = TYPathProxy::GetNode();
-    request->SetPath(path);
+    auto request = TYPathProxy::GetNode(path);
     auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
     response->ThrowIfError();
     return reinterpret_cast<INode*>(response->value());
@@ -182,8 +180,7 @@ INode::TPtr SyncYPathGetNode(IYPathService* rootService, const TYPath& path)
 
 void SyncYPathSet(IYPathService* rootService, const TYPath& path, const TYson& value)
 {
-    auto request = TYPathProxy::Set();
-    request->SetPath(path);
+    auto request = TYPathProxy::Set(path);
     request->set_value(value);
     auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
     response->ThrowIfError();
@@ -191,8 +188,7 @@ void SyncYPathSet(IYPathService* rootService, const TYPath& path, const TYson& v
 
 void SyncYPathSetNode(IYPathService* rootService, const TYPath& path, INode* value)
 {
-    auto request = TYPathProxy::SetNode();
-    request->SetPath(path);
+    auto request = TYPathProxy::SetNode(path);
     request->set_value(reinterpret_cast<i64>(value));
     auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
     response->ThrowIfError();
@@ -200,16 +196,14 @@ void SyncYPathSetNode(IYPathService* rootService, const TYPath& path, INode* val
 
 void SyncYPathRemove(IYPathService* rootService, const TYPath& path)
 {
-    auto request = TYPathProxy::Remove();
-    request->SetPath(path);
+    auto request = TYPathProxy::Remove(path);
     auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
     response->ThrowIfError();
 }
 
 yvector<Stroka> SyncYPathList(IYPathService* rootService, const TYPath& path)
 {
-    auto request = TYPathProxy::List();
-    request->SetPath(path);
+    auto request = TYPathProxy::List(path);
     auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
     response->ThrowIfError();
     return FromProto<Stroka>(response->keys());

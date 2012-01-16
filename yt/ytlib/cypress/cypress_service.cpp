@@ -51,7 +51,7 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
         ~path,
         ~verb);
 
-    auto processor = CypressManager->CreateRootProcessor();
+    auto processor = CypressManager->CreateProcessor();
 
     ExecuteVerb(
         ~requestMessage,

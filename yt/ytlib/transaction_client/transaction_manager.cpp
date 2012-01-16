@@ -39,7 +39,7 @@ public:
         Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
 
         LOG_INFO("Starting transaction");
-        auto req = TCypressYPathProxy::Create();
+        auto req = TCypressYPathProxy::Create(SystemPath);
         req->set_type(EObjectType::Transaction);
         auto rsp = Proxy.Execute(~req)->Get();
         if (!rsp->IsOK()) {
@@ -84,8 +84,8 @@ public:
 
         LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
 
-        auto req = TTransactionYPathProxy::Commit();
-        auto rsp = Proxy.Execute(~req, Id)->Get();
+        auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
+        auto rsp = Proxy.Execute(~req)->Get();
 
         TGuard<TSpinLock> guard(SpinLock);
         if (!rsp->IsOK()) {
@@ -112,8 +112,8 @@ public:
         MakeStateTransition(EState::Aborted);
 
         // Fire and forget.
-        auto req = TTransactionYPathProxy::Abort();
-        Proxy.Execute(~req, Id);
+        auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
+        Proxy.Execute(~req);
 
         DoAbort();
 
@@ -250,9 +250,9 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
 
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 
-    auto req = TTransactionYPathProxy::RenewLease();
+    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
     CypressProxy
-        .Execute(~req, id)
+        .Execute(~req)
         ->Subscribe(FromMethod(
             &TTransactionManager::OnPingResponse,
             TPtr(this), 

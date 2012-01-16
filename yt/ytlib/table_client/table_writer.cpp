@@ -41,8 +41,8 @@ TTableWriter::TTableWriter(
     proxy.SetTimeout(Config->MasterRpcTimeout);
 
     LOG_INFO("Requesting chunk list id");
-    auto getChunkListIdReq = TTableYPathProxy::GetChunkListId();
-    auto getChunkListIdRsp = proxy.Execute(~getChunkListIdReq, path, Transaction->GetId())->Get();
+    auto getChunkListIdReq = TTableYPathProxy::GetChunkListId(WithTransaction(path, Transaction->GetId()));
+    auto getChunkListIdRsp = proxy.Execute(~getChunkListIdReq)->Get();
     if (!getChunkListIdRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
             ~getChunkListIdRsp->GetError().ToString());

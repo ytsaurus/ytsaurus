@@ -57,8 +57,8 @@ TFileReader::TFileReader(
     CypressProxy->SetTimeout(Config->MasterRpcTimeout);
 
     LOG_INFO("Fetching file info");
-    auto fetchReq = TFileYPathProxy::Fetch();
-    auto fetchRsp = CypressProxy->Execute(~fetchReq, Path, transactionId)->Get();
+    auto fetchReq = TFileYPathProxy::Fetch(WithTransaction(Path, transactionId));
+    auto fetchRsp = CypressProxy->Execute(~fetchReq)->Get();
     if (!fetchRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error fetching file info\n%s",
             ~fetchRsp->GetError().ToString());
