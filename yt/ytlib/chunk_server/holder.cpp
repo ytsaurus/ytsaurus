@@ -107,6 +107,7 @@ bool THolder::HasChunk(const TChunkId& chunkId, bool cached) const
 void THolder::AddUnapprovedChunk(const TChunkId& chunkId)
 {
     if (!HasChunk(chunkId, false)) {
+        AddChunk(chunkId, false);
         YVERIFY(UnapprovedChunkIds_.insert(chunkId).Second());
     }
 }
