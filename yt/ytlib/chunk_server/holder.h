@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include "chunk_service.pb.h"
+
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/serialize.h>
 

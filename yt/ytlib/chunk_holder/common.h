@@ -2,8 +2,6 @@
 
 #include <ytlib/misc/common.h>
 
-#include "chunk_service.pb.h"
-
 #include <ytlib/chunk_client/block_id.h>
 #include <ytlib/chunk_client/common.h>
 
@@ -16,7 +14,7 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-    using NChunkClient::TBlockId;
+using NChunkClient::TBlockId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,10 +24,4 @@ extern NLog::TLogger ChunkHolderLogger;
 
 } // namespace NChunkHolder
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-Stroka ToString(const NYT::NChunkServer::NProto::THolderStatistics& statistics);
-
-////////////////////////////////////////////////////////////////////////////////
 
