@@ -59,7 +59,7 @@ TEST_F(TFutureTest, Subscribe)
 
 static void* AsynchronousSetter(void* param)
 {
-    Sleep(TDuration::Seconds(0.125));
+    Sleep(TDuration::Seconds(0.100));
 
     TFuture<int>* result = reinterpret_cast<TFuture<int>*>(param);
     result->Set(42);
