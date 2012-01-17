@@ -27,13 +27,13 @@ T CheckedStaticCast(i64 value)
 }
 
 // TConfigurable::TPtr
-template <class T>
+template <class T, typename NYT::NMPL::TEnableIf<
+    NYT::NMPL::TIsConvertible< T*, TConfigurable* >, int
+    >::TType = 0>
 inline void Read(
     TIntrusivePtr<T>& parameter,
     const NYTree::INode* node,
-    const NYTree::TYPath& path,
-    typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
-        NYT::NDetail::TEmpty())
+    const NYTree::TYPath& path)
 {
     if (!parameter) {
         parameter = New<T>();
@@ -97,13 +97,13 @@ inline void Read(TGuid& parameter, const NYTree::INode* node, const NYTree::TYPa
 }
 
 // TEnumBase
-template <class T>
+template <class T, typename NYT::NMPL::TEnableIf<
+    NYT::NMPL::TIsConvertible< T, TEnumBase<T> >, int
+    >::TType = 0>
 inline void Read(
     T& parameter,
     const NYTree::INode* node, 
-    const NYTree::TYPath& /* path */,
-    typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
-        NYT::NDetail::TEmpty())
+    const NYTree::TYPath& /* path */)
 {
     auto value = node->AsString()->GetValue();
     parameter = ParseEnum<T>(value);
@@ -300,12 +300,12 @@ inline void ValidateSubconfigs(
 { }
 
 // TConfigurable
-template <class T>
+template <class T, typename NYT::NMPL::TEnableIf<
+    NYT::NMPL::TIsConvertible< T*, TConfigurable* >, int
+    >::TType = 0>
 inline void ValidateSubconfigs(
     const TIntrusivePtr<T>* parameter,
-    const NYTree::TYPath& path,
-    typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
-        NYT::NDetail::TEmpty())
+    const NYTree::TYPath& path)
 {
     if (parameter->Get()) {
         (*parameter)->Validate(path);

@@ -117,11 +117,10 @@ inline Stroka FormatBool(bool value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-T ParseEnum(
-    const Stroka& value,
-    typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
-        NYT::NDetail::TEmpty())
+template <class T, typename NYT::NMPL::TEnableIf<
+    NYT::NMPL::TIsConvertible< T, TEnumBase<T> >, int
+    >::TType = 0>
+inline T ParseEnum(const Stroka& value)
 {
     return T::FromString(ConvertUnderscoreCaseToCamelCase(value));
 }
