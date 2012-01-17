@@ -85,40 +85,29 @@ namespace {
     }
 
     //! This is an object which creates intrusive pointers to the self
-    //! during its construction and also fires some events.
-    class TObjectWithEventsAndSelfPointers
+    //! during its construction.
+    class TObjectWithSelfPointers
         : public TRefCountedBase
     {
-    public:
-        typedef StrictMock< MockFunction<void()> > TEvent;
-        typedef TIntrusivePtr<TObjectWithEventsAndSelfPointers> TPtr;
-
     private:
-        TEvent* BeforeCreate;
-        TEvent* AfterCreate;
-        TEvent* OnDestroy;
-
+        TOutputStream* Output;
     public:
-        TObjectWithEventsAndSelfPointers(
-            TEvent* beforeCreate,
-            TEvent* afterCreate,
-            TEvent* onDestroy)
-            : BeforeCreate(beforeCreate)
-            , AfterCreate(afterCreate)
-            , OnDestroy(onDestroy)
+        TObjectWithSelfPointers(TOutputStream* output)
+            : Output(output)
         {
-            BeforeCreate->Call();
+            *Output << "Cb";
 
             for (int i = 0; i < 3; ++i) {
-                TPtr ptr(this);
+                *Output << '+';
+                TIntrusivePtr<TObjectWithSelfPointers> ptr(this);
             }
 
-            AfterCreate->Call();
+            *Output << "Ca";
         }
 
-        virtual ~TObjectWithEventsAndSelfPointers()
+        virtual ~TObjectWithSelfPointers()
         {
-            OnDestroy->Call();
+            *Output << 'D';
         }
     };
 
@@ -131,15 +120,15 @@ namespace {
         TObjectWithIntrinsicRC(TOutputStream* output)
             : Output(output)
         {
-            *Output << "+";           
+            *Output << 'C';           
         }
         virtual ~TObjectWithIntrinsicRC()
         {
-            *Output << "-";
+            *Output << 'D';
         }
         void DoSomething()
         {
-            *Output << "!";
+            *Output << '!';
         }
     };
 
@@ -152,15 +141,15 @@ namespace {
         TObjectWithExtrinsicRC(TOutputStream* output)
             : Output(output)
         {
-            *Output << "+";
+            *Output << 'C';
         }
         virtual ~TObjectWithExtrinsicRC()
         {
-            *Output << "-";
+            *Output << 'D';
         }
         void DoSomething()
         {
-            *Output << "!";
+            *Output << '!';
         }
     };
 
@@ -370,23 +359,15 @@ TEST(TIntrusivePtrTest, NewDoesNotAcquireAdditionalReferences)
 
 TEST(TIntrusivePtrTest, ObjectIsNotDestroyedPrematurely)
 {
-    TObjectWithEventsAndSelfPointers::TEvent beforeCreate;
-    TObjectWithEventsAndSelfPointers::TEvent afterCreate;
-    TObjectWithEventsAndSelfPointers::TEvent destroy;
+    typedef TIntrusivePtr<TObjectWithSelfPointers> TMyPtr;
 
-    InSequence dummy;
-    EXPECT_CALL(beforeCreate, Call())
-        .Times(1);
-    EXPECT_CALL(afterCreate, Call())
-        .Times(1);
-    EXPECT_CALL(destroy, Call())
-        .Times(1);
-
+    TStringStream output;
     {
-        TObjectWithEventsAndSelfPointers::TPtr ptr =
-            New<TObjectWithEventsAndSelfPointers>(
-            &beforeCreate, &afterCreate, &destroy);
+        TMyPtr ptr = New<TObjectWithSelfPointers>(&output);
     }
+
+    // TObject... appends symbols to the output; see definitions.
+    EXPECT_STREQ("Cb!!!CaD", output.Str().c_str());
 }
 
 TEST(TIntrusivePtrTest, EqualityOperator)
@@ -434,11 +415,15 @@ TEST(TIntrusivePtrTest, IntrisicRCBehaviour)
             TMyPtr anotherPointer(pointer);
             anotherPointer->DoSomething();
         }
+        {
+            TMyPtr anotherPointer(pointer);
+            anotherPointer->DoSomething();
+        }
         pointer->DoSomething();
     }
 
     // TObject... appends symbols to the output; see definitions.
-    EXPECT_STREQ("+!!-", output.Str().c_str());
+    EXPECT_STREQ("C!!!D", output.Str().c_str());
 }
 
 TEST(TIntrusivePtrTest, ExtrinsicRCBehaviour)
@@ -452,11 +437,15 @@ TEST(TIntrusivePtrTest, ExtrinsicRCBehaviour)
             TMyPtr anotherPointer(pointer);
             anotherPointer->DoSomething();
         }
+        {
+            TMyPtr anotherPointer(pointer);
+            anotherPointer->DoSomething();
+        }
         pointer->DoSomething();
     }
 
     // TObject... appends symbols to the output; see definitions.
-    EXPECT_STREQ("+!!-", output.Str().c_str());
+    EXPECT_STREQ("C!!!D", output.Str().c_str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -317,6 +317,19 @@ TEST_F(TWeakPtrTest, OutOfNestedScope)
     EXPECT_EQ(1, DestructorShadowState);
 }
 
+TEST_F(TWeakPtrTest, IsExpired)
+{
+    TIntricateObject::TWkPtr ptr;
+
+    EXPECT_IS_TRUE(ptr.IsExpired());
+    {
+        TIntricateObject::TPtr object = New<TIntricateObject>();
+        ptr = object;
+        EXPECT_IS_FALSE(ptr.IsExpired());
+    }
+    EXPECT_IS_TRUE(ptr.IsExpired());
+}
+
 TEST_F(TWeakPtrTest, UpCast)
 {
     TDerivedIntricateObject::TPtr object = New<TDerivedIntricateObject>();
