@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "job_executor.h"
 
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/chunk_client/remote_writer.h>
 

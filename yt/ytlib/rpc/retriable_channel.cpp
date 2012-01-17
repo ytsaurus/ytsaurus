@@ -3,7 +3,6 @@
 #include "client.h"
 
 #include <ytlib/bus/client.h>
-#include <ytlib/misc/assert.h>
 
 #include <util/system/spinlock.h>
 #include <util/system/guard.h>

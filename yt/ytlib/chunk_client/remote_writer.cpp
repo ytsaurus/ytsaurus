@@ -6,7 +6,6 @@
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/metric.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/actions/action_util.h>

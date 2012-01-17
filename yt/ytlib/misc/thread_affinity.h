@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "assert.h"
 #include "thread.h"
 
 #include <util/system/thread.h>

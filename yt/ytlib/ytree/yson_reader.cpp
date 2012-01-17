@@ -4,7 +4,6 @@
 #include "yson_reader.h"
 #include "yson_format.h"
 
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/actions/action_util.h>
 

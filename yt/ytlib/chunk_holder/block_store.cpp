@@ -4,7 +4,6 @@
 #include "reader_cache.h"
 #include "location.h"
 
-#include <ytlib/misc/assert.h>
 #include <ytlib/chunk_client/file_reader.h>
 
 namespace NYT {

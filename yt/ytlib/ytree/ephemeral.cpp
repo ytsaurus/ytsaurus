@@ -4,7 +4,6 @@
 #include "ypath_detail.h"
 
 #include <ytlib/misc/hash.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/singleton.h>
 
 #include <algorithm>

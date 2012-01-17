@@ -3,8 +3,6 @@
 #endif
 #undef CACHE_INL_H_
 
-#include <ytlib/misc/assert.h>
-
 #include <util/system/yield.h>
 
 namespace NYT {

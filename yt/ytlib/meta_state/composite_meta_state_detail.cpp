@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "composite_meta_state_detail.h"
 
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/serialize.h>
 
 namespace NYT {

@@ -2,7 +2,6 @@
 #include "chunk_store.h"
 
 #include <ytlib/misc/foreach.h>
-#include <ytlib/misc/assert.h>
 
 #include <utility>
 #include <limits>

@@ -13,7 +13,6 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/guid.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/string.h>
 

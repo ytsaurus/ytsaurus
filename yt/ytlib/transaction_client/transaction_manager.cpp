@@ -3,7 +3,6 @@
 
 #include <ytlib/transaction_server/transaction_service_proxy.h>
 #include <ytlib/actions/signal.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>

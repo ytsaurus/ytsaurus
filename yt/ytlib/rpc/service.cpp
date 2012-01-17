@@ -2,7 +2,6 @@
 #include "service.h"
 
 #include <ytlib/logging/log.h>
-#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NRpc {

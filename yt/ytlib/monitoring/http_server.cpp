@@ -5,7 +5,6 @@
 #include <util/string/http.h>
 #include <quality/Misc/HPTimer.h>
 
-#include <yt/ytlib/misc/assert.h>
 #include <yt/ytlib/misc/id_generator.h>
 #include <yt/ytlib/actions/action_util.h>
 #include <yt/ytlib/actions/future.h>

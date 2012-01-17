@@ -3,7 +3,6 @@
 #include "composite_meta_state_detail.h"
 
 #include <ytlib/misc/foreach.h>
-#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NMetaState {

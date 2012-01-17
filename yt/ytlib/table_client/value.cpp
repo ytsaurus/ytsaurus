@@ -2,7 +2,6 @@
 #include "value.h"
 
 #include <ytlib/misc/serialize.h>
-#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NTableClient {
