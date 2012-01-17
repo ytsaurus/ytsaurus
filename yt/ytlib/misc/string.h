@@ -117,8 +117,8 @@ inline Stroka FormatBool(bool value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, typename NYT::NMPL::TEnableIf<
-    NYT::NMPL::TIsConvertible< T, TEnumBase<T> >, int
+template <class T, typename NYT::NMpl::TEnableIf<
+    NYT::NMpl::TIsConvertible< T, TEnumBase<T> >, int
     >::TType = 0>
 inline T ParseEnum(const Stroka& value)
 {

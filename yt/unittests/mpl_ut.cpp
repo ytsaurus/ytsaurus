@@ -30,8 +30,8 @@ public:
 };
 
 template<class T>
-class TWrapped<T, typename NMPL::TEnableIf<
-        NMPL::TIsConvertible<T*, TParent*>
+class TWrapped<T, typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<T*, TParent*>
     >::TType>
 {
 public:
@@ -45,27 +45,27 @@ public:
 
 TEST(MetaProgrammingTest, IsConvertible)
 {
-    EXPECT_TRUE ( (NMPL::TIsConvertible<TChild, TParent>::Value) );
-    EXPECT_FALSE( (NMPL::TIsConvertible<TParent, TChild>::Value) );
+    EXPECT_TRUE ( (NMpl::TIsConvertible<TChild, TParent>::Value) );
+    EXPECT_FALSE( (NMpl::TIsConvertible<TParent, TChild>::Value) );
 
-    EXPECT_TRUE ( (NMPL::TIsConvertible<TChild*, TParent*>::Value) );
-    EXPECT_FALSE( (NMPL::TIsConvertible<TParent*, TChild*>::Value) );
-    EXPECT_TRUE ( (NMPL::TIsConvertible<TChild*, TChild*>::Value) );
-    EXPECT_TRUE ( (NMPL::TIsConvertible<TParent*, TParent*>::Value) );
+    EXPECT_TRUE ( (NMpl::TIsConvertible<TChild*, TParent*>::Value) );
+    EXPECT_FALSE( (NMpl::TIsConvertible<TParent*, TChild*>::Value) );
+    EXPECT_TRUE ( (NMpl::TIsConvertible<TChild*, TChild*>::Value) );
+    EXPECT_TRUE ( (NMpl::TIsConvertible<TParent*, TParent*>::Value) );
 
-    EXPECT_FALSE( (NMPL::TIsConvertible<TParent, TSomeStruct>::Value) );
-    EXPECT_FALSE( (NMPL::TIsConvertible<TParent, TSomeClass>::Value) );
-    EXPECT_FALSE( (NMPL::TIsConvertible<TParent, TSomeEnum>::Value) );
+    EXPECT_FALSE( (NMpl::TIsConvertible<TParent, TSomeStruct>::Value) );
+    EXPECT_FALSE( (NMpl::TIsConvertible<TParent, TSomeClass>::Value) );
+    EXPECT_FALSE( (NMpl::TIsConvertible<TParent, TSomeEnum>::Value) );
 
-    EXPECT_TRUE ( (NMPL::TIsConvertible<int, float>::Value) );
-    EXPECT_TRUE ( (NMPL::TIsConvertible<int, double>::Value) );
+    EXPECT_TRUE ( (NMpl::TIsConvertible<int, float>::Value) );
+    EXPECT_TRUE ( (NMpl::TIsConvertible<int, double>::Value) );
 
-    EXPECT_TRUE ( (NMPL::TIsConvertible<int*, void*>::Value) );
-    EXPECT_FALSE( (NMPL::TIsConvertible<void*, int*>::Value) );
+    EXPECT_TRUE ( (NMpl::TIsConvertible<int*, void*>::Value) );
+    EXPECT_FALSE( (NMpl::TIsConvertible<void*, int*>::Value) );
 
-    EXPECT_FALSE( (NMPL::TIsConvertible<int[17], double>::Value) );
-    EXPECT_FALSE( (NMPL::TIsConvertible<double, int[17]>::Value) );
-    EXPECT_TRUE ( (NMPL::TIsConvertible<int[17], int*>::Value) );
+    EXPECT_FALSE( (NMpl::TIsConvertible<int[17], double>::Value) );
+    EXPECT_FALSE( (NMpl::TIsConvertible<double, int[17]>::Value) );
+    EXPECT_TRUE ( (NMpl::TIsConvertible<int[17], int*>::Value) );
 }
 
 TEST(MetaProgrammingTest, EnableIf)

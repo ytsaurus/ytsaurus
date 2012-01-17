@@ -2,8 +2,6 @@
 
 #include "mpl.h"
 
-// Implementation was forked from util/generic/ptr.h.
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,8 +79,8 @@ public:
     }
 
     //! Copy constructor with an upcast.
-    template<class U, typename NMPL::TEnableIfC<
-            NMPL::TIsConvertible<U*, T*>::Value, int
+    template<class U, typename NMpl::TEnableIfC<
+            NMpl::TIsConvertible<U*, T*>::Value, int
         >::TType = 0>
     TIntrusivePtr(const TIntrusivePtr<U>& other) // noexcept
         : T_(other.Get())
@@ -100,8 +98,8 @@ public:
     }
 
     //! Move constructor with an upcast.
-    template<class U, typename NMPL::TEnableIf<
-            NMPL::TIsConvertible<U*, T*>, int
+    template<class U, typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>, int
         >::TType = 0>
     TIntrusivePtr(TIntrusivePtr<U>&& other) // noexcept
         : T_(other.Get())
@@ -125,8 +123,8 @@ public:
     }
 
     //! Copy assignment operator with an upcast.
-    template<class U, typename NMPL::TEnableIfC<
-            NMPL::TIsConvertible<U*, T*>::Value, int
+    template<class U, typename NMpl::TEnableIfC<
+            NMpl::TIsConvertible<U*, T*>::Value, int
         >::TType = 0>
     TIntrusivePtr& operator=(const TIntrusivePtr<U>& other) // noexcept
     {
@@ -142,8 +140,8 @@ public:
     }
 
     //! Move assignment operator with an upcast.
-    template<class U, typename NMPL::TEnableIfC<
-            NMPL::TIsConvertible<U*, T*>::Value, int
+    template<class U, typename NMpl::TEnableIfC<
+            NMpl::TIsConvertible<U*, T*>::Value, int
         >::TType = 0>
     TIntrusivePtr& operator=(TIntrusivePtr<U>&& other) // noexcept
     {

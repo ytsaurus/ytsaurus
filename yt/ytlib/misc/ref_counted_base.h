@@ -109,8 +109,8 @@ namespace NDetail {
         ~TRefCounter()
         { }
 
-        //! This method is called when there are no strong references remain and
-        //! the object have to be disposed (technically this means that
+        //! This method is called when there are no strong references remaining
+        //! and the object have to be disposed (technically this means that
         //! there are no more strong references being held).
         inline void Dispose();
 

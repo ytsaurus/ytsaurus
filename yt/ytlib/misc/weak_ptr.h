@@ -37,8 +37,8 @@ public:
     }
 
     //! Constructor from a strong reference.
-    template<class U, typename NMPL::TEnableIf<
-            NMPL::TIsConvertible<U*, T*>, int
+    template<class U, typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>, int
         >::TType = 0>
     TWeakPtr(const TIntrusivePtr<U>& p) // noexcept
         : T_(p.Get())
@@ -65,8 +65,8 @@ public:
     }
 
     //! Copy constructor with an upcast.
-    template<class U, typename NMPL::TEnableIf<
-            NMPL::TIsConvertible<U*, T*>, int
+    template<class U, typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>, int
         >::TType = 0>
     TWeakPtr(const TWeakPtr<U>& other) // noexcept
         : T_(NULL)
@@ -94,8 +94,8 @@ public:
     }
 
     //! Move constructor with an upcast.
-    template<class U, typename NMPL::TEnableIf<
-            NMPL::TIsConvertible<U*, T*>, int
+    template<class U, typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>, int
         >::TType = 0>
     TWeakPtr(TWeakPtr<U>&& other) // noexcept
         : T_(NULL)
@@ -122,8 +122,8 @@ public:
     }
 
     //! Assignment operator from a strong reference.
-    template<class U, typename NMPL::TEnableIf<
-            NMPL::TIsConvertible<U*, T*>, int
+    template<class U, typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>, int
         >::TType = 0>
     TWeakPtr& operator=(const TIntrusivePtr<U>& p) // noexcept
     {
@@ -139,8 +139,8 @@ public:
     }
 
     //! Copy assignment operator with an upcast.
-    template<class U, typename NMPL::TEnableIf<
-            NMPL::TIsConvertible<U*, T*>, int
+    template<class U, typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>, int
         >::TType = 0>
     TWeakPtr& operator=(const TWeakPtr<U>& other) // noexcept
     {
@@ -156,8 +156,8 @@ public:
     }
 
     //! Move assignment operator with an upcast.
-    template<class U, typename NMPL::TEnableIf<
-        NMPL::TIsConvertible<U*, T*>, int
+    template<class U, typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<U*, T*>, int
         >::TType = 0>
     TWeakPtr& operator=(TWeakPtr<U>&& other) // noexcept
     {
@@ -178,8 +178,8 @@ public:
     }
 
     //! Replace the pointer with a specified one.
-    template<class U, typename NMPL::TEnableIf<
-            NMPL::TIsConvertible<U*, T*>, int
+    template<class U, typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>, int
         >::TType = 0>
     void Reset(const TIntrusivePtr<U>& p) // noexcept
     {
@@ -201,6 +201,11 @@ public:
     {
         DoSwap(T_, r.T_);
         DoSwap(RefCounter, r.RefCounter);
+    }
+
+    bool IsExpired() const // noexcept
+    {
+        return !RefCounter || (RefCounter->GetRefCount() == 0);
     }
 
 private:

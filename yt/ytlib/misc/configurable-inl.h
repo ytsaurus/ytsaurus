@@ -27,8 +27,8 @@ T CheckedStaticCast(i64 value)
 }
 
 // TConfigurable::TPtr
-template <class T, typename NYT::NMPL::TEnableIf<
-    NYT::NMPL::TIsConvertible< T*, TConfigurable* >, int
+template <class T, typename NYT::NMpl::TEnableIf<
+    NYT::NMpl::TIsConvertible< T*, TConfigurable* >, int
     >::TType = 0>
 inline void Read(
     TIntrusivePtr<T>& parameter,
@@ -97,8 +97,8 @@ inline void Read(TGuid& parameter, const NYTree::INode* node, const NYTree::TYPa
 }
 
 // TEnumBase
-template <class T, typename NYT::NMPL::TEnableIf<
-    NYT::NMPL::TIsConvertible< T, TEnumBase<T> >, int
+template <class T, typename NYT::NMpl::TEnableIf<
+    NYT::NMpl::TIsConvertible< T, TEnumBase<T> >, int
     >::TType = 0>
 inline void Read(
     T& parameter,
@@ -300,8 +300,8 @@ inline void ValidateSubconfigs(
 { }
 
 // TConfigurable
-template <class T, typename NYT::NMPL::TEnableIf<
-    NYT::NMPL::TIsConvertible< T*, TConfigurable* >, int
+template <class T, typename NYT::NMpl::TEnableIf<
+    NYT::NMpl::TIsConvertible< T*, TConfigurable* >, int
     >::TType = 0>
 inline void ValidateSubconfigs(
     const TIntrusivePtr<T>* parameter,
