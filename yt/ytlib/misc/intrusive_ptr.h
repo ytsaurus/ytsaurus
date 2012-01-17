@@ -2,8 +2,6 @@
 
 #include "mpl.h"
 
-#include <util/generic/ptr.h>
-
 // Implementation was forked from util/generic/ptr.h.
 
 namespace NYT {
@@ -13,12 +11,12 @@ namespace NYT {
 template<class T>
 struct TIntrusivePtrTraits
 {
-    static void Ref(T *p)
+    static void Ref(T* p)
     {
         p->Ref();
     }
 
-    static void UnRef(T *p)
+    static void UnRef(T* p)
     {
         p->UnRef();
     }
@@ -46,11 +44,26 @@ class TIntrusivePtr
 public:
     typedef T TElementType;
 
-    TIntrusivePtr() throw()
+    //! Empty constructor.
+    TIntrusivePtr() // noexcept
         : T_(NULL)
     { }
 
-    TIntrusivePtr(T* p, bool addReference) throw()
+    //! Constructor from an unqualified reference.
+    /*!
+     * Note that this constructor could be racy due to unsynchronized operations
+     * on the object and on the counter.
+     */
+    TIntrusivePtr(T* p) // noexcept
+        : T_(p)
+    {
+        if (T_) {
+            TIntrusivePtrTraits<T>::Ref(T_);
+        }
+    }
+
+    //! Constructor from an unqualified reference.
+    TIntrusivePtr(T* p, bool addReference) // noexcept
         : T_(p)
     {
         if (T_ && addReference) {
@@ -58,29 +71,20 @@ public:
         }
     }
 
-    TIntrusivePtr(T* p) throw()
-        : T_(p)
+    //! Copy constructor.    
+    TIntrusivePtr(const TIntrusivePtr& other) // noexcept
+        : T_(other.Get())
     {
         if (T_) {
             TIntrusivePtrTraits<T>::Ref(T_);
-        }
+        }           
     }
 
-    //! Copy constructor.
-    TIntrusivePtr(const TIntrusivePtr& other) throw()
-        : T_(other.T_)
-    {
-        if (T_) {
-            TIntrusivePtrTraits<T>::Ref(T_);
-        }
-    }
-
-    //! Copy constructor with an implicit cast between Convertible classes.
-    template<class U>
-    TIntrusivePtr(
-        const TIntrusivePtr<U>& other,
-        typename NYT::NDetail::TEnableIfConvertible<U, T>::TType = NYT::NDetail::TEmpty())
-        throw()
+    //! Copy constructor with an upcast.
+    template<class U, typename NMPL::TEnableIfC<
+            NMPL::TIsConvertible<U*, T*>::Value, int
+        >::TType = 0>
+    TIntrusivePtr(const TIntrusivePtr<U>& other) // noexcept
         : T_(other.Get())
     {
         if (T_) {
@@ -89,18 +93,17 @@ public:
     }
 
     //! Move constructor.
-    TIntrusivePtr(TIntrusivePtr&& other) throw()
-        : T_(other.T_)
+    TIntrusivePtr(TIntrusivePtr&& other) // noexcept
+        : T_(other.Get())
     {
         other.T_ = NULL;
     }
 
-    //! Move constructor with an implicit cast between Convertible classes.
-    template<class U>
-    TIntrusivePtr(
-        TIntrusivePtr<U>&& other,
-        typename NYT::NDetail::TEnableIfConvertible<U, T>::TType = NYT::NDetail::TEmpty())
-        throw()
+    //! Move constructor with an upcast.
+    template<class U, typename NMPL::TEnableIf<
+            NMPL::TIsConvertible<U*, T*>, int
+        >::TType = 0>
+    TIntrusivePtr(TIntrusivePtr<U>&& other) // noexcept
         : T_(other.Get())
     {
         other.T_ = NULL;
@@ -115,44 +118,64 @@ public:
     }
 
     //! Copy assignment operator.
-    TIntrusivePtr& operator=(const TIntrusivePtr& other) throw()
+    TIntrusivePtr& operator=(const TIntrusivePtr& other) // noexcept
+    {
+        TIntrusivePtr(other).Swap(*this);
+        return *this;
+    }
+
+    //! Copy assignment operator with an upcast.
+    template<class U, typename NMPL::TEnableIfC<
+            NMPL::TIsConvertible<U*, T*>::Value, int
+        >::TType = 0>
+    TIntrusivePtr& operator=(const TIntrusivePtr<U>& other) // noexcept
     {
         TIntrusivePtr(other).Swap(*this);
         return *this;
     }
 
     //! Move assignment operator.
-    TIntrusivePtr& operator=(TIntrusivePtr&& other) throw()
+    TIntrusivePtr& operator=(TIntrusivePtr&& other) // noexcept
+    {
+        TIntrusivePtr(MoveRV(other)).Swap(*this);
+        return *this;
+    }
+
+    //! Move assignment operator with an upcast.
+    template<class U, typename NMPL::TEnableIfC<
+            NMPL::TIsConvertible<U*, T*>::Value, int
+        >::TType = 0>
+    TIntrusivePtr& operator=(TIntrusivePtr<U>&& other) // noexcept
     {
         TIntrusivePtr(MoveRV(other)).Swap(*this);
         return *this;
     }
 
     //! Drop the pointer.
-    void Reset() throw()
+    void Reset() // noexcept
     {
         TIntrusivePtr().Swap(*this);
     }
 
     //! Replace the pointer with a specified one.
-    void Reset(T* p) throw()
+    void Reset(T* p) // noexcept
     {
         TIntrusivePtr(p).Swap(*this);
     }
 
     //! Returns the pointer.
-    T* Get() const throw()
+    T* Get() const // noexcept
     {
         return T_;
     }
 
-    T& operator*() const throw()
+    T& operator*() const // noexcept
     {
         YASSERT(T_);
         return *T_;
     }
 
-    T* operator->() const throw()
+    T* operator->() const // noexcept
     {
         YASSERT(T_);
         return  T_;
@@ -160,12 +183,13 @@ public:
 
     // Implicit conversion to bool.
     typedef T* TIntrusivePtr::*TUnspecifiedBoolType;
-    operator TUnspecifiedBoolType() const
+    operator TUnspecifiedBoolType() const // noexcept
     {
         return T_ ? &TIntrusivePtr::T_ : NULL;
     }
 
-    void Swap(TIntrusivePtr& r) throw()
+    //! Swap the pointer with the other one.
+    void Swap(TIntrusivePtr& r) // noexcept
     {
         DoSwap(T_, r.T_);
     }
