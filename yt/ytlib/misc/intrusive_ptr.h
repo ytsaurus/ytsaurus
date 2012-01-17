@@ -228,49 +228,49 @@ bool operator!=(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<U>& rhs)
 }
 
 template<class T, class U>
-bool operator==(const TIntrusivePtr<T>& lhs, U * rhs)
+bool operator==(const TIntrusivePtr<T>& lhs, U* rhs)
 {
     return lhs.Get() == rhs;
 }
 
 template<class T, class U>
-bool operator!=(const TIntrusivePtr<T>& lhs, U * rhs)
+bool operator!=(const TIntrusivePtr<T>& lhs, U* rhs)
 {
     return lhs.Get() != rhs;
 }
 
 template<class T, class U>
-bool operator==(T * lhs, const TIntrusivePtr<U>& rhs)
+bool operator==(T* lhs, const TIntrusivePtr<U>& rhs)
 {
     return lhs == rhs.Get();
 }
 
 template<class T, class U>
-bool operator!=(T * lhs, const TIntrusivePtr<U>& rhs)
+bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 {
     return lhs != rhs.Get();
 }
 
 template<class T>
-T* operator ~ (const TIntrusivePtr<T>& ptr)
+T* operator~(const TIntrusivePtr<T>& ptr)
 {
     return ptr.Get();
 }
 
 template<class T>
-T* operator ~ (const TAutoPtr<T>& ptr)
+T* operator~(const TAutoPtr<T>& ptr)
 {
     return ptr.Get();
 }
 
 template<class T>
-T* operator ~ (const TSharedPtr<T>& ptr)
+T* operator~(const TSharedPtr<T>& ptr)
 {
     return ptr.Get();
 }
 
 template<class T>
-T* operator ~ (const THolder<T>& ptr)
+T* operator~(const THolder<T>& ptr)
 {
     return ptr.Get();
 }
