@@ -22,6 +22,8 @@ void TTransaction::Save(TOutputStream* output) const
     YASSERT(output);
 
     ::Save(output, State_);
+    SaveSet(output, NestedTransactionIds_);
+    ::Save(output, ParentId_);
     ::Save(output, UnboundChunkTreeIds_);
     ::Save(output, LockIds_);
     ::Save(output, BranchedNodeIds_);
@@ -34,6 +36,8 @@ TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream
 
     auto* transaction = new TTransaction(id);
     ::Load(input, transaction->State_);
+    LoadSet(input, transaction->NestedTransactionIds_);
+    ::Load(input, transaction->ParentId_);
     ::Load(input, transaction->UnboundChunkTreeIds_);
     ::Load(input, transaction->LockIds_);
     ::Load(input, transaction->BranchedNodeIds_);

@@ -8,6 +8,7 @@
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/assert.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NYTree {
@@ -22,10 +23,15 @@ class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
+    TYPathServiceBase(const Stroka& loggingCategory = YTreeLogger.GetCategory());
+
     virtual void Invoke(NRpc::IServiceContext* context);
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
+    virtual Stroka GetLoggingCategory() const;
 
 protected:
+    NLog::TLogger Logger;
+
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual TResolveResult ResolveSelf(const TYPath& path, const Stroka& verb);
     virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);

@@ -67,8 +67,12 @@ class TObjectProxyBase
 public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
 
-    TObjectProxyBase(const TObjectId& id, TMap* map)
-        : Id(id)
+    TObjectProxyBase(
+        const TObjectId& id,
+        TMap* map,
+        const Stroka& loggingCategory = ObjectServerLogger.GetCategory())
+        : NYTree::TYPathServiceBase(loggingCategory)
+        , Id(id)
         , Map(map)
     {
         YASSERT(map);

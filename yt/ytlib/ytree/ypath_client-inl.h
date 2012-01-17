@@ -12,13 +12,13 @@ template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteVerb(
     TTypedRequest* request,
-    IYPathProcessor* executor)
+    IYPathProcessor* processor)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
     auto requestMessage = request->Serialize();
     return
-        ExecuteVerb(~requestMessage, executor)
+        ExecuteVerb(~requestMessage, processor)
         ->Apply(FromFunctor([] (NBus::IMessage::TPtr responseMessage) -> TIntrusivePtr<TTypedResponse>
             {
                 auto response = New<TTypedResponse>();

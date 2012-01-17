@@ -28,7 +28,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction;
-class TChunkProxy;
+class TTransactionManifest;
 
 //! Manages client transactions.
 class TTransactionManager
@@ -68,7 +68,7 @@ public:
 
     void SetCypressManager(NCypress::TCypressManager* cypressManager);
 
-    TTransaction& Start();
+    TTransaction& Start(TTransactionManifest* manifest);
     void Commit(TTransaction& transaction);
     void Abort(TTransaction& transaction);
     void RenewLease(const TTransactionId& id);
@@ -95,6 +95,7 @@ private:
 
     void CreateLease(const TTransaction& transaction);
     void CloseLease(const TTransaction& transaction);
+    void FinishTransaction(TTransaction& transaction);
 
     // TMetaStatePart overrides
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);

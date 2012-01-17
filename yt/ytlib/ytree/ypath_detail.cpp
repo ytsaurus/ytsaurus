@@ -16,10 +16,14 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = YTreeLogger;
+NLog::TLogger& Logger = YTreeLogger;
 TYPath RootMarker("/");
 
 ///////////////////////////////////////////////////////////////////////////////
+
+TYPathServiceBase::TYPathServiceBase(const Stroka& loggingCategory)
+    : Logger(loggingCategory)
+{ }
 
 IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, const Stroka& verb)
 {
@@ -69,6 +73,11 @@ void TYPathServiceBase::DoInvoke(IServiceContext* context)
     UNUSED(context);
     ythrow TServiceException(EErrorCode::NoSuchVerb) <<
         "Verb is not supported";
+}
+
+Stroka TYPathServiceBase::GetLoggingCategory() const
+{
+    return Logger.GetCategory();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

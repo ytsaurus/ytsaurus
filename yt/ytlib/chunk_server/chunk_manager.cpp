@@ -1152,7 +1152,7 @@ class TChunkManager::TChunkProxy
 {
 public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
-        : TBase(id, &owner->ChunkMap)
+        : TBase(id, &owner->ChunkMap, ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 
@@ -1174,16 +1174,12 @@ private:
 
     void DoInvoke(NRpc::IServiceContext* context)
     {
-        //Stroka verb = context->GetVerb();
-        //if (verb == "Commit") {
-        //    CommitThunk(context);
-        //} else if (verb == "Abort") {
-        //    AbortThunk(context);
-        //} else if (verb == "RenewLease") {
-        //    RenewLeaseThunk(context);
-        //} else {
-        //    TBase::DoInvoke(context);
-        //}
+        Stroka verb = context->GetVerb();
+        if (verb == "Fetch") {
+            FetchThunk(context);
+        } else {
+            TBase::DoInvoke(context);
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch)
@@ -1225,7 +1221,7 @@ class TChunkManager::TChunkListProxy
 {
 public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
-        : TBase(id, &owner->ChunkListMap)
+        : TBase(id, &owner->ChunkListMap, ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 

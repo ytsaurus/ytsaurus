@@ -23,6 +23,8 @@ class TTransaction
     : public NObjectServer::TObjectWithIdBase
 {
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransactionId>, NestedTransactionIds);
+    DEFINE_BYVAL_RW_PROPERTY(TTransactionId, ParentId);
 
     // Chunk Server stuff
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NChunkServer::TChunkTreeId>, UnboundChunkTreeIds);

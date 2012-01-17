@@ -129,7 +129,7 @@ ExecuteVerb(
         ~updatedRequestMessage,
         suffixPath,
         verb,
-        YTreeLogger.GetCategory(),
+        suffixService->GetLoggingCategory(),
         ~FromMethod(
             &OnYPathResponse,
             asyncResponseMessage,

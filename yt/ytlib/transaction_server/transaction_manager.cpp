@@ -30,7 +30,7 @@ class TTransactionManager::TTransactionProxy
 {
 public:
     TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
-        : TBase(id, &owner->TransactionMap)
+        : TBase(id, &owner->TransactionMap, TransactionServerLogger.GetCategory())
         , Owner(owner)
     { }
 
@@ -109,10 +109,18 @@ public:
         return EObjectType::Transaction;
     }
 
-    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest)
+    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifestNode)
     {
-        UNUSED(manifest);
-        return Owner->Start().GetId();
+        auto manifest = New<TTransactionManifest>();
+        manifest->LoadAndValidate(manifestNode);
+
+        if (manifest->ParentId != NullTransactionId && !Owner->FindTransaction(manifest->ParentId)) {
+            // TODO(babenko): use TServiceException here
+            ythrow yexception() << Sprintf("No such parent transaction (ParentId: %s)",
+                ~manifest->ParentId.ToString());
+        }
+
+        return Owner->Start(~manifest).GetId();
     }
 
 private:
@@ -153,9 +161,10 @@ TTransactionManager::TTransactionManager(
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
 }
 
-TTransaction& TTransactionManager::Start()
+TTransaction& TTransactionManager::Start(TTransactionManifest* manifest)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(manifest);
 
     auto id = ObjectManager->GenerateId(EObjectType::Transaction);
 
@@ -164,50 +173,85 @@ TTransaction& TTransactionManager::Start()
     // Every active transaction has a fake reference to it.
     ObjectManager->RefObject(id);
     
+    if (manifest->ParentId != NullTransactionId) {
+        transaction->SetParentId(manifest->ParentId);
+        auto& parent = GetTransactionForUpdate(manifest->ParentId);
+        YVERIFY(parent.NestedTransactionIds().insert(id).second);
+        ObjectManager->RefObject(id);
+    }
+
     if (IsLeader()) {
         CreateLease(*transaction);
     }
 
     transaction->SetState(ETransactionState::Active);
-    LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s)",
-        ~id.ToString());
 
     OnTransactionStarted_.Fire(*transaction);
+
+    LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s, ParentId: %s)",
+        ~id.ToString(),
+        ~manifest->ParentId.ToString());
 
     return *transaction;
 }
 
 void TTransactionManager::Commit(TTransaction& transaction)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto id = transaction.GetId();
+
+    if (!transaction.NestedTransactionIds().empty()) {
+        ythrow yexception() << "Cannot commit since the transaction has nested transactions in progress";
+    }
 
     if (IsLeader()) {
         CloseLease(transaction);
     }
 
     transaction.SetState(ETransactionState::Committed);
-    LOG_INFO_IF(!IsRecovery(), "Transaction committed (TransactionId: %s)",
-        ~id.ToString());
 
     OnTransactionCommitted_.Fire(transaction);
 
-    // Kill the fake reference.
-    ObjectManager->UnrefObject(id);
+    FinishTransaction(transaction);
+
+    LOG_INFO_IF(!IsRecovery(), "Transaction committed (TransactionId: %s)", ~id.ToString());
 }
 
 void TTransactionManager::Abort(TTransaction& transaction)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto id = transaction.GetId();
+
+    FOREACH (const auto& nestedId, transaction.NestedTransactionIds()) {
+        ObjectManager->UnrefObject(nestedId);
+        Abort(GetTransactionForUpdate(nestedId));
+    }
+    transaction.NestedTransactionIds().clear();
 
     if (IsLeader()) {
         CloseLease(transaction);
     }
 
     transaction.SetState(ETransactionState::Aborted);
-    LOG_INFO_IF(!IsRecovery(), "Transaction aborted (TransactionId: %s)",
-        ~id.ToString());
 
     OnTransactionAborted_.Fire(transaction);
+
+    FinishTransaction(transaction);
+
+    LOG_INFO_IF(!IsRecovery(), "Transaction aborted (TransactionId: %s)", ~id.ToString());
+}
+
+void TTransactionManager::FinishTransaction(TTransaction& transaction)
+{
+    auto id = transaction.GetId();
+
+    if (transaction.GetParentId() != NullTransactionId) {
+        auto& parent = GetTransactionForUpdate(transaction.GetParentId());
+        YVERIFY(parent.NestedTransactionIds().erase(id) == 1);
+        ObjectManager->UnrefObject(id);
+    }
 
     // Kill the fake reference.
     ObjectManager->UnrefObject(id);

@@ -140,7 +140,7 @@ public:
         }
     }
 
-    
+
     virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
         Stroka verb = context->GetVerb();

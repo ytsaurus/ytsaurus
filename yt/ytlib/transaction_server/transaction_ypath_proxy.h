@@ -9,6 +9,20 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransactionManifest
+    : public TConfigurable
+{
+    TTransactionId ParentId;
+
+    TTransactionManifest()
+    {
+        Register("parent_id", ParentId)
+            .Default(NullTransactionId);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTransactionYPathProxy
     : NYTree::TYPathProxy
 {

@@ -88,6 +88,11 @@ public:
             ->Via(OrchidQueue->GetInvoker()));
     }
 
+    virtual Stroka GetLoggingCategory() const
+    {
+        return OrchidLogger.GetCategory();
+    }
+
 private:
     void OnResponse(
         TOrchidServiceProxy::TRspExecute::TPtr response,

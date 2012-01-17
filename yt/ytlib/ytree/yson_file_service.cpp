@@ -32,6 +32,11 @@ public:
         ythrow yexception() << "Resolution error: direct invocation is forbidden";
     }
 
+    virtual Stroka GetLoggingCategory() const
+    {
+        return YTreeLogger.GetCategory();
+    }
+
 private:
     Stroka FileName;
 
