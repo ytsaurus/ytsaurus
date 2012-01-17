@@ -4,6 +4,7 @@
 #include "chunk_placement.h"
 #include "chunk_replication.h"
 #include "holder_lease_tracker.h"
+#include "holder_statistics.h"
 #include "chunk_ypath.pb.h"
 #include "chunk_list_ypath.pb.h"
 
@@ -391,8 +392,7 @@ private:
                 chunk.AddLocation(holderId, false);
 
                 auto& holder = HolderMap.GetForUpdate(holderId);
-                // TODO: mark it unapproved
-                holder.AddChunk(chunkId, false);
+                holder.AddUnapprovedChunk(chunkId);
 
                 if (IsLeader()) {
                     ChunkReplication->OnReplicaAdded(holder, chunk);
@@ -621,6 +621,12 @@ private:
 
         FOREACH (const auto& chunkInfo, message.removed_chunks()) {
             ProcessRemovedChunk(holder, chunkInfo);
+        }
+
+        yvector<TChunkId> unapprovedChunkIds(
+            holder.UnapprovedChunkIds().begin(), holder.UnapprovedChunkIds().end());
+        FOREACH (const auto& chunkId, unapprovedChunkIds) {
+            DoRemoveUnapprovedChunkReplica(holder, GetChunkForUpdate(chunkId));
         }
 
         bool isFirstHeartbeat = holder.GetState() == EHolderState::Inactive;
@@ -874,6 +880,24 @@ private:
         }
     }
 
+    void DoRemoveUnapprovedChunkReplica(THolder& holder, TChunk& chunk)
+    {
+         auto chunkId = chunk.GetId();
+         auto holderId = holder.GetId();
+
+         holder.RemoveUnapprovedChunk(chunk.GetId());
+         chunk.RemoveLocation(holder.GetId(), false);
+
+        LOG_INFO_IF(!IsRecovery(), "Unapproved chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
+             ~chunkId.ToString(),
+             ~holder.GetAddress(),
+             holderId);
+
+        if (IsLeader()) {
+            ChunkReplication->OnReplicaRemoved(holder, chunk);
+        }
+    }
+
     void DoRemoveChunkReplicaAtDeadHolder(const THolder& holder, TChunk& chunk, bool cached)
     {
         chunk.RemoveLocation(holder.GetId(), cached);
@@ -968,6 +992,11 @@ private:
         auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
         i64 size = chunkInfo.size();
         bool cached = chunkInfo.cached();
+
+        if (!cached && holder.HasUnapprovedChunk(chunkId)) {
+            holder.ApproveChunk(chunkId);
+            return;
+        }
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (!chunk) {

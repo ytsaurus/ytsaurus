@@ -64,7 +64,7 @@ void TSession::CloseLease()
     TLeaseManager::CloseLease(Lease);
 }
 
-IInvoker::TPtr TSession::GetInvoker()
+IInvoker::TPtr TSession::GetIOInvoker()
 {
     return Location->GetInvoker();
 }
@@ -117,6 +117,13 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     RenewLease();
 
+    i64 availableSpace = Location->GetAvailableSpace();
+    if (data.Size() > availableSpace) {
+        ythrow TServiceException(EErrorCode::OutOfSpace) <<
+            Sprintf("Not enough space to put block (BlockId: %s)",
+            ~blockId.ToString());
+    }
+
     auto& slot = GetSlot(blockIndex);
     if (slot.State != ESlotState::Empty) {
         if (TRef::CompareContent(slot.Block->GetData(), data)) {
@@ -133,6 +140,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
     slot.State = ESlotState::Received;
     slot.Block = SessionManager->BlockStore->PutBlock(blockId, data, Stroka());
 
+    Location->UpdateUsedSpace(data.Size());
     Size += data.Size();
 
     LOG_DEBUG("Chunk block received (BlockId: %s)", ~blockId.ToString());
@@ -154,7 +162,7 @@ void TSession::EnqueueWrites()
             TPtr(this),
             slot.Block,
             blockIndex)
-        ->AsyncVia(GetInvoker())
+        ->AsyncVia(GetIOInvoker())
         ->Do()
         ->Subscribe(FromMethod(
             &TSession::OnBlockWritten,
@@ -238,18 +246,22 @@ TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& attributes)
         }
     }
 
-    return CloseFile(attributes);
+    return CloseFile(attributes)->Apply(
+        FromMethod(&TSession::OnFileClosed, TPtr(this))
+        ->AsyncVia(SessionManager->ServiceInvoker));
 }
 
 void TSession::Cancel(const TError& error)
 {
     CloseLease();
-    DeleteFile(error);
+    DeleteFile(error)->Apply(
+        FromMethod(&TSession::OnFileDeleted, TPtr(this))
+        ->AsyncVia(SessionManager->ServiceInvoker));
 }
 
 void TSession::OpenFile()
 {
-    GetInvoker()->Invoke(FromMethod(
+    GetIOInvoker()->Invoke(FromMethod(
         &TSession::DoOpenFile,
         TPtr(this)));
 }
@@ -261,20 +273,31 @@ void TSession::DoOpenFile()
     LOG_DEBUG("Chunk file opened");
 }
 
-void TSession::DeleteFile(const TError& error)
+TFuture<TVoid>::TPtr TSession::DeleteFile(const TError& error)
 {
-    GetInvoker()->Invoke(FromMethod(
-        &TSession::DoDeleteFile,
-        TPtr(this),
-        error));
+    return
+        FromMethod(
+            &TSession::DoDeleteFile,
+            TPtr(this),
+            error)
+        ->AsyncVia(GetIOInvoker())
+        ->Do();
 }
 
-void TSession::DoDeleteFile(const TError& error)
+TVoid TSession::DoDeleteFile(const TError& error)
 {
     Writer->Cancel(error);
 
     LOG_DEBUG("Chunk file deleted\n%s",
         ~error.ToString());
+
+    return TVoid();
+}
+
+TVoid TSession::OnFileDeleted(TVoid)
+{
+    ReleaseSpaceOccupiedByBlocks();
+    return TVoid();
 }
 
 TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
@@ -284,11 +307,11 @@ TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
             &TSession::DoCloseFile,
             TPtr(this),
             attributes)
-        ->AsyncVia(GetInvoker())
+        ->AsyncVia(GetIOInvoker())
         ->Do();
 }
 
-NYT::TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
+TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 {
     try {
         Sync(~Writer, &TChunkFileWriter::AsyncClose, attributes);
@@ -299,6 +322,14 @@ NYT::TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 
     LOG_DEBUG("Chunk file closed");
 
+    return TVoid();
+}
+
+TVoid TSession::OnFileClosed(TVoid)
+{
+    ReleaseSpaceOccupiedByBlocks();
+    auto chunk = New<TStoredChunk>(~Location, GetChunkInfo());
+    SessionManager->ChunkStore->RegisterChunk(~chunk);
     return TVoid();
 }
 
@@ -341,6 +372,11 @@ TSession::TSlot& TSession::GetSlot(i32 blockIndex)
     }
 
     return Window[blockIndex];
+}
+
+void TSession::ReleaseSpaceOccupiedByBlocks()
+{
+    Location->UpdateUsedSpace(-Size);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -417,24 +453,15 @@ TFuture<TVoid>::TPtr TSessionManager::FinishSession(
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return
-        session
-            ->Finish(attributes)
-            ->Apply(
-                FromMethod(
-                    &TSessionManager::OnSessionFinished,
-                    TPtr(this),
-                    session)
-                ->AsyncVia(ServiceInvoker));
+    return session->Finish(attributes)->Apply(FromMethod(
+		&TSessionManager::OnSessionFinished,
+        TPtr(this),
+        session));
 }
 
 TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
 {
     LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
-
-    auto chunk = New<TStoredChunk>(~session->GetLocation(), session->GetChunkInfo());
-    ChunkStore->RegisterChunk(~chunk);
-
     return TVoid();
 }
 

@@ -23,6 +23,8 @@ struct IBlockCache
     //! Puts a block into the cache.
     /*!
      *  If a block with the given id is already present, then the request is ignored.
+     *  Source is an address of peer from which the block was downloaded.
+     *  If the block was not downloaded from another peer, source must be empty.
      */
     virtual void Put(const TBlockId& id, const TSharedRef& data, const Stroka& source) = 0;
 

@@ -8,6 +8,7 @@
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/chunk_client/block_id.h>
+#include <ytlib/orchid/cypress_integration.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -16,6 +17,7 @@ using namespace NYTree;
 using namespace NCypress;
 using namespace NMetaState;
 using namespace NChunkClient;
+using namespace NOrchid;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +68,7 @@ private:
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         if (Filter == EChunkFilter::All) {
-            const auto& chunkIds = ChunkManager->GetChunkIds();
+            const auto& chunkIds = ChunkManager->GetChunkIds(sizeLimit);
             return ConvertToStrings(chunkIds.begin(), Min(chunkIds.size(), sizeLimit));
         } else {
             const auto& chunkIds = GetFilteredChunkIds();
@@ -198,7 +200,7 @@ private:
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& chunkListIds = ChunkManager->GetChunkListIds();
+        const auto& chunkListIds = ChunkManager->GetChunkListIds(sizeLimit);
         return ConvertToStrings(chunkListIds.begin(), Min(chunkListIds.size(), sizeLimit));
     }
 
@@ -381,8 +383,7 @@ private:
 
         auto processor = CypressManager->CreateProcessor();
 
-        // TODO: use fluent
-        // TODO: make a single transaction
+        // TODO(babenko): make a single transaction
 
         {
             auto req = TCypressYPathProxy::Create(CombineYPaths(
@@ -398,7 +399,9 @@ private:
                 address,
                 "orchid"));
             req->set_type(EObjectType::OrchidNode);     
-            req->set_manifest(Sprintf("{remote_address=\"%s\"}", ~address));     
+            auto manifest = New<TOrchidManifest>();
+            manifest->RemoteAddress = address;
+            req->set_manifest(SerializeToYson(~manifest));
             ExecuteVerb(~req, ~processor);
         }
     }

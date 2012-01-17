@@ -29,6 +29,7 @@ THolder::THolder(const THolder& other)
     , Statistics_(other.Statistics_)
     , StoredChunkIds_(other.StoredChunkIds_)
     , CachedChunkIds_(other.CachedChunkIds_)
+    , UnapprovedChunkIds_(other.UnapprovedChunkIds_)
     , JobIds_(other.JobIds_)
 { }
 
@@ -44,6 +45,7 @@ void THolder::Save(TOutputStream* output) const
     SaveProto(output, Statistics_);
     SaveSet(output, StoredChunkIds_);
     SaveSet(output, CachedChunkIds_);
+    SaveSet(output, UnapprovedChunkIds_);
     ::Save(output, JobIds_);
 }
 
@@ -59,6 +61,7 @@ TAutoPtr<THolder> THolder::Load(THolderId id, TInputStream* input)
     TAutoPtr<THolder> holder = new THolder(id, address, state, statistics);
     LoadSet(input, holder->StoredChunkIds_);
     LoadSet(input, holder->CachedChunkIds_);
+    LoadSet(input, holder->UnapprovedChunkIds_);
     ::Load(input, holder->JobIds_);
     return holder;
 }
@@ -79,18 +82,18 @@ void THolder::RemoveJob(const TJobId& id)
 void THolder::AddChunk(const TChunkId& chunkId, bool cached)
 {
     if (cached) {
-        YVERIFY(CachedChunkIds().insert(chunkId).second);
+        YVERIFY(CachedChunkIds_.insert(chunkId).second);
     } else {
-        YVERIFY(StoredChunkIds().insert(chunkId).second);
+        YVERIFY(StoredChunkIds_.insert(chunkId).second);
     }
 }
 
 void THolder::RemoveChunk(const TChunkId& chunkId, bool cached)
 {
     if (cached) {
-        YVERIFY(CachedChunkIds().erase(chunkId) == 1);
+        YVERIFY(CachedChunkIds_.erase(chunkId) == 1);
     } else {
-        YVERIFY(StoredChunkIds().erase(chunkId) == 1);
+        YVERIFY(StoredChunkIds_.erase(chunkId) == 1);
     }
 }
 
@@ -101,6 +104,31 @@ bool THolder::HasChunk(const TChunkId& chunkId, bool cached) const
     } else {
         return StoredChunkIds_.find(chunkId) != StoredChunkIds_.end();
     }
+}
+
+void THolder::AddUnapprovedChunk(const TChunkId& chunkId)
+{
+    if (!HasChunk(chunkId, false)) {
+        AddChunk(chunkId, false);
+        YVERIFY(UnapprovedChunkIds_.insert(chunkId).Second());
+    }
+}
+
+void THolder::RemoveUnapprovedChunk(const TChunkId& chunkId)
+{
+    YVERIFY(UnapprovedChunkIds_.erase(chunkId) == 1);
+    RemoveChunk(chunkId, false);
+}
+
+bool THolder::HasUnapprovedChunk(const TChunkId& chunkId) const
+{
+    return UnapprovedChunkIds_.find(chunkId) != UnapprovedChunkIds_.end();
+}
+
+void THolder::ApproveChunk(const TChunkId& chunkId)
+{
+    YVERIFY(UnapprovedChunkIds_.erase(chunkId) == 1);
+    YASSERT(HasChunk(chunkId, false));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

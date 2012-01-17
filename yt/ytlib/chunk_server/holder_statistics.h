@@ -1,14 +1,12 @@
-#include "stdafx.h"
+#pragma once
+
 #include "common.h"
 
-namespace NYT {
-namespace NChunkServer {
+#include "chunk_service.pb.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger ChunkServerLogger("ChunkServer");
+Stroka ToString(const NYT::NChunkServer::NProto::THolderStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkServer
-} // namespace NYT

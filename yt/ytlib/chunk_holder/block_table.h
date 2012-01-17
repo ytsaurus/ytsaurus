@@ -24,7 +24,9 @@ struct TPeerInfo
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-// Thread-unsafe
+/*!
+ *  Thread affinity: single.
+ */
 class TBlockTable
     : public TRefCountedBase
 {
@@ -35,21 +37,21 @@ public:
     /*!
      *  Also sweeps expired peers.
      */
-    const yvector<TPeerInfo>& GetPeers(const NChunkClient::TBlockId& blockId);
+    const yvector<TPeerInfo>& GetPeers(const TBlockId& blockId);
     
     //! Registers new peer or updates existing peer expiration time.
     /*!
      *  Also sweeps expired peers.
      */
-    void UpdatePeer(const NChunkClient::TBlockId& blockId, const TPeerInfo& peer);
+    void UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer);
 
 private:
-    typedef yhash_map<NChunkClient::TBlockId, yvector<TPeerInfo> > TTable;
+    typedef yhash_map<TBlockId, yvector<TPeerInfo> > TTable;
 
     static void SweepExpiredPeers(yvector<TPeerInfo>& peers);
 
     void SweepAllExpiredPeers();
-    yvector<TPeerInfo>& GetMutablePeers(const NChunkClient::TBlockId& blockId);
+    yvector<TPeerInfo>& GetMutablePeers(const TBlockId& blockId);
 
     TBlockTableConfig::TPtr Config;
 

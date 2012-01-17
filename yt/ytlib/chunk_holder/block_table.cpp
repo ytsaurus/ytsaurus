@@ -6,7 +6,7 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NChunkClient::TBlockId;
+static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +30,11 @@ const yvector<TPeerInfo>& TBlockTable::GetPeers(const TBlockId& blockId)
 
 void TBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
 {
+    LOG_DEBUG("Updating peer (BlockId: %s, Address: %s, ExpirationTime: %s)",
+        ~blockId.ToString(),
+        ~peer.Address,
+        ~peer.ExpirationTime.ToString());
+
     SweepAllExpiredPeers();
 
     auto& peers = GetMutablePeers(blockId);
@@ -62,11 +67,21 @@ void TBlockTable::SweepAllExpiredPeers()
         return;
     }
 
-    FOREACH (auto& pair, Table) {
-        SweepExpiredPeers(pair.Second());
+    // TODO: implement FilterMap/FilterSet
+    auto it = Table.begin();
+    while (it != Table.end()) {
+        auto jt = it;
+        ++jt;
+        SweepExpiredPeers(it->Second());
+        if (it->Second().empty()) {
+            Table.erase(it);
+        }
+        it = jt;
     }
-
+    
     LastSwept = TInstant::Now();
+
+    LOG_DEBUG("All expired peers were swept");
 }
 
 void TBlockTable::SweepExpiredPeers(yvector<TPeerInfo>& peers)

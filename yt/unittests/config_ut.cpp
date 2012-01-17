@@ -6,6 +6,7 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/tree_visitor.h>
+#include <ytlib/ytree/serialize.h>
 
 #include <contrib/testing/framework.h>
 
@@ -358,6 +359,32 @@ TEST(TConfigTest, ValidateSubconfigMap)
     auto config = New<TTestConfig>();
     config->Load(~configNode->AsMap());
     EXPECT_THROW(config->Validate(), yexception);
+}
+
+TEST(TConfigTest, Save)
+{
+    auto config = New<TTestConfig>();
+
+    // add non-default fields;
+    config->MyString = "hello!";
+    config->SubconfigList.push_back(New<TTestSubconfig>());
+    config->SubconfigMap["item"] = New<TTestSubconfig>();
+
+    auto output = SerializeToYson(~config, TYsonWriter::EFormat::Text);
+
+    Stroka subconfigYson;
+    subconfigYson += "{\"my_bool\"=\"false\";";
+    subconfigYson += "\"my_enum\"=\"Value1\";";
+    subconfigYson += "\"my_int\"=100;";
+    subconfigYson += "\"my_string_list\"=[]}";
+
+    Stroka expected;
+    expected += "{\"my_string\"=\"hello!\";";
+    expected += "\"sub\"=" + subconfigYson + ";";
+    expected += "\"sub_list\"=[" + subconfigYson + "];";
+    expected += "\"sub_map\"={\"item\"=" + subconfigYson + "}}";
+
+    EXPECT_EQ(expected, output);
 }
 
 } // namespace NYT

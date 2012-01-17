@@ -154,7 +154,7 @@ public:
     int GetSize() const;
 
     //! Returns all keys that are present in the map.
-    yvector<TKey> GetKeys() const;
+    yvector<TKey> GetKeys(size_t sizeLimit = Max<size_t>()) const;
 
     //! (Unordered) begin()-iterator.
     /*!
@@ -267,7 +267,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType* Find ## entityName ## ForUpdate(const idType& id); \
     const entityType& Get ## entityName(const idType& id) const; \
     entityType& Get ## entityName ## ForUpdate(const idType& id); \
-    yvector<idType> Get ## entityName ## Ids(); \
+    yvector<idType> Get ## entityName ## Ids(size_t sizeLimit = Max<size_t>()); \
     int Get ## entityName ## Count() const;
 
 #define DEFINE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, map) \
@@ -291,9 +291,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (map).GetForUpdate(id); \
     } \
     \
-    yvector<idType> declaringType::Get ## entityName ## Ids() \
+    yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
     { \
-        return (map).GetKeys(); \
+        return (map).GetKeys(sizeLimit); \
     } \
     \
     int declaringType::Get ## entityName ## Count() const \
@@ -322,9 +322,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (delegateTo).Get ## entityName ## ForUpdate(id); \
     } \
     \
-    yvector<idType> declaringType::Get ## entityName ## Ids() \
+    yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
     { \
-        return (delegateTo).Get ## entityName ## Ids(); \
+        return (delegateTo).Get ## entityName ## Ids(sizeLimit); \
     } \
     \
     int declaringType::Get ## entityName ## Count() const \

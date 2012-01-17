@@ -7,6 +7,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
+#include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_client/block_id.h>
 
 namespace NYT {
@@ -193,8 +194,9 @@ void TFileWriter::Close()
     LOG_INFO("Creating file node");
     auto createNodeReq = TCypressYPathProxy::Create(WithTransaction(Path, TransactionId));
     createNodeReq->set_type(EObjectType::File);
-    // TODO(babenko): use TConfigurable::Save when it's ready
-    createNodeReq->set_manifest(Sprintf("{chunk_id=\"%s\"}", ~ChunkId.ToString()));
+    auto manifest = New<TFileManifest>();
+    manifest->ChunkId = ChunkId;
+    createNodeReq->set_manifest(SerializeToYson(~manifest));
     auto createNodeRsp = CypressProxy->Execute(~createNodeReq)->Get();
     if (!createNodeRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",

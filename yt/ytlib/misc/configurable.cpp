@@ -68,6 +68,17 @@ void TConfigurable::Validate(const NYTree::TYPath& path) const
 void TConfigurable::DoValidate() const
 { }
 
+void TConfigurable::Save(IYsonConsumer* consumer) const
+{
+    consumer->OnBeginMap();
+    auto sortedItems = GetSortedIterators(Parameters);
+    FOREACH (const auto& pair, sortedItems) {
+        consumer->OnMapItem(pair->First());
+        pair->Second()->Save(consumer);
+    }
+    consumer->OnEndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NConfig

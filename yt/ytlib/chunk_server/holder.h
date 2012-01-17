@@ -3,6 +3,8 @@
 #include "id.h"
 #include "chunk_service.pb.h"
 
+#include "chunk_service.pb.h"
+
 #include <ytlib/misc/property.h>
 
 namespace NYT {
@@ -29,6 +31,7 @@ class THolder
     DEFINE_BYREF_RW_PROPERTY(NProto::THolderStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, StoredChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, CachedChunkIds);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, UnapprovedChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 
 public:
@@ -48,6 +51,11 @@ public:
     void AddChunk(const TChunkId& chunkId, bool cached);
     void RemoveChunk(const TChunkId& chunkId, bool cached);
     bool HasChunk(const TChunkId& chunkId, bool cached) const;
+
+    void AddUnapprovedChunk(const TChunkId& chunkId);
+    void RemoveUnapprovedChunk(const TChunkId& chunkId);
+    bool HasUnapprovedChunk(const TChunkId& chunkId) const;
+    void ApproveChunk(const TChunkId& chunkId);
 
     void AddJob(const TJobId& id);
     void RemoveJob(const TJobId& id);
