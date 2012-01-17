@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "scheduler_bootstrap.h"
 
+#include <yt/ytlib/misc/ref_counted_tracker.h>
+
 #include <yt/ytlib/bus/nl_server.h>
 
 #include <yt/ytlib/ytree/tree_builder.h>

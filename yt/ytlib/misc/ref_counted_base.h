@@ -1,23 +1,23 @@
 #pragma once
 
 #include "common.h"
-#include "ref_counted_tracker.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExtrinsicRefCountedBase;
-class TIntrinsicRefCountedBase;
+// TODO(sandello): TExtrinsically?
+class TExtrinsicRefCounted;
+class TIntrinsicRefCounted;
 
 namespace NDetail {
     typedef intptr_t TNonVolatileCounter;
     typedef volatile intptr_t TVolatileCounter;
 
     static_assert(sizeof(TNonVolatileCounter) == sizeof(void*),
-        "TNonVolatileCounter should be the same size as raw pointer.");
+        "TNonVolatileCounter should be the same size as a raw pointer.");
     static_assert(sizeof(TVolatileCounter) == sizeof(void*),
-        "TVolatileCounter should be the same size as raw pointer.");
+        "TVolatileCounter should be the same size as a raw pointer.");
 
 #if defined(__GNUC__)
     // Note that returning previous value is a micro-tiny-bit faster.
@@ -37,6 +37,8 @@ namespace NDetail {
 
     inline TNonVolatileCounter AtomicallyDecrement(TVolatileCounter* p)
     {
+        // Atomically performs the following:
+        // { return (*p)--; }
         return __sync_fetch_and_add(p, -1);
     }
 
@@ -61,7 +63,8 @@ namespace NDetail {
         }
     }
 #elif defined(__MSVC__)
-    // Fallback to Arcadia's implementation (just to preserve space).
+    // Fallback to Arcadia's implementation (efficiency is not crucial here).
+
     inline TNonVolatileCounter AtomicallyFetch(TVolatileCounter* p)
     {
         return AtomicAdd(*p, 0);
@@ -93,49 +96,40 @@ namespace NDetail {
     }
 #endif
 
-    //! An atomical reference counter.
-    /*!
-     * Note that currently Dispose() and Destroy() methods are non-virtual
-     * to avoid extra indirection. In case of further derivation from this class
-     * one have to turn these methods to virtual ones.
-     */
+    //! An atomical reference counter for extrinsic reference counting.
     class TRefCounter
     {
     public:
-        TRefCounter(TExtrinsicRefCountedBase* object)
+        TRefCounter(TExtrinsicRefCounted* object)
             : StrongCount(1)
             , WeakCount(1)
             , Object(object)
         { }
 
-        /* virtual */ ~TRefCounter()
+        ~TRefCounter()
         { }
 
         //! This method is called when there are no strong references remain and
-        //! all allocated resources should be disposed (technically this means
-        //! that there are no more strong references).
+        //! the object have to be disposed (technically this means that
+        //! there are no more strong references being held).
         inline void Dispose();
 
         //! This method is called when the counter is about to be destroyed
-        //! (technically this means that there are no more neither strong
-        //! nor weak references).
+        //! (technically this means that there are neither strong
+        //! nor weak references being held).
         inline void Destroy();
 
         //! Adds a strong reference to the counter.
         inline void Ref() // noexcept
         {
+            YASSERT(StrongCount > 0 && WeakCount > 0);
             AtomicallyIncrement(&StrongCount);
-        }
-
-        //! Tries to add a strong reference to the counter.
-        inline bool TryRef() _warn_unused_result // noexcept
-        {
-            return AtomicallyIncrementIfNonZero(&StrongCount) > 0;
         }
 
         //! Removes a strong reference to the counter.
         inline void UnRef() // noexcept
         {
+            YASSERT(StrongCount > 0 && WeakCount > 0);
             if (AtomicallyDecrement(&StrongCount) == 1) {
                 Dispose();
 
@@ -145,15 +139,24 @@ namespace NDetail {
             }
         }
 
+        //! Tries to add a strong reference to the counter.
+        inline bool TryRef() // noexcept
+        {
+            YASSERT(WeakCount > 0);
+            return AtomicallyIncrementIfNonZero(&StrongCount) > 0;
+        }
+
         //! Adds a weak reference to the counter.
         inline void WeakRef() // noexcept
         {
+            YASSERT(WeakCount > 0);
             AtomicallyIncrement(&WeakCount);
         }
 
         //! Removes a weak reference to the counter.
         inline void WeakUnRef() // noexcept
         {
+            YASSERT(WeakCount > 0);
             if (AtomicallyDecrement(&WeakCount) == 1) {
                 Destroy();
             }
@@ -163,6 +166,12 @@ namespace NDetail {
         int GetRefCount() const // noexcept
         {
             return AtomicallyFetch(&StrongCount);
+        }
+
+        //! Returns current number of weak references.
+        int GetWeakRefCount() const // noexcept
+        {
+            return AtomicallyFetch(&WeakCount);
         }
 
     private:
@@ -177,55 +186,40 @@ namespace NDetail {
         TVolatileCounter StrongCount;
         //! Number of weak references plus one if there is at least one strong reference.
         TVolatileCounter WeakCount;
-        //! Object to be protected.
-        TExtrinsicRefCountedBase* Object;
+        //! The object.
+        TExtrinsicRefCounted* Object;
     };
 } // namespace NDetail
 
 //! Base for reference-counted objects with extrinsic reference counting.
-class TExtrinsicRefCountedBase
+class TExtrinsicRefCounted
     : private TNonCopyable
 {
 public:
     //! Constructs an instance.
-    TExtrinsicRefCountedBase()        
+    TExtrinsicRefCounted()        
         : RefCounter(new NDetail::TRefCounter(this))
 #ifdef ENABLE_REF_COUNTED_TRACKING
         , Cookie(NULL)
 #endif
     { }
 
-    virtual ~TExtrinsicRefCountedBase()
-    {
-        YASSERT(RefCounter->GetRefCount() == 0);
-#ifdef ENABLE_REF_COUNTED_TRACKING
-        YASSERT(Cookie);
-        TRefCountedTracker::Get()->Unregister(Cookie);
-#endif
-    }
+    virtual ~TExtrinsicRefCounted();
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    inline void BindToCookie(TRefCountedTracker::TCookie cookie)
-    {
-        YASSERT(RefCounter->GetRefCount() > 0);
-        YASSERT(!Cookie);
-        Cookie = cookie;
-
-        TRefCountedTracker::Get()->Register(Cookie);
-    }
+    //! Called from #New functions to initialize the tracking cookie.
+    void BindToCookie(void* cookie);
 #endif
 
     //! Increments the reference counter.
     inline void Ref() // noexcept
     {
-        YASSERT(RefCounter->GetRefCount() > 0);
         RefCounter->Ref();
     }
 
     //! Decrements the reference counter.
     inline void UnRef() // noexcept
     {
-        YASSERT(RefCounter->GetRefCount() > 0);
         RefCounter->UnRef();
     }
 
@@ -239,21 +233,31 @@ public:
         return RefCounter->GetRefCount();
     }
 
+    //! Returns pointer to the underlying reference counter of the object.
+    /*!
+     * Note that you should never ever use this method in production code.
+     * This method is mainly for debugging purposes and for the TWeakPtr.
+     */
+    inline NDetail::TRefCounter* GetRefCounter() const
+    {
+        return RefCounter;
+    }
+
 private:
     NDetail::TRefCounter* RefCounter;
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::TCookie Cookie;
+    void* Cookie;
 #endif
 
 };
 
 //! Base for reference-counted objects with intrinsic reference counting.
-class TIntrinsicRefCountedBase
+class TIntrinsicRefCounted
     : private TNonCopyable
 {
 public:
     //! Constructs an instance.
-    TIntrinsicRefCountedBase()
+    TIntrinsicRefCounted()
         : RefCounter(1)
 #ifdef ENABLE_REF_COUNTED_TRACKING
         , Cookie(NULL)
@@ -261,38 +265,24 @@ public:
     { }
 
     //! Destroys the instance.
-    virtual ~TIntrinsicRefCountedBase()
-    {
-        YASSERT(NDetail::AtomicallyFetch(&RefCounter) == 0);
-#ifdef ENABLE_REF_COUNTED_TRACKING
-        YASSERT(Cookie);
-        TRefCountedTracker::Get()->Unregister(Cookie);
-#endif
-    }
+    virtual ~TIntrinsicRefCounted();
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
     //! Called from #New functions to initialize the tracking cookie.
-    inline void BindToCookie(TRefCountedTracker::TCookie cookie)
-    {
-        YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
-        YASSERT(!Cookie);
-        Cookie = cookie;
-
-        TRefCountedTracker::Get()->Register(Cookie);
-    }
+    void BindToCookie(void* cookie);
 #endif
 
     //! Increments the reference counter.
     inline void Ref() // noexcept
     {
-        YVERIFY(NDetail::AtomicallyIncrement(&RefCounter) > 0);
+        YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
+        NDetail::AtomicallyIncrement(&RefCounter);
     }
 
     //! Decrements the reference counter.
     inline void UnRef() // noexcept
     {
         YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
-
         if (NDetail::AtomicallyDecrement(&RefCounter) == 1) {
             delete this;
         }
@@ -335,7 +325,7 @@ public:
 private:
     NDetail::TVolatileCounter RefCounter;
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    TRefCountedTracker::TCookie Cookie;
+    void* Cookie;
 #endif
 
 };
@@ -353,7 +343,7 @@ namespace NDetail {
 } // namespace NDetail
 
 // TODO(sandello): This is compatibility line.
-typedef TIntrinsicRefCountedBase TRefCountedBase;
+typedef TIntrinsicRefCounted TRefCountedBase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
