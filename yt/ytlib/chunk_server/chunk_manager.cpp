@@ -743,6 +743,7 @@ private:
         auto jobId = TJobId::FromProto(jobInfo.job_id());
         auto targetAddresses = FromProto<Stroka>(jobInfo.target_addresses());
         auto jobType = EJobType(jobInfo.type());
+        auto startTime = TInstant(jobInfo.start_time());
 
         auto* job = new TJob(
             jobType,
@@ -750,7 +751,7 @@ private:
             chunkId,
             holder.GetAddress(),
             targetAddresses,
-            TInstant::Now());
+            startTime);
         JobMap.Insert(jobId, job);
 
         auto& list = GetOrCreateJobListForUpdate(chunkId);

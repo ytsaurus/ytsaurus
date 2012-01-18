@@ -308,6 +308,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     startInfo.set_type(EJobType::Replicate);
     startInfo.set_chunk_id(chunkId.ToProto());
     startInfo.add_target_addresses(targetHolder.GetAddress());
+    startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
     LOG_INFO("Chunk balancing scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddress: %s)",

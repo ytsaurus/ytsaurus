@@ -65,6 +65,7 @@ message TRspHolderHeartbeat
         required bytes job_id = 2;
         required bytes chunk_id = 3;
         repeated bytes target_addresses = 4;
+        required uint64 start_time = 5;
     }
 
     repeated bytes chunks_to_remove = 1;
