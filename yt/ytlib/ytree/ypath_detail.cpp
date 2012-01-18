@@ -371,17 +371,6 @@ void ResolveYPath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WrapYPathRequest(
-    NRpc::TClientRequest* outerRequest,
-    NBus::IMessage* innerRequestMessage)
-{
-    YASSERT(outerRequest);
-    YASSERT(innerRequestMessage);
-
-    const auto& parts = innerRequestMessage->GetParts();
-    outerRequest->Attachments() = yvector<TSharedRef>(parts.begin(), parts.end());
-}
-
 NBus::IMessage::TPtr UnwrapYPathRequest(
     NRpc::IServiceContext* outerContext)
 {
@@ -415,20 +404,12 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     TRequestHeader header;
     header.set_path(path);
     header.set_verb(verb);
+
     return New<TServiceContext>(
         header,
         requestMessage,
         responseHandler,
         loggingCategory);
-}
-
-NBus::IMessage::TPtr UnwrapYPathResponse(
-    TClientResponse* outerResponse)
-{
-    YASSERT(outerResponse);
-
-    auto parts = outerResponse->Attachments();
-    return CreateMessageFromParts(parts);
 }
 
 void ReplyYPathWithMessage(
