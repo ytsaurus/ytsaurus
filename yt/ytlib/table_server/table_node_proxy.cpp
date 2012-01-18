@@ -32,8 +32,8 @@ TTableNodeProxy::TTableNodeProxy(
 void TTableNodeProxy::DoInvoke(IServiceContext* context)
 {
     Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListId") {
-        GetChunkListIdThunk(context);
+    if (verb == "GetChunkListForUpdate") {
+        GetChunkListForUpdateThunk(context);
     } else if (verb == "Fetch") {
         FetchThunk(context);
     } else {
@@ -44,7 +44,7 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
 bool TTableNodeProxy::IsLogged(IServiceContext* context) const
 {
     Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListId") {
+    if (verb == "GetChunkListForUpdate") {
         return true;
     }
     return TBase::IsLogged(context);;
@@ -75,7 +75,7 @@ void TTableNodeProxy::TraverseChunkTree(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListId)
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 {
     UNUSED(request);
 
