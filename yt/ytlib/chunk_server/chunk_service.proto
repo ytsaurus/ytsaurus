@@ -107,30 +107,6 @@ message TRspCreateChunkLists
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqAttachChunkTrees
-{
-    required bytes transaction_id = 1;
-    repeated bytes chunk_tree_ids = 2;
-    required bytes parent_id = 3;
-}
-
-message TRspAttachChunkTrees
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqDetachChunkTrees
-{
-    required bytes transaction_id = 1;
-    repeated bytes chunk_tree_ids = 2;
-    required bytes parent_id = 3;
-}
-
-message TRspDetachChunkTrees
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqLocateChunk
 {
     required bytes chunk_id = 1;

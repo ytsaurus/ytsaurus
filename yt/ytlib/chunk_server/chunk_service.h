@@ -41,8 +41,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, HolderHeartbeat);
     DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunks);
     DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunkLists);
-    DECLARE_RPC_SERVICE_METHOD(NProto, AttachChunkTrees);
-    DECLARE_RPC_SERVICE_METHOD(NProto, DetachChunkTrees);
     DECLARE_RPC_SERVICE_METHOD(NProto, LocateChunk);
 
 };

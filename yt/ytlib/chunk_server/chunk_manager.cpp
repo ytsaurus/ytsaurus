@@ -113,8 +113,6 @@ public:
         RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::CreateChunks);
         RegisterMethod(this, &TImpl::CreateChunkLists);
-        RegisterMethod(this, &TImpl::AttachChunkTrees);
-        RegisterMethod(this, &TImpl::DetachChunkTrees);
 
         metaState->RegisterLoader(
             "ChunkManager.1",
@@ -186,26 +184,6 @@ public:
             ~MetaStateManager,
             message,
             &TThis::CreateChunkLists,
-            this);
-    }
-
-    TMetaChange<TVoid>::TPtr InitiateAttachChunkTrees(
-        const TMsgAttachChunkTrees& message)
-    {
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::AttachChunkTrees,
-            this);
-    }
-
-    TMetaChange<TVoid>::TPtr InitiateDetachChunkTrees(
-        const TMsgDetachChunkTrees& message)
-    {
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::DetachChunkTrees,
             this);
     }
 
@@ -378,70 +356,6 @@ private:
             ~transactionId.ToString());
 
         return chunkListIds;
-    }
-
-    TVoid AttachChunkTrees(const TMsgAttachChunkTrees& message)
-    {
-        auto transactionId = TTransactionId::FromProto(message.transaction_id());
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-
-        auto chunkTreeIds = FromProto<TChunkTreeId>(message.chunk_tree_ids());
-
-        auto parentId = TChunkListId::FromProto(message.parent_id());
-        auto& parent = GetChunkListForUpdate(parentId);
-
-        FOREACH (const auto& chunkTreeId, chunkTreeIds) {
-            // TODO(babenko): check that all attached chunks are confirmed.
-            parent.ChildrenIds().push_back(chunkTreeId);
-            if (transaction.CreatedObjectIds().erase(chunkTreeId) != 1) {
-                ObjectManager->UnrefObject(chunkTreeId);
-            }
-        }
-
-        LOG_INFO_IF(!IsRecovery(), "Chunks trees attached (ChunkTreeIds: [%s], ParentId: %s, TransactionId: %s)",
-            ~JoinToString(chunkTreeIds),
-            ~parentId.ToString(),
-            ~transactionId.ToString());
-
-        return TVoid();
-    }
-
-    TVoid DetachChunkTrees(const TMsgDetachChunkTrees& message)
-    {
-        auto transactionId = TTransactionId::FromProto(message.transaction_id());
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-
-        auto chunkTreeIdsList = FromProto<TChunkTreeId>(message.chunk_tree_ids());
-
-        auto parentId = TChunkListId::FromProto(message.parent_id());
-        if (parentId == NullChunkListId) {
-            FOREACH (const auto& childId, chunkTreeIdsList) {
-                if (transaction.CreatedObjectIds().erase(childId) == 1) {
-                    ObjectManager->UnrefObject(childId);
-                }
-            }
-        } else {
-            yhash_set<TChunkTreeId> chunkTreeIdsSet(chunkTreeIdsList.begin(), chunkTreeIdsList.end());
-            auto& childrenIds = GetChunkListForUpdate(parentId).ChildrenIds();
-            auto it = childrenIds.begin();
-            auto jt = it;
-            while (it != childrenIds.end()) {
-                const auto& childId = *it;
-                if (chunkTreeIdsSet.find(childId) == chunkTreeIdsSet.end()) {
-                    *jt++ = *it;
-                } else {
-                    ObjectManager->UnrefObject(childId);
-                }
-            }
-            childrenIds.erase(jt, childrenIds.end());
-        }
-
-        LOG_INFO_IF(!IsRecovery(), "Chunks trees detached (ChunkTreeIds: [%s], ParentId: %s, TransactionId: %s)",
-            ~JoinToString(chunkTreeIdsList),
-            ~parentId.ToString(),
-            ~transactionId.ToString());
-
-        return TVoid();
     }
 
 
@@ -1359,18 +1273,6 @@ TMetaChange< yvector<TChunkListId> >::TPtr TChunkManager::InitiateCreateChunkLis
     const TMsgCreateChunkLists& message)
 {
     return Impl->InitiateCreateChunkLists(message);
-}
-
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateAttachChunkTrees(
-    const TMsgAttachChunkTrees& message)
-{
-    return Impl->InitiateAttachChunkTrees(message);
-}
-
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateDetachChunkTrees(
-    const TMsgDetachChunkTrees& message)
-{
-    return Impl->InitiateDetachChunkTrees(message);
 }
 
 TChunk& TChunkManager::CreateChunk()

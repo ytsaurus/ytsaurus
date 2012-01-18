@@ -38,8 +38,6 @@ TChunkService::TChunkService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunkLists));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(DetachChunkTrees));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunk));
 }
 
@@ -255,60 +253,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunkLists)
 
                 context->Reply();
             }))
-        ->OnError(~CreateErrorHandler(~context))
-        ->Commit();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TChunkService, AttachChunkTrees)
-{
-    auto transactionId = TTransactionId::FromProto(request->transaction_id());
-    auto chunkTreeIds = FromProto<TChunkTreeId>(request->chunk_tree_ids());
-    auto parentId = TChunkListId::FromProto(request->parent_id());
-
-    context->SetRequestInfo("TransactionId: %s, ChunkTreeIds: [%s], ParentId: %s",
-        ~transactionId.ToString(),
-        ~JoinToString(chunkTreeIds),
-        ~parentId.ToString());
-
-    ValidateLeader();
-    ValidateTransactionId(transactionId);
-    ValidateChunkListId(parentId);
-    FOREACH (const auto& treeId, chunkTreeIds) {
-        ValidateChunkTreeId(treeId);
-    }
-
-    const auto& message = *request;
-    ChunkManager
-        ->InitiateAttachChunkTrees(message)
-        ->OnSuccess(~CreateSuccessHandler(~context))
-        ->OnError(~CreateErrorHandler(~context))
-        ->Commit();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TChunkService, DetachChunkTrees)
-{
-    auto transactionId = TTransactionId::FromProto(request->transaction_id());
-    auto chunkTreeIds = FromProto<TChunkTreeId>(request->chunk_tree_ids());
-    auto parentId = TChunkListId::FromProto(request->parent_id());
-
-    context->SetRequestInfo("TransactionId: %s, ChunkTreeIds: [%s], ParentId: %s",
-        ~transactionId.ToString(),
-        ~JoinToString(chunkTreeIds),
-        ~parentId.ToString());
-
-    ValidateLeader();
-    ValidateTransactionId(transactionId);
-    if (parentId != NullChunkTreeId) {
-        ValidateChunkListId(parentId);
-    }
-    FOREACH (const auto& treeId, chunkTreeIds) {
-        ValidateChunkTreeId(treeId);
-    }
-
-    const auto& message = *request;
-    ChunkManager
-        ->InitiateDetachChunkTrees(message)
-        ->OnSuccess(~CreateSuccessHandler(~context))
         ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }

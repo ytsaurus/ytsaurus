@@ -50,13 +50,12 @@ public:
 
 private:
     void Finish();
-
     void OnAborted();
 
     TConfig::TPtr Config;
     NChunkServer::TChunkListId ChunkListId;
     NTransactionClient::ITransaction::TPtr Transaction;
-    NRpc::IChannel::TPtr MasterChannel;
+    NCypress::TCypressServiceProxy Proxy;
     TChunkSequenceWriter::TPtr Writer;
     NLog::TTaggedLogger Logger;
     IAction::TPtr OnAborted_;

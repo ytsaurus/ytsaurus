@@ -24,8 +24,6 @@ namespace NChunkServer {
 // Simple aliases that make sense as long as request and message contracts are the same.
 namespace NProto {
     typedef NProto::TReqCreateChunkLists TMsgCreateChunkLists;
-    typedef NProto::TReqAttachChunkTrees TMsgAttachChunkTrees;
-    typedef NProto::TReqDetachChunkTrees TMsgDetachChunkTrees;
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,12 +51,6 @@ public:
 
     NMetaState::TMetaChange< yvector<TChunkListId> >::TPtr InitiateCreateChunkLists(
         const NProto::TMsgCreateChunkLists& message);
-
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateAttachChunkTrees(
-        const NProto::TMsgAttachChunkTrees& message);
-
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateDetachChunkTrees(
-        const NProto::TMsgDetachChunkTrees& message);
 
     NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const NProto::TMsgRegisterHolder& message);
