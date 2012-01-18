@@ -1,5 +1,4 @@
 import struct
-import ctypes
 from StringIO import StringIO
 
 class YSONParseError(ValueError):
@@ -283,7 +282,7 @@ class YSONParser(object):
 
     def _parse_binary_double(self):
         self._expect_char(_DOUBLE_MARKER)
-        bytes = self._read_chars(struct.calcsize('d'))
+        bytes = self._read_binary_chars(struct.calcsize('d'))
         result = struct.unpack('d', bytes)[0]
         if self._has_attributes():
             attributes = self._parse_attributes()
@@ -366,8 +365,17 @@ if __name__ == "__main__":
         def test_int(self):
             self.assert_parse('64', 64)
 
+        def test_binary_int(self):
+            self.assert_parse('\x01\x81\x40', -(2 ** 12) - 1)
+
         def test_double(self):
             self.assert_parse('1.5', 1.5)
+
+        def test_exp_double(self):
+            self.assert_parse('1.73e23', 1.73e23)
+
+        def test_binary_double(self):
+            self.assert_parse('\x02\x00\x00\x00\x00\x00\x00\xF8\x3F', 1.5)
 
         def test_empty_list(self):
             self.assert_parse('[ ]', [])
@@ -378,7 +386,16 @@ if __name__ == "__main__":
         def test_list(self):
             self.assert_parse('[1; 2]', [1, 2])
 
+        def test_empty_map(self):
+            self.assert_parse('{ }', {})
+
+        def test_one_element_map(self):
+            self.assert_parse('{a=1}', {'a': 1})
+
         def test_map(self):
             self.assert_parse('{a = b; c = d}', {'a': 'b', 'c': 'd'})
+
+        def test_entity(self):
+            self.assert_parse(' <a = b; c = d>', None)
 
     unittest.main()
