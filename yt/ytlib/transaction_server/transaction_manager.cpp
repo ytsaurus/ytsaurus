@@ -253,6 +253,10 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
         ObjectManager->UnrefObject(id);
     }
 
+    FOREACH (const auto& createdId, transaction.CreatedObjectIds()) {
+        ObjectManager->UnrefObject(createdId);
+    }
+
     // Kill the fake reference.
     ObjectManager->UnrefObject(id);
 }

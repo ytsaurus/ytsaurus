@@ -127,13 +127,6 @@ public:
 
         objectManager->RegisterHandler(~New<TChunkTypeHandler>(this));
         objectManager->RegisterHandler(~New<TChunkListTypeHandler>(this));
-
-        transactionManager->OnTransactionCommitted().Subscribe(FromMethod(
-            &TThis::OnTransactionCommitted,
-            TPtr(this)));
-        transactionManager->OnTransactionAborted().Subscribe(FromMethod(
-            &TThis::OnTransactionAborted,
-            TPtr(this)));
     }
 
     TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
@@ -347,9 +340,9 @@ private:
             auto* chunk = new TChunk(chunkId);
             ChunkMap.Insert(chunkId, chunk);
 
-            // The newly created chunk form an unbound chunk tree, which is referenced by the transaction.
+            // The newly created chunk is referenced from the transaction.
             auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-            YVERIFY(transaction.UnboundChunkTreeIds().insert(chunkId).second);
+            YVERIFY(transaction.CreatedObjectIds().insert(chunkId).second);
             ObjectManager->RefObject(chunkId);
 
             chunkIds.push_back(chunkId);
@@ -375,7 +368,8 @@ private:
         for (int index = 0; index < chunkListCount; ++index) {
             auto& chunkList = CreateChunkList();
             auto chunkListId = chunkList.GetId();
-            YVERIFY(transaction.UnboundChunkTreeIds().insert(chunkListId).second);
+            YVERIFY(transaction.CreatedObjectIds().insert(chunkListId).second);
+            ObjectManager->RefObject(chunkListId);
             chunkListIds.push_back(chunkListId);
         }
 
@@ -399,8 +393,8 @@ private:
         FOREACH (const auto& chunkTreeId, chunkTreeIds) {
             // TODO(babenko): check that all attached chunks are confirmed.
             parent.ChildrenIds().push_back(chunkTreeId);
-            if (transaction.UnboundChunkTreeIds().erase(chunkTreeId) != 1) {
-                ObjectManager->RefObject(chunkTreeId);
+            if (transaction.CreatedObjectIds().erase(chunkTreeId) != 1) {
+                ObjectManager->UnrefObject(chunkTreeId);
             }
         }
 
@@ -422,7 +416,7 @@ private:
         auto parentId = TChunkListId::FromProto(message.parent_id());
         if (parentId == NullChunkListId) {
             FOREACH (const auto& childId, chunkTreeIdsList) {
-                if (transaction.UnboundChunkTreeIds().erase(childId) == 1) {
+                if (transaction.CreatedObjectIds().erase(childId) == 1) {
                     ObjectManager->UnrefObject(childId);
                 }
             }
@@ -694,25 +688,6 @@ private:
         ChunkPlacement.Reset();
         ChunkReplication.Reset();
         HolderLeaseTracking.Reset();
-    }
-
-
-    virtual void OnTransactionCommitted(TTransaction& transaction)
-    {
-        UnrefUnboundChunkTrees(transaction);
-    }
-
-    virtual void OnTransactionAborted(TTransaction& transaction)
-    {
-        UnrefUnboundChunkTrees(transaction);
-    }
-
-
-    void UnrefUnboundChunkTrees(const TTransaction& transaction)
-    {
-        FOREACH (const auto& treeId, transaction.UnboundChunkTreeIds()) {
-            ObjectManager->UnrefObject(treeId);
-        }
     }
 
 

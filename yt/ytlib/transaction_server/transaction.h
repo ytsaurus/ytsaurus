@@ -26,8 +26,8 @@ class TTransaction
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransactionId>, NestedTransactionIds);
     DEFINE_BYVAL_RW_PROPERTY(TTransactionId, ParentId);
 
-    // Chunk Server stuff
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<NChunkServer::TChunkTreeId>, UnboundChunkTreeIds);
+    // Object Manager stuff
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectId>, CreatedObjectIds);
 
     // Cypress stuff
     DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TLockId>, LockIds);
