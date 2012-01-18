@@ -4,8 +4,6 @@
 
 #include <ytlib/misc/string.h>
 #include <ytlib/object_server/id.h>
-// TODO(babenko): fix this once ToString is moved to an appropriate place
-#include <ytlib/chunk_holder/common.h>
 
 namespace NYT {
 namespace NChunkServer {

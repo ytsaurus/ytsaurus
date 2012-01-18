@@ -83,7 +83,7 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
                     responseParts.begin(),
                     responseParts.end());
 
-                if (requestIndex == requestCount) {
+                if (requestIndex == requestCount - 1) {
                     context->Reply();
                 }
             }));

@@ -25,8 +25,6 @@ public:
     static TAutoPtr<TChunkList> Load(const TChunkListId& id, TInputStream* input);
 
 private:
-    i32 RefCounter;
-
     TChunkList(const TChunkList& other);
 
 };
