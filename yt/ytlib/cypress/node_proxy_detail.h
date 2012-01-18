@@ -62,7 +62,6 @@ public:
         , CypressManager(cypressManager)
         , TransactionId(transactionId)
         , NodeId(nodeId)
-        , NodeFactory(cypressManager, transactionId)
         , Locked(false)
     {
         YASSERT(typeHandler);
@@ -159,7 +158,6 @@ protected:
     const TTransactionId TransactionId;
     const TNodeId NodeId;
 
-    mutable TNodeFactory NodeFactory;
     //! Keeps a cached flag that gets raised when the node is locked.
     bool Locked;
 
