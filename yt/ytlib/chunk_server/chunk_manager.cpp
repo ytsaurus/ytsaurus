@@ -364,44 +364,24 @@ private:
         auto chunkId = chunk.GetId();
 
         // Unregister chunk replicas from all known locations.
+
         FOREACH (auto holderId, chunk.StoredLocations()) {
-            DoRemoveChunkFromLocation(chunk, false, holderId);
+            DoRemoveChunkFromLocation(holderId, chunk, false);
         }
 
         if (~chunk.CachedLocations()) {
             FOREACH (auto holderId, *chunk.CachedLocations()) {
-                DoRemoveChunkFromLocation(chunk, true, holderId);
+                DoRemoveChunkFromLocation(holderId, chunk, true);
             }
         }
-
-        ChunkMap.Remove(chunkId);
     }
-
-    void DoRemoveChunkFromLocation(TChunk& chunk, bool cached, THolderId holderId)
-    {
-        auto chunkId = chunk.GetId();
-        auto& holder = GetHolderForUpdate(holderId);
-        holder.RemoveChunk(chunkId, cached);
-
-        if (!cached && IsLeader()) {
-            ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
-        }
-    }
-
 
     void OnChunkListDestroyed(TChunkList& chunkList)
     {
-        auto chunkListId = chunkList.GetId();
-
         // Drop references to children.
         FOREACH (const auto& childId, chunkList.ChildrenIds()) {
             ObjectManager->UnrefObject(childId);
         }
-
-        ChunkListMap.Remove(chunkListId);
-
-        LOG_INFO_IF(!IsRecovery(), "Chunk list removed (ChunkListId: %s)",
-            ~chunkListId.ToString());
     }
 
 
@@ -681,6 +661,17 @@ private:
 
         if (!cached && IsLeader()) {
             ChunkReplication->OnReplicaAdded(holder, chunk);
+        }
+    }
+
+    void DoRemoveChunkFromLocation(THolderId holderId, TChunk& chunk, bool cached)
+    {
+        auto chunkId = chunk.GetId();
+        auto& holder = GetHolderForUpdate(holderId);
+        holder.RemoveChunk(chunkId, cached);
+
+        if (!cached && IsLeader()) {
+            ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
         }
     }
 
