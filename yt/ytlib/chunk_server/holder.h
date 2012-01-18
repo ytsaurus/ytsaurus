@@ -22,9 +22,6 @@ DECLARE_ENUM(EHolderState,
 
 class THolder
 {
-    typedef TChunkId TChunkId;
-    typedef TJobId TJobId;
-
     DEFINE_BYVAL_RO_PROPERTY(THolderId, Id);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
     DEFINE_BYVAL_RW_PROPERTY(EHolderState, State);
@@ -32,6 +29,7 @@ class THolder
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, StoredChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, CachedChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, UnapprovedChunkIds);
+    // TODO(babenko): consider using hashset
     DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 
 public:
