@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "common.h"
 
 #include "ref_counted_base.h"
 #include "ref_counted_tracker.h"

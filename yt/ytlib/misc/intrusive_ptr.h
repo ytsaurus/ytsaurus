@@ -196,6 +196,9 @@ private:
     template<class U>
     friend class TIntrusivePtr;
 
+    template<class U>
+    friend class TActionTargetTraits;
+
     T* T_;
 };
 

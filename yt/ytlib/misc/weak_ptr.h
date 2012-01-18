@@ -212,6 +212,9 @@ private:
     template<class U>
     friend class TWeakPtr;
 
+    template<class U>
+    friend class TActionTargetTraits;
+
     T* T_;
     NDetail::TRefCounter* RefCounter;
 

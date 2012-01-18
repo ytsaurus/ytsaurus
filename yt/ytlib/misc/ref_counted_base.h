@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common.h"
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,10 +313,10 @@ public:
      * its raw pointer from the collection there.
      */
     template<class T>
-    static TIntrusivePtr<T> DangerousGetPtr(T* object)
+    static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
         if (NDetail::AtomicallyIncrementIfNonZero(&object->RefCounter)) {
-            return TIntrusivePtr<T>(object, false);
+            return ::NYT::TIntrusivePtr<T>(object, false);
         }
     }
 
