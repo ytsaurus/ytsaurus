@@ -65,7 +65,7 @@ DECLARE_ENUM(EObjectType,
  *  \note
  *  An upper bound will do.
  */
-const int MaxObjectType = 1024;
+const int MaxObjectType = 1 << 16;
 
 EObjectType TypeFromId(const TObjectId& id);
 
