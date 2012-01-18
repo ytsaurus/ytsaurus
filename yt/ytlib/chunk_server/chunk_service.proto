@@ -94,24 +94,6 @@ message TRspCreateChunks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqConfirmChunks
-{
-    message TChunkInfo
-    {
-        required bytes chunk_id = 1;
-        repeated bytes holder_addresses = 2;
-        required NChunkHolder.NProto.TChunkAttributes attributes = 3;
-    }
-
-    required bytes transaction_id = 1;
-    repeated TChunkInfo chunks = 2;
-}
-
-message TRspConfirmChunks
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqCreateChunkLists
 {
     required bytes transaction_id = 1;

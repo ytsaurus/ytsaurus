@@ -51,9 +51,6 @@ public:
     NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
         const NProto::TMsgCreateChunks& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateConfirmChunks(
-        const NProto::TMsgConfirmChunks& message);
-
     NMetaState::TMetaChange< yvector<TChunkListId> >::TPtr InitiateCreateChunkLists(
         const NProto::TMsgCreateChunkLists& message);
 

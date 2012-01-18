@@ -113,7 +113,6 @@ public:
         RegisterMethod(this, &TImpl::RegisterHolder);
         RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::CreateChunks);
-        RegisterMethod(this, &TImpl::ConfirmChunks);
         RegisterMethod(this, &TImpl::CreateChunkLists);
         RegisterMethod(this, &TImpl::AttachChunkTrees);
         RegisterMethod(this, &TImpl::DetachChunkTrees);
@@ -185,16 +184,6 @@ public:
             ~MetaStateManager,
             message,
             &TThis::CreateChunks,
-            this);
-    }
-
-    TMetaChange<TVoid>::TPtr InitiateConfirmChunks(
-        const TMsgConfirmChunks& message)
-    {
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::ConfirmChunks,
             this);
     }
 
@@ -372,52 +361,6 @@ private:
             ~transactionId.ToString());
 
         return chunkIds;
-    }
-
-    TVoid ConfirmChunks(const TMsgConfirmChunks& message)
-    {
-        FOREACH (const auto& chunkInfo, message.chunks()) {
-            auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
-            auto& chunk = ChunkMap.GetForUpdate(chunkId);
-            
-            auto& holderAddresses = chunkInfo.holder_addresses();
-            YASSERT(holderAddresses.size() != 0);
-
-            FOREACH (const auto& address, holderAddresses) {
-                auto it = HolderAddressMap.find(address);
-                if (it == HolderAddressMap.end()) {
-                    LOG_WARNING("Chunk is confirmed at unknown holder (ChunkId: %s, HolderAddress: %s)",
-                        ~chunkId.ToString(),
-                        ~address);
-                    continue;
-                }
-                auto holderId = it->Second();
-                chunk.AddLocation(holderId, false);
-
-                auto& holder = HolderMap.GetForUpdate(holderId);
-                holder.AddUnapprovedChunk(chunkId);
-
-                if (IsLeader()) {
-                    ChunkReplication->OnReplicaAdded(holder, chunk);
-                }
-            }
-
-            // Skip chunks that are already confirmed.
-            if (chunk.IsConfirmed()) {
-                continue;
-            }
-
-            TBlob blob;
-            if (!SerializeProtobuf(&chunkInfo.attributes(), &blob)) {
-                LOG_FATAL("Error serializing chunk attributes (ChunkId: %s)", ~chunkId.ToString());
-            }
-            
-            chunk.SetAttributes(TSharedRef(MoveRV(blob)));
-
-            LOG_INFO_IF(!IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~chunkId.ToString());
-        }
-
-        return TVoid();
     }
 
     yvector<TChunkListId> CreateChunkLists(const TMsgCreateChunkLists& message)
@@ -1436,12 +1379,6 @@ TMetaChange< yvector<TChunkId> >::TPtr TChunkManager::InitiateCreateChunks(
     const TMsgCreateChunks& message)
 {
     return Impl->InitiateAllocateChunk(message);
-}
-
-NMetaState::TMetaChange<TVoid>::TPtr TChunkManager::InitiateConfirmChunks(
-    const NProto::TMsgConfirmChunks& message)
-{
-    return Impl->InitiateConfirmChunks(message);
 }
 
 TMetaChange< yvector<TChunkListId> >::TPtr TChunkManager::InitiateCreateChunkLists(

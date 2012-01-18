@@ -37,7 +37,6 @@ TChunkService::TChunkService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunks));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ConfirmChunks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunkLists));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(DetachChunkTrees));
@@ -230,32 +229,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
 
                 context->Reply();
             }))
-        ->OnError(~CreateErrorHandler(~context))
-        ->Commit();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TChunkService, ConfirmChunks)
-{
-    auto transactionId = TTransactionId::FromProto(request->transaction_id());
-
-    context->SetRequestInfo("TransactionId: %s, ChunkCount: %d",
-        ~transactionId.ToString(),
-        request->chunks_size());
-
-    ValidateLeader();
-    ValidateTransactionId(transactionId);
-
-    FOREACH (const auto& chunkInfo, request->chunks()) {
-        auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
-        ValidateChunkId(chunkId);
-    }
-
-    TMsgConfirmChunks message;
-    message.set_transaction_id(transactionId.ToProto());
-    message.mutable_chunks()->MergeFrom(request->chunks());
-    ChunkManager
-        ->InitiateConfirmChunks(message)
-        ->OnSuccess(~CreateSuccessHandler(~context))
         ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }
