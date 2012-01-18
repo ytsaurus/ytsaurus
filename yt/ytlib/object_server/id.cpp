@@ -13,7 +13,7 @@ EObjectType TypeFromId(const TObjectId& id)
     return EObjectType(id.Parts[1] & 0xffff);
 }
 
-TObjectId CreateId(EObjectType type, ui16 cellId, ui64 counter)
+TObjectId CreateId(EObjectType type, TCellId cellId, ui64 counter)
 {
     int typeValue = type.ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);

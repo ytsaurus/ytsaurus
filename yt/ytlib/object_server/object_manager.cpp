@@ -17,7 +17,7 @@ static NLog::TLogger& Logger(ObjectServerLogger);
 TObjectManager::TObjectManager(
     IMetaStateManager* metaStateManager,
     TCompositeMetaState* metaState,
-    ui16 cellId)
+    TCellId cellId)
     : TMetaStatePart(metaStateManager, metaState)
     , CellId(cellId)
 {
@@ -62,7 +62,7 @@ IObjectTypeHandler* TObjectManager::GetHandler(const TObjectId& id) const
     return GetHandler(TypeFromId(id));
 }
 
-ui16 TObjectManager::GetCellId() const
+TCellId TObjectManager::GetCellId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

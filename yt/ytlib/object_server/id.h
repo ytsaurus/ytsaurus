@@ -27,6 +27,8 @@ typedef TGuid TObjectId;
 //! The all-zero id used to denote a non-existing object.
 extern TObjectId NullObjectId;
 
+typedef ui16 TCellId;
+
 DECLARE_ENUM(EObjectType,
     // Transaction Manager stuff
     ((Transaction)(0))
@@ -71,7 +73,7 @@ EObjectType TypeFromId(const TObjectId& id);
 
 TObjectId CreateId(
     EObjectType type,
-    ui16 cellId,
+    TCellId cellId,
     ui64 counter);
 
 ////////////////////////////////////////////////////////////////////////////////

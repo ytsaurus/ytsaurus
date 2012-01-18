@@ -41,7 +41,7 @@ public:
     TObjectManager(
         NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
-        ui16 cellId);
+        TCellId cellId);
 
     //! Registers a type handler.
     /*!
@@ -56,7 +56,7 @@ public:
     IObjectTypeHandler* GetHandler(const TObjectId& id) const;
 
     //! Returns the cell id.
-    ui16 GetCellId() const;
+    TCellId GetCellId() const;
 
     //! Creates a new unique object id.
     TObjectId GenerateId(EObjectType type);
@@ -77,7 +77,7 @@ public:
     IObjectProxy::TPtr GetProxy(const TObjectId& id);
 
 private:
-    ui16 CellId;
+    TCellId CellId;
     ui64 Counter;
 
     IObjectTypeHandler::TPtr TypeToHandler[MaxObjectType];
