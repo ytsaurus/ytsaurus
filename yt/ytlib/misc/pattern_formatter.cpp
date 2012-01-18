@@ -31,8 +31,9 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
         ++pos;
 
         if (pos >= pattern.size() || pattern[pos] != LeftParen) {
-            ythrow yexception() <<
-                   Sprintf("Expected \"%c\" at position %d", LeftParen, (int) pos);
+            ythrow yexception() << Sprintf("Expected \"%c\" at position %d",
+                LeftParen,
+                static_cast<int>(pos));
         }
         ++pos;
 
@@ -49,9 +50,10 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
         }
 
         if (!foundRightParen) {
-            ythrow yexception() <<
-                Sprintf("Cannot find matching \"%c\" for \"%c\" at position %d",
-                        RightParen, LeftParen, (int) startProperty - 1);
+            ythrow yexception() << Sprintf("Cannot find a matching \"%c\" for \"%c\" at position %d",
+                RightParen,
+                LeftParen,
+                static_cast<int>(startProperty) - 1);
         }
 
         bool isOptional = false;
@@ -64,8 +66,7 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
         auto it = PropertyMap.find(property);
         if (it == PropertyMap.end()) {
             if (!isOptional) {
-                ythrow yexception() <<
-                    Sprintf("Property %s is not defined", ~property);
+                ythrow yexception() << Sprintf("Property %s is not defined", ~property);
             }
         } else {
             result.append(it->second);

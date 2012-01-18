@@ -6,11 +6,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents a sliding window over an infinite sequence of slots of type T.
+//! Represents a sliding window over an infinite sequence of slots of type #T.
 /*! 
- * Thread-safe cyclic buffer. 
- * T must have a default ctor and assignment operator.
- * Every new slot in a window contains newly created T.
+ *  Thread-safe cyclic buffer. 
+ *  #T must have a default ctor and assignment operator.
+ *  Every new slot in a window contains newly created #T.
  */
 template <class T>
 class TCyclicBuffer
