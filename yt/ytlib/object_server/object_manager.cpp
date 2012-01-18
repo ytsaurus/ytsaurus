@@ -173,7 +173,11 @@ IObjectProxy::TPtr TObjectManager::FindProxy(const TObjectId& id)
         return NULL;
     }
 
-    return handler->FindProxy(id);
+    if (!handler->Exists(id)) {
+        return NULL;
+    }
+
+    return handler->GetProxy(id);
 }
 
 IObjectProxy::TPtr TObjectManager::GetProxy(const TObjectId& id)

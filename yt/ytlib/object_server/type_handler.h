@@ -26,8 +26,8 @@ struct IObjectTypeHandler
     virtual i32 GetObjectRefCounter(const TObjectId& id) = 0;
 
     //! Given an object id, constructs a proxy for it.
-    //! Returns NULL if no object with such id exists.
-    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id) = 0;
+    //! The object with the given id must exist.
+    virtual IObjectProxy::TPtr GetProxy(const TObjectId& id) = 0;
 
     //! Creates an object with the given manifest.
     /*!

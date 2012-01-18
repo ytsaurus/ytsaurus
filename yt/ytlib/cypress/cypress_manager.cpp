@@ -81,9 +81,9 @@ public:
         return Owner->GetNodeRefCounter(id);
     }
 
-    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id)
+    virtual IObjectProxy::TPtr GetProxy(const TObjectId& id)
     {
-        return Owner->FindNodeProxy(id, NullTransactionId);
+        return Owner->GetNodeProxy(id, NullTransactionId);
     }
 
     virtual TObjectId CreateFromManifest(IMapNode* manifest)

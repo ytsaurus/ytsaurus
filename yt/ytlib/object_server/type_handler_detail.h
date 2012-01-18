@@ -51,9 +51,9 @@ public:
         return obj.GetObjectRefCounter();
     }
 
-    virtual IObjectProxy::TPtr FindProxy(const TObjectId& id)
+    virtual IObjectProxy::TPtr GetProxy(const TObjectId& id)
     {
-        return Map->Contains(id) ? CreateProxy(id) : NULL;
+        return CreateProxy(id);
     }
 
     virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest)
