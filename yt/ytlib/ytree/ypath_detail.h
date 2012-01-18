@@ -294,10 +294,6 @@ void ResolveYPath(
 
 typedef IParamAction<NBus::IMessage::TPtr> TYPathResponseHandler;
 
-void WrapYPathRequest(
-    NRpc::TClientRequest* outerRequest,
-    NBus::IMessage* innerRequestMessage);
-
 NBus::IMessage::TPtr UnwrapYPathRequest(
     NRpc::IServiceContext* outerContext);
     
@@ -311,9 +307,6 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
 void WrapYPathResponse(
     NRpc::IServiceContext* outerContext,
     NBus::IMessage* responseMessage);
-
-NBus::IMessage::TPtr UnwrapYPathResponse(
-    NRpc::TClientResponse* outerResponse);
 
 void ReplyYPathWithMessage(
     NRpc::IServiceContext* context,
