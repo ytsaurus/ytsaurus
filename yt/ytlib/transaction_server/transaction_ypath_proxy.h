@@ -29,7 +29,7 @@ struct TTransactionYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, Commit);
     DEFINE_YPATH_PROXY_METHOD(NProto, Abort);
     DEFINE_YPATH_PROXY_METHOD(NProto, RenewLease);
-    DEFINE_YPATH_PROXY_METHOD(NProto, ReleaseObject);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Release);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

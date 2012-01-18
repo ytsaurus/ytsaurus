@@ -39,7 +39,7 @@ public:
         Stroka verb = context->GetVerb();
         if (verb == "Commit" ||
             verb == "Abort" ||
-            verb == "ReleaseObject")
+            verb == "Release")
         {
             return true;
         }
@@ -92,7 +92,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, ReleaseObject)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Release)
     {
         UNUSED(response);
 
