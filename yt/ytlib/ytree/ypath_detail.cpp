@@ -245,7 +245,7 @@ bool IsEmptyYPath(const TYPath& path)
 
 bool IsFinalYPath(const TYPath& path)
 {
-    return path.empty() || (path == RootMarker);
+    return path.empty() || path == RootMarker;
 }
 
 bool IsAttributeYPath(const TYPath& path)
