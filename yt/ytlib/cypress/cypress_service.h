@@ -24,7 +24,6 @@ public:
 
 private:
     typedef TCypressService TThis;
-    typedef TCypressServiceProxy::EErrorCode EErrorCode;
 
     TCypressManager::TPtr CypressManager;
 
