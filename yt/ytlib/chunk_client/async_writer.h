@@ -4,7 +4,6 @@
 #include "chunk.pb.h"
 
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/ref.h>
 #include <ytlib/actions/future.h>

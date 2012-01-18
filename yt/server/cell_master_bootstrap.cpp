@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "cell_master_bootstrap.h"
 
+#include <ytlib/misc/ref_counted_tracker.h>
+
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/virtual.h>

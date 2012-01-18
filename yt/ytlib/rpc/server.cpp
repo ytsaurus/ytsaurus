@@ -3,7 +3,6 @@
 #include "rpc.pb.h"
 #include "server_detail.h"
 
-#include <ytlib/misc/assert.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/bus/server.h>
 #include <ytlib/ytree/fluent.h>

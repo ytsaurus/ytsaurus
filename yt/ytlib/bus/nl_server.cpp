@@ -6,7 +6,6 @@
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/logging/log.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/ytree/fluent.h>
 

@@ -103,6 +103,7 @@ private:
                 BuildYsonFluently(consumer)
                     .BeginMap()
                         .Item("ref_counter").Scalar(chunk->GetObjectRefCounter())
+                        .Item("is_confirmed").Scalar(chunk->IsConfirmed())
                         .Item("stored_locations").DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, THolderId holderId)
                             {
                                 const auto& holder = ChunkManager->GetHolder(holderId);

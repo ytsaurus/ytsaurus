@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <ytlib/misc/assert.h>
 #include "cell_channel.h"
 
 namespace NYT {

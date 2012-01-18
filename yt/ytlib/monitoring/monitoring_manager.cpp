@@ -6,7 +6,6 @@
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/actions/action_util.h>
-#include <ytlib/misc/assert.h>
 
 #include "stat.h"
 

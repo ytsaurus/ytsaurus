@@ -15,9 +15,11 @@ set( SRCS
   ${BASE}/home.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/metric.cpp
+  ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
   ${BASE}/ref.cpp
+  ${BASE}/ref_counted_base.cpp
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp

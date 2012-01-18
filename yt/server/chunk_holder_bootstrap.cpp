@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "chunk_holder_bootstrap.h"
 
+#include <ytlib/misc/ref_counted_tracker.h>
+
 #include <ytlib/bus/nl_server.h>
 
 #include <ytlib/rpc/channel_cache.h>

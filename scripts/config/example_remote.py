@@ -51,6 +51,8 @@ class Master(Server):
     address = Subclass(MasterAddresses)
     params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
+    log_path = Template("master-%(__name__)s.log")
+
     config = Template({
         'meta_state' : {
             'cell' : {
@@ -84,6 +86,8 @@ class Holder(Server):
 
     groupid = Subclass(xrange(10))
     nodeid = Subclass(xrange(30), 1)
+
+    log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
     
     @propmethod
     def host(cls):

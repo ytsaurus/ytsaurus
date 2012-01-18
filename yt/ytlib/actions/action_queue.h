@@ -5,7 +5,6 @@
 
 #include <ytlib/misc/common.h>
 
-#include <util/generic/ptr.h>
 #include <util/system/thread.h>
 #include <util/system/event.h>
 #include <util/thread/lfqueue.h>
@@ -64,7 +63,7 @@ private:
     void ThreadMain();
 
     bool EnableLogging;
-    volatile bool Finished;
+    volatile bool Running;
     Event WakeupEvent;
     TThread Thread;
     Stroka ThreadName;

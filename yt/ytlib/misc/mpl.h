@@ -1,48 +1,77 @@
 #pragma once
 
 namespace NYT {
-namespace NDetail {
+namespace NMpl {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! TIsConvertible<U, T>::Value is True iff #S is convertable to #T.
-template<class U, class T>
-struct TIsConvertible
-{
-    typedef char (&TYes)[1];
-    typedef char (&TNo) [2];
-
-    static TYes f(T*);
-    static TNo  f(...);
-
-    enum
-    {
-        Value = sizeof( (f)(static_cast<U*>(0)) ) == sizeof(TYes)
-    };
-};
 
 struct TEmpty
 { };
 
-template<bool>
-struct TEnableIfConvertibleImpl;
-
-template<>
-struct TEnableIfConvertibleImpl<true>
+template<class T, T CompileTimeValue>
+struct TIntegralConstant
 {
-    typedef TEmpty TType;
+    static const T Value = CompileTimeValue;
+
+    typedef T TValueType;
+    typedef TIntegralConstant<T, CompileTimeValue> TType;
 };
 
-template<>
-struct TEnableIfConvertibleImpl<false>
-{ };
+template<class T, T CompileTimeValue>
+const T TIntegralConstant<T, CompileTimeValue>::Value;
 
-template<class U, class T>
-struct TEnableIfConvertible
-    : public TEnableIfConvertibleImpl< TIsConvertible<U, T>::Value >
-{ };
+typedef TIntegralConstant<bool, true> TTrueType;
+typedef TIntegralConstant<bool, false> TFalseType;
+
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+typedef char (&TYesType)[1];
+typedef char (&TNoType) [2];
+
+//! TIsConvertible<U, T>::Value is True iff #U is convertable to #T.
+template<class TFromType, class TToType>
+struct TIsConvertibleImpl
+{
+    static TYesType Consumer(TToType);
+    static TNoType  Consumer(...);
+
+    static TFromType& Producer();
+
+    enum
+    {
+        Value = (sizeof(Consumer(Producer())) == sizeof(TYesType))
+    };
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
+
+template<class TFromType, class TToType>
+struct TIsConvertible
+    : TIntegralConstant<
+        bool, NDetail::TIsConvertibleImpl<TFromType, TToType>::Value
+    >
+{ };
+
+template <bool B, class TResult = void>
+struct TEnableIfC
+{
+    typedef TResult TType;
+};
+
+template <class TResult>
+struct TEnableIfC<false, TResult>
+{ };
+
+template<class TCondition, class TResult = void>
+struct TEnableIf
+    : public TEnableIfC<TCondition::Value, TResult>
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NMpl
 } // namespace NYT

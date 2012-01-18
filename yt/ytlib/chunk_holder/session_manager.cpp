@@ -3,7 +3,6 @@
 #include "chunk.pb.h"
 
 #include <ytlib/misc/fs.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/sync.h>
 
 namespace NYT {

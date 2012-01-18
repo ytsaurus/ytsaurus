@@ -89,7 +89,7 @@ public:
     virtual TObjectId CreateFromManifest(IMapNode* manifest)
     {
         UNUSED(manifest);
-        ythrow yexception() << "Cypress objects cannot be created unbounded";
+        ythrow yexception() << "Nodes cannot be created outside Cypress";
     }
 
 private:
