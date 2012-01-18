@@ -41,8 +41,6 @@ Stroka JoinToString(const TCollection& items, Stroka delimiter = ", ")
     return JoinToString(items.begin(), items.end(), delimiter);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TIter>
 yvector<Stroka> ConvertToStrings(TIter begin, size_t maxSize)
 {
@@ -56,7 +54,7 @@ yvector<Stroka> ConvertToStrings(TIter begin, size_t maxSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline Stroka ConvertUnderscoreCaseToCamelCase(const Stroka& data)
+inline Stroka UnderscoreCaseToCamelCase(const Stroka& data)
 {
     Stroka result;
     bool upper = true;
@@ -74,9 +72,7 @@ inline Stroka ConvertUnderscoreCaseToCamelCase(const Stroka& data)
     return result;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-inline Stroka ConvertCamelCaseToUnderscoreCase(const Stroka& data)
+inline Stroka CamelCaseToUnderscoreCase(const Stroka& data)
 {
     Stroka result;
     bool first = true;
@@ -103,12 +99,9 @@ inline bool ParseBool(const Stroka& value)
     } else if (value == "false") {
         return false;
     } else {
-        ythrow yexception()
-            << Sprintf("Could not parse boolean parameter (Value: %s)", ~value);
+        ythrow yexception() << Sprintf("Could not parse boolean value (Value: %s)", ~value);
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 inline Stroka FormatBool(bool value)
 {
@@ -123,10 +116,8 @@ T ParseEnum(
     typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
         NYT::NDetail::TEmpty())
 {
-    return T::FromString(ConvertUnderscoreCaseToCamelCase(value));
+    return T::FromString(UnderscoreCaseToCamelCase(value));
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 Stroka FormatEnum(
@@ -134,7 +125,7 @@ Stroka FormatEnum(
     typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
         NYT::NDetail::TEmpty())
 {
-    return ConvertCamelCaseToUnderscoreCase(value.ToString());
+    return CamelCaseToUnderscoreCase(value.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
