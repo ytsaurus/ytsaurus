@@ -18,7 +18,7 @@ namespace {
 typedef TSnappyCompress TCompressedOutput;
 typedef TSnappyDecompress TDecompressedInput;
 
-}
+} // namespace <anonymous>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,8 +95,9 @@ void TSnapshotReader::Open()
     YASSERT(header.DataLength + sizeof(header) == static_cast<ui64>(File->GetLength()));
 
     FileInput.Reset(new TBufferedFileInput(*File));
-    DecompressedInput.Reset(new TDecompressedInput(~FileInput));
-    ChecksummableInput.Reset(new TChecksummableInput(*DecompressedInput));
+    //DecompressedInput.Reset(new TDecompressedInput(~FileInput));
+    //ChecksummableInput.Reset(new TChecksummableInput(*DecompressedInput));
+    ChecksummableInput.Reset(new TChecksummableInput(*FileInput));
 }
 
 TInputStream& TSnapshotReader::GetStream() const
