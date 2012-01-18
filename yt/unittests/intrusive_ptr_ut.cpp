@@ -98,7 +98,7 @@ namespace {
             *Output << "Cb";
 
             for (int i = 0; i < 3; ++i) {
-                *Output << '+';
+                *Output << '!';
                 TIntrusivePtr<TObjectWithSelfPointers> ptr(this);
             }
 
@@ -325,7 +325,6 @@ TEST(TIntrusivePtrTest, UpCast)
     TIntrusivePtr<TSimpleObject>  bar = New<TAnotherObject>();
     TIntrusivePtr<TAnotherObject> baz = New<TAnotherObject>();
 
-    Cerr << "Assignment goes here" << Endl;
     foo = baz;
 
     EXPECT_IS_TRUE(foo == baz);
