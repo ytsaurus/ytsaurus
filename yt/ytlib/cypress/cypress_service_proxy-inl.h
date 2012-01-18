@@ -15,7 +15,7 @@ namespace NCypress {
 template <class TTypedResponse>
 TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
-    YASSERT(index >= 0 && index < Size());
+    YASSERT(index >= 0 && index < GetSize());
     auto innerResponse = New<TTypedResponse>();
     int beginIndex = BeginPartIndexes[index];
     int endIndex = beginIndex + Body.part_counts(index);
