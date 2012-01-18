@@ -40,31 +40,56 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 {
     UNUSED(response);
 
-    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
-    auto requestHeader = GetRequestHeader(~requestMessage);
+    int requestCount = request->part_counts_size();
+    context->SetRequestInfo("RequestCount: %d", requestCount);
 
-    TYPath path = requestHeader.path();
-    Stroka verb = requestHeader.verb();
+    const auto& attachments = request->Attachments();
 
-    context->SetRequestInfo("Path: %s, Verb: %s",
-        ~path,
-        ~verb);
+    int currentIndex = 0;
+    for (int requestIndex = 0; requestIndex < request->part_counts_size(); ++requestIndex) {
+        int partCount = request->part_counts(requestIndex);
+        YASSERT(partCount >= 2);
+        yvector<TSharedRef> requestParts(
+            attachments.begin() + currentIndex,
+            attachments.begin() + currentIndex + partCount);
+        auto requestMessage = CreateMessageFromParts(MoveRV(requestParts));
 
-    auto processor = CypressManager->CreateProcessor();
+        auto requestHeader = GetRequestHeader(~requestMessage);
+        TYPath path = requestHeader.path();
+        Stroka verb = requestHeader.verb();
 
-    ExecuteVerb(
-        ~requestMessage,
-        ~processor)
-    ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
-        {
-            auto responseHeader = GetResponseHeader(~responseMessage);
-            auto error = GetResponseError(responseHeader);
+        LOG_DEBUG("Execute: RequestIndex: %d, Path: %s, Verb: %s",
+            requestIndex,
+            ~path,
+            ~verb);
 
-            context->SetResponseInfo("YPathError: %s", ~error.ToString());
+        auto processor = CypressManager->CreateProcessor();
 
-            WrapYPathResponse(~context->GetUntypedContext(), ~responseMessage);
-            context->Reply();
-        }));
+        ExecuteVerb(~requestMessage, ~processor)
+        ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
+            {
+                auto responseHeader = GetResponseHeader(~responseMessage);
+                const auto& responseParts = responseMessage->GetParts();
+                auto error = GetResponseError(responseHeader);
+
+                LOG_DEBUG("Execute: RequestIndex: %d, PartCount: %d, Error: %s",
+                    requestIndex,
+                    responseParts.ysize(),
+                    ~error.ToString());
+
+                response->add_part_counts(responseParts.ysize());
+                response->Attachments().insert(
+                    response->Attachments().end(),
+                    responseParts.begin(),
+                    responseParts.end());
+
+                if (requestIndex == requestCount) {
+                    context->Reply();
+                }
+            }));
+
+        currentIndex += partCount;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
