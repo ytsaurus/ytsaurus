@@ -2,25 +2,21 @@
 #include "cypress_integration.h"
 
 #include <ytlib/misc/lazy_ptr.h>
-
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
-
 #include <ytlib/cypress/virtual.h>
-
 #include <ytlib/orchid/orchid_service_proxy.h>
-
 #include <ytlib/rpc/channel.h>
 #include <ytlib/rpc/message.h>
 #include <ytlib/rpc/channel_cache.h>
-
-#include <ytlib/misc/new.h>
+#include <ytlib/bus/message.h>
 
 namespace NYT {
 namespace NOrchid {
 
 using namespace NRpc;
+using namespace NBus;
 using namespace NYTree;
 using namespace NCypress;
 using namespace NProto;
@@ -30,6 +26,8 @@ using namespace NProto;
 static NRpc::TChannelCache ChannelCache;
 static TLazyPtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
 static NLog::TLogger& Logger = OrchidLogger;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TOrchidYPathService
     : public IYPathService
@@ -70,7 +68,7 @@ public:
         auto innerRequestMessage = SetRequestHeader(~requestMessage, requestHeader);
 
         auto outerRequest = Proxy->Execute();
-        WrapYPathRequest(~outerRequest, ~innerRequestMessage);
+        outerRequest->Attachments() = innerRequestMessage->GetParts();
 
         LOG_INFO("Sending request to a remote Orchid (Address: %s, Path: %s, Verb: %s, RequestId: %s)",
             ~Manifest->RemoteAddress,
@@ -105,7 +103,7 @@ private:
             ~response->GetError().ToString());
 
         if (response->IsOK()) {
-            auto innerResponseMessage = UnwrapYPathResponse(~response);
+            auto innerResponseMessage = CreateMessageFromParts(response->Attachments());
             ReplyYPathWithMessage(~context, ~innerResponseMessage);
         } else {
             context->Reply(TError(Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
