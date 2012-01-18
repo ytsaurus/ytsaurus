@@ -267,6 +267,43 @@ bool IsLocalYPath(const TYPath& path)
     return IsEmptyYPath(path) || IsAttributeYPath(path);
 }
 
+void ResolveYPath(
+    IYPathService* rootService,
+    const TYPath& path,
+    const Stroka& verb,
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath)
+{
+    YASSERT(rootService);
+    YASSERT(suffixService);
+    YASSERT(suffixPath);
+
+    IYPathService::TPtr currentService = rootService;
+    auto currentPath = path;
+
+    while (true) {
+        IYPathService::TResolveResult result;
+        try {
+            result = currentService->Resolve(currentPath, verb);
+        } catch (...) {
+            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
+                ~path,
+                ~verb,
+                ~ComputeResolvedYPath(path, currentPath),
+                ~CurrentExceptionMessage());
+        }
+
+        if (result.IsHere()) {
+            *suffixService = currentService;
+            *suffixPath = result.GetPath();
+            break;
+        }
+
+        currentService = result.GetService();
+        currentPath = result.GetPath();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceContext
@@ -329,68 +366,6 @@ protected:
     }
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ResolveYPath(
-    IYPathService* rootService,
-    const TYPath& path,
-    const Stroka& verb,
-    IYPathService::TPtr* suffixService,
-    TYPath* suffixPath)
-{
-    YASSERT(rootService);
-    YASSERT(suffixService);
-    YASSERT(suffixPath);
-
-    IYPathService::TPtr currentService = rootService;
-    auto currentPath = path;
-
-    while (true) {
-        IYPathService::TResolveResult result;
-        try {
-            result = currentService->Resolve(currentPath, verb);
-        } catch (...) {
-            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
-                ~path,
-                ~verb,
-                ~ComputeResolvedYPath(path, currentPath),
-                ~CurrentExceptionMessage());
-        }
-
-        if (result.IsHere()) {
-            *suffixService = currentService;
-            *suffixPath = result.GetPath();
-            break;
-        }
-
-        currentService = result.GetService();
-        currentPath = result.GetPath();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-NBus::IMessage::TPtr UnwrapYPathRequest(
-    NRpc::IServiceContext* outerContext)
-{
-    YASSERT(outerContext);
-
-    const auto& parts = outerContext->RequestAttachments();
-    YASSERT(parts.ysize() >= 2);
-
-    return CreateMessageFromParts(parts);
-}
-
-void WrapYPathResponse(
-    NRpc::IServiceContext* outerContext,
-    NBus::IMessage* responseMessage)
-{
-    YASSERT(outerContext);
-    YASSERT(responseMessage);
-
-    outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
-}
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,

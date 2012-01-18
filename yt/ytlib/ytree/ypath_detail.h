@@ -282,7 +282,6 @@ bool IsLocalYPath(const TYPath& path);
 TYPath ChopYPathAttributeMarker(const TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
-
 void ResolveYPath(
     IYPathService* rootService,
     const TYPath& path,
@@ -294,19 +293,12 @@ void ResolveYPath(
 
 typedef IParamAction<NBus::IMessage::TPtr> TYPathResponseHandler;
 
-NBus::IMessage::TPtr UnwrapYPathRequest(
-    NRpc::IServiceContext* outerContext);
-    
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
     const TYPath& path,
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler);
-
-void WrapYPathResponse(
-    NRpc::IServiceContext* outerContext,
-    NBus::IMessage* responseMessage);
 
 void ReplyYPathWithMessage(
     NRpc::IServiceContext* context,
