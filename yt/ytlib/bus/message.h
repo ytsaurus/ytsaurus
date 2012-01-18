@@ -37,9 +37,6 @@ IMessage::TPtr CreateMessageFromPart(const TSharedRef& part);
 //! Creates a message from a blob and a bunch of refs inside it.
 IMessage::TPtr CreateMessageFromParts(TBlob&& blob, const yvector<TRef>& refs);
 
-//! Creates a message by taking a slice of a given size of another message.
-IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart, int sliceSize);
-
 //! Creates a message by taking a slice of another message.
 //! The slice goes up to the end of the original message.
 IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart);
