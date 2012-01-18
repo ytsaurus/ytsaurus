@@ -95,6 +95,7 @@ public:
     DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
 
     const THolder* FindHolder(const Stroka& address);
+    THolder* FindHolderForUpdate(const Stroka& address);
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);

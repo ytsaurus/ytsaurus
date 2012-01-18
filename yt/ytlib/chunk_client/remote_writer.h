@@ -4,17 +4,15 @@
 #include "async_writer.h"
 #include "chunk_service.pb.h"
 
-#include <ytlib/ytree/ypath_detail.h>
-
 #include <ytlib/misc/configurable.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/thread_affinity.h>
-
-#include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
 #include <ytlib/actions/action_queue.h>
-
 #include <ytlib/logging/tagged_logger.h>
+#include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
 #include <util/generic/deque.h>
 
@@ -105,13 +103,13 @@ public:
      */
     TChunkId GetChunkId() const;
 
-    //! Returns the info to be sent to the master during #TChunkServiceProxy::ConfirmChunks request.
+    //! Returns the confirmation request for the uploaded chunk.
     /*!
      *  This method call only be called when the writer is successfully closed.
      *  
      * \note Thread affinity: ClientThread.
      */
-    NChunkServer::NProto::TReqConfirmChunks::TChunkInfo GetConfirmationInfo();
+    NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest();
 
 private:
     //! A group is a bunch of blocks that is sent in a single RPC request.

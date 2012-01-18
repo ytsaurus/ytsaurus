@@ -245,6 +245,12 @@ public:
         return it == HolderAddressMap.end() ? NULL : FindHolder(it->Second());
     }
 
+    THolder* FindHolderForUpdate(const Stroka& address)
+    {
+        auto it = HolderAddressMap.find(address);
+        return it == HolderAddressMap.end() ? NULL : FindHolderForUpdate(it->Second());
+    }
+
     const TReplicationSink* FindReplicationSink(const Stroka& address)
     {
         auto it = ReplicationSinkMap.find(address);
@@ -370,9 +376,6 @@ private:
 
     TVoid ConfirmChunks(const TMsgConfirmChunks& message)
     {
-        auto transactionId = TTransactionId::FromProto(message.transaction_id());
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-        
         FOREACH (const auto& chunkInfo, message.chunks()) {
             auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
             auto& chunk = ChunkMap.GetForUpdate(chunkId);
@@ -411,9 +414,7 @@ private:
             
             chunk.SetAttributes(TSharedRef(MoveRV(blob)));
 
-            LOG_INFO_IF(!IsRecovery(), "Chunk confirmed (ChunkId: %s, TransactionId: %s)",
-                ~chunkId.ToString(),
-                ~transactionId.ToString());
+            LOG_INFO_IF(!IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~chunkId.ToString());
         }
 
         return TVoid();
@@ -1158,13 +1159,12 @@ public:
 
     virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
-        //Stroka verb = context->GetVerb();
-        //if (verb == "Commit" ||
-        //    verb == "Abort")
-        //{
-        //    return true;
-        //}
-        return TBase::IsLogged(context);;
+        Stroka verb = context->GetVerb();
+        if (verb == "Confirm")
+        {
+            return true;
+        }
+        return TBase::IsLogged(context);
     }
 
 private:
@@ -1177,6 +1177,8 @@ private:
         Stroka verb = context->GetVerb();
         if (verb == "Fetch") {
             FetchThunk(context);
+        } else if (verb == "Confirm") {
+            ConfirmThunk(context);
         } else {
             TBase::DoInvoke(context);
         }
@@ -1186,8 +1188,8 @@ private:
     {
         UNUSED(request);
 
-        const auto& impl = GetImpl();
-        Owner->FillHolderAddresses(response->mutable_holder_addresses(), impl);
+        const auto& chunk = GetImpl();
+        Owner->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
 
         context->SetResponseInfo("HolderAddresses: [%s]",
             ~JoinToString(response->holder_addresses()));
@@ -1195,6 +1197,49 @@ private:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, Confirm)
+    {
+        UNUSED(response);
+
+        auto& holderAddresses = request->holder_addresses();
+        YASSERT(holderAddresses.size() != 0);
+
+        context->SetRequestInfo("HolderAddresses: [%s]", ~JoinToString(holderAddresses));
+
+        auto& chunk = GetImplForUpdate();
+        auto chunkId = chunk.GetId();
+        
+        FOREACH (const auto& address, holderAddresses) {
+            auto* holder = Owner->FindHolderForUpdate(address);
+            if (!holder) {
+                LOG_WARNING("Chunk is confirmed at unknown holder (ChunkId: %s, HolderAddress: %s)",
+                    ~chunkId.ToString(),
+                    ~address);
+                continue;
+            }
+
+            chunk.AddLocation(holder->GetId(), false);
+            holder->AddUnapprovedChunk(chunk.GetId());
+
+            if (Owner->IsLeader()) {
+                Owner->ChunkReplication->OnReplicaAdded(*holder, chunk);
+            }
+        }
+
+        // Skip chunks that are already confirmed.
+        if (!chunk.IsConfirmed()) {
+            TBlob blob;
+            if (!SerializeProtobuf(&request->attributes(), &blob)) {
+                LOG_FATAL("Error serializing chunk attributes (ChunkId: %s)", ~chunkId.ToString());
+            }
+
+            chunk.SetAttributes(TSharedRef(MoveRV(blob)));
+
+            LOG_INFO_IF(!Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~chunkId.ToString());
+        }
+
+        context->Reply();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1346,6 +1391,11 @@ TChunkManager::TChunkManager(
 const THolder* TChunkManager::FindHolder(const Stroka& address)
 {
     return Impl->FindHolder(address);
+}
+
+THolder* TChunkManager::FindHolderForUpdate(const Stroka& address)
+{
+    return Impl->FindHolderForUpdate(address);
 }
 
 const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address)

@@ -9,6 +9,7 @@
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_client/block_id.h>
+#include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -181,13 +182,11 @@ void TFileWriter::Close()
     LOG_INFO("Chunk closed");
 
     LOG_INFO("Confirming chunk");
-    auto confirmChunksReq = ChunkProxy->ConfirmChunks();
-    confirmChunksReq->set_transaction_id(UploadTransaction->GetId().ToProto());
-    *confirmChunksReq->add_chunks() = Writer->GetConfirmationInfo();
-    auto confirmChunksRsp = confirmChunksReq->Invoke()->Get();
-    if (!confirmChunksRsp->IsOK()) {
+    auto confirmChunkReq = Writer->GetConfirmRequest();
+    auto confirmChunkRsp = CypressProxy->Execute(~confirmChunkReq)->Get();
+    if (!confirmChunkRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
-            ~confirmChunksRsp->GetError().ToString());
+            ~confirmChunkRsp->GetError().ToString());
     }
     LOG_INFO("Chunk confirmed");
 

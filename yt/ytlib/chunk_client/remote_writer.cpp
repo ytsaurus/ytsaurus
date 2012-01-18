@@ -8,9 +8,9 @@
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/logging/log.h>
 #include <ytlib/actions/action_util.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
 
 #include <util/random/random.h>
 #include <util/generic/yexception.h>
@@ -23,7 +23,8 @@ namespace NChunkClient {
 
 using namespace NRpc;
 using namespace NChunkHolder::NProto;
-using namespace NChunkServer::NProto;
+using namespace NChunkServer;
+using namespace NCypress;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -909,21 +910,20 @@ TChunkId TRemoteWriter::GetChunkId() const
     return ChunkId;
 }
 
-TReqConfirmChunks::TChunkInfo TRemoteWriter::GetConfirmationInfo()
+TChunkYPathProxy::TReqConfirm::TPtr TRemoteWriter::GetConfirmRequest()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(State.IsClosed());
 
-    TReqConfirmChunks::TChunkInfo info;
-    info.set_chunk_id(ChunkId.ToProto());
-    *info.mutable_attributes() = Attributes;
+    auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
+    *req->mutable_attributes() = Attributes;
     FOREACH (auto node, Nodes) {
         if (node->IsAlive) {
-            info.add_holder_addresses(node->Address);
+            req->add_holder_addresses(node->Address);
         }
     }
 
-    return info;
+    return req;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
