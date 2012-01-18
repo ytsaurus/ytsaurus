@@ -7,7 +7,6 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <algorithm>
-#include <util/generic/ptr.h>
 #include <util/generic/noncopyable.h>
 #include <util/digest/murmur.h>
 
