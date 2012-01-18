@@ -95,9 +95,8 @@ void TSnapshotReader::Open()
     YASSERT(header.DataLength + sizeof(header) == static_cast<ui64>(File->GetLength()));
 
     FileInput.Reset(new TBufferedFileInput(*File));
-    //DecompressedInput.Reset(new TDecompressedInput(~FileInput));
-    //ChecksummableInput.Reset(new TChecksummableInput(*DecompressedInput));
-    ChecksummableInput.Reset(new TChecksummableInput(*FileInput));
+    DecompressedInput.Reset(new TDecompressedInput(~FileInput));
+    ChecksummableInput.Reset(new TChecksummableInput(*DecompressedInput));
 }
 
 TInputStream& TSnapshotReader::GetStream() const
@@ -178,7 +177,6 @@ void TSnapshotWriter::Close()
         Checksum = ChecksummableOutput->GetChecksum();
         ChecksummableOutput->Flush();
         ChecksummableOutput.Reset(NULL);
-        CompressedOutput->Flush(); // in fact, this is called automatically by the previous stream...
         CompressedOutput.Reset(NULL);
     }
 
@@ -209,7 +207,7 @@ void TSnapshotWriter::Close()
 
 TChecksum TSnapshotWriter::GetChecksum() const
 {
-    // TODO: check that checksum is available
+    // TODO: check that checksum is available.
     return Checksum;
 }
 
