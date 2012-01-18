@@ -12,16 +12,34 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TTypedResponse>
+TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetResponse(int index) const
+{
+    YASSERT(index >= 0 && index < Size());
+    auto innerResponse = New<TTypedResponse>();
+    int beginIndex = BeginPartIndexes[index];
+    int endIndex = beginIndex + Body.part_counts(index);
+    yvector<TSharedRef> innerParts(
+        Attachments_.begin() + beginIndex,
+        Attachments_.begin() + endIndex);
+    auto innerMessage = NBus::CreateMessageFromParts(MoveRV(innerParts));
+    innerResponse->Deserialize(~innerMessage);
+    return innerResponse;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 TCypressServiceProxy::Execute(TTypedRequest* innerRequest)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
-    auto outerRequest = Execute();
-
     auto innerRequestMessage = innerRequest->Serialize();
-    NYTree::WrapYPathRequest(~outerRequest, ~innerRequestMessage);
+
+    auto outerRequest = Execute();
+    outerRequest->add_part_counts(innerRequestMessage->GetParts().ysize());
+    outerRequest->Attachments() = innerRequestMessage->GetParts();
 
     return outerRequest->Invoke()->Apply(FromFunctor(
         [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
@@ -29,7 +47,7 @@ TCypressServiceProxy::Execute(TTypedRequest* innerRequest)
             auto innerResponse = New<TTypedResponse>();
             auto error = outerResponse->GetError();
             if (error.IsOK()) {
-                auto innerResponseMessage = NYTree::UnwrapYPathResponse(~outerResponse);
+                auto innerResponseMessage = NBus::CreateMessageFromParts(outerResponse->Attachments());
                 innerResponse->Deserialize(~innerResponseMessage);
             } else if (NRpc::IsRpcError(error)) {
                 innerResponse->SetError(error);
