@@ -92,7 +92,7 @@ public:
     void ThrowIfError() const;
 
 protected:
-    virtual void DeserializeBody(const TRef& data) = 0;
+    virtual void DeserializeBody(const TRef& data);
 
 };
 

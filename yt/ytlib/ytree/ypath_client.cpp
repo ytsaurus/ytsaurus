@@ -75,6 +75,11 @@ void TYPathResponse::ThrowIfError() const
     }
 }
 
+void TYPathResponse::DeserializeBody(const TRef& data)
+{
+    UNUSED(data);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void OnYPathResponse(
