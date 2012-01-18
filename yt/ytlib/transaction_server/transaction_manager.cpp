@@ -38,7 +38,8 @@ public:
     {
         Stroka verb = context->GetVerb();
         if (verb == "Commit" ||
-            verb == "Abort")
+            verb == "Abort" ||
+            verb == "ReleaseObject")
         {
             return true;
         }
@@ -91,6 +92,24 @@ private:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, ReleaseObject)
+    {
+        UNUSED(response);
+
+        auto objectId = TObjectId::FromProto(request->object_id());
+
+        context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
+
+        auto& transaction = GetImplForUpdate();
+        if (transaction.CreatedObjectIds().erase(objectId) != 1) {
+            // TODO(babenko): use TServiceException
+            ythrow yexception() << Sprintf("No such object was created (ObjectId: %s)", ~objectId.ToString());
+        }
+
+        Owner->ObjectManager->UnrefObject(objectId);
+
+        context->Reply();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
