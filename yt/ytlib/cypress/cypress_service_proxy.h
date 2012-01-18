@@ -111,6 +111,9 @@ public:
         template <class TTypedResponse>
         TIntrusivePtr<TTypedResponse> GetResponse(int index) const;
 
+        //! Returns the individual generic response with a given index.
+        NYTree::TYPathResponse::TPtr GetResponse(int index) const;
+
     private:
         TFuture<TPtr>::TPtr AsyncResult;
         NProto::TRspExecute Body;

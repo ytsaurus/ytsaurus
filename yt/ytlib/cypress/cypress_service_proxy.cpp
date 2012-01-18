@@ -113,6 +113,11 @@ int TCypressServiceProxy::TRspExecuteBatch::GetSize() const
     return Body.part_counts_size();
 }
 
+TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(int index) const
+{
+    return GetResponse<TYPathResponse>(index);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressServiceProxy::TReqExecuteBatch::TPtr TCypressServiceProxy::ExecuteBatch()
