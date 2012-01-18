@@ -170,17 +170,17 @@ void TNodeSetterBase::OnMyEndAttributes()
 
 void ChopYPathToken(
     const TYPath& path,
-    Stroka* prefix,
+    Stroka* token,
     TYPath* suffixPath)
 {
     size_t index = path.find_first_of("/@");
     if (index == TYPath::npos) {
-        *prefix = path;
+        *token = path;
         *suffixPath = TYPath(path.end(), static_cast<size_t>(0));
     } else {
         switch (path[index]) {
             case '/':
-                *prefix = path.substr(0, index);
+                *token = path.substr(0, index);
                 *suffixPath =
                     index == path.length() - 1
                     ? path.substr(index)
@@ -188,7 +188,7 @@ void ChopYPathToken(
                 break;
 
             case '@':
-                *prefix = path.substr(0, index);
+                *token = path.substr(0, index);
                 *suffixPath = path.substr(index);
                 break;
 

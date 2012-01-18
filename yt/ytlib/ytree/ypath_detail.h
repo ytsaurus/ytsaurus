@@ -254,7 +254,7 @@ void SetNodeFromProducer(
 
 void ChopYPathToken(
     const TYPath& path,
-    Stroka* prefix,
+    Stroka* token,
     TYPath* suffixPath);
 
 TYPath ComputeResolvedYPath(

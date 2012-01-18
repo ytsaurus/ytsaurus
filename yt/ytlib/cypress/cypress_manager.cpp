@@ -287,28 +287,34 @@ public:
         IYPathService::TPtr* suffixService,
         TYPath* suffixPath) 
     {
+        if (path.empty()) {
+            ythrow yexception() << "YPath cannot be empty";
+        }
+
         auto currentPath = path;
 
         if (!currentPath.empty() && currentPath.has_prefix(TransactionIdMarker)) {
-            currentPath = currentPath.substr(1);
-            TransactionId = ParseId(currentPath);
+            Stroka token;
+            ChopTransactionIdToken(currentPath, &token, &currentPath);
+            if (!TObjectId::FromString(token.substr(TransactionIdMarker.length()), &TransactionId)) {
+                ythrow yexception() << Sprintf("Error parsing transaction id (Value: %s)", ~token);
+            }
             if (TransactionId != NullTransactionId && !Owner->TransactionManager->FindTransaction(TransactionId)) {
                 ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)", ~TransactionId.ToString());
             }
-        }
-
-        if (currentPath.empty()) {
-            ythrow yexception() << "YPath cannot be empty";
         }
 
         if (currentPath.has_prefix(RootMarker)) {
             currentPath = currentPath.substr(RootMarker.length());
             RootId = Owner->GetRootNodeId();
         } else if (currentPath.has_prefix(ObjectIdMarker)) {
-            currentPath = currentPath.substr(1);
-            RootId = ParseId(currentPath);
+            Stroka token;
+            ChopYPathToken(currentPath, &token, &currentPath);
+            if (!TObjectId::FromString(token.substr(ObjectIdMarker.length()), &RootId)) {
+                ythrow yexception() << Sprintf("Error parsing object id (Value: %s)", ~token);
+            }
         } else {
-            ythrow yexception() << Sprintf("Invalid YPath syntax (Path: %s)", ~currentPath);
+            ythrow yexception() << Sprintf("Invalid YPath syntax (Path: %s)", ~path);
         }
 
         auto rootProxy = Owner->FindObjectProxy(RootId, TransactionId);
@@ -382,29 +388,20 @@ private:
     TObjectId RootId;
     TTransactionId TransactionId;
 
-    static bool IsIdChar(char ch)
+    static void ChopTransactionIdToken(
+        const TYPath& path,
+        Stroka* token,
+        TYPath* suffixPath)
     {
-        return
-            ch >= '0' && ch <= '9' ||
-            ch >= 'a' && ch <= 'f' ||
-            ch == '-';
-    }
-
-    TObjectId ParseId(TYPath& path)
-    {
-        int index = 0;
-        while (index < path.length() && IsIdChar(path[index])) {
-            ++index;
+        size_t index = path.find_first_of("/#");
+        if (index == TYPath::npos) {
+            ythrow yexception() << Sprintf("YPath does not refer to any object (Path: %d)", ~path);
         }
 
-        TObjectId id;
-        if (!TObjectId::FromString(path.substr(0, index), &id)) {
-            ythrow yexception() << "Error parsing id in YPath";
-        }
-
-        path = path.substr(index);
-        return id;
+        *token = path.substr(0, index);
+        *suffixPath = path.substr(index);
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
