@@ -208,7 +208,7 @@ private:
     friend class TActionTargetTraits;
 
     T* T_;
-    NDetail::TRefCounter* RefCounter;
+    NYT::NDetail::TRefCounter* RefCounter;
 
 };
 
