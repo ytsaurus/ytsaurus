@@ -20,13 +20,33 @@ struct TLocationConfig
     //! Location root path.
     Stroka Path;
 
-    //! Maximum space chunks are allowed to occupy (0 indicates no limit).
+    //! Maximum space chunks are allowed to occupy.
+    //! (0 indicates to occupy all available space on drive).
     i64 Quota;
+
+    //! Consider the location to be full when left space is less than #LowWatermark
+    i64 LowWatermark;
+
+    //! Aborts all uploading when left space is less than #HighWatermark
+    i64 HighWatermark;
 
     TLocationConfig()
     {
         Register("path", Path).NonEmpty();
         Register("quota", Quota).Default(0);
+        Register("low_watermark", LowWatermark)
+            .GreaterThan(0)
+            .Default(1024 * 1024 * 1024); // 1 G
+        Register("high_watermark", HighWatermark)
+            .GreaterThan(0)
+            .Default(100 * 1024 * 1024); // 100 Mb
+    }
+
+    virtual void DoValidate() const
+    {
+        if (HighWatermark > LowWatermark) {
+            ythrow yexception() << "\"high_watermark\" cannot be more than \"low_watermark\"";
+        }
     }
 };
 

@@ -10,6 +10,7 @@ message THolderStatistics
     required int64 used_space = 2;
     required int32 chunk_count = 3;
     required int32 session_count = 4;
+    required bool full = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
