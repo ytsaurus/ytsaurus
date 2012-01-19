@@ -16,6 +16,7 @@ include_directories(
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_holder
   ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
+  ${CMAKE_BINARY_DIR}/yt/ytlib/object_server
 )
 
 if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
