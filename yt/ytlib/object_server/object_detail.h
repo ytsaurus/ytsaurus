@@ -1,6 +1,7 @@
 #pragma once
 
 #include "id.h"
+#include "object_proxy.h"
 #include "object_ypath.pb.h"
 
 #include <ytlib/misc/property.h>

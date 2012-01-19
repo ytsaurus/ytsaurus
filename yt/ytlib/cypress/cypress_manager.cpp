@@ -137,7 +137,7 @@ private:
         }
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
     {
         // TODO(babenko): validate type
         auto type = EObjectType(request->type());
@@ -155,11 +155,11 @@ private:
             ythrow yexception() << "Manifest must be a map";
         }
 
-        auto id = handler->CreateFromManifest(~manifestNode->AsMap());
+        auto objectId = handler->CreateFromManifest(~manifestNode->AsMap());
 
-        response->set_id(id.ToProto());
+        response->set_object_id(objectId.ToProto());
 
-        context->SetResponseInfo("ObjectId: %s", ~id.ToString());
+        context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
 
         context->Reply();
     }

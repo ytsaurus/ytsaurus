@@ -2,7 +2,7 @@
 
 #include "transaction_ypath.pb.h"
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/object_server/object_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -24,7 +24,7 @@ struct TTransactionManifest
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTransactionYPathProxy
-    : NYTree::TYPathProxy
+    : public NObjectServer::TObjectYPathProxy
 {
     DEFINE_YPATH_PROXY_METHOD(NProto, Commit);
     DEFINE_YPATH_PROXY_METHOD(NProto, Abort);

@@ -96,7 +96,6 @@ struct IService
 template <class TRequestMessage>
 class TTypedServiceRequest
     : public TRequestMessage
-    , private TNonCopyable
 {
 public:
     TTypedServiceRequest(IServiceContext* context)
@@ -118,7 +117,6 @@ private:
 template <class TResponseMessage>
 class TTypedServiceResponse
     : public TResponseMessage
-    , private TNonCopyable
 {
 public:
     TTypedServiceResponse(IServiceContext* context)

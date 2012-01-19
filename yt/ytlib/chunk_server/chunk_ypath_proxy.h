@@ -2,7 +2,7 @@
 
 #include "chunk_ypath.pb.h"
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/object_server/object_ypath_proxy.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -10,7 +10,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkYPathProxy
-    : NYTree::TYPathProxy
+    : public NObjectServer::TObjectYPathProxy
 {
     DEFINE_YPATH_PROXY_METHOD(NProto, Fetch);
     DEFINE_YPATH_PROXY_METHOD(NProto, Confirm);

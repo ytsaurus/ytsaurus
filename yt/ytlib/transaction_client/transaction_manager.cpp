@@ -47,7 +47,7 @@ public:
             State = EState::Aborted;
             LOG_ERROR_AND_THROW(yexception(), "Error starting transaction\n%s",  ~rsp->GetError().ToString());
         }
-        Id = TTransactionId::FromProto(rsp->id());
+        Id = TTransactionId::FromProto(rsp->object_id());
         State = EState::Active;
 
         LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
