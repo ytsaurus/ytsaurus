@@ -7,6 +7,8 @@
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/object_server/type_handler_detail.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/serialize.h>
 #include <ytlib/cypress/cypress_manager.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 
@@ -15,7 +17,6 @@ namespace NTransactionServer {
 
 using namespace NObjectServer;
 using namespace NMetaState;
-using namespace NProto;
 using namespace NYTree;
 using namespace NCypress;
 
@@ -65,7 +66,7 @@ private:
         }
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Commit)
+    DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, Commit)
     {
         UNUSED(request);
         UNUSED(response);
@@ -74,7 +75,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Abort)
+    DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, Abort)
     {
         UNUSED(request);
         UNUSED(response);
@@ -83,7 +84,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, RenewLease)
+    DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, RenewLease)
     {
         UNUSED(request);
         UNUSED(response);
@@ -92,7 +93,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Release)
+    DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, Release)
     {
         UNUSED(response);
 
@@ -107,6 +108,38 @@ private:
         }
 
         Owner->ObjectManager->UnrefObject(objectId);
+
+        context->Reply();
+    }
+
+    // TODO(babenko): get rid of copy-paste (see TSystemProxy)
+    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
+    {
+        // TODO(babenko): validate type
+        auto type = EObjectType(request->type());
+
+        context->SetRequestInfo("Type: %s", ~type.ToString());
+
+        auto handler = Owner->ObjectManager->GetHandler(type);
+
+        NYTree::INode::TPtr manifestNode =
+            request->has_manifest()
+            ? DeserializeFromYson(request->manifest())
+            : GetEphemeralNodeFactory()->CreateMap();
+
+        if (manifestNode->GetType() != NYTree::ENodeType::Map) {
+            ythrow yexception() << "Manifest must be a map";
+        }
+
+        auto objectId = handler->CreateFromManifest(~manifestNode->AsMap());
+
+        auto& transaction = GetImplForUpdate();
+        YVERIFY(transaction.CreatedObjectIds().insert(objectId).second);
+        Owner->ObjectManager->RefObject(objectId);
+
+        response->set_object_id(objectId.ToProto());
+
+        context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
 
         context->Reply();
     }
