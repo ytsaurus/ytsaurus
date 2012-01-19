@@ -949,11 +949,7 @@ public:
 
     virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Confirm")
-        {
-            return true;
-        }
+        DECLARE_LOGGED_YPATH_SERVICE_METHOD(Confirm);
         return TBase::IsLogged(context);
     }
 
@@ -964,14 +960,9 @@ private:
 
     void DoInvoke(NRpc::IServiceContext* context)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Fetch") {
-            FetchThunk(context);
-        } else if (verb == "Confirm") {
-            ConfirmThunk(context);
-        } else {
-            TBase::DoInvoke(context);
-        }
+        DISPATCH_YPATH_SERVICE_METHOD(Fetch);
+        DISPATCH_YPATH_SERVICE_METHOD(Confirm);
+        TBase::DoInvoke(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch)
