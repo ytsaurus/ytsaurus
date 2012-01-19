@@ -107,7 +107,7 @@ public:
     ~TCachedChunk();
 
 private:
-    TWeakPtr<TChunkCache> Owner;
+    TWeakPtr<TChunkCache> ChunkCache;
 
 };
 
