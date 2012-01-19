@@ -109,7 +109,7 @@ $range j 1..i
 $$ Handy shortcuts.
 $var tmpl_args = [[$for j [[, class TArg$j]]]]
 $var ctor_args = [[$for j , [[ TArg$j&& arg$j]]]]
-$var args_list = [[$for j , [[ ForwardRV(arg$j)]]]]
+$var args_list = [[$for j , [[ ForwardRV<TArg$j>(arg$j)]]]]
 
 template<
     class TResult$tmpl_args

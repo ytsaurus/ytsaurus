@@ -19,7 +19,7 @@ public:
     { }
 
     TMessage(yvector<TSharedRef>&& parts)
-        : Parts(ForwardRV(parts))
+        : Parts(ForwardRV< yvector<TSharedRef> >(parts))
     { }
 
     virtual const yvector<TSharedRef>& GetParts()

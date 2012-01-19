@@ -23,6 +23,10 @@ const T TIntegralConstant<T, CompileTimeValue>::Value;
 typedef TIntegralConstant<bool, true> TTrueType;
 typedef TIntegralConstant<bool, false> TFalseType;
 
+template<class T> struct TIsLvalueReference : TFalseType {};
+template<class T> struct TIsLvalueReference<T&> : TTrueType {};
+template<class T> struct TIsLvalueReference<const T&> : TTrueType {};
+
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
