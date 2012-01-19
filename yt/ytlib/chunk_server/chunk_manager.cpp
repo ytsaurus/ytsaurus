@@ -943,7 +943,7 @@ class TChunkManager::TChunkProxy
 {
 public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
-        : TBase(id, &owner->ChunkMap, ChunkServerLogger.GetCategory())
+        : TBase(~owner->ObjectManager, id, &owner->ChunkMap, ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 
@@ -958,7 +958,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContext* context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         DISPATCH_YPATH_SERVICE_METHOD(Confirm);
@@ -969,7 +969,7 @@ private:
     {
         UNUSED(request);
 
-        const auto& chunk = GetImpl();
+        const auto& chunk = GetTypedImpl();
         Owner->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
 
         context->SetResponseInfo("HolderAddresses: [%s]",
@@ -987,7 +987,7 @@ private:
 
         context->SetRequestInfo("HolderAddresses: [%s]", ~JoinToString(holderAddresses));
 
-        auto& chunk = GetImplForUpdate();
+        auto& chunk = GetTypedImplForUpdate();
         auto chunkId = chunk.GetId();
         
         FOREACH (const auto& address, holderAddresses) {
@@ -1026,7 +1026,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(&owner->ChunkMap)
+    : TObjectTypeHandlerBase(~owner->ObjectManager, &owner->ChunkMap)
     , Owner(owner)
 { }
 
@@ -1053,7 +1053,7 @@ class TChunkManager::TChunkListProxy
 {
 public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
-        : TBase(id, &owner->ChunkListMap, ChunkServerLogger.GetCategory())
+        : TBase(~owner->ObjectManager, id, &owner->ChunkListMap, ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 
@@ -1073,7 +1073,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    void DoInvoke(NRpc::IServiceContext* context)
+    virtual void DoInvoke(NRpc::IServiceContext* context)
     {
         Stroka verb = context->GetVerb();
         if (verb == "Attach") {
@@ -1094,11 +1094,11 @@ private:
         context->SetRequestInfo("ChildrenIds: [%s]",
             ~JoinToString(childrenIds));
 
-        auto& impl = GetImplForUpdate();
+        auto& chunkList = GetTypedImplForUpdate();
 
         FOREACH (const auto& childId, childrenIds) {
             // TODO(babenko): check that all attached chunks are confirmed.
-            impl.ChildrenIds().push_back(childId);
+            chunkList.ChildrenIds().push_back(childId);
             Owner->ObjectManager->RefObject(childId);
         }
 
@@ -1115,15 +1115,15 @@ private:
         context->SetRequestInfo("ChildrenIds: [%s]",
             ~JoinToString(childrenIdsList));
 
-        auto& impl = GetImplForUpdate();
+        auto& chunkList = GetTypedImplForUpdate();
 
-        auto it = impl.ChildrenIds().begin();
-        while (it != impl.ChildrenIds().end()) {
+        auto it = chunkList.ChildrenIds().begin();
+        while (it != chunkList.ChildrenIds().end()) {
             auto jt = it;
             ++jt;
             const auto& childId = *it;
             if (childrenIdsSet.find(childId) != childrenIdsSet.end()) {
-                impl.ChildrenIds().erase(it);
+                chunkList.ChildrenIds().erase(it);
                 Owner->ObjectManager->UnrefObject(childId);
             }
             it = jt;
@@ -1136,7 +1136,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(&owner->ChunkListMap)
+    : TObjectTypeHandlerBase(~owner->ObjectManager, &owner->ChunkListMap)
     , Owner(owner)
 { }
 

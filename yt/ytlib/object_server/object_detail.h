@@ -2,6 +2,7 @@
 
 #include "id.h"
 #include "object_proxy.h"
+#include "object_manager.h"
 #include "object_ypath.pb.h"
 #include "ypath.pb.h"
 
@@ -67,6 +68,7 @@ class TUntypedObjectProxyBase
 {
 public:
     TUntypedObjectProxyBase(
+        TObjectManager* objectManager,
         const TObjectId& id,
         const Stroka& loggingCategory = ObjectServerLogger.GetCategory());
 
@@ -74,13 +76,27 @@ public:
 
     virtual bool IsLogged(NRpc::IServiceContext* context) const;
 
-protected:
+private:
+    TObjectManager::TPtr ObjectManager;
     TObjectId Id;
+    yhash_set<Stroka> SystemAttributes;
 
-    void DoInvoke(NRpc::IServiceContext* context);
+    virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
     DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, Get);
+
+protected:
+    virtual void DoInvoke(NRpc::IServiceContext* context);
+
+    void RegisterSystemAttribute(const Stroka& name);
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
+    virtual NYTree::IYPathService::TPtr GetSystemAttribute(const Stroka& name);
+
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
+    virtual void GetRecursive(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
+    virtual void GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,10 +109,11 @@ public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
 
     TObjectProxyBase(
+        TObjectManager* objectManager,
         const TObjectId& id,
         TMap* map,
         const Stroka& loggingCategory = ObjectServerLogger.GetCategory())
-        : TUntypedObjectProxyBase(id, loggingCategory)
+        : TUntypedObjectProxyBase(objectManager, id, loggingCategory)
         , Map(map)
     {
         YASSERT(map);
@@ -105,14 +122,14 @@ public:
 protected:
     TMap* Map;
 
-    const TObject& GetImpl() const
+    const TObject& GetTypedImpl() const
     {
-        return Map->Get(Id);
+        return Map->Get(GetId());
     }
 
-    TObject& GetImplForUpdate()
+    TObject& GetTypedImplForUpdate()
     {
-        return Map->GetForUpdate(Id);
+        return Map->GetForUpdate(GetId());
     }
 };
 

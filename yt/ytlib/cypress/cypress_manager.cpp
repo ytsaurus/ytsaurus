@@ -35,7 +35,7 @@ class TCypressManager::TLockTypeHandler
 {
 public:
     TLockTypeHandler(TCypressManager* owner)
-        : TObjectTypeHandlerBase(&owner->LockMap)
+        : TObjectTypeHandlerBase(~owner->ObjectManager, &owner->LockMap)
     { }
 
     virtual EObjectType GetType()

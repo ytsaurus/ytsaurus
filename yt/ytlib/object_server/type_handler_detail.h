@@ -2,6 +2,7 @@
 
 #include "type_handler.h"
 #include "object_detail.h"
+#include "object_manager.h"
 
 #include <ytlib/meta_state/map.h>
 
@@ -17,8 +18,9 @@ class TObjectTypeHandlerBase
 public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
 
-    TObjectTypeHandlerBase(TMap* map)
-        : Map(map)
+    TObjectTypeHandlerBase(TObjectManager* objectManager, TMap* map)
+        : ObjectManager(objectManager)
+        , Map(map)
     {
         YASSERT(map);
     }
@@ -64,6 +66,7 @@ public:
     }
 
 protected:
+    TIntrusivePtr<TObjectManager> ObjectManager;
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
 
@@ -74,7 +77,7 @@ protected:
 
     virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id)
     {
-        return New< TObjectProxyBase<TObject> >(id, Map);
+        return New< TObjectProxyBase<TObject> >(~ObjectManager, id, Map);
     }
 };
 

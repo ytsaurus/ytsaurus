@@ -5,12 +5,14 @@
 #include "transaction_ypath_proxy.h"
 #include "transaction_ypath.pb.h"
 
+#include <ytlib/misc/string.h>
 #include <ytlib/ytree/ypath_client.h>
-#include <ytlib/object_server/type_handler_detail.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/fluent.h>
 #include <ytlib/cypress/cypress_manager.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/object_server/type_handler_detail.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -31,19 +33,19 @@ class TTransactionManager::TTransactionProxy
 {
 public:
     TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
-        : TBase(id, &owner->TransactionMap, TransactionServerLogger.GetCategory())
+        : TBase(~owner->ObjectManager, id, &owner->TransactionMap, TransactionServerLogger.GetCategory())
         , Owner(owner)
-    { }
+    {
+        RegisterSystemAttribute("state");
+        RegisterSystemAttribute("parent_id");
+        RegisterSystemAttribute("nested_transaction_ids");
+        RegisterSystemAttribute("created_object_ids");
+    }
 
     virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Commit" ||
-            verb == "Abort" ||
-            verb == "Release")
-        {
-            return true;
-        }
+        DECLARE_LOGGED_YPATH_SERVICE_METHOD(Commit);
+        DECLARE_LOGGED_YPATH_SERVICE_METHOD(Abort);
         return TBase::IsLogged(context);;
     }
 
@@ -52,18 +54,49 @@ private:
 
     TTransactionManager::TPtr Owner;
 
-    void DoInvoke(NRpc::IServiceContext* context)
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Commit") {
-            CommitThunk(context);
-        } else if (verb == "Abort") {
-            AbortThunk(context);
-        } else if (verb == "RenewLease") {
-            RenewLeaseThunk(context);
-        } else {
-            TBase::DoInvoke(context);
+        const auto& transaction = GetTypedImpl();
+        
+        if (name == "state") {
+            BuildYsonFluently(consumer)
+                .Scalar(CamelCaseToUnderscoreCase(transaction.GetState().ToString()));
+            return true;
         }
+
+        if (name == "parent_id") {
+            BuildYsonFluently(consumer)
+                .Scalar(transaction.GetParentId().ToString());
+            return true;
+        }
+
+        if (name == "nested_transaction_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction.NestedTransactionIds(), [=] (TFluentList fluent, TTransactionId id)
+                    {
+                        fluent.Item().Scalar(id.ToString());
+                    });
+            return true;
+        }
+
+        if (name == "created_object_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction.CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id)
+            {
+                fluent.Item().Scalar(id.ToString());
+            });
+            return true;
+        }
+
+        return TBase::GetSystemAttribute(name, consumer);
+    }
+
+    virtual void DoInvoke(NRpc::IServiceContext* context)
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(Commit);
+        DISPATCH_YPATH_SERVICE_METHOD(Abort);
+        DISPATCH_YPATH_SERVICE_METHOD(RenewLease);
+        TBase::DoInvoke(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, Commit)
@@ -71,7 +104,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        Owner->Commit(GetImplForUpdate());
+        Owner->Commit(GetTypedImplForUpdate());
         context->Reply();
     }
 
@@ -80,7 +113,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        Owner->Abort(GetImplForUpdate());
+        Owner->Abort(GetTypedImplForUpdate());
         context->Reply();
     }
 
@@ -101,7 +134,7 @@ private:
 
         context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
 
-        auto& transaction = GetImplForUpdate();
+        auto& transaction = GetTypedImplForUpdate();
         if (transaction.CreatedObjectIds().erase(objectId) != 1) {
             // TODO(babenko): use TServiceException
             ythrow yexception() << Sprintf("No such object was created (ObjectId: %s)", ~objectId.ToString());
@@ -133,7 +166,7 @@ private:
 
         auto objectId = handler->CreateFromManifest(~manifestNode->AsMap());
 
-        auto& transaction = GetImplForUpdate();
+        auto& transaction = GetTypedImplForUpdate();
         YVERIFY(transaction.CreatedObjectIds().insert(objectId).second);
         Owner->ObjectManager->RefObject(objectId);
 
@@ -152,7 +185,7 @@ class TTransactionManager::TTransactionTypeHandler
 {
 public:
     TTransactionTypeHandler(TTransactionManager* owner)
-        : TObjectTypeHandlerBase(&owner->TransactionMap)
+        : TObjectTypeHandlerBase(~owner->ObjectManager, &owner->TransactionMap)
         , Owner(owner)
     { }
 
