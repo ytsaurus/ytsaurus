@@ -93,44 +93,14 @@ private:
             return NULL;
         }
 
-        auto* chunk = ChunkManager->FindChunk(id);
-        if (!chunk) {
-            return NULL;
-        }
+        return ChunkManager->GetObjectManager()->FindProxy(id);
 
-        return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
-            {
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Item("ref_counter").Scalar(chunk->GetObjectRefCounter())
-                        .Item("confirmed").Scalar(chunk->IsConfirmed())
-                        .Item("stored_locations").DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, THolderId holderId)
-                            {
-                                const auto& holder = ChunkManager->GetHolder(holderId);
-                                fluent.Item().Scalar(holder.GetAddress());
-                            })
-                        .DoIf(~chunk->CachedLocations(), [=] (TFluentMap fluent)
-                            {
-                                fluent
-                                    .Item("cached_locations")
-                                    .DoListFor(*chunk->CachedLocations(), [=] (TFluentList fluent, THolderId holderId)
-                                        {
-                                            const auto& holder = ChunkManager->GetHolder(holderId);
-                                            fluent.Item().Scalar(holder.GetAddress());
-                                        });
-                            })
-                        .DoIf(chunk->GetSize() != TChunk::UnknownSize, [=] (TFluentMap fluent)
-                            {
-                                fluent.Item("size").Scalar(chunk->GetSize());
-                            })
-                        .DoIf(chunk->IsConfirmed(), [=] (TFluentMap fluent)
-                            {
-                                auto attributes = chunk->DeserializeAttributes();
-                                auto type = EChunkType(attributes.type());
-                                fluent.Item("chunk_type").Scalar(type.ToString());
-                            })
-                    .EndMap();
-            }));
+        //return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
+        //    {
+        //        BuildYsonFluently(consumer)
+        //            .BeginMap()
+        //            .EndMap();
+            //}));
     }
 };
 
@@ -213,22 +183,7 @@ private:
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkListId::FromString(key);
-        auto* chunkList = ChunkManager->FindChunkList(id);
-        if (!chunkList) {
-            return NULL;
-        }
-
-        return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
-            {
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Item("ref_counter").Scalar(chunkList->GetObjectRefCounter())
-                        .Item("children_ids").DoListFor(chunkList->ChildrenIds(), [=] (TFluentList fluent, TChunkId childId)
-                            {
-                                fluent.Item().Scalar(childId.ToString());
-                            })
-                    .EndMap();
-            }));
+        return ChunkManager->GetObjectManager()->GetProxy(id);
     }
 };
 

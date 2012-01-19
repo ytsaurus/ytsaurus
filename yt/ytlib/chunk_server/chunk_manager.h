@@ -39,6 +39,8 @@ public:
         IHolderAuthority* holderAuthority,
         NObjectServer::TObjectManager* objectManager);
 
+    NObjectServer::TObjectManager* GetObjectManager() const;
+
     NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
         const NProto::TMsgCreateChunks& message);
 

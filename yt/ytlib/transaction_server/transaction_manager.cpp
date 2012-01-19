@@ -428,9 +428,9 @@ void TTransactionManager::SetCypressManager(NCypress::TCypressManager* cypressMa
     CypressManager = cypressManager;
 }
 
-TObjectManager::TPtr TTransactionManager::GetObjectManager() const
+TObjectManager* TTransactionManager::GetObjectManager() const
 {
-    return ObjectManager;
+    return ~ObjectManager;
 }
 
 DEFINE_METAMAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)

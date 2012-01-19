@@ -67,7 +67,7 @@ public:
         NObjectServer::TObjectManager* objectManager);
 
     void SetCypressManager(NCypress::TCypressManager* cypressManager);
-    NObjectServer::TObjectManager::TPtr GetObjectManager() const;
+    NObjectServer::TObjectManager* GetObjectManager() const;
 
     TTransaction& Start(TTransactionManifest* manifest);
     void Commit(TTransaction& transaction);
