@@ -12,16 +12,6 @@ class YSONParseError(ValueError):
 def _format_message(message, line_index, position, offset):
     return "%s (Line: %d, Poisition: %d, Offset: %d)" % (message, line_index, position, offset)
 
-def _is_letter(ch):
-    return ord('A') <= ord(ch) <= ord('Z') or \
-           ord('a') <= ord(ch) <= ord('z')
-
-def _is_digit(ch):
-    return ord('0') <= ord(ch) <= ord('9')
-
-def _is_whitespace(ch):
-    return ch == ' ' or ch == '\t' or ch == '\n' or ch == '\r'
-
 def _seems_integer(string):
     for ch in string:
         if ch == 'E' or ch == 'e' or ch == '.':
@@ -33,7 +23,7 @@ _INT64_MARKER = chr(1)
 _DOUBLE_MARKER = chr(2)
 _STRING_MARKER = chr(3)
 
-class YSONParser(object):
+class YSONParserBase(object):
     def __init__(self, stream):
         self._line_index = 1
         self._position = 1
@@ -89,7 +79,7 @@ class YSONParser(object):
                 self._get_position_info())
 
     def _skip_whitespaces(self):
-        while _is_whitespace(self._peek_char()):
+        while self._peek_char().isspace():
             self._read_char()
 
     def _read_string(self):
@@ -102,7 +92,7 @@ class YSONParser(object):
             return self._read_binary_string()
         if ch == '"':
             return self._read_quoted_string()
-        if not _is_letter(ch) and not ch == '_':
+        if not ch.isalpha() and not ch == '_':
             raise YSONParseError(
                 "Expecting string literal but found %s in YSON" % ch,
                 self._get_position_info())
@@ -160,7 +150,7 @@ class YSONParser(object):
         result = ""
         while True:
             ch = self._peek_char()
-            if not ch or not _is_letter(ch) and ch != '_' and not (_is_digit(ch) and result):
+            if not ch or not ch.isalpha() and ch != '_' and not (ch.isdigit() and result):
                 break
             self._read_char()
             result += ch
@@ -170,7 +160,7 @@ class YSONParser(object):
         result = ""
         while True:
             ch = self._peek_char()
-            if not ch or not _is_digit(ch) and ch not in "+-.eE":
+            if not ch or not ch.isdigit() and ch not in "+-.eE":
                 break
             self._read_char()
             result += ch
@@ -205,10 +195,10 @@ class YSONParser(object):
         elif ch == _DOUBLE_MARKER:
             return self._parse_binary_double()
 
-        elif ch == '+' or ch == '-' or _is_digit(ch):
+        elif ch == '+' or ch == '-' or ch.isdigit():
             return self._parse_numeric()
 
-        elif ch == '_' or ch == '"' or _is_letter(ch):
+        elif ch == '_' or ch == '"' or ch.isalpha():
             return self._parse_string()
 
         else:
@@ -341,17 +331,43 @@ class YSONParser(object):
         self._expect_char('>')
         return result
 
+class YSONParser(YSONParserBase):
+    def __init__(self, stream):
+        super(YSONParser, self).__init__(stream)
+
     def parse(self):
+        result = self._parse_any()
+        if self._peek_char():
+            raise YSONParseError(
+                "Unexpected symbol %s while expecting end-of-stream in YSON" % self._peek_char(),
+                self._get_position_info())
+        return result
+
+class YSONFragmentedParser(YSONParserBase):
+    def __init__(self, stream):
+        super(YSONParser, self).__init__(stream)
+
+    def has_next(self):
+        self._skip_whitespaces()
+        return self._peek_char() is not None
+
+    def parse_next(self):
         return self._parse_any()
+
+
+def parse(stream):
+    parser = YSONParser(stream)
+    return parser.parse()
+
+def parse_string(string):
+    return parse(StringIO(string))
 
 if __name__ == "__main__":
     import unittest
 
     class TestYSONParser(unittest.TestCase):
         def assert_parse(self, string, expected):
-            source = StringIO(string)
-            parse = YSONParser(source).parse()
-            self.assertEqual(parse, expected)
+            self.assertEqual(parse_string(string), expected)
 
         def test_quoted_string(self):
             self.assert_parse('"abc\\"\\n"', 'abc"\n')
