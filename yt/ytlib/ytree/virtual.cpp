@@ -55,7 +55,7 @@ struct TGetConfig
 DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
 {
     if (!IsFinalYPath(context->GetPath())) {
-        ythrow yexception() << "Resolution error: path must be final";
+        ythrow yexception() << "Path must be final";
     }
 
     auto config = New<TGetConfig>();

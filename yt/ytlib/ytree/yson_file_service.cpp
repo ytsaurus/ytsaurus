@@ -29,7 +29,7 @@ public:
     virtual void Invoke(NRpc::IServiceContext* context)
     {
         UNUSED(context);
-        ythrow yexception() << "Resolution error: direct invocation is forbidden";
+        ythrow yexception() << "Direct invocation is forbidden";
     }
 
     virtual Stroka GetLoggingCategory() const

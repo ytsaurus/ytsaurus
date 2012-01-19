@@ -187,7 +187,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             // TODO: fixme
-            ythrow yexception() << "Resolution error: cannot set the whole attribute list";    
+            ythrow yexception() << "Cannot set the whole attribute list";    
         }
 
         auto value = request->value();
@@ -493,7 +493,7 @@ void TListNodeMixin::SetRecursive(
     ChopYPathToken(currentPath, &prefix, &suffixPath);
 
     if (prefix.empty()) {
-        ythrow yexception() << "Resolution error: child index is empty";
+        ythrow yexception() << "Child index is empty";
     }
 
     if (prefix == "+") {
@@ -504,7 +504,7 @@ void TListNodeMixin::SetRecursive(
 
     char lastPrefixCh = prefix[prefix.length() - 1];
     if (lastPrefixCh != '+' && lastPrefixCh != '-') {
-        ythrow yexception() << "Resolution error: insertion point expected";
+        ythrow yexception() << "Insertion point expected";
     }
 
     int index = ParseChildIndex(TStringBuf(prefix.begin(), prefix.length() - 1));
