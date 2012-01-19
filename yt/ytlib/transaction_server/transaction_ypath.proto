@@ -2,42 +2,36 @@ package NYT.NTransactionServer.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStartTransaction
+message TReqCommit
 { }
 
-message TRspStartTransaction
-{
-    required bytes transaction_id = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqCommitTransaction
-{
-    required bytes transaction_id = 1;
-}
-
-message TRspCommitTransaction
+message TRspCommit
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqAbortTransaction
-{
-    required bytes transaction_id = 1;
-}
+message TReqAbort
+{ }
 
-message TRspAbortTransaction
+message TRspAbort
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRenewTransactionLease
+message TReqRenewLease
+{ }
+
+message TRspRenewLease
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRelease
 {
-    required bytes transaction_id = 1;
+    required bytes object_id = 1;
 }
 
-message TRspRenewTransactionLease
+message TRspRelease
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,7 +32,7 @@ public:
     void Stop();
 
 private:
-    void Poll();
+    void Update();
     
     typedef TChunkHolderServiceProxy TProxy;
 

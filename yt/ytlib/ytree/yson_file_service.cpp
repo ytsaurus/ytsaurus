@@ -23,13 +23,18 @@ public:
         UNUSED(verb);
 
         auto node = LoadFile();
-        return TResolveResult::There(~IYPathService::FromNode(~node), path);
+        return TResolveResult::There(~node, path);
     }
 
     virtual void Invoke(NRpc::IServiceContext* context)
     {
         UNUSED(context);
         ythrow yexception() << "Resolution error: direct invocation is forbidden";
+    }
+
+    virtual Stroka GetLoggingCategory() const
+    {
+        return YTreeLogger.GetCategory();
     }
 
 private:

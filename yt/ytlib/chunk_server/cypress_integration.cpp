@@ -15,9 +15,10 @@ namespace NChunkServer {
 
 using namespace NYTree;
 using namespace NCypress;
-using namespace NChunkClient;
 using namespace NMetaState;
+using namespace NChunkClient;
 using namespace NOrchid;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,8 +102,7 @@ private:
             {
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("chunk_list_id").Scalar(chunk->GetChunkListId().ToString())
-                        .Item("ref_counter").Scalar(chunk->GetRefCounter())
+                        .Item("ref_counter").Scalar(chunk->GetObjectRefCounter())
                         .Item("is_confirmed").Scalar(chunk->IsConfirmed())
                         .Item("stored_locations").DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, THolderId holderId)
                             {
@@ -143,9 +143,7 @@ INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::ChunkMap,
-        // TODO: extract type name
-        "chunk_map",
+        EObjectType::ChunkMap,
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::All));
 }
 
@@ -158,9 +156,7 @@ INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::LostChunkMap,
-        // TODO: extract type name
-        "lost_chunk_map",
+        EObjectType::LostChunkMap,
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Lost));
 }
 
@@ -173,9 +169,7 @@ INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::OverreplicatedChunkMap,
-        // TODO: extract type name
-        "overreplicated_chunk_map",
+        EObjectType::OverreplicatedChunkMap,
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Overreplicated));
 }
 
@@ -188,9 +182,7 @@ INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::UnderreplicatedChunkMap,
-        // TODO: extract type name
-        "underreplicated_chunk_map",
+        EObjectType::UnderreplicatedChunkMap,
         ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Underreplicated));
 }
 
@@ -230,7 +222,7 @@ private:
             {
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("ref_counter").Scalar(chunkList->GetRefCounter())
+                        .Item("ref_counter").Scalar(chunkList->GetObjectRefCounter())
                         .Item("children_ids").DoListFor(chunkList->ChildrenIds(), [=] (TFluentList fluent, TChunkId childId)
                             {
                                 fluent.Item().Scalar(childId.ToString());
@@ -249,21 +241,19 @@ INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::ChunkListMap,
-        // TODO: extract type name
-        "chunk_list_map",
+        EObjectType::ChunkListMap,
         ~New<TVirtualChunkListMap>(chunkManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THolderRegistry
-    : public IHolderRegistry
+class THolderAuthority
+    : public IHolderAuthority
 {
 public:
-    typedef TIntrusivePtr<THolderRegistry> TPtr;
+    typedef TIntrusivePtr<THolderAuthority> TPtr;
 
-    THolderRegistry(TCypressManager* cypressManager)
+    THolderAuthority(TCypressManager* cypressManager)
         : CypressManager(cypressManager)
     { }
 
@@ -278,10 +268,10 @@ private:
 
 };
 
-IHolderRegistry::TPtr CreateHolderRegistry(
+IHolderAuthority::TPtr CreateHolderAuthority(
     TCypressManager* cypressManager)
 {
-    return New<THolderRegistry>(cypressManager);
+    return New<THolderAuthority>(cypressManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,25 +294,19 @@ public:
         RegisterGetter("alive", FromMethod(&TThis::GetAlive, this));
     }
 
-    virtual ERuntimeNodeType GetRuntimeType()
+    virtual EObjectType GetObjectType()
     {
-        return ERuntimeNodeType::Holder;
-    }
-
-    virtual Stroka GetTypeName()
-    {
-        // TODO: extract type name
-        return "holder";
+        return EObjectType::Holder;
     }
 
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::INode* manifest)
+        NYTree::IMapNode* manifest)
     {
         UNUSED(transactionId);
         UNUSED(manifest);
-        return Create(TBranchedNodeId(nodeId, NullTransactionId));
+        return Create(nodeId);
     }
 
 private:
@@ -397,34 +381,29 @@ private:
         if (node->FindChild(address))
             return;
 
-        // TODO: use fluent
-        // TODO: make a single transaction
-        // TODO: extract literals
+
+        auto processor = CypressManager->CreateProcessor();
+
+        // TODO(babenko): make a single transaction
 
         {
-            auto request = TCypressYPathProxy::Create();
-            request->SetPath(Sprintf("/%s", ~address));
-            request->set_type("holder");     
-            request->set_manifest("{}");     
-            ExecuteVerb(
-                ~IYPathService::FromNode(~node),
-                ~request,
-                ~CypressManager);
+            auto req = TCypressYPathProxy::Create(CombineYPaths(
+                FromObjectId(NodeId),
+                address));
+            req->set_type(EObjectType::Holder);
+            ExecuteVerb(~req, ~processor);
         }
 
         {
-            auto request = TCypressYPathProxy::Create();
-            request->SetPath(Sprintf("/%s/orchid", ~address));
-            request->set_type("orchid");
-
+            auto req = TCypressYPathProxy::Create(CombineYPaths(
+                FromObjectId(NodeId),
+                address,
+                "orchid"));
+            req->set_type(EObjectType::OrchidNode);     
             auto manifest = New<TOrchidManifest>();
             manifest->RemoteAddress = address;
-            request->set_manifest(SerializeToYson(~manifest));
-
-            ExecuteVerb(
-                ~IYPathService::FromNode(~node),
-                ~request,
-                ~CypressManager);
+            req->set_manifest(SerializeToYson(~manifest));
+            ExecuteVerb(~req, ~processor);
         }
     }
 
@@ -451,25 +430,19 @@ public:
         RegisterGetter("dead", FromMethod(&TThis::GetDeadHolders, this));
     }
 
-    virtual ERuntimeNodeType GetRuntimeType()
+    virtual EObjectType GetObjectType()
     {
-        return ERuntimeNodeType::HolderMap;
-    }
-
-    virtual Stroka GetTypeName()
-    {
-        // TODO: extract type name
-        return "holder_map";
+        return EObjectType::HolderMap;
     }
 
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::INode* manifest)
+        NYTree::IMapNode* manifest)
     {
         UNUSED(transactionId);
         UNUSED(manifest);
-        return Create(TBranchedNodeId(nodeId, NullTransactionId));
+        return Create(nodeId);
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
@@ -514,7 +487,10 @@ INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
     YASSERT(cypressManager);
     YASSERT(chunkManager);
 
-    return New<THolderMapTypeHandler>(metaStateManager, cypressManager, chunkManager);
+    return New<THolderMapTypeHandler>(
+        metaStateManager,
+        cypressManager,
+        chunkManager);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

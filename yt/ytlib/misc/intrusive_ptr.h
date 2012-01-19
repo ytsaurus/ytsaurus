@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 struct TIntrusivePtrTraits
 {
     static void Ref(T* p)
@@ -20,7 +20,7 @@ struct TIntrusivePtrTraits
     }
 };
 
-template<class T>
+template <class T>
 struct TIntrusivePtrTraits<const T>
 {
     static void Ref(const T* p)
@@ -36,7 +36,7 @@ struct TIntrusivePtrTraits<const T>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 class TIntrusivePtr
 {
 public:
@@ -79,10 +79,10 @@ public:
     }
 
     //! Copy constructor with an upcast.
-    template<class U, typename NMpl::TEnableIfC<
-            NMpl::TIsConvertible<U*, T*>::Value, int
-        >::TType = 0>
-    TIntrusivePtr(const TIntrusivePtr<U>& other) // noexcept
+    template <class U>
+    TIntrusivePtr(
+        const TIntrusivePtr<U>& other,
+        typename NMpl::TEnableIfC<NMpl::TIsConvertible<U*, T*>::Value, int>::TType = 0) // noexcept
         : T_(other.Get())
     {
         if (T_) {
@@ -98,10 +98,10 @@ public:
     }
 
     //! Move constructor with an upcast.
-    template<class U, typename NMpl::TEnableIf<
-            NMpl::TIsConvertible<U*, T*>, int
-        >::TType = 0>
-    TIntrusivePtr(TIntrusivePtr<U>&& other) // noexcept
+    template <class U>
+    TIntrusivePtr(
+        TIntrusivePtr<U>&& other,
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
         : T_(other.Get())
     {
         other.T_ = NULL;
@@ -123,9 +123,7 @@ public:
     }
 
     //! Copy assignment operator with an upcast.
-    template<class U, typename NMpl::TEnableIfC<
-            NMpl::TIsConvertible<U*, T*>::Value, int
-        >::TType = 0>
+    template <class U>
     TIntrusivePtr& operator=(const TIntrusivePtr<U>& other) // noexcept
     {
         TIntrusivePtr(other).Swap(*this);
@@ -140,9 +138,7 @@ public:
     }
 
     //! Move assignment operator with an upcast.
-    template<class U, typename NMpl::TEnableIfC<
-            NMpl::TIsConvertible<U*, T*>::Value, int
-        >::TType = 0>
+    template <class U>
     TIntrusivePtr& operator=(TIntrusivePtr<U>&& other) // noexcept
     {
         TIntrusivePtr(MoveRV(other)).Swap(*this);
@@ -193,10 +189,10 @@ public:
     }
 
 private:
-    template<class U>
+    template <class U>
     friend class TIntrusivePtr;
 
-    template<class U>
+    template <class U>
     friend class TActionTargetTraits;
 
     T* T_;
@@ -204,73 +200,73 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 bool operator<(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<T>& rhs)
 {
     return lhs.Get() < rhs.Get();
 }
 
-template<class T>
+template <class T>
 bool operator>(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<T>& rhs)
 {
     return lhs.Get() > rhs.Get();
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator==(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<U>& rhs)
 {
     return lhs.Get() == rhs.Get();
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator!=(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<U>& rhs)
 {
     return lhs.Get() != rhs.Get();
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator==(const TIntrusivePtr<T>& lhs, U* rhs)
 {
     return lhs.Get() == rhs;
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator!=(const TIntrusivePtr<T>& lhs, U* rhs)
 {
     return lhs.Get() != rhs;
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator==(T* lhs, const TIntrusivePtr<U>& rhs)
 {
     return lhs == rhs.Get();
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 {
     return lhs != rhs.Get();
 }
 
-template<class T>
+template <class T>
 T* operator~(const TIntrusivePtr<T>& ptr)
 {
     return ptr.Get();
 }
 
-template<class T>
+template <class T>
 T* operator~(const TAutoPtr<T>& ptr)
 {
     return ptr.Get();
 }
 
-template<class T>
+template <class T>
 T* operator~(const TSharedPtr<T>& ptr)
 {
     return ptr.Get();
 }
 
-template<class T>
+template <class T>
 T* operator~(const THolder<T>& ptr)
 {
     return ptr.Get();

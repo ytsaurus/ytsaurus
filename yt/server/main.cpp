@@ -3,10 +3,10 @@
 #include "chunk_holder_bootstrap.h"
 #include "scheduler_bootstrap.h"
 
-#include <yt/ytlib/misc/enum.h>
-#include <yt/ytlib/rpc/rpc_manager.h>
-#include <yt/ytlib/logging/log_manager.h>
-#include <yt/ytlib/ytree/serialize.h>
+#include <ytlib/misc/enum.h>
+#include <ytlib/rpc/rpc_manager.h>
+#include <ytlib/logging/log_manager.h>
+#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 

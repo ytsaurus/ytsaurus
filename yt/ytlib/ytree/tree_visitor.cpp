@@ -2,6 +2,7 @@
 #include "tree_visitor.h"
 
 #include <ytlib/misc/serialize.h>
+#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NYTree {

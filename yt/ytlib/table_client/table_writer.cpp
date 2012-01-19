@@ -3,6 +3,7 @@
 
 #include <ytlib/misc/sync.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -25,7 +26,7 @@ TTableWriter::TTableWriter(
     const TYPath& path)
     : Config(config)
     , Transaction(transaction)
-    , MasterChannel(masterChannel)
+    , Proxy(masterChannel)
     , Logger(TableClientLogger)
 {
     YASSERT(masterChannel);
@@ -37,12 +38,11 @@ TTableWriter::TTableWriter(
     OnAborted_ = FromMethod(&TTableWriter::OnAborted, TPtr(this));
     Transaction->SubscribeAborted(OnAborted_);
 
-    TCypressServiceProxy proxy(masterChannel);
-    proxy.SetTimeout(Config->MasterRpcTimeout);
+    Proxy.SetTimeout(Config->MasterRpcTimeout);
 
     LOG_INFO("Requesting chunk list id");
-    auto getChunkListIdReq = TTableYPathProxy::GetChunkListId();
-    auto getChunkListIdRsp = proxy.Execute(path, Transaction->GetId(), ~getChunkListIdReq)->Get();
+    auto getChunkListIdReq = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(path, Transaction->GetId()));
+    auto getChunkListIdRsp = Proxy.Execute(~getChunkListIdReq)->Get();
     if (!getChunkListIdRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
             ~getChunkListIdRsp->GetError().ToString());
@@ -52,7 +52,7 @@ TTableWriter::TTableWriter(
 
     Writer = New<TChunkSequenceWriter>(
         ~config->ChunkSequenceWriter, 
-        ~MasterChannel,
+        masterChannel,
         Transaction->GetId(),
         schema);
 }
@@ -76,15 +76,10 @@ void TTableWriter::Close()
 {
     Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
 
-    TChunkServiceProxy proxy(~MasterChannel);
-    proxy.SetTimeout(Config->MasterRpcTimeout);
-
     LOG_INFO("Attaching chunks");
-    auto req = proxy.AttachChunkTrees();
-    req->set_transaction_id(Transaction->GetId().ToProto());
-    req->set_parent_id(ChunkListId.ToProto());
-    ToProto<NChunkClient::TChunkId, Stroka>(*req->mutable_chunk_tree_ids(), Writer->GetWrittenChunkIds());
-    auto rsp = req->Invoke()->Get();
+    auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId));
+    ToProto<TChunkId, Stroka>(*req->mutable_children_ids(), Writer->GetWrittenChunkIds());
+    auto rsp = Proxy.Execute(~req)->Get();
     if (!rsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error attaching chunks\n%s",
             ~rsp->GetError().ToString());

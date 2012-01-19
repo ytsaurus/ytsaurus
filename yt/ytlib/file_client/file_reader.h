@@ -76,7 +76,7 @@ private:
 
     TAutoPtr<NCypress::TCypressServiceProxy> CypressProxy;
     NChunkClient::TSequentialReader::TPtr SequentialReader;
-    NChunkClient::TChunkId ChunkId;
+    NChunkServer::TChunkId ChunkId;
     i32 BlockCount;
     i32 BlockIndex;
     i64 Size;

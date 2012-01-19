@@ -1,12 +1,12 @@
 #include "stdafx.h"
 
-#include "../ytlib/misc/configurable.h"
-#include "../ytlib/ytree/tree_builder.h"
-#include "../ytlib/ytree/ephemeral.h"
-#include "../ytlib/ytree/fluent.h"
-#include "../ytlib/ytree/yson_writer.h"
-#include "../ytlib/ytree/tree_visitor.h"
-#include "../ytlib/ytree/serialize.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/tree_builder.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/tree_visitor.h>
+#include <ytlib/ytree/serialize.h>
 
 #include <contrib/testing/framework.h>
 

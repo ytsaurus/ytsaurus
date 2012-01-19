@@ -1,38 +1,38 @@
 #include "stdafx.h"
 #include "chunk_holder_bootstrap.h"
 
-#include <yt/ytlib/misc/ref_counted_tracker.h>
+#include <ytlib/misc/ref_counted_tracker.h>
 
-#include <yt/ytlib/bus/nl_server.h>
+#include <ytlib/bus/nl_server.h>
 
-#include <yt/ytlib/rpc/channel_cache.h>
+#include <ytlib/rpc/channel_cache.h>
 
-#include <yt/ytlib/ytree/tree_builder.h>
-#include <yt/ytlib/ytree/ephemeral.h>
-#include <yt/ytlib/ytree/virtual.h>
+#include <ytlib/ytree/tree_builder.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/virtual.h>
 
-#include <yt/ytlib/orchid/orchid_service.h>
+#include <ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/monitoring/monitoring_manager.h>
-#include <yt/ytlib/monitoring/ytree_integration.h>
-#include <yt/ytlib/monitoring/http_server.h>
-#include <yt/ytlib/monitoring/http_integration.h>
-#include <yt/ytlib/monitoring/statlog.h>
+#include <ytlib/monitoring/monitoring_manager.h>
+#include <ytlib/monitoring/ytree_integration.h>
+#include <ytlib/monitoring/http_server.h>
+#include <ytlib/monitoring/http_integration.h>
+#include <ytlib/monitoring/statlog.h>
 
-#include <yt/ytlib/ytree/yson_file_service.h>
-#include <yt/ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/yson_file_service.h>
+#include <ytlib/ytree/ypath_client.h>
 
-#include <yt/ytlib/chunk_holder/chunk_holder_service.h>
-#include <yt/ytlib/chunk_holder/reader_cache.h>
-#include <yt/ytlib/chunk_holder/session_manager.h>
-#include <yt/ytlib/chunk_holder/block_store.h>
-#include <yt/ytlib/chunk_holder/block_table.h>
-#include <yt/ytlib/chunk_holder/chunk_store.h>
-#include <yt/ytlib/chunk_holder/chunk_cache.h>
-#include <yt/ytlib/chunk_holder/chunk_registry.h>
-#include <yt/ytlib/chunk_holder/master_connector.h>
-#include <yt/ytlib/chunk_holder/peer_updater.h>
-#include <yt/ytlib/chunk_holder/ytree_integration.h>
+#include <ytlib/chunk_holder/chunk_holder_service.h>
+#include <ytlib/chunk_holder/reader_cache.h>
+#include <ytlib/chunk_holder/session_manager.h>
+#include <ytlib/chunk_holder/block_store.h>
+#include <ytlib/chunk_holder/block_table.h>
+#include <ytlib/chunk_holder/chunk_store.h>
+#include <ytlib/chunk_holder/chunk_cache.h>
+#include <ytlib/chunk_holder/chunk_registry.h>
+#include <ytlib/chunk_holder/master_connector.h>
+#include <ytlib/chunk_holder/peer_updater.h>
+#include <ytlib/chunk_holder/ytree_integration.h>
 
 namespace NYT {
 
@@ -172,21 +172,20 @@ void TChunkHolderBootstrap::Run()
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
-    auto orchidRootService = IYPathService::FromNode(~orchidRoot);
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/monitoring",
         ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/config",
         ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/stored_chunks",
         ~NYTree::CreateVirtualNode(~CreateStoredChunkMapService(~chunkStore)));
     SyncYPathSetNode(
-        ~orchidRootService,
+        ~orchidRoot,
         "/cached_chunks",
         ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~chunkCache)));
 
@@ -196,7 +195,6 @@ void TChunkHolderBootstrap::Run()
     rpcServer->RegisterService(~orchidService);
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    auto orchidPathService = IYPathService::FromNode(~orchidRoot);
     httpServer->Register(
         "/statistics",
         ~NMonitoring::GetProfilingHttpHandler());
@@ -205,7 +203,7 @@ void TChunkHolderBootstrap::Run()
         ~NMonitoring::GetYPathHttpHandler(
             ~FromFunctor([=] () -> IYPathService::TPtr
                 {
-                    return orchidPathService;
+                    return orchidRoot;
                 }),
             ~controlQueue->GetInvoker()));
 

@@ -1,16 +1,16 @@
-#include <yt/ytlib/logging/log_manager.h>
+#include <ytlib/logging/log_manager.h>
 
-#include <yt/ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/delayed_invoker.h>
 
-#include <yt/ytlib/driver/driver.h>
+#include <ytlib/driver/driver.h>
 
-#include <yt/ytlib/rpc/rpc_manager.h>
+#include <ytlib/rpc/rpc_manager.h>
 
-#include <yt/ytlib/ytree/serialize.h>
-#include <yt/ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/yson_writer.h>
 
-#include <yt/ytlib/misc/home.h>
-#include <yt/ytlib/misc/fs.h>
+#include <ytlib/misc/home.h>
+#include <ytlib/misc/fs.h>
 
 #include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>

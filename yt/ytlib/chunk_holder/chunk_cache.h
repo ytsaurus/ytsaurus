@@ -38,7 +38,7 @@ public:
         TBlockStore* blockStore);
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TCachedChunk::TPtr FindChunk(const NChunkClient::TChunkId& chunkId);
+    TCachedChunk::TPtr FindChunk(const TChunkId& chunkId);
 
     //! Returns the list of all registered chunks.
     TChunks GetChunks();
@@ -54,7 +54,7 @@ public:
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
      */
-    TAsyncDownloadResult::TPtr DownloadChunk(const NChunkClient::TChunkId& chunkId);
+    TAsyncDownloadResult::TPtr DownloadChunk(const TChunkId& chunkId);
 
     //! Raised when a chunk is added to the cache.
     DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);

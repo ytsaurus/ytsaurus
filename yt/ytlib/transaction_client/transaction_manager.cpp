@@ -1,14 +1,17 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
 
-#include <ytlib/transaction_server/transaction_service_proxy.h>
-#include <ytlib/actions/signal.h>
+#include <ytlib/misc/assert.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/actions/signal.h>
 
 namespace NYT {
 namespace NTransactionClient {
+
+using namespace NCypress;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,22 +32,22 @@ public:
         , Proxy(cellChannel)
         , State(EState::Active)
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
         YASSERT(cellChannel);
         YASSERT(transactionManager);
+        VERIFY_THREAD_AFFINITY(ClientThread);
 
         Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
 
-        auto req = Proxy.StartTransaction();
-
         LOG_INFO("Starting transaction");
-        auto rsp = req->Invoke()->Get();
+        auto req = TCypressYPathProxy::Create(SystemPath);
+        req->set_type(EObjectType::Transaction);
+        auto rsp = Proxy.Execute(~req)->Get();
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
             State = EState::Aborted;
             LOG_ERROR_AND_THROW(yexception(), "Error starting transaction\n%s",  ~rsp->GetError().ToString());
         }
-        Id = TTransactionId::FromProto(rsp->transaction_id());
+        Id = TTransactionId::FromProto(rsp->id());
         State = EState::Active;
 
         LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
@@ -79,11 +82,10 @@ public:
 
         MakeStateTransition(EState::Committing);
 
-        auto req = Proxy.CommitTransaction();
-        req->set_transaction_id(Id.ToProto());
-
         LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
-        auto rsp = req->Invoke()->Get();
+
+        auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
+        auto rsp = Proxy.Execute(~req)->Get();
 
         TGuard<TSpinLock> guard(SpinLock);
         if (!rsp->IsOK()) {
@@ -110,9 +112,8 @@ public:
         MakeStateTransition(EState::Aborted);
 
         // Fire and forget.
-        auto req = Proxy.AbortTransaction();
-        req->set_transaction_id(Id.ToProto());
-        req->Invoke();
+        auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
+        Proxy.Execute(~req);
 
         DoAbort();
 
@@ -169,7 +170,7 @@ private:
     );
 
     TTransactionManager::TPtr TransactionManager;
-    TProxy Proxy;
+    TCypressServiceProxy Proxy;
 
     //! Protects state transitions.
     TSpinLock SpinLock;
@@ -223,11 +224,14 @@ TTransactionManager::TTransactionManager(
     NRpc::IChannel* channel)
     : Config(config)
     , Channel(channel)
+    , CypressProxy(channel)
 {
     YASSERT(channel);
+
+    CypressProxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
-ITransaction::TPtr TTransactionManager::StartTransaction()
+ITransaction::TPtr TTransactionManager::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -244,18 +248,15 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
             return;
     }
 
-    TProxy proxy(~Channel);
-    proxy.SetTimeout(Config->MasterRpcTimeout);
-
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 
-    auto req = proxy.RenewTransactionLease();
-    req->set_transaction_id(id.ToProto());
-
-    req->Invoke()->Subscribe(FromMethod(
-        &TTransactionManager::OnPingResponse,
-        TPtr(this), 
-        id));
+    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
+    CypressProxy
+        .Execute(~req)
+        ->Subscribe(FromMethod(
+            &TTransactionManager::OnPingResponse,
+            TPtr(this), 
+            id));
 }
 
 void TTransactionManager::RegisterTransaction(TTransaction::TPtr transaction)
@@ -271,7 +272,7 @@ void TTransactionManager::UnregisterTransaction(const TTransactionId& id)
 }
 
 void TTransactionManager::OnPingResponse(
-    TProxy::TRspRenewTransactionLease::TPtr rsp,
+    TTransactionYPathProxy::TRspRenewLease::TPtr rsp,
     const TTransactionId& id)
 {
     TTransaction::TPtr transaction;
@@ -287,7 +288,7 @@ void TTransactionManager::OnPingResponse(
         return;
 
     if (!rsp->IsOK()) {
-        if (rsp->GetErrorCode() == TProxy::EErrorCode::NoSuchTransaction) {
+        if (rsp->GetErrorCode() == NYTree::EYPathErrorCode::ResolveError) {
             LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
                 ~id.ToString());
             transaction->AsyncAbort();

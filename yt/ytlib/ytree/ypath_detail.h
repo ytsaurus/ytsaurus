@@ -7,24 +7,31 @@
 #include "forwarding_yson_consumer.h"
 
 #include <ytlib/actions/action_util.h>
+#include <ytlib/misc/assert.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern TYPath YPathRoot;
+extern TYPath RootMarker;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathServiceBase
-    : public IYPathService
+    : public virtual IYPathService
 {
 public:
+    TYPathServiceBase(const Stroka& loggingCategory = YTreeLogger.GetCategory());
+
     virtual void Invoke(NRpc::IServiceContext* context);
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
+    virtual Stroka GetLoggingCategory() const;
 
 protected:
+    NLog::TLogger Logger;
+
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual TResolveResult ResolveSelf(const TYPath& path, const Stroka& verb);
     virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);
@@ -245,11 +252,9 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath ChopYPathRootMarker(const TYPath& path);
-
 void ChopYPathToken(
     const TYPath& path,
-    Stroka* prefix,
+    Stroka* token,
     TYPath* suffixPath);
 
 TYPath ComputeResolvedYPath(
@@ -257,8 +262,13 @@ TYPath ComputeResolvedYPath(
     const TYPath& unresolvedPath);
 
 TYPath CombineYPaths(
-    const TYPath& prefixPath,
-    const TYPath& suffixPath);
+    const TYPath& path1,
+    const TYPath& path2);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3);
 
 bool IsEmptyYPath(const TYPath& path);
 
@@ -272,7 +282,6 @@ bool IsLocalYPath(const TYPath& path);
 TYPath ChopYPathAttributeMarker(const TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
-
 void ResolveYPath(
     IYPathService* rootService,
     const TYPath& path,
@@ -284,26 +293,12 @@ void ResolveYPath(
 
 typedef IParamAction<NBus::IMessage::TPtr> TYPathResponseHandler;
 
-void WrapYPathRequest(
-    NRpc::TClientRequest* outerRequest,
-    NBus::IMessage* innerRequestMessage);
-
-NBus::IMessage::TPtr UnwrapYPathRequest(
-    NRpc::IServiceContext* outerContext);
-    
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
     const TYPath& path,
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler);
-
-void WrapYPathResponse(
-    NRpc::IServiceContext* outerContext,
-    NBus::IMessage* responseMessage);
-
-NBus::IMessage::TPtr UnwrapYPathResponse(
-    NRpc::TClientResponse* outerResponse);
 
 void ReplyYPathWithMessage(
     NRpc::IServiceContext* context,

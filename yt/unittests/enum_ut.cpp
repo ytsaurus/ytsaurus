@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/misc/enum.h"
+#include <ytlib/misc/enum.h>
 
 #include <util/stream/buffer.h>
 #include <util/ysaveload.h>

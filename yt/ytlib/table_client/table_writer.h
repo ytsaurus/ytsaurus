@@ -3,12 +3,11 @@
 #include "common.h"
 #include "chunk_sequence_writer.h"
 
+#include <ytlib/logging/tagged_logger.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
-#include <ytlib/chunk_server/common.h>
-#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -51,13 +50,12 @@ public:
 
 private:
     void Finish();
-
     void OnAborted();
 
     TConfig::TPtr Config;
     NChunkServer::TChunkListId ChunkListId;
     NTransactionClient::ITransaction::TPtr Transaction;
-    NRpc::IChannel::TPtr MasterChannel;
+    NCypress::TCypressServiceProxy Proxy;
     TChunkSequenceWriter::TPtr Writer;
     NLog::TTaggedLogger Logger;
     IAction::TPtr OnAborted_;

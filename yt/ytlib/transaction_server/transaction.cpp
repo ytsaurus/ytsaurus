@@ -9,7 +9,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(const TTransactionId& id)
-    : Id_(id)
+    : TObjectWithIdBase(id)
 { }
 
 TAutoPtr<TTransaction> TTransaction::Clone() const
@@ -21,7 +21,10 @@ void TTransaction::Save(TOutputStream* output) const
 {
     YASSERT(output);
 
-    ::Save(output, UnboundChunkTreeIds_);
+    ::Save(output, State_);
+    SaveSet(output, NestedTransactionIds_);
+    ::Save(output, ParentId_);
+    SaveSet(output, CreatedObjectIds_);
     ::Save(output, LockIds_);
     ::Save(output, BranchedNodeIds_);
     ::Save(output, CreatedNodeIds_);
@@ -32,7 +35,10 @@ TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream
     YASSERT(input);
 
     auto* transaction = new TTransaction(id);
-    ::Load(input, transaction->UnboundChunkTreeIds_);
+    ::Load(input, transaction->State_);
+    LoadSet(input, transaction->NestedTransactionIds_);
+    ::Load(input, transaction->ParentId_);
+    LoadSet(input, transaction->CreatedObjectIds_);
     ::Load(input, transaction->LockIds_);
     ::Load(input, transaction->BranchedNodeIds_);
     ::Load(input, transaction->CreatedNodeIds_);
@@ -40,8 +46,11 @@ TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream
 }
 
 TTransaction::TTransaction(const TTransaction& other)
-    : Id_(other.Id_)
-    , UnboundChunkTreeIds_(other.UnboundChunkTreeIds_)
+    : TObjectWithIdBase(other)
+    , State_(other.State_)
+    , NestedTransactionIds_(other.NestedTransactionIds_)
+    , ParentId_(other.ParentId_)
+    , CreatedObjectIds_(other.CreatedObjectIds_)
     , LockIds_(other.LockIds_)
     , BranchedNodeIds_(other.BranchedNodeIds_)
     , CreatedNodeIds_(other.CreatedNodeIds_)

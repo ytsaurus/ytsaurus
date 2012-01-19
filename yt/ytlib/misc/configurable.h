@@ -71,9 +71,9 @@ public:
 
     TConfigurable();
 
-    void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::YPathRoot);
-    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::YPathRoot);
-    void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const;
+    void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::RootMarker);
+    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::RootMarker);
+    void Validate(const NYTree::TYPath& path = NYTree::RootMarker) const;
 
     void Save(NYTree::IYsonConsumer* consumer) const;
 

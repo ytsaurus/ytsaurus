@@ -79,7 +79,7 @@ void* GetRefCountedTrackerCookie(const void* key);
     static void* cookie = NULL; \
     do { \
         if (EXPECT_FALSE(cookie == NULL)) { \
-            cookie = NDetail::GetRefCountedTrackerCookie(&typeid(TResult)); \
+            cookie = NYT::NDetail::GetRefCountedTrackerCookie(&typeid(TResult)); \
         } \
     } while(0)
 

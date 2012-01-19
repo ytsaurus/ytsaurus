@@ -452,11 +452,10 @@ TFuture<TVoid>::TPtr TSessionManager::FinishSession(
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return session->Finish(attributes)->Apply(
-        FromMethod(
-            &TSessionManager::OnSessionFinished,
-            TPtr(this),
-            session));
+    return session->Finish(attributes)->Apply(FromMethod(
+		&TSessionManager::OnSessionFinished,
+        TPtr(this),
+        session));
 }
 
 TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)

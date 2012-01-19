@@ -59,7 +59,7 @@ public:
     TChunkSequenceWriter(
         TConfig* config,
         NRpc::IChannel* masterChannel,
-        const NTransactionClient::TTransactionId& transactionId,
+        const NTransactionServer::TTransactionId& transactionId,
         const TSchema& schema);
 
     ~TChunkSequenceWriter();
@@ -70,7 +70,7 @@ public:
     TAsyncError::TPtr AsyncClose();
     void Cancel(const TError& error);
 
-    const yvector<NChunkClient::TChunkId>& GetWrittenChunkIds() const;
+    const yvector<NChunkServer::TChunkId>& GetWrittenChunkIds() const;
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -85,14 +85,14 @@ private:
 
     void OnChunkClosed(
         TError error, 
-        NChunkClient::TChunkId chunkId);
+        NChunkServer::TChunkId chunkId);
 
     void OnRowEnded(TError error);
     void OnClose();
 
     TConfig::TPtr Config;
     TProxy Proxy;
-    const NTransactionClient::TTransactionId TransactionId;
+    const NTransactionServer::TTransactionId TransactionId;
     const TSchema Schema;
 
     TAsyncStreamState State;
@@ -104,7 +104,7 @@ private:
 
     //! Protects #WrittenChunks.
     TSpinLock WrittenSpinLock;
-    yvector<NChunkClient::TChunkId> WrittenChunks;
+    yvector<NChunkServer::TChunkId> WrittenChunks;
 
     TParallelAwaiter::TPtr CloseChunksAwaiter;
 

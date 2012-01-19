@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "ytree_fwd.h"
 #include "yson_consumer.h"
 
 #include <ytlib/misc/property.h>
@@ -13,8 +14,6 @@ namespace NYTree {
 
 DECLARE_ENUM(EYPathErrorCode,
     ((ResolveError)(1))
-    ((GenericError)(2))
-    ((CommitError)(3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,8 +54,8 @@ struct IYPathService
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) = 0;
     virtual void Invoke(NRpc::IServiceContext* context) = 0;
+    virtual Stroka GetLoggingCategory() const = 0;
 
-    static IYPathService::TPtr FromNode(INode* node);
     static IYPathService::TPtr FromProducer(TYsonProducer* producer);
 };
 
@@ -64,17 +63,23 @@ typedef IFunc<NYTree::IYPathService::TPtr> TYPathServiceProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IYPathExecutor
+struct IYPathProcessor
     : public virtual TRefCountedBase
 {
-    typedef TIntrusivePtr<IYPathExecutor> TPtr;
+    typedef TIntrusivePtr<IYPathProcessor> TPtr;
 
-    virtual void ExecuteVerb(
+    virtual void Resolve(
+        const TYPath& path,
+        const Stroka& verb,
+        IYPathService::TPtr* suffixService,
+        TYPath* suffixPath) = 0;
+
+    virtual void Execute(
         IYPathService* service,
         NRpc::IServiceContext* context) = 0;
 };
 
-IYPathExecutor::TPtr GetDefaultExecutor();
+IYPathProcessor::TPtr CreateDefaultProcessor(IYPathService* rootService);
 
 ////////////////////////////////////////////////////////////////////////////////
 

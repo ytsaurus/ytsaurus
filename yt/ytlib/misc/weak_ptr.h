@@ -7,7 +7,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 class TWeakPtr
 {
 public:
@@ -37,10 +37,10 @@ public:
     }
 
     //! Constructor from a strong reference.
-    template<class U, typename NMpl::TEnableIf<
-            NMpl::TIsConvertible<U*, T*>, int
-        >::TType = 0>
-    TWeakPtr(const TIntrusivePtr<U>& p) // noexcept
+    template <class U>
+    TWeakPtr(
+        const TIntrusivePtr<U>& p,
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
         : T_(p.Get())
         , RefCounter(NULL)
     {
@@ -65,10 +65,10 @@ public:
     }
 
     //! Copy constructor with an upcast.
-    template<class U, typename NMpl::TEnableIf<
-            NMpl::TIsConvertible<U*, T*>, int
-        >::TType = 0>
-    TWeakPtr(const TWeakPtr<U>& other) // noexcept
+    template <class U>
+    TWeakPtr(
+        const TWeakPtr<U>& other,
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
         : T_(NULL)
         , RefCounter(NULL)
     {
@@ -94,10 +94,10 @@ public:
     }
 
     //! Move constructor with an upcast.
-    template<class U, typename NMpl::TEnableIf<
-            NMpl::TIsConvertible<U*, T*>, int
-        >::TType = 0>
-    TWeakPtr(TWeakPtr<U>&& other) // noexcept
+    template <class U>
+    TWeakPtr(
+        TWeakPtr<U>&& other,
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
         : T_(NULL)
         , RefCounter(NULL)
     {
@@ -122,9 +122,7 @@ public:
     }
 
     //! Assignment operator from a strong reference.
-    template<class U, typename NMpl::TEnableIf<
-            NMpl::TIsConvertible<U*, T*>, int
-        >::TType = 0>
+    template <class U>
     TWeakPtr& operator=(const TIntrusivePtr<U>& p) // noexcept
     {
         TWeakPtr(p).Swap(*this);
@@ -139,9 +137,7 @@ public:
     }
 
     //! Copy assignment operator with an upcast.
-    template<class U, typename NMpl::TEnableIf<
-            NMpl::TIsConvertible<U*, T*>, int
-        >::TType = 0>
+    template <class U>
     TWeakPtr& operator=(const TWeakPtr<U>& other) // noexcept
     {
         TWeakPtr(other).Swap(*this);
@@ -156,9 +152,7 @@ public:
     }
 
     //! Move assignment operator with an upcast.
-    template<class U, typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<U*, T*>, int
-        >::TType = 0>
+    template <class U>
     TWeakPtr& operator=(TWeakPtr<U>&& other) // noexcept
     {
         TWeakPtr(MoveRV(other)).Swap(*this);
@@ -178,9 +172,7 @@ public:
     }
 
     //! Replace the pointer with a specified one.
-    template<class U, typename NMpl::TEnableIf<
-            NMpl::TIsConvertible<U*, T*>, int
-        >::TType = 0>
+    template <class U>
     void Reset(const TIntrusivePtr<U>& p) // noexcept
     {
         TWeakPtr(p).Swap(*this);
@@ -209,10 +201,10 @@ public:
     }
 
 private:
-    template<class U>
+    template <class U>
     friend class TWeakPtr;
 
-    template<class U>
+    template <class U>
     friend class TActionTargetTraits;
 
     T* T_;
@@ -222,49 +214,49 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 bool operator<(const TWeakPtr<T>& lhs, const TWeakPtr<T>& rhs)
 {
     return lhs.Lock().Get() < rhs.Lock().Get();
 }
 
-template<class T>
+template <class T>
 bool operator>(const TWeakPtr<T>& lhs, const TWeakPtr<T>& rhs)
 {
     return lhs.Lock().Get() > rhs.Lock().Get();
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator==(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
 {
     return lhs.Lock().Get() == rhs.Lock().Get();
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator!=(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
 {
     return lhs.Lock().Get() != rhs.Lock().Get();
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator==(const TWeakPtr<T>& lhs, U* rhs)
 {
     return lhs.Lock().Get() == rhs;
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator!=(const TWeakPtr<T>& lhs, U* rhs)
 {
     return lhs.Lock().Get() != rhs;
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator==(T* lhs, const TWeakPtr<U>& rhs)
 {
     return lhs == rhs.Lock().Get();
 }
 
-template<class T, class U>
+template <class T, class U>
 bool operator!=(T* lhs, const TWeakPtr<U>& rhs)
 {
     return lhs != rhs.Lock().Get();

@@ -27,13 +27,12 @@ T CheckedStaticCast(i64 value)
 }
 
 // TConfigurable::TPtr
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T*, TConfigurable* >, int
-    >::TType = 0>
+template <class T>
 inline void Read(
     TIntrusivePtr<T>& parameter,
     const NYTree::INode* node,
-    const NYTree::TYPath& path)
+    const NYTree::TYPath& path,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
 {
     if (!parameter) {
         parameter = New<T>();
@@ -97,13 +96,12 @@ inline void Read(TGuid& parameter, const NYTree::INode* node, const NYTree::TYPa
 }
 
 // TEnumBase
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T, TEnumBase<T> >, int
-    >::TType = 0>
+template <class T>
 inline void Read(
     T& parameter,
     const NYTree::INode* node, 
-    const NYTree::TYPath& /* path */)
+    const NYTree::TYPath& /* path */,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T, TEnumBase<T> >, int>::TType = 0)
 {
     auto value = node->AsString()->GetValue();
     parameter = ParseEnum<T>(value);
@@ -159,10 +157,11 @@ inline void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, con
 ////////////////////////////////////////////////////////////////////////////////
 
 // TConfigurable::TPtr
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T*, TConfigurable* >, int
-    >::TType = 0>
-inline void Write(const TIntrusivePtr<T>& parameter, NYTree::IYsonConsumer* consumer)
+template <class T>
+inline void Write(
+    const TIntrusivePtr<T>& parameter,
+    NYTree::IYsonConsumer* consumer,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
 {
     if (parameter) {
         parameter->Save(consumer);
@@ -224,10 +223,11 @@ inline void Write(const TGuid& parameter, NYTree::IYsonConsumer* consumer)
 }
 
 // TEnumBase
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T, TEnumBase<T> >, int
-    >::TType = 0>
-inline void Write(const T& parameter, NYTree::IYsonConsumer* consumer)
+template <class T>
+inline void Write(
+    const T& parameter,
+    NYTree::IYsonConsumer* consumer,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T, TEnumBase<T> >, int>::TType = 0)
 {
     consumer->OnStringScalar(parameter.ToString());
 }
@@ -296,12 +296,11 @@ inline void ValidateSubconfigs(
 { }
 
 // TConfigurable
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T*, TConfigurable* >, int
-    >::TType = 0>
+template <class T>
 inline void ValidateSubconfigs(
     const TIntrusivePtr<T>* parameter,
-    const NYTree::TYPath& path)
+    const NYTree::TYPath& path,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
 {
     if (parameter->Get()) {
         (*parameter)->Validate(path);

@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "ytree_fwd.h"
+#include "ypath_service.h"
 #include "yson_consumer.h"
 
 #include <ytlib/misc/enum.h>
@@ -39,7 +40,7 @@ DECLARE_ENUM(ENodeType,
     
 //! A base DOM-like interface representing a node.
 struct INode
-    : virtual TRefCountedBase
+    : public virtual IYPathService
 {
     typedef TIntrusivePtr<INode> TPtr;
 

@@ -4,13 +4,14 @@
 
 #include <ytlib/misc/configurable.h>
 #include <ytlib/misc/codec.h>
+#include <ytlib/logging/tagged_logger.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/cypress/id.h>
 #include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
-#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -99,7 +100,7 @@ private:
 
     NChunkClient::TRemoteWriter::TPtr Writer;
     NCypress::TNodeId NodeId;
-    NChunkClient::TChunkId ChunkId;
+    NChunkServer::TChunkId ChunkId;
     ICodec* Codec;
 
     i64 Size;

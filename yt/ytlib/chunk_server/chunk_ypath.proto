@@ -1,0 +1,26 @@
+package NYT.NChunkServer.NProto;
+
+import "yt/ytlib/chunk_holder/chunk.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFetch
+{ }
+
+message TRspFetch
+{
+    repeated bytes holder_addresses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqConfirm
+{
+    repeated bytes holder_addresses = 2;
+    required NChunkHolder.NProto.TChunkAttributes attributes = 3;
+}
+
+message TRspConfirm
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

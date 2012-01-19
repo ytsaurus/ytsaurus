@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "forwarding_yson_consumer.h"
 
+#include <ytlib/misc/assert.h>
+
 namespace NYT {
 namespace NYTree {
 

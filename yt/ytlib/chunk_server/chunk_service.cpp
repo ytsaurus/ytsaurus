@@ -3,6 +3,7 @@
 #include "holder_statistics.h"
 
 #include <ytlib/misc/string.h>
+#include <ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -11,6 +12,7 @@ using namespace NRpc;
 using namespace NMetaState;
 using namespace NChunkHolder;
 using namespace NProto;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,10 +37,7 @@ TChunkService::TChunkService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunks));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(ConfirmChunks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunkLists));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(DetachChunkTrees));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunk));
 }
 
@@ -74,19 +73,19 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
     }
 }
 
-void TChunkService::ValidateChunkTreeId(const TChunkTreeId& chunkTreeId)
+void TChunkService::ValidateChunkTreeId(const TChunkTreeId& treeId)
 {
-    auto kind = GetChunkTreeKind(chunkTreeId);
-    switch (kind) {
-        case EChunkTreeKind::Chunk:
-            ValidateChunkId(chunkTreeId);
+    auto type = TypeFromId(treeId);
+    switch (type) {
+        case EObjectType::Chunk:
+            ValidateChunkId(treeId);
             break;
-        case EChunkTreeKind::ChunkList:
-            ValidateChunkListId(chunkTreeId);
+        case EObjectType::ChunkList:
+            ValidateChunkListId(treeId);
             break;
         default:
             ythrow TServiceException(EErrorCode::NoSuchChunkTree) << 
-                Sprintf("No such chunk tree (ChunkTreeId: %s)", ~chunkTreeId.ToString());
+                Sprintf("No such chunk tree (ChunkTreeId: %s)", ~treeId.ToString());
     }
 }
 
@@ -232,32 +231,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkService, ConfirmChunks)
-{
-    auto transactionId = TTransactionId::FromProto(request->transaction_id());
-
-    context->SetRequestInfo("TransactionId: %s, ChunkCount: %d",
-        ~transactionId.ToString(),
-        request->chunks_size());
-
-    ValidateLeader();
-    ValidateTransactionId(transactionId);
-
-    FOREACH (const auto& chunkInfo, request->chunks()) {
-        auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
-        ValidateChunkId(chunkId);
-    }
-
-    TMsgConfirmChunks message;
-    message.set_transaction_id(transactionId.ToProto());
-    message.mutable_chunks()->MergeFrom(request->chunks());
-    ChunkManager
-        ->InitiateConfirmChunks(message)
-        ->OnSuccess(~CreateSuccessHandler(~context))
-        ->OnError(~CreateErrorHandler(~context))
-        ->Commit();
-}
-
 DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunkLists)
 {
     auto transactionId = TTransactionId::FromProto(request->transaction_id());
@@ -280,60 +253,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunkLists)
 
                 context->Reply();
             }))
-        ->OnError(~CreateErrorHandler(~context))
-        ->Commit();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TChunkService, AttachChunkTrees)
-{
-    auto transactionId = TTransactionId::FromProto(request->transaction_id());
-    auto chunkTreeIds = FromProto<TChunkTreeId>(request->chunk_tree_ids());
-    auto parentId = TChunkListId::FromProto(request->parent_id());
-
-    context->SetRequestInfo("TransactionId: %s, ChunkTreeIds: [%s], ParentId: %s",
-        ~transactionId.ToString(),
-        ~JoinToString(chunkTreeIds),
-        ~parentId.ToString());
-
-    ValidateLeader();
-    ValidateTransactionId(transactionId);
-    ValidateChunkListId(parentId);
-    FOREACH (const auto& treeId, chunkTreeIds) {
-        ValidateChunkTreeId(treeId);
-    }
-
-    const auto& message = *request;
-    ChunkManager
-        ->InitiateAttachChunkTrees(message)
-        ->OnSuccess(~CreateSuccessHandler(~context))
-        ->OnError(~CreateErrorHandler(~context))
-        ->Commit();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TChunkService, DetachChunkTrees)
-{
-    auto transactionId = TTransactionId::FromProto(request->transaction_id());
-    auto chunkTreeIds = FromProto<TChunkTreeId>(request->chunk_tree_ids());
-    auto parentId = TChunkListId::FromProto(request->parent_id());
-
-    context->SetRequestInfo("TransactionId: %s, ChunkTreeIds: [%s], ParentId: %s",
-        ~transactionId.ToString(),
-        ~JoinToString(chunkTreeIds),
-        ~parentId.ToString());
-
-    ValidateLeader();
-    ValidateTransactionId(transactionId);
-    if (parentId != NullChunkTreeId) {
-        ValidateChunkListId(parentId);
-    }
-    FOREACH (const auto& treeId, chunkTreeIds) {
-        ValidateChunkTreeId(treeId);
-    }
-
-    const auto& message = *request;
-    ChunkManager
-        ->InitiateDetachChunkTrees(message)
-        ->OnSuccess(~CreateSuccessHandler(~context))
         ->OnError(~CreateErrorHandler(~context))
         ->Commit();
 }

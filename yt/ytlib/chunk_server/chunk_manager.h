@@ -14,6 +14,7 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>
 #include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -23,8 +24,6 @@ namespace NChunkServer {
 // Simple aliases that make sense as long as request and message contracts are the same.
 namespace NProto {
     typedef NProto::TReqCreateChunkLists TMsgCreateChunkLists;
-    typedef NProto::TReqAttachChunkTrees TMsgAttachChunkTrees;
-    typedef NProto::TReqDetachChunkTrees TMsgDetachChunkTrees;
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,24 +43,14 @@ public:
         NMetaState::IMetaStateManager* metaStateManager,
         NMetaState::TCompositeMetaState* metaState,
         NTransactionServer::TTransactionManager* transactionManager,
-        IHolderRegistry* holderRegistry);
-
-    // TODO: provide Stop method
+        IHolderAuthority* holderAuthority,
+        NObjectServer::TObjectManager* objectManager);
 
     NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
         const NProto::TMsgCreateChunks& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateConfirmChunks(
-        const NProto::TMsgConfirmChunks& message);
-
     NMetaState::TMetaChange< yvector<TChunkListId> >::TPtr InitiateCreateChunkLists(
         const NProto::TMsgCreateChunkLists& message);
-
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateAttachChunkTrees(
-        const NProto::TMsgAttachChunkTrees& message);
-
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateDetachChunkTrees(
-        const NProto::TMsgDetachChunkTrees& message);
 
     NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const NProto::TMsgRegisterHolder& message);
@@ -79,7 +68,7 @@ public:
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
     DECLARE_METAMAP_ACCESSORS(Holder, THolder, THolderId);
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
-    DECLARE_METAMAP_ACCESSORS(Job, TJob, NChunkHolder::TJobId);
+    DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
     //! Fired when a holder gets registered.
     /*!
@@ -95,26 +84,19 @@ public:
     DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
 
     const THolder* FindHolder(const Stroka& address);
+    THolder* FindHolderForUpdate(const Stroka& address);
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount);
 
+    TChunk& CreateChunk();
     TChunkList& CreateChunkList();
-
-    void RefChunkTree(const TChunkTreeId& treeId);
-    void UnrefChunkTree(const TChunkTreeId& treeId);
-
-    void RefChunkTree(TChunk& chunk);
-    void UnrefChunkTree(TChunk& chunk);
-
-    void RefChunkTree(TChunkList& chunkList);
-    void UnrefChunkTree(TChunkList& chunkList);
 
     void RunJobControl(
         const THolder& holder,
         const yvector<TJobInfo>& runningJobs,
         yvector<TJobStartInfo>* jobsToStart,
-        yvector<NChunkHolder::TJobId>* jobsToStop);
+        yvector<TJobId>* jobsToStop);
 
     //! Fills a given protobuf structure with the list of holder addresses.
     /*!
@@ -128,12 +110,15 @@ public:
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
-    TConfig::TPtr Config;
-
 private:
     class TImpl;
-
+    class TChunkTypeHandler;
+    class TChunkProxy;
+    class TChunkListTypeHandler;
+    class TChunkListProxy;
+    
     TIntrusivePtr<TImpl> Impl;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

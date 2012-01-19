@@ -1,32 +1,45 @@
 #pragma once
 
-#include "common.h"
-#include "transaction.h"
-#include "transaction_manager.pb.h"
+#include "id.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/lease_manager.h>
+#include <ytlib/misc/configurable.h>
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>
 #include <ytlib/meta_state/map.h>
+#include <ytlib/object_server/object_manager.h>
+
+
+// TODO(babenko): consider getting rid of this
+namespace NYT {
+namespace NCypress {
+
+class TCypressManager;
+
+}
+}
 
 namespace NYT {
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
+class TTransaction;
+class TTransactionManifest;
+
 //! Manages client transactions.
 class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
     //! Called when a new transaction is started.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionStarted);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TTransaction&>, OnTransactionStarted);
     //! Called during transaction commit.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionCommitted);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TTransaction&>, OnTransactionCommitted);
     //! Called during transaction abort.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const TTransaction&>, OnTransactionAborted);
+    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TTransaction&>, OnTransactionAborted);
 
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
@@ -49,34 +62,31 @@ public:
     //! Creates an instance.
     TTransactionManager(
         TConfig* config,
-        NMetaState::IMetaStateManager::TPtr metaStateManager,
-        NMetaState::TCompositeMetaState::TPtr metaState);
+        NMetaState::IMetaStateManager* metaStateManager,
+        NMetaState::TCompositeMetaState* metaState,
+        NObjectServer::TObjectManager* objectManager);
 
-    NMetaState::TMetaChange<TTransactionId>::TPtr InitiateStartTransaction();
-    TTransaction& StartTransaction();
+    void SetCypressManager(NCypress::TCypressManager* cypressManager);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateCommitTransaction(const TTransactionId& id);
-    void CommitTransaction(TTransaction& transaction);
-
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateAbortTransaction(const TTransactionId& id);
-    void AbortTransaction(TTransaction& transaction);
-
+    TTransaction& Start(TTransactionManifest* manifest);
+    void Commit(TTransaction& transaction);
+    void Abort(TTransaction& transaction);
     void RenewLease(const TTransactionId& id);
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
 private:
     typedef TTransactionManager TThis;
+    class TTransactionTypeHandler;
+    class TTransactionProxy;
+    friend class TTransactionProxy;
 
     TConfig::TPtr Config;
+    NObjectServer::TObjectManager::TPtr ObjectManager;
+    TIntrusivePtr<NCypress::TCypressManager> CypressManager;
 
-    TIdGenerator<TTransactionId> TransactionIdGenerator;
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
-
-    TTransactionId DoStartTransaction(const NProto::TMsgStartTransaction& message);
-    TVoid DoCommitTransaction(const NProto::TMsgCommitTransaction& message);
-    TVoid DoAbortTransaction(const NProto::TMsgAbortTransaction& message);
 
     virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();
@@ -85,6 +95,7 @@ private:
 
     void CreateLease(const TTransaction& transaction);
     void CloseLease(const TTransaction& transaction);
+    void FinishTransaction(TTransaction& transaction);
 
     // TMetaStatePart overrides
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);

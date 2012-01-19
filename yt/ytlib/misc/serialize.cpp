@@ -125,22 +125,17 @@ bool DeserializeProtobuf(google::protobuf::Message* message, TRef data)
 void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message)
 {
     TBlob blob;
-    if (!SerializeProtobuf(&message, &blob)) {
-        ythrow yexception() << Sprintf("Couldn't serialzie protobuf message");
-    }
-    WriteVarUInt64(output, blob.size());
+    YVERIFY(SerializeProtobuf(&message, &blob));
+    ::SaveSize(output, blob.size());
     output->Write(blob.begin(), blob.size());
 }
 
 void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
 {
-    ui64 size;
-    ReadVarUInt64(input, &size);
+    size_t size = ::LoadSize(input);
     TBlob blob(size);
     input->Read(blob.begin(), size);
-    if (!message.ParseFromArray(blob.begin(), size)) {
-        ythrow yexception() << Sprintf("Couldn't parse protobuf message from input stream");
-    }
+    YVERIFY(DeserializeProtobuf(&message, blob));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,6 @@
 
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/ypath_client.h>
-
 #include <ytlib/rpc/message.h>
 
 namespace NYT {
@@ -23,28 +22,16 @@ static NLog::TLogger& Logger = CypressLogger;
 
 TCypressService::TCypressService(
     IInvoker* invoker,
-    TCypressManager* cypressManager,
-    TTransactionManager* transactionManager)
+    TCypressManager* cypressManager)
     : NRpc::TServiceBase(
         invoker,
         TCypressServiceProxy::GetServiceName(),
         CypressLogger.GetCategory())
     , CypressManager(cypressManager)
-    , TransactionManager(transactionManager)
 {
     YASSERT(cypressManager);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
-}
-
-void TCypressService::ValidateTransactionId(const TTransactionId& transactionId)
-{
-    if (transactionId != NullTransactionId &&
-        !TransactionManager->FindTransaction(transactionId))
-    {
-        ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
-            Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,37 +40,56 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
 {
     UNUSED(response);
 
-    auto transactionId = TTransactionId::FromProto(request->transaction_id());
+    int requestCount = request->part_counts_size();
+    context->SetRequestInfo("RequestCount: %d", requestCount);
 
-    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
-    auto requestHeader = GetRequestHeader(~requestMessage);
-    TYPath path = requestHeader.path();
-    Stroka verb = requestHeader.verb();
+    const auto& attachments = request->Attachments();
 
-    context->SetRequestInfo("TransactionId: %s, Path: %s, Verb: %s",
-        ~transactionId.ToString(),
-        ~path,
-        ~verb);
+    int currentIndex = 0;
+    for (int requestIndex = 0; requestIndex < request->part_counts_size(); ++requestIndex) {
+        int partCount = request->part_counts(requestIndex);
+        YASSERT(partCount >= 2);
+        yvector<TSharedRef> requestParts(
+            attachments.begin() + currentIndex,
+            attachments.begin() + currentIndex + partCount);
+        auto requestMessage = CreateMessageFromParts(MoveRV(requestParts));
 
-    ValidateTransactionId(transactionId);
+        auto requestHeader = GetRequestHeader(~requestMessage);
+        TYPath path = requestHeader.path();
+        Stroka verb = requestHeader.verb();
 
-    auto rootNode = CypressManager->GetNodeProxy(RootNodeId, transactionId);
-    auto rootService = IYPathService::FromNode(~rootNode);
+        LOG_DEBUG("Execute: RequestIndex: %d, Path: %s, Verb: %s",
+            requestIndex,
+            ~path,
+            ~verb);
 
-    ExecuteVerb(
-        ~rootService,
-        ~requestMessage,
-        ~CypressManager)
-    ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
-        {
-            auto responseHeader = GetResponseHeader(~responseMessage);
-            auto error = GetResponseError(responseHeader);
+        auto processor = CypressManager->CreateProcessor();
 
-            context->SetResponseInfo("YPathError: %s", ~error.ToString());
+        ExecuteVerb(~requestMessage, ~processor)
+        ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
+            {
+                auto responseHeader = GetResponseHeader(~responseMessage);
+                const auto& responseParts = responseMessage->GetParts();
+                auto error = GetResponseError(responseHeader);
 
-            WrapYPathResponse(~context->GetUntypedContext(), ~responseMessage);
-            context->Reply();
-        }));
+                LOG_DEBUG("Execute: RequestIndex: %d, PartCount: %d, Error: %s",
+                    requestIndex,
+                    responseParts.ysize(),
+                    ~error.ToString());
+
+                response->add_part_counts(responseParts.ysize());
+                response->Attachments().insert(
+                    response->Attachments().end(),
+                    responseParts.begin(),
+                    responseParts.end());
+
+                if (requestIndex == requestCount - 1) {
+                    context->Reply();
+                }
+            }));
+
+        currentIndex += partCount;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

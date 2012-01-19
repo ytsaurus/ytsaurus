@@ -38,11 +38,11 @@ public:
     TChunkSequenceReader(
         TConfig* config,
         const TChannel& channel,
-        const NTransactionClient::TTransactionId& transactionId,
+        const NTransactionServer::TTransactionId& transactionId,
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache,
         // ToDo: use rvalue reference.
-        const yvector<NChunkClient::TChunkId>& chunkIds,
+        const yvector<NChunkServer::TChunkId>& chunkIds,
         // TODO(babenko): fixme, make i64
         int startRow,
         int endRow);
@@ -73,8 +73,8 @@ private:
     TConfig::TPtr Config;
     TChannel Channel;
     NChunkClient::IBlockCache::TPtr BlockCache;
-    NTransactionClient::TTransactionId TransactionId;
-    yvector<NChunkClient::TChunkId> ChunkIds;
+    NTransactionServer::TTransactionId TransactionId;
+    yvector<NChunkServer::TChunkId> ChunkIds;
     int StartRow;
     int EndRow;
 

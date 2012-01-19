@@ -3,6 +3,7 @@
 #include "file_chunk_meta.pb.h"
 
 #include <ytlib/misc/string.h>
+#include <ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NFileServer {
@@ -11,8 +12,8 @@ using namespace NChunkServer;
 using namespace NCypress;
 using namespace NYTree;
 using namespace NRpc;
-using namespace NChunkClient;
 using namespace NFileClient::NProto;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +77,7 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
     YASSERT(chunkList.ChildrenIds().size() == 1);
     
     auto chunkId = chunkList.ChildrenIds()[0];
-    YASSERT(GetChunkTreeKind(chunkId) == EChunkTreeKind::Chunk);
+    YASSERT(TypeFromId(chunkId) == EObjectType::Chunk);
 
     const auto& chunk = ChunkManager->GetChunk(chunkId);
 

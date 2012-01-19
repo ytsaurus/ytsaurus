@@ -9,6 +9,7 @@
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_client/block_id.h>
+#include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -72,7 +73,7 @@ TFileWriter::TFileWriter(
 
     LOG_INFO("Creating upload transaction");
     try {
-        UploadTransaction = TransactionManager->StartTransaction();
+        UploadTransaction = TransactionManager->Start();
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());
@@ -181,33 +182,26 @@ void TFileWriter::Close()
     LOG_INFO("Chunk closed");
 
     LOG_INFO("Confirming chunk");
-    auto confirmChunksReq = ChunkProxy->ConfirmChunks();
-    confirmChunksReq->set_transaction_id(UploadTransaction->GetId().ToProto());
-    *confirmChunksReq->add_chunks() = Writer->GetConfirmationInfo();
-    auto confirmChunksRsp = confirmChunksReq->Invoke()->Get();
-    if (!confirmChunksRsp->IsOK()) {
+    auto confirmChunkReq = Writer->GetConfirmRequest();
+    auto confirmChunkRsp = CypressProxy->Execute(~confirmChunkReq)->Get();
+    if (!confirmChunkRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
-            ~confirmChunksRsp->GetError().ToString());
+            ~confirmChunkRsp->GetError().ToString());
     }
     LOG_INFO("Chunk confirmed");
 
     LOG_INFO("Creating file node");
-    auto createNodeReq = TCypressYPathProxy::Create();
-    createNodeReq->set_type(FileTypeName);
-
+    auto createNodeReq = TCypressYPathProxy::Create(WithTransaction(Path, TransactionId));
+    createNodeReq->set_type(EObjectType::File);
     auto manifest = New<TFileManifest>();
     manifest->ChunkId = ChunkId;
     createNodeReq->set_manifest(SerializeToYson(~manifest));
-
-    auto createNodeRsp = CypressProxy->Execute(
-        Path,
-        TransactionId,
-        ~createNodeReq)->Get();
+    auto createNodeRsp = CypressProxy->Execute(~createNodeReq)->Get();
     if (!createNodeRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
             ~createNodeRsp->GetError().ToString());
     }
-    NodeId = TNodeId::FromProto(createNodeRsp->node_id());
+    NodeId = TNodeId::FromProto(createNodeRsp->id());
     LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
 
     LOG_INFO("Committing upload transaction");

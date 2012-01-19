@@ -61,30 +61,6 @@ IMessage::TPtr CreateMessageFromParts(TBlob&& blob, const yvector<TRef>& refs)
     return New<TMessage>(MoveRV(parts));
 }
 
-IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart, int sliceSize)
-{
-    YASSERT(message);
-    YASSERT(sliceStart >= 0 && sliceStart + sliceSize <= message->GetParts().ysize());
-
-    auto parts = message->GetParts();
-    yvector<TSharedRef> sliceParts(sliceSize);
-    for (int i = 0; i < sliceSize; ++i) {
-        sliceParts[i] = parts[i + sliceStart];
-    }
-    return New<TMessage>(MoveRV(sliceParts));
-}
-
-IMessage::TPtr CreateMessageFromSlice(IMessage* message, int sliceStart)
-{
-    YASSERT(message);
-    YASSERT(sliceStart >= 0 && sliceStart <= message->GetParts().ysize());
-
-    return CreateMessageFromSlice(
-        message,
-        sliceStart,
-        message->GetParts().ysize() - sliceStart);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NBus

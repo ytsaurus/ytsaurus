@@ -11,7 +11,7 @@ using namespace NChunkServer;
 using namespace NCypress;
 using namespace NYTree;
 using namespace NRpc;
-using NChunkClient::TChunkId;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,8 +32,8 @@ TTableNodeProxy::TTableNodeProxy(
 void TTableNodeProxy::DoInvoke(IServiceContext* context)
 {
     Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListId") {
-        GetChunkListIdThunk(context);
+    if (verb == "GetChunkListForUpdate") {
+        GetChunkListForUpdateThunk(context);
     } else if (verb == "Fetch") {
         FetchThunk(context);
     } else {
@@ -41,11 +41,10 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
     }
 }
 
-
 bool TTableNodeProxy::IsLogged(IServiceContext* context) const
 {
     Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListId") {
+    if (verb == "GetChunkListForUpdate") {
         return true;
     }
     return TBase::IsLogged(context);;
@@ -55,13 +54,13 @@ void TTableNodeProxy::TraverseChunkTree(
     yvector<NChunkServer::TChunkId>* chunkIds,
     const NChunkServer::TChunkTreeId& treeId)
 {
-    switch (GetChunkTreeKind(treeId)) {
-        case EChunkTreeKind::Chunk: {
+    switch (TypeFromId(treeId)) {
+        case EObjectType::Chunk: {
             chunkIds->push_back(treeId);
             break;
         }
 
-        case EChunkTreeKind::ChunkList: {
+        case EObjectType::ChunkList: {
             const auto& chunkList = ChunkManager->GetChunkList(treeId);
             FOREACH (const auto& childId, chunkList.ChildrenIds()) {
                 TraverseChunkTree(chunkIds, childId);
@@ -76,7 +75,7 @@ void TTableNodeProxy::TraverseChunkTree(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListId)
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 {
     UNUSED(request);
 
@@ -85,7 +84,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListId)
 
     response->set_chunk_list_id(impl.GetChunkListId().ToProto());
 
-    context->SetResponseInfo("ChunkListId: %s", ~impl->GetChunkListId().ToString());
+    context->SetResponseInfo("ChunkListId: %s", ~impl.GetChunkListId().ToString());
 
     context->Reply();
 }

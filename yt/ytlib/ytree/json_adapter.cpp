@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "json_adapter.h"
-
 #include "null_yson_consumer.h"
+
+#include <ytlib/misc/assert.h>
 
 #include <library/json/json_writer.h>
 

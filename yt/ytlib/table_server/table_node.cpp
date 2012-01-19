@@ -12,21 +12,22 @@ using namespace NCypress;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NChunkServer;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableNode::TTableNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
-    : TCypressNodeBase(id, runtimeType)
+TTableNode::TTableNode(const TVersionedNodeId& id, EObjectType objectType)
+    : TCypressNodeBase(id, objectType)
 { }
 
-TTableNode::TTableNode(const TBranchedNodeId& id, const TTableNode& other)
+TTableNode::TTableNode(const TVersionedNodeId& id, const TTableNode& other)
     : TCypressNodeBase(id, other)
     , ChunkListId_(other.ChunkListId_)
 { }
 
-ERuntimeNodeType TTableNode::GetRuntimeType() const
+EObjectType TTableNode::GetObjectType() const
 {
-    return ERuntimeNodeType::Table;
+    return EObjectType::Table;
 }
 
 TAutoPtr<ICypressNode> TTableNode::Clone() const
@@ -54,16 +55,16 @@ class TTableNodeTypeHandler
 public:
     TTableNodeTypeHandler(
         TCypressManager* cypressManager,
-        NChunkServer::TChunkManager* chunkManager)
+        TChunkManager* chunkManager)
         : TCypressNodeTypeHandlerBase<TTableNode>(cypressManager)
         , ChunkManager(chunkManager)
     {
         RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
     }
 
-    ERuntimeNodeType GetRuntimeType()
+    EObjectType GetObjectType()
     {
-        return ERuntimeNodeType::Table;
+        return EObjectType::Table;
     }
 
     ENodeType GetNodeType()
@@ -71,27 +72,21 @@ public:
         return ENodeType::Entity;
     }
 
-    Stroka GetTypeName()
-    {
-        return TableTypeName;
-    }
-
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        INode* manifest)
+        IMapNode* manifest)
     {
         UNUSED(transactionId);
         UNUSED(manifest);
 
-        TAutoPtr<TTableNode> node = new TTableNode(
-            TBranchedNodeId(nodeId, NullTransactionId),
-            GetRuntimeType());
+        TAutoPtr<TTableNode> node = new TTableNode(nodeId, GetObjectType());
 
         // Create an empty chunk list and reference it from the node.
         auto& chunkList = ChunkManager->CreateChunkList();
-        ChunkManager->RefChunkTree(chunkList);
-        node->SetChunkListId(chunkList.GetId());
+        auto chunkListId = chunkList.GetId();
+        node->SetChunkListId(chunkListId);
+        CypressManager->GetObjectManager()->RefObject(chunkListId);
 
         return node.Release();
     }
@@ -111,7 +106,7 @@ public:
 protected:
     virtual void DoDestroy(TTableNode& node)
     {
-        ChunkManager->UnrefChunkTree(node.GetChunkListId());
+        CypressManager->GetObjectManager()->UnrefObject(node.GetChunkListId());
     }
 
     virtual void DoBranch(
@@ -122,13 +117,14 @@ protected:
         
         // Create composite chunk list and place it in the root of branchedNode.
         auto& compositeChunkList = ChunkManager->CreateChunkList();
-        branchedNode.SetChunkListId(compositeChunkList.GetId());
-        ChunkManager->RefChunkTree(compositeChunkList);
+        auto compositeChunkListId = compositeChunkList.GetId();
+        branchedNode.SetChunkListId(compositeChunkListId);
+        CypressManager->GetObjectManager()->RefObject(compositeChunkListId);
 
         // Make the original chunk list a child of the composite one.
         auto committedChunkListId = committedNode.GetChunkListId();
         compositeChunkList.ChildrenIds().push_back(committedChunkListId);
-        ChunkManager->RefChunkTree(committedChunkListId);
+        CypressManager->GetObjectManager()->RefObject(committedChunkListId);
     }
 
     virtual void DoMerge(
@@ -140,19 +136,20 @@ protected:
         // Obtain the chunk list of branchedNode.
         auto branchedChunkListId = branchedNode.GetChunkListId();
         auto& branchedChunkList = ChunkManager->GetChunkListForUpdate(branchedChunkListId);
-        YASSERT(branchedChunkList.GetRefCounter() == 1);
+        YASSERT(branchedChunkList.GetObjectRefCounter() == 1);
 
         // Replace the first child of the branched chunk list with the current chunk list of committedNode.
         YASSERT(branchedChunkList.ChildrenIds().size() >= 1);
         auto oldFirstChildId = branchedChunkList.ChildrenIds()[0];
         auto newFirstChildId = committedNode.GetChunkListId();
         branchedChunkList.ChildrenIds()[0] = newFirstChildId;
-        ChunkManager->RefChunkTree(newFirstChildId);
-        ChunkManager->UnrefChunkTree(oldFirstChildId);
+        CypressManager->GetObjectManager()->RefObject(newFirstChildId);
+        CypressManager->GetObjectManager()->UnrefObject(oldFirstChildId);
 
         // Replace the chunk list of committedNode.
+        auto committedNodeId = committedNode.GetId().NodeId;
         committedNode.SetChunkListId(branchedChunkListId);
-        ChunkManager->UnrefChunkTree(newFirstChildId);
+        CypressManager->GetObjectManager()->UnrefObject(newFirstChildId);
     }
 
 private:

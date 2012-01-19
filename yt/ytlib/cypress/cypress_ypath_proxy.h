@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "id.h"
 #include "cypress_ypath.pb.h"
 
 #include <ytlib/ytree/ypath_proxy.h>
@@ -15,12 +15,13 @@ struct TCypressYPathProxy
 {
     DEFINE_YPATH_PROXY_METHOD(NProto, Lock);
     DEFINE_YPATH_PROXY_METHOD(NProto, Create);
-    DEFINE_YPATH_PROXY_METHOD(NProto, GetId);
 };
 
-extern const char NodeIdMarker;
+////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TYPath YPathFromNodeId(const TNodeId& nodeId);
+extern const NYTree::TYPath ObjectIdMarker;
+
+NYTree::TYPath FromObjectId(const NObjectServer::TObjectId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

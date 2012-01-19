@@ -34,7 +34,7 @@ public:
     void RegisterChunk(TStoredChunk* chunk);
     
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TStoredChunk::TPtr FindChunk(const NChunkClient::TChunkId& chunkId) const;
+    TStoredChunk::TPtr FindChunk(const TChunkId& chunkId) const;
 
     //! Physically removes the chunk.
     /*!
@@ -68,7 +68,7 @@ private:
     TChunkHolderConfig::TPtr Config;
     TReaderCache::TPtr ReaderCache;
 
-    typedef yhash_map<NChunkClient::TChunkId, TStoredChunk::TPtr> TChunkMap;
+    typedef yhash_map<TChunkId, TStoredChunk::TPtr> TChunkMap;
     TChunkMap ChunkMap;
 
 };

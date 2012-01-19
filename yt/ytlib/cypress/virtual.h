@@ -28,14 +28,12 @@ typedef
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    ERuntimeNodeType runtypeType,
-    const Stroka& typeName,
+    EObjectType runtypeType,
     TYPathServiceProducer* producer);
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    ERuntimeNodeType runtypeType,
-    const Stroka& typeName,
+    EObjectType runtypeType,
     NYTree::IYPathService* service);
 
 ////////////////////////////////////////////////////////////////////////////////

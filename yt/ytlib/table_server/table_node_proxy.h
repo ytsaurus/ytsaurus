@@ -39,7 +39,7 @@ private:
         yvector<NChunkServer::TChunkId>* chunkIds,
         const NChunkServer::TChunkTreeId& treeId);
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListId);
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListForUpdate);
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);
 
 };

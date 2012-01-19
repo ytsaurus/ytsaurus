@@ -5,13 +5,15 @@
 #include <util/string/http.h>
 #include <quality/Misc/HPTimer.h>
 
-#include <yt/ytlib/misc/id_generator.h>
-#include <yt/ytlib/actions/action_util.h>
-#include <yt/ytlib/actions/future.h>
-#include <yt/ytlib/logging/log.h>
+#include <ytlib/misc/id_generator.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/future.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NHttp {
+
+////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("HTTP");
 

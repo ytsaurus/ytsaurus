@@ -60,12 +60,12 @@ namespace NDetail {
             }
         }
     }
-#elif defined(__MSVC__)
+#else
     // Fallback to Arcadia's implementation (efficiency is not crucial here).
 
-    inline TNonVolatileCounter AtomicallyFetch(TVolatileCounter* p)
+    inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
     {
-        return AtomicAdd(*p, 0);
+        return AtomicAdd(*const_cast<TVolatileCounter*>(p), 0);
     }
 
     inline TNonVolatileCounter AtomicallyIncrement(TVolatileCounter* p)
@@ -317,6 +317,8 @@ public:
     {
         if (NDetail::AtomicallyIncrementIfNonZero(&object->RefCounter)) {
             return ::NYT::TIntrusivePtr<T>(object, false);
+        } else {
+            return NULL;
         }
     }
 

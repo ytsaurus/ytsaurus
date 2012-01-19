@@ -17,7 +17,7 @@ class TLocation;
 //! Chunk properties that can be obtained by the filesystem scan.
 struct TChunkDescriptor
 {
-    NChunkClient::TChunkId Id;
+    TChunkId Id;
     i64 Size;
 };
 
@@ -26,7 +26,7 @@ class TChunk
     : public virtual TRefCountedBase
 {
     //! Chunk id.`
-    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, Id);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, Id);
     //! Chunk location.
     DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TLocation>, Location);
     //! The physical chunk size (including data and meta).
@@ -89,7 +89,7 @@ class TChunkCache;
 //! A chunk owned by TChunkCache.
 class TCachedChunk
     : public TChunk
-    , public TCacheValueBase<NChunkClient::TChunkId, TCachedChunk>
+    , public TCacheValueBase<TChunkId, TCachedChunk>
 {
 public:
     typedef TIntrusivePtr<TCachedChunk> TPtr;

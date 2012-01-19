@@ -53,7 +53,7 @@ struct TIsConvertibleImpl
 
 } // namespace NDetail
 
-template<class TFromType, class TToType>
+template <class TFromType, class TToType>
 struct TIsConvertible
     : TIntegralConstant<
         bool, NDetail::TIsConvertibleImpl<TFromType, TToType>::Value
@@ -70,7 +70,7 @@ template <class TResult>
 struct TEnableIfC<false, TResult>
 { };
 
-template<class TCondition, class TResult = void>
+template <class TCondition, class TResult = void>
 struct TEnableIf
     : public TEnableIfC<TCondition::Value, TResult>
 { };

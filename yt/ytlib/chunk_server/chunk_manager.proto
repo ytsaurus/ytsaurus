@@ -21,12 +21,6 @@ message TMsgCreateChunks
     required int32 chunk_count = 2;
 }
 
-message TMsgConfirmChunks
-{
-    required bytes transaction_id = 1;
-    repeated TReqConfirmChunks.TChunkInfo chunks = 2;
-}
-
 message TMsgHeartbeatRequest
 {
     required int32 holder_id = 1;

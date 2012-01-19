@@ -38,7 +38,7 @@ private:
     const TTransactionId TransactionId;
     yvector<TNodeId> CreatedNodeIds;
 
-    ICypressNodeProxy::TPtr DoCreate(ERuntimeNodeType type);
+    ICypressNodeProxy::TPtr DoCreate(EObjectType type);
 
 };
 
@@ -62,7 +62,6 @@ public:
         , CypressManager(cypressManager)
         , TransactionId(transactionId)
         , NodeId(nodeId)
-        , NodeFactory(cypressManager, transactionId)
         , Locked(false)
     {
         YASSERT(typeHandler);
@@ -79,7 +78,7 @@ public:
         return TransactionId;
     }
 
-    virtual TNodeId GetNodeId() const
+    virtual TNodeId GetId() const
     {
         return NodeId;
     }
@@ -112,7 +111,7 @@ public:
     {
         GetImplForUpdate().SetParentId(
             parent
-            ? ToProxy(parent)->GetNodeId()
+            ? ToProxy(parent)->GetId()
             : NullNodeId);
     }
 
@@ -134,16 +133,10 @@ public:
 
         if (attributes) {
             auto* attrProxy = ToProxy(attributes);
-            auto& attrImpl = GetImplForUpdate(attrProxy->GetNodeId());
+            auto& attrImpl = GetImplForUpdate(attrProxy->GetId());
             AttachChild(attrImpl);
-            impl.SetAttributesId(attrProxy->GetNodeId());
+            impl.SetAttributesId(attrProxy->GetId());
         }
-    }
-
-    
-    virtual INodeTypeHandler::TPtr GetTypeHandler() const
-    {
-        return TypeHandler;
     }
 
 
@@ -159,27 +152,12 @@ public:
         return false;
     }
 
-    virtual bool IsTransactionRequired(NRpc::IServiceContext* context) const
-    {
-        if (TransactionId != NullTransactionId) {
-            return false;
-        }
-        
-        Stroka verb = context->GetVerb();
-        if (verb == "Lock") {
-            return false;
-        }
-
-        return IsLogged(context);
-    }
-
 protected:
     const INodeTypeHandler::TPtr TypeHandler;
     const TCypressManager::TPtr CypressManager;
     const TTransactionId TransactionId;
     const TNodeId NodeId;
 
-    mutable TNodeFactory NodeFactory;
     //! Keeps a cached flag that gets raised when the node is locked.
     bool Locked;
 
@@ -189,8 +167,6 @@ protected:
         Stroka verb = context->GetVerb();
         if (verb == "Lock") {
             LockThunk(context);
-        } else if (verb == "GetId") {
-            GetIdThunk(context);
         } else if (verb == "Create") {
             CreateThunk(context);
         } else {
@@ -208,14 +184,6 @@ protected:
         context->Reply();
     }
     
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetId)
-    {
-        UNUSED(request);
-
-        response->set_node_id(GetNodeId().ToProto());
-        context->Reply();
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         UNUSED(request);
@@ -244,12 +212,12 @@ protected:
 
     const ICypressNode& GetImpl(const TNodeId& nodeId) const
     {
-        return CypressManager->GetTransactionNode(nodeId, TransactionId);
+        return CypressManager->GetVersionedNode(nodeId, TransactionId);
     }
 
     ICypressNode& GetImplForUpdate(const TNodeId& nodeId) const
     {
-        return CypressManager->GetTransactionNodeForUpdate(nodeId, TransactionId);
+        return CypressManager->GetVersionedNodeForUpdate(nodeId, TransactionId);
     }
 
 
@@ -303,13 +271,13 @@ protected:
     void AttachChild(ICypressNode& child)
     {
         child.SetParentId(NodeId);
-        CypressManager->RefNode(child);
+        CypressManager->GetObjectManager()->RefObject(child.GetId().NodeId);
     }
 
     void DetachChild(ICypressNode& child)
     {
         child.SetParentId(NullNodeId);
-        CypressManager->UnrefNode(child);
+        CypressManager->GetObjectManager()->UnrefObject(child.GetId().NodeId);
     }
 };
 
@@ -357,12 +325,12 @@ public:
             INodeTypeHandler* typeHandler, \
             TCypressManager* cypressManager, \
             const TTransactionId& transactionId, \
-            const TNodeId& nodeId) \
+            const TNodeId& id) \
             : TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node>( \
                 typeHandler, \
                 cypressManager, \
                 transactionId, \
-                nodeId) \
+                id) \
         { } \
     }; \
     \
@@ -443,27 +411,31 @@ protected:
 protected:
     DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
+        // TODO(babenko): validate type
+
         if (NYTree::IsFinalYPath(context->GetPath())) {
             // This should throw an exception.
             TBase::Create(request, response, context);
             return;
         }
 
-        Stroka typeName = request->type();
-
         NYTree::INode::TPtr manifestNode =
             request->has_manifest()
             ? NYTree::DeserializeFromYson(request->manifest())
             : NYTree::GetEphemeralNodeFactory()->CreateMap();
+
+        if (manifestNode->GetType() != NYTree::ENodeType::Map) {
+            ythrow yexception() << "Manifest must be a map";
+        }
         
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
-            typeName,
-            ~manifestNode);
+            EObjectType(request->type()),
+            ~manifestNode->AsMap());
 
         CreateRecursive(context->GetPath(), ~value);
 
-        response->set_node_id(value->GetNodeId().ToProto());
+        response->set_id(value->GetId().ToProto());
 
         context->Reply();
     }
@@ -534,23 +506,6 @@ protected:
     virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
     virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
     virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRootNodeProxy
-    : public TMapNodeProxy
-{
-public:
-    TRootNodeProxy(
-        INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
-        const TTransactionId& transactionId,
-        const TNodeId& nodeId);
-
-protected:
-    virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
 
 };
 
