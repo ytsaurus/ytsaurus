@@ -395,7 +395,7 @@ private:
     {
         size_t index = path.find_first_of("/#");
         if (index == TYPath::npos) {
-            ythrow yexception() << Sprintf("YPath does not refer to any object (Path: %d)", ~path);
+            ythrow yexception() << Sprintf("YPath does not refer to any object (Path: %s)", ~path);
         }
 
         *token = path.substr(0, index);
