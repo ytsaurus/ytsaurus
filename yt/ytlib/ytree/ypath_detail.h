@@ -17,6 +17,43 @@ namespace NYTree {
 
 extern TYPath RootMarker;
 
+
+void ChopYPathToken(
+    const TYPath& path,
+    Stroka* token,
+    TYPath* suffixPath);
+
+TYPath ComputeResolvedYPath(
+    const TYPath& wholePath,
+    const TYPath& unresolvedPath);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3);
+
+bool IsEmptyYPath(const TYPath& path);
+
+bool IsFinalYPath(const TYPath& path);
+
+bool IsAttributeYPath(const TYPath& path);
+
+// TODO: choose a better name
+bool IsLocalYPath(const TYPath& path);
+
+TYPath ChopYPathAttributeMarker(const TYPath& path);
+
+void ResolveYPath(
+    IYPathService* rootService,
+    const TYPath& path,
+    const Stroka& verb,
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathServiceBase
@@ -249,45 +286,6 @@ void SetNodeFromProducer(
     TNodeSetter<TNode> setter(node, builder);
     producer->Do(&setter);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ChopYPathToken(
-    const TYPath& path,
-    Stroka* token,
-    TYPath* suffixPath);
-
-TYPath ComputeResolvedYPath(
-    const TYPath& wholePath,
-    const TYPath& unresolvedPath);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3);
-
-bool IsEmptyYPath(const TYPath& path);
-
-bool IsFinalYPath(const TYPath& path);
-
-bool IsAttributeYPath(const TYPath& path);
-
-// TODO: choose a better name
-bool IsLocalYPath(const TYPath& path);
-
-TYPath ChopYPathAttributeMarker(const TYPath& path);
-
-////////////////////////////////////////////////////////////////////////////////
-void ResolveYPath(
-    IYPathService* rootService,
-    const TYPath& path,
-    const Stroka& verb,
-    IYPathService::TPtr* suffixService,
-    TYPath* suffixPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
