@@ -17,7 +17,6 @@ namespace NYTree {
 
 extern TYPath RootMarker;
 
-
 void ChopYPathToken(
     const TYPath& path,
     Stroka* token,
@@ -301,6 +300,19 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
 void ReplyYPathWithMessage(
     NRpc::IServiceContext* context,
     NBus::IMessage* responseMessage);
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DISPATCH_YPATH_SERVICE_METHOD(method) \
+    if (context->GetVerb() == #method) { \
+        method##Thunk(context); \
+        return; \
+    }
+
+#define DECLARE_LOGGED_YPATH_SERVICE_METHOD(method) \
+    if (context->GetVerb() == #method) { \
+        return true; \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 
