@@ -39,18 +39,7 @@ private:
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
         auto id = TTransactionId::FromString(key);
-        auto* transaction = TransactionManager->FindTransaction(id);
-        if (!transaction) {
-            return NULL;
-        }
-
-        return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
-            {
-                // TODO: add vectors
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                    .EndMap();
-            }));
+        return TransactionManager->GetObjectManager()->GetProxy(id);
     }
 };
 
