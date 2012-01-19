@@ -127,7 +127,7 @@ bool TUntypedObjectProxyBase::GetSystemAttribute(const Stroka& name, IYsonConsum
     return false;
 }
 
-IYPathService::TPtr TUntypedObjectProxyBase::GetSystemAttribute(const Stroka& name)
+IYPathService::TPtr TUntypedObjectProxyBase::GetSystemAttributeService(const Stroka& name)
 {
     UNUSED(name);
     return NULL;
@@ -196,7 +196,7 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
         FOREACH (const auto& name, SystemAttributes) {
             writer.OnMapItem(name);
             if (!GetSystemAttribute(name, &writer)) {
-                auto service = GetSystemAttribute(name);
+                auto service = GetSystemAttributeService(name);
                 YASSERT(service);
                 auto value = SyncYPathGet(~service, RootMarker);
                 writer.OnRaw(value);
@@ -227,7 +227,7 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
                     response->set_value(value);
                 }
             } else {
-                auto service = GetSystemAttribute(token);
+                auto service = GetSystemAttributeService(token);
                 if (!service) {
                     ythrow yexception() << Sprintf("Attribute %s is not found", ~token.Quote());
                 }

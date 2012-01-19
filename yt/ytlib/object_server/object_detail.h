@@ -91,7 +91,7 @@ protected:
 
     void RegisterSystemAttribute(const Stroka& name);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
-    virtual NYTree::IYPathService::TPtr GetSystemAttribute(const Stroka& name);
+    virtual NYTree::IYPathService::TPtr GetSystemAttributeService(const Stroka& name);
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void GetRecursive(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
