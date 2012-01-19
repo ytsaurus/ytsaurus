@@ -185,12 +185,12 @@ public:
         return UnderlyingContext->GetRequestMessage();
     }
 
-    virtual Stroka GetPath() const
+    virtual const Stroka& GetPath() const
     {
         return UnderlyingContext->GetPath();
     }
 
-    virtual Stroka GetVerb() const
+    virtual const Stroka& GetVerb() const
     {
         return UnderlyingContext->GetVerb();
     }

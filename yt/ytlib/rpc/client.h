@@ -57,9 +57,9 @@ struct IClientRequest
 
     virtual NBus::IMessage::TPtr Serialize() const = 0;
 
-    virtual TRequestId GetRequestId() const = 0;
-    virtual Stroka GetPath() const = 0;
-    virtual Stroka GetVerb() const = 0;
+    virtual const TRequestId& GetRequestId() const = 0;
+    virtual const Stroka& GetPath() const = 0;
+    virtual const Stroka& GetVerb() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,10 +67,7 @@ struct IClientRequest
 class TClientRequest
     : public IClientRequest
 {
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Path);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
     DEFINE_BYVAL_RO_PROPERTY(bool, OneWay);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
 
@@ -79,8 +76,16 @@ public:
 
     NBus::IMessage::TPtr Serialize() const;
 
+    const Stroka& GetPath() const;
+    const Stroka& GetVerb() const;
+
+    const TRequestId& GetRequestId() const;
+
 protected:
     IChannel::TPtr Channel;
+    Stroka Path;
+    Stroka Verb;
+    TRequestId RequestId;
 
     TClientRequest(
         IChannel* channel,
