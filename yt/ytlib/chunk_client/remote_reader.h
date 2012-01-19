@@ -59,8 +59,6 @@ struct TRemoteReaderConfig
         Register("publish_peer", PublishPeer).Default(false);
         Register("peer_expiration_timeout", PeerExpirationTimeout).Default(TDuration::Seconds(300));
     }
-
-    // TODO(roizner, babenko): Override Validate - check that if 
 };
 
 IAsyncReader::TPtr CreateRemoteReader(

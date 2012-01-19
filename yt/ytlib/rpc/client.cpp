@@ -28,9 +28,9 @@ TClientRequest::TClientRequest(
     const Stroka& path,
     const Stroka& verb,
     bool oneWay)
-    : Path_(path)
-    , Verb_(verb)
-    , RequestId_(TRequestId::Create())
+    : Path(path)
+    , Verb(verb)
+    , RequestId(TRequestId::Create())
     , OneWay_(oneWay)
     , Channel(channel)
 {
@@ -40,9 +40,9 @@ TClientRequest::TClientRequest(
 IMessage::TPtr TClientRequest::Serialize() const
 {
     TRequestHeader header;
-    header.set_request_id(RequestId_.ToProto());
-    header.set_path(Path_);
-    header.set_verb(Verb_);
+    header.set_request_id(RequestId.ToProto());
+    header.set_path(Path);
+    header.set_verb(Verb);
     header.set_one_way(OneWay_);
 
     auto bodyData = SerializeBody();
@@ -58,6 +58,21 @@ void TClientRequest::DoInvoke(
     TDuration timeout)
 {
     Channel->Send(this, responseHandler, timeout);
+}
+
+const Stroka& TClientRequest::GetPath() const
+{
+    return Path;
+}
+
+const Stroka& TClientRequest::GetVerb() const
+{
+    return Verb;
+}
+
+const TRequestId& TClientRequest::GetRequestId() const
+{
+    return RequestId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,8 +156,7 @@ void TClientResponse::OnAcknowledgement()
 
 void TClientResponse::OnResponse(IMessage* message)
 {
-    LOG_DEBUG("Response received (RequestId: %s)",
-        ~RequestId_.ToString());
+    LOG_DEBUG("Response received (RequestId: %s)", ~RequestId_.ToString());
 
     {
         TGuard<TSpinLock> guard(&SpinLock);

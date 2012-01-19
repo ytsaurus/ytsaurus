@@ -82,6 +82,12 @@ public:
     //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(const TChunkId& chunkId) const;
 
+    //! Checks whether the location is full.
+    bool IsFull();
+
+    //! Checks whether to location has enough space to contain file of size #size
+    bool HasEnoughSpace(i64 size);
+
 private:
     ELocationType Type;
     TLocationConfig::TPtr Config;

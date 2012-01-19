@@ -57,9 +57,8 @@ i64 TLocation::GetAvailableSpace()
     }
 
     i64 remainingQuota = GetQuota() - GetUsedSpace();
-    if (remainingQuota > 0 && AvailableSpace > remainingQuota) {
-        AvailableSpace = remainingQuota;
-    }
+    if (remainingQuota < 0) remainingQuota = 0;
+    AvailableSpace = Min(AvailableSpace, remainingQuota);
 
     return AvailableSpace;
 }
@@ -81,7 +80,7 @@ i64 TLocation::GetUsedSpace() const
 
 i64 TLocation::GetQuota() const
 {
-    return Config->Quota == 0 ? Max<i64>() : Config->Quota;
+   return Config->Quota == 0 ? Max<i64>() : Config->Quota;
 }
 
 double TLocation::GetLoadFactor() const
@@ -125,6 +124,16 @@ Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
     return NFS::CombinePaths(
         GetPath(),
         Sprintf("%x/%s", firstHashByte, ~chunkId.ToString()));
+}
+
+bool TLocation::IsFull()
+{
+    return GetAvailableSpace() >= Config->LowWatermark;
+}
+
+bool TLocation::HasEnoughSpace(i64 size)
+{
+    return GetAvailableSpace() - size >= Config->HighWatermark;
 }
 
 namespace {

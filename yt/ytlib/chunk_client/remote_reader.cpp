@@ -8,7 +8,9 @@
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
+#include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
 
 #include <util/random/shuffle.h>
 
@@ -20,6 +22,7 @@ using namespace NChunkHolder;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer;
 using namespace NChunkServer::NProto;
+using namespace NCypress;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -56,8 +59,11 @@ public:
             GetSeedsResult = ToFuture(TGetSeedsResult(seedAddresses));
         }
 
-        Proxy = new TProxy(masterChannel);
-        Proxy->SetTimeout(config->MasterRpcTimeout);
+        ChunkProxy = new TChunkServiceProxy(masterChannel);
+        ChunkProxy->SetTimeout(config->MasterRpcTimeout);
+
+        CypressProxy = new TCypressServiceProxy(masterChannel);
+        CypressProxy->SetTimeout(config->MasterRpcTimeout);
     }
 
     TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
@@ -101,14 +107,13 @@ private:
     friend class TReadSession;
     friend class TGetInfoSession;
 
-    typedef TChunkServiceProxy TProxy;
-
     TRemoteReaderConfig::TPtr Config;
     IBlockCache::TPtr BlockCache;
     TChunkId ChunkId;
     NLog::TTaggedLogger Logger;
 
-    TAutoPtr<TProxy> Proxy;
+    TAutoPtr<TChunkServiceProxy> ChunkProxy;
+    TAutoPtr<TCypressServiceProxy> CypressProxy;
 
     TSpinLock SpinLock;
     TAsyncGetSeedsResult::TPtr GetSeedsResult;
@@ -120,12 +125,13 @@ private:
 
         LOG_INFO("Requesting chunk seeds from the master");
 
-        auto req = Proxy->LocateChunk();
-        req->set_chunk_id(ChunkId.ToProto());
-        req->Invoke()->Subscribe(FromMethod(&TRemoteReader::OnChunkLocated, TPtr(this)));
+        auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
+        CypressProxy
+            ->Execute(~req)
+            ->Subscribe(FromMethod(&TRemoteReader::OnChunkFetched, TPtr(this)));
     }
 
-    void OnChunkLocated(TProxy::TRspLocateChunk::TPtr rsp)
+    void OnChunkFetched(TChunkYPathProxy::TRspFetch::TPtr rsp)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(GetSeedsResult);

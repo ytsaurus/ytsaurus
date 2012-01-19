@@ -256,6 +256,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     startInfo.set_type(EJobType::Replicate);
     startInfo.set_chunk_id(chunkId.ToProto());
     ToProto(*startInfo.mutable_target_addresses(), targetAddresses);
+    startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
     LOG_INFO("Chunk replication scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
@@ -344,6 +345,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     startInfo.set_job_id(jobId.ToProto());
     startInfo.set_type(EJobType::Remove);
     startInfo.set_chunk_id(chunkId.ToProto());
+    startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
     LOG_INFO("Removal job scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s)",
