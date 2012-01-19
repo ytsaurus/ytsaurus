@@ -48,7 +48,9 @@ struct TGetConfig
 
     TGetConfig()
     {
-        Register("max_size", MaxSize).GreaterThanOrEqual(0).Default(3);
+        Register("max_size", MaxSize)
+            .GreaterThanOrEqual(0)
+            .Default(100);
     }
 };
 
