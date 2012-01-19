@@ -77,9 +77,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
     writer.OnBeginMap();
     FOREACH (const auto& key, keys) {
         writer.OnMapItem(key);
-        auto service = GetItemService(key);
-        YASSERT(service);
-        writer.OnRaw(SyncYPathGet(~service, NYTree::RootMarker));
+        writer.OnEntity(false);
     }
 
     bool incomplete = keys.ysize() != size;
