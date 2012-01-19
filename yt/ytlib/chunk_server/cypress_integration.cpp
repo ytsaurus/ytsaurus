@@ -321,7 +321,7 @@ private:
 
     void GetAlive(const TGetAttributeParam& param)
     {
-        Stroka address = GetAddress(*param.Node);
+        auto address = GetAddress(*param.Node);
         bool alive = ChunkManager->FindHolder(address);
         BuildYsonFluently(param.Consumer)
             .Scalar(alive);
