@@ -37,8 +37,6 @@ TChunkService::TChunkService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunks));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunkLists));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunk));
 }
 
  void TChunkService::ValidateHolderId(THolderId holderId)
@@ -229,49 +227,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
             }))
         ->OnError(~CreateErrorHandler(~context))
         ->Commit();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunkLists)
-{
-    auto transactionId = TTransactionId::FromProto(request->transaction_id());
-    int chunkListCount = request->chunk_list_count();
-
-    context->SetRequestInfo("TransactionId: %s, ChunkListCount: %d",
-        ~transactionId.ToString(),
-        chunkListCount);
-
-    ValidateLeader();
-    ValidateTransactionId(transactionId);
-
-    const auto& message = *request;
-    ChunkManager
-        ->InitiateCreateChunkLists(message)
-        ->OnSuccess(~FromFunctor([=] (yvector<TChunkListId> chunkListIds)
-            {
-                YASSERT(chunkListIds.size() == chunkListCount);
-                ToProto(*response->mutable_chunk_list_ids(), chunkListIds);
-
-                context->Reply();
-            }))
-        ->OnError(~CreateErrorHandler(~context))
-        ->Commit();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TChunkService, LocateChunk)
-{
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
-
-    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
-
-    ValidateLeader();
-    ValidateChunkId(chunkId);
-
-    const auto& chunk = ChunkManager->GetChunk(chunkId);
-    ChunkManager->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
-
-    context->SetResponseInfo("HolderCount: %d", response->holder_addresses_size());
-
-    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

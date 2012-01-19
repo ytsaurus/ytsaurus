@@ -94,28 +94,3 @@ message TRspCreateChunks
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-message TReqCreateChunkLists
-{
-    required bytes transaction_id = 1;
-    required int32 chunk_list_count = 2;
-}
-
-message TRspCreateChunkLists
-{
-    repeated bytes chunk_list_ids = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqLocateChunk
-{
-    required bytes chunk_id = 1;
-}
-
-message TRspLocateChunk
-{
-    repeated bytes holder_addresses = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////

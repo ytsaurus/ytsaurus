@@ -114,7 +114,6 @@ public:
         RegisterMethod(this, &TImpl::RegisterHolder);
         RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::CreateChunks);
-        RegisterMethod(this, &TImpl::CreateChunkLists);
 
         metaState->RegisterLoader(
             "ChunkManager.1",
@@ -178,17 +177,6 @@ public:
             &TThis::CreateChunks,
             this);
     }
-
-    TMetaChange< yvector<TChunkListId> >::TPtr InitiateCreateChunkLists(
-        const TMsgCreateChunkLists& message)
-    {
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::CreateChunkLists,
-            this);
-    }
-
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
@@ -333,31 +321,6 @@ private:
             ~transactionId.ToString());
 
         return chunkIds;
-    }
-
-    yvector<TChunkListId> CreateChunkLists(const TMsgCreateChunkLists& message)
-    {
-        auto transactionId = TTransactionId::FromProto(message.transaction_id());
-        auto chunkListCount = message.chunk_list_count();
-
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-
-        yvector<TChunkListId> chunkListIds;
-        chunkListIds.reserve(chunkListCount);
-
-        for (int index = 0; index < chunkListCount; ++index) {
-            auto& chunkList = CreateChunkList();
-            auto chunkListId = chunkList.GetId();
-            YVERIFY(transaction.CreatedObjectIds().insert(chunkListId).second);
-            ObjectManager->RefObject(chunkListId);
-            chunkListIds.push_back(chunkListId);
-        }
-
-        LOG_INFO_IF(!IsRecovery(), "Chunk lists created (ChunkListIds: [%s], TransactionId: %s)",
-            ~JoinToString(chunkListIds),
-            ~transactionId.ToString());
-
-        return chunkListIds;
     }
 
 
@@ -1269,12 +1232,6 @@ TMetaChange< yvector<TChunkId> >::TPtr TChunkManager::InitiateCreateChunks(
     const TMsgCreateChunks& message)
 {
     return Impl->InitiateAllocateChunk(message);
-}
-
-TMetaChange< yvector<TChunkListId> >::TPtr TChunkManager::InitiateCreateChunkLists(
-    const TMsgCreateChunkLists& message)
-{
-    return Impl->InitiateCreateChunkLists(message);
 }
 
 TChunk& TChunkManager::CreateChunk()

@@ -21,13 +21,6 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Simple aliases that make sense as long as request and message contracts are the same.
-namespace NProto {
-    typedef NProto::TReqCreateChunkLists TMsgCreateChunkLists;
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkManager
     : public TExtrinsicRefCounted
 {
@@ -48,9 +41,6 @@ public:
 
     NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
         const NProto::TMsgCreateChunks& message);
-
-    NMetaState::TMetaChange< yvector<TChunkListId> >::TPtr InitiateCreateChunkLists(
-        const NProto::TMsgCreateChunkLists& message);
 
     NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const NProto::TMsgRegisterHolder& message);
