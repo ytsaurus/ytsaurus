@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include "../ytlib/misc/foreach.h"
-#include "../ytlib/misc/common.h"
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/common.h>
 
 #include <util/generic/yexception.h>
 #include <util/generic/vector.h>

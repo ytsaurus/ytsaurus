@@ -26,6 +26,7 @@ if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
     ${CMAKE_BINARY_DIR}/yt/ytlib/meta_state
     ${CMAKE_BINARY_DIR}/yt/ytlib/cypress
     ${CMAKE_BINARY_DIR}/yt/ytlib/orchid
+    ${CMAKE_BINARY_DIR}/yt/ytlib/object_server
   )
 endif()
 

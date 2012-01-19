@@ -3,7 +3,6 @@
 #include "common.h"
 
 #include <ytlib/misc/enum.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/thread_affinity.h>

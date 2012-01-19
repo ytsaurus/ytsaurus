@@ -18,7 +18,7 @@ namespace {
 typedef TSnappyCompress TCompressedOutput;
 typedef TSnappyDecompress TDecompressedInput;
 
-}
+} // namespace <anonymous>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,7 +177,6 @@ void TSnapshotWriter::Close()
         Checksum = ChecksummableOutput->GetChecksum();
         ChecksummableOutput->Flush();
         ChecksummableOutput.Reset(NULL);
-        CompressedOutput->Flush(); // in fact, this is called automatically by the previous stream...
         CompressedOutput.Reset(NULL);
     }
 
@@ -208,7 +207,7 @@ void TSnapshotWriter::Close()
 
 TChecksum TSnapshotWriter::GetChecksum() const
 {
-    // TODO: check that checksum is available
+    // TODO: check that checksum is available.
     return Checksum;
 }
 

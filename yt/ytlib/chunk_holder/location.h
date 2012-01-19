@@ -80,7 +80,7 @@ public:
     int GetSessionCount() const;
 
     //! Returns a full path to a chunk file.
-    Stroka GetChunkFileName(const NChunkClient::TChunkId& chunkId) const;
+    Stroka GetChunkFileName(const TChunkId& chunkId) const;
 
 private:
     ELocationType Type;

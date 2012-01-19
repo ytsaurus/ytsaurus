@@ -263,16 +263,16 @@ private:
     void GuardedExecute(const TYson& requestYson)
     {
         INode::TPtr requestNode;
-        TRequestBase requestBase;
+        auto request = New<TRequestBase>();
         try {
             requestNode = DeserializeFromYson(requestYson);
-            requestBase.Load(~requestNode);
+            request->Load(~requestNode);
         }
         catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing request\n%s", ex.what());
         }
 
-        auto commandName = requestBase.Do;
+        auto commandName = request->Do;
         auto commandIt = Commands.find(commandName);
         if (commandIt == Commands.end()) {
             ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());

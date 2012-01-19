@@ -40,8 +40,9 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    auto requestMessage = UnwrapYPathRequest(~context->GetUntypedContext());
+    auto requestMessage = CreateMessageFromParts(request->Attachments());
     auto requestHeader = GetRequestHeader(~requestMessage);
+
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();
 
@@ -49,10 +50,11 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         ~path,
         ~verb);
 
-    auto rootService = IYPathService::FromNode(~Root);
+    auto processor = CreateDefaultProcessor(~Root);
+
     ExecuteVerb(
-        ~rootService,
-        ~requestMessage)
+        ~requestMessage,
+        ~processor)
     ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
         {
             auto responseHeader = GetResponseHeader(~responseMessage);
@@ -60,7 +62,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
 
             context->SetRequestInfo("YPathError: %s", ~error.ToString());
 
-            WrapYPathResponse(~context->GetUntypedContext(), ~responseMessage);
+            response->Attachments() = responseMessage->GetParts();
             context->Reply();
         }));
 }

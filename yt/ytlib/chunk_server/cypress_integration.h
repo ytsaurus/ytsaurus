@@ -32,7 +32,7 @@ NCypress::INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
     NCypress::TCypressManager* cypressManager,
     TChunkManager* chunkManager);
 
-IHolderRegistry::TPtr CreateHolderRegistry(
+IHolderAuthority::TPtr CreateHolderAuthority(
     NCypress::TCypressManager* cypressManager);
 
 NCypress::INodeTypeHandler::TPtr CreateHolderTypeHandler(

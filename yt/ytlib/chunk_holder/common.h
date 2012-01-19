@@ -1,27 +1,23 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
-
-#include <ytlib/chunk_client/block_id.h>
-#include <ytlib/chunk_client/common.h>
-
-#include <ytlib/misc/guid.h>
-
 #include <ytlib/logging/log.h>
+#include <ytlib/chunk_server/id.h>
+#include <ytlib/chunk_client/block_id.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NChunkClient::TBlockId;
-
-////////////////////////////////////////////////////////////////////////////////
-
 extern NLog::TLogger ChunkHolderLogger;
+
+using NChunkServer::TChunkId;
+using NChunkServer::TJobId;
+using NChunkServer::EJobType;
+using NChunkServer::EJobState;
+using NChunkClient::TBlockId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkHolder
 } // namespace NYT
-

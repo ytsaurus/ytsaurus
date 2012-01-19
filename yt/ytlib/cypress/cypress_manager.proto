@@ -4,7 +4,7 @@ package NYT.NCypress.NProto;
 
 message TMsgExecuteVerb
 {
-    required bytes node_id = 1;
+    required bytes object_id = 1;
     required bytes transaction_id = 2;
     repeated bytes request_parts = 3;
 }

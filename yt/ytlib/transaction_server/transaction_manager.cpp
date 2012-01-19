@@ -1,11 +1,23 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
+#include "common.h"
+#include "transaction.h"
+#include "transaction_ypath_proxy.h"
+#include "transaction_ypath.pb.h"
+
+#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/object_server/type_handler_detail.h>
+#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
 
 namespace NYT {
 namespace NTransactionServer {
 
+using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NProto;
+using namespace NYTree;
+using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,21 +25,146 @@ static NLog::TLogger& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTransactionManager::TTransactionProxy
+    : public NObjectServer::TObjectProxyBase<TTransaction>
+{
+public:
+    TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
+        : TBase(id, &owner->TransactionMap, TransactionServerLogger.GetCategory())
+        , Owner(owner)
+    { }
+
+    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Commit" ||
+            verb == "Abort" ||
+            verb == "Release")
+        {
+            return true;
+        }
+        return TBase::IsLogged(context);;
+    }
+
+private:
+    typedef TObjectProxyBase<TTransaction> TBase;
+
+    TTransactionManager::TPtr Owner;
+
+    void DoInvoke(NRpc::IServiceContext* context)
+    {
+        Stroka verb = context->GetVerb();
+        if (verb == "Commit") {
+            CommitThunk(context);
+        } else if (verb == "Abort") {
+            AbortThunk(context);
+        } else if (verb == "RenewLease") {
+            RenewLeaseThunk(context);
+        } else {
+            TBase::DoInvoke(context);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Commit)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        Owner->Commit(GetImplForUpdate());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Abort)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        Owner->Abort(GetImplForUpdate());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, RenewLease)
+    {
+        UNUSED(request);
+        UNUSED(response);
+
+        Owner->RenewLease(GetId());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Release)
+    {
+        UNUSED(response);
+
+        auto objectId = TObjectId::FromProto(request->object_id());
+
+        context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
+
+        auto& transaction = GetImplForUpdate();
+        if (transaction.CreatedObjectIds().erase(objectId) != 1) {
+            // TODO(babenko): use TServiceException
+            ythrow yexception() << Sprintf("No such object was created (ObjectId: %s)", ~objectId.ToString());
+        }
+
+        Owner->ObjectManager->UnrefObject(objectId);
+
+        context->Reply();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTransactionManager::TTransactionTypeHandler
+    : public TObjectTypeHandlerBase<TTransaction>
+{
+public:
+    TTransactionTypeHandler(TTransactionManager* owner)
+        : TObjectTypeHandlerBase(&owner->TransactionMap)
+        , Owner(owner)
+    { }
+
+    virtual EObjectType GetType()
+    {
+        return EObjectType::Transaction;
+    }
+
+    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifestNode)
+    {
+        auto manifest = New<TTransactionManifest>();
+        manifest->LoadAndValidate(manifestNode);
+
+        if (manifest->ParentId != NullTransactionId && !Owner->FindTransaction(manifest->ParentId)) {
+            // TODO(babenko): use TServiceException here
+            ythrow yexception() << Sprintf("No such parent transaction (ParentId: %s)",
+                ~manifest->ParentId.ToString());
+        }
+
+        return Owner->Start(~manifest).GetId();
+    }
+
+private:
+    TTransactionManager* Owner;
+
+    virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id)
+    {
+        return New<TTransactionProxy>(Owner, id);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTransactionManager::TTransactionManager(
     TConfig* config,
-    IMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState)
+    IMetaStateManager* metaStateManager,
+    TCompositeMetaState* metaState,
+    TObjectManager* objectManager)
     : TMetaStatePart(metaStateManager, metaState)
     , Config(config)
-    // Some random number.
-    , TransactionIdGenerator(0x5fab718461fda630)
+    , ObjectManager(objectManager)
 {
     YASSERT(metaStateManager);
     YASSERT(metaState);
-
-    RegisterMethod(this, &TThis::DoStartTransaction);
-    RegisterMethod(this, &TThis::DoCommitTransaction);
-    RegisterMethod(this, &TThis::DoAbortTransaction);
+    YASSERT(objectManager);
 
     metaState->RegisterLoader(
         "TransactionManager.1",
@@ -38,123 +175,109 @@ TTransactionManager::TTransactionManager(
 
     metaState->RegisterPart(this);
 
+    objectManager->RegisterHandler(~New<TTransactionTypeHandler>(this));
+
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
 }
 
-TMetaChange<TTransactionId>::TPtr
-TTransactionManager::InitiateStartTransaction()
-{
-    TMsgStartTransaction message;
-
-    return CreateMetaChange(
-        ~MetaStateManager,
-        message,
-        &TThis::DoStartTransaction,
-        this);
-}
-
-TTransaction& TTransactionManager::StartTransaction()
+TTransaction& TTransactionManager::Start(TTransactionManifest* manifest)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(manifest);
 
-    auto id = TransactionIdGenerator.Next();
+    auto id = ObjectManager->GenerateId(EObjectType::Transaction);
 
     auto* transaction = new TTransaction(id);
     TransactionMap.Insert(id, transaction);
+    // Every active transaction has a fake reference to it.
+    ObjectManager->RefObject(id);
     
+    if (manifest->ParentId != NullTransactionId) {
+        transaction->SetParentId(manifest->ParentId);
+        auto& parent = GetTransactionForUpdate(manifest->ParentId);
+        YVERIFY(parent.NestedTransactionIds().insert(id).second);
+        ObjectManager->RefObject(id);
+    }
+
     if (IsLeader()) {
         CreateLease(*transaction);
     }
 
+    transaction->SetState(ETransactionState::Active);
+
     OnTransactionStarted_.Fire(*transaction);
 
-    LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s)",
-        ~id.ToString());
+    LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s, ParentId: %s)",
+        ~id.ToString(),
+        ~manifest->ParentId.ToString());
 
     return *transaction;
 }
 
-TTransactionId TTransactionManager::DoStartTransaction(const TMsgStartTransaction& message)
+void TTransactionManager::Commit(TTransaction& transaction)
 {
-    UNUSED(message);
+    VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto& transaction = StartTransaction();
-    return transaction.GetId();
-}
+    auto id = transaction.GetId();
 
-NMetaState::TMetaChange<TVoid>::TPtr
-TTransactionManager::InitiateCommitTransaction(const TTransactionId& id)
-{
-    TMsgCommitTransaction message;
-    message.set_transaction_id(id.ToProto());
-    return CreateMetaChange(
-        ~MetaStateManager,
-        message,
-        &TThis::DoCommitTransaction,
-        this);
-}
+    if (!transaction.NestedTransactionIds().empty()) {
+        ythrow yexception() << "Cannot commit since the transaction has nested transactions in progress";
+    }
 
-void TTransactionManager::CommitTransaction(TTransaction& transaction)
-{
     if (IsLeader()) {
         CloseLease(transaction);
     }
+
+    transaction.SetState(ETransactionState::Committed);
 
     OnTransactionCommitted_.Fire(transaction);
 
-    auto id = transaction.GetId();
-    TransactionMap.Remove(id);
+    FinishTransaction(transaction);
 
-    LOG_INFO_IF(!IsRecovery(), "Transaction committed (TransactionId: %s)",
-        ~id.ToString());
+    LOG_INFO_IF(!IsRecovery(), "Transaction committed (TransactionId: %s)", ~id.ToString());
 }
 
-TVoid TTransactionManager::DoCommitTransaction(const TMsgCommitTransaction& message)
+void TTransactionManager::Abort(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto id = TTransactionId::FromProto(message.transaction_id());
+    auto id = transaction.GetId();
 
-    auto& transaction = TransactionMap.GetForUpdate(id);
-    CommitTransaction(transaction);
-    return TVoid();
-}
+    FOREACH (const auto& nestedId, transaction.NestedTransactionIds()) {
+        ObjectManager->UnrefObject(nestedId);
+        Abort(GetTransactionForUpdate(nestedId));
+    }
+    transaction.NestedTransactionIds().clear();
 
-NMetaState::TMetaChange<TVoid>::TPtr
-TTransactionManager::InitiateAbortTransaction(const TTransactionId& id)
-{
-    TMsgAbortTransaction message;
-    message.set_transaction_id(id.ToProto());
-    return CreateMetaChange(
-        ~MetaStateManager,
-        message,
-        &TThis::DoAbortTransaction,
-        this);
-}
-
-void TTransactionManager::AbortTransaction(TTransaction& transaction)
-{
     if (IsLeader()) {
         CloseLease(transaction);
     }
 
+    transaction.SetState(ETransactionState::Aborted);
+
     OnTransactionAborted_.Fire(transaction);
 
-    auto id = transaction.GetId();
-    TransactionMap.Remove(id);
+    FinishTransaction(transaction);
 
-    LOG_INFO_IF(!IsRecovery(), "Transaction aborted (TransactionId: %s)",
-        ~id.ToString());
+    LOG_INFO_IF(!IsRecovery(), "Transaction aborted (TransactionId: %s)", ~id.ToString());
 }
 
-TVoid TTransactionManager::DoAbortTransaction(const TMsgAbortTransaction& message)
+void TTransactionManager::FinishTransaction(TTransaction& transaction)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
+    auto id = transaction.GetId();
 
-    auto id = TTransactionId::FromProto(message.transaction_id());
-    auto& transaction = TransactionMap.GetForUpdate(id);
-    AbortTransaction(transaction);
-    return TVoid();
+    if (transaction.GetParentId() != NullTransactionId) {
+        auto& parent = GetTransactionForUpdate(transaction.GetParentId());
+        YVERIFY(parent.NestedTransactionIds().erase(id) == 1);
+        ObjectManager->UnrefObject(id);
+    }
+
+    FOREACH (const auto& createdId, transaction.CreatedObjectIds()) {
+        ObjectManager->UnrefObject(createdId);
+    }
+
+    // Kill the fake reference.
+    ObjectManager->UnrefObject(id);
 }
 
 void TTransactionManager::RenewLease(const TTransactionId& id)
@@ -172,13 +295,6 @@ TFuture<TVoid>::TPtr TTransactionManager::Save(const TCompositeMetaState::TSaveC
 
     auto* output = context.Output;
     auto invoker = context.Invoker;
-
-    auto transactionIdGenerator = TransactionIdGenerator;
-    invoker->Invoke(FromFunctor([=] ()
-        {
-            ::Save(output, transactionIdGenerator);
-        }));
-
     return TransactionMap.Save(invoker, output);
 }
 
@@ -186,7 +302,6 @@ void TTransactionManager::Load(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Load(input, TransactionIdGenerator);
     TransactionMap.Load(input);
 }
 
@@ -194,7 +309,6 @@ void TTransactionManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionIdGenerator.Reset();
     TransactionMap.Clear();
 }
 
@@ -237,10 +351,15 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (!FindTransaction(id))
         return;
 
-    LOG_INFO("Transaction expired (TransactionId: %s)",
-        ~id.ToString());
+    LOG_INFO("Transaction expired (TransactionId: %s)", ~id.ToString());
 
-    InitiateAbortTransaction(id)->Commit();
+    auto req = TTransactionYPathProxy::Abort(FromObjectId(id));
+    ExecuteVerb(~req, ~CypressManager->CreateProcessor());
+}
+
+void TTransactionManager::SetCypressManager(NCypress::TCypressManager* cypressManager)
+{
+    CypressManager = cypressManager;
 }
 
 DEFINE_METAMAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)

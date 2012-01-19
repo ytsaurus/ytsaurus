@@ -72,6 +72,7 @@ class TClientRequest
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);
     DEFINE_BYVAL_RO_PROPERTY(bool, OneWay);
+    DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
 
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
@@ -100,9 +101,6 @@ class TTypedClientRequest
     : public TClientRequest
     , public TRequestMessage
 {
-private:
-    TDuration Timeout;
-
 public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
 
@@ -118,13 +116,14 @@ public:
     {
         auto response = NYT::New<TResponse>(GetRequestId());
         auto asyncResult = response->GetAsyncResult();
-        DoInvoke(~response, Timeout);
+        DoInvoke(~response, Timeout_);
         return asyncResult;
     }
 
+    // Override base method for fluent use.
     TIntrusivePtr<TTypedClientRequest> SetTimeout(TDuration timeout)
     {
-        Timeout = timeout;
+        TClientRequest::SetTimeout(timeout);
         return this;
     }
 

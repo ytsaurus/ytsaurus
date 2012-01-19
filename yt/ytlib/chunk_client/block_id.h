@@ -22,7 +22,7 @@ DECLARE_ENUM(EChunkType,
 
 //! Identifies a block.
 /*!
- * Each block is identified by its chunk id and block index (0-based).
+ *  Each block is identified by its chunk id and block index (0-based).
  */
 struct TBlockId
 {

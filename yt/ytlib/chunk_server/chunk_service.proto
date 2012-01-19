@@ -65,6 +65,7 @@ message TRspHolderHeartbeat
         required bytes job_id = 2;
         required bytes chunk_id = 3;
         repeated bytes target_addresses = 4;
+        required uint64 start_time = 5;
     }
 
     repeated bytes chunks_to_remove = 1;
@@ -94,24 +95,6 @@ message TRspCreateChunks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqConfirmChunks
-{
-    message TChunkInfo
-    {
-        required bytes chunk_id = 1;
-        repeated bytes holder_addresses = 2;
-        required NChunkHolder.NProto.TChunkAttributes attributes = 3;
-    }
-
-    required bytes transaction_id = 1;
-    repeated TChunkInfo chunks = 2;
-}
-
-message TRspConfirmChunks
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqCreateChunkLists
 {
     required bytes transaction_id = 1;
@@ -122,30 +105,6 @@ message TRspCreateChunkLists
 {
     repeated bytes chunk_list_ids = 1;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqAttachChunkTrees
-{
-    required bytes transaction_id = 1;
-    repeated bytes chunk_tree_ids = 2;
-    required bytes parent_id = 3;
-}
-
-message TRspAttachChunkTrees
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqDetachChunkTrees
-{
-    required bytes transaction_id = 1;
-    repeated bytes chunk_tree_ids = 2;
-    required bytes parent_id = 3;
-}
-
-message TRspDetachChunkTrees
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

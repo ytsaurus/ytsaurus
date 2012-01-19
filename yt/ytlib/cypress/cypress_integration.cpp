@@ -37,8 +37,8 @@ private:
 
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
-        auto branchedNodeId = TBranchedNodeId::FromString(key);
-        auto* node = CypressManager->FindNode(branchedNodeId);
+        auto id = TVersionedNodeId::FromString(key);
+        auto* node = CypressManager->FindNode(id);
         if (!node) {
             return NULL;
         }
@@ -50,7 +50,7 @@ private:
                         .Item("state").Scalar(node->GetState().ToString())
                         .Item("parent_id").Scalar(node->GetParentId().ToString())
                         .Item("attributes_id").Scalar(node->GetAttributesId().ToString())
-                        .Item("ref_counter").Scalar(node->GetRefCounter())
+                        .Item("ref_counter").Scalar(node->GetObjectRefCounter())
                     .EndMap();
             }));
     }
@@ -63,9 +63,7 @@ INodeTypeHandler::TPtr CreateNodeMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::NodeMap,
-        // TODO: extract type name
-        "node_map",
+        EObjectType::NodeMap,
         ~New<TVirtualNodeMap>(cypressManager));
 }
 
@@ -120,9 +118,7 @@ INodeTypeHandler::TPtr CreateLockMapTypeHandler(
 
     return CreateVirtualTypeHandler(
         cypressManager,
-        ERuntimeNodeType::LockMap,
-        // TODO: extract type name
-        "lock_map",
+        EObjectType::LockMap,
         ~New<TVirtualLockMap>(cypressManager));
 }
 

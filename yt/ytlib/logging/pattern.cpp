@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "pattern.h"
 
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/fs.h>
 

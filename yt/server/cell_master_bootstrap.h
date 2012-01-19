@@ -2,6 +2,7 @@
 
 #include <yt/ytlib/misc/configurable.h>
 #include <yt/ytlib/meta_state/persistent_state_manager.h>
+#include <yt/ytlib/transaction_server/transaction_manager.h>
 
 namespace NYT {
 
@@ -16,8 +17,13 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
+        //! A number identifying the cell in the whole world.
+        ui16 CellId;
+        
         //! Meta state configuration.
         NMetaState::TPersistentStateManagerConfig::TPtr MetaState;
+        
+        NTransactionServer::TTransactionManager::TConfig::TPtr TransactionManager;
 
         //! RPC interface port number.
         int RpcPort;
@@ -27,9 +33,15 @@ public:
 
         TConfig()
         {
+            Register("cell_id", CellId)
+                .Default(0);
             Register("meta_state", MetaState);
-            Register("rpc_port", RpcPort).Default(9000);
-            Register("monitoring_port", MonitoringPort).Default(10000);
+            Register("transaction_manager", TransactionManager)
+                .DefaultNew();
+            Register("rpc_port", RpcPort)
+                .Default(9000);
+            Register("monitoring_port", MonitoringPort)
+                .Default(10000);
         }
     };
 

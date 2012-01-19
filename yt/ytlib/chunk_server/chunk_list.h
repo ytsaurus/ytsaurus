@@ -1,8 +1,10 @@
 #pragma once
 
 #include "common.h"
+#include "id.h"
 
-#include <ytlib/chunk_client/common.h>
+#include <ytlib/misc/property.h>
+#include <ytlib/object_server/object_detail.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -10,8 +12,8 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkList
+    : public NObjectServer::TObjectWithIdBase
 {
-    DEFINE_BYVAL_RO_PROPERTY(TChunkListId, Id);
     DEFINE_BYREF_RW_PROPERTY(yvector<TChunkTreeId>, ChildrenIds);
 
 public:
@@ -22,14 +24,7 @@ public:
     void Save(TOutputStream* output) const;
     static TAutoPtr<TChunkList> Load(const TChunkListId& id, TInputStream* input);
 
-
-    i32 Ref();
-    i32 Unref();
-    i32 GetRefCounter() const;
-
 private:
-    i32 RefCounter;
-
     TChunkList(const TChunkList& other);
 
 };

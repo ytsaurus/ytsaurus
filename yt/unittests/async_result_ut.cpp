@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/actions/future.h"
+#include <ytlib/actions/future.h>
 
 #include <util/system/thread.h>
 
@@ -14,26 +14,36 @@ class TFutureTest
     : public ::testing::Test
 {
 protected:
-    TFuture<int> Result;
+    TFuture<int>::TPtr Result;
+
+    virtual void SetUp()
+    {
+        Result = New< TFuture<int> >();
+    }
+
+    virtual void TearDown()
+    {
+        Result.Reset();
+    }
 };
 
 TEST_F(TFutureTest, SimpleGet)
 {
-    Result.Set(57);
+    Result->Set(57);
 
-    EXPECT_EQ(57, Result.Get());
+    EXPECT_EQ(57, Result->Get());
 }
 
 TEST_F(TFutureTest, SimpleTryGet)
 {
     int value = 17;
 
-    EXPECT_IS_FALSE(Result.TryGet(&value));
+    EXPECT_IS_FALSE(Result->TryGet(&value));
     EXPECT_EQ(17, value);
 
-    Result.Set(42);
+    Result->Set(42);
 
-    EXPECT_IS_TRUE(Result.TryGet(&value));
+    EXPECT_IS_TRUE(Result->TryGet(&value));
     EXPECT_EQ(42, value);
 }
 
@@ -52,14 +62,14 @@ TEST_F(TFutureTest, Subscribe)
     EXPECT_CALL(*firstSubscriber, Do(42)).Times(1);
     EXPECT_CALL(*secondSubscriber, Do(42)).Times(1);
 
-    Result.Subscribe(firstSubscriber.Get());
-    Result.Set(42);
-    Result.Subscribe(secondSubscriber.Get());
+    Result->Subscribe(firstSubscriber.Get());
+    Result->Set(42);
+    Result->Subscribe(secondSubscriber.Get());
 }
 
 static void* AsynchronousSetter(void* param)
 {
-    Sleep(TDuration::Seconds(0.125));
+    Sleep(TDuration::Seconds(0.100));
 
     TFuture<int>* result = reinterpret_cast<TFuture<int>*>(param);
     result->Set(42);
@@ -75,13 +85,13 @@ TEST_F(TFutureTest, SubscribeWithAsynchronousSet)
     EXPECT_CALL(*firstSubscriber, Do(42)).Times(1);
     EXPECT_CALL(*secondSubscriber, Do(42)).Times(1);
 
-    Result.Subscribe(firstSubscriber.Get());
+    Result->Subscribe(firstSubscriber.Get());
 
-    TThread thread(&AsynchronousSetter, &Result);
+    TThread thread(&AsynchronousSetter, Result.Get());
     thread.Start();
     thread.Join();
-    
-    Result.Subscribe(secondSubscriber.Get());
+
+    Result->Subscribe(secondSubscriber.Get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

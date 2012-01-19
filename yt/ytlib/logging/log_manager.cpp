@@ -174,7 +174,7 @@ public:
         return config;
     }
 
-    static TPtr CreateFromNode(INode* node, const TYPath& path = YPathRoot)
+    static TPtr CreateFromNode(INode* node, const TYPath& path = RootMarker)
     {
         auto config = New<TLogConfig>();
         config->LoadAndValidate(node, path);
@@ -247,7 +247,7 @@ public:
         Shutdown();
     }
 
-    void Configure(INode* node, const TYPath& path = YPathRoot)
+    void Configure(INode* node, const TYPath& path = RootMarker)
     {
         auto config = TLogConfig::CreateFromNode(node, path);
 
@@ -265,8 +265,7 @@ public:
             LOG_TRACE("Configuring logging (FileName: %s, Path: %s)", ~fileName, ~path);
             TIFStream configStream(fileName);
             auto root = DeserializeFromYson(&configStream);
-            auto rootService = IYPathService::FromNode(~root);
-            auto configNode = SyncYPathGetNode(~rootService, path);
+            auto configNode = SyncYPathGetNode(~root, path);
             Configure(~configNode, path);
         } catch (const std::exception& ex) {
             LOG_ERROR("Error while configuring logging\n%s", ex.what())

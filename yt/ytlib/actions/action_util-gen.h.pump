@@ -71,8 +71,14 @@ public:
 
     virtual void Do()
     {
-        TUnderlying* target = TActionTargetTraits<TTargetPtr>::Get(Target);
-        (target->*Method)($Args);
+        typedef TActionTargetTraits<TTargetPtr> TTraits;
+
+        auto lock = TTraits::Lock(Target);
+        TUnderlying* target = TTraits::Get(Target);
+
+        if (TTraits::StrongReference || target) {
+            (target->*Method)($Args);
+        }
     }
 };
 } // namespace NActionThunks
@@ -165,8 +171,14 @@ public:
 
     virtual void Do(TParam param)
     {
-        TUnderlying* target = TActionTargetTraits<TTargetPtr>::Get(Target);
-        (target->*Method)(param$_and_$Args);
+        typedef TActionTargetTraits<TTargetPtr> TTraits;
+
+        auto lock = TTraits::Lock(Target);
+        TUnderlying* target = TTraits::Get(Target);
+
+        if (TTraits::StrongReference || target) {
+            (target->*Method)(param$_and_$Args);
+        }
     }
 };
 } // namespace NActionThunks

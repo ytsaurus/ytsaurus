@@ -13,7 +13,9 @@ class TChunkPlacement
 public:
     typedef TIntrusivePtr<TChunkPlacement> TPtr;
 
-    TChunkPlacement(TChunkManager* chunkManager);
+    TChunkPlacement(
+        TChunkManager* chunkManager,
+        TChunkManager::TConfig* config);
 
     void OnHolderRegistered(const THolder& holder);
     void OnHolderUnregistered(const THolder& holder);
@@ -29,7 +31,7 @@ public:
     yvector<THolderId> GetReplicationTargets(const TChunk& chunk, int count);
     yvector<THolderId> GetRemovalTargets(const TChunk& chunk, int count);
     THolderId GetReplicationSource(const TChunk& chunk);
-    yvector<NChunkClient::TChunkId> GetBalancingChunks(const THolder& holder, int count);
+    yvector<TChunkId> GetBalancingChunks(const THolder& holder, int count);
     THolderId GetBalancingTarget(const TChunk& chunk, double maxFillCoeff);
    
 private:
@@ -37,6 +39,7 @@ private:
     typedef yhash_map<THolderId, TLoadFactorMap::iterator> TIteratorMap;
 
     TChunkManager::TPtr ChunkManager;
+    TChunkManager::TConfig::TPtr Config;
     TLoadFactorMap LoadFactorMap;
     TIteratorMap IteratorMap;
     yhash_map<THolderId, int> HintedSessionsMap;

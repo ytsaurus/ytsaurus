@@ -2,49 +2,71 @@
 #include "ypath_service.h"
 #include "tree_builder.h"
 #include "ephemeral.h"
-
-#include <ytlib/misc/singleton.h>
+#include "ypath_detail.h"
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TPtr IYPathService::FromNode(INode* node)
-{
-    YASSERT(node);
-    auto* service = dynamic_cast<IYPathService*>(node);
-    if (!service) {
-        ythrow yexception() << "Node does not support YPath";
-    }
-    return service;
-}
-
 IYPathService::TPtr IYPathService::FromProducer(TYsonProducer* producer)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
     producer->Do(~builder);
-    return FromNode(~builder->EndTree());
+    return builder->EndTree();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDefaultYPathExecutor
-    : public IYPathExecutor
+class TDefaultYPathProcessor
+    : public IYPathProcessor
 {
 public:
-    virtual void ExecuteVerb(
+    TDefaultYPathProcessor(IYPathService* rootService)
+        : RootService(rootService)
+    { }
+
+    virtual void Resolve(
+        const TYPath& path,
+        const Stroka& verb,
+        IYPathService::TPtr* suffixService,
+        TYPath* suffixPath)
+    {
+        auto currentPath = path;
+
+        if (currentPath.empty()) {
+            ythrow yexception() << "YPath cannot be empty";
+        }
+
+        if (currentPath.has_prefix(RootMarker)) {
+            currentPath = currentPath.substr(RootMarker.length());
+        } else {
+            ythrow yexception() << "Invalid YPath syntax";
+        }
+
+        ResolveYPath(
+            ~RootService,
+            currentPath,
+            verb,
+            suffixService,
+            suffixPath);
+    }
+
+    virtual void Execute(
         IYPathService* service,
         NRpc::IServiceContext* context)
     {
         service->Invoke(context);
     }
+
+private:
+    IYPathService::TPtr RootService;
 };
 
-IYPathExecutor::TPtr GetDefaultExecutor()
+IYPathProcessor::TPtr CreateDefaultProcessor(IYPathService* rootService)
 {
-    return RefCountedSingleton<TDefaultYPathExecutor>();
+    return New<TDefaultYPathProcessor>(rootService);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,8 +32,7 @@ inline void Read(
     TIntrusivePtr<T>& parameter,
     const NYTree::INode* node,
     const NYTree::TYPath& path,
-    typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
-        NYT::NDetail::TEmpty())
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
 {
     if (!parameter) {
         parameter = New<T>();
@@ -57,6 +56,12 @@ inline void Read(i32& parameter, const NYTree::INode* node, const NYTree::TYPath
 inline void Read(ui32& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
 {
     parameter = CheckedStaticCast<ui32>(node->AsInt64()->GetValue());
+}
+
+// ui16
+inline void Read(ui16& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
+{
+    parameter = CheckedStaticCast<ui16>(node->AsInt64()->GetValue());
 }
 
 // double
@@ -96,8 +101,7 @@ inline void Read(
     T& parameter,
     const NYTree::INode* node, 
     const NYTree::TYPath& /* path */,
-    typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType = 
-        NYT::NDetail::TEmpty())
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T, TEnumBase<T> >, int>::TType = 0)
 {
     auto value = node->AsString()->GetValue();
     parameter = ParseEnum<T>(value);
@@ -157,8 +161,7 @@ template <class T>
 inline void Write(
     const TIntrusivePtr<T>& parameter,
     NYTree::IYsonConsumer* consumer,
-    typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
-        NYT::NDetail::TEmpty())
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
 {
     if (parameter) {
         parameter->Save(consumer);
@@ -222,10 +225,9 @@ inline void Write(const TGuid& parameter, NYTree::IYsonConsumer* consumer)
 // TEnumBase
 template <class T>
 inline void Write(
-    T& parameter,
+    const T& parameter,
     NYTree::IYsonConsumer* consumer,
-    typename NYT::NDetail::TEnableIfConvertible<T, TEnumBase<T> >::TType =
-        NYT::NDetail::TEmpty())
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T, TEnumBase<T> >, int>::TType = 0)
 {
     consumer->OnStringScalar(parameter.ToString());
 }
@@ -298,8 +300,7 @@ template <class T>
 inline void ValidateSubconfigs(
     const TIntrusivePtr<T>* parameter,
     const NYTree::TYPath& path,
-    typename NYT::NDetail::TEnableIfConvertible<T, TConfigurable>::TType =
-        NYT::NDetail::TEmpty())
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
 {
     if (parameter->Get()) {
         (*parameter)->Validate(path);

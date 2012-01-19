@@ -8,8 +8,6 @@ namespace NTransactionClient {
 
 NLog::TLogger TransactionClientLogger("TransactionClient");
 
-TTransactionId NullTransactionId(0, 0, 0, 0);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionClient

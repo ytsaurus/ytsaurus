@@ -1,17 +1,11 @@
 #pragma once
 
-#include "common.h"
+#include "id.h"
+#include "chunk_service.pb.h"
 
 #include "chunk_service.pb.h"
 
 #include <ytlib/misc/property.h>
-#include <ytlib/misc/serialize.h>
-
-#include <ytlib/chunk_client/common.h>
-#include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
-
-// TODO: remove this
-#include <ytlib/chunk_holder/common.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -28,16 +22,14 @@ DECLARE_ENUM(EHolderState,
 
 class THolder
 {
-    typedef NChunkClient::TChunkId TChunkId;
-    typedef NChunkHolder::TJobId TJobId;
-
     DEFINE_BYVAL_RO_PROPERTY(THolderId, Id);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
     DEFINE_BYVAL_RW_PROPERTY(EHolderState, State);
-    DEFINE_BYREF_RW_PROPERTY(NChunkServer::NProto::THolderStatistics, Statistics);
+    DEFINE_BYREF_RW_PROPERTY(NProto::THolderStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, StoredChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, CachedChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, UnapprovedChunkIds);
+    // TODO(babenko): consider using hashset
     DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 
 public:
@@ -45,7 +37,7 @@ public:
         THolderId id,
         const Stroka& address,
         EHolderState state,
-        const NChunkServer::NProto::THolderStatistics& statistics);
+        const NProto::THolderStatistics& statistics);
 
     THolder(const THolder& other);
 
@@ -69,15 +61,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: refactor & cleanup
-struct TReplicationSink
+class TReplicationSink
 {
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobId>, JobIds);
+
+public:
     explicit TReplicationSink(const Stroka &address)
-        : Address(address)
+        : Address_(address)
     { }
 
-    Stroka Address;
-    yhash_set<NChunkHolder::TJobId> JobIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

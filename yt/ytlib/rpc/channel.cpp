@@ -7,7 +7,6 @@
 #include <ytlib/bus/nl_client.h>
 
 #include <ytlib/misc/delayed_invoker.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/future.h>
 

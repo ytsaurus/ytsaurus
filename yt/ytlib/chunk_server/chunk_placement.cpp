@@ -10,19 +10,18 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NChunkClient::TChunkId;
-using NChunkHolder::EJobType;
-
-////////////////////////////////////////////////////////////////////////////////
-
 static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkPlacement::TChunkPlacement(TChunkManager* chunkManager)
+TChunkPlacement::TChunkPlacement(
+    TChunkManager* chunkManager,
+    TChunkManager::TConfig* config)
     : ChunkManager(chunkManager)
+    , Config(config)
 {
     YASSERT(chunkManager);
+    YASSERT(config);
 }
 
 void TChunkPlacement::OnHolderRegistered(const THolder& holder)
@@ -221,12 +220,12 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
 
     auto* sink = ChunkManager->FindReplicationSink(targetHolder.GetAddress());
     if (sink) {
-        if (static_cast<int>(sink->JobIds.size()) >= ChunkManager->Config->MaxReplicationFanIn) {
+        if (static_cast<int>(sink->JobIds().size()) >= Config->MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.
             return false;
         }
 
-        FOREACH (const auto& jobId, sink->JobIds) {
+        FOREACH (const auto& jobId, sink->JobIds()) {
             const auto& job = ChunkManager->GetJob(jobId);
             if (job.GetChunkId() == chunk.GetId()) {
                 // Do not balance to a holder that is a replication target for the very same chunk.
@@ -280,7 +279,7 @@ double TChunkPlacement::GetLoadFactor(const THolder& holder) const
     const auto& statistics = holder.Statistics();
     return
         GetFillCoeff(holder) +
-        ChunkManager->Config->ActiveSessionsPenalityCoeff * (statistics.session_count() + GetSessionCount(holder));
+        Config->ActiveSessionsPenalityCoeff * (statistics.session_count() + GetSessionCount(holder));
 }
 
 double TChunkPlacement::GetFillCoeff(const THolder& holder) const
@@ -293,11 +292,12 @@ double TChunkPlacement::GetFillCoeff(const THolder& holder) const
 
 bool TChunkPlacement::IsFull(const THolder& holder) const
 {
-    if (GetFillCoeff(holder) > ChunkManager->Config->MaxHolderFillCoeff)
+    if (GetFillCoeff(holder) > Config->MaxHolderFillCoeff) {
         return true;
+    }
 
     const auto& statistics = holder.Statistics();
-    if (statistics.available_space() - statistics.used_space() < ChunkManager->Config->MinHolderFreeSpace)
+    if (statistics.available_space() - statistics.used_space() < Config->MinHolderFreeSpace)
         return true;
 
     return false;

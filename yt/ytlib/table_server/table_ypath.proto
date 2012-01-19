@@ -4,12 +4,10 @@ import "yt/ytlib/chunk_holder/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetChunkListId
-{
-    required bool for_update = 1;
-}
+message TReqGetChunkListForUpdate
+{ }
 
-message TRspGetChunkListId
+message TRspGetChunkListForUpdate
 {
     required bytes chunk_list_id = 1;
 }

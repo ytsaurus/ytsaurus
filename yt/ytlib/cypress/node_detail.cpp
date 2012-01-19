@@ -8,19 +8,15 @@ namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
 
-const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<Stroka>::RuntimeType = ERuntimeNodeType::String;
-const char* TCypressScalarTypeTraits<Stroka>::TypeName = "string";
-
-const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<i64>::RuntimeType = ERuntimeNodeType::Int64;
-const char* TCypressScalarTypeTraits<i64>::TypeName = "int64";
-
-const ERuntimeNodeType::EDomain TCypressScalarTypeTraits<double>::RuntimeType = ERuntimeNodeType::Double;
-const char* TCypressScalarTypeTraits<double>::TypeName = "double";
+const EObjectType::EDomain TCypressScalarTypeTraits<Stroka>::ObjectType = EObjectType::StringNode;
+const EObjectType::EDomain TCypressScalarTypeTraits<i64>::ObjectType = EObjectType::Int64Node;
+const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjectType::DoubleNode;
 
 } // namespace NDetail
 
@@ -29,7 +25,7 @@ const char* TCypressScalarTypeTraits<double>::TypeName = "double";
 } // namespace NCypress
 } // namespace NYT
 
-i32 hash<NYT::NCypress::TBranchedNodeId>::operator()(const NYT::NCypress::TBranchedNodeId& id) const
+i32 hash<NYT::NCypress::TVersionedNodeId>::operator()(const NYT::NCypress::TVersionedNodeId& id) const
 {
     return static_cast<i32>(THash<NYT::TGuid>()(id.NodeId)) * 497 +
         static_cast<i32>(THash<NYT::TGuid>()(id.TransactionId));
@@ -40,47 +36,47 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
+TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType)
     : ParentId_(NullNodeId)
     , AttributesId_(NullNodeId)
     , State_(ENodeState::Uncommitted)
     , Id(id)
-    , RuntimeType(runtimeType)
+    , ObjectType(objectType)
     , RefCounter(0)
 { }
 
-TCypressNodeBase::TCypressNodeBase(const TBranchedNodeId& id, const TCypressNodeBase& other)
+TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other)
     : ParentId_(other.ParentId_)
     , AttributesId_(other.AttributesId_)
     , State_(other.State_)
     , Id(id)
-    , RuntimeType(other.RuntimeType)
+    , ObjectType(other.ObjectType)
     , RefCounter(0)
 { }
 
-ERuntimeNodeType TCypressNodeBase::GetRuntimeType() const
+EObjectType TCypressNodeBase::GetObjectType() const
 {
-    return RuntimeType;
+    return ObjectType;
 }
 
-TBranchedNodeId TCypressNodeBase::GetId() const
+TVersionedNodeId TCypressNodeBase::GetId() const
 {
     return Id;
 }
 
-i32 TCypressNodeBase::Ref()
+i32 TCypressNodeBase::RefObject()
 {
     YASSERT(State_ != ENodeState::Branched);
     return ++RefCounter;
 }
 
-i32 TCypressNodeBase::Unref()
+i32 TCypressNodeBase::UnrefObject()
 {
     YASSERT(State_ != ENodeState::Branched);
     return --RefCounter;
 }
 
-i32 TCypressNodeBase::GetRefCounter() const
+i32 TCypressNodeBase::GetObjectRefCounter() const
 {
     return RefCounter;
 }
@@ -105,11 +101,11 @@ void TCypressNodeBase::Load(TInputStream* input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNode::TMapNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
-    : TCypressNodeBase(id, runtimeType)
+TMapNode::TMapNode(const TVersionedNodeId& id, EObjectType objectType)
+    : TCypressNodeBase(id, objectType)
 { }
 
-TMapNode::TMapNode(const TBranchedNodeId& id, const TMapNode& other)
+TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
     : TCypressNodeBase(id, other)
 {
     NameToChild_ = other.NameToChild_;
@@ -144,9 +140,9 @@ TMapNodeTypeHandler::TMapNodeTypeHandler(TCypressManager* cypressManager)
     RegisterGetter("size", FromMethod(&TThis::GetSize));
 }
 
-ERuntimeNodeType TMapNodeTypeHandler::GetRuntimeType()
+EObjectType TMapNodeTypeHandler::GetObjectType()
 {
-    return ERuntimeNodeType::Map;
+    return EObjectType::MapNode;
 }
 
 ENodeType TMapNodeTypeHandler::GetNodeType()
@@ -154,19 +150,11 @@ ENodeType TMapNodeTypeHandler::GetNodeType()
     return ENodeType::Map;
 }
 
-Stroka TMapNodeTypeHandler::GetTypeName()
-{
-    return "map";
-}
-
 void TMapNodeTypeHandler::DoDestroy(TMapNode& node)
 {
     // Drop references to the children.
     FOREACH (const auto& pair, node.NameToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            pair.Second(),
-            NullTransactionId));
-        CypressManager->UnrefNode(childImpl);
+        CypressManager->GetObjectManager()->UnrefObject(pair.second);
     }
 }
 
@@ -178,10 +166,7 @@ void TMapNodeTypeHandler::DoBranch(
 
     // Reference all children.
     FOREACH (const auto& pair, committedNode.NameToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            pair.Second(),
-            NullTransactionId));
-        CypressManager->RefNode(childImpl);
+        CypressManager->GetObjectManager()->RefObject(pair.second);
     }
 }
 
@@ -191,10 +176,7 @@ void TMapNodeTypeHandler::DoMerge(
 {
     // Drop all references held by the originator.
     FOREACH (const auto& pair, committedNode.NameToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            pair.Second(),
-            NullTransactionId));
-        CypressManager->UnrefNode(childImpl);
+        CypressManager->GetObjectManager()->UnrefObject(pair.second);
     }
 
     // Replace the child list with the branched copy.
@@ -210,11 +192,11 @@ void TMapNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListNode::TListNode(const TBranchedNodeId& id, ERuntimeNodeType runtimeType)
-    : TCypressNodeBase(id, runtimeType)
+TListNode::TListNode(const TVersionedNodeId& id, EObjectType objectType)
+    : TCypressNodeBase(id, objectType)
 { }
 
-TListNode::TListNode(const TBranchedNodeId& id, const TListNode& other)
+TListNode::TListNode(const TVersionedNodeId& id, const TListNode& other)
     : TCypressNodeBase(id, other)
 {
     IndexToChild_ = other.IndexToChild_;
@@ -260,19 +242,14 @@ TListNodeTypeHandler::TListNodeTypeHandler(TCypressManager* cypressManager)
     RegisterGetter("size", FromMethod(&TThis::GetSize));
 }
 
-ERuntimeNodeType TListNodeTypeHandler::GetRuntimeType()
+EObjectType TListNodeTypeHandler::GetObjectType()
 {
-    return ERuntimeNodeType::List;
+    return EObjectType::ListNode;
 }
 
 ENodeType TListNodeTypeHandler::GetNodeType()
 {
     return ENodeType::List;
-}
-
-Stroka TListNodeTypeHandler::GetTypeName()
-{
-    return "list";
 }
 
 ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(
@@ -290,10 +267,7 @@ void TListNodeTypeHandler::DoDestroy(TListNode& node)
 {
     // Drop references to the children.
     FOREACH (auto& nodeId, node.IndexToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            nodeId,
-            NullTransactionId));
-        CypressManager->UnrefNode(childImpl);
+        CypressManager->GetObjectManager()->UnrefObject(nodeId);
     }
 }
 
@@ -305,10 +279,7 @@ void TListNodeTypeHandler::DoBranch(
 
     // Reference all children.
     FOREACH (const auto& nodeId, committedNode.IndexToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            nodeId,
-            NullTransactionId));
-        CypressManager->RefNode(childImpl);
+        CypressManager->GetObjectManager()->RefObject(nodeId);
     }
 }
 
@@ -318,10 +289,7 @@ void TListNodeTypeHandler::DoMerge(
 {
     // Drop all references held by the originator.
     FOREACH (const auto& nodeId, committedNode.IndexToChild()) {
-        auto& childImpl = CypressManager->GetNodeForUpdate(TBranchedNodeId(
-            nodeId,
-            NullTransactionId));
-        CypressManager->UnrefNode(childImpl);
+        CypressManager->GetObjectManager()->UnrefObject(nodeId);
     }
 
     // Replace the child list with the branched copy.
@@ -333,33 +301,6 @@ void TListNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 {
     BuildYsonFluently(param.Consumer)
         .Scalar(param.Node->IndexToChild().ysize());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TRootNodeTypeHandler::TRootNodeTypeHandler(TCypressManager* cypressManager)
-    : TMapNodeTypeHandler(cypressManager)
-{ }
-
-ERuntimeNodeType TRootNodeTypeHandler::GetRuntimeType()
-{
-    return ERuntimeNodeType::Root;
-}
-
-Stroka TRootNodeTypeHandler::GetTypeName()
-{
-    return "root";
-}
-
-ICypressNodeProxy::TPtr TRootNodeTypeHandler::GetProxy(
-    const ICypressNode& node,
-    const TTransactionId& transactionId)
-{
-    return New<TRootNodeProxy>(
-        this,
-        ~CypressManager,
-        transactionId,
-        node.GetId().NodeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

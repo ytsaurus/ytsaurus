@@ -4,6 +4,8 @@ $var n = 10 $$ The maximum arity.
 // vim:set ft=cpp:
 #pragma once
 
+#include "common.h"
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,15 +63,23 @@ namespace NYT {
  * #TRefCountedBase.
  */
 
-#include "common.h"
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void* GetRefCountedTrackerCookie(const void* key);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 
 #ifdef ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
-    static TRefCountedTracker::TCookie cookie = NULL; \
+    static void* cookie = NULL; \
     do { \
         if (EXPECT_FALSE(cookie == NULL)) { \
-            cookie = TRefCountedTracker::Get()->GetCookie(&typeid(TResult)); \
+            cookie = NYT::NDetail::GetRefCountedTrackerCookie(&typeid(TResult)); \
         } \
     } while(0)
 
@@ -97,9 +107,9 @@ $for i [[
 $range j 1..i
 
 $$ Handy shortcuts.
-$var tmpl_args = [[$for j [[, class TArg$j ]]]]
-$var ctor_args = [[$for j , [[ TArg$j&& arg$j ]]]]
-$var args_list = [[$for j , [[ ForwardRV(arg$j) ]]]]
+$var tmpl_args = [[$for j [[, class TArg$j]]]]
+$var ctor_args = [[$for j , [[ TArg$j&& arg$j]]]]
+$var args_list = [[$for j , [[ ForwardRV<TArg$j>(arg$j)]]]]
 
 template<
     class TResult$tmpl_args
@@ -107,7 +117,6 @@ template<
 inline TIntrusivePtr<TResult> New($ctor_args)
 {
     REF_COUNTED_NEW_PROLOGUE();
-    // Do not increment reference count because initial RC equals 1.
     TIntrusivePtr<TResult> result(new TResult($args_list), false);
     REF_COUNTED_NEW_EPILOGUE();
     return result;

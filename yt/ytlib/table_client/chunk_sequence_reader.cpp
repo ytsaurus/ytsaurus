@@ -6,17 +6,17 @@
 namespace NYT {
 namespace NTableClient {
 
-using namespace NChunkClient;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkSequenceReader::TChunkSequenceReader(
     TConfig* config,
     const TChannel& channel,
-    const NTransactionClient::TTransactionId& transactionId,
+    const NTransactionServer::TTransactionId& transactionId,
     NRpc::IChannel* masterChannel,
     NChunkClient::IBlockCache* blockCache,
-    const yvector<NChunkClient::TChunkId>& chunkIds,
+    const yvector<TChunkId>& chunkIds,
     int startRow,
     int endRow)
     : Config(config)

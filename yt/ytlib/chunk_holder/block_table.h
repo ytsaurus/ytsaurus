@@ -24,7 +24,11 @@ struct TPeerInfo
 
 //////////////////////////////////////////////////////////////////////////////// 
 
+//! When Chunk Holder sends a block to a certain client
+//! it has to remember its address to facilitate peer-to-peer transfers.
+//! This class maintains an auto-expiring map for this purpose.
 /*!
+ *  \note
  *  Thread affinity: single.
  */
 class TBlockTable
@@ -33,13 +37,13 @@ class TBlockTable
 public:
     TBlockTable(TBlockTableConfig* config);
     
-    //! Gets peers possibly holding the block.
+    //! Gets peers where a particular block was sent to.
     /*!
      *  Also sweeps expired peers.
      */
     const yvector<TPeerInfo>& GetPeers(const TBlockId& blockId);
     
-    //! Registers new peer or updates existing peer expiration time.
+    //! For a given block, registers a new peer or updates the existing one.
     /*!
      *  Also sweeps expired peers.
      */

@@ -24,11 +24,12 @@ public:
     TChunkReplication(
         TChunkManager* chunkManager,
         TChunkPlacement* chunkPlacement,
+        TChunkManager::TConfig* config,
         IInvoker* invoker);
 
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, LostChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, UnderreplicatedChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<NChunkClient::TChunkId>, OverreplicatedChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, OverreplicatedChunkIds);
 
     void OnHolderRegistered(const THolder& holder);
     void OnHolderUnregistered(const THolder& holder);
@@ -36,33 +37,34 @@ public:
     void OnReplicaAdded(const THolder& holder, const TChunk& chunk);
     void OnReplicaRemoved(const THolder& holder, const TChunk& chunk);
 
-    void ScheduleChunkRemoval(const THolder& holder, const NChunkClient::TChunkId& chunkId);
+    void ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId);
 
     void RunJobControl(
         const THolder& holder,
         const yvector<TJobInfo>& runningJobs,
         yvector<TJobStartInfo>* jobsToStart,
-        yvector<NChunkHolder::TJobId>* jobsToStop);
+        yvector<TJobId>* jobsToStop);
 
 private:
     TChunkManager::TPtr ChunkManager;
+    TChunkManager::TConfig::TPtr Config;
     TChunkPlacement::TPtr ChunkPlacement;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     struct TRefreshEntry
     {
-        NChunkClient::TChunkId ChunkId;
+        TChunkId ChunkId;
         TInstant When;
     };
 
     IInvoker::TPtr Invoker;
-    yhash_set<NChunkClient::TChunkId> RefreshSet;
+    yhash_set<TChunkId> RefreshSet;
     ydeque<TRefreshEntry> RefreshList;
 
     struct THolderInfo
     {
-        typedef yhash_set<NChunkClient::TChunkId> TChunkIds;
+        typedef yhash_set<TChunkId> TChunkIds;
         TChunkIds ChunksToReplicate;
         TChunkIds ChunksToRemove;
     };
@@ -76,11 +78,11 @@ private:
     void ProcessExistingJobs(
         const THolder& holder,
         const yvector<TJobInfo>& runningJobs,
-        yvector<NChunkHolder::TJobId>* jobsToStop,
+        yvector<TJobId>* jobsToStop,
         int* replicationJobCount,
         int* removalJobCount);
 
-    bool IsRefreshScheduled(const NChunkClient::TChunkId& chunkId);
+    bool IsRefreshScheduled(const TChunkId& chunkId);
 
     DECLARE_ENUM(EScheduleFlags,
         ((None)(0x0000))
@@ -90,15 +92,15 @@ private:
 
     EScheduleFlags ScheduleReplicationJob(
         const THolder& sourceHolder,
-        const NChunkClient::TChunkId& chunkId,
+        const TChunkId& chunkId,
         yvector<TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         const THolder& sourceHolder,
-        const NChunkClient::TChunkId& chunkId,
+        const TChunkId& chunkId,
         yvector<TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
         const THolder& holder,
-        const NChunkClient::TChunkId& chunkId,
+        const TChunkId& chunkId,
         yvector<TJobStartInfo>* jobsToStart);
     void ScheduleJobs(
         const THolder& holder,
@@ -106,7 +108,7 @@ private:
         int maxRemovalJobsToStart,
         yvector<TJobStartInfo>* jobsToStart);
 
-    void ScheduleRefresh(const NChunkClient::TChunkId& chunkId);
+    void ScheduleRefresh(const TChunkId& chunkId);
     void Refresh(const TChunk& chunk);
     int GetDesiredReplicaCount(const TChunk& chunk);
     void GetReplicaStatistics(

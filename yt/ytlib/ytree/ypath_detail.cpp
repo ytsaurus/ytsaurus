@@ -16,13 +16,14 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = YTreeLogger;
+NLog::TLogger& Logger = YTreeLogger;
+TYPath RootMarker("/");
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TYPath YPathRoot("/");
-
-///////////////////////////////////////////////////////////////////////////////
+TYPathServiceBase::TYPathServiceBase(const Stroka& loggingCategory)
+    : Logger(loggingCategory)
+{ }
 
 IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, const Stroka& verb)
 {
@@ -59,10 +60,11 @@ void TYPathServiceBase::Invoke(IServiceContext* context)
 {
     try {
         DoInvoke(context);
-    } catch (...) {
-        context->Reply(TError(
-            EYPathErrorCode::GenericError,
-            CurrentExceptionMessage()));
+    } catch (const TServiceException& ex) {
+        throw;
+    }
+    catch (const std::exception& ex) {
+        context->Reply(TError(ex.what()));
     }
 }
 
@@ -71,6 +73,11 @@ void TYPathServiceBase::DoInvoke(IServiceContext* context)
     UNUSED(context);
     ythrow TServiceException(EErrorCode::NoSuchVerb) <<
         "Verb is not supported";
+}
+
+Stroka TYPathServiceBase::GetLoggingCategory() const
+{
+    return Logger.GetCategory();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,32 +168,19 @@ void TNodeSetterBase::OnMyEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath ChopYPathRootMarker(const TYPath& path)
-{
-    if (path.empty()) {
-        ythrow yexception() << Sprintf("YPath cannot be empty, use \"%s\" to denote the root", ~YPathRoot);
-    }
-
-    if (!path.has_prefix(YPathRoot)) {
-        ythrow yexception() << Sprintf("YPath must start with \"%s\"", ~YPathRoot);
-    }
-
-    return path.substr(YPathRoot.size());
-}
-
 void ChopYPathToken(
     const TYPath& path,
-    Stroka* prefix,
+    Stroka* token,
     TYPath* suffixPath)
 {
     size_t index = path.find_first_of("/@");
     if (index == TYPath::npos) {
-        *prefix = path;
+        *token = path;
         *suffixPath = TYPath(path.end(), static_cast<size_t>(0));
     } else {
         switch (path[index]) {
             case '/':
-                *prefix = path.substr(0, index);
+                *token = path.substr(0, index);
                 *suffixPath =
                     index == path.length() - 1
                     ? path.substr(index)
@@ -194,7 +188,7 @@ void ChopYPathToken(
                 break;
 
             case '@':
-                *prefix = path.substr(0, index);
+                *token = path.substr(0, index);
                 *suffixPath = path.substr(index);
                 break;
 
@@ -219,21 +213,29 @@ TYPath ComputeResolvedYPath(
 }
 
 TYPath CombineYPaths(
-    const TYPath& prefixPath,
-    const TYPath& suffixPath)
+    const TYPath& path1,
+    const TYPath& path2)
 {
-    if (prefixPath.empty() || suffixPath.empty()) {
-        return prefixPath + suffixPath;
+    if (path1.empty() || path2.empty()) {
+        return path1 + path2;
     }
-    if (prefixPath.back() == '/' && suffixPath[0] == '/') {
-        return prefixPath + suffixPath.substr(1);
-    }
-
-    if (prefixPath.back() != '/' && suffixPath[0] != '/') {
-        return prefixPath + '/' + suffixPath;
+    if (path1.back() == '/' && path2[0] == '/') {
+        return path1 + path2.substr(1);
     }
 
-    return prefixPath + suffixPath;
+    if (path1.back() != '/' && path2[0] != '/') {
+        return path1 + '/' + path2;
+    }
+
+    return path1 + path2;
+}
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3)
+{
+    return CombineYPaths(CombineYPaths(path1, path2), path3);
 }
 
 bool IsEmptyYPath(const TYPath& path)
@@ -243,7 +245,7 @@ bool IsEmptyYPath(const TYPath& path)
 
 bool IsFinalYPath(const TYPath& path)
 {
-    return path.empty() || (path == YPathRoot);
+    return path.empty() || path == RootMarker;
 }
 
 bool IsAttributeYPath(const TYPath& path)
@@ -263,6 +265,43 @@ bool IsLocalYPath(const TYPath& path)
     // Thus "/virtual" denotes the virtual node while "/virtual/" denotes its content.
     // Same applies to the attributes (cf. "/virtual@" vs "/virtual/@").
     return IsEmptyYPath(path) || IsAttributeYPath(path);
+}
+
+void ResolveYPath(
+    IYPathService* rootService,
+    const TYPath& path,
+    const Stroka& verb,
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath)
+{
+    YASSERT(rootService);
+    YASSERT(suffixService);
+    YASSERT(suffixPath);
+
+    IYPathService::TPtr currentService = rootService;
+    auto currentPath = path;
+
+    while (true) {
+        IYPathService::TResolveResult result;
+        try {
+            result = currentService->Resolve(currentPath, verb);
+        } catch (...) {
+            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
+                ~path,
+                ~verb,
+                ~ComputeResolvedYPath(path, currentPath),
+                ~CurrentExceptionMessage());
+        }
+
+        if (result.IsHere()) {
+            *suffixService = currentService;
+            *suffixPath = result.GetPath();
+            break;
+        }
+
+        currentService = result.GetService();
+        currentPath = result.GetPath();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,79 +367,6 @@ protected:
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-void ResolveYPath(
-    IYPathService* rootService,
-    const TYPath& path,
-    const Stroka& verb,
-    IYPathService::TPtr* suffixService,
-    TYPath* suffixPath)
-{
-    YASSERT(rootService);
-    YASSERT(suffixService);
-    YASSERT(suffixPath);
-
-    IYPathService::TPtr currentService = rootService;
-    auto currentPath = ChopYPathRootMarker(path);
-
-    while (true) {
-        IYPathService::TResolveResult result;
-        try {
-            result = currentService->Resolve(currentPath, verb);
-        } catch (...) {
-            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
-                ~path,
-                ~verb,
-                ~ComputeResolvedYPath(path, currentPath),
-                ~CurrentExceptionMessage());
-        }
-
-        if (result.IsHere()) {
-            *suffixService = currentService;
-            *suffixPath = result.GetPath();
-            break;
-        }
-
-        currentService = result.GetService();
-        currentPath = result.GetPath();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void WrapYPathRequest(
-    NRpc::TClientRequest* outerRequest,
-    NBus::IMessage* innerRequestMessage)
-{
-    YASSERT(outerRequest);
-    YASSERT(innerRequestMessage);
-
-    const auto& parts = innerRequestMessage->GetParts();
-    outerRequest->Attachments() = yvector<TSharedRef>(parts.begin(), parts.end());
-}
-
-NBus::IMessage::TPtr UnwrapYPathRequest(
-    NRpc::IServiceContext* outerContext)
-{
-    YASSERT(outerContext);
-
-    const auto& parts = outerContext->RequestAttachments();
-    YASSERT(parts.ysize() >= 2);
-
-    return CreateMessageFromParts(parts);
-}
-
-void WrapYPathResponse(
-    NRpc::IServiceContext* outerContext,
-    NBus::IMessage* responseMessage)
-{
-    YASSERT(outerContext);
-    YASSERT(responseMessage);
-
-    outerContext->ResponseAttachments() = MoveRV(responseMessage->GetParts());
-}
-
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
     const TYPath& path,
@@ -413,20 +379,12 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     TRequestHeader header;
     header.set_path(path);
     header.set_verb(verb);
+
     return New<TServiceContext>(
         header,
         requestMessage,
         responseHandler,
         loggingCategory);
-}
-
-NBus::IMessage::TPtr UnwrapYPathResponse(
-    TClientResponse* outerResponse)
-{
-    YASSERT(outerResponse);
-
-    auto parts = outerResponse->Attachments();
-    return CreateMessageFromParts(parts);
 }
 
 void ReplyYPathWithMessage(

@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "holder.h"
 
+#include <ytlib/misc/assert.h>
+#include <ytlib/misc/serialize.h>
+
 namespace NYT {
 namespace NChunkServer {
 
-using namespace NChunkHolder;
-using namespace NChunkServer::NProto;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,7 +15,7 @@ THolder::THolder(
     THolderId id,
     const Stroka& address,
     EHolderState state,
-    const NChunkServer::NProto::THolderStatistics& statistics)
+    const THolderStatistics& statistics)
     : Id_(id)
     , Address_(address)
     , State_(state)

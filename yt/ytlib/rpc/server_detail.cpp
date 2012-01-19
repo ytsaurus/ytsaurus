@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "server_detail.h"
 
-#include <ytlib/misc/assert.h>
 #include <ytlib/rpc/message.h>
 
 namespace NYT {

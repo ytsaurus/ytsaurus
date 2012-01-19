@@ -2,10 +2,6 @@
 #error "Direct inclusion of this file is not allowed, include composite_meta_state_detail.h"
 #endif
 
-#include <ytlib/misc/assert.h>
-
-#include <util/charset/wide.h>
-
 namespace NYT {
 namespace NMetaState {
 

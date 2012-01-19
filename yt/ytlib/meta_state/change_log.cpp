@@ -7,7 +7,6 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <algorithm>
-#include <util/generic/ptr.h>
 #include <util/generic/noncopyable.h>
 #include <util/digest/murmur.h>
 
@@ -458,7 +457,7 @@ void TChangeLog::TImpl::Append(i32 firstRecordId, const yvector<TSharedRef>& rec
         }
     }
 
-    LOG_DEBUG("Changelog records is added (FirstRecordId: %d, RecordCount: %d)",
+    LOG_DEBUG("Changelog records added (FirstRecordId: %d, RecordCount: %d)",
         firstRecordId,
         records.ysize());
 }

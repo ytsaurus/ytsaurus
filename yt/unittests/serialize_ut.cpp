@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/ytree/serialize.h"
+#include <ytlib/ytree/serialize.h>
 
 #include <contrib/testing/framework.h>
 

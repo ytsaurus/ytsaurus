@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/meta_state/snapshot.h"
+#include <ytlib/meta_state/snapshot.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
@@ -33,15 +33,17 @@ TEST_F(TSnapshotTest, EmptySnapshot)
 {
     // TODO: Add checksums.
     ASSERT_NO_THROW({
-        TSnapshotWriter writer(TemporaryFile->Name(), 0);
-        writer.Open(NonexistingPrevRecordCount);
-        writer.Close();
+        TSnapshotWriter::TPtr writer = New<TSnapshotWriter>(
+            TemporaryFile->Name(), 0);
+        writer->Open(NonexistingPrevRecordCount);
+        writer->Close();
     });
 
     ASSERT_NO_THROW({
-        TSnapshotReader reader(TemporaryFile->Name(), 0);
-        reader.Open();
-        reader.Close();
+        TSnapshotReader::TPtr reader = New<TSnapshotReader>(
+            TemporaryFile->Name(), 0);
+        reader->Open();
+        reader->Close();
     });
 }
 
@@ -50,19 +52,22 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
     // TODO: Add checksums.
     const i32 recordCount = 1024;
 
-    TSnapshotWriter writer(TemporaryFile->Name(), 0);
-    writer.Open(NonexistingPrevRecordCount);
-    TOutputStream& outputStream = writer.GetStream();
+    TSnapshotWriter::TPtr writer = New<TSnapshotWriter>(
+        TemporaryFile->Name(), 0);
+    writer->Open(NonexistingPrevRecordCount);
+    TOutputStream& outputStream = writer->GetStream();
 
     for (i32 i = 0; i < recordCount; ++i) {
         outputStream.Write(&i, sizeof(i32));
     }
 
-    writer.Close();
+    writer->Close();
+    writer.Reset();
 
-    TSnapshotReader reader(TemporaryFile->Name(), 0);
-    reader.Open();
-    TInputStream& inputStream = reader.GetStream();
+    TSnapshotReader::TPtr reader = New<TSnapshotReader>(
+        TemporaryFile->Name(), 0);
+    reader->Open();
+    TInputStream& inputStream = reader->GetStream();
 
     for (i32 i = 0; i < recordCount; ++i) {
         i32 data;
@@ -72,7 +77,8 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
         EXPECT_EQ(i, data);
     }
 
-    reader.Close();
+    reader->Close();
+    reader.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

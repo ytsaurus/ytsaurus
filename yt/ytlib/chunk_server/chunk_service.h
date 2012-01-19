@@ -35,15 +35,12 @@ private:
     void ValidateTransactionId(const TTransactionId& transactionId);
     void ValidateChunkId(const TChunkId& chunkId);
     void ValidateChunkListId(const TChunkListId& chunkListId);
-    void ValidateChunkTreeId(const TChunkTreeId& chunkTreeId);
+    void ValidateChunkTreeId(const TChunkTreeId& treeId);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RegisterHolder);
     DECLARE_RPC_SERVICE_METHOD(NProto, HolderHeartbeat);
     DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunks);
-    DECLARE_RPC_SERVICE_METHOD(NProto, ConfirmChunks);
     DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunkLists);
-    DECLARE_RPC_SERVICE_METHOD(NProto, AttachChunkTrees);
-    DECLARE_RPC_SERVICE_METHOD(NProto, DetachChunkTrees);
     DECLARE_RPC_SERVICE_METHOD(NProto, LocateChunk);
 
 };

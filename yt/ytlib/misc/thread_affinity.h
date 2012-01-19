@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "assert.h"
 #include "thread.h"
 
 #include <util/system/thread.h>
@@ -12,7 +11,7 @@ namespace NThreadAffinity {
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- * Allows to annotate certain functions with Thread affinity.
+ * Allows to annotate certain functions with thread affinity.
  * The checks are performed at run-time to ensure that each function
  * invocation that is annotated with a particular affinity slot
  * takes place in one thread.

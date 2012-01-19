@@ -5,6 +5,7 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/cypress/node_detail.h>
+#include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NFileServer {
@@ -17,12 +18,12 @@ class TFileNode
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkListId, ChunkListId);
 
 public:
-    TFileNode(const NCypress::TBranchedNodeId& id, NCypress::ERuntimeNodeType runtimeType);
-    TFileNode(const NCypress::TBranchedNodeId& id, const TFileNode& other);
+    TFileNode(const NCypress::TVersionedNodeId& id, NCypress::EObjectType objectType);
+    TFileNode(const NCypress::TVersionedNodeId& id, const TFileNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
 
-    virtual NCypress::ERuntimeNodeType GetRuntimeType() const;
+    virtual NCypress::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
     

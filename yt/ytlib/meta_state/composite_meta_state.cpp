@@ -3,7 +3,6 @@
 #include "composite_meta_state_detail.h"
 
 #include <ytlib/misc/foreach.h>
-#include <ytlib/misc/assert.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -17,8 +16,8 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TMetaStatePart::TMetaStatePart(
-    IMetaStateManager::TPtr metaStateManager,
-    TCompositeMetaState::TPtr metaState)
+    IMetaStateManager* metaStateManager,
+    TCompositeMetaState* metaState)
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
 {

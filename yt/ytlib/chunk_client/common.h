@@ -1,10 +1,7 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
-
-#include <ytlib/misc/guid.h>
-
 #include <ytlib/logging/log.h>
+#include <ytlib/chunk_server/id.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -15,11 +12,13 @@ extern NLog::TLogger ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Identifies a chunk.
-typedef TGuid TChunkId;
+using NChunkServer::TChunkId;
+using NChunkServer::NullChunkId;
 
-//! Means "no chunk".
-extern TChunkId NullChunkId;
+////////////////////////////////////////////////////////////////////////////////
+
+//! Represents an offset inside a chunk.
+typedef i64 TBlockOffset;
 
 ////////////////////////////////////////////////////////////////////////////////
 

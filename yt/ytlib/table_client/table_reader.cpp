@@ -2,7 +2,6 @@
 #include "table_reader.h"
 
 #include <ytlib/misc/sync.h>
-#include <ytlib/chunk_server/common.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -39,8 +38,8 @@ TTableReader::TTableReader(
     Proxy.SetTimeout(Config->MasterRpcTimeout);
 
     LOG_INFO("Fetching table info");
-    auto req = TTableYPathProxy::Fetch();
-    auto rsp = Proxy.Execute(path, transactionId, ~req)->Get();
+    auto req = TTableYPathProxy::Fetch(WithTransaction(path, transactionId));
+    auto rsp = Proxy.Execute(~req)->Get();
     if (!rsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error fetching table info\n%s",
             ~rsp->GetError().ToString());

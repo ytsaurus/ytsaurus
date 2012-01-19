@@ -92,7 +92,7 @@ public:
     void ThrowIfError() const;
 
 protected:
-    virtual void DeserializeBody(const TRef& data) = 0;
+    virtual void DeserializeBody(const TRef& data);
 
 };
 
@@ -123,9 +123,11 @@ protected:
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     \
-    static TReq##method::TPtr method() \
+    static TReq##method::TPtr method(const NYT::NYTree::TYPath& path) \
     { \
-        return New<TReq##method>(#method); \
+        auto req = New<TReq##method>(#method); \
+        req->SetPath(path); \
+        return req; \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,17 +135,15 @@ protected:
 //! Asynchronously executes an untyped YPath verb against a given service.
 TFuture<NBus::IMessage::TPtr>::TPtr
 ExecuteVerb(
-    IYPathService* rootService,
     NBus::IMessage* requestMessage,
-    IYPathExecutor* executor = ~GetDefaultExecutor());
+    IYPathProcessor* processor);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteVerb(
-    IYPathService* rootService,
     TTypedRequest* request,
-    IYPathExecutor* executor = ~GetDefaultExecutor());
+    IYPathProcessor* processor);
 
 //! Asynchronously executes "Get" verb. 
 TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* rootService, const TYPath& path);

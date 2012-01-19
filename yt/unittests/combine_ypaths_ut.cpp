@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/ytree/ypath_detail.h"
+#include <ytlib/ytree/ypath_detail.h>
 
 #include <contrib/testing/framework.h>
 

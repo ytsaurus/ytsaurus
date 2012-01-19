@@ -2,15 +2,15 @@
 
 #include "rpc_ut.pb.h"
 
-#include <yt/ytlib/misc/error.h>
+#include <ytlib/misc/error.h>
 
-#include <yt/ytlib/bus/bus.h>
-#include <yt/ytlib/bus/nl_client.h>
-#include <yt/ytlib/bus/nl_server.h>
+#include <ytlib/bus/bus.h>
+#include <ytlib/bus/nl_client.h>
+#include <ytlib/bus/nl_server.h>
 
-#include <yt/ytlib/rpc/client.h>
-#include <yt/ytlib/rpc/server.h>
-#include <yt/ytlib/rpc/service.h>
+#include <ytlib/rpc/client.h>
+#include <ytlib/rpc/server.h>
+#include <ytlib/rpc/service.h>
 
 #include <contrib/testing/framework.h>
 

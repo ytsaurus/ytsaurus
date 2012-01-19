@@ -10,22 +10,6 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Id of a job.
-typedef TGuid TJobId;
-
-DECLARE_ENUM(EJobState,
-    (Running)
-    (Completed)
-    (Failed)
-);
-
-DECLARE_ENUM(EJobType,
-    (Replicate)
-    (Remove)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkHolderServiceProxy
     : public NRpc::TProxyBase
 {

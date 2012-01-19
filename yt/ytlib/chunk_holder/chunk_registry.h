@@ -23,7 +23,7 @@ public:
     typedef TIntrusivePtr<TChunkRegistry> TPtr;
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TChunk::TPtr FindChunk(const NChunkClient::TChunkId& chunkId) const;
+    TChunk::TPtr FindChunk(const TChunkId& chunkId) const;
 
     // Due to cyclic dependency these values cannot be injected via ctor.
     void SetChunkStore(TChunkStore* chunkStore);

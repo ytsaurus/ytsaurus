@@ -1,14 +1,14 @@
 #include "stdafx.h"
 
-#include "../ytlib/ytree/ypath_service.h"
-#include "../ytlib/ytree/ypath_client.h"
+#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/ypath_client.h>
 
-#include "../ytlib/ytree/tree_builder.h"
-#include "../ytlib/ytree/tree_visitor.h"
+#include <ytlib/ytree/tree_builder.h>
+#include <ytlib/ytree/tree_visitor.h>
 
-#include "../ytlib/ytree/yson_reader.h"
-#include "../ytlib/ytree/yson_writer.h"
-#include "../ytlib/ytree/ephemeral.h"
+#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/ephemeral.h>
 
 #include <contrib/testing/framework.h>
 
@@ -24,7 +24,7 @@ public:
 
     virtual void SetUp()
     {
-        RootService = IYPathService::FromNode(~GetEphemeralNodeFactory()->CreateMap());
+        RootService = GetEphemeralNodeFactory()->CreateMap();
     }
 
     static TYson TextifyYson(const TYson& data)

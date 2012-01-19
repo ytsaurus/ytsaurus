@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <yt/ytlib/actions/action.h>
+#include <ytlib/actions/action.h>
 
 namespace NYT {
 namespace NHttp {

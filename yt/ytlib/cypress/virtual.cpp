@@ -22,15 +22,15 @@ class TVirtualNode
 
 public:
     TVirtualNode(
-        const TBranchedNodeId& id,
-        ERuntimeNodeType runtimeType,
+        const TVersionedNodeId& id,
+        EObjectType objectType,
         const TYson& manifest = "")
-        : TCypressNodeBase(id, runtimeType)
+        : TCypressNodeBase(id, objectType)
         , Manifest_(manifest)
     { }
 
     TVirtualNode(
-        const TBranchedNodeId& id,
+        const TVersionedNodeId& id,
         const TVirtualNode& other)
         : TCypressNodeBase(id, other)
         , Manifest_(other.Manifest_)
@@ -102,12 +102,10 @@ public:
     TVirtualNodeTypeHandler(
         TCypressManager* cypressManager,
         TYPathServiceProducer* producer,
-        ERuntimeNodeType runtimeType,
-        const Stroka& typeName)
+        EObjectType objectType)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(cypressManager)
         , Producer(producer)
-        , RuntimeType(runtimeType)
-        , TypeName(typeName)
+        , ObjectType(objectType)
     {
         RegisterGetter("manifest", FromMethod(&TThis::GetManifest));
     }
@@ -133,9 +131,9 @@ public:
             ~service);
     }
 
-    virtual ERuntimeNodeType GetRuntimeType()
+    virtual EObjectType GetObjectType()
     {
-        return RuntimeType;
+        return ObjectType;
     }
 
     virtual ENodeType GetNodeType()
@@ -143,34 +141,28 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual Stroka GetTypeName()
-    {
-        return TypeName;
-    }
-    
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        NYTree::INode* manifest)
+        NYTree::IMapNode* manifest)
     {
         UNUSED(transactionId);
 
         return new TVirtualNode(
-            TBranchedNodeId(nodeId, NullTransactionId),
-            RuntimeType,
+            nodeId,
+            ObjectType,
             SerializeToYson(manifest));
     }
 
     virtual TAutoPtr<ICypressNode> Create(
-        const TBranchedNodeId& id)
+        const TVersionedNodeId& id)
     {
-        return new TVirtualNode(id, RuntimeType);
+        return new TVirtualNode(id, ObjectType);
     }
 
 private:
     TYPathServiceProducer::TPtr Producer;
-    ERuntimeNodeType RuntimeType;
-    Stroka TypeName;
+    EObjectType ObjectType;
 
     static void GetManifest(const TGetAttributeParam& param)
     {
@@ -182,28 +174,24 @@ private:
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    ERuntimeNodeType runtypeType,
-    const Stroka& typeName,
+    EObjectType runtypeType,
     TYPathServiceProducer* producer)
 {
     return New<TVirtualNodeTypeHandler>(
         cypressManager,
         producer,
-        runtypeType,
-        typeName);
+        runtypeType);
 }
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    ERuntimeNodeType runtypeType,
-    const Stroka& typeName,
+    EObjectType runtypeType,
     IYPathService* service)
 {
     IYPathService::TPtr service_ = service;
     return CreateVirtualTypeHandler(
         cypressManager,
         runtypeType,
-        typeName,
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
                 UNUSED(context);

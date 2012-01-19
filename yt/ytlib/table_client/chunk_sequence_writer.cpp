@@ -2,14 +2,14 @@
 #include "chunk_sequence_writer.h"
 
 #include <ytlib/chunk_client/writer_thread.h>
-#include <ytlib/misc/assert.h>
 #include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NTableClient {
 
-using namespace NTransactionClient;
 using namespace NChunkClient;
+using namespace NTransactionServer;
+using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

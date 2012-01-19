@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "../ytlib/misc/metric.h"
+#include <ytlib/misc/metric.h>
 
 #include <contrib/testing/framework.h>
 
