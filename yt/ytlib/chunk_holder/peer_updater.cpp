@@ -1,12 +1,10 @@
 #include "stdafx.h"
 #include "peer_updater.h"
-
 #include "block_store.h"
 #include "chunk_holder_service_proxy.h"
 
+#include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/rpc/channel_cache.h>
-
-#include <misc/periodic_invoker.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -27,7 +25,7 @@ TPeerUpdater::TPeerUpdater(
     , ChannelCache(channelCache)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        FromMethod(&TPeerUpdater::Poll, TPtr(this))
+        FromMethod(&TPeerUpdater::Update, TPtr(this))
         ->Via(invoker),
         Config->PeerUpdatePeriod);
 }
@@ -42,9 +40,9 @@ void TPeerUpdater::Stop()
     PeriodicInvoker->Stop();
 }
 
-void TPeerUpdater::Poll()
+void TPeerUpdater::Update()
 {
-    LOG_INFO("Updating peers");
+    LOG_INFO("Updating peer blocks");
 
     auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();
 
@@ -73,7 +71,7 @@ void TPeerUpdater::Poll()
     }
 
     FOREACH (const auto& pair, requests) {
-        LOG_DEBUG("Requesting peer update (Address: %s, ExpirationTime: %s)",
+        LOG_DEBUG("Sending peer block update request (Address: %s, ExpirationTime: %s)",
             ~pair.First(),
             ~expirationTime.ToString());
         pair.Second()->Invoke();
