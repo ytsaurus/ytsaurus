@@ -17,7 +17,7 @@ using namespace NRpc;
 
 IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, const Stroka& verb)
 {
-    TYPath attributePath = ChopYPathAttributeMarker(path);
+    auto attributePath = ChopYPathAttributeMarker(path);
     if (IsFinalYPath(attributePath) &&
         verb != "Get" &&
         verb != "List" &&
