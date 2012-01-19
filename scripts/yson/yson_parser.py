@@ -124,8 +124,6 @@ class YSONParserBase(object):
             count += 1
             read_next = byte & 0x80 != 0
 
-        #result = ctypes.c_longlong(result)
-        #one = ctypes.c_int(1)
         result = (result >> 1) ^ -(result & 1)
         return result
 

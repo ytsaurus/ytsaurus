@@ -1,8 +1,17 @@
 import yson_parser
+
+import copy
 from optparse import OptionParser
+
+# TODO: move these streams to params
 from sys import stdin, stdout, stderr
 
+# TODO: It is better to use class instead global variable
 options = None
+
+def require(condition, exception):
+    if not condition:
+        raise exception
 
 def print_bash(obj, level):
     if not level:
@@ -23,6 +32,7 @@ def print_bash(obj, level):
             print_bash(item, level + 1)
             first = False
         stdout.write(options.list_end)
+    # TODO: extract list and dict processing to certain method
     elif isinstance(obj, dict):
         stdout.write(options.map_begin)
         first = True
@@ -35,8 +45,27 @@ def print_bash(obj, level):
             first = False
         stdout.write(options.map_end)
     else:
+        # TODO: use here some YSONException instead of Exception
         raise Exception("Unknown type: %s" % type(obj))
 
+def go_by_path(obj, path):
+    # Is it dangerous to use here split?
+    yson = copy.deepcopy(obj)
+    path_elements = path.split("/")
+    # TODO: add more information in Exceptions
+    for elem in path_elements:
+        if not elem: continue
+        if isinstance(yson, list):
+            require(elem.isdigit(), Exception("Try to cd in list by not a number."))
+            number = int(elem)
+            require(number < len(yson), Exception("Try to access to nonexisted list item."))
+            yson = yson[number]
+        elif isinstance(yson, dict):
+            require(elem in yson, Exception("There is no required key in dict."))
+            yson = yson[elem]
+        else:
+            raise Exception("Try to access literal.")
+    return yson
 
 if __name__ == "__main__":
     parser = OptionParser("Options")
@@ -50,7 +79,9 @@ if __name__ == "__main__":
     parser.add_option("--map_key_value_separator", default="\t")
     parser.add_option("--map_end", default="")
     parser.add_option("--print_depth", default=3)
+
+    parser.add_option("--path", default="")
     options, args = parser.parse_args()
 
-    obj = yson_parser.parse(stdin)
+    obj = go_by_path(yson_parser.parse(stdin), options.path)
     print_bash(obj, 3)

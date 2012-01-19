@@ -5,7 +5,7 @@ from StringIO import StringIO
 import unittest
 
 class PrintBashTest(unittest.TestCase):
-    def yson_to_bash_test(self, input, correct_output):
+    def yson_to_bash_test(self, input, correct_output, path=""):
         class Options(object):
             def __init__(self):
                 self.sentinel = ""
@@ -19,13 +19,15 @@ class PrintBashTest(unittest.TestCase):
                 self.map_end = ""
         yson_to_bash.options = Options()
         yson_to_bash.stdout = StringIO()
-        yson_to_bash.print_bash(yson_parser.parse_string(input), 3)
+        yson_to_bash.print_bash(yson_to_bash.go_by_path(yson_parser.parse_string(input), path), 3)
         self.assertEqual(yson_to_bash.stdout.getvalue(), correct_output)
 
     def test_print_bash(self):
         self.yson_to_bash_test("123", "123")
         self.yson_to_bash_test("[a; b; c]", "a\nb\nc")
         self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "a\t1\nb\t2\nc\t3\nd\t4")
+        self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "c\t3\nd\t4", "1")
+        self.yson_to_bash_test("[{a=1; b=2}; {c=3; d=4}]", "3", "1/c")
     
 class TestYSONParser(unittest.TestCase):
     def assert_parse(self, string, expected):
