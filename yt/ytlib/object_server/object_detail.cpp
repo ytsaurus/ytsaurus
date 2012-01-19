@@ -194,12 +194,18 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
         writer.OnBeginMap();
         
         FOREACH (const auto& name, SystemAttributes) {
-            writer.OnMapItem(name);
-            if (!GetSystemAttribute(name, &writer)) {
+            TStringStream itemStream;
+            TYsonWriter itemWriter(&itemStream, TYsonWriter::EFormat::Binary);
+            if (GetSystemAttribute(name, &itemWriter)) {
+                writer.OnMapItem(name);
+                writer.OnRaw(itemStream.Str());
+            } else {
                 auto service = GetSystemAttributeService(name);
-                YASSERT(service);
-                auto value = SyncYPathGet(~service, RootMarker);
-                writer.OnRaw(value);
+                if (service) {
+                    auto value = SyncYPathGet(~service, RootMarker);
+                    writer.OnMapItem(name);
+                    writer.OnRaw(value);
+                }
             }
         }
 
