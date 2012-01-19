@@ -3,6 +3,7 @@
 #include "id.h"
 #include "object_proxy.h"
 #include "object_ypath.pb.h"
+#include "ypath.pb.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/meta_state/map.h>
@@ -60,10 +61,33 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TObject>
-class TObjectProxyBase
+class TUntypedObjectProxyBase
     : public IObjectProxy
     , public NYTree::TYPathServiceBase
+{
+public:
+    TUntypedObjectProxyBase(
+        const TObjectId& id,
+        const Stroka& loggingCategory = ObjectServerLogger.GetCategory());
+
+    TObjectId GetId() const;
+
+    virtual bool IsLogged(NRpc::IServiceContext* context) const;
+
+protected:
+    TObjectId Id;
+
+    void DoInvoke(NRpc::IServiceContext* context);
+
+    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
+    DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, Get);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TObject>
+class TObjectProxyBase
+    : public TUntypedObjectProxyBase
 {
 public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
@@ -72,26 +96,13 @@ public:
         const TObjectId& id,
         TMap* map,
         const Stroka& loggingCategory = ObjectServerLogger.GetCategory())
-        : NYTree::TYPathServiceBase(loggingCategory)
-        , Id(id)
+        : TUntypedObjectProxyBase(id, loggingCategory)
         , Map(map)
     {
         YASSERT(map);
     }
 
-    TObjectId GetId() const
-    {
-        return Id;
-    }
-
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
-    {
-        UNUSED(context);
-        return false;
-    }
-
 protected:
-    TObjectId Id;
     TMap* Map;
 
     const TObject& GetImpl() const
@@ -103,25 +114,6 @@ protected:
     {
         return Map->GetForUpdate(Id);
     }
-
-    void DoInvoke(NRpc::IServiceContext* context)
-    {
-        Stroka verb = context->GetVerb();
-        if (verb == "GetId") {
-            GetIdThunk(context);
-        } else {
-            NYTree::TYPathServiceBase::DoInvoke(context);
-        }
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetId)
-    {
-        UNUSED(request);
-
-        response->set_id(Id.ToProto());
-        context->Reply();
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
