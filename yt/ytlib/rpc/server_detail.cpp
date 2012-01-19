@@ -99,12 +99,12 @@ IMessage::TPtr TServiceContextBase::GetRequestMessage() const
     return RequestMessage;
 }
 
-Stroka TServiceContextBase::GetPath() const
+const Stroka& TServiceContextBase::GetPath() const
 {
     return Path;
 }
 
-Stroka TServiceContextBase::GetVerb() const
+const Stroka& TServiceContextBase::GetVerb() const
 {
     return Verb;
 }
