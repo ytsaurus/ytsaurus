@@ -85,19 +85,21 @@ TStoredChunk::TStoredChunk(TLocation* location, const TChunkDescriptor& descript
 TCachedChunk::TCachedChunk(TLocation* location, const TChunkInfo& info, TChunkCache* chunkCache)
     : TChunk(location, info)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
-    , Owner(chunkCache)
+    , ChunkCache(chunkCache)
 { }
 
 TCachedChunk::TCachedChunk(TLocation* location, const TChunkDescriptor& descriptor, TChunkCache* chunkCache)
     : TChunk(location, descriptor)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
-    , Owner(chunkCache)
+    , ChunkCache(chunkCache)
 { }
 
 TCachedChunk::~TCachedChunk()
 {
     LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~GetId().ToString());
-    Location_->RemoveChunk(this);
+    if (!ChunkCache.IsExpired()) {
+        Location_->RemoveChunk(this);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

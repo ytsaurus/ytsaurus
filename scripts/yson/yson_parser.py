@@ -121,13 +121,13 @@ class YSONParser(object):
             ch = self._read_char()
             if not ch:
                 raise YSONParseError(
-                    "Premature end-of-stream while reading varintiger in YSON",
+                    "Premature end-of-stream while reading varinteger in YSON",
                     self._get_position_info())
             byte = ord(ch)
             result |= (byte & 0x7F) << (7 * count)
             if result > 2 ** 64 - 1:
                 raise YSONParseError(
-                    "Varintiger is too large for Int64 in YSON",
+                    "Varinteger is too large for Int64 in YSON",
                     self._get_position_info())
             count += 1
             read_next = byte & 0x80 != 0
@@ -397,5 +397,19 @@ if __name__ == "__main__":
 
         def test_entity(self):
             self.assert_parse(' <a = b; c = d>', None)
+
+        def test_nested(self):
+            self.assert_parse(
+                '''
+                {
+                    path = "/home/sandello";
+                    mode = 755;
+                    read = [
+                            "*.sh";
+                            "*.py"
+                           ]
+                }
+                ''',
+                {'path' : '/home/sandello', 'mode' : 755, 'read' : ['*.sh', '*.py']})
 
     unittest.main()

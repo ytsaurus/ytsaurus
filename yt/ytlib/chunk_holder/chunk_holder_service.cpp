@@ -397,6 +397,11 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
 {
     TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
 
+    context->SetRequestInfo("PeerAddress: %s, ExpirationTime: %s, BlockCount: %d",
+        ~request->peer_address(),
+        ~TInstant(request->peer_expiration_time()).ToString(),
+        request->block_ids_size());
+
     FOREACH (const auto& block_id, request->block_ids()) {
         TBlockId blockId(TGuid::FromProto(block_id.chunk_id()), block_id.block_index());
         BlockTable->UpdatePeer(blockId, peer);

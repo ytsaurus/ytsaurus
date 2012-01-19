@@ -3,6 +3,14 @@
 from collections import namedtuple
 from metabase import *
 import os, stat
+import sys, inspect
+
+# Importing yson folder...
+cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
+yson_path = os.path.abspath(os.path.join(cmd_folder, "..", "..", "yson"))
+if os.path.exists(yson_path) and not yson_path in sys.path:
+    sys.path.append(yson_path)
+import yson
 
 if os.name == 'nt':
     SCRIPT_EXT = 'bat'
@@ -19,7 +27,7 @@ class FileDescr(object):
     def __init__(self, name, attrs=(), ext=SCRIPT_EXT, method=None):
         self.name = name
         self.attrs = attrs
-            
+
         self.filename = name + '.' + ext
         if not method:
             self.method = name
@@ -37,7 +45,7 @@ class AggrBase(ConfigBase):
     def _init_path(cls):
         if 'path' not in cls.__dict__:
             cls.path = os.path.join(cls.path, cls.__name__.lower())
-        
+
         cls.local_dir = os.path.join(os.getcwd(), cls.path)
         #print cls, cls.local_dir
         cls.work_dir = cls.local_dir
@@ -47,26 +55,25 @@ class AggrBase(ConfigBase):
         for descr in cls.files:
             setattr(cls, '_'.join((descr.name, 'path')),
                     cls.local_path(descr.filename))
-            
+
     def local_path(cls, filename):
         return os.path.join(cls.local_dir, filename)
-        
+
     @initmethod
     def init(cls):
         cls._init_path()
-    
 
-class Node(AggrBase):    
+
+class Node(AggrBase):
     @propmethod
     def binary(cls):
         return os.path.split(cls.bin_path)[1]
-        
+
     @propmethod
     def log_path(cls):
         return os.path.join(cls.work_dir, cls.__name__ + '.log')
-        
+
     def makeConfig(cls, fd):
-        import yson
         yson.dump(cls.config, fd, indent='  ')
 
     def defaultFile(cls, fd, descr):
@@ -83,19 +90,19 @@ class Node(AggrBase):
 
             if 'exec' in descr.attrs:
                 make_executable(fd.name)
-                
+
 
 class ServerNode(Node):
     @propmethod
     def host(cls):
         return cls.address.split(':')[0]
-        
+
     @propmethod
     def port(cls):
         return int(cls.address.split(':')[1])
-        
+
 ##################################################################
-    
+
 def make_aggregate(node, runcmd, footer='', pack_size=20):
     if node.__leafs:
         node.__leafs.sort(key=lambda x:x.path)
@@ -110,7 +117,7 @@ def make_aggregate(node, runcmd, footer='', pack_size=20):
 
         for name in names:
             with open(node.local_path(name + '.' + SCRIPT_EXT), 'w') as fd:
-                leaf_count = len(node.__leafs) 
+                leaf_count = len(node.__leafs)
                 for i, l in enumerate(node.__leafs):
                     if i % pack_size == 0:
                         print >>fd, footer
@@ -139,8 +146,8 @@ def make_files(root):
             leafs = [node]
             node.makeFiles()
             node.__leafs = []
-                
+
         return leafs
 
     traverse_leafs(root)
-    
+
