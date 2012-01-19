@@ -84,6 +84,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkCache;
+
 //! A chunk owned by TChunkCache.
 class TCachedChunk
     : public TChunk
@@ -94,13 +96,18 @@ public:
 
     TCachedChunk(
         TLocation* location,
-        const NProto::TChunkInfo& info);
+        const NProto::TChunkInfo& info,
+        TChunkCache* chunkCache);
 
     TCachedChunk(
         TLocation* location,
-        const TChunkDescriptor& descriptor);
+        const TChunkDescriptor& descriptor,
+        TChunkCache* chunkCache);
 
     ~TCachedChunk();
+
+private:
+    TWeakPtr<TChunkCache> Owner;
 
 };
 

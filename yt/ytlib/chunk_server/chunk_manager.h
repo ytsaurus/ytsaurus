@@ -30,7 +30,7 @@ namespace NProto {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager
-    : public TRefCountedBase
+    : public TExtrinsicRefCounted
 {
 public:
     typedef TIntrusivePtr<TChunkManager> TPtr;

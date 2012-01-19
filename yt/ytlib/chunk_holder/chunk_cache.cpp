@@ -39,11 +39,13 @@ public:
     TImpl(
         TChunkHolderConfig* config,
         TLocation* location,
-        TBlockStore* blockStore)
+        TBlockStore* blockStore,
+        TChunkCache* chunkCache)
         : TBase(config->ChunkCacheLocation->Quota == 0 ? Max<i64>() : config->ChunkCacheLocation->Quota)
         , Config(config)
         , Location(location)
         , BlockStore(blockStore)
+        , ChunkCache(chunkCache)
     {
         MasterChannel = CreateCellChannel(~config->Masters);
     }
@@ -87,6 +89,7 @@ private:
     TLocation::TPtr Location;
     TBlockStore::TPtr BlockStore;
     IChannel::TPtr MasterChannel;
+    TWeakPtr<TChunkCache> ChunkCache;
 
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
@@ -248,7 +251,7 @@ private:
         void OnSuccess()
         {
             LOG_INFO("Chunk is downloaded into cache");
-            auto chunk = New<TCachedChunk>(~Owner->Location, ChunkInfo);
+            auto chunk = New<TCachedChunk>(~Owner->Location, ChunkInfo, ~Owner->ChunkCache.Lock());
             Cookie->EndInsert(chunk);
             Owner->Register(~chunk);
             Cleanup();
@@ -295,11 +298,11 @@ TChunkCache::TChunkCache(
         readerCache,
         "ChunkCache");
 
-    Impl = New<TImpl>(config, ~location, blockStore);
+    Impl = New<TImpl>(config, ~location, blockStore, this);
 
     try {
         FOREACH (const auto& descriptor, location->Scan()) {
-            auto chunk = New<TCachedChunk>(~location, descriptor);
+            auto chunk = New<TCachedChunk>(~location, descriptor, this);
             Impl->Put(~chunk);
         }
     } catch (...) {

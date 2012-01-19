@@ -25,7 +25,7 @@ namespace NChunkHolder {
  *  (applies to #GetChunks, #FindChunk, #GetChunkCount);
  */
 class TChunkCache
-    : public TRefCountedBase
+    : public TExtrinsicRefCounted
 {
 public:
     typedef TIntrusivePtr<TChunkCache> TPtr;

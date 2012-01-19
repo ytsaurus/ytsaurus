@@ -46,7 +46,6 @@ public:
         IHolderRegistry* holderRegistry)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
-        // TODO: this makes a cyclic reference, don't forget to drop it in Stop
         , ChunkManager(chunkManager)
         , TransactionManager(transactionManager)
         , HolderRegistry(holderRegistry)
@@ -309,7 +308,7 @@ private:
     typedef TImpl TThis;
 
     TConfig::TPtr Config;
-    TChunkManager::TPtr ChunkManager;
+    TWeakPtr<TChunkManager> ChunkManager;
     TTransactionManager::TPtr TransactionManager;
     IHolderRegistry::TPtr HolderRegistry;
     
@@ -726,16 +725,16 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+        ChunkPlacement = New<TChunkPlacement>(~ChunkManager.Lock());
 
         ChunkReplication = New<TChunkReplication>(
-            ~ChunkManager,
+            ~ChunkManager.Lock(),
             ~ChunkPlacement,
             ~MetaStateManager->GetEpochStateInvoker());
 
         HolderLeaseTracking = New<THolderLeaseTracker>(
             ~Config,
-            ~ChunkManager,
+            ~ChunkManager.Lock(),
             ~MetaStateManager->GetEpochStateInvoker());
 
         FOREACH(const auto& pair, HolderMap) {
