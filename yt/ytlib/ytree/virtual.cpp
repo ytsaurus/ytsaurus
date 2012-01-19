@@ -19,13 +19,13 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 {
     UNUSED(verb);
 
-    Stroka prefix;
+    Stroka token;
     TYPath suffixPath;
-    ChopYPathToken(path, &prefix, &suffixPath);
+    ChopYPathToken(path, &token, &suffixPath);
 
-    auto service = GetItemService(prefix);
+    auto service = GetItemService(token);
     if (!service) {
-        ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
+        ythrow yexception() << Sprintf("Key %s is not found", ~token.Quote());
     }
 
     return TResolveResult::There(~service, suffixPath);

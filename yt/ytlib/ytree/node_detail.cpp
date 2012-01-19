@@ -89,11 +89,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
             response->set_value(stream.Str());
             context->Reply();
         } else {
-            Stroka prefix;
+            Stroka token;
             TYPath suffixPath;
-            ChopYPathToken(attributePath, &prefix, &suffixPath);
+            ChopYPathToken(attributePath, &token, &suffixPath);
 
-            auto service = GetVirtualAttributeService(prefix);
+            auto service = GetVirtualAttributeService(token);
             if (service) {
                 response->set_value(SyncYPathGet(~service, "/" + suffixPath));
                 context->Reply();
@@ -192,11 +192,11 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Set)
 
         auto value = request->value();
 
-        Stroka prefix;
+        Stroka token;
         TYPath suffixPath;
-        ChopYPathToken(attributePath, &prefix, &suffixPath);
+        ChopYPathToken(attributePath, &token, &suffixPath);
 
-        auto service = GetVirtualAttributeService(prefix);
+        auto service = GetVirtualAttributeService(token);
         if (service) {
             SyncYPathSet(~service, "/" + suffixPath, value);
             context->Reply();
@@ -291,9 +291,9 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Remove)
         if (IsFinalYPath(attributePath)) {
             SetAttributes(NULL);
         } else {
-            Stroka prefix;
+            Stroka token;
             TYPath suffixPath;
-            ChopYPathToken(attributePath, &prefix, &suffixPath);
+            ChopYPathToken(attributePath, &token, &suffixPath);
 
             auto attributes = GetAttributes();
             if (!attributes) {
@@ -389,11 +389,11 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
 {
-    Stroka prefix;
+    Stroka token;
     TYPath suffixPath;
-    ChopYPathToken(path, &prefix, &suffixPath);
+    ChopYPathToken(path, &token, &suffixPath);
 
-    auto child = FindChild(prefix);
+    auto child = FindChild(token);
     if (child) {
         return IYPathService::TResolveResult::There(~child, suffixPath);
     }
@@ -402,7 +402,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
         return IYPathService::TResolveResult::Here(path);
     }
 
-    ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
+    ythrow yexception() << Sprintf("Key %s is not found", ~token.Quote());
 }
 
 void TMapNodeMixin::SetRecursive(
@@ -423,20 +423,20 @@ void TMapNodeMixin::SetRecursive(
     TYPath currentPath = path;
 
     while (true) {
-        Stroka prefix;
+        Stroka token;
         TYPath suffixPath;
-        ChopYPathToken(currentPath, &prefix, &suffixPath);
+        ChopYPathToken(currentPath, &token, &suffixPath);
 
         if (suffixPath.empty()) {
-            if (!currentNode->AddChild(value, prefix)) {
-                ythrow yexception() << Sprintf("Key %s already exists", ~prefix.Quote());
+            if (!currentNode->AddChild(value, token)) {
+                ythrow yexception() << Sprintf("Key %s already exists", ~token.Quote());
             }
             break;
         }
 
         auto intermediateNode = factory->CreateMap();
-        if (!currentNode->AddChild(~intermediateNode, prefix)) {
-            ythrow yexception() << Sprintf("Key %s already exists", ~prefix.Quote());
+        if (!currentNode->AddChild(~intermediateNode, token)) {
+            ythrow yexception() << Sprintf("Key %s already exists", ~token.Quote());
         }
 
         currentNode = intermediateNode;
@@ -450,21 +450,21 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
 {
-    Stroka prefix;
+    Stroka token;
     TYPath suffixPath;
-    ChopYPathToken(path, &prefix, &suffixPath);
+    ChopYPathToken(path, &token, &suffixPath);
 
-    if (prefix.empty()) {
+    if (token.empty()) {
         ythrow yexception() << "Child index is empty";
     }
 
-    char lastPrefixCh = prefix[prefix.length() - 1];
+    char lastPrefixCh = token[token.length() - 1];
     if ((verb == "Set" || verb == "SetNode" || verb == "Create") &&
         (lastPrefixCh == '+' || lastPrefixCh == '-'))
     {
         return IYPathService::TResolveResult::Here(path);
     } else {
-        int index = ParseChildIndex(prefix);
+        int index = ParseChildIndex(token);
         auto child = FindChild(index);
         YASSERT(child);
         return IYPathService::TResolveResult::There(~child, suffixPath);
@@ -488,26 +488,26 @@ void TListNodeMixin::SetRecursive(
     INode::TPtr currentNode = this;
     TYPath currentPath = path;
 
-    Stroka prefix;
+    Stroka token;
     TYPath suffixPath;
-    ChopYPathToken(currentPath, &prefix, &suffixPath);
+    ChopYPathToken(currentPath, &token, &suffixPath);
 
-    if (prefix.empty()) {
+    if (token.empty()) {
         ythrow yexception() << "Child index is empty";
     }
 
-    if (prefix == "+") {
+    if (token == "+") {
         return CreateChild(factory, GetChildCount(), suffixPath, value);
-    } else if (prefix == "-") {
+    } else if (token == "-") {
         return CreateChild(factory, 0, suffixPath, value);
     }
 
-    char lastPrefixCh = prefix[prefix.length() - 1];
+    char lastPrefixCh = token[token.length() - 1];
     if (lastPrefixCh != '+' && lastPrefixCh != '-') {
         ythrow yexception() << "Insertion point expected";
     }
 
-    int index = ParseChildIndex(TStringBuf(prefix.begin(), prefix.length() - 1));
+    int index = ParseChildIndex(TStringBuf(token.begin(), token.length() - 1));
     switch (lastPrefixCh) {
         case '+':
             CreateChild(factory, index + 1, suffixPath, value);
@@ -535,17 +535,17 @@ void TListNodeMixin::CreateChild(
         AddChild(~currentNode, beforeIndex);
 
         while (true) {
-            Stroka prefix;
+            Stroka token;
             TYPath suffixPath;
-            ChopYPathToken(currentPath, &prefix, &suffixPath);
+            ChopYPathToken(currentPath, &token, &suffixPath);
 
             if (IsFinalYPath(suffixPath)) {
-                YVERIFY(currentNode->AddChild(value, prefix));
+                YVERIFY(currentNode->AddChild(value, token));
                 break;
             }
 
             auto intermediateNode = factory->CreateMap();
-            YVERIFY(currentNode->AddChild(~intermediateNode, prefix));
+            YVERIFY(currentNode->AddChild(~intermediateNode, token));
 
             currentNode = intermediateNode;
             currentPath = suffixPath;
