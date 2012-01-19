@@ -56,7 +56,8 @@ i64 TLocation::GetAvailableSpace()
             ~CurrentExceptionMessage());
     }
 
-    i64 remainingQuota = Max(0ll, GetQuota() - GetUsedSpace());
+    i64 remainingQuota = GetQuota() - GetUsedSpace();
+    if (remainingQuota < 0) remainingQuota = 0;
     AvailableSpace = Min(AvailableSpace, remainingQuota);
 
     return AvailableSpace;
