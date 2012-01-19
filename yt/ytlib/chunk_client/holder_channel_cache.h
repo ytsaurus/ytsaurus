@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../rpc/channel_cache.h"
-#include "../misc/lazy_ptr.h"
+#include <ytlib/rpc/channel_cache.h>
+#include <ytlib/misc/lazy_ptr.h>
 
 namespace NYT {
 namespace NChunkClient {

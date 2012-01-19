@@ -3,9 +3,9 @@
 #include "common.h"
 #include "cypress_service.pb.h"
 
-#include "../ytree/ypath_client.h"
-#include "../ytree/ypath_detail.h"
-#include "../transaction_server/common.h"
+#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/transaction_server/common.h>
 
 namespace NYT {
 namespace NCypress {

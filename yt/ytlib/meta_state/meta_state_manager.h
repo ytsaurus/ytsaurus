@@ -3,10 +3,32 @@
 #include "common.h"
 #include "meta_state.h"
 
-#include "../actions/signal.h"
+#include <ytlib/actions/signal.h>
+#include <ytlib/ytree/ytree_fwd.h>
 
 namespace NYT {
 namespace NMetaState {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EPeerStatus,
+    (Stopped)
+    (Elections)
+    (FollowerRecovery)
+    (Following)
+    (LeaderRecovery)
+    (Leading)
+);
+
+DECLARE_ENUM(ECommitResult,
+    (Committed)
+    (MaybeCommitted)
+    (NotCommitted)
+    (InvalidStatus)
+    (ReadOnly)
+);
+
+typedef TFuture<ECommitResult> TAsyncCommitResult;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,7 +36,6 @@ struct IMetaStateManager
     : public virtual TRefCountedBase
 {
     typedef TIntrusivePtr<IMetaStateManager> TPtr;
-    typedef TFuture<ECommitResult> TAsyncCommitResult;
 
     //! Boots up the manager.
     /*!

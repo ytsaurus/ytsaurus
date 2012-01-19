@@ -2,10 +2,11 @@
 
 #include "common.h"
 #include "meta_state.h"
+#include "meta_version.h"
 #include "snapshot_store.h"
 #include "change_log_cache.h"
 
-#include "../misc/thread_affinity.h"
+#include <ytlib/misc/thread_affinity.h>
 
 namespace NYT {
 namespace NMetaState {

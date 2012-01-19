@@ -2,7 +2,7 @@
 
 #include "log.h"
 
-#include "../misc/property.h"
+#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NLog {

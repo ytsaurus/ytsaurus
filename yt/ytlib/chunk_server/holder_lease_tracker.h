@@ -1,8 +1,9 @@
 #pragma once
 
+#include "config.h"
 #include "holder.h"
 
-#include "../misc/lease_manager.h"
+#include <ytlib/misc/lease_manager.h>
 
 namespace NYT {
 namespace NChunkServer {

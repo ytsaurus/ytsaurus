@@ -4,7 +4,7 @@
 #include "enum.h"
 #include "property.h"
 
-#include "../actions/future.h"
+#include <ytlib/actions/future.h>
 
 namespace NYT {
 

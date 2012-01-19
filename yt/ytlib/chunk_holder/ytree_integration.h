@@ -5,7 +5,7 @@
 #include "chunk_cache.h"
 #include "session_manager.h"
 
-#include "../ytree/ypath_service.h"
+#include <ytlib/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NChunkHolder {

@@ -6,7 +6,7 @@ Logging = {
     'writers' : { 
         'file' :
         {
-            'type' : "File",
+            'type' : "file",
             'file_name' : "%(log_path)s",
             'pattern' : "$(datetime) $(level) $(category) $(message)"
         }
@@ -14,7 +14,7 @@ Logging = {
     'rules' : [
         { 
             'categories' : [ "*" ],
-            'min_level' : "Debug",
+            'min_level' : "debug",
             'writers' : [ "file" ]
         }
     ]
@@ -51,6 +51,8 @@ class Master(Server):
     address = Subclass(MasterAddresses)
     params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
+    log_path = Template("master-%(__name__)s.log")
+
     config = Template({
         'meta_state' : {
             'cell' : {
@@ -84,6 +86,8 @@ class Holder(Server):
 
     groupid = Subclass(xrange(10))
     nodeid = Subclass(xrange(30), 1)
+
+    log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
     
     @propmethod
     def host(cls):
@@ -106,7 +110,7 @@ class Holder(Server):
             'path' : '/yt/disk1/data/chunk_cache', 'quota' : cacheQuota
         },
         'cache_remote_reader' : { 
-            'publish_peer' : 'True'
+            'publish_peer' : 'true'
         },
         'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
         'max_cached_readers' : 256,

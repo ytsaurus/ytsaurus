@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "message_rearranger.h"
 
-#include "../misc/assert.h"
-#include "../misc/thread_affinity.h"
+#include <ytlib/misc/thread_affinity.h>
 
 namespace NYT {
 namespace NBus {

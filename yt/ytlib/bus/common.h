@@ -1,14 +1,14 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/guid.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/guid.h>
 
-#include "../actions/invoker.h"
-#include "../actions/action.h"
-#include "../actions/future.h"
-#include "../actions/action_util.h"
+#include <ytlib/actions/invoker.h>
+#include <ytlib/actions/action.h>
+#include <ytlib/actions/future.h>
+#include <ytlib/actions/action_util.h>
 
-#include "../logging/log.h"
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NBus {

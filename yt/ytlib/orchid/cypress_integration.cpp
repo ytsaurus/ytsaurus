@@ -1,21 +1,21 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../misc/lazy_ptr.h"
+#include <ytlib/misc/lazy_ptr.h>
 
-#include "../ytree/ephemeral.h"
-#include "../ytree/serialize.h"
-#include "../ytree/ypath_detail.h"
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/ypath_detail.h>
 
-#include "../cypress/virtual.h"
+#include <ytlib/cypress/virtual.h>
 
-#include "../orchid/orchid_service_proxy.h"
+#include <ytlib/orchid/orchid_service_proxy.h>
 
-#include "../rpc/channel.h"
-#include "../rpc/message.h"
-#include "../rpc/channel_cache.h"
+#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/message.h>
+#include <ytlib/rpc/channel_cache.h>
 
-#include "../misc/new.h"
+#include <ytlib/misc/new.h>
 
 namespace NYT {
 namespace NOrchid {

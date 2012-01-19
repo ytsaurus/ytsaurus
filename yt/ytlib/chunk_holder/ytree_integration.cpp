@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "ytree_integration.h"
 
-#include "../ytree/virtual.h"
-#include "../ytree/fluent.h"
+#include <ytlib/ytree/virtual.h>
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NChunkHolder {

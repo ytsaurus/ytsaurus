@@ -4,6 +4,8 @@ add_executable( ytdriver
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/yt
+
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_holder

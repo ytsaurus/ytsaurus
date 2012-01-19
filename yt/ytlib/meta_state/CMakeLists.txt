@@ -35,6 +35,7 @@ set( HDRS
   ${BASE}/composite_meta_state.h
   ${BASE}/composite_meta_state_detail-inl.h
   ${BASE}/composite_meta_state_detail.h
+  ${BASE}/config.h
   ${BASE}/decorated_meta_state.h
   ${BASE}/follower_pinger.h
   ${BASE}/follower_tracker.h
@@ -46,6 +47,7 @@ set( HDRS
   ${BASE}/meta_state_manager.h
   ${BASE}/meta_state_manager_proxy.h
   ${BASE}/meta_state_service.h
+  ${BASE}/meta_version.h
   ${BASE}/persistent_state_manager.h
   ${BASE}/recovery.h
   ${BASE}/snapshot.h

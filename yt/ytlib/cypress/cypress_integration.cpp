@@ -1,10 +1,10 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../cypress/virtual.h"
-#include "../ytree/virtual.h"
-#include "../ytree/fluent.h"
-#include "../misc/string.h"
+#include <ytlib/cypress/virtual.h>
+#include <ytlib/ytree/virtual.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NCypress {
@@ -26,7 +26,7 @@ private:
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& ids = CypressManager->GetNodeIds();
+        const auto& ids = CypressManager->GetNodeIds(sizeLimit);
         return ConvertToStrings(ids.begin(), Min(ids.size(), sizeLimit));
     }
 
@@ -84,7 +84,7 @@ private:
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& ids = CypressManager->GetLockIds();
+        const auto& ids = CypressManager->GetLockIds(sizeLimit);
         return ConvertToStrings(ids.begin(), Min(ids.size(), sizeLimit));
     }
 

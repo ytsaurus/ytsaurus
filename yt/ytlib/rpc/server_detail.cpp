@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "server_detail.h"
 
-#include "../misc/assert.h"
-#include "../rpc/message.h"
+#include <ytlib/rpc/message.h>
 
 namespace NYT {
 namespace NRpc {

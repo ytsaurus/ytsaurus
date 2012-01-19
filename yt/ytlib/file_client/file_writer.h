@@ -2,15 +2,15 @@
 
 #include "common.h"
 
-#include "../misc/configurable.h"
-#include "../misc/codec.h"
-#include "../rpc/channel.h"
-#include "../transaction_client/transaction.h"
-#include "../transaction_client/transaction_manager.h"
-#include "../cypress/cypress_service_proxy.h"
-#include "../chunk_client/remote_writer.h"
-#include "../chunk_server/chunk_service_proxy.h"
-#include "../logging/tagged_logger.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/misc/codec.h>
+#include <ytlib/rpc/channel.h>
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/chunk_server/chunk_service_proxy.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -37,18 +37,25 @@ public:
 
         TConfig()
         {
-            Register("block_size", BlockSize).Default(1024 * 1024).GreaterThan(0);
-            Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::MilliSeconds(5000));
-            Register("codec_id", CodecId).Default(ECodecId::None);
-            Register("total_replica_count", TotalReplicaCount).Default(3).GreaterThanOrEqual(1);
-            Register("upload_replica_count", UploadReplicaCount).Default(2).GreaterThanOrEqual(1);
-            Register("remote_writer", RemoteWriter).DefaultNew();
+            Register("block_size", BlockSize)
+                .Default(1024 * 1024)
+                .GreaterThan(0);
+            Register("master_rpc_timeout", MasterRpcTimeout).
+                Default(TDuration::MilliSeconds(5000));
+            Register("codec_id", CodecId)
+                .Default(ECodecId::None);
+            Register("total_replica_count", TotalReplicaCount)
+                .Default(3)
+                .GreaterThanOrEqual(1);
+            Register("upload_replica_count", UploadReplicaCount)
+                .Default(2)
+                .GreaterThanOrEqual(1);
+            Register("remote_writer", RemoteWriter)
+                .DefaultNew();
         }
 
-        virtual void Validate(const NYTree::TYPath& path = NYTree::YPathRoot)
+        virtual void DoValidate()
         {
-            TConfigurable::Validate(path);
-            
             if (TotalReplicaCount < UploadReplicaCount) {
                 ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
             }

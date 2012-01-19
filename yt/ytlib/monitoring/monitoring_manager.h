@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../ytree/ytree.h"
-#include "../misc/periodic_invoker.h"
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
 namespace NMonitoring {

@@ -2,16 +2,16 @@
 #include "chunk_cache.h"
 #include "location.h"
 
-#include "../misc/thread_affinity.h"
-#include "../misc/serialize.h"
-#include "../misc/string.h"
-#include "../logging/tagged_logger.h"
-#include "../chunk_client/file_writer.h"
-#include "../chunk_client/remote_reader.h"
-#include "../chunk_client/sequential_reader.h"
-#include "../chunk_server/chunk_service_proxy.h"
-#include "../election/cell_channel.h"
-#include "../transaction_server/common.h"
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/logging/tagged_logger.h>
+#include <ytlib/chunk_client/file_writer.h>
+#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/sequential_reader.h>
+#include <ytlib/chunk_server/chunk_service_proxy.h>
+#include <ytlib/election/cell_channel.h>
+#include <ytlib/transaction_server/common.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -39,28 +39,25 @@ public:
     TImpl(
         TChunkHolderConfig* config,
         TLocation* location,
-        TBlockStore* blockStore)
+        TBlockStore* blockStore,
+        TChunkCache* chunkCache)
         : TBase(config->ChunkCacheLocation->Quota == 0 ? Max<i64>() : config->ChunkCacheLocation->Quota)
         , Config(config)
         , Location(location)
         , BlockStore(blockStore)
+        , ChunkCache(chunkCache)
     {
         MasterChannel = CreateCellChannel(~config->Masters);
-
-        if (Config->CacheRemoteReader->PublishPeer) {
-            // TODO(babenko): refactor
-            Config->CacheRemoteReader->PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
-        }
     }
 
     void Register(TCachedChunk* chunk)
     {
-        chunk->GetLocation()->RegisterChunk(chunk);
+        chunk->GetLocation()->UpdateUsedSpace(chunk->GetSize());
     }
 
     void Unregister(TCachedChunk* chunk)
     {
-        chunk->GetLocation()->UnregisterChunk(chunk);
+        chunk->GetLocation()->UpdateUsedSpace(-chunk->GetSize());
     }
 
     void Put(TCachedChunk* chunk)
@@ -92,6 +89,7 @@ private:
     TLocation::TPtr Location;
     TBlockStore::TPtr BlockStore;
     IChannel::TPtr MasterChannel;
+    TWeakPtr<TChunkCache> ChunkCache;
 
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
@@ -253,7 +251,7 @@ private:
         void OnSuccess()
         {
             LOG_INFO("Chunk is downloaded into cache");
-            auto chunk = New<TCachedChunk>(~Owner->Location, ChunkInfo);
+            auto chunk = New<TCachedChunk>(~Owner->Location, ChunkInfo, ~Owner->ChunkCache.Lock());
             Cookie->EndInsert(chunk);
             Owner->Register(~chunk);
             Cleanup();
@@ -300,11 +298,11 @@ TChunkCache::TChunkCache(
         readerCache,
         "ChunkCache");
 
-    Impl = New<TImpl>(config, ~location, blockStore);
+    Impl = New<TImpl>(config, ~location, blockStore, this);
 
     try {
         FOREACH (const auto& descriptor, location->Scan()) {
-            auto chunk = New<TCachedChunk>(~location, descriptor);
+            auto chunk = New<TCachedChunk>(~location, descriptor, this);
             Impl->Put(~chunk);
         }
     } catch (...) {

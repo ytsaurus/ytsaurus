@@ -2,11 +2,13 @@
 #include "file_writer.h"
 #include "file_chunk_meta.pb.h"
 
-#include "../misc/string.h"
-#include "../misc/sync.h"
-#include "../misc/serialize.h"
-#include "../cypress/cypress_ypath_proxy.h"
-#include "../file_server/file_ypath_proxy.h"
+#include <ytlib/misc/string.h>
+#include <ytlib/misc/sync.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/file_server/file_ypath_proxy.h>
+#include <ytlib/ytree/serialize.h>
+#include <ytlib/chunk_client/block_id.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -192,8 +194,11 @@ void TFileWriter::Close()
     LOG_INFO("Creating file node");
     auto createNodeReq = TCypressYPathProxy::Create();
     createNodeReq->set_type(FileTypeName);
-    // TODO(babenko): use TConfigurable::Save when it's ready
-    createNodeReq->set_manifest(Sprintf("{chunk_id=\"%s\"}", ~ChunkId.ToString()));
+
+    auto manifest = New<TFileManifest>();
+    manifest->ChunkId = ChunkId;
+    createNodeReq->set_manifest(SerializeToYson(~manifest));
+
     auto createNodeRsp = CypressProxy->Execute(
         Path,
         TransactionId,

@@ -56,5 +56,85 @@ yvector<Stroka> ConvertToStrings(TIter begin, size_t maxSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline Stroka ConvertUnderscoreCaseToCamelCase(const Stroka& data)
+{
+    Stroka result;
+    bool upper = true;
+    FOREACH (char c, data) {
+        if (c == '_') {
+            upper = true;
+        } else {
+            if (upper) {
+                c = std::toupper(c);
+            }
+            result.push_back(c);
+            upper = false;
+        }
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline Stroka ConvertCamelCaseToUnderscoreCase(const Stroka& data)
+{
+    Stroka result;
+    bool first = true;
+    FOREACH (char c, data) {
+        if (std::isupper(c)) {
+            if (!first) {
+                result.push_back('_');
+            }
+            result.push_back(std::tolower(c));
+        } else {
+            result.push_back(c);
+        }
+        first = false;
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline bool ParseBool(const Stroka& value)
+{
+    if (value == "true") {
+        return true;
+    } else if (value == "false") {
+        return false;
+    } else {
+        ythrow yexception()
+            << Sprintf("Could not parse boolean parameter (Value: %s)", ~value);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline Stroka FormatBool(bool value)
+{
+    return value ? "true" : "false";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, typename NMpl::TEnableIf<
+    NMpl::TIsConvertible< T, TEnumBase<T> >, int
+    >::TType = 0>
+inline T ParseEnum(const Stroka& value)
+{
+    return T::FromString(ConvertUnderscoreCaseToCamelCase(value));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, typename NMpl::TEnableIf<
+    NMpl::TIsConvertible< T, TEnumBase<T> >, int
+    >::TType = 0>
+Stroka FormatEnum(T value)
+{
+    return ConvertCamelCaseToUnderscoreCase(value.ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

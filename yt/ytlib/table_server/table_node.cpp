@@ -2,8 +2,8 @@
 #include "table_node.h"
 #include "table_node_proxy.h"
 
-#include "../cypress/node_proxy.h"
-#include "../ytree/fluent.h"
+#include <ytlib/cypress/node_proxy.h>
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NTableServer {

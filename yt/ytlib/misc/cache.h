@@ -2,8 +2,8 @@
 
 #include "common.h"
 
-#include "../misc/error.h"
-#include "../actions/future.h"
+#include <ytlib/misc/error.h>
+#include <ytlib/actions/future.h>
 
 namespace NYT {
 

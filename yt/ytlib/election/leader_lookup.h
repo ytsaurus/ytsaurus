@@ -3,12 +3,12 @@
 #include "common.h"
 #include "election_manager_proxy.h"
 
-#include "../misc/configurable.h"
-#include "../actions/future.h"
-#include "../actions/parallel_awaiter.h"
-#include "../rpc/client.h"
-#include "../rpc/channel_cache.h"
-#include "../misc/configurable.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/actions/future.h>
+#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/rpc/client.h>
+#include <ytlib/rpc/channel_cache.h>
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NElection {

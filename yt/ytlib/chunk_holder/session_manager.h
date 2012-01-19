@@ -4,9 +4,9 @@
 #include "chunk_store.h"
 #include "chunk_holder_service_proxy.h"
 
-#include "../chunk_client/file_writer.h"
-#include "../misc/lease_manager.h"
-#include "../logging/tagged_logger.h"
+#include <ytlib/chunk_client/file_writer.h>
+#include <ytlib/misc/lease_manager.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -94,8 +94,6 @@ private:
     i32 WindowStart;
     i32 FirstUnwritten;
     i64 Size;
-    NProto::TChunkInfo ChunkInfo;
-    bool HasChunkInfo;
 
     Stroka FileName;
     NChunkClient::TChunkFileWriter::TPtr Writer;
@@ -115,22 +113,26 @@ private:
     TSlot& GetSlot(i32 blockIndex);
     void ReleaseBlocks(i32 flushedBlockIndex);
 
-    IInvoker::TPtr GetInvoker();
+    IInvoker::TPtr GetIOInvoker();
 
     void OpenFile();
     void DoOpenFile();
 
-    void DeleteFile(const TError& error);
-    void DoDeleteFile(const TError& error);
+    TFuture<TVoid>::TPtr DeleteFile(const TError& error);
+    TVoid DoDeleteFile(const TError& error);
+    TVoid OnFileDeleted(TVoid);
 
     TFuture<TVoid>::TPtr CloseFile(const TChunkAttributes& attributes);
     TVoid DoCloseFile(const TChunkAttributes& attributes);
+    TVoid OnFileClosed(TVoid);
 
     void EnqueueWrites();
     TVoid DoWrite(TCachedBlock::TPtr block, i32 blockIndex);
     void OnBlockWritten(TVoid, i32 blockIndex);
 
     TVoid OnBlockFlushed(TVoid, i32 blockIndex);
+
+    void ReleaseSpaceOccupiedByBlocks();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

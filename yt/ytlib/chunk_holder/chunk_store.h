@@ -5,11 +5,11 @@
 #include "location.h"
 #include "reader_cache.h"
 
-#include "../misc/cache.h"
-#include "../misc/property.h"
-#include "../actions/action_queue.h"
-#include "../actions/signal.h"
-#include "../chunk_client/file_reader.h"
+#include <ytlib/misc/cache.h>
+#include <ytlib/misc/property.h>
+#include <ytlib/actions/action_queue.h>
+#include <ytlib/actions/signal.h>
+#include <ytlib/chunk_client/file_reader.h>
 
 namespace NYT {
 namespace NChunkHolder {

@@ -1,8 +1,8 @@
 ﻿#include "stdafx.h"
 #include "table_writer.h"
 
-#include "../misc/sync.h"
-#include "../cypress/cypress_ypath_proxy.h"
+#include <ytlib/misc/sync.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {

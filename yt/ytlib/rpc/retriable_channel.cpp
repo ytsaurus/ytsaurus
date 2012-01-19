@@ -2,8 +2,7 @@
 #include "retriable_channel.h"
 #include "client.h"
 
-#include "../bus/client.h"
-#include "../misc/assert.h"
+#include <ytlib/bus/client.h>
 
 #include <util/system/spinlock.h>
 #include <util/system/guard.h>

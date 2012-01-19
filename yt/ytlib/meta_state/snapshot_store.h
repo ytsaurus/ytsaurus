@@ -4,7 +4,7 @@
 #include "snapshot.h"
 #include "meta_state_manager_proxy.h"
 
-#include "../misc/error.h"
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NMetaState {

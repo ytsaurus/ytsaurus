@@ -2,8 +2,8 @@
 
 #include "common.h"
 
-#include "../actions/future.h"
-#include "../misc/ref.h"
+#include <ytlib/actions/future.h>
+#include <ytlib/misc/ref.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

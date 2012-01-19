@@ -4,17 +4,17 @@
 #include "chunk_placement.h"
 #include "chunk_replication.h"
 #include "holder_lease_tracker.h"
+#include "holder_statistics.h"
 
-#include "../transaction_server/transaction_manager.h"
-#include "../meta_state/meta_state_manager.h"
-#include "../meta_state/composite_meta_state.h"
-#include "../meta_state/map.h"
-#include "../misc/foreach.h"
-#include "../misc/serialize.h"
-#include "../misc/guid.h"
-#include "../misc/assert.h"
-#include "../misc/id_generator.h"
-#include "../misc/string.h"
+#include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/meta_state/meta_state_manager.h>
+#include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/map.h>
+#include <ytlib/misc/foreach.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/guid.h>
+#include <ytlib/misc/id_generator.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -46,7 +46,6 @@ public:
         IHolderRegistry* holderRegistry)
         : TMetaStatePart(metaStateManager, metaState)
         , Config(config)
-        // TODO: this makes a cyclic reference, don't forget to drop it in Stop
         , ChunkManager(chunkManager)
         , TransactionManager(transactionManager)
         , HolderRegistry(holderRegistry)
@@ -309,7 +308,7 @@ private:
     typedef TImpl TThis;
 
     TConfig::TPtr Config;
-    TChunkManager::TPtr ChunkManager;
+    TWeakPtr<TChunkManager> ChunkManager;
     TTransactionManager::TPtr TransactionManager;
     IHolderRegistry::TPtr HolderRegistry;
     
@@ -381,8 +380,7 @@ private:
                 chunk.AddLocation(holderId, false);
 
                 auto& holder = HolderMap.GetForUpdate(holderId);
-                // TODO: mark it unapproved
-                holder.AddChunk(chunkId, false);
+                holder.AddUnapprovedChunk(chunkId);
 
                 if (IsLeader()) {
                     ChunkReplication->OnReplicaAdded(holder, chunk);
@@ -606,12 +604,18 @@ private:
             ChunkPlacement->OnHolderUpdated(holder);
         }
 
-        FOREACH(const auto& chunkInfo, message.added_chunks()) {
+        FOREACH (const auto& chunkInfo, message.added_chunks()) {
             ProcessAddedChunk(holder, chunkInfo);
         }
 
-        FOREACH(const auto& chunkInfo, message.removed_chunks()) {
+        FOREACH (const auto& chunkInfo, message.removed_chunks()) {
             ProcessRemovedChunk(holder, chunkInfo);
+        }
+
+        yvector<TChunkId> unapprovedChunkIds(
+            holder.UnapprovedChunkIds().begin(), holder.UnapprovedChunkIds().end());
+        FOREACH (const auto& chunkId, unapprovedChunkIds) {
+            DoRemoveUnapprovedChunkReplica(holder, GetChunkForUpdate(chunkId));
         }
 
         bool isFirstHeartbeat = holder.GetState() == EHolderState::Inactive;
@@ -640,8 +644,10 @@ private:
         }
 
         FOREACH(auto protoJobId, message.stopped_jobs()) {
-            const auto& job = GetJob(TJobId::FromProto(protoJobId));
-            DoRemoveJob(holder, job);
+            const auto& job = FindJob(TJobId::FromProto(protoJobId));
+            if (job) {
+                DoRemoveJob(holder, *job);
+            }
         }
 
         LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
@@ -719,16 +725,16 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(~ChunkManager);
+        ChunkPlacement = New<TChunkPlacement>(~ChunkManager.Lock());
 
         ChunkReplication = New<TChunkReplication>(
-            ~ChunkManager,
+            ~ChunkManager.Lock(),
             ~ChunkPlacement,
             ~MetaStateManager->GetEpochStateInvoker());
 
         HolderLeaseTracking = New<THolderLeaseTracker>(
             ~Config,
-            ~ChunkManager,
+            ~ChunkManager.Lock(),
             ~MetaStateManager->GetEpochStateInvoker());
 
         FOREACH(const auto& pair, HolderMap) {
@@ -869,6 +875,24 @@ private:
         }
     }
 
+    void DoRemoveUnapprovedChunkReplica(THolder& holder, TChunk& chunk)
+    {
+         auto chunkId = chunk.GetId();
+         auto holderId = holder.GetId();
+
+         holder.RemoveUnapprovedChunk(chunk.GetId());
+         chunk.RemoveLocation(holder.GetId(), false);
+
+        LOG_INFO_IF(!IsRecovery(), "Unapproved chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
+             ~chunkId.ToString(),
+             ~holder.GetAddress(),
+             holderId);
+
+        if (IsLeader()) {
+            ChunkReplication->OnReplicaRemoved(holder, chunk);
+        }
+    }
+
     void DoRemoveChunkReplicaAtDeadHolder(const THolder& holder, TChunk& chunk, bool cached)
     {
         chunk.RemoveLocation(holder.GetId(), cached);
@@ -897,7 +921,8 @@ private:
             jobId,
             chunkId,
             holder.GetAddress(),
-            targetAddresses);
+            targetAddresses,
+            TInstant::Now());
         JobMap.Insert(jobId, job);
 
         auto& list = GetOrCreateJobListForUpdate(chunkId);
@@ -962,6 +987,11 @@ private:
         auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
         i64 size = chunkInfo.size();
         bool cached = chunkInfo.cached();
+
+        if (!cached && holder.HasUnapprovedChunk(chunkId)) {
+            holder.ApproveChunk(chunkId);
+            return;
+        }
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (!chunk) {

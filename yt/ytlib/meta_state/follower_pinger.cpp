@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "follower_pinger.h"
 
-#include "../misc/serialize.h"
-#include "../bus/message.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/bus/message.h>
 
 namespace NYT {
 namespace NMetaState {

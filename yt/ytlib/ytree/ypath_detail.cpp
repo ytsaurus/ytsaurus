@@ -2,10 +2,10 @@
 #include "ypath_detail.h"
 #include "rpc.pb.h"
 
-#include "../actions/action_util.h"
-#include "../bus/message.h"
-#include "../rpc/server_detail.h"
-#include "../rpc/message.h"
+#include <ytlib/actions/action_util.h>
+#include <ytlib/bus/message.h>
+#include <ytlib/rpc/server_detail.h>
+#include <ytlib/rpc/message.h>
 
 namespace NYT {
 namespace NYTree {

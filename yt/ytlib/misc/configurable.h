@@ -3,10 +3,11 @@
 #include "mpl.h"
 #include "property.h"
 
-#include "../actions/action.h"
-#include "../actions/action_util.h"
-#include "../ytree/ytree.h"
-#include "../ytree/ypath_detail.h"
+#include <ytlib/actions/action.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/yson_consumer.h>
 
 namespace NYT {
 namespace NConfig {
@@ -21,6 +22,7 @@ struct IParameter
     // node can be NULL
     virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path) = 0;
     virtual void Validate(const NYTree::TYPath& path) const = 0;
+    virtual void Save(NYTree::IYsonConsumer* consumer) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +41,8 @@ public:
 
     virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path);
     virtual void Validate(const NYTree::TYPath& path) const;
-    
+    virtual void Save(NYTree::IYsonConsumer *consumer) const;
+
 public: // for users
     TParameter& Default(const T& defaultValue = T());
     TParameter& Default(T&& defaultValue);
@@ -70,11 +73,15 @@ public:
 
     void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::YPathRoot);
     virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::YPathRoot);
-    virtual void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const;
+    void Validate(const NYTree::TYPath& path = NYTree::YPathRoot) const;
+
+    void Save(NYTree::IYsonConsumer* consumer) const;
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNode::TPtr, Options);
 
 protected:
+    virtual void DoValidate() const;
+
     template <class T>
     TParameter<T>& Register(const Stroka& parameterName, T& value);
 

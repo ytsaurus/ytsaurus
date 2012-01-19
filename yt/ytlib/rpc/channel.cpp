@@ -4,12 +4,11 @@
 #include "message.h"
 #include "rpc.pb.h"
 
-#include "../bus/nl_client.h"
+#include <ytlib/bus/nl_client.h>
 
-#include "../misc/delayed_invoker.h"
-#include "../misc/assert.h"
-#include "../misc/thread_affinity.h"
-#include "../actions/future.h"
+#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/actions/future.h>
 
 namespace NYT {
 namespace NRpc {

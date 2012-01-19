@@ -1,8 +1,8 @@
 #pragma once
 
-#include <util/generic/ptr.h>
-#include <util/system/spinlock.h>
 #include "ptr.h"
+
+#include <util/system/spinlock.h>
 
 namespace NYT
 {

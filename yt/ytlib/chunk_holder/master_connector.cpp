@@ -1,11 +1,12 @@
 #include "stdafx.h"
 #include "master_connector.h"
 
-#include "../rpc/client.h"
-#include "../election/cell_channel.h"
-#include "../misc/delayed_invoker.h"
-#include "../misc/serialize.h"
-#include "../misc/string.h"
+#include <ytlib/rpc/client.h>
+#include <ytlib/election/cell_channel.h>
+#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/chunk_server/holder_statistics.h>
 
 #include <util/system/hostname.h>
 
@@ -299,15 +300,21 @@ void TMasterConnector::OnChunkAdded(TChunk* chunk)
     if (!IncrementalHeartbeat)
         return;
 
-    LOG_DEBUG("Registered addition of chunk (ChunkId: %s)",
-        ~chunk->GetId().ToString());
-
-    if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end())
+    if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end()) {
+        LOG_DEBUG("Addition of chunk has already been registered (ChunkId: %s)",
+            ~chunk->GetId().ToString());
         return;
+    }
 
     if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end()) {
         RemovedSinceLastSuccess.erase(chunk);
+        LOG_DEBUG("Trying to add a chunk whose removal has been registered. Cancelling removal and addition (ChunkId: %s)",
+            ~chunk->GetId().ToString());
+        return;
     }
+
+    LOG_DEBUG("Registered addition of chunk (ChunkId: %s)",
+        ~chunk->GetId().ToString());
 
     AddedSinceLastSuccess.insert(chunk);
 }
@@ -317,15 +324,21 @@ void TMasterConnector::OnChunkRemoved(TChunk* chunk)
     if (!IncrementalHeartbeat)
         return;
 
-    LOG_DEBUG("Registered removal of chunk (ChunkId: %s)",
-        ~chunk->GetId().ToString());
-
-    if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end())
+    if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end()) {
+        LOG_DEBUG("Removal of chunk has already been registered (ChunkId: %s)",
+            ~chunk->GetId().ToString());
         return;
+    }
 
     if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end()) {
         AddedSinceLastSuccess.erase(chunk);
+        LOG_DEBUG("Trying to remove a chunk whose addition has been registered. Cancelling addition and removal (ChunkId: %s)",
+            ~chunk->GetId().ToString());
+        return;
     }
+
+    LOG_DEBUG("Registered removal of chunk (ChunkId: %s)",
+        ~chunk->GetId().ToString());
 
     RemovedSinceLastSuccess.insert(chunk);
 }

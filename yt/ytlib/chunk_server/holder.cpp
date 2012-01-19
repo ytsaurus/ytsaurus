@@ -9,33 +9,6 @@ using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SaveStatistics(TOutputStream* out, const THolderStatistics& statistics)
-{
-    ::Save(out, statistics.available_space());
-    ::Save(out, statistics.used_space());
-    ::Save(out, statistics.chunk_count());
-    ::Save(out, statistics.session_count());
-}
-
-void LoadStatistics(TInputStream* in, THolderStatistics& statistics)
-{
-    i64 availableSpace;
-    i64 usedSpace;
-    i32 chunkCount;
-    i32 sessionCount;
-    ::Load(in, availableSpace);
-    ::Load(in, usedSpace);
-    ::Load(in, chunkCount);
-    ::Load(in, sessionCount);
-
-    statistics.set_available_space(availableSpace);
-    statistics.set_used_space(usedSpace);
-    statistics.set_chunk_count(chunkCount);
-    statistics.set_session_count(sessionCount);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 THolder::THolder(
     THolderId id,
     const Stroka& address,
@@ -54,6 +27,7 @@ THolder::THolder(const THolder& other)
     , Statistics_(other.Statistics_)
     , StoredChunkIds_(other.StoredChunkIds_)
     , CachedChunkIds_(other.CachedChunkIds_)
+    , UnapprovedChunkIds_(other.UnapprovedChunkIds_)
     , JobIds_(other.JobIds_)
 { }
 
@@ -66,9 +40,10 @@ void THolder::Save(TOutputStream* output) const
 {
     ::Save(output, Address_);
     ::Save(output, State_);
-    SaveStatistics(output, Statistics_);
+    SaveProto(output, Statistics_);
     SaveSet(output, StoredChunkIds_);
     SaveSet(output, CachedChunkIds_);
+    SaveSet(output, UnapprovedChunkIds_);
     ::Save(output, JobIds_);
 }
 
@@ -79,11 +54,12 @@ TAutoPtr<THolder> THolder::Load(THolderId id, TInputStream* input)
     THolderStatistics statistics;
     ::Load(input, address);
     ::Load(input, state);
-    LoadStatistics(input, statistics);
+    LoadProto(input, statistics);
 
     TAutoPtr<THolder> holder = new THolder(id, address, state, statistics);
     LoadSet(input, holder->StoredChunkIds_);
     LoadSet(input, holder->CachedChunkIds_);
+    LoadSet(input, holder->UnapprovedChunkIds_);
     ::Load(input, holder->JobIds_);
     return holder;
 }
@@ -104,18 +80,18 @@ void THolder::RemoveJob(const TJobId& id)
 void THolder::AddChunk(const TChunkId& chunkId, bool cached)
 {
     if (cached) {
-        YVERIFY(CachedChunkIds().insert(chunkId).second);
+        YVERIFY(CachedChunkIds_.insert(chunkId).second);
     } else {
-        YVERIFY(StoredChunkIds().insert(chunkId).second);
+        YVERIFY(StoredChunkIds_.insert(chunkId).second);
     }
 }
 
 void THolder::RemoveChunk(const TChunkId& chunkId, bool cached)
 {
     if (cached) {
-        YVERIFY(CachedChunkIds().erase(chunkId) == 1);
+        YVERIFY(CachedChunkIds_.erase(chunkId) == 1);
     } else {
-        YVERIFY(StoredChunkIds().erase(chunkId) == 1);
+        YVERIFY(StoredChunkIds_.erase(chunkId) == 1);
     }
 }
 
@@ -126,6 +102,31 @@ bool THolder::HasChunk(const TChunkId& chunkId, bool cached) const
     } else {
         return StoredChunkIds_.find(chunkId) != StoredChunkIds_.end();
     }
+}
+
+void THolder::AddUnapprovedChunk(const TChunkId& chunkId)
+{
+    if (!HasChunk(chunkId, false)) {
+        AddChunk(chunkId, false);
+        YVERIFY(UnapprovedChunkIds_.insert(chunkId).Second());
+    }
+}
+
+void THolder::RemoveUnapprovedChunk(const TChunkId& chunkId)
+{
+    YVERIFY(UnapprovedChunkIds_.erase(chunkId) == 1);
+    RemoveChunk(chunkId, false);
+}
+
+bool THolder::HasUnapprovedChunk(const TChunkId& chunkId) const
+{
+    return UnapprovedChunkIds_.find(chunkId) != UnapprovedChunkIds_.end();
+}
+
+void THolder::ApproveChunk(const TChunkId& chunkId)
+{
+    YVERIFY(UnapprovedChunkIds_.erase(chunkId) == 1);
+    YASSERT(HasChunk(chunkId, false));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

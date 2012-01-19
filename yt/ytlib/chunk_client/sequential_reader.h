@@ -4,12 +4,12 @@
 #include "async_reader.h"
 #include "reader_thread.h"
 
-#include "../misc/configurable.h"
-#include "../misc/async_stream_state.h"
-#include "../misc/enum.h"
-#include "../misc/cyclic_buffer.h"
-#include "../misc/thread_affinity.h"
-#include "../actions/future.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/misc/async_stream_state.h>
+#include <ytlib/misc/enum.h>
+#include <ytlib/misc/cyclic_buffer.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/actions/future.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -41,13 +41,11 @@ public:
             Register("group_size", GroupSize).Default(10).GreaterThan(0);
         }
 
-        virtual void Validate(const NYTree::TYPath& path = "") const
+        virtual void DoValidate() const
         {
             if (GroupSize > PrefetchWindowSize) {
                 ythrow yexception() << "\"group_size\" cannot be larger than \"prefetch_window_size\"";
             }
-
-            TConfigurable::Validate(path);
         }
      };
 

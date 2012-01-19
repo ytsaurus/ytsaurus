@@ -3,9 +3,9 @@
 #include "common.h"
 #include "chunk.pb.h"
 
-#include "../misc/property.h"
-#include "../misc/error.h"
-#include "../misc/cache.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/error.h>
+#include <ytlib/misc/cache.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -84,6 +84,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkCache;
+
 //! A chunk owned by TChunkCache.
 class TCachedChunk
     : public TChunk
@@ -94,13 +96,18 @@ public:
 
     TCachedChunk(
         TLocation* location,
-        const NProto::TChunkInfo& info);
+        const NProto::TChunkInfo& info,
+        TChunkCache* chunkCache);
 
     TCachedChunk(
         TLocation* location,
-        const TChunkDescriptor& descriptor);
+        const TChunkDescriptor& descriptor,
+        TChunkCache* chunkCache);
 
     ~TCachedChunk();
+
+private:
+    TWeakPtr<TChunkCache> Owner;
 
 };
 

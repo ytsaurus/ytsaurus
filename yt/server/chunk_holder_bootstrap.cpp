@@ -1,7 +1,11 @@
 #include "stdafx.h"
 #include "chunk_holder_bootstrap.h"
 
+#include <yt/ytlib/misc/ref_counted_tracker.h>
+
 #include <yt/ytlib/bus/nl_server.h>
+
+#include <yt/ytlib/rpc/channel_cache.h>
 
 #include <yt/ytlib/ytree/tree_builder.h>
 #include <yt/ytlib/ytree/ephemeral.h>
@@ -22,10 +26,12 @@
 #include <yt/ytlib/chunk_holder/reader_cache.h>
 #include <yt/ytlib/chunk_holder/session_manager.h>
 #include <yt/ytlib/chunk_holder/block_store.h>
+#include <yt/ytlib/chunk_holder/block_table.h>
 #include <yt/ytlib/chunk_holder/chunk_store.h>
 #include <yt/ytlib/chunk_holder/chunk_cache.h>
 #include <yt/ytlib/chunk_holder/chunk_registry.h>
 #include <yt/ytlib/chunk_holder/master_connector.h>
+#include <yt/ytlib/chunk_holder/peer_updater.h>
 #include <yt/ytlib/chunk_holder/ytree_integration.h>
 
 namespace NYT {
@@ -38,6 +44,7 @@ using NBus::CreateNLBusServer;
 
 using NRpc::IRpcServer;
 using NRpc::CreateRpcServer;
+using NRpc::TChannelCache;
 
 using NYTree::IYPathService;
 using NYTree::SyncYPathSetNode;
@@ -53,10 +60,12 @@ using NChunkHolder::TChunkStore;
 using NChunkHolder::TChunkCache;
 using NChunkHolder::TChunkRegistry;
 using NChunkHolder::TBlockStore;
+using NChunkHolder::TBlockTable;
 using NChunkHolder::TSessionManager;
 using NChunkHolder::TJobExecutor;
 using NChunkHolder::TChunkHolderService;
 using NChunkHolder::TMasterConnector;
+using NChunkHolder::TPeerUpdater;
 using NChunkHolder::CreateStoredChunkMapService;
 using NChunkHolder::CreateCachedChunkMapService;
 
@@ -77,6 +86,9 @@ void TChunkHolderBootstrap::Run()
     // Explicitly instrumentation thread creation.
     //NSTAT::EnableStatlog(true);
 
+    Config->PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
+    Config->CacheRemoteReader->PeerAddress = Config->PeerAddress;
+
     auto controlQueue = New<TActionQueue>("Control");
 
     auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->RpcPort));
@@ -91,6 +103,17 @@ void TChunkHolderBootstrap::Run()
         ~Config,
         ~chunkRegistry,
         ~readerCache);
+
+    auto blockTable = New<TBlockTable>(~Config->BlockTable);
+
+    THolder<TChannelCache> channelCache(new TChannelCache());
+
+    auto peerUpdater = New<TPeerUpdater>(
+        ~Config,
+        ~blockStore,
+        ~channelCache,
+        ~controlQueue->GetInvoker());
+    peerUpdater->Start();
 
     auto chunkStore = New<TChunkStore>(
         ~Config,
@@ -131,6 +154,7 @@ void TChunkHolderBootstrap::Run()
         ~chunkCache,
         ~readerCache,
         ~blockStore,
+        ~blockTable,
         ~sessionManager);
     rpcServer->RegisterService(~chunkHolderService);
 

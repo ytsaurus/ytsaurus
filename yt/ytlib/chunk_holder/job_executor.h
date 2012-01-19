@@ -4,11 +4,11 @@
 #include "chunk_store.h"
 #include "block_store.h"
 
-#include "../misc/guid.h"
-#include "../misc/async_stream_state.h"
-#include "../chunk_client/async_reader.h"
-#include "../chunk_client/async_writer.h"
-#include "../logging/tagged_logger.h"
+#include <ytlib/misc/guid.h>
+#include <ytlib/misc/async_stream_state.h>
+#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/logging/tagged_logger.h>
 
 
 namespace NYT {

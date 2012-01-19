@@ -3,11 +3,11 @@
 #include "common.h"
 #include "client.h"
 
-#include "../misc/property.h"
-#include "../misc/hash.h"
-#include "../misc/metric.h"
-#include "../misc/error.h"
-#include "../logging/log.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/hash.h>
+#include <ytlib/misc/metric.h>
+#include <ytlib/misc/error.h>
+#include <ytlib/logging/log.h>
 
 #include <util/generic/yexception.h>
 

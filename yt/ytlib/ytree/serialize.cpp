@@ -59,6 +59,14 @@ TYson SerializeToYson(TYsonProducer* producer, TYsonWriter::EFormat format)
     return output.Str();
 }
 
+TYson SerializeToYson(const TConfigurable* config, TYsonWriter::EFormat format)
+{
+    TStringStream output;
+    TYsonWriter writer(&output, format);
+    config->Save(&writer);
+    return output.Str();
+}
+
 INode::TPtr CloneNode(const INode* node, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);

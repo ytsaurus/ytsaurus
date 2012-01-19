@@ -4,7 +4,7 @@
 #include "yson_consumer.h"
 
 // For TVoid.
-#include "../actions/action.h"
+#include <ytlib/actions/action.h>
 
 namespace NYT {
 namespace NYTree {
@@ -98,7 +98,7 @@ public:
 
         TParent Scalar(bool value)
         {
-            return Scalar(value ? Stroka("True") : Stroka("False"));
+            return Scalar(value ? Stroka("true") : Stroka("false"));
         }
 
         TParent Entity()

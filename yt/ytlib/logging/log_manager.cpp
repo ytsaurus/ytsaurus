@@ -3,12 +3,12 @@
 
 #include "writer.h"
 
-#include "../misc/pattern_formatter.h"
-#include "../misc/configurable.h"
+#include <ytlib/misc/pattern_formatter.h>
+#include <ytlib/misc/configurable.h>
 
-#include "../ytree/serialize.h"
-#include "../ytree/ypath_client.h"
-#include "../ytree/ypath_service.h"
+#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/ypath_service.h>
 
 
 namespace NYT {
@@ -183,17 +183,13 @@ public:
     }
 
 private:
-    virtual void Validate(const TYPath& path) const
+    virtual void DoValidate() const
     {
-        TConfigurable::Validate(path);
-
         FOREACH (const auto& rule, Rules) {
             FOREACH (const Stroka& writer, rule->Writers) {
                 if (WriterConfigs.find(writer) == WriterConfigs.end()) {
                     ythrow yexception() <<
-                        Sprintf("Unknown writer %s (Path: %s)",
-                            ~writer.Quote(),
-                            ~path);
+                        Sprintf("Unknown writer %s", ~writer.Quote());
                 }
             }
         }
@@ -254,9 +250,9 @@ public:
     void Configure(INode* node, const TYPath& path = YPathRoot)
     {
         auto config = TLogConfig::CreateFromNode(node, path);
-        auto queue = Queue;
-        if (queue) {
-            queue->GetInvoker()->Invoke(FromMethod(
+
+        if (Queue) {
+            Queue->GetInvoker()->Invoke(FromMethod(
                 &TImpl::DoUpdateConfig,
                 this,
                 config));
@@ -279,10 +275,9 @@ public:
 
     void Flush()
     {
-        auto queue = Queue;
-        if (queue) {
+        if (Queue) {
             FromMethod(&TLogConfig::FlushWriters, Config)
-                ->AsyncVia(queue->GetInvoker())
+                ->AsyncVia(Queue->GetInvoker())
                 ->Do()
                 ->Get();
         }
@@ -290,11 +285,16 @@ public:
 
     void Shutdown()
     {
-        Flush();
-    
-        auto queue = Queue;
-        if (queue) {
+        if (Queue) {
+            auto queue = Queue;
             Queue.Reset();
+
+            // This is actually a Flush(). We cannot use Flush() directly since
+            // we have to drop #Queue pointer.
+            FromMethod(&TLogConfig::FlushWriters, Config)
+                ->AsyncVia(queue->GetInvoker())
+                ->Do()
+                ->Get();
             queue->Shutdown();
         }
     }
@@ -320,13 +320,14 @@ public:
 
     void Write(const TLogEvent& event)
     {
-        auto queue = Queue;
-        if (queue) {
-            queue->GetInvoker()->Invoke(FromMethod(&TImpl::DoWrite, this, event));
+        if (Queue) {
+            Queue->GetInvoker()->Invoke(FromMethod(
+                &TImpl::DoWrite,
+                this,
+                event));
 
-            // TODO: use system-wide exit function
             if (event.Level == ELogLevel::Fatal) {
-                Shutdown();
+                Flush();
                 ::std::terminate();
             }
         }

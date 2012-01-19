@@ -3,8 +3,8 @@
 #include "common.h"
 #include "pattern.h"
 
-#include "../misc/ref_counted_base.h"
-#include "../misc/configurable.h"
+#include <ytlib/misc/ref_counted_base.h>
+#include <ytlib/misc/configurable.h>
 
 #include <util/system/file.h>
 #include <util/stream/file.h>
@@ -54,18 +54,14 @@ struct ILogWriter
             Register("file_name", FileName).Default();
         }
 
-        virtual void Validate(const NYTree::TYPath& path) const
+        virtual void DoValidate() const
         {
-            TConfigurable::Validate(path);
-
             if (Type == EType::File && FileName.empty()) {
                 ythrow yexception() <<
-                    Sprintf("FileName is empty while type is File (Path: %s)",
-                        ~path);
+                    Sprintf("FileName is empty while type is File");
             } else if (Type != EType::File && !FileName.empty()) {
                 ythrow yexception() <<
-                    Sprintf("FileName is not empty while type is not File (Path: %s)",
-                        ~path);
+                    Sprintf("FileName is not empty while type is not File");
             }
         }
     };

@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "composite_meta_state_detail.h"
 
-#include "../misc/assert.h"
-#include "../misc/serialize.h"
+#include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NMetaState {

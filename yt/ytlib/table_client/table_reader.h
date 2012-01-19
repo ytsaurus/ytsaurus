@@ -2,12 +2,12 @@
 #include "common.h"
 #include "chunk_sequence_reader.h"
 
-#include "../rpc/channel.h"
-#include "../transaction_client/transaction.h"
-#include "../cypress/cypress_service_proxy.h"
-#include "../table_server/table_ypath_proxy.h"
-#include "../chunk_client/block_cache.h"
-#include "../logging/tagged_logger.h"
+#include <ytlib/rpc/channel.h>
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/table_server/table_ypath_proxy.h>
+#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NTableClient {

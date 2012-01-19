@@ -2,8 +2,6 @@
 #include "holder_lease_tracker.h"
 #include "chunk_manager.h"
 
-#include "../misc/assert.h"
-
 namespace NYT {
 namespace NChunkServer {
 

@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "configurable.h"
 
-#include "../ytree/ephemeral.h"
-#include "../ytree/serialize.h"
-#include "../ytree/ypath_detail.h"
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NConfig {
@@ -56,6 +56,27 @@ void TConfigurable::Validate(const NYTree::TYPath& path) const
     FOREACH (auto pair, Parameters) {
         pair.Second()->Validate(CombineYPaths(path, pair.First()));
     }
+    try {
+        DoValidate();
+    } catch (...) {
+        ythrow yexception() << Sprintf("Validation failed (Path: %s)\n%s",
+            ~path,
+            ~CurrentExceptionMessage());
+    }
+}
+
+void TConfigurable::DoValidate() const
+{ }
+
+void TConfigurable::Save(IYsonConsumer* consumer) const
+{
+    consumer->OnBeginMap();
+    auto sortedItems = GetSortedIterators(Parameters);
+    FOREACH (const auto& pair, sortedItems) {
+        consumer->OnMapItem(pair->First());
+        pair->Second()->Save(consumer);
+    }
+    consumer->OnEndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

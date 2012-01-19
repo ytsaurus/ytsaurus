@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "table_node_proxy.h"
 
-#include "../misc/string.h"
-#include "../misc/serialize.h"
+#include <ytlib/misc/string.h>
+#include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NTableServer {

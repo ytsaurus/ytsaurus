@@ -8,8 +8,8 @@
 #include "cell_manager.h"
 #include "change_log_cache.h"
 
-#include "../election/election_manager.h"
-#include "../rpc/client.h"
+#include <ytlib/election/election_manager.h>
+#include <ytlib/rpc/client.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -30,8 +30,11 @@ public:
         TDuration Timeout;
 
         TConfig()
-            : Timeout(TDuration::Minutes(1))
-        { }
+        {
+            Register("timeout", Timeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Minutes(1));
+        }
     };
 
     DECLARE_ENUM(EResultCode,

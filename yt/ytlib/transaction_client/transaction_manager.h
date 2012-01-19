@@ -3,9 +3,9 @@
 #include "common.h"
 #include "transaction.h"
 
-#include "../misc/configurable.h"
-#include "../rpc/channel.h"
-#include "../transaction_server/transaction_service_proxy.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/rpc/channel.h>
+#include <ytlib/transaction_server/transaction_service_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {

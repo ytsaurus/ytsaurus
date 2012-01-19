@@ -4,7 +4,7 @@
 #include "ytree_fwd.h"
 #include "yson_consumer.h"
 
-#include "../misc/enum.h"
+#include <ytlib/misc/enum.h>
 
 namespace NYT {
 namespace NYTree {

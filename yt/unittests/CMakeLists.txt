@@ -3,6 +3,7 @@ PROTOC( rpc_ut.proto PROTO_SRC )
 include_directories(
   ../ytlib
   ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
 )
@@ -42,6 +43,8 @@ set( SRCS
   rpc_ut.cpp
   ypath_ut.cpp
   combine_ypaths_ut.cpp
+  mpl_ut.cpp
+  weak_ptr_ut.cpp
 )
 
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )

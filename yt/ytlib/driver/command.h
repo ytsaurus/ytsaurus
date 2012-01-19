@@ -3,17 +3,17 @@
 #include "common.h"
 #include "driver.h"
 
-#include "../misc/error.h"
-#include "../misc/configurable.h"
-#include "../ytree/ytree.h"
-#include "../ytree/yson_consumer.h"
-#include "../ytree/yson_reader.h"
-#include "../ytree/yson_writer.h"
-#include "../ytree/fluent.h"
-#include "../rpc/channel.h"
-#include "../chunk_client/block_cache.h"
-#include "../transaction_client/transaction.h"
-#include "../transaction_client/transaction_manager.h"
+#include <ytlib/misc/error.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/rpc/channel.h>
+#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT {
 namespace NDriver {

@@ -24,7 +24,7 @@ void Sync(
     TIntrusivePtr< TFuture<TError> > (TTarget::*method)(TArg1),
     TArg1_&& arg1)
 {
-    auto result = (target->*method)(ForwardRV(arg1))->Get();
+    auto result = (target->*method)(ForwardRV<TArg1>(arg1))->Get();
     if (!result.IsOK()) {
         ythrow yexception() << result.ToString();
     }

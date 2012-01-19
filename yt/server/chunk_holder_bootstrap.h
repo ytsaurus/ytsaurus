@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/ytlib/chunk_holder/common.h>
+#include <yt/ytlib/chunk_holder/config.h>
 
 namespace NYT {
 

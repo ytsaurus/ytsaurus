@@ -105,7 +105,7 @@ public: \
     \
     void declaringType::Set##name(type&& value) const \
     { \
-        (delegateTo).Set##name(ForwardRV(value)); \
+        (delegateTo).Set##name(ForwardRV<type>(value)); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

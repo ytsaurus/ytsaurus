@@ -2,10 +2,10 @@
 
 #include "change_log.h"
 
-#include "../misc/hash.h"
-#include "../misc/common.h"
-#include "../actions/action_queue.h"
-#include "../actions/future.h"
+#include <ytlib/misc/hash.h>
+#include <ytlib/misc/common.h>
+#include <ytlib/actions/action_queue.h>
+#include <ytlib/actions/future.h>
 
 #include <util/system/file.h>
 

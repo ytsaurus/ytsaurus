@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "tree_visitor.h"
 
-#include "../misc/serialize.h"
+#include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NYTree {
@@ -92,10 +92,10 @@ void TTreeVisitor::VisitMap(const IMapNode* node, bool hasAttributes)
 {
     Consumer->OnBeginMap();
     auto children = node->GetChildren();
-    auto sortedChildren = GetSortedIterators(children);
-    FOREACH(const auto& pair, sortedChildren) {
-        Consumer->OnMapItem(pair->First());
-        VisitAny(~pair->Second());
+    std::sort(children.begin(), children.end());
+    FOREACH(const auto& pair, children) {
+        Consumer->OnMapItem(pair.First());
+        VisitAny(~pair.Second());
     }
     Consumer->OnEndMap(hasAttributes);
 }
@@ -104,10 +104,10 @@ void TTreeVisitor::VisitAttributes(const IMapNode* node)
 {
     Consumer->OnBeginAttributes();
     auto children = node->GetChildren();
-    auto sortedChildren = GetSortedIterators(children);
-    FOREACH(const auto& pair, sortedChildren) {
-        Consumer->OnAttributesItem(pair->First());
-        VisitAny(~pair->Second());
+    std::sort(children.begin(), children.end());
+    FOREACH(const auto& pair, children) {
+        Consumer->OnAttributesItem(pair.First());
+        VisitAny(~pair.Second());
     }
     Consumer->OnEndAttributes();
 }

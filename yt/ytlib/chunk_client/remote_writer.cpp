@@ -4,13 +4,12 @@
 #include "writer_thread.h"
 #include "chunk_holder_service.pb.h"
 
-#include "../misc/serialize.h"
-#include "../misc/metric.h"
-#include "../misc/assert.h"
-#include "../misc/string.h"
-#include "../logging/log.h"
-#include "../actions/action_util.h"
-#include "../actions/parallel_awaiter.h"
+#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/metric.h>
+#include <ytlib/misc/string.h>
+#include <ytlib/logging/log.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/parallel_awaiter.h>
 
 #include <util/random/random.h>
 #include <util/generic/yexception.h>

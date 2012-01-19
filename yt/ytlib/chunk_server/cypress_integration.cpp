@@ -1,12 +1,14 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
-#include "../misc/string.h"
-#include "../ytree/virtual.h"
-#include "../ytree/fluent.h"
-#include "../cypress/virtual.h"
-#include "../cypress/node_proxy_detail.h"
-#include "../cypress/cypress_ypath_proxy.h"
+#include <ytlib/misc/string.h>
+#include <ytlib/ytree/virtual.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/cypress/virtual.h>
+#include <ytlib/cypress/node_proxy_detail.h>
+#include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/chunk_client/block_id.h>
+#include <ytlib/orchid/cypress_integration.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -15,6 +17,7 @@ using namespace NYTree;
 using namespace NCypress;
 using namespace NChunkClient;
 using namespace NMetaState;
+using namespace NOrchid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +67,7 @@ private:
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         if (Filter == EChunkFilter::All) {
-            const auto& chunkIds = ChunkManager->GetChunkIds();
+            const auto& chunkIds = ChunkManager->GetChunkIds(sizeLimit);
             return ConvertToStrings(chunkIds.begin(), Min(chunkIds.size(), sizeLimit));
         } else {
             const auto& chunkIds = GetFilteredChunkIds();
@@ -100,6 +103,7 @@ private:
                     .BeginMap()
                         .Item("chunk_list_id").Scalar(chunk->GetChunkListId().ToString())
                         .Item("ref_counter").Scalar(chunk->GetRefCounter())
+                        .Item("is_confirmed").Scalar(chunk->IsConfirmed())
                         .Item("stored_locations").DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, THolderId holderId)
                             {
                                 const auto& holder = ChunkManager->GetHolder(holderId);
@@ -205,7 +209,7 @@ private:
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& chunkListIds = ChunkManager->GetChunkListIds();
+        const auto& chunkListIds = ChunkManager->GetChunkListIds(sizeLimit);
         return ConvertToStrings(chunkListIds.begin(), Min(chunkListIds.size(), sizeLimit));
     }
 
@@ -411,8 +415,12 @@ private:
         {
             auto request = TCypressYPathProxy::Create();
             request->SetPath(Sprintf("/%s/orchid", ~address));
-            request->set_type("orchid");     
-            request->set_manifest(Sprintf("{remote_address=\"%s\"}", ~address));     
+            request->set_type("orchid");
+
+            auto manifest = New<TOrchidManifest>();
+            manifest->RemoteAddress = address;
+            request->set_manifest(SerializeToYson(~manifest));
+
             ExecuteVerb(
                 ~IYPathService::FromNode(~node),
                 ~request,

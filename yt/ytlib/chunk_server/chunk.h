@@ -3,9 +3,9 @@
 #include "common.h"
 #include "chunk.pb.h"
 
-#include "../misc/property.h"
-#include "../misc/serialize.h"
-#include "../chunk_client/common.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/chunk_client/common.h>
 
 namespace NYT {
 namespace NChunkServer {

@@ -2,9 +2,9 @@
 
 #include "common.h"
 
-#include "../misc/configurable.h"
-#include "../cypress/node.h"
-#include "../cypress/cypress_manager.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/cypress/node.h>
+#include <ytlib/cypress/cypress_manager.h>
 
 namespace NYT {
 namespace NOrchid {

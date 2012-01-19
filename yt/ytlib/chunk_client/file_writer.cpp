@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "file_writer.h"
 
-#include "../misc/fs.h"
-#include "../misc/serialize.h"
-#include "../logging/log.h"
+#include <ytlib/misc/fs.h>
+#include <ytlib/misc/serialize.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NChunkClient {

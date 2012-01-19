@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../misc/common.h"
-#include "../misc/configurable.h"
-#include "../logging/log.h"
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/logging/log.h>
 
-#include "../chunk_client/common.h"
-#include "../transaction_server/common.h"
+#include <ytlib/chunk_client/common.h>
+#include <ytlib/transaction_server/common.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -43,33 +43,5 @@ EChunkTreeKind GetChunkTreeKind(const TChunkTreeId& treeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkManagerConfig
-    : public TConfigurable
-{
-    typedef TIntrusivePtr<TChunkManagerConfig> TPtr;
-
-    TChunkManagerConfig()
-        : HolderLeaseTimeout(TDuration::Seconds(10))
-    { }
-
-    TDuration HolderLeaseTimeout;
-};
-
-// TODO: make configurable
-extern int MaxReplicationFanOut;
-extern int MaxReplicationFanIn;
-extern int MaxRemovalJobsPerHolder;
-extern TDuration ChunkRefreshDelay;
-extern TDuration ChunkRefreshQuantum;
-extern int MaxChunksPerRefresh;
-extern double MinChunkBalancingFillCoeffDiff;
-extern double MinChunkBalancingFillCoeff;
-extern double MaxHolderFillCoeff;
-extern i64 MinHolderFreeSpace;
-extern double ActiveSessionsPenalityCoeff;
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NChunkServer
 } // namespace NYT
-

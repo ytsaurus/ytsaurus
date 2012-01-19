@@ -2,9 +2,9 @@
 #include "log.h"
 #include "log_manager.h"
 
-#include "../misc/pattern_formatter.h"
-#include "../misc/configurable.h"
-#include "../ytree/ytree.h"
+#include <ytlib/misc/pattern_formatter.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/ytree.h>
 
 #include <util/folder/dirut.h>
 
@@ -30,9 +30,12 @@ void TLogger::Write(const TLogEvent& event)
 
 bool TLogger::IsEnabled(ELogLevel level)
 {
+    // TODO(sandello): Cache pointer to the TLogManager instance in order
+    // to avoid extra locking and synchronization in singleton getter.
     if (TLogManager::Get()->GetConfigVersion() != ConfigVersion) {
         UpdateConfig();
     }
+
     return level >= MinLevel;
 }
 

@@ -3,11 +3,11 @@
 #include "common.h"
 
 // TODO: fix includes
-#include "../actions/action_queue.h"
-#include "../actions/action_util.h"
-#include "../actions/future.h"
+#include <ytlib/actions/action_queue.h>
+#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/future.h>
 
-#include "../misc/fs.h"
+#include <ytlib/misc/fs.h>
 
 #include <util/generic/pair.h>
 #include <util/datetime/base.h>

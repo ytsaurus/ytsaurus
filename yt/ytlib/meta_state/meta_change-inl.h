@@ -4,8 +4,6 @@
 
 #include "composite_meta_state_detail.h"
 
-#include "../misc/assert.h"
-
 namespace NYT {
 namespace NMetaState {
 

@@ -4,13 +4,13 @@
 #include "leader_lookup.h"
 #include "election_manager_proxy.h"
 
-#include "../meta_state/cell_manager.h"
-#include "../misc/delayed_invoker.h"
-#include "../misc/thread_affinity.h"
-#include "../actions/invoker.h"
-#include "../rpc/client.h"
-#include "../rpc/server.h"
-#include "../misc/configurable.h"
+#include <ytlib/meta_state/cell_manager.h>
+#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/actions/invoker.h>
+#include <ytlib/rpc/client.h>
+#include <ytlib/rpc/server.h>
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NElection {
@@ -51,17 +51,22 @@ public:
         TDuration PotentialFollowerTimeout;
         
         TConfig()
-            : RpcTimeout(TDuration::MilliSeconds(1000))
-            , FollowerPingInterval(TDuration::MilliSeconds(1000))
-            , FollowerPingTimeout(TDuration::MilliSeconds(5000))
-            , ReadyToFollowTimeout(TDuration::MilliSeconds(5000))
-            , PotentialFollowerTimeout(TDuration::MilliSeconds(5000))
         {
-            Register("rpc_timeout", RpcTimeout).GreaterThan(TDuration());
-            Register("follower_ping_interval", FollowerPingInterval).GreaterThan(TDuration());
-            Register("follower_ping_timeout", FollowerPingTimeout).GreaterThan(TDuration());
-            Register("ready_to_follow_timeout", ReadyToFollowTimeout).GreaterThan(TDuration());
-            Register("potential_follower_timeout", PotentialFollowerTimeout).GreaterThan(TDuration());
+            Register("rpc_timeout", RpcTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(1000));
+            Register("follower_ping_interval", FollowerPingInterval)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(1000));
+            Register("follower_ping_timeout", FollowerPingTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(5000));
+            Register("ready_to_follow_timeout", ReadyToFollowTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(5000));
+            Register("potential_follower_timeout", PotentialFollowerTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::MilliSeconds(5000));
         }
     };
 

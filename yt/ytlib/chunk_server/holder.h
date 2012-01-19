@@ -2,14 +2,16 @@
 
 #include "common.h"
 
-#include "../misc/property.h"
-#include "../misc/serialize.h"
+#include "chunk_service.pb.h"
 
-#include "../chunk_client/common.h"
-#include "../chunk_holder/chunk_holder_service_proxy.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/serialize.h>
+
+#include <ytlib/chunk_client/common.h>
+#include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
 
 // TODO: remove this
-#include "../chunk_holder/common.h"
+#include <ytlib/chunk_holder/common.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -35,6 +37,7 @@ class THolder
     DEFINE_BYREF_RW_PROPERTY(NChunkServer::NProto::THolderStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, StoredChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, CachedChunkIds);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, UnapprovedChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 
 public:
@@ -54,6 +57,11 @@ public:
     void AddChunk(const TChunkId& chunkId, bool cached);
     void RemoveChunk(const TChunkId& chunkId, bool cached);
     bool HasChunk(const TChunkId& chunkId, bool cached) const;
+
+    void AddUnapprovedChunk(const TChunkId& chunkId);
+    void RemoveUnapprovedChunk(const TChunkId& chunkId);
+    bool HasUnapprovedChunk(const TChunkId& chunkId) const;
+    void ApproveChunk(const TChunkId& chunkId);
 
     void AddJob(const TJobId& id);
     void RemoveJob(const TJobId& id);

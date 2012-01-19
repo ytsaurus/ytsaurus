@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 #include "holder.h"
 #include "chunk.h"
 #include "chunk_list.h"
@@ -10,9 +11,9 @@
 #include "holder_authority.h"
 #include "chunk_manager.pb.h"
 
-#include "../meta_state/composite_meta_state.h"
-#include "../meta_state/meta_change.h"
-#include "../transaction_server/transaction_manager.h"
+#include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/meta_change.h>
+#include <ytlib/transaction_server/transaction_manager.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -29,7 +30,7 @@ namespace NProto {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager
-    : public TRefCountedBase
+    : public TExtrinsicRefCounted
 {
 public:
     typedef TIntrusivePtr<TChunkManager> TPtr;
@@ -127,12 +128,12 @@ public:
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
+    TConfig::TPtr Config;
+
 private:
     class TImpl;
-    
-    TConfig::TPtr Config;
-    TIntrusivePtr<TImpl> Impl;
 
+    TIntrusivePtr<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

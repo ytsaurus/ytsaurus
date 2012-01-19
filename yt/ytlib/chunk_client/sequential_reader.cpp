@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "sequential_reader.h"
 
-#include "../actions/action_util.h"
+#include <ytlib/actions/action_util.h>
 
 namespace NYT {
 namespace NChunkClient {

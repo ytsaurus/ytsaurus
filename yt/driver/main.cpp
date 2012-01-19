@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/driver/driver.h>
 
+#include <yt/ytlib/rpc/rpc_manager.h>
+
 #include <yt/ytlib/ytree/serialize.h>
 #include <yt/ytlib/ytree/yson_writer.h>
 

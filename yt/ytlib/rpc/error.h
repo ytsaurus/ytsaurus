@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../misc/error.h"
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NRpc {

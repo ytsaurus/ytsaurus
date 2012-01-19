@@ -4,7 +4,7 @@
 #include "chunk_manager.h"
 #include "chunk_placement.h"
 
-#include "../misc/thread_affinity.h"
+#include <ytlib/misc/thread_affinity.h>
 
 #include <util/generic/deque.h>
 

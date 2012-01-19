@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/common.cpp
   ${BASE}/message.cpp
   ${BASE}/retriable_channel.cpp
+  ${BASE}/rpc_manager.cpp
   ${BASE}/server.cpp
   ${BASE}/server_detail.cpp
   ${BASE}/service.cpp
@@ -19,6 +20,7 @@ set( HDRS
   ${BASE}/error.h
   ${BASE}/message.h
   ${BASE}/retriable_channel.h
+  ${BASE}/rpc_manager.h
   ${BASE}/server.h
   ${BASE}/server_detail.h
   ${BASE}/service.h

@@ -3,6 +3,7 @@
 #include "location.h"
 #include "reader_cache.h"
 #include "chunk_holder_service_proxy.h"
+#include "chunk_cache.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -81,14 +82,16 @@ TStoredChunk::TStoredChunk(TLocation* location, const TChunkDescriptor& descript
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedChunk::TCachedChunk(TLocation* location, const TChunkInfo& info)
+TCachedChunk::TCachedChunk(TLocation* location, const TChunkInfo& info, TChunkCache* chunkCache)
     : TChunk(location, info)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
+    , Owner(chunkCache)
 { }
 
-TCachedChunk::TCachedChunk(TLocation* location, const TChunkDescriptor& descriptor)
+TCachedChunk::TCachedChunk(TLocation* location, const TChunkDescriptor& descriptor, TChunkCache* chunkCache)
     : TChunk(location, descriptor)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
+    , Owner(chunkCache)
 { }
 
 TCachedChunk::~TCachedChunk()

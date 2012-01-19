@@ -2,7 +2,7 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 
-#include "../ytree/fluent.h"
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NCypress {

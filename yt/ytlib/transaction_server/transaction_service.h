@@ -4,9 +4,9 @@
 #include "transaction_manager.h"
 #include "transaction_service_proxy.h"
 
-#include "../meta_state/meta_state_service.h"
-#include "../rpc/service.h"
-#include "../rpc/server.h"
+#include <ytlib/meta_state/meta_state_service.h>
+#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/server.h>
 
 namespace NYT {
 namespace NTransactionServer {

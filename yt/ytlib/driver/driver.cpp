@@ -6,13 +6,13 @@
 #include "file_commands.h"
 #include "table_commands.h"
 
-#include "../ytree/fluent.h"
-#include "../ytree/serialize.h"
-#include "../ytree/forwarding_yson_consumer.h"
-#include "../ytree/yson_reader.h"
-#include "../ytree/ephemeral.h"
-#include "../election/cell_channel.h"
-#include "../chunk_client/client_block_cache.h"
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/forwarding_yson_consumer.h>
+#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/election/cell_channel.h>
+#include <ytlib/chunk_client/client_block_cache.h>
 
 namespace NYT {
 namespace NDriver {

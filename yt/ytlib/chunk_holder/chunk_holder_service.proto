@@ -112,3 +112,18 @@ message TRspPrecacheChunk
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdatePeer
+{
+    message TBlockId
+    {
+        required bytes chunk_id = 1;
+        required int32 block_index = 2;
+    }
+
+    repeated TBlockId block_ids = 1;
+    required string peer_address = 2;
+    required uint64 peer_expiration_time = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1,9 +1,8 @@
 ﻿#include "stdafx.h"
 #include "chunk_sequence_writer.h"
 
-#include "../chunk_client/writer_thread.h"
-#include "../misc/assert.h"
-#include "../misc/string.h"
+#include <ytlib/chunk_client/writer_thread.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NTableClient {

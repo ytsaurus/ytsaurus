@@ -2,15 +2,15 @@
 
 #include "common.h"
 
-#include "../misc/codec.h"
-#include "../misc/configurable.h"
-#include "../rpc/channel.h"
-#include "../transaction_client/transaction.h"
-#include "../cypress/cypress_service_proxy.h"
-#include "../chunk_client/sequential_reader.h"
-#include "../chunk_client/block_cache.h"
-#include "../chunk_client/remote_reader.h"
-#include "../logging/tagged_logger.h"
+#include <ytlib/misc/codec.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/rpc/channel.h>
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/chunk_client/sequential_reader.h>
+#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NFileClient {

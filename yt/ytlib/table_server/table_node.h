@@ -2,9 +2,9 @@
 
 #include "common.h"
 
-#include "../misc/property.h"
-#include "../chunk_server/chunk_manager.h"
-#include "../cypress/node_detail.h"
+#include <ytlib/misc/property.h>
+#include <ytlib/chunk_server/chunk_manager.h>
+#include <ytlib/cypress/node_detail.h>
 
 namespace NYT {
 namespace NTableServer {

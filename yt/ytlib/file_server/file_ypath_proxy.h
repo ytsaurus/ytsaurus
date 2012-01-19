@@ -3,9 +3,9 @@
 #include "common.h"
 #include "file_ypath.pb.h"
 
-#include "../misc/configurable.h"
-#include "../ytree/ypath_proxy.h"
-#include "../chunk_server/common.h"
+#include <ytlib/misc/configurable.h>
+#include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/chunk_server/common.h>
 
 namespace NYT {
 namespace NFileServer {

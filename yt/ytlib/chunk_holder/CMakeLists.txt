@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder )
 set( SRCS
   ${BASE}/block_store.cpp
+  ${BASE}/block_table.cpp
   ${BASE}/chunk.cpp
   ${BASE}/chunk_cache.cpp
   ${BASE}/chunk_holder_service.cpp
@@ -11,12 +12,14 @@ set( SRCS
   ${BASE}/job_executor.cpp
   ${BASE}/location.cpp
   ${BASE}/master_connector.cpp
+  ${BASE}/peer_updater.cpp
   ${BASE}/reader_cache.cpp
   ${BASE}/session_manager.cpp
   ${BASE}/ytree_integration.cpp
 )
 set( HDRS
   ${BASE}/block_store.h
+  ${BASE}/block_table.h
   ${BASE}/chunk.h
   ${BASE}/chunk_cache.h
   ${BASE}/chunk_holder_service.h
@@ -24,9 +27,11 @@ set( HDRS
   ${BASE}/chunk_registry.h
   ${BASE}/chunk_store.h
   ${BASE}/common.h
+  ${BASE}/config.h
   ${BASE}/job_executor.h
   ${BASE}/location.h
   ${BASE}/master_connector.h
+  ${BASE}/peer_updater.h
   ${BASE}/reader_cache.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h

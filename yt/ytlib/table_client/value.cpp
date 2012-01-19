@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "value.h"
 
-#include "../misc/serialize.h"
-#include "../misc/assert.h"
+#include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NTableClient {
