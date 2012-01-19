@@ -8,6 +8,7 @@
 
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/rpc/message.h>
 #include <ytlib/object_server/type_handler_detail.h>
@@ -137,6 +138,7 @@ private:
         }
     }
 
+    // TODO(babenko): get rid of copy-paste (see TTransactionProxy)
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
     {
         // TODO(babenko): validate type
@@ -148,8 +150,8 @@ private:
 
         NYTree::INode::TPtr manifestNode =
             request->has_manifest()
-            ? NYTree::DeserializeFromYson(request->manifest())
-            : NYTree::GetEphemeralNodeFactory()->CreateMap();
+            ? DeserializeFromYson(request->manifest())
+            : GetEphemeralNodeFactory()->CreateMap();
 
         if (manifestNode->GetType() != NYTree::ENodeType::Map) {
             ythrow yexception() << "Manifest must be a map";
