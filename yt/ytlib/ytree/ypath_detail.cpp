@@ -199,7 +199,7 @@ void TYPathServiceBase::Invoke(IServiceContext* context)
     try {
         DoInvoke(context);
     } catch (const TServiceException& ex) {
-        throw;
+        context->Reply(ex.GetError());
     }
     catch (const std::exception& ex) {
         context->Reply(TError(ex.what()));
