@@ -79,9 +79,9 @@ public:
     }
 
     //! Copy constructor with an upcast.
-    template<class U, typename NMpl::TEnableIfC<
-            NMpl::TIsConvertible<U*, T*>::Value, int
-        >::TType = 0>
+    template<class U, class = typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>
+        >::TType>
     TIntrusivePtr(const TIntrusivePtr<U>& other) // noexcept
         : T_(other.Get())
     {
@@ -98,9 +98,9 @@ public:
     }
 
     //! Move constructor with an upcast.
-    template<class U, typename NMpl::TEnableIf<
-            NMpl::TIsConvertible<U*, T*>, int
-        >::TType = 0>
+    template<class U, class = typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>
+        >::TType>
     TIntrusivePtr(TIntrusivePtr<U>&& other) // noexcept
         : T_(other.Get())
     {
@@ -123,9 +123,9 @@ public:
     }
 
     //! Copy assignment operator with an upcast.
-    template<class U, typename NMpl::TEnableIfC<
-            NMpl::TIsConvertible<U*, T*>::Value, int
-        >::TType = 0>
+    template<class U, class = typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>
+        >::TType>
     TIntrusivePtr& operator=(const TIntrusivePtr<U>& other) // noexcept
     {
         TIntrusivePtr(other).Swap(*this);
@@ -140,9 +140,9 @@ public:
     }
 
     //! Move assignment operator with an upcast.
-    template<class U, typename NMpl::TEnableIfC<
-            NMpl::TIsConvertible<U*, T*>::Value, int
-        >::TType = 0>
+    template<class U, class = typename NMpl::TEnableIf<
+            NMpl::TIsConvertible<U*, T*>
+        >::TType>
     TIntrusivePtr& operator=(TIntrusivePtr<U>&& other) // noexcept
     {
         TIntrusivePtr(MoveRV(other)).Swap(*this);
@@ -250,30 +250,6 @@ template<class T, class U>
 bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 {
     return lhs != rhs.Get();
-}
-
-template<class T>
-T* operator~(const TIntrusivePtr<T>& ptr)
-{
-    return ptr.Get();
-}
-
-template<class T>
-T* operator~(const TAutoPtr<T>& ptr)
-{
-    return ptr.Get();
-}
-
-template<class T>
-T* operator~(const TSharedPtr<T>& ptr)
-{
-    return ptr.Get();
-}
-
-template<class T>
-T* operator~(const THolder<T>& ptr)
-{
-    return ptr.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

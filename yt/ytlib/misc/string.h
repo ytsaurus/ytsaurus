@@ -117,9 +117,9 @@ inline Stroka FormatBool(bool value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T, TEnumBase<T> >, int
-    >::TType = 0>
+template <class T, class = typename NMpl::TEnableIf<
+        NMpl::TIsConvertible< T, TEnumBase<T> >
+    >::TType>
 inline T ParseEnum(const Stroka& value)
 {
     return T::FromString(ConvertUnderscoreCaseToCamelCase(value));
@@ -127,9 +127,9 @@ inline T ParseEnum(const Stroka& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T, TEnumBase<T> >, int
-    >::TType = 0>
+template <class T, class = typename NMpl::TEnableIf<
+        NMpl::TIsConvertible< T, TEnumBase<T> >
+    >::TType>
 Stroka FormatEnum(T value)
 {
     return ConvertCamelCaseToUnderscoreCase(value.ToString());

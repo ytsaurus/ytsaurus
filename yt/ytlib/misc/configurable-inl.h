@@ -27,9 +27,9 @@ T CheckedStaticCast(i64 value)
 }
 
 // TConfigurable::TPtr
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T*, TConfigurable* >, int
-    >::TType = 0>
+template <class T, class = typename NMpl::TEnableIf<
+        NMpl::TIsConvertible< T*, TConfigurable* >
+    >::TType>
 inline void Read(
     TIntrusivePtr<T>& parameter,
     const NYTree::INode* node,
@@ -97,9 +97,9 @@ inline void Read(TGuid& parameter, const NYTree::INode* node, const NYTree::TYPa
 }
 
 // TEnumBase
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T, TEnumBase<T> >, int
-    >::TType = 0>
+template <class T, class = typename NMpl::TEnableIf<
+        NMpl::TIsConvertible< T, TEnumBase<T> >
+    >::TType>
 inline void Read(
     T& parameter,
     const NYTree::INode* node, 
@@ -159,9 +159,9 @@ inline void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, con
 ////////////////////////////////////////////////////////////////////////////////
 
 // TConfigurable::TPtr
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T*, TConfigurable* >, int
-    >::TType = 0>
+template <class T, class = typename NMpl::TEnableIf<
+        NMpl::TIsConvertible< T*, TConfigurable* >
+    >::TType>
 inline void Write(const TIntrusivePtr<T>& parameter, NYTree::IYsonConsumer* consumer)
 {
     if (parameter) {
@@ -224,9 +224,9 @@ inline void Write(const TGuid& parameter, NYTree::IYsonConsumer* consumer)
 }
 
 // TEnumBase
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T, TEnumBase<T> >, int
-    >::TType = 0>
+template <class T, class = typename NMpl::TEnableIf<
+        NMpl::TIsConvertible< T, TEnumBase<T> >
+    >::TType>
 inline void Write(const T& parameter, NYTree::IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(parameter.ToString());
@@ -296,9 +296,9 @@ inline void ValidateSubconfigs(
 { }
 
 // TConfigurable
-template <class T, typename NMpl::TEnableIf<
-    NMpl::TIsConvertible< T*, TConfigurable* >, int
-    >::TType = 0>
+template <class T, class = typename NMpl::TEnableIf<
+        NMpl::TIsConvertible< T*, TConfigurable* >
+    >::TType>
 inline void ValidateSubconfigs(
     const TIntrusivePtr<T>* parameter,
     const NYTree::TYPath& path)

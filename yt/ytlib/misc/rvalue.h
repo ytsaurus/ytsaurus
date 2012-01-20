@@ -7,8 +7,6 @@
 
 #include "mpl.h"
 
-#include <util/generic/typetraits.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +45,8 @@ struct TRemoveReference<T&&> {
 
 //! Implements #std::move<T>-like behaviour from C++11.
 template<typename T>
-FORCED_INLINE typename NYT::NDetail::TRemoveReference<T>::TType&& MoveRV(T&& x) // noexcept
+FORCED_INLINE typename NYT::NDetail::TRemoveReference<T>::TType&&
+MoveRV(T&& x) // noexcept
 {
     return static_cast<typename NYT::NDetail::TRemoveReference<T>::TType&&>(x);
 }
