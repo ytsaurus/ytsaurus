@@ -16,8 +16,8 @@ public:
     TTaggedLogger(TLogger& innerLogger);
 
     Stroka GetCategory() const;
-    bool IsEnabled(ELogLevel level);
-    void Write(const TLogEvent& event);
+    bool IsEnabled(ELogLevel level) const;
+    void Write(const TLogEvent& event) const;
 
     void AddTag(const Stroka& tag);
 

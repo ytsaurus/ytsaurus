@@ -15,12 +15,12 @@ Stroka TTaggedLogger::GetCategory() const
     return InnerLogger.GetCategory();
 }
 
-bool TTaggedLogger::IsEnabled(ELogLevel level)
+bool TTaggedLogger::IsEnabled(ELogLevel level) const
 {
     return InnerLogger.IsEnabled(level);
 }
 
-void TTaggedLogger::Write(const TLogEvent& event)
+void TTaggedLogger::Write(const TLogEvent& event) const
 {
     TLogEvent modifiedEvent = event;
     modifiedEvent.Message = GetTaggedMessage(event.Message);
