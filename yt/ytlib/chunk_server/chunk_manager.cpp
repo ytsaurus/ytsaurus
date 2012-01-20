@@ -953,13 +953,7 @@ public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
         : TBase(~owner->ObjectManager, id, &owner->ChunkMap, ChunkServerLogger.GetCategory())
         , Owner(owner)
-    {
-        RegisterSystemAttribute("confirmed");
-        RegisterSystemAttribute("cached_locations");
-        RegisterSystemAttribute("stored_locations");
-        RegisterSystemAttribute("size");
-        RegisterSystemAttribute("chunk_type");
-    }
+    { }
 
     virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
@@ -971,6 +965,19 @@ private:
     typedef TObjectProxyBase<TChunk> TBase;
 
     TIntrusivePtr<TImpl> Owner;
+
+    virtual void GetSystemAttributeNames(yvector<Stroka>* names)
+    {
+        const auto& chunk = GetTypedImpl();
+        names->push_back("confirmed");
+        names->push_back("cached_locations");
+        names->push_back("stored_locations");
+        if (chunk.IsConfirmed()) {
+            names->push_back("size");
+            names->push_back("chunk_type");
+        }
+        TBase::GetSystemAttributeNames(names);
+    }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
@@ -1124,9 +1131,7 @@ public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
         : TBase(~owner->ObjectManager, id, &owner->ChunkListMap, ChunkServerLogger.GetCategory())
         , Owner(owner)
-    {
-        RegisterSystemAttribute("children_ids");
-    }
+    { }
 
     virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
@@ -1143,6 +1148,12 @@ private:
     typedef TObjectProxyBase<TChunkList> TBase;
 
     TIntrusivePtr<TImpl> Owner;
+
+    virtual void GetSystemAttributeNames(yvector<Stroka>* names)
+    {
+        names->push_back("children_ids");
+        TBase::GetSystemAttributeNames(names);
+    }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {

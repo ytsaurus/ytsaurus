@@ -62,11 +62,7 @@ TUntypedObjectProxyBase::TUntypedObjectProxyBase(
     : TYPathServiceBase(loggingCategory)
     , ObjectManager(objectManager)
     , Id(id)
-{
-    RegisterSystemAttribute("id");
-    RegisterSystemAttribute("type");
-    RegisterSystemAttribute("ref_counter");
-}
+{ }
 
 TObjectId TUntypedObjectProxyBase::GetId() const
 {
@@ -75,7 +71,7 @@ TObjectId TUntypedObjectProxyBase::GetId() const
 
 IYPathService::TResolveResult TUntypedObjectProxyBase::ResolveAttributes(
     const TYPath& path,
-    const Stroka& verb )
+    const Stroka& verb)
 {
     bool supported;
     auto attributePath = ChopYPathAttributeMarker(path);
@@ -92,16 +88,17 @@ IYPathService::TResolveResult TUntypedObjectProxyBase::ResolveAttributes(
     }
 
     if (!supported) {
-        ythrow TServiceException(EErrorCode::NoSuchVerb) <<
-            Sprintf("Verb is not supported for attributes");
+        ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported for attributes";
     }
 
     return TResolveResult::Here(path);
 }
 
-void TUntypedObjectProxyBase::RegisterSystemAttribute(const Stroka& name)
+void TUntypedObjectProxyBase::GetSystemAttributeNames(yvector<Stroka>* names)
 {
-    YVERIFY(SystemAttributes.insert(name).second);
+    names->push_back("id");
+    names->push_back("type");
+    names->push_back("ref_counter");
 }
 
 bool TUntypedObjectProxyBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
@@ -139,10 +136,11 @@ bool TUntypedObjectProxyBase::IsLogged(IServiceContext* context) const
     return false;
 }
 
-void TUntypedObjectProxyBase::DoInvoke( NRpc::IServiceContext* context )
+void TUntypedObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetId);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
+    DISPATCH_YPATH_SERVICE_METHOD(List);
     NYTree::TYPathServiceBase::DoInvoke(context);
 }
 
@@ -188,24 +186,22 @@ void TUntypedObjectProxyBase::GetRecursive(const TYPath& path, TReqGet* request,
 void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     if (IsFinalYPath(path)) {
+        yvector<Stroka> names;
+        GetSystemAttributeNames(&names);
+
         TStringStream stream;
         TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
         
         writer.OnBeginMap();
-        
-        FOREACH (const auto& name, SystemAttributes) {
-            TStringStream itemStream;
-            TYsonWriter itemWriter(&itemStream, TYsonWriter::EFormat::Binary);
-            if (GetSystemAttribute(name, &itemWriter)) {
-                writer.OnMapItem(name);
-                writer.OnRaw(itemStream.Str());
-            } else {
+
+        FOREACH (const auto& name, names) {
+            writer.OnMapItem(name);
+            if (!GetSystemAttribute(name, &writer)) {
                 auto service = GetSystemAttributeService(name);
-                if (service) {
-                    auto value = SyncYPathGet(~service, RootMarker);
-                    writer.OnMapItem(name);
-                    writer.OnRaw(value);
-                }
+                YASSERT(service);
+                auto value = SyncYPathGet(~service, RootMarker);
+                writer.OnMapItem(name);
+                writer.OnRaw(value);
             }
         }
 
@@ -218,32 +214,94 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
         TYPath suffixPath;
         ChopYPathToken(path, &token, &suffixPath);
 
-        if (SystemAttributes.find(token) == SystemAttributes.end()) {
-            // TODO: user attributes
-            ythrow yexception() << Sprintf("Attribute %s is not found", ~token.Quote());
-        } else {
-            TStringStream stream;
-            TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
-            if (GetSystemAttribute(token, &writer)) {
-                if (IsFinalYPath(suffixPath)) {
-                    response->set_value(stream.Str());
-                } else {
-                    auto wholeValue = DeserializeFromYson(stream.Str());
-                    auto value = SyncYPathGet(~wholeValue, RootMarker + suffixPath);
-                    response->set_value(value);
-                }
+        TStringStream stream;
+        TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+        if (GetSystemAttribute(token, &writer)) {
+            if (IsFinalYPath(suffixPath)) {
+                response->set_value(stream.Str());
             } else {
-                auto service = GetSystemAttributeService(token);
-                if (!service) {
-                    ythrow yexception() << Sprintf("Attribute %s is not found", ~token.Quote());
-                }
-
-                auto value = SyncYPathGet(~service, RootMarker + suffixPath);
+                auto wholeValue = DeserializeFromYson(stream.Str());
+                auto value = SyncYPathGet(~wholeValue, RootMarker + suffixPath);
                 response->set_value(value);
             }
+        } else {
+            auto service = GetSystemAttributeService(token);
+            if (!service) {
+                // TODO: user attributes
+                ythrow yexception() << Sprintf("Attribute %s is not found", ~token.Quote());
+            }
+
+            auto value = SyncYPathGet(~service, RootMarker + suffixPath);
+            response->set_value(value);
         }
     }
 
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TUntypedObjectProxyBase, List)
+{
+    auto path = context->GetPath();
+    if (IsFinalYPath(path)) {
+        ListSelf(request, response, ~context);
+    } else if (IsAttributeYPath(path)) {
+        auto attributePath = ChopYPathAttributeMarker(path);
+        ListAttribute(attributePath, request, response, ~context);
+    } else {
+        ListRecursive(path, request, response, ~context);
+    }
+}
+
+void TUntypedObjectProxyBase::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
+{
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+void TUntypedObjectProxyBase::ListRecursive(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+
+    ythrow yexception() << "Path must be final";
+}
+
+void TUntypedObjectProxyBase::ListAttribute(const TYPath& path, TReqList* request, TRspList* response, TCtxList* context)
+{
+    yvector<Stroka> keys;
+
+    yvector<Stroka> names;
+    GetSystemAttributeNames(&names);
+
+    if (IsFinalYPath(path)) {
+        keys = names;
+        // TODO(babenko): user attributes
+    } else {
+        Stroka token;
+        TYPath suffixPath;
+        ChopYPathToken(path, &token, &suffixPath);
+
+        TStringStream stream;
+        TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+        if (GetSystemAttribute(token, &writer)) {
+            auto wholeValue = DeserializeFromYson(stream.Str());
+            keys = SyncYPathList(~wholeValue, RootMarker + suffixPath);
+        } else {
+            auto service = GetSystemAttributeService(token);
+            if (!service) {
+                // TODO: user attributes
+                ythrow yexception() << Sprintf("Attribute %s is not found", ~token.Quote());
+            }
+            keys = SyncYPathList(~service, RootMarker + suffixPath);
+        }
+    }
+
+    ToProto(*response->mutable_keys(), keys);
     context->Reply();
 }
 

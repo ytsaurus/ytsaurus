@@ -79,17 +79,17 @@ public:
 private:
     TObjectManager::TPtr ObjectManager;
     TObjectId Id;
-    yhash_set<Stroka> SystemAttributes;
 
     virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
     DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, Get);
+    DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, List);
 
 protected:
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
-    void RegisterSystemAttribute(const Stroka& name);
+    virtual void GetSystemAttributeNames(yvector<Stroka>* names);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
     virtual NYTree::IYPathService::TPtr GetSystemAttributeService(const Stroka& name);
 
@@ -97,6 +97,9 @@ protected:
     virtual void GetRecursive(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
 
+    virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
+    virtual void ListRecursive(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
+    virtual void ListAttribute(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

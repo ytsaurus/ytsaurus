@@ -35,12 +35,7 @@ public:
     TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
         : TBase(~owner->ObjectManager, id, &owner->TransactionMap, TransactionServerLogger.GetCategory())
         , Owner(owner)
-    {
-        RegisterSystemAttribute("state");
-        RegisterSystemAttribute("parent_id");
-        RegisterSystemAttribute("nested_transaction_ids");
-        RegisterSystemAttribute("created_object_ids");
-    }
+    { }
 
     virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
@@ -53,6 +48,15 @@ private:
     typedef TObjectProxyBase<TTransaction> TBase;
 
     TTransactionManager::TPtr Owner;
+
+    virtual void GetSystemAttributeNames(yvector<Stroka>* names)
+    {
+        names->push_back("state");
+        names->push_back("parent_id");
+        names->push_back("nested_transaction_ids");
+        names->push_back("created_object_ids");
+        TBase::GetSystemAttributeNames(names);
+    }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
