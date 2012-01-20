@@ -3,6 +3,8 @@
 #endif
 #undef MAP_INL_H_
 
+#include <ytlib/actions/action_util.h>
+
 namespace NYT {
 namespace NMetaState {
 

@@ -4,6 +4,7 @@
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/thread.h>
+#include <ytlib/actions/action_util.h>
 #include <ytlib/monitoring/stat.h>
 
 namespace NYT {

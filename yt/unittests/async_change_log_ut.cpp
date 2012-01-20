@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/meta_state/async_change_log.h>
+#include <ytlib/actions/action_util.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
