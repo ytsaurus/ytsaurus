@@ -629,7 +629,7 @@ bool TCypressManager::IsLockNeeded(
         currentNodeId = currentImpl.GetParentId();
     }
 
-    // If we're outside of a transaction than the lock is not needed.
+    // If we're outside of a transaction then the lock is not needed.
     return transactionId != NullTransactionId;
 }
 
