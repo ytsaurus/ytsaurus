@@ -1,3 +1,6 @@
+#!/usr/bin/python
+#!-*-coding:utf-8-*-
+
 import yson_parser
 
 import copy
