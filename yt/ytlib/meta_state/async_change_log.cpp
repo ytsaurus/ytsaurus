@@ -63,7 +63,12 @@ public:
 
             YASSERT(RecordsToFlush.empty());
 
-            ChangeLog->Append(FlushedRecordCount, RecordsToAppend);
+            // In addition to making this code run a tiny bit faster,
+            // this check also prevents from calling TChangeLog::Append for an already finalized changelog 
+            // (its queue may still be present in the map).
+            if (!RecordsToAppend.empty()) {
+                ChangeLog->Append(FlushedRecordCount, RecordsToAppend);
+            }
             RecordsToFlush.swap(RecordsToAppend);
 
             result = Result;
