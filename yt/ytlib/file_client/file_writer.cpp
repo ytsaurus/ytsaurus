@@ -99,7 +99,6 @@ TFileWriter::TFileWriter(
         ~ChunkId.ToString(),
         ~JoinToString(addresses));
 
-    // Initialize a writer.
     Writer = New<TRemoteWriter>(
         ~config->RemoteWriter,
         ChunkId,
@@ -245,11 +244,13 @@ void TFileWriter::Finish()
         Transaction->UnsubscribeAborted(OnAborted_);
         Transaction.Reset();
     }
+
     if (UploadTransaction) {
         UploadTransaction->Abort();
         UploadTransaction->UnsubscribeAborted(OnAborted_);
         UploadTransaction.Reset();
     }
+
     OnAborted_.Reset();
     Buffer.clear();
     Closed = true;
