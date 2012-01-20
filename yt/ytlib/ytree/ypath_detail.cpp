@@ -223,6 +223,12 @@ Stroka TYPathServiceBase::GetLoggingCategory() const
     return Logger.GetCategory();
 }
 
+bool TYPathServiceBase::IsWriteRequest(IServiceContext* context) const
+{
+    UNUSED(context);
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)

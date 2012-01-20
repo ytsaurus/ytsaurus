@@ -144,15 +144,23 @@ public:
 
     virtual void Invoke(IServiceContext* context)
     {
-        auto wrappedContext = New<TReplyInterceptorContext>(
-            context,
-            ~FromMethod(&TWriteBackService::SaveFile, TPtr(this)));
+        auto wrappedContext =
+            UnderlyingService->IsWriteRequest(context)
+            ? New<TReplyInterceptorContext>(
+                context,
+                ~FromMethod(&TWriteBackService::SaveFile, TPtr(this)))
+            : IServiceContext::TPtr(context);
         UnderlyingService->Invoke(~wrappedContext);
     }
 
     virtual Stroka GetLoggingCategory() const
     {
         return UnderlyingService->GetLoggingCategory();
+    }
+
+    virtual bool IsWriteRequest(IServiceContext* context) const
+    {
+        return UnderlyingService->IsWriteRequest(context);
     }
 
 private:
@@ -189,25 +197,25 @@ public:
         UNUSED(verb);
 
         auto root = LoadFile();
-        
-        // TODO(babenko): refactor using IYPathService::IsReadOnly
-        auto service =
-            IsReadOnly(verb)
-            ? IYPathService::TPtr(root)
-            : IYPathService::TPtr(New<TWriteBackService>(FileName, ~root, ~root));
-
+        auto service = New<TWriteBackService>(FileName, ~root, ~root);
         return TResolveResult::There(~service, path);
     }
 
     virtual void Invoke(NRpc::IServiceContext* context)
     {
         UNUSED(context);
-        ythrow yexception() << "Direct invocation is forbidden";
+        YUNREACHABLE();
     }
 
     virtual Stroka GetLoggingCategory() const
     {
         return YTreeLogger.GetCategory();
+    }
+
+    virtual bool IsWriteRequest(IServiceContext* context) const
+    {
+        UNUSED(context);
+        YUNREACHABLE();
     }
 
 private:
@@ -223,13 +231,6 @@ private:
                 ~FileName.Quote(),
                 ~CurrentExceptionMessage());
         }
-    }
-
-    static bool IsReadOnly(const Stroka& verb)
-    {
-        return
-            verb != "Set" &&
-            verb != "Remove";
     }
 };
 

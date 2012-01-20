@@ -41,13 +41,10 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
     }
 }
 
-bool TTableNodeProxy::IsLogged(IServiceContext* context) const
+bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
 {
-    Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListForUpdate") {
-        return true;
-    }
-    return TBase::IsLogged(context);;
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(GetChunkListForUpdate);
+    return TBase::IsWriteRequest(context);
 }
 
 void TTableNodeProxy::TraverseChunkTree(

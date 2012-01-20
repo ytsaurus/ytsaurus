@@ -45,6 +45,8 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
+
 protected:
     template <class TNode>
     void DoSetSelf(TNode* node, const TYson& value)

@@ -64,6 +64,7 @@ public:
     virtual void Invoke(NRpc::IServiceContext* context);
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
     virtual Stroka GetLoggingCategory() const;
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
 protected:
     NLog::TLogger Logger;
@@ -309,7 +310,7 @@ void ReplyYPathWithMessage(
         return; \
     }
 
-#define DECLARE_LOGGED_YPATH_SERVICE_METHOD(method) \
+#define DECLARE_YPATH_SERVICE_WRITE_METHOD(method) \
     if (context->GetVerb() == #method) { \
         return true; \
     }

@@ -37,13 +37,13 @@ public:
         , Owner(owner)
     { }
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        DECLARE_LOGGED_YPATH_SERVICE_METHOD(Commit);
-        DECLARE_LOGGED_YPATH_SERVICE_METHOD(Abort);
-        DECLARE_LOGGED_YPATH_SERVICE_METHOD(CreateObject);
-        DECLARE_LOGGED_YPATH_SERVICE_METHOD(ReleaseObject);
-        return TBase::IsLogged(context);;
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Commit);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObject);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(ReleaseObject);
+        return TBase::IsWriteRequest(context);
     }
 
 private:

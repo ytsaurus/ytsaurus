@@ -130,12 +130,6 @@ IYPathService::TPtr TUntypedObjectProxyBase::GetSystemAttributeService(const Str
     return NULL;
 }
 
-bool TUntypedObjectProxyBase::IsLogged(IServiceContext* context) const
-{
-    UNUSED(context);
-    return false;
-}
-
 void TUntypedObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetId);

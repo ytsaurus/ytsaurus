@@ -15,6 +15,13 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TNodeBase::IsWriteRequest(IServiceContext* context) const
+{
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
+    return TYPathServiceBase::IsWriteRequest(context);
+}
+
 IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, const Stroka& verb)
 {
     auto attributePath = ChopYPathAttributeMarker(path);

@@ -959,10 +959,10 @@ public:
         , Owner(owner)
     { }
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        DECLARE_LOGGED_YPATH_SERVICE_METHOD(Confirm);
-        return TBase::IsLogged(context);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
+        return TBase::IsWriteRequest(context);
     }
 
 private:
@@ -1140,15 +1140,11 @@ public:
         , Owner(owner)
     { }
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Attach" ||
-            verb == "Detach")
-        {
-            return true;
-        }
-        return TBase::IsLogged(context);;
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Attach);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Detach);
+        return TBase::IsWriteRequest(context);
     }
 
 private:

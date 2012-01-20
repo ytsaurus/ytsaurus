@@ -140,16 +140,11 @@ public:
     }
 
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Set" ||
-            verb == "Remove" ||
-            verb == "Lock")
-        {
-            return true;
-        }
-        return false;
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
+        // NB: Create is not considered a write verb since here is always fails.
+        return NYTree::TNodeBase::IsWriteRequest(context);
     }
 
 protected:
@@ -158,7 +153,7 @@ protected:
     const TTransactionId TransactionId;
     const TNodeId NodeId;
 
-    //! Keeps a cached flag that gets raised when the node is locked.
+    //! A cached flag that gets raised when the node is locked.
     bool Locked;
 
 
@@ -398,14 +393,10 @@ protected:
         }
     }
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Create") {
-            return true;
-        } else {
-            return TBase::IsLogged(context);
-        }
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
+        return TBase::IsWriteRequest(context);
     }
 
 protected:
