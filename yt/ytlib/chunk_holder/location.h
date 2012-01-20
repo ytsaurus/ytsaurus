@@ -94,7 +94,7 @@ private:
     TActionQueue::TPtr ActionQueue;
     int SessionCount;
 
-    NLog::TTaggedLogger Logger;
+    mutable NLog::TTaggedLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
