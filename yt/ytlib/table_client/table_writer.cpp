@@ -22,26 +22,46 @@ TTableWriter::TTableWriter(
     TConfig* config,
     NRpc::IChannel* masterChannel,
     ITransaction* transaction,
+    TTransactionManager* transactionManager,
     const TSchema& schema,
     const TYPath& path)
     : Config(config)
     , Transaction(transaction)
+    , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
+    , TransactionManager(transactionManager)
     , Proxy(masterChannel)
     , Logger(TableClientLogger)
 {
+    YASSERT(config);
     YASSERT(masterChannel);
+
+    OnAborted_ = FromMethod(&TTableWriter::OnAborted, TPtr(this));
+
+    if (Transaction) {
+        Transaction->SubscribeAborted(OnAborted_);
+    }
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~path,
-        ~transaction->GetId().ToString()));
+        ~TransactionId.ToString()));
 
-    OnAborted_ = FromMethod(&TTableWriter::OnAborted, TPtr(this));
-    Transaction->SubscribeAborted(OnAborted_);
+    LOG_INFO("Table writer open");
 
     Proxy.SetTimeout(Config->MasterRpcTimeout);
 
+    LOG_INFO("Creating upload transaction");
+    try {
+        UploadTransaction = TransactionManager->Start();
+    } catch (const std::exception& ex) {
+        LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
+            ex.what());
+    }
+    UploadTransaction->SubscribeAborted(OnAborted_);
+    LOG_INFO("Upload transaction created (TransactionId: %s)",
+        ~UploadTransaction->GetId().ToString());
+
     LOG_INFO("Requesting chunk list id");
-    auto getChunkListIdReq = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(path, Transaction->GetId()));
+    auto getChunkListIdReq = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(path, TransactionId));
     auto getChunkListIdRsp = Proxy.Execute(~getChunkListIdReq)->Get();
     if (!getChunkListIdRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
@@ -53,7 +73,7 @@ TTableWriter::TTableWriter(
     Writer = New<TChunkSequenceWriter>(
         ~config->ChunkSequenceWriter, 
         masterChannel,
-        Transaction->GetId(),
+        UploadTransaction->GetId(),
         schema);
 }
 
@@ -86,6 +106,18 @@ void TTableWriter::Close()
     }
     LOG_INFO("Chunks attached");
 
+    LOG_INFO("Committing upload transaction");
+    try {
+        UploadTransaction->Commit();
+        UploadTransaction.Reset();
+    } catch (const std::exception& ex) {
+        LOG_ERROR_AND_THROW(yexception(), "Error committing upload transaction\n%s",
+            ex.what());
+    }
+    LOG_INFO("Upload transaction committed");
+
+    LOG_INFO("Table writer closed");
+
     Finish();
 }
 
@@ -101,6 +133,13 @@ void TTableWriter::Finish()
         Transaction->UnsubscribeAborted(OnAborted_);
         Transaction.Reset();
     }
+    
+    if (UploadTransaction) {
+        UploadTransaction->Abort();
+        UploadTransaction->UnsubscribeAborted(OnAborted_);
+        UploadTransaction.Reset();
+    }
+
     OnAborted_.Reset();
 }
 

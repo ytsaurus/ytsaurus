@@ -177,7 +177,8 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
     auto writer = New<TTableWriter>(
         ~DriverImpl->GetConfig()->TableWriter,
         DriverImpl->GetMasterChannel(),
-        DriverImpl->GetCurrentTransaction(true),
+        DriverImpl->GetCurrentTransaction(false),
+        DriverImpl->GetTransactionManager(),
         // TODO: provide proper schema
         TSchema::Empty(),
         request->Path);
