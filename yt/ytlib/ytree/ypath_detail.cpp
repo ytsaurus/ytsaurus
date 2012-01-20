@@ -69,9 +69,14 @@ TYPath CombineYPaths(
     const TYPath& path1,
     const TYPath& path2)
 {
+    if (path2.has_prefix("@")) {
+        return path1 + path2;
+    }
+
     if (path1.empty() || path2.empty()) {
         return path1 + path2;
     }
+
     if (path1.back() == '/' && path2[0] == '/') {
         return path1 + path2.substr(1);
     }
