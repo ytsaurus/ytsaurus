@@ -1,5 +1,10 @@
+#!/usr/bin/python
+#!-*-coding:utf-8-*-
+
 import struct
 from StringIO import StringIO
+
+__all__ = ["parse", "parse_string"]
 
 class YSONParseError(ValueError):
     def __init__(self, message, (line_index, position, offset)):
@@ -122,8 +127,6 @@ class YSONParserBase(object):
             count += 1
             read_next = byte & 0x80 != 0
 
-        #result = ctypes.c_longlong(result)
-        #one = ctypes.c_int(1)
         result = (result >> 1) ^ -(result & 1)
         return result
 
@@ -354,78 +357,9 @@ class YSONFragmentedParser(YSONParserBase):
     def parse_next(self):
         return self._parse_any()
 
-
 def parse(stream):
     parser = YSONParser(stream)
     return parser.parse()
 
 def parse_string(string):
     return parse(StringIO(string))
-
-if __name__ == "__main__":
-    import unittest
-
-    class TestYSONParser(unittest.TestCase):
-        def assert_parse(self, string, expected):
-            self.assertEqual(parse_string(string), expected)
-
-        def test_quoted_string(self):
-            self.assert_parse('"abc\\"\\n"', 'abc"\n')
-
-        def test_unquoted_string(self):
-            self.assert_parse('abc10', 'abc10')
-
-        def test_binary_string(self):
-            self.assert_parse('\x03\x06abc', 'abc')
-
-        def test_int(self):
-            self.assert_parse('64', 64)
-
-        def test_binary_int(self):
-            self.assert_parse('\x01\x81\x40', -(2 ** 12) - 1)
-
-        def test_double(self):
-            self.assert_parse('1.5', 1.5)
-
-        def test_exp_double(self):
-            self.assert_parse('1.73e23', 1.73e23)
-
-        def test_binary_double(self):
-            self.assert_parse('\x02\x00\x00\x00\x00\x00\x00\xF8\x3F', 1.5)
-
-        def test_empty_list(self):
-            self.assert_parse('[ ]', [])
-
-        def test_one_element_list(self):
-            self.assert_parse('[a]', ['a'])
-
-        def test_list(self):
-            self.assert_parse('[1; 2]', [1, 2])
-
-        def test_empty_map(self):
-            self.assert_parse('{ }', {})
-
-        def test_one_element_map(self):
-            self.assert_parse('{a=1}', {'a': 1})
-
-        def test_map(self):
-            self.assert_parse('{a = b; c = d}', {'a': 'b', 'c': 'd'})
-
-        def test_entity(self):
-            self.assert_parse(' <a = b; c = d>', None)
-
-        def test_nested(self):
-            self.assert_parse(
-                '''
-                {
-                    path = "/home/sandello";
-                    mode = 755;
-                    read = [
-                            "*.sh";
-                            "*.py"
-                           ]
-                }
-                ''',
-                {'path' : '/home/sandello', 'mode' : 755, 'read' : ['*.sh', '*.py']})
-
-    unittest.main()

@@ -110,9 +110,13 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
 {
     i64 availableSpace = 0;
     i64 usedSpace = 0;
+    bool isFull = true;
     FOREACH(const auto& location, ChunkStore->Locations()) {
         availableSpace += location->GetAvailableSpace();
         usedSpace += location->GetUsedSpace();
+        if (!location->IsFull()) {
+            isFull = false;
+        }
     }
 
     THolderStatistics result;
@@ -120,6 +124,7 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
     result.set_used_space(usedSpace);
     result.set_chunk_count(ChunkStore->GetChunkCount());
     result.set_session_count(SessionManager->GetSessionCount());
+    result.set_full(isFull);
 
     return result;
 }

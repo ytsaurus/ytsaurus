@@ -247,6 +247,7 @@ public:
     {
         // NB: No smartpointer for this here.
         RegisterGetter("alive", FromMethod(&TThis::GetAlive, this));
+        RegisterGetter("statistics", FromMethod(&TThis::GetStatistics, this));
     }
 
     virtual EObjectType GetObjectType()
@@ -280,6 +281,25 @@ private:
         bool alive = ChunkManager->FindHolder(address);
         BuildYsonFluently(param.Consumer)
             .Scalar(alive);
+    }
+
+    void GetStatistics(const TGetAttributeParam& param)
+    {
+        auto address = GetAddress(*param.Node);
+        auto* holder = ChunkManager->FindHolder(address);
+        BuildYsonFluently(param.Consumer)
+            .BeginMap()
+                .DoIf(holder, [=] (TFluentMap fluent)
+                    {
+                        const auto statistics = holder->Statistics();
+                        fluent
+                            .Item("available_space").Scalar(statistics.available_space())
+                            .Item("used_space").Scalar(statistics.used_space())
+                            .Item("chunk_count").Scalar(statistics.chunk_count())
+                            .Item("session_count").Scalar(statistics.session_count())
+                            .Item("full").Scalar(statistics.full());
+                    })
+            .EndMap();
     }
 };
 
