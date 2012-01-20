@@ -131,7 +131,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(
     TCypressManager::TPtr cypressManager_ = cypressManager;
     return CreateVirtualTypeHandler(
         cypressManager,
-        EObjectType::OrchidNode,
+        EObjectType::Orchid,
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
                 return New<TOrchidYPathService>(context.Manifest);

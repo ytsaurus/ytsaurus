@@ -16,7 +16,6 @@ static NLog::TLogger& Logger = CypressLogger;
 
 const TYPath ObjectIdMarker = "#";
 const TYPath TransactionIdMarker = "!";
-const TYPath SystemPath = "#0-0-0-0";
 
 ////////////////////////////////////////////////////////////////////////////////
 

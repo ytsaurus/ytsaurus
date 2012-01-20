@@ -12,17 +12,13 @@
 #include <ytlib/meta_state/map.h>
 #include <ytlib/object_server/object_manager.h>
 
+namespace NYT {
 
 // TODO(babenko): consider getting rid of this
-namespace NYT {
 namespace NCypress {
-
-class TCypressManager;
-
-}
+    class TCypressManager;
 }
 
-namespace NYT {
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,7 +65,9 @@ public:
     void SetCypressManager(NCypress::TCypressManager* cypressManager);
     NObjectServer::TObjectManager* GetObjectManager() const;
 
-    TTransaction& Start(TTransactionManifest* manifest);
+    NObjectServer::IObjectProxy::TPtr GetRootTransactionProxy();
+
+    TTransaction& Start(TTransaction* parent, TTransactionManifest* manifest);
     void Commit(TTransaction& transaction);
     void Abort(TTransaction& transaction);
     void RenewLease(const TTransactionId& id);

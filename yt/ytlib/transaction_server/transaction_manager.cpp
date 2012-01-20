@@ -41,6 +41,8 @@ public:
     {
         DECLARE_LOGGED_YPATH_SERVICE_METHOD(Commit);
         DECLARE_LOGGED_YPATH_SERVICE_METHOD(Abort);
+        DECLARE_LOGGED_YPATH_SERVICE_METHOD(CreateObject);
+        DECLARE_LOGGED_YPATH_SERVICE_METHOD(ReleaseObject);
         return TBase::IsLogged(context);;
     }
 
@@ -100,10 +102,12 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(Commit);
         DISPATCH_YPATH_SERVICE_METHOD(Abort);
         DISPATCH_YPATH_SERVICE_METHOD(RenewLease);
+        DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
+        DISPATCH_YPATH_SERVICE_METHOD(ReleaseObject);
         TBase::DoInvoke(context);
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, Commit)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Commit)
     {
         UNUSED(request);
         UNUSED(response);
@@ -112,7 +116,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, Abort)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Abort)
     {
         UNUSED(request);
         UNUSED(response);
@@ -121,7 +125,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, RenewLease)
+    DECLARE_RPC_SERVICE_METHOD(NProto, RenewLease)
     {
         UNUSED(request);
         UNUSED(response);
@@ -130,32 +134,14 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, Release)
-    {
-        UNUSED(response);
-
-        auto objectId = TObjectId::FromProto(request->object_id());
-
-        context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
-
-        auto& transaction = GetTypedImplForUpdate();
-        if (transaction.CreatedObjectIds().erase(objectId) != 1) {
-            // TODO(babenko): use TServiceException
-            ythrow yexception() << Sprintf("No such object was created (ObjectId: %s)", ~objectId.ToString());
-        }
-
-        Owner->ObjectManager->UnrefObject(objectId);
-
-        context->Reply();
-    }
-
-    // TODO(babenko): get rid of copy-paste (see TSystemProxy)
-    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NProto, CreateObject)
     {
         // TODO(babenko): validate type
         auto type = EObjectType(request->type());
 
-        context->SetRequestInfo("Type: %s", ~type.ToString());
+        context->SetRequestInfo("TransactionId: %s, Type: %s",
+            ~GetId().ToString(),
+            ~type.ToString());
 
         auto handler = Owner->ObjectManager->GetHandler(type);
 
@@ -168,15 +154,42 @@ private:
             ythrow yexception() << "Manifest must be a map";
         }
 
-        auto objectId = handler->CreateFromManifest(~manifestNode->AsMap());
+        if (handler->IsTransactionRequired() && GetId() == NullTransactionId) {
+            ythrow yexception() << Sprintf("Cannot create an instance outside of a transaction (Type: %s)",
+                ~type.ToString());
+        }
 
-        auto& transaction = GetTypedImplForUpdate();
-        YVERIFY(transaction.CreatedObjectIds().insert(objectId).second);
-        Owner->ObjectManager->RefObject(objectId);
+        auto objectId = handler->CreateFromManifest(
+            GetId(),
+            ~manifestNode->AsMap());
+
+        if (GetId() != NullTransactionId) {
+            auto& transaction = GetTypedImplForUpdate();
+            YVERIFY(transaction.CreatedObjectIds().insert(objectId).second);
+            Owner->ObjectManager->RefObject(objectId);
+        }
 
         response->set_object_id(objectId.ToProto());
 
         context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NTransactionServer::NProto, ReleaseObject)
+    {
+        UNUSED(response);
+
+        auto objectId = TObjectId::FromProto(request->object_id());
+
+        context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
+
+        auto& transaction = GetTypedImplForUpdate();
+        if (transaction.CreatedObjectIds().erase(objectId) != 1) {
+            ythrow yexception() << Sprintf("Transaction does not own the object (ObjectId: %s)", ~objectId.ToString());
+        }
+
+        Owner->ObjectManager->UnrefObject(objectId);
 
         context->Reply();
     }
@@ -198,18 +211,24 @@ public:
         return EObjectType::Transaction;
     }
 
-    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifestNode)
+    virtual TObjectId CreateFromManifest(
+        const TTransactionId& transactionId,
+        IMapNode* manifestNode)
     {
         auto manifest = New<TTransactionManifest>();
         manifest->LoadAndValidate(manifestNode);
 
-        if (manifest->ParentId != NullTransactionId && !Owner->FindTransaction(manifest->ParentId)) {
-            // TODO(babenko): use TServiceException here
-            ythrow yexception() << Sprintf("No such parent transaction (ParentId: %s)",
-                ~manifest->ParentId.ToString());
-        }
+        auto* parent =
+            transactionId == NullTransactionId
+            ? NULL
+            : &Owner->GetTransactionForUpdate(transactionId);
 
-        return Owner->Start(~manifest).GetId();
+        return Owner->Start(parent, ~manifest).GetId();
+    }
+
+    virtual bool IsTransactionRequired() const
+    {
+        return false;
     }
 
 private:
@@ -250,7 +269,7 @@ TTransactionManager::TTransactionManager(
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
 }
 
-TTransaction& TTransactionManager::Start(TTransactionManifest* manifest)
+TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManifest* manifest)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YASSERT(manifest);
@@ -262,10 +281,9 @@ TTransaction& TTransactionManager::Start(TTransactionManifest* manifest)
     // Every active transaction has a fake reference to it.
     ObjectManager->RefObject(id);
     
-    if (manifest->ParentId != NullTransactionId) {
-        transaction->SetParentId(manifest->ParentId);
-        auto& parent = GetTransactionForUpdate(manifest->ParentId);
-        YVERIFY(parent.NestedTransactionIds().insert(id).second);
+    if (parent) {
+        transaction->SetParentId(parent->GetId());
+        YVERIFY(parent->NestedTransactionIds().insert(id).second);
         ObjectManager->RefObject(id);
     }
 
@@ -279,7 +297,7 @@ TTransaction& TTransactionManager::Start(TTransactionManifest* manifest)
 
     LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s, ParentId: %s)",
         ~id.ToString(),
-        ~manifest->ParentId.ToString());
+        parent ? ~parent->GetId().ToString() : "None");
 
     return *transaction;
 }
@@ -435,6 +453,11 @@ void TTransactionManager::SetCypressManager(NCypress::TCypressManager* cypressMa
 TObjectManager* TTransactionManager::GetObjectManager() const
 {
     return ~ObjectManager;
+}
+
+IObjectProxy::TPtr TTransactionManager::GetRootTransactionProxy()
+{
+    return New<TTransactionProxy>(this, NullTransactionId);
 }
 
 DEFINE_METAMAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)

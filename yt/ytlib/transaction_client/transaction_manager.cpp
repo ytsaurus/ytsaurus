@@ -6,7 +6,6 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/actions/signal.h>
-#include <ytlib/object_server/object_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -41,7 +40,7 @@ public:
         Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
 
         LOG_INFO("Starting transaction");
-        auto req = TObjectYPathProxy::Create(SystemPath);
+        auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
         req->set_type(EObjectType::Transaction);
         auto rsp = Proxy.Execute(~req)->Get();
         if (!rsp->IsOK()) {

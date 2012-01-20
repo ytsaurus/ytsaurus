@@ -49,7 +49,9 @@ public:
         return EObjectType::Chunk;
     }
 
-    virtual TObjectId CreateFromManifest(IMapNode* manifest);
+    virtual TObjectId CreateFromManifest(
+        const TTransactionId& transactionId,
+        IMapNode* manifest);
 
 private:
     TImpl* Owner;
@@ -73,7 +75,9 @@ public:
         return EObjectType::ChunkList;
     }
 
-    virtual TObjectId CreateFromManifest(IMapNode* manifest);
+    virtual TObjectId CreateFromManifest(
+        const TTransactionId& transactionId,
+        IMapNode* manifest);
 
 private:
     TImpl* Owner;
@@ -1111,8 +1115,11 @@ IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::CreateProxy(const TObjectId
     return New<TChunkProxy>(Owner, id);
 }
 
-TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(IMapNode* manifest)
+TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
+    const TTransactionId& transactionId,
+    IMapNode* manifest)
 {
+    UNUSED(transactionId);
     UNUSED(manifest);
     return Owner->CreateChunk().GetId();
 }
@@ -1241,8 +1248,11 @@ IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::CreateProxy(const TObje
     return New<TChunkListProxy>(Owner, id);
 }
 
-TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(IMapNode* manifest)
+TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(
+    const TTransactionId& transactionId,
+    IMapNode* manifest)
 {
+    UNUSED(transactionId);
     UNUSED(manifest);
     return Owner->CreateChunkList().GetId();
 }

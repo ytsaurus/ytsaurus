@@ -58,11 +58,19 @@ public:
         return CreateProxy(id);
     }
 
-    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest)
+    virtual TObjectId CreateFromManifest(
+        const NTransactionServer::TTransactionId& transactionId,
+        NYTree::IMapNode* manifest)
     {
+        UNUSED(transactionId);
         UNUSED(manifest);
-        ythrow yexception() << Sprintf("Objects of type %s cannot be created from a manifest",
+        ythrow yexception() << Sprintf("Object cannot be created from a manifest (Type: %s)",
             ~GetType().ToString());
+    }
+
+    virtual bool IsTransactionRequired() const
+    {
+        return true;
     }
 
 protected:

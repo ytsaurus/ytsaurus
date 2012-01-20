@@ -175,7 +175,7 @@ protected:
     }
 
 
-    DECLARE_RPC_SERVICE_METHOD(NCypress::NProto, Lock)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Lock)
     {
         UNUSED(request);
         UNUSED(response);
@@ -184,7 +184,7 @@ protected:
         context->Reply();
     }
     
-    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         UNUSED(request);
         UNUSED(response);
@@ -409,7 +409,7 @@ protected:
     }
 
 protected:
-    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         // TODO(babenko): validate type
 

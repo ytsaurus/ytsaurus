@@ -148,7 +148,7 @@ DEFINE_RPC_SERVICE_METHOD(TUntypedObjectProxyBase, GetId)
 {
     UNUSED(request);
 
-    response->set_id(Id.ToProto());
+    response->set_object_id(Id.ToProto());
     context->Reply();
 }
 

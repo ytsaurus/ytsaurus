@@ -66,8 +66,7 @@ public:
         RegisterGetter("type", FromMethod(&TThis::GetType, this));
     }
 
-    virtual TAutoPtr<ICypressNode> Create(
-        const TVersionedNodeId& id)
+    virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id)
     {
         return new TImpl(id, GetObjectType());
     }

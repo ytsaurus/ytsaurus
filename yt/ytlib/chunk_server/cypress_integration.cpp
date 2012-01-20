@@ -354,7 +354,7 @@ private:
                 FromObjectId(NodeId),
                 address,
                 "orchid"));
-            req->set_type(EObjectType::OrchidNode);     
+            req->set_type(EObjectType::Orchid);     
             auto manifest = New<TOrchidManifest>();
             manifest->RemoteAddress = address;
             req->set_manifest(SerializeToYson(~manifest));

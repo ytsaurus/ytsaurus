@@ -87,84 +87,22 @@ public:
         return Owner->GetNodeProxy(id, NullTransactionId);
     }
 
-    virtual TObjectId CreateFromManifest(IMapNode* manifest)
+    virtual TObjectId CreateFromManifest(
+        const TTransactionId& transactionId,
+        IMapNode* manifest)
     {
         UNUSED(manifest);
-        ythrow yexception() << "Nodes cannot be created outside Cypress";
+        ythrow yexception() << "Cannot create a node outside Cypress";
+    }
+
+    virtual bool IsTransactionRequired() const
+    {
+        return false;
     }
 
 private:
     TCypressManager* Owner;
     EObjectType Type;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCypressManager::TSystemProxy
-    : public TYPathServiceBase
-    , public virtual IObjectProxy
-{
-public:
-    TSystemProxy(TCypressManager* owner)
-        : Owner(owner)
-    { }
-
-    virtual bool IsLogged(IServiceContext* context) const
-    {
-        Stroka verb = context->GetVerb();
-        if (verb == "Create") {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    virtual TObjectId GetId() const
-    {
-        return NullObjectId;
-    }
-
-private:
-    TCypressManager::TPtr Owner;
-
-    virtual void DoInvoke(NRpc::IServiceContext* context)
-    {
-        Stroka verb = context->GetVerb();
-        if (verb == "Create") {
-            CreateThunk(context);
-        } else {
-            TYPathServiceBase::DoInvoke(context);
-        }
-    }
-
-    // TODO(babenko): get rid of copy-paste (see TTransactionProxy)
-    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
-    {
-        // TODO(babenko): validate type
-        auto type = EObjectType(request->type());
-
-        context->SetRequestInfo("Type: %s", ~type.ToString());
-
-        auto handler = Owner->ObjectManager->GetHandler(type);
-
-        NYTree::INode::TPtr manifestNode =
-            request->has_manifest()
-            ? DeserializeFromYson(request->manifest())
-            : GetEphemeralNodeFactory()->CreateMap();
-
-        if (manifestNode->GetType() != NYTree::ENodeType::Map) {
-            ythrow yexception() << "Manifest must be a map";
-        }
-
-        auto objectId = handler->CreateFromManifest(~manifestNode->AsMap());
-
-        response->set_object_id(objectId.ToProto());
-
-        context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
-
-        context->Reply();
-    }
 
 };
 
@@ -604,9 +542,9 @@ IObjectProxy::TPtr TCypressManager::FindObjectProxy(
     const TObjectId& objectId,
     const TTransactionId& transactionId)
 {
-    // NullObjectId is a special case.
+    // NullObjectId means the root transaction.
     if (objectId == NullObjectId) {
-        return New<TSystemProxy>(this);
+        return TransactionManager->GetRootTransactionProxy();
     }
 
     // First try to fetch a proxy of a Cypress node.

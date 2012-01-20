@@ -10,19 +10,19 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCypressYPathProxy
-    : public NObjectServer::TObjectYPathProxy
-{
-    DEFINE_YPATH_PROXY_METHOD(NProto, Lock);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 extern const NYTree::TYPath ObjectIdMarker;
 
 NYTree::TYPath FromObjectId(const NObjectServer::TObjectId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCypressYPathProxy
+    : public NObjectServer::TObjectYPathProxy
+{
+    DEFINE_YPATH_PROXY_METHOD(NProto, Create);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Lock);
+};
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace NCypress
 } // namespace NYT

@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/cypress_integration.cpp
   ${BASE}/transaction.cpp
   ${BASE}/transaction_manager.cpp
+  ${BASE}/transaction_ypath_proxy.cpp
 )
 set( HDRS
   ${BASE}/common.h
