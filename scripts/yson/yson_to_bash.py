@@ -53,18 +53,18 @@ def print_bash(obj, level):
 
 def go_by_path(obj, path):
     # Is it dangerous to use here split?
-    yson = copy.deepcopy(obj)
+    yson = obj
     path_elements = path.split("/")
     # TODO: add more information in Exceptions
     for elem in path_elements:
         if not elem: continue
         if isinstance(yson, list):
-            require(elem.isdigit(), Exception("Try to cd in list by not a number."))
-            number = int(elem)
-            require(number < len(yson), Exception("Try to access to nonexisted list item."))
-            yson = yson[number]
+            require(elem.isdigit(), Exception("Incorrect path: list cannot be accessed by key '%s'" % elem))
+            index = int(elem)
+            require(0 <= index < len(yson), Exception("Incorrect path: list has no index %d" % index))
+            yson = yson[index]
         elif isinstance(yson, dict):
-            require(elem in yson, Exception("There is no required key in dict."))
+            require(elem in yson, Exception("Incorrect path: map has no key '%s'" % elem))
             yson = yson[elem]
         else:
             raise Exception("Try to access literal.")
