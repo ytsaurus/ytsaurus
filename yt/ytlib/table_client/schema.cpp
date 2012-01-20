@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "schema.h"
 
+#include <ytlib/misc/foreach.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -72,14 +74,10 @@ bool TRange::Contains(const TRange& range) const
 
 bool TRange::Overlaps(const TRange& range) const
 {
-    if ((Begin_ <= range.Begin_ && (IsInfinite() || range.Begin_ < End_)) || 
-        (Begin_ < range.End_ && (IsInfinite() || range.End_ <= End_)) ||
-        (range.Begin_ <= Begin_ && (range.IsInfinite() || Begin_ < range.End_)))
-    {
-        return true;
-    } else {
-        return false;
-    }
+    return 
+        Begin_ <= range.Begin_ && (IsInfinite() || range.Begin_ < End_) || 
+        Begin_ < range.End_ && (IsInfinite() || range.End_ <= End_) ||
+        range.Begin_ <= Begin_ && (range.IsInfinite() || Begin_ < range.End_);
 }
 
 bool TRange::IsInfinite() const
@@ -91,7 +89,7 @@ bool TRange::IsInfinite() const
 
 void TChannel::AddColumn(const TColumn& column)
 {
-    FOREACH(const auto& existingColumn, Columns) {
+    FOREACH (const auto& existingColumn, Columns) {
         if (existingColumn == column) {
             return;
         }
