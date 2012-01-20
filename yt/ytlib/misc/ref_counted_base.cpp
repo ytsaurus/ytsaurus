@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "common.h"
-
 #include "ref_counted_base.h"
 #include "ref_counted_tracker.h"
 
@@ -10,21 +9,21 @@ namespace NYT {
 
 TExtrinsicRefCounted::~TExtrinsicRefCounted()
 {
-    YASSERT(RefCounter->GetRefCount() == 0);
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    YASSERT(Cookie);
-    TRefCountedTracker::Get()->Unregister(
-        static_cast<TRefCountedTracker::TCookie>(Cookie));
+    if (Cookie) {
+        TRefCountedTracker::Get()->Unregister(
+            static_cast<TRefCountedTracker::TCookie>(Cookie));
+    }
 #endif
 }
 
 TIntrinsicRefCounted::~TIntrinsicRefCounted()
 {
-    YASSERT(NDetail::AtomicallyFetch(&RefCounter) == 0);
 #ifdef ENABLE_REF_COUNTED_TRACKING
-    YASSERT(Cookie);
-    TRefCountedTracker::Get()->Unregister(
-        static_cast<TRefCountedTracker::TCookie>(Cookie));
+    if (Cookie) {
+        TRefCountedTracker::Get()->Unregister(
+            static_cast<TRefCountedTracker::TCookie>(Cookie));
+    }
 #endif
 }
 
