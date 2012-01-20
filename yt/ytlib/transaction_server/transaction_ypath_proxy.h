@@ -16,8 +16,11 @@ extern NYTree::TYPath RootTransactionPath;
 struct TTransactionManifest
     : public TConfigurable
 {
+    TDuration Timeout;
+
     TTransactionManifest()
     {
+        Register("timeout", Timeout).Default();
     }
 };
 

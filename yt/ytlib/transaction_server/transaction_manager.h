@@ -45,11 +45,11 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TDuration TransactionTimeout;
+        TDuration DefaultTransactionTimeout;
 
         TConfig()
         {
-            Register("transaction_timeout", TransactionTimeout)
+            Register("default_transaction_timeout", DefaultTransactionTimeout)
                 .GreaterThan(TDuration())
                 .Default(TDuration::Seconds(10));
         }
@@ -92,7 +92,7 @@ private:
 
     void OnTransactionExpired(const TTransactionId& id);
 
-    void CreateLease(const TTransaction& transaction);
+    void CreateLease(const TTransaction& transaction, TDuration timeout);
     void CloseLease(const TTransaction& transaction);
     void FinishTransaction(TTransaction& transaction);
 

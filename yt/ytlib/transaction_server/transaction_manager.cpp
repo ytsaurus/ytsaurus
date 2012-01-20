@@ -288,7 +288,7 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManif
     }
 
     if (IsLeader()) {
-        CreateLease(*transaction);
+        CreateLease(*transaction, manifest->Timeout);
     }
 
     transaction->SetState(ETransactionState::Active);
@@ -403,7 +403,8 @@ void TTransactionManager::Clear()
 void TTransactionManager::OnLeaderRecoveryComplete()
 {
     FOREACH (const auto& pair, TransactionMap) {
-        CreateLease(*pair.Second());
+        // TODO(roizner): This timeout is probably incorrect
+        CreateLease(*pair.Second(), Config->DefaultTransactionTimeout);
     }
 }
 
@@ -415,10 +416,15 @@ void TTransactionManager::OnStopLeading()
     LeaseMap.clear();
 }
 
-void TTransactionManager::CreateLease(const TTransaction& transaction)
+void TTransactionManager::CreateLease(
+    const TTransaction& transaction,
+    TDuration timeout)
 {
+    if (timeout == TDuration::Zero()) {
+        timeout = Config->DefaultTransactionTimeout;
+    }
     auto lease = TLeaseManager::CreateLease(
-        Config->TransactionTimeout,
+        timeout,
         ~FromMethod(&TThis::OnTransactionExpired, TPtr(this), transaction.GetId())
         ->Via(MetaStateManager->GetEpochStateInvoker()));
     YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).Second());
