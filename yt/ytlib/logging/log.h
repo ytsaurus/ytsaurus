@@ -2,15 +2,6 @@
 
 #include "common.h"
 
-// TODO: fix includes
-#include <ytlib/actions/action_queue.h>
-#include <ytlib/actions/action_util.h>
-#include <ytlib/actions/future.h>
-
-#include <ytlib/misc/fs.h>
-
-#include <util/generic/pair.h>
-#include <util/datetime/base.h>
 #include <util/system/thread.h>
 
 namespace NYT {
@@ -18,21 +9,25 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLogManager;
+
 class TLogger
     : private TNonCopyable
 {
 public:
-    TLogger(const Stroka& category);
+    explicit TLogger(const Stroka& category);
 
     Stroka GetCategory() const;
-    bool IsEnabled(ELogLevel level);
-    void Write(const TLogEvent& event);
+    bool IsEnabled(ELogLevel level) const;
+    void Write(const TLogEvent& event) const;
     
 private:
+    TLogManager* GetLogManager() const;
     void UpdateConfig();
 
     Stroka Category;
     int ConfigVersion;
+    mutable TLogManager* LogManager;
     ELogLevel MinLevel;
 };
 
