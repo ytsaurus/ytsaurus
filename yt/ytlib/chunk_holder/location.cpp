@@ -45,7 +45,7 @@ void TLocation::UpdateUsedSpace(i64 size)
     AvailableSpace -= size;
 }
 
-i64 TLocation::GetAvailableSpace()
+i64 TLocation::GetAvailableSpace() const
 {
     auto path = GetPath();
     
@@ -56,8 +56,8 @@ i64 TLocation::GetAvailableSpace()
             ~CurrentExceptionMessage());
     }
 
-    i64 remainingQuota = GetQuota() - GetUsedSpace();
-    if (remainingQuota < 0) remainingQuota = 0;
+    i64 remainingQuota = Max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
+
     AvailableSpace = Min(AvailableSpace, remainingQuota);
 
     return AvailableSpace;
@@ -99,20 +99,13 @@ Stroka TLocation::GetPath() const
     return Config->Path;
 }
 
-void TLocation::IncrementSessionCount()
+void TLocation::UpdateSessionCount(int delta)
 {
-    ++SessionCount;
-    LOG_DEBUG("Location session count incremented (SessionCount: %d)",
+    SessionCount += delta;
+    LOG_DEBUG("Location session count updated (SessionCount: %d)",
         SessionCount);
 }
 
-void TLocation::DecrementSessionCount()
-{
-    --SessionCount;
-    LOG_DEBUG("Location session count decremented (SessionCount: %d)",
-        SessionCount);
-}
-    
 int TLocation::GetSessionCount() const
 {
     return SessionCount;
@@ -126,12 +119,12 @@ Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
         Sprintf("%x/%s", firstHashByte, ~chunkId.ToString()));
 }
 
-bool TLocation::IsFull()
+bool TLocation::IsFull() const
 {
-    return GetAvailableSpace() >= Config->LowWatermark;
+    return GetAvailableSpace() < Config->LowWatermark;
 }
 
-bool TLocation::HasEnoughSpace(i64 size)
+bool TLocation::HasEnoughSpace(i64 size) const
 {
     return GetAvailableSpace() - size >= Config->HighWatermark;
 }
