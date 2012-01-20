@@ -19,7 +19,7 @@ public:
 
     Stroka GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
-    void Write(const TLogEvent& event) const;
+    void Write(const TLogEvent& event);
     
 private:
     TLogManager* GetLogManager() const;

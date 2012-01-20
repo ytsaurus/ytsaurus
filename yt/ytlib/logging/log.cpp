@@ -24,7 +24,7 @@ Stroka TLogger::GetCategory() const
     return Category;
 }
 
-void TLogger::Write(const TLogEvent& event) const
+void TLogger::Write(const TLogEvent& event)
 {
     GetLogManager()->Write(event);
 }
