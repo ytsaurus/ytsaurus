@@ -15,7 +15,7 @@ def require(condition, exception):
 
 def print_bash(obj, level):
     if not level:
-        stdout.write(sentinel)
+        stdout.write(options.sentinel)
         return
 
     scalar_types = [int, float, str]
@@ -29,7 +29,7 @@ def print_bash(obj, level):
         for item in obj:
             if not first:
                 stdout.write(options.list_separator)
-            print_bash(item, level + 1)
+            print_bash(item, level - 1)
             first = False
         stdout.write(options.list_end)
     # TODO: extract list and dict processing to certain method
@@ -39,9 +39,12 @@ def print_bash(obj, level):
         for (key, value) in obj.iteritems():
             if not first:
                 stdout.write(options.map_separator)
-            print_bash(key, level + 1)
-            stdout.write(options.map_key_value_separator)
-            print_bash(value, level + 1)
+            if not options.no_keys:
+                print_bash(key, level - 1)
+            if not options.no_keys and not options.no_values:
+                stdout.write(options.map_key_value_separator)
+            if not options.no_values:
+                print_bash(value, level - 1)
             first = False
         stdout.write(options.map_end)
     else:
@@ -78,10 +81,12 @@ if __name__ == "__main__":
     parser.add_option("--map_separator", default="\n")
     parser.add_option("--map_key_value_separator", default="\t")
     parser.add_option("--map_end", default="")
-    parser.add_option("--print_depth", default=3)
+    parser.add_option("--print_depth", default=3, type=int)
+    parser.add_option("--no_keys", default=False, action="store_const", const=True)
+    parser.add_option("--no_values", default=False, action="store_const", const=True)
 
     parser.add_option("--path", default="")
     options, args = parser.parse_args()
 
     obj = go_by_path(yson_parser.parse(stdin), options.path)
-    print_bash(obj, 3)
+    print_bash(obj, options.print_depth)
