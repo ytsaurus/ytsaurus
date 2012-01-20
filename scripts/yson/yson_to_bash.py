@@ -67,7 +67,7 @@ def go_by_path(obj, path):
             require(elem in yson, Exception("Incorrect path: map has no key '%s'" % elem))
             yson = yson[elem]
         else:
-            raise Exception("Try to access literal.")
+            raise Exception("Incorrect path: scalar cannot by accessed by key or index")
     return yson
 
 if __name__ == "__main__":
