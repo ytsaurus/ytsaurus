@@ -17,6 +17,42 @@ namespace NYTree {
 
 extern TYPath RootMarker;
 
+void ChopYPathToken(
+    const TYPath& path,
+    Stroka* token,
+    TYPath* suffixPath);
+
+TYPath ComputeResolvedYPath(
+    const TYPath& wholePath,
+    const TYPath& unresolvedPath);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3);
+
+bool IsEmptyYPath(const TYPath& path);
+
+bool IsFinalYPath(const TYPath& path);
+
+bool IsAttributeYPath(const TYPath& path);
+
+// TODO: choose a better name
+bool IsLocalYPath(const TYPath& path);
+
+TYPath ChopYPathAttributeMarker(const TYPath& path);
+
+void ResolveYPath(
+    IYPathService* rootService,
+    const TYPath& path,
+    const Stroka& verb,
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathServiceBase
@@ -252,45 +288,6 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ChopYPathToken(
-    const TYPath& path,
-    Stroka* token,
-    TYPath* suffixPath);
-
-TYPath ComputeResolvedYPath(
-    const TYPath& wholePath,
-    const TYPath& unresolvedPath);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3);
-
-bool IsEmptyYPath(const TYPath& path);
-
-bool IsFinalYPath(const TYPath& path);
-
-bool IsAttributeYPath(const TYPath& path);
-
-// TODO: choose a better name
-bool IsLocalYPath(const TYPath& path);
-
-TYPath ChopYPathAttributeMarker(const TYPath& path);
-
-////////////////////////////////////////////////////////////////////////////////
-void ResolveYPath(
-    IYPathService* rootService,
-    const TYPath& path,
-    const Stroka& verb,
-    IYPathService::TPtr* suffixService,
-    TYPath* suffixPath);
-
-////////////////////////////////////////////////////////////////////////////////
-
 typedef IParamAction<NBus::IMessage::TPtr> TYPathResponseHandler;
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
@@ -303,6 +300,19 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
 void ReplyYPathWithMessage(
     NRpc::IServiceContext* context,
     NBus::IMessage* responseMessage);
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DISPATCH_YPATH_SERVICE_METHOD(method) \
+    if (context->GetVerb() == #method) { \
+        method##Thunk(context); \
+        return; \
+    }
+
+#define DECLARE_LOGGED_YPATH_SERVICE_METHOD(method) \
+    if (context->GetVerb() == #method) { \
+        return true; \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

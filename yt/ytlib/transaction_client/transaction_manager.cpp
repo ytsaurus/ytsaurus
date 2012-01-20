@@ -6,12 +6,14 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/actions/signal.h>
+#include <ytlib/object_server/object_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
 using namespace NCypress;
 using namespace NTransactionServer;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +41,7 @@ public:
         Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
 
         LOG_INFO("Starting transaction");
-        auto req = TCypressYPathProxy::Create(SystemPath);
+        auto req = TObjectYPathProxy::Create(SystemPath);
         req->set_type(EObjectType::Transaction);
         auto rsp = Proxy.Execute(~req)->Get();
         if (!rsp->IsOK()) {
@@ -47,7 +49,7 @@ public:
             State = EState::Aborted;
             LOG_ERROR_AND_THROW(yexception(), "Error starting transaction\n%s",  ~rsp->GetError().ToString());
         }
-        Id = TTransactionId::FromProto(rsp->id());
+        Id = TTransactionId::FromProto(rsp->object_id());
         State = EState::Active;
 
         LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());

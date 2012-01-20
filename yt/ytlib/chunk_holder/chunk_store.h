@@ -44,8 +44,8 @@ public:
 
     //! Calculates a storage location for a new chunk.
     /*!
-     *  Returns a random location having the minimum number
-     *  of active sessions.
+     *  Among not full locations returns a random location having the minimum number
+     *  of active sessions. Throws exception of all locations are full
      */
     TLocation::TPtr GetNewChunkLocation();
 

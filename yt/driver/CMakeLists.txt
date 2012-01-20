@@ -15,6 +15,7 @@ include_directories(
   ${CMAKE_BINARY_DIR}/yt/ytlib/table_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/file_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/transaction_server
+  ${CMAKE_BINARY_DIR}/yt/ytlib/object_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/cypress
   ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
   ${CMAKE_BINARY_DIR}/yt/ytlib/election

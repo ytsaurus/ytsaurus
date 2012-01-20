@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "yson_consumer.h"
+#include "yson_writer.h"
 
 // For TVoid.
 #include <ytlib/actions/action.h>
@@ -391,13 +392,68 @@ public:
 
 };
 
-typedef TFluentYsonBuilder::TAny<TVoid> TFluentAny;
 typedef TFluentYsonBuilder::TListCore   TFluentList;
 typedef TFluentYsonBuilder::TMapCore    TFluentMap;
 
-inline TFluentAny BuildYsonFluently(IYsonConsumer* consumer)
+////////////////////////////////////////////////////////////////////////////////
+
+inline TFluentYsonBuilder::TAny<TVoid> BuildYsonFluently(IYsonConsumer* consumer)
 {
-    return TFluentAny(consumer, TVoid(), false);
+    return TFluentYsonBuilder::TAny<TVoid>(consumer, TVoid(), false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFluentYsonConsumer
+    : public TRefCountedBase
+{
+public:
+    typedef TIntrusivePtr<TFluentYsonConsumer> TPtr;
+
+    TFluentYsonConsumer(TYsonWriter::EFormat format)
+        : Writer(&Output, format)
+    { }
+
+    TYson GetYson() const
+    {
+        return Output.Str();
+    }
+
+    IYsonConsumer* GetConsumer()
+    {
+        return &Writer;
+    }
+
+private:
+    TStringStream Output;
+    TYsonWriter Writer;
+};
+
+class TFluentYsonHolder
+{
+public:
+    TFluentYsonHolder(TFluentYsonConsumer::TPtr consumer)
+        : Consumer(consumer)
+    { }
+
+    operator TYson() const
+    {
+        return Consumer->GetYson();
+    }
+
+private:
+    TFluentYsonConsumer::TPtr Consumer;
+};
+
+inline TFluentYsonBuilder::TAny<TFluentYsonHolder> BuildYsonFluently(
+    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary)
+{
+    auto consumer = New<TFluentYsonConsumer>(format);
+    TFluentYsonHolder holder(consumer);
+    return TFluentYsonBuilder::TAny<TFluentYsonHolder>(
+        consumer->GetConsumer(),
+        holder,
+        false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

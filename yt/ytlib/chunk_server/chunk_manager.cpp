@@ -27,6 +27,7 @@ using namespace NProto;
 using namespace NMetaState;
 using namespace NTransactionServer;
 using namespace NObjectServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +45,8 @@ public:
     {
         return EObjectType::Chunk;
     }
+
+    virtual TObjectId CreateFromManifest(IMapNode* manifest);
 
 private:
     TImpl* Owner;
@@ -67,7 +70,7 @@ public:
         return EObjectType::ChunkList;
     }
 
-    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest);
+    virtual TObjectId CreateFromManifest(IMapNode* manifest);
 
 private:
     TImpl* Owner;
@@ -111,7 +114,6 @@ public:
         RegisterMethod(this, &TImpl::RegisterHolder);
         RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::CreateChunks);
-        RegisterMethod(this, &TImpl::CreateChunkLists);
 
         metaState->RegisterLoader(
             "ChunkManager.1",
@@ -175,17 +177,6 @@ public:
             &TThis::CreateChunks,
             this);
     }
-
-    TMetaChange< yvector<TChunkListId> >::TPtr InitiateCreateChunkLists(
-        const TMsgCreateChunkLists& message)
-    {
-        return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::CreateChunkLists,
-            this);
-    }
-
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
@@ -330,31 +321,6 @@ private:
             ~transactionId.ToString());
 
         return chunkIds;
-    }
-
-    yvector<TChunkListId> CreateChunkLists(const TMsgCreateChunkLists& message)
-    {
-        auto transactionId = TTransactionId::FromProto(message.transaction_id());
-        auto chunkListCount = message.chunk_list_count();
-
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
-
-        yvector<TChunkListId> chunkListIds;
-        chunkListIds.reserve(chunkListCount);
-
-        for (int index = 0; index < chunkListCount; ++index) {
-            auto& chunkList = CreateChunkList();
-            auto chunkListId = chunkList.GetId();
-            YVERIFY(transaction.CreatedObjectIds().insert(chunkListId).second);
-            ObjectManager->RefObject(chunkListId);
-            chunkListIds.push_back(chunkListId);
-        }
-
-        LOG_INFO_IF(!IsRecovery(), "Chunk lists created (ChunkListIds: [%s], TransactionId: %s)",
-            ~JoinToString(chunkListIds),
-            ~transactionId.ToString());
-
-        return chunkListIds;
     }
 
 
@@ -983,11 +949,7 @@ public:
 
     virtual bool IsLogged(NRpc::IServiceContext* context) const
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Confirm")
-        {
-            return true;
-        }
+        DECLARE_LOGGED_YPATH_SERVICE_METHOD(Confirm);
         return TBase::IsLogged(context);
     }
 
@@ -998,14 +960,9 @@ private:
 
     void DoInvoke(NRpc::IServiceContext* context)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Fetch") {
-            FetchThunk(context);
-        } else if (verb == "Confirm") {
-            ConfirmThunk(context);
-        } else {
-            TBase::DoInvoke(context);
-        }
+        DISPATCH_YPATH_SERVICE_METHOD(Fetch);
+        DISPATCH_YPATH_SERVICE_METHOD(Confirm);
+        TBase::DoInvoke(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch)
@@ -1076,6 +1033,12 @@ TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
 IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::CreateProxy(const TObjectId& id)
 {
     return New<TChunkProxy>(Owner, id);
+}
+
+TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(IMapNode* manifest)
+{
+    UNUSED(manifest);
+    return Owner->CreateChunk().GetId();
 }
 
 void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk& chunk)
@@ -1182,7 +1145,7 @@ IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::CreateProxy(const TObje
     return New<TChunkListProxy>(Owner, id);
 }
 
-TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(NYTree::IMapNode* manifest)
+TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(IMapNode* manifest)
 {
     UNUSED(manifest);
     return Owner->CreateChunkList().GetId();
@@ -1260,12 +1223,6 @@ TMetaChange< yvector<TChunkId> >::TPtr TChunkManager::InitiateCreateChunks(
     const TMsgCreateChunks& message)
 {
     return Impl->InitiateAllocateChunk(message);
-}
-
-TMetaChange< yvector<TChunkListId> >::TPtr TChunkManager::InitiateCreateChunkLists(
-    const TMsgCreateChunkLists& message)
-{
-    return Impl->InitiateCreateChunkLists(message);
 }
 
 TChunk& TChunkManager::CreateChunk()

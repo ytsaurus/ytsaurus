@@ -1,6 +1,8 @@
 import struct
 from StringIO import StringIO
 
+__all__ = ["parse", "parse_string"]
+
 class YSONParseError(ValueError):
     def __init__(self, message, (line_index, position, offset)):
         ValueError.__init__(self, _format_message(message, line_index, position, offset))
@@ -11,16 +13,6 @@ class YSONParseError(ValueError):
 
 def _format_message(message, line_index, position, offset):
     return "%s (Line: %d, Poisition: %d, Offset: %d)" % (message, line_index, position, offset)
-
-def _is_letter(ch):
-    return ord('A') <= ord(ch) <= ord('Z') or \
-           ord('a') <= ord(ch) <= ord('z')
-
-def _is_digit(ch):
-    return ord('0') <= ord(ch) <= ord('9')
-
-def _is_whitespace(ch):
-    return ch == ' ' or ch == '\t' or ch == '\n' or ch == '\r'
 
 def _seems_integer(string):
     for ch in string:
@@ -33,7 +25,7 @@ _INT64_MARKER = chr(1)
 _DOUBLE_MARKER = chr(2)
 _STRING_MARKER = chr(3)
 
-class YSONParser(object):
+class YSONParserBase(object):
     def __init__(self, stream):
         self._line_index = 1
         self._position = 1
@@ -89,7 +81,7 @@ class YSONParser(object):
                 self._get_position_info())
 
     def _skip_whitespaces(self):
-        while _is_whitespace(self._peek_char()):
+        while self._peek_char().isspace():
             self._read_char()
 
     def _read_string(self):
@@ -102,7 +94,7 @@ class YSONParser(object):
             return self._read_binary_string()
         if ch == '"':
             return self._read_quoted_string()
-        if not _is_letter(ch) and not ch == '_':
+        if not ch.isalpha() and not ch == '_':
             raise YSONParseError(
                 "Expecting string literal but found %s in YSON" % ch,
                 self._get_position_info())
@@ -132,8 +124,6 @@ class YSONParser(object):
             count += 1
             read_next = byte & 0x80 != 0
 
-        #result = ctypes.c_longlong(result)
-        #one = ctypes.c_int(1)
         result = (result >> 1) ^ -(result & 1)
         return result
 
@@ -160,7 +150,7 @@ class YSONParser(object):
         result = ""
         while True:
             ch = self._peek_char()
-            if not ch or not _is_letter(ch) and ch != '_' and not (_is_digit(ch) and result):
+            if not ch or not ch.isalpha() and ch != '_' and not (ch.isdigit() and result):
                 break
             self._read_char()
             result += ch
@@ -170,7 +160,7 @@ class YSONParser(object):
         result = ""
         while True:
             ch = self._peek_char()
-            if not ch or not _is_digit(ch) and ch not in "+-.eE":
+            if not ch or not ch.isdigit() and ch not in "+-.eE":
                 break
             self._read_char()
             result += ch
@@ -205,10 +195,10 @@ class YSONParser(object):
         elif ch == _DOUBLE_MARKER:
             return self._parse_binary_double()
 
-        elif ch == '+' or ch == '-' or _is_digit(ch):
+        elif ch == '+' or ch == '-' or ch.isdigit():
             return self._parse_numeric()
 
-        elif ch == '_' or ch == '"' or _is_letter(ch):
+        elif ch == '_' or ch == '"' or ch.isalpha():
             return self._parse_string()
 
         else:
@@ -341,75 +331,32 @@ class YSONParser(object):
         self._expect_char('>')
         return result
 
+class YSONParser(YSONParserBase):
+    def __init__(self, stream):
+        super(YSONParser, self).__init__(stream)
+
     def parse(self):
+        result = self._parse_any()
+        if self._peek_char():
+            raise YSONParseError(
+                "Unexpected symbol %s while expecting end-of-stream in YSON" % self._peek_char(),
+                self._get_position_info())
+        return result
+
+class YSONFragmentedParser(YSONParserBase):
+    def __init__(self, stream):
+        super(YSONParser, self).__init__(stream)
+
+    def has_next(self):
+        self._skip_whitespaces()
+        return self._peek_char() is not None
+
+    def parse_next(self):
         return self._parse_any()
 
-if __name__ == "__main__":
-    import unittest
+def parse(stream):
+    parser = YSONParser(stream)
+    return parser.parse()
 
-    class TestYSONParser(unittest.TestCase):
-        def assert_parse(self, string, expected):
-            source = StringIO(string)
-            parse = YSONParser(source).parse()
-            self.assertEqual(parse, expected)
-
-        def test_quoted_string(self):
-            self.assert_parse('"abc\\"\\n"', 'abc"\n')
-
-        def test_unquoted_string(self):
-            self.assert_parse('abc10', 'abc10')
-
-        def test_binary_string(self):
-            self.assert_parse('\x03\x06abc', 'abc')
-
-        def test_int(self):
-            self.assert_parse('64', 64)
-
-        def test_binary_int(self):
-            self.assert_parse('\x01\x81\x40', -(2 ** 12) - 1)
-
-        def test_double(self):
-            self.assert_parse('1.5', 1.5)
-
-        def test_exp_double(self):
-            self.assert_parse('1.73e23', 1.73e23)
-
-        def test_binary_double(self):
-            self.assert_parse('\x02\x00\x00\x00\x00\x00\x00\xF8\x3F', 1.5)
-
-        def test_empty_list(self):
-            self.assert_parse('[ ]', [])
-
-        def test_one_element_list(self):
-            self.assert_parse('[a]', ['a'])
-
-        def test_list(self):
-            self.assert_parse('[1; 2]', [1, 2])
-
-        def test_empty_map(self):
-            self.assert_parse('{ }', {})
-
-        def test_one_element_map(self):
-            self.assert_parse('{a=1}', {'a': 1})
-
-        def test_map(self):
-            self.assert_parse('{a = b; c = d}', {'a': 'b', 'c': 'd'})
-
-        def test_entity(self):
-            self.assert_parse(' <a = b; c = d>', None)
-
-        def test_nested(self):
-            self.assert_parse(
-                '''
-                {
-                    path = "/home/sandello";
-                    mode = 755;
-                    read = [
-                            "*.sh";
-                            "*.py"
-                           ]
-                }
-                ''',
-                {'path' : '/home/sandello', 'mode' : 755, 'read' : ['*.sh', '*.py']})
-
-    unittest.main()
+def parse_string(string):
+    return parse(StringIO(string))

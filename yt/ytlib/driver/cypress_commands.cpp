@@ -120,10 +120,10 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
     }
 
     auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
-    auto id = TNodeId::FromProto(ypathResponse->id());
+    auto id = TNodeId::FromProto(ypathResponse->object_id());
     BuildYsonFluently(~consumer)
         .BeginMap()
-            .Item("id").Scalar(id.ToString())
+            .Item("object_id").Scalar(id.ToString())
         .EndMap();
 }
 

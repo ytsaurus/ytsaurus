@@ -19,8 +19,8 @@ public:
 
     virtual NBus::IMessage::TPtr GetRequestMessage() const;
 
-    virtual Stroka GetPath() const;
-    virtual Stroka GetVerb() const;
+    virtual const Stroka& GetPath() const;
+    virtual const Stroka& GetVerb() const;
 
     virtual bool IsReplied() const;
     virtual bool IsOneWay() const;

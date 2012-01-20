@@ -175,7 +175,7 @@ protected:
     }
 
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Lock)
+    DECLARE_RPC_SERVICE_METHOD(NCypress::NProto, Lock)
     {
         UNUSED(request);
         UNUSED(response);
@@ -184,7 +184,7 @@ protected:
         context->Reply();
     }
     
-    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
     {
         UNUSED(request);
         UNUSED(response);
@@ -409,7 +409,7 @@ protected:
     }
 
 protected:
-    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
     {
         // TODO(babenko): validate type
 
@@ -435,7 +435,7 @@ protected:
 
         CreateRecursive(context->GetPath(), ~value);
 
-        response->set_id(value->GetId().ToProto());
+        response->set_object_id(value->GetId().ToProto());
 
         context->Reply();
     }

@@ -10,6 +10,7 @@ message THolderStatistics
     required int64 used_space = 2;
     required int32 chunk_count = 3;
     required int32 session_count = 4;
+    required bool full = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,31 +92,6 @@ message TRspCreateChunks
     }
 
     repeated TChunkInfo chunks = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqCreateChunkLists
-{
-    required bytes transaction_id = 1;
-    required int32 chunk_list_count = 2;
-}
-
-message TRspCreateChunkLists
-{
-    repeated bytes chunk_list_ids = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqLocateChunk
-{
-    required bytes chunk_id = 1;
-}
-
-message TRspLocateChunk
-{
-    repeated bytes holder_addresses = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

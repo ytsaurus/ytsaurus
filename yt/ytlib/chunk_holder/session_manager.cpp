@@ -116,8 +116,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     RenewLease();
 
-    i64 availableSpace = Location->GetAvailableSpace();
-    if (data.Size() > availableSpace) {
+    if (!Location->HasEnoughSpace(data.Size())) {
         ythrow TServiceException(EErrorCode::OutOfSpace) <<
             Sprintf("Not enough space to put block (BlockId: %s)",
             ~blockId.ToString());

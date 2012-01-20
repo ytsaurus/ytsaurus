@@ -3,7 +3,7 @@
 #include "id.h"
 #include "cypress_ypath.pb.h"
 
-#include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/object_server/object_ypath_proxy.h>
 
 namespace NYT {
 namespace NCypress {
@@ -11,10 +11,9 @@ namespace NCypress {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCypressYPathProxy
-    : NYTree::TYPathProxy
+    : public NObjectServer::TObjectYPathProxy
 {
     DEFINE_YPATH_PROXY_METHOD(NProto, Lock);
-    DEFINE_YPATH_PROXY_METHOD(NProto, Create);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

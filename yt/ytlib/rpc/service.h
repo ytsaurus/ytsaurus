@@ -52,8 +52,8 @@ struct IServiceContext
 
     virtual NBus::IMessage::TPtr GetRequestMessage() const = 0;
 
-    virtual Stroka GetPath() const = 0;
-    virtual Stroka GetVerb() const = 0;
+    virtual const Stroka& GetPath() const = 0;
+    virtual const Stroka& GetVerb() const = 0;
 
     virtual bool IsOneWay() const = 0;
     virtual bool IsReplied() const = 0;
@@ -96,7 +96,6 @@ struct IService
 template <class TRequestMessage>
 class TTypedServiceRequest
     : public TRequestMessage
-    , private TNonCopyable
 {
 public:
     TTypedServiceRequest(IServiceContext* context)
@@ -118,7 +117,6 @@ private:
 template <class TResponseMessage>
 class TTypedServiceResponse
     : public TResponseMessage
-    , private TNonCopyable
 {
 public:
     TTypedServiceResponse(IServiceContext* context)
@@ -163,12 +161,12 @@ public:
         }
     }
 
-    Stroka GetPath() const
+    const Stroka& GetPath() const
     {
         return Context->GetPath();
     }
 
-    Stroka GetVerb() const
+    const Stroka& GetVerb() const
     {
         return Context->GetVerb();
     }

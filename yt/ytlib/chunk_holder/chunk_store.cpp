@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "chunk_store.h"
+#include "chunk_holder_service_proxy.h"
 
 #include <ytlib/misc/foreach.h>
 
@@ -11,6 +12,7 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,6 +95,9 @@ TLocation::TPtr TChunkStore::GetNewChunkLocation()
 
     int minCount = Max<int>();
     FOREACH (const auto& location, Locations_) {
+        if (location->IsFull()) {
+            continue;
+        }
         int count = location->GetSessionCount();
         if (count < minCount) {
             candidates.clear();
@@ -103,6 +108,10 @@ TLocation::TPtr TChunkStore::GetNewChunkLocation()
         }
     }
 
+    if (candidates.empty()) {
+        ythrow TServiceException(TChunkHolderServiceProxy::EErrorCode::OutOfSpace) <<
+            Sprintf("All locations are full");
+    }
     return candidates[RandomNumber(candidates.size())];
 }
 

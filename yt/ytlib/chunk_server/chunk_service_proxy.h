@@ -38,8 +38,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterHolder);
     DEFINE_RPC_PROXY_METHOD(NProto, HolderHeartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, CreateChunks);
-    DEFINE_RPC_PROXY_METHOD(NProto, CreateChunkLists);
-    DEFINE_RPC_PROXY_METHOD(NProto, LocateChunk);
 
 };
 
