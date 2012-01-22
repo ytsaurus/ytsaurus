@@ -12,7 +12,6 @@ namespace NTransactionClient {
 
 using namespace NCypress;
 using namespace NTransactionServer;
-using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,17 +27,20 @@ public:
 
     TTransaction(
         NRpc::IChannel* cellChannel,
-        TTransactionManager* transactionManager)
-        : TransactionManager(transactionManager)
+        TTransactionManager* owner)
+        : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
     {
         YASSERT(cellChannel);
-        YASSERT(transactionManager);
+        YASSERT(owner);
         VERIFY_THREAD_AFFINITY(ClientThread);
 
-        Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
+        Proxy.SetTimeout(Owner->Config->MasterRpcTimeout);
+    }
 
+    void Start()
+    {
         LOG_INFO("Starting transaction");
         auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
         req->set_type(EObjectType::Transaction);
@@ -50,17 +52,16 @@ public:
         }
         Id = TTransactionId::FromProto(rsp->object_id());
         State = EState::Active;
-
         LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
 
-        TransactionManager->RegisterTransaction(this);
+        Owner->RegisterTransaction(this);
 
         PingInvoker = New<TPeriodicInvoker>(
             FromMethod(
                 &TTransactionManager::PingTransaction,
-                TransactionManager, 
+                Owner, 
                 Id),
-            TransactionManager->Config->PingPeriod);
+            Owner->Config->PingPeriod);
         PingInvoker->Start();
     }
 
@@ -68,7 +69,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TransactionManager->UnregisterTransaction(Id);
+        Owner->UnregisterTransaction(Id);
     }
 
     TTransactionId GetId() const
@@ -170,7 +171,7 @@ private:
         (Committed)
     );
 
-    TTransactionManager::TPtr TransactionManager;
+    TTransactionManager::TPtr Owner;
     TCypressServiceProxy Proxy;
 
     //! Protects state transitions.
@@ -236,7 +237,9 @@ ITransaction::TPtr TTransactionManager::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return New<TTransaction>(~Channel, this);
+    auto transaction = New<TTransaction>(~Channel, this);
+    transaction->Start();
+    return transaction;
 }
 
 void TTransactionManager::PingTransaction(const TTransactionId& id)
