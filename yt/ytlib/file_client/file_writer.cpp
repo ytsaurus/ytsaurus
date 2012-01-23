@@ -8,7 +8,6 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
-#include <ytlib/chunk_client/block_id.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
 namespace NYT {

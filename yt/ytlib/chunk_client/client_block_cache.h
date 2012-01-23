@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #include "block_cache.h"
 #include <ytlib/misc/configurable.h>
 

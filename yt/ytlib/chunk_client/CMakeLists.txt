@@ -16,7 +16,6 @@ set( HDRS
   ${BASE}/async_reader.h
   ${BASE}/async_writer.h
   ${BASE}/block_cache.h
-  ${BASE}/block_id.h
   ${BASE}/client_block_cache.h
   ${BASE}/common.h
   ${BASE}/file_reader.h
