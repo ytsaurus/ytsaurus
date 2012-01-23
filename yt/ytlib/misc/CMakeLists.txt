@@ -71,6 +71,7 @@ set( HDRS
   ${BASE}/sync.h
   ${BASE}/thread.h
   ${BASE}/thread_affinity.h
+  ${BASE}/weak_ptr.h
   ${BASE}/zigzag.h
 )
 

@@ -9,12 +9,12 @@ set( SRCS
 set( HDRS
   ${BASE}/common.h
   ${BASE}/id.h
-  ${BASE}/object_proxy.h
-  ${BASE}/object_manager.h
   ${BASE}/object_detail.h
+  ${BASE}/object_manager.h
+  ${BASE}/object_proxy.h
+  ${BASE}/object_ypath_proxy.h
   ${BASE}/type_handler.h
   ${BASE}/type_handler_detail.h
-  ${BASE}/object_ypath_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
