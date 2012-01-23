@@ -370,7 +370,7 @@ TEST(TConfigTest, Save)
     config->SubconfigList.push_back(New<TTestSubconfig>());
     config->SubconfigMap["item"] = New<TTestSubconfig>();
 
-    auto output = SerializeToYson(~config, TYsonWriter::EFormat::Text);
+    auto output = SerializeToYson(~config, EFormat::Text);
 
     Stroka subconfigYson;
     subconfigYson += "{\"my_bool\"=\"false\";";

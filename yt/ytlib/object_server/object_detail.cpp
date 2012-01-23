@@ -190,7 +190,7 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
         GetSystemAttributeNames(&names);
 
         TStringStream stream;
-        TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+        TYsonWriter writer(&stream, EFormat::Binary);
         
         writer.OnBeginMap();
 
@@ -215,7 +215,7 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
         ChopYPathToken(path, &token, &suffixPath);
 
         TStringStream stream;
-        TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+        TYsonWriter writer(&stream, EFormat::Binary);
         if (GetSystemAttribute(token, &writer)) {
             if (IsFinalYPath(suffixPath)) {
                 response->set_value(stream.Str());
@@ -287,7 +287,7 @@ void TUntypedObjectProxyBase::ListAttribute(const TYPath& path, TReqList* reques
         ChopYPathToken(path, &token, &suffixPath);
 
         TStringStream stream;
-        TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+        TYsonWriter writer(&stream, EFormat::Binary);
         if (GetSystemAttribute(token, &writer)) {
             auto wholeValue = DeserializeFromYson(stream.Str());
             keys = SyncYPathList(~wholeValue, RootMarker + suffixPath);

@@ -75,7 +75,7 @@ void TMonitoringManager::Update()
 
         FOREACH(const auto& pair, MonitoringMap) {
             TStringStream output;
-            TYsonWriter writer(&output, TYsonWriter::EFormat::Binary);
+            TYsonWriter writer(&output, EFormat::Binary);
             pair.second->Do(&writer);
 
             SyncYPathSet(~newRoot, pair.first, output.Str());
