@@ -44,8 +44,8 @@ TChunkStore::TChunkStore(
                 RegisterChunk(~chunk);
             }
         }
-    } catch (...) {
-        LOG_FATAL("Failed to initialize storage locations\n%s", ~CurrentExceptionMessage());
+    } catch (const std::exception& ex) {
+        LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
     }
 
     LOG_INFO("Chunk storage scan completed, %d chunk(s) total", ChunkMap.ysize());

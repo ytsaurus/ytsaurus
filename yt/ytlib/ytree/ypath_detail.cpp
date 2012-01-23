@@ -143,12 +143,12 @@ void ResolveYPath(
         IYPathService::TResolveResult result;
         try {
             result = currentService->Resolve(currentPath, verb);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
                 ~path,
                 ~verb,
                 ~ComputeResolvedYPath(path, currentPath),
-                ~CurrentExceptionMessage());
+                ex.what());
         }
 
         if (result.IsHere()) {

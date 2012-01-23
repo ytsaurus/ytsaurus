@@ -347,11 +347,11 @@ void TParameter<T>::Load(const NYTree::INode* node, const NYTree::TYPath& path)
     if (node) {
         try {
             Read(Parameter, node, path);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception()
                 << Sprintf("Could not read parameter (Path: %s)\n%s",
                     ~path,
-                    ~CurrentExceptionMessage());
+                    ex.what());
         }
     } else if (!HasDefaultValue) {
         ythrow yexception()
@@ -366,11 +366,11 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
     FOREACH (auto validator, Validators) {
         try {
             validator->Do(Parameter);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception()
                 << Sprintf("Validation failed (Path: %s)\n%s",
                     ~path,
-                    ~CurrentExceptionMessage());
+                    ex.what());
         }
     }
 }

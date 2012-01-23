@@ -92,9 +92,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     try {
         TIFStream configStream(configFileName);
         configNode = DeserializeFromYson(&configStream);
-    } catch (...) {
+    } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Error reading server configuration\n%s",
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     // Start an appropriate server.
@@ -109,9 +109,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
             }
 
             config->Validate();
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing chunk holder configuration\n%s",
-                ~CurrentExceptionMessage());
+                ex.what());
         }
 
 
@@ -130,9 +130,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
             }
 
             config->Validate();
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
-                ~CurrentExceptionMessage());
+                ex.what());
         }
 
         TCellMasterBootstrap cellMasterBootstrap(configFileName, ~config);
@@ -143,9 +143,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
         auto config = New<TSchedulerBootstrap::TConfig>();
         try {
             config->LoadAndValidate(~configNode);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
-                ~CurrentExceptionMessage());
+                ex.what());
         }
 
         TSchedulerBootstrap schedulerBootstrap(configFileName, ~config);
@@ -162,8 +162,8 @@ int Main(int argc, const char* argv[])
     try {
         exitCode = GuardedMain(argc, argv);
     }
-    catch (...) {
-        LOG_ERROR("Server startup failed\n%s", ~CurrentExceptionMessage());
+    catch (const std::exception& ex) {
+        LOG_ERROR("Server startup failed\n%s", ex.what());
         exitCode = EExitCode::BootstrapError;
     }
 

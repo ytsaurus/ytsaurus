@@ -558,10 +558,10 @@ int TListNodeMixin::ParseChildIndex(const TStringBuf& str)
     int index;
     try {
         index = FromString<int>(str);
-    } catch (...) {
+    } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Failed to parse index %s\n%s",
             ~Stroka(str).Quote(),
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     int count = GetChildCount();

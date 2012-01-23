@@ -179,10 +179,10 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
 
     try {
         Sync(~Writer, &TChunkFileWriter::AsyncWriteBlock, block->GetData());
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Error writing chunk block (BlockIndex: %d)\n%s",
             blockIndex,
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     LOG_DEBUG("Chunk block written (BlockIndex: %d)",
@@ -313,9 +313,9 @@ TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 {
     try {
         Sync(~Writer, &TChunkFileWriter::AsyncClose, attributes);
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Error closing chunk file\n%s",
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     LOG_DEBUG("Chunk file closed");

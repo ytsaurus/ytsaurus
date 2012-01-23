@@ -87,9 +87,9 @@ void TMonitoringManager::Update()
 
         )
 
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Error collecting monitoring data\n%s",
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 }
 

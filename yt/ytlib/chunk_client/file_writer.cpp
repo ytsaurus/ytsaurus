@@ -37,10 +37,10 @@ bool TChunkFileWriter::EnsureOpen()
         DataFile.Reset(new TFile(
             FileName + NFS::TempFileSuffix,
             CreateAlways | WrOnly | Seq));
-    } catch (...) {
+    } catch (const std::exception& ex) {
         Result = ToFuture(TError(Sprintf("Error opening chunk file %s\n%s",
             ~FileName.Quote(),
-            ~CurrentExceptionMessage())));
+            ex.what())));
         return false;
     }
 
@@ -63,10 +63,10 @@ TAsyncError::TPtr TChunkFileWriter::AsyncWriteBlock(const TSharedRef& data)
 
     try {
         DataFile->Write(data.Begin(), data.Size());
-    } catch (...) {
+    } catch (const std::exception& ex) {
         Result = ToFuture(TError(Sprintf("Error writing chunk file %s\n%s",
             ~FileName.Quote(),
-            ~CurrentExceptionMessage())));
+            ex.what())));
         return Result;
     }
 
@@ -88,10 +88,10 @@ TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attribute
     try {
         DataFile->Close();
         DataFile.Destroy();
-    } catch (...) {
+    } catch (const std::exception& ex) {
         Result = ToFuture(TError(Sprintf("Error closing chunk file %s\n%s",
             ~FileName.Quote(),
-            ~CurrentExceptionMessage())));
+            ex.what())));
         return Result;
     }
 
@@ -117,10 +117,10 @@ TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attribute
         Write(chunkMetaFile, header);
         chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
         chunkMetaFile.Close();
-    } catch (...) {
+    } catch (const std::exception& ex) {
         Result = ToFuture(TError(Sprintf("Error writing chunk file meta %s\n%s",
             ~FileName.Quote(),
-            ~CurrentExceptionMessage())));
+            ex.what())));
         return Result;
     }
 
@@ -154,7 +154,7 @@ void TChunkFileWriter::Cancel(const TError& error)
 
     try {
         DataFile->Close();
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_WARNING("Error closing temp chunk file %s", ~FileName.Quote());
     }
 
