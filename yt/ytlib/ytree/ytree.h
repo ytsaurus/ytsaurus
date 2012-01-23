@@ -172,7 +172,7 @@ DECLARE_SCALAR_TYPE(Double, double, double)
 
 //! A base interface for all composite nodes, i.e. nodes containing other nodes.
 struct ICompositeNode
-    : virtual INode
+    : public virtual INode
 {
     typedef TIntrusivePtr<ICompositeNode> TPtr;
 
@@ -192,7 +192,7 @@ struct ICompositeNode
 
 //! A map node, which keeps a dictionary mapping strings (Stroka) to child nodes.
 struct IMapNode
-    : ICompositeNode
+    : public ICompositeNode
 {
     typedef TIntrusivePtr<IMapNode> TPtr;
 
@@ -219,9 +219,9 @@ struct IMapNode
      *  #child must be a root.
      */
     virtual bool AddChild(INode* child, const Stroka& key) = 0;
-    //! Removes a child by its index.
+    //! Removes a child by its key.
     /*!
-     *  \param index A key.
+     *  \param key A key.
      *  \return True iff there was a child with the given key.
      */
     virtual bool RemoveChild(const Stroka& key) = 0;
