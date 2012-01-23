@@ -59,7 +59,7 @@ public:
     }
 
     virtual TObjectId CreateFromManifest(
-        const NTransactionServer::TTransactionId& transactionId,
+        const NObjectServer::TTransactionId& transactionId,
         NYTree::IMapNode* manifest)
     {
         UNUSED(transactionId);

@@ -271,7 +271,7 @@ private:
 
     Stroka GetAddress(const ICypressNode& node)
     {
-        auto proxy = CypressManager->GetNodeProxy(node.GetId().NodeId, NullTransactionId);
+        auto proxy = CypressManager->GetNodeProxy(node.GetId().ObjectId, NullTransactionId);
         return proxy->GetParent()->AsMap()->GetChildKey(~proxy);
     }
 

@@ -104,7 +104,7 @@ public:
     virtual NYTree::ICompositeNode::TPtr GetParent() const
     {
         auto nodeId = GetImpl().GetParentId();
-        return nodeId == NullNodeId ? NULL : GetProxy(nodeId)->AsComposite();
+        return nodeId == NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();
     }
 
     virtual void SetParent(NYTree::ICompositeNode* parent)
@@ -112,23 +112,23 @@ public:
         GetImplForUpdate().SetParentId(
             parent
             ? ToProxy(parent)->GetId()
-            : NullNodeId);
+            : NullObjectId);
     }
 
 
     virtual NYTree::IMapNode::TPtr GetAttributes() const
     {
         auto nodeId = GetImpl().GetAttributesId();
-        return nodeId == NullNodeId ? NULL : GetProxy(nodeId)->AsMap();
+        return nodeId == NullObjectId ? NULL : GetProxy(nodeId)->AsMap();
     }
 
     virtual void SetAttributes(NYTree::IMapNode* attributes)
     {
         auto& impl = GetImplForUpdate();
-        if (impl.GetAttributesId() != NullNodeId) {
+        if (impl.GetAttributesId() != NullObjectId) {
             auto& attrImpl = GetImplForUpdate(impl.GetAttributesId());
             DetachChild(attrImpl);
-            impl.SetAttributesId(NullNodeId);
+            impl.SetAttributesId(NullObjectId);
         }
 
         if (attributes) {
@@ -234,7 +234,7 @@ protected:
 
     ICypressNodeProxy::TPtr GetProxy(const TNodeId& nodeId) const
     {
-        YASSERT(nodeId != NullNodeId);
+        YASSERT(nodeId != NullObjectId);
         return CypressManager->GetNodeProxy(nodeId, TransactionId);
     }
 
@@ -271,13 +271,13 @@ protected:
     void AttachChild(ICypressNode& child)
     {
         child.SetParentId(NodeId);
-        CypressManager->GetObjectManager()->RefObject(child.GetId().NodeId);
+        CypressManager->GetObjectManager()->RefObject(child.GetId().ObjectId);
     }
 
     void DetachChild(ICypressNode& child)
     {
-        child.SetParentId(NullNodeId);
-        CypressManager->GetObjectManager()->UnrefObject(child.GetId().NodeId);
+        child.SetParentId(NullObjectId);
+        CypressManager->GetObjectManager()->UnrefObject(child.GetId().ObjectId);
     }
 };
 
@@ -343,7 +343,7 @@ public:
             this, \
             ~CypressManager, \
             transactionId, \
-            node.GetId().NodeId); \
+            node.GetId().ObjectId); \
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka)

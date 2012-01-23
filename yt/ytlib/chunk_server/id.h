@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ytlib/object_server/id.h>
-#include <ytlib/transaction_server/id.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -20,8 +19,8 @@ extern TChunkListId NullChunkListId;
 typedef NObjectServer::TObjectId TChunkTreeId;
 extern TChunkTreeId NullChunkTreeId;
 
-using NTransactionServer::TTransactionId;
-using NTransactionServer::NullTransactionId;
+using NObjectServer::TTransactionId;
+using NObjectServer::NullTransactionId;
 
 typedef TGuid TJobId;
 

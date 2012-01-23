@@ -4,7 +4,6 @@
 #include "object_proxy.h"
 
 #include <ytlib/ytree/ytree.h>
-#include <ytlib/transaction_server/id.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -38,7 +37,7 @@ struct IObjectTypeHandler
      *  \returns the id of the created object.
      */
     virtual TObjectId CreateFromManifest(
-        const NTransactionServer::TTransactionId& transactionId,
+        const TTransactionId& transactionId,
         NYTree::IMapNode* manifest) = 0;
 
     //! Indicates if a valid transaction is required to create a instance.

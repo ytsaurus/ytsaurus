@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ytlib/logging/log.h>
-#include <ytlib/transaction_server/id.h>
 
 namespace NYT {
 namespace NCypress {

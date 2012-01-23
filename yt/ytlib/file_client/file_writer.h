@@ -88,7 +88,7 @@ private:
     TConfig::TPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
-    NTransactionServer::TTransactionId TransactionId;
+    NObjectServer::TTransactionId TransactionId;
     NTransactionClient::ITransaction::TPtr UploadTransaction;
     NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NYTree::TYPath Path;

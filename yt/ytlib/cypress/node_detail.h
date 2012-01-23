@@ -25,7 +25,7 @@ public:
         const ICypressNode& node,
         TCypressManager* cypressManager)
         : CypressManager(cypressManager)
-        , NodeId(node.GetId().NodeId)
+        , NodeId(node.GetId().ObjectId)
     { }
 
     virtual void Destroy()
@@ -86,7 +86,7 @@ public:
     virtual void Destroy(ICypressNode& node)
     {
         // Release the reference to the attributes, if any.
-        if (node.GetAttributesId() != NullNodeId) {
+        if (node.GetAttributesId() != NullObjectId) {
             CypressManager->GetObjectManager()->UnrefObject(node.GetAttributesId());
         }
 
@@ -103,11 +103,11 @@ public:
 
         // Create a branched copy.
         TAutoPtr<TImpl> branchedNode = new TImpl(
-            TVersionedNodeId(committedNode.GetId().NodeId, transactionId),
+            TVersionedNodeId(committedNode.GetId().ObjectId, transactionId),
             typedNode);
 
         // Add a reference to the attributes, if any.
-        if (committedNode.GetAttributesId() != NullNodeId) {
+        if (committedNode.GetAttributesId() != NullObjectId) {
             CypressManager->GetObjectManager()->RefObject(committedNode.GetAttributesId());
         }
 
@@ -125,7 +125,7 @@ public:
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
 
         // Drop the reference to attributes, if any.
-        if (committedNode.GetAttributesId() != NullNodeId) {
+        if (committedNode.GetAttributesId() != NullObjectId) {
             CypressManager->GetObjectManager()->UnrefObject(committedNode.GetAttributesId());
         }
 
@@ -213,7 +213,7 @@ protected:
     static void GetNodeId(const TGetAttributeParam& param)
     {
         NYTree::BuildYsonFluently(param.Consumer)
-            .Scalar(param.Node->GetId().NodeId.ToString());
+            .Scalar(param.Node->GetId().ObjectId.ToString());
     }
 
     static void GetParentId(const TGetAttributeParam& param)

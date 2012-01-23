@@ -100,7 +100,7 @@ public:
             ~CypressManager,
             ~ChunkManager,
             transactionId,
-            node.GetId().NodeId);
+            node.GetId().ObjectId);
     }
 
 protected:
@@ -147,7 +147,7 @@ protected:
         CypressManager->GetObjectManager()->UnrefObject(oldFirstChildId);
 
         // Replace the chunk list of committedNode.
-        auto committedNodeId = committedNode.GetId().NodeId;
+        auto committedNodeId = committedNode.GetId().ObjectId;
         committedNode.SetChunkListId(branchedChunkListId);
         CypressManager->GetObjectManager()->UnrefObject(newFirstChildId);
     }
