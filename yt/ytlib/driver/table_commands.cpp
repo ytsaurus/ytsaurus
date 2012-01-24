@@ -28,23 +28,19 @@ void TReadCommand::DoExecute(TReadRequest* request)
         // TODO: fixme
         TChannel::Universal(),
         request->Path);
+    reader->Open();
 
     auto format = DriverImpl->GetConfig()->OutputFormat;
 
-    try {
-        while (reader->NextRow()) {
-            TYsonWriter writer(~stream, format);
-            writer.OnBeginMap();
-            while (reader->NextColumn()) {
-                writer.OnMapItem(reader->GetColumn());
-                writer.OnStringScalar(reader->GetValue().ToString());
-            }
-            writer.OnEndMap();
-            stream->Write('\n');
+    while (reader->NextRow()) {
+        TYsonWriter writer(~stream, format);
+        writer.OnBeginMap();
+        while (reader->NextColumn()) {
+            writer.OnMapItem(reader->GetColumn());
+            writer.OnStringScalar(reader->GetValue().ToString());
         }
-    } catch (const std::exception& ex) {
-        reader->Close();
-        throw;
+        writer.OnEndMap();
+        stream->Write('\n');
     }
 
     reader->Close();

@@ -4,11 +4,13 @@ set( SRCS
   ${BASE}/common.cpp
   ${BASE}/transaction.cpp
   ${BASE}/transaction_manager.cpp
+  ${BASE}/transaction_listener.cpp
 )
 set( HDRS
   ${BASE}/common.h
   ${BASE}/transaction.h
   ${BASE}/transaction_manager.h
+  ${BASE}/transaction_listener.h
 )
 
 list(APPEND YT_SOURCE_FILES

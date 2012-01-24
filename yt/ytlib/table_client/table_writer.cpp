@@ -26,28 +26,35 @@ TTableWriter::TTableWriter(
     const TSchema& schema,
     const TYPath& path)
     : Config(config)
+    , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , TransactionManager(transactionManager)
+    , Schema(schema)
+    , Path(path)
+    , IsOpen(false)
+    , IsClosed(false)
     , Proxy(masterChannel)
     , Logger(TableClientLogger)
 {
     YASSERT(config);
     YASSERT(masterChannel);
-
-    OnAborted_ = FromMethod(&TTableWriter::OnAborted, TPtr(this));
-
-    if (Transaction) {
-        Transaction->SubscribeAborted(OnAborted_);
-    }
+    YASSERT(transactionManager);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~path,
         ~TransactionId.ToString()));
 
-    LOG_INFO("Table writer open");
-
     Proxy.SetTimeout(Config->MasterRpcTimeout);
+}
+
+void TTableWriter::Open()
+{
+    VERIFY_THREAD_AFFINITY(Client);
+    YVERIFY(!IsOpen);
+    YVERIFY(!IsClosed);
+
+    LOG_INFO("Opening table writer");
 
     LOG_INFO("Creating upload transaction");
     try {
@@ -56,12 +63,11 @@ TTableWriter::TTableWriter(
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());
     }
-    UploadTransaction->SubscribeAborted(OnAborted_);
-    LOG_INFO("Upload transaction created (TransactionId: %s)",
-        ~UploadTransaction->GetId().ToString());
+    ListenTransaction(~UploadTransaction);
+    LOG_INFO("Upload transaction created (TransactionId: %s)", ~UploadTransaction->GetId().ToString());
 
     LOG_INFO("Requesting chunk list id");
-    auto getChunkListIdReq = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(path, TransactionId));
+    auto getChunkListIdReq = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, TransactionId));
     auto getChunkListIdRsp = Proxy.Execute(~getChunkListIdReq)->Get();
     if (!getChunkListIdRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
@@ -71,30 +77,55 @@ TTableWriter::TTableWriter(
     LOG_INFO("Chunk list id received (ChunkListId: %s)", ~ChunkListId.ToString());
 
     Writer = New<TChunkSequenceWriter>(
-        ~config->ChunkSequenceWriter, 
-        masterChannel,
+        ~Config->ChunkSequenceWriter, 
+        ~MasterChannel,
         UploadTransaction->GetId(),
-        schema);
-}
+        Schema);
 
-void TTableWriter::Open()
-{
     Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
+
+    if (Transaction) {
+        ListenTransaction(~Transaction);
+    }
+
+    LOG_INFO("Table writer opened");
 }
 
 void TTableWriter::Write(const TColumn& column, TValue value)
 {
+    VERIFY_THREAD_AFFINITY(Client);
+    YVERIFY(IsOpen);
+
+    CheckAborted();
     Writer->Write(column, value);
 }
 
 void TTableWriter::EndRow()
 {
+    VERIFY_THREAD_AFFINITY(Client);
+    YVERIFY(IsOpen);
+
+    CheckAborted();
     Sync(~Writer, &TChunkSequenceWriter::AsyncEndRow);
 }
 
 void TTableWriter::Close()
 {
+    VERIFY_THREAD_AFFINITY(Client);
+
+    if (!IsOpen)
+        return;
+
+    IsOpen = false;
+    IsClosed = true;
+
+    CheckAborted();
+
+    LOG_INFO("Closing table writer");
+
+    LOG_INFO("Closing chunk writer");
     Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
+    LOG_INFO("Chunk writer closed");
 
     LOG_INFO("Attaching chunks");
     auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId));
@@ -109,7 +140,6 @@ void TTableWriter::Close()
     LOG_INFO("Committing upload transaction");
     try {
         UploadTransaction->Commit();
-        UploadTransaction.Reset();
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error committing upload transaction\n%s",
             ex.what());
@@ -117,30 +147,6 @@ void TTableWriter::Close()
     LOG_INFO("Upload transaction committed");
 
     LOG_INFO("Table writer closed");
-
-    Finish();
-}
-
-void TTableWriter::OnAborted()
-{
-    Writer->Cancel(TError("Transaction aborted"));
-    Finish();
-}
-
-void TTableWriter::Finish()
-{
-    if (Transaction) {
-        Transaction->UnsubscribeAborted(OnAborted_);
-        Transaction.Reset();
-    }
-    
-    if (UploadTransaction) {
-        UploadTransaction->Abort();
-        UploadTransaction->UnsubscribeAborted(OnAborted_);
-        UploadTransaction.Reset();
-    }
-
-    OnAborted_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
