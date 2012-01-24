@@ -136,14 +136,16 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, CreateObject)
     {
-        // TODO(babenko): validate type
         auto type = EObjectType(request->type());
 
         context->SetRequestInfo("TransactionId: %s, Type: %s",
             ~GetId().ToString(),
             ~type.ToString());
 
-        auto handler = Owner->ObjectManager->GetHandler(type);
+        auto handler = Owner->ObjectManager->FindHandler(type);
+        if (!handler) {
+            ythrow yexception() << "Unknown object type";
+        }
 
         NYTree::INode::TPtr manifestNode =
             request->has_manifest()
