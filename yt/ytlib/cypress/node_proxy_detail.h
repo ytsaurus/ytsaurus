@@ -159,14 +159,9 @@ protected:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Lock") {
-            LockThunk(context);
-        } else if (verb == "Create") {
-            CreateThunk(context);
-        } else {
-            TNodeBase::DoInvoke(context);
-        }
+        DISPATCH_YPATH_SERVICE_METHOD(Lock);
+        DISPATCH_YPATH_SERVICE_METHOD(Create);
+        TNodeBase::DoInvoke(context);
     }
 
 
@@ -385,12 +380,8 @@ protected:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Create") {
-            CreateThunk(context);
-        } else {
-            TBase::DoInvoke(context);
-        }
+        DISPATCH_YPATH_SERVICE_METHOD(Create);
+        TBase::DoInvoke(context);
     }
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const

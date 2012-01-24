@@ -1,12 +1,14 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/object_server )
 set( SRCS
+  ${BASE}/attribute_set.cpp
   ${BASE}/common.cpp
   ${BASE}/id.cpp
   ${BASE}/object_detail.cpp
   ${BASE}/object_manager.cpp
 )
 set( HDRS
+  ${BASE}/attribute_set.h
   ${BASE}/common.h
   ${BASE}/id.h
   ${BASE}/object_detail.h
