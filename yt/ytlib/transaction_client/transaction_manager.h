@@ -37,8 +37,10 @@ public:
 
         TConfig()
         {
-            Register("ping_period", PingPeriod).Default(TDuration::Seconds(5));
-            Register("master_rpc_timeout", PingPeriod).Default(TDuration::Seconds(5));
+            Register("ping_period", PingPeriod)
+                .Default(TDuration::Seconds(5));
+            Register("master_rpc_timeout", PingPeriod)
+                .Default(TDuration::Seconds(5));
         }
     };
 
