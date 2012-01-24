@@ -3,9 +3,10 @@
 #include "common.h"
 #include "id.h"
 
-#include "../ytree/ytree_fwd.h"
+#include <ytlib/ytree/ytree_fwd.h>
+#include <ytlib/misc/property.h>
 
-#include "../misc/property.h"
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NObjectServer {
@@ -21,6 +22,8 @@ public:
     void Save(TOutputStream* output) const;
     static TAutoPtr<TAttributeSet> Load(const TVersionedObjectId& id, TInputStream* input);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer
 } // namespace NYT

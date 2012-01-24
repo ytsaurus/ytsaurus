@@ -1,10 +1,12 @@
 #include "stdafx.h"
 #include "attribute_set.h"
 
-#include "../misc/serialize.h"
+#include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NObjectServer {
+
+////////////////////////////////////////////////////////////////////////////////
 
 TAutoPtr<TAttributeSet> TAttributeSet::Clone() const
 {
@@ -23,11 +25,11 @@ TAutoPtr<TAttributeSet> TAttributeSet::Load(const TVersionedObjectId& id, TInput
     UNUSED(id);
 
     TAutoPtr<TAttributeSet> result = new TAttributeSet();
-    ::Load(input, result->Attributes_);
+    LoadMap(input, result->Attributes_);
     return result;
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer
 } // namespace NYT
