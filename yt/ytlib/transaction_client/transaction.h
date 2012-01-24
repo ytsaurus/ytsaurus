@@ -29,11 +29,10 @@ struct ITransaction
     //! Aborts the transaction.
     /*!
      *  \note
-     *  This call may block.
-     *  Does not throw.
+     *  This call does not block and does not throw.
      *  Safe to call multiple times.
      * 
-     *  Thread affinity: ClientThread.
+     *  Thread affinity: any.
      */
     virtual void Abort() = 0;
 
