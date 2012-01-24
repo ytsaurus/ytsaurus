@@ -78,24 +78,8 @@ IYPathService::TResolveResult TUntypedObjectProxyBase::ResolveAttributes(
     const TYPath& path,
     const Stroka& verb)
 {
-    bool supported;
-    auto attributePath = ChopYPathAttributeMarker(path);
-    if (IsFinalYPath(attributePath)) {
-        supported =
-            verb == "Get" ||
-            verb == "List";
-    } else {
-        supported =
-            verb == "Get" ||
-            verb == "Set" ||
-            verb == "List" ||
-            verb == "Remove";
-    }
-
-    if (!supported) {
-        ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported for attributes";
-    }
-
+    UNUSED(path);
+    UNUSED(verb);
     return TResolveResult::Here(path);
 }
 
@@ -140,6 +124,13 @@ bool TUntypedObjectProxyBase::SetSystemAttribute(const Stroka& name, NYTree::TYs
     return false;
 }
 
+bool TUntypedObjectProxyBase::IsWriteRequest(IServiceContext* context) const
+{
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
+    return TYPathServiceBase::IsWriteRequest(context);
+}
+
 void TUntypedObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetId);
@@ -147,7 +138,7 @@ void TUntypedObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Set);
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
-    NYTree::TYPathServiceBase::DoInvoke(context);
+    TYPathServiceBase::DoInvoke(context);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TUntypedObjectProxyBase, GetId)
@@ -205,12 +196,10 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
             YVERIFY(GetSystemAttribute(name, &writer));
         }
 
-        // TODO(roizner): NullTransactionId???
         TVersionedObjectId versionedId(Id, GetTransactionId());
-
-        const auto* objectAttributes = ObjectManager->FindAttributes(versionedId);
-        if (objectAttributes) {
-            FOREACH (const auto& pair, objectAttributes->Attributes()) {
+        const auto* userAttributes = ObjectManager->FindAttributes(versionedId);
+        if (userAttributes) {
+            FOREACH (const auto& pair, userAttributes->Attributes()) {
                 writer.OnMapItem(pair.First());
                 writer.OnRaw(pair.Second());
             }
@@ -278,10 +267,10 @@ void TUntypedObjectProxyBase::ListAttribute(const TYPath& path, TReqList* reques
         GetSystemAttributeNames(&keys);
         
         TVersionedObjectId versionedId(Id, GetTransactionId());
-        const auto* objectAttributes = ObjectManager->FindAttributes(versionedId);
-        if (objectAttributes) {
-            keys.reserve(keys.size() + objectAttributes->Attributes().size());
-            FOREACH (const auto& pair, objectAttributes->Attributes()) {
+        const auto* userAttributes = ObjectManager->FindAttributes(versionedId);
+        if (userAttributes) {
+            keys.reserve(keys.size() + userAttributes->Attributes().size());
+            FOREACH (const auto& pair, userAttributes->Attributes()) {
                 keys.push_back(pair.First());
             }
         }
@@ -289,6 +278,7 @@ void TUntypedObjectProxyBase::ListAttribute(const TYPath& path, TReqList* reques
         Stroka token;
         TYPath suffixPath;
         ChopYPathToken(path, &token, &suffixPath);
+
         auto wholeValue = DeserializeFromYson(DoGetAttribute(token));
         keys = SyncYPathList(~wholeValue, RootMarker + suffixPath);
     }
@@ -331,10 +321,8 @@ void TUntypedObjectProxyBase::SetRecursive(const NYTree::TYPath& path, TReqSet* 
 
 void TUntypedObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
 {
-    yvector<Stroka> keys;
-
     if (IsFinalYPath(path)) {
-        ythrow yexception() << "Verb is not supported";
+        ythrow yexception() << "Cannot set all attributes in a batch";
     }
 
     Stroka token;
@@ -344,16 +332,17 @@ void TUntypedObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request,
     if (IsFinalYPath(suffixPath)) {
         if (!SetSystemAttribute(token, ~ProducerFromYson(request->value()))) {
             TVersionedObjectId versionedId(Id, GetTransactionId());
-            auto* objectAttributes = ObjectManager->FindAttributesForUpdate(versionedId);
-            if (!objectAttributes) {
-                objectAttributes = ObjectManager->CreateAttributes(versionedId);
+            auto* userAttributes = ObjectManager->FindAttributesForUpdate(versionedId);
+            if (!userAttributes) {
+                userAttributes = ObjectManager->CreateAttributes(versionedId);
             }
-            objectAttributes->Attributes()[token] = request->value();
+            userAttributes->Attributes()[token] = request->value();
         }
     } else {
         Stroka token;
         TYPath suffixPath;
         ChopYPathToken(path, &token, &suffixPath);
+
         bool isSystem;
         auto yson = DoGetAttribute(token, &isSystem);
         auto wholeValue = DeserializeFromYson(yson);
@@ -401,7 +390,7 @@ void TUntypedObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* re
     yvector<Stroka> keys;
 
     if (IsFinalYPath(path)) {
-        ythrow yexception() << "Verb is not supported";
+        ythrow yexception() << "Cannot remove all attributes in a batch";
     }
 
     Stroka token;
@@ -410,22 +399,23 @@ void TUntypedObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* re
 
     if (IsFinalYPath(suffixPath)) {
         TVersionedObjectId versionedId(Id, GetTransactionId());
-        auto* objectAttributes = ObjectManager->FindAttributesForUpdate(versionedId);
-        if (!objectAttributes) {
+        auto* userAttributes = ObjectManager->FindAttributesForUpdate(versionedId);
+        if (!userAttributes) {
             ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
         }
-        auto it = objectAttributes->Attributes().find(token);
-        if (it == objectAttributes->Attributes().end()) {
+        auto it = userAttributes->Attributes().find(token);
+        if (it == userAttributes->Attributes().end()) {
             ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
         }
-        objectAttributes->Attributes().erase(it);
-        if (objectAttributes->Attributes().size() == 0) {
+        userAttributes->Attributes().erase(it);
+        if (userAttributes->Attributes().size() == 0) {
             ObjectManager->RemoveAttributes(versionedId);
         }
     } else {
         Stroka token;
         TYPath suffixPath;
         ChopYPathToken(path, &token, &suffixPath);
+
         bool isSystem;
         auto yson = DoGetAttribute(token, &isSystem);
         auto wholeValue = DeserializeFromYson(yson);
@@ -441,19 +431,20 @@ Stroka TUntypedObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSyste
     TStringStream stream;
     TYsonWriter writer(&stream, EFormat::Binary);
     if (GetSystemAttribute(name, &writer)) {
-        if (isSystem)
+        if (isSystem) {
             *isSystem = true;
+        }
         return stream.Str();
     }
 
     TVersionedObjectId versionedId(Id, GetTransactionId());
-
-    const auto* objectAttributes = ObjectManager->FindAttributes(versionedId);
-    if (objectAttributes) {
-        auto it = objectAttributes->Attributes().find(name);
-        if (it != objectAttributes->Attributes().end()) {
-            if (isSystem)
+    const auto* userAttributes = ObjectManager->FindAttributes(versionedId);
+    if (userAttributes) {
+        auto it = userAttributes->Attributes().find(name);
+        if (it != userAttributes->Attributes().end()) {
+            if (isSystem) {
                 *isSystem = false;
+            }
             return it->Second();
         }
     }
@@ -467,8 +458,8 @@ void TUntypedObjectProxyBase::DoSetAttribute(const Stroka name, NYTree::INode* v
         YVERIFY(SetSystemAttribute(name, ~ProducerFromNode(value)));
     } else {
         TVersionedObjectId versionedId(Id, GetTransactionId());
-        ObjectManager->GetAttributesForUpdate(versionedId)
-             .Attributes().find(name)->Second() = SerializeToYson(value);
+        auto& userAttributes = ObjectManager->GetAttributesForUpdate(versionedId);
+        userAttributes.Attributes().find(name)->Second() = SerializeToYson(value);
     }
 }
 

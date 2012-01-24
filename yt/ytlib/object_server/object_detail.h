@@ -73,6 +73,7 @@ public:
         const Stroka& loggingCategory = ObjectServerLogger.GetCategory());
 
     virtual TObjectId GetId() const;
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
 private:
     TObjectManager::TPtr ObjectManager;
@@ -90,15 +91,33 @@ private:
     void DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem);
 
 protected:
+    //! Returns the transaction id used for attribute set lookup.
     virtual TTransactionId GetTransactionId() const;
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
+    //! Populates the list of all system attributes supported by this object.
+    /*!
+     *  \note
+     *  Must not clear #names since additional items may be added in inheritors.
+     */
     virtual void GetSystemAttributeNames(yvector<Stroka>* names);
+
+    //! Gets the value of a system attribute.
+    /*!
+     *  \returns False if there is no system attribute with the given name.
+     *  Must retrun True for each name declared via #GetSystemAttributeNames
+     *  (i.e. there are no write-only attributes).
+     */
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 
-    //! Returns false if there is no system attribute with the given name.
-    //! Throws if the system attribute cannot be set.
+    //! Sets the value of a system attribute.
+    /*!
+     *  \note
+     *  Throws if the attribute cannot be set.
+     *  
+     *  \returns False if there is no system attribute with the given name.
+     */
     virtual bool SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer);
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
