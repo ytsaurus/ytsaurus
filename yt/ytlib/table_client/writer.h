@@ -14,7 +14,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IAsyncWriter
-    : public virtual TRefCounted
+    : public virtual TExtrinsicRefCounted
 {
     typedef TIntrusivePtr<IAsyncWriter> Ptr;
 
@@ -31,7 +31,7 @@ struct IAsyncWriter
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISyncWriter
-    : public virtual TRefCounted
+    : public virtual TExtrinsicRefCounted
 {
     typedef TIntrusivePtr<ISyncWriter> TPtr;
 
