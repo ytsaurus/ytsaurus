@@ -19,7 +19,7 @@ namespace NTransactionClient {
  *  It keeps track of all active transactions and sends pings to master servers periodically.
  */
 class TTransactionManager
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;

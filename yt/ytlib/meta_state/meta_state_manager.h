@@ -33,7 +33,7 @@ typedef TFuture<ECommitResult> TAsyncCommitResult;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IMetaStateManager
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IMetaStateManager> TPtr;
 

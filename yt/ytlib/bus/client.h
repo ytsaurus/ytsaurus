@@ -13,7 +13,7 @@ namespace NBus {
  *  Thread affinity: any.
  */
 struct IBusClient
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
 public:
     typedef TIntrusivePtr<IBusClient> TPtr;

@@ -18,7 +18,7 @@ namespace NChunkHolder {
 
 //! Manages stored chunks.
 class TChunkStore
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TChunkStore> TPtr;

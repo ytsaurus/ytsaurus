@@ -9,7 +9,7 @@ namespace NChunkServer {
 
 //! Provides an interface for checking holder authorization.
 struct IHolderAuthority
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<IHolderAuthority> TPtr;
 

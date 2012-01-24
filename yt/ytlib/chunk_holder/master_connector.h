@@ -22,7 +22,7 @@ namespace NChunkHolder {
  *  and manages jobs.
  */
 class TMasterConnector
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TMasterConnector> TPtr;

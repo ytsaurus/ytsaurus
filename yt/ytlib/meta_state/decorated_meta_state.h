@@ -14,7 +14,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDecoratedMetaState
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TDecoratedMetaState> TPtr;

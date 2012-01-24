@@ -166,7 +166,7 @@ private:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TSessionBase
-    : public TRefCountedBase
+    : public TRefCounted
 {
 protected:
     typedef TIntrusivePtr<TSessionBase> TPtr;

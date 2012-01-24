@@ -32,7 +32,7 @@ struct TPeerInfo
  *  Thread affinity: single.
  */
 class TPeerBlockTable
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     TPeerBlockTable(TPeerBlockTableConfig* config);

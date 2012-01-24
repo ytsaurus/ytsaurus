@@ -15,7 +15,7 @@ namespace NConfig {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IParameter
-    : public TRefCountedBase
+    : public TRefCounted
 {
     typedef TIntrusivePtr<IParameter> TPtr;
 
@@ -64,7 +64,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConfigurable
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TConfigurable> TPtr;

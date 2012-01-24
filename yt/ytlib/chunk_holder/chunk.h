@@ -23,7 +23,7 @@ struct TChunkDescriptor
 
 //! Describes chunk at a chunk holder.
 class TChunk
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     //! Chunk id.`
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, Id);

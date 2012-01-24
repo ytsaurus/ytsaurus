@@ -13,7 +13,7 @@ namespace NYT {
  *  Uses TDelayedInvoker. Consider wrapping actions with #IAction::Via.
  */
 class TPeriodicInvoker
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TPeriodicInvoker> TPtr;

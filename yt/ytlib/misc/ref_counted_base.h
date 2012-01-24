@@ -342,8 +342,9 @@ namespace NDetail {
     }
 } // namespace NDetail
 
-// TODO(sandello): This is compatibility line.
-typedef TIntrinsicRefCounted TRefCountedBase;
+// TODO(sandello, babenko): think about this.
+typedef TIntrinsicRefCounted TRefCounted;
+typedef TExtrinsicRefCounted IRefCounted;
 
 ////////////////////////////////////////////////////////////////////////////////
 

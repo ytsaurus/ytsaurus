@@ -19,7 +19,7 @@ extern const char* const SystemLoggingCategory;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ILogWriter
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<ILogWriter> TPtr;
 

@@ -15,7 +15,7 @@ class TChunk;
 
 //! Manages cached chunk readers.
 class TReaderCache
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TReaderCache> TPtr;

@@ -15,7 +15,7 @@ namespace NYT {
 
 namespace {
     class TSimpleObject
-        : public TRefCountedBase
+        : public TRefCounted
     {
         ui32 Foo;
         ui32 Bar;

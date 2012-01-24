@@ -17,7 +17,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotCreator
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSnapshotCreator> TPtr;

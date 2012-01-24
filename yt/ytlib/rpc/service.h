@@ -46,7 +46,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IServiceContext
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IServiceContext> TPtr;
 
@@ -78,7 +78,7 @@ struct IServiceContext
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IService
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<IService> TPtr;
 
@@ -138,7 +138,7 @@ private:
 //! Provides a common base for both one-way and two-way contexts.
 template <class TRequestMessage>
 class TTypedServiceContextBase
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TTypedServiceContextBase<TRequestMessage> TThis;

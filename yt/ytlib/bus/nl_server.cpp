@@ -107,7 +107,7 @@ IBusServer::TPtr CreateNLBusServer(TNLBusServerConfig* config)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNLBusServer::TOutcomingResponse
-    : public TRefCountedBase
+    : public TRefCounted
 {
     typedef TIntrusivePtr<TOutcomingResponse> TPtr;
 

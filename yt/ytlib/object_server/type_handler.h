@@ -12,7 +12,7 @@ namespace NObjectServer {
 
 //! Provides a bridge between TObjectManager and concrete object implementations.
 struct IObjectTypeHandler
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IObjectTypeHandler> TPtr;
 

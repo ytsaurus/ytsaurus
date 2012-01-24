@@ -113,7 +113,7 @@ private:
     }
 
     class TDownloadSession
-        : public TRefCountedBase
+        : public TRefCounted
     {
     public:
         typedef TDownloadSession TThis;

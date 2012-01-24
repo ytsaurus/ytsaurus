@@ -14,7 +14,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFollowerTracker
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TFollowerTracker> TPtr;

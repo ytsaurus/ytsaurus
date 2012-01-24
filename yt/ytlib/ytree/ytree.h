@@ -309,7 +309,7 @@ struct IEntityNode
  *  All freshly created nodes are roots, i.e. have no parent.
  */
 struct INodeFactory
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<INodeFactory> TPtr;
 

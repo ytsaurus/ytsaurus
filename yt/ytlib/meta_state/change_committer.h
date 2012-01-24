@@ -17,7 +17,7 @@ namespace NMetaState {
 
 //! A common base for TFollowerCommitter and TLeaderCommitter.
 class TCommitterBase
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     TCommitterBase(

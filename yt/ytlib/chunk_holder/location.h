@@ -21,7 +21,7 @@ DECLARE_ENUM(ELocationType,
 
 //! Describes a physical location of chunks at a chunk holder.
 class TLocation
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TLocation> TPtr;

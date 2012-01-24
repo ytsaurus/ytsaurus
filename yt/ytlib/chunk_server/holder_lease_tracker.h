@@ -28,7 +28,7 @@ class TChunkManager;
  *  gets called.
  */
 class THolderLeaseTracker
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<THolderLeaseTracker> TPtr;

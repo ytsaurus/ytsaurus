@@ -18,7 +18,7 @@ namespace NFileClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileReader
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TFileReader> TPtr;

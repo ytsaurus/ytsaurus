@@ -13,7 +13,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellManager
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TCellManager> TPtr;

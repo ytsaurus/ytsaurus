@@ -50,7 +50,7 @@ struct TBlockInfo
 
 //! Helper class aimed to asynchronously initialize the internals of TChunkReader.
 class TChunkReader::TInitializer
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TInitializer> TPtr;

@@ -19,7 +19,7 @@ namespace NChunkClient {
 //! For a sequence of block indexes fetches and outputs these blocks in the given order.
 //! Prefetches and stores a configured number of blocks in its internal cyclic buffer.
 class TSequentialReader
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;

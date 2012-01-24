@@ -19,7 +19,7 @@ namespace NFileClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileWriter
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TFileWriter> TPtr;

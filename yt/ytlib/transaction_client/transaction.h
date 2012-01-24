@@ -11,7 +11,7 @@ namespace NTransactionClient {
 
 //! Represents a transaction within a client.
 struct ITransaction
-    : virtual public TRefCountedBase
+    : virtual public TRefCounted
 {
     typedef TIntrusivePtr<ITransaction> TPtr;
 

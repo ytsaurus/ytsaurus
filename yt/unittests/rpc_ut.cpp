@@ -225,7 +225,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResponseHandler
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TResponseHandler> TPtr;

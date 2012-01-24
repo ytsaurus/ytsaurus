@@ -24,7 +24,7 @@ class TFollowerRecovery;
 
 //! Base class for both leader and follower recovery models.
 class TRecovery
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TRecovery> TPtr;

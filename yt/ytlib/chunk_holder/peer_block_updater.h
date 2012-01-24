@@ -17,7 +17,7 @@ class TBlockStore;
 class TChunkHolderServiceProxy;
 
 class TPeerBlockUpdater
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TPeerBlockUpdater> TPtr;

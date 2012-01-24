@@ -12,7 +12,7 @@ namespace NMetaState {
 class TCompositeMetaState;
 
 class TMetaStatePart
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
 public:
     typedef TIntrusivePtr<TMetaStatePart> TPtr;

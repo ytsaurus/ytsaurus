@@ -71,7 +71,7 @@ void TElectionManager::Restart()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TElectionManager::TFollowerPinger
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TFollowerPinger> TPtr;
@@ -212,7 +212,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TElectionManager::TVotingRound
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TVotingRound> TPtr;

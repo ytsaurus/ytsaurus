@@ -17,7 +17,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableReader
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TTableReader> TPtr;

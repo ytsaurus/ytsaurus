@@ -13,7 +13,7 @@ struct IAction;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IInvoker
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IInvoker> TPtr;
 

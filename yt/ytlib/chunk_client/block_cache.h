@@ -15,7 +15,7 @@ namespace NChunkClient {
  *  Thread affinity: any
  */
 struct IBlockCache
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IBlockCache> TPtr;
 

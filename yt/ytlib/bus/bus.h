@@ -16,7 +16,7 @@ DECLARE_ENUM(ESendResult,
 
 //! A bus, i.e. something capable of transmitting messages.
 struct IBus
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IBus> TPtr;
 
@@ -46,7 +46,7 @@ struct IBus
 
 //! Handles incoming bus messages.
 struct IMessageHandler
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<IMessageHandler> TPtr;
 

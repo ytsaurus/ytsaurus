@@ -87,7 +87,7 @@ namespace {
     //! This is an object which creates intrusive pointers to the self
     //! during its construction.
     class TObjectWithSelfPointers
-        : public TRefCountedBase
+        : public TRefCounted
     {
     private:
         TOutputStream* Output;
@@ -314,7 +314,7 @@ TEST(TIntrusivePtrTest, Swap)
 TEST(TIntrusivePtrTest, UpCast)
 {
     //! This is a simple typical reference-counted object.
-    class TSimpleObject : public TRefCountedBase
+    class TSimpleObject : public TRefCounted
     {};
 
     //! This is a simple inherited reference-counted object.

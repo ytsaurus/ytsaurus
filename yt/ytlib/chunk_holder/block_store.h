@@ -37,7 +37,7 @@ class TChunkRegistry;
 
 //! Manages cached blocks.
 class TBlockStore
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TBlockStore> TPtr;

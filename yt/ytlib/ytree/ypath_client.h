@@ -28,7 +28,7 @@ class TTypedYPathResponse;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathRequest
-    : public TRefCountedBase
+    : public TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
     DEFINE_BYVAL_RW_PROPERTY(TYPath, Path);
@@ -76,7 +76,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathResponse
-    : public TRefCountedBase
+    : public TRefCounted
 {
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TError, Error);

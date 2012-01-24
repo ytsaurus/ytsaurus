@@ -17,7 +17,7 @@ class TSessionManager;
 
 //! Represents a chunk upload in progress.
 class TSession
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSession> TPtr;
@@ -139,7 +139,7 @@ private:
 
 //! Manages chunk uploads.
 class TSessionManager
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSessionManager> TPtr;

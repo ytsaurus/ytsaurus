@@ -21,7 +21,7 @@ struct ICypressNodeProxy;
  *  Behaviors are only created for non-branched nodes.
  */
 struct INodeBehavior
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<INodeBehavior> TPtr;
 
@@ -34,7 +34,7 @@ struct INodeBehavior
 
 //! Provides node type-specific services.
 struct INodeTypeHandler
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<INodeTypeHandler> TPtr;
 
