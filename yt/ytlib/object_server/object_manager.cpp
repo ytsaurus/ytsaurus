@@ -37,9 +37,8 @@ TObjectManager::TObjectManager(
 
 void TObjectManager::RegisterHandler(IObjectTypeHandler* handler)
 {
-    // No thread affinity is given here.
-    // This will be called during init-time only.
-
+    // No thread affinity check here.
+    // This will be called during init-time only but from an unspecified thread.
     YASSERT(handler);
     int typeValue = handler->GetType().ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
@@ -48,15 +47,25 @@ void TObjectManager::RegisterHandler(IObjectTypeHandler* handler)
     TypeToCounter[typeValue] = TIdGenerator<ui64>();
 }
 
-IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
+IObjectTypeHandler* TObjectManager::FindHandler( EObjectType type ) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     int typeValue = type.ToValue();
-    YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
-    auto handler = TypeToHandler[typeValue];
+    if (typeValue < 0 || typeValue >= MaxObjectType) {
+        return NULL;
+    }
+
+    return ~TypeToHandler[typeValue];
+}
+
+IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto handler = FindHandler(type);
     YASSERT(handler);
-    return ~handler;
+    return handler;
 }
 
 IObjectTypeHandler* TObjectManager::GetHandler(const TObjectId& id) const

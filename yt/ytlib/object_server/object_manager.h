@@ -52,6 +52,9 @@ public:
      */
     void RegisterHandler(IObjectTypeHandler* handler);
 
+    //! Returns the handler for a given type or NULL if the type is unknown.
+    IObjectTypeHandler* FindHandler(EObjectType type) const;
+
     //! Returns the handler for a given type.
     IObjectTypeHandler* GetHandler(EObjectType type) const;
     
