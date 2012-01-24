@@ -88,6 +88,8 @@ void TTableWriter::Open()
         ListenTransaction(~Transaction);
     }
 
+    IsOpen = true;
+
     LOG_INFO("Table writer opened");
 }
 
