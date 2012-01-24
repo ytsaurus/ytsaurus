@@ -72,9 +72,7 @@ public:
         const TObjectId& id,
         const Stroka& loggingCategory = ObjectServerLogger.GetCategory());
 
-    TObjectId GetId() const;
-
-    virtual bool IsLogged(NRpc::IServiceContext* context) const;
+    virtual TObjectId GetId() const;
 
 private:
     TObjectManager::TPtr ObjectManager;

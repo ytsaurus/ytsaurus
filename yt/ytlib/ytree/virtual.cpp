@@ -33,12 +33,8 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 
 void TVirtualMapBase::DoInvoke(NRpc::IServiceContext* context)
 {
-    Stroka verb = context->GetVerb();
-    if (verb == "Get") {
-        GetThunk(context);
-    } else {
-        TYPathServiceBase::DoInvoke(context);
-    }
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    TYPathServiceBase::DoInvoke(context);
 }
 
 struct TGetConfig
@@ -68,7 +64,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
     config->Validate();
     
     TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&stream, EFormat::Binary);
     auto keys = GetKeys(config->MaxSize);
     auto size = GetSize();
 

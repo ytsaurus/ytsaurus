@@ -35,7 +35,7 @@ TSession::TSession(
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
-    Location->IncrementSessionCount();
+    Location->UpdateSessionCount(+1);
 
     FileName = Location->GetChunkFileName(chunkId);
     NFS::ForcePath(NFS::GetDirectoryName(FileName));
@@ -45,7 +45,7 @@ TSession::TSession(
 
 TSession::~TSession()
 {
-    Location->DecrementSessionCount();
+    Location->UpdateSessionCount(-1);
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)
@@ -97,7 +97,7 @@ TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         ythrow TServiceException(EErrorCode::WindowError) <<
-            Sprintf("Retrieving a block that is not received (WindowStart: %d, BlockIndex: %d)",
+            Sprintf("Trying to retrieve a block that is not received yet (WindowStart: %d, BlockIndex: %d)",
             WindowStart,
             blockIndex);
     }
@@ -179,10 +179,10 @@ TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
 
     try {
         Sync(~Writer, &TChunkFileWriter::AsyncWriteBlock, block->GetData());
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Error writing chunk block (BlockIndex: %d)\n%s",
             blockIndex,
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     LOG_DEBUG("Chunk block written (BlockIndex: %d)",
@@ -313,9 +313,9 @@ TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 {
     try {
         Sync(~Writer, &TChunkFileWriter::AsyncClose, attributes);
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Error closing chunk file\n%s",
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     LOG_DEBUG("Chunk file closed");

@@ -1,6 +1,6 @@
-{do=create;path="/sys/masters/0/orchid";type=orchid_node;manifest={remote_address="meta01-001g:9091"}}
-{do=create;path="/sys/masters/1/orchid";type=orchid_node;manifest={remote_address="meta01-002g:9091"}}
-{do=create;path="/sys/masters/2/orchid";type=orchid_node;manifest={remote_address="meta01-003g:9091"}}
+{do=create;path="/sys/masters/0/orchid";type=orchid;manifest={remote_address="meta01-001g:9091"}}
+{do=create;path="/sys/masters/1/orchid";type=orchid;manifest={remote_address="meta01-002g:9091"}}
+{do=create;path="/sys/masters/2/orchid";type=orchid;manifest={remote_address="meta01-003g:9091"}}
 
 {do=create;path="/sys/holders";type=holder_map}
 

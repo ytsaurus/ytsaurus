@@ -119,10 +119,10 @@ ExecuteVerb(
     try {
         // This may throw.
         processor->Resolve(path, verb, &suffixService, &suffixPath);
-    } catch (...) {
+    } catch (const std::exception& ex) {
         auto responseMessage = NRpc::CreateErrorResponseMessage(TError(
             EYPathErrorCode(EYPathErrorCode::ResolveError),
-            CurrentExceptionMessage()));
+            ex.what()));
         return New< TFuture<IMessage::TPtr> >(responseMessage);
     }
 
@@ -145,8 +145,8 @@ ExecuteVerb(
         // This should never throw.
         processor->Execute(~suffixService, ~context);
     }
-    catch (...) {
-        LOG_FATAL("Unexpected exception during verb execution\n%s", ~CurrentExceptionMessage());
+    catch (const std::exception& ex) {
+        LOG_FATAL("Unexpected exception during verb execution\n%s", ex.what());
     }
 
     return asyncResponseMessage;

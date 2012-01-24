@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <ytlib/actions/action.h>
+
 namespace NYT {
 namespace NTransactionClient {
 

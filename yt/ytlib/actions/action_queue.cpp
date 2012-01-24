@@ -4,6 +4,7 @@
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/thread.h>
+#include <ytlib/actions/action_util.h>
 #include <ytlib/monitoring/stat.h>
 
 namespace NYT {
@@ -105,8 +106,8 @@ void TActionQueueBase::ThreadMain()
                     }
                 }
             }
-        } catch (...) {
-            LOG_FATAL("Unhandled exception in the action queue\n%s", ~CurrentExceptionMessage());
+        } catch (const std::exception& ex) {
+            LOG_FATAL("Unhandled exception in the action queue\n%s", ex.what());
         }
     }
 }

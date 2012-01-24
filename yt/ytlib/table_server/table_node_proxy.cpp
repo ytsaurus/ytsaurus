@@ -31,23 +31,15 @@ TTableNodeProxy::TTableNodeProxy(
 
 void TTableNodeProxy::DoInvoke(IServiceContext* context)
 {
-    Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListForUpdate") {
-        GetChunkListForUpdateThunk(context);
-    } else if (verb == "Fetch") {
-        FetchThunk(context);
-    } else {
-        TBase::DoInvoke(context);
-    }
+    DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
+    DISPATCH_YPATH_SERVICE_METHOD(Fetch);
+    TBase::DoInvoke(context);
 }
 
-bool TTableNodeProxy::IsLogged(IServiceContext* context) const
+bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
 {
-    Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListForUpdate") {
-        return true;
-    }
-    return TBase::IsLogged(context);;
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(GetChunkListForUpdate);
+    return TBase::IsWriteRequest(context);
 }
 
 void TTableNodeProxy::TraverseChunkTree(

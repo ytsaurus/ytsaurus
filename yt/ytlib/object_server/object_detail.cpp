@@ -129,18 +129,13 @@ bool TUntypedObjectProxyBase::GetSystemAttribute(const Stroka& name, IYsonConsum
     return false;
 }
 
-bool TUntypedObjectProxyBase::IsLogged(IServiceContext* context) const
-{
-    UNUSED(context);
-    return false;
-}
-
 void TUntypedObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
 {
-    // TODO: Check IsAttributePath
     DISPATCH_YPATH_SERVICE_METHOD(GetId);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
+    DISPATCH_YPATH_SERVICE_METHOD(Set);
+    DISPATCH_YPATH_SERVICE_METHOD(Remove);
     NYTree::TYPathServiceBase::DoInvoke(context);
 }
 
@@ -190,7 +185,7 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
         GetSystemAttributeNames(&names);
 
         TStringStream stream;
-        TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+        TYsonWriter writer(&stream, EFormat::Binary);
         
         writer.OnBeginMap();
 
@@ -433,7 +428,7 @@ void TUntypedObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* re
 Stroka TUntypedObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
 {
     TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&stream, EFormat::Binary);
     if (GetSystemAttribute(name, &writer)) {
         if (isSystem)
             *isSystem = true;

@@ -277,8 +277,8 @@ public:
         VERIFY_THREAD_AFFINITY(Owner->StateThread);
 
         auto proxy = dynamic_cast<IObjectProxy*>(service);
-        if (!proxy || !proxy->IsLogged(context)) {
-            LOG_INFO("Executing a non-logged operation (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
+        if (!proxy || !proxy->IsWriteRequest(context)) {
+            LOG_INFO("Executing a read-only request (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
                 ~context->GetPath(),
                 ~context->GetVerb(),
                 proxy ? ~proxy->GetId().ToString() : "N/A",
@@ -629,7 +629,7 @@ bool TCypressManager::IsLockNeeded(
         currentNodeId = currentImpl.GetParentId();
     }
 
-    // If we're outside of a transaction than the lock is not needed.
+    // If we're outside of a transaction then the lock is not needed.
     return transactionId != NullTransactionId;
 }
 
@@ -1014,7 +1014,7 @@ TVoid TCypressManager::DoExecuteVerb(
     IObjectProxy::TPtr proxy,
     IServiceContext::TPtr context)
 {
-    LOG_INFO_IF(!IsRecovery(), "Executing a logged operation (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Executing a read-write request (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
         ~context->GetPath(),
         ~context->GetVerb(),
         ~proxy->GetId().ToString(),
@@ -1022,7 +1022,7 @@ TVoid TCypressManager::DoExecuteVerb(
 
     proxy->Invoke(~context);
 
-    LOG_FATAL_IF(!context->IsReplied(), "Logged operation did not complete synchronously");
+    LOG_FATAL_IF(!context->IsReplied(), "Request did not complete synchronously");
 
     return TVoid();
 }

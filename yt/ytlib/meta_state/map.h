@@ -6,6 +6,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/actions/future.h>
 
 #include <util/ysaveload.h>
 

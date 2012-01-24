@@ -50,17 +50,17 @@ struct TLocationConfig
     }
 };
 
-// TODO(roizner): It should be in block_table.h, but we cannot place it there because of cross-includes!
+// TODO(roizner): It should be in peer_block_table.h, but we cannot place it there because of cross-includes!
 // TODO(roizner): Or merge it into TChunkHolderConfig
-struct TBlockTableConfig
+struct TPeerBlockTableConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TBlockTableConfig> TPtr;
+    typedef TIntrusivePtr<TPeerBlockTableConfig> TPtr;
 
     int MaxPeersPerBlock;
     TDuration SweepPeriod;
 
-    TBlockTableConfig()
+    TPeerBlockTableConfig()
     {
         Register("max_peers_per_block", MaxPeersPerBlock)
             .GreaterThan(0)
@@ -102,10 +102,10 @@ struct TChunkHolderConfig
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
-    //! Period between peer updates (see TPeerUpdater).
+    //! Period between peer updates (see TPeerBlockUpdater).
     TDuration PeerUpdatePeriod;
 
-    //! Updated expiration timeout (see TPeerUpdater).
+    //! Updated expiration timeout (see TPeerBlockUpdater).
     TDuration PeerUpdateExpirationTimeout;
 
     //! Peer address to publish. Not registered.
@@ -125,7 +125,7 @@ struct TChunkHolderConfig
     //! Sequential reader configuration used to download chunks into cache.
     NChunkClient::TSequentialReader::TConfig::TPtr CacheSequentialReader;
 
-    TBlockTableConfig::TPtr BlockTable;
+    TPeerBlockTableConfig::TPtr BlockTable;
 
     //! Masters configuration.
     NElection::TLeaderLookup::TConfig::TPtr Masters;
@@ -139,21 +139,38 @@ struct TChunkHolderConfig
     {
         // TODO: consider GreaterThan(0)
 
-        Register("max_cached_blocks_size", MaxCachedBlocksSize).GreaterThan(0).Default(1024 * 1024);
-        Register("max_cached_readers", MaxCachedReaders).GreaterThan(0).Default(10);
-        Register("session_timeout", SessionTimeout).Default(TDuration::Seconds(15));
-        Register("heartbeat_period", HeartbeatPeriod).Default(TDuration::Seconds(5));
-        Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
-        Register("rpc_port", RpcPort).Default(9000);
-        Register("monitoring_port", MonitoringPort).Default(10000);
-        Register("peer_update_period", PeerUpdatePeriod).Default(TDuration::Seconds(30));
-        Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout).Default(TDuration::Seconds(40));
-        Register("response_throttling_size", ResponseThrottlingSize).GreaterThan(0).Default(500 * 1024 * 1024);
-        Register("chunk_store_locations", ChunkStorageLocations).NonEmpty();
+        Register("max_cached_blocks_size", MaxCachedBlocksSize)
+            .GreaterThan(0)
+            .Default(1024 * 1024);
+        Register("max_cached_readers", MaxCachedReaders)
+            .GreaterThan(0)
+            .Default(10);
+        Register("session_timeout", SessionTimeout)
+            .Default(TDuration::Seconds(15));
+        Register("heartbeat_period", HeartbeatPeriod)
+            .Default(TDuration::Seconds(5));
+        Register("master_rpc_timeout", MasterRpcTimeout)
+            .Default(TDuration::Seconds(5));
+        Register("rpc_port", RpcPort)
+            .Default(9000);
+        Register("monitoring_port", MonitoringPort)
+            .Default(10000);
+        Register("peer_update_period", PeerUpdatePeriod)
+            .Default(TDuration::Seconds(30));
+        Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
+            .Default(TDuration::Seconds(40));
+        Register("response_throttling_size", ResponseThrottlingSize)
+            .GreaterThan(0)
+            .Default(500 * 1024 * 1024);
+        Register("chunk_store_locations", ChunkStorageLocations)
+            .NonEmpty();
         Register("chunk_cache_location", ChunkCacheLocation);
-        Register("cache_remote_reader", CacheRemoteReader).DefaultNew();
-        Register("cache_sequential_reader", CacheSequentialReader).DefaultNew();
-        Register("block_table", BlockTable).DefaultNew();
+        Register("cache_remote_reader", CacheRemoteReader)
+            .DefaultNew();
+        Register("cache_sequential_reader", CacheSequentialReader)
+            .DefaultNew();
+        Register("block_table", BlockTable)
+            .DefaultNew();
         Register("masters", Masters);
     }
 };

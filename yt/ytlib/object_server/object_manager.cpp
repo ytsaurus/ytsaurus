@@ -20,6 +20,7 @@ TObjectManager::TObjectManager(
     TCellId cellId)
     : TMetaStatePart(metaStateManager, metaState)
     , CellId(cellId)
+    , TypeToCounter(MaxObjectType)
 {
     metaState->RegisterLoader(
         "ObjectManager.1",
@@ -44,6 +45,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandler* handler)
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
     YASSERT(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
+    TypeToCounter[typeValue] = TIdGenerator<ui64>();
 }
 
 IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
@@ -76,7 +78,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     int typeValue = type.ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
 
-    ui64 counter = Counter++;
+    ui64 counter = TypeToCounter[typeValue].Next();
 
     char data[12];
     *reinterpret_cast<ui64*>(&data[ 0]) = counter;
@@ -137,10 +139,13 @@ TFuture<TVoid>::TPtr TObjectManager::Save(const TCompositeMetaState::TSaveContex
     auto* output = context.Output;
     auto invoker = context.Invoker;
 
-    auto counter = Counter;
+    yvector< TIdGenerator<ui64> > typeToCounter(TypeToCounter.begin(), TypeToCounter.end());
     invoker->Invoke(FromFunctor([=] ()
         {
-            ::Save(output, counter);
+            ::Save(output, MaxObjectType);
+            FOREACH(const auto& idGenerator, typeToCounter) {
+                ::Save(output, idGenerator);
+            }
         }));
     
     return Attributes.Save(invoker, output);
@@ -150,7 +155,12 @@ void TObjectManager::Load(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Load(input, Counter);
+    // read the number of objects for future compatibility
+    int maxObjectType;
+    ::Load(input, maxObjectType);
+    for (int i =0; i < maxObjectType; ++i) {
+        ::Load(input, TypeToCounter[i]);
+    }
     Attributes.Load(input);
 }
 
@@ -158,7 +168,9 @@ void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    Counter = 0;
+    for (int i = 0; i < MaxObjectType; ++i) {
+        TypeToCounter[i].Reset();
+    }
 }
 
 IObjectProxy::TPtr TObjectManager::FindProxy(const TObjectId& id)

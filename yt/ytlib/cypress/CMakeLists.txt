@@ -15,19 +15,19 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/common.h
-  ${BASE}/id.h
   ${BASE}/cypress_integration.h
   ${BASE}/cypress_manager.h
   ${BASE}/cypress_service.h
   ${BASE}/cypress_service_proxy-inl.h
   ${BASE}/cypress_service_proxy.h
   ${BASE}/cypress_ypath_proxy.h
+  ${BASE}/id.h
   ${BASE}/lock.h
   ${BASE}/node.h
-  ${BASE}/type_handler.h
   ${BASE}/node_detail.h
   ${BASE}/node_proxy.h
   ${BASE}/node_proxy_detail.h
+  ${BASE}/type_handler.h
   ${BASE}/virtual.h
 )
 

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "block_id.h"
 
 #include <ytlib/misc/ref.h>
 
@@ -26,13 +25,13 @@ struct IBlockCache
      *  Source is an address of peer from which the block was downloaded.
      *  If the block was not downloaded from another peer, source must be empty.
      */
-    virtual void Put(const TBlockId& id, const TSharedRef& data, const Stroka& source) = 0;
+    virtual void Put(const NChunkServer::TBlockId& id, const TSharedRef& data, const Stroka& source) = 0;
 
     //! Fetches a block from the cache.
     /*!
      *  If no such block is present, then NULL is returned.
      */
-    virtual TSharedRef Find(const TBlockId& id) = 0;
+    virtual TSharedRef Find(const NChunkServer::TBlockId& id) = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

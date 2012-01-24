@@ -26,7 +26,7 @@ public:
         const NObjectServer::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const;
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
 private:
     typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;

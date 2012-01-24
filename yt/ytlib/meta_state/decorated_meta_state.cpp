@@ -104,10 +104,10 @@ void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
 
     try {
         State->ApplyChange(changeData);
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Error applying change (Version: %s)\n%s",
             ~Version.ToString(),
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     IncrementRecordCount();
@@ -120,10 +120,10 @@ void TDecoratedMetaState::ApplyChange(IAction::TPtr changeAction)
 
     try {
         changeAction->Do();
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Error applying change (Version: %s)\n%s",
             ~Version.ToString(),
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     IncrementRecordCount();

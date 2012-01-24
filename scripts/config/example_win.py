@@ -10,25 +10,25 @@ Logging = {
     'writers' : { 
         'file':
             {
-                'type' : "File",
+                'type' : "file",
                 'file_name' : "%(log_path)s",
                 'pattern' : "$(datetime) $(level) $(category) $(message)"
             },
         'std_err' :
             {
-                'type' : "StdErr",
+                'type' : "std_err",
                 'pattern' : "$(datetime) $(level) $(category) $(message)"
             }
     },
     'rules' : [
         {
             'categories' : [ "*" ],
-            'min_level' : "Debug",
+            'min_level' : "debug",
             'writers' : [ "file" ]
         },
         {
             'categories' : [ "*" ],
-            'min_level' : "Info",
+            'min_level' : "info",
             'writers' : [ "std_err" ]
         }
     ]

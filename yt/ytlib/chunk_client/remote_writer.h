@@ -53,10 +53,16 @@ public:
 
         TConfig()
         {
-            Register("window_size", WindowSize).Default(4 * 1024 * 1024).GreaterThan(0);
-            Register("group_size", GroupSize).Default(1024 * 1024).GreaterThan(0);
-            Register("holder_rpc_timeout", HolderRpcTimeout).Default(TDuration::Seconds(30));
-            Register("session_ping_interval", SessionPingInterval).Default(TDuration::Seconds(10));
+            Register("window_size", WindowSize)
+                .Default(4 * 1024 * 1024)
+                .GreaterThan(0);
+            Register("group_size", GroupSize)
+                .Default(1024 * 1024)
+                .GreaterThan(0);
+            Register("holder_rpc_timeout", HolderRpcTimeout)
+                .Default(TDuration::Seconds(30));
+            Register("session_ping_interval", SessionPingInterval)
+                .Default(TDuration::Seconds(10));
         }
 
         virtual void DoValidate() const

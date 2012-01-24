@@ -40,12 +40,23 @@ public:
 
         TConfig()
         {
-            Register("max_chunk_size", MaxChunkSize).GreaterThan(0).Default(1024 * 1024 * 1024);
-            Register("next_chunk_threshold", NextChunkThreshold).GreaterThan(0).LessThan(100).Default(70);
-            Register("total_replica_count", TotalReplicaCount).GreaterThanOrEqual(1).Default(3);
-            Register("upload_replica_count", UploadReplicaCount).GreaterThanOrEqual(1).Default(2);
-            Register("chunk_writer", ChunkWriter).DefaultNew();
-            Register("remote_writer", RemoteWriter).DefaultNew();
+            Register("max_chunk_size", MaxChunkSize)
+                .GreaterThan(0)
+                .Default(1024 * 1024 * 1024);
+            Register("next_chunk_threshold", NextChunkThreshold)
+                .GreaterThan(0)
+                .LessThan(100)
+                .Default(70);
+            Register("total_replica_count", TotalReplicaCount)
+                .GreaterThanOrEqual(1)
+                .Default(3);
+            Register("upload_replica_count", UploadReplicaCount)
+                .GreaterThanOrEqual(1)
+                .Default(2);
+            Register("chunk_writer", ChunkWriter)
+                .DefaultNew();
+            Register("remote_writer", RemoteWriter)
+                .DefaultNew();
         }
 
         virtual void DoValidate() const

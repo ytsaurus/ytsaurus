@@ -45,7 +45,7 @@ public:
     void RemoveChunk(TChunk* chunk);
 
     //! Updates #AvailalbleSpace with a system call and returns the result.
-    i64 GetAvailableSpace();
+    i64 GetAvailableSpace() const;
 
     //! Returns the invoker that handles all IO requests to this location.
     IInvoker::TPtr GetInvoker() const;
@@ -70,11 +70,8 @@ public:
     //! Returns the load factor.
     double GetLoadFactor() const;
 
-    //! Increments the number of currently active sessions.
-    void IncrementSessionCount();
-
-    //! Decrements the number of currently active sessions.
-    void DecrementSessionCount();
+    //! Changes the number of currently active sessions by a given delta.
+    void UpdateSessionCount(int delta);
 
     //! Returns the number of currently active sessions.
     int GetSessionCount() const;
@@ -83,21 +80,21 @@ public:
     Stroka GetChunkFileName(const TChunkId& chunkId) const;
 
     //! Checks whether the location is full.
-    bool IsFull();
+    bool IsFull() const;
 
     //! Checks whether to location has enough space to contain file of size #size
-    bool HasEnoughSpace(i64 size);
+    bool HasEnoughSpace(i64 size) const;
 
 private:
     ELocationType Type;
     TLocationConfig::TPtr Config;
     TIntrusivePtr<TReaderCache> ReaderCache;
-    i64 AvailableSpace;
+    mutable i64 AvailableSpace;
     i64 UsedSpace;
     TActionQueue::TPtr ActionQueue;
     int SessionCount;
 
-    NLog::TTaggedLogger Logger;
+    mutable NLog::TTaggedLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,7 +41,7 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        NYTree::TYsonWriter::EFormat OutputFormat;
+        NYTree::EFormat OutputFormat;
         NElection::TLeaderLookup::TConfig::TPtr Masters;
         NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
         NFileClient::TFileReader::TConfig::TPtr FileReader;
@@ -51,7 +51,7 @@ public:
 
         TConfig()
         {
-            Register("output_format", OutputFormat).Default(NYTree::TYsonWriter::EFormat::Text);
+            Register("output_format", OutputFormat).Default(NYTree::EFormat::Text);
             Register("masters", Masters);
             Register("transaction_manager", TransactionManager).DefaultNew();
             Register("file_reader", FileReader).DefaultNew();

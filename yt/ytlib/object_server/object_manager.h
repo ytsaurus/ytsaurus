@@ -5,6 +5,7 @@
 #include "type_handler.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/id_generator.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
 
@@ -86,8 +87,8 @@ public:
 
 private:
     TCellId CellId;
-    ui64 Counter;
 
+    autoarray< TIdGenerator<ui64> > TypeToCounter;
     IObjectTypeHandler::TPtr TypeToHandler[MaxObjectType];
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 

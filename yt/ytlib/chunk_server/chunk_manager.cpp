@@ -20,8 +20,6 @@
 #include <ytlib/meta_state/map.h>
 #include <ytlib/object_server/type_handler_detail.h>
 #include <ytlib/ytree/fluent.h>
-// TODO(babenko): get rid of this once TBlockId is moved to NChunkServer
-#include <ytlib/chunk_client/block_id.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -959,10 +957,10 @@ public:
         , Owner(owner)
     { }
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        DECLARE_LOGGED_YPATH_SERVICE_METHOD(Confirm);
-        return TBase::IsLogged(context);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
+        return TBase::IsWriteRequest(context);
     }
 
 private:
@@ -1028,7 +1026,7 @@ private:
 
             if (name == "chunk_type") {
                 auto attributes = chunk.DeserializeAttributes();
-                auto type = NChunkClient::EChunkType(attributes.type());
+                auto type = EChunkType(attributes.type());
                 BuildYsonFluently(consumer)
                     .Scalar(CamelCaseToUnderscoreCase(type.ToString()));
                 return true;
@@ -1140,15 +1138,11 @@ public:
         , Owner(owner)
     { }
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Attach" ||
-            verb == "Detach")
-        {
-            return true;
-        }
-        return TBase::IsLogged(context);;
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Attach);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Detach);
+        return TBase::IsWriteRequest(context);
     }
 
 private:
@@ -1180,14 +1174,9 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Attach") {
-            AttachThunk(context);
-        } else if (verb == "Detach") {
-            DetachThunk(context);
-        } else {
-            TBase::DoInvoke(context);
-        }
+        DISPATCH_YPATH_SERVICE_METHOD(Attach);
+        DISPATCH_YPATH_SERVICE_METHOD(Detach);
+        TBase::DoInvoke(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Attach)

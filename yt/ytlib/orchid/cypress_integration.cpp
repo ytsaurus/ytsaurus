@@ -2,6 +2,7 @@
 #include "cypress_integration.h"
 
 #include <ytlib/misc/lazy_ptr.h>
+#include <ytlib/actions/action_queue.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
@@ -41,9 +42,9 @@ public:
         try {
             Manifest = New<TOrchidManifest>();
             Manifest->LoadAndValidate(~manifestNode);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
-                ~CurrentExceptionMessage());
+                ex.what());
         }
 
         auto channel = ChannelCache.GetChannel(Manifest->RemoteAddress);
@@ -89,6 +90,12 @@ public:
     virtual Stroka GetLoggingCategory() const
     {
         return OrchidLogger.GetCategory();
+    }
+
+    virtual bool IsWriteRequest(IServiceContext* context) const
+    {
+        UNUSED(context);
+        return false;
     }
 
 private:

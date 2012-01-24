@@ -15,6 +15,14 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TNodeBase::IsWriteRequest(IServiceContext* context) const
+{
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(SetNode);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
+    return TYPathServiceBase::IsWriteRequest(context);
+}
+
 IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, const Stroka& verb)
 {
     auto attributePath = ChopYPathAttributeMarker(path);
@@ -32,21 +40,12 @@ IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, c
 
 void TNodeBase::DoInvoke(IServiceContext* context)
 {
-    Stroka verb = context->GetVerb();
-    // TODO: use method table
-    if (verb == "Get") {
-        GetThunk(context);
-    } else if (verb == "GetNode") {
-        GetNodeThunk(context);
-    } else if (verb == "Set") {
-        SetThunk(context);
-    } else if (verb == "SetNode") {
-        SetNodeThunk(context);
-    } else if (verb == "Remove") {
-        RemoveThunk(context);
-    } else {
-        TYPathServiceBase::DoInvoke(context);
-    }
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    DISPATCH_YPATH_SERVICE_METHOD(GetNode);
+    DISPATCH_YPATH_SERVICE_METHOD(Set);
+    DISPATCH_YPATH_SERVICE_METHOD(SetNode);
+    DISPATCH_YPATH_SERVICE_METHOD(Remove);
+    TYPathServiceBase::DoInvoke(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +59,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             TStringStream stream;
-            TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+            TYsonWriter writer(&stream, EFormat::Binary);
 
             writer.OnBeginMap();
 
@@ -118,7 +117,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
     UNUSED(request);
     
     TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&stream, EFormat::Binary);
     TTreeVisitor visitor(&writer, false);
     visitor.Visit(this);
 
@@ -558,10 +557,10 @@ int TListNodeMixin::ParseChildIndex(const TStringBuf& str)
     int index;
     try {
         index = FromString<int>(str);
-    } catch (...) {
+    } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Failed to parse index %s\n%s",
             ~Stroka(str).Quote(),
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     int count = GetChildCount();

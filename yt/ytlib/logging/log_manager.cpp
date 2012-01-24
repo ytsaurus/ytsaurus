@@ -1,11 +1,10 @@
 #include "stdafx.h"
 #include "log_manager.h"
-
 #include "writer.h"
 
 #include <ytlib/misc/pattern_formatter.h>
 #include <ytlib/misc/configurable.h>
-
+#include <ytlib/actions/action_queue.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
@@ -337,9 +336,9 @@ private:
 
     TWriters GetWriters(const TLogEvent& event)
     {
-        if (event.Category == SystemLoggingCategory)
+        if (event.Category == SystemLoggingCategory) {
             return SystemWriters;
-
+        }
         return Config->GetWriters(event);
     }
 

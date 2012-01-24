@@ -8,7 +8,6 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
-#include <ytlib/chunk_client/block_id.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
 namespace NYT {
@@ -99,7 +98,6 @@ TFileWriter::TFileWriter(
         ~ChunkId.ToString(),
         ~JoinToString(addresses));
 
-    // Initialize a writer.
     Writer = New<TRemoteWriter>(
         ~config->RemoteWriter,
         ChunkId,
@@ -245,11 +243,13 @@ void TFileWriter::Finish()
         Transaction->UnsubscribeAborted(OnAborted_);
         Transaction.Reset();
     }
+
     if (UploadTransaction) {
         UploadTransaction->Abort();
         UploadTransaction->UnsubscribeAborted(OnAborted_);
         UploadTransaction.Reset();
     }
+
     OnAborted_.Reset();
     Buffer.clear();
     Closed = true;

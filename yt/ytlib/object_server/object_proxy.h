@@ -17,10 +17,6 @@ struct IObjectProxy
 
     //! Returns object id.
     virtual TObjectId GetId() const = 0;
-
-    //! Returns true iff the change specified by the #context
-    //! requires meta state logging.
-    virtual bool IsLogged(NRpc::IServiceContext* context) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

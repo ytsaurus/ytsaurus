@@ -6,6 +6,7 @@
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
 
@@ -40,6 +41,7 @@ public:
         TConfig* config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
+        NTransactionClient::TTransactionManager* transactionManager,
         const TSchema& schema,
         const NYTree::TYPath& path);
 
@@ -55,6 +57,9 @@ private:
     TConfig::TPtr Config;
     NChunkServer::TChunkListId ChunkListId;
     NTransactionClient::ITransaction::TPtr Transaction;
+    NTransactionClient::TTransactionId TransactionId;
+    NTransactionClient::ITransaction::TPtr UploadTransaction;
+    NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NCypress::TCypressServiceProxy Proxy;
     TChunkSequenceWriter::TPtr Writer;
     NLog::TTaggedLogger Logger;

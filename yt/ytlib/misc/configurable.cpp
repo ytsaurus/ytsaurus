@@ -28,11 +28,11 @@ void TConfigurable::Load(const NYTree::INode* node, const NYTree::TYPath& path)
     TIntrusivePtr<const IMapNode> mapNode;
     try {
         mapNode = node->AsMap();
-    } catch(...) {
+    } catch (const std::exception& ex) {
         ythrow yexception()
             << Sprintf("Configuration must be loaded from a map node (Path: %s)\n%s",
                 ~path,
-                ~CurrentExceptionMessage());
+                ex.what());
     }
     FOREACH (auto pair, Parameters) {
         auto name = pair.First();
@@ -58,10 +58,10 @@ void TConfigurable::Validate(const NYTree::TYPath& path) const
     }
     try {
         DoValidate();
-    } catch (...) {
+    } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Validation failed (Path: %s)\n%s",
             ~path,
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 }
 

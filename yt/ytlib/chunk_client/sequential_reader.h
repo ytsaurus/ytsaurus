@@ -37,8 +37,12 @@ public:
 
         TConfig()
         {
-            Register("prefetch_window_size", PrefetchWindowSize).Default(100).GreaterThan(0);
-            Register("group_size", GroupSize).Default(10).GreaterThan(0);
+            Register("prefetch_window_size", PrefetchWindowSize)
+                .Default(100)
+                .GreaterThan(0);
+            Register("group_size", GroupSize)
+                .Default(10)
+                .GreaterThan(0);
         }
 
         virtual void DoValidate() const

@@ -16,6 +16,7 @@ namespace NLog {
 TLogger::TLogger(const Stroka& category)
     : Category(category)
     , ConfigVersion(0)
+    , LogManager(NULL)
 { }
 
 Stroka TLogger::GetCategory() const
@@ -25,15 +26,13 @@ Stroka TLogger::GetCategory() const
 
 void TLogger::Write(const TLogEvent& event)
 {
-    TLogManager::Get()->Write(event);
+    GetLogManager()->Write(event);
 }
 
-bool TLogger::IsEnabled(ELogLevel level)
+bool TLogger::IsEnabled(ELogLevel level) const
 {
-    // TODO(sandello): Cache pointer to the TLogManager instance in order
-    // to avoid extra locking and synchronization in singleton getter.
-    if (TLogManager::Get()->GetConfigVersion() != ConfigVersion) {
-        UpdateConfig();
+    if (GetLogManager()->GetConfigVersion() != ConfigVersion) {
+        const_cast<TLogger*>(this)->UpdateConfig();
     }
 
     return level >= MinLevel;
@@ -41,10 +40,18 @@ bool TLogger::IsEnabled(ELogLevel level)
 
 void TLogger::UpdateConfig()
 {
-    TLogManager::Get()->GetLoggerConfig(
+    GetLogManager()->GetLoggerConfig(
         Category,
         &MinLevel,
         &ConfigVersion);
+}
+
+TLogManager* TLogger::GetLogManager() const
+{
+    if (!LogManager) {
+        LogManager = TLogManager::Get();
+    }
+    return LogManager;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
