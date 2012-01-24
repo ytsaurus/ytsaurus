@@ -27,7 +27,7 @@ const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjec
 
 i32 hash<NYT::NCypress::TVersionedNodeId>::operator()(const NYT::NCypress::TVersionedNodeId& id) const
 {
-    return static_cast<i32>(THash<NYT::TGuid>()(id.NodeId)) * 497 +
+    return static_cast<i32>(THash<NYT::TGuid>()(id.ObjectId)) * 497 +
         static_cast<i32>(THash<NYT::TGuid>()(id.TransactionId));
 }
 
@@ -37,8 +37,8 @@ namespace NCypress {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType)
-    : ParentId_(NullNodeId)
-    , AttributesId_(NullNodeId)
+    : ParentId_(NullObjectId)
+    , AttributesId_(NullObjectId)
     , State_(ENodeState::Uncommitted)
     , Id(id)
     , ObjectType(objectType)
@@ -216,7 +216,7 @@ ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(
         this,
         ~CypressManager,
         transactionId,
-        node.GetId().NodeId);
+        node.GetId().ObjectId);
 }
 
 void TListNode::Save(TOutputStream* output) const
@@ -260,7 +260,7 @@ ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(
         this,
         ~CypressManager,
         transactionId,
-        node.GetId().NodeId);
+        node.GetId().ObjectId);
 }
 
 void TListNodeTypeHandler::DoDestroy(TListNode& node)

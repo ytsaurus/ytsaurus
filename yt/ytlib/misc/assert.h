@@ -20,7 +20,7 @@ namespace NYT {
                     assert(0&&(expr)); \
                 } \
             } \
-        } catch (...) { \
+        } catch (const std::exception& ex) { \
             if (YaIsDebuggerPresent()) { \
                 __debugbreak(); \
             } else { \

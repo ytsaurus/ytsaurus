@@ -33,6 +33,66 @@ TObjectId CreateId(EObjectType type, TCellId cellId, ui64 counter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTransactionId NullTransactionId = NObjectServer::NullObjectId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVersionedObjectId::TVersionedObjectId()
+{ }
+
+TVersionedObjectId::TVersionedObjectId(const TObjectId& objectId)
+    : ObjectId(objectId)
+{ }
+
+TVersionedObjectId::TVersionedObjectId(const TObjectId& objectId, const TTransactionId& transactionId)
+    : ObjectId(objectId)
+    , TransactionId(transactionId)
+{ }
+
+bool TVersionedObjectId::IsBranched() const
+{
+    return TransactionId != NullTransactionId;
+}
+
+Stroka TVersionedObjectId::ToString() const
+{
+    return Sprintf("%s:%s",
+        ~ObjectId.ToString(),
+        ~TransactionId.ToString());
+}
+
+TVersionedObjectId TVersionedObjectId::FromString(const Stroka& str)
+{
+    auto tokens = splitStroku(str, ":");
+    if (tokens.size() < 1 || 2 < tokens.size()) {
+        ythrow yexception() << Sprintf("Invalid number of tokens in %s", ~str.Quote());
+    }
+
+    auto objectId = TObjectId::FromString(tokens[0]);
+    auto transactionId =
+        tokens.size() == 2
+        ? TTransactionId::FromString(tokens[1])
+        : NullTransactionId;
+    return TVersionedObjectId(objectId, transactionId);
+}
+
+bool operator == (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs)
+{
+    return memcmp(&lhs, &rhs, sizeof (TVersionedObjectId)) == 0;
+}
+
+bool operator != (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs)
+{
+    return !(lhs == rhs);
+}
+
+bool operator < (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs)
+{
+    return memcmp(&lhs, &rhs, sizeof (TVersionedObjectId)) < 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NObjectServer
 } // namespace NYT
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "id.h"
+#include "common.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/id_generator.h>

@@ -128,7 +128,7 @@ public:
             ~CypressManager,
             ~ChunkManager,
             transactionId,
-            node.GetId().NodeId);
+            node.GetId().ObjectId);
     }
 
 protected:

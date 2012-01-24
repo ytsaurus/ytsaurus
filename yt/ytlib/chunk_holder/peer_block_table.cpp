@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "block_table.h"
+#include "peer_block_table.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -10,11 +10,11 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockTable::TBlockTable(TBlockTableConfig* config)
+TPeerBlockTable::TPeerBlockTable(TPeerBlockTableConfig* config)
     : Config(config)
 { }
 
-const yvector<TPeerInfo>& TBlockTable::GetPeers(const TBlockId& blockId)
+const yvector<TPeerInfo>& TPeerBlockTable::GetPeers(const TBlockId& blockId)
 {
     SweepAllExpiredPeers();
 
@@ -28,7 +28,7 @@ const yvector<TPeerInfo>& TBlockTable::GetPeers(const TBlockId& blockId)
     }
 }
 
-void TBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
+void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
 {
     LOG_DEBUG("Updating peer (BlockId: %s, Address: %s, ExpirationTime: %s)",
         ~blockId.ToString(),
@@ -61,7 +61,7 @@ void TBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
     }
 }
 
-void TBlockTable::SweepAllExpiredPeers()
+void TPeerBlockTable::SweepAllExpiredPeers()
 {
     if (TInstant::Now() < LastSwept + Config->SweepPeriod) {
         return;
@@ -84,7 +84,7 @@ void TBlockTable::SweepAllExpiredPeers()
     LOG_DEBUG("All expired peers were swept");
 }
 
-void TBlockTable::SweepExpiredPeers(yvector<TPeerInfo>& peers)
+void TPeerBlockTable::SweepExpiredPeers(yvector<TPeerInfo>& peers)
 {
     auto now = TInstant::Now();
 
@@ -96,7 +96,7 @@ void TBlockTable::SweepExpiredPeers(yvector<TPeerInfo>& peers)
     peers.erase(it, peers.end());
 }
 
-yvector<TPeerInfo>& TBlockTable::GetMutablePeers(const TBlockId& blockId)
+yvector<TPeerInfo>& TPeerBlockTable::GetMutablePeers(const TBlockId& blockId)
 {
     auto it = Table.find(blockId);
     if (it != Table.end())

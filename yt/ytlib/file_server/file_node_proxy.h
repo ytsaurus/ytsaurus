@@ -23,7 +23,7 @@ public:
         NCypress::INodeTypeHandler* typeHandler,
         NCypress::TCypressManager* cypressManager,
         NChunkServer::TChunkManager* chunkManager,
-        const NTransactionServer::TTransactionId& transactionId,
+        const NObjectServer::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
 
     bool IsExecutable();

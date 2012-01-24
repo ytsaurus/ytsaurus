@@ -3,7 +3,7 @@
 #include "chunk_store.h"
 #include "chunk_cache.h"
 #include "block_store.h"
-#include "block_table.h"
+#include "peer_block_table.h"
 #include "session_manager.h"
 
 #include <ytlib/misc/serialize.h>
@@ -32,7 +32,7 @@ TChunkHolderService::TChunkHolderService(
     TChunkCache* chunkCache,
     TReaderCache* readerCache,
     TBlockStore* blockStore,
-    TBlockTable* blockTable,
+    TPeerBlockTable* blockTable,
     TSessionManager* sessionManager)
     : NRpc::TServiceBase(
         serviceInvoker,

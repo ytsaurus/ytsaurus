@@ -42,7 +42,7 @@ void TReadCommand::DoExecute(TReadRequest* request)
             writer.OnEndMap();
             stream->Write('\n');
         }
-    } catch (...) {
+    } catch (const std::exception& ex) {
         reader->Close();
         throw;
     }
@@ -215,7 +215,7 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
                 reader.ReadNext();
             }
         }
-    } catch (...) {
+    } catch (const std::exception& ex) {
         // TODO: uncomment this once Cancel is ready
         // writer->Cancel();
         throw;

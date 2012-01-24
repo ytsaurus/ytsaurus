@@ -68,7 +68,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
     config->Validate();
     
     TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&stream, EFormat::Binary);
     auto keys = GetKeys(config->MaxSize);
     auto size = GetSize();
 

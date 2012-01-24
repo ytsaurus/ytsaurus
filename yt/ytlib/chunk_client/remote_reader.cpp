@@ -487,7 +487,7 @@ private:
                 YASSERT(block);
                 
                 // If we don't publish peer we should forget source address
-                // to avoid updating peer in TPeerUpdater.
+                // to avoid updating peer in TPeerBlockUpdater.
                 Stroka source;
                 if (Reader->Config->PublishPeer) {
                     source = address;

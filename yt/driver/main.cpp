@@ -232,7 +232,7 @@ public:
             NLog::TLogManager::Get()->Configure(~config->Logging);
 
             if (results.Has(&formatOpt)) {
-                config->OutputFormat = TYsonWriter::EFormat::FromString(formatStr);
+                config->OutputFormat = EFormat::FromString(formatStr);
             }
 
             HaltOnError = results.Has(&haltOnErrorOpt);

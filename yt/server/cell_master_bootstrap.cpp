@@ -255,7 +255,7 @@ void TCellMasterBootstrap::Run()
                     }
                     return ~cypressManager->GetNodeProxy(
                         cypressManager->GetRootNodeId(),
-                        NTransactionServer::NullTransactionId);
+                        NObjectServer::NullTransactionId);
                 }),
             ~metaStateManager->GetStateInvoker()));
 

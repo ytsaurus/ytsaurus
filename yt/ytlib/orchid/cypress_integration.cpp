@@ -42,9 +42,9 @@ public:
         try {
             Manifest = New<TOrchidManifest>();
             Manifest->LoadAndValidate(~manifestNode);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
-                ~CurrentExceptionMessage());
+                ex.what());
         }
 
         auto channel = ChannelCache.GetChannel(Manifest->RemoteAddress);

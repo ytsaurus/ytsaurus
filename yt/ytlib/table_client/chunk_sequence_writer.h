@@ -59,7 +59,7 @@ public:
     TChunkSequenceWriter(
         TConfig* config,
         NRpc::IChannel* masterChannel,
-        const NTransactionServer::TTransactionId& transactionId,
+        const NObjectServer::TTransactionId& transactionId,
         const TSchema& schema);
 
     ~TChunkSequenceWriter();
@@ -92,7 +92,7 @@ private:
 
     TConfig::TPtr Config;
     TProxy Proxy;
-    const NTransactionServer::TTransactionId TransactionId;
+    const NObjectServer::TTransactionId TransactionId;
     const TSchema Schema;
 
     TAsyncStreamState State;

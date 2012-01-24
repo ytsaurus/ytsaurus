@@ -428,7 +428,7 @@ void TYsonReaderBase::ParseNumeric()
         i64 value;
         try {
             value = FromString<i64>(str);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON %s",
                 ~str.Quote(),
                 ~GetPositionInfo());
@@ -444,7 +444,7 @@ void TYsonReaderBase::ParseNumeric()
         double value;
         try {
             value = FromString<double>(str);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Failed to parse \"Double\" literal %s in YSON %s",
                 ~str.Quote(),
                 ~GetPositionInfo());

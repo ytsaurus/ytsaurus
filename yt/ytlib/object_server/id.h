@@ -97,6 +97,67 @@ TObjectId CreateId(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef TObjectId TTransactionId;
+extern TTransactionId NullTransactionId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Identifies a node possibly branched by a transaction.
+struct TVersionedObjectId
+{
+    //! Id of the node itself.
+    TObjectId ObjectId;
+
+    //! Id of the transaction that had branched the node.
+    //! #NullTransactionId if the node is not branched.
+    TTransactionId TransactionId;
+
+    //! Initializes a null instance.
+    /*!
+     *  #NodeId id #NullObjectId, #TransactionId is #NullTransactionId.
+     */
+    TVersionedObjectId();
+
+    //! Initializes an instance by given node. Sets #TransactionId to #NullTransactionId.
+    /*!
+     *  Can be used for implicit conversion from TNodeId to TVersionedNodeId.
+     */
+    TVersionedObjectId(const TObjectId& objectId);
+
+    //! Initializes an instance by given node and transaction ids.
+    TVersionedObjectId(const TObjectId& objectId, const TTransactionId& transactionId);
+
+    //! Checks that the id is branched, i.e. #TransactionId is not #NullTransactionId.
+    bool IsBranched() const;
+
+    //! Formats the id to string (for debugging and logging purposes mainly).
+    Stroka ToString() const;
+
+    static TVersionedObjectId FromString(const Stroka &s);
+};
+
+//! Compares TVersionedNodeId s for equality.
+bool operator == (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
+
+//! Compares TVersionedNodeId s for inequality.
+bool operator != (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
+
+//! Compares TVersionedNodeId s for "less than" (used to sort nodes in meta-map).
+bool operator <  (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
+
 } // namespace NObjectServer
 } // namespace NYT
+
+DECLARE_PODTYPE(NYT::NObjectServer::TVersionedObjectId);
+
+//! A hasher for TVersionedNodeId.
+template <>
+struct hash<NYT::NObjectServer::TVersionedObjectId>
+{
+    // TODO(roizner): Why is it not implemented?
+    i32 operator() (const NYT::NObjectServer::TVersionedObjectId& id) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 

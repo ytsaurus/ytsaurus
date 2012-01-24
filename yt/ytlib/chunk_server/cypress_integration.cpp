@@ -7,7 +7,6 @@
 #include <ytlib/cypress/virtual.h>
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
-#include <ytlib/chunk_client/block_id.h>
 #include <ytlib/orchid/cypress_integration.h>
 
 namespace NYT {
@@ -16,7 +15,6 @@ namespace NChunkServer {
 using namespace NYTree;
 using namespace NCypress;
 using namespace NMetaState;
-using namespace NChunkClient;
 using namespace NOrchid;
 using namespace NObjectServer;
 
@@ -271,7 +269,7 @@ private:
 
     Stroka GetAddress(const ICypressNode& node)
     {
-        auto proxy = CypressManager->GetNodeProxy(node.GetId().NodeId, NullTransactionId);
+        auto proxy = CypressManager->GetNodeProxy(node.GetId().ObjectId, NullTransactionId);
         return proxy->GetParent()->AsMap()->GetChildKey(~proxy);
     }
 

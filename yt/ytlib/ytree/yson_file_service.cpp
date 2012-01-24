@@ -173,11 +173,11 @@ private:
         try {
             TOFStream stream(FileName);
             // TODO(babenko): make format configurable
-            SerializeToYson(~Root, stream, TYsonWriter::EFormat::Pretty);
-        } catch (...) {
+            SerializeToYson(~Root, stream, EFormat::Pretty);
+        } catch (const std::exception& ex) {
             throw yexception() << Sprintf("Error saving YSON file %s\n%s",
                 ~FileName.Quote(),
-                ~CurrentExceptionMessage());
+                ex.what());
         }
     }
 };
@@ -226,10 +226,10 @@ private:
         try {
             TIFStream stream(FileName);
            return DeserializeFromYson(&stream);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             throw yexception() << Sprintf("Error loading YSON file %s\n%s",
                 ~FileName.Quote(),
-                ~CurrentExceptionMessage());
+                ex.what());
         }
     }
 };

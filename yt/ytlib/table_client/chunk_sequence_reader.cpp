@@ -13,7 +13,7 @@ using namespace NChunkServer;
 TChunkSequenceReader::TChunkSequenceReader(
     TConfig* config,
     const TChannel& channel,
-    const NTransactionServer::TTransactionId& transactionId,
+    const NObjectServer::TTransactionId& transactionId,
     NRpc::IChannel* masterChannel,
     NChunkClient::IBlockCache* blockCache,
     const yvector<TChunkId>& chunkIds,

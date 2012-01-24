@@ -40,7 +40,7 @@ struct ICypressNode
     virtual void Load(TInputStream* input) = 0;
 
     //! Returns the id of the node (which is the key in the respective meta-map).
-    virtual TVersionedNodeId GetId() const = 0;
+    virtual TVersionedObjectId GetId() const = 0;
 
     // TODO: maybe propertify?
     //! Gets the state of node.

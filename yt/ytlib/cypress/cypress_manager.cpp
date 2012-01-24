@@ -429,10 +429,10 @@ void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
     if (!behavior)
         return;
 
-    YVERIFY(NodeBehaviors.insert(MakePair(nodeId.NodeId, behavior)).Second());
+    YVERIFY(NodeBehaviors.insert(MakePair(nodeId.ObjectId, behavior)).Second());
 
     LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)",
-        ~nodeId.NodeId.ToString());
+        ~nodeId.ObjectId.ToString());
 }
 
 void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
@@ -441,7 +441,7 @@ void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
     if (nodeId.IsBranched())
         return;
 
-    auto it = NodeBehaviors.find(nodeId.NodeId);
+    auto it = NodeBehaviors.find(nodeId.ObjectId);
     if (it == NodeBehaviors.end())
         return;
 
@@ -449,7 +449,7 @@ void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
     NodeBehaviors.erase(it);
 
     LOG_DEBUG_IF(!IsRecovery(), "Node behavior destroyed (NodeId: %s)",
-        ~nodeId.NodeId.ToString());
+        ~nodeId.ObjectId.ToString());
 }
 
 TNodeId TCypressManager::GetRootNodeId()
@@ -570,7 +570,7 @@ ICypressNodeProxy::TPtr TCypressManager::FindNodeProxy(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YASSERT(nodeId != NullNodeId);
+    YASSERT(nodeId != NullObjectId);
     const auto* impl = FindVersionedNode(nodeId, transactionId);
     if (!impl) {
         return NULL;
@@ -612,7 +612,7 @@ bool TCypressManager::IsLockNeeded(
 
     // Walk up to the root and examine the locks.
     auto currentNodeId = nodeId;
-    while (currentNodeId != NullNodeId) {
+    while (currentNodeId != NullObjectId) {
         const auto& currentImpl = NodeMap.Get(currentNodeId);
         FOREACH (const auto& lockId, currentImpl.LockIds()) {
             const auto& lock = GetLock(lockId);
@@ -662,7 +662,7 @@ TLockId TCypressManager::LockTransactionNode(
 
     // Walk up to the root and apply locks.
     auto currentNodeId = nodeId;
-    while (currentNodeId != NullNodeId) {
+    while (currentNodeId != NullObjectId) {
         auto& impl = NodeMap.GetForUpdate(currentNodeId);
         impl.LockIds().insert(lock.GetId());
         currentNodeId = impl.GetParentId();
@@ -766,7 +766,7 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YASSERT(!node.GetId().IsBranched());
-    auto nodeId = node.GetId().NodeId;
+    auto nodeId = node.GetId().ObjectId;
 
     // Create a branched node and initialize its state.
     auto branchedNode = GetHandler(node)->Branch(node, transactionId);
@@ -822,7 +822,7 @@ void TCypressManager::Clear()
         EObjectType::MapNode);
     rootImpl->SetState(ENodeState::Committed);
     NodeMap.Insert(rootImpl->GetId(), rootImpl);
-    ObjectManager->RefObject(rootImpl->GetId().NodeId);
+    ObjectManager->RefObject(rootImpl->GetId().ObjectId);
 }
 
 void TCypressManager::OnLeaderRecoveryComplete()
@@ -902,7 +902,7 @@ void TCypressManager::ReleaseLocks(TTransaction& transaction)
 
         // Walk up to the root and remove the locks.
         auto currentNodeId = lock.GetNodeId();
-        while (currentNodeId != NullNodeId) {
+        while (currentNodeId != NullObjectId) {
             auto& node = NodeMap.GetForUpdate(currentNodeId);
             YVERIFY(node.LockIds().erase(lockId) == 1);
             currentNodeId = node.GetParentId();

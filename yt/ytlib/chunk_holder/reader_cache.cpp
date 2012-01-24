@@ -58,10 +58,10 @@ public:
                 auto reader = New<TCachedReader>(chunkId, fileName);
                 reader->Open();
                 cookie.EndInsert(reader);
-            } catch (...) {
+            } catch (const std::exception& ex) {
                 LOG_FATAL("Error opening chunk (ChunkId: %s)\n%s",
                     ~chunkId.ToString(),
-                    ~CurrentExceptionMessage());
+                    ex.what());
             }
         }
 

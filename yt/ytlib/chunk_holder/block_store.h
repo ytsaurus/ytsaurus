@@ -13,14 +13,14 @@ namespace NChunkHolder {
 
 //! Represents a cached block of chunk.
 class TCachedBlock
-    : public TCacheValueBase<NChunkClient::TBlockId, TCachedBlock>
+    : public TCacheValueBase<TBlockId, TCachedBlock>
 {
 public:
     typedef TIntrusivePtr<TCachedBlock> TPtr;
 
     //! Constructs a new block from id and data.
     TCachedBlock(
-        const NChunkClient::TBlockId& blockId,
+        const TBlockId& blockId,
         const TSharedRef& data,
         const Stroka& source);
 
@@ -58,14 +58,14 @@ public:
      * (i.e. requires no context switch). Fetching an uncached block
      * enqueues a disk-read action to the appropriate IO queue.
      */
-    TAsyncGetBlockResult::TPtr GetBlock(const NChunkClient::TBlockId& blockId);
+    TAsyncGetBlockResult::TPtr GetBlock(const TBlockId& blockId);
 
     //! Tries to find a block in the cache.
     /*!
      *  If the block is not available immediately, it returns NULL.
      *  No IO is queued.
      */
-    TCachedBlock::TPtr FindBlock(const NChunkClient::TBlockId& blockId);
+    TCachedBlock::TPtr FindBlock(const TBlockId& blockId);
 
     //! Puts a block into the store.
     /*!
@@ -73,7 +73,7 @@ public:
      *  In this case the block content is checked for identity.
      */
     TCachedBlock::TPtr PutBlock(
-        const NChunkClient::TBlockId& blockId,
+        const TBlockId& blockId,
         const TSharedRef& data,
         const Stroka& source);
 

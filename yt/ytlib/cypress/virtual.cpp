@@ -117,7 +117,7 @@ public:
         auto typedNode = dynamic_cast<const TVirtualNode&>(node);
 
         TVirtualYPathContext context;
-        context.NodeId = node.GetId().NodeId;
+        context.NodeId = node.GetId().ObjectId;
         context.TransactionId = transactionId;
         context.Manifest = typedNode.GetManifest();
 
@@ -127,7 +127,7 @@ public:
             this,
             ~CypressManager,
             transactionId,
-            node.GetId().NodeId,
+            node.GetId().ObjectId,
             ~service);
     }
 

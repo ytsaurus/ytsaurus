@@ -68,7 +68,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             TStringStream stream;
-            TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+            TYsonWriter writer(&stream, EFormat::Binary);
 
             writer.OnBeginMap();
 
@@ -126,7 +126,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
     UNUSED(request);
     
     TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&stream, EFormat::Binary);
     TTreeVisitor visitor(&writer, false);
     visitor.Visit(this);
 
@@ -566,10 +566,10 @@ int TListNodeMixin::ParseChildIndex(const TStringBuf& str)
     int index;
     try {
         index = FromString<int>(str);
-    } catch (...) {
+    } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Failed to parse index %s\n%s",
             ~Stroka(str).Quote(),
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     int count = GetChildCount();

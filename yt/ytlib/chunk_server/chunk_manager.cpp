@@ -20,8 +20,6 @@
 #include <ytlib/meta_state/map.h>
 #include <ytlib/object_server/type_handler_detail.h>
 #include <ytlib/ytree/fluent.h>
-// TODO(babenko): get rid of this once TBlockId is moved to NChunkServer
-#include <ytlib/chunk_client/block_id.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -1028,7 +1026,7 @@ private:
 
             if (name == "chunk_type") {
                 auto attributes = chunk.DeserializeAttributes();
-                auto type = NChunkClient::EChunkType(attributes.type());
+                auto type = EChunkType(attributes.type());
                 BuildYsonFluently(consumer)
                     .Scalar(CamelCaseToUnderscoreCase(type.ToString()));
                 return true;

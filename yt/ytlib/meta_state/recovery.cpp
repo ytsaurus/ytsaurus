@@ -308,10 +308,10 @@ void TRecovery::ApplyChangeLog(
         auto version = MetaState->GetVersion();
         try {
             MetaState->ApplyChange(changeData);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             LOG_DEBUG("Failed to apply the change during recovery (Version: %s)\n%s",
                 ~version.ToString(),
-                ~CurrentExceptionMessage());
+                ex.what());
         }
     }
 
@@ -481,10 +481,10 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
                 MetaState->LogChange(version, change.ChangeData);
                 try {
                     MetaState->ApplyChange(change.ChangeData);
-                } catch (...) {
+                } catch (const std::exception& ex) {
                     LOG_DEBUG("Failed to apply the change during recovery (Version: %s)\n%s",
                         ~version.ToString(),
-                        ~CurrentExceptionMessage());
+                        ex.what());
                 }
                 break;
             }

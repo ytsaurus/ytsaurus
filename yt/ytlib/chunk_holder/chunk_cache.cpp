@@ -138,8 +138,8 @@ private:
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
                 FileWriter = New<TChunkFileWriter>(ChunkId, fileName);
-            } catch (...) {
-                LOG_FATAL("Error opening cached chunk for writing\n%s", ~CurrentExceptionMessage());
+            } catch (const std::exception& ex) {
+                LOG_FATAL("Error opening cached chunk for writing\n%s", ex.what());
             }
 
             RemoteReader = CreateRemoteReader(
@@ -303,8 +303,8 @@ TChunkCache::TChunkCache(
             auto chunk = New<TCachedChunk>(~location, descriptor, this);
             Impl->Put(~chunk);
         }
-    } catch (...) {
-        LOG_FATAL("Failed to initialize storage locations\n%s", ~CurrentExceptionMessage());
+    } catch (const std::exception& ex) {
+        LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
     }
 
     LOG_INFO("Chunk cache scan completed, %d chunk(s) total", GetChunkCount());

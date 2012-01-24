@@ -51,9 +51,9 @@ i64 TLocation::GetAvailableSpace() const
     
     try {
         AvailableSpace = NFS::GetAvailableSpace(path);
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Failed to compute available space\n%s",
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     i64 remainingQuota = Max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
