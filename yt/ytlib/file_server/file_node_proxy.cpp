@@ -33,12 +33,8 @@ TFileNodeProxy::TFileNodeProxy(
 
 void TFileNodeProxy::DoInvoke(IServiceContext* context)
 {
-    Stroka verb = context->GetVerb();
-    if (verb == "Fetch") {
-        FetchThunk(context);
-    } else {
-        TBase::DoInvoke(context);
-    }
+    DISPATCH_YPATH_SERVICE_METHOD(Fetch);
+    TBase::DoInvoke(context);
 }
 
 bool TFileNodeProxy::IsExecutable()

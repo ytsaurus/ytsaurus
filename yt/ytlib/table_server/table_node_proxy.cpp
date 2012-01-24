@@ -31,14 +31,9 @@ TTableNodeProxy::TTableNodeProxy(
 
 void TTableNodeProxy::DoInvoke(IServiceContext* context)
 {
-    Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListForUpdate") {
-        GetChunkListForUpdateThunk(context);
-    } else if (verb == "Fetch") {
-        FetchThunk(context);
-    } else {
-        TBase::DoInvoke(context);
-    }
+    DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
+    DISPATCH_YPATH_SERVICE_METHOD(Fetch);
+    TBase::DoInvoke(context);
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const

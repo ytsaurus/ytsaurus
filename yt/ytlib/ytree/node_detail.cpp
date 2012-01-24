@@ -40,21 +40,12 @@ IYPathService::TResolveResult TNodeBase::ResolveAttributes(const TYPath& path, c
 
 void TNodeBase::DoInvoke(IServiceContext* context)
 {
-    Stroka verb = context->GetVerb();
-    // TODO: use method table
-    if (verb == "Get") {
-        GetThunk(context);
-    } else if (verb == "GetNode") {
-        GetNodeThunk(context);
-    } else if (verb == "Set") {
-        SetThunk(context);
-    } else if (verb == "SetNode") {
-        SetNodeThunk(context);
-    } else if (verb == "Remove") {
-        RemoveThunk(context);
-    } else {
-        TYPathServiceBase::DoInvoke(context);
-    }
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    DISPATCH_YPATH_SERVICE_METHOD(GetNode);
+    DISPATCH_YPATH_SERVICE_METHOD(Set);
+    DISPATCH_YPATH_SERVICE_METHOD(SetNode);
+    DISPATCH_YPATH_SERVICE_METHOD(Remove);
+    TYPathServiceBase::DoInvoke(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

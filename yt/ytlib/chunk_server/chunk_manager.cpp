@@ -1174,14 +1174,9 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Attach") {
-            AttachThunk(context);
-        } else if (verb == "Detach") {
-            DetachThunk(context);
-        } else {
-            TBase::DoInvoke(context);
-        }
+        DISPATCH_YPATH_SERVICE_METHOD(Attach);
+        DISPATCH_YPATH_SERVICE_METHOD(Detach);
+        TBase::DoInvoke(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Attach)
