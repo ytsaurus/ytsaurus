@@ -129,6 +129,17 @@ bool TUntypedObjectProxyBase::GetSystemAttribute(const Stroka& name, IYsonConsum
     return false;
 }
 
+bool TUntypedObjectProxyBase::SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer)
+{
+    UNUSED(producer);
+
+    if (name == "id" || name == "type" || name == "ref_counter") {
+        throw yexception() << Sprintf("The %s system attribute cannot be set", ~name.Quote());
+    }
+
+    return false;
+}
+
 void TUntypedObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetId);

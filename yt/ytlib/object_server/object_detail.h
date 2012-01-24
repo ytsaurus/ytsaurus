@@ -96,7 +96,7 @@ protected:
 
     virtual void GetSystemAttributeNames(yvector<Stroka>* names);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
-    
+
     //! Returns false if there is no system attribute with the given name.
     //! Throws if the system attribute cannot be set.
     virtual bool SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer);
