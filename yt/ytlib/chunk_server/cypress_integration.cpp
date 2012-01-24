@@ -445,8 +445,7 @@ private:
                 {
                     Stroka address = pair.first;
                     if (!ChunkManager->FindHolder(address)) {
-                        param.Consumer->OnListItem();
-                        param.Consumer->OnStringScalar(address);
+                        fluent.Item().Scalar(address);
                     }
                 });
     }
