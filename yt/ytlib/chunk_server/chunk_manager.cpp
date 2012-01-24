@@ -1119,7 +1119,10 @@ TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
 {
     UNUSED(transactionId);
     UNUSED(manifest);
-    return Owner->CreateChunk().GetId();
+
+    auto id = Owner->CreateChunk().GetId();
+    SetAttributes(id, manifest);
+    return id;
 }
 
 void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk& chunk)
@@ -1243,7 +1246,10 @@ TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(
 {
     UNUSED(transactionId);
     UNUSED(manifest);
-    return Owner->CreateChunkList().GetId();
+
+    auto id = Owner->CreateChunkList().GetId();
+    SetAttributes(id, manifest);
+    return id;
 }
 
 void TChunkManager::TChunkListTypeHandler::OnObjectDestroyed(TChunkList& chunkList)

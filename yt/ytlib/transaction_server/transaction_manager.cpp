@@ -225,7 +225,9 @@ public:
             ? NULL
             : &Owner->GetTransactionForUpdate(transactionId);
 
-        return Owner->Start(parent, ~manifest).GetId();
+        auto id = Owner->Start(parent, ~manifest).GetId();
+        SetAttributes(id, manifestNode);
+        return id;
     }
 
     virtual bool IsTransactionRequired() const

@@ -4,6 +4,7 @@
 #include "object_detail.h"
 #include "object_manager.h"
 
+#include <ytlib/ytree/serialize.h>
 #include <ytlib/meta_state/map.h>
 
 namespace NYT {
@@ -86,6 +87,23 @@ protected:
     virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id)
     {
         return New< TObjectProxyBase<TObject> >(~ObjectManager, id, Map);
+    }
+
+    void SetAttributes(const TObjectId& id, NYTree::IMapNode* manifest)
+    {
+        if (manifest->GetChildCount() == 0)
+            return;
+
+        auto* attributes = ObjectManager->FindAttributesForUpdate(id);
+        if (!attributes) {
+            attributes = ObjectManager->CreateAttributes(id);
+        }
+
+        FOREACH (const auto& pair, manifest->GetChildren()) {
+            const auto& key = pair.first;
+            auto value = NYTree::SerializeToYson(~pair.second);
+            YVERIFY(attributes->Attributes().insert(MakePair(key, value)).second);
+        }
     }
 };
 
