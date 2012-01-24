@@ -150,9 +150,9 @@ void LoadMap(TInputStream* input, TMap& map)
     map.clear();
     size_t size = ::LoadSize(input);
     for (size_t index = 0; index < size; ++index) {
-        TMap::key_type key;
+        typename TMap::key_type key;
         ::Load(input, key);
-        TMap::mapped_type value;
+        typename TMap::mapped_type value;
         ::Load(input, value);
         YVERIFY(map.insert(MakePair(key, value)).second);
     }
