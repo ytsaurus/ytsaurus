@@ -135,15 +135,15 @@ TFuture<TVoid>::TPtr TObjectManager::Save(const TCompositeMetaState::TSaveContex
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto* output = context.Output;
+    auto invoker = context.Invoker;
+
     auto counter = Counter;
-    return
-        FromFunctor([=] () -> TVoid
-            {
-                ::Save(output, counter);
-                return TVoid();
-            })
-        ->AsyncVia(context.Invoker)
-        ->Do();
+    invoker->Invoke(FromFunctor([=] ()
+        {
+            ::Save(output, counter);
+        }));
+    
+    return Attributes.Save(invoker, output);
 }
 
 void TObjectManager::Load(TInputStream* input)
@@ -151,6 +151,7 @@ void TObjectManager::Load(TInputStream* input)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     ::Load(input, Counter);
+    Attributes.Load(input);
 }
 
 void TObjectManager::Clear()
@@ -186,6 +187,21 @@ IObjectProxy::TPtr TObjectManager::GetProxy(const TObjectId& id)
     YASSERT(proxy);
     return proxy;
 }
+
+
+TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
+{
+    auto result = new TAttributeSet();
+    Attributes.Insert(id, result);
+    return result;
+}
+
+void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
+{
+    Attributes.Remove(id);
+}
+
+DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 

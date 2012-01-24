@@ -16,6 +16,10 @@ INode::TPtr CloneNode(
 
 TYsonProducer::TPtr ProducerFromYson(TInputStream* input);
 
+TYsonProducer::TPtr ProducerFromYson(const TYson& data);
+
+TYsonProducer::TPtr ProducerFromNode(const INode* node);
+
 INode::TPtr DeserializeFromYson(
     TInputStream* input,
     INodeFactory* factory = GetEphemeralNodeFactory());

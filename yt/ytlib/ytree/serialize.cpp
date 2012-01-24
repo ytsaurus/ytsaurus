@@ -18,6 +18,21 @@ TYsonProducer::TPtr ProducerFromYson(TInputStream* input)
         });
 }
 
+TYsonProducer::TPtr ProducerFromYson(const TYson& data)
+{
+    TStringInput input(data);
+    return ProducerFromYson(&input);
+}
+
+TYsonProducer::TPtr ProducerFromNode(const INode* node)
+{
+    return FromFunctor([=] (IYsonConsumer* consumer)
+        {
+            TTreeVisitor visitor(consumer);
+            visitor.Visit(node);
+        });
+}
+
 INode::TPtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
