@@ -126,7 +126,7 @@ void TMapNode::Save(TOutputStream* output) const
 void TMapNode::Load(TInputStream* input)
 {
     TCypressNodeBase::Load(input);
-    ::Load(input, ChildToName());
+    LoadMap(input, ChildToName());
     FOREACH(const auto& pair, ChildToName()) {
         NameToChild().insert(MakePair(pair.Second(), pair.First()));
     }
