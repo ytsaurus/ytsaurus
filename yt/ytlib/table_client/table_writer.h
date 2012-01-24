@@ -57,7 +57,7 @@ private:
     TConfig::TPtr Config;
     NChunkServer::TChunkListId ChunkListId;
     NTransactionClient::ITransaction::TPtr Transaction;
-    NTransactionServer::TTransactionId TransactionId;
+    NTransactionClient::TTransactionId TransactionId;
     NTransactionClient::ITransaction::TPtr UploadTransaction;
     NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NCypress::TCypressServiceProxy Proxy;
