@@ -139,21 +139,38 @@ struct TChunkHolderConfig
     {
         // TODO: consider GreaterThan(0)
 
-        Register("max_cached_blocks_size", MaxCachedBlocksSize).GreaterThan(0).Default(1024 * 1024);
-        Register("max_cached_readers", MaxCachedReaders).GreaterThan(0).Default(10);
-        Register("session_timeout", SessionTimeout).Default(TDuration::Seconds(15));
-        Register("heartbeat_period", HeartbeatPeriod).Default(TDuration::Seconds(5));
-        Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(5));
-        Register("rpc_port", RpcPort).Default(9000);
-        Register("monitoring_port", MonitoringPort).Default(10000);
-        Register("peer_update_period", PeerUpdatePeriod).Default(TDuration::Seconds(30));
-        Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout).Default(TDuration::Seconds(40));
-        Register("response_throttling_size", ResponseThrottlingSize).GreaterThan(0).Default(500 * 1024 * 1024);
-        Register("chunk_store_locations", ChunkStorageLocations).NonEmpty();
+        Register("max_cached_blocks_size", MaxCachedBlocksSize)
+            .GreaterThan(0)
+            .Default(1024 * 1024);
+        Register("max_cached_readers", MaxCachedReaders)
+            .GreaterThan(0)
+            .Default(10);
+        Register("session_timeout", SessionTimeout)
+            .Default(TDuration::Seconds(15));
+        Register("heartbeat_period", HeartbeatPeriod)
+            .Default(TDuration::Seconds(5));
+        Register("master_rpc_timeout", MasterRpcTimeout)
+            .Default(TDuration::Seconds(5));
+        Register("rpc_port", RpcPort)
+            .Default(9000);
+        Register("monitoring_port", MonitoringPort)
+            .Default(10000);
+        Register("peer_update_period", PeerUpdatePeriod)
+            .Default(TDuration::Seconds(30));
+        Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
+            .Default(TDuration::Seconds(40));
+        Register("response_throttling_size", ResponseThrottlingSize)
+            .GreaterThan(0)
+            .Default(500 * 1024 * 1024);
+        Register("chunk_store_locations", ChunkStorageLocations)
+            .NonEmpty();
         Register("chunk_cache_location", ChunkCacheLocation);
-        Register("cache_remote_reader", CacheRemoteReader).DefaultNew();
-        Register("cache_sequential_reader", CacheSequentialReader).DefaultNew();
-        Register("block_table", BlockTable).DefaultNew();
+        Register("cache_remote_reader", CacheRemoteReader)
+            .DefaultNew();
+        Register("cache_sequential_reader", CacheSequentialReader)
+            .DefaultNew();
+        Register("block_table", BlockTable)
+            .DefaultNew();
         Register("masters", Masters);
     }
 };
