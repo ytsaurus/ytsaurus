@@ -73,7 +73,7 @@ TMapNodeProxy::TMapNodeProxy(
     TCypressManager* cypressManager,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
-    : TCompositeNodeProxyBase(
+    : TBase(
         typeHandler,
         cypressManager,
         transactionId,
@@ -222,7 +222,7 @@ Stroka TMapNodeProxy::GetChildKey(INode* child)
 void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(List);
-    TCypressNodeProxyBase::DoInvoke(context);
+    TBase::DoInvoke(context);
 }
 
 void TMapNodeProxy::CreateRecursive(const TYPath& path, INode* value)
@@ -272,7 +272,7 @@ TListNodeProxy::TListNodeProxy(
     TCypressManager* cypressManager,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
-    : TCompositeNodeProxyBase(
+    : TBase(
         typeHandler,
         cypressManager,
         transactionId,
