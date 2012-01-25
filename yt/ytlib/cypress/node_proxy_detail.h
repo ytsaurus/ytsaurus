@@ -427,7 +427,7 @@ protected:
     }
 
 protected:
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(yvector<NObjectServer::TObjectProxyBase::TAttributeInfo>* attributes)
     {
         attributes->push_back("size");
         TBase::GetSystemAttributes(attributes);
@@ -465,7 +465,7 @@ protected:
             ythrow yexception() << "Manifest must be a map";
         }
 
-        auto handler = CypressManager->GetObjectManager()->FindHandler(type);
+        auto handler = this->CypressManager->GetObjectManager()->FindHandler(type);
         if (!handler) {
             ythrow yexception() << "Unknown object type";
         }
