@@ -356,12 +356,12 @@ void TTransactionManager::Abort(TTransaction& transaction)
 
 void TTransactionManager::FinishTransaction(TTransaction& transaction)
 {
-    auto id = transaction.GetId();
+    auto transactionId = transaction.GetId();
 
     if (transaction.GetParentId() != NullTransactionId) {
         auto& parent = GetTransactionForUpdate(transaction.GetParentId());
-        YVERIFY(parent.NestedTransactionIds().erase(id) == 1);
-        ObjectManager->UnrefObject(id);
+        YVERIFY(parent.NestedTransactionIds().erase(transactionId) == 1);
+        ObjectManager->UnrefObject(transactionId);
     }
 
     FOREACH (const auto& createdId, transaction.CreatedObjectIds()) {
@@ -369,7 +369,7 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
     }
 
     // Kill the fake reference.
-    ObjectManager->UnrefObject(id);
+    ObjectManager->UnrefObject(transactionId);
 }
 
 void TTransactionManager::RenewLease(const TTransactionId& id)
