@@ -1,6 +1,6 @@
-{do=create;path="/sys/masters/0/orchid";type=orchid;manifest={remote_address="localhost:8001"}}
-{do=create;path="/sys/masters/1/orchid";type=orchid;manifest={remote_address="localhost:8002"}}
-{do=create;path="/sys/masters/2/orchid";type=orchid;manifest={remote_address="localhost:8003"}}
+{do=create;path="/sys/masters/localhost:8001/orchid";type=orchid;manifest={remote_address="localhost:8001"}}
+{do=create;path="/sys/masters/localhost:8002/orchid";type=orchid;manifest={remote_address="localhost:8002"}}
+{do=create;path="/sys/masters/localhost:8003/orchid";type=orchid;manifest={remote_address="localhost:8003"}}
 
 {do=create;path="/sys/holders";type=holder_map}
 
