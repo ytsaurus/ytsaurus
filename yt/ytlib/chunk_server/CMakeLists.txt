@@ -37,6 +37,7 @@ set( HDRS
   ${BASE}/id.h
   ${BASE}/job.h
   ${BASE}/job_list.h
+  ${BASE}/total_holder_statistics.h
 )
 
 list(APPEND YT_SOURCE_FILES

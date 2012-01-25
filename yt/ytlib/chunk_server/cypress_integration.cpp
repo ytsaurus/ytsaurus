@@ -401,6 +401,7 @@ public:
         // NB: No smartpointer for this here.
         RegisterGetter("alive", FromMethod(&TThis::GetAliveHolders, this));
         RegisterGetter("dead", FromMethod(&TThis::GetDeadHolders, this));
+        RegisterGetter("total_statistics", FromMethod(&TThis::GetDeadHolders, this));
     }
 
     virtual EObjectType GetObjectType()
@@ -448,6 +449,18 @@ private:
                         fluent.Item().Scalar(address);
                     }
                 });
+    }
+
+    void GetTotalStatistics(const TGetAttributeParam& param)
+    {
+        auto totalStatistics = ChunkManager->GetTotalHolderStatistics();
+        BuildYsonFluently(param.Consumer)
+            .BeginMap()
+                .Item("available_space").Scalar(totalStatistics.AvailbaleSpace)
+                .Item("used_space").Scalar(totalStatistics.UsedSpace)
+                .Item("chunk_count").Scalar(totalStatistics.ChunkCount)
+                .Item("session_count").Scalar(totalStatistics.SessionCount)
+            .EndMap();
     }
 };
 

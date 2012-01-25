@@ -262,7 +262,7 @@ public:
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
     void FillHolderAddresses(
-        ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
+        ::google::protobuf::RepeatedPtrField<TProtoStringType>* addresses,
         const TChunk& chunk)
     {
         FOREACH (auto holderId, chunk.StoredLocations()) {
@@ -276,6 +276,23 @@ public:
                 addresses->Add()->assign(holder.GetAddress());
             }
         }
+    }
+
+    TTotalHolderStatistics GetTotalHolderStatistics() const
+    {
+        TTotalHolderStatistics totalStatistics;
+        auto keys = HolderMap.GetKeys();
+        FOREACH (const auto& key, keys) {
+            const THolder* holder = HolderMap.Find(key);
+            if (holder) {
+                const auto& statistics = holder->Statistics();
+                totalStatistics.AvailbaleSpace += statistics.available_space();
+                totalStatistics.UsedSpace += statistics.used_space();
+                totalStatistics.ChunkCount += statistics.chunk_count();
+                totalStatistics.SessionCount += statistics.session_count();
+            }
+        }
+        return totalStatistics;
     }
 
 private:
@@ -1360,6 +1377,12 @@ void TChunkManager::FillHolderAddresses(
 {
     Impl->FillHolderAddresses(addresses, chunk);
 }
+
+TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics() const
+{
+    Impl->GetTotalHolderStatistics();
+}
+
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
