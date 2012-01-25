@@ -34,7 +34,7 @@ void TConfigurable::Load(const NYTree::INode* node, const NYTree::TYPath& path)
                 ~path,
                 ex.what());
     }
-    FOREACH (auto pair, Parameters) {
+    FOREACH (const auto& pair, Parameters) {
         auto name = pair.First();
         auto childPath = CombineYPaths(path, name);
         auto child = mapNode->FindChild(name); // can be NULL
