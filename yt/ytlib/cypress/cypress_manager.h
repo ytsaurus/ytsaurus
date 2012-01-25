@@ -68,15 +68,15 @@ public:
         const TObjectId& objectId,
         const TTransactionId& transactionId);
 
-    TIntrusivePtr<ICypressNodeProxy> FindNodeProxy(
+    TIntrusivePtr<ICypressNodeProxy> FindVersionedNodeProxy(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    TIntrusivePtr<NObjectServer::IObjectProxy> GetObjectProxy(
+    TIntrusivePtr<NObjectServer::IObjectProxy> GetVersionedObjectProxy(
         const TObjectId& objectId,
         const TTransactionId& transactionId);
 
-    TIntrusivePtr<ICypressNodeProxy> GetNodeProxy(
+    TIntrusivePtr<ICypressNodeProxy> GetVersionedNodeProxy(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
@@ -84,7 +84,7 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    TLockId LockTransactionNode(
+    TLockId LockVersionedNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 

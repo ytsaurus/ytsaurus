@@ -42,7 +42,7 @@ protected:
 
     TIntrusivePtr<TProxy> GetProxy()
     {
-        auto proxy = CypressManager->GetNodeProxy(NodeId, NullTransactionId);
+        auto proxy = CypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
         auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
         YASSERT(typedProxy);
         return typedProxy;

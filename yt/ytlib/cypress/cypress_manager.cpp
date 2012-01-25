@@ -84,7 +84,7 @@ public:
 
     virtual IObjectProxy::TPtr GetProxy(const TObjectId& id)
     {
-        return Owner->GetNodeProxy(id, NullTransactionId);
+        return Owner->GetVersionedNodeProxy(id, NullTransactionId);
     }
 
     virtual TObjectId CreateFromManifest(
@@ -549,7 +549,7 @@ IObjectProxy::TPtr TCypressManager::FindObjectProxy(
 
     // First try to fetch a proxy of a Cypress node.
     // This way we don't lose information about the current transaction.
-    auto nodeProxy = FindNodeProxy(objectId, transactionId);
+    auto nodeProxy = FindVersionedNodeProxy(objectId, transactionId);
     if (nodeProxy) {
         return nodeProxy;
     }
@@ -564,7 +564,7 @@ IObjectProxy::TPtr TCypressManager::FindObjectProxy(
     return NULL;
 }
 
-ICypressNodeProxy::TPtr TCypressManager::FindNodeProxy(
+ICypressNodeProxy::TPtr TCypressManager::FindVersionedNodeProxy(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -579,7 +579,7 @@ ICypressNodeProxy::TPtr TCypressManager::FindNodeProxy(
     return GetHandler(*impl)->GetProxy(*impl, transactionId);
 }
 
-IObjectProxy::TPtr TCypressManager::GetObjectProxy(
+IObjectProxy::TPtr TCypressManager::GetVersionedObjectProxy(
     const TObjectId& objectId,
     const TTransactionId& transactionId)
 {
@@ -588,11 +588,11 @@ IObjectProxy::TPtr TCypressManager::GetObjectProxy(
     return proxy;
 }
 
-ICypressNodeProxy::TPtr TCypressManager::GetNodeProxy(
+ICypressNodeProxy::TPtr TCypressManager::GetVersionedNodeProxy(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
-    auto proxy = FindNodeProxy(nodeId, transactionId);
+    auto proxy = FindVersionedNodeProxy(nodeId, transactionId);
     YASSERT(proxy);
     return proxy;
 }
@@ -633,7 +633,7 @@ bool TCypressManager::IsLockNeeded(
     return transactionId != NullTransactionId;
 }
 
-TLockId TCypressManager::LockTransactionNode(
+TLockId TCypressManager::LockVersionedNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
 {
@@ -992,7 +992,7 @@ TVoid TCypressManager::DoReplayVerb(const TMsgExecuteVerb& message)
         Logger.GetCategory(),
         NULL);
 
-    auto proxy = GetObjectProxy(objectId, transactionId);
+    auto proxy = GetVersionedObjectProxy(objectId, transactionId);
 
     DoExecuteVerb(transactionId, proxy, context);
 
