@@ -22,7 +22,7 @@ class TLeaseManager
 {
 private:
     struct TEntry
-        : public TRefCountedBase
+        : public TRefCounted
     {
         bool IsValid;
         TDuration Timeout;

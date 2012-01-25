@@ -12,7 +12,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotReader
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSnapshotReader> TPtr;
@@ -44,7 +44,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotWriter
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSnapshotWriter> TPtr;

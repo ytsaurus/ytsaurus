@@ -18,6 +18,25 @@ TYsonProducer::TPtr ProducerFromYson(TInputStream* input)
         });
 }
 
+TYsonProducer::TPtr ProducerFromYson(const TYson& data)
+{
+    return FromFunctor([=] (IYsonConsumer* consumer)
+        {
+            TStringInput input(data);
+            TYsonReader reader(consumer, &input);
+            reader.Read();
+        });
+}
+
+TYsonProducer::TPtr ProducerFromNode(const INode* node)
+{
+    return FromFunctor([=] (IYsonConsumer* consumer)
+        {
+            TTreeVisitor visitor(consumer);
+            visitor.Visit(node);
+        });
+}
+
 INode::TPtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
@@ -36,7 +55,7 @@ INode::TPtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
 TOutputStream& SerializeToYson(
     const INode* node,
     TOutputStream& output,
-    TYsonWriter::EFormat format)
+    EYsonFormat format)
 {
     TYsonWriter writer(&output, format);
     TTreeVisitor visitor(&writer);
@@ -44,14 +63,14 @@ TOutputStream& SerializeToYson(
     return output;
 }
 
-TYson SerializeToYson(const INode* node, TYsonWriter::EFormat format)
+TYson SerializeToYson(const INode* node, EYsonFormat format)
 {
     TStringStream output;
     SerializeToYson(node, output, format);
     return output.Str();
 }
 
-TYson SerializeToYson(TYsonProducer* producer, TYsonWriter::EFormat format)
+TYson SerializeToYson(TYsonProducer* producer, EYsonFormat format)
 {
     TStringStream output;
     TYsonWriter writer(&output, format);
@@ -59,7 +78,7 @@ TYson SerializeToYson(TYsonProducer* producer, TYsonWriter::EFormat format)
     return output.Str();
 }
 
-TYson SerializeToYson(const TConfigurable* config, TYsonWriter::EFormat format)
+TYson SerializeToYson(const TConfigurable* config, EYsonFormat format)
 {
     TStringStream output;
     TYsonWriter writer(&output, format);

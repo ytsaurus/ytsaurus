@@ -32,7 +32,7 @@ static NLog::TLogger& Logger = ChunkClientLogger;
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteWriter::TNode 
-    : public TRefCountedBase
+    : public TRefCounted
 {
     bool IsAlive;
     const Stroka Address;
@@ -51,7 +51,7 @@ struct TRemoteWriter::TNode
 ///////////////////////////////////////////////////////////////////////////////
 
 class TRemoteWriter::TGroup 
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     TGroup(

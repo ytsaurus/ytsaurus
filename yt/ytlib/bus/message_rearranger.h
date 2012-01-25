@@ -11,7 +11,7 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMessageRearranger
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TMessageRearranger> TPtr;

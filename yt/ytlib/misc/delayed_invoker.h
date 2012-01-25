@@ -12,7 +12,7 @@ class TDelayedInvoker
 {
 private:
     struct TEntry
-        : public TRefCountedBase
+        : public TRefCounted
     {
         typedef TIntrusivePtr<TEntry> TPtr;
 

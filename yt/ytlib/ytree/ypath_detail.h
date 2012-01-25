@@ -4,7 +4,9 @@
 #include "ypath_service.h"
 #include "yson_consumer.h"
 #include "tree_builder.h"
+#include "yson_writer.h"
 #include "forwarding_yson_consumer.h"
+#include "ypath.pb.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/assert.h>
@@ -12,46 +14,6 @@
 
 namespace NYT {
 namespace NYTree {
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern TYPath RootMarker;
-
-void ChopYPathToken(
-    const TYPath& path,
-    Stroka* token,
-    TYPath* suffixPath);
-
-TYPath ComputeResolvedYPath(
-    const TYPath& wholePath,
-    const TYPath& unresolvedPath);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3);
-
-bool IsEmptyYPath(const TYPath& path);
-
-bool IsFinalYPath(const TYPath& path);
-
-bool IsAttributeYPath(const TYPath& path);
-
-// TODO: choose a better name
-bool IsLocalYPath(const TYPath& path);
-
-TYPath ChopYPathAttributeMarker(const TYPath& path);
-
-void ResolveYPath(
-    IYPathService* rootService,
-    const TYPath& path,
-    const Stroka& verb,
-    IYPathService::TPtr* suffixService,
-    TYPath* suffixPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +26,7 @@ public:
     virtual void Invoke(NRpc::IServiceContext* context);
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
     virtual Stroka GetLoggingCategory() const;
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
 protected:
     NLog::TLogger Logger;
@@ -74,6 +37,27 @@ protected:
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DECLARE_SUPPORTS_VERB(verb) \
+    class TSupports##verb \
+    { \
+    protected: \
+        DECLARE_RPC_SERVICE_METHOD(NProto, verb); \
+        virtual void verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb* context); \
+        virtual void verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context); \
+        virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context); \
+    }
+
+DECLARE_SUPPORTS_VERB(Get);
+DECLARE_SUPPORTS_VERB(GetNode);
+DECLARE_SUPPORTS_VERB(Set);
+DECLARE_SUPPORTS_VERB(SetNode);
+DECLARE_SUPPORTS_VERB(List);
+DECLARE_SUPPORTS_VERB(Remove);
+
+#undef DECLARE_SUPPORTS_VERB
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,7 +91,9 @@ protected:
     INodeFactory::TPtr NodeFactory;
 
     Stroka AttributeName;
-    TAutoPtr<ITreeBuilder> AttributeBuilder;
+    TYson AttributeValue;
+    TAutoPtr<TStringOutput> AttributeStream;
+    TAutoPtr<TYsonWriter> AttributeWriter;
 
     void OnForwardingFinished();
 
@@ -309,7 +295,7 @@ void ReplyYPathWithMessage(
         return; \
     }
 
-#define DECLARE_LOGGED_YPATH_SERVICE_METHOD(method) \
+#define DECLARE_YPATH_SERVICE_WRITE_METHOD(method) \
     if (context->GetVerb() == #method) { \
         return true; \
     }

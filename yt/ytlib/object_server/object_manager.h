@@ -1,10 +1,13 @@
 #pragma once
 
 #include "common.h"
+#include "attribute_set.h"
 #include "type_handler.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/id_generator.h>
 #include <ytlib/meta_state/composite_meta_state.h>
+#include <ytlib/meta_state/map.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -49,6 +52,9 @@ public:
      */
     void RegisterHandler(IObjectTypeHandler* handler);
 
+    //! Returns the handler for a given type or NULL if the type is unknown.
+    IObjectTypeHandler* FindHandler(EObjectType type) const;
+
     //! Returns the handler for a given type.
     IObjectTypeHandler* GetHandler(EObjectType type) const;
     
@@ -76,18 +82,24 @@ public:
     //! Returns a proxy for the object with the given id or NULL. Fails if there's no such object.
     IObjectProxy::TPtr GetProxy(const TObjectId& id);
 
+    DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
+
+    TAttributeSet* CreateAttributes(const TVersionedObjectId& id);
+
+    void RemoveAttributes(const TVersionedObjectId& id);
+
 private:
     TCellId CellId;
-    ui64 Counter;
 
-    IObjectTypeHandler::TPtr TypeToHandler[MaxObjectType];
+    yvector<TIdGenerator<ui64> > TypeToCounter;
+    yvector<IObjectTypeHandler::TPtr> TypeToHandler;
+    NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
     void Load(TInputStream* input);
     virtual void Clear();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

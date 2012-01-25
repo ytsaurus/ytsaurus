@@ -20,7 +20,7 @@ namespace NElection {
  * \note Thread affinity: any.
  */
 class TLeaderLookup
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TLeaderLookup> TPtr;

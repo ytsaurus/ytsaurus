@@ -4,12 +4,12 @@
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/chunk_client/writer_thread.h>
-#include <ytlib/chunk_client/block_id.h>
 #include <ytlib/misc/serialize.h>
 
 namespace NYT {
 namespace NTableClient {
 
+using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkHolder::NProto;
 

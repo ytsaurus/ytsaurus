@@ -234,7 +234,7 @@ public:
     //! Returns pointer to the underlying reference counter of the object.
     /*!
      * Note that you should never ever use this method in production code.
-     * This method is mainly for debugging purposes and for the TWeakPtr.
+     * This method is mainly for debugging purposes and for TWeakPtr.
      */
     inline NDetail::TRefCounter* GetRefCounter() const
     {
@@ -342,8 +342,9 @@ namespace NDetail {
     }
 } // namespace NDetail
 
-// TODO(sandello): This is compatibility line.
-typedef TIntrinsicRefCounted TRefCountedBase;
+// TODO(sandello, babenko): think about this.
+typedef TIntrinsicRefCounted TRefCounted;
+typedef TExtrinsicRefCounted IRefCounted;
 
 ////////////////////////////////////////////////////////////////////////////////
 

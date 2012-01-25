@@ -36,7 +36,7 @@ void TCommitterBase::Stop()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderCommitter::TBatch
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TBatch> TPtr;

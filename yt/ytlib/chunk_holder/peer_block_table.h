@@ -31,11 +31,11 @@ struct TPeerInfo
  *  \note
  *  Thread affinity: single.
  */
-class TBlockTable
-    : public TRefCountedBase
+class TPeerBlockTable
+    : public TRefCounted
 {
 public:
-    TBlockTable(TBlockTableConfig* config);
+    TPeerBlockTable(TPeerBlockTableConfig* config);
     
     //! Gets peers where a particular block was sent to.
     /*!
@@ -57,7 +57,7 @@ private:
     void SweepAllExpiredPeers();
     yvector<TPeerInfo>& GetMutablePeers(const TBlockId& blockId);
 
-    TBlockTableConfig::TPtr Config;
+    TPeerBlockTableConfig::TPtr Config;
 
     //! Each vector is sorted by decreasing expiration time.
     TTable Table;

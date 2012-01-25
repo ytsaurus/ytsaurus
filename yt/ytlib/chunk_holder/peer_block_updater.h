@@ -16,13 +16,13 @@ namespace NChunkHolder {
 class TBlockStore;
 class TChunkHolderServiceProxy;
 
-class TPeerUpdater
-    : public TRefCountedBase
+class TPeerBlockUpdater
+    : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TPeerUpdater> TPtr;
+    typedef TIntrusivePtr<TPeerBlockUpdater> TPtr;
 
-    TPeerUpdater(
+    TPeerBlockUpdater(
         TChunkHolderConfig* config,
         TBlockStore* blockStore,
         NRpc::TChannelCache* channelCache,

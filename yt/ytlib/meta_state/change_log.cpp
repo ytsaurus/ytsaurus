@@ -662,9 +662,9 @@ void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
                 TLogIndexHeader header(Id, indexRecordCount);
                 NYT::Write(*IndexFile, header);
                 IndexFile->Flush();
-            } catch (...) {
+            } catch (const std::exception& ex) {
                 LOG_FATAL("Error appending to index\n%s",
-                    ~CurrentExceptionMessage());
+                    ex.what());
             }
             LOG_DEBUG("Changelog record is added to index (RecordId: %d, Offset: %d)",
                 record.RecordId,

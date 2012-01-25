@@ -16,7 +16,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFollowerPinger
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TFollowerPinger> TPtr;

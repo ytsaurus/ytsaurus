@@ -26,12 +26,12 @@
 #include <ytlib/chunk_holder/reader_cache.h>
 #include <ytlib/chunk_holder/session_manager.h>
 #include <ytlib/chunk_holder/block_store.h>
-#include <ytlib/chunk_holder/block_table.h>
+#include <ytlib/chunk_holder/peer_block_table.h>
 #include <ytlib/chunk_holder/chunk_store.h>
 #include <ytlib/chunk_holder/chunk_cache.h>
 #include <ytlib/chunk_holder/chunk_registry.h>
 #include <ytlib/chunk_holder/master_connector.h>
-#include <ytlib/chunk_holder/peer_updater.h>
+#include <ytlib/chunk_holder/peer_block_updater.h>
 #include <ytlib/chunk_holder/ytree_integration.h>
 
 namespace NYT {
@@ -60,12 +60,12 @@ using NChunkHolder::TChunkStore;
 using NChunkHolder::TChunkCache;
 using NChunkHolder::TChunkRegistry;
 using NChunkHolder::TBlockStore;
-using NChunkHolder::TBlockTable;
+using NChunkHolder::TPeerBlockTable;
 using NChunkHolder::TSessionManager;
 using NChunkHolder::TJobExecutor;
 using NChunkHolder::TChunkHolderService;
 using NChunkHolder::TMasterConnector;
-using NChunkHolder::TPeerUpdater;
+using NChunkHolder::TPeerBlockUpdater;
 using NChunkHolder::CreateStoredChunkMapService;
 using NChunkHolder::CreateCachedChunkMapService;
 
@@ -104,11 +104,11 @@ void TChunkHolderBootstrap::Run()
         ~chunkRegistry,
         ~readerCache);
 
-    auto blockTable = New<TBlockTable>(~Config->BlockTable);
+    auto blockTable = New<TPeerBlockTable>(~Config->BlockTable);
 
     THolder<TChannelCache> channelCache(new TChannelCache());
 
-    auto peerUpdater = New<TPeerUpdater>(
+    auto peerUpdater = New<TPeerBlockUpdater>(
         ~Config,
         ~blockStore,
         ~channelCache,

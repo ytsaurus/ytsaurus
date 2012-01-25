@@ -75,7 +75,7 @@ void TMonitoringManager::Update()
 
         FOREACH(const auto& pair, MonitoringMap) {
             TStringStream output;
-            TYsonWriter writer(&output, TYsonWriter::EFormat::Binary);
+            TYsonWriter writer(&output, EYsonFormat::Binary);
             pair.second->Do(&writer);
 
             SyncYPathSet(~newRoot, pair.first, output.Str());
@@ -87,9 +87,9 @@ void TMonitoringManager::Update()
 
         )
 
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Error collecting monitoring data\n%s",
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 }
 

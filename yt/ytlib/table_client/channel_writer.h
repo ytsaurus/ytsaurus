@@ -12,7 +12,7 @@ namespace NTableClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TChannelWriter
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TChannelWriter> TPtr;

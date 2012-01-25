@@ -16,7 +16,7 @@ namespace NBus {
  *  The message owns its parts.
  */
 struct IMessage
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IMessage> TPtr;
 

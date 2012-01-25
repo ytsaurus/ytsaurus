@@ -24,15 +24,15 @@ TAutoPtr<TChunkList> TChunkList::Clone() const
 
 void TChunkList::Save(TOutputStream* output) const
 {
+    TObjectWithIdBase::Save(output);
     ::Save(output, ChildrenIds_);
-    ::Save(output, RefCounter);
 }
 
 TAutoPtr<TChunkList> TChunkList::Load(const TChunkListId& id, TInputStream* input)
 {
     TAutoPtr<TChunkList> chunkList = new TChunkList(id);
+    chunkList->TObjectWithIdBase::Load(input);
     ::Load(input, chunkList->ChildrenIds_);
-    ::Load(input, chunkList->RefCounter);
     return chunkList;
 }
 

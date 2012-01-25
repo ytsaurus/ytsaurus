@@ -18,7 +18,7 @@ template<class T>
 struct TScalarTypeTraits
 { };
 
-}
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,13 +77,6 @@ struct INode
     DECLARE_AS_METHODS(List)
     DECLARE_AS_METHODS(Map)
 #undef DECLARE_AS_METHODS
-
-    //! Returns a map containing the attributes of the node
-    //! or NULL if no such map is assigned.
-    virtual TIntrusivePtr<IMapNode> GetAttributes() const = 0;
-    //! Sets the attribute map. NULL is a viable value indicating that
-    //! no such map is assigned.
-    virtual void SetAttributes(IMapNode* attributes) = 0;
 
     //! Returns the parent of the node.
     //! NULL indicates that the current node is the root.
@@ -172,7 +165,7 @@ DECLARE_SCALAR_TYPE(Double, double, double)
 
 //! A base interface for all composite nodes, i.e. nodes containing other nodes.
 struct ICompositeNode
-    : virtual INode
+    : public virtual INode
 {
     typedef TIntrusivePtr<ICompositeNode> TPtr;
 
@@ -192,7 +185,7 @@ struct ICompositeNode
 
 //! A map node, which keeps a dictionary mapping strings (Stroka) to child nodes.
 struct IMapNode
-    : ICompositeNode
+    : public ICompositeNode
 {
     typedef TIntrusivePtr<IMapNode> TPtr;
 
@@ -203,12 +196,20 @@ struct IMapNode
      *  Map items are returned in unspecified order.
      */
     virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const = 0;
+
+    //! Returns map keys.
+    /*!
+     *  Keys are returned in unspecified order.
+     */
+    virtual yvector<Stroka> GetKeys() const = 0;
+
     //! Gets a child by its key.
     /*!
      *  \param key A key.
      *  \return A child with the given key or NULL if the index is not valid.
      */
     virtual INode::TPtr FindChild(const Stroka& key) const = 0;
+
     //! Adds a new child with a given key.
     /*!
      *  \param child A child.
@@ -219,9 +220,10 @@ struct IMapNode
      *  #child must be a root.
      */
     virtual bool AddChild(INode* child, const Stroka& key) = 0;
-    //! Removes a child by its index.
+
+    //! Removes a child by its key.
     /*!
-     *  \param index A key.
+     *  \param key A key.
      *  \return True iff there was a child with the given key.
      */
     virtual bool RemoveChild(const Stroka& key) = 0;
@@ -239,7 +241,7 @@ struct IMapNode
      *  \param child A node that must be a child.
      *  \return Child's key.
      */
-    virtual Stroka GetChildKey(INode* child) = 0;
+    virtual Stroka GetChildKey(const INode* child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,12 +256,14 @@ struct IListNode
 
     //! Returns the current snapshot of the list.
     virtual yvector<INode::TPtr> GetChildren() const = 0;
+
     //! Gets a child by its index.
     /*!
      *  \param index An index.
      *  \return A child with the given index or NULL if the index is not valid.
      */
     virtual INode::TPtr FindChild(int index) const = 0;
+
     //! Adds a new child at a given position.
     /*!
      *  \param child A child.
@@ -269,7 +273,9 @@ struct IListNode
      *  \note
      *  #child must be a root.
      */
+
     virtual void AddChild(INode* child, int beforeIndex = -1) = 0;
+    
     //! Removes a child by its index.
     /*!
      *  \param index An index.
@@ -290,7 +296,7 @@ struct IListNode
      *  \param child A node that must be a child.
      *  \return Child's index.
      */
-    virtual int GetChildIndex(INode* child) = 0;
+    virtual int GetChildIndex(const INode* child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -309,7 +315,7 @@ struct IEntityNode
  *  All freshly created nodes are roots, i.e. have no parent.
  */
 struct INodeFactory
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<INodeFactory> TPtr;
 

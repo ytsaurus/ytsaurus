@@ -20,6 +20,8 @@ TObjectManager::TObjectManager(
     TCellId cellId)
     : TMetaStatePart(metaStateManager, metaState)
     , CellId(cellId)
+    , TypeToHandler(MaxObjectType)
+    , TypeToCounter(MaxObjectType)
 {
     metaState->RegisterLoader(
         "ObjectManager.1",
@@ -36,25 +38,35 @@ TObjectManager::TObjectManager(
 
 void TObjectManager::RegisterHandler(IObjectTypeHandler* handler)
 {
-    // No thread affinity is given here.
-    // This will be called during init-time only.
-
+    // No thread affinity check here.
+    // This will be called during init-time only but from an unspecified thread.
     YASSERT(handler);
     int typeValue = handler->GetType().ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
     YASSERT(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
+    TypeToCounter[typeValue] = TIdGenerator<ui64>();
+}
+
+IObjectTypeHandler* TObjectManager::FindHandler( EObjectType type ) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    int typeValue = type.ToValue();
+    if (typeValue < 0 || typeValue >= MaxObjectType) {
+        return NULL;
+    }
+
+    return ~TypeToHandler[typeValue];
 }
 
 IObjectTypeHandler* TObjectManager::GetHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = type.ToValue();
-    YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
-    auto handler = TypeToHandler[typeValue];
+    auto handler = FindHandler(type);
     YASSERT(handler);
-    return ~handler;
+    return handler;
 }
 
 IObjectTypeHandler* TObjectManager::GetHandler(const TObjectId& id) const
@@ -76,7 +88,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     int typeValue = type.ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
 
-    ui64 counter = Counter++;
+    ui64 counter = TypeToCounter[typeValue].Next();
 
     char data[12];
     *reinterpret_cast<ui64*>(&data[ 0]) = counter;
@@ -135,29 +147,39 @@ TFuture<TVoid>::TPtr TObjectManager::Save(const TCompositeMetaState::TSaveContex
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto* output = context.Output;
-    auto counter = Counter;
-    return
-        FromFunctor([=] () -> TVoid
-            {
-                ::Save(output, counter);
-                return TVoid();
-            })
-        ->AsyncVia(context.Invoker)
-        ->Do();
+    auto invoker = context.Invoker;
+
+    auto typeToCounter = TypeToCounter;
+    invoker->Invoke(FromFunctor([=] ()
+        {
+            ::SaveSize(output, MaxObjectType);
+            FOREACH(const auto& idGenerator, typeToCounter) {
+                ::Save(output, idGenerator);
+            }
+        }));
+    
+    return Attributes.Save(invoker, output);
 }
 
 void TObjectManager::Load(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Load(input, Counter);
+    // read the number of objects for future compatibility
+    int maxObjectType = LoadSize(input);
+    for (int i =0; i < maxObjectType; ++i) {
+        ::Load(input, TypeToCounter[i]);
+    }
+    Attributes.Load(input);
 }
 
 void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    Counter = 0;
+    for (int i = 0; i < MaxObjectType; ++i) {
+        TypeToCounter[i].Reset();
+    }
 }
 
 IObjectProxy::TPtr TObjectManager::FindProxy(const TObjectId& id)
@@ -186,6 +208,21 @@ IObjectProxy::TPtr TObjectManager::GetProxy(const TObjectId& id)
     YASSERT(proxy);
     return proxy;
 }
+
+
+TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
+{
+    auto result = new TAttributeSet();
+    Attributes.Insert(id, result);
+    return result;
+}
+
+void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
+{
+    Attributes.Remove(id);
+}
+
+DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 

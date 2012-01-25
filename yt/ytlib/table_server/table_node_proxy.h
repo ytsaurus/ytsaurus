@@ -23,15 +23,18 @@ public:
         NCypress::INodeTypeHandler* typeHandler,
         NCypress::TCypressManager* cypressManager,
         NChunkServer::TChunkManager* chunkManager,
-        const NTransactionServer::TTransactionId& transactionId,
+        const NObjectServer::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const;
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
 private:
     typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
 
     NChunkServer::TChunkManager::TPtr ChunkManager;
+
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
 

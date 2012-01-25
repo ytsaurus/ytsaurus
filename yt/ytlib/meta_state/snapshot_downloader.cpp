@@ -127,10 +127,10 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
         writer.Flush();
         snapshotFile->Flush();
         snapshotFile->Close();
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_FATAL("Error closing snapshot writer (SnapshotId: %d)\n%s",
             segmentId,
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 
     return EResult::OK;
@@ -200,8 +200,8 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
         try {
             output.Write(block.Begin(), block.Size());
-        } catch (...) {
-            LOG_FATAL("Error writing snapshot\n%s", ~CurrentExceptionMessage());
+        } catch (const std::exception& ex) {
+            LOG_FATAL("Error writing snapshot\n%s", ex.what());
         }
 
         downloadedLength += block.Size();

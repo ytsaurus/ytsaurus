@@ -19,6 +19,7 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/object_server/type_handler_detail.h>
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -46,7 +47,9 @@ public:
         return EObjectType::Chunk;
     }
 
-    virtual TObjectId CreateFromManifest(IMapNode* manifest);
+    virtual TObjectId CreateFromManifest(
+        const TTransactionId& transactionId,
+        IMapNode* manifest);
 
 private:
     TImpl* Owner;
@@ -70,7 +73,9 @@ public:
         return EObjectType::ChunkList;
     }
 
-    virtual TObjectId CreateFromManifest(IMapNode* manifest);
+    virtual TObjectId CreateFromManifest(
+        const TTransactionId& transactionId,
+        IMapNode* manifest);
 
 private:
     TImpl* Owner;
@@ -126,6 +131,11 @@ public:
 
         objectManager->RegisterHandler(~New<TChunkTypeHandler>(this));
         objectManager->RegisterHandler(~New<TChunkListTypeHandler>(this));
+    }
+
+    TObjectManager* GetObjectManager() const
+    {
+        return ~ObjectManager;
     }
 
     TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
@@ -252,7 +262,7 @@ public:
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
     void FillHolderAddresses(
-        ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
+        ::google::protobuf::RepeatedPtrField<TProtoStringType>* addresses,
         const TChunk& chunk)
     {
         FOREACH (auto holderId, chunk.StoredLocations()) {
@@ -266,6 +276,22 @@ public:
                 addresses->Add()->assign(holder.GetAddress());
             }
         }
+    }
+
+    TTotalHolderStatistics GetTotalHolderStatistics() const
+    {
+        TTotalHolderStatistics result;
+        auto keys = HolderMap.GetKeys();
+        FOREACH (const auto& key, keys) {
+            const auto& holder = HolderMap.Get(key);
+            const auto& statistics = holder.Statistics();
+            result.AvailbaleSpace += statistics.available_space();
+            result.UsedSpace += statistics.used_space();
+            result.ChunkCount += statistics.chunk_count();
+            result.SessionCount += statistics.session_count();
+            result.AliveHolderCount++;
+        }
+        return result;
     }
 
 private:
@@ -939,26 +965,92 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, Underrepli
 ///////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TChunkProxy
-    : public NObjectServer::TObjectProxyBase<TChunk>
+    : public NObjectServer::TUnversionedObjectProxyBase<TChunk>
 {
 public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
-        : TBase(id, &owner->ChunkMap, ChunkServerLogger.GetCategory())
+        : TBase(~owner->ObjectManager, id, &owner->ChunkMap, ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        DECLARE_LOGGED_YPATH_SERVICE_METHOD(Confirm);
-        return TBase::IsLogged(context);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
+        return TBase::IsWriteRequest(context);
     }
 
 private:
-    typedef TObjectProxyBase<TChunk> TBase;
+    typedef TUnversionedObjectProxyBase<TChunk> TBase;
 
     TIntrusivePtr<TImpl> Owner;
 
-    void DoInvoke(NRpc::IServiceContext* context)
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    {
+        const auto& chunk = GetTypedImpl();
+        attributes->push_back("confirmed");
+        attributes->push_back("cached_locations");
+        attributes->push_back("stored_locations");
+        attributes->push_back(TAttributeInfo("size", chunk.IsConfirmed()));
+        attributes->push_back(TAttributeInfo("chunk_type", chunk.IsConfirmed()));
+        TBase::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    {
+        const auto& chunk = GetTypedImpl();
+
+        if (name == "confirmed") {
+            BuildYsonFluently(consumer)
+                .Scalar(FormatBool(chunk.IsConfirmed()));
+            return true;
+        }
+
+        if (name == "cached_locations") {
+            if (~chunk.CachedLocations()) {
+                BuildYsonFluently(consumer)
+                    .DoListFor(*chunk.CachedLocations(), [=] (TFluentList fluent, THolderId holderId)
+                        {
+                            const auto& holder = Owner->GetHolder(holderId);
+                            fluent.Item().Scalar(holder.GetAddress());
+                        });
+            } else {
+                BuildYsonFluently(consumer)
+                    .BeginList()
+                    .EndList();
+            }
+            return true;
+        }
+
+        if (name == "stored_locations") {
+            BuildYsonFluently(consumer)
+                .DoListFor(chunk.StoredLocations(), [=] (TFluentList fluent, THolderId holderId)
+                    {
+                        const auto& holder = Owner->GetHolder(holderId);
+                        fluent.Item().Scalar(holder.GetAddress());
+                    });
+            return true;
+        }
+
+        if (chunk.IsConfirmed()) {
+            if (name == "size") {
+                BuildYsonFluently(consumer)
+                    .Scalar(chunk.GetSize());
+                return true;
+            }
+
+            if (name == "chunk_type") {
+                auto attributes = chunk.DeserializeAttributes();
+                auto type = EChunkType(attributes.type());
+                BuildYsonFluently(consumer)
+                    .Scalar(CamelCaseToUnderscoreCase(type.ToString()));
+                return true;
+            }
+        }
+
+        return TBase::GetSystemAttribute(name, consumer);
+    }
+
+    virtual void DoInvoke(NRpc::IServiceContext* context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         DISPATCH_YPATH_SERVICE_METHOD(Confirm);
@@ -969,7 +1061,7 @@ private:
     {
         UNUSED(request);
 
-        const auto& chunk = GetImpl();
+        const auto& chunk = GetTypedImpl();
         Owner->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
 
         context->SetResponseInfo("HolderAddresses: [%s]",
@@ -987,7 +1079,7 @@ private:
 
         context->SetRequestInfo("HolderAddresses: [%s]", ~JoinToString(holderAddresses));
 
-        auto& chunk = GetImplForUpdate();
+        auto& chunk = GetTypedImplForUpdate();
         auto chunkId = chunk.GetId();
         
         FOREACH (const auto& address, holderAddresses) {
@@ -1026,7 +1118,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(&owner->ChunkMap)
+    : TObjectTypeHandlerBase(~owner->ObjectManager, &owner->ChunkMap)
     , Owner(owner)
 { }
 
@@ -1035,10 +1127,16 @@ IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::CreateProxy(const TObjectId
     return New<TChunkProxy>(Owner, id);
 }
 
-TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(IMapNode* manifest)
+TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
+    const TTransactionId& transactionId,
+    IMapNode* manifest)
 {
+    UNUSED(transactionId);
     UNUSED(manifest);
-    return Owner->CreateChunk().GetId();
+
+    auto id = Owner->CreateChunk().GetId();
+    SetAttributes(id, manifest);
+    return id;
 }
 
 void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk& chunk)
@@ -1049,40 +1147,53 @@ void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk& chunk)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TChunkListProxy
-    : public NObjectServer::TObjectProxyBase<TChunkList>
+    : public NObjectServer::TUnversionedObjectProxyBase<TChunkList>
 {
 public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
-        : TBase(id, &owner->ChunkListMap, ChunkServerLogger.GetCategory())
+        : TBase(~owner->ObjectManager, id, &owner->ChunkListMap, ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Attach" ||
-            verb == "Detach")
-        {
-            return true;
-        }
-        return TBase::IsLogged(context);;
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Attach);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Detach);
+        return TBase::IsWriteRequest(context);
     }
 
 private:
-    typedef TObjectProxyBase<TChunkList> TBase;
+    typedef TUnversionedObjectProxyBase<TChunkList> TBase;
 
     TIntrusivePtr<TImpl> Owner;
 
-    void DoInvoke(NRpc::IServiceContext* context)
+    virtual void GetSystemAttributs(yvector<TAttributeInfo>* attributes)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Attach") {
-            AttachThunk(context);
-        } else if (verb == "Detach") {
-            DetachThunk(context);
-        } else {
-            TBase::DoInvoke(context);
+        attributes->push_back("children_ids");
+        TBase::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    {
+        const auto& chunkList = GetTypedImpl();
+
+        if (name == "children_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(chunkList.ChildrenIds(), [=] (TFluentList fluent, TTransactionId id)
+                    {
+                        fluent.Item().Scalar(id.ToString());
+                    });
+            return true;
         }
+
+        return TBase::GetSystemAttribute(name, consumer);
+    }
+
+    virtual void DoInvoke(NRpc::IServiceContext* context)
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(Attach);
+        DISPATCH_YPATH_SERVICE_METHOD(Detach);
+        TBase::DoInvoke(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Attach)
@@ -1091,14 +1202,13 @@ private:
 
         auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
 
-        context->SetRequestInfo("ChildrenIds: [%s]",
-            ~JoinToString(childrenIds));
+        context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
 
-        auto& impl = GetImplForUpdate();
+        auto& chunkList = GetTypedImplForUpdate();
 
         FOREACH (const auto& childId, childrenIds) {
             // TODO(babenko): check that all attached chunks are confirmed.
-            impl.ChildrenIds().push_back(childId);
+            chunkList.ChildrenIds().push_back(childId);
             Owner->ObjectManager->RefObject(childId);
         }
 
@@ -1112,18 +1222,17 @@ private:
         auto childrenIdsList = FromProto<TChunkTreeId>(request->children_ids());
         yhash_set<TChunkTreeId> childrenIdsSet(childrenIdsList.begin(), childrenIdsList.end());
 
-        context->SetRequestInfo("ChildrenIds: [%s]",
-            ~JoinToString(childrenIdsList));
+        context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIdsList));
 
-        auto& impl = GetImplForUpdate();
+        auto& chunkList = GetTypedImplForUpdate();
 
-        auto it = impl.ChildrenIds().begin();
-        while (it != impl.ChildrenIds().end()) {
+        auto it = chunkList.ChildrenIds().begin();
+        while (it != chunkList.ChildrenIds().end()) {
             auto jt = it;
             ++jt;
             const auto& childId = *it;
             if (childrenIdsSet.find(childId) != childrenIdsSet.end()) {
-                impl.ChildrenIds().erase(it);
+                chunkList.ChildrenIds().erase(it);
                 Owner->ObjectManager->UnrefObject(childId);
             }
             it = jt;
@@ -1136,7 +1245,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(&owner->ChunkListMap)
+    : TObjectTypeHandlerBase(~owner->ObjectManager, &owner->ChunkListMap)
     , Owner(owner)
 { }
 
@@ -1145,10 +1254,16 @@ IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::CreateProxy(const TObje
     return New<TChunkListProxy>(Owner, id);
 }
 
-TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(IMapNode* manifest)
+TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(
+    const TTransactionId& transactionId,
+    IMapNode* manifest)
 {
+    UNUSED(transactionId);
     UNUSED(manifest);
-    return Owner->CreateChunkList().GetId();
+
+    auto id = Owner->CreateChunkList().GetId();
+    SetAttributes(id, manifest);
+    return id;
 }
 
 void TChunkManager::TChunkListTypeHandler::OnObjectDestroyed(TChunkList& chunkList)
@@ -1174,6 +1289,11 @@ TChunkManager::TChunkManager(
         holderAuthority,
         objectManager))
 { }
+
+TObjectManager* TChunkManager::GetObjectManager() const
+{
+    return Impl->GetObjectManager();
+}
 
 const THolder* TChunkManager::FindHolder(const Stroka& address)
 {
@@ -1254,6 +1374,12 @@ void TChunkManager::FillHolderAddresses(
 {
     Impl->FillHolderAddresses(addresses, chunk);
 }
+
+TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics() const
+{
+    return Impl->GetTotalHolderStatistics();
+}
+
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)

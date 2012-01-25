@@ -7,7 +7,6 @@
 namespace NYT {
 namespace NDriver {
 
-using namespace NYTree;
 using namespace NFileClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +21,7 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
         DriverImpl->GetCurrentTransaction(),
         DriverImpl->GetBlockCache(),
         request->Path);
+    reader->Open();
 
     // TODO(babenko): use FileName and Executable values
 
@@ -34,6 +34,8 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
         }
         output->Write(block.Begin(), block.Size());
     }
+
+    reader->Close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +50,7 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
         DriverImpl->GetCurrentTransaction(),
         DriverImpl->GetTransactionManager(),
         request->Path);
+    writer->Open();
 
     auto input = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));
     

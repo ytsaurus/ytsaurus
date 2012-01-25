@@ -10,8 +10,10 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An SAX-like interface to YTree.
-//! Describes a bunch of events that get raised during traversing (or reading) a YTree.
+//! A SAX-like interface to YTree.
+/*!
+ *  Describes a bunch of events that are raised during a YTree traversal.
+ */
 struct IYsonConsumer
 {
     virtual ~IYsonConsumer()
@@ -23,12 +25,14 @@ struct IYsonConsumer
      *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes = false) = 0;
+
     //! The current item is an integer scalar (IInt64Node).
     /*!
      *  \param value A scalar value.
      *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
     virtual void OnInt64Scalar(i64 value, bool hasAttributes = false) = 0;
+
     //! The current item is an FP scalar (IDoubleNode).
     /*!
      *  \param value A scalar value.
@@ -52,8 +56,10 @@ struct IYsonConsumer
      *  The list may also have attributes attached to it (see #OnEndList).
      */
     virtual void OnBeginList() = 0;
+
     //! Designates a list item.
     virtual void OnListItem() = 0;
+
     //! Ends the current list.
     /*!
      *  \param hasAttributes Tells if the list is followed by the description of its attributes.
@@ -70,11 +76,13 @@ struct IYsonConsumer
      *  The map may also have attributes attached to it (see #OnEndMap).
      */
     virtual void OnBeginMap() = 0;
+
     //! Designates a list item.
     /*!
      *  \param name Item name in the map.
      */
     virtual void OnMapItem(const Stroka& name) = 0;
+
     //! Ends the current map.
     /*!
      *  \param hasAttributes Tells if the map is followed by the description of its attributes.
@@ -93,11 +101,13 @@ struct IYsonConsumer
      *  
      */
     virtual void OnBeginAttributes() = 0;
+
     //! Designates an attribute.
     /*!
      *  \param name An attribute name.
      */
     virtual void OnAttributesItem(const Stroka& name) = 0;
+
     //! Ends the current attribute map.
     virtual void OnEndAttributes() = 0;
 };

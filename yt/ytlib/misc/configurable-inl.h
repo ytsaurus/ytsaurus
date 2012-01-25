@@ -6,7 +6,7 @@
 #include "guid.h"
 #include "string.h"
 
-#include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/tree_visitor.h>
 
 #include <util/datetime/base.h>
@@ -281,14 +281,6 @@ inline void Write(const yhash_map<Stroka, T>& parameter, NYTree::IYsonConsumer* 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
-void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
-{
-    Write(Parameter, consumer);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // all
 inline void ValidateSubconfigs(
     const void* /* parameter */,
@@ -302,7 +294,7 @@ inline void ValidateSubconfigs(
     const NYTree::TYPath& path,
     typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
 {
-    if (parameter->Get()) {
+    if (*parameter) {
         (*parameter)->Validate(path);
     }
 }
@@ -335,6 +327,21 @@ inline void ValidateSubconfigs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//all
+inline bool IsPresent(const void* /* parameter */)
+{
+    return true;
+}
+
+//configurable
+template<class T>
+inline bool IsPresent(TIntrusivePtr<T>* parameter)
+{
+    return (bool) (*parameter);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 TParameter<T>::TParameter(T& parameter)
     : Parameter(parameter)
@@ -347,11 +354,11 @@ void TParameter<T>::Load(const NYTree::INode* node, const NYTree::TYPath& path)
     if (node) {
         try {
             Read(Parameter, node, path);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception()
                 << Sprintf("Could not read parameter (Path: %s)\n%s",
                     ~path,
-                    ~CurrentExceptionMessage());
+                    ex.what());
         }
     } else if (!HasDefaultValue) {
         ythrow yexception()
@@ -366,14 +373,27 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
     FOREACH (auto validator, Validators) {
         try {
             validator->Do(Parameter);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception()
                 << Sprintf("Validation failed (Path: %s)\n%s",
                     ~path,
-                    ~CurrentExceptionMessage());
+                    ex.what());
         }
     }
 }
+
+template<class T>
+void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
+{
+    Write(Parameter, consumer);
+}
+
+template<class T>
+bool TParameter<T>::IsPresent() const
+{
+    return NConfig::IsPresent(&Parameter);
+}
+
 
 template <class T>
 TParameter<T>& TParameter<T>::Default(const T& defaultValue)

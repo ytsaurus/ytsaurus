@@ -28,13 +28,13 @@ void TConfigurable::Load(const NYTree::INode* node, const NYTree::TYPath& path)
     TIntrusivePtr<const IMapNode> mapNode;
     try {
         mapNode = node->AsMap();
-    } catch(...) {
+    } catch (const std::exception& ex) {
         ythrow yexception()
             << Sprintf("Configuration must be loaded from a map node (Path: %s)\n%s",
                 ~path,
-                ~CurrentExceptionMessage());
+                ex.what());
     }
-    FOREACH (auto pair, Parameters) {
+    FOREACH (const auto& pair, Parameters) {
         auto name = pair.First();
         auto childPath = CombineYPaths(path, name);
         auto child = mapNode->FindChild(name); // can be NULL
@@ -58,10 +58,10 @@ void TConfigurable::Validate(const NYTree::TYPath& path) const
     }
     try {
         DoValidate();
-    } catch (...) {
+    } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Validation failed (Path: %s)\n%s",
             ~path,
-            ~CurrentExceptionMessage());
+            ex.what());
     }
 }
 
@@ -73,8 +73,11 @@ void TConfigurable::Save(IYsonConsumer* consumer) const
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(Parameters);
     FOREACH (const auto& pair, sortedItems) {
-        consumer->OnMapItem(pair->First());
-        pair->Second()->Save(consumer);
+        const auto& parameter = pair->Second();
+        if (parameter->IsPresent()) {
+            consumer->OnMapItem(pair->First());
+            pair->Second()->Save(consumer);
+        }
     }
     consumer->OnEndMap();
 }

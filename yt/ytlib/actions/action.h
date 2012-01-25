@@ -29,7 +29,7 @@ struct IParamFunc;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IAction
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IAction> TPtr;
 
@@ -59,7 +59,7 @@ struct TAsyncTraits< TIntrusivePtr< TFuture<TResult> > >
 
 template<class TResult>
 struct IFunc
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr< IFunc<TResult> > TPtr;
 
@@ -73,7 +73,7 @@ struct IFunc
 
 template<class TParam>
 struct IParamAction
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr< IParamAction<TParam> > TPtr;
 
@@ -88,7 +88,7 @@ struct IParamAction
 
 template<class TParam, class TResult>
 struct IParamFunc
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr< IParamFunc<TParam, TResult> > TPtr;
 

@@ -53,7 +53,7 @@ TCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     if (it == ValueMap.end()) {
         return NULL;
     }
-    return TRefCountedBase::DangerousGetPtr<TValue>(it->Second());
+    return TRefCounted::DangerousGetPtr<TValue>(it->Second());
 }
 
 template <class TKey, class TValue, class THash>
@@ -64,7 +64,7 @@ TCacheBase<TKey, TValue, THash>::GetAll()
     TGuard<TSpinLock> guard(SpinLock);
     result.reserve(ValueMap.ysize());
     FOREACH (const auto& pair, ValueMap) {
-        auto value = TRefCountedBase::DangerousGetPtr<TValue>(pair.Second());
+        auto value = TRefCounted::DangerousGetPtr<TValue>(pair.Second());
         if (value) {
             result.push_back(value);
         }
@@ -91,7 +91,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
                 return NULL;
             }
 
-            auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
+            auto value = TRefCounted::DangerousGetPtr(valueIt->Second());
             if (value) {
                 auto* item = new TItem();
                 auto asyncResult = item->AsyncResult;
@@ -140,7 +140,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
                 return true;
             }
 
-            auto value = TRefCountedBase::DangerousGetPtr(valueIt->Second());
+            auto value = TRefCounted::DangerousGetPtr(valueIt->Second());
             if (value) {
                 auto* item = new TItem(value);
                 ItemMap.insert(MakePair(key, item));

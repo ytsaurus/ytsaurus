@@ -20,7 +20,7 @@ class TJobExecutor;
 
 //! Represents a replication job on a chunk holder.
 class TJob
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TJob> TPtr;
@@ -98,7 +98,7 @@ private:
  *  for getting these ids from the holder.
  */
 class TJobExecutor
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TJobExecutor> TPtr;

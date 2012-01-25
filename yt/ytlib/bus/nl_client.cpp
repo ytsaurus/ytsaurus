@@ -99,7 +99,7 @@ private:
 class TClientDispatcher
 {
     struct TRequest
-        : public TRefCountedBase
+        : public TRefCounted
     {
         typedef TIntrusivePtr<TRequest> TPtr;
 

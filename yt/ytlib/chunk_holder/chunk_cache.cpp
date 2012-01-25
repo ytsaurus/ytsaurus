@@ -5,6 +5,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/fs.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/remote_reader.h>
@@ -112,7 +113,7 @@ private:
     }
 
     class TDownloadSession
-        : public TRefCountedBase
+        : public TRefCounted
     {
     public:
         typedef TDownloadSession TThis;
@@ -137,8 +138,8 @@ private:
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
                 FileWriter = New<TChunkFileWriter>(ChunkId, fileName);
-            } catch (...) {
-                LOG_FATAL("Error opening cached chunk for writing\n%s", ~CurrentExceptionMessage());
+            } catch (const std::exception& ex) {
+                LOG_FATAL("Error opening cached chunk for writing\n%s", ex.what());
             }
 
             RemoteReader = CreateRemoteReader(
@@ -218,17 +219,14 @@ private:
                 return;
             }
 
-            LOG_INFO("Block is received");
-
-            LOG_INFO("Writing block (BlockIndex: %d)",
-                BlockIndex);
+            LOG_INFO("Writing block (BlockIndex: %d)", BlockIndex);
             // NB: This is always done synchronously.
             auto writeResult = FileWriter->AsyncWriteBlock(SequentialReader->GetBlock())->Get();
             if (!writeResult.IsOK()) {
                 OnError(writeResult);
                 return;
             }
-            LOG_INFO("Block is written");
+            LOG_INFO("Block written");
 
             ++BlockIndex;
             FetchNextBlock();
@@ -305,8 +303,8 @@ TChunkCache::TChunkCache(
             auto chunk = New<TCachedChunk>(~location, descriptor, this);
             Impl->Put(~chunk);
         }
-    } catch (...) {
-        LOG_FATAL("Failed to initialize storage locations\n%s", ~CurrentExceptionMessage());
+    } catch (const std::exception& ex) {
+        LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
     }
 
     LOG_INFO("Chunk cache scan completed, %d chunk(s) total", GetChunkCount());

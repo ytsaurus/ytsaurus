@@ -2,6 +2,7 @@
 #include "cypress_integration.h"
 
 #include <ytlib/misc/lazy_ptr.h>
+#include <ytlib/actions/action_queue.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
@@ -41,9 +42,9 @@ public:
         try {
             Manifest = New<TOrchidManifest>();
             Manifest->LoadAndValidate(~manifestNode);
-        } catch (...) {
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
-                ~CurrentExceptionMessage());
+                ex.what());
         }
 
         auto channel = ChannelCache.GetChannel(Manifest->RemoteAddress);
@@ -91,6 +92,12 @@ public:
         return OrchidLogger.GetCategory();
     }
 
+    virtual bool IsWriteRequest(IServiceContext* context) const
+    {
+        UNUSED(context);
+        return false;
+    }
+
 private:
     void OnResponse(
         TOrchidServiceProxy::TRspExecute::TPtr response,
@@ -131,7 +138,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(
     TCypressManager::TPtr cypressManager_ = cypressManager;
     return CreateVirtualTypeHandler(
         cypressManager,
-        EObjectType::OrchidNode,
+        EObjectType::Orchid,
         ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
             {
                 return New<TOrchidYPathService>(context.Manifest);

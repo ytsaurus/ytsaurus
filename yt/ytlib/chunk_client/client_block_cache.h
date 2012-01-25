@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #include "block_cache.h"
 #include <ytlib/misc/configurable.h>
 
@@ -19,7 +21,9 @@ struct TClientBlockCacheConfig
 
     TClientBlockCacheConfig()
     {
-        Register("max_size", MaxSize).Default(0).GreaterThanOrEqual(0);
+        Register("max_size", MaxSize)
+            .Default(0)
+            .GreaterThanOrEqual(0);
     }
 };
 

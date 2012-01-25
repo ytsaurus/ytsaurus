@@ -16,6 +16,10 @@ INode::TPtr CloneNode(
 
 TYsonProducer::TPtr ProducerFromYson(TInputStream* input);
 
+TYsonProducer::TPtr ProducerFromYson(const TYson& data);
+
+TYsonProducer::TPtr ProducerFromNode(const INode* node);
+
 INode::TPtr DeserializeFromYson(
     TInputStream* input,
     INodeFactory* factory = GetEphemeralNodeFactory());
@@ -27,19 +31,19 @@ INode::TPtr DeserializeFromYson(
 TOutputStream& SerializeToYson(
     const INode* node,
     TOutputStream& output,
-    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary);
+    EYsonFormat format = EYsonFormat::Binary);
 
 TYson SerializeToYson(
     const INode* node,
-    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary);
+    EYsonFormat format = EYsonFormat::Binary);
 
 TYson SerializeToYson(
     TYsonProducer* producer,
-    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary);
+    EYsonFormat format = EYsonFormat::Binary);
 
 TYson SerializeToYson(
     const TConfigurable* config,
-    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary);
+    EYsonFormat format = EYsonFormat::Binary);
 
 ////////////////////////////////////////////////////////////////////////////////
 

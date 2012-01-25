@@ -14,7 +14,7 @@ class TCacheBase;
 
 template <class TKey, class TValue, class THash = hash<TKey> >
 class TCacheValueBase
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
 public:
     typedef TIntrusivePtr<TValue> TPtr;
@@ -39,7 +39,7 @@ private:
 
 template <class TKey, class TValue, class THash = hash<TKey> >
 class TCacheBase
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
 public:
     typedef TIntrusivePtr<TValue> TValuePtr;

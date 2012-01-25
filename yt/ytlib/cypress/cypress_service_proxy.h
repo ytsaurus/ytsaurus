@@ -4,7 +4,6 @@
 #include "cypress_service.pb.h"
 
 #include <ytlib/ytree/ypath_client.h>
-#include <ytlib/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NCypress {
@@ -13,7 +12,6 @@ namespace NCypress {
 
 extern const NYTree::TYPath ObjectIdMarker;
 extern const NYTree::TYPath TransactionIdMarker;
-extern const NYTree::TYPath SystemPath;
 
 //! Creates the YPath pointing to an object with a given id.
 NYTree::TYPath FromObjectId(const TObjectId& id);

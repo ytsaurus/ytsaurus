@@ -31,23 +31,15 @@ TTableNodeProxy::TTableNodeProxy(
 
 void TTableNodeProxy::DoInvoke(IServiceContext* context)
 {
-    Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListForUpdate") {
-        GetChunkListForUpdateThunk(context);
-    } else if (verb == "Fetch") {
-        FetchThunk(context);
-    } else {
-        TBase::DoInvoke(context);
-    }
+    DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
+    DISPATCH_YPATH_SERVICE_METHOD(Fetch);
+    TBase::DoInvoke(context);
 }
 
-bool TTableNodeProxy::IsLogged(IServiceContext* context) const
+bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
 {
-    Stroka verb = context->GetVerb();
-    if (verb == "GetChunkListForUpdate") {
-        return true;
-    }
-    return TBase::IsLogged(context);;
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(GetChunkListForUpdate);
+    return TBase::IsWriteRequest(context);
 }
 
 void TTableNodeProxy::TraverseChunkTree(
@@ -71,6 +63,25 @@ void TTableNodeProxy::TraverseChunkTree(
         default:
             YUNREACHABLE();
     }
+}
+
+void TTableNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+{
+    attributes->push_back("chunk_list_id");
+    TBase::GetSystemAttributes(attributes);
+}
+
+bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+{
+    const auto& tableNode = GetTypedImpl();
+
+    if (name == "chunk_list_id") {
+        BuildYsonFluently(consumer)
+            .Scalar(tableNode.GetChunkListId().ToString());
+        return true;
+    }
+
+    return TBase::GetSystemAttribute(name, consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

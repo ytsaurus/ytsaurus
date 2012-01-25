@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "tree_builder.h"
+#include "ypath_client.h"
+#include "serialize.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/assert.h>
@@ -168,8 +170,9 @@ void TTreeBuilder::OnEndAttributes()
 {
     OnEndMap(false);
     auto attributes = PopPop()->AsMap();
+    auto attributesYson = SerializeToYson(~attributes);
     auto node = PeekPop();
-    node->SetAttributes(~attributes);
+    SyncYPathSet(~node, RootMarker + AttributeMarker, attributesYson);
 }
 
 void TTreeBuilder::AddToList()

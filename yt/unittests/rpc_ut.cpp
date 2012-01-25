@@ -4,6 +4,8 @@
 
 #include <ytlib/misc/error.h>
 
+#include <ytlib/actions/action_queue.h>
+
 #include <ytlib/bus/bus.h>
 #include <ytlib/bus/nl_client.h>
 #include <ytlib/bus/nl_server.h>
@@ -223,7 +225,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResponseHandler
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TResponseHandler> TPtr;

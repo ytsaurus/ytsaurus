@@ -27,7 +27,7 @@ TEST(TYTreeSerializationTest, All)
                       "<\"acl\"={\"read\"=[\"*\"];\"write\"=[\"sandello\"]};"
                       "\"lock_scope\"=\"mytables\">";
     auto root = DeserializeFromYson(someYson);
-    auto deserializedYson = SerializeToYson(root.Get(), TYsonWriter::EFormat::Text);
+    auto deserializedYson = SerializeToYson(root.Get(), EYsonFormat::Text);
     EXPECT_EQ(deleteSpaces(someYson), deserializedYson) <<
         "Before deserialize/serialize: " << someYson << "\n" <<
         "After: " << deserializedYson;

@@ -15,8 +15,14 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeBase
-    : public virtual INode
-    , public TYPathServiceBase
+    : public virtual TYPathServiceBase
+    , public virtual TSupportsGet
+    , public virtual TSupportsSet
+    , public virtual TSupportsRemove
+    , public virtual TSupportsGetNode
+    , public virtual TSupportsSetNode
+    , public virtual TSupportsList
+    , public virtual INode
 {
 public:
     typedef TIntrusivePtr<TNodeBase> TPtr;
@@ -45,6 +51,8 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
+
 protected:
     template <class TNode>
     void DoSetSelf(TNode* node, const TYson& value)
@@ -56,43 +64,19 @@ protected:
     }
     
     virtual void DoInvoke(NRpc::IServiceContext* context);
-    virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, Get);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
-    virtual void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetNode);
-    virtual void GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context);
-    virtual void GetNodeRecursive(const TYPath& path, TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context);
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, Set);
-    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context);
-    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, SetNode);
-    virtual void SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
-    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, Remove);
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context);
-    virtual void RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
-
-    virtual yvector<Stroka> GetVirtualAttributeNames();
-    virtual IYPathService::TPtr GetVirtualAttributeService(const Stroka& name);
-
-    IMapNode::TPtr EnsureAttributes();
-
+    virtual void GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGetNode* context);
+    virtual void SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapNodeMixin
     : public virtual IMapNode
+    , public virtual TSupportsList
 {
 protected:
-    bool DoInvoke(NRpc::IServiceContext* context);
-
     IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const Stroka& verb);
@@ -107,7 +91,7 @@ protected:
         INode* value);
 
 private:
-    DECLARE_RPC_SERVICE_METHOD(NProto, List);
+    virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
 
 };
 

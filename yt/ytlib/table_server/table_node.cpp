@@ -2,17 +2,12 @@
 #include "table_node.h"
 #include "table_node_proxy.h"
 
-#include <ytlib/cypress/node_proxy.h>
-#include <ytlib/ytree/fluent.h>
-
 namespace NYT {
 namespace NTableServer {
 
 using namespace NCypress;
-using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NChunkServer;
-using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,9 +53,7 @@ public:
         TChunkManager* chunkManager)
         : TCypressNodeTypeHandlerBase<TTableNode>(cypressManager)
         , ChunkManager(chunkManager)
-    {
-        RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
-    }
+    { }
 
     EObjectType GetObjectType()
     {
@@ -100,7 +93,7 @@ public:
             ~CypressManager,
             ~ChunkManager,
             transactionId,
-            node.GetId().NodeId);
+            node.GetId().ObjectId);
     }
 
 protected:
@@ -147,20 +140,14 @@ protected:
         CypressManager->GetObjectManager()->UnrefObject(oldFirstChildId);
 
         // Replace the chunk list of committedNode.
-        auto committedNodeId = committedNode.GetId().NodeId;
+        auto committedNodeId = committedNode.GetId().ObjectId;
         committedNode.SetChunkListId(branchedChunkListId);
         CypressManager->GetObjectManager()->UnrefObject(newFirstChildId);
     }
 
 private:
-    typedef TTableNodeTypeHandler TThis;
-
     NChunkServer::TChunkManager::TPtr ChunkManager;
 
-    static void GetChunkListId(const TGetAttributeParam& param)
-    {
-        BuildYsonFluently(param.Consumer).Scalar(param.Node->GetChunkListId().ToString());
-    }
 };
 
 INodeTypeHandler::TPtr CreateTableTypeHandler(

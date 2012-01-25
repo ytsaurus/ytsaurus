@@ -18,7 +18,7 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IElectionCallbacks
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IElectionCallbacks> TPtr;
 

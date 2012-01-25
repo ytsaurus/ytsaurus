@@ -16,7 +16,7 @@ namespace NMetaState {
  *  Thread affinity: single-threaded.
  */
 class TSnapshotStore
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSnapshotStore> TPtr;

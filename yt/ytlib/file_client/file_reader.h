@@ -2,10 +2,12 @@
 
 #include "common.h"
 
+#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/configurable.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
@@ -17,8 +19,13 @@ namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A client-side facade for reading files.
+/*!
+ *  The client must call #Open and then read the file block-by-block
+ *  calling #Read.
+ */
 class TFileReader
-    : public TRefCountedBase
+    : public NTransactionClient::TTransactionListener
 {
 public:
     typedef TIntrusivePtr<TFileReader> TPtr;
@@ -48,13 +55,16 @@ public:
         NChunkClient::IBlockCache* blockCache,
         const NYTree::TYPath& path);
 
+    //! Opens the reader.
+    void Open();
+
     //! Returns the size of the file.
     i64 GetSize() const;
 
     //! Returns the file name (as provided by the master).
     Stroka GetFileName() const;
 
-    //! Returns the executable mode.
+    //! Returns the executable flag.
     bool IsExecutable();
 
     //! Reads the next block.
@@ -64,34 +74,32 @@ public:
     TSharedRef Read();
 
     //! Closes the reader.
+    /*!
+     *  After this call the reader instance is no longer usable.
+     */
     void Close();
 
 private:
     TConfig::TPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
+    NTransactionClient::TTransactionId TransactionId;
+    NChunkClient::IBlockCache::TPtr BlockCache;
     NYTree::TYPath Path;
-    bool Closed;
-    volatile bool Aborted;
-
-    TAutoPtr<NCypress::TCypressServiceProxy> CypressProxy;
-    NChunkClient::TSequentialReader::TPtr SequentialReader;
-    NChunkServer::TChunkId ChunkId;
+    bool IsOpen;
+    bool IsClosed;
     i32 BlockCount;
     i32 BlockIndex;
+    NCypress::TCypressServiceProxy Proxy;
+    NLog::TTaggedLogger Logger;
+
+    NChunkClient::TSequentialReader::TPtr SequentialReader;
     i64 Size;
     ICodec* Codec;
     Stroka FileName;
     bool Executable;
 
-    IAction::TPtr OnAborted_;
-
-    NLog::TTaggedLogger Logger;
-
-    void CheckAborted();
-    void OnAborted();
-
-    void Finish();
+    DECLARE_THREAD_AFFINITY_SLOT(Client);
 
 };
 

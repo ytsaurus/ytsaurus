@@ -36,22 +36,22 @@ TAutoPtr<TChunk> TChunk::Clone() const
 
 void TChunk::Save(TOutputStream* output) const
 {
+    TObjectWithIdBase::Save(output);
     ::Save(output, Size_);
     ::Save(output, Attributes_);
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
-    ::Save(output, RefCounter);
 
 }
 
 TAutoPtr<TChunk> TChunk::Load(const TChunkId& id, TInputStream* input)
 {
     TAutoPtr<TChunk> chunk = new TChunk(id);
+    chunk->TObjectWithIdBase::Load(input);
     ::Load(input, chunk->Size_);
     ::Load(input, chunk->Attributes_);
     ::Load(input, chunk->StoredLocations_);
     LoadNullableSet(input, chunk->CachedLocations_);
-    ::Load(input, chunk->RefCounter);
     return chunk;
 }
 

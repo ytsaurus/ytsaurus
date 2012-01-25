@@ -17,7 +17,7 @@ class TChunkCache;
  *  This class provides a single entry point for locating these chunks.
  */
 class TChunkRegistry
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TChunkRegistry> TPtr;

@@ -39,7 +39,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TActionQueueBase
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TActionQueueBase> TPtr;

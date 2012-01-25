@@ -21,7 +21,7 @@ namespace NTableClient {
 //! When row is fetched client can iterate on columns using #NextColumn and
 //! get table data with #GetColumn and #GetValue.
 struct IAsyncReader
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IAsyncReader> TPtr;
 

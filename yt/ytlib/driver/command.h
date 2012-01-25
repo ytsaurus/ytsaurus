@@ -39,7 +39,7 @@ struct IDriverImpl
 
     virtual NChunkClient::IBlockCache* GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManager* GetTransactionManager() = 0;
-    virtual NTransactionServer::TTransactionId GetCurrentTransactionId() = 0;
+    virtual NObjectServer::TTransactionId GetCurrentTransactionId() = 0;
     virtual NTransactionClient::ITransaction* GetCurrentTransaction(bool required = false) = 0;
     virtual void SetCurrentTransaction(NTransactionClient::ITransaction* transaction) = 0;
 };
@@ -64,7 +64,7 @@ Stroka ToStreamSpec(NYTree::INode::TPtr node);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommand
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<ICommand> TPtr;
 

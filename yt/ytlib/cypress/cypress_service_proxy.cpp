@@ -16,7 +16,6 @@ static NLog::TLogger& Logger = CypressLogger;
 
 const TYPath ObjectIdMarker = "#";
 const TYPath TransactionIdMarker = "!";
-const TYPath SystemPath = "#0-0-0-0";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +26,10 @@ TYPath FromObjectId(const TObjectId& id)
 
 TYPath WithTransaction(const TYPath& path, const TTransactionId& id)
 {
-    return TransactionIdMarker + id.ToString() + path;
+    return
+        id == NullTransactionId
+        ? path
+        : TransactionIdMarker + id.ToString() + path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

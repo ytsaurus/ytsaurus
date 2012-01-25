@@ -4,10 +4,12 @@
 
 #include <ytlib/misc/configurable.h>
 #include <ytlib/misc/codec.h>
+#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/cypress/id.h>
 #include <ytlib/chunk_client/remote_writer.h>
@@ -15,11 +17,16 @@
 
 namespace NYT {
 namespace NFileClient {
-
+    
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A client-side facade for writing files.
+/*!
+ *  The client must call #Open and then feed the data in by calling #Write.
+ *  Finally it must call #Close.
+ */
 class TFileWriter
-    : public TRefCountedBase
+    : public NTransactionClient::TTransactionListener
 {
 public:
     typedef TIntrusivePtr<TFileWriter> TPtr;
@@ -71,14 +78,17 @@ public:
         NTransactionClient::TTransactionManager* transactionManager,
         const NYTree::TYPath& path);
 
-    //! Adds another chunk of data.
+    //! Opens the writer.
+    void Open();
+
+    //! Adds another portion of data.
     /*!
-     *  This chunk does not necessary makes up a block. The writer maintains an internal buffer
-     *  and splits the input data into parts of equal size (see TConfig::BlockSize).
+     *  This portion does not necessary makes up a block. The writer maintains an internal buffer
+     *  and splits the input data into parts of equal size (see #TConfig::BlockSize).
      */
     void Write(TRef data);
 
-    //! Cancels the writing process releasing all resources.
+    //! Cancels the writing process and releases all resources.
     void Cancel();
 
     //! Closes the writer.
@@ -86,36 +96,28 @@ public:
 
 private:
     TConfig::TPtr Config;
-    NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
-    NTransactionServer::TTransactionId TransactionId;
+    NObjectServer::TTransactionId TransactionId;
     NTransactionClient::ITransaction::TPtr UploadTransaction;
     NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NYTree::TYPath Path;
-    bool Closed;
-    volatile bool Aborted;
-
-    TAutoPtr<NCypress::TCypressServiceProxy> CypressProxy;
-    TAutoPtr<NChunkServer::TChunkServiceProxy> ChunkProxy;
+    bool IsOpen;
+    bool IsClosed;
+    i64 Size;
+    i32 BlockCount;
+    NCypress::TCypressServiceProxy CypressProxy;
+    NChunkServer::TChunkServiceProxy ChunkProxy;
+    NLog::TTaggedLogger Logger;
 
     NChunkClient::TRemoteWriter::TPtr Writer;
     NCypress::TNodeId NodeId;
     NChunkServer::TChunkId ChunkId;
     ICodec* Codec;
-
-    i64 Size;
-    i32 BlockCount;
     TBlob Buffer;
 
-    IAction::TPtr OnAborted_;
-
-    NLog::TTaggedLogger Logger;
-
-    void CheckAborted();
-    void OnAborted();
-
     void FlushBlock();
-    void Finish();
+
+    DECLARE_THREAD_AFFINITY_SLOT(Client);
 
 };
 

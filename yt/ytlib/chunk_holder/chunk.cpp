@@ -96,8 +96,9 @@ TCachedChunk::TCachedChunk(TLocation* location, const TChunkDescriptor& descript
 
 TCachedChunk::~TCachedChunk()
 {
-    LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~GetId().ToString());
+    // This check ensures that we don't remove any chunks from cache upon shutdown.
     if (!ChunkCache.IsExpired()) {
+        LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~GetId().ToString());
         Location_->RemoveChunk(this);
     }
 }

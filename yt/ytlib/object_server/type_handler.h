@@ -10,8 +10,9 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Provides a bridge between TObjectManager and concrete object implementations.
 struct IObjectTypeHandler
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IObjectTypeHandler> TPtr;
 
@@ -29,11 +30,18 @@ struct IObjectTypeHandler
     //! The object with the given id must exist.
     virtual IObjectProxy::TPtr GetProxy(const TObjectId& id) = 0;
 
-    //! Creates an object with the given manifest.
+    //! Creates a new object instance.
     /*!
+     *  \param transactionId Id of the transaction that becomes the owner of the newly created object.
+     *  \param manifest Manifest containing additional creation parameters. 
      *  \returns the id of the created object.
      */
-    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest) = 0;
+    virtual TObjectId CreateFromManifest(
+        const TTransactionId& transactionId,
+        NYTree::IMapNode* manifest) = 0;
+
+    //! Indicates if a valid transaction is required to create a instance.
+    virtual bool IsTransactionRequired() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "tree_visitor.h"
+#include "ypath_client.h"
+#include "serialize.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/assert.h>
@@ -21,8 +23,12 @@ void TTreeVisitor::Visit(const INode* root)
 
 void TTreeVisitor::VisitAny(const INode* node)
 {
-    auto attributes = node->GetAttributes();
-    bool hasAttributes = attributes && VisitAttributes_;
+    yvector<Stroka> attributeNames;
+    if (VisitAttributes_) {
+        attributeNames = SyncYPathList(const_cast<INode*>(node), RootMarker + AttributeMarker);
+    }
+
+    bool hasAttributes = !attributeNames.empty();
 
     switch (node->GetType()) {
         case ENodeType::String:
@@ -48,7 +54,14 @@ void TTreeVisitor::VisitAny(const INode* node)
     }
 
     if (hasAttributes) {
-        VisitAttributes(~node->GetAttributes());
+        std::sort(attributeNames.begin(), attributeNames.end());
+        Consumer->OnBeginAttributes();
+        FOREACH (const auto& attributeName, attributeNames) {
+            Consumer->OnAttributesItem(attributeName);
+            auto attributeValue = SyncYPathGet(const_cast<INode*>(node), RootMarker + AttributeMarker + attributeName);
+            ProducerFromYson(attributeValue)->Do(Consumer);
+        }
+        Consumer->OnEndAttributes();
     }
 }
 
@@ -99,18 +112,6 @@ void TTreeVisitor::VisitMap(const IMapNode* node, bool hasAttributes)
         VisitAny(~pair.Second());
     }
     Consumer->OnEndMap(hasAttributes);
-}
-
-void TTreeVisitor::VisitAttributes(const IMapNode* node)
-{
-    Consumer->OnBeginAttributes();
-    auto children = node->GetChildren();
-    std::sort(children.begin(), children.end());
-    FOREACH(const auto& pair, children) {
-        Consumer->OnAttributesItem(pair.First());
-        VisitAny(~pair.Second());
-    }
-    Consumer->OnEndAttributes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,7 +19,7 @@ namespace NTransactionClient {
  *  It keeps track of all active transactions and sends pings to master servers periodically.
  */
 class TTransactionManager
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
@@ -37,8 +37,10 @@ public:
 
         TConfig()
         {
-            Register("ping_period", PingPeriod).Default(TDuration::Seconds(5));
-            Register("master_rpc_timeout", PingPeriod).Default(TDuration::Seconds(5));
+            Register("ping_period", PingPeriod)
+                .Default(TDuration::Seconds(5));
+            Register("master_rpc_timeout", PingPeriod)
+                .Default(TDuration::Seconds(5));
         }
     };
 
@@ -57,7 +59,7 @@ public:
      *  This call may block.
      *  Thread affinity: any.
      */
-    ITransaction::TPtr Start();
+    ITransaction::TPtr Start(const TTransactionId& parentId = NullTransactionId);
 
 private:
     void PingTransaction(const TTransactionId& transactionId);

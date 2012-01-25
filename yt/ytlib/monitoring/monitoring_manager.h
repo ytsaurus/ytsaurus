@@ -13,7 +13,7 @@ namespace NMonitoring {
  * \note Periodically updates info for all registered systems
  */
 class TMonitoringManager
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TMonitoringManager> TPtr;

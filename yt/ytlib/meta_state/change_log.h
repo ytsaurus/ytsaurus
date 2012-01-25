@@ -16,7 +16,7 @@ namespace NMetaState {
  * of verifications and guarantees can be found in the member documentation.
  */
 class TChangeLog
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TChangeLog> TPtr;

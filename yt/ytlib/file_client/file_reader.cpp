@@ -28,56 +28,57 @@ TFileReader::TFileReader(
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
+    , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
+    , BlockCache(blockCache)
     , Path(path)
-    , Closed(false)
-    , Aborted(false)
+    , IsOpen(false)
+    , IsClosed(false)
+    , BlockCount(0)
     , BlockIndex(0)
+    , Proxy(masterChannel)
     , Logger(FileClientLogger)
 {
+    YASSERT(config);
     YASSERT(masterChannel);
-
-    auto transactionId =
-        !Transaction
-        ? NullTransactionId
-        : Transaction->GetId();
-
-    // Bind to the transaction.
-    if (Transaction) {
-        OnAborted_ = FromMethod(&TFileReader::OnAborted, TPtr(this));
-        Transaction->SubscribeAborted(OnAborted_);
-    }
+    YASSERT(blockCache);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~Path,
-        ~transactionId.ToString()));
+        ~TransactionId.ToString()));
 
-    LOG_INFO("File reader open");
+    Proxy.SetTimeout(Config->MasterRpcTimeout);
+}
 
-    CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
-    CypressProxy->SetTimeout(Config->MasterRpcTimeout);
+void TFileReader::Open()
+{
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(!IsOpen);
+    YASSERT(!IsClosed);
+
+    LOG_INFO("Opening file reader");
 
     LOG_INFO("Fetching file info");
-    auto fetchReq = TFileYPathProxy::Fetch(WithTransaction(Path, transactionId));
-    auto fetchRsp = CypressProxy->Execute(~fetchReq)->Get();
+    auto fetchReq = TFileYPathProxy::Fetch(WithTransaction(Path, TransactionId));
+    auto fetchRsp = Proxy.Execute(~fetchReq)->Get();
     if (!fetchRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error fetching file info\n%s",
             ~fetchRsp->GetError().ToString());
     }
-    ChunkId = TChunkId::FromProto(fetchRsp->chunk_id());
+    auto chunkId = TChunkId::FromProto(fetchRsp->chunk_id());
     auto holderAddresses = FromProto<Stroka>(fetchRsp->holder_addresses());
     FileName = fetchRsp->file_name();
     Executable = fetchRsp->executable();
-    LOG_INFO("Read info received (ChunkId: %s, FileName: %s, Executable: %s, HolderAddresses: [%s])",
-        ~ChunkId.ToString(),
+    LOG_INFO("File info received (ChunkId: %s, FileName: %s, Executable: %s, HolderAddresses: [%s])",
+        ~chunkId.ToString(),
         ~FileName,
         ~ToString(Executable),
         ~JoinToString(holderAddresses));
 
     auto remoteReader = CreateRemoteReader(
         ~Config->RemoteReader,
-        blockCache,
+        ~BlockCache,
         ~MasterChannel,
-        ChunkId,
+        chunkId,
         holderAddresses);
 
     LOG_INFO("Requesting chunk info");
@@ -108,18 +109,24 @@ TFileReader::TFileReader(
         ~Config->SequentialReader,
         blockIndexes,
         ~remoteReader);
+
+    if (Transaction) {
+        ListenTransaction(~Transaction);
+    }
+
+    LOG_INFO("File reader opened");
+
+    IsOpen = true;
 }
 
 TSharedRef TFileReader::Read()
 {
-    if (Closed) {
-        ythrow yexception() << "File reader is already closed";
-    }
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
 
     CheckAborted();
 
     if (!SequentialReader->HasNext()) {
-        Close();
         return TSharedRef();
     }
 
@@ -127,63 +134,48 @@ TSharedRef TFileReader::Read()
     Sync(~SequentialReader, &TSequentialReader::AsyncNextBlock);
     auto compressedBlock = SequentialReader->GetBlock();
     auto block = Codec->Decompress(compressedBlock);
-    LOG_INFO("Block read (BlockIndex: %d)", BlockIndex);
-
     ++BlockIndex;
+    LOG_INFO("Block read (BlockIndex: %d)", BlockIndex);
 
     return block;
 }
 
 i64 TFileReader::GetSize() const
 {
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
     return Size;
 }
 
 Stroka TFileReader::GetFileName() const
 {
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
     return FileName;
 }
 
 bool TFileReader::IsExecutable()
 {
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
     return Executable;
 }
 
 void TFileReader::Close()
 {
-    if (Closed)
+    VERIFY_THREAD_AFFINITY(Client);
+
+    if (!IsOpen)
         return;
 
-    CheckAborted();
-
-    Finish();
+    SequentialReader.Reset();
+    IsOpen = false;
+    IsClosed = true;
 
     LOG_INFO("File reader closed");
-}
-
-void TFileReader::Finish()
-{
-    if (Transaction) {
-        Transaction->UnsubscribeAborted(OnAborted_);
-        Transaction.Reset();
-    }
-    OnAborted_.Reset();
-    SequentialReader.Reset();
-    Closed = true;
-}
-
-void TFileReader::CheckAborted()
-{
-    if (Aborted) {
-        Finish();
-
-        LOG_WARNING_AND_THROW(yexception(), "Transaction aborted, file reader canceled");
-    }
-}
-
-void TFileReader::OnAborted()
-{
-    Aborted = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,15 +1,14 @@
 #include "stdafx.h"
-#include "id.h"
+#include "transaction_ypath_proxy.h"
 
 namespace NYT {
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionId NullTransactionId = NObjectServer::NullObjectId;
+NYTree::TYPath RootTransactionPath = "#0-0-0-0";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionServer
 } // namespace NYT
-

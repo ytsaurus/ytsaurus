@@ -11,7 +11,7 @@ namespace NMetaState {
 
 template <class TResult>
 class TMetaChange
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TMetaChange> TPtr;

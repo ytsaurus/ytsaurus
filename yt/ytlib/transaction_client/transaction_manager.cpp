@@ -6,14 +6,12 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/actions/signal.h>
-#include <ytlib/object_server/object_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
 using namespace NCypress;
 using namespace NTransactionServer;
-using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,19 +27,29 @@ public:
 
     TTransaction(
         NRpc::IChannel* cellChannel,
-        TTransactionManager* transactionManager)
-        : TransactionManager(transactionManager)
+        const TTransactionId& parentId,
+        TTransactionManager* owner)
+        : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
+        , ParentId(parentId)
     {
         YASSERT(cellChannel);
-        YASSERT(transactionManager);
+        YASSERT(owner);
+
+        Proxy.SetTimeout(Owner->Config->MasterRpcTimeout);
+    }
+
+    void Start()
+    {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
-        Proxy.SetTimeout(TransactionManager->Config->MasterRpcTimeout);
-
         LOG_INFO("Starting transaction");
-        auto req = TObjectYPathProxy::Create(SystemPath);
+
+        NYTree::TYPath transactionPath = (ParentId == NullTransactionId)
+            ? RootTransactionPath
+            : FromObjectId(ParentId);
+        auto req = TTransactionYPathProxy::CreateObject(transactionPath);
         req->set_type(EObjectType::Transaction);
         auto rsp = Proxy.Execute(~req)->Get();
         if (!rsp->IsOK()) {
@@ -51,17 +59,16 @@ public:
         }
         Id = TTransactionId::FromProto(rsp->object_id());
         State = EState::Active;
-
         LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
 
-        TransactionManager->RegisterTransaction(this);
+        Owner->RegisterTransaction(this);
 
         PingInvoker = New<TPeriodicInvoker>(
             FromMethod(
                 &TTransactionManager::PingTransaction,
-                TransactionManager, 
+                Owner, 
                 Id),
-            TransactionManager->Config->PingPeriod);
+            Owner->Config->PingPeriod);
         PingInvoker->Start();
     }
 
@@ -69,7 +76,15 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TransactionManager->UnregisterTransaction(Id);
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (State == EState::Active) {
+                FireAbort();
+                State = EState::Aborted;
+            }
+        }
+
+        Owner->UnregisterTransaction(Id);
     }
 
     TTransactionId GetId() const
@@ -82,44 +97,56 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
-        MakeStateTransition(EState::Committing);
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            switch (State) {
+                case EState::Committed:
+                    ythrow yexception() << "Transaction is already committed";
+                    break;
+
+                case EState::Aborted:
+                    ythrow yexception() << "Transaction is already aborted";
+                    break;
+
+                case EState::Active:
+                    State = EState::Committed;
+                    break;
+
+                default:
+                    YUNREACHABLE();
+            }
+        }
 
         LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
 
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
         auto rsp = Proxy.Execute(~req)->Get();
-
-        TGuard<TSpinLock> guard(SpinLock);
         if (!rsp->IsOK()) {
+            // Let's pretend the transaction was aborted.
+            // No sync here, should be safe.
             State = EState::Aborted;
-            guard.Release();
             
-            DoAbort();
-
             LOG_ERROR_AND_THROW(yexception(), "Error committing transaction (TransactionId: %s)\n%s",
                 ~Id.ToString(),
                 ~rsp->GetError().ToString());
+
+            DoAbort();
             return;
         }
-        LOG_INFO("Transaction committed (TransactionId: %s)", ~Id.ToString());
 
-        State = EState::Committed;
         PingInvoker->Stop();
+
+        LOG_INFO("Transaction committed (TransactionId: %s)", ~Id.ToString());
     }
 
     void Abort()
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
-
-        MakeStateTransition(EState::Aborted);
-
-        // Fire and forget.
-        auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
-        Proxy.Execute(~req);
-
-        DoAbort();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         LOG_INFO("Transaction aborted by client (TransactionId: %s)",  ~Id.ToString());
+
+        FireAbort();
+        HandleAbort();
     }
 
     void SubscribeAborted(IAction::TPtr onAborted)
@@ -148,7 +175,7 @@ public:
         Aborted.Unsubscribe(onAborted);
     }
 
-    void AsyncAbort()
+    void HandleAbort()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -163,6 +190,12 @@ public:
         DoAbort();
     }
 
+    TTransactionId GetParentId() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return ParentId;
+    }
+
 private:
     DECLARE_ENUM(EState,
         (Active)
@@ -171,7 +204,7 @@ private:
         (Committed)
     );
 
-    TTransactionManager::TPtr TransactionManager;
+    TTransactionManager::TPtr Owner;
     TCypressServiceProxy Proxy;
 
     //! Protects state transitions.
@@ -180,34 +213,17 @@ private:
 
     TPeriodicInvoker::TPtr PingInvoker;
     TTransactionId Id;
+    TTransactionId ParentId;
 
     TSignal Aborted;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
-
-    void MakeStateTransition(EState newState)
+    void FireAbort()
     {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (newState == State)
-            return;
-
-        switch (State) {
-            case EState::Committed:
-                ythrow yexception() << "Transaction is already committed";
-                break;
-
-            case EState::Aborted:
-                ythrow yexception() << "Transaction is already aborted";
-                break;
-
-            case EState::Active:
-                State = newState;
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
+        // Fire and forget.
+        auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
+        Proxy.Execute(~req);
     }
 
     void DoAbort()
@@ -216,7 +232,6 @@ private:
         Aborted.Fire();
         Aborted.Clear();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,11 +248,13 @@ TTransactionManager::TTransactionManager(
     CypressProxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
-ITransaction::TPtr TTransactionManager::Start()
+ITransaction::TPtr TTransactionManager::Start(const TTransactionId& parentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return New<TTransaction>(~Channel, this);
+    auto transaction = New<TTransaction>(~Channel, parentId, this);
+    transaction->Start();
+    return transaction;
 }
 
 void TTransactionManager::PingTransaction(const TTransactionId& id)
@@ -293,7 +310,7 @@ void TTransactionManager::OnPingResponse(
         if (rsp->GetErrorCode() == NYTree::EYPathErrorCode::ResolveError) {
             LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
                 ~id.ToString());
-            transaction->AsyncAbort();
+            transaction->HandleAbort();
         } else {
             LOG_WARNING("Error renewing transaction lease (TransactionId: %s)\n%s",
                 ~id.ToString(),

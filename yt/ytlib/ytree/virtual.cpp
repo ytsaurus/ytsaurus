@@ -19,13 +19,13 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 {
     UNUSED(verb);
 
-    Stroka prefix;
+    Stroka token;
     TYPath suffixPath;
-    ChopYPathToken(path, &prefix, &suffixPath);
+    ChopYPathToken(path, &token, &suffixPath);
 
-    auto service = GetItemService(prefix);
+    auto service = GetItemService(token);
     if (!service) {
-        ythrow yexception() << Sprintf("Key %s is not found", ~prefix.Quote());
+        ythrow yexception() << Sprintf("Key %s is not found", ~token.Quote());
     }
 
     return TResolveResult::There(~service, suffixPath);
@@ -33,12 +33,8 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 
 void TVirtualMapBase::DoInvoke(NRpc::IServiceContext* context)
 {
-    Stroka verb = context->GetVerb();
-    if (verb == "Get") {
-        GetThunk(context);
-    } else {
-        TYPathServiceBase::DoInvoke(context);
-    }
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    TYPathServiceBase::DoInvoke(context);
 }
 
 struct TGetConfig
@@ -48,14 +44,16 @@ struct TGetConfig
 
     TGetConfig()
     {
-        Register("max_size", MaxSize).GreaterThanOrEqual(0).Default(3);
+        Register("max_size", MaxSize)
+            .GreaterThanOrEqual(0)
+            .Default(100);
     }
 };
 
 DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
 {
     if (!IsFinalYPath(context->GetPath())) {
-        ythrow yexception() << "Resolution error: path must be final";
+        ythrow yexception() << "Path must be final";
     }
 
     auto config = New<TGetConfig>();
@@ -66,7 +64,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
     config->Validate();
     
     TStringStream stream;
-    TYsonWriter writer(&stream, TYsonWriter::EFormat::Binary);
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
     auto keys = GetKeys(config->MaxSize);
     auto size = GetSize();
 
@@ -75,9 +73,7 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
     writer.OnBeginMap();
     FOREACH (const auto& key, keys) {
         writer.OnMapItem(key);
-        auto service = GetItemService(key);
-        YASSERT(service);
-        writer.OnRaw(SyncYPathGet(~service, NYTree::RootMarker));
+        writer.OnEntity(false);
     }
 
     bool incomplete = keys.ysize() != size;
@@ -122,16 +118,6 @@ public:
         Parent = parent;
     }
 
-    virtual IMapNode::TPtr GetAttributes() const
-    {
-        return Attributes;
-    }
-
-    virtual void SetAttributes(IMapNode* attributes)
-    {
-        Attributes = attributes;
-    }
-
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
         if (IsLocalYPath(path)) {
@@ -144,9 +130,7 @@ public:
 
 private:
     TYPathServiceProvider::TPtr Provider;
-
     ICompositeNode* Parent;
-    IMapNode::TPtr Attributes;
 
 };
 

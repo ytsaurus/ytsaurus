@@ -88,7 +88,7 @@ void EnableStatlog(bool state);
 
 void LogQueueAppend(TLogCommand *cmd);
 
-enum EFormat {
+enum EYsonFormat {
     PLAINTEXT_LATEST = 0,
     PLAINTEXT_FULL,
     PLAINTEXT_FULL_WITH_TIMES,
@@ -96,7 +96,7 @@ enum EFormat {
     FORMAT_COUNT
 };
 
-Stroka GetDump(EFormat format);
+Stroka GetDump(EYsonFormat format);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -13,7 +13,6 @@ struct TObjectYPathProxy
     : public NYTree::TYPathProxy
 {
     DEFINE_YPATH_PROXY_METHOD(NProto, GetId);
-    DEFINE_YPATH_PROXY_METHOD(NProto, Create);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,7 +23,7 @@ public:
         NCypress::INodeTypeHandler* typeHandler,
         NCypress::TCypressManager* cypressManager,
         NChunkServer::TChunkManager* chunkManager,
-        const NTransactionServer::TTransactionId& transactionId,
+        const NObjectServer::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
 
     bool IsExecutable();
@@ -33,6 +33,9 @@ private:
     typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;
 
     NChunkServer::TChunkManager::TPtr ChunkManager;
+
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
 

@@ -60,10 +60,10 @@ void TFileLogWriter::EnsureInitialized()
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
         *FileOutput << Endl;
-    } catch (...) {
+    } catch (const std::exception& ex) {
         LOG_ERROR("Error opening log file %s\n%s",
             ~FileName.Quote(),
-            ~CurrentExceptionMessage());
+            ex.what());
         // Still let's pretend we're initialized to avoid subsequent attempts.
         Initialized = true;
         return;

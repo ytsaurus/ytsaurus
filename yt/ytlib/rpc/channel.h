@@ -16,7 +16,7 @@ struct IClientResponseHandler;
  * \note Thread affinity: any.
  */
 struct IChannel
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<IChannel> TPtr;
 

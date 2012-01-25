@@ -2,7 +2,9 @@
 
 #include "type_handler.h"
 #include "object_detail.h"
+#include "object_manager.h"
 
+#include <ytlib/ytree/serialize.h>
 #include <ytlib/meta_state/map.h>
 
 namespace NYT {
@@ -17,8 +19,9 @@ class TObjectTypeHandlerBase
 public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
 
-    TObjectTypeHandlerBase(TMap* map)
-        : Map(map)
+    TObjectTypeHandlerBase(TObjectManager* objectManager, TMap* map)
+        : ObjectManager(objectManager)
+        , Map(map)
     {
         YASSERT(map);
     }
@@ -56,14 +59,23 @@ public:
         return CreateProxy(id);
     }
 
-    virtual TObjectId CreateFromManifest(NYTree::IMapNode* manifest)
+    virtual TObjectId CreateFromManifest(
+        const NObjectServer::TTransactionId& transactionId,
+        NYTree::IMapNode* manifest)
     {
+        UNUSED(transactionId);
         UNUSED(manifest);
-        ythrow yexception() << Sprintf("Objects of type %s cannot be created from a manifest",
+        ythrow yexception() << Sprintf("Object cannot be created from a manifest (Type: %s)",
             ~GetType().ToString());
     }
 
+    virtual bool IsTransactionRequired() const
+    {
+        return true;
+    }
+
 protected:
+    TIntrusivePtr<TObjectManager> ObjectManager;
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
 
@@ -74,7 +86,24 @@ protected:
 
     virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id)
     {
-        return New< TObjectProxyBase<TObject> >(id, Map);
+        return New< TUnversionedObjectProxyBase<TObject> >(~ObjectManager, id, Map);
+    }
+
+    void SetAttributes(const TObjectId& id, NYTree::IMapNode* manifest)
+    {
+        if (manifest->GetChildCount() == 0)
+            return;
+
+        auto* attributes = ObjectManager->FindAttributesForUpdate(id);
+        if (!attributes) {
+            attributes = ObjectManager->CreateAttributes(id);
+        }
+
+        FOREACH (const auto& pair, manifest->GetChildren()) {
+            const auto& key = pair.first;
+            auto value = NYTree::SerializeToYson(~pair.second);
+            YVERIFY(attributes->Attributes().insert(MakePair(key, value)).second);
+        }
     }
 };
 

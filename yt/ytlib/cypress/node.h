@@ -40,7 +40,7 @@ struct ICypressNode
     virtual void Load(TInputStream* input) = 0;
 
     //! Returns the id of the node (which is the key in the respective meta-map).
-    virtual TVersionedNodeId GetId() const = 0;
+    virtual TVersionedObjectId GetId() const = 0;
 
     // TODO: maybe propertify?
     //! Gets the state of node.
@@ -52,11 +52,6 @@ struct ICypressNode
     virtual TNodeId GetParentId() const = 0;
     //! Sets parent node id.
     virtual void SetParentId(const TNodeId& value) = 0;
-
-    //! Gets attributes node id.
-    virtual TNodeId GetAttributesId() const = 0;
-    //! Sets attributes node id.
-    virtual void SetAttributesId(const TNodeId& value) = 0;
 
     //! Gets an immutable reference to the node's locks.
     virtual const yhash_set<TLockId>& LockIds() const = 0;

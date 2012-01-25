@@ -21,24 +21,36 @@ TTableReader::TTableReader(
     const TChannel& readChannel,
     const TYPath& path)
     : Config(config)
+    , MasterChannel(masterChannel)
     , Transaction(transaction)
+    , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
+    , BlockCache(blockCache)
+    , ReadChannel(readChannel)
+    , Path(path)
+    , IsOpen(false)
+    , IsClosed(false)
+    , Proxy(masterChannel)
     , Logger(TableClientLogger)
 {
     YASSERT(masterChannel);
 
-    OnAborted_ = FromMethod(&TTableReader::OnAborted, TPtr(this));
-
-    auto transactionId = Transaction ? Transaction->GetId() : NullTransactionId;
-
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~path,
-        ~transactionId.ToString()));
+        ~TransactionId.ToString()));
 
-    TCypressServiceProxy Proxy(masterChannel);
     Proxy.SetTimeout(Config->MasterRpcTimeout);
+}
+
+void TTableReader::Open()
+{
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(!IsOpen);
+    YASSERT(!IsClosed);
+
+    LOG_INFO("Opening table reader");
 
     LOG_INFO("Fetching table info");
-    auto req = TTableYPathProxy::Fetch(WithTransaction(path, transactionId));
+    auto req = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
     auto rsp = Proxy.Execute(~req)->Get();
     if (!rsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error fetching table info\n%s",
@@ -53,10 +65,10 @@ TTableReader::TTableReader(
 
     Reader = New<TChunkSequenceReader>(
         ~Config->ChunkSequenceReader,
-        readChannel,
-        transactionId,
-        masterChannel,
-        blockCache,
+        ReadChannel,
+        TransactionId,
+        ~MasterChannel,
+        ~BlockCache,
         chunkIds,
         0,
         // TODO(babenko): fixme, make i64
@@ -64,18 +76,21 @@ TTableReader::TTableReader(
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {
-        Transaction->SubscribeAborted(OnAborted_);
+        ListenTransaction(~Transaction);
     }
-}
 
-void TTableReader::OnAborted()
-{
-    Reader->Cancel(TError("Transaction aborted"));
-    OnAborted_.Reset();
+    IsOpen = true;
+
+    LOG_INFO("Table reader opened");
 }
 
 bool TTableReader::NextRow()
 {
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
+    CheckAborted();
+
     if (!Reader->HasNextRow()) {
         return false;
     }
@@ -86,26 +101,40 @@ bool TTableReader::NextRow()
 
 bool TTableReader::NextColumn()
 {
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
+    CheckAborted();
     return Reader->NextColumn();
 }
 
 TColumn TTableReader::GetColumn() const
 {
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
     return Reader->GetColumn();
 }
 
 TValue TTableReader::GetValue() const
 {
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
     return Reader->GetValue();
 }
 
 void TTableReader::Close()
 {
-    if (Transaction) {
-        Transaction->UnsubscribeAborted(OnAborted_);
-        Transaction.Reset();
-    }
-    OnAborted_.Reset();
+    VERIFY_THREAD_AFFINITY(Client);
+
+    if (!IsOpen)
+        return;
+
+    IsOpen = false;
+    IsClosed = true;
+
+    LOG_INFO("Table reader closed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

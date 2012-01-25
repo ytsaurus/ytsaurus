@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "peer_updater.h"
+#include "peer_block_updater.h"
 #include "block_store.h"
 #include "chunk_holder_service_proxy.h"
 
@@ -15,7 +15,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerUpdater::TPeerUpdater(
+TPeerBlockUpdater::TPeerBlockUpdater(
     TChunkHolderConfig* config,
     TBlockStore* blockStore,
     NRpc::TChannelCache* channelCache,
@@ -25,22 +25,22 @@ TPeerUpdater::TPeerUpdater(
     , ChannelCache(channelCache)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        FromMethod(&TPeerUpdater::Update, TPtr(this))
+        FromMethod(&TPeerBlockUpdater::Update, TPtr(this))
         ->Via(invoker),
         Config->PeerUpdatePeriod);
 }
 
-void TPeerUpdater::Start()
+void TPeerBlockUpdater::Start()
 {
     PeriodicInvoker->Start();
 }
 
-void TPeerUpdater::Stop()
+void TPeerBlockUpdater::Stop()
 {
     PeriodicInvoker->Stop();
 }
 
-void TPeerUpdater::Update()
+void TPeerBlockUpdater::Update()
 {
     LOG_INFO("Updating peer blocks");
 

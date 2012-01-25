@@ -402,15 +402,25 @@ inline TFluentYsonBuilder::TAny<TVoid> BuildYsonFluently(IYsonConsumer* consumer
     return TFluentYsonBuilder::TAny<TVoid>(consumer, TVoid(), false);
 }
 
+inline TFluentList BuildYsonListFluently(IYsonConsumer* consumer)
+{
+    return TFluentList(consumer);
+}
+
+inline TFluentMap BuildYsonMapFluently(IYsonConsumer* consumer)
+{
+    return TFluentMap(consumer);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFluentYsonConsumer
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TFluentYsonConsumer> TPtr;
 
-    TFluentYsonConsumer(TYsonWriter::EFormat format)
+    TFluentYsonConsumer(EYsonFormat format)
         : Writer(&Output, format)
     { }
 
@@ -446,7 +456,7 @@ private:
 };
 
 inline TFluentYsonBuilder::TAny<TFluentYsonHolder> BuildYsonFluently(
-    TYsonWriter::EFormat format = TYsonWriter::EFormat::Binary)
+    EYsonFormat format = EYsonFormat::Binary)
 {
     auto consumer = New<TFluentYsonConsumer>(format);
     TFluentYsonHolder holder(consumer);

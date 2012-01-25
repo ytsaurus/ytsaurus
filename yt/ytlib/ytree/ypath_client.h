@@ -28,7 +28,7 @@ class TTypedYPathResponse;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathRequest
-    : public TRefCountedBase
+    : public TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
     DEFINE_BYVAL_RW_PROPERTY(TYPath, Path);
@@ -76,7 +76,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathResponse
-    : public TRefCountedBase
+    : public TRefCounted
 {
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TError, Error);
@@ -131,6 +131,47 @@ protected:
     }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+extern TYPath RootMarker;
+extern TYPath AttributeMarker;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ChopYPathToken(
+    const TYPath& path,
+    Stroka* token,
+    TYPath* suffixPath);
+
+TYPath ComputeResolvedYPath(
+    const TYPath& wholePath,
+    const TYPath& unresolvedPath);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3);
+
+bool IsEmptyYPath(const TYPath& path);
+
+bool IsFinalYPath(const TYPath& path);
+
+bool IsAttributeYPath(const TYPath& path);
+
+// TODO: choose a better name
+bool IsLocalYPath(const TYPath& path);
+
+TYPath ChopYPathAttributeMarker(const TYPath& path);
+
+void ResolveYPath(
+    IYPathService* rootService,
+    const TYPath& path,
+    const Stroka& verb,
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath);
 
 //! Asynchronously executes an untyped YPath verb against a given service.
 TFuture<NBus::IMessage::TPtr>::TPtr

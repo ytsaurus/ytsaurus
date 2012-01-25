@@ -3,6 +3,8 @@
 
 #include <ytlib/misc/ref_counted_tracker.h>
 
+#include <ytlib/actions/action_queue.h>
+
 #include <ytlib/bus/nl_server.h>
 
 #include <ytlib/ytree/tree_builder.h>

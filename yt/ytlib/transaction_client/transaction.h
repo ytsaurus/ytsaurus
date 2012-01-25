@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <ytlib/actions/action.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
@@ -9,7 +11,7 @@ namespace NTransactionClient {
 
 //! Represents a transaction within a client.
 struct ITransaction
-    : virtual public TRefCountedBase
+    : virtual public TRefCounted
 {
     typedef TIntrusivePtr<ITransaction> TPtr;
 
@@ -27,11 +29,10 @@ struct ITransaction
     //! Aborts the transaction.
     /*!
      *  \note
-     *  This call may block.
-     *  Does not throw.
+     *  This call does not block and does not throw.
      *  Safe to call multiple times.
      * 
-     *  Thread affinity: ClientThread.
+     *  Thread affinity: any.
      */
     virtual void Abort() = 0;
 
@@ -41,6 +42,13 @@ struct ITransaction
      *  Thread affinity: any.
      */
     virtual TTransactionId GetId() const  = 0;
+
+    //! Returns the id of the parent transaction.
+    /*!
+     *  \note
+     *  Thread affinity: any.
+     */
+    virtual TTransactionId GetParentId() const = 0;
 
     virtual void SubscribeAborted(IAction::TPtr onAborted) = 0;
     virtual void UnsubscribeAborted(IAction::TPtr onAborted) = 0;

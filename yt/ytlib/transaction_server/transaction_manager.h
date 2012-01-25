@@ -1,6 +1,6 @@
 #pragma once
 
-#include "id.h"
+#include "common.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/id_generator.h>
@@ -12,17 +12,13 @@
 #include <ytlib/meta_state/map.h>
 #include <ytlib/object_server/object_manager.h>
 
+namespace NYT {
 
 // TODO(babenko): consider getting rid of this
-namespace NYT {
 namespace NCypress {
-
-class TCypressManager;
-
-}
+    class TCypressManager;
 }
 
-namespace NYT {
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,11 +45,11 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TDuration TransactionTimeout;
+        TDuration DefaultTransactionTimeout;
 
         TConfig()
         {
-            Register("transaction_timeout", TransactionTimeout)
+            Register("default_transaction_timeout", DefaultTransactionTimeout)
                 .GreaterThan(TDuration())
                 .Default(TDuration::Seconds(10));
         }
@@ -67,8 +63,11 @@ public:
         NObjectServer::TObjectManager* objectManager);
 
     void SetCypressManager(NCypress::TCypressManager* cypressManager);
+    NObjectServer::TObjectManager* GetObjectManager() const;
 
-    TTransaction& Start(TTransactionManifest* manifest);
+    NObjectServer::IObjectProxy::TPtr GetRootTransactionProxy();
+
+    TTransaction& Start(TTransaction* parent, TTransactionManifest* manifest);
     void Commit(TTransaction& transaction);
     void Abort(TTransaction& transaction);
     void RenewLease(const TTransactionId& id);
@@ -93,7 +92,7 @@ private:
 
     void OnTransactionExpired(const TTransactionId& id);
 
-    void CreateLease(const TTransaction& transaction);
+    void CreateLease(const TTransaction& transaction, TDuration timeout);
     void CloseLease(const TTransaction& transaction);
     void FinishTransaction(TTransaction& transaction);
 

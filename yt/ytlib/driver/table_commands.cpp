@@ -28,23 +28,19 @@ void TReadCommand::DoExecute(TReadRequest* request)
         // TODO: fixme
         TChannel::Universal(),
         request->Path);
+    reader->Open();
 
     auto format = DriverImpl->GetConfig()->OutputFormat;
 
-    try {
-        while (reader->NextRow()) {
-            TYsonWriter writer(~stream, format);
-            writer.OnBeginMap();
-            while (reader->NextColumn()) {
-                writer.OnMapItem(reader->GetColumn());
-                writer.OnStringScalar(reader->GetValue().ToString());
-            }
-            writer.OnEndMap();
-            stream->Write('\n');
+    while (reader->NextRow()) {
+        TYsonWriter writer(~stream, format);
+        writer.OnBeginMap();
+        while (reader->NextColumn()) {
+            writer.OnMapItem(reader->GetColumn());
+            writer.OnStringScalar(reader->GetValue().ToString());
         }
-    } catch (...) {
-        reader->Close();
-        throw;
+        writer.OnEndMap();
+        stream->Write('\n');
     }
 
     reader->Close();
@@ -177,7 +173,8 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
     auto writer = New<TTableWriter>(
         ~DriverImpl->GetConfig()->TableWriter,
         DriverImpl->GetMasterChannel(),
-        DriverImpl->GetCurrentTransaction(true),
+        DriverImpl->GetCurrentTransaction(false),
+        DriverImpl->GetTransactionManager(),
         // TODO: provide proper schema
         TSchema::Empty(),
         request->Path);
@@ -214,7 +211,7 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
                 reader.ReadNext();
             }
         }
-    } catch (...) {
+    } catch (const std::exception& ex) {
         // TODO: uncomment this once Cancel is ready
         // writer->Cancel();
         throw;

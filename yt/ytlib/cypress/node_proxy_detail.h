@@ -11,6 +11,8 @@
 #include <ytlib/ytree/node_detail.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/object_server/object_detail.h>
 
 namespace NYT {
 namespace NCypress {
@@ -47,6 +49,7 @@ private:
 template <class IBase, class TImpl>
 class TCypressNodeProxyBase
     : public NYTree::TNodeBase
+    , public NObjectServer::TObjectProxyBase
     , public ICypressNodeProxy
     , public virtual IBase
 {
@@ -58,8 +61,13 @@ public:
         TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
-        : TypeHandler(typeHandler)
+        : NObjectServer::TObjectProxyBase(
+            cypressManager->GetObjectManager(),
+            nodeId,
+            CypressLogger.GetCategory())
+        , TypeHandler(typeHandler)
         , CypressManager(cypressManager)
+        , ObjectManager(cypressManager->GetObjectManager())
         , TransactionId(transactionId)
         , NodeId(nodeId)
         , Locked(false)
@@ -104,7 +112,7 @@ public:
     virtual NYTree::ICompositeNode::TPtr GetParent() const
     {
         auto nodeId = GetImpl().GetParentId();
-        return nodeId == NullNodeId ? NULL : GetProxy(nodeId)->AsComposite();
+        return nodeId == NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();
     }
 
     virtual void SetParent(NYTree::ICompositeNode* parent)
@@ -112,70 +120,63 @@ public:
         GetImplForUpdate().SetParentId(
             parent
             ? ToProxy(parent)->GetId()
-            : NullNodeId);
+            : NullObjectId);
     }
 
 
-    virtual NYTree::IMapNode::TPtr GetAttributes() const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        auto nodeId = GetImpl().GetAttributesId();
-        return nodeId == NullNodeId ? NULL : GetProxy(nodeId)->AsMap();
-    }
-
-    virtual void SetAttributes(NYTree::IMapNode* attributes)
-    {
-        auto& impl = GetImplForUpdate();
-        if (impl.GetAttributesId() != NullNodeId) {
-            auto& attrImpl = GetImplForUpdate(impl.GetAttributesId());
-            DetachChild(attrImpl);
-            impl.SetAttributesId(NullNodeId);
-        }
-
-        if (attributes) {
-            auto* attrProxy = ToProxy(attributes);
-            auto& attrImpl = GetImplForUpdate(attrProxy->GetId());
-            AttachChild(attrImpl);
-            impl.SetAttributesId(attrProxy->GetId());
-        }
-    }
-
-
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
-    {
-        Stroka verb = context->GetVerb();
-        if (verb == "Set" ||
-            verb == "Remove" ||
-            verb == "Lock")
-        {
-            return true;
-        }
-        return false;
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
+        // NB: Create is not considered a write verb since it always fails here.
+        return NYTree::TNodeBase::IsWriteRequest(context);
     }
 
 protected:
     const INodeTypeHandler::TPtr TypeHandler;
     const TCypressManager::TPtr CypressManager;
+    const NObjectServer::TObjectManager::TPtr ObjectManager;
     const TTransactionId TransactionId;
     const TNodeId NodeId;
 
-    //! Keeps a cached flag that gets raised when the node is locked.
+    //! A cached flag that gets raised when the node is locked.
     bool Locked;
+
+
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    {
+        attributes->push_back("parent_id");
+        attributes->push_back("state");
+        NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    {
+        const auto& node = GetImpl();
+
+        if (name == "parent_id") {
+            BuildYsonFluently(consumer)
+                .Scalar(node.GetParentId().ToString());
+            return true;
+        }
+
+        if (name == "state") {
+            BuildYsonFluently(consumer)
+                .Scalar(CamelCaseToUnderscoreCase(node.GetState().ToString()));
+            return true;
+        }
+
+        return NObjectServer::TObjectProxyBase::GetSystemAttribute(name, consumer);
+    }
 
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Lock") {
-            LockThunk(context);
-        } else if (verb == "Create") {
-            CreateThunk(context);
-        } else {
-            TNodeBase::DoInvoke(context);
-        }
+        DISPATCH_YPATH_SERVICE_METHOD(Lock);
+        DISPATCH_YPATH_SERVICE_METHOD(Create);
+        TNodeBase::DoInvoke(context);
     }
 
-
-    DECLARE_RPC_SERVICE_METHOD(NCypress::NProto, Lock)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Lock)
     {
         UNUSED(request);
         UNUSED(response);
@@ -184,7 +185,7 @@ protected:
         context->Reply();
     }
     
-    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
+    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         UNUSED(request);
         UNUSED(response);
@@ -194,19 +195,6 @@ protected:
         }
 
         context->Reply(NRpc::EErrorCode::NoSuchVerb, "Verb is not supported");
-    }
-
-
-    virtual yvector<Stroka> GetVirtualAttributeNames()
-    {
-        yvector<Stroka> names;
-        TypeHandler->GetAttributeNames(GetImpl(), &names);
-        return names;
-    }
-
-    virtual NYTree::IYPathService::TPtr GetVirtualAttributeService(const Stroka& name)
-    {
-        return TypeHandler->GetAttributeService(GetImpl(), name);
     }
 
 
@@ -234,14 +222,20 @@ protected:
 
     ICypressNodeProxy::TPtr GetProxy(const TNodeId& nodeId) const
     {
-        YASSERT(nodeId != NullNodeId);
-        return CypressManager->GetNodeProxy(nodeId, TransactionId);
+        YASSERT(nodeId != NullObjectId);
+        return CypressManager->GetVersionedNodeProxy(nodeId, TransactionId);
     }
 
     static ICypressNodeProxy* ToProxy(INode* node)
     {
         YASSERT(node);
         return &dynamic_cast<ICypressNodeProxy&>(*node);
+    }
+
+    static const ICypressNodeProxy* ToProxy(const INode* node)
+    {
+        YASSERT(node);
+        return &dynamic_cast<const ICypressNodeProxy&>(*node);
     }
 
 
@@ -261,7 +255,7 @@ protected:
             ythrow yexception() << "Cannot lock a node outside of a transaction";
         }
 
-        CypressManager->LockTransactionNode(NodeId, TransactionId);
+        CypressManager->LockVersionedNode(NodeId, TransactionId);
 
         // Set the flag to speedup further checks.
         Locked = true;
@@ -271,14 +265,46 @@ protected:
     void AttachChild(ICypressNode& child)
     {
         child.SetParentId(NodeId);
-        CypressManager->GetObjectManager()->RefObject(child.GetId().NodeId);
+        ObjectManager->RefObject(child.GetId().ObjectId);
     }
 
     void DetachChild(ICypressNode& child)
     {
-        child.SetParentId(NullNodeId);
-        CypressManager->GetObjectManager()->UnrefObject(child.GetId().NodeId);
+        child.SetParentId(NullObjectId);
+        ObjectManager->UnrefObject(child.GetId().ObjectId);
     }
+
+
+    virtual const NObjectServer::TAttributeSet* FindAttributes()
+    {
+        auto id = GetImpl(NodeId).GetId();
+        return ObjectManager->FindAttributes(id);
+    }
+
+    virtual NObjectServer::TAttributeSet* FindAttributesForUpdate()
+    {
+        auto id = GetImplForUpdate(NodeId).GetId();
+        return ObjectManager->FindAttributesForUpdate(id);
+    }
+
+    virtual NObjectServer::TAttributeSet* GetAttributesForUpdate()
+    {
+        auto id = GetImplForUpdate(NodeId).GetId();
+        auto* attributes = ObjectManager->FindAttributesForUpdate(id);
+        if (!attributes) {
+            attributes = ObjectManager->CreateAttributes(id);
+        }
+        return attributes;
+    }
+
+    virtual void RemoveAttributes()
+    {
+        auto id = GetImplForUpdate(NodeId).GetId();
+        if (ObjectManager->FindAttributes(id)) {
+            ObjectManager->RemoveAttributes(id);
+        }
+    }
+
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -314,19 +340,19 @@ public:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-#define DECLARE_SCALAR_TYPE(name, type) \
-    class T##name##NodeProxy \
-        : public TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node> \
+#define DECLARE_SCALAR_TYPE(key, type) \
+    class T##key##NodeProxy \
+        : public TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node> \
     { \
-        YTREE_NODE_TYPE_OVERRIDES(name) \
+        YTREE_NODE_TYPE_OVERRIDES(key) \
     \
     public: \
-        T##name##NodeProxy( \
+        T##key##NodeProxy( \
             INodeTypeHandler* typeHandler, \
             TCypressManager* cypressManager, \
             const TTransactionId& transactionId, \
             const TNodeId& id) \
-            : TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node>( \
+            : TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node>( \
                 typeHandler, \
                 cypressManager, \
                 transactionId, \
@@ -339,11 +365,11 @@ public:
         const ICypressNode& node, \
         const TTransactionId& transactionId) \
     { \
-        return New<T##name##NodeProxy>( \
+        return New<T##key##NodeProxy>( \
             this, \
             ~CypressManager, \
             transactionId, \
-            node.GetId().NodeId); \
+            node.GetId().ObjectId); \
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka)
@@ -377,7 +403,7 @@ protected:
         TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
-        : TCypressNodeProxyBase<IBase, TImpl>(
+        : TBase(
             typeHandler,
             cypressManager,
             transactionId,
@@ -390,28 +416,39 @@ protected:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Create") {
-            CreateThunk(context);
-        } else {
-            TBase::DoInvoke(context);
-        }
+        DISPATCH_YPATH_SERVICE_METHOD(Create);
+        TBase::DoInvoke(context);
     }
 
-    virtual bool IsLogged(NRpc::IServiceContext* context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
-        Stroka verb = context->GetVerb();
-        if (verb == "Create") {
-            return true;
-        } else {
-            return TBase::IsLogged(context);
-        }
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
+        return TBase::IsWriteRequest(context);
     }
 
 protected:
-    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, Create)
+    virtual void GetSystemAttributes(yvector<NObjectServer::TObjectProxyBase::TAttributeInfo>* attributes)
     {
-        // TODO(babenko): validate type
+        attributes->push_back("size");
+        TBase::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    {
+        if (name == "size") {
+            BuildYsonFluently(consumer)
+                .Scalar(this->GetChildCount());
+            return true;
+        }
+
+        return TBase::GetSystemAttribute(name, consumer);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Create)
+    {
+        auto type = EObjectType(request->type());
+
+        context->SetRequestInfo("Type: %s", ~type.ToString());
 
         if (NYTree::IsFinalYPath(context->GetPath())) {
             // This should throw an exception.
@@ -427,7 +464,12 @@ protected:
         if (manifestNode->GetType() != NYTree::ENodeType::Map) {
             ythrow yexception() << "Manifest must be a map";
         }
-        
+
+        auto handler = this->CypressManager->GetObjectManager()->FindHandler(type);
+        if (!handler) {
+            ythrow yexception() << "Unknown object type";
+        }
+
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
             EObjectType(request->type()),
@@ -460,14 +502,17 @@ public:
     virtual void Clear();
     virtual int GetChildCount() const;
     virtual yvector< TPair<Stroka, NYTree::INode::TPtr> > GetChildren() const;
-    virtual INode::TPtr FindChild(const Stroka& name) const;
-    virtual bool AddChild(NYTree::INode* child, const Stroka& name);
-    virtual bool RemoveChild(const Stroka& name);
+    virtual yvector<Stroka> GetKeys() const;
+    virtual INode::TPtr FindChild(const Stroka& key) const;
+    virtual bool AddChild(NYTree::INode* child, const Stroka& key);
+    virtual bool RemoveChild(const Stroka& key);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
     virtual void RemoveChild(NYTree::INode* child);
-    virtual Stroka GetChildKey(INode* child);
+    virtual Stroka GetChildKey(const INode* child);
 
 protected:
+    typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
+
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
@@ -499,9 +544,11 @@ public:
     virtual bool RemoveChild(int index);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
     virtual void RemoveChild(NYTree::INode* child);
-    virtual int GetChildIndex(INode* child);
+    virtual int GetChildIndex(const NYTree::INode* child);
 
 protected:
+    typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
+
     virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
     virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
     virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);

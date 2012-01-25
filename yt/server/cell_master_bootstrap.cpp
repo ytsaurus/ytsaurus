@@ -253,9 +253,9 @@ void TCellMasterBootstrap::Run()
                     if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
                         return NULL;
                     }
-                    return ~cypressManager->GetNodeProxy(
+                    return ~cypressManager->GetVersionedNodeProxy(
                         cypressManager->GetRootNodeId(),
-                        NTransactionServer::NullTransactionId);
+                        NObjectServer::NullTransactionId);
                 }),
             ~metaStateManager->GetStateInvoker()));
 

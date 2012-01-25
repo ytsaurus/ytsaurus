@@ -22,7 +22,7 @@ namespace NChunkHolder {
  *  and manages jobs.
  */
 class TMasterConnector
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TMasterConnector> TPtr;
@@ -75,7 +75,7 @@ private:
     //! Local address of the holder.
     /*!
      *  This address is computed during initialization by combining the host name (returned by #HostName)
-     *  and the port number in #Config->
+     *  and the port number in #Config->RpcPort.
      */
     Stroka Address;
     

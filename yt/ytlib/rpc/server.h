@@ -12,7 +12,7 @@ namespace NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IRpcServer
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IRpcServer> TPtr;
 

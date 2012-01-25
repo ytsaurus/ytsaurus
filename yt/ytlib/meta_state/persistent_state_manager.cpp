@@ -368,10 +368,10 @@ public:
                 try {
                     snapshotFile->Seek(offset, sSet);
                     bytesRead = snapshotFile->Read(data.begin(), length);
-                } catch (...) {
+                } catch (const std::exception& ex) {
                     LOG_FATAL("IO error while reading snapshot (SnapshotId: %d)\n%s",
                         snapshotId,
-                        ~CurrentExceptionMessage());
+                        ex.what());
                 }
 
                 data.erase(data.begin() + bytesRead, data.end());
@@ -439,10 +439,10 @@ public:
                 yvector<TSharedRef> recordData;
                 try {
                     changeLog->Read(startRecordId, recordCount, &recordData);
-                } catch (...) {
+                } catch (const std::exception& ex) {
                     LOG_FATAL("IO error while reading changelog (ChangeLogId: %d)\n%s",
                         changeLogId,
-                        ~CurrentExceptionMessage());
+                        ex.what());
                 }
 
                 context->Response().set_records_read(recordData.ysize());

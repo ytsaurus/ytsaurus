@@ -8,7 +8,6 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
-#include <ytlib/chunk_client/block_id.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
 namespace NYT {
@@ -22,7 +21,6 @@ using namespace NFileServer;
 using namespace NProto;
 using namespace NChunkHolder::NProto;
 using namespace NTransactionClient;
-using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,54 +33,54 @@ TFileWriter::TFileWriter(
     TTransactionManager* transactionManager,
     const TYPath& path)
     : Config(config)
-    , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , TransactionManager(transactionManager)
     , Path(path)
-    , Closed(false)
-    , Aborted(false)
+    , IsOpen(false)
+    , IsClosed(false)
     , Size(0)
     , BlockCount(0)
+    , CypressProxy(masterChannel)
+    , ChunkProxy(masterChannel)
     , Logger(FileClientLogger)
 {
+    YASSERT(config);
     YASSERT(masterChannel);
     YASSERT(transactionManager);
 
     Codec = GetCodec(Config->CodecId);
 
-    OnAborted_ = FromMethod(&TFileWriter::OnAborted, TPtr(this));
-
-    if (Transaction) {
-        Transaction->SubscribeAborted(OnAborted_);
-    }
-
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~Path,
         ~TransactionId.ToString()));
 
-    LOG_INFO("File writer open (UploadReplicaCount: %d, TotalReplicaCount: %d)",
+    CypressProxy.SetTimeout(config->MasterRpcTimeout);
+    ChunkProxy.SetTimeout(config->MasterRpcTimeout);
+}
+
+void TFileWriter::Open()
+{
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(!IsOpen);
+    YASSERT(!IsClosed);
+
+    LOG_INFO("Opening file writer (UploadReplicaCount: %d, TotalReplicaCount: %d)",
         Config->UploadReplicaCount,
         Config->TotalReplicaCount);
 
-    CypressProxy.Reset(new TCypressServiceProxy(~MasterChannel));
-    CypressProxy->SetTimeout(config->MasterRpcTimeout);
-
-    ChunkProxy.Reset(new TChunkServiceProxy(~MasterChannel));
-    ChunkProxy->SetTimeout(config->MasterRpcTimeout);
-
     LOG_INFO("Creating upload transaction");
     try {
-        UploadTransaction = TransactionManager->Start();
+        UploadTransaction = TransactionManager->Start(TransactionId);
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());
     }
-    UploadTransaction->SubscribeAborted(OnAborted_);
+    ListenTransaction(~UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)",
         ~UploadTransaction->GetId().ToString());
 
-    auto createChunksReq = ChunkProxy->CreateChunks();
+    auto createChunksReq = ChunkProxy.CreateChunks();
     createChunksReq->set_transaction_id(UploadTransaction->GetId().ToProto());
     createChunksReq->set_chunk_count(1);
     createChunksReq->set_upload_replica_count(Config->UploadReplicaCount);
@@ -94,23 +92,29 @@ TFileWriter::TFileWriter(
     YASSERT(createChunksRsp->chunks_size() == 1);
     const auto& chunkInfo = createChunksRsp->chunks(0);
     ChunkId = TChunkId::FromProto(chunkInfo.chunk_id());
-    auto addresses = FromProto<Stroka>(chunkInfo.holder_addresses());
+    auto holderAddresses = FromProto<Stroka>(chunkInfo.holder_addresses());
     LOG_INFO("Chunk allocated (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
-        ~JoinToString(addresses));
+        ~JoinToString(holderAddresses));
 
-    // Initialize a writer.
     Writer = New<TRemoteWriter>(
-        ~config->RemoteWriter,
+        ~Config->RemoteWriter,
         ChunkId,
-        addresses);
+        holderAddresses);
+
+    if (Transaction) {
+        ListenTransaction(~Transaction);
+    }
+
+    IsOpen = true;
+
+    LOG_INFO("File writer opened");
 }
 
 void TFileWriter::Write(TRef data)
 {
-    if (Closed) {
-        ythrow yexception() << "File writer is already closed";
-    }
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
 
     CheckAborted();
 
@@ -144,46 +148,55 @@ void TFileWriter::Write(TRef data)
 
 void TFileWriter::Cancel()
 {
-    if (Closed)
-        return;
+    VERIFY_THREAD_AFFINITY_ANY();
+    YVERIFY(IsOpen);
 
     if (UploadTransaction) {
         UploadTransaction->Abort();
+        UploadTransaction.Reset();
     }
-    Finish();
+
+    IsOpen = false;
+    IsClosed = true;
 
     LOG_INFO("File writer canceled");
 }
 
 void TFileWriter::Close()
 {
-    if (Closed)
+    VERIFY_THREAD_AFFINITY(Client);
+
+    if (IsClosed)
         return;
 
+    IsOpen = false;
+    IsClosed = true;
+
     CheckAborted();
+
+    LOG_INFO("Closing file writer");
 
     // Flush the last block.
     FlushBlock();
 
+    LOG_INFO("Closing chunk");
     // Construct chunk attributes.
     TChunkAttributes attributes;
     attributes.set_type(EChunkType::File);
     auto* fileAttributes = attributes.MutableExtension(TFileChunkAttributes::file_attributes);
     fileAttributes->set_size(Size);
     fileAttributes->set_codec_id(Config->CodecId);
-    
-    LOG_INFO("Closing chunk");
     try {
         Sync(~Writer, &TRemoteWriter::AsyncClose, attributes);
     } catch (const std::exception& ex) {
-        LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s",
+        LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s", 
             ex.what());
     }
     LOG_INFO("Chunk closed");
 
     LOG_INFO("Confirming chunk");
     auto confirmChunkReq = Writer->GetConfirmRequest();
-    auto confirmChunkRsp = CypressProxy->Execute(~confirmChunkReq)->Get();
+    auto confirmChunkRsp = CypressProxy.Execute(~confirmChunkReq)->Get();
     if (!confirmChunkRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
             ~confirmChunkRsp->GetError().ToString());
@@ -196,7 +209,7 @@ void TFileWriter::Close()
     auto manifest = New<TFileManifest>();
     manifest->ChunkId = ChunkId;
     createNodeReq->set_manifest(SerializeToYson(~manifest));
-    auto createNodeRsp = CypressProxy->Execute(~createNodeReq)->Get();
+    auto createNodeRsp = CypressProxy.Execute(~createNodeReq)->Get();
     if (!createNodeRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
             ~createNodeRsp->GetError().ToString());
@@ -207,14 +220,11 @@ void TFileWriter::Close()
     LOG_INFO("Committing upload transaction");
     try {
         UploadTransaction->Commit();
-        UploadTransaction.Reset();
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error committing upload transaction\n%s",
             ex.what());
     }
     LOG_INFO("Upload transaction committed");
-
-    Finish();
 
     LOG_INFO("File writer closed");
 }
@@ -237,36 +247,6 @@ void TFileWriter::FlushBlock()
     // AsyncWriteBlock has likely cleared the buffer by swapping it out, but let's make it sure.
     Buffer.clear();
     ++BlockCount;
-}
-
-void TFileWriter::Finish()
-{
-    if (Transaction) {
-        Transaction->UnsubscribeAborted(OnAborted_);
-        Transaction.Reset();
-    }
-    if (UploadTransaction) {
-        UploadTransaction->Abort();
-        UploadTransaction->UnsubscribeAborted(OnAborted_);
-        UploadTransaction.Reset();
-    }
-    OnAborted_.Reset();
-    Buffer.clear();
-    Closed = true;
-}
-
-void TFileWriter::CheckAborted()
-{
-    if (Aborted) {
-        Finish();
-
-        LOG_WARNING_AND_THROW(yexception(), "Transaction aborted, file writer canceled");
-    }
-}
-
-void TFileWriter::OnAborted()
-{
-    Aborted = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

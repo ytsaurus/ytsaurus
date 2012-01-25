@@ -21,7 +21,7 @@ struct ICypressNodeProxy;
  *  Behaviors are only created for non-branched nodes.
  */
 struct INodeBehavior
-    : virtual TRefCountedBase
+    : virtual TExtrinsicRefCounted
 {
     typedef TIntrusivePtr<INodeBehavior> TPtr;
 
@@ -34,7 +34,7 @@ struct INodeBehavior
 
 //! Provides node type-specific services.
 struct INodeTypeHandler
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<INodeTypeHandler> TPtr;
 
@@ -104,16 +104,6 @@ struct INodeTypeHandler
     virtual void Merge(
         ICypressNode& committedNode,
         ICypressNode& branchedNode) = 0;
-
-    // TODO: consider returning yvector<Stroka>
-    virtual void GetAttributeNames(
-        const ICypressNode& node,
-        yvector<Stroka>* names) = 0;
-
-    virtual NYTree::IYPathService::TPtr GetAttributeService(
-        const ICypressNode& node,
-        const Stroka& name) = 0;
-
 
     //! Creates a behavior object.
     /*!

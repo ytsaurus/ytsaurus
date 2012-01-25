@@ -19,7 +19,7 @@ namespace NChunkClient {
 //! For a sequence of block indexes fetches and outputs these blocks in the given order.
 //! Prefetches and stores a configured number of blocks in its internal cyclic buffer.
 class TSequentialReader
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;
@@ -37,8 +37,12 @@ public:
 
         TConfig()
         {
-            Register("prefetch_window_size", PrefetchWindowSize).Default(100).GreaterThan(0);
-            Register("group_size", GroupSize).Default(10).GreaterThan(0);
+            Register("prefetch_window_size", PrefetchWindowSize)
+                .Default(100)
+                .GreaterThan(0);
+            Register("group_size", GroupSize)
+                .Default(10)
+                .GreaterThan(0);
         }
 
         virtual void DoValidate() const

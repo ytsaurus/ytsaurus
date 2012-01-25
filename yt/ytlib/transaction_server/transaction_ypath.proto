@@ -26,12 +26,25 @@ message TRspRenewLease
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRelease
+message TReqCreateObject
+{
+    required int32 type = 1;
+    optional bytes manifest = 2;
+}
+
+message TRspCreateObject
 {
     required bytes object_id = 1;
 }
 
-message TRspRelease
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReleaseObject
+{
+    required bytes object_id = 1;
+}
+
+message TRspReleaseObject
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

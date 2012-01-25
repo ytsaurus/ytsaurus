@@ -46,7 +46,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IServiceContext
-    : public virtual TRefCountedBase
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IServiceContext> TPtr;
 
@@ -78,7 +78,7 @@ struct IServiceContext
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IService
-    : virtual TRefCountedBase
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<IService> TPtr;
 
@@ -87,8 +87,6 @@ struct IService
 
     virtual void OnBeginRequest(IServiceContext* context) = 0;
     virtual void OnEndRequest(IServiceContext* context) = 0;
-
-    virtual Stroka GetDebugInfo() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,7 +136,7 @@ private:
 //! Provides a common base for both one-way and two-way contexts.
 template <class TRequestMessage>
 class TTypedServiceContextBase
-    : public TRefCountedBase
+    : public TRefCounted
 {
 public:
     typedef TTypedServiceContextBase<TRequestMessage> TThis;
@@ -320,10 +318,6 @@ public:
 class TServiceBase
     : public IService
 {
-public:
-    //! Reports debug info of the running service instance.
-    Stroka GetDebugInfo() const;
-
 protected:
     //! Describes a handler for a service method.
     typedef IParamAction<IServiceContext*> THandler;

@@ -2,11 +2,6 @@
 #include "file_node.h"
 #include "file_node_proxy.h"
 #include "file_ypath_proxy.h"
-#include "file_chunk_meta.pb.h"
-
-#include <ytlib/misc/codec.h>
-#include <ytlib/cypress/node_proxy.h>
-#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NFileServer {
@@ -14,8 +9,6 @@ namespace NFileServer {
 using namespace NYTree;
 using namespace NCypress;
 using namespace NChunkServer;
-using namespace NObjectServer;
-using namespace NFileClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,13 +59,7 @@ public:
         TChunkManager* chunkManager)
         : TCypressNodeTypeHandlerBase<TFileNode>(cypressManager)
         , ChunkManager(chunkManager)
-    {
-        // NB: No smartpointer for this here.
-        RegisterGetter("size", FromMethod(&TThis::GetSize, this));
-        RegisterGetter("codec_id", FromMethod(&TThis::GetCodecId, this));
-        RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
-        RegisterGetter("chunk_id", FromMethod(&TThis::GetChunkId, this));
-    }
+    { }
 
     EObjectType GetObjectType()
     {
@@ -128,7 +115,7 @@ public:
             ~CypressManager,
             ~ChunkManager,
             transactionId,
-            node.GetId().NodeId);
+            node.GetId().ObjectId);
     }
 
 protected:
@@ -162,46 +149,6 @@ private:
     typedef TFileNodeTypeHandler TThis;
 
     TIntrusivePtr<TChunkManager> ChunkManager;
-
-    void GetSize(const TGetAttributeParam& param)
-    {
-        const auto& chunk = GetChunk(*param.Node);
-        const auto& attributes = chunk
-            .DeserializeAttributes()
-            .GetExtension(TFileChunkAttributes::file_attributes);
-        BuildYsonFluently(param.Consumer).Scalar(attributes.size());
-    }
-
-    void GetCodecId(const TGetAttributeParam& param)
-    {
-        const auto& chunk = GetChunk(*param.Node);
-        const auto& attributes = chunk
-            .DeserializeAttributes()
-            .GetExtension(TFileChunkAttributes::file_attributes);
-        BuildYsonFluently(param.Consumer)
-            .Scalar(ECodecId(attributes.codec_id()).ToString());
-    }
-    
-    static void GetChunkListId(const TGetAttributeParam& param)
-    {
-        BuildYsonFluently(param.Consumer)
-            .Scalar(param.Node->GetChunkListId().ToString());
-    }
-
-    void GetChunkId(const TGetAttributeParam& param)
-    {
-        const auto& chunk = GetChunk(*param.Node);
-        BuildYsonFluently(param.Consumer)
-            .Scalar(chunk.GetId().ToString());
-    }
-
-    const TChunk& GetChunk(const TFileNode& node)
-    {
-        const auto& chunkList = ChunkManager->GetChunkList(node.GetChunkListId());
-        YASSERT(chunkList.ChildrenIds().ysize() == 1);
-        auto chunkId = chunkList.ChildrenIds()[0];
-        return ChunkManager->GetChunk(chunkId);
-    }
 
 };
 
