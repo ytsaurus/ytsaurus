@@ -395,7 +395,9 @@ protected:
 protected:
     DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
-        // TODO(babenko): validate type
+        auto type = EObjectType(request->type());
+
+        context->SetRequestInfo("Type: %s", ~type.ToString());
 
         if (NYTree::IsFinalYPath(context->GetPath())) {
             // This should throw an exception.
@@ -411,7 +413,12 @@ protected:
         if (manifestNode->GetType() != NYTree::ENodeType::Map) {
             ythrow yexception() << "Manifest must be a map";
         }
-        
+
+        auto handler = CypressManager->GetObjectManager()->FindHandler(type);
+        if (!handler) {
+            ythrow yexception() << "Unknown object type";
+        }
+
         auto value = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
             EObjectType(request->type()),
@@ -452,6 +459,8 @@ public:
     virtual Stroka GetChildKey(INode* child);
 
 protected:
+    typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
+
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
@@ -486,6 +495,8 @@ public:
     virtual int GetChildIndex(INode* child);
 
 protected:
+    typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
+
     virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
     virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
     virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
