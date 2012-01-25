@@ -91,8 +91,8 @@ public:
 private:
     TCellId CellId;
 
-    autoarray< TIdGenerator<ui64> > TypeToCounter;
-    IObjectTypeHandler::TPtr TypeToHandler[MaxObjectType];
+    yvector<TIdGenerator<ui64> > TypeToCounter;
+    yvector<IObjectTypeHandler::TPtr> TypeToHandler;
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);

@@ -20,6 +20,7 @@ TObjectManager::TObjectManager(
     TCellId cellId)
     : TMetaStatePart(metaStateManager, metaState)
     , CellId(cellId)
+    , TypeToHandler(MaxObjectType)
     , TypeToCounter(MaxObjectType)
 {
     metaState->RegisterLoader(
@@ -148,10 +149,10 @@ TFuture<TVoid>::TPtr TObjectManager::Save(const TCompositeMetaState::TSaveContex
     auto* output = context.Output;
     auto invoker = context.Invoker;
 
-    yvector< TIdGenerator<ui64> > typeToCounter(TypeToCounter.begin(), TypeToCounter.end());
+    auto typeToCounter = TypeToCounter;
     invoker->Invoke(FromFunctor([=] ()
         {
-            ::Save(output, MaxObjectType);
+            ::SaveSize(output, MaxObjectType);
             FOREACH(const auto& idGenerator, typeToCounter) {
                 ::Save(output, idGenerator);
             }
@@ -165,8 +166,7 @@ void TObjectManager::Load(TInputStream* input)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     // read the number of objects for future compatibility
-    int maxObjectType;
-    ::Load(input, maxObjectType);
+    int maxObjectType = LoadSize(input);
     for (int i =0; i < maxObjectType; ++i) {
         ::Load(input, TypeToCounter[i]);
     }
