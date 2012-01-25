@@ -18,7 +18,7 @@ template<class T>
 struct TScalarTypeTraits
 { };
 
-}
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,13 +77,6 @@ struct INode
     DECLARE_AS_METHODS(List)
     DECLARE_AS_METHODS(Map)
 #undef DECLARE_AS_METHODS
-
-    //! Returns a map containing the attributes of the node
-    //! or NULL if no such map is assigned.
-    virtual TIntrusivePtr<IMapNode> GetAttributes() const = 0;
-    //! Sets the attribute map. NULL is a viable value indicating that
-    //! no such map is assigned.
-    virtual void SetAttributes(IMapNode* attributes) = 0;
 
     //! Returns the parent of the node.
     //! NULL indicates that the current node is the root.
