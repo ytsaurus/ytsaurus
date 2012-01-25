@@ -1381,7 +1381,7 @@ void TChunkManager::FillHolderAddresses(
 
 TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics() const
 {
-    Impl->GetTotalHolderStatistics();
+    return Impl->GetTotalHolderStatistics();
 }
 
 
