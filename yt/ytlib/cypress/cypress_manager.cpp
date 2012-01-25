@@ -771,8 +771,8 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
     // Create a branched node and initialize its state.
     auto branchedNode = GetHandler(node)->Branch(node, transactionId);
     branchedNode->SetState(ENodeState::Branched);
-    auto* branchedNodePtr = branchedNode.Release();
-    NodeMap.Insert(TVersionedNodeId(nodeId, transactionId), branchedNodePtr);
+    auto* branchedNode_ = branchedNode.Release();
+    NodeMap.Insert(TVersionedNodeId(nodeId, transactionId), branchedNode_);
 
     // Register the branched node with a transaction.
     auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
@@ -785,7 +785,7 @@ ICypressNode& TCypressManager::BranchNode(ICypressNode& node, const TTransaction
         ~nodeId.ToString(),
         ~transactionId.ToString());
 
-    return *branchedNodePtr;
+    return *branchedNode_;
 }
 
 IYPathProcessor::TPtr TCypressManager::CreateProcessor()
@@ -817,12 +817,10 @@ void TCypressManager::Clear()
     LockMap.Clear();
 
     // Create the root.
-    auto* rootImpl = new TMapNode(
-        TVersionedNodeId(GetRootNodeId(), NullTransactionId),
-        EObjectType::MapNode);
-    rootImpl->SetState(ENodeState::Committed);
-    NodeMap.Insert(rootImpl->GetId(), rootImpl);
-    ObjectManager->RefObject(rootImpl->GetId().ObjectId);
+    auto* root = new TMapNode(GetRootNodeId(), EObjectType::MapNode);
+    root->SetState(ENodeState::Committed);
+    NodeMap.Insert(root->GetId(), root);
+    ObjectManager->RefObject(root->GetId().ObjectId);
 }
 
 void TCypressManager::OnLeaderRecoveryComplete()
@@ -888,8 +886,6 @@ void TCypressManager::OnTransactionAborted(TTransaction& transaction)
     ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
     UnrefOriginatingNodes(transaction);
-
-    // TODO: check that all created nodes died
 }
 
 void TCypressManager::ReleaseLocks(TTransaction& transaction)
@@ -942,8 +938,6 @@ void TCypressManager::UnrefOriginatingNodes(TTransaction& transaction)
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
         ObjectManager->UnrefObject(nodeId);
     }
-
-    transaction.BranchedNodeIds().clear();
 }
 
 void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
@@ -958,8 +952,6 @@ void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
             ~nodeId.ToString(),
             ~transactionId.ToString());
     }
-
-    transaction.BranchedNodeIds().clear();
 }
 
 void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
@@ -973,8 +965,6 @@ void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
             ~nodeId.ToString(),
             ~transactionId.ToString());
     }
-
-    transaction.CreatedNodeIds().clear();
 }
 
 TVoid TCypressManager::DoReplayVerb(const TMsgExecuteVerb& message)
