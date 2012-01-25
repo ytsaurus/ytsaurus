@@ -11,6 +11,7 @@
 #include <ytlib/ytree/node_detail.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/fluent.h>
 #include <ytlib/object_server/object_detail.h>
 
 namespace NYT {
@@ -375,7 +376,7 @@ protected:
         TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
-        : TCypressNodeProxyBase<IBase, TImpl>(
+        : TBase(
             typeHandler,
             cypressManager,
             transactionId,
@@ -399,6 +400,23 @@ protected:
     }
 
 protected:
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    {
+        attributes->push_back("size");
+        TBase::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    {
+        if (name == "size") {
+            BuildYsonFluently(consumer)
+                .Scalar(GetChildCount());
+            return true;
+        }
+
+        return TBase::GetSystemAttribute(name, consumer);
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         auto type = EObjectType(request->type());

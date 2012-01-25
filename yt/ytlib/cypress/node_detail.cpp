@@ -178,12 +178,6 @@ void TMapNodeTypeHandler::DoMerge(
     committedNode.ChildToKey().swap(branchedNode.ChildToKey());
 }
 
-//void TMapNodeTypeHandler::GetSize(const TGetAttributeParam& param)
-//{
-//    BuildYsonFluently(param.Consumer)
-//        .Scalar(param.Node->KeyToChild().ysize());
-//}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNode::TListNode(const TVersionedNodeId& id, EObjectType objectType)
@@ -288,12 +282,6 @@ void TListNodeTypeHandler::DoMerge(
     committedNode.IndexToChild().swap(branchedNode.IndexToChild());
     committedNode.ChildToIndex().swap(branchedNode.ChildToIndex());
 }
-
-//void TListNodeTypeHandler::GetSize(const TGetAttributeParam& param)
-//{
-//    BuildYsonFluently(param.Consumer)
-//        .Scalar(param.Node->IndexToChild().ysize());
-//}
 
 ////////////////////////////////////////////////////////////////////////////////
 
