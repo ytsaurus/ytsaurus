@@ -35,7 +35,7 @@ public:
      *  \param stream A stream for outputting the YSON data.
      *  \param format A format used for encoding the data.
      */
-    TYsonWriter(TOutputStream* stream, EFormat format);
+    TYsonWriter(TOutputStream* stream, EFormat format = EFormat::Binary);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes = false);
