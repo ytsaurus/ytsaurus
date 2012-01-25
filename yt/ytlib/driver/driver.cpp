@@ -33,7 +33,7 @@ class TOutputStreamConsumer
     : public TForwardingYsonConsumer
 {
 public:
-    TOutputStreamConsumer(TAutoPtr<TOutputStream> output, EFormat format)
+    TOutputStreamConsumer(TAutoPtr<TOutputStream> output, EYsonFormat format)
         : Output(output)
         , BufferedOutput(~Output)
         , Writer(&BufferedOutput, format)

@@ -183,7 +183,7 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
         GetSystemAttributes(&systemAttributes);
 
         TStringStream stream;
-        TYsonWriter writer(&stream, EFormat::Binary);
+        TYsonWriter writer(&stream, EYsonFormat::Binary);
         
         writer.OnBeginMap();
 
@@ -442,7 +442,7 @@ void TUntypedObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* re
 Stroka TUntypedObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
 {
     TStringStream stream;
-    TYsonWriter writer(&stream, EFormat::Binary);
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
     if (GetSystemAttribute(name, &writer)) {
         if (isSystem) {
             *isSystem = true;

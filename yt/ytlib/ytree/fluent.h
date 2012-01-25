@@ -420,7 +420,7 @@ class TFluentYsonConsumer
 public:
     typedef TIntrusivePtr<TFluentYsonConsumer> TPtr;
 
-    TFluentYsonConsumer(EFormat format)
+    TFluentYsonConsumer(EYsonFormat format)
         : Writer(&Output, format)
     { }
 
@@ -456,7 +456,7 @@ private:
 };
 
 inline TFluentYsonBuilder::TAny<TFluentYsonHolder> BuildYsonFluently(
-    EFormat format = EFormat::Binary)
+    EYsonFormat format = EYsonFormat::Binary)
 {
     auto consumer = New<TFluentYsonConsumer>(format);
     TFluentYsonHolder holder(consumer);

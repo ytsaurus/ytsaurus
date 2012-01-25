@@ -43,7 +43,7 @@ struct ITransaction
      */
     virtual TTransactionId GetId() const  = 0;
 
-    //! Returns the id of the parent transaction
+    //! Returns the id of the parent transaction.
     /*!
      *  \note
      *  Thread affinity: any.

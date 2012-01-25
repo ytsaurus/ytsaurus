@@ -59,7 +59,7 @@ DEFINE_RPC_SERVICE_METHOD(TNodeBase, Get)
         auto attributePath = ChopYPathAttributeMarker(path);
         if (IsFinalYPath(attributePath)) {
             TStringStream stream;
-            TYsonWriter writer(&stream, EFormat::Binary);
+            TYsonWriter writer(&stream, EYsonFormat::Binary);
 
             writer.OnBeginMap();
 
@@ -117,7 +117,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
     UNUSED(request);
     
     TStringStream stream;
-    TYsonWriter writer(&stream, EFormat::Binary);
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
     TTreeVisitor visitor(&writer, false);
     visitor.Visit(this);
 

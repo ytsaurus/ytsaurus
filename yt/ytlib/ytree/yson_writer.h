@@ -9,7 +9,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! The data format.
-DECLARE_ENUM(EFormat,
+DECLARE_ENUM(EYsonFormat,
     // Binary.
     // Most compact but not human-readable.
     (Binary)
@@ -35,7 +35,7 @@ public:
      *  \param stream A stream for outputting the YSON data.
      *  \param format A format used for encoding the data.
      */
-    TYsonWriter(TOutputStream* stream, EFormat format);
+    TYsonWriter(TOutputStream* stream, EYsonFormat format);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes = false);
@@ -63,7 +63,7 @@ private:
     bool IsFirstItem;
     bool IsEmptyEntity;
     int Indent;
-    EFormat Format;
+    EYsonFormat Format;
 
     static const int IndentSize = 4;
 

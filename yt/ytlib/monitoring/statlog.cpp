@@ -486,7 +486,7 @@ public:
         QueueHasData.Signal();
     }
 
-    Stroka Dump(EFormat format) {
+    Stroka Dump(EYsonFormat format) {
         return Dumps[format]->Dump;
     }
 };
@@ -602,7 +602,7 @@ void LogQueueAppend(TLogCommand *cmd) {
     }
 }
 
-Stroka GetDump(EFormat format) {
+Stroka GetDump(EYsonFormat format) {
     if (TLogDataProxy* log = GetLogger()) {
         return log->Dump(format);
     } else {

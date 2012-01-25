@@ -30,7 +30,7 @@ public:
     static TYson TextifyYson(const TYson& data)
     {
         TStringStream outputStream;
-        TYsonWriter writer(&outputStream, EFormat::Text);
+        TYsonWriter writer(&outputStream, EYsonFormat::Text);
         TStringInput input(data);
         TYsonReader reader(&writer, &input);
         reader.Read();

@@ -108,7 +108,7 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
     ypathRequest->set_type(request->Type);
 
     if (request->Manifest) {
-        auto serializedManifest = SerializeToYson(~request->Manifest, EFormat::Binary);
+        auto serializedManifest = SerializeToYson(~request->Manifest, EYsonFormat::Binary);
         ypathRequest->set_manifest(serializedManifest);
     }
 

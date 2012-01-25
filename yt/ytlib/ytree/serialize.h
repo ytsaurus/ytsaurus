@@ -31,19 +31,19 @@ INode::TPtr DeserializeFromYson(
 TOutputStream& SerializeToYson(
     const INode* node,
     TOutputStream& output,
-    EFormat format = EFormat::Binary);
+    EYsonFormat format = EYsonFormat::Binary);
 
 TYson SerializeToYson(
     const INode* node,
-    EFormat format = EFormat::Binary);
+    EYsonFormat format = EYsonFormat::Binary);
 
 TYson SerializeToYson(
     TYsonProducer* producer,
-    EFormat format = EFormat::Binary);
+    EYsonFormat format = EYsonFormat::Binary);
 
 TYson SerializeToYson(
     const TConfigurable* config,
-    EFormat format = EFormat::Binary);
+    EYsonFormat format = EYsonFormat::Binary);
 
 ////////////////////////////////////////////////////////////////////////////////
 

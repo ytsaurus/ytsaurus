@@ -290,7 +290,7 @@ public:
                 totalStatistics.UsedSpace += statistics.used_space();
                 totalStatistics.ChunkCount += statistics.chunk_count();
                 totalStatistics.SessionCount += statistics.session_count();
-                totalStatistics.HolderCount += 1;
+                totalStatistics.HolderCount++;
             }
         }
         return totalStatistics;
