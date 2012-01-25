@@ -457,6 +457,7 @@ public:
     virtual void Clear();
     virtual int GetChildCount() const;
     virtual yvector< TPair<Stroka, NYTree::INode::TPtr> > GetChildren() const;
+    virtual yvector<Stroka> GetKeys() const;
     virtual INode::TPtr FindChild(const Stroka& name) const;
     virtual bool AddChild(NYTree::INode* child, const Stroka& name);
     virtual bool RemoveChild(const Stroka& name);

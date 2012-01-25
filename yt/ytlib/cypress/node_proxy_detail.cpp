@@ -111,6 +111,17 @@ yvector< TPair<Stroka, INode::TPtr> > TMapNodeProxy::GetChildren() const
     return result;
 }
 
+yvector<Stroka> TMapNodeProxy::GetKeys() const
+{
+    yvector<Stroka> result;
+    const auto& map = GetTypedImpl().NameToChild();
+    result.reserve(map.ysize());
+    FOREACH (const auto& pair, map) {
+        result.push_back(pair.first);
+    }
+    return result;
+}
+
 INode::TPtr TMapNodeProxy::FindChild(const Stroka& name) const
 {
     const auto& map = GetTypedImpl().NameToChild();

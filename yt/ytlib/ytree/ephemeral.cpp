@@ -147,6 +147,16 @@ public:
         return yvector< TPair<Stroka, INode::TPtr> >(NameToChild.begin(), NameToChild.end());
     }
 
+    virtual yvector<Stroka> GetKeys() const
+    {
+        yvector<Stroka> result;
+        result.reserve(NameToChild.size());
+        FOREACH (const auto& key, NameToChild) {
+            result.push_back(key);
+        }
+        return result;
+    }
+
     virtual INode::TPtr FindChild(const Stroka& name) const
     {
         auto it = NameToChild.find(name);

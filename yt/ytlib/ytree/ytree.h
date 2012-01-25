@@ -196,12 +196,20 @@ struct IMapNode
      *  Map items are returned in unspecified order.
      */
     virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const = 0;
+
+    //! Returns map keys.
+    /*!
+     *  Keys are returned in unspecified order.
+     */
+    virtual yvector<Stroka> GetKeys() const = 0;
+
     //! Gets a child by its key.
     /*!
      *  \param key A key.
      *  \return A child with the given key or NULL if the index is not valid.
      */
     virtual INode::TPtr FindChild(const Stroka& key) const = 0;
+
     //! Adds a new child with a given key.
     /*!
      *  \param child A child.
@@ -212,6 +220,7 @@ struct IMapNode
      *  #child must be a root.
      */
     virtual bool AddChild(INode* child, const Stroka& key) = 0;
+
     //! Removes a child by its key.
     /*!
      *  \param key A key.
@@ -247,12 +256,14 @@ struct IListNode
 
     //! Returns the current snapshot of the list.
     virtual yvector<INode::TPtr> GetChildren() const = 0;
+
     //! Gets a child by its index.
     /*!
      *  \param index An index.
      *  \return A child with the given index or NULL if the index is not valid.
      */
     virtual INode::TPtr FindChild(int index) const = 0;
+
     //! Adds a new child at a given position.
     /*!
      *  \param child A child.
@@ -262,7 +273,9 @@ struct IListNode
      *  \note
      *  #child must be a root.
      */
+
     virtual void AddChild(INode* child, int beforeIndex = -1) = 0;
+    
     //! Removes a child by its index.
     /*!
      *  \param index An index.
