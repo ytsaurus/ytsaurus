@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "ypath_detail.h"
+#include "ypath_client.h"
 #include "rpc.pb.h"
 
 #include <ytlib/actions/action_util.h>
@@ -17,7 +18,6 @@ using namespace NRpc::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = YTreeLogger;
-TYPath RootMarker("/");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,12 +108,16 @@ bool IsFinalYPath(const TYPath& path)
 
 bool IsAttributeYPath(const TYPath& path)
 {
-    return !path.empty() && path[0] == '@';
+    return path.has_prefix(AttributeMarker);
 }
 
 TYPath ChopYPathAttributeMarker(const TYPath& path)
 {
-    return path.substr(1);
+    auto result = path.substr(AttributeMarker.length());
+    if (result.has_prefix(AttributeMarker)) {
+        ythrow yexception() << "Repeated attribute marker in YPath";
+    }
+    return result;
 }
 
 bool IsLocalYPath(const TYPath& path)
@@ -231,6 +235,170 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContext* context) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_RPC_SERVICE_METHOD(TSupportsGet, Get)
+{
+    auto path = context->GetPath();
+    if (IsFinalYPath(path)) {
+        GetSelf(request, response, ~context);
+    } else if (IsAttributeYPath(path)) {
+        auto attributePath = ChopYPathAttributeMarker(path);
+        GetAttribute(attributePath, request, response, ~context);
+    } else {
+        GetRecursive(path, request, response, ~context);
+    }
+}
+
+void TSupportsGet::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
+{
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+void TSupportsGet::GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+void TSupportsGet::GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_RPC_SERVICE_METHOD(TSupportsSet, Set)
+{
+    auto path = context->GetPath();
+    if (IsFinalYPath(path)) {
+        SetSelf(request, response, ~context);
+    } else if (IsAttributeYPath(path)) {
+        auto attributePath = ChopYPathAttributeMarker(path);
+        SetAttribute(attributePath, request, response, ~context);
+    } else {
+        SetRecursive(path, request, response, ~context);
+    }
+}
+
+void TSupportsSet::SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context)
+{
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+void TSupportsSet::SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+void TSupportsSet::SetAttribute(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_RPC_SERVICE_METHOD(TSupportsList, List)
+{
+    auto path = context->GetPath();
+    if (IsFinalYPath(path)) {
+        ListSelf(request, response, ~context);
+    } else if (IsAttributeYPath(path)) {
+        auto attributePath = ChopYPathAttributeMarker(path);
+        ListAttribute(attributePath, request, response, ~context);
+    } else {
+        ListRecursive(path, request, response, ~context);
+    }
+}
+
+void TSupportsList::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
+{
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+void TSupportsList::ListRecursive(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+void TSupportsList::ListAttribute(const TYPath& path, TReqList* request, TRspList* response, TCtxList* context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_RPC_SERVICE_METHOD(TSupportsRemove, Remove)
+{
+    auto path = context->GetPath();
+    if (IsFinalYPath(path)) {
+        RemoveSelf(request, response, ~context);
+    } else if (IsAttributeYPath(path)) {
+        auto attributePath = ChopYPathAttributeMarker(path);
+        RemoveAttribute(attributePath, request, response, ~context);
+    } else {
+        RemoveRecursive(path, request, response, ~context);
+    }
+}
+
+void TSupportsRemove::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context)
+{
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+void TSupportsRemove::RemoveRecursive(const NYTree::TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+void TSupportsRemove::RemoveAttribute(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context)
+{
+    UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+    UNUSED(context);
+    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node(node)
     , TreeBuilder(builder)
@@ -283,37 +451,28 @@ void TNodeSetterBase::OnMyBeginMap()
 
 void TNodeSetterBase::OnMyBeginAttributes()
 {
-    auto attributes = Node->GetAttributes();
-    if (!attributes) {
-        Node->SetAttributes(~NodeFactory->CreateMap());
-    } else {
-        attributes->Clear();
-    }
+    SyncYPathRemove(~Node, RootMarker + AttributeMarker);
 }
 
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 {
-    YASSERT(!AttributeBuilder);
+    YASSERT(!AttributeWriter);
     AttributeName = name;
-    AttributeBuilder = CreateBuilderFromFactory(~NodeFactory);
-    AttributeBuilder->BeginTree();
-    ForwardNode(~AttributeBuilder, ~FromMethod(&TThis::OnForwardingFinished, this));
+    AttributeStream = new TStringOutput(AttributeValue);
+    AttributeWriter = new TYsonWriter(AttributeStream.Get());
+    ForwardNode(~AttributeWriter, ~FromMethod(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()
 {
-    YASSERT(~AttributeBuilder);
-    YVERIFY(Node->GetAttributes()->AddChild(~AttributeBuilder->EndTree(), AttributeName));
-    AttributeBuilder.Destroy();
+    SyncYPathSet(~Node, RootMarker + AttributeMarker + AttributeName, AttributeValue);
+    AttributeWriter.Destroy();
+    AttributeStream.Destroy();
     AttributeName.clear();
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
-{
-    if (Node->GetAttributes()->GetChildCount() == 0) {
-        Node->SetAttributes(NULL);
-    }
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

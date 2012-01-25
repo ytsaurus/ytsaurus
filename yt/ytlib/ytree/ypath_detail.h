@@ -4,7 +4,9 @@
 #include "ypath_service.h"
 #include "yson_consumer.h"
 #include "tree_builder.h"
+#include "yson_writer.h"
 #include "forwarding_yson_consumer.h"
+#include "ypath.pb.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/assert.h>
@@ -14,8 +16,6 @@ namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-extern TYPath RootMarker;
 
 void ChopYPathToken(
     const TYPath& path,
@@ -78,6 +78,50 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSupportsGet
+{
+protected:
+    DECLARE_RPC_SERVICE_METHOD(NProto, Get);
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
+    virtual void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
+    virtual void GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSupportsSet
+{
+protected:
+    DECLARE_RPC_SERVICE_METHOD(NProto, Set);
+    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context);
+    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
+    virtual void SetAttribute(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSupportsList
+{
+protected:
+    DECLARE_RPC_SERVICE_METHOD(NProto, List);
+    virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
+    virtual void ListRecursive(const TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
+    virtual void ListAttribute(const TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSupportsRemove
+{
+protected:
+    DECLARE_RPC_SERVICE_METHOD(NProto, Remove);
+    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context);
+    virtual void RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
+    virtual void RemoveAttribute(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeSetterBase
     : public TForwardingYsonConsumer
 {
@@ -108,7 +152,9 @@ protected:
     INodeFactory::TPtr NodeFactory;
 
     Stroka AttributeName;
-    TAutoPtr<ITreeBuilder> AttributeBuilder;
+    TYson AttributeValue;
+    TAutoPtr<TStringOutput> AttributeStream;
+    TAutoPtr<TYsonWriter> AttributeWriter;
 
     void OnForwardingFinished();
 
