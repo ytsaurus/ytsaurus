@@ -95,13 +95,13 @@ public:
     {
         YASSERT(committedNode.GetState() == ENodeState::Committed);
 
-        const auto& typedNode = dynamic_cast<const TImpl&>(committedNode);
+        const auto& typedCommittedNode = dynamic_cast<const TImpl&>(committedNode);
 
         auto committedId = committedNode.GetId();
         auto branchedId = TVersionedNodeId(committedId.ObjectId, transactionId);
 
         // Create a branched copy.
-        TAutoPtr<TImpl> branchedNode = new TImpl(branchedId, typedNode);
+        TAutoPtr<TImpl> branchedNode = new TImpl(branchedId, typedCommittedNode);
 
         // Branch user attributes.
         const auto* committedAttributes = ObjectManager->FindAttributes(committedId);
@@ -111,7 +111,7 @@ public:
         }
 
         // Run custom branching.
-        DoBranch(typedNode, *branchedNode);
+        DoBranch(typedCommittedNode, *branchedNode);
 
         return branchedNode.Release();
     }
@@ -174,12 +174,6 @@ protected:
 
     TCypressManager::TPtr CypressManager;
     NObjectServer::TObjectManager::TPtr ObjectManager;
-
-    //static void GetParentId(const TGetAttributeParam& param)
-    //{
-    //    NYTree::BuildYsonFluently(param.Consumer)
-    //        .Scalar(param.Node->GetParentId().ToString());
-    //}
 
 private:
     typedef TCypressNodeTypeHandlerBase<TImpl> TThis;
