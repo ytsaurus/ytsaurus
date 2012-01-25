@@ -58,7 +58,7 @@ void TTableWriter::Open()
 
     LOG_INFO("Creating upload transaction");
     try {
-        UploadTransaction = TransactionManager->Start();
+        UploadTransaction = TransactionManager->Start(Transaction->GetId());
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());
