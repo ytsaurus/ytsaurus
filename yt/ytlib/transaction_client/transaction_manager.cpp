@@ -46,12 +46,9 @@ public:
 
         LOG_INFO("Starting transaction");
 
-        NYTree::TYPath transactionPath;
-        if (ParentId == NullTransactionId) {
-            transactionPath = RootTransactionPath;
-        } else {
-            transactionPath = FromObjectId(ParentId);
-        }
+        NYTree::TYPath transactionPath = (ParentId == NullTransactionId)
+            ? RootTransactionPath
+            : FromObjectId(ParentId);
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);
         req->set_type(EObjectType::Transaction);
         auto rsp = Proxy.Execute(~req)->Get();
