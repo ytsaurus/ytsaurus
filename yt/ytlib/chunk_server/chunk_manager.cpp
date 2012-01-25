@@ -986,17 +986,17 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributeNames(yvector<Stroka>* names)
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
     {
         const auto& chunk = GetTypedImpl();
-        names->push_back("confirmed");
-        names->push_back("cached_locations");
-        names->push_back("stored_locations");
+        attributes->push_back("confirmed");
+        attributes->push_back("cached_locations");
+        attributes->push_back("stored_locations");
         if (chunk.IsConfirmed()) {
-            names->push_back("size");
-            names->push_back("chunk_type");
+            attributes->push_back("size");
+            attributes->push_back("chunk_type");
         }
-        TBase::GetSystemAttributeNames(names);
+        TBase::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
@@ -1171,10 +1171,10 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributeNames(yvector<Stroka>* names)
+    virtual void GetSystemAttributs(yvector<TAttributeInfo>* attributes)
     {
-        names->push_back("children_ids");
-        TBase::GetSystemAttributeNames(names);
+        attributes->push_back("children_ids");
+        TBase::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)

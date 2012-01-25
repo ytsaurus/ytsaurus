@@ -83,7 +83,7 @@ IYPathService::TResolveResult TUntypedObjectProxyBase::ResolveAttributes(
     return TResolveResult::Here(path);
 }
 
-void TUntypedObjectProxyBase::GetSystemAttributeNames(yvector<Stroka>* names)
+void TUntypedObjectProxyBase::GetSystemAttributes(yvector<TAttributeInfo>* names)
 {
     names->push_back("id");
     names->push_back("type");
@@ -116,10 +116,6 @@ bool TUntypedObjectProxyBase::GetSystemAttribute(const Stroka& name, IYsonConsum
 bool TUntypedObjectProxyBase::SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer)
 {
     UNUSED(producer);
-
-    if (name == "id" || name == "type" || name == "ref_counter") {
-        throw yexception() << Sprintf("The %s system attribute cannot be set", ~name.Quote());
-    }
 
     return false;
 }
@@ -183,17 +179,19 @@ void TUntypedObjectProxyBase::GetRecursive(const TYPath& path, TReqGet* request,
 void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     if (IsFinalYPath(path)) {
-        yvector<Stroka> names;
-        GetSystemAttributeNames(&names);
+        yvector<TAttributeInfo> systemAttributes;
+        GetSystemAttributes(&systemAttributes);
 
         TStringStream stream;
         TYsonWriter writer(&stream, EFormat::Binary);
         
         writer.OnBeginMap();
 
-        FOREACH (const auto& name, names) {
-            writer.OnMapItem(name);
-            YVERIFY(GetSystemAttribute(name, &writer));
+        FOREACH (const auto& attribute, systemAttributes) {
+            if (attribute.IsPresent) {
+                writer.OnMapItem(attribute.Name);
+                YVERIFY(GetSystemAttribute(attribute.Name, &writer));
+            }
         }
 
         TVersionedObjectId versionedId(Id, GetTransactionId());
@@ -264,7 +262,13 @@ void TUntypedObjectProxyBase::ListAttribute(const TYPath& path, TReqList* reques
     yvector<Stroka> keys;
 
     if (IsFinalYPath(path)) {
-        GetSystemAttributeNames(&keys);
+        yvector<TAttributeInfo> systemAttributes;
+        GetSystemAttributes(&systemAttributes);
+        FOREACH (const auto& attribute, systemAttributes) {
+            if (attribute.IsPresent) {
+                keys.push_back(attribute.Name);
+            }
+        }
         
         TVersionedObjectId versionedId(Id, GetTransactionId());
         const auto* userAttributes = ObjectManager->FindAttributes(versionedId);
@@ -331,6 +335,15 @@ void TUntypedObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request,
 
     if (IsFinalYPath(suffixPath)) {
         if (!SetSystemAttribute(token, ~ProducerFromYson(request->value()))) {
+            // Check for system attributes
+            yvector<TAttributeInfo> systemAttributes;
+            GetSystemAttributes(&systemAttributes);
+            FOREACH (const auto& attribute, systemAttributes) {
+                if (attribute.Name == token) {
+                    ythrow yexception() << Sprintf("The system attribute %s cannot be set", ~token.Quote());
+                }
+            }
+
             TVersionedObjectId versionedId(Id, GetTransactionId());
             auto* userAttributes = ObjectManager->FindAttributesForUpdate(versionedId);
             if (!userAttributes) {
@@ -455,7 +468,9 @@ Stroka TUntypedObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSyste
 void TUntypedObjectProxyBase::DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem)
 {
     if (isSystem) {
-        YVERIFY(SetSystemAttribute(name, ~ProducerFromNode(value)));
+        if (!SetSystemAttribute(name, ~ProducerFromNode(value))) {
+            ythrow yexception() << Sprintf("The system attribute %s cannot be set", ~name.Quote());
+        }
     } else {
         TVersionedObjectId versionedId(Id, GetTransactionId());
         auto& userAttributes = ObjectManager->GetAttributesForUpdate(versionedId);
