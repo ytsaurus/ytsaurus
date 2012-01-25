@@ -23,6 +23,7 @@ struct IParameter
     virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path) = 0;
     virtual void Validate(const NYTree::TYPath& path) const = 0;
     virtual void Save(NYTree::IYsonConsumer* consumer) const = 0;
+    virtual bool IsPresent() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,6 +43,7 @@ public:
     virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path);
     virtual void Validate(const NYTree::TYPath& path) const;
     virtual void Save(NYTree::IYsonConsumer *consumer) const;
+    virtual bool IsPresent() const;
 
 public: // for users
     TParameter& Default(const T& defaultValue = T());
