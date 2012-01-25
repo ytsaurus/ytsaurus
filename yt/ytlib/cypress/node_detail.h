@@ -334,11 +334,11 @@ typedef TScalarNodeTypeHandler<double> TDoubleNodeTypeHandler;
 class TMapNode
     : public TCypressNodeBase
 {
-    typedef yhash_map<Stroka, TNodeId> TNameToChild;
-    typedef yhash_map<TNodeId, Stroka> TChildToName;
+    typedef yhash_map<Stroka, TNodeId> TKeyToChild;
+    typedef yhash_map<TNodeId, Stroka> TChildToKey;
 
-    DEFINE_BYREF_RW_PROPERTY(TNameToChild, NameToChild);
-    DEFINE_BYREF_RW_PROPERTY(TChildToName, ChildToName);
+    DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
+    DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
 
 public:
     TMapNode(const TVersionedNodeId& id, EObjectType objectType);

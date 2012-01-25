@@ -312,19 +312,19 @@ public:
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-#define DECLARE_SCALAR_TYPE(name, type) \
-    class T##name##NodeProxy \
-        : public TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node> \
+#define DECLARE_SCALAR_TYPE(key, type) \
+    class T##key##NodeProxy \
+        : public TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node> \
     { \
-        YTREE_NODE_TYPE_OVERRIDES(name) \
+        YTREE_NODE_TYPE_OVERRIDES(key) \
     \
     public: \
-        T##name##NodeProxy( \
+        T##key##NodeProxy( \
             INodeTypeHandler* typeHandler, \
             TCypressManager* cypressManager, \
             const TTransactionId& transactionId, \
             const TNodeId& id) \
-            : TScalarNodeProxy<type, NYTree::I##name##Node, T##name##Node>( \
+            : TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node>( \
                 typeHandler, \
                 cypressManager, \
                 transactionId, \
@@ -337,7 +337,7 @@ public:
         const ICypressNode& node, \
         const TTransactionId& transactionId) \
     { \
-        return New<T##name##NodeProxy>( \
+        return New<T##key##NodeProxy>( \
             this, \
             ~CypressManager, \
             transactionId, \
@@ -458,9 +458,9 @@ public:
     virtual int GetChildCount() const;
     virtual yvector< TPair<Stroka, NYTree::INode::TPtr> > GetChildren() const;
     virtual yvector<Stroka> GetKeys() const;
-    virtual INode::TPtr FindChild(const Stroka& name) const;
-    virtual bool AddChild(NYTree::INode* child, const Stroka& name);
-    virtual bool RemoveChild(const Stroka& name);
+    virtual INode::TPtr FindChild(const Stroka& key) const;
+    virtual bool AddChild(NYTree::INode* child, const Stroka& key);
+    virtual bool RemoveChild(const Stroka& key);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
     virtual void RemoveChild(NYTree::INode* child);
     virtual Stroka GetChildKey(const INode* child);

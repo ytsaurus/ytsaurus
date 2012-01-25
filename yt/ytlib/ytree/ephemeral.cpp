@@ -130,46 +130,46 @@ class TMapNode
 public:
     virtual void Clear()
     {
-        FOREACH(const auto& pair, NameToChild) {
+        FOREACH(const auto& pair, KeyToChild) {
             pair.Second()->SetParent(NULL);
         }
-        NameToChild.clear();
-        ChildToName.clear();
+        KeyToChild.clear();
+        ChildToKey.clear();
     }
 
     virtual int GetChildCount() const
     {
-        return NameToChild.ysize();
+        return KeyToChild.ysize();
     }
 
     virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const
     {
-        return yvector< TPair<Stroka, INode::TPtr> >(NameToChild.begin(), NameToChild.end());
+        return yvector< TPair<Stroka, INode::TPtr> >(KeyToChild.begin(), KeyToChild.end());
     }
 
     virtual yvector<Stroka> GetKeys() const
     {
         yvector<Stroka> result;
-        result.reserve(NameToChild.size());
-        FOREACH (const auto& key, NameToChild) {
-            result.push_back(key);
+        result.reserve(KeyToChild.size());
+        FOREACH (const auto& pair, KeyToChild) {
+            result.push_back(pair.first);
         }
         return result;
     }
 
-    virtual INode::TPtr FindChild(const Stroka& name) const
+    virtual INode::TPtr FindChild(const Stroka& key) const
     {
-        auto it = NameToChild.find(name);
-        return it == NameToChild.end() ? NULL : it->Second();
+        auto it = KeyToChild.find(key);
+        return it == KeyToChild.end() ? NULL : it->Second();
     }
 
-    virtual bool AddChild(INode* child, const Stroka& name)
+    virtual bool AddChild(INode* child, const Stroka& key)
     {
-        YASSERT(!name.empty());
+        YASSERT(!key.empty());
         YASSERT(child);
 
-        if (NameToChild.insert(MakePair(name, child)).Second()) {
-            YVERIFY(ChildToName.insert(MakePair(child, name)).Second());
+        if (KeyToChild.insert(MakePair(key, child)).Second()) {
+            YVERIFY(ChildToKey.insert(MakePair(child, key)).Second());
             child->SetParent(this);
             return true;
         } else {
@@ -177,16 +177,16 @@ public:
         }
     }
 
-    virtual bool RemoveChild(const Stroka& name)
+    virtual bool RemoveChild(const Stroka& key)
     {
-        auto it = NameToChild.find(name);
-        if (it == NameToChild.end())
+        auto it = KeyToChild.find(key);
+        if (it == KeyToChild.end())
             return false;
 
         auto child = it->Second(); 
         child->SetParent(NULL);
-        NameToChild.erase(it);
-        YVERIFY(ChildToName.erase(child) == 1);
+        KeyToChild.erase(it);
+        YVERIFY(ChildToKey.erase(child) == 1);
 
         return true;
     }
@@ -197,12 +197,12 @@ public:
 
         child->SetParent(NULL);
 
-        auto it = ChildToName.find(child);
-        YASSERT(it != ChildToName.end());
+        auto it = ChildToKey.find(child);
+        YASSERT(it != ChildToKey.end());
 
-        Stroka name = it->Second();
-        ChildToName.erase(it);
-        YVERIFY(NameToChild.erase(name) == 1);
+        const auto& key = it->Second();
+        ChildToKey.erase(it);
+        YVERIFY(KeyToChild.erase(key) == 1);
     }
 
     virtual void ReplaceChild(INode* oldChild, INode* newChild)
@@ -213,31 +213,31 @@ public:
         if (oldChild == newChild)
             return;
 
-        auto it = ChildToName.find(oldChild);
-        YASSERT(it != ChildToName.end());
+        auto it = ChildToKey.find(oldChild);
+        YASSERT(it != ChildToKey.end());
 
-        Stroka name = it->Second();
+        const auto& key = it->Second();
 
         oldChild->SetParent(NULL);
-        ChildToName.erase(it);
+        ChildToKey.erase(it);
 
-        NameToChild[name] = newChild;
+        KeyToChild[key] = newChild;
         newChild->SetParent(this);
-        YVERIFY(ChildToName.insert(MakePair(newChild, name)).Second());
+        YVERIFY(ChildToKey.insert(MakePair(newChild, key)).Second());
     }
 
     virtual Stroka GetChildKey(const INode* child)
     {
         YASSERT(child);
 
-        auto it = ChildToName.find(const_cast<INode*>(child));
-        YASSERT(it != ChildToName.end());
+        auto it = ChildToKey.find(const_cast<INode*>(child));
+        YASSERT(it != ChildToKey.end());
         return it->Second();
     }
 
 private:
-    yhash_map<Stroka, INode::TPtr> NameToChild;
-    yhash_map<INode::TPtr, Stroka> ChildToName;
+    yhash_map<Stroka, INode::TPtr> KeyToChild;
+    yhash_map<INode::TPtr, Stroka> ChildToKey;
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {

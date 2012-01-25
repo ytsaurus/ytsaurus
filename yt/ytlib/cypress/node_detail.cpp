@@ -104,8 +104,8 @@ TMapNode::TMapNode(const TVersionedNodeId& id, EObjectType objectType)
 TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
     : TCypressNodeBase(id, other)
 {
-    NameToChild_ = other.NameToChild_;
-    ChildToName_ = other.ChildToName_;
+    KeyToChild_ = other.KeyToChild_;
+    ChildToKey_ = other.ChildToKey_;
 }
 
 TAutoPtr<ICypressNode> TMapNode::Clone() const
@@ -116,15 +116,15 @@ TAutoPtr<ICypressNode> TMapNode::Clone() const
 void TMapNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
-    SaveMap(output, ChildToName());
+    SaveMap(output, ChildToKey());
 }
 
 void TMapNode::Load(TInputStream* input)
 {
     TCypressNodeBase::Load(input);
-    LoadMap(input, ChildToName());
-    FOREACH(const auto& pair, ChildToName()) {
-        NameToChild().insert(MakePair(pair.Second(), pair.First()));
+    LoadMap(input, ChildToKey());
+    FOREACH(const auto& pair, ChildToKey()) {
+        KeyToChild().insert(MakePair(pair.Second(), pair.First()));
     }
 }
 
@@ -147,7 +147,7 @@ ENodeType TMapNodeTypeHandler::GetNodeType()
 void TMapNodeTypeHandler::DoDestroy(TMapNode& node)
 {
     // Drop references to the children.
-    FOREACH (const auto& pair, node.NameToChild()) {
+    FOREACH (const auto& pair, node.KeyToChild()) {
         CypressManager->GetObjectManager()->UnrefObject(pair.second);
     }
 }
@@ -159,7 +159,7 @@ void TMapNodeTypeHandler::DoBranch(
     UNUSED(branchedNode);
 
     // Reference all children.
-    FOREACH (const auto& pair, committedNode.NameToChild()) {
+    FOREACH (const auto& pair, committedNode.KeyToChild()) {
         CypressManager->GetObjectManager()->RefObject(pair.second);
     }
 }
@@ -169,19 +169,19 @@ void TMapNodeTypeHandler::DoMerge(
     TMapNode& branchedNode )
 {
     // Drop all references held by the originator.
-    FOREACH (const auto& pair, committedNode.NameToChild()) {
+    FOREACH (const auto& pair, committedNode.KeyToChild()) {
         CypressManager->GetObjectManager()->UnrefObject(pair.second);
     }
 
     // Replace the child list with the branched copy.
-    committedNode.NameToChild().swap(branchedNode.NameToChild());
-    committedNode.ChildToName().swap(branchedNode.ChildToName());
+    committedNode.KeyToChild().swap(branchedNode.KeyToChild());
+    committedNode.ChildToKey().swap(branchedNode.ChildToKey());
 }
 
 //void TMapNodeTypeHandler::GetSize(const TGetAttributeParam& param)
 //{
 //    BuildYsonFluently(param.Consumer)
-//        .Scalar(param.Node->NameToChild().ysize());
+//        .Scalar(param.Node->KeyToChild().ysize());
 //}
 
 ////////////////////////////////////////////////////////////////////////////////
