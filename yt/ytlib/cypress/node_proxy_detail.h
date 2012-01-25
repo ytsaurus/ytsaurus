@@ -204,6 +204,12 @@ protected:
         return &dynamic_cast<ICypressNodeProxy&>(*node);
     }
 
+    static const ICypressNodeProxy* ToProxy(const INode* node)
+    {
+        YASSERT(node);
+        return &dynamic_cast<const ICypressNodeProxy&>(*node);
+    }
+
 
     void LockIfNeeded()
     {
@@ -456,7 +462,7 @@ public:
     virtual bool RemoveChild(const Stroka& name);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
     virtual void RemoveChild(NYTree::INode* child);
-    virtual Stroka GetChildKey(INode* child);
+    virtual Stroka GetChildKey(const INode* child);
 
 protected:
     typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
@@ -492,7 +498,7 @@ public:
     virtual bool RemoveChild(int index);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
     virtual void RemoveChild(NYTree::INode* child);
-    virtual int GetChildIndex(INode* child);
+    virtual int GetChildIndex(const NYTree::INode* child);
 
 protected:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;

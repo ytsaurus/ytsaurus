@@ -232,7 +232,7 @@ struct IMapNode
      *  \param child A node that must be a child.
      *  \return Child's key.
      */
-    virtual Stroka GetChildKey(INode* child) = 0;
+    virtual Stroka GetChildKey(const INode* child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,7 +283,7 @@ struct IListNode
      *  \param child A node that must be a child.
      *  \return Child's index.
      */
-    virtual int GetChildIndex(INode* child) = 0;
+    virtual int GetChildIndex(const INode* child) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

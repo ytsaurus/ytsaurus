@@ -207,7 +207,7 @@ void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
     AttachChild(newChildImpl);
 }
 
-Stroka TMapNodeProxy::GetChildKey(INode* child)
+Stroka TMapNodeProxy::GetChildKey(const INode* child)
 {
     auto& impl = GetTypedImpl();
     
@@ -403,7 +403,7 @@ void TListNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
     AttachChild(newChildImpl);
 }
 
-int TListNodeProxy::GetChildIndex(INode* child)
+int TListNodeProxy::GetChildIndex(const INode* child)
 {
     auto& impl = GetTypedImplForUpdate();
 

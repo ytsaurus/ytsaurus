@@ -216,11 +216,11 @@ public:
         YVERIFY(ChildToName.insert(MakePair(newChild, name)).Second());
     }
 
-    virtual Stroka GetChildKey(INode* child)
+    virtual Stroka GetChildKey(const INode* child)
     {
         YASSERT(child);
 
-        auto it = ChildToName.find(child);
+        auto it = ChildToName.find(const_cast<INode*>(child));
         YASSERT(it != ChildToName.end());
         return it->Second();
     }
@@ -358,11 +358,11 @@ public:
         YVERIFY(RemoveChild(index));
     }
 
-    virtual int GetChildIndex(INode* child)
+    virtual int GetChildIndex(const INode* child)
     {
         YASSERT(child);
 
-        auto it = ChildToIndex.find(child);
+        auto it = ChildToIndex.find(const_cast<INode*>(child));
         YASSERT(it != ChildToIndex.end());
         return it->Second();
     }
