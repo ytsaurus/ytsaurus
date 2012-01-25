@@ -173,7 +173,7 @@ private:
         try {
             TOFStream stream(FileName);
             // TODO(babenko): make format configurable
-            SerializeToYson(~Root, stream, EFormat::Pretty);
+            SerializeToYson(~Root, stream, EYsonFormat::Pretty);
         } catch (const std::exception& ex) {
             throw yexception() << Sprintf("Error saving YSON file %s\n%s",
                 ~FileName.Quote(),

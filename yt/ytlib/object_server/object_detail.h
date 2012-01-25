@@ -92,27 +92,35 @@ protected:
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
 
+    //! Describes a system attribute.
+    struct TAttributeInfo
+    {
+        Stroka Name;
+        bool IsPresent;
+
+        TAttributeInfo(const char* name, bool isPresent = true)
+            : Name(name)
+            , IsPresent(isPresent)
+        { }
+    };
+
     //! Populates the list of all system attributes supported by this object.
     /*!
      *  \note
-     *  Must not clear #names since additional items may be added in inheritors.
+     *  Must not clear #attributes since additional items may be added in inheritors.
      */
-    virtual void GetSystemAttributeNames(yvector<Stroka>* names);
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
 
     //! Gets the value of a system attribute.
     /*!
      *  \returns False if there is no system attribute with the given name.
-     *  Must return True for each name declared via #GetSystemAttributeNames
-     *  (i.e. there are no write-only attributes).
      */
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 
     //! Sets the value of a system attribute.
-    /*!
-     *  \note
-     *  Throws if the attribute cannot be set.
-     *  
-     *  \returns False if there is no system attribute with the given name.
+    /*! 
+     *  \returns False if the attribute cannot be set or
+     *  there is no system attribute with the given name.
      */
     virtual bool SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer);
 

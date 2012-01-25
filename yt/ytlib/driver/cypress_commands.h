@@ -162,6 +162,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLockRequest
+    : public TRequestBase
+{
+    NYTree::TYPath Path;
+
+    TLockRequest()
+    {
+        Register("path", Path);
+    }
+};
+
+class TLockCommand
+    : public TCommandBase<TLockRequest>
+{
+public:
+    TLockCommand(IDriverImpl* driverImpl)
+        : TCommandBase(driverImpl)
+    { }
+
+private:
+    virtual void DoExecute(TLockRequest* request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 } // namespace NDriver
 } // namespace NYT
 

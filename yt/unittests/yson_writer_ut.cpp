@@ -40,7 +40,7 @@ TEST_F(TYsonWriterTest, BinaryString)
     InSequence dummy;
     EXPECT_CALL(Mock, OnStringScalar(value, false));
 
-    TYsonWriter writer(&Stream, EFormat::Binary);
+    TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
     writer.OnStringScalar(value, false);
 
@@ -54,7 +54,7 @@ TEST_F(TYsonWriterTest, BinaryInt64)
     InSequence dummy;
     EXPECT_CALL(Mock, OnInt64Scalar(value, false));
 
-    TYsonWriter writer(&Stream, EFormat::Binary);
+    TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
     writer.OnInt64Scalar(value, false);
 
@@ -68,7 +68,7 @@ TEST_F(TYsonWriterTest, EmptyMap)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap(false));
 
-    TYsonWriter writer(&Stream, EFormat::Binary);
+    TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
     writer.OnBeginMap();
     writer.OnEndMap(false);
@@ -85,7 +85,7 @@ TEST_F(TYsonWriterTest, OneItemMap)
     EXPECT_CALL(Mock, OnStringScalar("world", false));
     EXPECT_CALL(Mock, OnEndMap(false));
 
-    TYsonWriter writer(&Stream, EFormat::Binary);
+    TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
     writer.OnBeginMap();
     writer.OnMapItem("hello");
@@ -131,7 +131,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
 
     EXPECT_CALL(Mock, OnEndAttributes());
 
-    TYsonWriter writer(&Stream, EFormat::Binary);
+    TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
     writer.OnBeginMap();
 
@@ -172,7 +172,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
 TEST_F(TYsonWriterTest, Escaping)
 {
     TStringStream outputStream;
-    TYsonWriter writer(&outputStream, EFormat::Text);
+    TYsonWriter writer(&outputStream, EYsonFormat::Text);
 
     Stroka input;
     for (int i = 0; i < 256; ++i) {
@@ -204,7 +204,7 @@ TEST_F(TYsonWriterTest, Escaping)
 TEST_F(TYsonWriterTest, SerializeToYson)
 {
     TStringStream outputStream;
-    TYsonWriter writer(&outputStream, EFormat::Text);
+    TYsonWriter writer(&outputStream, EYsonFormat::Text);
 
     Stroka input;
     for (int i = 0; i < 256; ++i) {

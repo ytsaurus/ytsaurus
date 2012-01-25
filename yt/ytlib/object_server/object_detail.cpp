@@ -88,7 +88,7 @@ IYPathService::TResolveResult TObjectProxyBase::ResolveAttributes(
     return TResolveResult::Here(AttributeMarker + path);
 }
 
-void TObjectProxyBase::GetSystemAttributeNames(yvector<Stroka>* names)
+void TObjectProxyBase::GetSystemAttributes(yvector<TAttributeInfo>* names)
 {
     names->push_back("id");
     names->push_back("type");
@@ -122,10 +122,6 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& name, NYTree::TYsonProdu
 {
     UNUSED(producer);
 
-    if (name == "id" || name == "type" || name == "ref_counter") {
-        throw yexception() << Sprintf("The %s system attribute cannot be set", ~name.Quote());
-    }
-
     return false;
 }
 
@@ -140,17 +136,19 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 void TObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     if (IsFinalYPath(path)) {
-        yvector<Stroka> names;
-        GetSystemAttributeNames(&names);
+        yvector<TAttributeInfo> systemAttributes;
+        GetSystemAttributes(&systemAttributes);
 
         TStringStream stream;
-        TYsonWriter writer(&stream, EFormat::Binary);
+        TYsonWriter writer(&stream, EYsonFormat::Binary);
         
         writer.OnBeginMap();
 
-        FOREACH (const auto& name, names) {
-            writer.OnMapItem(name);
-            YVERIFY(GetSystemAttribute(name, &writer));
+        FOREACH (const auto& attribute, systemAttributes) {
+            if (attribute.IsPresent) {
+                writer.OnMapItem(attribute.Name);
+                YVERIFY(GetSystemAttribute(attribute.Name, &writer));
+            }
         }
 
         const auto* userAttributes = FindAttributes();
@@ -188,7 +186,13 @@ void TObjectProxyBase::ListAttribute(const TYPath& path, TReqList* request, TRsp
     yvector<Stroka> keys;
 
     if (IsFinalYPath(path)) {
-        GetSystemAttributeNames(&keys);
+        yvector<TAttributeInfo> systemAttributes;
+        GetSystemAttributes(&systemAttributes);
+        FOREACH (const auto& attribute, systemAttributes) {
+            if (attribute.IsPresent) {
+                keys.push_back(attribute.Name);
+            }
+        }
         
         const auto* userAttributes = FindAttributes();
         if (userAttributes) {
@@ -238,7 +242,17 @@ void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSe
 
         if (IsFinalYPath(suffixPath)) {
             if (!SetSystemAttribute(token, ~ProducerFromYson(request->value()))) {
-                auto* userAttributes = GetAttributesForUpdate();
+            	// Check for system attributes
+	            yvector<TAttributeInfo> systemAttributes;
+    	        GetSystemAttributes(&systemAttributes);
+    	        
+            	FOREACH (const auto& attribute, systemAttributes) {
+	                if (attribute.Name == token) {
+    	                ythrow yexception() << Sprintf("System attribute %s cannot be set", ~token.Quote());
+                	}
+            	}
+
+            	auto* userAttributes = GetAttributesForUpdate();
                 userAttributes->Attributes()[token] = request->value();
             }
         } else {
@@ -298,7 +312,7 @@ void TObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* request, 
 Stroka TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
 {
     TStringStream stream;
-    TYsonWriter writer(&stream, EFormat::Binary);
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
     if (GetSystemAttribute(name, &writer)) {
         if (isSystem) {
             *isSystem = true;
@@ -323,7 +337,9 @@ Stroka TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
 void TObjectProxyBase::DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem)
 {
     if (isSystem) {
-        YVERIFY(SetSystemAttribute(name, ~ProducerFromNode(value)));
+        if (!SetSystemAttribute(name, ~ProducerFromNode(value))) {
+            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
+        }
     } else {
         auto* userAttributes = GetAttributesForUpdate();
         userAttributes->Attributes().find(name)->Second() = SerializeToYson(value);

@@ -73,8 +73,11 @@ void TConfigurable::Save(IYsonConsumer* consumer) const
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(Parameters);
     FOREACH (const auto& pair, sortedItems) {
-        consumer->OnMapItem(pair->First());
-        pair->Second()->Save(consumer);
+        const auto& parameter = pair->Second();
+        if (parameter->IsPresent()) {
+            consumer->OnMapItem(pair->First());
+            pair->Second()->Save(consumer);
+        }
     }
     consumer->OnEndMap();
 }

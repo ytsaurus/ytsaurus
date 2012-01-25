@@ -127,19 +127,6 @@ Stroka TServiceBase::GetLoggingCategory() const
     return ServiceLogger.GetCategory();
 }
 
-Stroka TServiceBase::GetDebugInfo() const
-{
-    TGuard<TSpinLock> guard(SpinLock);
-
-    Stroka info = "Service " + ServiceName + ":\n";
-    FOREACH(const auto& pair, RuntimeMethodInfos) {
-        info += Sprintf("Method %s: %s\n",
-            ~pair.First(),
-            ~pair.Second().ExecutionTime.GetDebugInfo());
-    }
-    return info;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

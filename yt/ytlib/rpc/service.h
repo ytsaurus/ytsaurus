@@ -87,8 +87,6 @@ struct IService
 
     virtual void OnBeginRequest(IServiceContext* context) = 0;
     virtual void OnEndRequest(IServiceContext* context) = 0;
-
-    virtual Stroka GetDebugInfo() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,10 +318,6 @@ public:
 class TServiceBase
     : public IService
 {
-public:
-    //! Reports debug info of the running service instance.
-    Stroka GetDebugInfo() const;
-
 protected:
     //! Describes a handler for a service method.
     typedef IParamAction<IServiceContext*> THandler;

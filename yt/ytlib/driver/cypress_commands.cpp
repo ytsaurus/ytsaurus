@@ -108,7 +108,7 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
     ypathRequest->set_type(request->Type);
 
     if (request->Manifest) {
-        auto serializedManifest = SerializeToYson(~request->Manifest, EFormat::Binary);
+        auto serializedManifest = SerializeToYson(~request->Manifest, EYsonFormat::Binary);
         ypathRequest->set_manifest(serializedManifest);
     }
 
@@ -125,6 +125,22 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
         .BeginMap()
             .Item("object_id").Scalar(id.ToString())
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TLockCommand::DoExecute(TLockRequest* request)
+{
+    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+    auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
+        request->Path,
+        DriverImpl->GetCurrentTransactionId()));
+
+    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+
+    if (!ypathResponse->IsOK()) {
+        DriverImpl->ReplyError(ypathResponse->GetError());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

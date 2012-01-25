@@ -281,14 +281,6 @@ inline void Write(const yhash_map<Stroka, T>& parameter, NYTree::IYsonConsumer* 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
-void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
-{
-    Write(Parameter, consumer);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // all
 inline void ValidateSubconfigs(
     const void* /* parameter */,
@@ -302,7 +294,7 @@ inline void ValidateSubconfigs(
     const NYTree::TYPath& path,
     typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
 {
-    if (parameter->Get()) {
+    if (*parameter) {
         (*parameter)->Validate(path);
     }
 }
@@ -331,6 +323,21 @@ inline void ValidateSubconfigs(
             &pair.Second(),
             NYTree::CombineYPaths(path, pair.First()));
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//all
+inline bool IsPresent(const void* /* parameter */)
+{
+    return true;
+}
+
+//configurable
+template<class T>
+inline bool IsPresent(TIntrusivePtr<T>* parameter)
+{
+    return (bool) (*parameter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,6 +381,19 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
         }
     }
 }
+
+template<class T>
+void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
+{
+    Write(Parameter, consumer);
+}
+
+template<class T>
+bool TParameter<T>::IsPresent() const
+{
+    return NConfig::IsPresent(&Parameter);
+}
+
 
 template <class T>
 TParameter<T>& TParameter<T>::Default(const T& defaultValue)

@@ -434,6 +434,21 @@ private:
     //                }
     //            });
     //}
+
+    /*
+        void GetTotalStatistics(const TGetAttributeParam& param)
+    {
+        auto totalStatistics = ChunkManager->GetTotalHolderStatistics();
+        BuildYsonFluently(param.Consumer)
+            .BeginMap()
+                .Item("available_space").Scalar(totalStatistics.AvailbaleSpace)
+                .Item("used_space").Scalar(totalStatistics.UsedSpace)
+                .Item("chunk_count").Scalar(totalStatistics.ChunkCount)
+                .Item("session_count").Scalar(totalStatistics.SessionCount)
+                .Item("holder_count").Scalar(totalStatistics.HolderCount)
+            .EndMap();
+    }
+    */
 };
 
 INodeTypeHandler::TPtr CreateHolderMapTypeHandler(

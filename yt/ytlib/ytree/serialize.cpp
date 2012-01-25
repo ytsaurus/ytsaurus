@@ -55,7 +55,7 @@ INode::TPtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
 TOutputStream& SerializeToYson(
     const INode* node,
     TOutputStream& output,
-    EFormat format)
+    EYsonFormat format)
 {
     TYsonWriter writer(&output, format);
     TTreeVisitor visitor(&writer);
@@ -63,14 +63,14 @@ TOutputStream& SerializeToYson(
     return output;
 }
 
-TYson SerializeToYson(const INode* node, EFormat format)
+TYson SerializeToYson(const INode* node, EYsonFormat format)
 {
     TStringStream output;
     SerializeToYson(node, output, format);
     return output.Str();
 }
 
-TYson SerializeToYson(TYsonProducer* producer, EFormat format)
+TYson SerializeToYson(TYsonProducer* producer, EYsonFormat format)
 {
     TStringStream output;
     TYsonWriter writer(&output, format);
@@ -78,7 +78,7 @@ TYson SerializeToYson(TYsonProducer* producer, EFormat format)
     return output.Str();
 }
 
-TYson SerializeToYson(const TConfigurable* config, EFormat format)
+TYson SerializeToYson(const TConfigurable* config, EYsonFormat format)
 {
     TStringStream output;
     TYsonWriter writer(&output, format);

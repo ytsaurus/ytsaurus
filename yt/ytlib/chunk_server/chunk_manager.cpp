@@ -262,7 +262,7 @@ public:
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
     void FillHolderAddresses(
-        ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
+        ::google::protobuf::RepeatedPtrField<TProtoStringType>* addresses,
         const TChunk& chunk)
     {
         FOREACH (auto holderId, chunk.StoredLocations()) {
@@ -276,6 +276,24 @@ public:
                 addresses->Add()->assign(holder.GetAddress());
             }
         }
+    }
+
+    TTotalHolderStatistics GetTotalHolderStatistics() const
+    {
+        TTotalHolderStatistics totalStatistics;
+        auto keys = HolderMap.GetKeys();
+        FOREACH (const auto& key, keys) {
+            const THolder* holder = HolderMap.Find(key);
+            if (holder) {
+                const auto& statistics = holder->Statistics();
+                totalStatistics.AvailbaleSpace += statistics.available_space();
+                totalStatistics.UsedSpace += statistics.used_space();
+                totalStatistics.ChunkCount += statistics.chunk_count();
+                totalStatistics.SessionCount += statistics.session_count();
+                totalStatistics.HolderCount++;
+            }
+        }
+        return totalStatistics;
     }
 
 private:
@@ -968,17 +986,15 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributeNames(yvector<Stroka>* names)
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
     {
         const auto& chunk = GetTypedImpl();
-        names->push_back("confirmed");
-        names->push_back("cached_locations");
-        names->push_back("stored_locations");
-        if (chunk.IsConfirmed()) {
-            names->push_back("size");
-            names->push_back("chunk_type");
-        }
-        TBase::GetSystemAttributeNames(names);
+        attributes->push_back("confirmed");
+        attributes->push_back("cached_locations");
+        attributes->push_back("stored_locations");
+        attributes->push_back(TAttributeInfo("size", chunk.IsConfirmed()));
+        attributes->push_back(TAttributeInfo("chunk_type", chunk.IsConfirmed()));
+        TBase::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
@@ -1153,10 +1169,10 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributeNames(yvector<Stroka>* names)
+    virtual void GetSystemAttributs(yvector<TAttributeInfo>* attributes)
     {
-        names->push_back("children_ids");
-        TBase::GetSystemAttributeNames(names);
+        attributes->push_back("children_ids");
+        TBase::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
@@ -1360,6 +1376,12 @@ void TChunkManager::FillHolderAddresses(
 {
     Impl->FillHolderAddresses(addresses, chunk);
 }
+
+TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics() const
+{
+    return Impl->GetTotalHolderStatistics();
+}
+
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)

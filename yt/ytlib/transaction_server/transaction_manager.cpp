@@ -51,13 +51,13 @@ private:
 
     TTransactionManager::TPtr Owner;
 
-    virtual void GetSystemAttributeNames(yvector<Stroka>* names)
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
     {
-        names->push_back("state");
-        names->push_back("parent_id");
-        names->push_back("nested_transaction_ids");
-        names->push_back("created_object_ids");
-        TBase::GetSystemAttributeNames(names);
+        attributes->push_back("state");
+        attributes->push_back("parent_id");
+        attributes->push_back("nested_transaction_ids");
+        attributes->push_back("created_object_ids");
+        TBase::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)

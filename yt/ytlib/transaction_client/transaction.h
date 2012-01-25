@@ -43,6 +43,13 @@ struct ITransaction
      */
     virtual TTransactionId GetId() const  = 0;
 
+    //! Returns the id of the parent transaction.
+    /*!
+     *  \note
+     *  Thread affinity: any.
+     */
+    virtual TTransactionId GetParentId() const = 0;
+
     virtual void SubscribeAborted(IAction::TPtr onAborted) = 0;
     virtual void UnsubscribeAborted(IAction::TPtr onAborted) = 0;
 };
