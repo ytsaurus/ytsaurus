@@ -65,6 +65,10 @@ public:
 class TUntypedObjectProxyBase
     : public IObjectProxy
     , public NYTree::TYPathServiceBase
+    , public virtual NYTree::TSupportsGet
+    , public virtual NYTree::TSupportsList
+    , public virtual NYTree::TSupportsSet
+    , public virtual NYTree::TSupportsRemove
 {
 public:
     TUntypedObjectProxyBase(
@@ -82,13 +86,12 @@ private:
     virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
-    DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, Get);
-    DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, List);
-    DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, Set);
-    DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, Remove);
 
     Stroka DoGetAttribute(const Stroka& name, bool* isSystem = NULL);
     void DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem);
+
+    void RemovesAttributesIfExist(const TVersionedObjectId& versionedId);
+    TAttributeSet* FindOrCreateAttributes(const TVersionedObjectId& versionedId);
 
 protected:
     //! Returns the transaction id used for attribute set lookup.
@@ -121,19 +124,12 @@ protected:
     virtual bool SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer);
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
-    virtual void GetRecursive(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
 
-    virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
-    virtual void ListRecursive(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
     virtual void ListAttribute(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
 
-    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context);
-    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
     virtual void SetAttribute(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
 
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context);
-    virtual void RemoveRecursive(const NYTree::TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
     virtual void RemoveAttribute(const NYTree::TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
 };
 

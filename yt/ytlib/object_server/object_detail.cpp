@@ -149,35 +149,12 @@ DEFINE_RPC_SERVICE_METHOD(TUntypedObjectProxyBase, GetId)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TUntypedObjectProxyBase, Get)
-{
-    auto path = context->GetPath();
-    if (IsFinalYPath(path)) {
-        GetSelf(request, response, ~context);
-    } else if (IsAttributeYPath(path)) {
-        auto attributePath = ChopYPathAttributeMarker(path);
-        GetAttribute(attributePath, request, response, ~context);
-    } else {
-        GetRecursive(path, request, response, ~context);
-    }
-}
-
 void TUntypedObjectProxyBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     UNUSED(request);
 
     response->set_value(NYTree::BuildYsonFluently().Entity());
     context->Reply();
-}
-
-void TUntypedObjectProxyBase::GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
-{
-    UNUSED(path);
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
-
-    ythrow yexception() << "Path must be final";
 }
 
 void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
@@ -227,38 +204,6 @@ void TUntypedObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request,
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TUntypedObjectProxyBase, List)
-{
-    auto path = context->GetPath();
-    if (IsFinalYPath(path)) {
-        ListSelf(request, response, ~context);
-    } else if (IsAttributeYPath(path)) {
-        auto attributePath = ChopYPathAttributeMarker(path);
-        ListAttribute(attributePath, request, response, ~context);
-    } else {
-        ListRecursive(path, request, response, ~context);
-    }
-}
-
-void TUntypedObjectProxyBase::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
-{
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
-
-    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
-}
-
-void TUntypedObjectProxyBase::ListRecursive(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context)
-{
-    UNUSED(path);
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
-
-    ythrow yexception() << "Path must be final";
-}
-
 void TUntypedObjectProxyBase::ListAttribute(const TYPath& path, TReqList* request, TRspList* response, TCtxList* context)
 {
     yvector<Stroka> keys;
@@ -287,128 +232,61 @@ void TUntypedObjectProxyBase::ListAttribute(const TYPath& path, TReqList* reques
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TUntypedObjectProxyBase, Set)
-{
-    auto path = context->GetPath();
-    if (IsFinalYPath(path)) {
-        SetSelf(request, response, ~context);
-    } else if (IsAttributeYPath(path)) {
-        auto attributePath = ChopYPathAttributeMarker(path);
-        SetAttribute(attributePath, request, response, ~context);
-    } else {
-        SetRecursive(path, request, response, ~context);
-    }
-}
-
-void TUntypedObjectProxyBase::SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context)
-{
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
-
-    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
-}
-
-void TUntypedObjectProxyBase::SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
-{
-    UNUSED(path);
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
-
-    ythrow yexception() << "Path must be final";
-}
-
 void TUntypedObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
 {
+    TVersionedObjectId versionedId(Id, GetTransactionId());
+
     if (IsFinalYPath(path)) {
-        ythrow yexception() << "Cannot set all attributes in a batch";
-    }
+        auto value = DeserializeFromYson(request->value());
+        if (value->GetType() != ENodeType::Map) {
+            ythrow yexception() << "Map value expected";
+        }
 
-    Stroka token;
-    TYPath suffixPath;
-    ChopYPathToken(path, &token, &suffixPath);
-
-    if (IsFinalYPath(suffixPath)) {
-        if (!SetSystemAttribute(token, ~ProducerFromYson(request->value()))) {
-            TVersionedObjectId versionedId(Id, GetTransactionId());
-            auto* userAttributes = ObjectManager->FindAttributesForUpdate(versionedId);
-            if (!userAttributes) {
-                userAttributes = ObjectManager->CreateAttributes(versionedId);
+        // TODO(babenko): handle system attributes
+        auto mapValue = value->AsMap();
+        if (mapValue->GetChildCount() == 0) {
+            RemovesAttributesIfExist(versionedId);
+        } else {
+            auto* userAttributes = FindOrCreateAttributes(versionedId);
+            userAttributes->Attributes().clear();
+            FOREACH (const auto& pair, mapValue->GetChildren()) {
+                auto key = pair.first;
+                auto value = SerializeToYson(~pair.second);
+                userAttributes->Attributes()[key] = value;
             }
-            userAttributes->Attributes()[token] = request->value();
         }
     } else {
         Stroka token;
         TYPath suffixPath;
         ChopYPathToken(path, &token, &suffixPath);
 
-        bool isSystem;
-        auto yson = DoGetAttribute(token, &isSystem);
-        auto wholeValue = DeserializeFromYson(yson);
-        SyncYPathSet(~wholeValue, RootMarker + suffixPath, request->value());
-        DoSetAttribute(token, ~wholeValue, isSystem);
+        if (IsFinalYPath(suffixPath)) {
+            if (!SetSystemAttribute(token, ~ProducerFromYson(request->value()))) {
+                auto* userAttributes = FindOrCreateAttributes(versionedId);
+                userAttributes->Attributes()[token] = request->value();
+            }
+        } else {
+            Stroka token;
+            TYPath suffixPath;
+            ChopYPathToken(path, &token, &suffixPath);
+
+            bool isSystem;
+            auto yson = DoGetAttribute(token, &isSystem);
+            auto wholeValue = DeserializeFromYson(yson);
+            SyncYPathSet(~wholeValue, RootMarker + suffixPath, request->value());
+            DoSetAttribute(token, ~wholeValue, isSystem);
+        }
     }
 
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TUntypedObjectProxyBase, Remove)
-{
-    auto path = context->GetPath();
-    if (IsFinalYPath(path)) {
-        RemoveSelf(request, response, ~context);
-    } else if (IsAttributeYPath(path)) {
-        auto attributePath = ChopYPathAttributeMarker(path);
-        RemoveAttribute(attributePath, request, response, ~context);
-    } else {
-        RemoveRecursive(path, request, response, ~context);
-    }
-}
-
-void TUntypedObjectProxyBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context)
-{
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
-
-    ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported";
-}
-
-void TUntypedObjectProxyBase::RemoveRecursive(const NYTree::TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context)
-{
-    UNUSED(path);
-    UNUSED(request);
-    UNUSED(response);
-    UNUSED(context);
-
-    ythrow yexception() << "Path must be final";
-}
-
 void TUntypedObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context)
 {
-    yvector<Stroka> keys;
+    TVersionedObjectId versionedId(Id, GetTransactionId());
 
     if (IsFinalYPath(path)) {
-        ythrow yexception() << "Cannot remove all attributes in a batch";
-    }
-
-    Stroka token;
-    TYPath suffixPath;
-    ChopYPathToken(path, &token, &suffixPath);
-
-    if (IsFinalYPath(suffixPath)) {
-        TVersionedObjectId versionedId(Id, GetTransactionId());
-        auto* userAttributes = ObjectManager->FindAttributesForUpdate(versionedId);
-        if (!userAttributes) {
-            ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
-        }
-        auto it = userAttributes->Attributes().find(token);
-        if (it == userAttributes->Attributes().end()) {
-            ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
-        }
-        userAttributes->Attributes().erase(it);
-        if (userAttributes->Attributes().size() == 0) {
+        if (ObjectManager->FindAttributes(versionedId)) {
             ObjectManager->RemoveAttributes(versionedId);
         }
     } else {
@@ -416,11 +294,30 @@ void TUntypedObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* re
         TYPath suffixPath;
         ChopYPathToken(path, &token, &suffixPath);
 
-        bool isSystem;
-        auto yson = DoGetAttribute(token, &isSystem);
-        auto wholeValue = DeserializeFromYson(yson);
-        SyncYPathRemove(~wholeValue, RootMarker + suffixPath);
-        DoSetAttribute(token, ~wholeValue, isSystem);
+        if (IsFinalYPath(suffixPath)) {
+            auto* userAttributes = ObjectManager->FindAttributesForUpdate(versionedId);
+            if (!userAttributes) {
+                ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
+            }
+            auto it = userAttributes->Attributes().find(token);
+            if (it == userAttributes->Attributes().end()) {
+                ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
+            }
+            userAttributes->Attributes().erase(it);
+            if (userAttributes->Attributes().size() == 0) {
+                ObjectManager->RemoveAttributes(versionedId);
+            }
+        } else {
+            Stroka token;
+            TYPath suffixPath;
+            ChopYPathToken(path, &token, &suffixPath);
+
+            bool isSystem;
+            auto yson = DoGetAttribute(token, &isSystem);
+            auto wholeValue = DeserializeFromYson(yson);
+            SyncYPathRemove(~wholeValue, RootMarker + suffixPath);
+            DoSetAttribute(token, ~wholeValue, isSystem);
+        }
     }
 
     context->Reply();
@@ -461,6 +358,22 @@ void TUntypedObjectProxyBase::DoSetAttribute(const Stroka name, NYTree::INode* v
         auto& userAttributes = ObjectManager->GetAttributesForUpdate(versionedId);
         userAttributes.Attributes().find(name)->Second() = SerializeToYson(value);
     }
+}
+
+void TUntypedObjectProxyBase::RemovesAttributesIfExist(const TVersionedObjectId& versionedId)
+{
+    if (ObjectManager->FindAttributes(versionedId)) {
+        ObjectManager->RemoveAttributes(versionedId);
+    }
+}
+
+TAttributeSet* TUntypedObjectProxyBase::FindOrCreateAttributes(const TVersionedObjectId& versionedId)
+{
+    auto result = ObjectManager->FindAttributesForUpdate(versionedId);
+    if (!result) {
+        result = ObjectManager->CreateAttributes(versionedId);
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
