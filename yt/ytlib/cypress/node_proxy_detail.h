@@ -142,6 +142,33 @@ protected:
     bool Locked;
 
 
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    {
+        attributes->push_back("parent_id");
+        attributes->push_back("state");
+        NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    {
+        const auto& node = GetImpl();
+
+        if (name == "parent_id") {
+            BuildYsonFluently(consumer)
+                .Scalar(node.GetParentId().ToString());
+            return true;
+        }
+
+        if (name == "state") {
+            BuildYsonFluently(consumer)
+                .Scalar(CamelCaseToUnderscoreCase(node.GetState().ToString()));
+            return true;
+        }
+
+        return NObjectServer::TObjectProxyBase::GetSystemAttribute(name, consumer);
+    }
+
+
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Lock);
@@ -196,7 +223,7 @@ protected:
     ICypressNodeProxy::TPtr GetProxy(const TNodeId& nodeId) const
     {
         YASSERT(nodeId != NullObjectId);
-        return CypressManager->GetNodeProxy(nodeId, TransactionId);
+        return CypressManager->GetVersionedNodeProxy(nodeId, TransactionId);
     }
 
     static ICypressNodeProxy* ToProxy(INode* node)
@@ -228,7 +255,7 @@ protected:
             ythrow yexception() << "Cannot lock a node outside of a transaction";
         }
 
-        CypressManager->LockTransactionNode(NodeId, TransactionId);
+        CypressManager->LockVersionedNode(NodeId, TransactionId);
 
         // Set the flag to speedup further checks.
         Locked = true;
