@@ -92,13 +92,6 @@ private:
         }
 
         return ChunkManager->GetObjectManager()->FindProxy(id);
-
-        //return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
-        //    {
-        //        BuildYsonFluently(consumer)
-        //            .BeginMap()
-        //            .EndMap();
-            //}));
     }
 };
 
@@ -242,11 +235,7 @@ public:
         : TMapNodeTypeHandler(cypressManager)
         , CypressManager(cypressManager)
         , ChunkManager(chunkManager)
-    {
-        // NB: No smartpointer for this here.
-        RegisterGetter("alive", FromMethod(&TThis::GetAlive, this));
-        RegisterGetter("statistics", FromMethod(&TThis::GetStatistics, this));
-    }
+    { }
 
     virtual EObjectType GetObjectType()
     {
@@ -267,38 +256,38 @@ private:
     TCypressManager::TPtr CypressManager;
     TChunkManager::TPtr ChunkManager;
 
-    Stroka GetAddress(const ICypressNode& node)
-    {
-        auto proxy = CypressManager->GetNodeProxy(node.GetId().ObjectId, NullTransactionId);
-        return proxy->GetParent()->AsMap()->GetChildKey(~proxy);
-    }
+    //Stroka GetAddress(const ICypressNode& node)
+    //{
+    //    auto proxy = CypressManager->GetNodeProxy(node.GetId().ObjectId, NullTransactionId);
+    //    return proxy->GetParent()->AsMap()->GetChildKey(~proxy);
+    //}
 
-    void GetAlive(const TGetAttributeParam& param)
-    {
-        auto address = GetAddress(*param.Node);
-        bool alive = ChunkManager->FindHolder(address);
-        BuildYsonFluently(param.Consumer)
-            .Scalar(alive);
-    }
+    //void GetAlive(const TGetAttributeParam& param)
+    //{
+    //    auto address = GetAddress(*param.Node);
+    //    bool alive = ChunkManager->FindHolder(address);
+    //    BuildYsonFluently(param.Consumer)
+    //        .Scalar(alive);
+    //}
 
-    void GetStatistics(const TGetAttributeParam& param)
-    {
-        auto address = GetAddress(*param.Node);
-        auto* holder = ChunkManager->FindHolder(address);
-        BuildYsonFluently(param.Consumer)
-            .BeginMap()
-                .DoIf(holder, [=] (TFluentMap fluent)
-                    {
-                        const auto statistics = holder->Statistics();
-                        fluent
-                            .Item("available_space").Scalar(statistics.available_space())
-                            .Item("used_space").Scalar(statistics.used_space())
-                            .Item("chunk_count").Scalar(statistics.chunk_count())
-                            .Item("session_count").Scalar(statistics.session_count())
-                            .Item("full").Scalar(statistics.full());
-                    })
-            .EndMap();
-    }
+    //void GetStatistics(const TGetAttributeParam& param)
+    //{
+    //    auto address = GetAddress(*param.Node);
+    //    auto* holder = ChunkManager->FindHolder(address);
+    //    BuildYsonFluently(param.Consumer)
+    //        .BeginMap()
+    //            .DoIf(holder, [=] (TFluentMap fluent)
+    //                {
+    //                    const auto statistics = holder->Statistics();
+    //                    fluent
+    //                        .Item("available_space").Scalar(statistics.available_space())
+    //                        .Item("used_space").Scalar(statistics.used_space())
+    //                        .Item("chunk_count").Scalar(statistics.chunk_count())
+    //                        .Item("session_count").Scalar(statistics.session_count())
+    //                        .Item("full").Scalar(statistics.full());
+    //                })
+    //        .EndMap();
+    //}
 };
 
 INodeTypeHandler::TPtr CreateHolderTypeHandler(
@@ -397,11 +386,7 @@ public:
         , MetaStateManager(metaStateManager)
         , CypressManager(cypressManager)
         , ChunkManager(chunkManager)
-    {
-        // NB: No smartpointer for this here.
-        RegisterGetter("alive", FromMethod(&TThis::GetAliveHolders, this));
-        RegisterGetter("dead", FromMethod(&TThis::GetDeadHolders, this));
-    }
+    { }
 
     virtual EObjectType GetObjectType()
     {
@@ -428,27 +413,27 @@ private:
     TCypressManager::TPtr CypressManager;
     TChunkManager::TPtr ChunkManager;
 
-    void GetAliveHolders(const TGetAttributeParam& param)
-    {
-        BuildYsonFluently(param.Consumer)
-            .DoListFor(ChunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id)
-                {
-                    const auto& holder = ChunkManager->GetHolder(id);
-                    fluent.Item().Scalar(holder.GetAddress());
-                });
-    }
+    //void GetAliveHolders(const TGetAttributeParam& param)
+    //{
+    //    BuildYsonFluently(param.Consumer)
+    //        .DoListFor(ChunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id)
+    //            {
+    //                const auto& holder = ChunkManager->GetHolder(id);
+    //                fluent.Item().Scalar(holder.GetAddress());
+    //            });
+    //}
 
-    void GetDeadHolders(const TGetAttributeParam& param)
-    {
-        BuildYsonFluently(param.Consumer)
-            .DoListFor(param.Node->NameToChild(), [=] (TFluentList fluent, TPair<Stroka, TNodeId> pair)
-                {
-                    Stroka address = pair.first;
-                    if (!ChunkManager->FindHolder(address)) {
-                        fluent.Item().Scalar(address);
-                    }
-                });
-    }
+    //void GetDeadHolders(const TGetAttributeParam& param)
+    //{
+    //    BuildYsonFluently(param.Consumer)
+    //        .DoListFor(param.Node->NameToChild(), [=] (TFluentList fluent, TPair<Stroka, TNodeId> pair)
+    //            {
+    //                Stroka address = pair.first;
+    //                if (!ChunkManager->FindHolder(address)) {
+    //                    fluent.Item().Scalar(address);
+    //                }
+    //            });
+    //}
 };
 
 INodeTypeHandler::TPtr CreateHolderMapTypeHandler(

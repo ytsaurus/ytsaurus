@@ -36,7 +36,6 @@ private:
     void VisitEntity(const INode* node, bool hasAttributes);
     void VisitList(const IListNode* node, bool hasAttributes);
     void VisitMap(const IMapNode* node, bool hasAttributes);
-    void VisitAttributes(const IMapNode* node);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

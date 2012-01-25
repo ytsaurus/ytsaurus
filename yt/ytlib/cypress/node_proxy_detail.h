@@ -11,6 +11,7 @@
 #include <ytlib/ytree/node_detail.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/object_server/object_detail.h>
 
 namespace NYT {
 namespace NCypress {
@@ -47,6 +48,7 @@ private:
 template <class IBase, class TImpl>
 class TCypressNodeProxyBase
     : public NYTree::TNodeBase
+    , public NObjectServer::TObjectProxyBase
     , public ICypressNodeProxy
     , public virtual IBase
 {
@@ -58,8 +60,13 @@ public:
         TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
-        : TypeHandler(typeHandler)
+        : NObjectServer::TObjectProxyBase(
+            cypressManager->GetObjectManager(),
+            nodeId,
+            CypressLogger.GetCategory())
+        , TypeHandler(typeHandler)
         , CypressManager(cypressManager)
+        , ObjectManager(cypressManager->GetObjectManager())
         , TransactionId(transactionId)
         , NodeId(nodeId)
         , Locked(false)
@@ -116,40 +123,17 @@ public:
     }
 
 
-    virtual NYTree::IMapNode::TPtr GetAttributes() const
-    {
-        auto nodeId = GetImpl().GetAttributesId();
-        return nodeId == NullObjectId ? NULL : GetProxy(nodeId)->AsMap();
-    }
-
-    virtual void SetAttributes(NYTree::IMapNode* attributes)
-    {
-        auto& impl = GetImplForUpdate();
-        if (impl.GetAttributesId() != NullObjectId) {
-            auto& attrImpl = GetImplForUpdate(impl.GetAttributesId());
-            DetachChild(attrImpl);
-            impl.SetAttributesId(NullObjectId);
-        }
-
-        if (attributes) {
-            auto* attrProxy = ToProxy(attributes);
-            auto& attrImpl = GetImplForUpdate(attrProxy->GetId());
-            AttachChild(attrImpl);
-            impl.SetAttributesId(attrProxy->GetId());
-        }
-    }
-
-
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
-        // NB: Create is not considered a write verb since here is always fails.
+        // NB: Create is not considered a write verb since it always fails here.
         return NYTree::TNodeBase::IsWriteRequest(context);
     }
 
 protected:
     const INodeTypeHandler::TPtr TypeHandler;
     const TCypressManager::TPtr CypressManager;
+    const NObjectServer::TObjectManager::TPtr ObjectManager;
     const TTransactionId TransactionId;
     const TNodeId NodeId;
 
@@ -163,7 +147,6 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         TNodeBase::DoInvoke(context);
     }
-
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Lock)
     {
@@ -184,19 +167,6 @@ protected:
         }
 
         context->Reply(NRpc::EErrorCode::NoSuchVerb, "Verb is not supported");
-    }
-
-
-    virtual yvector<Stroka> GetVirtualAttributeNames()
-    {
-        yvector<Stroka> names;
-        TypeHandler->GetAttributeNames(GetImpl(), &names);
-        return names;
-    }
-
-    virtual NYTree::IYPathService::TPtr GetVirtualAttributeService(const Stroka& name)
-    {
-        return TypeHandler->GetAttributeService(GetImpl(), name);
     }
 
 
@@ -261,14 +231,46 @@ protected:
     void AttachChild(ICypressNode& child)
     {
         child.SetParentId(NodeId);
-        CypressManager->GetObjectManager()->RefObject(child.GetId().ObjectId);
+        ObjectManager->RefObject(child.GetId().ObjectId);
     }
 
     void DetachChild(ICypressNode& child)
     {
         child.SetParentId(NullObjectId);
-        CypressManager->GetObjectManager()->UnrefObject(child.GetId().ObjectId);
+        ObjectManager->UnrefObject(child.GetId().ObjectId);
     }
+
+
+    virtual const NObjectServer::TAttributeSet* FindAttributes()
+    {
+        auto id = GetImpl(NodeId).GetId();
+        return ObjectManager->FindAttributes(id);
+    }
+
+    virtual NObjectServer::TAttributeSet* FindAttributesForUpdate()
+    {
+        auto id = GetImplForUpdate(NodeId).GetId();
+        return ObjectManager->FindAttributesForUpdate(id);
+    }
+
+    virtual NObjectServer::TAttributeSet* GetAttributesForUpdate()
+    {
+        auto id = GetImplForUpdate(NodeId).GetId();
+        auto* attributes = ObjectManager->FindAttributesForUpdate(id);
+        if (!attributes) {
+            attributes = ObjectManager->CreateAttributes(id);
+        }
+        return attributes;
+    }
+
+    virtual void RemoveAttributes()
+    {
+        auto id = GetImplForUpdate(NodeId).GetId();
+        if (ObjectManager->FindAttributes(id)) {
+            ObjectManager->RemoveAttributes(id);
+        }
+    }
+
 };
 
 //////////////////////////////////////////////////////////////////////////////// 

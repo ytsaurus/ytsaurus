@@ -84,6 +84,151 @@ void TYPathResponse::DeserializeBody(const TRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ChopYPathToken(
+    const TYPath& path,
+    Stroka* token,
+    TYPath* suffixPath)
+{
+    size_t index = path.find_first_of("/@");
+    if (index == TYPath::npos) {
+        *token = path;
+        *suffixPath = TYPath(path.end(), static_cast<size_t>(0));
+    } else {
+        switch (path[index]) {
+        case '/':
+            *token = path.substr(0, index);
+            *suffixPath =
+                index == path.length() - 1
+                ? path.substr(index)
+                : path.substr(index + 1);
+            break;
+
+        case '@':
+            *token = path.substr(0, index);
+            *suffixPath = path.substr(index);
+            break;
+
+        default:
+            YUNREACHABLE();
+        }
+    }
+}
+
+TYPath ComputeResolvedYPath(
+    const TYPath& wholePath,
+    const TYPath& unresolvedPath)
+{
+    int resolvedLength = static_cast<int>(wholePath.length()) - static_cast<int>(unresolvedPath.length());
+    YASSERT(resolvedLength >= 0 && resolvedLength <= static_cast<int>(wholePath.length()));
+    YASSERT(wholePath.substr(resolvedLength) == unresolvedPath);
+    // Take care of trailing slash but don't reduce / to empty string.
+    return
+        resolvedLength > 1 && wholePath[resolvedLength - 1] == '/'
+        ? wholePath.substr(0, resolvedLength - 1)
+        : wholePath.substr(0, resolvedLength);
+}
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2)
+{
+    if (path2.has_prefix("@")) {
+        return path1 + path2;
+    }
+
+    if (path1.empty() || path2.empty()) {
+        return path1 + path2;
+    }
+
+    if (path1.back() == '/' && path2[0] == '/') {
+        return path1 + path2.substr(1);
+    }
+
+    if (path1.back() != '/' && path2[0] != '/') {
+        return path1 + '/' + path2;
+    }
+
+    return path1 + path2;
+}
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3)
+{
+    return CombineYPaths(CombineYPaths(path1, path2), path3);
+}
+
+bool IsEmptyYPath(const TYPath& path)
+{
+    return path.empty();
+}
+
+bool IsFinalYPath(const TYPath& path)
+{
+    return path.empty() || path == RootMarker;
+}
+
+bool IsAttributeYPath(const TYPath& path)
+{
+    return path.has_prefix(AttributeMarker);
+}
+
+TYPath ChopYPathAttributeMarker(const TYPath& path)
+{
+    auto result = path.substr(AttributeMarker.length());
+    if (result.has_prefix(AttributeMarker)) {
+        ythrow yexception() << "Repeated attribute marker in YPath";
+    }
+    return result;
+}
+
+bool IsLocalYPath(const TYPath& path)
+{
+    // The empty path is handled by the virtual node itself.
+    // All other paths (including "/") are forwarded to the service.
+    // Thus "/virtual" denotes the virtual node while "/virtual/" denotes its content.
+    // Same applies to the attributes (cf. "/virtual@" vs "/virtual/@").
+    return IsEmptyYPath(path) || IsAttributeYPath(path);
+}
+
+void ResolveYPath(
+    IYPathService* rootService,
+    const TYPath& path,
+    const Stroka& verb,
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath)
+{
+    YASSERT(rootService);
+    YASSERT(suffixService);
+    YASSERT(suffixPath);
+
+    IYPathService::TPtr currentService = rootService;
+    auto currentPath = path;
+
+    while (true) {
+        IYPathService::TResolveResult result;
+        try {
+            result = currentService->Resolve(currentPath, verb);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
+                ~path,
+                ~verb,
+                ~ComputeResolvedYPath(path, currentPath),
+                ex.what());
+        }
+
+        if (result.IsHere()) {
+            *suffixService = currentService;
+            *suffixPath = result.GetPath();
+            break;
+        }
+
+        currentService = result.GetService();
+        currentPath = result.GetPath();
+    }
+}
+
 void OnYPathResponse(
     IMessage::TPtr responseMessage,
     TFuture<IMessage::TPtr>::TPtr asyncResponseMessage,

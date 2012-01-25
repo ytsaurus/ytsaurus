@@ -105,16 +105,6 @@ struct INodeTypeHandler
         ICypressNode& committedNode,
         ICypressNode& branchedNode) = 0;
 
-    // TODO: consider returning yvector<Stroka>
-    virtual void GetAttributeNames(
-        const ICypressNode& node,
-        yvector<Stroka>* names) = 0;
-
-    virtual NYTree::IYPathService::TPtr GetAttributeService(
-        const ICypressNode& node,
-        const Stroka& name) = 0;
-
-
     //! Creates a behavior object.
     /*!
      *  \note

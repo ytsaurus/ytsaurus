@@ -106,9 +106,7 @@ public:
         : TCypressNodeTypeHandlerBase<TVirtualNode>(cypressManager)
         , Producer(producer)
         , ObjectType(objectType)
-    {
-        RegisterGetter("manifest", FromMethod(&TThis::GetManifest));
-    }
+    { }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
         const ICypressNode& node,
@@ -164,12 +162,12 @@ private:
     TYPathServiceProducer::TPtr Producer;
     EObjectType ObjectType;
 
-    static void GetManifest(const TGetAttributeParam& param)
-    {
-        TStringInput input(param.Node->GetManifest());
-        TYsonReader reader(param.Consumer, &input);
-        reader.Read();
-    }
+    //static void GetManifest(const TGetAttributeParam& param)
+    //{
+    //    TStringInput input(param.Node->GetManifest());
+    //    TYsonReader reader(param.Consumer, &input);
+    //    reader.Read();
+    //}
 };
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(

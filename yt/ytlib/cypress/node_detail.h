@@ -59,12 +59,8 @@ class TCypressNodeTypeHandlerBase
 public:
     TCypressNodeTypeHandlerBase(TCypressManager* cypressManager)
         : CypressManager(cypressManager)
-    {
-        RegisterGetter("node_id", FromMethod(&TThis::GetNodeId));
-        RegisterGetter("parent_id", FromMethod(&TThis::GetParentId));
-        // NB: No smartpointer for this here.
-        RegisterGetter("type", FromMethod(&TThis::GetType, this));
-    }
+        , ObjectManager(cypressManager->GetObjectManager())
+    { }
 
     virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id)
     {
@@ -85,9 +81,9 @@ public:
 
     virtual void Destroy(ICypressNode& node)
     {
-        // Release the reference to the attributes, if any.
-        if (node.GetAttributesId() != NullObjectId) {
-            CypressManager->GetObjectManager()->UnrefObject(node.GetAttributesId());
+        auto id = node.GetId();
+        if (ObjectManager->FindAttributes(id)) {
+            ObjectManager->RemoveAttributes(id);
         }
 
         DoDestroy(dynamic_cast<TImpl&>(node));
@@ -101,14 +97,17 @@ public:
 
         const auto& typedNode = dynamic_cast<const TImpl&>(committedNode);
 
-        // Create a branched copy.
-        TAutoPtr<TImpl> branchedNode = new TImpl(
-            TVersionedNodeId(committedNode.GetId().ObjectId, transactionId),
-            typedNode);
+        auto committedId = committedNode.GetId();
+        auto branchedId = TVersionedNodeId(committedId.ObjectId, transactionId);
 
-        // Add a reference to the attributes, if any.
-        if (committedNode.GetAttributesId() != NullObjectId) {
-            CypressManager->GetObjectManager()->RefObject(committedNode.GetAttributesId());
+        // Create a branched copy.
+        TAutoPtr<TImpl> branchedNode = new TImpl(branchedId, typedNode);
+
+        // Branch user attributes.
+        const auto* committedAttributes = ObjectManager->FindAttributes(committedId);
+        if (committedAttributes) {
+            auto* branchedAttributes = ObjectManager->CreateAttributes(branchedId);
+            branchedAttributes->Attributes() = committedAttributes->Attributes();
         }
 
         // Run custom branching.
@@ -124,45 +123,25 @@ public:
         YASSERT(committedNode.GetState() == ENodeState::Committed);
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
 
-        // Drop the reference to attributes, if any.
-        if (committedNode.GetAttributesId() != NullObjectId) {
-            CypressManager->GetObjectManager()->UnrefObject(committedNode.GetAttributesId());
-        }
+        auto committedId = committedNode.GetId();
+        auto branchedId = branchedNode.GetId();
 
-        // Replace the attributes with the branched copy.
-        committedNode.SetAttributesId(branchedNode.GetAttributesId());
+        // Merge user attributes.
+        const auto* branchedAttributes = ObjectManager->FindAttributes(branchedId);
+        if (branchedAttributes) {
+            auto* committedAttributes = ObjectManager->FindAttributesForUpdate(committedId);
+            if (!committedAttributes) {
+                committedAttributes = ObjectManager->CreateAttributes(committedId);
+            }
+            committedAttributes->Attributes() = branchedAttributes->Attributes();
+        } else {
+            if (ObjectManager->FindAttributes(committedId)) {
+                ObjectManager->RemoveAttributes(committedId);
+            }
+        }
 
         // Run custom merging.
         DoMerge(dynamic_cast<TImpl&>(committedNode), dynamic_cast<TImpl&>(branchedNode));
-    }
-
-    virtual void GetAttributeNames(
-        const ICypressNode& node,
-        yvector<Stroka>* names)
-    {
-        UNUSED(node);
-        FOREACH (const auto& pair, Getters) {
-            names->push_back(pair.First());
-        }
-    }
-
-    virtual NYTree::IYPathService::TPtr GetAttributeService(
-        const ICypressNode& node,
-        const Stroka& name)
-    {
-        auto it = Getters.find(name);
-        if (it == Getters.end())
-            return NULL;
-
-        auto builder = CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
-        builder->BeginTree();
-
-        TGetAttributeParam param;
-        param.Node = &dynamic_cast<const TImpl&>(node);
-        param.Consumer = builder.Get();
-        it->Second()->Do(param);
-
-        return builder->EndTree();
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
@@ -194,40 +173,13 @@ protected:
     }
 
     TCypressManager::TPtr CypressManager;
+    NObjectServer::TObjectManager::TPtr ObjectManager;
 
-    struct TGetAttributeParam
-    {
-        const TImpl* Node;
-        NYTree::IYsonConsumer* Consumer;
-    };
-
-    typedef IParamAction<const TGetAttributeParam&> TGetter;
-
-    yhash_map<Stroka, typename TGetter::TPtr> Getters;
-
-    void RegisterGetter(const Stroka& name, typename TGetter::TPtr getter)
-    {
-        YVERIFY(Getters.insert(MakePair(name, getter)).Second());
-    }
-
-    static void GetNodeId(const TGetAttributeParam& param)
-    {
-        NYTree::BuildYsonFluently(param.Consumer)
-            .Scalar(param.Node->GetId().ObjectId.ToString());
-    }
-
-    static void GetParentId(const TGetAttributeParam& param)
-    {
-        NYTree::BuildYsonFluently(param.Consumer)
-            .Scalar(param.Node->GetParentId().ToString());
-    }
-
-    void GetType(const TGetAttributeParam& param)
-    {
-        NYTree::BuildYsonFluently(param.Consumer)
-            // TODO(babenko): convert camel case to underscore
-            .Scalar(GetObjectType().ToString());
-    }
+    //static void GetParentId(const TGetAttributeParam& param)
+    //{
+    //    NYTree::BuildYsonFluently(param.Consumer)
+    //        .Scalar(param.Node->GetParentId().ToString());
+    //}
 
 private:
     typedef TCypressNodeTypeHandlerBase<TImpl> TThis;
@@ -242,7 +194,6 @@ class TCypressNodeBase
     // This also overrides appropriate methods from ICypressNode.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
-    DEFINE_BYVAL_RW_PROPERTY(TNodeId, AttributesId);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
 
 public:
@@ -429,8 +380,6 @@ private:
         TMapNode& committedNode,
         TMapNode& branchedNode);
 
-    static void GetSize(const TGetAttributeParam& param);
-
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -483,8 +432,6 @@ private:
     virtual void DoMerge(
         TListNode& originatingNode,
         TListNode& branchedNode);
-
-    static void GetSize(const TGetAttributeParam& param);
 
 };
 

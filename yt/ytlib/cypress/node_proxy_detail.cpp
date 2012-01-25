@@ -221,11 +221,8 @@ Stroka TMapNodeProxy::GetChildKey(INode* child)
 
 void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
 {
-    if (TMapNodeMixin::DoInvoke(context)) {
-        // The verb is already handled.
-    } else {
-        TCompositeNodeProxyBase::DoInvoke(context);
-    }
+    DISPATCH_YPATH_SERVICE_METHOD(List);
+    TCypressNodeProxyBase::DoInvoke(context);
 }
 
 void TMapNodeProxy::CreateRecursive(const TYPath& path, INode* value)

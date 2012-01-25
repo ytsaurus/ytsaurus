@@ -15,7 +15,7 @@ namespace NCypress {
 //! logical Cypress nodes.
 struct ICypressNodeProxy
     : public virtual NYTree::INode
-    , public NObjectServer::IObjectProxy
+    , public virtual NObjectServer::IObjectProxy
 {
     typedef TIntrusivePtr<ICypressNodeProxy> TPtr;
 

@@ -29,7 +29,7 @@ static NLog::TLogger& Logger = TransactionServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TTransactionProxy
-    : public NObjectServer::TObjectProxyBase<TTransaction>
+    : public NObjectServer::TUnversionedObjectProxyBase<TTransaction>
 {
 public:
     TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
@@ -47,7 +47,7 @@ public:
     }
 
 private:
-    typedef TObjectProxyBase<TTransaction> TBase;
+    typedef TUnversionedObjectProxyBase<TTransaction> TBase;
 
     TTransactionManager::TPtr Owner;
 

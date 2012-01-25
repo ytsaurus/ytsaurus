@@ -118,16 +118,6 @@ public:
         Parent = parent;
     }
 
-    virtual IMapNode::TPtr GetAttributes() const
-    {
-        return Attributes;
-    }
-
-    virtual void SetAttributes(IMapNode* attributes)
-    {
-        Attributes = attributes;
-    }
-
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
         if (IsLocalYPath(path)) {
@@ -140,9 +130,7 @@ public:
 
 private:
     TYPathServiceProvider::TPtr Provider;
-
     ICompositeNode* Parent;
-    IMapNode::TPtr Attributes;
 
 };
 

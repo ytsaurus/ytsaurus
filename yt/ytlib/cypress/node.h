@@ -53,11 +53,6 @@ struct ICypressNode
     //! Sets parent node id.
     virtual void SetParentId(const TNodeId& value) = 0;
 
-    //! Gets attributes node id.
-    virtual TNodeId GetAttributesId() const = 0;
-    //! Sets attributes node id.
-    virtual void SetAttributesId(const TNodeId& value) = 0;
-
     //! Gets an immutable reference to the node's locks.
     virtual const yhash_set<TLockId>& LockIds() const = 0;
     //! Gets an mutable reference to the node's locks.

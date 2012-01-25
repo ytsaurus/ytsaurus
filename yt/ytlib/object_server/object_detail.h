@@ -42,6 +42,9 @@ public:
 protected:
     TObjectBase(const TObjectBase& other);
 
+    void Save(TOutputStream* output) const;
+    void Load(TInputStream* input);
+
     i32 RefCounter;
 
 };
@@ -62,42 +65,32 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUntypedObjectProxyBase
-    : public IObjectProxy
-    , public NYTree::TYPathServiceBase
+class TObjectProxyBase
+    : public virtual NYTree::TYPathServiceBase
     , public virtual NYTree::TSupportsGet
     , public virtual NYTree::TSupportsList
     , public virtual NYTree::TSupportsSet
     , public virtual NYTree::TSupportsRemove
+    , public virtual IObjectProxy
 {
 public:
-    TUntypedObjectProxyBase(
+    TObjectProxyBase(
         TObjectManager* objectManager,
         const TObjectId& id,
         const Stroka& loggingCategory = ObjectServerLogger.GetCategory());
 
     virtual TObjectId GetId() const;
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
-private:
+protected:
     TObjectManager::TPtr ObjectManager;
     TObjectId Id;
 
     virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
 
-    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
-
     Stroka DoGetAttribute(const Stroka& name, bool* isSystem = NULL);
     void DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem);
 
-    void RemovesAttributesIfExist(const TVersionedObjectId& versionedId);
-    TAttributeSet* FindOrCreateAttributes(const TVersionedObjectId& versionedId);
-
-protected:
-    //! Returns the transaction id used for attribute set lookup.
-    virtual TTransactionId GetTransactionId() const;
-
-    virtual void DoInvoke(NRpc::IServiceContext* context);
+    DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
 
     //! Populates the list of all system attributes supported by this object.
     /*!
@@ -109,7 +102,7 @@ protected:
     //! Gets the value of a system attribute.
     /*!
      *  \returns False if there is no system attribute with the given name.
-     *  Must retrun True for each name declared via #GetSystemAttributeNames
+     *  Must return True for each name declared via #GetSystemAttributeNames
      *  (i.e. there are no write-only attributes).
      */
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
@@ -123,38 +116,67 @@ protected:
      */
     virtual bool SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer);
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
-
     virtual void ListAttribute(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
-
     virtual void SetAttribute(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
-
     virtual void RemoveAttribute(const NYTree::TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
+
+    // The following methods provide means for accessing attribute sets.
+    // In particular, these methods are responsible for resolving object and transaction ids.
+    virtual const TAttributeSet* FindAttributes() = 0;
+    virtual TAttributeSet* FindAttributesForUpdate() = 0;
+    virtual TAttributeSet* GetAttributesForUpdate() = 0;
+    virtual void RemoveAttributes() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TObject>
-class TObjectProxyBase
-    : public TUntypedObjectProxyBase
+class TUnversionedObjectProxyBase
+    : public TObjectProxyBase
 {
 public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
 
-    TObjectProxyBase(
+    TUnversionedObjectProxyBase(
         TObjectManager* objectManager,
         const TObjectId& id,
         TMap* map,
         const Stroka& loggingCategory = ObjectServerLogger.GetCategory())
-        : TUntypedObjectProxyBase(objectManager, id, loggingCategory)
+        : TObjectProxyBase(objectManager, id, loggingCategory)
         , Map(map)
     {
         YASSERT(map);
     }
 
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    {
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
+        return TYPathServiceBase::IsWriteRequest(context);
+    }
+
 protected:
     TMap* Map;
+
+    virtual void DoInvoke(NRpc::IServiceContext* context)
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(GetId);
+        DISPATCH_YPATH_SERVICE_METHOD(Get);
+        DISPATCH_YPATH_SERVICE_METHOD(List);
+        DISPATCH_YPATH_SERVICE_METHOD(Set);
+        DISPATCH_YPATH_SERVICE_METHOD(Remove);
+        TYPathServiceBase::DoInvoke(context);
+    }
+
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
+    {
+        UNUSED(request);
+
+        response->set_value(NYTree::BuildYsonFluently().Entity());
+        context->Reply();
+    }
+
 
     const TObject& GetTypedImpl() const
     {
@@ -164,6 +186,33 @@ protected:
     TObject& GetTypedImplForUpdate()
     {
         return Map->GetForUpdate(GetId());
+    }
+
+
+    const TAttributeSet* FindAttributes()
+    {
+        return ObjectManager->FindAttributes(Id);
+    }
+
+    TAttributeSet* FindAttributesForUpdate()
+    {
+        return ObjectManager->FindAttributesForUpdate(Id);
+    }
+
+    TAttributeSet* GetAttributesForUpdate()
+    {
+        auto attributes = ObjectManager->FindAttributesForUpdate(Id);
+        if (!attributes) {
+            attributes = ObjectManager->CreateAttributes(Id);
+        }
+        return attributes;
+    }
+
+    void RemoveAttributes()
+    {
+        if (ObjectManager->FindAttributes(Id)) {
+            ObjectManager->RemoveAttributes(Id);
+        }
     }
 };
 

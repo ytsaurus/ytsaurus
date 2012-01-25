@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include "ypath_detail.h"
-#include "ypath.pb.h"
 
 namespace NYT {
 namespace NYTree {
@@ -28,7 +27,6 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 INode::TPtr CreateVirtualNode(TYPathServiceProvider* provider);
-
 INode::TPtr CreateVirtualNode(IYPathService* service);
 
 ////////////////////////////////////////////////////////////////////////////////

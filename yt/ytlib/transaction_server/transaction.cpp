@@ -21,6 +21,7 @@ void TTransaction::Save(TOutputStream* output) const
 {
     YASSERT(output);
 
+    TObjectWithIdBase::Save(output);
     ::Save(output, State_);
     SaveSet(output, NestedTransactionIds_);
     ::Save(output, ParentId_);
@@ -35,6 +36,7 @@ TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream
     YASSERT(input);
 
     auto* transaction = new TTransaction(id);
+    transaction->TObjectWithIdBase::Load(input);
     ::Load(input, transaction->State_);
     LoadSet(input, transaction->NestedTransactionIds_);
     ::Load(input, transaction->ParentId_);

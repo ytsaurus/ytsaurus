@@ -949,7 +949,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, Underrepli
 ///////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TChunkProxy
-    : public NObjectServer::TObjectProxyBase<TChunk>
+    : public NObjectServer::TUnversionedObjectProxyBase<TChunk>
 {
 public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
@@ -964,7 +964,7 @@ public:
     }
 
 private:
-    typedef TObjectProxyBase<TChunk> TBase;
+    typedef TUnversionedObjectProxyBase<TChunk> TBase;
 
     TIntrusivePtr<TImpl> Owner;
 
@@ -1133,7 +1133,7 @@ void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk& chunk)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TChunkListProxy
-    : public NObjectServer::TObjectProxyBase<TChunkList>
+    : public NObjectServer::TUnversionedObjectProxyBase<TChunkList>
 {
 public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
@@ -1149,7 +1149,7 @@ public:
     }
 
 private:
-    typedef TObjectProxyBase<TChunkList> TBase;
+    typedef TUnversionedObjectProxyBase<TChunkList> TBase;
 
     TIntrusivePtr<TImpl> Owner;
 

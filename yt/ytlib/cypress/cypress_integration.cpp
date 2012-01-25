@@ -49,7 +49,6 @@ private:
                     .BeginMap()
                         .Item("state").Scalar(node->GetState().ToString())
                         .Item("parent_id").Scalar(node->GetParentId().ToString())
-                        .Item("attributes_id").Scalar(node->GetAttributesId().ToString())
                         .Item("ref_counter").Scalar(node->GetObjectRefCounter())
                     .EndMap();
             }));

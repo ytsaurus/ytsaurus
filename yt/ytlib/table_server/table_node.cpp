@@ -58,9 +58,7 @@ public:
         TChunkManager* chunkManager)
         : TCypressNodeTypeHandlerBase<TTableNode>(cypressManager)
         , ChunkManager(chunkManager)
-    {
-        RegisterGetter("chunk_list_id", FromMethod(&TThis::GetChunkListId));
-    }
+    { }
 
     EObjectType GetObjectType()
     {
@@ -153,14 +151,12 @@ protected:
     }
 
 private:
-    typedef TTableNodeTypeHandler TThis;
-
     NChunkServer::TChunkManager::TPtr ChunkManager;
 
-    static void GetChunkListId(const TGetAttributeParam& param)
-    {
-        BuildYsonFluently(param.Consumer).Scalar(param.Node->GetChunkListId().ToString());
-    }
+    //static void GetChunkListId(const TGetAttributeParam& param)
+    //{
+    //    BuildYsonFluently(param.Consumer).Scalar(param.Node->GetChunkListId().ToString());
+    //}
 };
 
 INodeTypeHandler::TPtr CreateTableTypeHandler(

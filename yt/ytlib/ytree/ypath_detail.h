@@ -17,44 +17,6 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ChopYPathToken(
-    const TYPath& path,
-    Stroka* token,
-    TYPath* suffixPath);
-
-TYPath ComputeResolvedYPath(
-    const TYPath& wholePath,
-    const TYPath& unresolvedPath);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3);
-
-bool IsEmptyYPath(const TYPath& path);
-
-bool IsFinalYPath(const TYPath& path);
-
-bool IsAttributeYPath(const TYPath& path);
-
-// TODO: choose a better name
-bool IsLocalYPath(const TYPath& path);
-
-TYPath ChopYPathAttributeMarker(const TYPath& path);
-
-void ResolveYPath(
-    IYPathService* rootService,
-    const TYPath& path,
-    const Stroka& verb,
-    IYPathService::TPtr* suffixService,
-    TYPath* suffixPath);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TYPathServiceBase
     : public virtual IYPathService
 {
@@ -78,47 +40,24 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSupportsGet
-{
-protected:
-    DECLARE_RPC_SERVICE_METHOD(NProto, Get);
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
-    virtual void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
-    virtual void GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
-};
+#define DECLARE_SUPPORTS_VERB(verb) \
+    class TSupports##verb \
+    { \
+    protected: \
+        DECLARE_RPC_SERVICE_METHOD(NProto, verb); \
+        virtual void verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb* context); \
+        virtual void verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context); \
+        virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context); \
+    }
 
-////////////////////////////////////////////////////////////////////////////////
+DECLARE_SUPPORTS_VERB(Get);
+DECLARE_SUPPORTS_VERB(GetNode);
+DECLARE_SUPPORTS_VERB(Set);
+DECLARE_SUPPORTS_VERB(SetNode);
+DECLARE_SUPPORTS_VERB(List);
+DECLARE_SUPPORTS_VERB(Remove);
 
-class TSupportsSet
-{
-protected:
-    DECLARE_RPC_SERVICE_METHOD(NProto, Set);
-    virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSet* context);
-    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
-    virtual void SetAttribute(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSupportsList
-{
-protected:
-    DECLARE_RPC_SERVICE_METHOD(NProto, List);
-    virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
-    virtual void ListRecursive(const TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
-    virtual void ListAttribute(const TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSupportsRemove
-{
-protected:
-    DECLARE_RPC_SERVICE_METHOD(NProto, Remove);
-    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context);
-    virtual void RemoveRecursive(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
-    virtual void RemoveAttribute(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
-};
+#undef DECLARE_SUPPORTS_VERB
 
 ////////////////////////////////////////////////////////////////////////////////
 

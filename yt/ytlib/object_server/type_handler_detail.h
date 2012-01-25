@@ -86,7 +86,7 @@ protected:
 
     virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id)
     {
-        return New< TObjectProxyBase<TObject> >(~ObjectManager, id, Map);
+        return New< TUnversionedObjectProxyBase<TObject> >(~ObjectManager, id, Map);
     }
 
     void SetAttributes(const TObjectId& id, NYTree::IMapNode* manifest)

@@ -137,6 +137,42 @@ extern TYPath AttributeMarker;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ChopYPathToken(
+    const TYPath& path,
+    Stroka* token,
+    TYPath* suffixPath);
+
+TYPath ComputeResolvedYPath(
+    const TYPath& wholePath,
+    const TYPath& unresolvedPath);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2);
+
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3);
+
+bool IsEmptyYPath(const TYPath& path);
+
+bool IsFinalYPath(const TYPath& path);
+
+bool IsAttributeYPath(const TYPath& path);
+
+// TODO: choose a better name
+bool IsLocalYPath(const TYPath& path);
+
+TYPath ChopYPathAttributeMarker(const TYPath& path);
+
+void ResolveYPath(
+    IYPathService* rootService,
+    const TYPath& path,
+    const Stroka& verb,
+    IYPathService::TPtr* suffixService,
+    TYPath* suffixPath);
+
 //! Asynchronously executes an untyped YPath verb against a given service.
 TFuture<NBus::IMessage::TPtr>::TPtr
 ExecuteVerb(

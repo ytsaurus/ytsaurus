@@ -38,7 +38,6 @@ namespace NCypress {
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType)
     : ParentId_(NullObjectId)
-    , AttributesId_(NullObjectId)
     , State_(ENodeState::Uncommitted)
     , Id(id)
     , ObjectType(objectType)
@@ -47,7 +46,6 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objec
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other)
     : ParentId_(other.ParentId_)
-    , AttributesId_(other.AttributesId_)
     , State_(other.State_)
     , Id(id)
     , ObjectType(other.ObjectType)
@@ -86,7 +84,6 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     ::Save(output, RefCounter);
     SaveSet(output, LockIds_);
     ::Save(output, ParentId_);
-    ::Save(output, AttributesId_);
     ::Save(output, State_);
 }
 
@@ -95,7 +92,6 @@ void TCypressNodeBase::Load(TInputStream* input)
     ::Load(input, RefCounter);
     LoadSet(input, LockIds_);
     ::Load(input, ParentId_);
-    ::Load(input, AttributesId_);
     ::Load(input, State_);
 }
 
@@ -136,9 +132,7 @@ void TMapNode::Load(TInputStream* input)
 
 TMapNodeTypeHandler::TMapNodeTypeHandler(TCypressManager* cypressManager)
     : TCypressNodeTypeHandlerBase<TMapNode>(cypressManager)
-{
-    RegisterGetter("size", FromMethod(&TThis::GetSize));
-}
+{ }
 
 EObjectType TMapNodeTypeHandler::GetObjectType()
 {
@@ -184,11 +178,11 @@ void TMapNodeTypeHandler::DoMerge(
     committedNode.ChildToName().swap(branchedNode.ChildToName());
 }
 
-void TMapNodeTypeHandler::GetSize(const TGetAttributeParam& param)
-{
-    BuildYsonFluently(param.Consumer)
-        .Scalar(param.Node->NameToChild().ysize());
-}
+//void TMapNodeTypeHandler::GetSize(const TGetAttributeParam& param)
+//{
+//    BuildYsonFluently(param.Consumer)
+//        .Scalar(param.Node->NameToChild().ysize());
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -238,9 +232,7 @@ void TListNode::Load(TInputStream* input)
 
 TListNodeTypeHandler::TListNodeTypeHandler(TCypressManager* cypressManager)
     : TCypressNodeTypeHandlerBase<TListNode>(cypressManager)
-{
-    RegisterGetter("size", FromMethod(&TThis::GetSize));
-}
+{ }
 
 EObjectType TListNodeTypeHandler::GetObjectType()
 {
@@ -297,11 +289,11 @@ void TListNodeTypeHandler::DoMerge(
     committedNode.ChildToIndex().swap(branchedNode.ChildToIndex());
 }
 
-void TListNodeTypeHandler::GetSize(const TGetAttributeParam& param)
-{
-    BuildYsonFluently(param.Consumer)
-        .Scalar(param.Node->IndexToChild().ysize());
-}
+//void TListNodeTypeHandler::GetSize(const TGetAttributeParam& param)
+//{
+//    BuildYsonFluently(param.Consumer)
+//        .Scalar(param.Node->IndexToChild().ysize());
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 
