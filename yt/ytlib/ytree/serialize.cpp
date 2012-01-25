@@ -20,8 +20,12 @@ TYsonProducer::TPtr ProducerFromYson(TInputStream* input)
 
 TYsonProducer::TPtr ProducerFromYson(const TYson& data)
 {
-    TStringInput input(data);
-    return ProducerFromYson(&input);
+    return FromFunctor([=] (IYsonConsumer* consumer)
+        {
+            TStringInput input(data);
+            TYsonReader reader(consumer, &input);
+            reader.Read();
+        });
 }
 
 TYsonProducer::TPtr ProducerFromNode(const INode* node)
