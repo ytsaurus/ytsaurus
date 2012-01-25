@@ -3,7 +3,7 @@
 #include "file_chunk_meta.pb.h"
 
 #include <ytlib/misc/string.h>
-#include <ytlib/object_server/id.h>
+#include <ytlib/misc/codec.h>
 
 namespace NYT {
 namespace NFileServer {
@@ -45,6 +45,8 @@ bool TFileNodeProxy::IsExecutable()
 
 Stroka TFileNodeProxy::GetFileName()
 {
+    // TODO(babenko): fetch this attribute
+
     auto parent = GetParent();
     YASSERT(parent);
 
@@ -60,7 +62,53 @@ Stroka TFileNodeProxy::GetFileName()
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+void TFileNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+{
+    attributes->push_back("size");
+    attributes->push_back("codec_id");
+    attributes->push_back("chunk_list_id");
+    attributes->push_back("chunk_id");
+    TBase::GetSystemAttributes(attributes);
+}
+
+bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+{
+    const auto& fileNode = GetTypedImpl();
+    const auto& chunkList = ChunkManager->GetChunkList(fileNode.GetChunkListId());
+    YASSERT(chunkList.ChildrenIds().ysize() == 1);
+    auto chunkId = chunkList.ChildrenIds()[0];
+    const auto& chunk = ChunkManager->GetChunk(chunkId);
+    const auto& attributes = chunk
+        .DeserializeAttributes()
+        .GetExtension(TFileChunkAttributes::file_attributes);
+
+    if (name == "size") {
+        BuildYsonFluently(consumer)
+            .Scalar(attributes.size());
+        return true;
+    }
+
+    if (name == "codec_id") {
+        auto codecId = ECodecId(attributes.codec_id());
+        BuildYsonFluently(consumer)
+            .Scalar(CamelCaseToUnderscoreCase(codecId.ToString()));
+        return true;
+    }
+
+    if (name == "chunk_list_id") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.GetId().ToString());
+        return true;
+    }
+
+    if (name == "chunk_id") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkId.ToString());
+        return true;
+    }
+
+    return TBase::GetSystemAttribute(name, consumer);
+}
 
 DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
 {

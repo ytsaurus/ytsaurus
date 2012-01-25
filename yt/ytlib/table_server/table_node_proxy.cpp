@@ -65,6 +65,25 @@ void TTableNodeProxy::TraverseChunkTree(
     }
 }
 
+void TTableNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+{
+    attributes->push_back("chunk_list_id");
+    TBase::GetSystemAttributes(attributes);
+}
+
+bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+{
+    const auto& tableNode = GetTypedImpl();
+
+    if (name == "chunk_list_id") {
+        BuildYsonFluently(consumer)
+            .Scalar(tableNode.GetChunkListId().ToString());
+        return true;
+    }
+
+    return TBase::GetSystemAttribute(name, consumer);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)

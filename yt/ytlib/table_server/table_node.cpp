@@ -2,17 +2,12 @@
 #include "table_node.h"
 #include "table_node_proxy.h"
 
-#include <ytlib/cypress/node_proxy.h>
-#include <ytlib/ytree/fluent.h>
-
 namespace NYT {
 namespace NTableServer {
 
 using namespace NCypress;
-using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NChunkServer;
-using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,10 +148,6 @@ protected:
 private:
     NChunkServer::TChunkManager::TPtr ChunkManager;
 
-    //static void GetChunkListId(const TGetAttributeParam& param)
-    //{
-    //    BuildYsonFluently(param.Consumer).Scalar(param.Node->GetChunkListId().ToString());
-    //}
 };
 
 INodeTypeHandler::TPtr CreateTableTypeHandler(
