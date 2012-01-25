@@ -38,20 +38,7 @@ private:
     virtual IYPathService::TPtr GetItemService(const Stroka& key) const
     {
         auto id = TVersionedNodeId::FromString(key);
-        auto* node = CypressManager->FindNode(id);
-        if (!node) {
-            return NULL;
-        }
-
-        return IYPathService::FromProducer(~FromFunctor([=] (IYsonConsumer* consumer)
-            {
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Item("state").Scalar(node->GetState().ToString())
-                        .Item("parent_id").Scalar(node->GetParentId().ToString())
-                        .Item("ref_counter").Scalar(node->GetObjectRefCounter())
-                    .EndMap();
-            }));
+        return CypressManager->FindVersionedNodeProxy(id.ObjectId, id.TransactionId);
     }
 };
 
