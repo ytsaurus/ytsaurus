@@ -21,7 +21,7 @@ struct ICypressNodeProxy;
  *  Behaviors are only created for non-branched nodes.
  */
 struct INodeBehavior
-    : virtual TRefCounted
+    : virtual TExtrinsicRefCounted
 {
     typedef TIntrusivePtr<INodeBehavior> TPtr;
 
