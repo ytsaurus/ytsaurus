@@ -129,5 +129,21 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TLockCommand::DoExecute(TLockRequest* request)
+{
+    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+    auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
+        request->Path,
+        DriverImpl->GetCurrentTransactionId()));
+
+    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+
+    if (!ypathResponse->IsOK()) {
+        DriverImpl->ReplyError(ypathResponse->GetError());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
