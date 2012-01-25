@@ -59,7 +59,7 @@ public:
      *  This call may block.
      *  Thread affinity: any.
      */
-    ITransaction::TPtr Start();
+    ITransaction::TPtr Start(const TTransactionId& parentId = NullTransactionId);
 
 private:
     void PingTransaction(const TTransactionId& transactionId);

@@ -27,10 +27,12 @@ public:
 
     TTransaction(
         NRpc::IChannel* cellChannel,
+        const TTransactionId& parentId,
         TTransactionManager* owner)
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
+        , ParentId(parentId)
     {
         YASSERT(cellChannel);
         YASSERT(owner);
@@ -43,7 +45,14 @@ public:
         VERIFY_THREAD_AFFINITY(ClientThread);
 
         LOG_INFO("Starting transaction");
-        auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
+
+        NYTree::TYPath transactionPath;
+        if (ParentId == NullTransactionId) {
+            transactionPath = RootTransactionPath;
+        } else {
+            transactionPath = FromObjectId(ParentId);
+        }
+        auto req = TTransactionYPathProxy::CreateObject(transactionPath);
         req->set_type(EObjectType::Transaction);
         auto rsp = Proxy.Execute(~req)->Get();
         if (!rsp->IsOK()) {
@@ -184,6 +193,12 @@ public:
         DoAbort();
     }
 
+    TTransactionId GetParentId() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return ParentId;
+    }
+
 private:
     DECLARE_ENUM(EState,
         (Active)
@@ -201,6 +216,7 @@ private:
 
     TPeriodicInvoker::TPtr PingInvoker;
     TTransactionId Id;
+    TTransactionId ParentId;
 
     TSignal Aborted;
 
@@ -235,11 +251,11 @@ TTransactionManager::TTransactionManager(
     CypressProxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
-ITransaction::TPtr TTransactionManager::Start()
+ITransaction::TPtr TTransactionManager::Start(const TTransactionId& parentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto transaction = New<TTransaction>(~Channel, this);
+    auto transaction = New<TTransaction>(~Channel, parentId, this);
     transaction->Start();
     return transaction;
 }
