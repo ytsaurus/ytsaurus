@@ -1,11 +1,12 @@
 #include "stdafx.h"
 
-#include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/ypath_client.h>
 
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-namespace NYTree {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,5 +60,4 @@ TEST(TCombinePathsTest, AnyAttributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
 } // namespace NYT
