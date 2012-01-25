@@ -9,6 +9,7 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NObjectServer {
