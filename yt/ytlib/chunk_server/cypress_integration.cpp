@@ -222,6 +222,68 @@ IHolderAuthority::TPtr CreateHolderAuthority(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THolderProxy
+    : public TMapNodeProxy
+{
+public:
+    THolderProxy(
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
+        TChunkManager* chunkManager,
+        const TTransactionId& transactionId,
+        const TNodeId& nodeId)
+        : TMapNodeProxy(
+            typeHandler,
+            cypressManager,
+            transactionId,
+            nodeId)
+        , ChunkManager(chunkManager)
+    { }
+
+private:
+    TChunkManager::TPtr ChunkManager;
+
+    const THolder* GetHolder() const
+    {
+        auto address = GetParent()->AsMap()->GetChildKey(this);
+        return ChunkManager->FindHolder(address);
+    }
+
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    {
+        const auto* holder = GetHolder();
+        attributes->push_back("alive");
+        attributes->push_back(TAttributeInfo("statistics", holder));
+        TMapNodeProxy::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    {
+        const auto* holder = GetHolder();
+
+        if (name == "alive") {
+            BuildYsonFluently(consumer)
+                .Scalar(holder != NULL);
+            return true;
+        }
+
+        if (name == "statistics") {
+            const auto& statistics = holder->Statistics();
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("available_space").Scalar(statistics.available_space())
+                    .Item("used_space").Scalar(statistics.used_space())
+                    .Item("chunk_count").Scalar(statistics.chunk_count())
+                    .Item("session_count").Scalar(statistics.session_count())
+                    .Item("full").Scalar(statistics.full())
+                .EndMap();
+            return true;
+        }
+
+        return TMapNodeProxy::GetSystemAttribute(name, consumer);
+    }
+};
+
 class THolderTypeHandler
     : public TMapNodeTypeHandler
 {
@@ -252,42 +314,22 @@ public:
         return Create(nodeId);
     }
 
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const ICypressNode& node,
+        const TTransactionId& transactionId)
+    {
+        return New<THolderProxy>(
+            this,
+            ~CypressManager,
+            ~ChunkManager,
+            transactionId,
+            node.GetId().ObjectId);
+    }
+
 private:
     TCypressManager::TPtr CypressManager;
     TChunkManager::TPtr ChunkManager;
 
-    //Stroka GetAddress(const ICypressNode& node)
-    //{
-    //    auto proxy = CypressManager->GetNodeProxy(node.GetId().ObjectId, NullTransactionId);
-    //    return proxy->GetParent()->AsMap()->GetChildKey(~proxy);
-    //}
-
-    //void GetAlive(const TGetAttributeParam& param)
-    //{
-    //    auto address = GetAddress(*param.Node);
-    //    bool alive = ChunkManager->FindHolder(address);
-    //    BuildYsonFluently(param.Consumer)
-    //        .Scalar(alive);
-    //}
-
-    //void GetStatistics(const TGetAttributeParam& param)
-    //{
-    //    auto address = GetAddress(*param.Node);
-    //    auto* holder = ChunkManager->FindHolder(address);
-    //    BuildYsonFluently(param.Consumer)
-    //        .BeginMap()
-    //            .DoIf(holder, [=] (TFluentMap fluent)
-    //                {
-    //                    const auto statistics = holder->Statistics();
-    //                    fluent
-    //                        .Item("available_space").Scalar(statistics.available_space())
-    //                        .Item("used_space").Scalar(statistics.used_space())
-    //                        .Item("chunk_count").Scalar(statistics.chunk_count())
-    //                        .Item("session_count").Scalar(statistics.session_count())
-    //                        .Item("full").Scalar(statistics.full());
-    //                })
-    //        .EndMap();
-    //}
 };
 
 INodeTypeHandler::TPtr CreateHolderTypeHandler(
@@ -318,22 +360,14 @@ public:
         : TBase(node, cypressManager)
         , ChunkManager(chunkManager)
     {
-        OnRegistered_ =
-            FromMethod(&TThis::OnRegistered, TPtr(this))
-            ->Via(metaStateManager->GetEpochStateInvoker());
-        ChunkManager->HolderRegistered().Subscribe(OnRegistered_);
-    }
-
-    virtual void Destroy()
-    {
-        ChunkManager->HolderRegistered().Unsubscribe(OnRegistered_);
-        OnRegistered_.Reset();
+        ChunkManager->HolderRegistered().Subscribe(
+            // TODO(babenko): use AsWeak
+            FromMethod(&TThis::OnRegistered, TWeakPtr<THolderMapBehavior>(this))
+            ->Via(metaStateManager->GetEpochStateInvoker()));
     }
 
 private:
     TChunkManager::TPtr ChunkManager;
-
-    IParamAction<const THolder&>::TPtr OnRegistered_;
     
     void OnRegistered(const THolder& holder)
     {
@@ -371,6 +405,75 @@ private:
 
 };
 
+class THolderMapProxy
+    : public TMapNodeProxy
+{
+public:
+    THolderMapProxy(
+        INodeTypeHandler* typeHandler,
+        TCypressManager* cypressManager,
+        TChunkManager* chunkManager,
+        const TTransactionId& transactionId,
+        const TNodeId& nodeId)
+        : TMapNodeProxy(
+        typeHandler,
+        cypressManager,
+        transactionId,
+        nodeId)
+        , ChunkManager(chunkManager)
+    { }
+
+private:
+    TChunkManager::TPtr ChunkManager;
+
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    {
+        attributes->push_back("alive");
+        attributes->push_back("dead");
+        attributes->push_back("statistics");
+        TMapNodeProxy::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    {
+        if (name == "alive") {
+            BuildYsonFluently(consumer)
+                .DoListFor(ChunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id)
+                    {
+                        const auto& holder = ChunkManager->GetHolder(id);
+                        fluent.Item().Scalar(holder.GetAddress());
+                    });
+            return true;
+        }
+
+        if (name == "dead") {
+            BuildYsonFluently(consumer)
+                .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address)
+                    {
+                        if (!ChunkManager->FindHolder(address)) {
+                            fluent.Item().Scalar(address);
+                        }
+                    });
+            return true;
+        }
+
+        if (name == "statistics") {
+            auto statistics = ChunkManager->GetTotalHolderStatistics();
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("available_space").Scalar(statistics.AvailbaleSpace)
+                    .Item("used_space").Scalar(statistics.UsedSpace)
+                    .Item("chunk_count").Scalar(statistics.ChunkCount)
+                    .Item("session_count").Scalar(statistics.SessionCount)
+                    .Item("alive_holder_count").Scalar(statistics.AliveHolderCount)
+                .EndMap();
+            return true;
+        }
+
+        return TMapNodeProxy::GetSystemAttribute(name, consumer);
+    }
+};
+
 class THolderMapTypeHandler
     : public TMapNodeTypeHandler
 {
@@ -403,6 +506,18 @@ public:
         return Create(nodeId);
     }
 
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const ICypressNode& node,
+        const TTransactionId& transactionId)
+    {
+        return New<THolderMapProxy>(
+            this,
+            ~CypressManager,
+            ~ChunkManager,
+            transactionId,
+            node.GetId().ObjectId);
+    }
+
     virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
     {
         return New<THolderMapBehavior>(node, ~MetaStateManager, ~CypressManager, ~ChunkManager);
@@ -413,42 +528,6 @@ private:
     TCypressManager::TPtr CypressManager;
     TChunkManager::TPtr ChunkManager;
 
-    //void GetAliveHolders(const TGetAttributeParam& param)
-    //{
-    //    BuildYsonFluently(param.Consumer)
-    //        .DoListFor(ChunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id)
-    //            {
-    //                const auto& holder = ChunkManager->GetHolder(id);
-    //                fluent.Item().Scalar(holder.GetAddress());
-    //            });
-    //}
-
-    //void GetDeadHolders(const TGetAttributeParam& param)
-    //{
-    //    BuildYsonFluently(param.Consumer)
-    //        .DoListFor(param.Node->NameToChild(), [=] (TFluentList fluent, TPair<Stroka, TNodeId> pair)
-    //            {
-    //                Stroka address = pair.first;
-    //                if (!ChunkManager->FindHolder(address)) {
-    //                    fluent.Item().Scalar(address);
-    //                }
-    //            });
-    //}
-
-    /*
-        void GetTotalStatistics(const TGetAttributeParam& param)
-    {
-        auto totalStatistics = ChunkManager->GetTotalHolderStatistics();
-        BuildYsonFluently(param.Consumer)
-            .BeginMap()
-                .Item("available_space").Scalar(totalStatistics.AvailbaleSpace)
-                .Item("used_space").Scalar(totalStatistics.UsedSpace)
-                .Item("chunk_count").Scalar(totalStatistics.ChunkCount)
-                .Item("session_count").Scalar(totalStatistics.SessionCount)
-                .Item("holder_count").Scalar(totalStatistics.HolderCount)
-            .EndMap();
-    }
-    */
 };
 
 INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
