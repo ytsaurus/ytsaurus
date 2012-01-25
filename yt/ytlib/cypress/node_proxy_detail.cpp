@@ -184,7 +184,8 @@ void TMapNodeProxy::RemoveChild(INode* child)
     auto it = impl.ChildToKey().find(childProxy->GetId());
     YASSERT(it != impl.ChildToKey().end());
 
-    const auto& key = it->second;
+    // NB: don't use const auto& here, it becomes invalid!
+    auto key = it->second;
     impl.ChildToKey().erase(it);
     YVERIFY(impl.KeyToChild().erase(key) == 1);
 
@@ -208,7 +209,8 @@ void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
     auto it = impl.ChildToKey().find(oldChildProxy->GetId());
     YASSERT(it != impl.ChildToKey().end());
 
-    const auto& key = it->second;
+    // NB: don't use const auto& here, it becomes invalid!
+    auto key = it->second;
 
     impl.ChildToKey().erase(it);
     DetachChild(oldChildImpl);

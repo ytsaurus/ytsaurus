@@ -130,7 +130,7 @@ class TMapNode
 public:
     virtual void Clear()
     {
-        FOREACH(const auto& pair, KeyToChild) {
+        FOREACH (const auto& pair, KeyToChild) {
             pair.Second()->SetParent(NULL);
         }
         KeyToChild.clear();
@@ -200,7 +200,8 @@ public:
         auto it = ChildToKey.find(child);
         YASSERT(it != ChildToKey.end());
 
-        const auto& key = it->Second();
+        // NB: don't use const auto& here, it becomes invalid!
+        auto key = it->Second();
         ChildToKey.erase(it);
         YVERIFY(KeyToChild.erase(key) == 1);
     }
@@ -216,7 +217,8 @@ public:
         auto it = ChildToKey.find(oldChild);
         YASSERT(it != ChildToKey.end());
 
-        const auto& key = it->Second();
+        // NB: don't use const auto& here, it becomes invalid!
+        auto key = it->Second();
 
         oldChild->SetParent(NULL);
         ChildToKey.erase(it);
@@ -281,7 +283,7 @@ class TListNode
 public:
     virtual void Clear()
     {
-        FOREACH(const auto& node, IndexToChild) {
+        FOREACH (const auto& node, IndexToChild) {
             node->SetParent(NULL);
         }
         IndexToChild.clear();
