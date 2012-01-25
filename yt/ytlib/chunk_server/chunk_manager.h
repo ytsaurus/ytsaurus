@@ -10,7 +10,7 @@
 #include "chunk_service_proxy.h"
 #include "holder_authority.h"
 #include "chunk_manager.pb.h"
-#include "total_holder_statistics.h"
+#include "holder_statistics.h"
 
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>

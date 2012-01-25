@@ -460,6 +460,7 @@ private:
                 .Item("used_space").Scalar(totalStatistics.UsedSpace)
                 .Item("chunk_count").Scalar(totalStatistics.ChunkCount)
                 .Item("session_count").Scalar(totalStatistics.SessionCount)
+                .Item("holder_count").Scalar(totalStatistics.HolderCount)
             .EndMap();
     }
 };
