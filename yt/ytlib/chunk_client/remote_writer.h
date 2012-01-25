@@ -10,7 +10,6 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
