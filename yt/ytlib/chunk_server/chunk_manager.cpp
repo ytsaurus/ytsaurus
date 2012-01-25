@@ -280,20 +280,18 @@ public:
 
     TTotalHolderStatistics GetTotalHolderStatistics() const
     {
-        TTotalHolderStatistics totalStatistics;
+        TTotalHolderStatistics result;
         auto keys = HolderMap.GetKeys();
         FOREACH (const auto& key, keys) {
-            const THolder* holder = HolderMap.Find(key);
-            if (holder) {
-                const auto& statistics = holder->Statistics();
-                totalStatistics.AvailbaleSpace += statistics.available_space();
-                totalStatistics.UsedSpace += statistics.used_space();
-                totalStatistics.ChunkCount += statistics.chunk_count();
-                totalStatistics.SessionCount += statistics.session_count();
-                totalStatistics.HolderCount++;
-            }
+            const auto& holder = HolderMap.Get(key);
+            const auto& statistics = holder.Statistics();
+            result.AvailbaleSpace += statistics.available_space();
+            result.UsedSpace += statistics.used_space();
+            result.ChunkCount += statistics.chunk_count();
+            result.SessionCount += statistics.session_count();
+            result.AliveHolderCount++;
         }
-        return totalStatistics;
+        return result;
     }
 
 private:
