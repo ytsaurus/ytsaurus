@@ -437,7 +437,7 @@ protected:
     {
         if (name == "size") {
             BuildYsonFluently(consumer)
-                .Scalar(GetChildCount());
+                .Scalar(this->GetChildCount());
             return true;
         }
 
