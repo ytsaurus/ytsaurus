@@ -51,7 +51,7 @@ TEST(TNullableTest, Destruct)
     EXPECT_EQ(0, ptr->size());
 }
 
-inline void TestSwap(TNullable<int>& nullable1, TNullable<int>& nullable2)
+inline void TestSwap(TNullable<int> nullable1, TNullable<int> nullable2)
 {
     bool initialized1 = nullable1.IsInitialized();
     int value1 = initialized1 ? *nullable1 : 0;
