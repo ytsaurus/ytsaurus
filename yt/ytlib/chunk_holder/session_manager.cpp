@@ -400,7 +400,7 @@ TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId) const
     if (it == SessionMap.end())
         return NULL;
     
-    auto session = it->Second();
+    auto session = it->second;
     session->RenewLease();
     return session;
 }
@@ -421,7 +421,7 @@ TSession::TPtr TSessionManager::StartSession(
         ->Via(ServiceInvoker));
     session->SetLease(lease);
 
-    YVERIFY(SessionMap.insert(MakePair(chunkId, session)).Second());
+    YVERIFY(SessionMap.insert(MakePair(chunkId, session)).second);
 
     LOG_INFO("Session started (ChunkId: %s, Location: %s)",
         ~chunkId.ToString(),
@@ -481,7 +481,7 @@ TSessionManager::TSessions TSessionManager::GetSessions() const
     TSessions result;
     result.reserve(SessionMap.ysize());
     FOREACH(const auto& pair, SessionMap) {
-        result.push_back(pair.Second());
+        result.push_back(pair.second);
     }
     return result;
 }

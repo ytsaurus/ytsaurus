@@ -23,8 +23,8 @@ const yvector<TPeerInfo>& TPeerBlockTable::GetPeers(const TBlockId& blockId)
         static yvector<TPeerInfo> empty;
         return empty;
     } else {
-        SweepExpiredPeers(it->Second());
-        return it->Second();
+        SweepExpiredPeers(it->second);
+        return it->second;
     }
 }
 
@@ -72,8 +72,8 @@ void TPeerBlockTable::SweepAllExpiredPeers()
     while (it != Table.end()) {
         auto jt = it;
         ++jt;
-        SweepExpiredPeers(it->Second());
-        if (it->Second().empty()) {
+        SweepExpiredPeers(it->second);
+        if (it->second.empty()) {
             Table.erase(it);
         }
         it = jt;
@@ -100,10 +100,10 @@ yvector<TPeerInfo>& TPeerBlockTable::GetMutablePeers(const TBlockId& blockId)
 {
     auto it = Table.find(blockId);
     if (it != Table.end())
-        return it->Second();
+        return it->second;
     auto pair = Table.insert(MakePair(blockId, yvector<TPeerInfo>()));
-    YASSERT(pair.Second());
-    return pair.First()->Second();
+    YASSERT(pair.second);
+    return pair.first->second;
 }
 
 //////////////////////////////////////////////////////////////////////////////// 

@@ -72,16 +72,16 @@ private:
             for (TPeerId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
                 const auto& checksum1 = Checksums[id1];
                 const auto& checksum2 = Checksums[id2];
-                if (checksum1.Second() && checksum2.Second() && 
-                    checksum1.First() != checksum2.First())
+                if (checksum1.second && checksum2.second && 
+                    checksum1.first != checksum2.first)
                 {
                     // TODO: consider killing followers
                     LOG_FATAL(
                         "Snapshot checksum mismatch: "
                         "peer %d reported %" PRIx64 ", "
                         "peer %d reported %" PRIx64,
-                        id1, checksum1.First(),
-                        id2, checksum2.First());
+                        id1, checksum1.first,
+                        id2, checksum2.first);
                 }
             }
         }

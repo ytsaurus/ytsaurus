@@ -35,7 +35,7 @@ void TServiceBase::RegisterMethod(
 
     if (!RuntimeMethodInfos.insert(MakePair(
         descriptor.Verb,
-        TRuntimeMethodInfo(descriptor, invoker))).Second()) {
+        TRuntimeMethodInfo(descriptor, invoker))).second) {
         ythrow yexception() << Sprintf("Verb is already registered (ServiceName: %s, Verb: %s)",
             ~ServiceName,
             ~descriptor.Verb);
@@ -61,7 +61,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
         runtimeInfo =
             methodIt == RuntimeMethodInfos.end()
             ? NULL
-            : &methodIt->Second();
+            : &methodIt->second;
 
         // TODO (panin): implement and provide here more granulate locking
         // TODO: look carefully here (added not NULL check of runtimeInfo)
@@ -79,7 +79,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
 
         if (!context->IsOneWay()) {
             TActiveRequest activeRequest(runtimeInfo, TInstant::Now());
-            YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).Second());
+            YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).second);
         }
     }
 
@@ -109,7 +109,7 @@ void TServiceBase::OnEndRequest(IServiceContext* context)
     auto it = ActiveRequests.find(context);
     YASSERT(it != ActiveRequests.end());
     
-    auto& request = it->Second();
+    auto& request = it->second;
     if (request.RuntimeInfo) {
         request.RuntimeInfo->ExecutionTime.AddDelta(request.StartTime);       
     }

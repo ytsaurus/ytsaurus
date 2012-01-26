@@ -97,12 +97,12 @@ TFuture<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output, IInvoker::
 
     TFuture<TVoid>::TPtr result;
     FOREACH(auto pair, savers) {
-        Stroka name = pair.First();
+        Stroka name = pair.first;
         invoker->Invoke(FromFunctor([=] ()
             {
                 ::Save(output, name);
             }));
-        auto saver = pair.Second();
+        auto saver = pair.second;
         TSaveContext context(output, invoker);
         result = saver->Do(context);
     }
@@ -122,7 +122,7 @@ void TCompositeMetaState::Load(TInputStream* input)
             LOG_FATAL("No appropriate loader is registered (PartName: %s)",
                 ~name);
         }
-        auto loader = it->Second();
+        auto loader = it->second;
         loader->Do(input);
     }
 }
@@ -141,7 +141,7 @@ void TCompositeMetaState::ApplyChange(const TRef& changeData)
     auto it = Methods.find(changeType);
     YASSERT(it != Methods.end());
 
-    it->Second()->Do(messageData);
+    it->second->Do(messageData);
 }
 
 void TCompositeMetaState::Clear()
@@ -155,14 +155,14 @@ void TCompositeMetaState::RegisterLoader(const Stroka& name, TLoader::TPtr loade
 {
     YASSERT(loader);
 
-    YVERIFY(Loaders.insert(MakePair(name, loader)).Second());
+    YVERIFY(Loaders.insert(MakePair(name, loader)).second);
 }
 
 void TCompositeMetaState::RegisterSaver(const Stroka& name, TSaver::TPtr saver)
 {
     YASSERT(saver);
 
-    YVERIFY(Savers.insert(MakePair(name, saver)).Second());
+    YVERIFY(Savers.insert(MakePair(name, saver)).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

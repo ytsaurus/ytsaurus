@@ -48,10 +48,10 @@ bool TQueueInvoker::OnDequeueAndExecute()
     auto size = AtomicDecrement(QueueSize);
     DATA_POINT("actionqueue.size", "smv", size);
 
-    auto startTime = item.Second();
+    auto startTime = item.second;
     DATA_POINT("actionqueue.waitingtime", "tv", GetCycleCount() - startTime);
 
-    IAction::TPtr action = item.First();
+    IAction::TPtr action = item.first;
     
     LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", ~action);
     TIMEIT("actionqueue.executiontime", "tv",

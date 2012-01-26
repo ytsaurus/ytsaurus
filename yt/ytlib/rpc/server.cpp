@@ -109,7 +109,7 @@ public:
     {
         YASSERT(service);
 
-        YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).Second());
+        YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).second);
         LOG_INFO("RPC service registered (ServiceName: %s)", ~service->GetServiceName());
     }
 
@@ -151,7 +151,7 @@ private:
     IService::TPtr GetService(const Stroka& serviceName)
     {
         auto it = Services.find(serviceName);
-        return it == Services.end() ? NULL : it->Second();
+        return it == Services.end() ? NULL : it->second;
     }
 
     virtual void OnMessage(

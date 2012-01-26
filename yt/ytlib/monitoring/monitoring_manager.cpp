@@ -32,7 +32,7 @@ TMonitoringManager::TMonitoringManager()
 void TMonitoringManager::Register(const TYPath& path, TYsonProducer::TPtr producer)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YVERIFY(MonitoringMap.insert(MakePair(path, producer)).Second());
+    YVERIFY(MonitoringMap.insert(MakePair(path, producer)).second);
 }
 
 void TMonitoringManager::Unregister(const TYPath& path)

@@ -378,7 +378,7 @@ void TTransactionManager::RenewLease(const TTransactionId& id)
 
     auto it = LeaseMap.find(id);
     YASSERT(it != LeaseMap.end());
-    TLeaseManager::RenewLease(it->Second());
+    TLeaseManager::RenewLease(it->second);
 }
 
 TFuture<TVoid>::TPtr TTransactionManager::Save(const TCompositeMetaState::TSaveContext& context)
@@ -408,14 +408,14 @@ void TTransactionManager::OnLeaderRecoveryComplete()
 {
     FOREACH (const auto& pair, TransactionMap) {
         // TODO(roizner): This timeout is probably incorrect
-        CreateLease(*pair.Second(), Config->DefaultTransactionTimeout);
+        CreateLease(*pair.second, Config->DefaultTransactionTimeout);
     }
 }
 
 void TTransactionManager::OnStopLeading()
 {
     FOREACH (const auto& pair, LeaseMap) {
-        TLeaseManager::CloseLease(pair.Second());
+        TLeaseManager::CloseLease(pair.second);
     }
     LeaseMap.clear();
 }
@@ -431,14 +431,14 @@ void TTransactionManager::CreateLease(
         timeout,
         ~FromMethod(&TThis::OnTransactionExpired, TPtr(this), transaction.GetId())
         ->Via(MetaStateManager->GetEpochStateInvoker()));
-    YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).Second());
+    YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).second);
 }
 
 void TTransactionManager::CloseLease(const TTransaction& transaction)
 {
     auto it = LeaseMap.find(transaction.GetId());
     YASSERT(it != LeaseMap.end());
-    TLeaseManager::CloseLease(it->Second());
+    TLeaseManager::CloseLease(it->second);
     LeaseMap.erase(it);
 }
 

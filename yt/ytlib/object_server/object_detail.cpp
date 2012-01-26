@@ -154,8 +154,8 @@ void TObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGe
         const auto* userAttributes = FindAttributes();
         if (userAttributes) {
             FOREACH (const auto& pair, userAttributes->Attributes()) {
-                writer.OnMapItem(pair.First());
-                writer.OnRaw(pair.Second());
+                writer.OnMapItem(pair.first);
+                writer.OnRaw(pair.second);
             }
         }
 
@@ -198,7 +198,7 @@ void TObjectProxyBase::ListAttribute(const TYPath& path, TReqList* request, TRsp
         if (userAttributes) {
             keys.reserve(keys.size() + userAttributes->Attributes().size());
             FOREACH (const auto& pair, userAttributes->Attributes()) {
-                keys.push_back(pair.First());
+                keys.push_back(pair.first);
             }
         }
     } else {
@@ -327,7 +327,7 @@ Stroka TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
             if (isSystem) {
                 *isSystem = false;
             }
-            return it->Second();
+            return it->second;
         }
     }
 
@@ -342,7 +342,7 @@ void TObjectProxyBase::DoSetAttribute(const Stroka name, NYTree::INode* value, b
         }
     } else {
         auto* userAttributes = GetAttributesForUpdate();
-        userAttributes->Attributes().find(name)->Second() = SerializeToYson(value);
+        userAttributes->Attributes().find(name)->second = SerializeToYson(value);
     }
 }
 

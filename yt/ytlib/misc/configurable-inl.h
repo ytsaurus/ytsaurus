@@ -147,9 +147,9 @@ inline void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, con
 {
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, mapNode->GetChildren()) {
-        auto& key = pair.First();
+        auto& key = pair.first;
         T value;
-        Read(value, ~pair.Second(), NYTree::CombineYPaths(path, key));
+        Read(value, ~pair.second, NYTree::CombineYPaths(path, key));
         parameter.insert(MakePair(key, MoveRV(value)));
     }
 }
@@ -273,8 +273,8 @@ inline void Write(const yhash_map<Stroka, T>& parameter, NYTree::IYsonConsumer* 
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(parameter);
     FOREACH (const auto& pair, sortedItems) {
-        consumer->OnMapItem(pair->First());
-        Write(pair->Second(), consumer);
+        consumer->OnMapItem(pair->first);
+        Write(pair->second, consumer);
     }
     consumer->OnEndMap();
 }
@@ -320,8 +320,8 @@ inline void ValidateSubconfigs(
 {
     FOREACH (const auto& pair, *parameter) {
         ValidateSubconfigs(
-            &pair.Second(),
-            NYTree::CombineYPaths(path, pair.First()));
+            &pair.second,
+            NYTree::CombineYPaths(path, pair.first));
     }
 }
 
@@ -493,7 +493,7 @@ NConfig::TParameter<T>& TConfigurable::Register(const Stroka& parameterName, T& 
 {
     auto parameter = New< TParameter<T> >(value);
     YVERIFY(Parameters.insert(
-        TPair<Stroka, IParameter::TPtr>(parameterName, parameter)).Second());
+        TPair<Stroka, IParameter::TPtr>(parameterName, parameter)).second);
     return *parameter;
 }
 

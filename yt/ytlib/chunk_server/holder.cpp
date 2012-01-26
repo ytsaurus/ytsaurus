@@ -110,7 +110,7 @@ void THolder::AddUnapprovedChunk(const TChunkId& chunkId)
 {
     if (!HasChunk(chunkId, false)) {
         AddChunk(chunkId, false);
-        YVERIFY(UnapprovedChunkIds_.insert(chunkId).Second());
+        YVERIFY(UnapprovedChunkIds_.insert(chunkId).second);
     }
 }
 

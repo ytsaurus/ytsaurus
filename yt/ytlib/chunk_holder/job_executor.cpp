@@ -227,7 +227,7 @@ TJob::TPtr TJobExecutor::StartJob(
         jobId,
         chunk,
         targetAddresses);
-    YVERIFY(Jobs.insert(MakePair(jobId, job)).Second());
+    YVERIFY(Jobs.insert(MakePair(jobId, job)).second);
     job->Start();
 
     return job;
@@ -246,7 +246,7 @@ void TJobExecutor::StopJob(TJob* job)
 TJob::TPtr TJobExecutor::FindJob(const TJobId& jobId)
 {
     auto it = Jobs.find(jobId);
-    return it == Jobs.end() ? NULL : it->Second();
+    return it == Jobs.end() ? NULL : it->second;
 }
 
 yvector<TJob::TPtr> TJobExecutor::GetAllJobs()

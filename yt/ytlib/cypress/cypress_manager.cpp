@@ -429,7 +429,7 @@ void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
     if (!behavior)
         return;
 
-    YVERIFY(NodeBehaviors.insert(MakePair(nodeId.ObjectId, behavior)).Second());
+    YVERIFY(NodeBehaviors.insert(MakePair(nodeId.ObjectId, behavior)).second);
 
     LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)",
         ~nodeId.ObjectId.ToString());
@@ -445,7 +445,7 @@ void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
     if (it == NodeBehaviors.end())
         return;
 
-    it->Second()->Destroy();
+    it->second->Destroy();
     NodeBehaviors.erase(it);
 
     LOG_DEBUG_IF(!IsRecovery(), "Node behavior destroyed (NodeId: %s)",
@@ -826,14 +826,14 @@ void TCypressManager::Clear()
 void TCypressManager::OnLeaderRecoveryComplete()
 {
     FOREACH(const auto& pair, NodeMap) {
-        CreateNodeBehavior(*pair.Second());
+        CreateNodeBehavior(*pair.second);
     }
 }
 
 void TCypressManager::OnStopLeading()
 {
     FOREACH(const auto& pair, NodeBehaviors) {
-        pair.Second()->Destroy();
+        pair.second->Destroy();
     }
     NodeBehaviors.clear();
 }

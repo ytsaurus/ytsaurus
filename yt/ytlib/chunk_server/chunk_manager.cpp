@@ -201,19 +201,19 @@ public:
     const THolder* FindHolder(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
-        return it == HolderAddressMap.end() ? NULL : FindHolder(it->Second());
+        return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
     }
 
     THolder* FindHolderForUpdate(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
-        return it == HolderAddressMap.end() ? NULL : FindHolderForUpdate(it->Second());
+        return it == HolderAddressMap.end() ? NULL : FindHolderForUpdate(it->second);
     }
 
     const TReplicationSink* FindReplicationSink(const Stroka& address)
     {
         auto it = ReplicationSinkMap.find(address);
-        return it == ReplicationSinkMap.end() ? NULL : &it->Second();
+        return it == ReplicationSinkMap.end() ? NULL : &it->second;
     }
 
     yvector<THolderId> AllocateUploadTargets(int replicaCount)
@@ -403,7 +403,7 @@ private:
             statistics);
 
         HolderMap.Insert(holderId, newHolder);
-        HolderAddressMap.insert(MakePair(address, holderId)).Second();
+        HolderAddressMap.insert(MakePair(address, holderId)).second;
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder);
@@ -523,14 +523,14 @@ private:
         // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
         FOREACH (const auto& pair, HolderMap) {
-            const auto* holder = pair.Second();
-            YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).Second());
+            const auto* holder = pair.second;
+            YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).second);
         }
 
         // Reconstruct ReplicationSinkMap.
         ReplicationSinkMap.clear();
         FOREACH (const auto& pair, JobMap) {
-            RegisterReplicationSinks(*pair.Second());
+            RegisterReplicationSinks(*pair.second);
         }
     }
 
@@ -566,7 +566,7 @@ private:
             ~MetaStateManager->GetEpochStateInvoker());
 
         FOREACH (const auto& pair, HolderMap) {
-            StartHolderTracking(*pair.Second());
+            StartHolderTracking(*pair.second);
         }
     }
 
@@ -896,7 +896,7 @@ private:
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds().insert(job.GetJobId()).Second());
+                    YASSERT(sink.JobIds().insert(job.GetJobId()).second);
                 }
                 break;
             }
@@ -933,11 +933,11 @@ private:
     {
         auto it = ReplicationSinkMap.find(address);
         if (it != ReplicationSinkMap.end())
-            return it->Second();
+            return it->second;
 
         auto pair = ReplicationSinkMap.insert(MakePair(address, TReplicationSink(address)));
         YASSERT(pair.second);
-        return pair.first->Second();
+        return pair.first->second;
     }
 
     void DropReplicationSinkIfEmpty(const TReplicationSink& sink)

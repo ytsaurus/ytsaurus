@@ -108,8 +108,8 @@ void TTreeVisitor::VisitMap(const IMapNode* node, bool hasAttributes)
     auto children = node->GetChildren();
     std::sort(children.begin(), children.end());
     FOREACH(const auto& pair, children) {
-        Consumer->OnMapItem(pair.First());
-        VisitAny(~pair.Second());
+        Consumer->OnMapItem(pair.first);
+        VisitAny(~pair.second);
     }
     Consumer->OnEndMap(hasAttributes);
 }

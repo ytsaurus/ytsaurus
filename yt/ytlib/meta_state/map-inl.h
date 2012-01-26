@@ -48,12 +48,12 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::~TMetaStateMap()
         case EState::Normal:
         case EState::HasPendingChanges:
             FOREACH (const auto& pair, PrimaryMap) {
-                delete pair.Second();
+                delete pair.second;
             }
             PrimaryMap.clear();
             FOREACH (const auto& pair, PatchMap) {
-                if (pair.Second()) {
-                    delete pair.Second();
+                if (pair.second) {
+                    delete pair.second;
                 }
             }
             PatchMap.clear();
@@ -72,17 +72,17 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue
             auto patchIt = PatchMap.find(key);
             if (patchIt == PatchMap.end()) {
                 YASSERT(PrimaryMap.find(key) == PrimaryMap.end());
-                YVERIFY(PatchMap.insert(MakePair(key, value)).Second());
+                YVERIFY(PatchMap.insert(MakePair(key, value)).second);
             } else {
-                YASSERT(!patchIt->Second());
-                patchIt->Second() = value;
+                YASSERT(!patchIt->second);
+                patchIt->second = value;
             }
             break;
         }
         case EState::HasPendingChanges:
         case EState::Normal:
             MergeTempTablesIfNeeded();
-            YVERIFY(PrimaryMap.insert(MakePair(key, value)).Second());
+            YVERIFY(PrimaryMap.insert(MakePair(key, value)).second);
             break;
 
         default:
@@ -100,7 +100,7 @@ const TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Find(const TKey& key)
         case EState::SavingSnapshot: {
             auto patchIt = PatchMap.find(key);
             if (patchIt != PatchMap.end()) {
-                return patchIt->Second();
+                return patchIt->second;
             }
             break;
         }
@@ -114,7 +114,7 @@ const TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Find(const TKey& key)
     }
 
     auto it = PrimaryMap.find(key);
-    return it == PrimaryMap.end() ? NULL : it->Second();
+    return it == PrimaryMap.end() ? NULL : it->second;
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
@@ -127,12 +127,12 @@ TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::FindForUpdate(const TKey& k
         case EState::Normal: {
             MergeTempTablesIfNeeded();
             auto mapIt = PrimaryMap.find(key);
-            return mapIt == PrimaryMap.end() ? NULL : mapIt->Second();
+            return mapIt == PrimaryMap.end() ? NULL : mapIt->second;
         }
         case EState::SavingSnapshot: {
             auto patchIt = PatchMap.find(key);
             if (patchIt != PatchMap.end()) {
-                return patchIt->Second();
+                return patchIt->second;
             }
 
             auto mapIt = PrimaryMap.find(key);
@@ -140,8 +140,8 @@ TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::FindForUpdate(const TKey& k
                 return NULL;
             }
 
-            TValue* clonedValue = Traits.Clone(mapIt->Second()).Release();
-            YVERIFY(PatchMap.insert(MakePair(key, clonedValue)).Second());
+            TValue* clonedValue = Traits.Clone(mapIt->second).Release();
+            YVERIFY(PatchMap.insert(MakePair(key, clonedValue)).second);
             return clonedValue;
         }
         default:
@@ -181,7 +181,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
 
             auto it = PrimaryMap.find(key);
             YASSERT(it != PrimaryMap.end());
-            delete it->Second();
+            delete it->second;
             PrimaryMap.erase(it);
             break;
         }
@@ -190,14 +190,14 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
             auto mainIt = PrimaryMap.find(key);
             if (patchIt == PatchMap.end()) {
                 YASSERT(mainIt != PrimaryMap.end());
-                YVERIFY(PatchMap.insert(TItem(key, NULL)).Second());
+                YVERIFY(PatchMap.insert(TItem(key, NULL)).second);
             } else {
-                YASSERT(patchIt->Second());
-                delete patchIt->Second();
+                YASSERT(patchIt->second);
+                delete patchIt->second;
                 if (mainIt == PrimaryMap.end()) {
                     PatchMap.erase(patchIt);
                 } else {
-                    patchIt->Second() = NULL;
+                    patchIt->second = NULL;
                 }
             }
             break;
@@ -226,21 +226,21 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
         case EState::Normal: {
             MergeTempTablesIfNeeded();
             FOREACH(const auto& pair, PrimaryMap) {
-                delete pair.Second();
+                delete pair.second;
             }
             PrimaryMap.clear();
             break;
         }
         case EState::SavingSnapshot: {
             FOREACH (const auto& pair, PatchMap) {
-                if (pair.Second()) {
-                    delete pair.Second();
+                if (pair.second) {
+                    delete pair.second;
                 }
             }
             PatchMap.clear();
 
             FOREACH (const auto& pair, PrimaryMap) {
-                PatchMap.insert(TItem(pair.First(), NULL));
+                PatchMap.insert(TItem(pair.first, NULL));
             }
             break;
         }
@@ -271,7 +271,7 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLi
         case EState::Normal: {
             const_cast<TThis*>(this)->MergeTempTablesIfNeeded();
             FOREACH(const auto& pair, PrimaryMap) {
-                keys.push_back(pair.First());
+                keys.push_back(pair.first);
                 if (keys.size() == sizeLimit) {
                     break;
                 }
@@ -280,19 +280,19 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLi
         }
         case EState::SavingSnapshot: {
             FOREACH(const auto& pair, PrimaryMap) {
-                auto patchIt = PatchMap.find(pair.First());
-                if (patchIt == PatchMap.end() || patchIt->Second()) {
-                    keys.push_back(pair.First());
+                auto patchIt = PatchMap.find(pair.first);
+                if (patchIt == PatchMap.end() || patchIt->second) {
+                    keys.push_back(pair.first);
                     if (keys.size() == sizeLimit) {
                         break;
                     }
                 }
             }
             FOREACH(const auto& pair, PatchMap) {
-                if (pair.Second()) {
-                    auto primaryIt = PrimaryMap.find(pair.First());
+                if (pair.second) {
+                    auto primaryIt = PrimaryMap.find(pair.first);
                     if (primaryIt == PrimaryMap.end()) {
-                        keys.push_back(pair.First());
+                        keys.push_back(pair.first);
                         if (keys.size() == sizeLimit) {
                             break;
                         }
@@ -409,12 +409,12 @@ TVoid TMetaStateMap<TKey, TValue, TTraits, THash>::DoSave(TOutputStream* output)
         items.begin(),
         items.end(),
         [] (const typename TMap::value_type& lhs, const typename TMap::value_type& rhs) {
-            return lhs.First() < rhs.First();
+            return lhs.first < rhs.first;
         });
 
     FOREACH(const auto& item, items) {
-        ::Save(output, item.First());
-        Traits.Save(item.Second(), output);
+        ::Save(output, item.first);
+        Traits.Save(item.second, output);
     }
 
     State = EState::HasPendingChanges;
@@ -427,18 +427,18 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::MergeTempTablesIfNeeded()
     if (State != EState::HasPendingChanges) return;
 
     FOREACH (const auto& pair, PatchMap) {
-        auto* value = pair.Second();
-        auto mainIt = PrimaryMap.find(pair.First());
+        auto* value = pair.second;
+        auto mainIt = PrimaryMap.find(pair.first);
         if (value) {
             if (mainIt == PrimaryMap.end()) {
-                YVERIFY(PrimaryMap.insert(MakePair(pair.First(), value)).Second());
+                YVERIFY(PrimaryMap.insert(MakePair(pair.first, value)).second);
             } else {
-                delete mainIt->Second();
-                mainIt->Second() = value;
+                delete mainIt->second;
+                mainIt->second = value;
             }
         } else {
             YASSERT(mainIt != PrimaryMap.end());
-            delete mainIt->Second();
+            delete mainIt->second;
             PrimaryMap.erase(mainIt);
         }
     }

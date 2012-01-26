@@ -32,7 +32,7 @@ void TChannelWriter::Write(const TColumn& column, TValue value)
         CurrentSize += TValue(column).Save(&RangeColumns);
         CurrentSize += value.Save(&RangeColumns);
     } else {
-        int columnIndex = it->Second();
+        int columnIndex = it->second;
         auto& columnOutput = FixedColumns[columnIndex];
         CurrentSize += value.Save(&columnOutput);
         IsColumnUsed[columnIndex] = true;

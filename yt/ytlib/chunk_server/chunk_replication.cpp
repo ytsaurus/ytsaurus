@@ -60,7 +60,7 @@ void TChunkReplication::OnHolderRegistered(const THolder& holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).Second());
+    YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).second);
 
     FOREACH(const auto& chunk, holder.StoredChunkIds()) {
         ScheduleRefresh(chunk);
@@ -631,14 +631,14 @@ void TChunkReplication::OnRefresh()
 TChunkReplication::THolderInfo* TChunkReplication::FindHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
-    return it == HolderInfoMap.end() ? NULL : &it->Second();
+    return it == HolderInfoMap.end() ? NULL : &it->second;
 }
 
 TChunkReplication::THolderInfo& TChunkReplication::GetHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
     YASSERT(it != HolderInfoMap.end());
-    return it->Second();
+    return it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

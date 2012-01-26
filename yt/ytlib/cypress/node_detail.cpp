@@ -124,7 +124,7 @@ void TMapNode::Load(TInputStream* input)
     TCypressNodeBase::Load(input);
     LoadMap(input, ChildToKey());
     FOREACH(const auto& pair, ChildToKey()) {
-        KeyToChild().insert(MakePair(pair.Second(), pair.First()));
+        KeyToChild().insert(MakePair(pair.second, pair.first));
     }
 }
 
