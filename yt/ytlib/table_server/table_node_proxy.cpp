@@ -68,6 +68,7 @@ void TTableNodeProxy::TraverseChunkTree(
 void TTableNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
 {
     attributes->push_back("chunk_list_id");
+    attributes->push_back("chunk_ids");
     TBase::GetSystemAttributes(attributes);
 }
 
@@ -79,6 +80,16 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsum
         BuildYsonFluently(consumer)
             .Scalar(tableNode.GetChunkListId().ToString());
         return true;
+    }
+
+    if (name == "chunk_ids") {
+        yvector<TChunkId> chunkIds;
+        TraverseChunkTree(&chunkIds, tableNode.GetChunkListId());
+        BuildYsonFluently(consumer)
+            .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId)
+                {
+                    fluent.Item().Scalar(chunkId.ToString());
+                });
     }
 
     return TBase::GetSystemAttribute(name, consumer);
