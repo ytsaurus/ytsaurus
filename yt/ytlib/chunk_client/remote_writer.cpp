@@ -341,7 +341,7 @@ void TRemoteWriter::TGroup::Process()
         return;
     }
 
-    YASSERT(Writer->InitComplete);
+    YASSERT(Writer->IsInitComplete);
 
     LOG_DEBUG("Processing group (Blocks: %d-%d)",
         StartBlockIndex, 
@@ -374,9 +374,10 @@ TRemoteWriter::TRemoteWriter(
     TRemoteWriter::TConfig* config, 
     const TChunkId& chunkId,
     const yvector<Stroka>& addresses)
-    : ChunkId(chunkId) 
-    , Config(config)
-    , InitComplete(false)
+    : Config(config)
+    , ChunkId(chunkId) 
+    , Addresses(addresses)
+    , IsInitComplete(false)
     , IsCloseRequested(false)
     , WindowSlots(config->WindowSize)
     , AliveNodeCount(addresses.ysize())
@@ -393,15 +394,6 @@ TRemoteWriter::TRemoteWriter(
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
-    LOG_DEBUG("Writer created (Addresses: [%s])", ~JoinToString(addresses));
-
-    InitializeNodes(addresses);
-
-    StartSession();
-}
-
-void TRemoteWriter::InitializeNodes(const yvector<Stroka>& addresses)
-{
     FOREACH(const auto& address, addresses) {
         auto node = New<TNode>(
             address,
@@ -409,6 +401,27 @@ void TRemoteWriter::InitializeNodes(const yvector<Stroka>& addresses)
             Config->HolderRpcTimeout);
         Nodes.push_back(node);
     }
+}
+
+void TRemoteWriter::Open()
+{
+    LOG_DEBUG("Opening writer (Addresses: [%s])", ~JoinToString(Addresses));
+
+    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
+    for (int node = 0; node < Nodes.ysize(); ++node) {
+        auto onSuccess = FromMethod(
+            &TRemoteWriter::OnChunkStarted, 
+            TPtr(this), 
+            node);
+        auto onResponse = FromMethod(
+            &TRemoteWriter::CheckResponse<TProxy::TRspStartChunk>,
+            TPtr(this),
+            node,
+            onSuccess,
+            &StartChunkTiming);
+        awaiter->Await(StartChunk(node), onResponse);
+    }
+    awaiter->Complete(FromMethod(&TRemoteWriter::OnSessionStarted, TPtr(this)));
 }
 
 TRemoteWriter::~TRemoteWriter()
@@ -535,7 +548,7 @@ void TRemoteWriter::DoClose(const TChunkAttributes& attributes)
     IsCloseRequested = true;
     Attributes.CopyFrom(attributes);
 
-    if (Window.empty() && InitComplete) {
+    if (Window.empty() && IsInitComplete) {
         CloseSession();
     }
 }
@@ -569,7 +582,7 @@ void TRemoteWriter::AddGroup(TGroupPtr group)
 
     Window.push_back(group);
 
-    if (InitComplete) {
+    if (IsInitComplete) {
         group->Process();
     }
 }
@@ -619,25 +632,6 @@ void TRemoteWriter::CheckResponse(
     OnNodeDied(node);
 }
 
-void TRemoteWriter::StartSession()
-{
-    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
-    for (int node = 0; node < Nodes.ysize(); ++node) {
-        auto onSuccess = FromMethod(
-            &TRemoteWriter::OnChunkStarted, 
-            TPtr(this), 
-            node);
-        auto onResponse = FromMethod(
-            &TRemoteWriter::CheckResponse<TProxy::TRspStartChunk>,
-            TPtr(this),
-            node,
-            onSuccess,
-            &StartChunkTiming);
-        awaiter->Await(StartChunk(node), onResponse);
-    }
-    awaiter->Complete(FromMethod(&TRemoteWriter::OnSessionStarted, TPtr(this)));
-}
-
 TRemoteWriter::TProxy::TInvStartChunk::TPtr TRemoteWriter::StartChunk(int node)
 {
     LOG_DEBUG("Starting chunk (Address: %s)",
@@ -669,7 +663,7 @@ void TRemoteWriter::OnSessionStarted()
 
     LOG_DEBUG("Writer is ready");
 
-    InitComplete = true;
+    IsInitComplete = true;
     FOREACH(auto& group, Window) {
         group->Process();
     }

@@ -83,6 +83,11 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
+    void Open();
+
+    /*!
+     * \note Thread affinity: ClientThread.
+     */
     virtual TAsyncError::TPtr AsyncWriteBlock(const TSharedRef& data);
 
     /*!
@@ -129,12 +134,13 @@ private:
     typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TChunkId ChunkId;
     TConfig::TPtr Config;
+    TChunkId ChunkId;
+    yvector<Stroka> Addresses;
 
     TAsyncStreamState State;
 
-    bool InitComplete;
+    bool IsInitComplete;
 
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
@@ -188,10 +194,6 @@ private:
     void OnBlockFlushed(int node, int blockIndex);
 
     void OnWindowShifted(int blockIndex);
-
-    void InitializeNodes(const yvector<Stroka>& addresses);
-
-    void StartSession();
 
     TProxy::TInvStartChunk::TPtr StartChunk(int node);
 

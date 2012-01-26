@@ -36,6 +36,7 @@ TSession::TSession(
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
     Location->UpdateSessionCount(+1);
+    FileName = Location->GetChunkFileName(ChunkId);
 }
 
 TSession::~TSession()
@@ -43,11 +44,24 @@ TSession::~TSession()
     Location->UpdateSessionCount(-1);
 }
 
-void TSession::Open()
+void TSession::Start()
 {
-    FileName = Location->GetChunkFileName(ChunkId);
-    NFS::ForcePath(NFS::GetDirectoryName(FileName));
-    OpenFile();
+    GetIOInvoker()->Invoke(FromMethod(
+        &TSession::DoOpenFile,
+        TPtr(this)));
+}
+
+void TSession::DoOpenFile()
+{
+    try {
+        NFS::ForcePath(NFS::GetDirectoryName(FileName));
+        Writer = New<TChunkFileWriter>(ChunkId, FileName);
+        Writer->Open();
+    }
+    catch (const std::exception& ex) {
+        LOG_FATAL("Error opening chunk file\n%s", ex.what());
+    }
+    LOG_DEBUG("Chunk file opened");
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)
@@ -259,20 +273,6 @@ void TSession::Cancel(const TError& error)
         ->AsyncVia(SessionManager->ServiceInvoker));
 }
 
-void TSession::OpenFile()
-{
-    GetIOInvoker()->Invoke(FromMethod(
-        &TSession::DoOpenFile,
-        TPtr(this)));
-}
-
-void TSession::DoOpenFile()
-{
-    Writer = New<TChunkFileWriter>(ChunkId, FileName);
-
-    LOG_DEBUG("Chunk file opened");
-}
-
 TFuture<TVoid>::TPtr TSession::DeleteFile(const TError& error)
 {
     return
@@ -413,6 +413,7 @@ TSession::TPtr TSessionManager::StartSession(
     auto location = ChunkStore->GetNewChunkLocation();
 
     auto session = New<TSession>(this, chunkId, ~location);
+    session->Start();
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,
