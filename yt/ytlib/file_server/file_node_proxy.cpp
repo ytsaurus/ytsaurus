@@ -78,7 +78,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     YASSERT(chunkList.ChildrenIds().ysize() == 1);
     auto chunkId = chunkList.ChildrenIds()[0];
     const auto& chunk = ChunkManager->GetChunk(chunkId);
-    const auto& attributes = chunk
+    auto attributes = chunk
         .DeserializeAttributes()
         .GetExtension(TFileChunkAttributes::file_attributes);
 
