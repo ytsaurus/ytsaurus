@@ -55,6 +55,7 @@ set( HDRS
   ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/new.h
+  ${BASE}/nullable.h
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
   ${BASE}/preprocessor-gen.h
