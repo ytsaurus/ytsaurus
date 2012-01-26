@@ -36,16 +36,18 @@ TSession::TSession(
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
     Location->UpdateSessionCount(+1);
-
-    FileName = Location->GetChunkFileName(chunkId);
-    NFS::ForcePath(NFS::GetDirectoryName(FileName));
-
-    OpenFile();
 }
 
 TSession::~TSession()
 {
     Location->UpdateSessionCount(-1);
+}
+
+void TSession::Open()
+{
+    FileName = Location->GetChunkFileName(ChunkId);
+    NFS::ForcePath(NFS::GetDirectoryName(FileName));
+    OpenFile();
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)

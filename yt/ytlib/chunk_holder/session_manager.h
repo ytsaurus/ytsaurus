@@ -27,6 +27,8 @@ public:
         const TChunkId& chunkId,
         TLocation* location);
 
+    void Start();
+
     ~TSession();
 
     //! Returns the TChunkId being uploaded.
