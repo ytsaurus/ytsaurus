@@ -5,6 +5,7 @@
 
 #include "guid.h"
 #include "string.h"
+#include "nullable.h"
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/tree_visitor.h>
@@ -107,6 +108,15 @@ inline void Read(
     parameter = ParseEnum<T>(value);
 }
 
+// TNullable
+template <class T>
+inline void Read(TNullable<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+{
+    T value;
+    Read(value, node, path);
+    parameter = value;
+}
+
 // INode::TPtr
 inline void Read(
     NYTree::INode::TPtr& parameter,
@@ -163,9 +173,8 @@ inline void Write(
     NYTree::IYsonConsumer* consumer,
     typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
 {
-    if (parameter) {
-        parameter->Save(consumer);
-    }
+    YASSERT(parameter);
+    parameter->Save(consumer);
 }
 
 // i64
@@ -232,13 +241,20 @@ inline void Write(
     consumer->OnStringScalar(parameter.ToString());
 }
 
+// TNullable
+template <class T>
+inline void Write(const TNullable<T>& parameter, NYTree::IYsonConsumer* consumer)
+{
+    YASSERT(parameter);
+    Write(*parameter, consumer);
+}
+
 // INode::TPtr
 inline void Write(const NYTree::INode::TPtr& parameter, NYTree::IYsonConsumer* consumer)
 {
-    if (parameter) {
-        NYTree::TTreeVisitor visitor(consumer, false);
-        visitor.Visit(~parameter);
-    }
+    YASSERT(parameter);
+    NYTree::TTreeVisitor visitor(consumer, false);
+    visitor.Visit(~parameter);
 }
 
 // yvector
@@ -327,17 +343,24 @@ inline void ValidateSubconfigs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//all
+// all
 inline bool IsPresent(const void* /* parameter */)
 {
     return true;
 }
 
-//configurable
-template<class T>
+// TIntrusivePtr
+template <class T>
 inline bool IsPresent(TIntrusivePtr<T>* parameter)
 {
     return (bool) (*parameter);
+}
+
+// TNullable
+template <class T>
+inline bool IsPresent(TNullable<T>* parameter)
+{
+    return parameter->IsInitialized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
