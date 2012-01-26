@@ -15,7 +15,7 @@ namespace NYT {
  */
 template <class T>
 class TFuture
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
     volatile bool IsSet_;
     T Value;

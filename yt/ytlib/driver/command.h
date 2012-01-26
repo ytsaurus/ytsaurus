@@ -64,7 +64,7 @@ Stroka ToStreamSpec(NYTree::INode::TPtr node);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommand
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<ICommand> TPtr;
 

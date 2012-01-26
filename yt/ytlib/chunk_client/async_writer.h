@@ -22,7 +22,7 @@ namespace NChunkClient {
  *  multiple destinations using torrent or chaining strategies.
  */
 struct IAsyncWriter
-    : virtual public TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IAsyncWriter> TPtr;
 

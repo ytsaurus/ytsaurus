@@ -51,7 +51,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IClientRequest
-    : virtual public TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IClientRequest> TPtr;
 
@@ -149,7 +149,7 @@ private:
 
 //! Handles response for an RPC request.
 struct IClientResponseHandler
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IClientResponseHandler> TPtr;
 

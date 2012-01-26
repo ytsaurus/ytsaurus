@@ -34,7 +34,7 @@ struct INodeBehavior
 
 //! Provides node type-specific services.
 struct INodeTypeHandler
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<INodeTypeHandler> TPtr;
 

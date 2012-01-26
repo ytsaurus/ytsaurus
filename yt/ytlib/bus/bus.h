@@ -46,7 +46,7 @@ struct IBus
 
 //! Handles incoming bus messages.
 struct IMessageHandler
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IMessageHandler> TPtr;
 

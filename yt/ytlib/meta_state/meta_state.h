@@ -14,7 +14,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IMetaState
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IMetaState> TPtr;
 

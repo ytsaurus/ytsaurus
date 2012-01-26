@@ -241,6 +241,16 @@ public:
         return RefCounter;
     }
 
+    //! See #TIntrinsicRefCounted::DangerousGetPtr.
+    template<class T>
+    static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
+    {
+        return
+            object->RefCounter->TryRef()
+            ? ::NYT::TIntrusivePtr<T>(object, false)
+            : ::NYT::TIntrusivePtr<T>(NULL);
+    }
+
 private:
     NDetail::TRefCounter* RefCounter;
 #ifdef ENABLE_REF_COUNTED_TRACKING
@@ -315,11 +325,10 @@ public:
     template<class T>
     static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
-        if (NDetail::AtomicallyIncrementIfNonZero(&object->RefCounter)) {
-            return ::NYT::TIntrusivePtr<T>(object, false);
-        } else {
-            return NULL;
-        }
+        return
+            NDetail::AtomicallyIncrementIfNonZero(&object->RefCounter) > 0
+            ? ::NYT::TIntrusivePtr<T>(object, false)
+            : ::NYT::TIntrusivePtr<T>(NULL);
     }
 
 private:
@@ -342,9 +351,9 @@ namespace NDetail {
     }
 } // namespace NDetail
 
-// TODO(sandello, babenko): think about this.
-typedef TIntrinsicRefCounted TRefCounted;
-typedef TExtrinsicRefCounted IRefCounted;
+// This is a reasonable default.
+// For performance-critical bits of code use TIntrinsicRefCounted instead.
+typedef TExtrinsicRefCounted TRefCounted;
 
 ////////////////////////////////////////////////////////////////////////////////
 
