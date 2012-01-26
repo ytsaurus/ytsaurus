@@ -52,6 +52,7 @@ struct IServiceContext
 
     virtual NBus::IMessage::TPtr GetRequestMessage() const = 0;
 
+    virtual const TRequestId& GetRequestId() const = 0;
     virtual const Stroka& GetPath() const = 0;
     virtual const Stroka& GetVerb() const = 0;
 
@@ -78,7 +79,7 @@ struct IServiceContext
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IService
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IService> TPtr;
 

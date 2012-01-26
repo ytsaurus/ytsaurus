@@ -33,6 +33,11 @@ public:
         return UnderlyingContext->GetRequestMessage();
     }
 
+    virtual const NRpc::TRequestId& GetRequestId() const
+    {
+        return UnderlyingContext->GetRequestId();
+    }
+
     virtual const Stroka& GetPath() const
     {
         return UnderlyingContext->GetPath();

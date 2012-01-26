@@ -19,6 +19,7 @@ public:
 
     virtual NBus::IMessage::TPtr GetRequestMessage() const;
 
+    virtual const TRequestId& GetRequestId() const;
     virtual const Stroka& GetPath() const;
     virtual const Stroka& GetVerb() const;
 
