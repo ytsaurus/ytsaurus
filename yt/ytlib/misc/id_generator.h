@@ -4,26 +4,10 @@
 
 #include <util/digest/murmur.h>
 
-////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 
-template <class T>
-class TIdGenerator;
-
-} // namespace NYT
-
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-void Save(TOutputStream* output, const NYT::TIdGenerator<T>& generator);
-
-template <class T>
-void Load(TInputStream* input, NYT::TIdGenerator<T>& generator);
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NYT {
 
 //! Generates a consequent deterministic ids of a given numeric type.
 /*! 
@@ -58,32 +42,26 @@ public:
         Current = 0;
     }
 
+    // Always use a fixed-width type for serialization.
+    void Save(TOutputStream* output) const
+    {
+        ui64 current = static_cast<ui64>(Current);
+        ::Save(output, current);
+    }
+
+    void Load(TInputStream* input)
+    {
+        ui64 current;
+        ::Load(input, current);
+        Current = static_cast<intptr_t>(current);
+    }
+
 private:
     TAtomic Current;
-
-    friend void ::Save<>(TOutputStream* output, const TThis& generator);
-    friend void ::Load<>(TInputStream* input, TThis& generator);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-////////////////////////////////////////////////////////////////////////////////
 
-// Always use a fixed-width type for serialization.
-
-template <class T>
-void Save(TOutputStream* output, const NYT::TIdGenerator<T>& generator)
-{
-    ui64 current = static_cast<ui64>(generator.Current);
-    Save(output, current);
-}
-
-template <class T>
-void Load(TInputStream* input, NYT::TIdGenerator<T>& generator)
-{
-    ui64 current;
-    Load(input, current);
-    generator.Current = static_cast<intptr_t>(current);
-}
-
-////////////////////////////////////////////////////////////////////////////////
