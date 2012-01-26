@@ -38,7 +38,7 @@ set( SRCS
   intrusive_ptr_ut.cpp
   nullable_ut.cpp
   tree_builder_ut.cpp
-  config_ut.cpp
+  configurable_ut.cpp
   bus_ut.cpp
   serialize_ut.cpp
   rpc_ut.cpp
