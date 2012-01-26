@@ -152,10 +152,7 @@ TFuture<TVoid>::TPtr TObjectManager::Save(const TCompositeMetaState::TSaveContex
     auto typeToCounter = TypeToCounter;
     invoker->Invoke(FromFunctor([=] ()
         {
-            ::SaveSize(output, MaxObjectType);
-            FOREACH(const auto& idGenerator, typeToCounter) {
-                ::Save(output, idGenerator);
-            }
+            ::Save(output, typeToCounter);
         }));
     
     return Attributes.Save(invoker, output);
@@ -165,11 +162,7 @@ void TObjectManager::Load(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // read the number of objects for future compatibility
-    int maxObjectType = LoadSize(input);
-    for (int i =0; i < maxObjectType; ++i) {
-        ::Load(input, TypeToCounter[i]);
-    }
+    ::Load(input, TypeToCounter);
     Attributes.Load(input);
 }
 
