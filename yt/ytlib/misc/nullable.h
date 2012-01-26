@@ -155,9 +155,9 @@ public:
         return Initialized ? &Value : NULL;
     }
 
-    const T& GetValueOrDefault(const T& default = T()) const
+    const T& GetValueOrDefault(const T& defaultValue = T()) const
     {
-        return Initialized ? Value : default;
+        return Initialized ? Value : defaultValue;
     }
 
 
