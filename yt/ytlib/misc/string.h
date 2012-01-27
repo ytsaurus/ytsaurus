@@ -99,7 +99,8 @@ inline bool ParseBool(const Stroka& value)
     } else if (value == "false") {
         return false;
     } else {
-        ythrow yexception() << Sprintf("Could not parse boolean value (Value: %s)", ~value);
+        ythrow yexception() << Sprintf("Could not parse boolean value %s",
+            ~Stroka(value).Quote());
     }
 }
 

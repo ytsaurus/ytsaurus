@@ -1,9 +1,12 @@
 #pragma once
 
 #include "rvalue.h"
+
 #include <util/generic/utility.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 class TNullable
@@ -197,6 +200,7 @@ private:
     T Value;
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 TNullable<T> MakeNullable(const T& value)
@@ -271,5 +275,6 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
     return !(lhs == rhs);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NYT
