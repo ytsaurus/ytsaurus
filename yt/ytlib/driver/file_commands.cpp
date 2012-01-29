@@ -64,6 +64,8 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
     }
 
     writer->Close();
+
+    DriverImpl->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

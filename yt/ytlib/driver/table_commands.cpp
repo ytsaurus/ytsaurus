@@ -181,43 +181,39 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
 
     writer->Open();
 
-    try {
-        TRowConsumer consumer(~writer);
+    TRowConsumer consumer(~writer);
 
-        if (request->Value) {
-            auto value = request->Value;
-            switch (value->GetType()) {
-                case ENodeType::List: {
-                    FOREACH (const auto& child, value->AsList()->GetChildren()) {
-                        TTreeVisitor visitor(&consumer);
-                        visitor.Visit(~child);
-                    }
-                    break;
-                }
-
-                case ENodeType::Map: {
+    if (request->Value) {
+        auto value = request->Value;
+        switch (value->GetType()) {
+            case ENodeType::List: {
+                FOREACH (const auto& child, value->AsList()->GetChildren()) {
                     TTreeVisitor visitor(&consumer);
-                    visitor.Visit(~value);
-                    break;
+                    visitor.Visit(~child);
                 }
+                break;
+            }
 
-                default:
-                    YUNREACHABLE();
+            case ENodeType::Map: {
+                TTreeVisitor visitor(&consumer);
+                visitor.Visit(~value);
+                break;
             }
-        } else {
-            auto stream = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));
-            TYsonFragmentReader reader(&consumer, ~stream);
-            while (reader.HasNext()) {
-                reader.ReadNext();
-            }
+
+            default:
+                YUNREACHABLE();
         }
-    } catch (const std::exception& ex) {
-        // TODO: uncomment this once Cancel is ready
-        // writer->Cancel();
-        throw;
+    } else {
+        auto stream = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));
+        TYsonFragmentReader reader(&consumer, ~stream);
+        while (reader.HasNext()) {
+            reader.ReadNext();
+        }
     }
 
     writer->Close();
+
+    DriverImpl->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
