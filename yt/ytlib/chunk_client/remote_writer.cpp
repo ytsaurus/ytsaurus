@@ -377,6 +377,7 @@ TRemoteWriter::TRemoteWriter(
     : Config(config)
     , ChunkId(chunkId) 
     , Addresses(addresses)
+    , IsOpen(false)
     , IsInitComplete(false)
     , IsCloseRequested(false)
     , WindowSlots(config->WindowSize)
@@ -422,6 +423,8 @@ void TRemoteWriter::Open()
         awaiter->Await(StartChunk(node), onResponse);
     }
     awaiter->Complete(FromMethod(&TRemoteWriter::OnSessionStarted, TPtr(this)));
+
+    IsOpen = true;
 }
 
 TRemoteWriter::~TRemoteWriter()
@@ -800,6 +803,7 @@ void TRemoteWriter::CancelAllPings()
 TAsyncError::TPtr TRemoteWriter::AsyncWriteBlock(const TSharedRef& data)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(IsOpen);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
@@ -836,12 +840,13 @@ void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
 
 TAsyncError::TPtr TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
 {
+    YASSERT(IsOpen);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
     State.StartOperation();
 
-    LOG_DEBUG("Requesting close");
+    LOG_DEBUG("Requesting writer to close");
 
     if (CurrentGroup->GetSize() > 0) {
         WriterThread->GetInvoker()->Invoke(FromMethod(

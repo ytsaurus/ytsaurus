@@ -140,6 +140,7 @@ private:
 
     TAsyncStreamState State;
 
+    bool IsOpen;
     bool IsInitComplete;
 
     //! This flag is raised whenever #Close is invoked.
