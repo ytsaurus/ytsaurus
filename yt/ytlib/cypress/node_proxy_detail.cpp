@@ -82,8 +82,6 @@ TMapNodeProxy::TMapNodeProxy(
 
 void TMapNodeProxy::Clear()
 {
-    LockIfNeeded();
-    
     auto& impl = GetTypedImplForUpdate();
 
     FOREACH(const auto& pair, impl.KeyToChild()) {
@@ -133,15 +131,14 @@ bool TMapNodeProxy::AddChild(INode* child, const Stroka& key)
 {
     YASSERT(!key.empty());
 
-    LockIfNeeded();
-
     auto& impl = GetTypedImplForUpdate();
 
     auto* childProxy = ToProxy(child);
     auto childId = childProxy->GetId();
 
-    if (!impl.KeyToChild().insert(MakePair(key, childId)).second)
+    if (!impl.KeyToChild().insert(MakePair(key, childId)).second) {
         return false;
+    }
 
     auto& childImpl = childProxy->GetImplForUpdate();
     YVERIFY(impl.ChildToKey().insert(MakePair(childId, key)).second);
@@ -152,13 +149,12 @@ bool TMapNodeProxy::AddChild(INode* child, const Stroka& key)
 
 bool TMapNodeProxy::RemoveChild(const Stroka& key)
 {
-    LockIfNeeded();
-
     auto& impl = GetTypedImplForUpdate();
 
     auto it = impl.KeyToChild().find(key);
-    if (it == impl.KeyToChild().end())
+    if (it == impl.KeyToChild().end()) {
         return false;
+    }
 
     const auto& childId = it->second;
     auto childProxy = GetProxy(childId);
@@ -174,8 +170,6 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
 
 void TMapNodeProxy::RemoveChild(INode* child)
 {
-    LockIfNeeded();
-
     auto& impl = GetTypedImplForUpdate();
     
     auto* childProxy = ToProxy(child);
@@ -196,8 +190,6 @@ void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
 {
     if (oldChild == newChild)
         return;
-
-    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
 
@@ -294,8 +286,6 @@ TListNodeProxy::TListNodeProxy(
 
 void TListNodeProxy::Clear()
 {
-    LockIfNeeded();
-
     auto& impl = GetTypedImplForUpdate();
 
     FOREACH(auto& nodeId, impl.IndexToChild()) {
@@ -331,8 +321,6 @@ INode::TPtr TListNodeProxy::FindChild(int index) const
 
 void TListNodeProxy::AddChild(INode* child, int beforeIndex /*= -1*/)
 {
-    LockIfNeeded();
-
     auto& impl = GetTypedImplForUpdate();
     auto& list = impl.IndexToChild();
 
@@ -359,8 +347,6 @@ void TListNodeProxy::AddChild(INode* child, int beforeIndex /*= -1*/)
 
 bool TListNodeProxy::RemoveChild(int index)
 {
-    LockIfNeeded();
-
     auto& impl = GetTypedImplForUpdate();
     auto& list = impl.IndexToChild();
 
@@ -393,8 +379,6 @@ void TListNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)
 {
     if (oldChild == newChild)
         return;
-
-    LockIfNeeded();
 
     auto& impl = GetTypedImplForUpdate();
 

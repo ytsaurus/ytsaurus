@@ -103,10 +103,10 @@ protected:
     }
 
     virtual void DoBranch(
-        const TTableNode& committedNode,
+        const TTableNode& originatingNode,
         TTableNode& branchedNode)
     {
-        // branchedNode is a copy of committedNode.
+        // branchedNode is a copy of originatingNode.
         
         // Create composite chunk list and place it in the root of branchedNode.
         auto& compositeChunkList = ChunkManager->CreateChunkList();
@@ -115,13 +115,13 @@ protected:
         CypressManager->GetObjectManager()->RefObject(compositeChunkListId);
 
         // Make the original chunk list a child of the composite one.
-        auto committedChunkListId = committedNode.GetChunkListId();
+        auto committedChunkListId = originatingNode.GetChunkListId();
         compositeChunkList.ChildrenIds().push_back(committedChunkListId);
         CypressManager->GetObjectManager()->RefObject(committedChunkListId);
     }
 
     virtual void DoMerge(
-        TTableNode& committedNode,
+        TTableNode& originatingNode,
         TTableNode& branchedNode)
     {
         // TODO(babenko): this needs much improvement
@@ -131,17 +131,17 @@ protected:
         auto& branchedChunkList = ChunkManager->GetChunkListForUpdate(branchedChunkListId);
         YASSERT(branchedChunkList.GetObjectRefCounter() == 1);
 
-        // Replace the first child of the branched chunk list with the current chunk list of committedNode.
+        // Replace the first child of the branched chunk list with the current chunk list of originatingNode.
         YASSERT(branchedChunkList.ChildrenIds().size() >= 1);
         auto oldFirstChildId = branchedChunkList.ChildrenIds()[0];
-        auto newFirstChildId = committedNode.GetChunkListId();
+        auto newFirstChildId = originatingNode.GetChunkListId();
         branchedChunkList.ChildrenIds()[0] = newFirstChildId;
         CypressManager->GetObjectManager()->RefObject(newFirstChildId);
         CypressManager->GetObjectManager()->UnrefObject(oldFirstChildId);
 
-        // Replace the chunk list of committedNode.
-        auto committedNodeId = committedNode.GetId().ObjectId;
-        committedNode.SetChunkListId(branchedChunkListId);
+        // Replace the chunk list of originatingNode.
+        auto originatingNodeId = originatingNode.GetId().ObjectId;
+        originatingNode.SetChunkListId(branchedChunkListId);
         CypressManager->GetObjectManager()->UnrefObject(newFirstChildId);
     }
 

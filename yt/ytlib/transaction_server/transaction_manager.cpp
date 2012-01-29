@@ -282,6 +282,7 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManif
 
     auto* transaction = new TTransaction(id);
     TransactionMap.Insert(id, transaction);
+
     // Every active transaction has a fake reference to it.
     ObjectManager->RefObject(id);
     
@@ -335,11 +336,12 @@ void TTransactionManager::Abort(TTransaction& transaction)
 
     auto id = transaction.GetId();
 
-    FOREACH (const auto& nestedId, transaction.NestedTransactionIds()) {
-        ObjectManager->UnrefObject(nestedId);
+    // Make a copy, the set will be modified.
+    auto nestedIds = transaction.NestedTransactionIds();
+    FOREACH (const auto& nestedId, nestedIds) {
         Abort(GetTransactionForUpdate(nestedId));
     }
-    transaction.NestedTransactionIds().clear();
+    YASSERT(transaction.NestedTransactionIds().empty());
 
     if (IsLeader()) {
         CloseLease(transaction);

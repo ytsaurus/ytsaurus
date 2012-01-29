@@ -125,21 +125,21 @@ protected:
     }
 
     virtual void DoBranch(
-        const TFileNode& committedNode,
+        const TFileNode& originatingNode,
         TFileNode& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
 
-        // branchedNode is a copy of committedNode.
+        // branchedNode is a copy of originatingNode.
         // Reference the list chunk from branchedNode.
         CypressManager->GetObjectManager()->RefObject(branchedNode.GetChunkListId());
     }
 
     virtual void DoMerge(
-        TFileNode& committedNode,
+        TFileNode& originatingNode,
         TFileNode& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
 
         // Drop the reference from branchedNode.
         CypressManager->GetObjectManager()->UnrefObject(branchedNode.GetChunkListId());

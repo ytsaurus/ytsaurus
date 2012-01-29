@@ -89,59 +89,67 @@ public:
         DoDestroy(dynamic_cast<TImpl&>(node));
     }
 
-    virtual TAutoPtr<ICypressNode> Branch(
-        const ICypressNode& committedNode,
-        const TTransactionId& transactionId)
+    virtual bool IsLockModeSupported(ELockMode mode)
     {
-        YASSERT(committedNode.GetState() == ENodeState::Committed);
+        return mode == ELockMode::Exclusive;
+    }
 
-        const auto& typedCommittedNode = dynamic_cast<const TImpl&>(committedNode);
+    virtual TAutoPtr<ICypressNode> Branch(
+        const ICypressNode& originatingNode,
+        const TTransactionId& transactionId,
+        ELockMode mode)
+    {
+        const auto& typedOriginatingNode = dynamic_cast<const TImpl&>(originatingNode);
 
-        auto committedId = committedNode.GetId();
-        auto branchedId = TVersionedNodeId(committedId.ObjectId, transactionId);
+        auto originatingId = originatingNode.GetId();
+        auto branchedId = TVersionedNodeId(originatingId.ObjectId, transactionId);
 
         // Create a branched copy.
-        TAutoPtr<TImpl> branchedNode = new TImpl(branchedId, typedCommittedNode);
+        TAutoPtr<TImpl> branchedNode = new TImpl(branchedId, typedOriginatingNode);
+        branchedNode->SetLockMode(mode);
 
         // Branch user attributes.
-        const auto* committedAttributes = ObjectManager->FindAttributes(committedId);
+        const auto* committedAttributes = ObjectManager->FindAttributes(originatingId);
         if (committedAttributes) {
             auto* branchedAttributes = ObjectManager->CreateAttributes(branchedId);
             branchedAttributes->Attributes() = committedAttributes->Attributes();
         }
 
         // Run custom branching.
-        DoBranch(typedCommittedNode, *branchedNode);
+        DoBranch(typedOriginatingNode, *branchedNode);
 
         return branchedNode.Release();
     }
 
     virtual void Merge(
-        ICypressNode& committedNode,
+        ICypressNode& originatingNode,
         ICypressNode& branchedNode)
     {
-        YASSERT(committedNode.GetState() == ENodeState::Committed);
+        //YASSERT(originatingNode.GetState() == ENodeState::Committed);
         YASSERT(branchedNode.GetState() == ENodeState::Branched);
 
-        auto committedId = committedNode.GetId();
+        auto originatingId = originatingNode.GetId();
         auto branchedId = branchedNode.GetId();
 
         // Merge user attributes.
         const auto* branchedAttributes = ObjectManager->FindAttributes(branchedId);
         if (branchedAttributes) {
-            auto* committedAttributes = ObjectManager->FindAttributesForUpdate(committedId);
+            auto* committedAttributes = ObjectManager->FindAttributesForUpdate(originatingId);
             if (!committedAttributes) {
-                committedAttributes = ObjectManager->CreateAttributes(committedId);
+                committedAttributes = ObjectManager->CreateAttributes(originatingId);
             }
             committedAttributes->Attributes() = branchedAttributes->Attributes();
         } else {
-            if (ObjectManager->FindAttributes(committedId)) {
-                ObjectManager->RemoveAttributes(committedId);
+            if (ObjectManager->FindAttributes(originatingId)) {
+                ObjectManager->RemoveAttributes(originatingId);
             }
         }
 
+        // Merge parent id.
+        originatingNode.SetParentId(branchedNode.GetParentId());
+
         // Run custom merging.
-        DoMerge(dynamic_cast<TImpl&>(committedNode), dynamic_cast<TImpl&>(branchedNode));
+        DoMerge(dynamic_cast<TImpl&>(originatingNode), dynamic_cast<TImpl&>(branchedNode));
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
@@ -157,18 +165,18 @@ protected:
     }
 
     virtual void DoBranch(
-        const TImpl& committedNode,
+        const TImpl& originatingNode,
         TImpl& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
         UNUSED(branchedNode);
     }
 
     virtual void DoMerge(
-        TImpl& committedNode,
+        TImpl& originatingNode,
         TImpl& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
         UNUSED(branchedNode);
     }
 
@@ -189,6 +197,7 @@ class TCypressNodeBase
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
+    DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
 
 public:
     TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType);
@@ -311,10 +320,10 @@ public:
 
 protected:
     virtual void DoMerge(
-        TScalarNode<TValue>& committedNode,
+        TScalarNode<TValue>& originatingNode,
         TScalarNode<TValue>& branchedNode)
     {
-        committedNode.Value() = branchedNode.Value();
+        originatingNode.Value() = branchedNode.Value();
     }
 
 };
@@ -367,11 +376,11 @@ private:
     virtual void DoDestroy(TMapNode& node);
 
     virtual void DoBranch(
-        const TMapNode& committedNode,
+        const TMapNode& originatingNode,
         TMapNode& branchedNode);
 
     virtual void DoMerge(
-        TMapNode& committedNode,
+        TMapNode& originatingNode,
         TMapNode& branchedNode);
 
 };
@@ -420,7 +429,7 @@ private:
     virtual void DoDestroy(TListNode& node);
 
     virtual void DoBranch(
-        const TListNode& committedNode,
+        const TListNode& originatingNode,
         TListNode& branchedNode);
 
     virtual void DoMerge(

@@ -48,6 +48,10 @@ struct ICypressNode
     //! Sets node state.
     virtual void SetState(const ENodeState& value) = 0;
 
+    // TODO: document
+    virtual ELockMode GetLockMode() const = 0;
+    virtual void SetLockMode(const ELockMode& mode) = 0;
+
     //! Gets parent node id.
     virtual TNodeId GetParentId() const = 0;
     //! Sets parent node id.

@@ -58,11 +58,13 @@ public:
 
     ICypressNode* FindVersionedNodeForUpdate(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId,
+        ELockMode requestedMode);
 
     ICypressNode& GetVersionedNodeForUpdate(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId,
+        ELockMode requestedMode);
 
     TIntrusivePtr<NObjectServer::IObjectProxy> FindObjectProxy(
         const TObjectId& objectId,
@@ -80,13 +82,10 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    bool IsLockNeeded(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId);
-
     TLockId LockVersionedNode(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId,
+        ELockMode requestedMode);
 
     TIntrusivePtr<ICypressNodeProxy> CreateNode(
         EObjectType type,
@@ -98,10 +97,6 @@ public:
         NYTree::IMapNode* manifest);
 
     DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
-
-    TLock& CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId);
-
-    ICypressNode& BranchNode(ICypressNode& node, const TTransactionId& transactionId);
 
     NYTree::IYPathProcessor::TPtr CreateProcessor();
 
@@ -172,6 +167,32 @@ private:
 
     void CreateNodeBehavior(const ICypressNode& node);
     void DestroyNodeBehavior(const ICypressNode& node);
+
+    void ValidateLock(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        ELockMode requestedMode,
+        bool* isMandatory = NULL);
+
+    static bool AreLocksCompatible(
+        ELockMode existingMode,
+        const TTransactionId& existingId,
+        ELockMode requestedMode,
+        const TTransactionId& requestedId);
+
+    static bool IsLockRecursive(ELockMode mode);
+   
+    TLockId AcquireLock(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        ELockMode mode);
+
+    void ReleaseLock(const TLockId& lockId);
+
+   ICypressNode& BranchNode(
+       ICypressNode& node,
+       const TTransactionId& transactionId,
+       ELockMode mode);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(

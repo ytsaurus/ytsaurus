@@ -69,8 +69,7 @@ struct INodeTypeHandler
      *  - a static node is being created
      *  - a node (possibly dynamic) is being loaded from a snapshot
      */
-    virtual TAutoPtr<ICypressNode> Create(
-        const TVersionedNodeId& id) = 0;
+    virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) = 0;
 
     //! Performs cleanup on node destruction.
     /*!
@@ -83,26 +82,29 @@ struct INodeTypeHandler
      */
     virtual void Destroy(ICypressNode& node) = 0;
 
-    //! Branches a committed node into a given transaction.
+    //! Returns True if the given locking mode is supported.
+    virtual bool IsLockModeSupported(ELockMode mode) = 0;
+
+    //! Branches a node into a given transaction.
     /*!
-     *  \param transactionId The id of the transaction that is about to
-     *  modify the node.
-     *  \return A branched node.
+     *  \param node The originating node.
+     *  \param transactionId The id of the transaction that needs a copy of the node.
+     *  \returns The branched node.
      */
     virtual TAutoPtr<ICypressNode> Branch(
         const ICypressNode& node,
-        const TTransactionId& transactionId) = 0;
+        const TTransactionId& transactionId,
+        ELockMode mode) = 0;
 
     //! Merges the changes made in the branched node back into the committed one.
     /*!
-     *  \param branchedNode A branched node.
+     *  \param branchedNode The branched node.
      *
      *  \note 
      *  #branchedNode is non-const for performance reasons (i.e. to swap the data instead of copying).
      */
-    // TODO: RV-ref?
     virtual void Merge(
-        ICypressNode& committedNode,
+        ICypressNode& originatingNode,
         ICypressNode& branchedNode) = 0;
 
     //! Creates a behavior object.

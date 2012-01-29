@@ -90,6 +90,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsum
                 {
                     fluent.Item().Scalar(chunkId.ToString());
                 });
+        return true;
     }
 
     return TBase::GetSystemAttribute(name, consumer);
@@ -101,8 +102,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 {
     UNUSED(request);
 
-    LockIfNeeded();
-    auto& impl = GetTypedImplForUpdate();
+    auto& impl = GetTypedImplForUpdate(ELockMode::Shared);
 
     response->set_chunk_list_id(impl.GetChunkListId().ToProto());
 

@@ -39,6 +39,7 @@ namespace NCypress {
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType)
     : ParentId_(NullObjectId)
     , State_(ENodeState::Uncommitted)
+    , LockMode_(ELockMode::None)
     , Id(id)
     , ObjectType(objectType)
     , RefCounter(0)
@@ -47,6 +48,7 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objec
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other)
     : ParentId_(other.ParentId_)
     , State_(other.State_)
+    , LockMode_(other.LockMode_)
     , Id(id)
     , ObjectType(other.ObjectType)
     , RefCounter(0)
@@ -85,6 +87,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     SaveSet(output, LockIds_);
     ::Save(output, ParentId_);
     ::Save(output, State_);
+    ::Save(output, LockMode_);
 }
 
 void TCypressNodeBase::Load(TInputStream* input)
@@ -93,6 +96,7 @@ void TCypressNodeBase::Load(TInputStream* input)
     LoadSet(input, LockIds_);
     ::Load(input, ParentId_);
     ::Load(input, State_);
+    ::Load(input, LockMode_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,29 +157,29 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode& node)
 }
 
 void TMapNodeTypeHandler::DoBranch(
-    const TMapNode& committedNode,
+    const TMapNode& originatingNode,
     TMapNode& branchedNode)
 {
     UNUSED(branchedNode);
 
     // Reference all children.
-    FOREACH (const auto& pair, committedNode.KeyToChild()) {
+    FOREACH (const auto& pair, originatingNode.KeyToChild()) {
         CypressManager->GetObjectManager()->RefObject(pair.second);
     }
 }
 
 void TMapNodeTypeHandler::DoMerge(
-    TMapNode& committedNode,
-    TMapNode& branchedNode )
+    TMapNode& originatingNode,
+    TMapNode& branchedNode)
 {
     // Drop all references held by the originator.
-    FOREACH (const auto& pair, committedNode.KeyToChild()) {
+    FOREACH (const auto& pair, originatingNode.KeyToChild()) {
         CypressManager->GetObjectManager()->UnrefObject(pair.second);
     }
 
     // Replace the child list with the branched copy.
-    committedNode.KeyToChild().swap(branchedNode.KeyToChild());
-    committedNode.ChildToKey().swap(branchedNode.ChildToKey());
+    originatingNode.KeyToChild().swap(branchedNode.KeyToChild());
+    originatingNode.ChildToKey().swap(branchedNode.ChildToKey());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,29 +262,29 @@ void TListNodeTypeHandler::DoDestroy(TListNode& node)
 }
 
 void TListNodeTypeHandler::DoBranch(
-    const TListNode& committedNode,
+    const TListNode& originatingNode,
     TListNode& branchedNode)
 {
     UNUSED(branchedNode);
 
     // Reference all children.
-    FOREACH (const auto& nodeId, committedNode.IndexToChild()) {
+    FOREACH (const auto& nodeId, originatingNode.IndexToChild()) {
         CypressManager->GetObjectManager()->RefObject(nodeId);
     }
 }
 
 void TListNodeTypeHandler::DoMerge(
-    TListNode& committedNode,
+    TListNode& originatingNode,
     TListNode& branchedNode)
 {
     // Drop all references held by the originator.
-    FOREACH (const auto& nodeId, committedNode.IndexToChild()) {
+    FOREACH (const auto& nodeId, originatingNode.IndexToChild()) {
         CypressManager->GetObjectManager()->UnrefObject(nodeId);
     }
 
     // Replace the child list with the branched copy.
-    committedNode.IndexToChild().swap(branchedNode.IndexToChild());
-    committedNode.ChildToIndex().swap(branchedNode.ChildToIndex());
+    originatingNode.IndexToChild().swap(branchedNode.IndexToChild());
+    originatingNode.ChildToIndex().swap(branchedNode.ChildToIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
