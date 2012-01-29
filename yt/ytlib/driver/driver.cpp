@@ -129,6 +129,7 @@ public:
         RegisterCommand("remove", ~New<TRemoveCommand>(this));
         RegisterCommand("list", ~New<TListCommand>(this));
         RegisterCommand("create", ~New<TCreateCommand>(this));
+        RegisterCommand("lock", ~New<TLockCommand>(this));
 
         RegisterCommand("download", ~New<TDownloadCommand>(this));
         RegisterCommand("upload", ~New<TUploadCommand>(this));
@@ -163,6 +164,7 @@ public:
     virtual void ReplyError(const TError& error)
     {
         YASSERT(!error.IsOK());
+        YASSERT(Error.IsOK());
         Error = error;
         auto output = StreamProvider->CreateErrorStream();
         TYsonWriter writer(~output, Config->OutputFormat);
@@ -174,6 +176,19 @@ public:
                             fluent.Item("code").Scalar(error.GetCode());
                         })
                     .Item("message").Scalar(error.GetMessage())
+                .EndMap()
+            .EndMap();
+        output->Write('\n');
+    }
+
+    virtual void ReplySuccess()
+    {
+        YASSERT(Error.IsOK());
+        auto output = StreamProvider->CreateErrorStream();
+        TYsonWriter writer(~output, Config->OutputFormat);
+        BuildYsonFluently(&writer)
+            .BeginMap()
+                .Item("success").BeginMap()
                 .EndMap()
             .EndMap();
         output->Write('\n');
