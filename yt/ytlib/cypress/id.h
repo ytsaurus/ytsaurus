@@ -16,11 +16,19 @@ using NObjectServer::TVersionedObjectId;
 // TODO(roizner): move to public.h
 typedef TObjectId TNodeId;
 typedef TObjectId TLockId;
+extern TLockId NullLockId;
 typedef TVersionedObjectId TVersionedNodeId;
 
 // TODO(roizner): move to common.h
 using NObjectServer::TTransactionId;
 using NObjectServer::NullTransactionId;
+
+DECLARE_ENUM(ELockMode,
+    ((None)(0))
+    ((Snapshot)(1))
+    ((Shared)(2))
+    ((Exclusive)(3))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
