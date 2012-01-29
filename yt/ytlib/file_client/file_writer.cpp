@@ -101,6 +101,7 @@ void TFileWriter::Open()
         ~Config->RemoteWriter,
         ChunkId,
         holderAddresses);
+    Writer->Open();
 
     if (Transaction) {
         ListenTransaction(~Transaction);
