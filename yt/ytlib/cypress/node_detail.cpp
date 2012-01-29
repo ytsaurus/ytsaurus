@@ -38,7 +38,6 @@ namespace NCypress {
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType)
     : ParentId_(NullObjectId)
-    , State_(ENodeState::Uncommitted)
     , LockMode_(ELockMode::None)
     , Id(id)
     , ObjectType(objectType)
@@ -47,7 +46,6 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objec
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other)
     : ParentId_(other.ParentId_)
-    , State_(other.State_)
     , LockMode_(other.LockMode_)
     , Id(id)
     , ObjectType(other.ObjectType)
@@ -66,13 +64,13 @@ TVersionedNodeId TCypressNodeBase::GetId() const
 
 i32 TCypressNodeBase::RefObject()
 {
-    YASSERT(State_ != ENodeState::Branched);
+    YASSERT(!Id.IsBranched());
     return ++RefCounter;
 }
 
 i32 TCypressNodeBase::UnrefObject()
 {
-    YASSERT(State_ != ENodeState::Branched);
+    YASSERT(!Id.IsBranched());
     return --RefCounter;
 }
 
@@ -86,7 +84,6 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     ::Save(output, RefCounter);
     SaveSet(output, LockIds_);
     ::Save(output, ParentId_);
-    ::Save(output, State_);
     ::Save(output, LockMode_);
 }
 
@@ -95,7 +92,6 @@ void TCypressNodeBase::Load(TInputStream* input)
     ::Load(input, RefCounter);
     LoadSet(input, LockIds_);
     ::Load(input, ParentId_);
-    ::Load(input, State_);
     ::Load(input, LockMode_);
 }
 

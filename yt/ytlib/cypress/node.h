@@ -7,16 +7,6 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes the state of the persisted node.
-DECLARE_ENUM(ENodeState,
-    // The node is present in the HEAD version.
-    (Committed)
-    // The node is a branched copy of another committed node.
-    (Branched)
-    // The node is created by the transaction and is thus new.
-    (Uncommitted)
-);
-
 //! Provides a common interface for all persistent nodes.
 struct ICypressNode
 {
@@ -42,19 +32,22 @@ struct ICypressNode
     //! Returns the id of the node (which is the key in the respective meta-map).
     virtual TVersionedObjectId GetId() const = 0;
 
-    // TODO: maybe propertify?
-    //! Gets the state of node.
-    virtual ENodeState GetState() const = 0;
-    //! Sets node state.
-    virtual void SetState(const ENodeState& value) = 0;
-
-    // TODO: document
+    //! Gets the lock mode.
+    /*!
+     *  When a node gets branched a lock is created. This property contains the corresponding lock mode.
+     *  It is used to validate subsequent access attempts (e.g. if the mode is #ELockMode::Snapshot then
+     *  all access must be read-only). The mode may be updated if lock is upgraded (e.g. from
+     *  #ELockMode::Shared to #ELockMode::Exclusive).
+     *  
+     *  #ELockMode::None is only possible for non-branched nodes.
+     */
     virtual ELockMode GetLockMode() const = 0;
+    //! Sets the lock mode.
     virtual void SetLockMode(const ELockMode& mode) = 0;
 
-    //! Gets parent node id.
+    //! Gets the parent node id.
     virtual TNodeId GetParentId() const = 0;
-    //! Sets parent node id.
+    //! Sets the parent node id.
     virtual void SetParentId(const TNodeId& value) = 0;
 
     //! Gets an immutable reference to the node's locks.

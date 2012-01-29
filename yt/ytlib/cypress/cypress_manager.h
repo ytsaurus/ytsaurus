@@ -157,11 +157,13 @@ private:
         INodeTypeHandler* handler,
         TAutoPtr<ICypressNode> node);
 
-    void ReleaseLocks(NTransactionServer::TTransaction& transaction);
-    void MergeBranchedNodes(NTransactionServer::TTransaction& transaction);
-    void RemoveBranchedNodes(NTransactionServer::TTransaction& transaction);
-    void UnrefOriginatingNodes(NTransactionServer::TTransaction& transaction);
-    void CommitCreatedNodes(NTransactionServer::TTransaction& transaction);
+    void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
+    void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void MergeBranchedNode(
+        const NTransactionServer::TTransaction& transaction,
+        const TNodeId& nodeId);
+    void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
 
     INodeTypeHandler* GetHandler(const ICypressNode& node);
 

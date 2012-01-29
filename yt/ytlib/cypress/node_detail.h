@@ -125,11 +125,9 @@ public:
         ICypressNode& originatingNode,
         ICypressNode& branchedNode)
     {
-        //YASSERT(originatingNode.GetState() == ENodeState::Committed);
-        YASSERT(branchedNode.GetState() == ENodeState::Branched);
-
         auto originatingId = originatingNode.GetId();
         auto branchedId = branchedNode.GetId();
+        YASSERT(branchedId.IsBranched());
 
         // Merge user attributes.
         const auto* branchedAttributes = ObjectManager->FindAttributes(branchedId);
@@ -196,7 +194,6 @@ class TCypressNodeBase
     // This also overrides appropriate methods from ICypressNode.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
-    DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
 
 public:

@@ -864,26 +864,19 @@ ICypressNodeProxy::TPtr TCypressManager::RegisterNode(
     INodeTypeHandler* handler,
     TAutoPtr<ICypressNode> node)
 {
-    // Set an appropriate state and register the node with the transaction (if any).
-    // When inside a transaction, all newly-created nodes are marked as Uncommitted.
-    // If no transaction is active then the node is marked as Committed.
-    if (transactionId == NullTransactionId) {
-        node->SetState(ENodeState::Committed);
-    } else {
-        node->SetState(ENodeState::Uncommitted);
-
-        // We shall traverse this list on transaction commit and set node status to Committed.
+    // If there's a transaction then append this node's id to the list.
+    if (transactionId != NullTransactionId) {
         auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
         transaction.CreatedNodeIds().push_back(nodeId);
     }
 
     // Keep a pointer to the node (the ownership will be transferred to NodeMap).
-    auto* node_ = ~node;
+    auto* node_ = node.Get();
     NodeMap.Insert(nodeId, node.Release());
 
-    LOG_INFO_IF(!IsRecovery(), "Node created (NodeId: %s, Type: %s, TransactionId: %s)",
-        ~nodeId.ToString(),
+    LOG_INFO_IF(!IsRecovery(), "Node created (Type: %s, NodeId: %s, TransactionId: %s)",
         ~handler->GetObjectType().ToString(),
+        ~nodeId.ToString(),
         ~transactionId.ToString());
 
     return handler->GetProxy(*node_, transactionId);
@@ -900,7 +893,6 @@ ICypressNode& TCypressManager::BranchNode(
 
     // Create a branched node and initialize its state.
     auto branchedNode = GetHandler(node)->Branch(node, transactionId, mode);
-    branchedNode->SetState(ENodeState::Branched);
     auto* branchedNode_ = branchedNode.Release();
     NodeMap.Insert(TVersionedNodeId(nodeId, transactionId), branchedNode_);
 
@@ -949,7 +941,6 @@ void TCypressManager::Clear()
 
     // Create the root.
     auto* root = new TMapNode(GetRootNodeId(), EObjectType::MapNode);
-    root->SetState(ENodeState::Committed);
     NodeMap.Insert(root->GetId(), root);
     ObjectManager->RefObject(root->GetId().ObjectId);
 }
@@ -1006,7 +997,6 @@ void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
 
     ReleaseLocks(transaction);
     MergeBranchedNodes(transaction);
-    CommitCreatedNodes(transaction);
     UnrefOriginatingNodes(transaction);
 }
 
@@ -1019,7 +1009,7 @@ void TCypressManager::OnTransactionAborted(TTransaction& transaction)
     UnrefOriginatingNodes(transaction);
 }
 
-void TCypressManager::ReleaseLocks(TTransaction& transaction)
+void TCypressManager::ReleaseLocks(const TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
 
@@ -1029,29 +1019,44 @@ void TCypressManager::ReleaseLocks(TTransaction& transaction)
     }
 }
 
-void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
+void TCypressManager::MergeBranchedNode(
+    const TTransaction& transaction,
+    const TNodeId& nodeId)
 {
-    auto transactionId = transaction.GetId();
+    TVersionedNodeId branchedId(nodeId, transaction.GetId());
+    auto& branchedNode = NodeMap.GetForUpdate(branchedId);
 
+    // Find the appropriate originating node.
+    ICypressNode* originatingNode;
+    auto currentTransactionId = transaction.GetParentId();
+    while (true) {
+        TVersionedNodeId currentOriginatingId(nodeId, currentTransactionId);
+        originatingNode = FindNodeForUpdate(currentOriginatingId);
+        if (originatingNode)
+            break;
+
+        const auto& transaction = TransactionManager->GetTransaction(currentTransactionId);
+        currentTransactionId = transaction.GetParentId();
+    }
+
+    GetHandler(branchedNode)->Merge(*originatingNode, branchedNode);
+
+    NodeMap.Remove(branchedId);
+
+    LOG_INFO_IF(!IsRecovery(), "Node merged (NodeId: %s, TransactionId: %s)",
+        ~nodeId.ToString(),
+        ~transaction.GetId().ToString());
+}
+
+void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
+{
     // Merge all branched nodes and remove them.
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        auto& node = NodeMap.GetForUpdate(nodeId);
-        YASSERT(node.GetState() != ENodeState::Branched);
-
-        auto& branchedNode = NodeMap.GetForUpdate(TVersionedNodeId(nodeId, transactionId));
-        YASSERT(branchedNode.GetState() == ENodeState::Branched);
-
-        GetHandler(node)->Merge(node, branchedNode);
-
-        NodeMap.Remove(TVersionedNodeId(nodeId, transactionId));
-
-        LOG_INFO_IF(!IsRecovery(), "Node merged (NodeId: %s, TransactionId: %s)",
-            ~nodeId.ToString(),
-            ~transactionId.ToString());
+        MergeBranchedNode(transaction, nodeId);
     }
 }
 
-void TCypressManager::UnrefOriginatingNodes(TTransaction& transaction)
+void TCypressManager::UnrefOriginatingNodes(const TTransaction& transaction)
 {
     // Drop implicit references from branched nodes to their originators.
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
@@ -1059,28 +1064,16 @@ void TCypressManager::UnrefOriginatingNodes(TTransaction& transaction)
     }
 }
 
-void TCypressManager::RemoveBranchedNodes(TTransaction& transaction)
+void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        auto& node = NodeMap.GetForUpdate(TVersionedNodeId(nodeId, transactionId));
+        TVersionedNodeId versionedId(nodeId, transactionId);
+        auto& node = NodeMap.GetForUpdate(versionedId);
         GetHandler(node)->Destroy(node);
-        NodeMap.Remove(TVersionedNodeId(nodeId, transactionId));
+        NodeMap.Remove(versionedId);
 
         LOG_INFO_IF(!IsRecovery(), "Branched node removed (NodeId: %s, TransactionId: %s)",
-            ~nodeId.ToString(),
-            ~transactionId.ToString());
-    }
-}
-
-void TCypressManager::CommitCreatedNodes(TTransaction& transaction)
-{
-    auto transactionId = transaction.GetId();
-    FOREACH (const auto& nodeId, transaction.CreatedNodeIds()) {
-        auto& node = NodeMap.GetForUpdate(nodeId);
-        node.SetState(ENodeState::Committed);
-
-        LOG_INFO_IF(!IsRecovery(), "Node committed (NodeId: %s, TransactionId: %s)",
             ~nodeId.ToString(),
             ~transactionId.ToString());
     }

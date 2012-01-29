@@ -141,7 +141,6 @@ protected:
     virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
-        attributes->push_back("state");
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
@@ -152,12 +151,6 @@ protected:
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
                 .Scalar(node.GetParentId().ToString());
-            return true;
-        }
-
-        if (name == "state") {
-            BuildYsonFluently(consumer)
-                .Scalar(CamelCaseToUnderscoreCase(node.GetState().ToString()));
             return true;
         }
 
