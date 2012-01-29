@@ -123,6 +123,7 @@ void TJob::OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result)
         ~New<TRemoteWriter::TConfig>(),
         Chunk->GetId(),
         TargetAddresses);
+    Writer->Open();
 
     ReplicateBlock(TError(), 0);
 }
