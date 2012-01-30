@@ -135,7 +135,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , LocalProgress(ToFuture(TVoid()))
+    , LocalProgress(MakeFuture(TVoid()))
 {
     YASSERT(cellManager);
     YASSERT(metaState);

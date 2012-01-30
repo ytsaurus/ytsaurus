@@ -42,7 +42,7 @@ TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo() const
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (HasInfo) {
-            return ToFuture(TGetInfoResult(Info));
+            return MakeFuture(TGetInfoResult(Info));
         }
     }
 
