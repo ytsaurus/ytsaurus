@@ -81,7 +81,7 @@ def works_only_from_the_project_root(func):
 def colored(color, string):
     CSI="\x1B["
     colors = {
-        'Red':'01;31', 
+        'Red':'01;31',
         'Green':'01;32'}
     code = colors[color];
     return CSI + code + 'm' + string + CSI + '0m'
