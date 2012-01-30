@@ -4,6 +4,7 @@
 
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
+#include <ytlib/chunk_holder/peer_block_table.h>
 #include <ytlib/election/leader_lookup.h>
 
 namespace NYT {
@@ -47,26 +48,6 @@ struct TLocationConfig
         if (HighWatermark > LowWatermark) {
             ythrow yexception() << "\"high_watermark\" cannot be more than \"low_watermark\"";
         }
-    }
-};
-
-// TODO(roizner): It should be in peer_block_table.h, but we cannot place it there because of cross-includes!
-// TODO(roizner): Or merge it into TChunkHolderConfig
-struct TPeerBlockTableConfig
-    : public TConfigurable
-{
-    typedef TIntrusivePtr<TPeerBlockTableConfig> TPtr;
-
-    int MaxPeersPerBlock;
-    TDuration SweepPeriod;
-
-    TPeerBlockTableConfig()
-    {
-        Register("max_peers_per_block", MaxPeersPerBlock)
-            .GreaterThan(0)
-            .Default(64);
-        Register("sweep_period", SweepPeriod)
-            .Default(TDuration::Minutes(10));
     }
 };
 
@@ -125,7 +106,7 @@ struct TChunkHolderConfig
     //! Sequential reader configuration used to download chunks into cache.
     NChunkClient::TSequentialReader::TConfig::TPtr CacheSequentialReader;
 
-    TPeerBlockTableConfig::TPtr BlockTable;
+    TPeerBlockTable::TConfig::TPtr BlockTable;
 
     //! Masters configuration.
     NElection::TLeaderLookup::TConfig::TPtr Masters;

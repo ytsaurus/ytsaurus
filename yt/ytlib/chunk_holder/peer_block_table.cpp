@@ -10,7 +10,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerBlockTable::TPeerBlockTable(TPeerBlockTableConfig* config)
+TPeerBlockTable::TPeerBlockTable(TConfig* config)
     : Config(config)
 { }
 

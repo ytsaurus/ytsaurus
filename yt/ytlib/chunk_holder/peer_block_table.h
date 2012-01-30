@@ -1,6 +1,8 @@
 #pragma once
 
-#include "config.h"
+#include "common.h"
+
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -35,7 +37,25 @@ class TPeerBlockTable
     : public TRefCounted
 {
 public:
-    TPeerBlockTable(TPeerBlockTableConfig* config);
+    struct TConfig
+        : public TConfigurable
+    {
+        typedef TIntrusivePtr<TConfig> TPtr;
+
+        int MaxPeersPerBlock;
+        TDuration SweepPeriod;
+
+        TConfig()
+        {
+            Register("max_peers_per_block", MaxPeersPerBlock)
+                .GreaterThan(0)
+                .Default(64);
+            Register("sweep_period", SweepPeriod)
+                .Default(TDuration::Minutes(10));
+        }
+    };
+
+    TPeerBlockTable(TConfig* config);
     
     //! Gets peers where a particular block was sent to.
     /*!
@@ -57,7 +77,7 @@ private:
     void SweepAllExpiredPeers();
     yvector<TPeerInfo>& GetMutablePeers(const TBlockId& blockId);
 
-    TPeerBlockTableConfig::TPtr Config;
+    TConfig::TPtr Config;
 
     //! Each vector is sorted by decreasing expiration time.
     TTable Table;
