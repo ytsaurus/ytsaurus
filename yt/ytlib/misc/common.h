@@ -56,6 +56,6 @@ using std::string; // hack for guid.h to work
 #include "assert.h"
 #include "rvalue.h"
 #include "intrusive_ptr.h"
-#include "ref_counted_base.h"
+#include "ref_counted.h"
 #include "weak_ptr.h"
 #include "new.h"

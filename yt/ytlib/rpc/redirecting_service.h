@@ -16,14 +16,13 @@ public:
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
+protected:
     struct TRedirectParams
     {
         TDuration Timeout;
         Stroka Address;
     };
 
-
-protected:
     virtual TRedirectParams GetRedirectParams(IServiceContext* context) const = 0;
 
 private:
