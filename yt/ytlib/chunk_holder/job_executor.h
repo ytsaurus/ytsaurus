@@ -10,7 +10,6 @@
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/logging/tagged_logger.h>
 
-
 namespace NYT {
 namespace NChunkHolder {
 
