@@ -52,8 +52,6 @@ private:
     friend class TJobExecutor;
 
     TJobExecutor* Owner;
-//    TChunkStore::TPtr ChunkStore;
-//    TBlockStore::TPtr BlockStore;
     EJobType JobType;
     TJobId JobId;
     EJobState State;

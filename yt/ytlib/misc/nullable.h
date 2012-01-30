@@ -202,30 +202,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(panin): sandello, add decay here!
 template <class T>
-TNullable<T> MakeNullable(const T& value)
+TNullable< typename NDetail::TRemoveReference<T>::TType > MakeNullable(T&& value)
 {
-    return TNullable<T>(value);
+    return TNullable< typename NDetail::TRemoveReference<T>::TType >(ForwardRV<T>(value));
 }
 
 template <class T>
-TNullable<T> MakeNullable(T&& value)
+TNullable< typename NDetail::TRemoveReference<T>::TType > MakeNullable(bool condition, T&& value)
 {
-    return TNullable<T>(MoveRV(value));
+    return TNullable< typename NDetail::TRemoveReference<T>::TType >(condition, ForwardRV<T>(value));
 }
-
-template <class T>
-TNullable<T> MakeNullable(bool condition, const T& value)
-{
-    return TNullable<T>(condition, value);
-}
-
-template <class T>
-TNullable<T> MakeNullable(bool condition, T&& value)
-{
-    return TNullable<T>(condition, MoveRV(value));
-}
-
 
 template <class T>
 bool operator==(const TNullable<T>& lhs, const TNullable<T>& rhs)
