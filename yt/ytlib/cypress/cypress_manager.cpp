@@ -91,6 +91,7 @@ public:
         const TTransactionId& transactionId,
         IMapNode* manifest)
     {
+        UNUSED(transactionId);
         UNUSED(manifest);
         ythrow yexception() << "Cannot create a node outside Cypress";
     }
