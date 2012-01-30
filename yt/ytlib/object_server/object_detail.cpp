@@ -247,7 +247,7 @@ void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSe
 
         if (IsFinalYPath(suffixPath)) {
             if (token.empty()) {
-                ythrow yexception() << "Cannot set empty attribute";
+                ythrow yexception() << "Attribute key cannot be empty";
             }
 
             if (!SetSystemAttribute(token, ~ProducerFromYson(request->value()))) {
