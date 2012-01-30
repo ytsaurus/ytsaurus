@@ -427,8 +427,7 @@ INodeTypeHandler* TCypressManager::GetHandler(const ICypressNode& node)
 void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
 {
     auto nodeId = node.GetId();
-    if (nodeId.IsBranched())
-        return;
+    YASSERT(!nodeId.IsBranched());
 
     auto handler = GetHandler(node);
     auto behavior = handler->CreateBehavior(node);
@@ -437,15 +436,14 @@ void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
 
     YVERIFY(NodeBehaviors.insert(MakePair(nodeId.ObjectId, behavior)).second);
 
-    LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)",
+    LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)", 
         ~nodeId.ObjectId.ToString());
 }
 
 void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
 {
     auto nodeId = node.GetId();
-    if (nodeId.IsBranched())
-        return;
+    YASSERT(!nodeId.IsBranched());
 
     auto it = NodeBehaviors.find(nodeId.ObjectId);
     if (it == NodeBehaviors.end())
@@ -844,12 +842,11 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
 
     auto handler = GetHandler(type);
     auto nodeId = ObjectManager->GenerateId(type);
-    TAutoPtr<ICypressNode> node = handler->CreateFromManifest(
+    auto node = handler->CreateFromManifest(
         nodeId,
         transactionId,
         manifest);
-    ICypressNode* node_ = ~node;
-
+    auto * node_ = ~node;
     auto proxy = RegisterNode(nodeId, transactionId, handler, node);
 
     if (IsLeader()) {
@@ -948,8 +945,11 @@ void TCypressManager::Clear()
 
 void TCypressManager::OnLeaderRecoveryComplete()
 {
+    YASSERT(NodeBehaviors.empty());
     FOREACH(const auto& pair, NodeMap) {
-        CreateNodeBehavior(*pair.second);
+        if (!pair.first.IsBranched()) {
+            CreateNodeBehavior(*pair.second);
+        }
     }
 }
 
