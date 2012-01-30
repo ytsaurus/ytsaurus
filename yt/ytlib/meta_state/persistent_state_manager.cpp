@@ -5,7 +5,7 @@
 #include "change_log_cache.h"
 #include "meta_state_manager_proxy.h"
 #include "snapshot.h"
-#include "snapshot_creator.h"
+#include "snapshot_builder.h"
 #include "recovery.h"
 #include "cell_manager.h"
 #include "change_committer.h"
@@ -291,7 +291,7 @@ public:
 
     TCancelableInvoker::TPtr EpochControlInvoker;
     TCancelableInvoker::TPtr EpochStateInvoker;
-    TSnapshotCreator::TPtr SnapshotCreator;
+    TSnapshotBuilder::TPtr SnapshotBuilder;
     TLeaderRecovery::TPtr LeaderRecovery;
     TFollowerRecovery::TPtr FollowerRecovery;
 
@@ -628,7 +628,7 @@ public:
                     LOG_DEBUG("AdvanceSegment: starting snapshot creation (Version: %s)",
                         ~version.ToString());
 
-                    FromMethod(&TSnapshotCreator::CreateLocal, SnapshotCreator, version)
+                    FromMethod(&TSnapshotBuilder::CreateLocal, SnapshotBuilder, version)
                         ->AsyncVia(GetStateInvoker())
                         ->Do()
                         ->Subscribe(FromMethod(
@@ -711,9 +711,9 @@ public:
             &TThis::OnApplyChange,
             TPtr(this)));
 
-        YASSERT(!SnapshotCreator);
-        SnapshotCreator = New<TSnapshotCreator>(
-            ~New<TSnapshotCreator::TConfig>(),
+        YASSERT(!SnapshotBuilder);
+        SnapshotBuilder = New<TSnapshotBuilder>(
+            ~New<TSnapshotBuilder::TConfig>(),
             CellManager,
             MetaState,
             ChangeLogCache,
@@ -751,9 +751,9 @@ public:
             MetaState,
             ControlInvoker);
 
-        YASSERT(!SnapshotCreator);
-        SnapshotCreator = New<TSnapshotCreator>(
-            ~New<TSnapshotCreator::TConfig>(),
+        YASSERT(!SnapshotBuilder);
+        SnapshotBuilder = New<TSnapshotBuilder>(
+            ~New<TSnapshotBuilder::TConfig>(),
             CellManager,
             MetaState,
             ChangeLogCache,
@@ -887,7 +887,7 @@ public:
     }
 
     void OnCreateLocalSnapshot(
-        TSnapshotCreator::TLocalResult result,
+        TSnapshotBuilder::TLocalResult result,
         TCtxAdvanceSegment::TPtr context)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -895,16 +895,16 @@ public:
         auto& response = context->Response();
 
         switch (result.ResultCode) {
-            case TSnapshotCreator::EResultCode::OK:
+            case TSnapshotBuilder::EResultCode::OK:
                 response.set_checksum(result.Checksum);
                 context->Reply();
                 break;
-            case TSnapshotCreator::EResultCode::InvalidVersion:
+            case TSnapshotBuilder::EResultCode::InvalidVersion:
                 context->Reply(
                     TProxy::EErrorCode::InvalidVersion,
                     "Requested to create a snapshot for an invalid version");
                 break;
-            case TSnapshotCreator::EResultCode::AlreadyInProgress:
+            case TSnapshotBuilder::EResultCode::AlreadyInProgress:
                 context->Reply(
                     TProxy::EErrorCode::SnapshotAlreadyInProgress,
                     "Snapshot creation is already in progress");
@@ -1013,12 +1013,12 @@ public:
             FollowerTracker.Reset();
         }
 
-        if (SnapshotCreator) {
+        if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TThis::WaitSnapshotCreation,
                 TPtr(this),
-                SnapshotCreator));
-            SnapshotCreator.Reset();
+                SnapshotBuilder));
+            SnapshotBuilder.Reset();
         }
     }
 
@@ -1065,12 +1065,12 @@ public:
             FollowerCommitter.Reset();
         }
 
-        if (SnapshotCreator) {
+        if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TThis::WaitSnapshotCreation,
                 TPtr(this),
-                SnapshotCreator));
-            SnapshotCreator.Reset();
+                SnapshotBuilder));
+            SnapshotBuilder.Reset();
         }
     }
     // End of IElectionCallback methods.
@@ -1123,7 +1123,7 @@ public:
             MetaState->GetVersion().RecordCount % (Config->MaxChangesBetweenSnapshots + 1) == 0)
         {
             LeaderCommitter->Flush();
-            SnapshotCreator->CreateDistributed();
+            SnapshotBuilder->CreateDistributed();
         }
     }
 
@@ -1145,10 +1145,10 @@ public:
     }
 
     // Blocks state thread until snapshot creation is finished.
-    void WaitSnapshotCreation(TSnapshotCreator::TPtr snapshotCreator)
+    void WaitSnapshotCreation(TSnapshotBuilder::TPtr snapshotBuilder)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        snapshotCreator->GetLocalProgress()->Get();
+        snapshotBuilder->GetLocalProgress()->Get();
     }
 
     void DoStartLeading()
