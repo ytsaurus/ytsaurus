@@ -1,7 +1,7 @@
 #pragma once
 
 #include "mpl.h"
-#include "ref_counted_base.h"
+#include "ref_counted.h"
 
 namespace NYT {
 

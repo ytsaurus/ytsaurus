@@ -4,7 +4,7 @@
 #include "value.h"
 #include "schema.h"
 
-#include <ytlib/misc/ref_counted_base.h>
+#include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/sync.h>
 

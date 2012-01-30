@@ -19,7 +19,7 @@ set( SRCS
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
   ${BASE}/ref.cpp
-  ${BASE}/ref_counted_base.cpp
+  ${BASE}/ref_counted.cpp
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
@@ -62,7 +62,7 @@ set( HDRS
   ${BASE}/preprocessor.h
   ${BASE}/property.h
   ${BASE}/ref.h
-  ${BASE}/ref_counted_base.h
+  ${BASE}/ref_counted.h
   ${BASE}/ref_counted_tracker.h
   ${BASE}/rvalue.h
   ${BASE}/semaphore.h

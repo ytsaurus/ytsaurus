@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/ref_counted_tracker.h>
-#include <ytlib/misc/ref_counted_base.h>
+#include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/new.h>
 
 #include <contrib/testing/framework.h>
