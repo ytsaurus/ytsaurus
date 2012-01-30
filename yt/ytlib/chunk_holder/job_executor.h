@@ -26,9 +26,8 @@ public:
     typedef TIntrusivePtr<TJob> TPtr;
 
     TJob(
+        TJobExecutor* owner,
         IInvoker* serviceInvoker,
-        TChunkStore* chunkStore,
-        TBlockStore* blockStore,
         EJobType jobType,
         const TJobId& jobId,
         TStoredChunk* chunk,
@@ -52,8 +51,9 @@ public:
 private:
     friend class TJobExecutor;
 
-    TChunkStore::TPtr ChunkStore;
-    TBlockStore::TPtr BlockStore;
+    TJobExecutor* Owner;
+//    TChunkStore::TPtr ChunkStore;
+//    TBlockStore::TPtr BlockStore;
     EJobType JobType;
     TJobId JobId;
     EJobState State;
@@ -103,8 +103,11 @@ class TJobExecutor
 public:
     typedef TIntrusivePtr<TJobExecutor> TPtr;
 
+    typedef TChunkHolderConfig TConfig;
+
     //! Constructs a new instance.
     TJobExecutor(
+        TConfig* config,
         TChunkStore* chunkStore,
         TBlockStore* blockStore,
         IInvoker* serviceInvoker);
@@ -130,7 +133,10 @@ public:
     yvector<TJob::TPtr> GetAllJobs();
 
 private:
+    friend class TJob;
     typedef yhash_map<TJobId, TJob::TPtr> TJobMap;
+
+    TConfig::TPtr Config;
 
     TChunkStore::TPtr ChunkStore;
     TBlockStore::TPtr BlockStore;
