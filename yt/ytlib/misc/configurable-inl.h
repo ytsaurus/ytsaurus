@@ -7,6 +7,7 @@
 #include "string.h"
 #include "nullable.h"
 
+#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/tree_visitor.h>
 
@@ -17,153 +18,106 @@ namespace NConfig {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-T CheckedStaticCast(i64 value)
+template <class T, class = void>
+struct TLoadHelper
 {
-    if (value < Min<T>() || value > Max<T>()) {
-        ythrow yexception()
-            << Sprintf("Argument is out of integral range (Value: %" PRId64 ")", value);
+    static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    {
+        UNUSED(path);
+        NYTree::Read(parameter, node);
     }
-    return static_cast<T>(value);
-}
+};
 
-// TConfigurable::TPtr
+/*
 template <class T>
-inline void Read(
-    TIntrusivePtr<T>& parameter,
-    const NYTree::INode* node,
-    const NYTree::TYPath& path,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
+struct TLoadHelper<
+    T,
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TConfigurable*> >::TType
+>
 {
-    if (!parameter) {
-        parameter = New<T>();
+    static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    {
+        if (!parameter) {
+            parameter = New<T>();
+        }
+        parameter->Load(node, path);
     }
-    parameter->Load(node, path);
-}
+};
 
-// i64
-inline void Read(i64& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
-{
-    parameter = node->AsInt64()->GetValue();
-}
-
-// i32
-inline void Read(i32& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
-{
-    parameter = CheckedStaticCast<i32>(node->AsInt64()->GetValue());
-}
-
-// ui32
-inline void Read(ui32& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
-{
-    parameter = CheckedStaticCast<ui32>(node->AsInt64()->GetValue());
-}
-
-// ui16
-inline void Read(ui16& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
-{
-    parameter = CheckedStaticCast<ui16>(node->AsInt64()->GetValue());
-}
-
-// double
-inline void Read(double& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
-{
-    parameter = node->AsDouble()->GetValue();
-}
-
-// Stroka
-inline void Read(Stroka& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
-{
-    parameter = node->AsString()->GetValue();
-}
-
-// bool
-inline void Read(bool& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
-{
-    Stroka value = node->AsString()->GetValue();
-    parameter = ParseBool(value);
-}
-
-// TDuration
-inline void Read(TDuration& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
-{
-    parameter = TDuration::MilliSeconds(node->AsInt64()->GetValue());
-}
-
-// TGuid
-inline void Read(TGuid& parameter, const NYTree::INode* node, const NYTree::TYPath& /* path */)
-{
-    parameter = TGuid::FromString(node->AsString()->GetValue());
-}
-
-// TEnumBase
 template <class T>
-inline void Read(
-    T& parameter,
-    const NYTree::INode* node, 
-    const NYTree::TYPath& /* path */,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T, TEnumBase<T> >, int>::TType = 0)
+struct TLoadHelper<
+    T,
+    typename NMpl::TEnableIf< NMpl::TIsConvertible< T, TEnumBase<T> > >::TType
+>
 {
-    auto value = node->AsString()->GetValue();
-    parameter = ParseEnum<T>(value);
-}
+    static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    {
+        if (!parameter) {
+            parameter = New<T>();
+        }
+        parameter->Load(node, path);
+    }
+};
 
 // TNullable
 template <class T>
-inline void Read(TNullable<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+struct TLoadHelper<TNullable<T>, void>
 {
-    T value;
-    Read(value, node, path);
-    parameter = value;
-}
-
-// INode::TPtr
-inline void Read(
-    NYTree::INode::TPtr& parameter,
-    const NYTree::INode* node,
-    const NYTree::TYPath& /* path */)
-{
-    parameter = const_cast<NYTree::INode*>(node);
-}
+    static void Load(TNullable<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    {
+        T value;
+        Read(value, node, path);
+        parameter = value;
+    }
+};
 
 // yvector
 template <class T>
-inline void Read(yvector<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+struct TLoadHelper<yvector<T>, void>
 {
-    auto listNode = node->AsList();
-    auto size = listNode->GetChildCount();
-    parameter.resize(size);
-    for (int i = 0; i < size; ++i) {
-        Read(parameter[i], ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
+    static void Read(yvector<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    {
+        auto listNode = node->AsList();
+        auto size = listNode->GetChildCount();
+        parameter.resize(size);
+        for (int i = 0; i < size; ++i) {
+            Read(parameter[i], ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
+        }
     }
-}
+};
 
 // yhash_set
 template <class T>
-inline void Read(yhash_set<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+struct TLoadHelper<yhash_set<T>, void>
 {
-    auto listNode = node->AsList();
-    auto size = listNode->GetChildCount();
-    for (int i = 0; i < size; ++i) {
-        T value;
-        Read(value, ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
-        parameter.insert(MoveRV(value));
+    static void Read(yhash_set<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    {
+        auto listNode = node->AsList();
+        auto size = listNode->GetChildCount();
+        for (int i = 0; i < size; ++i) {
+            T value;
+            Read(value, ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
+            parameter.insert(MoveRV(value));
+        }
     }
-}
+};
 
 // yhash_map
 template <class T>
-inline void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+struct TLoadHelper<yhash_map<Stroka, T>, void>
 {
-    auto mapNode = node->AsMap();
-    FOREACH (const auto& pair, mapNode->GetChildren()) {
-        auto& key = pair.first;
-        T value;
-        Read(value, ~pair.second, NYTree::CombineYPaths(path, key));
-        parameter.insert(MakePair(key, MoveRV(value)));
+    static void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    {
+        auto mapNode = node->AsMap();
+        FOREACH (const auto& pair, mapNode->GetChildren()) {
+            auto& key = pair.first;
+            T value;
+            Read(value, ~pair.second, NYTree::CombineYPaths(path, key));
+            parameter.insert(MakePair(key, MoveRV(value)));
+        }
     }
-}
-
+};
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 // TConfigurable::TPtr
@@ -376,7 +330,7 @@ void TParameter<T>::Load(const NYTree::INode* node, const NYTree::TYPath& path)
 {
     if (node) {
         try {
-            Read(Parameter, node, path);
+            TLoadHelper<T>::Load(Parameter, node, path);
         } catch (const std::exception& ex) {
             ythrow yexception()
                 << Sprintf("Could not read parameter (Path: %s)\n%s",
