@@ -406,16 +406,16 @@ protected:
 private:
     struct TRuntimeMethodInfo
     {
-        TMethodDescriptor Descriptor;
-        IInvoker::TPtr Invoker;
-        TMetric ExecutionTime;
-
         TRuntimeMethodInfo(const TMethodDescriptor& info, IInvoker* invoker)
             : Descriptor(info)
             , Invoker(invoker)
             // TODO: configure properly
             , ExecutionTime(0, 1000, 10)
         { }
+
+        TMethodDescriptor Descriptor;
+        IInvoker::TPtr Invoker;
+        TMetric ExecutionTime;
     };
 
     struct TActiveRequest

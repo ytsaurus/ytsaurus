@@ -82,51 +82,49 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
     YASSERT(context);
 
     Stroka verb = context->GetVerb();
-    
-    TRuntimeMethodInfo* runtimeInfo;
-    {
-        TGuard<TSpinLock> guard(SpinLock);
 
-        auto methodIt = RuntimeMethodInfos.find(verb);
-        runtimeInfo =
-            methodIt == RuntimeMethodInfos.end()
-            ? NULL
-            : &methodIt->second;
+    TGuard<TSpinLock> guard(SpinLock);
 
-        // TODO (panin): implement and provide here more granulate locking
-        // TODO: look carefully here (added not NULL check of runtimeInfo)
-        if (runtimeInfo) {
-            if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
-                Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
-                    ~ToString(runtimeInfo->Descriptor.OneWay),
-                    ~ToString(context->IsOneWay()),
-                    ~ServiceName,
-                    ~verb);
-                LOG_WARNING("%s", ~message);
-                context->Reply(TError(EErrorCode::NoSuchVerb, message));
-            }
-        }
+    auto methodIt = RuntimeMethodInfos.find(verb);
+    if (methodIt == RuntimeMethodInfos.end()) {
+        guard.Release();
 
-        if (!context->IsOneWay()) {
-            TActiveRequest activeRequest(runtimeInfo, TInstant::Now());
-            YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).second);
-        }
-    }
-
-    if (!runtimeInfo) {
         Stroka message = Sprintf("Unknown verb (ServiceName: %s, Verb: %s)",
             ~ServiceName,
             ~verb);
         LOG_WARNING("%s", ~message);
-
         if (!context->IsOneWay()) {
             context->Reply(TError(EErrorCode::NoSuchVerb, message));
         }
-    } else {
-        auto handler = runtimeInfo->Descriptor.Handler;
-        auto wrappedHandler = context->Wrap(~handler->Bind(context));
-        runtimeInfo->Invoker->Invoke(wrappedHandler);
+
+        return;
     }
+        
+    auto* runtimeInfo = &methodIt->second;
+    if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
+        guard.Release();
+
+        Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
+            ~ToString(runtimeInfo->Descriptor.OneWay),
+            ~ToString(context->IsOneWay()),
+            ~ServiceName,
+            ~verb);
+        LOG_WARNING("%s", ~message);
+        context->Reply(TError(EErrorCode::NoSuchVerb, message));
+
+        return;
+    }
+
+    if (!context->IsOneWay()) {
+        TActiveRequest activeRequest(runtimeInfo, TInstant::Now());
+        YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).second);
+    }
+
+    guard.Release();
+
+    auto handler = runtimeInfo->Descriptor.Handler;
+    auto wrappedHandler = context->Wrap(~handler->Bind(context));
+    runtimeInfo->Invoker->Invoke(wrappedHandler);
 }
 
 void TServiceBase::OnEndRequest(IServiceContext* context)
@@ -137,12 +135,11 @@ void TServiceBase::OnEndRequest(IServiceContext* context)
     TGuard<TSpinLock> guard(SpinLock);
 
     auto it = ActiveRequests.find(context);
-    YASSERT(it != ActiveRequests.end());
+    if (it == ActiveRequests.end())
+        return;
     
     auto& request = it->second;
-    if (request.RuntimeInfo) {
-        request.RuntimeInfo->ExecutionTime.AddDelta(request.StartTime);       
-    }
+    request.RuntimeInfo->ExecutionTime.AddDelta(request.StartTime);       
 
     ActiveRequests.erase(it);
 }
