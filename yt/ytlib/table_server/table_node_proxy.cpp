@@ -3,6 +3,7 @@
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -12,6 +13,7 @@ using namespace NCypress;
 using namespace NYTree;
 using namespace NRpc;
 using namespace NObjectServer;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +136,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
             }
         }
     }
+
+    // TODO: parse channel from YPath
+    auto channel = TChannel::Universal();
+    *response->mutable_channel() = channel.ToProto();
 
     context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());
 
