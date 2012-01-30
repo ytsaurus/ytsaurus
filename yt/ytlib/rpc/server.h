@@ -11,10 +11,10 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IRpcServer
+struct IServer
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IRpcServer> TPtr;
+    typedef TIntrusivePtr<IServer> TPtr;
 
     virtual void RegisterService(IService* service) = 0;
     
@@ -25,7 +25,7 @@ struct IRpcServer
 
 };
 
-IRpcServer::TPtr CreateRpcServer(NBus::IBusServer* busServer);
+IServer::TPtr CreateRpcServer(NBus::IBusServer* busServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
