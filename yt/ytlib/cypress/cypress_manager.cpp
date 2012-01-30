@@ -634,11 +634,12 @@ void TCypressManager::ValidateLock(
     ELockMode requestedMode,
     bool* isMandatory)
 {
-    if (transactionId != NullTransactionId) {
-        // Check if we already have branched this node within the current transaction.
-        const auto* node = FindNode(TVersionedNodeId(nodeId, transactionId));
+    // Check if we already have branched this node within the current or parent transaction.
+    auto currentTransactionId = transactionId;
+    while (currentTransactionId != NullTransactionId) {
+        const auto* node = FindNode(TVersionedNodeId(nodeId, currentTransactionId));
         if (node) {
-            if (!AreLocksCompatible(node->GetLockMode(), transactionId, requestedMode, transactionId)) {
+            if (!AreConcurrentLocksCompatible(node->GetLockMode(), requestedMode)) {
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s: the node is already locked in %s mode",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
@@ -652,6 +653,8 @@ void TCypressManager::ValidateLock(
                 return;
             }
         }
+        const auto& transaction = TransactionManager->GetTransaction(currentTransactionId);
+        currentTransactionId = transaction.GetParentId();
     }
 
     // For modes other than Snapshot we have to examine the existing locks on the path to the root.
@@ -673,7 +676,7 @@ void TCypressManager::ValidateLock(
                         }
                         return;
                     }
-                    if (!AreLocksCompatible(lock.GetMode(), lock.GetTransactionId(), requestedMode, transactionId)) {
+                    if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
                         ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s lock at node %s taken by transaction %s",
                             ~FormatEnum(requestedMode).Quote(),
                             ~nodeId.ToString(),
@@ -702,32 +705,29 @@ void TCypressManager::ValidateLock(
     }
 }
 
-bool TCypressManager::AreLocksCompatible(
-    ELockMode existingMode,
-    const TTransactionId& existingId,
-    ELockMode requestedMode,
-    const TTransactionId& requestedId)
+bool TCypressManager::AreCompetingLocksCompatible(ELockMode existingMode, ELockMode requestedMode)
 {
-    if (existingId == requestedId) {
-        // Within a single transaction snapshot lock is only compatible with another snapshot lock.
-        if (existingMode == ELockMode::Snapshot && requestedMode != ELockMode::Snapshot) {
-            return false;
-        }
-        if (requestedMode == ELockMode::Snapshot && existingMode != ELockMode::Snapshot) {
-            return false;
-        }
-        return true;
-    } else {
-        // Across transactions snapshot locks are safe.
-        if (existingMode == ELockMode::Snapshot || requestedMode == ELockMode::Snapshot) {
-            return true;
-        }
-        // Across transactions exclusive locks are not compatible with others.
-        if (existingMode == ELockMode::Exclusive || requestedMode == ELockMode::Exclusive) {
-            return false;
-        }
+    // For competing transactions snapshot locks are safe.
+    if (existingMode == ELockMode::Snapshot || requestedMode == ELockMode::Snapshot) {
         return true;
     }
+    // For competing exclusive locks are not compatible with others.
+    if (existingMode == ELockMode::Exclusive || requestedMode == ELockMode::Exclusive) {
+        return false;
+    }
+    return true;
+}
+
+bool TCypressManager::AreConcurrentLocksCompatible(ELockMode existingMode, ELockMode requestedMode)
+{
+    // For concurrent transactions snapshot lock is only compatible with another snapshot lock.
+    if (existingMode == ELockMode::Snapshot && requestedMode != ELockMode::Snapshot) {
+        return false;
+    }
+    if (requestedMode == ELockMode::Snapshot && existingMode != ELockMode::Snapshot) {
+        return false;
+    }
+    return true;
 }
 
 bool TCypressManager::IsLockRecursive(ELockMode mode)

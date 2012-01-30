@@ -176,11 +176,8 @@ private:
         ELockMode requestedMode,
         bool* isMandatory = NULL);
 
-    static bool AreLocksCompatible(
-        ELockMode existingMode,
-        const TTransactionId& existingId,
-        ELockMode requestedMode,
-        const TTransactionId& requestedId);
+    static bool AreCompetingLocksCompatible(ELockMode existingMode, ELockMode requestedMode);
+    static bool AreConcurrentLocksCompatible(ELockMode existingMode, ELockMode requestedMode);
 
     static bool IsLockRecursive(ELockMode mode);
    
