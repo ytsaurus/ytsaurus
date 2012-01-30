@@ -104,7 +104,7 @@ void TChunkHolderBootstrap::Run()
         ~chunkRegistry,
         ~readerCache);
 
-    auto blockTable = New<TPeerBlockTable>(~Config->BlockTable);
+    auto blockTable = New<TPeerBlockTable>(~Config->PeerBlockTable);
 
     THolder<TChannelCache> channelCache(new TChannelCache());
 

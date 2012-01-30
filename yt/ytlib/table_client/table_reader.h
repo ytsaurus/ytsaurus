@@ -58,7 +58,6 @@ public:
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         NChunkClient::IBlockCache* blockCache,
-        const TChannel& readChannel,
         const NYTree::TYPath& path);
 
     //! Opens the reader and positions it right before the first row.
@@ -88,7 +87,6 @@ private:
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::IBlockCache::TPtr BlockCache;
-    TChannel ReadChannel;
     NYTree::TYPath Path;
     bool IsOpen;
     NCypress::TCypressServiceProxy Proxy;

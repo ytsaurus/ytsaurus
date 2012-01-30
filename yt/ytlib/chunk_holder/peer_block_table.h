@@ -27,7 +27,7 @@ struct TPeerInfo
 //////////////////////////////////////////////////////////////////////////////// 
 
 //! When Chunk Holder sends a block to a certain client
-//! it has to remember its address to facilitate peer-to-peer transfers.
+//! its address is remembered to facilitate peer-to-peer transfers.
 //! This class maintains an auto-expiring map for this purpose.
 /*!
  *  \note

@@ -116,7 +116,7 @@ void TJob::OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result)
     ChunkInfo = result.Value();
 
     Writer = New<TRemoteWriter>(
-        ~Owner->Config->RemoteWriter,
+        ~Owner->Config->ReplicationRemoteWriter,
         Chunk->GetId(),
         TargetAddresses);
     Writer->Open();
