@@ -13,7 +13,7 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChannelCache ChannelCache;
+static TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,8 +75,7 @@ public:
 
     void OnResponse(NBus::IMessage* message)
     {
-        // TODO: will be available soon
-        // Context->Reply(message);
+        Context->Reply(message);
     }
 
     void OnError(const TError& error)
@@ -93,14 +92,14 @@ private:
 TRedirecitingServiceBase::TRedirecitingServiceBase(
     const Stroka& serviceName,
     const Stroka& loggingCategory)
-        : ServiceName(serviceName)
-        , LoggingCategory(loggingCategory)
+    : ServiceName(serviceName)
+    , LoggingCategory(loggingCategory)
 { }
 
 void TRedirecitingServiceBase::OnBeginRequest(IServiceContext* context)
 {
     auto redirectParams = GetRedirectParams(context);
-    IChannel::TPtr channel = ChannelCache.GetChannel(redirectParams.Address);
+    auto channel = ChannelCache.GetChannel(redirectParams.Address);
 
     auto request = New<TRequest>(
         context->GetRequestMessage(),
@@ -113,7 +112,9 @@ void TRedirecitingServiceBase::OnBeginRequest(IServiceContext* context)
 }
 
 void TRedirecitingServiceBase::OnEndRequest(IServiceContext* context)
-{ }
+{
+    UNUSED(context);
+}
 
 Stroka TRedirecitingServiceBase::GetServiceName() const
 {

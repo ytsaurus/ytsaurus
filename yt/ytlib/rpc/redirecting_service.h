@@ -8,21 +8,22 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRedirectParams
-{
-    TDuration Timeout;
-    Stroka Address;
-};
-
 class TRedirecitingServiceBase
     : public IService
 {
 public:
-
     TRedirecitingServiceBase(
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
+    struct TRedirectParams
+    {
+        TDuration Timeout;
+        Stroka Address;
+    };
+
+
+protected:
     virtual TRedirectParams GetRedirectParams(IServiceContext* context) const = 0;
 
 private:
