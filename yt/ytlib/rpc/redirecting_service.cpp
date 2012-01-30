@@ -10,9 +10,6 @@ using namespace NBus;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = RpcLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 static TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,9 +66,7 @@ public:
     { }
 
     void OnAcknowledgement()
-    {
-        LOG_DEBUG("Request acknowledged");
-    }
+    { }
 
     void OnResponse(NBus::IMessage* message)
     {
@@ -85,6 +80,7 @@ public:
 
 private:
     IServiceContext::TPtr Context;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +95,11 @@ TRedirecitingServiceBase::TRedirecitingServiceBase(
 void TRedirecitingServiceBase::OnBeginRequest(IServiceContext* context)
 {
     auto redirectParams = GetRedirectParams(context);
+
+    context->SetRequestInfo(Sprintf("Address: %s, Timeout: %d",
+        ~redirectParams.Address,
+        static_cast<int>(redirectParams.Timeout.MilliSeconds())));
+
     auto channel = ChannelCache.GetChannel(redirectParams.Address);
 
     auto request = New<TRequest>(
