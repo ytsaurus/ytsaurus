@@ -42,12 +42,14 @@ Stroka JoinToString(const TCollection& items, Stroka delimiter = ", ")
 }
 
 template <class TIter>
-yvector<Stroka> ConvertToStrings(TIter begin, size_t maxSize)
+yvector<Stroka> ConvertToStrings(TIter begin, TIter end, size_t maxSize)
 {
     yvector<Stroka> result;
-    result.reserve(maxSize);
-    for (TIter it = begin; result.size() < maxSize; ++it) {
+    for (TIter it = begin; it != end; ++it) {
         result.push_back(it->ToString());
+        if (result.size() == maxSize) {
+            break;
+        }
     }
     return result;
 }
