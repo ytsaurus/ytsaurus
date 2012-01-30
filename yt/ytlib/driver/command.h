@@ -28,15 +28,15 @@ struct IDriverImpl
     virtual TDriver::TConfig* GetConfig() const = 0;
     virtual NRpc::IChannel* GetMasterChannel() const = 0;
 
-    virtual NYTree::TYsonProducer::TPtr CreateInputProducer(const Stroka& spec = Stroka()) = 0;
-    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec = Stroka()) = 0;
+    virtual NYTree::TYsonProducer::TPtr CreateInputProducer(const Stroka& spec = "") = 0;
+    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec = "") = 0;
 
-    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec = Stroka()) = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec = Stroka()) = 0;
+    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec = "") = 0;
+    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec = "") = 0;
 
     virtual void ReplyError(const TError& error) = 0;
     virtual void ReplySuccess() = 0;
-    virtual void ReplySuccess(const NYTree::TYson& yson, const Stroka& spec = Stroka()) = 0;
+    virtual void ReplySuccess(const NYTree::TYson& yson, const Stroka& spec = "") = 0;
 
     virtual NChunkClient::IBlockCache* GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManager* GetTransactionManager() = 0;

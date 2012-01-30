@@ -170,13 +170,11 @@ public:
         TYsonWriter writer(~output, Config->OutputFormat);
         BuildYsonFluently(&writer)
             .BeginMap()
-                .Item("error").BeginMap()
-                    .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent)
-                        {
-                            fluent.Item("code").Scalar(error.GetCode());
-                        })
-                    .Item("message").Scalar(error.GetMessage())
-                .EndMap()
+                .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent)
+                    {
+                        fluent.Item("code").Scalar(error.GetCode());
+                    })
+                .Item("message").Scalar(error.GetMessage())
             .EndMap();
         output->Write('\n');
     }
@@ -184,12 +182,10 @@ public:
     virtual void ReplySuccess()
     {
         YASSERT(Error.IsOK());
-        auto output = StreamProvider->CreateErrorStream();
+        auto output = StreamProvider->CreateOutputStream();
         TYsonWriter writer(~output, Config->OutputFormat);
         BuildYsonFluently(&writer)
             .BeginMap()
-                .Item("success").BeginMap()
-                .EndMap()
             .EndMap();
         output->Write('\n');
     }
