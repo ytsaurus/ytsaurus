@@ -283,10 +283,6 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler);
 
-void ReplyYPathWithMessage(
-    NRpc::IServiceContext* context,
-    NBus::IMessage* responseMessage);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DISPATCH_YPATH_SERVICE_METHOD(method) \

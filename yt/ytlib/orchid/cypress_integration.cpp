@@ -111,7 +111,7 @@ private:
 
         if (response->IsOK()) {
             auto innerResponseMessage = CreateMessageFromParts(response->Attachments());
-            ReplyYPathWithMessage(~context, ~innerResponseMessage);
+            context->Reply(~innerResponseMessage);
         } else {
             context->Reply(TError(Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
                 ~path,

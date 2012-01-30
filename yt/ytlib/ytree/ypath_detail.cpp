@@ -298,34 +298,6 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
         loggingCategory);
 }
 
-void ReplyYPathWithMessage(
-    NRpc::IServiceContext* context,
-    NBus::IMessage* responseMessage)
-{
-    auto parts = responseMessage->GetParts();
-    YASSERT(!parts.empty());
-
-    TResponseHeader header;
-    if (!DeserializeProtobuf(&header, parts[0])) {
-        LOG_FATAL("Error deserializing YPath response header");
-    }
-
-    TError error(
-        header.error_code(),
-        header.has_error_message() ? header.error_message() : "");
-
-    if (error.IsOK()) {
-        YASSERT(parts.ysize() >= 2);
-        
-        context->SetResponseBody(parts[1]);
-        
-        parts.erase(parts.begin(), parts.begin() + 2);
-        context->ResponseAttachments() = MoveRV(parts);
-    }
-
-    context->Reply(error);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

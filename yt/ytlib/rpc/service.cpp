@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "service.h"
+#include "rpc.pb.h"
 
 #include <ytlib/logging/log.h>
 
@@ -7,10 +8,39 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = RpcLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void IServiceContext::Reply(NBus::IMessage* message)
+{
+    auto parts = message->GetParts();
+    YASSERT(!parts.empty());
+
+    TResponseHeader header;
+    if (!DeserializeProtobuf(&header, parts[0])) {
+        LOG_FATAL("Error deserializing response header");
+    }
+
+    TError error(
+        header.error_code(),
+        header.has_error_message() ? header.error_message() : "");
+
+    if (error.IsOK()) {
+        YASSERT(parts.ysize() >= 2);
+
+        SetResponseBody(parts[1]);
+
+        parts.erase(parts.begin(), parts.begin() + 2);
+        ResponseAttachments() = MoveRV(parts);
+    }
+
+    Reply(error);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
