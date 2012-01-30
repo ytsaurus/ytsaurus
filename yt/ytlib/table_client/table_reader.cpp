@@ -28,7 +28,6 @@ TTableReader::TTableReader(
     , ReadChannel(readChannel)
     , Path(path)
     , IsOpen(false)
-    , IsClosed(false)
     , Proxy(masterChannel)
     , Logger(TableClientLogger)
 {
@@ -45,7 +44,6 @@ void TTableReader::Open()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(!IsOpen);
-    YASSERT(!IsClosed);
 
     LOG_INFO("Opening table reader");
 
@@ -122,19 +120,6 @@ TValue TTableReader::GetValue() const
     YASSERT(IsOpen);
 
     return Reader->GetValue();
-}
-
-void TTableReader::Close()
-{
-    VERIFY_THREAD_AFFINITY(Client);
-
-    if (!IsOpen)
-        return;
-
-    IsOpen = false;
-    IsClosed = true;
-
-    LOG_INFO("Table reader closed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

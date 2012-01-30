@@ -42,8 +42,6 @@ void TReadCommand::DoExecute(TReadRequest* request)
         writer.OnEndMap();
         stream->Write('\n');
     }
-
-    reader->Close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

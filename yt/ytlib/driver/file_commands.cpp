@@ -34,8 +34,6 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
         }
         output->Write(block.Begin(), block.Size());
     }
-
-    reader->Close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
