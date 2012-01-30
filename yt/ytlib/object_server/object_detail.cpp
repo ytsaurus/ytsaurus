@@ -235,6 +235,7 @@ void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSe
             userAttributes->Attributes().clear();
             FOREACH (const auto& pair, mapValue->GetChildren()) {
                 auto key = pair.first;
+                YASSERT(!key.empty());
                 auto value = SerializeToYson(~pair.second);
                 userAttributes->Attributes()[key] = value;
             }
@@ -245,6 +246,10 @@ void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSe
         ChopYPathToken(path, &token, &suffixPath);
 
         if (IsFinalYPath(suffixPath)) {
+            if (token.empty()) {
+                ythrow yexception() << "Cannot set empty attribute";
+            }
+
             if (!SetSystemAttribute(token, ~ProducerFromYson(request->value()))) {
             	// Check for system attributes
 	            yvector<TAttributeInfo> systemAttributes;
