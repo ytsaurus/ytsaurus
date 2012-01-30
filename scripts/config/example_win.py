@@ -41,7 +41,7 @@ class Base(AggrBase):
         path = opts.get_string('--name', 'control')
         
 class Server(Base):
-        bin_path = os.path.join(build_dir, r'bin\Debug\server.exe')
+        bin_path = os.path.join(build_dir, r'bin\Debug\ytserver.exe')
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)

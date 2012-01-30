@@ -45,7 +45,7 @@ class Base(AggrBase):
         print >>fd, 'rsync %s:%s %s' % (cls.host, cls.config['logging']['writers']['file']['file_name'], cls.local_dir)
     
 class Server(Base, RemoteServer):
-    bin_path = '/home/yt/build/bin/server'
+    bin_path = '/home/yt/build/bin/ytserver'
     
 class Master(Server):
     address = Subclass(MasterAddresses)
