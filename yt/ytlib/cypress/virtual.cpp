@@ -4,54 +4,29 @@
 #include <ytlib/cypress/node_detail.h>
 #include <ytlib/cypress/node_proxy_detail.h>
 
-#include <ytlib/ytree/yson_writer.h>
-#include <ytlib/ytree/tree_visitor.h>
-
 namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
-using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualNode
     : public TCypressNodeBase
 {
-    DEFINE_BYVAL_RO_PROPERTY(TYson, Manifest);
-
 public:
-    TVirtualNode(
-        const TVersionedNodeId& id,
-        const TYson& manifest = "")
+    explicit TVirtualNode(const TVersionedNodeId& id)
         : TCypressNodeBase(id)
-        , Manifest_(manifest)
     { }
 
-    TVirtualNode(
-        const TVersionedNodeId& id,
-        const TVirtualNode& other)
+    TVirtualNode(const TVersionedNodeId& id, const TVirtualNode& other)
         : TCypressNodeBase(id, other)
-        , Manifest_(other.Manifest_)
     { }
 
     virtual TAutoPtr<ICypressNode> Clone() const
     {
         return new TVirtualNode(Id, *this);
     }
-
-    virtual void Save(TOutputStream* output) const
-    {
-        TCypressNodeBase::Save(output);
-        ::Save(output, Manifest_);
-    }
-
-    virtual void Load(TInputStream* input)
-    {
-        TCypressNodeBase::Load(input);
-        ::Load(input, Manifest_);
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,13 +35,15 @@ class TVirtualNodeProxy
     : public TCypressNodeProxyBase<IEntityNode, TVirtualNode>
 {
 public:
+    typedef TCypressNodeProxyBase<IEntityNode, TVirtualNode> TBase;
+
     TVirtualNodeProxy(
         INodeTypeHandler* typeHandler,
         TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId,
         IYPathService* service)
-        : TCypressNodeProxyBase<IEntityNode, TVirtualNode>(
+        : TBase(
             typeHandler,
             cypressManager,
             transactionId,
@@ -84,8 +61,6 @@ public:
     }
 
 private:
-    typedef TCypressNodeProxyBase<IEntityNode, TVirtualNode> TBase;
-
     IYPathService::TPtr Service;
 
 };
@@ -111,15 +86,7 @@ public:
         const ICypressNode& node,
         const TTransactionId& transactionId)
     {
-        auto typedNode = dynamic_cast<const TVirtualNode&>(node);
-
-        TVirtualYPathContext context;
-        context.NodeId = node.GetId().ObjectId;
-        context.TransactionId = transactionId;
-        context.Manifest = typedNode.GetManifest();
-
-        auto service = Producer->Do(context);
-
+        auto service = Producer->Do(node.GetId());
         return New<TVirtualNodeProxy>(
             this,
             ~CypressManager,
@@ -144,10 +111,9 @@ public:
         NYTree::IMapNode* manifest)
     {
         UNUSED(transactionId);
-
-        return new TVirtualNode(
-            nodeId,
-            SerializeToYson(manifest));
+        TAutoPtr<ICypressNode> node = new TVirtualNode(nodeId);
+        ObjectManager->AddAttributes(nodeId, manifest);
+        return node;
     }
 
     virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id)
@@ -163,27 +129,27 @@ private:
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    EObjectType runtypeType,
+    EObjectType objectType,
     TYPathServiceProducer* producer)
 {
     return New<TVirtualNodeTypeHandler>(
         cypressManager,
         producer,
-        runtypeType);
+        objectType);
 }
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    EObjectType runtypeType,
+    EObjectType objectType,
     IYPathService* service)
 {
     IYPathService::TPtr service_ = service;
     return CreateVirtualTypeHandler(
         cypressManager,
-        runtypeType,
-        ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
+        objectType,
+        ~FromFunctor([=] (const TVersionedNodeId& id) -> IYPathService::TPtr
             {
-                UNUSED(context);
+                UNUSED(id);
                 return service_;
             }));
 }
