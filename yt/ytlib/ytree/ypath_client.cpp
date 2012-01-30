@@ -232,6 +232,7 @@ void ResolveYPath(
 void OnYPathResponse(
     IMessage::TPtr responseMessage,
     TFuture<IMessage::TPtr>::TPtr asyncResponseMessage,
+    const TYPath& path,
     const Stroka& verb,
     const TYPath& resolvedPath)
 {
@@ -241,7 +242,8 @@ void OnYPathResponse(
     if (error.IsOK()) {
         asyncResponseMessage->Set(responseMessage);
     } else {
-        Stroka message = Sprintf("Error executing a YPath operation (Verb: %s, ResolvedPath: %s)\n%s",
+        Stroka message = Sprintf("Error executing a YPath operation (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
+            ~path,
             ~verb,
             ~resolvedPath,
             ~error.GetMessage());
@@ -285,6 +287,7 @@ ExecuteVerb(
         ~FromMethod(
             &OnYPathResponse,
             asyncResponseMessage,
+            path,
             verb,
             ComputeResolvedYPath(path, suffixPath)));
 
