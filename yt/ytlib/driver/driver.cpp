@@ -113,8 +113,7 @@ public:
 
         MasterChannel = CreateCellChannel(~config->Masters);
 
-        // TODO: make configurable
-        BlockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
+        BlockCache = CreateClientBlockCache(~config->BlockCache);
 
         TransactionManager = New<TTransactionManager>(
             ~config->TransactionManager,
