@@ -88,6 +88,8 @@ public:
 
     void AddAttributes(const TVersionedObjectId& id, NYTree::IMapNode* value);
     void RemoveAttributes(const TVersionedObjectId& id);
+    NYTree::IMapNode::TPtr GetAttributesMap(const TVersionedObjectId& id) const;
+
 
 private:
     TCellId CellId;

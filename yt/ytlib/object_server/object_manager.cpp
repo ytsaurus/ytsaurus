@@ -235,6 +235,20 @@ void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
     Attributes.Remove(id);
 }
 
+IMapNode::TPtr TObjectManager::GetAttributesMap(const TVersionedObjectId& id) const
+{
+    auto map = GetEphemeralNodeFactory()->CreateMap();
+    const auto* attributes = FindAttributes(id);
+    if (!attributes) {
+        return map;
+    }
+    FOREACH (const auto& pair, attributes->Attributes()) {
+        auto value = DeserializeFromYson(pair.second);
+        map->AddChild(~value, pair.first);
+    }
+    return map;
+}
+
 DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
 
 ////////////////////////////////////////////////////////////////////////////////
