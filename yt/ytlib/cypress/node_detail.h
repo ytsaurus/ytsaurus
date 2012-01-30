@@ -10,6 +10,7 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/tree_builder.h>
+#include <ytlib/object_server/object_detail.h>
 
 namespace NYT {
 namespace NCypress {
@@ -57,14 +58,14 @@ class TCypressNodeTypeHandlerBase
     : public INodeTypeHandler
 {
 public:
-    TCypressNodeTypeHandlerBase(TCypressManager* cypressManager)
+    explicit TCypressNodeTypeHandlerBase(TCypressManager* cypressManager)
         : CypressManager(cypressManager)
         , ObjectManager(cypressManager->GetObjectManager())
     { }
 
     virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id)
     {
-        return new TImpl(id, GetObjectType());
+        return new TImpl(id);
     }
 
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
@@ -189,7 +190,8 @@ private:
 //////////////////////////////////////////////////////////////////////////////// 
 
 class TCypressNodeBase
-    : public ICypressNode
+    : public NObjectServer::TObjectBase
+    , public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
@@ -197,7 +199,7 @@ class TCypressNodeBase
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
 
 public:
-    TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType);
+    explicit TCypressNodeBase(const TVersionedNodeId& id);
     TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other);
 
     virtual EObjectType GetObjectType() const;
@@ -212,7 +214,6 @@ public:
 
 protected:
     TVersionedNodeId Id;
-    EObjectType ObjectType;
     i32 RefCounter;
 
 };
@@ -259,8 +260,8 @@ class TScalarNode
     DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
-    TScalarNode(const TVersionedNodeId& id, EObjectType objectType)
-        : TCypressNodeBase(id, objectType)
+    explicit TScalarNode(const TVersionedNodeId& id)
+        : TCypressNodeBase(id)
     { }
 
     TScalarNode(const TVersionedNodeId& id, const TThis& other)
@@ -341,7 +342,7 @@ class TMapNode
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
 
 public:
-    TMapNode(const TVersionedNodeId& id, EObjectType objectType);
+    explicit TMapNode(const TVersionedNodeId& id);
     TMapNode(const TVersionedNodeId& id, const TMapNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
@@ -358,7 +359,7 @@ class TMapNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TMapNode>
 {
 public:
-    TMapNodeTypeHandler(TCypressManager* cypressManager);
+    explicit TMapNodeTypeHandler(TCypressManager* cypressManager);
 
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
@@ -394,7 +395,7 @@ class TListNode
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
 
 public:
-    explicit TListNode(const TVersionedNodeId& id, EObjectType objectType);
+    explicit TListNode(const TVersionedNodeId& id);
     TListNode(const TVersionedNodeId& id, const TListNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;
@@ -410,8 +411,7 @@ class TListNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TListNode>
 {
 public:
-    TListNodeTypeHandler(
-        TCypressManager* cypressManager);
+    TListNodeTypeHandler(TCypressManager* cypressManager);
 
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();

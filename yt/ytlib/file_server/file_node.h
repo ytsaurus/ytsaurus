@@ -18,7 +18,7 @@ class TFileNode
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkListId, ChunkListId);
 
 public:
-    TFileNode(const NCypress::TVersionedNodeId& id, NCypress::EObjectType objectType);
+    explicit TFileNode(const NCypress::TVersionedNodeId& id);
     TFileNode(const NCypress::TVersionedNodeId& id, const TFileNode& other);
 
     virtual TAutoPtr<ICypressNode> Clone() const;

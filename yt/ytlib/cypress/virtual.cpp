@@ -23,9 +23,8 @@ class TVirtualNode
 public:
     TVirtualNode(
         const TVersionedNodeId& id,
-        EObjectType objectType,
         const TYson& manifest = "")
-        : TCypressNodeBase(id, objectType)
+        : TCypressNodeBase(id)
         , Manifest_(manifest)
     { }
 
@@ -148,26 +147,18 @@ public:
 
         return new TVirtualNode(
             nodeId,
-            ObjectType,
             SerializeToYson(manifest));
     }
 
-    virtual TAutoPtr<ICypressNode> Create(
-        const TVersionedNodeId& id)
+    virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id)
     {
-        return new TVirtualNode(id, ObjectType);
+        return new TVirtualNode(id);
     }
 
 private:
     TYPathServiceProducer::TPtr Producer;
     EObjectType ObjectType;
 
-    //static void GetManifest(const TGetAttributeParam& param)
-    //{
-    //    TStringInput input(param.Node->GetManifest());
-    //    TYsonReader reader(param.Consumer, &input);
-    //    reader.Read();
-    //}
 };
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(

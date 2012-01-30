@@ -938,7 +938,7 @@ void TCypressManager::Clear()
     LockMap.Clear();
 
     // Create the root.
-    auto* root = new TMapNode(GetRootNodeId(), EObjectType::MapNode);
+    auto* root = new TMapNode(GetRootNodeId());
     NodeMap.Insert(root->GetId(), root);
     ObjectManager->RefObject(root->GetId().ObjectId);
 }

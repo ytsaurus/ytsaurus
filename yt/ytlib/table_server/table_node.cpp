@@ -11,8 +11,8 @@ using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableNode::TTableNode(const TVersionedNodeId& id, EObjectType objectType)
-    : TCypressNodeBase(id, objectType)
+TTableNode::TTableNode(const TVersionedNodeId& id)
+    : TCypressNodeBase(id)
 { }
 
 TTableNode::TTableNode(const TVersionedNodeId& id, const TTableNode& other)
@@ -73,7 +73,7 @@ public:
         UNUSED(transactionId);
         UNUSED(manifest);
 
-        TAutoPtr<TTableNode> node = new TTableNode(nodeId, GetObjectType());
+        TAutoPtr<TTableNode> node = new TTableNode(nodeId);
 
         // Create an empty chunk list and reference it from the node.
         auto& chunkList = ChunkManager->CreateChunkList();
@@ -81,6 +81,7 @@ public:
         node->SetChunkListId(chunkListId);
         CypressManager->GetObjectManager()->RefObject(chunkListId);
 
+        // TODO(babenko): stupid TAutoPtr does not support upcast.
         return node.Release();
     }
 
