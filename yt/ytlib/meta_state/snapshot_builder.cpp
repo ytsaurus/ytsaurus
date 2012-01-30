@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "snapshot_creator.h"
+#include "snapshot_builder.h"
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/misc/serialize.h>
@@ -16,14 +16,14 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSnapshotCreator::TSession
+class TSnapshotBuilder::TSession
     : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSession> TPtr;
 
     TSession(
-        TSnapshotCreator::TPtr creator,
+        TSnapshotBuilder::TPtr creator,
         TMetaVersion version)
         : Creator(creator)
         , Version(version)
@@ -114,7 +114,7 @@ private:
         Checksums[followerId] = MakePair(checksum, true);
     }
 
-    TSnapshotCreator::TPtr Creator;
+    TSnapshotBuilder::TPtr Creator;
     TMetaVersion Version;
     TParallelAwaiter::TPtr Awaiter;
     yvector< TPair<TChecksum, bool> > Checksums;
@@ -122,7 +122,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotCreator::TSnapshotCreator(
+TSnapshotBuilder::TSnapshotBuilder(
     TConfig* config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
@@ -148,7 +148,7 @@ TSnapshotCreator::TSnapshotCreator(
     StateInvoker = metaState->GetStateInvoker();
 }
 
-TSnapshotCreator::EResultCode TSnapshotCreator::CreateDistributed()
+TSnapshotBuilder::EResultCode TSnapshotBuilder::CreateDistributed()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -161,7 +161,7 @@ TSnapshotCreator::EResultCode TSnapshotCreator::CreateDistributed()
     return EResultCode::OK;
 }
 
-TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
+TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     TMetaVersion version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -199,13 +199,13 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
 
     // The writer reference is being held by the closure action.
     return saveResult->Apply(FromMethod(
-        &TSnapshotCreator::OnSave,
+        &TSnapshotBuilder::OnSave,
         TPtr(this),
         snapshotId,
         writer));
 }
 
-TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
+TSnapshotBuilder::TLocalResult TSnapshotBuilder::OnSave(
     TVoid /* fake */,
     i32 segmentId,
     TSnapshotWriter::TPtr writer)

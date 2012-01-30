@@ -17,7 +17,7 @@ set( SRCS
   ${BASE}/persistent_state_manager.cpp
   ${BASE}/recovery.cpp
   ${BASE}/snapshot.cpp
-  ${BASE}/snapshot_creator.cpp
+  ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/snapshot_store.cpp
   ${BASE}/transient_state_manager.cpp
@@ -51,7 +51,7 @@ set( HDRS
   ${BASE}/persistent_state_manager.h
   ${BASE}/recovery.h
   ${BASE}/snapshot.h
-  ${BASE}/snapshot_creator.h
+  ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
   ${BASE}/snapshot_store.h
   ${BASE}/transient_state_manager.h

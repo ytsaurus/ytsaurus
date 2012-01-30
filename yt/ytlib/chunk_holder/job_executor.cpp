@@ -16,15 +16,13 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJob::TJob(
+    TJobExecutor* owner,
     IInvoker* serviceInvoker,
-    TChunkStore* chunkStore,
-    TBlockStore* blockStore,
     EJobType jobType,
     const TJobId& jobId,
     TStoredChunk* chunk,
     const yvector<Stroka>& targetAddresses)
-    : ChunkStore(chunkStore)
-    , BlockStore(blockStore)
+    : Owner(owner)
     , JobType(jobType)
     , JobId(jobId)
     , State(EJobState::Running)
@@ -34,8 +32,6 @@ TJob::TJob(
     , Logger(ChunkHolderLogger)
 {
     YASSERT(serviceInvoker);
-    YASSERT(chunkStore);
-    YASSERT(blockStore);
     YASSERT(chunk);
 
     Logger.AddTag(Sprintf("JobId: %s", ~JobId.ToString()));
@@ -73,7 +69,7 @@ void TJob::Start()
             LOG_INFO("Removal job started (ChunkId: %s)",
                 ~Chunk->GetId().ToString());
 
-            ChunkStore->RemoveChunk(~Chunk);
+            Owner->ChunkStore->RemoveChunk(~Chunk);
 
             LOG_DEBUG("Removal job completed");
 
@@ -120,7 +116,7 @@ void TJob::OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result)
     ChunkInfo = result.Value();
 
     Writer = New<TRemoteWriter>(
-        ~New<TRemoteWriter::TConfig>(),
+        ~Owner->Config->RemoteWriter,
         Chunk->GetId(),
         TargetAddresses);
     Writer->Open();
@@ -155,7 +151,7 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
     LOG_DEBUG("Retrieving block for replication (BlockIndex: %d)",
         blockIndex);
 
-    BlockStore->GetBlock(blockId)->Subscribe(
+    Owner->BlockStore->GetBlock(blockId)->Subscribe(
         FromMethod(
             &TJob::OnBlockLoaded,
             TPtr(this),
@@ -202,10 +198,12 @@ void TJob::OnWriterClosed(TError error)
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobExecutor::TJobExecutor(
+    TConfig* config,
     TChunkStore* chunkStore,
     TBlockStore* blockStore,
     IInvoker* serviceInvoker)
-    : ChunkStore(chunkStore)
+    : Config(config)
+    , ChunkStore(chunkStore)
     , BlockStore(blockStore)
     , ServiceInvoker(serviceInvoker)
 {
@@ -221,9 +219,8 @@ TJob::TPtr TJobExecutor::StartJob(
     const yvector<Stroka>& targetAddresses)
 {
     auto job = New<TJob>(
+        this,
         ~ServiceInvoker,
-        ~ChunkStore,
-        ~BlockStore,
         jobType,
         jobId,
         chunk,

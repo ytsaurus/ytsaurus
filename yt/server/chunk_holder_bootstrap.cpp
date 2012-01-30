@@ -134,6 +134,7 @@ void TChunkHolderBootstrap::Run()
         ~controlQueue->GetInvoker());
 
     auto jobExecutor = New<TJobExecutor>(
+        ~Config,
         ~chunkStore,
         ~blockStore,
         ~controlQueue->GetInvoker());

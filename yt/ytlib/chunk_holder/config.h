@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_holder/peer_block_table.h>
 #include <ytlib/election/leader_lookup.h>
@@ -103,6 +104,8 @@ struct TChunkHolderConfig
     //! Remote reader configuration used to download chunks into cache.
     NChunkClient::TRemoteReaderConfig::TPtr CacheRemoteReader;
 
+    NChunkClient::TRemoteWriter::TConfig::TPtr RemoteWriter;
+
     //! Sequential reader configuration used to download chunks into cache.
     NChunkClient::TSequentialReader::TConfig::TPtr CacheSequentialReader;
 
@@ -111,6 +114,7 @@ struct TChunkHolderConfig
     //! Masters configuration.
     NElection::TLeaderLookup::TConfig::TPtr Masters;
     
+
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -153,6 +157,8 @@ struct TChunkHolderConfig
         Register("block_table", BlockTable)
             .DefaultNew();
         Register("masters", Masters);
+        Register("remote_writer", RemoteWriter)
+            .DefaultNew();
     }
 };
 
