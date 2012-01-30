@@ -98,10 +98,12 @@ protected:
     {
         Stroka Name;
         bool IsPresent;
+        bool IsOpaque;
 
-        TAttributeInfo(const char* name, bool isPresent = true)
+        TAttributeInfo(const char* name, bool isPresent = true, bool isOpaque = false)
             : Name(name)
             , IsPresent(isPresent)
+            , IsOpaque(isOpaque)
         { }
     };
 

@@ -147,7 +147,11 @@ void TObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGe
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
                 writer.OnMapItem(attribute.Name);
-                YVERIFY(GetSystemAttribute(attribute.Name, &writer));
+                if (attribute.IsOpaque) {
+                    writer.OnEntity();
+                } else {
+                    YVERIFY(GetSystemAttribute(attribute.Name, &writer));
+                }
             }
         }
 
