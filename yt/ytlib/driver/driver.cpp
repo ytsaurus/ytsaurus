@@ -142,7 +142,7 @@ public:
     {
         Error = TError();
         try {
-            GuardedExecute(request);
+            DoExecute(request);
         } catch (const std::exception& ex) {
             ReplyError(TError(ex.what()));
         }
@@ -271,7 +271,7 @@ private:
         YVERIFY(Commands.insert(MakePair(name, command)).second);
     }
 
-    void GuardedExecute(const TYson& requestYson)
+    void DoExecute(const TYson& requestYson)
     {
         INode::TPtr requestNode;
         auto request = New<TRequestBase>();
@@ -290,14 +290,7 @@ private:
         }
 
         auto command = commandIt->second;
-        try {
-            command->Execute(~requestNode);
-        }
-        catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error executing request (Command: %s)\n%s",
-                ~commandName,
-                ex.what());
-        }
+        command->Execute(~requestNode);
     }
     
 };
