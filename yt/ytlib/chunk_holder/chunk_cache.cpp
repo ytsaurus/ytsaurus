@@ -69,14 +69,18 @@ public:
         Register(chunk);
     }
 
-    TAsyncDownloadResult::TPtr Download(const TChunkId& chunkId)
+    TAsyncDownloadResult::TPtr Download(
+        const TChunkId& chunkId,
+        const yvector<Stroka>& seedAddresses)
     {
-        LOG_INFO("Getting chunk from cache (ChunkId: %s)", ~chunkId.ToString());
+        LOG_INFO("Getting chunk from cache (ChunkId: %s, SeedAddresses: [%s])",
+            ~chunkId.ToString(),
+            ~JoinToString(seedAddresses));
 
         TSharedPtr<TInsertCookie> cookie(new TInsertCookie(chunkId));
         if (BeginInsert(~cookie)) {
             LOG_INFO("Loading chunk into cache (ChunkId: %s)", ~chunkId.ToString());
-            auto session = New<TDownloadSession>(this, chunkId, cookie);
+            auto session = New<TDownloadSession>(this, chunkId, seedAddresses, cookie);
             session->Start();
         } else {
             LOG_INFO("Chunk is already cached (ChunkId: %s)", ~chunkId.ToString());
@@ -122,9 +126,11 @@ private:
         TDownloadSession(
             TImpl* owner,
             const TChunkId& chunkId,
+            const yvector<Stroka>& seedAddresses,
             TSharedPtr<TInsertCookie> cookie)
             : Owner(owner)
             , ChunkId(chunkId)
+            , SeedAddresses(seedAddresses)
             , Cookie(cookie)
             , Invoker(Owner->Location->GetInvoker())
             , Logger(ChunkHolderLogger)
@@ -138,6 +144,7 @@ private:
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
                 FileWriter = New<TChunkFileWriter>(ChunkId, fileName);
+                FileWriter->Open();
             } catch (const std::exception& ex) {
                 LOG_FATAL("Error opening cached chunk for writing\n%s", ex.what());
             }
@@ -147,7 +154,7 @@ private:
                 Owner->BlockStore->GetBlockCache(),
                 ~Owner->MasterChannel,
                 ChunkId,
-                yvector<Stroka>());
+                SeedAddresses);
 
             LOG_INFO("Getting chunk info from holders");
             RemoteReader->AsyncGetChunkInfo()->Subscribe(
@@ -158,6 +165,7 @@ private:
     private:
         TImpl::TPtr Owner;
         TChunkId ChunkId;
+        yvector<Stroka> SeedAddresses;
         TSharedPtr<TInsertCookie> Cookie;
         IInvoker::TPtr Invoker;
 
@@ -328,10 +336,12 @@ int TChunkCache::GetChunkCount()
     return Impl->GetSize();
 }
 
-TChunkCache::TAsyncDownloadResult::TPtr TChunkCache::DownloadChunk(const TChunkId& chunkId)
+TChunkCache::TAsyncDownloadResult::TPtr TChunkCache::DownloadChunk(
+    const TChunkId& chunkId,
+    const yvector<Stroka>& seedAddresses)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return Impl->Download(chunkId);
+    return Impl->Download(chunkId, seedAddresses);
 }
 
 DELEGATE_BYREF_RW_PROPERTY(TChunkCache, TParamSignal<TChunk*>, ChunkAdded, *Impl);
