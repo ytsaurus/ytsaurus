@@ -27,7 +27,6 @@ set( HDRS
   ${BASE}/node_detail.h
   ${BASE}/null_yson_consumer.h
   ${BASE}/serialize.h
-  ${BASE}/serialize-inl.h
   ${BASE}/tree_builder.h
   ${BASE}/tree_visitor.h
   ${BASE}/virtual.h
