@@ -248,7 +248,7 @@ public:
         return
             object->RefCounter->TryRef()
             ? ::NYT::TIntrusivePtr<T>(object, false)
-            : ::NYT::TIntrusivePtr<T>(NULL);
+            : ::NYT::TIntrusivePtr<T>();
     }
 
 private:
@@ -328,7 +328,7 @@ public:
         return
             NDetail::AtomicallyIncrementIfNonZero(&object->RefCounter) > 0
             ? ::NYT::TIntrusivePtr<T>(object, false)
-            : ::NYT::TIntrusivePtr<T>(NULL);
+            : ::NYT::TIntrusivePtr<T>();
     }
 
 private:
