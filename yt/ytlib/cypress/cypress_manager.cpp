@@ -436,8 +436,7 @@ void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
 
     YVERIFY(NodeBehaviors.insert(MakePair(nodeId.ObjectId, behavior)).second);
 
-    LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)", 
-        ~nodeId.ObjectId.ToString());
+    LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)",  ~nodeId.ObjectId.ToString());
 }
 
 void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
@@ -452,8 +451,7 @@ void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
     it->second->Destroy();
     NodeBehaviors.erase(it);
 
-    LOG_DEBUG_IF(!IsRecovery(), "Node behavior destroyed (NodeId: %s)",
-        ~nodeId.ObjectId.ToString());
+    LOG_DEBUG_IF(!IsRecovery(), "Node behavior destroyed (NodeId: %s)", ~nodeId.ObjectId.ToString());
 }
 
 TNodeId TCypressManager::GetRootNodeId()
@@ -522,7 +520,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
     if (isMandatory) {
         if (transactionId == NullTransactionId) {
             ythrow yexception() << Sprintf("The requested operation requires %s lock but no current transaction is given",
-                ~requestedMode.ToString());
+                ~FormatEnum(requestedMode).Quote());
         }
         AcquireLock(nodeId, transactionId, requestedMode);
     }
@@ -642,9 +640,9 @@ void TCypressManager::ValidateLock(
         if (node) {
             if (!AreLocksCompatible(node->GetLockMode(), transactionId, requestedMode, transactionId)) {
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s: the node is already locked in %s mode",
-                    ~requestedMode.ToString(),
+                    ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
-                    ~node->GetLockMode().ToString());
+                    ~FormatEnum(node->GetLockMode()).Quote());
             }
             if (node->GetLockMode() >= requestedMode) {
                 // This node already has a lock that is at least as strong the requested one.
@@ -677,9 +675,9 @@ void TCypressManager::ValidateLock(
                     }
                     if (!AreLocksCompatible(lock.GetMode(), lock.GetTransactionId(), requestedMode, transactionId)) {
                         ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s lock at node %s taken by transaction %s",
-                            ~requestedMode.ToString(),
+                            ~FormatEnum(requestedMode).Quote(),
                             ~nodeId.ToString(),
-                            ~lock.GetMode().ToString(),
+                            ~FormatEnum(lock.GetMode()).Quote(),
                             ~lock.GetNodeId().ToString(),
                             ~lock.GetTransactionId().ToString());
                     }
