@@ -226,7 +226,7 @@ public:
             : &Owner->GetTransactionForUpdate(transactionId);
 
         auto id = Owner->Start(parent, ~manifest).GetId();
-        SetAttributes(id, manifestNode);
+        ObjectManager->AddAttributes(id, manifestNode);
         return id;
     }
 

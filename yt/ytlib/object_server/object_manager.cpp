@@ -1,11 +1,14 @@
 #include "stdafx.h"
 #include "object_manager.h"
 
+#include <ytlib/ytree/serialize.h>
+
 #include <util/digest/murmur.h>
 
 namespace NYT {
 namespace NObjectServer {
 
+using namespace NYTree;
 using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,6 +211,23 @@ TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
     auto result = new TAttributeSet();
     Attributes.Insert(id, result);
     return result;
+}
+
+void TObjectManager::AddAttributes(const TVersionedObjectId& id, IMapNode* value)
+{
+    if (value->GetChildCount() == 0)
+        return;
+
+    auto* attributes = FindAttributesForUpdate(id);
+    if (!attributes) {
+        attributes = CreateAttributes(id);
+    }
+
+    FOREACH (const auto& pair, value->GetChildren()) {
+        const auto& key = pair.first;
+        auto value = SerializeToYson(~pair.second);
+        YVERIFY(attributes->Attributes().insert(MakePair(key, value)).second);
+    }
 }
 
 void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
