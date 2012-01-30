@@ -77,6 +77,14 @@ def works_only_from_the_project_root(func):
 
     return inner_func
 
+# Colorize given string (now only green and red are supported)
+def colored(color, string):
+    CSI="\x1B["
+    colors = {
+        'Red':'01;31', 
+        'Green':'01;32'}
+    code = colors[color];
+    return CSI + code + 'm' + string + CSI + '0m'
 
 ################################################################################
 ### CMakeLists.txt discovery functions.
@@ -333,9 +341,9 @@ if __name__ == '__main__':
         for list in filter_updatable_lists(expand_args_to_lists(args)):
             print '* Processing {0}...'.format(list)
             if update_list(list):
-                print 'REWRITTEN', list
+                print colored('Red', 'REWRITTEN'), list
             else:
-                print 'UNTOUCHED', list
+                print colored('Green', 'UNTOUCHED'), list
 
     def do_discover_lists(args):
         for list in expand_args_to_lists(args):
