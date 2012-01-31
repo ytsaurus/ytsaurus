@@ -72,16 +72,14 @@ private:
             for (TPeerId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
                 const auto& checksum1 = Checksums[id1];
                 const auto& checksum2 = Checksums[id2];
-                if (checksum1.second && checksum2.second && 
-                    checksum1.first != checksum2.first)
-                {
+                if (checksum1 && checksum2 && checksum1 != checksum2) {
                     // TODO: consider killing followers
                     LOG_FATAL(
                         "Snapshot checksum mismatch: "
                         "peer %d reported %" PRIx64 ", "
                         "peer %d reported %" PRIx64,
-                        id1, checksum1.first,
-                        id2, checksum2.first);
+                        id1, *checksum1,
+                        id2, *checksum2);
                 }
             }
         }
@@ -93,7 +91,7 @@ private:
     {
         YASSERT(result.ResultCode == EResultCode::OK);
 
-        Checksums[Creator->CellManager->GetSelfId()] = MakePair(result.Checksum, true);
+        Checksums[Creator->CellManager->GetSelfId()] = MakeNullable(result.Checksum);
     }
 
     void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
@@ -111,13 +109,13 @@ private:
             followerId,
             checksum);
 
-        Checksums[followerId] = MakePair(checksum, true);
+        Checksums[followerId] = MakeNullable(checksum);
     }
 
     TSnapshotBuilder::TPtr Creator;
     TMetaVersion Version;
     TParallelAwaiter::TPtr Awaiter;
-    yvector< TPair<TChecksum, bool> > Checksums;
+    yvector< TNullable<TChecksum> > Checksums;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,7 +135,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , LocalProgress(ToFuture(TVoid()))
+    , LocalProgress(MakeFuture(TVoid()))
 {
     YASSERT(cellManager);
     YASSERT(metaState);

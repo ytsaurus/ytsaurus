@@ -10,7 +10,6 @@
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/logging/tagged_logger.h>
 
-
 namespace NYT {
 namespace NChunkHolder {
 
@@ -52,8 +51,6 @@ private:
     friend class TJobExecutor;
 
     TJobExecutor* Owner;
-//    TChunkStore::TPtr ChunkStore;
-//    TBlockStore::TPtr BlockStore;
     EJobType JobType;
     TJobId JobId;
     EJobState State;

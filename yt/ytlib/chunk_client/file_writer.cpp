@@ -51,13 +51,13 @@ TAsyncError::TPtr TChunkFileWriter::AsyncWriteBlock(const TSharedRef& data)
 
     DataSize += data.Size();
 
-    return ToFuture(TError());
+    return MakeFuture(TError());
 }
 
 TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attributes)
 {
     if (!IsOpen)
-        return ToFuture(TError());
+        return MakeFuture(TError());
 
     IsOpen = false;
     IsClosed = true;
@@ -103,7 +103,7 @@ TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attribute
     ChunkInfo.mutable_blocks()->MergeFrom(ChunkMeta.blocks());
     ChunkInfo.mutable_attributes()->CopyFrom(ChunkMeta.attributes());
 
-    return ToFuture(TError());
+    return MakeFuture(TError());
 }
 
 void TChunkFileWriter::Cancel(const TError& error)

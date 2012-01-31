@@ -16,8 +16,8 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileNode::TFileNode(const TVersionedNodeId& id, EObjectType objectType)
-    : TCypressNodeBase(id, objectType)
+TFileNode::TFileNode(const TVersionedNodeId& id)
+    : TCypressNodeBase(id)
     , ChunkListId_(NullChunkListId)
 { }
 
@@ -91,7 +91,7 @@ public:
             ythrow yexception() << Sprintf("Chunk is not confirmed (ChunkId: %s)", ~chunkId.ToString());
         }
 
-        TAutoPtr<TFileNode> node = new TFileNode(nodeId, GetObjectType());
+        TAutoPtr<TFileNode> node = new TFileNode(nodeId);
 
         // File node references chunk list.
         auto& chunkList = ChunkManager->CreateChunkList();

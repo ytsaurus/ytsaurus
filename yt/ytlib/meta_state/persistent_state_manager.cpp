@@ -91,7 +91,7 @@ public:
         TConfig* config,
         IInvoker* controlInvoker,
         IMetaState* metaState,
-        NRpc::IRpcServer* server)
+        NRpc::IServer* server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , ControlStatus(EPeerStatus::Stopped)
         , StateStatus(EPeerStatus::Stopped)
@@ -1221,7 +1221,7 @@ IMetaStateManager::TPtr CreateAndRegisterPersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IMetaState* metaState,
-    NRpc::IRpcServer* server)
+    NRpc::IServer* server)
 {
     YASSERT(controlInvoker);
     YASSERT(metaState);

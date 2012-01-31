@@ -91,6 +91,7 @@ public:
         const TTransactionId& transactionId,
         IMapNode* manifest)
     {
+        UNUSED(transactionId);
         UNUSED(manifest);
         ythrow yexception() << "Cannot create a node outside Cypress";
     }
@@ -426,8 +427,7 @@ INodeTypeHandler* TCypressManager::GetHandler(const ICypressNode& node)
 void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
 {
     auto nodeId = node.GetId();
-    if (nodeId.IsBranched())
-        return;
+    YASSERT(!nodeId.IsBranched());
 
     auto handler = GetHandler(node);
     auto behavior = handler->CreateBehavior(node);
@@ -436,15 +436,13 @@ void TCypressManager::CreateNodeBehavior(const ICypressNode& node)
 
     YVERIFY(NodeBehaviors.insert(MakePair(nodeId.ObjectId, behavior)).second);
 
-    LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)",
-        ~nodeId.ObjectId.ToString());
+    LOG_DEBUG_IF(!IsRecovery(), "Node behavior created (NodeId: %s)",  ~nodeId.ObjectId.ToString());
 }
 
 void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
 {
     auto nodeId = node.GetId();
-    if (nodeId.IsBranched())
-        return;
+    YASSERT(!nodeId.IsBranched());
 
     auto it = NodeBehaviors.find(nodeId.ObjectId);
     if (it == NodeBehaviors.end())
@@ -453,8 +451,7 @@ void TCypressManager::DestroyNodeBehavior(const ICypressNode& node)
     it->second->Destroy();
     NodeBehaviors.erase(it);
 
-    LOG_DEBUG_IF(!IsRecovery(), "Node behavior destroyed (NodeId: %s)",
-        ~nodeId.ObjectId.ToString());
+    LOG_DEBUG_IF(!IsRecovery(), "Node behavior destroyed (NodeId: %s)", ~nodeId.ObjectId.ToString());
 }
 
 TNodeId TCypressManager::GetRootNodeId()
@@ -523,7 +520,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
     if (isMandatory) {
         if (transactionId == NullTransactionId) {
             ythrow yexception() << Sprintf("The requested operation requires %s lock but no current transaction is given",
-                ~requestedMode.ToString());
+                ~FormatEnum(requestedMode).Quote());
         }
         AcquireLock(nodeId, transactionId, requestedMode);
     }
@@ -637,15 +634,16 @@ void TCypressManager::ValidateLock(
     ELockMode requestedMode,
     bool* isMandatory)
 {
-    if (transactionId != NullTransactionId) {
-        // Check if we already have branched this node within the current transaction.
-        const auto* node = FindNode(TVersionedNodeId(nodeId, transactionId));
+    // Check if we already have branched this node within the current or parent transaction.
+    auto currentTransactionId = transactionId;
+    while (currentTransactionId != NullTransactionId) {
+        const auto* node = FindNode(TVersionedNodeId(nodeId, currentTransactionId));
         if (node) {
-            if (!AreLocksCompatible(node->GetLockMode(), transactionId, requestedMode, transactionId)) {
+            if (!AreConcurrentLocksCompatible(node->GetLockMode(), requestedMode)) {
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s: the node is already locked in %s mode",
-                    ~requestedMode.ToString(),
+                    ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
-                    ~node->GetLockMode().ToString());
+                    ~FormatEnum(node->GetLockMode()).Quote());
             }
             if (node->GetLockMode() >= requestedMode) {
                 // This node already has a lock that is at least as strong the requested one.
@@ -655,6 +653,8 @@ void TCypressManager::ValidateLock(
                 return;
             }
         }
+        const auto& transaction = TransactionManager->GetTransaction(currentTransactionId);
+        currentTransactionId = transaction.GetParentId();
     }
 
     // For modes other than Snapshot we have to examine the existing locks on the path to the root.
@@ -676,11 +676,11 @@ void TCypressManager::ValidateLock(
                         }
                         return;
                     }
-                    if (!AreLocksCompatible(lock.GetMode(), lock.GetTransactionId(), requestedMode, transactionId)) {
+                    if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
                         ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s lock at node %s taken by transaction %s",
-                            ~requestedMode.ToString(),
+                            ~FormatEnum(requestedMode).Quote(),
                             ~nodeId.ToString(),
-                            ~lock.GetMode().ToString(),
+                            ~FormatEnum(lock.GetMode()).Quote(),
                             ~lock.GetNodeId().ToString(),
                             ~lock.GetTransactionId().ToString());
                     }
@@ -705,32 +705,29 @@ void TCypressManager::ValidateLock(
     }
 }
 
-bool TCypressManager::AreLocksCompatible(
-    ELockMode existingMode,
-    const TTransactionId& existingId,
-    ELockMode requestedMode,
-    const TTransactionId& requestedId)
+bool TCypressManager::AreCompetingLocksCompatible(ELockMode existingMode, ELockMode requestedMode)
 {
-    if (existingId == requestedId) {
-        // Within a single transaction snapshot lock is only compatible with another snapshot lock.
-        if (existingMode == ELockMode::Snapshot && requestedMode != ELockMode::Snapshot) {
-            return false;
-        }
-        if (requestedMode == ELockMode::Snapshot && existingMode != ELockMode::Snapshot) {
-            return false;
-        }
-        return true;
-    } else {
-        // Across transactions snapshot locks are safe.
-        if (existingMode == ELockMode::Snapshot || requestedMode == ELockMode::Snapshot) {
-            return true;
-        }
-        // Across transactions exclusive locks are not compatible with others.
-        if (existingMode == ELockMode::Exclusive || requestedMode == ELockMode::Exclusive) {
-            return false;
-        }
+    // For competing transactions snapshot locks are safe.
+    if (existingMode == ELockMode::Snapshot || requestedMode == ELockMode::Snapshot) {
         return true;
     }
+    // For competing exclusive locks are not compatible with others.
+    if (existingMode == ELockMode::Exclusive || requestedMode == ELockMode::Exclusive) {
+        return false;
+    }
+    return true;
+}
+
+bool TCypressManager::AreConcurrentLocksCompatible(ELockMode existingMode, ELockMode requestedMode)
+{
+    // For concurrent transactions snapshot lock is only compatible with another snapshot lock.
+    if (existingMode == ELockMode::Snapshot && requestedMode != ELockMode::Snapshot) {
+        return false;
+    }
+    if (requestedMode == ELockMode::Snapshot && existingMode != ELockMode::Snapshot) {
+        return false;
+    }
+    return true;
 }
 
 bool TCypressManager::IsLockRecursive(ELockMode mode)
@@ -843,12 +840,11 @@ ICypressNodeProxy::TPtr TCypressManager::CreateDynamicNode(
 
     auto handler = GetHandler(type);
     auto nodeId = ObjectManager->GenerateId(type);
-    TAutoPtr<ICypressNode> node = handler->CreateFromManifest(
+    auto node = handler->CreateFromManifest(
         nodeId,
         transactionId,
         manifest);
-    ICypressNode* node_ = ~node;
-
+    auto * node_ = ~node;
     auto proxy = RegisterNode(nodeId, transactionId, handler, node);
 
     if (IsLeader()) {
@@ -940,15 +936,18 @@ void TCypressManager::Clear()
     LockMap.Clear();
 
     // Create the root.
-    auto* root = new TMapNode(GetRootNodeId(), EObjectType::MapNode);
+    auto* root = new TMapNode(GetRootNodeId());
     NodeMap.Insert(root->GetId(), root);
     ObjectManager->RefObject(root->GetId().ObjectId);
 }
 
 void TCypressManager::OnLeaderRecoveryComplete()
 {
+    YASSERT(NodeBehaviors.empty());
     FOREACH(const auto& pair, NodeMap) {
-        CreateNodeBehavior(*pair.second);
+        if (!pair.first.IsBranched()) {
+            CreateNodeBehavior(*pair.second);
+        }
     }
 }
 

@@ -13,8 +13,14 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TConfigurable::TConfigurable()
-    : Options_(GetEphemeralNodeFactory()->CreateMap())
+    : KeepOptions_(false)
 { }
+
+NYTree::IMapNode::TPtr TConfigurable::GetOptions() const
+{
+    YASSERT(KeepOptions_);
+    return Options;
+}
 
 void TConfigurable::LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path)
 {
@@ -41,12 +47,14 @@ void TConfigurable::Load(const NYTree::INode* node, const NYTree::TYPath& path)
         pair.second->Load(~child, childPath);
     }
 
-    Options_->Clear();
-    FOREACH (const auto& pair, mapNode->GetChildren()) {
-        const auto& name = pair.first;
-        auto child = pair.second;
-        if (Parameters.find(name) == Parameters.end()) {
-            Options_->AddChild(~CloneNode(~child), name);
+    if (KeepOptions_) {
+        Options = GetEphemeralNodeFactory()->CreateMap();
+        FOREACH (const auto& pair, mapNode->GetChildren()) {
+            const auto& name = pair.first;
+            auto child = pair.second;
+            if (Parameters.find(name) == Parameters.end()) {
+                Options->AddChild(~CloneNode(~child), name);
+            }
         }
     }
 }

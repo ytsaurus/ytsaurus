@@ -138,7 +138,7 @@ protected:
     const TNodeId NodeId;
 
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
@@ -404,7 +404,7 @@ protected:
     }
 
 protected:
-    virtual void GetSystemAttributes(yvector<NObjectServer::TObjectProxyBase::TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
     {
         attributes->push_back("size");
         TBase::GetSystemAttributes(attributes);

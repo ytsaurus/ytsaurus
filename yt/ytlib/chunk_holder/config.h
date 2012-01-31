@@ -98,18 +98,20 @@ struct TChunkHolderConfig
     //! Regular storage locations.
     yvector<TLocationConfig::TPtr> ChunkStorageLocations;
 
-    //! Location used for caching chunks.
+    //! Cached chunks location.
     TLocationConfig::TPtr ChunkCacheLocation;
 
     //! Remote reader configuration used to download chunks into cache.
     NChunkClient::TRemoteReaderConfig::TPtr CacheRemoteReader;
 
-    NChunkClient::TRemoteWriter::TConfig::TPtr RemoteWriter;
-
     //! Sequential reader configuration used to download chunks into cache.
     NChunkClient::TSequentialReader::TConfig::TPtr CacheSequentialReader;
 
-    TPeerBlockTable::TConfig::TPtr BlockTable;
+    //! Remote writer configuration used to replicate chunks.
+    NChunkClient::TRemoteWriter::TConfig::TPtr ReplicationRemoteWriter;
+
+    //! Keeps chunk peering information.
+    TPeerBlockTable::TConfig::TPtr PeerBlockTable;
 
     //! Masters configuration.
     NElection::TLeaderLookup::TConfig::TPtr Masters;
@@ -154,10 +156,10 @@ struct TChunkHolderConfig
             .DefaultNew();
         Register("cache_sequential_reader", CacheSequentialReader)
             .DefaultNew();
-        Register("block_table", BlockTable)
+        Register("peer_block_table", PeerBlockTable)
             .DefaultNew();
         Register("masters", Masters);
-        Register("remote_writer", RemoteWriter)
+        Register("replication_remote_writer", ReplicationRemoteWriter)
             .DefaultNew();
     }
 };

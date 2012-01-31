@@ -93,7 +93,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcServer
-    : public IRpcServer
+    : public IServer
     , public IMessageHandler
 {
 public:
@@ -221,7 +221,7 @@ private:
 
 };
 
-IRpcServer::TPtr CreateRpcServer(NBus::IBusServer* busServer)
+IServer::TPtr CreateRpcServer(NBus::IBusServer* busServer)
 {
     return New<TRpcServer>(busServer);
 }

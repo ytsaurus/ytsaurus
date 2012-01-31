@@ -83,7 +83,7 @@ TChunkFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
         blocks.push_back(ReadBlock(blockIndex));
     }
 
-    return ToFuture(TReadResult(MoveRV(blocks)));
+    return MakeFuture(TReadResult(MoveRV(blocks)));
 }
 
 TSharedRef TChunkFileReader::ReadBlock(int blockIndex)
@@ -150,7 +150,7 @@ const TChunkInfo& TChunkFileReader::GetChunkInfo() const
 
 TFuture<IAsyncReader::TGetInfoResult>::TPtr TChunkFileReader::AsyncGetChunkInfo()
 {
-    return ToFuture(TGetInfoResult(GetChunkInfo()));
+    return MakeFuture(TGetInfoResult(GetChunkInfo()));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

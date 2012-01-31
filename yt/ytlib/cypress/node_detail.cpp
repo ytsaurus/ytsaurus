@@ -27,7 +27,8 @@ const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjec
 
 i32 hash<NYT::NCypress::TVersionedNodeId>::operator()(const NYT::NCypress::TVersionedNodeId& id) const
 {
-    return static_cast<i32>(THash<NYT::TGuid>()(id.ObjectId)) * 497 +
+    return
+        static_cast<i32>(THash<NYT::TGuid>()(id.ObjectId)) * 497 +
         static_cast<i32>(THash<NYT::TGuid>()(id.TransactionId));
 }
 
@@ -36,11 +37,10 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, EObjectType objectType)
+TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : ParentId_(NullObjectId)
     , LockMode_(ELockMode::None)
     , Id(id)
-    , ObjectType(objectType)
     , RefCounter(0)
 { }
 
@@ -48,13 +48,12 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNod
     : ParentId_(other.ParentId_)
     , LockMode_(other.LockMode_)
     , Id(id)
-    , ObjectType(other.ObjectType)
     , RefCounter(0)
 { }
 
 EObjectType TCypressNodeBase::GetObjectType() const
 {
-    return ObjectType;
+    return TypeFromId(Id.ObjectId);
 }
 
 TVersionedNodeId TCypressNodeBase::GetId() const
@@ -65,22 +64,23 @@ TVersionedNodeId TCypressNodeBase::GetId() const
 i32 TCypressNodeBase::RefObject()
 {
     YASSERT(!Id.IsBranched());
-    return ++RefCounter;
+    return TObjectBase::RefObject();
 }
 
 i32 TCypressNodeBase::UnrefObject()
 {
     YASSERT(!Id.IsBranched());
-    return --RefCounter;
+    return TObjectBase::UnrefObject();
 }
 
 i32 TCypressNodeBase::GetObjectRefCounter() const
 {
-    return RefCounter;
+    return TObjectBase::GetObjectRefCounter();
 }
 
 void TCypressNodeBase::Save(TOutputStream* output) const
 {
+    TObjectBase::Save(output);
     ::Save(output, RefCounter);
     SaveSet(output, LockIds_);
     ::Save(output, ParentId_);
@@ -89,6 +89,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
 
 void TCypressNodeBase::Load(TInputStream* input)
 {
+    TObjectBase::Load(input);
     ::Load(input, RefCounter);
     LoadSet(input, LockIds_);
     ::Load(input, ParentId_);
@@ -97,8 +98,8 @@ void TCypressNodeBase::Load(TInputStream* input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNode::TMapNode(const TVersionedNodeId& id, EObjectType objectType)
-    : TCypressNodeBase(id, objectType)
+TMapNode::TMapNode(const TVersionedNodeId& id)
+    : TCypressNodeBase(id)
 { }
 
 TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
@@ -180,8 +181,8 @@ void TMapNodeTypeHandler::DoMerge(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListNode::TListNode(const TVersionedNodeId& id, EObjectType objectType)
-    : TCypressNodeBase(id, objectType)
+TListNode::TListNode(const TVersionedNodeId& id)
+    : TCypressNodeBase(id)
 { }
 
 TListNode::TListNode(const TVersionedNodeId& id, const TListNode& other)
