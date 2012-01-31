@@ -148,8 +148,6 @@ TEST(TConfigTest, Complete)
     auto it2 = config->SubconfigMap.find("sub2");
     EXPECT_IS_FALSE(it2 == config->SubconfigMap.end());
     TestCompleteSubconfig(~it2->Second());
-
-    EXPECT_EQ(0, config->GetOptions()->GetChildCount());
 }
 
 TEST(TConfigTest, MissingParameter)
@@ -175,9 +173,6 @@ TEST(TConfigTest, MissingParameter)
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
     EXPECT_EQ(0, config->SubconfigList.ysize());
     EXPECT_EQ(0, config->SubconfigMap.ysize());
- 
-    EXPECT_EQ(0, config->Subconfig->GetOptions()->GetChildCount());
-    EXPECT_EQ(0, config->GetOptions()->GetChildCount());
 }
 
 TEST(TConfigTest, MissingSubconfig)
@@ -200,9 +195,6 @@ TEST(TConfigTest, MissingSubconfig)
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
     EXPECT_EQ(0, config->SubconfigList.ysize());
     EXPECT_EQ(0, config->SubconfigMap.ysize());
-  
-    EXPECT_EQ(0, config->Subconfig->GetOptions()->GetChildCount());
-    EXPECT_EQ(0, config->GetOptions()->GetChildCount());
 }
 
 TEST(TConfigTest, Options)
@@ -217,6 +209,7 @@ TEST(TConfigTest, Options)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
+    config->SetKeepOptions(true);
     config->LoadAndValidate(~configNode->AsMap());
 
     EXPECT_EQ(0, config->Subconfig->GetOptions()->GetChildCount());
