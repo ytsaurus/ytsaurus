@@ -71,16 +71,19 @@ void TTableNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
 {
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
+    attributes->push_back("uncompressed_size");
+    attributes->push_back("row_count");
     TBase::GetSystemAttributes(attributes);
 }
 
 bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
 {
     const auto& tableNode = GetTypedImpl();
+    const auto& chunkList = ChunkManager->GetChunkList(tableNode.GetChunkListId());
 
     if (name == "chunk_list_id") {
         BuildYsonFluently(consumer)
-            .Scalar(tableNode.GetChunkListId().ToString());
+            .Scalar(chunkList.GetId().ToString());
         return true;
     }
 
@@ -92,6 +95,18 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsum
                 {
                     fluent.Item().Scalar(chunkId.ToString());
                 });
+        return true;
+    }
+
+    if (name == "uncompressed_size") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.Statistics().UncompressedSize);
+        return true;
+    }
+
+    if (name == "row_count") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.Statistics().RowCount);
         return true;
     }
 

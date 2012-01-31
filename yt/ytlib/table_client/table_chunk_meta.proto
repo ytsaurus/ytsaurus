@@ -25,11 +25,15 @@ message TTableChunkAttributes
     }
 
     repeated TChunkChannel chunk_channels = 1;
+    // Id of the codec using for compressing blocks.
     required int32 codec_id = 2;
+
+    // Number of table rows in the chunk.
     required int64 row_count = 3;
 
-    // ToDo: make required.
-    optional int64 uncompressed_size = 4;
+    // Uncompressed data size.
+    // This has no exact meaning and depends on the physical layout of the data.
+    required int64 uncompressed_size = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -185,7 +185,7 @@ void TFileWriter::Close()
     TChunkAttributes attributes;
     attributes.set_type(EChunkType::File);
     auto* fileAttributes = attributes.MutableExtension(TFileChunkAttributes::file_attributes);
-    fileAttributes->set_size(Size);
+    fileAttributes->set_uncompressed_size(Size);
     fileAttributes->set_codec_id(Config->CodecId);
     try {
         Sync(~Writer, &TRemoteWriter::AsyncClose, attributes);

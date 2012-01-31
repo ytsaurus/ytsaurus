@@ -85,6 +85,9 @@ public:
     TChunk& CreateChunk();
     TChunkList& CreateChunkList();
 
+    void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds);
+    void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds);
+
     void RunJobControl(
         const THolder& holder,
         const yvector<TJobInfo>& runningJobs,

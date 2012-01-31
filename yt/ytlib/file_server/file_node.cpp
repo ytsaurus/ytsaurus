@@ -93,15 +93,14 @@ public:
 
         TAutoPtr<TFileNode> node = new TFileNode(nodeId);
 
-        // File node references chunk list.
         auto& chunkList = ChunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
         CypressManager->GetObjectManager()->RefObject(chunkListId);
 
-        // Chunk list references chunk.
-        chunkList.ChildrenIds().push_back(chunkId);
-        CypressManager->GetObjectManager()->RefObject(chunkId);
+        yvector<TChunkTreeId> childrenIds;
+        childrenIds.push_back(chunkId);
+        ChunkManager->AttachToChunkList(chunkList, childrenIds);
 
         return node.Release();
     }

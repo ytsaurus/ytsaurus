@@ -7,6 +7,8 @@
 #include "holder_statistics.h"
 #include "chunk_ypath.pb.h"
 #include "chunk_list_ypath.pb.h"
+#include "file_chunk_meta.pb.h"
+#include "table_chunk_meta.pb.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
@@ -244,6 +246,33 @@ public:
     }
 
 
+    void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
+    {
+        FOREACH (const auto& childId, childrenIds) {
+            chunkList.ChildrenIds().push_back(childId);
+            SetChunkTreeParent(chunkList, childId);
+            ObjectManager->RefObject(childId);
+        }
+    }
+
+    void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
+    {
+        yhash_set<TChunkTreeId> childrenIdsSet(childrenIds.begin(), childrenIds.end());
+        auto it = chunkList.ChildrenIds().begin();
+        while (it != chunkList.ChildrenIds().end()) {
+            auto jt = it;
+            ++jt;
+            const auto& childId = *it;
+            if (childrenIdsSet.find(childId) != childrenIdsSet.end()) {
+                chunkList.ChildrenIds().erase(it);
+                ResetChunkTreeParent(chunkList, childId, true);
+                ObjectManager->UnrefObject(childId);
+            }
+            it = jt;
+        }
+    }
+
+
     void RunJobControl(
         const THolder& holder,
         const yvector<TJobInfo>& runningJobs,
@@ -350,6 +379,87 @@ private:
     }
 
 
+    TChunkStatistics GetChunkStatistics(const TChunk& chunk)
+    {
+        TChunkStatistics result;
+        auto attributes = chunk.DeserializeAttributes();
+        switch (attributes.type()) {
+            case EChunkType::File: {
+                const auto& fileAttributes = attributes.GetExtension(NFileClient::NProto::TFileChunkAttributes::file_attributes);
+                result.UncompressedSize = fileAttributes.uncompressed_size();
+                break;
+            }
+
+            case EChunkType::Table: {
+                const auto& tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
+                result.RowCount = tableAttributes.row_count();
+                result.UncompressedSize = tableAttributes.uncompressed_size();
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
+        return result;
+    }
+
+    void UpdateStatistics(TChunkList& chunkList, const TChunkTreeId& childId, bool negate)
+    {
+        // Compute delta.
+        TChunkStatistics delta;
+        switch (TypeFromId(childId)) {
+            case EObjectType::Chunk:
+                delta = GetChunkStatistics(GetChunk(childId));
+                break;
+            case EObjectType::ChunkList:
+                delta = GetChunkList(childId).Statistics();
+                break;
+            default:
+                YUNREACHABLE();
+        }
+
+        // Negate delta if necessary.
+        if (negate) {
+            delta.Negate();
+        }
+
+        // Apply delta to the parent chunk list.
+        chunkList.Statistics().Accumulate(delta);
+
+        // Run a DFS-like traversal upwards and apply delta.
+        // TODO(babenko): this only works correctly if upward paths are unique.
+        std::vector<TChunkListId> dfsStack(chunkList.ParentIds().begin(), chunkList.ParentIds().end());
+        while (!dfsStack.empty()) {
+            auto currentChunkListId = dfsStack.back();
+            dfsStack.pop_back();
+            auto& currentChunkList = GetChunkListForUpdate(currentChunkListId);
+            currentChunkList.Statistics().Accumulate(delta);
+            dfsStack.insert(dfsStack.end(), currentChunkList.ParentIds().begin(), currentChunkList.ParentIds().end());
+        }
+    }
+
+
+    void SetChunkTreeParent(TChunkList& parent, const TChunkTreeId& childId)
+    {
+        if (TypeFromId(childId) == EObjectType::ChunkList) {
+            auto& childChunkList = GetChunkListForUpdate(childId);
+            YVERIFY(childChunkList.ParentIds().insert(parent.GetId()).second);
+        }
+        UpdateStatistics(parent, childId, false);
+    }
+
+    void ResetChunkTreeParent(TChunkList& parent, const TChunkTreeId& childId, bool updateStatistics)
+    {
+        if (TypeFromId(childId) == EObjectType::ChunkList) {
+            auto& childChunkList = GetChunkListForUpdate(childId);
+            YVERIFY(childChunkList.ParentIds().erase(parent.GetId()) == 1);
+        }
+        if (updateStatistics) {
+            UpdateStatistics(parent, childId, true);
+        }
+    }
+
+
     void OnChunkDestroyed(TChunk& chunk)
     {
         auto chunkId = chunk.GetId();
@@ -371,6 +481,7 @@ private:
     {
         // Drop references to children.
         FOREACH (const auto& childId, chunkList.ChildrenIds()) {
+            ResetChunkTreeParent(chunkList, childId, false);
             ObjectManager->UnrefObject(childId);
         }
     }
@@ -491,6 +602,7 @@ private:
 
         return TVoid();
     }
+
 
     TFuture<TVoid>::TPtr Save(const TCompositeMetaState::TSaveContext& context)
     {
@@ -1167,9 +1279,10 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributs(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
     {
         attributes->push_back("children_ids");
+        attributes->push_back("parent_ids");
         TBase::GetSystemAttributes(attributes);
     }
 
@@ -1180,6 +1293,15 @@ private:
         if (name == "children_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(chunkList.ChildrenIds(), [=] (TFluentList fluent, TTransactionId id)
+                    {
+                        fluent.Item().Scalar(id.ToString());
+                    });
+            return true;
+        }
+
+        if (name == "parent_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(chunkList.ParentIds(), [=] (TFluentList fluent, TTransactionId id)
                     {
                         fluent.Item().Scalar(id.ToString());
                     });
@@ -1205,12 +1327,7 @@ private:
         context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
 
         auto& chunkList = GetTypedImplForUpdate();
-
-        FOREACH (const auto& childId, childrenIds) {
-            // TODO(babenko): check that all attached chunks are confirmed.
-            chunkList.ChildrenIds().push_back(childId);
-            Owner->ObjectManager->RefObject(childId);
-        }
+        Owner->AttachToChunkList(chunkList, childrenIds);
 
         context->Reply();
     }
@@ -1219,24 +1336,13 @@ private:
     {
         UNUSED(response);
 
-        auto childrenIdsList = FromProto<TChunkTreeId>(request->children_ids());
-        yhash_set<TChunkTreeId> childrenIdsSet(childrenIdsList.begin(), childrenIdsList.end());
+        auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
+        yhash_set<TChunkTreeId> childrenIdsSet(childrenIds.begin(), childrenIds.end());
 
-        context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIdsList));
+        context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
 
         auto& chunkList = GetTypedImplForUpdate();
-
-        auto it = chunkList.ChildrenIds().begin();
-        while (it != chunkList.ChildrenIds().end()) {
-            auto jt = it;
-            ++jt;
-            const auto& childId = *it;
-            if (childrenIdsSet.find(childId) != childrenIdsSet.end()) {
-                chunkList.ChildrenIds().erase(it);
-                Owner->ObjectManager->UnrefObject(childId);
-            }
-            it = jt;
-        }
+        Owner->DetachFromChunkList(chunkList, childrenIds);
 
         context->Reply();
     }
@@ -1353,6 +1459,16 @@ TChunk& TChunkManager::CreateChunk()
 TChunkList& TChunkManager::CreateChunkList()
 {
     return Impl->CreateChunkList();
+}
+
+void TChunkManager::AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
+{
+    Impl->AttachToChunkList(chunkList, childrenIds);
+}
+
+void TChunkManager::DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
+{
+    Impl->DetachFromChunkList(chunkList, childrenIds);
 }
 
 void TChunkManager::RunJobControl(

@@ -15,6 +15,7 @@ TChunkList::TChunkList(const TChunkListId& id)
 TChunkList::TChunkList(const TChunkList& other)
     : TObjectWithIdBase(other)
     , ChildrenIds_(other.ChildrenIds_)
+    , ParentIds_(other.ParentIds_)
 { }
 
 TAutoPtr<TChunkList> TChunkList::Clone() const
@@ -26,6 +27,8 @@ void TChunkList::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
     ::Save(output, ChildrenIds_);
+    ::Save(output, ParentIds_);
+    ::Save(output, Statistics_);
 }
 
 TAutoPtr<TChunkList> TChunkList::Load(const TChunkListId& id, TInputStream* input)
@@ -33,6 +36,8 @@ TAutoPtr<TChunkList> TChunkList::Load(const TChunkListId& id, TInputStream* inpu
     TAutoPtr<TChunkList> chunkList = new TChunkList(id);
     chunkList->TObjectWithIdBase::Load(input);
     ::Load(input, chunkList->ChildrenIds_);
+    ::Load(input, chunkList->ParentIds_);
+    ::Load(input, chunkList->Statistics_);
     return chunkList;
 }
 
