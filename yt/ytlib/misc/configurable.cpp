@@ -6,7 +6,6 @@
 #include <ytlib/ytree/ypath_detail.h>
 
 namespace NYT {
-namespace NConfig {
 
 using namespace NYTree;
 
@@ -92,5 +91,4 @@ void TConfigurable::Save(IYsonConsumer* consumer) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConfig
 } // namespace NYT

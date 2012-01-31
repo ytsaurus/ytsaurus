@@ -6,6 +6,8 @@
 namespace NYT {
 
 class TConfigurable;
+template <class T>
+class TNullable;
 
 namespace NYTree {
 

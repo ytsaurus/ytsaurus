@@ -3,8 +3,6 @@
 #include "mpl.h"
 #include "property.h"
 
-#include <ytlib/actions/action.h>
-#include <ytlib/actions/action_util.h>
 #include <ytlib/ytree/ytree.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/yson_consumer.h>
@@ -65,6 +63,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConfig
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TConfigurable
     : public TRefCounted
 {
@@ -86,7 +88,7 @@ protected:
     virtual void DoValidate() const;
 
     template <class T>
-    TParameter<T>& Register(const Stroka& parameterName, T& value);
+    NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);
 
 private:
     template <class T>
@@ -97,14 +99,6 @@ private:
     TParameterMap Parameters;
     NYTree::IMapNode::TPtr Options;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NConfig
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef NConfig::TConfigurable TConfigurable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

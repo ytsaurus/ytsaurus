@@ -28,7 +28,6 @@ struct TLoadHelper
     }
 };
 
-/*
 template <class T>
 struct TLoadHelper<
     T,
@@ -117,7 +116,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
         }
     }
 };
-*/
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // TConfigurable::TPtr
@@ -468,9 +467,9 @@ DEFINE_VALIDATOR(
 template <class T>
 NConfig::TParameter<T>& TConfigurable::Register(const Stroka& parameterName, T& value)
 {
-    auto parameter = New< TParameter<T> >(value);
+    auto parameter = New< NConfig::TParameter<T> >(value);
     YVERIFY(Parameters.insert(
-        TPair<Stroka, IParameter::TPtr>(parameterName, parameter)).second);
+        TPair<Stroka, NConfig::IParameter::TPtr>(parameterName, parameter)).second);
     return *parameter;
 }
 
