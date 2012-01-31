@@ -79,7 +79,8 @@ public:
 
     void Save(NYTree::IYsonConsumer* consumer) const;
 
-    DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNode::TPtr, Options);
+    DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
+    NYTree::IMapNode::TPtr GetOptions() const;
 
 protected:
     virtual void DoValidate() const;
@@ -94,6 +95,7 @@ private:
     typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
     
     TParameterMap Parameters;
+    NYTree::IMapNode::TPtr Options;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

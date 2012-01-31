@@ -67,8 +67,6 @@ void TestCompleteSubconfig(TTestSubconfig* subconfig)
     EXPECT_EQ("ListItem1", subconfig->MyStringList[1]);
     EXPECT_EQ("ListItem2", subconfig->MyStringList[2]);
     EXPECT_EQ(ETestEnum::Value2, subconfig->MyEnum);
-
-    EXPECT_EQ(0, subconfig->GetOptions()->GetChildCount());
 }
 
 TEST(TConfigTest, Complete)

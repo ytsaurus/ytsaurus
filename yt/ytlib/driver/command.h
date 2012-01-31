@@ -82,12 +82,10 @@ public:
     virtual void Execute(NYTree::INode* request)
     {
         auto typedRequest = New<TRequest>();
+        typedRequest->SetKeepOptions(true);
         try {
-            typedRequest->Load(request);
-            // TODO: fixme
-            typedRequest->Validate();
-        }
-        catch (const std::exception& ex) {
+            typedRequest->LoadAndValidate(request);
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing request\n%s", ex.what());
         }
         DoExecute(~typedRequest);
