@@ -212,8 +212,6 @@ TEST(TConfigTest, Options)
     config->SetKeepOptions(true);
     config->LoadAndValidate(~configNode->AsMap());
 
-    EXPECT_EQ(0, config->Subconfig->GetOptions()->GetChildCount());
-
     auto optionsNode = config->GetOptions();
     EXPECT_EQ(1, optionsNode->GetChildCount());
     FOREACH (const auto& pair, optionsNode->GetChildren()) {
