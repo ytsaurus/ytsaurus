@@ -4,6 +4,7 @@
 #undef SERIALIZE_INL_H_
 
 #include "../misc/nullable.h"
+#include "../misc/configurable.h"
 
 namespace NYT {
 namespace NYTree {
