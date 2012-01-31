@@ -38,7 +38,9 @@ inline void Read(
     if (!parameter) {
         parameter = New<T>();
     }
-    parameter->Load(node);
+    // static_cast is needed because T can override method Load
+    // without default value for parameter path
+    static_cast<TConfigurable*>(~parameter)->Load(node);
 }
 
 // TEnumBase

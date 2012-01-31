@@ -28,25 +28,11 @@ struct TLoadHelper
     }
 };
 
+// TConfigurable
 template <class T>
 struct TLoadHelper<
     T,
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TConfigurable*> >::TType
->
-{
-    static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
-    {
-        if (!parameter) {
-            parameter = New<T>();
-        }
-        parameter->Load(node, path);
-    }
-};
-
-template <class T>
-struct TLoadHelper<
-    T,
-    typename NMpl::TEnableIf< NMpl::TIsConvertible< T, TEnumBase<T> > >::TType
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, TConfigurable> >::TType
 >
 {
     static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
@@ -65,7 +51,7 @@ struct TLoadHelper<TNullable<T>, void>
     static void Load(TNullable<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
     {
         T value;
-        Read(value, node, path);
+        TLoadHelper<T>::Load(value, node, path);
         parameter = value;
     }
 };
@@ -74,13 +60,13 @@ struct TLoadHelper<TNullable<T>, void>
 template <class T>
 struct TLoadHelper<yvector<T>, void>
 {
-    static void Read(yvector<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yvector<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
         parameter.resize(size);
         for (int i = 0; i < size; ++i) {
-            Read(parameter[i], ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
+            TLoadHelper<T>::Load(parameter[i], ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
         }
     }
 };
@@ -89,13 +75,13 @@ struct TLoadHelper<yvector<T>, void>
 template <class T>
 struct TLoadHelper<yhash_set<T>, void>
 {
-    static void Read(yhash_set<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yhash_set<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
         for (int i = 0; i < size; ++i) {
             T value;
-            Read(value, ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
+            TLoadHelper<T>::Load(value, ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
             parameter.insert(MoveRV(value));
         }
     }
@@ -105,13 +91,13 @@ struct TLoadHelper<yhash_set<T>, void>
 template <class T>
 struct TLoadHelper<yhash_map<Stroka, T>, void>
 {
-    static void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
     {
         auto mapNode = node->AsMap();
         FOREACH (const auto& pair, mapNode->GetChildren()) {
             auto& key = pair.first;
             T value;
-            Read(value, ~pair.second, NYTree::CombineYPaths(path, key));
+            TLoadHelper<T>::Load(value, ~pair.second, NYTree::CombineYPaths(path, key));
             parameter.insert(MakePair(key, MoveRV(value)));
         }
     }
