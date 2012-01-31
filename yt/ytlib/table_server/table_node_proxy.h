@@ -33,7 +33,7 @@ private:
 
     NChunkServer::TChunkManager::TPtr ChunkManager;
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
+    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 
     virtual void DoInvoke(NRpc::IServiceContext* context);

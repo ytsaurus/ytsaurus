@@ -62,7 +62,7 @@ Stroka TFileNodeProxy::GetFileName()
     }
 }
 
-void TFileNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+void TFileNodeProxy::GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
 {
     attributes->push_back("size");
     attributes->push_back("codec_id");

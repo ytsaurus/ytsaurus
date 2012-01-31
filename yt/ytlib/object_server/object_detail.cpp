@@ -318,6 +318,23 @@ void TObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* request, 
     context->Reply();
 }
 
+void TObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(GetId);
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    DISPATCH_YPATH_SERVICE_METHOD(List);
+    DISPATCH_YPATH_SERVICE_METHOD(Set);
+    DISPATCH_YPATH_SERVICE_METHOD(Remove);
+    TYPathServiceBase::DoInvoke(context);
+}
+
+bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
+{
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
+    return TYPathServiceBase::IsWriteRequest(context);
+}
+
 Stroka TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
 {
     TStringStream stream;

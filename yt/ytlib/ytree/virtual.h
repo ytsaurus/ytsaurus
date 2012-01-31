@@ -8,8 +8,27 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVirtualMapBase
+class TAttributedYPathServiceBase
     : public TYPathServiceBase
+    , public TSupportsGet
+    , public TSupportsList
+{
+protected:
+    virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
+
+    virtual void DoInvoke(NRpc::IServiceContext* context);
+    
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer);
+   
+    virtual void GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
+    virtual void ListAttribute(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualMapBase
+    : public TAttributedYPathServiceBase
 {
 protected:
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const = 0;
@@ -18,10 +37,10 @@ protected:
 
 private:
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
-    virtual void DoInvoke(NRpc::IServiceContext* context);
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Get);
-
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
