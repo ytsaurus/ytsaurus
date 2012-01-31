@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "cypress_service.h"
-#include "node_proxy.h"
 
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/ypath_client.h>
@@ -9,10 +8,10 @@
 namespace NYT {
 namespace NCypress {
 
+using namespace NMetaState;
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
-using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,10 +20,10 @@ static NLog::TLogger& Logger = CypressLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressService::TCypressService(
-    IInvoker* invoker,
+    NMetaState::IMetaStateManager* metaStateManager,
     TCypressManager* cypressManager)
-    : NRpc::TServiceBase(
-        invoker,
+    : TMetaStateServiceBase(
+        metaStateManager,
         TCypressServiceProxy::GetServiceName(),
         CypressLogger.GetCategory())
     , CypressManager(cypressManager)
@@ -43,6 +42,8 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
     int requestCount = request->part_counts_size();
     context->SetRequestInfo("RequestCount: %d", requestCount);
 
+    ValidateLeader();
+
     const auto& attachments = request->Attachments();
 
     int currentIndex = 0;
@@ -58,7 +59,7 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
         TYPath path = requestHeader.path();
         Stroka verb = requestHeader.verb();
 
-        LOG_DEBUG("Execute: RequestIndex: %d, Path: %s, Verb: %s",
+        LOG_DEBUG("Execute[%d]: Path: %s, Verb: %s",
             requestIndex,
             ~path,
             ~verb);
@@ -72,9 +73,8 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
                 const auto& responseParts = responseMessage->GetParts();
                 auto error = GetResponseError(responseHeader);
 
-                LOG_DEBUG("Execute: RequestIndex: %d, PartCount: %d, Error: %s",
+                LOG_DEBUG("Execute[%d]: Error: %s",
                     requestIndex,
-                    responseParts.ysize(),
                     ~error.ToString());
 
                 response->add_part_counts(responseParts.ysize());
