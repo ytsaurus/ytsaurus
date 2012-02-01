@@ -88,7 +88,7 @@ protected:
 
     virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
 
-    Stroka DoGetAttribute(const Stroka& name, bool* isSystem = NULL);
+    NYTree::TYson DoGetAttribute(const Stroka& name, bool* isSystem = NULL);
     void DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem);
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
@@ -124,10 +124,11 @@ protected:
 
     // The following methods provide means for accessing attribute sets.
     // In particular, these methods are responsible for resolving object and transaction ids.
-    virtual const TAttributeSet* FindAttributes() = 0;
-    virtual TAttributeSet* FindAttributesForUpdate() = 0;
-    virtual TAttributeSet* GetAttributesForUpdate() = 0;
-    virtual void RemoveAttributes() = 0;
+    virtual yhash_set<Stroka> ListUserAttributes();
+    // Returns empty TYson if the attribute is not found.
+    virtual NYTree::TYson GetUserAttribute(const Stroka& name);
+    virtual void SetUserAttribute(const Stroka& name, const NYTree::TYson& value);
+    virtual bool RemoveUserAttribute(const Stroka& name);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,33 +171,6 @@ protected:
     TObject& GetTypedImplForUpdate()
     {
         return Map->GetForUpdate(GetId());
-    }
-
-
-    const TAttributeSet* FindAttributes()
-    {
-        return ObjectManager->FindAttributes(Id);
-    }
-
-    TAttributeSet* FindAttributesForUpdate()
-    {
-        return ObjectManager->FindAttributesForUpdate(Id);
-    }
-
-    TAttributeSet* GetAttributesForUpdate()
-    {
-        auto attributes = ObjectManager->FindAttributesForUpdate(Id);
-        if (!attributes) {
-            attributes = ObjectManager->CreateAttributes(Id);
-        }
-        return attributes;
-    }
-
-    void RemoveAttributes()
-    {
-        if (ObjectManager->FindAttributes(Id)) {
-            ObjectManager->RemoveAttributes(Id);
-        }
     }
 };
 

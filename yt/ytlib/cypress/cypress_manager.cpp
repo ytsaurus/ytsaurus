@@ -471,6 +471,14 @@ TObjectManager* TCypressManager::GetObjectManager() const
     return ~ObjectManager;
 }
 
+TTransactionManager* TCypressManager::GetTransactionManager() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ~TransactionManager;
+}
+
+
 const ICypressNode* TCypressManager::FindVersionedNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)

@@ -175,7 +175,7 @@ protected:
     DECLARE_RPC_SERVICE_METHOD(NProto, Lock)
     {
         auto mode = ELockMode(request->mode());
-        
+
         context->SetRequestInfo("Mode: %s", ~mode.ToString());
         if (mode != ELockMode::Snapshot &&
             mode != ELockMode::Shared &&
@@ -192,7 +192,7 @@ protected:
 
         context->Reply();
     }
-    
+
     DECLARE_RPC_SERVICE_METHOD(NProto, Create)
     {
         UNUSED(request);
@@ -259,40 +259,109 @@ protected:
         ObjectManager->UnrefObject(child.GetId().ObjectId);
     }
 
-
-    virtual const NObjectServer::TAttributeSet* FindAttributes()
+    virtual yhash_set<Stroka> ListUserAttributes()
     {
-        auto id = GetImpl(NodeId).GetId();
-        return ObjectManager->FindAttributes(id);
-    }
-
-    virtual NObjectServer::TAttributeSet* FindAttributesForUpdate()
-    {
-        auto id = GetImplForUpdate(NodeId).GetId();
-        return ObjectManager->FindAttributesForUpdate(id);
-    }
-
-    virtual NObjectServer::TAttributeSet* GetAttributesForUpdate()
-    {
-        auto id = GetImplForUpdate(NodeId).GetId();
-        auto* attributes = ObjectManager->FindAttributesForUpdate(id);
-        if (!attributes) {
-            attributes = ObjectManager->CreateAttributes(id);
+        if (TransactionId == NullTransactionId) {
+            return TObjectProxyBase::ListUserAttributes();
+        }
+        yhash_set<Stroka> attributes;
+        auto transactionIds = CypressManager->GetTransactionManager()->GetTransactionPath(TransactionId);
+        for (auto it = transactionIds.rbegin(); it != transactionIds.rend(); ++it) {
+            TVersionedObjectId parentId(NodeId, *it);
+            const auto* userAttributes = ObjectManager->FindAttributes(parentId);
+            if (userAttributes) {
+                FOREACH (const auto& pair, userAttributes->Attributes()) {
+                    if (pair.second.empty()) {
+                        attributes.erase(pair.first);
+                    } else {
+                        attributes.insert(pair.first);
+                    }
+                }
+            }
         }
         return attributes;
     }
 
-    virtual void RemoveAttributes()
+    // Returns empty TYson if the attribute is not found.
+    virtual NYTree::TYson GetUserAttribute(const Stroka& name)
     {
-        auto id = GetImplForUpdate(NodeId).GetId();
-        if (ObjectManager->FindAttributes(id)) {
-            ObjectManager->RemoveAttributes(id);
+        if (TransactionId == NullTransactionId) {
+            return TObjectProxyBase::GetUserAttribute(name);
         }
+        auto transactionIds = CypressManager->GetTransactionManager()->GetTransactionPath(TransactionId);
+        FOREACH (const auto& transactionId, transactionIds) {
+            TVersionedObjectId parentId(NodeId, transactionId);
+            const auto* userAttributes = ObjectManager->FindAttributes(parentId);
+            if (userAttributes) {
+                auto it = userAttributes->Attributes().find(name);
+                if (it != userAttributes->Attributes().end()) {
+                    if (it->second.empty()) {
+                        break;
+                    } else {
+                        return it->second;
+                    }
+                }
+            }
+        }
+        return NYTree::TYson();
     }
 
+    virtual void SetUserAttribute(const Stroka& name, const NYTree::TYson& value)
+    {
+        if (TransactionId == NullTransactionId) {
+            TObjectProxyBase::SetUserAttribute(name, value);
+            return;
+        }
+        auto id = GetImplForUpdate(NodeId).GetId();
+        auto* userAttributes = ObjectManager->FindAttributesForUpdate(id);
+        if (!userAttributes) {
+            userAttributes = ObjectManager->CreateAttributes(id);
+        }
+        userAttributes->Attributes()[name] = value;
+    }
+
+    virtual bool RemoveUserAttribute(const Stroka& name)
+    {
+        if (TransactionId == NullTransactionId) {
+            return TObjectProxyBase::RemoveUserAttribute(name);
+        }
+        auto id = GetImplForUpdate(NodeId).GetId();
+
+        bool contains = false;
+
+        auto transactionIds = CypressManager->GetTransactionManager()->GetTransactionPath(TransactionId);
+        for (auto it = transactionIds.rbegin() + 1; it != transactionIds.rend(); ++it) {
+            TVersionedObjectId parentId(NodeId, *it);
+            const auto* userAttributes = ObjectManager->FindAttributes(parentId);
+            if (userAttributes) {
+                auto it = userAttributes->Attributes().find(name);
+                if (it == userAttributes->Attributes().end()) {
+                    // contains = false
+                    break;
+                } else {
+                    contains = true;
+                    break;
+                }
+            }
+        }
+
+        auto* userAttributes = ObjectManager->FindAttributesForUpdate(id);
+        if (contains) {
+            if (!userAttributes) {
+                userAttributes = ObjectManager->CreateAttributes(id);
+            }
+            userAttributes->Attributes()[name] = "";
+            return true;
+        } else {
+            if (!userAttributes) {
+                return false;
+            }
+            return userAttributes->Attributes().erase(name) > 0;
+        }
+    }
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue, class IBase, class TImpl>
 class TScalarNodeProxy
@@ -322,7 +391,7 @@ public:
     }
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_SCALAR_TYPE(key, type) \
     class T##key##NodeProxy \

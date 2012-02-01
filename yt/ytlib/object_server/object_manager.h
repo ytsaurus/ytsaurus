@@ -90,12 +90,24 @@ public:
     void RemoveAttributes(const TVersionedObjectId& id);
     NYTree::IMapNode::TPtr GetAttributesMap(const TVersionedObjectId& id) const;
 
+    void BranchAttributes(
+        const TVersionedObjectId& originatingId, const TVersionedObjectId& branchedId);
 
+    void MergeAttributes(
+        const TVersionedObjectId& originatingId, const TVersionedObjectId& branchedId);
+    
+    yhash_set<Stroka> ListAttributes(const TVersionedObjectId& id) const;
+
+    // Throws yexception if not found
+    const NYTree::TYson& GetAttribute(const TVersionedObjectId& id, const Stroka& name) const;
+    
 private:
     TCellId CellId;
 
-    yvector<TIdGenerator<ui64> > TypeToCounter;
+    yvector< TIdGenerator<ui64> > TypeToCounter;
     yvector<IObjectTypeHandler::TPtr> TypeToHandler;
+
+    // Stores deltas from parent transaction
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);

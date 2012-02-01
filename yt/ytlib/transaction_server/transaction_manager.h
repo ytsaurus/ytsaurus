@@ -74,6 +74,9 @@ public:
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
+    // Includes transactionId itself and #NullTransactionId
+    std::vector<TTransactionId> GetTransactionPath(TTransactionId transactionId) const;
+
 private:
     typedef TTransactionManager TThis;
     class TTransactionTypeHandler;
