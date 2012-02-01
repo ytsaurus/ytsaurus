@@ -25,6 +25,7 @@ public:
 
 private:
     typedef TCypressService TThis;
+    class TExecuteSession;
 
     TCypressManager::TPtr CypressManager;
 
