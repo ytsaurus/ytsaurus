@@ -65,14 +65,19 @@ public:
     NProto::TChannel ToProto() const;
     static TChannel FromProto(const NProto::TChannel& protoChannel);
 
+    static TChannel FromYson(const NYTree::TYson& yson);
     static TChannel FromYson(NYTree::INode* node);
 
     const yvector<TColumn>& GetColumns() const;
 
-    //! Returns the channel containing the range from empty string to infinity.
+    //! Returns the channel containing all possible columns.
     static TChannel Universal();
+    //! Returns the empty channel.
+    static TChannel Empty();
 
 private:
+    TChannel();
+
     friend void operator -= (TChannel& lhs, const TChannel& rhs);
 
     yvector<TColumn> Columns;
@@ -84,13 +89,16 @@ private:
 class TSchema
 {
 public:
-    static TSchema Empty();
+    static TSchema Default();
 
     void AddChannel(const TChannel& channel);
     const yvector<TChannel>& GetChannels() const;
 
     NProto::TSchema ToProto() const;
     static TSchema FromProto(const NProto::TSchema& protoSchema);
+
+    static TSchema FromYson(const NYTree::TYson& yson);
+    static TSchema FromYson(NYTree::INode* node);
 
 private:
     TSchema();

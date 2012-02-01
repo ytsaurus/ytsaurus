@@ -3,6 +3,7 @@
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -89,6 +90,9 @@ bool TRange::IsInfinite() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TChannel::TChannel()
+{ }
 
 void TChannel::AddColumn(const TColumn& column)
 {
@@ -235,6 +239,16 @@ TChannel TChannel::Universal()
     return result;
 }
 
+TChannel TChannel::Empty()
+{
+    return TChannel();
+}
+
+TChannel TChannel::FromYson(const NYTree::TYson& yson)
+{
+    return FromYson(~DeserializeFromYson(yson));
+}
+
 TChannel TChannel::FromYson(INode* node)
 {
     if (node->GetType() != ENodeType::List) {
@@ -343,20 +357,19 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchema::TSchema()
-{ }
-
-TSchema TSchema::Empty()
 {
-    TSchema schema;
-    TChannel trashChannel;
-
+    auto trashChannel = TChannel::Empty();
     // Initially the schema consists of a single trash channel,
     // i.e. [epsilon, infinity).
     // This "trash" channel is expected to be present in any chunk
     // (this is how table writer works now). 
     trashChannel.AddRange(TRange(""));
-    schema.Channels.push_back(trashChannel);
-    return schema;
+    Channels.push_back(trashChannel);
+}
+
+TSchema TSchema::Default()
+{
+    return TSchema();
 }
 
 void TSchema::AddChannel(const TChannel& channel)
@@ -387,6 +400,26 @@ TSchema TSchema::FromProto(const NProto::TSchema& protoSchema)
         schema.Channels.push_back(TChannel::FromProto(
             protoSchema.channels(i)));
     }
+    return schema;
+}
+
+TSchema TSchema::FromYson(const NYTree::TYson& yson)
+{
+    return FromYson(~DeserializeFromYson(yson));
+}
+
+TSchema TSchema::FromYson(INode* node)
+{
+    TSchema schema;
+    if (node->GetType() != ENodeType::List) {
+        ythrow yexception() << "Schema description can only be parsed from a list";
+    }
+
+    FOREACH (auto child, node->AsList()->GetChildren()) {
+        auto channel = TChannel::FromYson(~child);
+        schema.AddChannel(channel);
+    }
+
     return schema;
 }
 
