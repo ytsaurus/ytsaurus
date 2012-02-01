@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/cypress_commands.cpp
   ${BASE}/driver.cpp
   ${BASE}/file_commands.cpp
+  ${BASE}/scheduler_commands.cpp
   ${BASE}/table_commands.cpp
   ${BASE}/transaction_commands.cpp
 )
@@ -15,6 +16,7 @@ set( HDRS
   ${BASE}/cypress_commands.h
   ${BASE}/driver.h
   ${BASE}/file_commands.h
+  ${BASE}/scheduler_commands.h
   ${BASE}/table_commands.h
   ${BASE}/transaction_commands.h
 )
