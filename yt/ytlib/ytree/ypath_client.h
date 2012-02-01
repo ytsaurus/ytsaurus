@@ -142,6 +142,8 @@ void ChopYPathToken(
     Stroka* token,
     TYPath* suffixPath);
 
+TYPath ChopYPathAttributeMarker(const TYPath& path);
+
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
@@ -172,8 +174,6 @@ bool IsAttributeYPath(const TYPath& path);
  *  Same applies to the attributes (cf. "/virtual@" vs "/virtual/@").
  */
 bool IsLocalYPath(const TYPath& path);
-
-TYPath ChopYPathAttributeMarker(const TYPath& path);
 
 void ResolveYPath(
     IYPathService* rootService,

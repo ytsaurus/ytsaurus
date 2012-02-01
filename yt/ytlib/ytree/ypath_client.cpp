@@ -89,27 +89,29 @@ void ChopYPathToken(
     Stroka* token,
     TYPath* suffixPath)
 {
-    size_t index = path.find_first_of("/@");
+    size_t index = path.find_first_of("/@[{");
     if (index == TYPath::npos) {
         *token = path;
         *suffixPath = TYPath(path.end(), static_cast<size_t>(0));
     } else {
         switch (path[index]) {
-        case '/':
-            *token = path.substr(0, index);
-            *suffixPath =
-                index == path.length() - 1
-                ? path.substr(index)
-                : path.substr(index + 1);
-            break;
+            case '/':
+                *token = path.substr(0, index);
+                *suffixPath =
+                    index == path.length() - 1
+                    ? path.substr(index)
+                    : path.substr(index + 1);
+                break;
 
-        case '@':
-            *token = path.substr(0, index);
-            *suffixPath = path.substr(index);
-            break;
+            case '@':
+            case '[':
+            case '{':
+                *token = path.substr(0, index);
+                *suffixPath = path.substr(index);
+                break;
 
-        default:
-            YUNREACHABLE();
+            default:
+                YUNREACHABLE();
         }
     }
 }
