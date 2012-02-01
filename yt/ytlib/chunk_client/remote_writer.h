@@ -118,7 +118,7 @@ public:
     /*!
      *  This method call only be called when the writer is successfully closed.
      *  
-     * \note Thread affinity: ClientThread.
+     * \note Thread affinity: any.
      */
     NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest();
 
