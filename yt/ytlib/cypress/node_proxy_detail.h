@@ -141,6 +141,7 @@ protected:
     virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
+        attributes->push_back("lock_mode");
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
@@ -151,6 +152,12 @@ protected:
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
                 .Scalar(node.GetParentId().ToString());
+            return true;
+        }
+
+        if (name == "lock_mode") {
+            BuildYsonFluently(consumer)
+                .Scalar(FormatEnum(node.GetLockMode()));
             return true;
         }
 
