@@ -99,6 +99,11 @@ IMessage::TPtr TServiceContextBase::GetRequestMessage() const
     return RequestMessage;
 }
 
+const TRequestId& TServiceContextBase::GetRequestId() const
+{
+    return RequestId;
+}
+
 const Stroka& TServiceContextBase::GetPath() const
 {
     return Path;

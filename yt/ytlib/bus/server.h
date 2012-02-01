@@ -26,7 +26,7 @@ struct TBusStatistics
 };
 
 struct IBusServer
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IBusServer> TPtr;
 

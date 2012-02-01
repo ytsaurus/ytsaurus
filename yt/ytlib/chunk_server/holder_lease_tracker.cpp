@@ -30,9 +30,9 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
     YASSERT(Invoker);
 
     auto pair = HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo()));
-    YASSERT(pair.Second());
+    YASSERT(pair.second);
 
-    auto& holderInfo = pair.First()->Second();
+    auto& holderInfo = pair.first->second;
     holderInfo.Lease = TLeaseManager::CreateLease(
         Config->HolderLeaseTimeout,
         ~FromMethod(
@@ -76,14 +76,14 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
 THolderLeaseTracker::THolderInfo* THolderLeaseTracker::FindHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
-    return it == HolderInfoMap.end() ? NULL : &it->Second();
+    return it == HolderInfoMap.end() ? NULL : &it->second;
 }
 
 THolderLeaseTracker::THolderInfo& THolderLeaseTracker::GetHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
     YASSERT(it != HolderInfoMap.end());
-    return it->Second();
+    return it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

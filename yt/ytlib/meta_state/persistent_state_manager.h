@@ -77,7 +77,7 @@ IMetaStateManager::TPtr CreateAndRegisterPersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IMetaState* metaState,
-    NRpc::IRpcServer* server);
+    NRpc::IServer* server);
 
 ///////////////////////////////////////////////////////////////////////////////
 

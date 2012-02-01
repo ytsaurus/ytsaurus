@@ -28,9 +28,6 @@ namespace NTableClient {
  *  For each row, the client must fetch its entries in a similar manner by calling #NextColumn.
  *  
  *  When a table entry is fetched, its content becomes accessible via #GetColumn and #GetValue.
- *  
- *  #Close releases all resources and makes the reader no longer usable.
- *
  */
 class TTableReader
     : public NTransactionClient::TTransactionListener
@@ -61,7 +58,6 @@ public:
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         NChunkClient::IBlockCache* blockCache,
-        const TChannel& readChannel,
         const NYTree::TYPath& path);
 
     //! Opens the reader and positions it right before the first row.
@@ -85,22 +81,14 @@ public:
     //! Returns the current column's value.
     TValue GetValue() const;
 
-    //! Closes the reader.
-    /*!
-     *  After this call the reader instance is no longer usable.
-     */
-    void Close();
-
 private:
     TConfig::TPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::IBlockCache::TPtr BlockCache;
-    TChannel ReadChannel;
     NYTree::TYPath Path;
     bool IsOpen;
-    bool IsClosed;
     NCypress::TCypressServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 

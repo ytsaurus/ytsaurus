@@ -53,6 +53,7 @@ TMasterConnector::TMasterConnector(
     Address = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
 
     // NB: No intrusive ptr for this to prevent circular dependency.
+    // TODO(babenko): use TWeakPtr
     ChunkStore->ChunkAdded().Subscribe(FromMethod(
         &TMasterConnector::OnChunkAdded,
         this));

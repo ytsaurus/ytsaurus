@@ -28,15 +28,15 @@ void TChunkPlacement::OnHolderRegistered(const THolder& holder)
 {
     double loadFactor = GetLoadFactor(holder);
     auto it = LoadFactorMap.insert(MakePair(loadFactor, holder.GetId()));
-    YVERIFY(IteratorMap.insert(MakePair(holder.GetId(), it)).Second());
-    YVERIFY(HintedSessionsMap.insert(MakePair(holder.GetId(), 0)).Second());
+    YVERIFY(IteratorMap.insert(MakePair(holder.GetId(), it)).second);
+    YVERIFY(HintedSessionsMap.insert(MakePair(holder.GetId(), 0)).second);
 }
 
 void TChunkPlacement::OnHolderUnregistered(const THolder& holder)
 {
     auto iteratorIt = IteratorMap.find(holder.GetId());
     YASSERT(iteratorIt != IteratorMap.end());
-    auto preferenceIt = iteratorIt->Second();
+    auto preferenceIt = iteratorIt->second;
     LoadFactorMap.erase(preferenceIt);
     IteratorMap.erase(iteratorIt);
     YVERIFY(HintedSessionsMap.erase(holder.GetId()) == 1);
@@ -154,7 +154,7 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     std::sort(candidates.begin(), candidates.end(),
         [] (const TCandidatePair& lhs, const TCandidatePair& rhs)
         {
-            return lhs.Second() > rhs.Second();
+            return lhs.second > rhs.second;
         });
 
     // Take first count holders.
@@ -163,7 +163,7 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     FOREACH(auto pair, candidates) {
         if (result.ysize() >= count)
             break;
-        result.push_back(pair.First());
+        result.push_back(pair.first);
     }
     return result;
 }
@@ -271,7 +271,7 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int
 int TChunkPlacement::GetSessionCount(const THolder& holder) const
 {
     auto hintIt = HintedSessionsMap.find(holder.GetId());
-    return hintIt == HintedSessionsMap.end() ? 0 : hintIt->Second();
+    return hintIt == HintedSessionsMap.end() ? 0 : hintIt->second;
 }
 
 double TChunkPlacement::GetLoadFactor(const THolder& holder) const

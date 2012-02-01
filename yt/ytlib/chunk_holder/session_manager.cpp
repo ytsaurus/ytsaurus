@@ -36,16 +36,32 @@ TSession::TSession(
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
 
     Location->UpdateSessionCount(+1);
-
-    FileName = Location->GetChunkFileName(chunkId);
-    NFS::ForcePath(NFS::GetDirectoryName(FileName));
-
-    OpenFile();
+    FileName = Location->GetChunkFileName(ChunkId);
 }
 
 TSession::~TSession()
 {
     Location->UpdateSessionCount(-1);
+}
+
+void TSession::Start()
+{
+    GetIOInvoker()->Invoke(FromMethod(
+        &TSession::DoOpenFile,
+        TPtr(this)));
+}
+
+void TSession::DoOpenFile()
+{
+    try {
+        NFS::ForcePath(NFS::GetDirectoryName(FileName));
+        Writer = New<TChunkFileWriter>(ChunkId, FileName);
+        Writer->Open();
+    }
+    catch (const std::exception& ex) {
+        LOG_FATAL("Error opening chunk file\n%s", ex.what());
+    }
+    LOG_DEBUG("Chunk file opened");
 }
 
 void TSession::SetLease(TLeaseManager::TLease lease)
@@ -229,7 +245,7 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& attributes)
+TFuture<TChunk::TPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
 {
     CloseLease();
 
@@ -255,20 +271,6 @@ void TSession::Cancel(const TError& error)
     DeleteFile(error)->Apply(
         FromMethod(&TSession::OnFileDeleted, TPtr(this))
         ->AsyncVia(SessionManager->ServiceInvoker));
-}
-
-void TSession::OpenFile()
-{
-    GetIOInvoker()->Invoke(FromMethod(
-        &TSession::DoOpenFile,
-        TPtr(this)));
-}
-
-void TSession::DoOpenFile()
-{
-    Writer = New<TChunkFileWriter>(ChunkId, FileName);
-
-    LOG_DEBUG("Chunk file opened");
 }
 
 TFuture<TVoid>::TPtr TSession::DeleteFile(const TError& error)
@@ -323,12 +325,12 @@ TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
     return TVoid();
 }
 
-TVoid TSession::OnFileClosed(TVoid)
+TChunk::TPtr TSession::OnFileClosed(TVoid)
 {
     ReleaseSpaceOccupiedByBlocks();
     auto chunk = New<TStoredChunk>(~Location, GetChunkInfo());
     SessionManager->ChunkStore->RegisterChunk(~chunk);
-    return TVoid();
+    return chunk;
 }
 
 void TSession::ReleaseBlocks(i32 flushedBlockIndex)
@@ -400,7 +402,7 @@ TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId) const
     if (it == SessionMap.end())
         return NULL;
     
-    auto session = it->Second();
+    auto session = it->second;
     session->RenewLease();
     return session;
 }
@@ -411,6 +413,7 @@ TSession::TPtr TSessionManager::StartSession(
     auto location = ChunkStore->GetNewChunkLocation();
 
     auto session = New<TSession>(this, chunkId, ~location);
+    session->Start();
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,
@@ -421,7 +424,7 @@ TSession::TPtr TSessionManager::StartSession(
         ->Via(ServiceInvoker));
     session->SetLease(lease);
 
-    YVERIFY(SessionMap.insert(MakePair(chunkId, session)).Second());
+    YVERIFY(SessionMap.insert(MakePair(chunkId, session)).second);
 
     LOG_INFO("Session started (ChunkId: %s, Location: %s)",
         ~chunkId.ToString(),
@@ -443,8 +446,8 @@ void TSessionManager::CancelSession(TSession* session, const TError& error)
         ~error.ToString());
 }
 
-TFuture<TVoid>::TPtr TSessionManager::FinishSession(
-    TSession::TPtr session, 
+TFuture<TChunk::TPtr>::TPtr TSessionManager::FinishSession(
+    TSession* session, 
     const TChunkAttributes& attributes)
 {
     auto chunkId = session->GetChunkId();
@@ -457,10 +460,10 @@ TFuture<TVoid>::TPtr TSessionManager::FinishSession(
         session));
 }
 
-TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
+TChunk::TPtr TSessionManager::OnSessionFinished(TChunk::TPtr chunk, TSession::TPtr session)
 {
     LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
-    return TVoid();
+    return chunk;
 }
 
 void TSessionManager::OnLeaseExpired(TSession::TPtr session)
@@ -481,7 +484,7 @@ TSessionManager::TSessions TSessionManager::GetSessions() const
     TSessions result;
     result.reserve(SessionMap.ysize());
     FOREACH(const auto& pair, SessionMap) {
-        result.push_back(pair.Second());
+        result.push_back(pair.second);
     }
     return result;
 }

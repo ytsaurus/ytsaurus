@@ -20,7 +20,7 @@ void TMetaStatePart::RegisterMethod(
         &TMetaStatePart::MethodThunk<TMessage, TResult>,
         this,
         changeMethod);
-    YVERIFY(MetaState->Methods.insert(MakePair(changeType, action)).Second() == 1);
+    YVERIFY(MetaState->Methods.insert(MakePair(changeType, action)).second == 1);
 }
 
 template<class TMessage, class TResult>

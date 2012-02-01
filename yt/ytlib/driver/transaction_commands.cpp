@@ -36,6 +36,7 @@ void TCommitTransactionCommand::DoExecute(TCommitTransactionRequest* request)
     auto transaction = DriverImpl->GetCurrentTransaction(true);
     transaction->Commit();
     DriverImpl->SetCurrentTransaction(NULL);
+    DriverImpl->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +46,7 @@ void TAbortTransactionCommand::DoExecute(TAbortTransactionRequest* request)
     auto transaction = DriverImpl->GetCurrentTransaction(true);
     transaction->Abort();
     DriverImpl->SetCurrentTransaction(NULL);
+    DriverImpl->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

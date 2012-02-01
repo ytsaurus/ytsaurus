@@ -10,12 +10,6 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ELockMode,
-    (SharedRead)
-    (SharedWrite)
-    (ExclusiveWrite)
-);
-
 class TLock
     : public NObjectServer::TObjectWithIdBase
 {

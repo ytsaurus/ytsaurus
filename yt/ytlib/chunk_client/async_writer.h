@@ -22,17 +22,19 @@ namespace NChunkClient {
  *  multiple destinations using torrent or chaining strategies.
  */
 struct IAsyncWriter
-    : virtual public TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IAsyncWriter> TPtr;
+
+    //! Starts a new upload session.
+    virtual void Open() = 0;
 
     //! Called when the client wants to upload a new block.
     /*!
      *  Subsequent calls to #AsyncWriteBlock or #AsyncClose are
-     *  prohibited until returned result gets set.
-     *  If IsOK is true - writer is ready for further work.
-     *  IsOK equal to false indicates some error, (e.g. all 
-     *  chunk-holders are considered down).
+     *  prohibited until the returned result is set.
+     *  If the result indicates some error then the whole upload session is failed.
+     *  (e.g. all chunk-holders are down).
      *  The client shouldn't retry writing the same block again.
      */
     virtual TAsyncError::TPtr AsyncWriteBlock(const TSharedRef& data) = 0;
@@ -51,8 +53,8 @@ struct IAsyncWriter
     //! Cancels the current upload. 
     //! This method is safe to call at any time.
     /*!
-     *  It is safe to call this method at any time and possibly 
-     *  multiple times.Calling #AsyncWriteBlock afterwards is an error.
+     *  It is safe to call this method at any time and possibly multiple times.
+     *  Calling #AsyncWriteBlock afterwards is an error.
      */
     virtual void Cancel(const TError& error) = 0;
 

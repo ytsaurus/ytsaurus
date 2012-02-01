@@ -73,12 +73,6 @@ public:
      */
     TSharedRef Read();
 
-    //! Closes the reader.
-    /*!
-     *  After this call the reader instance is no longer usable.
-     */
-    void Close();
-
 private:
     TConfig::TPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
@@ -87,7 +81,6 @@ private:
     NChunkClient::IBlockCache::TPtr BlockCache;
     NYTree::TYPath Path;
     bool IsOpen;
-    bool IsClosed;
     i32 BlockCount;
     i32 BlockIndex;
     NCypress::TCypressServiceProxy Proxy;

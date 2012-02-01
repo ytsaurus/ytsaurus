@@ -45,40 +45,72 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents an RPC request at server-side.
 struct IServiceContext
     : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IServiceContext> TPtr;
 
+    //! Returns the message that contains the request being handled.
     virtual NBus::IMessage::TPtr GetRequestMessage() const = 0;
 
+    //! Returns the id of the request.
+    /*!
+     *  These ids are assigned by the client to distinguish between responses.
+     *  The server should not rely on its uniqueness.
+     *  #NullRequestId is a possible value.
+     */
+    virtual const TRequestId& GetRequestId() const = 0;
+    //! Returns the requested path.
     virtual const Stroka& GetPath() const = 0;
+    //! Returns the requested verb.
     virtual const Stroka& GetVerb() const = 0;
 
+    //! Returns True if the request if one-way, i.e. replying to it is not possible.
     virtual bool IsOneWay() const = 0;
+    //! Returns True if the request was already replied.
     virtual bool IsReplied() const = 0;
+
+    //! Signals that the request processing is complete and sends reply to the client.
     virtual void Reply(const TError& error) = 0;
+    //! An extension method that extracts the error code, the response body, and attachments
+    //! from #message and replies to the client.
+    void Reply(NBus::IMessage* message);
+
+    //! Returns the error that was previously set by #Reply.
+    /*!
+     *  Calling #GetError before #Reply is forbidden.
+     */
     virtual TError GetError() const = 0;
 
+    //! Returns the request body.
     virtual TSharedRef GetRequestBody() const = 0;
+    //! Sets the response body.
     virtual void SetResponseBody(const TSharedRef& responseBody) = 0;
 
+    //! Returns an immutable vector of request attachments.
     virtual const yvector<TSharedRef>& RequestAttachments() const = 0;
+    //! Returns a mutable vector of response attachments.
     virtual yvector<TSharedRef>& ResponseAttachments() = 0;
 
+    //! Sets and immediately logs the request logging info.
     virtual void SetRequestInfo(const Stroka& info) = 0;
+    //! Returns the previously set request logging info.
     virtual Stroka GetRequestInfo() const = 0;
 
+    //! Sets the response logging info. This info will be logged when the context is replied.
     virtual void SetResponseInfo(const Stroka& info) = 0;
+    //! Returns the currently set response logging info.
     virtual Stroka GetResponseInfo() = 0;
 
+    //! Wraps the given action into an exception guard that logs the exception and replies.
     virtual IAction::TPtr Wrap(IAction* action) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IService
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IService> TPtr;
 
@@ -374,16 +406,16 @@ protected:
 private:
     struct TRuntimeMethodInfo
     {
-        TMethodDescriptor Descriptor;
-        IInvoker::TPtr Invoker;
-        TMetric ExecutionTime;
-
         TRuntimeMethodInfo(const TMethodDescriptor& info, IInvoker* invoker)
             : Descriptor(info)
             , Invoker(invoker)
             // TODO: configure properly
             , ExecutionTime(0, 1000, 10)
         { }
+
+        TMethodDescriptor Descriptor;
+        IInvoker::TPtr Invoker;
+        TMetric ExecutionTime;
     };
 
     struct TActiveRequest

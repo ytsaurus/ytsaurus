@@ -30,7 +30,7 @@ DECLARE_ENUM(EYPathErrorCode,
  *  Once the request is resolved, #Invoke is called for the target service.
  */
 struct IYPathService
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IYPathService> TPtr;
 

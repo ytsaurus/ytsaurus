@@ -21,6 +21,8 @@ public:
     //! Creates a new writer.
     TChunkFileWriter(const TChunkId& id, const Stroka& fileName);
 
+    virtual void Open();
+
     virtual TAsyncError::TPtr AsyncWriteBlock(const TSharedRef& data);
 
     virtual TAsyncError::TPtr AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
@@ -35,12 +37,11 @@ public:
 private:
     TChunkId Id;
     Stroka FileName;
-    bool Open;
-    bool Closed;
+    bool IsOpen;
+    bool IsClosed;
     i64 DataSize;
     THolder<TFile> DataFile;
     NChunkHolder::NProto::TChunkMeta ChunkMeta;
-    TAsyncError::TPtr Result;
     NChunkHolder::NProto::TChunkInfo ChunkInfo;
 
     bool EnsureOpen();

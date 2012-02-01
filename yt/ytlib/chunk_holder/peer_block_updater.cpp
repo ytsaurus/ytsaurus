@@ -55,7 +55,7 @@ void TPeerBlockUpdater::Update()
             TProxy::TReqUpdatePeer::TPtr request;
             auto it = requests.find(source);
             if (it != requests.end()) {
-                request = it->Second();
+                request = it->second;
             } else {
                 TProxy proxy(~ChannelCache->GetChannel(source));
                 request = proxy.UpdatePeer();
@@ -72,9 +72,9 @@ void TPeerBlockUpdater::Update()
 
     FOREACH (const auto& pair, requests) {
         LOG_DEBUG("Sending peer block update request (Address: %s, ExpirationTime: %s)",
-            ~pair.First(),
+            ~pair.first,
             ~expirationTime.ToString());
-        pair.Second()->Invoke();
+        pair.second->Invoke();
     }
 }
 

@@ -15,6 +15,109 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IYPathService::TResolveResult TAttributedYPathServiceBase::ResolveAttributes(
+    const TYPath& path,
+    const Stroka& verb)
+{
+    UNUSED(path);
+    UNUSED(verb);
+    return TResolveResult::Here(AttributeMarker + path);
+}
+
+void TAttributedYPathServiceBase::DoInvoke(NRpc::IServiceContext* context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    DISPATCH_YPATH_SERVICE_METHOD(List);
+    TYPathServiceBase::DoInvoke(context);
+}
+
+void TAttributedYPathServiceBase::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+{
+    UNUSED(attributes);
+}
+
+bool TAttributedYPathServiceBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+{
+    return false;
+}
+
+void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
+{
+    TStringStream stream;
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
+        
+    if (IsFinalYPath(path)) {
+        yvector<TAttributeInfo> systemAttributes;
+        GetSystemAttributes(&systemAttributes);
+
+        writer.OnBeginMap();
+        FOREACH (const auto& attribute, systemAttributes) {
+            if (attribute.IsPresent) {
+                writer.OnMapItem(attribute.Name);
+                if (attribute.IsOpaque) {
+                    writer.OnEntity();
+                } else {
+                    YVERIFY(GetSystemAttribute(attribute.Name, &writer));
+                }
+            }
+        }
+        writer.OnEndMap();
+
+        response->set_value(stream.Str());
+    } else {
+        Stroka token;
+        TYPath suffixPath;
+        ChopYPathToken(path, &token, &suffixPath);
+
+        if (!GetSystemAttribute(token, &writer)) {
+            ythrow yexception() << Sprintf("Attribute %s is not found", ~token.Quote());
+        }
+        
+        if (IsFinalYPath(suffixPath)) {
+            response->set_value(stream.Str());
+        } else {
+            auto wholeValue = DeserializeFromYson(stream.Str());
+            auto value = SyncYPathGet(~wholeValue, RootMarker + suffixPath);
+            response->set_value(value);
+        }
+    }
+
+    context->Reply();
+}
+
+void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context)
+{
+    yvector<Stroka> keys;
+
+    if (IsFinalYPath(path)) {
+        yvector<TAttributeInfo> systemAttributes;
+        GetSystemAttributes(&systemAttributes);
+        FOREACH (const auto& attribute, systemAttributes) {
+            if (attribute.IsPresent) {
+                keys.push_back(attribute.Name);
+            }
+        }
+    } else {
+        Stroka token;
+        TYPath suffixPath;
+        ChopYPathToken(path, &token, &suffixPath);
+
+        TStringStream stream;
+        TYsonWriter writer(&stream, EYsonFormat::Binary);
+        if (!GetSystemAttribute(token, &writer)) {
+            ythrow yexception() << Sprintf("Attribute %s is not found", ~token.Quote());
+        }
+
+        auto wholeValue = DeserializeFromYson(stream.Str());
+        keys = SyncYPathList(~wholeValue, RootMarker + suffixPath);
+    }
+
+    ToProto(*response->mutable_keys(), keys);
+    context->Reply();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     UNUSED(verb);
@@ -31,12 +134,6 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
     return TResolveResult::There(~service, suffixPath);
 }
 
-void TVirtualMapBase::DoInvoke(NRpc::IServiceContext* context)
-{
-    DISPATCH_YPATH_SERVICE_METHOD(Get);
-    TYPathServiceBase::DoInvoke(context);
-}
-
 struct TGetConfig
     : public TConfigurable
 {
@@ -50,11 +147,9 @@ struct TGetConfig
     }
 };
 
-DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
+void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
-    if (!IsFinalYPath(context->GetPath())) {
-        ythrow yexception() << "Path must be final";
-    }
+    YASSERT(IsFinalYPath(context->GetPath()));
 
     auto config = New<TGetConfig>();
     if (request->has_options()) {
@@ -87,6 +182,23 @@ DEFINE_RPC_SERVICE_METHOD(TVirtualMapBase, Get)
 
     response->set_value(stream.Str());
     context->Reply();
+}
+
+void TVirtualMapBase::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+{
+    attributes->push_back("size");
+    TAttributedYPathServiceBase::GetSystemAttributes(attributes);
+}
+
+bool TVirtualMapBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+{
+    if (name == "size") {
+        BuildYsonFluently(consumer)
+            .Scalar(static_cast<i64>(GetSize()));
+        return true;
+    }
+
+    return TAttributedYPathServiceBase::GetSystemAttribute(name, consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,11 +16,11 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSnapshotCreator
+class TSnapshotBuilder
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSnapshotCreator> TPtr;
+    typedef TIntrusivePtr<TSnapshotBuilder> TPtr;
 
     struct TConfig
         : public TConfigurable
@@ -58,7 +58,7 @@ public:
 
     typedef TFuture<TLocalResult> TAsyncLocalResult;
 
-    TSnapshotCreator(
+    TSnapshotBuilder(
         TConfig* config,
         TCellManager::TPtr cellManager,
         TDecoratedMetaState::TPtr metaState,

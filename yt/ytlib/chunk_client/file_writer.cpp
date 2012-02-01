@@ -19,81 +19,51 @@ static NLog::TLogger& Logger = ChunkClientLogger;
 TChunkFileWriter::TChunkFileWriter(const TChunkId& id, const Stroka& fileName)
     : Id(id)
     , FileName(fileName)
-    , Result(ToFuture(TError()))
-    , Open(false)
-    , Closed(false)
+    , IsOpen(false)
+    , IsClosed(false)
     , DataSize(0)
 {
     ChunkMeta.set_id(id.ToProto());
 }
 
-bool TChunkFileWriter::EnsureOpen()
+void TChunkFileWriter::Open()
 {
-    if (Open) {
-        return true;
-    }
+    YASSERT(!IsOpen);
+    YASSERT(!IsClosed);
 
-    try {
-        DataFile.Reset(new TFile(
-            FileName + NFS::TempFileSuffix,
-            CreateAlways | WrOnly | Seq));
-    } catch (const std::exception& ex) {
-        Result = ToFuture(TError(Sprintf("Error opening chunk file %s\n%s",
-            ~FileName.Quote(),
-            ex.what())));
-        return false;
-    }
+    DataFile.Reset(new TFile(
+        FileName + NFS::TempFileSuffix,
+        CreateAlways | WrOnly | Seq));
 
-    Open = true;
-    return true;
+    IsOpen = true;
 }
 
 TAsyncError::TPtr TChunkFileWriter::AsyncWriteBlock(const TSharedRef& data)
 {
-    YASSERT(!Closed);
-
-    if (!EnsureOpen()) {
-        return Result;
-    }
+    YASSERT(IsOpen);
 
     auto* blockInfo = ChunkMeta.add_blocks();
     blockInfo->set_offset(DataFile->GetPosition());
     blockInfo->set_size(static_cast<int>(data.Size()));
     blockInfo->set_checksum(GetChecksum(data));
 
-    try {
-        DataFile->Write(data.Begin(), data.Size());
-    } catch (const std::exception& ex) {
-        Result = ToFuture(TError(Sprintf("Error writing chunk file %s\n%s",
-            ~FileName.Quote(),
-            ex.what())));
-        return Result;
-    }
+    DataFile->Write(data.Begin(), data.Size());
 
     DataSize += data.Size();
 
-    return Result;
+    return MakeFuture(TError());
 }
 
 TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attributes)
 {
-    if (Closed) {
-        return Result;
-    }
+    if (!IsOpen)
+        return MakeFuture(TError());
 
-    if (!EnsureOpen()) {
-        return Result;
-    }
+    IsOpen = false;
+    IsClosed = true;
 
-    try {
-        DataFile->Close();
-        DataFile.Destroy();
-    } catch (const std::exception& ex) {
-        Result = ToFuture(TError(Sprintf("Error closing chunk file %s\n%s",
-            ~FileName.Quote(),
-            ex.what())));
-        return Result;
-    }
+    DataFile->Close();
+    DataFile.Destroy();
 
     // Write meta.
     *ChunkMeta.mutable_attributes() = attributes;
@@ -110,30 +80,21 @@ TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attribute
 
     Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
 
-    try {
-        TFile chunkMetaFile(
-            chunkMetaFileName + NFS::TempFileSuffix,
-            CreateAlways | WrOnly | Seq);
-        Write(chunkMetaFile, header);
-        chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
-        chunkMetaFile.Close();
-    } catch (const std::exception& ex) {
-        Result = ToFuture(TError(Sprintf("Error writing chunk file meta %s\n%s",
-            ~FileName.Quote(),
-            ex.what())));
-        return Result;
-    }
+    TFile chunkMetaFile(
+        chunkMetaFileName + NFS::TempFileSuffix,
+        CreateAlways | WrOnly | Seq);
+    Write(chunkMetaFile, header);
+    chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
+    chunkMetaFile.Close();
 
     if (!NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName)) {
-        Result = ToFuture(TError(Sprintf("Error renaming temp chunk meta file %s",
-            ~chunkMetaFileName.Quote())));
-        return Result;
+        ythrow yexception() << Sprintf("Error renaming temp chunk meta file %s",
+            ~chunkMetaFileName.Quote());
     }
 
     if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
-        Result = ToFuture(TError(Sprintf("Error renaming temp chunk file %s",
-            ~FileName.Quote())));
-        return Result;
+        ythrow yexception() << Sprintf("Error renaming temp chunk file %s",
+            ~FileName.Quote());
     }
 
     ChunkInfo.set_id(Id.ToProto());
@@ -142,29 +103,12 @@ TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attribute
     ChunkInfo.mutable_blocks()->MergeFrom(ChunkMeta.blocks());
     ChunkInfo.mutable_attributes()->CopyFrom(ChunkMeta.attributes());
 
-    Closed = true;
-    return Result;
+    return MakeFuture(TError());
 }
 
 void TChunkFileWriter::Cancel(const TError& error)
 {
-    if (!Open || Closed) {
-        return;
-    }
-
-    try {
-        DataFile->Close();
-    } catch (const std::exception& ex) {
-        LOG_WARNING("Error closing temp chunk file %s", ~FileName.Quote());
-    }
-
-    DataFile.Destroy();
-    
-    if (!NFS::Remove(FileName + NFS::TempFileSuffix)) {
-        LOG_WARNING("Error deleting temp chunk file %s", ~FileName.Quote());
-    }
-
-    Closed = true;
+    // TODO(babenko): get rid of Cancel
 }
 
 TChunkId TChunkFileWriter::GetChunkId() const
@@ -174,7 +118,7 @@ TChunkId TChunkFileWriter::GetChunkId() const
 
 TChunkInfo TChunkFileWriter::GetChunkInfo() const
 {
-    YASSERT(Closed);
+    YASSERT(IsClosed);
     return ChunkInfo;
 }
 

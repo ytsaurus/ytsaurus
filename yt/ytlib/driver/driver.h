@@ -14,6 +14,7 @@
 #include <ytlib/file_client/file_writer.h>
 #include <ytlib/table_client/table_reader.h>
 #include <ytlib/table_client/table_writer.h>
+#include <ytlib/chunk_client/client_block_cache.h>
 
 namespace NYT {
 namespace NDriver {
@@ -25,8 +26,8 @@ struct IDriverStreamProvider
     virtual ~IDriverStreamProvider()
     { }
 
-    virtual TAutoPtr<TInputStream>  CreateInputStream(const Stroka& spec) = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec) = 0;
+    virtual TAutoPtr<TInputStream>  CreateInputStream(const Stroka& spec = "") = 0;
+    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec = "") = 0;
     virtual TAutoPtr<TOutputStream> CreateErrorStream() = 0;
 };
 
@@ -48,6 +49,7 @@ public:
         NFileClient::TFileWriter::TConfig::TPtr FileWriter;
         NTableClient::TTableReader::TConfig::TPtr TableReader;
         NTableClient::TTableWriter::TConfig::TPtr TableWriter;
+        NChunkClient::TClientBlockCacheConfig::TPtr BlockCache;
 
         TConfig()
         {
@@ -58,6 +60,7 @@ public:
             Register("file_writer", FileWriter).DefaultNew();
             Register("table_reader", TableReader).DefaultNew();
             Register("table_writer", TableWriter).DefaultNew();
+            Register("block_cache", BlockCache).DefaultNew();
         }
     };
 

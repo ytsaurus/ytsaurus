@@ -83,12 +83,11 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
             ~JoinToString(addresses),
             ~chunkId.ToString());
 
-        // ToDo: consider using iterators in constructor to 
-        // eliminate tmp vector
         auto chunkWriter = New<TRemoteWriter>(
             ~Config->RemoteWriter,
             chunkId,
             addresses);
+        chunkWriter->Open();
 
         NextChunk->Set(New<TChunkWriter>(
             ~Config->ChunkWriter,

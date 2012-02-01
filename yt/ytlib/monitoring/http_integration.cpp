@@ -40,7 +40,7 @@ TFuture<Stroka>::TPtr HandleRequest(TYPathServiceProvider::TPtr provider, const 
 {
     auto service = provider->Do();
     if (!service) {
-        return ToFuture(FormatServiceUnavailableResponse());
+        return MakeFuture(FormatServiceUnavailableResponse());
     }
     return AsyncYPathGet(~service, path)->Apply(FromMethod(&OnResponse));
 }

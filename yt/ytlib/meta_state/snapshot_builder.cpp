@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "snapshot_creator.h"
+#include "snapshot_builder.h"
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/misc/serialize.h>
@@ -16,14 +16,14 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSnapshotCreator::TSession
+class TSnapshotBuilder::TSession
     : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TSession> TPtr;
 
     TSession(
-        TSnapshotCreator::TPtr creator,
+        TSnapshotBuilder::TPtr creator,
         TMetaVersion version)
         : Creator(creator)
         , Version(version)
@@ -72,16 +72,14 @@ private:
             for (TPeerId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
                 const auto& checksum1 = Checksums[id1];
                 const auto& checksum2 = Checksums[id2];
-                if (checksum1.Second() && checksum2.Second() && 
-                    checksum1.First() != checksum2.First())
-                {
+                if (checksum1 && checksum2 && checksum1 != checksum2) {
                     // TODO: consider killing followers
                     LOG_FATAL(
                         "Snapshot checksum mismatch: "
                         "peer %d reported %" PRIx64 ", "
                         "peer %d reported %" PRIx64,
-                        id1, checksum1.First(),
-                        id2, checksum2.First());
+                        id1, *checksum1,
+                        id2, *checksum2);
                 }
             }
         }
@@ -93,7 +91,7 @@ private:
     {
         YASSERT(result.ResultCode == EResultCode::OK);
 
-        Checksums[Creator->CellManager->GetSelfId()] = MakePair(result.Checksum, true);
+        Checksums[Creator->CellManager->GetSelfId()] = MakeNullable(result.Checksum);
     }
 
     void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
@@ -111,18 +109,18 @@ private:
             followerId,
             checksum);
 
-        Checksums[followerId] = MakePair(checksum, true);
+        Checksums[followerId] = MakeNullable(checksum);
     }
 
-    TSnapshotCreator::TPtr Creator;
+    TSnapshotBuilder::TPtr Creator;
     TMetaVersion Version;
     TParallelAwaiter::TPtr Awaiter;
-    yvector< TPair<TChecksum, bool> > Checksums;
+    yvector< TNullable<TChecksum> > Checksums;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotCreator::TSnapshotCreator(
+TSnapshotBuilder::TSnapshotBuilder(
     TConfig* config,
     TCellManager::TPtr cellManager,
     TDecoratedMetaState::TPtr metaState,
@@ -137,7 +135,7 @@ TSnapshotCreator::TSnapshotCreator(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , LocalProgress(ToFuture(TVoid()))
+    , LocalProgress(MakeFuture(TVoid()))
 {
     YASSERT(cellManager);
     YASSERT(metaState);
@@ -148,7 +146,7 @@ TSnapshotCreator::TSnapshotCreator(
     StateInvoker = metaState->GetStateInvoker();
 }
 
-TSnapshotCreator::EResultCode TSnapshotCreator::CreateDistributed()
+TSnapshotBuilder::EResultCode TSnapshotBuilder::CreateDistributed()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -161,7 +159,7 @@ TSnapshotCreator::EResultCode TSnapshotCreator::CreateDistributed()
     return EResultCode::OK;
 }
 
-TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
+TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     TMetaVersion version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -199,13 +197,13 @@ TSnapshotCreator::TAsyncLocalResult::TPtr TSnapshotCreator::CreateLocal(
 
     // The writer reference is being held by the closure action.
     return saveResult->Apply(FromMethod(
-        &TSnapshotCreator::OnSave,
+        &TSnapshotBuilder::OnSave,
         TPtr(this),
         snapshotId,
         writer));
 }
 
-TSnapshotCreator::TLocalResult TSnapshotCreator::OnSave(
+TSnapshotBuilder::TLocalResult TSnapshotBuilder::OnSave(
     TVoid /* fake */,
     i32 segmentId,
     TSnapshotWriter::TPtr writer)

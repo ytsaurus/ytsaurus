@@ -28,14 +28,15 @@ struct IDriverImpl
     virtual TDriver::TConfig* GetConfig() const = 0;
     virtual NRpc::IChannel* GetMasterChannel() const = 0;
 
-    virtual NYTree::TYsonProducer::TPtr CreateInputProducer(const Stroka& spec = Stroka()) = 0;
-    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec = Stroka()) = 0;
+    virtual NYTree::TYsonProducer::TPtr CreateInputProducer(const Stroka& spec = "") = 0;
+    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec = "") = 0;
 
-    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec = Stroka()) = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec = Stroka()) = 0;
+    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec = "") = 0;
+    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec = "") = 0;
 
     virtual void ReplyError(const TError& error) = 0;
-    virtual void ReplySuccess(const NYTree::TYson& yson, const Stroka& spec = Stroka()) = 0;
+    virtual void ReplySuccess() = 0;
+    virtual void ReplySuccess(const NYTree::TYson& yson, const Stroka& spec = "") = 0;
 
     virtual NChunkClient::IBlockCache* GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManager* GetTransactionManager() = 0;
@@ -64,7 +65,7 @@ Stroka ToStreamSpec(NYTree::INode::TPtr node);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommand
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<ICommand> TPtr;
 
@@ -81,12 +82,10 @@ public:
     virtual void Execute(NYTree::INode* request)
     {
         auto typedRequest = New<TRequest>();
+        typedRequest->SetKeepOptions(true);
         try {
-            typedRequest->Load(request);
-            // TODO: fixme
-            typedRequest->Validate();
-        }
-        catch (const std::exception& ex) {
+            typedRequest->LoadAndValidate(request);
+        } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing request\n%s", ex.what());
         }
         DoExecute(~typedRequest);

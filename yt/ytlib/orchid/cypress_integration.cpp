@@ -21,6 +21,7 @@ using namespace NBus;
 using namespace NYTree;
 using namespace NCypress;
 using namespace NProto;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,21 +37,12 @@ class TOrchidYPathService
 public:
     typedef TIntrusivePtr<TOrchidYPathService> TPtr;
 
-    TOrchidYPathService(const TYson& manifestYson)
-    {
-        auto manifestNode = DeserializeFromYson(manifestYson);
-        try {
-            Manifest = New<TOrchidManifest>();
-            Manifest->LoadAndValidate(~manifestNode);
-        } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
-                ex.what());
-        }
-
-        auto channel = ChannelCache.GetChannel(Manifest->RemoteAddress);
-        Proxy = new TOrchidServiceProxy(~channel);
-        Proxy->SetTimeout(Manifest->Timeout);
-    }
+    explicit TOrchidYPathService(
+        TObjectManager* objectManager,
+        const TVersionedObjectId& id)
+        : ObjectManager(objectManager)
+        , Id(id)
+    { }
 
     TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
@@ -60,19 +52,25 @@ public:
 
     void Invoke(NRpc::IServiceContext* context)
     {
-        TYPath path = GetRedirectPath(context->GetPath());
-        Stroka verb = context->GetVerb();
+        auto manifest = LoadManifest();
+
+        auto channel = ChannelCache.GetChannel(manifest->RemoteAddress);
+        TOrchidServiceProxy proxy(~channel);
+        proxy.SetTimeout(manifest->Timeout);
+
+        auto path = GetRedirectPath(~manifest, context->GetPath());
+        auto verb = context->GetVerb();
 
         auto requestMessage = context->GetRequestMessage();
         auto requestHeader = GetRequestHeader(~requestMessage);
         requestHeader.set_path(path);
         auto innerRequestMessage = SetRequestHeader(~requestMessage, requestHeader);
 
-        auto outerRequest = Proxy->Execute();
+        auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage->GetParts();
 
-        LOG_INFO("Sending request to a remote Orchid (Address: %s, Path: %s, Verb: %s, RequestId: %s)",
-            ~Manifest->RemoteAddress,
+        LOG_INFO("Sending request to a remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
+            ~manifest->RemoteAddress,
             ~path,
             ~verb,
             ~outerRequest->GetRequestId().ToString());
@@ -82,6 +80,7 @@ public:
                 &TOrchidYPathService::OnResponse,
                 TPtr(this),
                 IServiceContext::TPtr(context),
+                manifest,
                 path,
                 verb)
             ->Via(OrchidQueue->GetInvoker()));
@@ -99,9 +98,26 @@ public:
     }
 
 private:
+    TVersionedObjectId Id;
+    TObjectManager::TPtr ObjectManager;
+
+    TOrchidManifest::TPtr LoadManifest()
+    {
+        auto manifest = New<TOrchidManifest>();
+        auto manifestNode = ObjectManager->GetAttributesMap(Id);
+        try {
+            manifest->LoadAndValidate(~manifestNode);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
+                ex.what());
+        }
+        return manifest;
+    }
+
     void OnResponse(
         TOrchidServiceProxy::TRspExecute::TPtr response,
         NRpc::IServiceContext::TPtr context,
+        TOrchidManifest::TPtr manifest,
         TYPath path,
         const Stroka& verb)
     {
@@ -111,37 +127,32 @@ private:
 
         if (response->IsOK()) {
             auto innerResponseMessage = CreateMessageFromParts(response->Attachments());
-            ReplyYPathWithMessage(~context, ~innerResponseMessage);
+            context->Reply(~innerResponseMessage);
         } else {
             context->Reply(TError(Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
                 ~path,
                 ~verb,
-                ~Manifest->RemoteAddress,
-                ~Manifest->RemoteRoot,
+                ~manifest->RemoteAddress,
+                ~manifest->RemoteRoot,
                 ~response->GetError().ToString())));
         }
     }
 
-    Stroka GetRedirectPath(const TYPath& path)
+    static Stroka GetRedirectPath(TOrchidManifest* manifest, const TYPath& path)
     {
-        return CombineYPaths(Manifest->RemoteRoot, path);
+        return CombineYPaths(manifest->RemoteRoot, path);
     }
-
-    TOrchidManifest::TPtr Manifest;
-    TAutoPtr<TOrchidServiceProxy> Proxy;
-
 };
 
-INodeTypeHandler::TPtr CreateOrchidTypeHandler(
-    TCypressManager* cypressManager)
+INodeTypeHandler::TPtr CreateOrchidTypeHandler(TCypressManager* cypressManager)
 {
-    TCypressManager::TPtr cypressManager_ = cypressManager;
+    TObjectManager::TPtr objectManager = cypressManager->GetObjectManager();
     return CreateVirtualTypeHandler(
         cypressManager,
         EObjectType::Orchid,
-        ~FromFunctor([=] (const TVirtualYPathContext& context) -> IYPathService::TPtr
+        ~FromFunctor([=] (const TVersionedObjectId& id) -> IYPathService::TPtr
             {
-                return New<TOrchidYPathService>(context.Manifest);
+                return New<TOrchidYPathService>(~objectManager, id);
             }));
 }
 

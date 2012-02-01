@@ -139,11 +139,11 @@ protected:
         { \
             int value; \
             if (!GetValueByLiteral(str, &value)) { \
-                ythrow yexception() \
-                    << "Error parsing " PP_STRINGIZE(name) " value '" << Stroka(str).Quote() << "'"; \
-            } else { \
-                return name(value); \
+                ythrow yexception() << Sprintf("Error parsing %s value %s", \
+                    PP_STRINGIZE(name), \
+                    ~Stroka(str).Quote()); \
             } \
+            return name(value); \
         } \
         \
         static name FromString(const Stroka& str) \
@@ -219,7 +219,7 @@ protected:
     }
 //! \}
 
-//! Declaration of the relational operators; all at once.
+//! Declaration of relational operators; all at once.
 #define ENUM__RELATIONAL_OPERATORS(name) \
     public: \
         ENUM__RELATIONAL_OPERATOR(name, < ) \

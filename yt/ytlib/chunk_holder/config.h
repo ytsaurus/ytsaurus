@@ -3,7 +3,9 @@
 #include "common.h"
 
 #include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_client/sequential_reader.h>
+#include <ytlib/chunk_holder/peer_block_table.h>
 #include <ytlib/election/leader_lookup.h>
 
 namespace NYT {
@@ -47,26 +49,6 @@ struct TLocationConfig
         if (HighWatermark > LowWatermark) {
             ythrow yexception() << "\"high_watermark\" cannot be more than \"low_watermark\"";
         }
-    }
-};
-
-// TODO(roizner): It should be in peer_block_table.h, but we cannot place it there because of cross-includes!
-// TODO(roizner): Or merge it into TChunkHolderConfig
-struct TPeerBlockTableConfig
-    : public TConfigurable
-{
-    typedef TIntrusivePtr<TPeerBlockTableConfig> TPtr;
-
-    int MaxPeersPerBlock;
-    TDuration SweepPeriod;
-
-    TPeerBlockTableConfig()
-    {
-        Register("max_peers_per_block", MaxPeersPerBlock)
-            .GreaterThan(0)
-            .Default(64);
-        Register("sweep_period", SweepPeriod)
-            .Default(TDuration::Minutes(10));
     }
 };
 
@@ -116,7 +98,7 @@ struct TChunkHolderConfig
     //! Regular storage locations.
     yvector<TLocationConfig::TPtr> ChunkStorageLocations;
 
-    //! Location used for caching chunks.
+    //! Cached chunks location.
     TLocationConfig::TPtr ChunkCacheLocation;
 
     //! Remote reader configuration used to download chunks into cache.
@@ -125,11 +107,16 @@ struct TChunkHolderConfig
     //! Sequential reader configuration used to download chunks into cache.
     NChunkClient::TSequentialReader::TConfig::TPtr CacheSequentialReader;
 
-    TPeerBlockTableConfig::TPtr BlockTable;
+    //! Remote writer configuration used to replicate chunks.
+    NChunkClient::TRemoteWriter::TConfig::TPtr ReplicationRemoteWriter;
+
+    //! Keeps chunk peering information.
+    TPeerBlockTable::TConfig::TPtr PeerBlockTable;
 
     //! Masters configuration.
     NElection::TLeaderLookup::TConfig::TPtr Masters;
     
+
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -169,9 +156,11 @@ struct TChunkHolderConfig
             .DefaultNew();
         Register("cache_sequential_reader", CacheSequentialReader)
             .DefaultNew();
-        Register("block_table", BlockTable)
+        Register("peer_block_table", PeerBlockTable)
             .DefaultNew();
         Register("masters", Masters);
+        Register("replication_remote_writer", ReplicationRemoteWriter)
+            .DefaultNew();
     }
 };
 

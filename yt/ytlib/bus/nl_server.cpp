@@ -409,7 +409,7 @@ void TNLBusServer::ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
         LOG_DEBUG("Ping failed (RequestId: %s)",
             ~((TGuid) nlResponse->ReqId).ToString());
 
-        auto session = pingIt->Second();
+        auto session = pingIt->second;
         UnregisterSession(~session);
     }
 }
@@ -457,7 +457,7 @@ void TNLBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlRespons
         LOG_DEBUG("Ping ack received (RequestId: %s)",
             ~requestId.ToString());
 
-        auto session = pingIt->Second();
+        auto session = pingIt->second;
         UnregisterSession(~session);
     }
 }
@@ -524,7 +524,7 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
             return NULL;
         }
     } else {
-        session = sessionIt->Second();
+        session = sessionIt->second;
     }
 
     IMessage::TPtr message;

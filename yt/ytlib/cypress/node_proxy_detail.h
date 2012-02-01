@@ -70,7 +70,6 @@ public:
         , ObjectManager(cypressManager->GetObjectManager())
         , TransactionId(transactionId)
         , NodeId(nodeId)
-        , Locked(false)
     {
         YASSERT(typeHandler);
         YASSERT(cypressManager);
@@ -138,14 +137,10 @@ protected:
     const TTransactionId TransactionId;
     const TNodeId NodeId;
 
-    //! A cached flag that gets raised when the node is locked.
-    bool Locked;
 
-
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
-        attributes->push_back("state");
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
@@ -156,12 +151,6 @@ protected:
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
                 .Scalar(node.GetParentId().ToString());
-            return true;
-        }
-
-        if (name == "state") {
-            BuildYsonFluently(consumer)
-                .Scalar(CamelCaseToUnderscoreCase(node.GetState().ToString()));
             return true;
         }
 
@@ -178,10 +167,22 @@ protected:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Lock)
     {
-        UNUSED(request);
-        UNUSED(response);
+        auto mode = ELockMode(request->mode());
+        
+        context->SetRequestInfo("Mode: %s", ~mode.ToString());
+        if (mode != ELockMode::Snapshot &&
+            mode != ELockMode::Shared &&
+            mode != ELockMode::Exclusive)
+        {
+            ythrow yexception() << Sprintf("Invalid lock mode (Mode: %s)", ~mode.ToString());
+        }
 
-        DoLock();
+        auto lockId = CypressManager->LockVersionedNode(NodeId, TransactionId, mode);
+
+        response->set_lock_id(lockId.ToProto());
+
+        context->SetResponseInfo("LockId: %s", ~lockId.ToString());
+
         context->Reply();
     }
     
@@ -203,9 +204,9 @@ protected:
         return CypressManager->GetVersionedNode(nodeId, TransactionId);
     }
 
-    ICypressNode& GetImplForUpdate(const TNodeId& nodeId) const
+    ICypressNode& GetImplForUpdate(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive) const
     {
-        return CypressManager->GetVersionedNodeForUpdate(nodeId, TransactionId);
+        return CypressManager->GetVersionedNodeForUpdate(nodeId, TransactionId, requestedMode);
     }
 
 
@@ -214,9 +215,9 @@ protected:
         return dynamic_cast<const TImpl&>(GetImpl(NodeId));
     }
 
-    TImpl& GetTypedImplForUpdate()
+    TImpl& GetTypedImplForUpdate(ELockMode requestedMode = ELockMode::Exclusive)
     {
-        return dynamic_cast<TImpl&>(GetImplForUpdate(NodeId));
+        return dynamic_cast<TImpl&>(GetImplForUpdate(NodeId, requestedMode));
     }
 
 
@@ -236,29 +237,6 @@ protected:
     {
         YASSERT(node);
         return &dynamic_cast<const ICypressNodeProxy&>(*node);
-    }
-
-
-    void LockIfNeeded()
-    {
-        if (!Locked && CypressManager->IsLockNeeded(NodeId, TransactionId)) {
-            if (TransactionId == NullTransactionId) {
-                ythrow yexception() << "The requested operation requires a lock but no current transaction is given";
-            }
-            DoLock();
-        }
-    }
-
-    void DoLock()
-    {
-        if (TransactionId == NullTransactionId) {
-            ythrow yexception() << "Cannot lock a node outside of a transaction";
-        }
-
-        CypressManager->LockVersionedNode(NodeId, TransactionId);
-
-        // Set the flag to speedup further checks.
-        Locked = true;
     }
 
 
@@ -333,8 +311,7 @@ public:
 
     virtual void SetValue(const TValue& value)
     {
-        this->LockIfNeeded();
-        this->GetTypedImplForUpdate().Value() = value;
+        this->GetTypedImplForUpdate(ELockMode::Exclusive).Value() = value;
     }
 };
 
@@ -427,7 +404,7 @@ protected:
     }
 
 protected:
-    virtual void GetSystemAttributes(yvector<NObjectServer::TObjectProxyBase::TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
     {
         attributes->push_back("size");
         TBase::GetSystemAttributes(attributes);

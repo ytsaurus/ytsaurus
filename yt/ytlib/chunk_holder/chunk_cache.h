@@ -54,7 +54,9 @@ public:
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
      */
-    TAsyncDownloadResult::TPtr DownloadChunk(const TChunkId& chunkId);
+    TAsyncDownloadResult::TPtr DownloadChunk(
+        const TChunkId& chunkId,
+        const yvector<Stroka>& seedAddresses = yvector<Stroka>());
 
     //! Raised when a chunk is added to the cache.
     DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);

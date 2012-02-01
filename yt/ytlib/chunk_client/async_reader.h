@@ -16,7 +16,7 @@ namespace NChunkClient {
 
 //! Provides a basic interface for readings chunks from holders.
 struct IAsyncReader
-    : virtual TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IAsyncReader> TPtr;
 

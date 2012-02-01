@@ -3,7 +3,7 @@
 #include "common.h"
 #include "pattern.h"
 
-#include <ytlib/misc/ref_counted_base.h>
+#include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/configurable.h>
 
 #include <util/system/file.h>

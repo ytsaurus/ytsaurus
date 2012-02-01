@@ -56,7 +56,7 @@ public:
             ~ToString(Config->PublishPeer));
 
         if (!seedAddresses.empty()) {
-            GetSeedsResult = ToFuture(TGetSeedsResult(seedAddresses));
+            GetSeedsResult = MakeFuture(TGetSeedsResult(seedAddresses));
         }
 
         ChunkProxy = new TChunkServiceProxy(masterChannel);

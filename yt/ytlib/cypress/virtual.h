@@ -12,28 +12,21 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TVirtualYPathContext
-{
-    TNodeId NodeId;
-    TTransactionId TransactionId;
-    NYTree::TYson Manifest;
-};
-
 typedef
     IParamFunc<
-        const TVirtualYPathContext&,
+        const TVersionedNodeId&,
         NYTree::IYPathService::TPtr
     >
     TYPathServiceProducer;
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    EObjectType runtypeType,
+    EObjectType objectType,
     TYPathServiceProducer* producer);
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TCypressManager* cypressManager,
-    EObjectType runtypeType,
+    EObjectType objectType,
     NYTree::IYPathService* service);
 
 ////////////////////////////////////////////////////////////////////////////////

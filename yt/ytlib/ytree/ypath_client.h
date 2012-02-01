@@ -155,13 +155,22 @@ TYPath CombineYPaths(
     const TYPath& path2,
     const TYPath& path3);
 
+//! Returns True if the path is empty.
 bool IsEmptyYPath(const TYPath& path);
 
+//! Returns True if the path is empty or "/".
 bool IsFinalYPath(const TYPath& path);
 
+//! Returns True if the path starts with "@".
 bool IsAttributeYPath(const TYPath& path);
 
-// TODO: choose a better name
+//! Returns True if the path is empty of starts with "@".
+/*!
+ *  The empty path is handled by the virtual node itself.
+ *  All other paths (including "/") are forwarded to the service.
+ *  Thus "/virtual" denotes the virtual node while "/virtual/" denotes its content.
+ *  Same applies to the attributes (cf. "/virtual@" vs "/virtual/@").
+ */
 bool IsLocalYPath(const TYPath& path);
 
 TYPath ChopYPathAttributeMarker(const TYPath& path);

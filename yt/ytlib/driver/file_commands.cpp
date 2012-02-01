@@ -34,8 +34,6 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
         }
         output->Write(block.Begin(), block.Size());
     }
-
-    reader->Close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +62,8 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
     }
 
     writer->Close();
+
+    DriverImpl->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

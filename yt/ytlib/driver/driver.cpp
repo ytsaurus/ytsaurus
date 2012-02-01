@@ -113,8 +113,7 @@ public:
 
         MasterChannel = CreateCellChannel(~config->Masters);
 
-        // TODO: make configurable
-        BlockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
+        BlockCache = CreateClientBlockCache(~config->BlockCache);
 
         TransactionManager = New<TTransactionManager>(
             ~config->TransactionManager,
@@ -129,6 +128,7 @@ public:
         RegisterCommand("remove", ~New<TRemoveCommand>(this));
         RegisterCommand("list", ~New<TListCommand>(this));
         RegisterCommand("create", ~New<TCreateCommand>(this));
+        RegisterCommand("lock", ~New<TLockCommand>(this));
 
         RegisterCommand("download", ~New<TDownloadCommand>(this));
         RegisterCommand("upload", ~New<TUploadCommand>(this));
@@ -141,7 +141,7 @@ public:
     {
         Error = TError();
         try {
-            GuardedExecute(request);
+            DoExecute(request);
         } catch (const std::exception& ex) {
             ReplyError(TError(ex.what()));
         }
@@ -163,18 +163,28 @@ public:
     virtual void ReplyError(const TError& error)
     {
         YASSERT(!error.IsOK());
+        YASSERT(Error.IsOK());
         Error = error;
         auto output = StreamProvider->CreateErrorStream();
         TYsonWriter writer(~output, Config->OutputFormat);
         BuildYsonFluently(&writer)
             .BeginMap()
-                .Item("error").BeginMap()
-                    .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent)
-                        {
-                            fluent.Item("code").Scalar(error.GetCode());
-                        })
-                    .Item("message").Scalar(error.GetMessage())
-                .EndMap()
+                .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent)
+                    {
+                        fluent.Item("code").Scalar(error.GetCode());
+                    })
+                .Item("message").Scalar(error.GetMessage())
+            .EndMap();
+        output->Write('\n');
+    }
+
+    virtual void ReplySuccess()
+    {
+        YASSERT(Error.IsOK());
+        auto output = StreamProvider->CreateOutputStream();
+        TYsonWriter writer(~output, Config->OutputFormat);
+        BuildYsonFluently(&writer)
+            .BeginMap()
             .EndMap();
         output->Write('\n');
     }
@@ -260,7 +270,7 @@ private:
         YVERIFY(Commands.insert(MakePair(name, command)).second);
     }
 
-    void GuardedExecute(const TYson& requestYson)
+    void DoExecute(const TYson& requestYson)
     {
         INode::TPtr requestNode;
         auto request = New<TRequestBase>();
@@ -279,14 +289,7 @@ private:
         }
 
         auto command = commandIt->second;
-        try {
-            command->Execute(~requestNode);
-        }
-        catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error executing request (Command: %s)\n%s",
-                ~commandName,
-                ex.what());
-        }
+        command->Execute(~requestNode);
     }
     
 };

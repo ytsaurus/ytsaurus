@@ -30,7 +30,7 @@ using NBus::IBusServer;
 using NBus::TNLBusServerConfig;
 using NBus::CreateNLBusServer;
 
-using NRpc::IRpcServer;
+using NRpc::IServer;
 using NRpc::CreateRpcServer;
 
 using NYTree::IYPathService;
@@ -70,7 +70,7 @@ void TSchedulerBootstrap::Run()
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
     monitoringManager->Register(
         "/rpc_server",
-        FromMethod(&IRpcServer::GetMonitoringInfo, rpcServer));
+        FromMethod(&IServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();

@@ -3,8 +3,6 @@
 #include "mpl.h"
 #include "property.h"
 
-#include <ytlib/actions/action.h>
-#include <ytlib/actions/action_util.h>
 #include <ytlib/ytree/ytree.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/yson_consumer.h>
@@ -65,6 +63,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NConfig
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TConfigurable
     : public TRefCounted
 {
@@ -79,13 +81,14 @@ public:
 
     void Save(NYTree::IYsonConsumer* consumer) const;
 
-    DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNode::TPtr, Options);
+    DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
+    NYTree::IMapNode::TPtr GetOptions() const;
 
 protected:
     virtual void DoValidate() const;
 
     template <class T>
-    TParameter<T>& Register(const Stroka& parameterName, T& value);
+    NConfig::TParameter<T>& Register(const Stroka& parameterName, T& value);
 
 private:
     template <class T>
@@ -94,15 +97,8 @@ private:
     typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
     
     TParameterMap Parameters;
+    NYTree::IMapNode::TPtr Options;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NConfig
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef NConfig::TConfigurable TConfigurable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

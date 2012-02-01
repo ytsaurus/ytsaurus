@@ -27,10 +27,10 @@ TRefCountedTracker::TCookie TRefCountedTracker::GetCookie(TKey key)
 
     auto it = Statistics.find(key);
     if (it != Statistics.end()) {
-        return &it->Second();
+        return &it->second;
     }
 
-    return &Statistics.insert(MakePair(key, TItem(key))).First()->Second();
+    return &Statistics.insert(MakePair(key, TItem(key))).first->second;
 }
 
 yvector<TRefCountedTracker::TItem> TRefCountedTracker::GetItems()
@@ -38,7 +38,7 @@ yvector<TRefCountedTracker::TItem> TRefCountedTracker::GetItems()
     TGuard<TSpinLock> guard(SpinLock);
     yvector<TItem> result;
     FOREACH(auto pair, Statistics) {
-        result.push_back(pair.Second());
+        result.push_back(pair.second);
     }
     return result;
 }

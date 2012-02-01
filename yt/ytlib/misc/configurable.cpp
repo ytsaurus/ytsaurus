@@ -6,15 +6,20 @@
 #include <ytlib/ytree/ypath_detail.h>
 
 namespace NYT {
-namespace NConfig {
 
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TConfigurable::TConfigurable()
-    : Options_(GetEphemeralNodeFactory()->CreateMap())
+    : KeepOptions_(false)
 { }
+
+NYTree::IMapNode::TPtr TConfigurable::GetOptions() const
+{
+    YASSERT(KeepOptions_);
+    return Options;
+}
 
 void TConfigurable::LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path)
 {
@@ -35,18 +40,20 @@ void TConfigurable::Load(const NYTree::INode* node, const NYTree::TYPath& path)
                 ex.what());
     }
     FOREACH (const auto& pair, Parameters) {
-        auto name = pair.First();
+        auto name = pair.first;
         auto childPath = CombineYPaths(path, name);
         auto child = mapNode->FindChild(name); // can be NULL
-        pair.Second()->Load(~child, childPath);
+        pair.second->Load(~child, childPath);
     }
 
-    Options_->Clear();
-    FOREACH (const auto& pair, mapNode->GetChildren()) {
-        const auto& name = pair.First();
-        auto child = pair.Second();
-        if (Parameters.find(name) == Parameters.end()) {
-            Options_->AddChild(~CloneNode(~child), name);
+    if (KeepOptions_) {
+        Options = GetEphemeralNodeFactory()->CreateMap();
+        FOREACH (const auto& pair, mapNode->GetChildren()) {
+            const auto& name = pair.first;
+            auto child = pair.second;
+            if (Parameters.find(name) == Parameters.end()) {
+                Options->AddChild(~CloneNode(~child), name);
+            }
         }
     }
 }
@@ -54,7 +61,7 @@ void TConfigurable::Load(const NYTree::INode* node, const NYTree::TYPath& path)
 void TConfigurable::Validate(const NYTree::TYPath& path) const
 {
     FOREACH (auto pair, Parameters) {
-        pair.Second()->Validate(CombineYPaths(path, pair.First()));
+        pair.second->Validate(CombineYPaths(path, pair.first));
     }
     try {
         DoValidate();
@@ -73,10 +80,10 @@ void TConfigurable::Save(IYsonConsumer* consumer) const
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(Parameters);
     FOREACH (const auto& pair, sortedItems) {
-        const auto& parameter = pair->Second();
+        const auto& parameter = pair->second;
         if (parameter->IsPresent()) {
-            consumer->OnMapItem(pair->First());
-            pair->Second()->Save(consumer);
+            consumer->OnMapItem(pair->first);
+            pair->second->Save(consumer);
         }
     }
     consumer->OnEndMap();
@@ -84,5 +91,4 @@ void TConfigurable::Save(IYsonConsumer* consumer) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NConfig
 } // namespace NYT

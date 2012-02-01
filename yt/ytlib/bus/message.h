@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include <ytlib/misc/ref_counted_base.h>
+#include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/ref.h>
 
 namespace NYT {

@@ -147,15 +147,19 @@ void TObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGe
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
                 writer.OnMapItem(attribute.Name);
-                YVERIFY(GetSystemAttribute(attribute.Name, &writer));
+                if (attribute.IsOpaque) {
+                    writer.OnEntity();
+                } else {
+                    YVERIFY(GetSystemAttribute(attribute.Name, &writer));
+                }
             }
         }
 
         const auto* userAttributes = FindAttributes();
         if (userAttributes) {
             FOREACH (const auto& pair, userAttributes->Attributes()) {
-                writer.OnMapItem(pair.First());
-                writer.OnRaw(pair.Second());
+                writer.OnMapItem(pair.first);
+                writer.OnRaw(pair.second);
             }
         }
 
@@ -198,7 +202,7 @@ void TObjectProxyBase::ListAttribute(const TYPath& path, TReqList* request, TRsp
         if (userAttributes) {
             keys.reserve(keys.size() + userAttributes->Attributes().size());
             FOREACH (const auto& pair, userAttributes->Attributes()) {
-                keys.push_back(pair.First());
+                keys.push_back(pair.first);
             }
         }
     } else {
@@ -231,6 +235,7 @@ void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSe
             userAttributes->Attributes().clear();
             FOREACH (const auto& pair, mapValue->GetChildren()) {
                 auto key = pair.first;
+                YASSERT(!key.empty());
                 auto value = SerializeToYson(~pair.second);
                 userAttributes->Attributes()[key] = value;
             }
@@ -241,6 +246,10 @@ void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSe
         ChopYPathToken(path, &token, &suffixPath);
 
         if (IsFinalYPath(suffixPath)) {
+            if (token.empty()) {
+                ythrow yexception() << "Attribute key cannot be empty";
+            }
+
             if (!SetSystemAttribute(token, ~ProducerFromYson(request->value()))) {
             	// Check for system attributes
 	            yvector<TAttributeInfo> systemAttributes;
@@ -309,6 +318,23 @@ void TObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* request, 
     context->Reply();
 }
 
+void TObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(GetId);
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    DISPATCH_YPATH_SERVICE_METHOD(List);
+    DISPATCH_YPATH_SERVICE_METHOD(Set);
+    DISPATCH_YPATH_SERVICE_METHOD(Remove);
+    TYPathServiceBase::DoInvoke(context);
+}
+
+bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
+{
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
+    return TYPathServiceBase::IsWriteRequest(context);
+}
+
 Stroka TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
 {
     TStringStream stream;
@@ -327,7 +353,7 @@ Stroka TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
             if (isSystem) {
                 *isSystem = false;
             }
-            return it->Second();
+            return it->second;
         }
     }
 
@@ -342,7 +368,7 @@ void TObjectProxyBase::DoSetAttribute(const Stroka name, NYTree::INode* value, b
         }
     } else {
         auto* userAttributes = GetAttributesForUpdate();
-        userAttributes->Attributes().find(name)->Second() = SerializeToYson(value);
+        userAttributes->Attributes().find(name)->second = SerializeToYson(value);
     }
 }
 

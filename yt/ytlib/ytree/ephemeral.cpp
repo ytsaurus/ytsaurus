@@ -131,7 +131,7 @@ public:
     virtual void Clear()
     {
         FOREACH (const auto& pair, KeyToChild) {
-            pair.Second()->SetParent(NULL);
+            pair.second->SetParent(NULL);
         }
         KeyToChild.clear();
         ChildToKey.clear();
@@ -160,7 +160,7 @@ public:
     virtual INode::TPtr FindChild(const Stroka& key) const
     {
         auto it = KeyToChild.find(key);
-        return it == KeyToChild.end() ? NULL : it->Second();
+        return it == KeyToChild.end() ? NULL : it->second;
     }
 
     virtual bool AddChild(INode* child, const Stroka& key)
@@ -168,8 +168,8 @@ public:
         YASSERT(!key.empty());
         YASSERT(child);
 
-        if (KeyToChild.insert(MakePair(key, child)).Second()) {
-            YVERIFY(ChildToKey.insert(MakePair(child, key)).Second());
+        if (KeyToChild.insert(MakePair(key, child)).second) {
+            YVERIFY(ChildToKey.insert(MakePair(child, key)).second);
             child->SetParent(this);
             return true;
         } else {
@@ -183,7 +183,7 @@ public:
         if (it == KeyToChild.end())
             return false;
 
-        auto child = it->Second(); 
+        auto child = it->second; 
         child->SetParent(NULL);
         KeyToChild.erase(it);
         YVERIFY(ChildToKey.erase(child) == 1);
@@ -201,7 +201,7 @@ public:
         YASSERT(it != ChildToKey.end());
 
         // NB: don't use const auto& here, it becomes invalid!
-        auto key = it->Second();
+        auto key = it->second;
         ChildToKey.erase(it);
         YVERIFY(KeyToChild.erase(key) == 1);
     }
@@ -218,14 +218,14 @@ public:
         YASSERT(it != ChildToKey.end());
 
         // NB: don't use const auto& here, it becomes invalid!
-        auto key = it->Second();
+        auto key = it->second;
 
         oldChild->SetParent(NULL);
         ChildToKey.erase(it);
 
         KeyToChild[key] = newChild;
         newChild->SetParent(this);
-        YVERIFY(ChildToKey.insert(MakePair(newChild, key)).Second());
+        YVERIFY(ChildToKey.insert(MakePair(newChild, key)).second);
     }
 
     virtual Stroka GetChildKey(const INode* child)
@@ -234,7 +234,7 @@ public:
 
         auto it = ChildToKey.find(const_cast<INode*>(child));
         YASSERT(it != ChildToKey.end());
-        return it->Second();
+        return it->second;
     }
 
 private:
@@ -310,14 +310,14 @@ public:
         YASSERT(child);
 
         if (beforeIndex < 0) {
-            YVERIFY(ChildToIndex.insert(MakePair(child, IndexToChild.ysize())).Second());
+            YVERIFY(ChildToIndex.insert(MakePair(child, IndexToChild.ysize())).second);
             IndexToChild.push_back(child); 
         } else {
             for (auto it = IndexToChild.begin() + beforeIndex; it != IndexToChild.end(); ++it) {
                 ++ChildToIndex[*it];
             }
 
-            YVERIFY(ChildToIndex.insert(MakePair(child, beforeIndex)).Second());
+            YVERIFY(ChildToIndex.insert(MakePair(child, beforeIndex)).second);
             IndexToChild.insert(IndexToChild.begin() + beforeIndex, child);
         }
         child->SetParent(this);
@@ -352,13 +352,13 @@ public:
         auto it = ChildToIndex.find(oldChild);
         YASSERT(it != ChildToIndex.end());
 
-        int index = it->Second();
+        int index = it->second;
 
         oldChild->SetParent(NULL);
 
         IndexToChild[index] = newChild;
         ChildToIndex.erase(it);
-        YVERIFY(ChildToIndex.insert(MakePair(newChild, index)).Second());
+        YVERIFY(ChildToIndex.insert(MakePair(newChild, index)).second);
         newChild->SetParent(this);
     }
 
@@ -376,7 +376,7 @@ public:
 
         auto it = ChildToIndex.find(const_cast<INode*>(child));
         YASSERT(it != ChildToIndex.end());
-        return it->Second();
+        return it->second;
     }
 
 private:

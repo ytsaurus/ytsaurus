@@ -128,7 +128,7 @@ yvector <typename yhash_map<TKey, TValue>::const_iterator> GetSortedIterators(
         iterators.begin(),
         iterators.end(),
         [] (TIterator lhs, TIterator rhs) {
-            return lhs->First() < rhs->First();
+            return lhs->first < rhs->first;
         });
     return iterators;
 }
@@ -139,8 +139,8 @@ void SaveMap(TOutputStream* output, const TMap& map)
     auto iterators = GetSortedIterators(map);
     ::SaveSize(output, iterators.size());
     FOREACH(const auto& it, iterators) {
-        ::Save(output, it->First());
-        ::Save(output, it->Second());
+        ::Save(output, it->first);
+        ::Save(output, it->second);
     }
 }
 

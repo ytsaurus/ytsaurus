@@ -32,7 +32,6 @@ TFileReader::TFileReader(
     , BlockCache(blockCache)
     , Path(path)
     , IsOpen(false)
-    , IsClosed(false)
     , BlockCount(0)
     , BlockIndex(0)
     , Proxy(masterChannel)
@@ -53,7 +52,6 @@ void TFileReader::Open()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(!IsOpen);
-    YASSERT(!IsClosed);
 
     LOG_INFO("Opening file reader");
 
@@ -162,20 +160,6 @@ bool TFileReader::IsExecutable()
     YASSERT(IsOpen);
 
     return Executable;
-}
-
-void TFileReader::Close()
-{
-    VERIFY_THREAD_AFFINITY(Client);
-
-    if (!IsOpen)
-        return;
-
-    SequentialReader.Reset();
-    IsOpen = false;
-    IsClosed = true;
-
-    LOG_INFO("File reader closed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

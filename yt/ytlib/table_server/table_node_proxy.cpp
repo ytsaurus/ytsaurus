@@ -3,6 +3,7 @@
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -12,6 +13,7 @@ using namespace NCypress;
 using namespace NYTree;
 using namespace NRpc;
 using namespace NObjectServer;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,19 +67,53 @@ void TTableNodeProxy::TraverseChunkTree(
     }
 }
 
-void TTableNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+void TTableNodeProxy::GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
 {
     attributes->push_back("chunk_list_id");
+    attributes->push_back(TAttributeInfo("chunk_ids", true, true));
+    attributes->push_back("uncompressed_size");
+    attributes->push_back("compressed_size");
+    attributes->push_back("row_count");
     TBase::GetSystemAttributes(attributes);
 }
 
 bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
 {
     const auto& tableNode = GetTypedImpl();
+    const auto& chunkList = ChunkManager->GetChunkList(tableNode.GetChunkListId());
 
     if (name == "chunk_list_id") {
         BuildYsonFluently(consumer)
-            .Scalar(tableNode.GetChunkListId().ToString());
+            .Scalar(chunkList.GetId().ToString());
+        return true;
+    }
+
+    if (name == "chunk_ids") {
+        yvector<TChunkId> chunkIds;
+        TraverseChunkTree(&chunkIds, tableNode.GetChunkListId());
+        BuildYsonFluently(consumer)
+            .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId)
+                {
+                    fluent.Item().Scalar(chunkId.ToString());
+                });
+        return true;
+    }
+
+    if (name == "uncompressed_size") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.Statistics().UncompressedSize);
+        return true;
+    }
+
+    if (name == "compressed_size") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.Statistics().CompressedSize);
+        return true;
+    }
+
+    if (name == "row_count") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.Statistics().RowCount);
         return true;
     }
 
@@ -90,8 +126,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 {
     UNUSED(request);
 
-    LockIfNeeded();
-    auto& impl = GetTypedImplForUpdate();
+    auto& impl = GetTypedImplForUpdate(ELockMode::Shared);
 
     response->set_chunk_list_id(impl.GetChunkListId().ToProto());
 
@@ -123,6 +158,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
             }
         }
     }
+
+    // TODO: parse channel from YPath
+    auto channel = TChannel::Universal();
+    *response->mutable_channel() = channel.ToProto();
 
     context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());
 

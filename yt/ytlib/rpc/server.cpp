@@ -93,7 +93,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRpcServer
-    : public IRpcServer
+    : public IServer
     , public IMessageHandler
 {
 public:
@@ -109,7 +109,7 @@ public:
     {
         YASSERT(service);
 
-        YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).Second());
+        YVERIFY(Services.insert(MakePair(service->GetServiceName(), service)).second);
         LOG_INFO("RPC service registered (ServiceName: %s)", ~service->GetServiceName());
     }
 
@@ -151,7 +151,7 @@ private:
     IService::TPtr GetService(const Stroka& serviceName)
     {
         auto it = Services.find(serviceName);
-        return it == Services.end() ? NULL : it->Second();
+        return it == Services.end() ? NULL : it->second;
     }
 
     virtual void OnMessage(
@@ -221,7 +221,7 @@ private:
 
 };
 
-IRpcServer::TPtr CreateRpcServer(NBus::IBusServer* busServer)
+IServer::TPtr CreateRpcServer(NBus::IBusServer* busServer)
 {
     return New<TRpcServer>(busServer);
 }

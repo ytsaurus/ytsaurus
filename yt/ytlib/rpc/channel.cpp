@@ -67,7 +67,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(!Terminated);
-            YVERIFY(ActiveRequests.insert(MakePair(requestId, activeRequest)).Second());
+            YVERIFY(ActiveRequests.insert(MakePair(requestId, activeRequest)).second);
             bus = Bus;
         }
 
@@ -133,7 +133,7 @@ private:
         }
 
         // NB: Make copies, the instance will die soon.
-        auto& activeRequest = it->Second();
+        auto& activeRequest = it->second;
         auto responseHandler = activeRequest.ResponseHandler;
 
         if (sendResult == ESendResult::Failed) {
@@ -179,7 +179,7 @@ private:
                 return;
             }
 
-            responseHandler = it->Second().ResponseHandler;
+            responseHandler = it->second.ResponseHandler;
 
             UnregisterRequest(it);
         }
@@ -209,7 +209,7 @@ private:
                 return;
             }
 
-            responseHandler = it->Second().ResponseHandler;
+            responseHandler = it->second.ResponseHandler;
 
             UnregisterRequest(it);
         }
@@ -223,7 +223,7 @@ private:
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
 
-        auto& activeRequest = it->Second();
+        auto& activeRequest = it->second;
         if (activeRequest.TimeoutCookie != TDelayedInvoker::NullCookie) {
             TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
         }

@@ -61,6 +61,22 @@ DECLARE_SUPPORTS_VERB(Remove);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes a system attribute.
+struct TAttributeInfo
+{
+    Stroka Name;
+    bool IsPresent;
+    bool IsOpaque;
+
+    TAttributeInfo(const char* name, bool isPresent = true, bool isOpaque = false)
+        : Name(name)
+        , IsPresent(isPresent)
+        , IsOpaque(isOpaque)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeSetterBase
     : public TForwardingYsonConsumer
 {
@@ -282,10 +298,6 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler);
-
-void ReplyYPathWithMessage(
-    NRpc::IServiceContext* context,
-    NBus::IMessage* responseMessage);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -19,8 +19,8 @@
  * \{
  *
  * \page yt_pp_sequences Sequences
- * Everything revolves around the concept of a \em sequence. Typical
- * sequence is encoded like this, <tt>(1)(2)(3)...</tt>. Internally, this allows
+ * Everything revolves around the concept of a \em sequence. A typical
+ * sequence is encoded like <tt>(1)(2)(3)...</tt>. Internally this allows
  * to apply some macro to the every element in the sequence (see #PP_FOR_EACH).
  *
  * Note that sequences can be nested, i. e. <tt>((1)(2)(3))(a)(b)(c)</tt>

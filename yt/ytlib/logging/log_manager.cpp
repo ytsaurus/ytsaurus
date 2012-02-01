@@ -204,17 +204,17 @@ private:
                 case ILogWriter::EType::File:
                     YVERIFY(
                         Writers.insert(MakePair(
-                            name, New<TFileLogWriter>(config->FileName, pattern))).Second());
+                            name, New<TFileLogWriter>(config->FileName, pattern))).second);
                     break;
                 case ILogWriter::EType::StdOut:
                     YVERIFY(
                         Writers.insert(MakePair(
-                            name, New<TStdOutLogWriter>(pattern))).Second());
+                            name, New<TStdOutLogWriter>(pattern))).second);
                     break;
                 case ILogWriter::EType::StdErr:
                     YVERIFY(
                         Writers.insert(MakePair(
-                            name, New<TStdErrLogWriter>(pattern))).Second());
+                            name, New<TStdErrLogWriter>(pattern))).second);
                     break;
                 default:
                     YUNREACHABLE();

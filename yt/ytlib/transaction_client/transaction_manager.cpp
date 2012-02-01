@@ -281,7 +281,7 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
 void TTransactionManager::RegisterTransaction(TTransaction::TPtr transaction)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YVERIFY(TransactionMap.insert(MakePair(transaction->GetId(), ~transaction)).Second());
+    YVERIFY(TransactionMap.insert(MakePair(transaction->GetId(), ~transaction)).second);
 }
 
 void TTransactionManager::UnregisterTransaction(const TTransactionId& id)
@@ -299,7 +299,7 @@ void TTransactionManager::OnPingResponse(
         TGuard<TSpinLock> guard(SpinLock);
         auto it = TransactionMap.find(id);
         if (it != TransactionMap.end()) {
-            transaction = TTransaction::DangerousGetPtr(it->Second());
+            transaction = TTransaction::DangerousGetPtr(it->second);
         }
     }
     

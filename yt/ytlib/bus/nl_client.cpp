@@ -268,7 +268,7 @@ class TClientDispatcher
             return;
         }
 
-        auto request = requestIt->Second();
+        auto request = requestIt->second;
 
         LOG_DEBUG("Request failed (SessionId: %s, RequestId: %s)",
             ~request->SessionId.ToString(),
@@ -332,7 +332,7 @@ class TClientDispatcher
             ~header->SessionId.ToString(),
             ~requestId.ToString());
 
-        auto request = requestIt->Second();
+        auto request = requestIt->second;
         request->Result->Set(ESendResult::OK);
         RequestMap.erase(requestIt);
     }
@@ -371,7 +371,7 @@ class TClientDispatcher
             ~requestId.ToString(),
             dataSize);
 
-        auto& bus = busIt->Second();
+        auto& bus = busIt->second;
         bus->ProcessIncomingMessage(~message, sequenceId);
 
         if (!isRequest) {
@@ -408,7 +408,7 @@ class TClientDispatcher
             ~requestId.ToString());
 
         // Don't reply to a ping, just register it.
-        auto& bus = busIt->Second();
+        auto& bus = busIt->second;
         bus->PingIds.insert(requestId);
     }
 
@@ -444,7 +444,7 @@ class TClientDispatcher
             }
         }
 
-        auto& bus = busIt->Second();
+        auto& bus = busIt->second;
 
         TGuid requestId = Requester->SendRequest(bus->Client->ServerAddress, "", &request->Data);
 

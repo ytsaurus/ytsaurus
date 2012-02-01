@@ -27,7 +27,7 @@ private:
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& ids = CypressManager->GetNodeIds(sizeLimit);
-        return ConvertToStrings(ids.begin(), Min(ids.size(), sizeLimit));
+        return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
     }
 
     virtual size_t GetSize() const
@@ -69,7 +69,7 @@ private:
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         const auto& ids = CypressManager->GetLockIds(sizeLimit);
-        return ConvertToStrings(ids.begin(), Min(ids.size(), sizeLimit));
+        return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
     }
 
     virtual size_t GetSize() const

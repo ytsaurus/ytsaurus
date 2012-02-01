@@ -193,7 +193,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
 class TRpcTest
     : public ::testing::Test
 {
-    IRpcServer::TPtr RpcServer;
+    IServer::TPtr RpcServer;
 
     // need to remember
     TActionQueue::TPtr Queue;

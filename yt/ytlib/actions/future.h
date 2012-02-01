@@ -15,7 +15,7 @@ namespace NYT {
  */
 template <class T>
 class TFuture
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
     volatile bool IsSet_;
     T Value;
@@ -83,9 +83,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Constructs a pre-set future.
+//! Constructs a pre-set future from a value.
 template <class T>
-typename TFuture<T>::TPtr ToFuture(const T& value)
+typename TFuture<T>::TPtr MakeFuture(const T& value)
 {
     return New< TFuture<T> >(value);
 }

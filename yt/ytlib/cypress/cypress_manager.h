@@ -58,11 +58,13 @@ public:
 
     ICypressNode* FindVersionedNodeForUpdate(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId,
+        ELockMode requestedMode);
 
     ICypressNode& GetVersionedNodeForUpdate(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId,
+        ELockMode requestedMode);
 
     TIntrusivePtr<NObjectServer::IObjectProxy> FindObjectProxy(
         const TObjectId& objectId,
@@ -80,13 +82,10 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId);
 
-    bool IsLockNeeded(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId);
-
     TLockId LockVersionedNode(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId,
+        ELockMode requestedMode);
 
     TIntrusivePtr<ICypressNodeProxy> CreateNode(
         EObjectType type,
@@ -98,10 +97,6 @@ public:
         NYTree::IMapNode* manifest);
 
     DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
-
-    TLock& CreateLock(const TNodeId& nodeId, const TTransactionId& transactionId);
-
-    ICypressNode& BranchNode(ICypressNode& node, const TTransactionId& transactionId);
 
     NYTree::IYPathProcessor::TPtr CreateProcessor();
 
@@ -162,16 +157,41 @@ private:
         INodeTypeHandler* handler,
         TAutoPtr<ICypressNode> node);
 
-    void ReleaseLocks(NTransactionServer::TTransaction& transaction);
-    void MergeBranchedNodes(NTransactionServer::TTransaction& transaction);
-    void RemoveBranchedNodes(NTransactionServer::TTransaction& transaction);
-    void UnrefOriginatingNodes(NTransactionServer::TTransaction& transaction);
-    void CommitCreatedNodes(NTransactionServer::TTransaction& transaction);
+    void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
+    void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void MergeBranchedNode(
+        const NTransactionServer::TTransaction& transaction,
+        const TNodeId& nodeId);
+    void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
 
     INodeTypeHandler* GetHandler(const ICypressNode& node);
 
     void CreateNodeBehavior(const ICypressNode& node);
     void DestroyNodeBehavior(const ICypressNode& node);
+
+    void ValidateLock(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        ELockMode requestedMode,
+        bool* isMandatory = NULL);
+
+    static bool AreCompetingLocksCompatible(ELockMode existingMode, ELockMode requestedMode);
+    static bool AreConcurrentLocksCompatible(ELockMode existingMode, ELockMode requestedMode);
+
+    static bool IsLockRecursive(ELockMode mode);
+   
+    TLockId AcquireLock(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        ELockMode mode);
+
+    void ReleaseLock(const TLockId& lockId);
+
+   ICypressNode& BranchNode(
+       ICypressNode& node,
+       const TTransactionId& transactionId,
+       ELockMode mode);
 
     template <class TImpl, class TProxy>
     TIntrusivePtr<TProxy> CreateNode(

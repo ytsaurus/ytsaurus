@@ -312,7 +312,7 @@ private:
         if (it == ChangeLogQueues.end())
             return NULL;
 
-        auto& queue = it->Second();
+        auto& queue = it->second;
         ++queue->UseCount;
         return queue;
     }
@@ -324,10 +324,10 @@ private:
 
         auto it = ChangeLogQueues.find(changeLog);
         if (it != ChangeLogQueues.end()) {
-            queue = it->Second();
+            queue = it->second;
         } else {
             queue = New<TChangeLogQueue>(changeLog);
-            YVERIFY(ChangeLogQueues.insert(MakePair(changeLog, queue)).Second());
+            YVERIFY(ChangeLogQueues.insert(MakePair(changeLog, queue)).second);
         }
 
         ++queue->UseCount;

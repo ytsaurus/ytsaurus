@@ -1,4 +1,4 @@
-#pragma once
+  #pragma once
 
 #include "id.h"
 #include "object_proxy.h"
@@ -93,24 +93,16 @@ protected:
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
 
-    //! Describes a system attribute.
-    struct TAttributeInfo
-    {
-        Stroka Name;
-        bool IsPresent;
+    virtual void DoInvoke(NRpc::IServiceContext* context);
 
-        TAttributeInfo(const char* name, bool isPresent = true)
-            : Name(name)
-            , IsPresent(isPresent)
-        { }
-    };
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
     //! Populates the list of all system attributes supported by this object.
     /*!
      *  \note
      *  Must not clear #attributes since additional items may be added in inheritors.
      */
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
+    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes);
 
     //! Gets the value of a system attribute.
     /*!
@@ -158,25 +150,8 @@ public:
         YASSERT(map);
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-        return TYPathServiceBase::IsWriteRequest(context);
-    }
-
 protected:
     TMap* Map;
-
-    virtual void DoInvoke(NRpc::IServiceContext* context)
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(GetId);
-        DISPATCH_YPATH_SERVICE_METHOD(Get);
-        DISPATCH_YPATH_SERVICE_METHOD(List);
-        DISPATCH_YPATH_SERVICE_METHOD(Set);
-        DISPATCH_YPATH_SERVICE_METHOD(Remove);
-        TYPathServiceBase::DoInvoke(context);
-    }
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
     {

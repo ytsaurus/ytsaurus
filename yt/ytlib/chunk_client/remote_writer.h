@@ -83,6 +83,11 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
+    void Open();
+
+    /*!
+     * \note Thread affinity: ClientThread.
+     */
     virtual TAsyncError::TPtr AsyncWriteBlock(const TSharedRef& data);
 
     /*!
@@ -121,20 +126,22 @@ private:
     class TGroup;
     typedef TIntrusivePtr<TGroup> TGroupPtr;
 
-    struct TNode;
-    typedef TIntrusivePtr<TNode> TNodePtr;
+    struct THolder;
+    typedef TIntrusivePtr<THolder> THolderPtr;
     
     typedef ydeque<TGroupPtr> TWindow;
 
     typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TChunkId ChunkId;
     TConfig::TPtr Config;
+    TChunkId ChunkId;
+    yvector<Stroka> Addresses;
 
     TAsyncStreamState State;
 
-    bool InitComplete;
+    bool IsOpen;
+    bool IsInitComplete;
 
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
@@ -144,10 +151,10 @@ private:
     TWindow Window;
     TAsyncSemaphore WindowSlots;
 
-    yvector<TNodePtr> Nodes;
+    yvector<THolderPtr> Holders;
 
-    //! Number of nodes that are still alive.
-    int AliveNodeCount;
+    //! Number of holders that are still alive.
+    int AliveHolderCount;
 
     //! A new group of blocks that is currently being filled in by the client.
     //! All access to this field happens from client thread.
@@ -155,6 +162,9 @@ private:
 
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
+
+    //! Chunk uncompressed size (as reported by the holders on Finish).
+    i64 ChunkSize;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;
@@ -179,44 +189,40 @@ private:
 
     void RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady);
 
-    void OnNodeDied(int node);
+    void OnHolderDied(THolderPtr holder);
 
     void ShiftWindow();
 
-    TProxy::TInvFlushBlock::TPtr FlushBlock(int node, int blockIndex);
+    TProxy::TInvFlushBlock::TPtr FlushBlock(THolderPtr holder, int blockIndex);
 
-    void OnBlockFlushed(int node, int blockIndex);
+    void OnBlockFlushed(TProxy::TRspFlushBlock::TPtr rsp, THolderPtr holder, int blockIndex);
 
     void OnWindowShifted(int blockIndex);
 
-    void InitializeNodes(const yvector<Stroka>& addresses);
+    TProxy::TInvStartChunk::TPtr StartChunk(THolderPtr holder);
 
-    void StartSession();
-
-    TProxy::TInvStartChunk::TPtr StartChunk(int node);
-
-    void OnChunkStarted(int node);
+    void OnChunkStarted(TProxy::TRspStartChunk::TPtr rsp, THolderPtr holder);
 
     void OnSessionStarted();
 
     void CloseSession();
 
-    TProxy::TInvFinishChunk::TPtr FinishChunk(int node);
+    TProxy::TInvFinishChunk::TPtr FinishChunk(THolderPtr holder);
 
-    void OnChunkFinished(int node);
+    void OnChunkFinished(TProxy::TRspFinishChunk::TPtr rsp, THolderPtr holder);
 
     void OnSessionFinished();
 
-    void PingSession(int node);
-    void SchedulePing(int node);
-    void CancelPing(int node);
+    void PingSession(THolderPtr holder);
+    void SchedulePing(THolderPtr holder);
+    void CancelPing(THolderPtr holder);
     void CancelAllPings();
 
-    template<class TResponse>
+    template <class TResponse>
     void CheckResponse(
-        typename TResponse::TPtr rsp, 
-        int node, 
-        IAction::TPtr onSuccess,
+        TIntrusivePtr<TResponse> rsp, 
+        THolderPtr holder, 
+        typename IParamAction< TIntrusivePtr<TResponse> >::TPtr onSuccess,
         TMetric* metric);
 
     void AddBlock(TVoid, const TSharedRef& data);

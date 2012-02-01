@@ -18,17 +18,14 @@ TTableReader::TTableReader(
     NRpc::IChannel* masterChannel,
     NTransactionClient::ITransaction* transaction,
     NChunkClient::IBlockCache* blockCache,
-    const TChannel& readChannel,
     const TYPath& path)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , BlockCache(blockCache)
-    , ReadChannel(readChannel)
     , Path(path)
     , IsOpen(false)
-    , IsClosed(false)
     , Proxy(masterChannel)
     , Logger(TableClientLogger)
 {
@@ -45,27 +42,28 @@ void TTableReader::Open()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(!IsOpen);
-    YASSERT(!IsClosed);
 
     LOG_INFO("Opening table reader");
 
     LOG_INFO("Fetching table info");
-    auto req = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
-    auto rsp = Proxy.Execute(~req)->Get();
-    if (!rsp->IsOK()) {
+    auto fetchReq = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
+    auto fetchRsp = Proxy.Execute(~fetchReq)->Get();
+    if (!fetchRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error fetching table info\n%s",
-            ~rsp->GetError().ToString());
+            ~fetchRsp->GetError().ToString());
     }
 
     yvector<TChunkId> chunkIds;
-    chunkIds.reserve(rsp->chunks_size());
-    FOREACH (const auto& chunkInfo, rsp->chunks()) {
+    chunkIds.reserve(fetchRsp->chunks_size());
+    FOREACH (const auto& chunkInfo, fetchRsp->chunks()) {
         chunkIds.push_back(TChunkId::FromProto(chunkInfo.chunk_id()));
     }
 
+    auto channel = TChannel::FromProto(fetchRsp->channel());
+
     Reader = New<TChunkSequenceReader>(
         ~Config->ChunkSequenceReader,
-        ReadChannel,
+        channel,
         TransactionId,
         ~MasterChannel,
         ~BlockCache,
@@ -122,19 +120,6 @@ TValue TTableReader::GetValue() const
     YASSERT(IsOpen);
 
     return Reader->GetValue();
-}
-
-void TTableReader::Close()
-{
-    VERIFY_THREAD_AFFINITY(Client);
-
-    if (!IsOpen)
-        return;
-
-    IsOpen = false;
-    IsClosed = true;
-
-    LOG_INFO("Table reader closed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

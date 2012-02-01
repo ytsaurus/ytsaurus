@@ -16,8 +16,8 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileNode::TFileNode(const TVersionedNodeId& id, EObjectType objectType)
-    : TCypressNodeBase(id, objectType)
+TFileNode::TFileNode(const TVersionedNodeId& id)
+    : TCypressNodeBase(id)
     , ChunkListId_(NullChunkListId)
 { }
 
@@ -91,17 +91,16 @@ public:
             ythrow yexception() << Sprintf("Chunk is not confirmed (ChunkId: %s)", ~chunkId.ToString());
         }
 
-        TAutoPtr<TFileNode> node = new TFileNode(nodeId, GetObjectType());
+        TAutoPtr<TFileNode> node = new TFileNode(nodeId);
 
-        // File node references chunk list.
         auto& chunkList = ChunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
         CypressManager->GetObjectManager()->RefObject(chunkListId);
 
-        // Chunk list references chunk.
-        chunkList.ChildrenIds().push_back(chunkId);
-        CypressManager->GetObjectManager()->RefObject(chunkId);
+        yvector<TChunkTreeId> childrenIds;
+        childrenIds.push_back(chunkId);
+        ChunkManager->AttachToChunkList(chunkList, childrenIds);
 
         return node.Release();
     }
@@ -125,21 +124,21 @@ protected:
     }
 
     virtual void DoBranch(
-        const TFileNode& committedNode,
+        const TFileNode& originatingNode,
         TFileNode& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
 
-        // branchedNode is a copy of committedNode.
+        // branchedNode is a copy of originatingNode.
         // Reference the list chunk from branchedNode.
         CypressManager->GetObjectManager()->RefObject(branchedNode.GetChunkListId());
     }
 
     virtual void DoMerge(
-        TFileNode& committedNode,
+        TFileNode& originatingNode,
         TFileNode& branchedNode)
     {
-        UNUSED(committedNode);
+        UNUSED(originatingNode);
 
         // Drop the reference from branchedNode.
         CypressManager->GetObjectManager()->UnrefObject(branchedNode.GetChunkListId());

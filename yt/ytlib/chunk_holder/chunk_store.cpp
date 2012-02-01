@@ -66,7 +66,7 @@ void TChunkStore::RegisterChunk(TStoredChunk* chunk)
 TStoredChunk::TPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 {
     auto it = ChunkMap.find(chunkId);
-    return it == ChunkMap.end() ? NULL : it->Second();
+    return it == ChunkMap.end() ? NULL : it->second;
 }
 
 void TChunkStore::RemoveChunk(TStoredChunk* chunk)
@@ -120,7 +120,7 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
     TChunks result;
     result.reserve(ChunkMap.ysize());
     FOREACH(const auto& pair, ChunkMap) {
-        result.push_back(pair.Second());
+        result.push_back(pair.second);
     }
     return result;
 }

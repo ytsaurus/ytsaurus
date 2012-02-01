@@ -52,7 +52,9 @@ void TSetCommand::DoExecute(TSetRequest* request)
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
 
-    if (!ypathResponse->IsOK()) {
+    if (ypathResponse->IsOK()) {
+        DriverImpl->ReplySuccess();
+    } else {
         DriverImpl->ReplyError(ypathResponse->GetError());
     }
 }
@@ -68,7 +70,9 @@ void TRemoveCommand::DoExecute(TRemoveRequest* request)
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
 
-    if (!ypathResponse->IsOK()) {
+    if (ypathResponse->IsOK()) {
+        DriverImpl->ReplySuccess();
+    } else {
         DriverImpl->ReplyError(ypathResponse->GetError());
     }
 }
@@ -114,17 +118,16 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
 
-    if (!ypathResponse->IsOK()) {
+    if (ypathResponse->IsOK()) {
+        auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
+        auto id = TNodeId::FromProto(ypathResponse->object_id());
+        BuildYsonFluently(~consumer)
+            .BeginMap()
+                .Item("object_id").Scalar(id.ToString())
+            .EndMap();
+    } else {
         DriverImpl->ReplyError(ypathResponse->GetError());
-        return;
     }
-
-    auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
-    auto id = TNodeId::FromProto(ypathResponse->object_id());
-    BuildYsonFluently(~consumer)
-        .BeginMap()
-            .Item("object_id").Scalar(id.ToString())
-        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,10 +138,17 @@ void TLockCommand::DoExecute(TLockRequest* request)
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
         request->Path,
         DriverImpl->GetCurrentTransactionId()));
+    ypathRequest->set_mode(request->Mode);
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
 
-    if (!ypathResponse->IsOK()) {
+    if (ypathResponse->IsOK()) {
+        auto lockId = TLockId::FromProto(ypathResponse->lock_id());
+        BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
+            .BeginMap()
+                .Item("lock_id").Scalar(lockId.ToString())
+            .EndMap();
+    } else {
         DriverImpl->ReplyError(ypathResponse->GetError());
     }
 }

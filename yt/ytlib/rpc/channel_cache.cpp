@@ -29,13 +29,13 @@ IChannel::TPtr TChannelCache::GetChannel(const Stroka& address)
         TGuard<TSpinLock> secondAttemptGuard(SpinLock);
         it = ChannelMap.find(address);
         if (it == ChannelMap.end()) {
-            it = ChannelMap.insert(MakePair(address, channel)).First();
+            it = ChannelMap.insert(MakePair(address, channel)).first;
         } else {
             channel->Terminate();
         }
     }
 
-    return it->Second();
+    return it->second;
 }
 
 void TChannelCache::Shutdown()
@@ -50,7 +50,7 @@ void TChannelCache::Shutdown()
     IsTerminated  = true;
 
     FOREACH (const auto& pair, ChannelMap) {
-        pair.Second()->Terminate();
+        pair.second->Terminate();
     }
 
     ChannelMap.clear();
