@@ -58,7 +58,7 @@ void TAsyncStreamState::Close()
     if (CurrentError) {
         auto result = CurrentError;
         CurrentError.Reset();
-
+        guard.Release();
         result->Set(TError());
     }
 }
