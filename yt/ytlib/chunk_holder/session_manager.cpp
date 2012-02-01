@@ -245,7 +245,7 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TSession::Finish(const TChunkAttributes& attributes)
+TFuture<TChunk::TPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
 {
     CloseLease();
 
@@ -325,12 +325,12 @@ TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
     return TVoid();
 }
 
-TVoid TSession::OnFileClosed(TVoid)
+TChunk::TPtr TSession::OnFileClosed(TVoid)
 {
     ReleaseSpaceOccupiedByBlocks();
     auto chunk = New<TStoredChunk>(~Location, GetChunkInfo());
     SessionManager->ChunkStore->RegisterChunk(~chunk);
-    return TVoid();
+    return chunk;
 }
 
 void TSession::ReleaseBlocks(i32 flushedBlockIndex)
@@ -446,8 +446,8 @@ void TSessionManager::CancelSession(TSession* session, const TError& error)
         ~error.ToString());
 }
 
-TFuture<TVoid>::TPtr TSessionManager::FinishSession(
-    TSession::TPtr session, 
+TFuture<TChunk::TPtr>::TPtr TSessionManager::FinishSession(
+    TSession* session, 
     const TChunkAttributes& attributes)
 {
     auto chunkId = session->GetChunkId();
@@ -460,10 +460,10 @@ TFuture<TVoid>::TPtr TSessionManager::FinishSession(
         session));
 }
 
-TVoid TSessionManager::OnSessionFinished(TVoid, TSession::TPtr session)
+TChunk::TPtr TSessionManager::OnSessionFinished(TChunk::TPtr chunk, TSession::TPtr session)
 {
     LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
-    return TVoid();
+    return chunk;
 }
 
 void TSessionManager::OnLeaseExpired(TSession::TPtr session)

@@ -65,6 +65,7 @@ Stroka TFileNodeProxy::GetFileName()
 void TFileNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
 {
     attributes->push_back("size");
+    attributes->push_back("compressed_size");
     attributes->push_back("codec_id");
     attributes->push_back("chunk_list_id");
     attributes->push_back("chunk_id");
@@ -85,6 +86,12 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     if (name == "size") {
         BuildYsonFluently(consumer)
             .Scalar(chunkList.Statistics().UncompressedSize);
+        return true;
+    }
+
+    if (name == "compressed_size") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.Statistics().CompressedSize);
         return true;
     }
 

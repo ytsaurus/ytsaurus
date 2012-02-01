@@ -152,9 +152,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
     auto session = GetSession(chunkId);
 
     SessionManager
-        ->FinishSession(session, attributes)
-        ->Subscribe(FromFunctor([=] (TVoid)
+        ->FinishSession(~session, attributes)
+        ->Subscribe(FromFunctor([=] (TChunk::TPtr chunk)
             {
+                response->set_size(chunk->GetSize());
                 context->Reply();
             }));
 }

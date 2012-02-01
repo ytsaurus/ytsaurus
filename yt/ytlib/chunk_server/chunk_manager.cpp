@@ -382,6 +382,10 @@ private:
     TChunkStatistics GetChunkStatistics(const TChunk& chunk)
     {
         TChunkStatistics result;
+
+        YASSERT(chunk.GetSize() != TChunk::UnknownSize);
+        result.CompressedSize = chunk.GetSize();
+
         auto attributes = chunk.DeserializeAttributes();
         switch (attributes.type()) {
             case EChunkType::File: {
@@ -400,6 +404,7 @@ private:
             default:
                 YUNREACHABLE();
         }
+
         return result;
     }
 
@@ -949,9 +954,9 @@ private:
 
         // Use the size reported by the holder, but check it for consistency first.
         if (chunk->GetSize() != TChunk::UnknownSize && chunk->GetSize() != size) {
-            LOG_FATAL("Chunk size mismatch (ChunkId: %s, Cached: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d",
+            LOG_FATAL("Mismatched chunk size reported by holder (ChunkId: %s, Cached: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
-                ~::ToString(cached),
+                ~ToString(cached),
                 chunk->GetSize(),
                 size,
                 ~holder.GetAddress(),
@@ -1186,19 +1191,37 @@ private:
     {
         UNUSED(response);
 
+        i64 size = request->size();
         auto& holderAddresses = request->holder_addresses();
         YASSERT(holderAddresses.size() != 0);
 
-        context->SetRequestInfo("HolderAddresses: [%s]", ~JoinToString(holderAddresses));
+        context->SetRequestInfo("Size: %" PRId64 ", HolderAddresses: [%s]",
+            size,
+            ~JoinToString(holderAddresses));
 
         auto& chunk = GetTypedImplForUpdate();
-        auto chunkId = chunk.GetId();
+
+        // Skip chunks that are already confirmed.
+        if (chunk.IsConfirmed()) {
+            context->SetResponseInfo("Chunk is already confirmed");
+            context->Reply();
+            return;
+        }
+
+        // Use the size reported by the client, but check it for consistency first.
+        if (chunk.GetSize() != TChunk::UnknownSize && chunk.GetSize() != size) {
+            LOG_FATAL("Mismatched chunk size reported by client (ChunkId: %s, , KnownSize: %" PRId64 ", NewSize: %" PRId64 ")",
+                ~Id.ToString(),
+                chunk.GetSize(),
+                size);
+        }
+        chunk.SetSize(size);
         
         FOREACH (const auto& address, holderAddresses) {
             auto* holder = Owner->FindHolderForUpdate(address);
             if (!holder) {
-                LOG_WARNING("Chunk is confirmed at unknown holder (ChunkId: %s, HolderAddress: %s)",
-                    ~chunkId.ToString(),
+                LOG_WARNING("Client has confirmed a chunk at unknown holder (ChunkId: %s, HolderAddress: %s)",
+                    ~Id.ToString(),
                     ~address);
                 continue;
             }
@@ -1211,17 +1234,14 @@ private:
             }
         }
 
-        // Skip chunks that are already confirmed.
-        if (!chunk.IsConfirmed()) {
-            TBlob blob;
-            if (!SerializeProtobuf(&request->attributes(), &blob)) {
-                LOG_FATAL("Error serializing chunk attributes (ChunkId: %s)", ~chunkId.ToString());
-            }
-
-            chunk.SetAttributes(TSharedRef(MoveRV(blob)));
-
-            LOG_INFO_IF(!Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~chunkId.ToString());
+        TBlob blob;
+        if (!SerializeProtobuf(&request->attributes(), &blob)) {
+            LOG_FATAL("Error serializing chunk attributes (ChunkId: %s)", ~Id.ToString());
         }
+
+        chunk.SetAttributes(TSharedRef(MoveRV(blob)));
+
+        LOG_INFO_IF(!Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
 
         context->Reply();
     }

@@ -27,6 +27,7 @@ public:
         const TChunkId& chunkId,
         TLocation* location);
 
+    //! Starts the session.
     void Start();
 
     ~TSession();
@@ -104,7 +105,7 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    TFuture<TVoid>::TPtr Finish(const TChunkAttributes& attributes);
+    TFuture<TChunk::TPtr>::TPtr Finish(const TChunkAttributes& attributes);
     void Cancel(const TError& error);
 
     void SetLease(TLeaseManager::TLease lease);
@@ -126,7 +127,7 @@ private:
 
     TFuture<TVoid>::TPtr CloseFile(const TChunkAttributes& attributes);
     TVoid DoCloseFile(const TChunkAttributes& attributes);
-    TVoid OnFileClosed(TVoid);
+    TChunk::TPtr OnFileClosed(TVoid);
 
     void EnqueueWrites();
     TVoid DoWrite(TCachedBlock::TPtr block, i32 blockIndex);
@@ -162,8 +163,8 @@ public:
     /*!
      * The call returns a result that gets set when the session is finished.
      */
-    TFuture<TVoid>::TPtr FinishSession(
-        TSession::TPtr session,
+    TFuture<TChunk::TPtr>::TPtr FinishSession(
+        TSession* session,
         const NChunkHolder::NProto::TChunkAttributes& attributes);
 
     //! Cancels an earlier opened upload session.
@@ -193,7 +194,7 @@ private:
     TSessionMap SessionMap;
 
     void OnLeaseExpired(TSession::TPtr session);
-    TVoid OnSessionFinished(TVoid, TSession::TPtr session);
+    TChunk::TPtr OnSessionFinished(TChunk::TPtr chunk, TSession::TPtr session);
 
 };
 

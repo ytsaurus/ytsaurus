@@ -21,7 +21,10 @@ message TReqFinishChunk
 }
 
 message TRspFinishChunk
-{ }
+{
+    // Full chunk size (including both data and meta).
+    required int64 size = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

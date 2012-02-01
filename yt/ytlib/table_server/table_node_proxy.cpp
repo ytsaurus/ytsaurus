@@ -72,6 +72,7 @@ void TTableNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
     attributes->push_back("uncompressed_size");
+    attributes->push_back("compressed_size");
     attributes->push_back("row_count");
     TBase::GetSystemAttributes(attributes);
 }
@@ -101,6 +102,12 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsum
     if (name == "uncompressed_size") {
         BuildYsonFluently(consumer)
             .Scalar(chunkList.Statistics().UncompressedSize);
+        return true;
+    }
+
+    if (name == "compressed_size") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.Statistics().CompressedSize);
         return true;
     }
 
