@@ -8,6 +8,7 @@
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/async_stream_state.h>
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/chunk_holder/chunk_holder_service_proxy.h>

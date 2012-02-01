@@ -219,6 +219,13 @@ TAsyncError::TPtr TChunkWriter::AsyncOpen()
     return State.GetOperationError();
 }
 
+NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr 
+TChunkWriter::GetConfirmRequest()
+{
+    return ChunkWriter->GetConfirmRequest();
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

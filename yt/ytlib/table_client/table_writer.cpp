@@ -73,13 +73,14 @@ void TTableWriter::Open()
         LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
             ~getChunkListIdRsp->GetError().ToString());
     }
-    ChunkListId = TChunkListId::FromProto(getChunkListIdRsp->chunk_list_id());
-    LOG_INFO("Chunk list id received (ChunkListId: %s)", ~ChunkListId.ToString());
+    auto chunkListId = TChunkListId::FromProto(getChunkListIdRsp->chunk_list_id());
+    LOG_INFO("Chunk list id received (ChunkListId: %s)", ~chunkListId.ToString());
 
     Writer = New<TChunkSequenceWriter>(
         ~Config->ChunkSequenceWriter, 
         ~MasterChannel,
         UploadTransaction->GetId(),
+        chunkListId,
         Schema);
 
     Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
@@ -128,16 +129,6 @@ void TTableWriter::Close()
     LOG_INFO("Closing chunk writer");
     Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
     LOG_INFO("Chunk writer closed");
-
-    LOG_INFO("Attaching chunks");
-    auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId));
-    ToProto<TChunkId, Stroka>(*req->mutable_children_ids(), Writer->GetWrittenChunkIds());
-    auto rsp = Proxy.Execute(~req)->Get();
-    if (!rsp->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error attaching chunks\n%s",
-            ~rsp->GetError().ToString());
-    }
-    LOG_INFO("Chunks attached");
 
     LOG_INFO("Committing upload transaction");
     try {

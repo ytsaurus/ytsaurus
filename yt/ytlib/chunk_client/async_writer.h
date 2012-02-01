@@ -7,7 +7,8 @@
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/ref.h>
 #include <ytlib/actions/future.h>
-#include <ytlib/misc/async_stream_state.h>
+#include <ytlib/misc/error.h>
+#include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -60,6 +61,18 @@ struct IAsyncWriter
 
     //! Returns the id of the chunk being written.
     virtual TChunkId GetChunkId() const = 0;
+
+    //! Returns the confirmation request for the uploaded chunk.
+    /*!
+     *  This method call only be called when the writer is successfully closed.
+     *  
+     * \note Thread affinity: ClientThread.
+     */
+    virtual NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest()
+    {
+        // Implement in descendants that imply remote writer semantics.
+        YUNIMPLEMENTED();
+    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////

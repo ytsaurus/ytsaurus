@@ -3,12 +3,17 @@
 
 #include <ytlib/chunk_client/writer_thread.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/transaction_server/transaction_ypath_proxy.h>
+#include <ytlib/object_server/id.h>
+#include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
 
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NCypress;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,10 +25,13 @@ TChunkSequenceWriter::TChunkSequenceWriter(
     TConfig* config,
     NRpc::IChannel* masterChannel,
     const TTransactionId& transactionId,
+    const TChunkListId& parentChunkList,
     const TSchema& schema)
     : Config(config)
-    , Proxy(masterChannel)
+    , ChunkProxy(masterChannel)
+    , CypressProxy(masterChannel)
     , TransactionId(transactionId)
+    , ParentChunkList(parentChunkList)
     , Schema(schema)
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
 {
@@ -51,7 +59,14 @@ void TChunkSequenceWriter::CreateNextChunk()
         ~TransactionId.ToString(),
         Config->UploadReplicaCount);
 
-    auto req = Proxy.CreateChunks();
+    /*
+    ToDo: create chunks through TTransactionYPathProxy.
+
+    auto req = TTransactionYPathProxy::CreateObject();
+    req->set_type(EObjectType::Chunk);
+    */
+
+    auto req = ChunkProxy.CreateChunks();
     req->set_chunk_count(1);
     req->set_upload_replica_count(Config->UploadReplicaCount);
     req->set_transaction_id(TransactionId.ToProto());
@@ -180,11 +195,20 @@ void TChunkSequenceWriter::FinishCurrentChunk()
     if (CurrentChunk->GetCurrentSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
-        CloseChunksAwaiter->Await(CurrentChunk->AsyncClose(), 
+
+        TAsyncError::TPtr finishResult = New<TAsyncError>();
+        CloseChunksAwaiter->Await(finishResult, 
             FromMethod(
-                &TChunkSequenceWriter::OnChunkClosed, 
+                &TChunkSequenceWriter::OnChunkFinished, 
                 TPtr(this),
                 CurrentChunk->GetChunkId()));
+
+        CurrentChunk->AsyncClose()->Subscribe(FromMethod(
+            &TChunkSequenceWriter::OnChunkClosed,
+            TPtr(this),
+            CurrentChunk,
+            finishResult));
+
     } else {
         LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
@@ -204,6 +228,69 @@ bool TChunkSequenceWriter::IsNextChunkTime() const
 
 void TChunkSequenceWriter::OnChunkClosed(
     TError error,
+    TChunkWriter::TPtr currentChunk,
+    TAsyncError::TPtr finishResult)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!error.IsOK()) {
+        finishResult->Set(error);
+        return;
+    }
+
+    LOG_DEBUG("Chunk successfully closed (ChunkId: %s).",
+        ~currentChunk->GetChunkId().ToString());
+
+    auto batchReq = CypressProxy.ExecuteBatch();
+    batchReq->AddRequest(~currentChunk->GetConfirmRequest());
+    {
+        auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkList));
+        req->add_children_ids(currentChunk->GetChunkId().ToProto());
+
+        batchReq->AddRequest(~req);
+    }
+    {
+        auto req = TTransactionYPathProxy::ReleaseObject(FromObjectId(TransactionId));
+        req->set_object_id(currentChunk->GetChunkId().ToProto());
+
+        batchReq->AddRequest(~req);
+    }
+
+    batchReq->Invoke()->Subscribe(FromMethod(
+        &TChunkSequenceWriter::OnChunkRegistered,
+        TPtr(this),
+        currentChunk->GetChunkId(),
+        finishResult));
+}
+
+void TChunkSequenceWriter::OnChunkRegistered(
+    TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp,
+    TChunkId chunkId,
+    TAsyncError::TPtr finishResult)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!batchRsp->IsOK()) {
+        finishResult->Set(batchRsp->GetError());
+        return;
+    }
+
+    LOG_DEBUG("Batch chunk registration request succeeded (ChunkId: %s).",
+        ~chunkId.ToString());
+
+    for (int i = 0; i < batchRsp->GetSize(); ++i) {
+        auto rsp = batchRsp->GetResponse(i);
+        if (!rsp->IsOK()) {
+            finishResult->Set(rsp->GetError());
+            return;
+        }
+    }
+
+    finishResult->Set(TError());
+}
+
+void TChunkSequenceWriter::OnChunkFinished(
+    TError error,
     TChunkId chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -213,11 +300,8 @@ void TChunkSequenceWriter::OnChunkClosed(
         return;
     }
 
-    LOG_DEBUG("Chunk successfully closed (ChunkId: %s).",
+    LOG_DEBUG("Chunk successfully closed and registered (ChunkId: %s).",
         ~chunkId.ToString());
-
-    TGuard<TSpinLock> guard(WrittenSpinLock);
-    WrittenChunks.push_back(chunkId);
 }
 
 TAsyncError::TPtr TChunkSequenceWriter::AsyncClose()
@@ -256,14 +340,6 @@ void TChunkSequenceWriter::Cancel(const TError& error)
     if (CurrentChunk) {
         CurrentChunk->Cancel(error);
     }
-}
-
-const yvector<TChunkId>& TChunkSequenceWriter::GetWrittenChunkIds() const
-{
-    VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(State.IsClosed());
-
-    return WrittenChunks;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

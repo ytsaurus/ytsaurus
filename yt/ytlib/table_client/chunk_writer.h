@@ -9,6 +9,7 @@
 #include "table_chunk_meta.pb.h"
 
 #include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -64,6 +65,8 @@ public:
     i64 GetCurrentSize() const;
 
     NChunkServer::TChunkId GetChunkId() const;
+
+    NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest();
 
 private:
     TSharedRef PrepareBlock(int channelIndex);
