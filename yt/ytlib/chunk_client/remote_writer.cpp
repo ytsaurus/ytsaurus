@@ -925,6 +925,7 @@ TChunkId TRemoteWriter::GetChunkId() const
 
 TChunkYPathProxy::TReqConfirm::TPtr TRemoteWriter::GetConfirmRequest()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(State.IsClosed());
 
     auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));

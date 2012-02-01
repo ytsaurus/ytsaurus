@@ -252,8 +252,6 @@ IMapNode::TPtr TObjectManager::GetAttributesMap(const TVersionedObjectId& id) co
     return map;
 }
 
-DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
-
 void TObjectManager::BranchAttributes(
     const TVersionedObjectId& originatingId,
     const TVersionedObjectId& branchedId)
@@ -285,6 +283,8 @@ void TObjectManager::MergeAttributes(
     }
     Attributes.Remove(branchedId);
 }
+
+DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 

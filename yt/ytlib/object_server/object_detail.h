@@ -1,4 +1,4 @@
-  #pragma once
+#pragma once
 
 #include "id.h"
 #include "object_proxy.h"
@@ -124,10 +124,14 @@ protected:
 
     // The following methods provide means for accessing attribute sets.
     // In particular, these methods are responsible for resolving object and transaction ids.
+    
+    //! Returns the list of all attribute names.
     virtual yhash_set<Stroka> ListUserAttributes();
-    // Returns empty TYson if the attribute is not found.
+    //! Returns the value of the attribute (empty TYson indicates that the attribute is not found).
     virtual NYTree::TYson GetUserAttribute(const Stroka& name);
+    //! Sets the value of the attribute.
     virtual void SetUserAttribute(const Stroka& name, const NYTree::TYson& value);
+    //! Removes the attribute.
     virtual bool RemoveUserAttribute(const Stroka& name);
 };
 

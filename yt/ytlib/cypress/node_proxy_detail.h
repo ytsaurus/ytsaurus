@@ -259,11 +259,13 @@ protected:
         ObjectManager->UnrefObject(child.GetId().ObjectId);
     }
 
+
     virtual yhash_set<Stroka> ListUserAttributes()
     {
         if (TransactionId == NullTransactionId) {
             return TObjectProxyBase::ListUserAttributes();
         }
+
         yhash_set<Stroka> attributes;
         auto transactionIds = CypressManager->GetTransactionManager()->GetTransactionPath(TransactionId);
         for (auto it = transactionIds.rbegin(); it != transactionIds.rend(); ++it) {
@@ -282,7 +284,6 @@ protected:
         return attributes;
     }
 
-    // Returns empty TYson if the attribute is not found.
     virtual NYTree::TYson GetUserAttribute(const Stroka& name)
     {
         if (TransactionId == NullTransactionId) {
@@ -308,27 +309,32 @@ protected:
 
     virtual void SetUserAttribute(const Stroka& name, const NYTree::TYson& value)
     {
+        // This also takes the lock.
+        auto id = GetImplForUpdate(NodeId).GetId();
+
         if (TransactionId == NullTransactionId) {
             TObjectProxyBase::SetUserAttribute(name, value);
             return;
         }
-        auto id = GetImplForUpdate(NodeId).GetId();
+
         auto* userAttributes = ObjectManager->FindAttributesForUpdate(id);
         if (!userAttributes) {
             userAttributes = ObjectManager->CreateAttributes(id);
         }
+
         userAttributes->Attributes()[name] = value;
     }
 
     virtual bool RemoveUserAttribute(const Stroka& name)
     {
+        // This also takes the lock.
+        auto id = GetImplForUpdate(NodeId).GetId();
+
         if (TransactionId == NullTransactionId) {
             return TObjectProxyBase::RemoveUserAttribute(name);
         }
-        auto id = GetImplForUpdate(NodeId).GetId();
 
         bool contains = false;
-
         auto transactionIds = CypressManager->GetTransactionManager()->GetTransactionPath(TransactionId);
         for (auto it = transactionIds.rbegin() + 1; it != transactionIds.rend(); ++it) {
             TVersionedObjectId parentId(NodeId, *it);

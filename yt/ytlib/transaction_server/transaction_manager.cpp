@@ -474,14 +474,15 @@ IObjectProxy::TPtr TTransactionManager::GetRootTransactionProxy()
 
 DEFINE_METAMAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)
 
-std::vector<TTransactionId> TTransactionManager::GetTransactionPath(TTransactionId transactionId) const
+std::vector<TTransactionId> TTransactionManager::GetTransactionPath(const TTransactionId& transactionId) const
 {
     std::vector<TTransactionId> path;
     path.push_back(transactionId);
-    while (transactionId != NullTransactionId) {
-        const auto& transaction = GetTransaction(transactionId);
-        transactionId = transaction.GetParentId();
-        path.push_back(transactionId);
+    auto currentId = transactionId;
+    while (currentId != NullTransactionId) {
+        const auto& transaction = GetTransaction(currentId);
+        currentId = transaction.GetParentId();
+        path.push_back(currentId);
     }
     return path;
 }

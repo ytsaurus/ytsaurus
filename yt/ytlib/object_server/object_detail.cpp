@@ -118,7 +118,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* con
     return false;
 }
 
-bool TObjectProxyBase::SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer)
+bool TObjectProxyBase::SetSystemAttribute(const Stroka& name, TYsonProducer* producer)
 {
     UNUSED(producer);
 
@@ -321,7 +321,7 @@ bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
     return TYPathServiceBase::IsWriteRequest(context);
 }
 
-NYTree::TYson TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
+TYson TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
 {
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
@@ -343,7 +343,7 @@ NYTree::TYson TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSyste
     ythrow yexception() << Sprintf("Attribute %s is not found", ~name.Quote());
 }
 
-void TObjectProxyBase::DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem)
+void TObjectProxyBase::DoSetAttribute(const Stroka name, INode* value, bool isSystem)
 {
     if (isSystem) {
         if (!SetSystemAttribute(name, ~ProducerFromNode(value))) {
@@ -368,7 +368,7 @@ yhash_set<Stroka> TObjectProxyBase::ListUserAttributes()
     return attributes;
 }
 
-NYTree::TYson TObjectProxyBase::GetUserAttribute(const Stroka& name)
+TYson TObjectProxyBase::GetUserAttribute(const Stroka& name)
 {
     const auto* attributeSet = ObjectManager->FindAttributes(Id);
     if (!attributeSet) {
@@ -383,7 +383,7 @@ NYTree::TYson TObjectProxyBase::GetUserAttribute(const Stroka& name)
     return it->second;
 }
 
-void TObjectProxyBase::SetUserAttribute(const Stroka& name, const NYTree::TYson& value)
+void TObjectProxyBase::SetUserAttribute(const Stroka& name, const TYson& value)
 {
     auto* attributeSet = ObjectManager->FindAttributesForUpdate(Id);
     if (!attributeSet) {
