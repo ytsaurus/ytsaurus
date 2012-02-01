@@ -65,6 +65,14 @@ public:
         return ENodeType::Entity;
     }
 
+    virtual bool IsLockModeSupported(ELockMode mode)
+    {
+        return
+            mode == ELockMode::Exclusive ||
+            mode == ELockMode::Shared ||
+            mode == ELockMode::Snapshot;
+    }
+
     virtual TAutoPtr<ICypressNode> CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
@@ -80,6 +88,8 @@ public:
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
         CypressManager->GetObjectManager()->RefObject(chunkListId);
+
+        ObjectManager->AddAttributes(nodeId, manifest);
 
         // TODO(babenko): stupid TAutoPtr does not support upcast.
         return node.Release();
