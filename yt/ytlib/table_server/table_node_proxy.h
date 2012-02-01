@@ -7,6 +7,7 @@
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/chunk_server/chunk_manager.h>
+#include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -38,9 +39,15 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
+    TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
+
     void TraverseChunkTree(
         yvector<NChunkServer::TChunkId>* chunkIds,
         const NChunkServer::TChunkTreeId& treeId);
+
+    void ParseYPath(
+        const NYTree::TYPath& path,
+        NTableClient::TChannel* channel);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListForUpdate);
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);
