@@ -23,14 +23,12 @@ TTableWriter::TTableWriter(
     NRpc::IChannel* masterChannel,
     ITransaction* transaction,
     TTransactionManager* transactionManager,
-    const TSchema& schema,
     const TYPath& path)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , TransactionManager(transactionManager)
-    , Schema(schema)
     , Path(path)
     , IsOpen(false)
     , IsClosed(false)
@@ -66,22 +64,53 @@ void TTableWriter::Open()
     ListenTransaction(~UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)", ~UploadTransaction->GetId().ToString());
 
-    LOG_INFO("Requesting chunk list id");
+    LOG_INFO("Requesting table info");
+    auto getInfoReq = Proxy.ExecuteBatch();
+
     auto getChunkListIdReq = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, TransactionId));
-    auto getChunkListIdRsp = Proxy.Execute(~getChunkListIdReq)->Get();
+    getInfoReq->AddRequest(~getChunkListIdReq);
+
+    auto getSchemaReq = TCypressYPathProxy::Get(CombineYPaths(
+        WithTransaction(Path, TransactionId),
+        "@channels"));
+    getInfoReq->AddRequest(~getSchemaReq);
+
+    auto getInfoRsp = getInfoReq->Invoke()->Get();
+    if (!getInfoRsp->IsOK()) {
+        LOG_ERROR_AND_THROW(yexception(), "Error requesting table info\n%s",
+            ~getInfoRsp->GetError().ToString());
+    }
+
+    auto getChunkListIdRsp = getInfoRsp->GetResponse<TTableYPathProxy::TRspGetChunkListForUpdate>(0);
     if (!getChunkListIdRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
             ~getChunkListIdRsp->GetError().ToString());
     }
     auto chunkListId = TChunkListId::FromProto(getChunkListIdRsp->chunk_list_id());
-    LOG_INFO("Chunk list id received (ChunkListId: %s)", ~chunkListId.ToString());
+
+    auto getSchemaRsp = getInfoRsp->GetResponse<TCypressYPathProxy::TRspGet>(1);
+    auto schema = TSchema::Default();
+    if (getSchemaRsp->IsOK()) {
+        try {
+            schema = TSchema::FromYson(getSchemaRsp->value());
+        }
+        catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error parsing table schema (Path: %s)\n%s",
+                ~Path,
+                ex.what());
+        }
+    }
+
+    LOG_INFO("Table info received (ChunkListId: %s, ChannelCount: %d)",
+        ~chunkListId.ToString(),
+        static_cast<int>(schema.GetChannels().size()));
 
     Writer = New<TChunkSequenceWriter>(
         ~Config->ChunkSequenceWriter, 
         ~MasterChannel,
         UploadTransaction->GetId(),
         chunkListId,
-        Schema);
+        schema);
 
     Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
 

@@ -57,7 +57,6 @@ public:
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         NTransactionClient::TTransactionManager* transactionManager,
-        const TSchema& schema,
         const NYTree::TYPath& path);
 
     //! Opens the writer.
@@ -79,7 +78,6 @@ private:
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NTransactionClient::TTransactionManager::TPtr TransactionManager;
-    TSchema Schema;
     NYTree::TYPath Path;
     bool IsOpen;
     bool IsClosed;
