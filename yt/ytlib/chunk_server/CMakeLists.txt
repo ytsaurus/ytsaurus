@@ -16,6 +16,7 @@ set( SRCS
   ${BASE}/id.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
+  ${BASE}/chunk_statistics.cpp
 )
 set( HDRS
   ${BASE}/chunk.h
@@ -37,6 +38,7 @@ set( HDRS
   ${BASE}/id.h
   ${BASE}/job.h
   ${BASE}/job_list.h
+  ${BASE}/chunk_statistics.h
 )
 
 list(APPEND YT_SOURCE_FILES

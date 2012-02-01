@@ -77,7 +77,7 @@ public:
         UNUSED(transactionId);
         UNUSED(manifest);
         ythrow yexception() << Sprintf("Nodes of type %s cannot be created from a manifest",
-            ~GetObjectType().ToString().Quote());
+            ~FormatEnum(GetObjectType()).Quote());
     }
 
     virtual void Destroy(ICypressNode& node)

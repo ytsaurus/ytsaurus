@@ -11,13 +11,10 @@ message TFileChunkAttributes
         required TFileChunkAttributes file_attributes = 100;
     }
 
-    // Number of blocks in chunk.
-    //required int32 block_count = 1;
+    // Real size of the file (as uploaded by the client).
+    required int64 uncompressed_size = 1;
 
-    // The real size of the file (as uploaded by the client).
-    required int64 size = 1;
-
-    // Id of the codec using for storing blocks.
+    // Id of the codec using for compressing blocks.
     required int32 codec_id = 2;
 }
 

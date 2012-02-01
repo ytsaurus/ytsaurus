@@ -143,7 +143,7 @@ void TCellMasterBootstrap::Run()
     transactionManager->SetCypressManager(~cypressManager);
 
     auto cypressService = New<TCypressService>(
-        ~metaStateManager->GetStateInvoker(),
+        ~metaStateManager,
         ~cypressManager);
     rpcServer->RegisterService(~cypressService);
 
