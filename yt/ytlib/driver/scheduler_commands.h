@@ -18,10 +18,19 @@ struct TMapRequest
 
     TMapRequest()
     {
-        Register("command", Command);
-        Register("files", Files);
+        Register("command", Command)
+            .Default(Stroka());
+        Register("files", Files)
+            .Default(yvector<NYTree::TYPath>());
         Register("in", In);
         Register("out", Out);
+    }
+
+    virtual void DoValidate() const
+    {
+        if (Command.empty() && Files.empty()) {
+            ythrow yexception() << "Neither \"command\" nor \"files\" are given";
+        }
     }
 };
 

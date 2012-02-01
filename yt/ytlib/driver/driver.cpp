@@ -5,6 +5,7 @@
 #include "cypress_commands.h"
 #include "file_commands.h"
 #include "table_commands.h"
+#include "scheduler_commands.h"
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/serialize.h>
@@ -135,6 +136,8 @@ public:
 
         RegisterCommand("read", ~New<TReadCommand>(this));
         RegisterCommand("write", ~New<TWriteCommand>(this));
+
+        RegisterCommand("map", ~New<TMapCommand>(this));
     }
 
     TError Execute(const TYson& request)
