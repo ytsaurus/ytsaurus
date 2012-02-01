@@ -2,15 +2,13 @@
     "meta_state"= {
         "cell"= {
             "addresses"= [
-                "localhost:8000";
-                "localhost:8001";
-                "localhost:8002";
+                "localhost:8000"
             ]
         };
-        "snapshot_location"= ".";
+        "snapshot_path"= ".";
         "max_changes_between_snapshots"= 1000000;
-        "log_location"= "."
-    },
+        "log_path"= "."
+    };
     "logging"= {
         "rules"= [
             {
@@ -19,7 +17,7 @@
                 "min_level"= "Debug"
             };
             {
-                "writers"= ["stdErr"];
+                "writers"= ["stderr"];
                 "categories"= ["*"];
                 "min_level"= "Info"
             }
