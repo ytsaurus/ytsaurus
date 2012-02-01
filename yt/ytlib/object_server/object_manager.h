@@ -14,7 +14,7 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Provides high-level management and tracking of objects.
+//! Provides high-level management and tracking of objects and their attributes.
 /*!
  *  This class provides the following types of operations:
  *  
@@ -82,20 +82,31 @@ public:
     //! Returns a proxy for the object with the given id or NULL. Fails if there's no such object.
     IObjectProxy::TPtr GetProxy(const TObjectId& id);
 
-    DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
-
     TAttributeSet* CreateAttributes(const TVersionedObjectId& id);
+    void RemoveAttributes(const TVersionedObjectId& id);
 
     void AddAttributes(const TVersionedObjectId& id, NYTree::IMapNode* value);
-    void RemoveAttributes(const TVersionedObjectId& id);
     NYTree::IMapNode::TPtr GetAttributesMap(const TVersionedObjectId& id) const;
 
+    //! Called on a versioned object is branched.
+    void BranchAttributes(
+        const TVersionedObjectId& originatingId,
+        const TVersionedObjectId& branchedId);
+
+    //! Called when a versioned object is merged during transaction commit.
+    void MergeAttributes(
+        const TVersionedObjectId& originatingId,
+        const TVersionedObjectId& branchedId);
+    
+    DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
     TCellId CellId;
 
-    yvector<TIdGenerator<ui64> > TypeToCounter;
+    yvector< TIdGenerator<ui64> > TypeToCounter;
     yvector<IObjectTypeHandler::TPtr> TypeToHandler;
+
+    // Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);

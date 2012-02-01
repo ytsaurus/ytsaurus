@@ -47,6 +47,7 @@ public:
     TNodeId GetRootNodeId();
 
     NObjectServer::TObjectManager* GetObjectManager() const;
+    NTransactionServer::TTransactionManager* GetTransactionManager() const;
 
     const ICypressNode* FindVersionedNode(
         const TNodeId& nodeId,

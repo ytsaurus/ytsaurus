@@ -2,9 +2,13 @@
 #include "schema.h"
 
 #include <ytlib/misc/foreach.h>
+#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NTableClient {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,6 +90,9 @@ bool TRange::IsInfinite() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TChannel::TChannel()
+{ }
 
 void TChannel::AddColumn(const TColumn& column)
 {
@@ -232,6 +239,72 @@ TChannel TChannel::Universal()
     return result;
 }
 
+TChannel TChannel::Empty()
+{
+    return TChannel();
+}
+
+TChannel TChannel::FromYson(const NYTree::TYson& yson)
+{
+    return FromYson(~DeserializeFromYson(yson));
+}
+
+TChannel TChannel::FromYson(INode* node)
+{
+    if (node->GetType() != ENodeType::List) {
+        ythrow yexception() << "Channel description can only be parsed from a list";
+    }
+
+    TChannel channel;
+    FOREACH (auto child, node->AsList()->GetChildren()) {
+        switch (child->GetType()) {
+            case ENodeType::String:
+                channel.AddColumn(child->GetValue<Stroka>());
+                break;
+
+            case ENodeType::List: {
+                auto listChild = child->AsList();
+                switch (listChild->GetChildCount()) {
+                    case 1: {
+                        auto item = listChild->GetChild(0);
+                        if (item->GetType() != ENodeType::String) {
+                            ythrow yexception() << Sprintf("Channel range description cannot contain %s items",
+                                ~item->GetType().ToString().Quote());
+                        }
+                        channel.AddRange(TRange(item->GetValue<Stroka>()));
+                        break;
+                    }
+
+                    case 2: {
+                        auto itemLo = listChild->GetChild(0);
+                        if (itemLo->GetType() != ENodeType::String) {
+                            ythrow yexception() << Sprintf("Channel range description cannot contain %s items",
+                                ~itemLo->GetType().ToString().Quote());
+                        }
+                        auto itemHi = listChild->GetChild(1);
+                        if (itemHi->GetType() != ENodeType::String) {
+                            ythrow yexception() << Sprintf("Channel range description cannot contain %s items",
+                                ~itemHi->GetType().ToString().Quote());
+                        }
+                        channel.AddRange(TRange(itemLo->GetValue<Stroka>(), itemHi->GetValue<Stroka>()));
+                        break;
+                    }
+
+                    default:
+                        ythrow yexception() << "Invalid channel range description";
+                };
+                break;
+                                  }
+
+            default:
+                ythrow yexception() << Sprintf("Channel description cannot contain %s items",
+                    ~child->GetType().ToString().Quote());
+        }
+    }
+
+    return channel;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void operator-= (TChannel& lhs, const TChannel& rhs)
@@ -284,20 +357,19 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchema::TSchema()
-{ }
-
-TSchema TSchema::Empty()
 {
-    TSchema schema;
-    TChannel trashChannel;
-
+    auto trashChannel = TChannel::Empty();
     // Initially the schema consists of a single trash channel,
     // i.e. [epsilon, infinity).
     // This "trash" channel is expected to be present in any chunk
     // (this is how table writer works now). 
     trashChannel.AddRange(TRange(""));
-    schema.Channels.push_back(trashChannel);
-    return schema;
+    Channels.push_back(trashChannel);
+}
+
+TSchema TSchema::Default()
+{
+    return TSchema();
 }
 
 void TSchema::AddChannel(const TChannel& channel)
@@ -328,6 +400,26 @@ TSchema TSchema::FromProto(const NProto::TSchema& protoSchema)
         schema.Channels.push_back(TChannel::FromProto(
             protoSchema.channels(i)));
     }
+    return schema;
+}
+
+TSchema TSchema::FromYson(const NYTree::TYson& yson)
+{
+    return FromYson(~DeserializeFromYson(yson));
+}
+
+TSchema TSchema::FromYson(INode* node)
+{
+    TSchema schema;
+    if (node->GetType() != ENodeType::List) {
+        ythrow yexception() << "Schema description can only be parsed from a list";
+    }
+
+    FOREACH (auto child, node->AsList()->GetChildren()) {
+        auto channel = TChannel::FromYson(~child);
+        schema.AddChannel(channel);
+    }
+
     return schema;
 }
 

@@ -98,6 +98,8 @@ public:
         node->SetChunkListId(chunkListId);
         CypressManager->GetObjectManager()->RefObject(chunkListId);
 
+        ObjectManager->AddAttributes(nodeId, manifestNode);
+
         yvector<TChunkTreeId> childrenIds;
         childrenIds.push_back(chunkId);
         ChunkManager->AttachToChunkList(chunkList, childrenIds);

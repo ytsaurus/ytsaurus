@@ -4,6 +4,9 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/table_client/schema.h>
+#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/tree_builder.h>
+#include <ytlib/ytree/ephemeral.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -36,6 +39,15 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
     DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
     DISPATCH_YPATH_SERVICE_METHOD(Fetch);
     TBase::DoInvoke(context);
+}
+
+IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb)
+{
+    // Resolve to self to handle channels and ranges.
+    if (verb == "Fetch") {
+        return TResolveResult::Here(path);
+    }
+    return TBase::ResolveRecursive(path, verb);
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
@@ -120,7 +132,33 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsum
     return TBase::GetSystemAttribute(name, consumer);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+void TTableNodeProxy::ParseYPath(
+    const NYTree::TYPath& path,
+    NTableClient::TChannel* channel)
+{
+    // Set defaults.
+    *channel = TChannel::Universal();
+    
+    // A simple shortcut.
+    if (path.empty()) {
+        return;
+    }
+
+    auto currentPath = path;
+
+    // Parse channel.
+    auto channelBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    channelBuilder->BeginTree();
+    TStringInput channelInput(currentPath);
+    TYsonFragmentReader channelReader(~channelBuilder, &channelInput);
+    if (channelReader.HasNext()) {
+        channelReader.ReadNext();
+        *channel = TChannel::FromYson(~channelBuilder->EndTree());
+    }
+
+    // TODO(babenko): parse range.
+    // TODO(babenko): check for trailing garbage.
+}
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 {
@@ -159,8 +197,11 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }
     }
 
-    // TODO: parse channel from YPath
-    auto channel = TChannel::Universal();
+    auto channel = TChannel::Empty();
+    ParseYPath(
+        context->GetPath(),
+        &channel);
+
     *response->mutable_channel() = channel.ToProto();
 
     context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());

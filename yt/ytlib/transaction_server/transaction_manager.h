@@ -74,6 +74,10 @@ public:
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
+    //! Returns the list of all transaction ids on the path up to the root.
+    //! This list includes #transactionId itself and #NullTransactionId.
+    std::vector<TTransactionId> GetTransactionPath(const TTransactionId& transactionId) const;
+
 private:
     typedef TTransactionManager TThis;
     class TTransactionTypeHandler;

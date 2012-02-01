@@ -84,7 +84,14 @@ IYPathService::TResolveResult TObjectProxyBase::ResolveAttributes(
     const Stroka& verb)
 {
     UNUSED(path);
-    UNUSED(verb);
+    if (verb != "Get" &&
+        verb != "Set" &&
+        verb != "List" &&
+        verb != "Remove")
+    {
+        ythrow TServiceException(EErrorCode::NoSuchVerb) <<
+            "Verb is not supported";
+    }
     return TResolveResult::Here(AttributeMarker + path);
 }
 
@@ -118,7 +125,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* con
     return false;
 }
 
-bool TObjectProxyBase::SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer)
+bool TObjectProxyBase::SetSystemAttribute(const Stroka& name, TYsonProducer* producer)
 {
     UNUSED(producer);
 
@@ -136,14 +143,13 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 void TObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     if (IsFinalYPath(path)) {
-        yvector<TAttributeInfo> systemAttributes;
-        GetSystemAttributes(&systemAttributes);
-
         TStringStream stream;
         TYsonWriter writer(&stream, EYsonFormat::Binary);
         
         writer.OnBeginMap();
 
+        yvector<TAttributeInfo> systemAttributes;
+        GetSystemAttributes(&systemAttributes);
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
                 writer.OnMapItem(attribute.Name);
@@ -155,14 +161,12 @@ void TObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGe
             }
         }
 
-        const auto* userAttributes = FindAttributes();
-        if (userAttributes) {
-            FOREACH (const auto& pair, userAttributes->Attributes()) {
-                writer.OnMapItem(pair.first);
-                writer.OnRaw(pair.second);
-            }
+        const auto& userAttributes = ListUserAttributes();
+        FOREACH (const auto& name, userAttributes) {
+            writer.OnMapItem(name);
+            writer.OnRaw(GetUserAttribute(name));
         }
-
+        
         writer.OnEndMap();
 
         response->set_value(stream.Str());
@@ -198,13 +202,10 @@ void TObjectProxyBase::ListAttribute(const TYPath& path, TReqList* request, TRsp
             }
         }
         
-        const auto* userAttributes = FindAttributes();
-        if (userAttributes) {
-            keys.reserve(keys.size() + userAttributes->Attributes().size());
-            FOREACH (const auto& pair, userAttributes->Attributes()) {
-                keys.push_back(pair.first);
-            }
-        }
+        const auto& userAttributes = ListUserAttributes();
+        // If we used vector instead of yvector, we could start with user
+        // attributes instead of copying them.
+        keys.insert(keys.end(), userAttributes.begin(), userAttributes.end());
     } else {
         Stroka token;
         TYPath suffixPath;
@@ -226,19 +227,18 @@ void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSe
             ythrow yexception() << "Map value expected";
         }
 
+        const auto& userAttributes = ListUserAttributes();
+        FOREACH (const auto& name, userAttributes) {
+            YVERIFY(RemoveUserAttribute(name));
+        }
+
         // TODO(babenko): handle system attributes
         auto mapValue = value->AsMap();
-        if (mapValue->GetChildCount() == 0) {
-            RemoveAttributes();
-        } else {
-            auto* userAttributes = GetAttributesForUpdate();
-            userAttributes->Attributes().clear();
-            FOREACH (const auto& pair, mapValue->GetChildren()) {
-                auto key = pair.first;
-                YASSERT(!key.empty());
-                auto value = SerializeToYson(~pair.second);
-                userAttributes->Attributes()[key] = value;
-            }
+        FOREACH (const auto& pair, mapValue->GetChildren()) {
+            auto key = pair.first;
+            YASSERT(!key.empty());
+            auto value = SerializeToYson(~pair.second);
+            SetUserAttribute(key, value);
         }
     } else {
         Stroka token;
@@ -261,8 +261,7 @@ void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSe
                 	}
             	}
 
-            	auto* userAttributes = GetAttributesForUpdate();
-                userAttributes->Attributes()[token] = request->value();
+                SetUserAttribute(token, request->value());
             }
         } else {
             Stroka token;
@@ -283,24 +282,18 @@ void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSe
 void TObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context)
 {
     if (IsFinalYPath(path)) {
-        RemoveAttributes();
+        const auto& userAttributes = ListUserAttributes();
+        FOREACH (const auto& name, userAttributes) {
+            YVERIFY(RemoveUserAttribute(name));
+        }
     } else {
         Stroka token;
         TYPath suffixPath;
         ChopYPathToken(path, &token, &suffixPath);
 
         if (IsFinalYPath(suffixPath)) {
-            auto* userAttributes = FindAttributesForUpdate();
-            if (!userAttributes) {
+            if (!RemoveUserAttribute(token)) {
                 ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
-            }
-            auto it = userAttributes->Attributes().find(token);
-            if (it == userAttributes->Attributes().end()) {
-                ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
-            }
-            userAttributes->Attributes().erase(it);
-            if (userAttributes->Attributes().size() == 0) {
-                RemoveAttributes();
             }
         } else {
             Stroka token;
@@ -335,7 +328,7 @@ bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
     return TYPathServiceBase::IsWriteRequest(context);
 }
 
-Stroka TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
+TYson TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
 {
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
@@ -346,30 +339,83 @@ Stroka TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
         return stream.Str();
     }
 
-    const auto* userAttributes = FindAttributes();
-    if (userAttributes) {
-        auto it = userAttributes->Attributes().find(name);
-        if (it != userAttributes->Attributes().end()) {
-            if (isSystem) {
-                *isSystem = false;
-            }
-            return it->second;
+    auto yson = GetUserAttribute(name);
+    if (!yson.empty()) {
+        if (isSystem) {
+            *isSystem = false;
         }
+        return yson;
     }
-
+    
     ythrow yexception() << Sprintf("Attribute %s is not found", ~name.Quote());
 }
 
-void TObjectProxyBase::DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem)
+void TObjectProxyBase::DoSetAttribute(const Stroka name, INode* value, bool isSystem)
 {
     if (isSystem) {
         if (!SetSystemAttribute(name, ~ProducerFromNode(value))) {
             ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
         }
     } else {
-        auto* userAttributes = GetAttributesForUpdate();
-        userAttributes->Attributes().find(name)->second = SerializeToYson(value);
+        SetUserAttribute(name, SerializeToYson(value));
     }
+}
+
+yhash_set<Stroka> TObjectProxyBase::ListUserAttributes()
+{
+    yhash_set<Stroka> attributes;
+    const auto* attributeSet = ObjectManager->FindAttributes(Id);
+    if (attributeSet) {
+        FOREACH (const auto& pair, attributeSet->Attributes()) {
+            // Attribute cannot be empty (i.e. deleted) in null transaction.
+            YASSERT(!pair.second.empty());
+            attributes.insert(pair.first);
+        }
+    }
+    return attributes;
+}
+
+TYson TObjectProxyBase::GetUserAttribute(const Stroka& name)
+{
+    const auto* attributeSet = ObjectManager->FindAttributes(Id);
+    if (!attributeSet) {
+        return "";
+    }
+    auto it = attributeSet->Attributes().find(name);
+    if (it == attributeSet->Attributes().end()) {
+        return "";
+    }
+    // Attribute cannot be empty (i.e. deleted) in null transaction.
+    YASSERT(!it->second.empty());
+    return it->second;
+}
+
+void TObjectProxyBase::SetUserAttribute(const Stroka& name, const TYson& value)
+{
+    auto* attributeSet = ObjectManager->FindAttributesForUpdate(Id);
+    if (!attributeSet) {
+        attributeSet = ObjectManager->CreateAttributes(Id);
+    }
+    attributeSet->Attributes()[name] = value;
+}
+
+bool TObjectProxyBase::RemoveUserAttribute(const Stroka& name)
+{
+    auto* attributeSet = ObjectManager->FindAttributesForUpdate(Id);
+    if (!attributeSet) {
+        return false;
+    }
+    auto it = attributeSet->Attributes().find(name);
+    if (it == attributeSet->Attributes().end()) {
+        return false;
+    }
+    // Attribute cannot be empty (i.e. deleted) in null transaction.
+    YASSERT(!it->second.empty());
+    attributeSet->Attributes().erase(it);
+    if (attributeSet->Attributes().empty()) {
+        ObjectManager->RemoveAttributes(Id);
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

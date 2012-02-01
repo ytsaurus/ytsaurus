@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "object_manager.h"
 
+#include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/transaction_server/transaction.h>
+
 #include <ytlib/ytree/serialize.h>
 
 #include <util/digest/murmur.h>
@@ -247,6 +250,38 @@ IMapNode::TPtr TObjectManager::GetAttributesMap(const TVersionedObjectId& id) co
         map->AddChild(~value, pair.first);
     }
     return map;
+}
+
+void TObjectManager::BranchAttributes(
+    const TVersionedObjectId& originatingId,
+    const TVersionedObjectId& branchedId)
+{
+    UNUSED(originatingId);
+    UNUSED(branchedId);
+    // We don't store empty deltas at the moment
+}
+
+void TObjectManager::MergeAttributes(
+    const TVersionedObjectId& originatingId,
+    const TVersionedObjectId& branchedId)
+{
+    auto* originatingAttributes = FindAttributesForUpdate(originatingId);
+    const auto* branchedAttributes = FindAttributes(branchedId);
+    if (!branchedAttributes) {
+        return;
+    }
+    if (!originatingAttributes) {
+        Attributes.Insert(originatingId, ~branchedAttributes->Clone());
+    } else {
+        FOREACH (const auto& pair, branchedAttributes->Attributes()) {
+            if (pair.second.empty() && !originatingId.IsBranched()) {
+                originatingAttributes->Attributes().erase(pair.first);
+            } else {
+                originatingAttributes->Attributes()[pair.first] = pair.second;
+            }
+        }
+    }
+    Attributes.Remove(branchedId);
 }
 
 DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)

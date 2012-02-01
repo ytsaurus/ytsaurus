@@ -471,6 +471,14 @@ TObjectManager* TCypressManager::GetObjectManager() const
     return ~ObjectManager;
 }
 
+TTransactionManager* TCypressManager::GetTransactionManager() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ~TransactionManager;
+}
+
+
 const ICypressNode* TCypressManager::FindVersionedNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
@@ -534,7 +542,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
             if (currentTransactionId == transactionId) {
                 // Update the lock mode if a higher one was requested (unless this is the null transaction).
                 if (currentTransactionId != NullTransactionId && currentNode->GetLockMode() < requestedMode) {
-                    LOG_INFO_IF(!IsRecovery(), "Node locking mode upgraded (NodeId: %s, TransactionId: %s, OldMode: %s, NewMode: %s)",
+                    LOG_INFO_IF(!IsRecovery(), "Node lock mode upgraded (NodeId: %s, TransactionId: %s, OldMode: %s, NewMode: %s)",
                         ~nodeId.ToString(),
                         ~transactionId.ToString(),
                         ~currentNode->GetLockMode().ToString(),
@@ -635,6 +643,13 @@ void TCypressManager::ValidateLock(
     ELockMode requestedMode,
     bool* isMandatory)
 {
+    auto handler = GetHandler(TypeFromId(nodeId));
+    if (!handler->IsLockModeSupported(requestedMode)) {
+        ythrow yexception() << Sprintf("Cannot take %s lock for node %s: the mode is not supported",
+            ~FormatEnum(requestedMode).Quote(),
+            ~nodeId.ToString());
+    }
+
     // Check if we already have branched this node within the current or parent transaction.
     auto currentTransactionId = transactionId;
     while (currentTransactionId != NullTransactionId) {

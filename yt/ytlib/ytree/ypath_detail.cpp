@@ -47,14 +47,14 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(const TYPath&
 {
     UNUSED(path);
     UNUSED(verb);
-    ythrow yexception() << "YPath resolution for attributes is not supported";
+    ythrow yexception() << "Object cannot have attributes";
 }
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     UNUSED(path);
     UNUSED(verb);
-    ythrow yexception() << "YPath resolution is not supported";
+    ythrow yexception() << "Object cannot have children";
 }
 
 void TYPathServiceBase::Invoke(IServiceContext* context)

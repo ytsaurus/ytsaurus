@@ -92,7 +92,9 @@ public:
 
     virtual bool IsLockModeSupported(ELockMode mode)
     {
-        return mode == ELockMode::Exclusive;
+        return
+            mode == ELockMode::Exclusive ||
+            mode == ELockMode::Snapshot;
     }
 
     virtual TAutoPtr<ICypressNode> Branch(
@@ -110,12 +112,8 @@ public:
         branchedNode->SetLockMode(mode);
 
         // Branch user attributes.
-        const auto* committedAttributes = ObjectManager->FindAttributes(originatingId);
-        if (committedAttributes) {
-            auto* branchedAttributes = ObjectManager->CreateAttributes(branchedId);
-            branchedAttributes->Attributes() = committedAttributes->Attributes();
-        }
-
+        ObjectManager->BranchAttributes(originatingId, branchedId);
+        
         // Run custom branching.
         DoBranch(typedOriginatingNode, *branchedNode);
 
@@ -131,18 +129,7 @@ public:
         YASSERT(branchedId.IsBranched());
 
         // Merge user attributes.
-        const auto* branchedAttributes = ObjectManager->FindAttributes(branchedId);
-        if (branchedAttributes) {
-            auto* committedAttributes = ObjectManager->FindAttributesForUpdate(originatingId);
-            if (!committedAttributes) {
-                committedAttributes = ObjectManager->CreateAttributes(originatingId);
-            }
-            committedAttributes->Attributes() = branchedAttributes->Attributes();
-        } else {
-            if (ObjectManager->FindAttributes(originatingId)) {
-                ObjectManager->RemoveAttributes(originatingId);
-            }
-        }
+        ObjectManager->MergeAttributes(originatingId, branchedId);
 
         // Merge parent id.
         originatingNode.SetParentId(branchedNode.GetParentId());

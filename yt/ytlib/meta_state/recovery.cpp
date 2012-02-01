@@ -84,7 +84,9 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
         auto readerResult = SnapshotStore->GetReader(snapshotId);
         if (!readerResult.IsOK()) {
             if (IsLeader()) {
-                LOG_FATAL("Snapshot is not available\n%s", ~readerResult.ToString());
+                LOG_FATAL("Snapshot %d is not available\n%s",
+                    snapshotId,
+                    ~readerResult.ToString());
             }
 
             LOG_DEBUG("Snapshot cannot be found locally and will be downloaded");
@@ -97,7 +99,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
 
             auto downloadResult = snapshotDownloader.GetSnapshot(snapshotId, ~snapshotWriter);
             if (downloadResult != TSnapshotDownloader::EResult::OK) {
-                LOG_ERROR("Error downloading snapshot (SnapshotId: %d, Result: %s)",
+                LOG_ERROR("Error downloading snapshot %d\n%s",
                     snapshotId,
                     ~downloadResult.ToString());
                 return New<TAsyncResult>(EResult::Failed);
@@ -150,7 +152,9 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
         auto changeLogResult = ChangeLogCache->Get(segmentId);
         if (!changeLogResult.IsOK()) {
             if (!mayBeMissing) {
-                LOG_FATAL("Changelog is not available\n%s", ~changeLogResult.ToString());
+                LOG_FATAL("Changelog %d is not available\n%s",
+                    segmentId,
+                    ~changeLogResult.ToString());
             }
 
             LOG_INFO("Changelog %d is missing and will be created", segmentId);
@@ -160,7 +164,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             changeLog = changeLogResult.Value();
         }
 
-        LOG_DEBUG("Changelog found (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
+        LOG_DEBUG("Found changelog %d (RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
             segmentId,
             changeLog->GetRecordCount(),
             changeLog->GetPrevRecordCount(),
@@ -169,7 +173,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
         if (expectedPrevRecordCount != UnknownPrevRecordCount &&
             changeLog->GetPrevRecordCount() != expectedPrevRecordCount)
         {
-            LOG_FATAL("PrevRecordCount mismatch (Expected: %d, Actual: %d)",
+            LOG_FATAL("PrevRecordCount mismatch: expected: %d but found %d",
                 expectedPrevRecordCount,
                 changeLog->GetPrevRecordCount());
         }
@@ -183,7 +187,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
 
             auto response = request->Invoke()->Get();
             if (!response->IsOK()) {
-                LOG_ERROR("Error getting changelog info from leader (ChangeLogId: %d)\n%s",
+                LOG_ERROR("Error getting changelog %d info from leader\n%s",
                     segmentId,
                     ~response->GetError().ToString());
                 return New<TAsyncResult>(EResult::Failed);
@@ -192,7 +196,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             i32 localRecordCount = changeLog->GetRecordCount();
             i32 remoteRecordCount = response->record_count();
 
-            LOG_INFO("Changelog %d has %d local record(s), %d remote record(s)",
+            LOG_INFO("Changelog %d has %d local records, %d remote records",
                 segmentId,
                 localRecordCount,
                 remoteRecordCount);
@@ -200,15 +204,16 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             if (segmentId == targetVersion.SegmentId &&
                 remoteRecordCount < targetVersion.RecordCount)
             {
-                LOG_FATAL("Remote changelog has insufficient records to reach the requested state");
+                LOG_FATAL("Remote changelog %d has insufficient records to reach the requested state",
+                    segmentId);
             }
 
             if (localRecordCount > remoteRecordCount) {
                 changeLog->Truncate(remoteRecordCount);
                 changeLog->Finalize();
-                LOG_INFO("Local changelog is longer than expected, truncated to %d records (ChangeLogId: %d)",
-                    remoteRecordCount,
-                    segmentId);
+                LOG_INFO("Local changelog %d is longer than expected, truncated to %d records",
+                    segmentId,
+                    remoteRecordCount);
             }
 
             auto currentVersion = MetaState->GetVersion();
@@ -293,12 +298,11 @@ void TRecovery::ApplyChangeLog(
     yvector<TSharedRef> records;
     changeLog.Read(startRecordId, recordCount, &records);
     if (records.ysize() < recordCount) {
-        LOG_FATAL("Not enough records in changelog"
-            "(ChangeLogId: %d, StartRecordId: %d, ExpectedRecordCount: %d, ActualRecordCount: %d)",
+        LOG_FATAL("Not enough records in changelog %d: expected %d but found %d (StartRecordId: %d)",
             changeLog.GetId(),
-            startRecordId,
             recordCount,
-            records.ysize());
+            records.ysize(),
+            startRecordId);
     }
 
     // TODO: timing
@@ -309,7 +313,7 @@ void TRecovery::ApplyChangeLog(
         try {
             MetaState->ApplyChange(changeData);
         } catch (const std::exception& ex) {
-            LOG_DEBUG("Failed to apply the change during recovery (Version: %s)\n%s",
+            LOG_DEBUG("Failed to apply the change during recovery at version %s\n%s",
                 ~version.ToString(),
                 ex.what());
         }
@@ -457,7 +461,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
     THolder<TPostponedChanges> changes(new TPostponedChanges());
     changes->swap(PostponedChanges);
 
-    LOG_INFO("Captured postponed changes (ChangeCount: %d)", changes->ysize());
+    LOG_INFO("Captured %d postponed changes", changes->ysize());
 
     return FromMethod(
                &TFollowerRecovery::ApplyPostponedChanges,
@@ -472,7 +476,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LOG_INFO("Applying postponed changes (ChangeCount: %d)", changes->ysize());
+    LOG_INFO("Applying %d postponed changes", changes->ysize());
     
     FOREACH(const auto& change, *changes) {
         switch (change.Type) {
@@ -482,7 +486,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
                 try {
                     MetaState->ApplyChange(change.ChangeData);
                 } catch (const std::exception& ex) {
-                    LOG_DEBUG("Failed to apply the change during recovery (Version: %s)\n%s",
+                    LOG_DEBUG("Failed to apply the change during recovery at version %s\n%s",
                         ~version.ToString(),
                         ex.what());
                 }
@@ -513,14 +517,14 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (PostponedVersion > version) {
-        LOG_DEBUG("Late segment advance received during recovery, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
+        LOG_DEBUG("Late segment advance received during recovery, ignored: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::OK;
     }
 
     if (PostponedVersion < version) {
-        LOG_WARNING("Out-of-order segment advance received during recovery (ExpectedVersion: %s, ReceivedVersion: %s)",
+        LOG_WARNING("Out-of-order segment advance received during recovery: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
@@ -528,7 +532,7 @@ TRecovery::EResult TFollowerRecovery::PostponeSegmentAdvance(
 
     PostponedChanges.push_back(TPostponedChange::CreateSegmentAdvance());
     
-    LOG_DEBUG("Postponing segment advance (Version: %s)", ~PostponedVersion.ToString());
+    LOG_DEBUG("Postponing segment advance at version %s", ~PostponedVersion.ToString());
 
     ++PostponedVersion.SegmentId;
     PostponedVersion.RecordCount = 0;
@@ -543,22 +547,22 @@ TRecovery::EResult TFollowerRecovery::PostponeChanges(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (PostponedVersion > version) {
-        LOG_WARNING("Late changes received during recovery, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
+        LOG_WARNING("Late changes received during recovery, ignored: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
     }
 
     if (PostponedVersion != version) {
-        LOG_WARNING("Out-of-order changes received during recovery (ExpectedVersion: %s, ReceivedVersion: %s)",
+        LOG_WARNING("Out-of-order changes received during recovery: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return EResult::Failed;
     }
 
-    LOG_DEBUG("Postponing changes (Version: %s, ChangeCount: %d)",
-        ~PostponedVersion.ToString(),
-        changes.ysize());
+    LOG_DEBUG("Postponing %d changes at version %s",
+        changes.ysize(),
+        ~PostponedVersion.ToString());
 
     FOREACH (const auto& change, changes) {
         PostponedChanges.push_back(TPostponedChange::CreateChange(change));
