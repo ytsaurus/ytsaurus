@@ -74,6 +74,7 @@ public:
 
 private:
     TConfig::TPtr Config;
+
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;

@@ -1,7 +1,8 @@
 {
-  locations = ["node1"];
+  chunk_store_locations = [ {path = "node1"} ];
+  chunk_cache_location = {path = "cache1"};
   masters= {
-     addresses = ["localhost:8000"; "localhost:8001"; "localhost:8002"]
+     addresses = ["localhost:8000"]
   };
 
     "logging"= {
@@ -12,7 +13,7 @@
                 "min_level"= "Debug"
             };
             {
-                "writers"= ["stdErr"];
+                "writers"= ["stderr"];
                 "categories"= ["*"];
                 "min_level"= "Info"
             }

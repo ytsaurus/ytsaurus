@@ -532,13 +532,14 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
         if (currentNode) {
             // Check if we have found a node for the requested transaction or we need to branch it.
             if (currentTransactionId == transactionId) {
-                // Update the lock mode if a higher one was requested.
-                if (currentNode->GetLockMode() < requestedMode) {
-                    currentNode->SetLockMode(requestedMode);
-                    LOG_INFO_IF(!IsRecovery(), "Node locking mode upgraded (NodeId: %s, TransactionId: %s, Mode: %s)",
+                // Update the lock mode if a higher one was requested (unless this is the null transaction).
+                if (currentTransactionId != NullTransactionId && currentNode->GetLockMode() < requestedMode) {
+                    LOG_INFO_IF(!IsRecovery(), "Node locking mode upgraded (NodeId: %s, TransactionId: %s, OldMode: %s, NewMode: %s)",
                         ~nodeId.ToString(),
                         ~transactionId.ToString(),
+                        ~currentNode->GetLockMode().ToString(),
                         ~requestedMode.ToString());
+                    currentNode->SetLockMode(requestedMode);
                 }
                 return currentNode;
             } else {

@@ -50,3 +50,7 @@ protoc( ${BASE}/chunk_manager.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_list_ypath.proto YT_SOURCE_FILES )
+
+include_directories(
+  ${CMAKE_BINARY_DIR}/yt/ytlib/table_client
+)
