@@ -4,6 +4,8 @@
 #include "value.h"
 #include "schema.pb.h"
 
+#include <ytlib/ytree/ytree_fwd.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -63,9 +65,11 @@ public:
     NProto::TChannel ToProto() const;
     static TChannel FromProto(const NProto::TChannel& protoChannel);
 
+    static TChannel FromYson(NYTree::INode* node);
+
     const yvector<TColumn>& GetColumns() const;
 
-    //! Returns a channel containing range from empty string to infinity.
+    //! Returns the channel containing the range from empty string to infinity.
     static TChannel Universal();
 
 private:

@@ -2,9 +2,12 @@
 #include "schema.h"
 
 #include <ytlib/misc/foreach.h>
+#include <ytlib/ytree/ytree.h>
 
 namespace NYT {
 namespace NTableClient {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,6 +233,62 @@ TChannel TChannel::Universal()
     TChannel result;
     result.AddRange(TRange(""));
     return result;
+}
+
+TChannel TChannel::FromYson(INode* node)
+{
+    if (node->GetType() != ENodeType::List) {
+        ythrow yexception() << "Channel description can only be parsed from a list";
+    }
+
+    TChannel channel;
+    FOREACH (auto child, node->AsList()->GetChildren()) {
+        switch (child->GetType()) {
+            case ENodeType::String:
+                channel.AddColumn(child->GetValue<Stroka>());
+                break;
+
+            case ENodeType::List: {
+                auto listChild = child->AsList();
+                switch (listChild->GetChildCount()) {
+                    case 1: {
+                        auto item = listChild->GetChild(0);
+                        if (item->GetType() != ENodeType::String) {
+                            ythrow yexception() << Sprintf("Channel range description cannot contain %s items",
+                                ~item->GetType().ToString().Quote());
+                        }
+                        channel.AddRange(TRange(item->GetValue<Stroka>()));
+                        break;
+                    }
+
+                    case 2: {
+                        auto itemLo = listChild->GetChild(0);
+                        if (itemLo->GetType() != ENodeType::String) {
+                            ythrow yexception() << Sprintf("Channel range description cannot contain %s items",
+                                ~itemLo->GetType().ToString().Quote());
+                        }
+                        auto itemHi = listChild->GetChild(1);
+                        if (itemHi->GetType() != ENodeType::String) {
+                            ythrow yexception() << Sprintf("Channel range description cannot contain %s items",
+                                ~itemHi->GetType().ToString().Quote());
+                        }
+                        channel.AddRange(TRange(itemLo->GetValue<Stroka>(), itemHi->GetValue<Stroka>()));
+                        break;
+                    }
+
+                    default:
+                        ythrow yexception() << "Invalid channel range description";
+                };
+                break;
+                                  }
+
+            default:
+                ythrow yexception() << Sprintf("Channel description cannot contain %s items",
+                    ~child->GetType().ToString().Quote());
+        }
+    }
+
+    return channel;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
