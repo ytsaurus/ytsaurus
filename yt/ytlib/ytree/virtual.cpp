@@ -184,6 +184,16 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
     context->Reply();
 }
 
+void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
+{
+    UNUSED(request);
+    YASSERT(IsFinalYPath(context->GetPath()));
+
+    auto keys = GetKeys();
+    ToProto(*response->mutable_keys(), keys);
+    context->Reply();
+}
+
 void TVirtualMapBase::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
 {
     attributes->push_back("size");
