@@ -84,7 +84,14 @@ IYPathService::TResolveResult TObjectProxyBase::ResolveAttributes(
     const Stroka& verb)
 {
     UNUSED(path);
-    UNUSED(verb);
+    if (verb != "Get" &&
+        verb != "Set" &&
+        verb != "List" &&
+        verb != "Remove")
+    {
+        ythrow TServiceException(EErrorCode::NoSuchVerb) <<
+            "Verb is not supported";
+    }
     return TResolveResult::Here(AttributeMarker + path);
 }
 
