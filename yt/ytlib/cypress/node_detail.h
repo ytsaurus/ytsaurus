@@ -92,7 +92,9 @@ public:
 
     virtual bool IsLockModeSupported(ELockMode mode)
     {
-        return mode == ELockMode::Exclusive;
+        return
+            mode == ELockMode::Exclusive ||
+            mode == ELockMode::Snapshot;
     }
 
     virtual TAutoPtr<ICypressNode> Branch(
