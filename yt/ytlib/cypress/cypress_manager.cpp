@@ -643,6 +643,13 @@ void TCypressManager::ValidateLock(
     ELockMode requestedMode,
     bool* isMandatory)
 {
+    auto handler = GetHandler(TypeFromId(nodeId));
+    if (!handler->IsLockModeSupported(requestedMode)) {
+        ythrow yexception() << Sprintf("Cannot take %s lock for node %s: the mode is not supported",
+            ~FormatEnum(requestedMode).Quote(),
+            ~nodeId.ToString());
+    }
+
     // Check if we already have branched this node within the current or parent transaction.
     auto currentTransactionId = transactionId;
     while (currentTransactionId != NullTransactionId) {
