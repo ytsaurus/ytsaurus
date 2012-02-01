@@ -43,10 +43,11 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
 
 IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb)
 {
-    UNUSED(path);
-    UNUSED(verb);
     // Resolve to self to handle channels and ranges.
-    return TResolveResult::Here(path);
+    if (verb == "Fetch") {
+        return TResolveResult::Here(path);
+    }
+    return TBase::ResolveRecursive(path, verb);
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
@@ -196,7 +197,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }
     }
 
-    TChannel channel;
+    auto channel = TChannel::Empty();
     ParseYPath(
         context->GetPath(),
         &channel);
