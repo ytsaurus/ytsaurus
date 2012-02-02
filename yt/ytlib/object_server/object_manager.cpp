@@ -208,7 +208,6 @@ IObjectProxy::TPtr TObjectManager::GetProxy(const TObjectId& id)
     return proxy;
 }
 
-
 TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
 {
     auto result = new TAttributeSet();
