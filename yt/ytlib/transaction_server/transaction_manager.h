@@ -96,7 +96,7 @@ private:
 
     void OnTransactionExpired(const TTransactionId& id);
 
-    void CreateLease(const TTransaction& transaction, TDuration timeout);
+    void CreateLease(const TTransaction& transaction, TTransactionManifest* manifest);
     void CloseLease(const TTransaction& transaction);
     void FinishTransaction(TTransaction& transaction);
 

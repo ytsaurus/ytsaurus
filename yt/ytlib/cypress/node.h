@@ -55,6 +55,11 @@ struct ICypressNode
     //! Gets an mutable reference to the node's locks.
     virtual yhash_set<TLockId>& LockIds() = 0;
 
+    //! Gets an immutable reference to the node's subtree locks.
+    virtual const yhash_set<TLockId>& SubtreeLockIds() const = 0;
+    //! Gets an mutable reference to the node's subtree locks.
+    virtual yhash_set<TLockId>& SubtreeLockIds() = 0;
+
     //! Increments the reference counter, returns the incremented value.
     virtual i32 RefObject() = 0;
     //! Decrements the reference counter, returns the decremented value.

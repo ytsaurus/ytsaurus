@@ -9,7 +9,15 @@ namespace NDriver {
 
 struct TStartTransactionRequest
     : public TRequestBase
-{ };
+{
+    NYTree::INode::TPtr Manifest;
+
+    TStartTransactionRequest()
+    {
+        Register("manifest", Manifest)
+            .Default();
+    }
+};
 
 class TStartTransactionCommand
     : public TCommandBase<TStartTransactionRequest>

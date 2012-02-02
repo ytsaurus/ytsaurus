@@ -673,33 +673,48 @@ void TCypressManager::ValidateLock(
         currentTransactionId = transaction.GetParentId();
     }
 
-    // For modes other than Snapshot we have to examine the existing locks on the path to the root.
     if (requestedMode != ELockMode::Snapshot) {
+        // Examine existing locks in the subtree.
+        const auto& lockedNode = NodeMap.Get(nodeId);
+        FOREACH (const auto& lockId, lockedNode.SubtreeLockIds()) {
+            const auto& lock = GetLock(lockId);
+            // Check for download conflict.
+            if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
+                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s a downward lock at node %s taken by transaction %s",
+                    ~FormatEnum(requestedMode).Quote(),
+                    ~nodeId.ToString(),
+                    ~FormatEnum(lock.GetMode()).Quote(),
+                    ~lock.GetNodeId().ToString(),
+                    ~lock.GetTransactionId().ToString());
+            }
+        }
+
+        // Check existing locks on the upward path to the root.
         auto currentNodeId = nodeId;
         while (currentNodeId != NullObjectId) {
             const auto& currentNode = NodeMap.Get(currentNodeId);
             FOREACH (const auto& lockId, currentNode.LockIds()) {
                 const auto& lock = GetLock(lockId);
-                // Existing snapshot locks are to be ignored.
-                if (lock.GetMode() != ELockMode::Snapshot) {
-                    // Check if this transaction already has a lock that is at least as strong the requested one.
-                    if (lock.GetTransactionId() == transactionId &&
-                        lock.GetNodeId() == currentNodeId &&
-                        lock.GetMode() >= requestedMode)
-                    {
-                        if (isMandatory) {
-                            *isMandatory = false;
-                        }
-                        return;
+                // Check if this is lock was taken by the same transaction,
+                // is at least as strong as the requested one,
+                // and has a proper recursive behavior.
+                if (lock.GetTransactionId() == transactionId &&
+                    lock.GetMode() >= requestedMode &&
+                    (IsLockRecursive(lock.GetMode()) || currentNodeId == nodeId))
+                {
+                    if (isMandatory) {
+                        *isMandatory = false;
                     }
-                    if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
-                        ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s lock at node %s taken by transaction %s",
-                            ~FormatEnum(requestedMode).Quote(),
-                            ~nodeId.ToString(),
-                            ~FormatEnum(lock.GetMode()).Quote(),
-                            ~lock.GetNodeId().ToString(),
-                            ~lock.GetTransactionId().ToString());
-                    }
+                    return;
+                }
+                // Check for upward conflict.
+                if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
+                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s an upward lock at node %s taken by transaction %s",
+                        ~FormatEnum(requestedMode).Quote(),
+                        ~nodeId.ToString(),
+                        ~FormatEnum(lock.GetMode()).Quote(),
+                        ~lock.GetNodeId().ToString(),
+                        ~lock.GetTransactionId().ToString());
                 }
             }
             currentNodeId = currentNode.GetParentId();
@@ -773,8 +788,21 @@ TLockId TCypressManager::AcquireLock(
         ~transactionId.ToString(),
         ~mode.ToString());
 
-    // Snapshot locks are handled differently as it always involve branching
-    // (unless the node is already branched by another Snapshot lock).
+    // Assign the node to the node itself.
+    auto& lockedNode = NodeMap.GetForUpdate(nodeId);
+    YVERIFY(lockedNode.LockIds().insert(lockId).second);
+
+    // For recursive locks, also assign this lock to every node on the upward path.
+    if (IsLockRecursive(mode)) {
+        auto currentNodeId = lockedNode.GetParentId();
+        while (currentNodeId != NullObjectId) {
+            auto& currentNode = NodeMap.GetForUpdate(currentNodeId);
+            YVERIFY(currentNode.SubtreeLockIds().insert(lockId).second);
+            currentNodeId = currentNode.GetParentId();
+        }
+    }
+
+    // Snapshot locks always involve branching (unless the node is already branched by another Snapshot lock).
     if (mode == ELockMode::Snapshot) {
         const auto& originatingNode = GetVersionedNode(nodeId, transactionId);
         if (originatingNode.GetId().TransactionId == transactionId) {
@@ -784,33 +812,25 @@ TLockId TCypressManager::AcquireLock(
         }
     }
 
-    // Walk up to the root and apply locks.
-    auto currentNodeId = nodeId;
-    while (currentNodeId != NullObjectId) {
-        auto& currentNode = NodeMap.GetForUpdate(currentNodeId);
-        currentNode.LockIds().insert(lock->GetId());
-        // Be aware that not locks are recursive.
-        if (!IsLockRecursive(mode))
-            break;
-        currentNodeId = currentNode.GetParentId();
-    }
-
-    return lock->GetId();
+    return lockId;
 }
 
 void TCypressManager::ReleaseLock(const TLockId& lockId)
 {
     const auto& lock = LockMap.Get(lockId);
 
-    // Walk up to the root and remove the locks.
-    auto currentNodeId = lock.GetNodeId();
-    while (currentNodeId != NullObjectId) {
-        auto& node = NodeMap.GetForUpdate(currentNodeId);
-        YVERIFY(node.LockIds().erase(lockId) == 1);
-        // Be aware that not locks are recursive.
-        if (!IsLockRecursive(lock.GetMode()))
-            break;
-        currentNodeId = node.GetParentId();
+    // Remove the lock from the node itself.
+    auto& lockedNode = NodeMap.GetForUpdate(lock.GetNodeId());
+    YVERIFY(lockedNode.LockIds().erase(lockId) == 1);
+
+    // For recursive locks, also remove the lock from the nodes on the upward path.
+    if (IsLockRecursive(lock.GetMode())) {
+        auto currentNodeId = lockedNode.GetParentId();
+        while (currentNodeId != NullObjectId) {
+            auto& node = NodeMap.GetForUpdate(currentNodeId);
+            YVERIFY(node.SubtreeLockIds().erase(lockId) == 1);
+            currentNodeId = node.GetParentId();
+        }
     }
 
     ObjectManager->UnrefObject(lockId);

@@ -142,6 +142,8 @@ protected:
     {
         attributes->push_back("parent_id");
         attributes->push_back("lock_mode");
+        attributes->push_back("lock_ids");
+        attributes->push_back("subtree_lock_ids");
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
@@ -158,6 +160,24 @@ protected:
         if (name == "lock_mode") {
             BuildYsonFluently(consumer)
                 .Scalar(FormatEnum(node.GetLockMode()));
+            return true;
+        }
+
+        if (name == "lock_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(node.LockIds(), [=] (NYTree::TFluentList fluent, TLockId id)
+                    {
+                        fluent.Item().Scalar(id.ToString());
+                    });
+            return true;
+        }
+
+        if (name == "subtree_lock_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(node.SubtreeLockIds(), [=] (NYTree::TFluentList fluent, TLockId id)
+                    {
+                        fluent.Item().Scalar(id.ToString());
+                    });
             return true;
         }
 

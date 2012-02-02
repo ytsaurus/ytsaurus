@@ -293,7 +293,7 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManif
     }
 
     if (IsLeader()) {
-        CreateLease(*transaction, manifest->Timeout);
+        CreateLease(*transaction, manifest);
     }
 
     transaction->SetState(ETransactionState::Active);
@@ -409,8 +409,12 @@ void TTransactionManager::Clear()
 void TTransactionManager::OnLeaderRecoveryComplete()
 {
     FOREACH (const auto& pair, TransactionMap) {
-        // TODO(roizner): This timeout is probably incorrect
-        CreateLease(*pair.second, Config->DefaultTransactionTimeout);
+        const auto& id = pair.first;
+        const auto& transaction = *pair.second;
+        auto manifestNode = ObjectManager->GetAttributesMap(id);
+        auto manifest = New<TTransactionManifest>();
+        manifest->LoadAndValidate(~manifestNode);
+        CreateLease(transaction, ~manifest);
     }
 }
 
@@ -422,13 +426,9 @@ void TTransactionManager::OnStopLeading()
     LeaseMap.clear();
 }
 
-void TTransactionManager::CreateLease(
-    const TTransaction& transaction,
-    TDuration timeout)
+void TTransactionManager::CreateLease(const TTransaction& transaction, TTransactionManifest* manifest)
 {
-    if (timeout == TDuration::Zero()) {
-        timeout = Config->DefaultTransactionTimeout;
-    }
+    auto timeout = manifest->Timeout ? manifest->Timeout.Get() : Config->DefaultTransactionTimeout;
     auto lease = TLeaseManager::CreateLease(
         timeout,
         ~FromMethod(&TThis::OnTransactionExpired, TPtr(this), transaction.GetId())
