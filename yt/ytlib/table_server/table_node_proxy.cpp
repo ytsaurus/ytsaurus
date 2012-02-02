@@ -153,7 +153,7 @@ void TTableNodeProxy::ParseYPath(
     TYsonFragmentReader channelReader(~channelBuilder, &channelInput);
     if (channelReader.HasNext()) {
         channelReader.ReadNext();
-        *channel = TChannel::FromYson(~channelBuilder->EndTree());
+        *channel = TChannel::FromNode(~channelBuilder->EndTree());
     }
 
     // TODO(babenko): parse range.
