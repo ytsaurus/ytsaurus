@@ -41,14 +41,14 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : ParentId_(NullObjectId)
     , LockMode_(ELockMode::None)
     , Id(id)
-    , RefCounter(0)
 { }
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other)
-    : ParentId_(other.ParentId_)
+    : LockIds_(other.LockIds_)
+    , SubtreeLockIds_(other.SubtreeLockIds_)
+    , ParentId_(other.ParentId_)
     , LockMode_(other.LockMode_)
     , Id(id)
-    , RefCounter(0)
 { }
 
 EObjectType TCypressNodeBase::GetObjectType() const
@@ -83,6 +83,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     TObjectBase::Save(output);
     ::Save(output, RefCounter);
     SaveSet(output, LockIds_);
+    SaveSet(output, SubtreeLockIds_);
     ::Save(output, ParentId_);
     ::Save(output, LockMode_);
 }
@@ -92,6 +93,7 @@ void TCypressNodeBase::Load(TInputStream* input)
     TObjectBase::Load(input);
     ::Load(input, RefCounter);
     LoadSet(input, LockIds_);
+    LoadSet(input, SubtreeLockIds_);
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
 }
