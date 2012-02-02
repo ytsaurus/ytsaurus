@@ -33,11 +33,16 @@ public:
     //! Opens the writer.
     void Open();
 
+    //! Cancels the writing process and releases all resources.
+    void Cancel();
+
 protected:
-    virtual void SpecificClose(const NChunkServer::TChunkId&, const NObjectServer::TTransactionId&);
+    virtual void SpecificClose(const NChunkServer::TChunkId&);
 
 private:
     NTransactionClient::ITransaction::TPtr Transaction;
+    NTransactionClient::TTransactionManager::TPtr TransactionManager;
+    NTransactionClient::ITransaction::TPtr UploadTransaction;
     NYTree::TYPath Path;
     NCypress::TNodeId NodeId;
 

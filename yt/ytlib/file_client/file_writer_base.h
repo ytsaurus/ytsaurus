@@ -71,12 +71,10 @@ public:
     //! Initializes an instance.
     TFileWriterBase(
         TConfig* config,
-        NRpc::IChannel* masterChannel,
-        NObjectServer::TTransactionId transactionId,
-        NTransactionClient::TTransactionManager* transactionManager);
+        NRpc::IChannel* masterChannel);
 
     //! Opens the writer.
-    void Open();
+    void Open(NObjectServer::TTransactionId);
 
     //! Adds another portion of data.
     /*!
@@ -92,15 +90,11 @@ public:
     void Close();
 
 protected:
-    virtual void SpecificClose(const NChunkServer::TChunkId&, const NObjectServer::TTransactionId&);
+    virtual void SpecificClose(const NChunkServer::TChunkId&);
 
 private:
     TConfig::TPtr Config;
-    NObjectServer::TTransactionId TransactionId;
-    NTransactionClient::ITransaction::TPtr UploadTransaction;
-    NTransactionClient::TTransactionManager::TPtr TransactionManager;
     bool IsOpen;
-    bool IsClosed;
     i64 Size;
     i32 BlockCount;
     NChunkServer::TChunkServiceProxy ChunkProxy;
