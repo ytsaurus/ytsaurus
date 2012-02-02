@@ -6,12 +6,14 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/actions/signal.h>
+#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
 using namespace NCypress;
 using namespace NTransactionServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,11 +29,13 @@ public:
 
     TTransaction(
         NRpc::IChannel* cellChannel,
+        INode* manifest,
         const TTransactionId& parentId,
         TTransactionManager* owner)
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
+        , Manifest(manifest)
         , ParentId(parentId)
     {
         YASSERT(cellChannel);
@@ -46,11 +50,14 @@ public:
 
         LOG_INFO("Starting transaction");
 
-        NYTree::TYPath transactionPath = (ParentId == NullTransactionId)
+        TYPath transactionPath = (ParentId == NullTransactionId)
             ? RootTransactionPath
             : FromObjectId(ParentId);
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);
         req->set_type(EObjectType::Transaction);
+        if (Manifest) {
+            req->set_manifest(SerializeToYson(~Manifest));
+        }
         auto rsp = Proxy.Execute(~req)->Get();
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
@@ -213,6 +220,7 @@ private:
 
     TPeriodicInvoker::TPtr PingInvoker;
     TTransactionId Id;
+    INode::TPtr Manifest;
     TTransactionId ParentId;
 
     TSignal Aborted;
@@ -248,11 +256,17 @@ TTransactionManager::TTransactionManager(
     CypressProxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
-ITransaction::TPtr TTransactionManager::Start(const TTransactionId& parentId)
+ITransaction::TPtr TTransactionManager::Start(
+    INode* manifest,
+    const TTransactionId& parentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto transaction = New<TTransaction>(~Channel, parentId, this);
+    auto transaction = New<TTransaction>(
+        ~Channel,
+        manifest,
+        parentId,
+        this);
     transaction->Start();
     return transaction;
 }
@@ -307,7 +321,7 @@ void TTransactionManager::OnPingResponse(
         return;
 
     if (!rsp->IsOK()) {
-        if (rsp->GetErrorCode() == NYTree::EYPathErrorCode::ResolveError) {
+        if (rsp->GetErrorCode() == EYPathErrorCode::ResolveError) {
             LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
                 ~id.ToString());
             transaction->HandleAbort();
