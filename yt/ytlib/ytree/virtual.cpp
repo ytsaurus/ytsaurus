@@ -220,6 +220,7 @@ bool TVirtualMapBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
 class TVirtualEntityNode
     : public TNodeBase
+    , public TSupportsAttributes
     , public IEntityNode
 {
     YTREE_NODE_TYPE_OVERRIDES(Entity)
@@ -255,10 +256,31 @@ public:
         }
     }
 
+    virtual IAttributeDictionary::TPtr GetAttributes()
+    {
+        return GetUserAttributeDictionary();
+    }
+
+protected:
+    // TSupportsAttributes members
+
+    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary()
+    {
+        if (!Attributes) {
+            Attributes = CreateInMemoryAttributeDictionary();
+        }
+        return Attributes;
+    }
+
+    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() 
+    {
+        return NULL;
+    }
+
 private:
     TYPathServiceProvider::TPtr Provider;
     ICompositeNode* Parent;
-
+    IAttributeDictionary::TPtr Attributes;
 };
 
 INode::TPtr CreateVirtualNode(TYPathServiceProvider* provider)

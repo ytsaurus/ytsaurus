@@ -82,6 +82,7 @@ public:
 
     // IObjectProxy members
     virtual TObjectId GetId() const;
+    virtual NYTree::IAttributeDictionary::TPtr GetAttributes();
 
 protected:
     TObjectManager::TPtr ObjectManager;
