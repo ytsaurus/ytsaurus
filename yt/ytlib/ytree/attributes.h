@@ -14,21 +14,22 @@ struct IAttributeDictionary
 
     // Returns the list of all attribute names.
     virtual yhash_set<Stroka> ListAttributes() = 0;
+
     //! Returns the value of the attribute (empty TYson indicates that the attribute is not found).
     virtual TYson FindAttribute(const Stroka& name) = 0;
+
     //! Sets the value of the attribute.
     virtual void SetAttribute(const Stroka& name, const TYson& value) = 0;
+
     //! Removes the attribute.
     virtual bool RemoveAttribute(const Stroka& name) = 0;
 
 
-    /* Extension methods */
+    // Extension methods
 
-    //! Returns the value of the attribute (throws yexception if the attribute is not found).
+    //! Returns the value of the attribute (throws an exception if the attribute is not found).
     TYson GetAttribute(const Stroka& name);
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 IAttributeDictionary::TPtr CreateInMemoryAttributeDictionary();
 
