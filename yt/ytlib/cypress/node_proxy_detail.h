@@ -531,7 +531,7 @@ protected:
     }
 
 protected:
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<typename TBase::TAttributeInfo>* attributes)
     {
         attributes->push_back("size");
         TBase::GetSystemAttributes(attributes);
