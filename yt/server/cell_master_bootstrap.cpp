@@ -36,6 +36,8 @@
 
 #include <ytlib/table_server/table_node.h>
 
+#include <ytlib/scheduler/redirector_service.h>
+
 #include <ytlib/ytree/yson_file_service.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_client.h>
@@ -193,6 +195,9 @@ void TCellMasterBootstrap::Run()
         ~orchidRoot,
         ~controlQueue->GetInvoker());
     rpcServer->RegisterService(~orchidRpcService);
+
+    auto schedulerRedirectorService = New<NScheduler::TRedirectorService>(~cypressManager);
+    rpcServer->RegisterService(~schedulerRedirectorService);
 
     cypressManager->RegisterHandler(~CreateChunkMapTypeHandler(
         ~cypressManager,

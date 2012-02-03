@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "redirecting_service.h"
+#include "redirector_service_base.h"
 #include "channel_cache.h"
 
 namespace NYT {
@@ -14,7 +14,7 @@ static TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRedirecitingServiceBase::TRequest
+class TRedirectorServiceBase::TRequest
     : public IClientRequest
 {
 public:
@@ -57,7 +57,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRedirecitingServiceBase::TResponseHandler
+class TRedirectorServiceBase::TResponseHandler
     : public IClientResponseHandler
 {
 public:
@@ -85,16 +85,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRedirecitingServiceBase::TRedirecitingServiceBase(
+TRedirectorServiceBase::TRedirectorServiceBase(
     const Stroka& serviceName,
     const Stroka& loggingCategory)
     : ServiceName(serviceName)
     , LoggingCategory(loggingCategory)
 { }
 
-void TRedirecitingServiceBase::OnBeginRequest(IServiceContext* context)
+void TRedirectorServiceBase::OnBeginRequest(IServiceContext* context)
 {
-    auto redirectParams = GetRedirectParams(context);
+    TRedirectParams redirectParams;
+    try {
+        redirectParams = GetRedirectParams(context);
+    }
+    catch (const std::exception& ex) {
+        context->Reply(TError(
+            NRpc::EErrorCode::Unavailable,
+            Sprintf("Redirection failed\n%s", ex.what())));
+        return;
+    }
 
     context->SetRequestInfo(Sprintf("Address: %s, Timeout: %d",
         ~redirectParams.Address,
@@ -112,17 +121,17 @@ void TRedirecitingServiceBase::OnBeginRequest(IServiceContext* context)
     channel->Send(~request, ~responseHandler, redirectParams.Timeout);
 }
 
-void TRedirecitingServiceBase::OnEndRequest(IServiceContext* context)
+void TRedirectorServiceBase::OnEndRequest(IServiceContext* context)
 {
     UNUSED(context);
 }
 
-Stroka TRedirecitingServiceBase::GetServiceName() const
+Stroka TRedirectorServiceBase::GetServiceName() const
 {
     return ServiceName;
 }
 
-Stroka TRedirecitingServiceBase::GetLoggingCategory() const
+Stroka TRedirectorServiceBase::GetLoggingCategory() const
 {
     return LoggingCategory;
 }

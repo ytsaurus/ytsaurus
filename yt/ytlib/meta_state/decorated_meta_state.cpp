@@ -33,14 +33,14 @@ TDecoratedMetaState::TDecoratedMetaState(
     ComputeReachableVersion();
 }
 
-IInvoker::TPtr TDecoratedMetaState::GetStateInvoker()
+IInvoker::TPtr TDecoratedMetaState::GetStateInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return StateQueue->GetInvoker();
 }
 
-IInvoker::TPtr TDecoratedMetaState::GetSnapshotInvoker()
+IInvoker::TPtr TDecoratedMetaState::GetSnapshotInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

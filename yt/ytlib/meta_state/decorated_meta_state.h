@@ -28,13 +28,13 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    IInvoker::TPtr GetStateInvoker();
+    IInvoker::TPtr GetStateInvoker() const;
 
     //! Returns the invoker used for creating snapshots.
     /*!
      * \note Thread affinity: any
      */
-    IInvoker::TPtr GetSnapshotInvoker();
+    IInvoker::TPtr GetSnapshotInvoker() const;
 
     //! Returns the current version of the state.
     /*!
