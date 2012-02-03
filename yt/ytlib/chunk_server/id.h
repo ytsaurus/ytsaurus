@@ -12,6 +12,8 @@ namespace NChunkServer {
 typedef i32 THolderId;
 const i32 InvalidHolderId = -1;
 
+typedef TGuid TIncarnationId;
+
 typedef NObjectServer::TObjectId TChunkId;
 extern TChunkId NullChunkId;
 

@@ -253,11 +253,12 @@ private:
     {
         const auto* holder = GetHolder();
         attributes->push_back("alive");
-        attributes->push_back("available_space");
-        attributes->push_back("used_space");
-        attributes->push_back("chunk_count");
-        attributes->push_back("session_count");
-        attributes->push_back("full");
+        attributes->push_back(TAttributeInfo("incarnation_id", holder));
+        attributes->push_back(TAttributeInfo("available_space", holder));
+        attributes->push_back(TAttributeInfo("used_space", holder));
+        attributes->push_back(TAttributeInfo("chunk_count", holder));
+        attributes->push_back(TAttributeInfo("session_count", holder));
+        attributes->push_back(TAttributeInfo("full", holder));
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -272,6 +273,12 @@ private:
         }
 
         if (holder) {
+            if (name == "incarnation_id") {
+                BuildYsonFluently(consumer)
+                    .Scalar(holder->GetIncarnationId().ToString());
+                return true;
+            }
+
             const auto& statistics = holder->Statistics();
             if (name == "available_space") {
                 BuildYsonFluently(consumer)

@@ -528,6 +528,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
     if (isMandatory) {
         if (transactionId == NullTransactionId) {
             ythrow yexception() << Sprintf("The requested operation requires %s lock but no current transaction is given",
+
                 ~FormatEnum(requestedMode).Quote());
         }
         AcquireLock(nodeId, transactionId, requestedMode);

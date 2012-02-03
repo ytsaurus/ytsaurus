@@ -12,17 +12,16 @@ namespace NChunkHolder {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkHolderLogger;
+static NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TPeerBlockUpdater::TPeerBlockUpdater(
     TChunkHolderConfig* config,
     TBlockStore* blockStore,
-    NRpc::TChannelCache* channelCache,
     IInvoker* invoker)
     : Config(config)
     , BlockStore(blockStore)
-    , ChannelCache(channelCache)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
         FromMethod(&TPeerBlockUpdater::Update, TPtr(this))
@@ -57,7 +56,7 @@ void TPeerBlockUpdater::Update()
             if (it != requests.end()) {
                 request = it->second;
             } else {
-                TProxy proxy(~ChannelCache->GetChannel(source));
+                TProxy proxy(~ChannelCache.GetChannel(source));
                 request = proxy.UpdatePeer();
                 request->set_peer_address(Config->PeerAddress);
                 request->set_peer_expiration_time(expirationTime.GetValue());
