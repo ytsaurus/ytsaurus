@@ -90,7 +90,6 @@ protected:
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
 
     // NYTree::TYPathServiceBase members
-    virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 

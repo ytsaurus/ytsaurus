@@ -114,22 +114,6 @@ ISystemAttributeProvider::TPtr TObjectProxyBase::GetSystemAttributeProvider()
     return this;
 }
 
-IYPathService::TResolveResult TObjectProxyBase::ResolveAttributes(
-    const TYPath& path,
-    const Stroka& verb)
-{
-    UNUSED(path);
-    if (verb != "Get" &&
-        verb != "Set" &&
-        verb != "List" &&
-        verb != "Remove")
-    {
-        ythrow TServiceException(EErrorCode::NoSuchVerb) <<
-            "Verb is not supported";
-    }
-    return TResolveResult::Here(AttributeMarker + path);
-}
-
 void TObjectProxyBase::GetSystemAttributes(std::vector<TAttributeInfo>* names)
 {
     names->push_back("id");

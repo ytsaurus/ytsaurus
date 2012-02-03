@@ -210,7 +210,21 @@ namespace {
     }
 } // namespace
 
-
+IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
+    const NYTree::TYPath& path,
+    const Stroka& verb)
+{
+    UNUSED(path);
+    if (verb != "Get" &&
+        verb != "Set" &&
+        verb != "List" &&
+        verb != "Remove")
+    {
+        ythrow TServiceException(EErrorCode::NoSuchVerb) <<
+            "Verb is not supported";
+    }
+    return TResolveResult::Here(AttributeMarker + path);
+}
 
 void TSupportsAttributes::GetAttribute(
     const TYPath& path,
@@ -400,7 +414,6 @@ void TSupportsAttributes::RemoveAttribute(
 
     context->Reply();
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

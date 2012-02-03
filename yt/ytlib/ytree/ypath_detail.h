@@ -63,7 +63,7 @@ DECLARE_SUPPORTS_VERB(Remove);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSupportsAttributes
-    : public virtual TRefCounted
+    : public virtual TYPathServiceBase
     , public virtual TSupportsGet
     , public virtual TSupportsList
     , public virtual TSupportsSet
@@ -78,6 +78,10 @@ protected:
     // Can be NULL.
     virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() = 0;
 
+    virtual TResolveResult ResolveAttributes(
+        const NYTree::TYPath& path,
+        const Stroka& verb);
+    
     virtual void GetAttribute(
         const TYPath& path,
         TReqGet* request,
