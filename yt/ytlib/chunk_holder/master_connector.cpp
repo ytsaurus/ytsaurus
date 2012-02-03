@@ -82,12 +82,9 @@ void TMasterConnector::OnHeartbeat()
 void TMasterConnector::SendRegister()
 {
     auto request = Proxy->RegisterHolder();
-    
     *request->mutable_statistics() = ComputeStatistics();
-
     request->set_address(Bootstrap->GetConfig()->PeerAddress);
     request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
-
     request->Invoke()->Subscribe(
         FromMethod(&TMasterConnector::OnRegisterResponse, TPtr(this))
         ->Via(Bootstrap->GetServiceInvoker()));
