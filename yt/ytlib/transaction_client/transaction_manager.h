@@ -7,6 +7,7 @@
 #include <ytlib/rpc/channel.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
+#include <ytlib/ytree/ytree_fwd.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -59,7 +60,9 @@ public:
      *  This call may block.
      *  Thread affinity: any.
      */
-    ITransaction::TPtr Start(const TTransactionId& parentId = NullTransactionId);
+    ITransaction::TPtr Start(
+        NYTree::INode* manifest = NULL,
+        const TTransactionId& parentId = NullTransactionId);
 
 private:
     void PingTransaction(const TTransactionId& transactionId);

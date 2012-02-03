@@ -363,7 +363,7 @@ struct TSchema::TConfig
     TConfig()
     {
         Register("channels", Channels)
-            .Default(yvector<INode::TPtr>());
+            .Default();
     }
 
     yvector<INode::TPtr> Channels;

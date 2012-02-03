@@ -47,7 +47,9 @@ void TFileWriter::Open()
 {
     LOG_INFO("Creating upload transaction");
     try {
-        UploadTransaction = TransactionManager->Start(Transaction ? Transaction->GetId() : NullTransactionId);
+        UploadTransaction = TransactionManager->Start(
+            NULL,
+            Transaction ? Transaction->GetId() : NullTransactionId);
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
             ex.what());

@@ -20,7 +20,7 @@ void TStartTransactionCommand::DoExecute(TStartTransactionRequest* request)
     }
 
     auto transactionManager = DriverImpl->GetTransactionManager();
-    auto newTransaction = transactionManager->Start();
+    auto newTransaction = transactionManager->Start(~request->Manifest);
     DriverImpl->SetCurrentTransaction(~newTransaction);
 
     BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
