@@ -79,7 +79,7 @@ void TTableNodeProxy::TraverseChunkTree(
     }
 }
 
-void TTableNodeProxy::GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
+void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
@@ -153,7 +153,7 @@ void TTableNodeProxy::ParseYPath(
     TYsonFragmentReader channelReader(~channelBuilder, &channelInput);
     if (channelReader.HasNext()) {
         channelReader.ReadNext();
-        *channel = TChannel::FromYson(~channelBuilder->EndTree());
+        *channel = TChannel::FromNode(~channelBuilder->EndTree());
     }
 
     // TODO(babenko): parse range.

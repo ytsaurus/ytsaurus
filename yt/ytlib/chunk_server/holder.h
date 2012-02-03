@@ -24,6 +24,7 @@ class THolder
 {
     DEFINE_BYVAL_RO_PROPERTY(THolderId, Id);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
+    DEFINE_BYVAL_RO_PROPERTY(TIncarnationId, IncarnationId);
     DEFINE_BYVAL_RW_PROPERTY(EHolderState, State);
     DEFINE_BYREF_RW_PROPERTY(NProto::THolderStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, StoredChunkIds);
@@ -36,6 +37,7 @@ public:
     THolder(
         THolderId id,
         const Stroka& address,
+        const TIncarnationId& incarnationId,
         EHolderState state,
         const NProto::THolderStatistics& statistics);
 

@@ -7,6 +7,7 @@
 #include "yson_writer.h"
 #include "forwarding_yson_consumer.h"
 #include "ypath.pb.h"
+#include "attributes.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/assert.h>
@@ -61,18 +62,48 @@ DECLARE_SUPPORTS_VERB(Remove);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes a system attribute.
-struct TAttributeInfo
+class TSupportsAttributes
+    : public virtual TYPathServiceBase
+    , public virtual TSupportsGet
+    , public virtual TSupportsList
+    , public virtual TSupportsSet
+    , public virtual TSupportsRemove
 {
-    Stroka Name;
-    bool IsPresent;
-    bool IsOpaque;
+protected:
+    // TODO(roizner,babenko): support NULL user attribute dictionary to
+    // allow TVirtualMapBase to use this mix-in.
+    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary() = 0;
 
-    TAttributeInfo(const char* name, bool isPresent = true, bool isOpaque = false)
-        : Name(name)
-        , IsPresent(isPresent)
-        , IsOpaque(isOpaque)
-    { }
+    // Can be NULL.
+    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() = 0;
+
+    virtual TResolveResult ResolveAttributes(
+        const NYTree::TYPath& path,
+        const Stroka& verb);
+    
+    virtual void GetAttribute(
+        const TYPath& path,
+        TReqGet* request,
+        TRspGet* response,
+        TCtxGet* context);
+
+    virtual void ListAttribute(
+        const TYPath& path,
+        TReqList* request,
+        TRspList* response,
+        TCtxList* context);
+
+    virtual void SetAttribute(
+        const TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        TCtxSet* context);
+
+    virtual void RemoveAttribute(
+        const TYPath& path,
+        TReqRemove* request,
+        TRspRemove* response,
+        TCtxRemove* context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

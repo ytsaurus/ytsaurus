@@ -18,7 +18,8 @@ message THolderStatistics
 message TReqRegisterHolder
 {
     required bytes address = 1;
-    required THolderStatistics statistics = 2;
+    required bytes incarnation_id = 2;
+    required THolderStatistics statistics = 3;
 }
 
 message TRspRegisterHolder

@@ -39,40 +39,46 @@ struct IMetaStateManager
 
     //! Boots up the manager.
     /*!
-     * \note Thread affinity: any
+     *  \note Thread affinity: any
      */
     virtual void Start() = 0;
 
     //! Stops the manager.
     /*!
-     * \note Thread affinity: any
+     *  \note Thread affinity: any
      */
     virtual void Stop() = 0;
 
     //! Returns the status as seen in the control thread.
     /*!
-     * \note Thread affinity: ControlThread
+     *  \note Thread affinity: ControlThread
      */
     virtual EPeerStatus GetControlStatus() const = 0;
 
     //! Returns the status as seen in the state thread.
     /*!
-     * \note Thread affinity: StateThread
+     *  \note Thread affinity: StateThread
      */
     virtual EPeerStatus GetStateStatus() const = 0;
 
     //! Returns an invoker used for updating the state.
     /*!
-     * \note Thread affinity: any
+     *  \note Thread affinity: any
      */
-    virtual IInvoker::TPtr GetStateInvoker() = 0;
+    virtual IInvoker::TPtr GetStateInvoker() const = 0;
+
+    //! Returns True is the peer has a active quorum.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool HasActiveQuorum() const = 0;
 
     //! Returns a cancelable invoker that corresponds to the state thread and is only valid
     //! for the duration of the current epoch.
     /*!
-     * \note Thread affinity: StateThread
+     *  \note Thread affinity: StateThread
      */
-    virtual IInvoker::TPtr GetEpochStateInvoker() = 0;
+    virtual IInvoker::TPtr GetEpochStateInvoker() const = 0;
 
     //! Commits the change.
     /*!

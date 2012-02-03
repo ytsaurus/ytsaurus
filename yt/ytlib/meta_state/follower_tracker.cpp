@@ -35,14 +35,14 @@ void TFollowerTracker::Stop()
     EpochInvoker->Cancel();
 }
 
-bool TFollowerTracker::IsFollowerActive(TPeerId followerId)
+bool TFollowerTracker::IsFollowerActive(TPeerId followerId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return FollowerStates[followerId].Status == EPeerStatus::Following;
 }
 
-bool TFollowerTracker::HasActiveQuorum()
+bool TFollowerTracker::HasActiveQuorum() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

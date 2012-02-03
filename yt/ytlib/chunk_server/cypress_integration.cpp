@@ -249,11 +249,16 @@ private:
         return ChunkManager->FindHolder(address);
     }
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         const auto* holder = GetHolder();
         attributes->push_back("alive");
-        attributes->push_back(TAttributeInfo("statistics", holder));
+        attributes->push_back(TAttributeInfo("incarnation_id", holder));
+        attributes->push_back(TAttributeInfo("available_space", holder));
+        attributes->push_back(TAttributeInfo("used_space", holder));
+        attributes->push_back(TAttributeInfo("chunk_count", holder));
+        attributes->push_back(TAttributeInfo("session_count", holder));
+        attributes->push_back(TAttributeInfo("full", holder));
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -267,17 +272,39 @@ private:
             return true;
         }
 
-        if (name == "statistics") {
+        if (holder) {
+            if (name == "incarnation_id") {
+                BuildYsonFluently(consumer)
+                    .Scalar(holder->GetIncarnationId().ToString());
+                return true;
+            }
+
             const auto& statistics = holder->Statistics();
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("available_space").Scalar(statistics.available_space())
-                    .Item("used_space").Scalar(statistics.used_space())
-                    .Item("chunk_count").Scalar(statistics.chunk_count())
-                    .Item("session_count").Scalar(statistics.session_count())
-                    .Item("full").Scalar(statistics.full())
-                .EndMap();
-            return true;
+            if (name == "available_space") {
+                BuildYsonFluently(consumer)
+                    .Scalar(statistics.available_space());
+                return true;
+            }
+            if (name == "used_space") {
+                BuildYsonFluently(consumer)
+                    .Scalar(statistics.used_space());
+                return true;
+            }
+            if (name == "chunk_count") {
+                BuildYsonFluently(consumer)
+                    .Scalar(statistics.chunk_count());
+                return true;
+            }
+            if (name == "session_count") {
+                BuildYsonFluently(consumer)
+                    .Scalar(statistics.session_count());
+                return true;
+            }
+            if (name == "full") {
+                BuildYsonFluently(consumer)
+                    .Scalar(statistics.full());
+                return true;
+            }
         }
 
         return TMapNodeProxy::GetSystemAttribute(name, consumer);
@@ -426,11 +453,15 @@ public:
 private:
     TChunkManager::TPtr ChunkManager;
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("alive");
         attributes->push_back("dead");
-        attributes->push_back("statistics");
+        attributes->push_back("available_space");
+        attributes->push_back("used_space");
+        attributes->push_back("chunk_count");
+        attributes->push_back("session_count");
+        attributes->push_back("alive_holder_count");
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -457,16 +488,34 @@ private:
             return true;
         }
 
-        if (name == "statistics") {
-            auto statistics = ChunkManager->GetTotalHolderStatistics();
+        auto statistics = ChunkManager->GetTotalHolderStatistics();
+        if (name == "available_space") {
             BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("available_space").Scalar(statistics.AvailbaleSpace)
-                    .Item("used_space").Scalar(statistics.UsedSpace)
-                    .Item("chunk_count").Scalar(statistics.ChunkCount)
-                    .Item("session_count").Scalar(statistics.SessionCount)
-                    .Item("alive_holder_count").Scalar(statistics.AliveHolderCount)
-                .EndMap();
+                .Scalar(statistics.AvailbaleSpace);
+            return true;
+        }
+
+        if (name == "used_space") {
+            BuildYsonFluently(consumer)
+                .Scalar(statistics.UsedSpace);
+            return true;
+        }
+
+        if (name == "chunk_count") {
+            BuildYsonFluently(consumer)
+                .Scalar(statistics.ChunkCount);
+            return true;
+        }
+
+        if (name == "session_count") {
+            BuildYsonFluently(consumer)
+                .Scalar(statistics.SessionCount);
+            return true;
+        }
+
+        if (name == "alive_holder_count") {
+            BuildYsonFluently(consumer)
+                .Scalar(statistics.AliveHolderCount);
             return true;
         }
 

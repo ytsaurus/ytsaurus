@@ -24,14 +24,9 @@ using namespace NTransactionClient;
 
 TFileWriterBase::TFileWriterBase(
     TConfig* config,
-    NRpc::IChannel* masterChannel,
-    NObjectServer::TTransactionId transactionId,
-    TTransactionManager* transactionManager)
+    NRpc::IChannel* masterChannel)
     : Config(config)
-    , TransactionId(transactionId)
-    , TransactionManager(transactionManager)
     , IsOpen(false)
-    , IsClosed(false)
     , Size(0)
     , BlockCount(0)
     , ChunkProxy(masterChannel)
@@ -40,40 +35,24 @@ TFileWriterBase::TFileWriterBase(
 {
     YASSERT(config);
     YASSERT(masterChannel);
-    YASSERT(transactionManager);
 
     Codec = GetCodec(Config->CodecId);
-
-    Logger.AddTag(Sprintf("TransactionId: %s",
-        ~TransactionId.ToString()));
 
     ChunkProxy.SetTimeout(config->MasterRpcTimeout);
     CypressProxy.SetTimeout(config->MasterRpcTimeout);
 }
 
-void TFileWriterBase::Open()
+void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(!IsOpen);
-    YASSERT(!IsClosed);
 
     LOG_INFO("Opening file writer (UploadReplicaCount: %d, TotalReplicaCount: %d)",
         Config->UploadReplicaCount,
         Config->TotalReplicaCount);
 
-    LOG_INFO("Creating upload transaction");
-    try {
-        UploadTransaction = TransactionManager->Start(TransactionId);
-    } catch (const std::exception& ex) {
-        LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
-            ex.what());
-    }
-    ListenTransaction(~UploadTransaction);
-    LOG_INFO("Upload transaction created (TransactionId: %s)",
-        ~UploadTransaction->GetId().ToString());
-
     auto createChunksReq = ChunkProxy.CreateChunks();
-    createChunksReq->set_transaction_id(UploadTransaction->GetId().ToProto());
+    createChunksReq->set_transaction_id(uploadTransactionId.ToProto());
     createChunksReq->set_chunk_count(1);
     createChunksReq->set_upload_replica_count(Config->UploadReplicaCount);
     auto createChunksRsp = createChunksReq->Invoke()->Get();
@@ -140,18 +119,12 @@ void TFileWriterBase::Cancel()
     VERIFY_THREAD_AFFINITY_ANY();
     YVERIFY(IsOpen);
 
-    if (UploadTransaction) {
-        UploadTransaction->Abort();
-        UploadTransaction.Reset();
-    }
-
     IsOpen = false;
-    IsClosed = true;
 
     LOG_INFO("File writer canceled");
 }
 
-void TFileWriterBase::SpecificClose(const NChunkServer::TChunkId&, const NObjectServer::TTransactionId&)
+void TFileWriterBase::SpecificClose(const NChunkServer::TChunkId&)
 {
 }
 
@@ -159,11 +132,10 @@ void TFileWriterBase::Close()
 {
     VERIFY_THREAD_AFFINITY(Client);
 
-    if (IsClosed)
+    if (!IsOpen)
         return;
 
     IsOpen = false;
-    IsClosed = true;
 
     CheckAborted();
 
@@ -196,16 +168,7 @@ void TFileWriterBase::Close()
     }
     LOG_INFO("Chunk confirmed");
 
-    SpecificClose(ChunkId, TransactionId);
-
-    LOG_INFO("Committing upload transaction");
-    try {
-        UploadTransaction->Commit();
-    } catch (const std::exception& ex) {
-        LOG_ERROR_AND_THROW(yexception(), "Error committing upload transaction\n%s",
-            ex.what());
-    }
-    LOG_INFO("Upload transaction committed");
+    SpecificClose(ChunkId);
 
     LOG_INFO("File writer closed");
 }

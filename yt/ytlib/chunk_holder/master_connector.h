@@ -1,10 +1,8 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_store.h"
-#include "chunk_cache.h"
-#include "session_manager.h"
-#include "job_executor.h"
+#include "bootstrap.h"
+#include "chunk.h"
 #include "chunk_service.pb.h"
 
 #include <ytlib/rpc/channel.h>
@@ -29,13 +27,7 @@ public:
     typedef TChunkHolderConfig TConfig;
 
     //! Creates an instance.
-    TMasterConnector(
-        TConfig* config,
-        TChunkStore* chunkStore,
-        TChunkCache* chunkCache,
-        TSessionManager* sessionManager,
-        TJobExecutor* jobExecutor,
-        IInvoker* serviceInvoker);
+    TMasterConnector(TBootstrap* bootstrap);
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -45,16 +37,9 @@ private:
     //! Special id value indicating that the holder is not registered.
     static const int InvalidHolderId = -1;
 
-    TConfig::TPtr Config;
-    
-    TChunkStore::TPtr ChunkStore;
-    TChunkCache::TPtr ChunkCache;
-    TSessionManager::TPtr SessionManager;
-    TJobExecutor::TPtr JobExecutor;
+    //! The bootstrap that owns us.
+    TBootstrap* Bootstrap;
 
-    //! All state modifications are carried out via this invoker.
-    IInvoker::TPtr ServiceInvoker;
-    
     //! Indicates if the holder is currently registered at the master.
     bool Registered;
     
@@ -71,13 +56,6 @@ private:
 
     //! Proxy for the master.
     THolder<TProxy> Proxy;
-    
-    //! Local address of the holder.
-    /*!
-     *  This address is computed during initialization by combining the host name (returned by #HostName)
-     *  and the port number in #Config->RpcPort.
-     */
-    Stroka Address;
     
     //! Chunks that were added since the last successful heartbeat.
     TChunks AddedSinceLastSuccess;

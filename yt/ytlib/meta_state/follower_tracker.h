@@ -40,8 +40,8 @@ public:
         IInvoker::TPtr serviceInvoker);
 
     void Stop();
-    bool HasActiveQuorum();
-    bool IsFollowerActive(TPeerId followerId);
+    bool HasActiveQuorum() const;
+    bool IsFollowerActive(TPeerId followerId) const;
     void ProcessPing(TPeerId followerId, EPeerStatus status);
 
 private:

@@ -68,71 +68,61 @@ public:
 
 class TObjectProxyBase
     : public virtual NYTree::TYPathServiceBase
-    , public virtual NYTree::TSupportsGet
-    , public virtual NYTree::TSupportsList
-    , public virtual NYTree::TSupportsSet
-    , public virtual NYTree::TSupportsRemove
+    , public virtual NYTree::TSupportsAttributes
+    , public virtual NYTree::ISystemAttributeProvider
     , public virtual IObjectProxy
 {
 public:
+    typedef TIntrusivePtr<TObjectProxyBase> TPtr;
+
     TObjectProxyBase(
         TObjectManager* objectManager,
         const TObjectId& id,
         const Stroka& loggingCategory = ObjectServerLogger.GetCategory());
 
+    // IObjectProxy members
     virtual TObjectId GetId() const;
+    virtual NYTree::IAttributeDictionary::TPtr GetAttributes();
 
 protected:
     TObjectManager::TPtr ObjectManager;
     TObjectId Id;
-
-    virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
-
-    NYTree::TYson DoGetAttribute(const Stroka& name, bool* isSystem = NULL);
-    void DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem);
+    NYTree::IAttributeDictionary::TPtr UserAttributeDictionary;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
 
+    // NYTree::TYPathServiceBase members
     virtual void DoInvoke(NRpc::IServiceContext* context);
-
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
-    //! Populates the list of all system attributes supported by this object.
-    /*!
-     *  \note
-     *  Must not clear #attributes since additional items may be added in inheritors.
-     */
-    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes);
+    // NYTree::TSupportsAttributes members
+    virtual NYTree::IAttributeDictionary::TPtr GetUserAttributeDictionary();
+    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider();
 
-    //! Gets the value of a system attribute.
-    /*!
-     *  \returns False if there is no system attribute with the given name.
-     */
+    virtual NYTree::IAttributeDictionary::TPtr DoCreateUserAttributeDictionary();
+
+    // NYTree::ISystemAttributeProvider members
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
-
-    //! Sets the value of a system attribute.
-    /*! 
-     *  \returns False if the attribute cannot be set or
-     *  there is no system attribute with the given name.
-     */
     virtual bool SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer);
 
-    virtual void GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
-    virtual void ListAttribute(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
-    virtual void SetAttribute(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
-    virtual void RemoveAttribute(const NYTree::TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
+    // We need definition of this class in header because we want to inherit it.
+    class TUserAttributeDictionary
+        : public NYTree::IAttributeDictionary
+    {
+    public:
+        TUserAttributeDictionary(TObjectId objectId, TObjectManager* objectManager);
 
-    // The following methods provide means for accessing attribute sets.
-    // In particular, these methods are responsible for resolving object and transaction ids.
-    
-    //! Returns the list of all attribute names.
-    virtual yhash_set<Stroka> ListUserAttributes();
-    //! Returns the value of the attribute (empty TYson indicates that the attribute is not found).
-    virtual NYTree::TYson GetUserAttribute(const Stroka& name);
-    //! Sets the value of the attribute.
-    virtual void SetUserAttribute(const Stroka& name, const NYTree::TYson& value);
-    //! Removes the attribute.
-    virtual bool RemoveUserAttribute(const Stroka& name);
+        // NYTree::IAttributeDictionary members
+        virtual yhash_set<Stroka> ListAttributes();
+        virtual NYTree::TYson FindAttribute(const Stroka& name);
+        virtual void SetAttribute(const Stroka& name, const NYTree::TYson& value);
+        virtual bool RemoveAttribute(const Stroka& name);
+
+    protected:
+        TObjectId ObjectId;
+        TObjectManager::TPtr ObjectManager;
+    };
 };
 
 ////////////////////////////////////////////////////////////////////////////////

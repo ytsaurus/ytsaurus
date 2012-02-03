@@ -40,12 +40,17 @@ public:
         return EPeerStatus::Leading;
     }
 
-    IInvoker::TPtr GetStateInvoker()
+    bool HasActiveQuorum() const
+    {
+        return true;
+    }
+
+    IInvoker::TPtr GetStateInvoker() const
     {
         return StateQueue->GetInvoker();
     }
 
-    IInvoker::TPtr GetEpochStateInvoker()
+    IInvoker::TPtr GetEpochStateInvoker() const
     {
         return StateQueue->GetInvoker();
     }

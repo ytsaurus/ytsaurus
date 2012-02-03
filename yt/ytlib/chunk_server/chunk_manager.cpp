@@ -495,6 +495,7 @@ private:
     THolderId RegisterHolder(const TMsgRegisterHolder& message)
     {
         Stroka address = message.address();
+        auto incarnationId = TIncarnationId::FromProto(message.incarnation_id());
         const auto& statistics = message.statistics();
     
         THolderId holderId = HolderIdGenerator.Next();
@@ -507,14 +508,16 @@ private:
             DoUnregisterHolder(*existingHolder);
         }
 
-        LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, %s)",
+        LOG_INFO_IF(!IsRecovery(), "Holder registered (Address: %s, HolderId: %d, IncarnationId: %s, %s)",
             ~address,
             holderId,
+            ~incarnationId.ToString(),
             ~ToString(statistics));
 
         auto* newHolder = new THolder(
             holderId,
             address,
+            incarnationId,
             EHolderState::Inactive,
             statistics);
 
@@ -1101,7 +1104,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         const auto& chunk = GetTypedImpl();
         attributes->push_back("confirmed");
@@ -1299,7 +1302,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("children_ids");
         attributes->push_back("parent_ids");

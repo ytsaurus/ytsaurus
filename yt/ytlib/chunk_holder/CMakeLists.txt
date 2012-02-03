@@ -16,6 +16,7 @@ set( SRCS
   ${BASE}/reader_cache.cpp
   ${BASE}/session_manager.cpp
   ${BASE}/ytree_integration.cpp
+  ${BASE}/bootstrap.cpp
 )
 set( HDRS
   ${BASE}/block_store.h
@@ -35,6 +36,7 @@ set( HDRS
   ${BASE}/reader_cache.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h
+  ${BASE}/bootstrap.h
 )
 
 list(APPEND YT_SOURCE_FILES

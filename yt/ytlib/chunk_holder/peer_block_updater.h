@@ -25,7 +25,6 @@ public:
     TPeerBlockUpdater(
         TChunkHolderConfig* config,
         TBlockStore* blockStore,
-        NRpc::TChannelCache* channelCache,
         IInvoker* invoker);
 
     void Start();
@@ -38,7 +37,6 @@ private:
 
     TChunkHolderConfig::TPtr Config;
     TIntrusivePtr<TBlockStore> BlockStore;
-    NRpc::TChannelCache* ChannelCache;
     TIntrusivePtr<TPeriodicInvoker> PeriodicInvoker;
 };
 

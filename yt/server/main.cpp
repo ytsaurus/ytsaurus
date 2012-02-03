@@ -1,12 +1,12 @@
 #include "stdafx.h"
 #include "cell_master_bootstrap.h"
-#include "chunk_holder_bootstrap.h"
 #include "scheduler_bootstrap.h"
 
 #include <ytlib/misc/enum.h>
 #include <ytlib/rpc/rpc_manager.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/chunk_holder/bootstrap.h>
 
 namespace NYT {
 
@@ -99,7 +99,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Start an appropriate server.
     if (isChunkHolder) {
-        auto config = New<TChunkHolderBootstrap::TConfig>();
+        auto config = New<NChunkHolder::TBootstrap::TConfig>();
         try {
             config->Load(~configNode);
 
@@ -115,8 +115,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
 
-        TChunkHolderBootstrap chunkHolderBootstrap(configFileName, ~config);
-        chunkHolderBootstrap.Run();
+        NChunkHolder::TBootstrap bootstrap(configFileName, ~config);
+        bootstrap.Run();
     }
 
     if (isCellMaster) {

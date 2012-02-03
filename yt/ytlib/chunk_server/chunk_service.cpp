@@ -94,16 +94,19 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     UNUSED(response);
 
     Stroka address = request->address();
+    auto incarnationId = TIncarnationId::FromProto(request->incarnation_id());
     const auto& statistics = request->statistics();
     
-    context->SetRequestInfo("Address: %s, %s",
+    context->SetRequestInfo("Address: %s, IncarnationId: %s, %s",
         ~address,
+        ~incarnationId.ToString(),
         ~ToString(statistics));
 
     ValidateLeader();
 
     TMsgRegisterHolder message;
     message.set_address(address);
+    message.set_incarnation_id(incarnationId.ToProto());
     message.mutable_statistics()->MergeFrom(statistics);
     ChunkManager
         ->InitiateRegisterHolder(message)

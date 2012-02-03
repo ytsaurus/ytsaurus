@@ -66,7 +66,7 @@ public:
     static TChannel FromProto(const NProto::TChannel& protoChannel);
 
     static TChannel FromYson(const NYTree::TYson& yson);
-    static TChannel FromYson(NYTree::INode* node);
+    static TChannel FromNode(NYTree::INode* node);
 
     const yvector<TColumn>& GetColumns() const;
 
@@ -98,9 +98,11 @@ public:
     static TSchema FromProto(const NProto::TSchema& protoSchema);
 
     static TSchema FromYson(const NYTree::TYson& yson);
-    static TSchema FromYson(NYTree::INode* node);
+    static TSchema FromNode(NYTree::INode* node);
 
 private:
+    class TConfig;
+
     TSchema();
 
     yvector<TChannel> Channels;

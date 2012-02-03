@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "master_connector.h"
+#include "chunk_store.h"
+#include "chunk_cache.h"
+#include "session_manager.h"
+#include "job_executor.h"
 
 #include <ytlib/rpc/client.h>
 #include <ytlib/election/cell_channel.h>
@@ -24,52 +28,36 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnector::TMasterConnector(
-    TConfig* config,
-    TChunkStore* chunkStore,
-    TChunkCache* chunkCache,
-    TSessionManager* sessionManager,
-    TJobExecutor* jobExecutor,
-    IInvoker* serviceInvoker)
-    : Config(config)
-    , ChunkStore(chunkStore)
-    , ChunkCache(chunkCache)
-    , SessionManager(sessionManager)
-    , JobExecutor(jobExecutor)
-    , ServiceInvoker(serviceInvoker)
+TMasterConnector::TMasterConnector(TBootstrap* bootstrap)
+    : Bootstrap(bootstrap)
     , Registered(false)
     , IncrementalHeartbeat(false)
     , HolderId(InvalidHolderId)
 {
-    YASSERT(chunkStore);
-    YASSERT(sessionManager);
-    YASSERT(jobExecutor);
-    YASSERT(serviceInvoker);
+    YASSERT(bootstrap);
 
-    auto channel = CreateCellChannel(~Config->Masters);
+    auto config = bootstrap->GetConfig();
+    auto channel = CreateCellChannel(~config->Masters);
     Proxy.Reset(new TProxy(~channel));
-    Proxy->SetTimeout(Config->MasterRpcTimeout);
+    Proxy->SetTimeout(config->MasterRpcTimeout);
 
-    Address = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
-
-    // NB: No intrusive ptr for this to prevent circular dependency.
-    // TODO(babenko): use TWeakPtr
-    ChunkStore->ChunkAdded().Subscribe(FromMethod(
+    // TODO(babenko): use AsWeak
+    bootstrap->GetChunkStore()->ChunkAdded().Subscribe(FromMethod(
         &TMasterConnector::OnChunkAdded,
-        this));
-    ChunkStore->ChunkRemoved().Subscribe(FromMethod(
+        TWeakPtr<TMasterConnector>(this)));
+    bootstrap->GetChunkStore()->ChunkRemoved().Subscribe(FromMethod(
         &TMasterConnector::OnChunkRemoved,
-        this));
-    ChunkCache->ChunkAdded().Subscribe(FromMethod(
+        TWeakPtr<TMasterConnector>(this)));
+    bootstrap->GetChunkCache()->ChunkAdded().Subscribe(FromMethod(
         &TMasterConnector::OnChunkAdded,
-        this));
-    ChunkCache->ChunkRemoved().Subscribe(FromMethod(
+        TWeakPtr<TMasterConnector>(this)));
+    bootstrap->GetChunkCache()->ChunkRemoved().Subscribe(FromMethod(
         &TMasterConnector::OnChunkRemoved,
-        this));
+        TWeakPtr<TMasterConnector>(this)));
 
     LOG_INFO("Chunk holder address is %s, master addresses are [%s]",
-        ~Address,
-        ~JoinToString(Config->Masters->Addresses));
+        ~config->PeerAddress,
+        ~JoinToString(config->Masters->Addresses));
 
     OnHeartbeat();
 }
@@ -78,8 +66,8 @@ void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
         ~FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))
-        ->Via(ServiceInvoker),
-        Config->HeartbeatPeriod);
+        ->Via(Bootstrap->GetServiceInvoker()),
+        Bootstrap->GetConfig()->HeartbeatPeriod);
 }
 
 void TMasterConnector::OnHeartbeat()
@@ -94,14 +82,12 @@ void TMasterConnector::OnHeartbeat()
 void TMasterConnector::SendRegister()
 {
     auto request = Proxy->RegisterHolder();
-    
     *request->mutable_statistics() = ComputeStatistics();
-
-    request->set_address(Address);
-
+    request->set_address(Bootstrap->GetConfig()->PeerAddress);
+    request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
     request->Invoke()->Subscribe(
         FromMethod(&TMasterConnector::OnRegisterResponse, TPtr(this))
-        ->Via(ServiceInvoker));
+        ->Via(Bootstrap->GetServiceInvoker()));
 
     LOG_INFO("Register request sent (%s)",
         ~ToString(*request->mutable_statistics()));
@@ -112,7 +98,7 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
     i64 availableSpace = 0;
     i64 usedSpace = 0;
     bool isFull = true;
-    FOREACH(const auto& location, ChunkStore->Locations()) {
+    FOREACH (const auto& location, Bootstrap->GetChunkStore()->Locations()) {
         availableSpace += location->GetAvailableSpace();
         usedSpace += location->GetUsedSpace();
         if (!location->IsFull()) {
@@ -123,8 +109,8 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
     THolderStatistics result;
     result.set_available_space(availableSpace);
     result.set_used_space(usedSpace);
-    result.set_chunk_count(ChunkStore->GetChunkCount());
-    result.set_session_count(SessionManager->GetSessionCount());
+    result.set_chunk_count(Bootstrap->GetChunkStore()->GetChunkCount());
+    result.set_session_count(Bootstrap->GetSessionManager()->GetSessionCount());
     result.set_full(isFull);
 
     return result;
@@ -171,16 +157,16 @@ void TMasterConnector::SendHeartbeat()
             *request->add_removed_chunks() = GetRemoveInfo(~chunk);
         }
     } else {
-        FOREACH (const auto& chunk, ChunkStore->GetChunks()) {
+        FOREACH (const auto& chunk, Bootstrap->GetChunkStore()->GetChunks()) {
             *request->add_added_chunks() = GetAddInfo(~chunk);
         }
 
-        FOREACH (const auto& chunk, ChunkCache->GetChunks()) {
+        FOREACH (const auto& chunk, Bootstrap->GetChunkCache()->GetChunks()) {
             *request->add_added_chunks() = GetAddInfo(~chunk);
         }
     }
 
-    FOREACH (const auto& job, JobExecutor->GetAllJobs()) {
+    FOREACH (const auto& job, Bootstrap->GetJobExecutor()->GetAllJobs()) {
         auto* info = request->add_jobs();
         info->set_job_id(job->GetJobId().ToProto());
         info->set_state(job->GetState());
@@ -188,7 +174,7 @@ void TMasterConnector::SendHeartbeat()
 
     request->Invoke()->Subscribe(
         FromMethod(&TMasterConnector::OnHeartbeatResponse, TPtr(this))
-        ->Via(ServiceInvoker));
+        ->Via(Bootstrap->GetServiceInvoker()));
 
     LOG_DEBUG("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
         ~ToString(statistics),
@@ -259,14 +245,14 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
 
     FOREACH (const auto& jobProtoId, response->jobs_to_stop()) {
         auto jobId = TJobId::FromProto(jobProtoId);
-        auto job = JobExecutor->FindJob(jobId);
+        auto job = Bootstrap->GetJobExecutor()->FindJob(jobId);
         if (!job) {
             LOG_WARNING("Request to stop a non-existing job (JobId: %s)",
                 ~jobId.ToString());
             continue;
         }
 
-        JobExecutor->StopJob(~job);
+        Bootstrap->GetJobExecutor()->StopJob(~job);
     }
 
     FOREACH (const auto& startInfo, response->jobs_to_start()) {
@@ -274,7 +260,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         auto jobId = TJobId::FromProto(startInfo.job_id());
         auto jobType = EJobType(startInfo.type());
         
-        auto chunk = ChunkStore->FindChunk(chunkId);
+        auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
         if (!chunk) {
             LOG_WARNING("Job request for non-existing chunk is ignored (ChunkId: %s, JobId: %s, JobType: %s)",
                 ~chunkId.ToString(),
@@ -283,7 +269,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
             continue;
         }
 
-        JobExecutor->StartJob(
+        Bootstrap->GetJobExecutor()->StartJob(
             jobType,
             jobId,
             ~chunk,

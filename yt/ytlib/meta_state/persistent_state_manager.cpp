@@ -175,14 +175,23 @@ public:
         return StateStatus;
     }
 
-    IInvoker::TPtr GetStateInvoker()
+    IInvoker::TPtr GetStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return MetaState->GetStateInvoker();
     }
 
-    IInvoker::TPtr GetEpochStateInvoker()
+    bool HasActiveQuorum() const
+    {
+        auto tracker = FollowerTracker;
+        if (!tracker) {
+            return false;
+        }
+        return tracker->HasActiveQuorum();
+    }
+
+    IInvoker::TPtr GetEpochStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 

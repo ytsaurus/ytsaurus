@@ -142,7 +142,7 @@ public:
             return TResolveResult::Here(result.GetPath());
         } else {
             return TResolveResult::There(
-                ~New<TWriteBackService>(FileName, ~Root, ~UnderlyingService),
+                ~New<TWriteBackService>(FileName, ~Root, ~result.GetService()),
                 result.GetPath());
         }
     }

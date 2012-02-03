@@ -6,7 +6,7 @@ set( SRCS
   ${BASE}/client.cpp
   ${BASE}/common.cpp
   ${BASE}/message.cpp
-  ${BASE}/redirecting_service.cpp
+  ${BASE}/redirector_service_base.cpp
   ${BASE}/retriable_channel.cpp
   ${BASE}/rpc_manager.cpp
   ${BASE}/server.cpp
@@ -20,7 +20,7 @@ set( HDRS
   ${BASE}/common.h
   ${BASE}/error.h
   ${BASE}/message.h
-  ${BASE}/redirecting_service.h
+  ${BASE}/redirector_service_base.h
   ${BASE}/retriable_channel.h
   ${BASE}/rpc_manager.h
   ${BASE}/server.h

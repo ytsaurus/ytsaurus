@@ -2,6 +2,7 @@
 #include "schema.h"
 
 #include <ytlib/misc/foreach.h>
+#include <ytlib/misc/configurable.h>
 #include <ytlib/ytree/ytree.h>
 #include <ytlib/ytree/serialize.h>
 
@@ -246,10 +247,10 @@ TChannel TChannel::Empty()
 
 TChannel TChannel::FromYson(const NYTree::TYson& yson)
 {
-    return FromYson(~DeserializeFromYson(yson));
+    return FromNode(~DeserializeFromYson(yson));
 }
 
-TChannel TChannel::FromYson(INode* node)
+TChannel TChannel::FromNode(INode* node)
 {
     if (node->GetType() != ENodeType::List) {
         ythrow yexception() << "Channel description can only be parsed from a list";
@@ -356,6 +357,21 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchema::TConfig
+    : public TConfigurable
+{
+    TConfig()
+    {
+        Register("channels", Channels)
+            .Default();
+    }
+
+    yvector<INode::TPtr> Channels;
+    // TODO(babenko): add Keys here
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchema::TSchema()
 {
     auto trashChannel = TChannel::Empty();
@@ -405,18 +421,18 @@ TSchema TSchema::FromProto(const NProto::TSchema& protoSchema)
 
 TSchema TSchema::FromYson(const NYTree::TYson& yson)
 {
-    return FromYson(~DeserializeFromYson(yson));
+    return FromNode(~DeserializeFromYson(yson));
 }
 
-TSchema TSchema::FromYson(INode* node)
+TSchema TSchema::FromNode(INode* node)
 {
     TSchema schema;
-    if (node->GetType() != ENodeType::List) {
-        ythrow yexception() << "Schema description can only be parsed from a list";
-    }
 
-    FOREACH (auto child, node->AsList()->GetChildren()) {
-        auto channel = TChannel::FromYson(~child);
+    auto config = New<TConfig>();
+    config->LoadAndValidate(node);
+
+    FOREACH (const auto& channelNode, config->Channels) {
+        auto channel = TChannel::FromNode(~channelNode);
         schema.AddChannel(channel);
     }
 

@@ -14,10 +14,12 @@ using namespace NProto;
 THolder::THolder(
     THolderId id,
     const Stroka& address,
+    const TIncarnationId& incarnationId,
     EHolderState state,
     const THolderStatistics& statistics)
     : Id_(id)
     , Address_(address)
+    , IncarnationId_(incarnationId)
     , State_(state)
     , Statistics_(statistics)
 { }
@@ -25,6 +27,7 @@ THolder::THolder(
 THolder::THolder(const THolder& other)
     : Id_(other.Id_)
     , Address_(other.Address_)
+    , IncarnationId_(other.IncarnationId_)
     , State_(other.State_)
     , Statistics_(other.Statistics_)
     , StoredChunkIds_(other.StoredChunkIds_)
@@ -41,6 +44,7 @@ TAutoPtr<THolder> THolder::Clone() const
 void THolder::Save(TOutputStream* output) const
 {
     ::Save(output, Address_);
+    ::Save(output, IncarnationId_);
     ::Save(output, State_);
     SaveProto(output, Statistics_);
     SaveSet(output, StoredChunkIds_);
@@ -52,13 +56,15 @@ void THolder::Save(TOutputStream* output) const
 TAutoPtr<THolder> THolder::Load(THolderId id, TInputStream* input)
 {
     Stroka address;
+    TIncarnationId incarnationId;
     EHolderState state;
     THolderStatistics statistics;
     ::Load(input, address);
+    ::Load(input, incarnationId);
     ::Load(input, state);
     LoadProto(input, statistics);
 
-    TAutoPtr<THolder> holder = new THolder(id, address, state, statistics);
+    TAutoPtr<THolder> holder = new THolder(id, address, incarnationId, state, statistics);
     LoadSet(input, holder->StoredChunkIds_);
     LoadSet(input, holder->CachedChunkIds_);
     LoadSet(input, holder->UnapprovedChunkIds_);

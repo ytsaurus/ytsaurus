@@ -79,23 +79,55 @@ TObjectId TObjectProxyBase::GetId() const
     return Id;
 }
 
-IYPathService::TResolveResult TObjectProxyBase::ResolveAttributes(
-    const TYPath& path,
-    const Stroka& verb)
+IAttributeDictionary::TPtr TObjectProxyBase::GetAttributes()
 {
-    UNUSED(path);
-    if (verb != "Get" &&
-        verb != "Set" &&
-        verb != "List" &&
-        verb != "Remove")
-    {
-        ythrow TServiceException(EErrorCode::NoSuchVerb) <<
-            "Verb is not supported";
-    }
-    return TResolveResult::Here(AttributeMarker + path);
+    return GetUserAttributeDictionary();
 }
 
-void TObjectProxyBase::GetSystemAttributes(yvector<TAttributeInfo>* names)
+DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
+{
+    UNUSED(request);
+
+    response->set_object_id(Id.ToProto());
+    context->Reply();
+}
+
+void TObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(GetId);
+    DISPATCH_YPATH_SERVICE_METHOD(Get);
+    DISPATCH_YPATH_SERVICE_METHOD(List);
+    DISPATCH_YPATH_SERVICE_METHOD(Set);
+    DISPATCH_YPATH_SERVICE_METHOD(Remove);
+    TYPathServiceBase::DoInvoke(context);
+}
+
+bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
+{
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
+    return TYPathServiceBase::IsWriteRequest(context);
+}
+
+IAttributeDictionary::TPtr TObjectProxyBase::GetUserAttributeDictionary()
+{
+    if (!UserAttributeDictionary) {
+        UserAttributeDictionary = DoCreateUserAttributeDictionary();
+    }
+    return UserAttributeDictionary;
+}
+
+ISystemAttributeProvider::TPtr TObjectProxyBase::GetSystemAttributeProvider()
+{
+    return this;
+}
+
+IAttributeDictionary::TPtr TObjectProxyBase::DoCreateUserAttributeDictionary()
+{
+    return New<TUserAttributeDictionary>(Id, ~ObjectManager);
+}
+
+void TObjectProxyBase::GetSystemAttributes(std::vector<TAttributeInfo>* names)
 {
     names->push_back("id");
     names->push_back("type");
@@ -132,239 +164,19 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& name, TYsonProducer* pro
     return false;
 }
 
-DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
-{
-    UNUSED(request);
+////////////////////////////////////////////////////////////////////////////////
 
-    response->set_object_id(Id.ToProto());
-    context->Reply();
-}
+TObjectProxyBase::TUserAttributeDictionary::TUserAttributeDictionary(
+    TObjectId objectId,
+    TObjectManager* objectManager)
+    : ObjectId(objectId)
+    , ObjectManager(objectManager)
+{ }
 
-void TObjectProxyBase::GetAttribute(const TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
-{
-    if (IsFinalYPath(path)) {
-        TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
-        
-        writer.OnBeginMap();
-
-        yvector<TAttributeInfo> systemAttributes;
-        GetSystemAttributes(&systemAttributes);
-        FOREACH (const auto& attribute, systemAttributes) {
-            if (attribute.IsPresent) {
-                writer.OnMapItem(attribute.Name);
-                if (attribute.IsOpaque) {
-                    writer.OnEntity();
-                } else {
-                    YVERIFY(GetSystemAttribute(attribute.Name, &writer));
-                }
-            }
-        }
-
-        const auto& userAttributes = ListUserAttributes();
-        FOREACH (const auto& name, userAttributes) {
-            writer.OnMapItem(name);
-            writer.OnRaw(GetUserAttribute(name));
-        }
-        
-        writer.OnEndMap();
-
-        response->set_value(stream.Str());
-    } else {
-        Stroka token;
-        TYPath suffixPath;
-        ChopYPathToken(path, &token, &suffixPath);
-
-        const auto& yson = DoGetAttribute(token);
-
-        if (IsFinalYPath(suffixPath)) {
-            response->set_value(yson);
-        } else {
-            auto wholeValue = DeserializeFromYson(yson);
-            auto value = SyncYPathGet(~wholeValue, RootMarker + suffixPath);
-            response->set_value(value);
-        }
-    }
-
-    context->Reply();
-}
-
-void TObjectProxyBase::ListAttribute(const TYPath& path, TReqList* request, TRspList* response, TCtxList* context)
-{
-    yvector<Stroka> keys;
-
-    if (IsFinalYPath(path)) {
-        yvector<TAttributeInfo> systemAttributes;
-        GetSystemAttributes(&systemAttributes);
-        FOREACH (const auto& attribute, systemAttributes) {
-            if (attribute.IsPresent) {
-                keys.push_back(attribute.Name);
-            }
-        }
-        
-        const auto& userAttributes = ListUserAttributes();
-        // If we used vector instead of yvector, we could start with user
-        // attributes instead of copying them.
-        keys.insert(keys.end(), userAttributes.begin(), userAttributes.end());
-    } else {
-        Stroka token;
-        TYPath suffixPath;
-        ChopYPathToken(path, &token, &suffixPath);
-
-        auto wholeValue = DeserializeFromYson(DoGetAttribute(token));
-        keys = SyncYPathList(~wholeValue, RootMarker + suffixPath);
-    }
-
-    ToProto(*response->mutable_keys(), keys);
-    context->Reply();
-}
-
-void TObjectProxyBase::SetAttribute(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
-{
-    if (IsFinalYPath(path)) {
-        auto value = DeserializeFromYson(request->value());
-        if (value->GetType() != ENodeType::Map) {
-            ythrow yexception() << "Map value expected";
-        }
-
-        const auto& userAttributes = ListUserAttributes();
-        FOREACH (const auto& name, userAttributes) {
-            YVERIFY(RemoveUserAttribute(name));
-        }
-
-        // TODO(babenko): handle system attributes
-        auto mapValue = value->AsMap();
-        FOREACH (const auto& pair, mapValue->GetChildren()) {
-            auto key = pair.first;
-            YASSERT(!key.empty());
-            auto value = SerializeToYson(~pair.second);
-            SetUserAttribute(key, value);
-        }
-    } else {
-        Stroka token;
-        TYPath suffixPath;
-        ChopYPathToken(path, &token, &suffixPath);
-
-        if (IsFinalYPath(suffixPath)) {
-            if (token.empty()) {
-                ythrow yexception() << "Attribute key cannot be empty";
-            }
-
-            if (!SetSystemAttribute(token, ~ProducerFromYson(request->value()))) {
-            	// Check for system attributes
-	            yvector<TAttributeInfo> systemAttributes;
-    	        GetSystemAttributes(&systemAttributes);
-    	        
-            	FOREACH (const auto& attribute, systemAttributes) {
-	                if (attribute.Name == token) {
-    	                ythrow yexception() << Sprintf("System attribute %s cannot be set", ~token.Quote());
-                	}
-            	}
-
-                SetUserAttribute(token, request->value());
-            }
-        } else {
-            Stroka token;
-            TYPath suffixPath;
-            ChopYPathToken(path, &token, &suffixPath);
-
-            bool isSystem;
-            auto yson = DoGetAttribute(token, &isSystem);
-            auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathSet(~wholeValue, RootMarker + suffixPath, request->value());
-            DoSetAttribute(token, ~wholeValue, isSystem);
-        }
-    }
-
-    context->Reply();
-}
-
-void TObjectProxyBase::RemoveAttribute(const TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context)
-{
-    if (IsFinalYPath(path)) {
-        const auto& userAttributes = ListUserAttributes();
-        FOREACH (const auto& name, userAttributes) {
-            YVERIFY(RemoveUserAttribute(name));
-        }
-    } else {
-        Stroka token;
-        TYPath suffixPath;
-        ChopYPathToken(path, &token, &suffixPath);
-
-        if (IsFinalYPath(suffixPath)) {
-            if (!RemoveUserAttribute(token)) {
-                ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
-            }
-        } else {
-            Stroka token;
-            TYPath suffixPath;
-            ChopYPathToken(path, &token, &suffixPath);
-
-            bool isSystem;
-            auto yson = DoGetAttribute(token, &isSystem);
-            auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathRemove(~wholeValue, RootMarker + suffixPath);
-            DoSetAttribute(token, ~wholeValue, isSystem);
-        }
-    }
-
-    context->Reply();
-}
-
-void TObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
-{
-    DISPATCH_YPATH_SERVICE_METHOD(GetId);
-    DISPATCH_YPATH_SERVICE_METHOD(Get);
-    DISPATCH_YPATH_SERVICE_METHOD(List);
-    DISPATCH_YPATH_SERVICE_METHOD(Set);
-    DISPATCH_YPATH_SERVICE_METHOD(Remove);
-    TYPathServiceBase::DoInvoke(context);
-}
-
-bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
-{
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
-    return TYPathServiceBase::IsWriteRequest(context);
-}
-
-TYson TObjectProxyBase::DoGetAttribute(const Stroka& name, bool* isSystem)
-{
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary);
-    if (GetSystemAttribute(name, &writer)) {
-        if (isSystem) {
-            *isSystem = true;
-        }
-        return stream.Str();
-    }
-
-    auto yson = GetUserAttribute(name);
-    if (!yson.empty()) {
-        if (isSystem) {
-            *isSystem = false;
-        }
-        return yson;
-    }
-    
-    ythrow yexception() << Sprintf("Attribute %s is not found", ~name.Quote());
-}
-
-void TObjectProxyBase::DoSetAttribute(const Stroka name, INode* value, bool isSystem)
-{
-    if (isSystem) {
-        if (!SetSystemAttribute(name, ~ProducerFromNode(value))) {
-            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
-        }
-    } else {
-        SetUserAttribute(name, SerializeToYson(value));
-    }
-}
-
-yhash_set<Stroka> TObjectProxyBase::ListUserAttributes()
+yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::ListAttributes()
 {
     yhash_set<Stroka> attributes;
-    const auto* attributeSet = ObjectManager->FindAttributes(Id);
+    const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (attributeSet) {
         FOREACH (const auto& pair, attributeSet->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
@@ -375,9 +187,9 @@ yhash_set<Stroka> TObjectProxyBase::ListUserAttributes()
     return attributes;
 }
 
-TYson TObjectProxyBase::GetUserAttribute(const Stroka& name)
+TYson TObjectProxyBase::TUserAttributeDictionary::FindAttribute(const Stroka& name)
 {
-    const auto* attributeSet = ObjectManager->FindAttributes(Id);
+    const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
         return "";
     }
@@ -390,18 +202,20 @@ TYson TObjectProxyBase::GetUserAttribute(const Stroka& name)
     return it->second;
 }
 
-void TObjectProxyBase::SetUserAttribute(const Stroka& name, const TYson& value)
+void TObjectProxyBase::TUserAttributeDictionary::SetAttribute(
+    const Stroka& name,
+    const NYTree::TYson& value)
 {
-    auto* attributeSet = ObjectManager->FindAttributesForUpdate(Id);
+    auto* attributeSet = ObjectManager->FindAttributesForUpdate(ObjectId);
     if (!attributeSet) {
-        attributeSet = ObjectManager->CreateAttributes(Id);
+        attributeSet = ObjectManager->CreateAttributes(ObjectId);
     }
     attributeSet->Attributes()[name] = value;
 }
 
-bool TObjectProxyBase::RemoveUserAttribute(const Stroka& name)
+bool TObjectProxyBase::TUserAttributeDictionary::RemoveAttribute( const Stroka& name )
 {
-    auto* attributeSet = ObjectManager->FindAttributesForUpdate(Id);
+    auto* attributeSet = ObjectManager->FindAttributesForUpdate(ObjectId);
     if (!attributeSet) {
         return false;
     }
@@ -413,7 +227,7 @@ bool TObjectProxyBase::RemoveUserAttribute(const Stroka& name)
     YASSERT(!it->second.empty());
     attributeSet->Attributes().erase(it);
     if (attributeSet->Attributes().empty()) {
-        ObjectManager->RemoveAttributes(Id);
+        ObjectManager->RemoveAttributes(ObjectId);
     }
     return true;
 }

@@ -7,15 +7,14 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRedirecitingServiceBase
+class TRedirectorServiceBase
     : public IService
 {
-public:
-    TRedirecitingServiceBase(
+protected:
+    TRedirectorServiceBase(
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
-protected:
     struct TRedirectParams
     {
         TDuration Timeout;

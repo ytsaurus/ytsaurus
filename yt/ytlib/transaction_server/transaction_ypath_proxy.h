@@ -1,5 +1,6 @@
 #include "transaction_ypath.pb.h"
 
+#include <ytlib/misc/nullable.h>
 #include <ytlib/misc/configurable.h>
 #include <ytlib/object_server/object_ypath_proxy.h>
 
@@ -12,15 +13,15 @@ extern NYTree::TYPath RootTransactionPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): add expiration timeout
 struct TTransactionManifest
     : public TConfigurable
 {
-    TDuration Timeout;
+    TNullable<TDuration> Timeout;
 
     TTransactionManifest()
     {
-        Register("timeout", Timeout).Default();
+        Register("timeout", Timeout)
+            .Default();
     }
 };
 

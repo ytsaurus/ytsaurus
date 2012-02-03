@@ -15,6 +15,7 @@ namespace NYTree {
 
 class TEphemeralNodeBase
     : public TNodeBase
+    , public TSupportsAttributes
 {
 public:
     TEphemeralNodeBase()
@@ -37,25 +38,31 @@ public:
         Parent = parent;
     }
 
-protected:
-    IMapNode* GetOrCreateAttributes()
+
+    virtual IAttributeDictionary::TPtr GetAttributes()
     {
-        if (!Attributes) {
-            Attributes = GetEphemeralNodeFactory()->CreateMap();
-        }
-        return ~Attributes;
+        return GetUserAttributeDictionary();
     }
 
-    virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb)
+protected:
+    // TSupportsAttributes members
+
+    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary()
     {
-        auto attributes = GetOrCreateAttributes();
-        return TResolveResult::There(attributes, path);
+        if (!Attributes) {
+            Attributes = CreateInMemoryAttributeDictionary();
+        }
+        return Attributes;
+    }
+
+    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() 
+    {
+        return NULL;
     }
 
 private:
     ICompositeNode* Parent;
-    IMapNode::TPtr Attributes;
-
+    IAttributeDictionary::TPtr Attributes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

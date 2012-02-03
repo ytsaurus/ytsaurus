@@ -31,12 +31,17 @@ void TAttributedYPathServiceBase::DoInvoke(NRpc::IServiceContext* context)
     TYPathServiceBase::DoInvoke(context);
 }
 
-void TAttributedYPathServiceBase::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+void TAttributedYPathServiceBase::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     UNUSED(attributes);
 }
 
 bool TAttributedYPathServiceBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+{
+    return false;
+}
+
+bool TAttributedYPathServiceBase::SetSystemAttribute(const Stroka& name, TYsonProducer* producer)
 {
     return false;
 }
@@ -47,7 +52,7 @@ void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqG
     TYsonWriter writer(&stream, EYsonFormat::Binary);
         
     if (IsFinalYPath(path)) {
-        yvector<TAttributeInfo> systemAttributes;
+        std::vector<TAttributeInfo> systemAttributes;
         GetSystemAttributes(&systemAttributes);
 
         writer.OnBeginMap();
@@ -90,7 +95,7 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
     yvector<Stroka> keys;
 
     if (IsFinalYPath(path)) {
-        yvector<TAttributeInfo> systemAttributes;
+        std::vector<TAttributeInfo> systemAttributes;
         GetSystemAttributes(&systemAttributes);
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
@@ -194,7 +199,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* 
     context->Reply();
 }
 
-void TVirtualMapBase::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+void TVirtualMapBase::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     attributes->push_back("size");
     TAttributedYPathServiceBase::GetSystemAttributes(attributes);
@@ -215,6 +220,7 @@ bool TVirtualMapBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
 class TVirtualEntityNode
     : public TNodeBase
+    , public TSupportsAttributes
     , public IEntityNode
 {
     YTREE_NODE_TYPE_OVERRIDES(Entity)
@@ -250,10 +256,31 @@ public:
         }
     }
 
+    virtual IAttributeDictionary::TPtr GetAttributes()
+    {
+        return GetUserAttributeDictionary();
+    }
+
+protected:
+    // TSupportsAttributes members
+
+    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary()
+    {
+        if (!Attributes) {
+            Attributes = CreateInMemoryAttributeDictionary();
+        }
+        return Attributes;
+    }
+
+    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() 
+    {
+        return NULL;
+    }
+
 private:
     TYPathServiceProvider::TPtr Provider;
     ICompositeNode* Parent;
-
+    IAttributeDictionary::TPtr Attributes;
 };
 
 INode::TPtr CreateVirtualNode(TYPathServiceProvider* provider)
