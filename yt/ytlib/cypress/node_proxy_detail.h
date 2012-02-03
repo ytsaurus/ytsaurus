@@ -279,7 +279,7 @@ protected:
         ObjectManager->UnrefObject(child.GetId().ObjectId);
     }
 
-    virtual NYTree::IAttributeDictionary::TPtr GetUserAttributeDictionary()
+    virtual NYTree::IAttributeDictionary::TPtr DoCreateUserAttributeDictionary()
     {
         return New<TVersionedUserAttributeDictionary>(this);
     }

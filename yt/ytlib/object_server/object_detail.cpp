@@ -106,12 +106,20 @@ bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
 
 IAttributeDictionary::TPtr TObjectProxyBase::GetUserAttributeDictionary()
 {
-    return New<TUserAttributeDictionary>(Id, ~ObjectManager);
+    if (!UserAttributeDictionary) {
+        UserAttributeDictionary = DoCreateUserAttributeDictionary();
+    }
+    return UserAttributeDictionary;
 }
 
 ISystemAttributeProvider::TPtr TObjectProxyBase::GetSystemAttributeProvider()
 {
     return this;
+}
+
+IAttributeDictionary::TPtr TObjectProxyBase::DoCreateUserAttributeDictionary()
+{
+    return New<TUserAttributeDictionary>(Id, ~ObjectManager);
 }
 
 void TObjectProxyBase::GetSystemAttributes(std::vector<TAttributeInfo>* names)

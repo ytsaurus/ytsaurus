@@ -86,6 +86,7 @@ public:
 protected:
     TObjectManager::TPtr ObjectManager;
     TObjectId Id;
+    NYTree::IAttributeDictionary::TPtr UserAttributeDictionary;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
 
@@ -96,6 +97,8 @@ protected:
     // NYTree::TSupportsAttributes members
     virtual NYTree::IAttributeDictionary::TPtr GetUserAttributeDictionary();
     virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider();
+
+    virtual NYTree::IAttributeDictionary::TPtr DoCreateUserAttributeDictionary();
 
     // NYTree::ISystemAttributeProvider members
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
