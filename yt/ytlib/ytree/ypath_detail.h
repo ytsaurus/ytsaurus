@@ -70,9 +70,8 @@ class TSupportsAttributes
     , public virtual TSupportsRemove
 {
 protected:
-    // TODO(roizner): support NULL user attribute dictionary to
+    // TODO(roizner,babenko): support NULL user attribute dictionary to
     // allow TVirtualMapBase to use this mix-in.
-
     virtual IAttributeDictionary::TPtr GetUserAttributeDictionary() = 0;
 
     // Can be NULL.
