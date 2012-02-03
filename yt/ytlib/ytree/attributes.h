@@ -7,6 +7,8 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IMapNode;
+
 struct IAttributeDictionary
     : public virtual TRefCounted
 {
@@ -29,6 +31,9 @@ struct IAttributeDictionary
 
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
     TYson GetAttribute(const Stroka& name);
+
+    TIntrusivePtr<IMapNode> ToMap();
+    void Merge(const IMapNode* map);
 };
 
 IAttributeDictionary::TPtr CreateInMemoryAttributeDictionary();

@@ -104,7 +104,8 @@ private:
     TOrchidManifest::TPtr LoadManifest()
     {
         auto manifest = New<TOrchidManifest>();
-        auto manifestNode = ObjectManager->GetAttributesMap(Id);
+        // TODO(roizner): fix it, use CypressManager
+        auto manifestNode = ObjectManager->GetProxy(Id.ObjectId)->GetAttributes()->ToMap();
         try {
             manifest->LoadAndValidate(~manifestNode);
         } catch (const std::exception& ex) {

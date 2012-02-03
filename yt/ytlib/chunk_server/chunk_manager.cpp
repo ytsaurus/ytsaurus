@@ -1270,7 +1270,7 @@ TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
     UNUSED(manifest);
 
     auto id = Owner->CreateChunk().GetId();
-    ObjectManager->AddAttributes(id, manifest);
+    ObjectManager->GetProxy(id)->GetAttributes()->Merge(manifest);
     return id;
 }
 
@@ -1391,7 +1391,7 @@ TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(
     UNUSED(manifest);
 
     auto id = Owner->CreateChunkList().GetId();
-    ObjectManager->AddAttributes(id, manifest);
+    ObjectManager->GetProxy(id)->GetAttributes()->Merge(manifest);
     return id;
 }
 

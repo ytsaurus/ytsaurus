@@ -89,8 +89,8 @@ public:
         node->SetChunkListId(chunkListId);
         CypressManager->GetObjectManager()->RefObject(chunkListId);
 
-        ObjectManager->AddAttributes(nodeId, manifest);
-
+        ObjectManager->GetProxy(nodeId)->GetAttributes()->Merge(manifest);
+        
         // TODO(babenko): stupid TAutoPtr does not support upcast.
         return node.Release();
     }

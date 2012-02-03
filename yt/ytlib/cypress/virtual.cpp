@@ -112,7 +112,7 @@ public:
     {
         UNUSED(transactionId);
         TAutoPtr<ICypressNode> node = new TVirtualNode(nodeId);
-        ObjectManager->AddAttributes(nodeId, manifest);
+        ObjectManager->GetProxy(nodeId)->GetAttributes()->Merge(manifest);
         return node;
     }
 

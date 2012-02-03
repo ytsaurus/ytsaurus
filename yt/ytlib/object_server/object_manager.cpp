@@ -215,40 +215,9 @@ TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
     return result;
 }
 
-void TObjectManager::AddAttributes(const TVersionedObjectId& id, IMapNode* value)
-{
-    if (value->GetChildCount() == 0)
-        return;
-
-    auto* attributes = FindAttributesForUpdate(id);
-    if (!attributes) {
-        attributes = CreateAttributes(id);
-    }
-
-    FOREACH (const auto& pair, value->GetChildren()) {
-        const auto& key = pair.first;
-        auto value = SerializeToYson(~pair.second);
-        YVERIFY(attributes->Attributes().insert(MakePair(key, value)).second);
-    }
-}
-
 void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
 {
     Attributes.Remove(id);
-}
-
-IMapNode::TPtr TObjectManager::GetAttributesMap(const TVersionedObjectId& id) const
-{
-    auto map = GetEphemeralNodeFactory()->CreateMap();
-    const auto* attributes = FindAttributes(id);
-    if (!attributes) {
-        return map;
-    }
-    FOREACH (const auto& pair, attributes->Attributes()) {
-        auto value = DeserializeFromYson(pair.second);
-        map->AddChild(~value, pair.first);
-    }
-    return map;
 }
 
 void TObjectManager::BranchAttributes(

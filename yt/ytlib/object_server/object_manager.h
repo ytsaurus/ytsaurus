@@ -85,9 +85,6 @@ public:
     TAttributeSet* CreateAttributes(const TVersionedObjectId& id);
     void RemoveAttributes(const TVersionedObjectId& id);
 
-    void AddAttributes(const TVersionedObjectId& id, NYTree::IMapNode* value);
-    NYTree::IMapNode::TPtr GetAttributesMap(const TVersionedObjectId& id) const;
-
     //! Called on a versioned object is branched.
     void BranchAttributes(
         const TVersionedObjectId& originatingId,
