@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "ypath_detail.h"
 #include "ypath_client.h"
+#include "serialize.h"
 #include "rpc.pb.h"
 
 #include <ytlib/actions/action_util.h>
@@ -11,6 +12,7 @@
 namespace NYT {
 namespace NYTree {
 
+using namespace NProto;
 using namespace NBus;
 using namespace NRpc;
 using namespace NRpc::NProto;
@@ -137,6 +139,268 @@ IMPLEMENT_SUPPORTS_VERB(List)
 IMPLEMENT_SUPPORTS_VERB(Remove)
 
 #undef IMPLEMENT_SUPPORTS_VERB
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+    static TYson DoGetAttribute(
+        IAttributeDictionary* userAttributeDictionary,
+        ISystemAttributeProvider* systemAttributeProvider,
+        const Stroka& name,
+        bool* isSystem = NULL)
+    {
+        if (systemAttributeProvider) {
+            TStringStream stream;
+            TYsonWriter writer(&stream, EYsonFormat::Binary);
+            if (systemAttributeProvider->GetSystemAttribute(name, &writer)) {
+                if (isSystem) {
+                    *isSystem = true;
+                }
+                return stream.Str();
+            }
+        }
+
+        if (isSystem) {
+            *isSystem = false;
+        }
+        return userAttributeDictionary->GetAttribute(name);
+    }
+
+    static void DoSetAttribute(
+        IAttributeDictionary* userAttributeDictionary,
+        ISystemAttributeProvider* systemAttributeProvider,
+        const Stroka& name,
+        INode* value,
+        bool isSystem)
+    {
+        if (isSystem) {
+            YASSERT(systemAttributeProvider);
+            if (!systemAttributeProvider->SetSystemAttribute(name, ~ProducerFromNode(value))) {
+                ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
+            }
+        } else {
+            userAttributeDictionary->SetAttribute(name, SerializeToYson(value));
+        }
+    }
+
+    static void DoSetAttribute(
+        IAttributeDictionary* userAttributeDictionary,
+        ISystemAttributeProvider* systemAttributeProvider,
+        const Stroka& name,
+        const TYson& value)
+    {
+        if (systemAttributeProvider) {
+            if (systemAttributeProvider->SetSystemAttribute(name, ~ProducerFromYson(value))) {
+                return;
+            }
+
+            // Check for system attributes
+	        yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+    	    systemAttributeProvider->GetSystemAttributes(&systemAttributes);
+    	        
+            FOREACH (const auto& attribute, systemAttributes) {
+	            if (attribute.Name == name) {
+    	            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
+                }
+            }
+        }
+        
+
+        userAttributeDictionary->SetAttribute(name, value);
+    }
+} // namespace
+
+
+
+void TSupportsGetAttribute::GetAttribute(
+    const TYPath& path,
+    TReqGet* request,
+    TRspGet* response,
+    TCtxGet* context)
+{
+    auto userAttributeDictionary = GetUserAttributeDictionary();
+    auto systemAttributeProvider = GetSystemAttributeProvider();
+    
+    if (IsFinalYPath(path)) {
+        TStringStream stream;
+        TYsonWriter writer(&stream, EYsonFormat::Binary);
+        
+        writer.OnBeginMap();
+
+        if (systemAttributeProvider) {
+            yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+            systemAttributeProvider->GetSystemAttributes(&systemAttributes);
+            FOREACH (const auto& attribute, systemAttributes) {
+                if (attribute.IsPresent) {
+                    writer.OnMapItem(attribute.Name);
+                    if (attribute.IsOpaque) {
+                        writer.OnEntity();
+                    } else {
+                        YVERIFY(systemAttributeProvider->GetSystemAttribute(attribute.Name, &writer));
+                    }
+                }
+            }
+        }
+
+        const auto& userAttributes = userAttributeDictionary->ListAttributes();
+        FOREACH (const auto& name, userAttributes) {
+            writer.OnMapItem(name);
+            writer.OnRaw(userAttributeDictionary->GetAttribute(name));
+        }
+        
+        writer.OnEndMap();
+
+        response->set_value(stream.Str());
+    } else {
+        Stroka token;
+        TYPath suffixPath;
+        ChopYPathToken(path, &token, &suffixPath);
+
+        const auto& yson = DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token);
+
+        if (IsFinalYPath(suffixPath)) {
+            response->set_value(yson);
+        } else {
+            auto wholeValue = DeserializeFromYson(yson);
+            auto value = SyncYPathGet(~wholeValue, RootMarker + suffixPath);
+            response->set_value(value);
+        }
+    }
+
+    context->Reply();
+}
+
+void TSupportsListAttribute::ListAttribute(
+    const TYPath& path,
+    TReqList* request,
+    TRspList* response,
+    TCtxList* context)
+{
+    auto userAttributeDictionary = GetUserAttributeDictionary();
+    auto systemAttributeProvider = GetSystemAttributeProvider();
+    
+    yvector<Stroka> keys;
+
+    if (IsFinalYPath(path)) {
+        if (systemAttributeProvider) {
+            yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+            systemAttributeProvider->GetSystemAttributes(&systemAttributes);
+            FOREACH (const auto& attribute, systemAttributes) {
+                if (attribute.IsPresent) {
+                    keys.push_back(attribute.Name);
+                }
+            }
+        }
+        
+        const auto& userAttributes = userAttributeDictionary->ListAttributes();
+        // If we used vector instead of yvector, we could start with user
+        // attributes instead of copying them.
+        keys.insert(keys.end(), userAttributes.begin(), userAttributes.end());
+    } else {
+        Stroka token;
+        TYPath suffixPath;
+        ChopYPathToken(path, &token, &suffixPath);
+
+        auto wholeValue = DeserializeFromYson(DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token));
+        keys = SyncYPathList(~wholeValue, RootMarker + suffixPath);
+    }
+
+    ToProto(*response->mutable_keys(), keys);
+    context->Reply();
+}
+
+void TSupportsSetAttribute::SetAttribute(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    TCtxSet* context)
+{
+    auto userAttributeDictionary = GetUserAttributeDictionary();
+    auto systemAttributeProvider = GetSystemAttributeProvider();
+    
+    if (IsFinalYPath(path)) {
+        auto value = DeserializeFromYson(request->value());
+        if (value->GetType() != ENodeType::Map) {
+            ythrow yexception() << "Map value expected";
+        }
+
+        const auto& userAttributes = userAttributeDictionary->ListAttributes();
+        FOREACH (const auto& name, userAttributes) {
+            YVERIFY(userAttributeDictionary->RemoveAttribute(name));
+        }
+
+        auto mapValue = value->AsMap();
+        FOREACH (const auto& pair, mapValue->GetChildren()) {
+            auto key = pair.first;
+            YASSERT(!key.empty());
+            auto value = SerializeToYson(~pair.second);
+            DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, key, value);
+        }
+    } else {
+        Stroka token;
+        TYPath suffixPath;
+        ChopYPathToken(path, &token, &suffixPath);
+
+        if (IsFinalYPath(suffixPath)) {
+            if (token.empty()) {
+                ythrow yexception() << "Attribute key cannot be empty";
+            }
+            DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, request->value());
+        } else {
+            Stroka token;
+            TYPath suffixPath;
+            ChopYPathToken(path, &token, &suffixPath);
+
+            bool isSystem;
+            auto yson = DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, &isSystem);
+            auto wholeValue = DeserializeFromYson(yson);
+            SyncYPathSet(~wholeValue, RootMarker + suffixPath, request->value());
+            DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, ~wholeValue, isSystem);
+        }
+    }
+
+    context->Reply();
+}
+
+void TSupportsRemoveAttribute::RemoveAttribute(
+    const TYPath& path,
+    TReqRemove* request,
+    TRspRemove* response,
+    TCtxRemove* context)
+{
+    auto userAttributeDictionary = GetUserAttributeDictionary();
+    auto systemAttributeProvider = GetSystemAttributeProvider();
+    
+   if (IsFinalYPath(path)) {
+        const auto& userAttributes = userAttributeDictionary->ListAttributes();
+        FOREACH (const auto& name, userAttributes) {
+            YVERIFY(userAttributeDictionary->RemoveAttribute(name));
+        }
+    } else {
+        Stroka token;
+        TYPath suffixPath;
+        ChopYPathToken(path, &token, &suffixPath);
+
+        if (IsFinalYPath(suffixPath)) {
+            if (!userAttributeDictionary->RemoveAttribute(token)) {
+                ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
+            }
+        } else {
+            Stroka token;
+            TYPath suffixPath;
+            ChopYPathToken(path, &token, &suffixPath);
+
+            bool isSystem;
+            auto yson = DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, &isSystem);
+            auto wholeValue = DeserializeFromYson(yson);
+            SyncYPathRemove(~wholeValue, RootMarker + suffixPath);
+            DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, ~wholeValue, isSystem);
+        }
+    }
+
+    context->Reply();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

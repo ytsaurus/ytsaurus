@@ -68,10 +68,11 @@ public:
 
 class TObjectProxyBase
     : public virtual NYTree::TYPathServiceBase
-    , public virtual NYTree::TSupportsGet
-    , public virtual NYTree::TSupportsList
-    , public virtual NYTree::TSupportsSet
-    , public virtual NYTree::TSupportsRemove
+    , public virtual NYTree::TSupportsGetAttribute
+    , public virtual NYTree::TSupportsListAttribute
+    , public virtual NYTree::TSupportsSetAttribute
+    , public virtual NYTree::TSupportsRemoveAttribute
+    , public virtual NYTree::ISystemAttributeProvider
     , public virtual IObjectProxy
 {
 public:
@@ -88,9 +89,6 @@ protected:
 
     virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
 
-    NYTree::TYson DoGetAttribute(const Stroka& name, bool* isSystem = NULL);
-    void DoSetAttribute(const Stroka name, NYTree::INode* value, bool isSystem);
-
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
@@ -102,7 +100,7 @@ protected:
      *  \note
      *  Must not clear #attributes since additional items may be added in inheritors.
      */
-    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes);
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
 
     //! Gets the value of a system attribute.
     /*!
@@ -117,10 +115,7 @@ protected:
      */
     virtual bool SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer);
 
-    virtual void GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
-    virtual void ListAttribute(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
-    virtual void SetAttribute(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
-    virtual void RemoveAttribute(const NYTree::TYPath& path, TReqRemove* request, TRspRemove* response, TCtxRemove* context);
+
 
     // The following methods provide means for accessing attribute sets.
     // In particular, these methods are responsible for resolving object and transaction ids.

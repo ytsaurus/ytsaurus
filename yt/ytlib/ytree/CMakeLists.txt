@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree )
 set( SRCS
+  ${BASE}/attributes.cpp
   ${BASE}/common.cpp
   ${BASE}/ephemeral.cpp
   ${BASE}/forwarding_yson_consumer.cpp
@@ -19,6 +20,7 @@ set( SRCS
   ${BASE}/yson_writer.cpp
 )
 set( HDRS
+  ${BASE}/attributes.h
   ${BASE}/common.h
   ${BASE}/ephemeral.h
   ${BASE}/fluent.h

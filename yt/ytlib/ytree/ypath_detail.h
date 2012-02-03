@@ -7,6 +7,7 @@
 #include "yson_writer.h"
 #include "forwarding_yson_consumer.h"
 #include "ypath.pb.h"
+#include "attributes.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/assert.h>
@@ -61,18 +62,62 @@ DECLARE_SUPPORTS_VERB(Remove);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes a system attribute.
-struct TAttributeInfo
+struct IAttributeProvider
+    : public virtual TRefCounted
 {
-    Stroka Name;
-    bool IsPresent;
-    bool IsOpaque;
+protected:
+    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary() = 0;
 
-    TAttributeInfo(const char* name, bool isPresent = true, bool isOpaque = false)
-        : Name(name)
-        , IsPresent(isPresent)
-        , IsOpaque(isOpaque)
-    { }
+    // Can be NULL.
+    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() = 0;
+};
+
+class TSupportsGetAttribute
+    : public virtual TSupportsGet
+    , protected virtual IAttributeProvider
+{
+protected:
+    virtual void GetAttribute(
+        const TYPath& path,
+        TReqGet* request,
+        TRspGet* response,
+        TCtxGet* context);
+};
+
+class TSupportsListAttribute
+    : public virtual TSupportsList
+    , protected virtual IAttributeProvider
+{
+protected:
+    virtual void ListAttribute(
+        const TYPath& path,
+        TReqList* request,
+        TRspList* response,
+        TCtxList* context);
+};
+
+class TSupportsSetAttribute
+    : public virtual TSupportsSet
+    , protected virtual IAttributeProvider
+{
+protected:
+    virtual void SetAttribute(
+        const TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        TCtxSet* context);
+};
+
+class TSupportsRemoveAttribute
+    : public virtual TSupportsRemove
+    , protected virtual IAttributeProvider
+{
+protected:
+    virtual void RemoveAttribute(
+        const TYPath& path,
+        TReqRemove* request,
+        TRspRemove* response,
+        TCtxRemove* context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
