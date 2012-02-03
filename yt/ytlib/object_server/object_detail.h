@@ -68,10 +68,7 @@ public:
 
 class TObjectProxyBase
     : public virtual NYTree::TYPathServiceBase
-    , public virtual NYTree::TSupportsGetAttribute
-    , public virtual NYTree::TSupportsListAttribute
-    , public virtual NYTree::TSupportsSetAttribute
-    , public virtual NYTree::TSupportsRemoveAttribute
+    , public virtual NYTree::TSupportsAttributes
     , public virtual NYTree::ISystemAttributeProvider
     , public virtual IObjectProxy
 {
@@ -97,7 +94,7 @@ protected:
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
-    // NYTree::IAttributeProvider members
+    // NYTree::TSupportsAttributes members
     virtual NYTree::IAttributeDictionary::TPtr GetUserAttributeDictionary();
     virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider();
 

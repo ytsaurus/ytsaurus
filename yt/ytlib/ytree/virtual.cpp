@@ -52,7 +52,7 @@ void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqG
     TYsonWriter writer(&stream, EYsonFormat::Binary);
         
     if (IsFinalYPath(path)) {
-        yvector<TAttributeInfo> systemAttributes;
+        std::vector<TAttributeInfo> systemAttributes;
         GetSystemAttributes(&systemAttributes);
 
         writer.OnBeginMap();
@@ -95,7 +95,7 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
     yvector<Stroka> keys;
 
     if (IsFinalYPath(path)) {
-        yvector<TAttributeInfo> systemAttributes;
+        std::vector<TAttributeInfo> systemAttributes;
         GetSystemAttributes(&systemAttributes);
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
@@ -199,7 +199,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* 
     context->Reply();
 }
 
-void TVirtualMapBase::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+void TVirtualMapBase::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     attributes->push_back("size");
     TAttributedYPathServiceBase::GetSystemAttributes(attributes);

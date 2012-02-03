@@ -51,7 +51,7 @@ private:
 
     TTransactionManager::TPtr Owner;
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("state");
         attributes->push_back("parent_id");

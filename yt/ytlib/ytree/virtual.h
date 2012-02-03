@@ -43,7 +43,7 @@ private:
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer);
 };
 

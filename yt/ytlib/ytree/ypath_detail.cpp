@@ -212,7 +212,7 @@ namespace {
 
 
 
-void TSupportsGetAttribute::GetAttribute(
+void TSupportsAttributes::GetAttribute(
     const TYPath& path,
     TReqGet* request,
     TRspGet* response,
@@ -270,7 +270,7 @@ void TSupportsGetAttribute::GetAttribute(
     context->Reply();
 }
 
-void TSupportsListAttribute::ListAttribute(
+void TSupportsAttributes::ListAttribute(
     const TYPath& path,
     TReqList* request,
     TRspList* response,
@@ -309,7 +309,7 @@ void TSupportsListAttribute::ListAttribute(
     context->Reply();
 }
 
-void TSupportsSetAttribute::SetAttribute(
+void TSupportsAttributes::SetAttribute(
     const TYPath& path,
     TReqSet* request,
     TRspSet* response,
@@ -362,7 +362,7 @@ void TSupportsSetAttribute::SetAttribute(
     context->Reply();
 }
 
-void TSupportsRemoveAttribute::RemoveAttribute(
+void TSupportsAttributes::RemoveAttribute(
     const TYPath& path,
     TReqRemove* request,
     TRspRemove* response,

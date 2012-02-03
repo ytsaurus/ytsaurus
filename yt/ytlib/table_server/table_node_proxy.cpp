@@ -79,7 +79,7 @@ void TTableNodeProxy::TraverseChunkTree(
     }
 }
 
-void TTableNodeProxy::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));

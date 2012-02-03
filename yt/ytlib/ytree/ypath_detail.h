@@ -62,57 +62,40 @@ DECLARE_SUPPORTS_VERB(Remove);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IAttributeProvider
+class TSupportsAttributes
     : public virtual TRefCounted
+    , public virtual TSupportsGet
+    , public virtual TSupportsList
+    , public virtual TSupportsSet
+    , public virtual TSupportsRemove
 {
 protected:
+    // TODO(roizner): support NULL user attribute dictionary to
+    // allow TVirtualMapBase to use this mix-in.
+
     virtual IAttributeDictionary::TPtr GetUserAttributeDictionary() = 0;
 
     // Can be NULL.
     virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() = 0;
-};
 
-class TSupportsGetAttribute
-    : public virtual TSupportsGet
-    , protected virtual IAttributeProvider
-{
-protected:
     virtual void GetAttribute(
         const TYPath& path,
         TReqGet* request,
         TRspGet* response,
         TCtxGet* context);
-};
 
-class TSupportsListAttribute
-    : public virtual TSupportsList
-    , protected virtual IAttributeProvider
-{
-protected:
     virtual void ListAttribute(
         const TYPath& path,
         TReqList* request,
         TRspList* response,
         TCtxList* context);
-};
 
-class TSupportsSetAttribute
-    : public virtual TSupportsSet
-    , protected virtual IAttributeProvider
-{
-protected:
     virtual void SetAttribute(
         const TYPath& path,
         TReqSet* request,
         TRspSet* response,
         TCtxSet* context);
-};
 
-class TSupportsRemoveAttribute
-    : public virtual TSupportsRemove
-    , protected virtual IAttributeProvider
-{
-protected:
     virtual void RemoveAttribute(
         const TYPath& path,
         TReqRemove* request,

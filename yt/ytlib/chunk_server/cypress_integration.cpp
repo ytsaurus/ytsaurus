@@ -249,7 +249,7 @@ private:
         return ChunkManager->FindHolder(address);
     }
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         const auto* holder = GetHolder();
         attributes->push_back("alive");
@@ -446,7 +446,7 @@ public:
 private:
     TChunkManager::TPtr ChunkManager;
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("alive");
         attributes->push_back("dead");

@@ -1101,7 +1101,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         const auto& chunk = GetTypedImpl();
         attributes->push_back("confirmed");
@@ -1299,7 +1299,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("children_ids");
         attributes->push_back("parent_ids");
