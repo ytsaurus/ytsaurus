@@ -130,6 +130,11 @@ public:
         return NYTree::TNodeBase::IsWriteRequest(context);
     }
 
+    virtual NYTree::IAttributeDictionary::TPtr GetAttributes()
+    {
+        return NObjectServer::TObjectProxyBase::GetAttributes();
+    }
+
 protected:
     const INodeTypeHandler::TPtr TypeHandler;
     const TCypressManager::TPtr CypressManager;

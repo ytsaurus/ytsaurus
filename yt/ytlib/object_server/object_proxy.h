@@ -2,6 +2,7 @@
 
 #include "id.h"
 
+#include <ytlib/ytree/attributes.h>
 #include <ytlib/ytree/ypath_service.h>
 
 namespace NYT {
@@ -17,6 +18,9 @@ struct IObjectProxy
 
     //! Returns object id.
     virtual TObjectId GetId() const = 0;
+
+    //! Returns object attributes.
+    virtual NYTree::IAttributeDictionary::TPtr GetAttributes() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

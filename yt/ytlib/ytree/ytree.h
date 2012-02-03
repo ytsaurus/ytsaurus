@@ -1,5 +1,6 @@
 #pragma once
 
+#include "attributes.h"
 #include "common.h"
 #include "ytree_fwd.h"
 #include "ypath_service.h"
@@ -105,6 +106,9 @@ struct INode
     {
         NDetail::TScalarTypeTraits<T>::SetValue(this, value);
     }
+
+    //! Returns node attributes.
+    virtual IAttributeDictionary::TPtr GetAttributes() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

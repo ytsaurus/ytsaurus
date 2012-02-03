@@ -79,6 +79,11 @@ TObjectId TObjectProxyBase::GetId() const
     return Id;
 }
 
+IAttributeDictionary::TPtr TObjectProxyBase::GetAttributes()
+{
+    return GetUserAttributeDictionary();
+}
+
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
     UNUSED(request);

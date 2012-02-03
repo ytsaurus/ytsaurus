@@ -38,6 +38,12 @@ public:
         Parent = parent;
     }
 
+
+    virtual IAttributeDictionary::TPtr GetAttributes()
+    {
+        return GetUserAttributeDictionary();
+    }
+
 protected:
     // TSupportsAttributes members
 
