@@ -8,7 +8,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IAttributeDictionary
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IAttributeDictionary> TPtr;
 
@@ -35,7 +35,7 @@ IAttributeDictionary::TPtr CreateInMemoryAttributeDictionary();
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISystemAttributeProvider
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     typedef TIntrusivePtr<ISystemAttributeProvider> TPtr;
 

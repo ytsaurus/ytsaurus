@@ -130,7 +130,7 @@ IYPathService::TResolveResult TObjectProxyBase::ResolveAttributes(
     return TResolveResult::Here(AttributeMarker + path);
 }
 
-void TObjectProxyBase::GetSystemAttributes(yvector<TAttributeInfo>* names)
+void TObjectProxyBase::GetSystemAttributes(std::vector<TAttributeInfo>* names)
 {
     names->push_back("id");
     names->push_back("type");

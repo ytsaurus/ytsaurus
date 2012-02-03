@@ -31,12 +31,17 @@ void TAttributedYPathServiceBase::DoInvoke(NRpc::IServiceContext* context)
     TYPathServiceBase::DoInvoke(context);
 }
 
-void TAttributedYPathServiceBase::GetSystemAttributes(yvector<TAttributeInfo>* attributes)
+void TAttributedYPathServiceBase::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     UNUSED(attributes);
 }
 
 bool TAttributedYPathServiceBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+{
+    return false;
+}
+
+bool TAttributedYPathServiceBase::SetSystemAttribute(const Stroka& name, TYsonProducer* producer)
 {
     return false;
 }

@@ -138,7 +138,7 @@ protected:
     const TNodeId NodeId;
 
 
-    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
         attributes->push_back("lock_mode");
@@ -279,112 +279,137 @@ protected:
         ObjectManager->UnrefObject(child.GetId().ObjectId);
     }
 
-
-    virtual yhash_set<Stroka> ListUserAttributes()
+    virtual NYTree::IAttributeDictionary::TPtr GetUserAttributeDictionary()
     {
-        if (TransactionId == NullTransactionId) {
-            return TObjectProxyBase::ListUserAttributes();
-        }
+        return New<TVersionedUserAttributeDictionary>(this);
+    }
 
-        yhash_set<Stroka> attributes;
-        auto transactionIds = CypressManager->GetTransactionManager()->GetTransactionPath(TransactionId);
-        for (auto it = transactionIds.rbegin(); it != transactionIds.rend(); ++it) {
-            TVersionedObjectId parentId(NodeId, *it);
-            const auto* userAttributes = ObjectManager->FindAttributes(parentId);
-            if (userAttributes) {
-                FOREACH (const auto& pair, userAttributes->Attributes()) {
-                    if (pair.second.empty()) {
-                        attributes.erase(pair.first);
-                    } else {
-                        attributes.insert(pair.first);
+    class TVersionedUserAttributeDictionary
+        : public NObjectServer::TObjectProxyBase::TUserAttributeDictionary
+    {
+    public:
+        TVersionedUserAttributeDictionary(TCypressNodeProxyBase* nodeProxy)
+            : TUserAttributeDictionary(
+                nodeProxy->NodeId,
+                nodeProxy->CypressManager->GetObjectManager())
+            , TransactionId(nodeProxy->TransactionId)
+            , TransactionManager(nodeProxy->CypressManager->GetTransactionManager())
+            , NodeProxy(nodeProxy)
+        { }
+           
+        
+        virtual yhash_set<Stroka> ListAttributes()
+        {
+            if (TransactionId == NullTransactionId) {
+                return TUserAttributeDictionary::ListAttributes();
+            }
+
+            yhash_set<Stroka> attributes;
+            auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
+            for (auto it = transactionIds.rbegin(); it != transactionIds.rend(); ++it) {
+                TVersionedObjectId parentId(ObjectId, *it);
+                const auto* userAttributes = ObjectManager->FindAttributes(parentId);
+                if (userAttributes) {
+                    FOREACH (const auto& pair, userAttributes->Attributes()) {
+                        if (pair.second.empty()) {
+                            attributes.erase(pair.first);
+                        } else {
+                            attributes.insert(pair.first);
+                        }
                     }
                 }
             }
+            return attributes;
         }
-        return attributes;
-    }
 
-    virtual NYTree::TYson GetUserAttribute(const Stroka& name)
-    {
-        if (TransactionId == NullTransactionId) {
-            return TObjectProxyBase::GetUserAttribute(name);
-        }
-        auto transactionIds = CypressManager->GetTransactionManager()->GetTransactionPath(TransactionId);
-        FOREACH (const auto& transactionId, transactionIds) {
-            TVersionedObjectId parentId(NodeId, transactionId);
-            const auto* userAttributes = ObjectManager->FindAttributes(parentId);
-            if (userAttributes) {
-                auto it = userAttributes->Attributes().find(name);
-                if (it != userAttributes->Attributes().end()) {
-                    if (it->second.empty()) {
-                        break;
-                    } else {
-                        return it->second;
+        virtual NYTree::TYson GetAttribute(const Stroka& name)
+        {
+            if (TransactionId == NullTransactionId) {
+                return TUserAttributeDictionary::GetAttribute(name);
+            }
+
+            auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
+            FOREACH (const auto& transactionId, transactionIds) {
+                TVersionedObjectId parentId(ObjectId, transactionId);
+                const auto* userAttributes = ObjectManager->FindAttributes(parentId);
+                if (userAttributes) {
+                    auto it = userAttributes->Attributes().find(name);
+                    if (it != userAttributes->Attributes().end()) {
+                        if (it->second.empty()) {
+                            break;
+                        } else {
+                            return it->second;
+                        }
                     }
                 }
             }
-        }
-        return NYTree::TYson();
-    }
-
-    virtual void SetUserAttribute(const Stroka& name, const NYTree::TYson& value)
-    {
-        // This also takes the lock.
-        auto id = GetImplForUpdate(NodeId).GetId();
-
-        if (TransactionId == NullTransactionId) {
-            TObjectProxyBase::SetUserAttribute(name, value);
-            return;
+            return NYTree::TYson();
         }
 
-        auto* userAttributes = ObjectManager->FindAttributesForUpdate(id);
-        if (!userAttributes) {
-            userAttributes = ObjectManager->CreateAttributes(id);
-        }
+        virtual void SetAttribute(const Stroka& name, const NYTree::TYson& value)
+        {
+            // This also takes the lock.
+            auto id = NodeProxy->GetImplForUpdate(ObjectId).GetId();
 
-        userAttributes->Attributes()[name] = value;
-    }
-
-    virtual bool RemoveUserAttribute(const Stroka& name)
-    {
-        // This also takes the lock.
-        auto id = GetImplForUpdate(NodeId).GetId();
-
-        if (TransactionId == NullTransactionId) {
-            return TObjectProxyBase::RemoveUserAttribute(name);
-        }
-
-        bool contains = false;
-        auto transactionIds = CypressManager->GetTransactionManager()->GetTransactionPath(TransactionId);
-        for (auto it = transactionIds.rbegin() + 1; it != transactionIds.rend(); ++it) {
-            TVersionedObjectId parentId(NodeId, *it);
-            const auto* userAttributes = ObjectManager->FindAttributes(parentId);
-            if (userAttributes) {
-                auto it = userAttributes->Attributes().find(name);
-                if (it == userAttributes->Attributes().end()) {
-                    // contains = false
-                    break;
-                } else {
-                    contains = true;
-                    break;
-                }
+            if (TransactionId == NullTransactionId) {
+                TUserAttributeDictionary::SetAttribute(name, value);
+                return;
             }
-        }
 
-        auto* userAttributes = ObjectManager->FindAttributesForUpdate(id);
-        if (contains) {
+            auto* userAttributes = ObjectManager->FindAttributesForUpdate(id);
             if (!userAttributes) {
                 userAttributes = ObjectManager->CreateAttributes(id);
             }
-            userAttributes->Attributes()[name] = "";
-            return true;
-        } else {
-            if (!userAttributes) {
-                return false;
-            }
-            return userAttributes->Attributes().erase(name) > 0;
+
+            userAttributes->Attributes()[name] = value;
         }
-    }
+
+        virtual bool RemoveAttribute(const Stroka& name)
+        {
+            // This also takes the lock.
+            auto id = NodeProxy->GetImplForUpdate(ObjectId).GetId();
+
+            if (TransactionId == NullTransactionId) {
+                return TUserAttributeDictionary::RemoveAttribute(name);
+            }
+
+            bool contains = false;
+            auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
+            for (auto it = transactionIds.rbegin() + 1; it != transactionIds.rend(); ++it) {
+                TVersionedObjectId parentId(ObjectId, *it);
+                const auto* userAttributes = ObjectManager->FindAttributes(parentId);
+                if (userAttributes) {
+                    auto it = userAttributes->Attributes().find(name);
+                    if (it == userAttributes->Attributes().end()) {
+                        // contains = false
+                        break;
+                    } else {
+                        contains = true;
+                        break;
+                    }
+                }
+            }
+
+            auto* userAttributes = ObjectManager->FindAttributesForUpdate(id);
+            if (contains) {
+                if (!userAttributes) {
+                    userAttributes = ObjectManager->CreateAttributes(id);
+                }
+                userAttributes->Attributes()[name] = "";
+                return true;
+            } else {
+                if (!userAttributes) {
+                    return false;
+                }
+                return userAttributes->Attributes().erase(name) > 0;
+            }
+        }
+    protected:
+        TTransactionId TransactionId;
+        NTransactionServer::TTransactionManager::TPtr TransactionManager;
+        typename TCypressNodeProxyBase::TPtr NodeProxy; // We need it for locking
+    };
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -506,7 +531,7 @@ protected:
     }
 
 protected:
-    virtual void GetSystemAttributes(yvector<NYTree::TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes)
     {
         attributes->push_back("size");
         TBase::GetSystemAttributes(attributes);

@@ -12,15 +12,18 @@ class TAttributedYPathServiceBase
     : public TYPathServiceBase
     , public TSupportsGet
     , public TSupportsList
+    , public ISystemAttributeProvider
 {
 protected:
     virtual TResolveResult ResolveAttributes(const NYTree::TYPath& path, const Stroka& verb);
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
     
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer);
+    virtual bool SetSystemAttribute(const Stroka& name, TYsonProducer* producer);
    
+    // TODO(roizner): Use mix-in TSupportsAttributes
     virtual void GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void ListAttribute(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context);
 };

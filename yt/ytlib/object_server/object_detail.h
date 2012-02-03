@@ -102,7 +102,7 @@ protected:
     virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider();
 
     // NYTree::ISystemAttributeProvider members
-    virtual void GetSystemAttributes(yvector<TAttributeInfo>* attributes);
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
     virtual bool SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer);
 
