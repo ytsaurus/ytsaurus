@@ -21,6 +21,7 @@ set( DIRS
   monitoring
   driver
   object_server
+  scheduler
 )
 
 foreach( _d_ ${DIRS} )

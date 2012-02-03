@@ -58,6 +58,10 @@ protected:
             ythrow NRpc::TServiceException(NRpc::EErrorCode::Unavailable) <<
                 "Not a leader";
         }
+        if (!MetaStateManager->HasActiveQuorum()) {
+            ythrow NRpc::TServiceException(NRpc::EErrorCode::Unavailable) <<
+                "Leader currently has no active quorum";
+        }
     }
 };
 

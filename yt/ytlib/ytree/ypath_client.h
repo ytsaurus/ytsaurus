@@ -184,16 +184,12 @@ void ResolveYPath(
 
 //! Asynchronously executes an untyped YPath verb against a given service.
 TFuture<NBus::IMessage::TPtr>::TPtr
-ExecuteVerb(
-    NBus::IMessage* requestMessage,
-    IYPathProcessor* processor);
+ExecuteVerb(NBus::IMessage* requestMessage, IYPathProcessor* processor);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteVerb(
-    TTypedRequest* request,
-    IYPathProcessor* processor);
+ExecuteVerb(TTypedRequest* request, IYPathProcessor* processor);
 
 //! Asynchronously executes "Get" verb. 
 TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* rootService, const TYPath& path);
