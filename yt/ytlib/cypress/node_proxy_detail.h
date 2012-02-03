@@ -281,20 +281,23 @@ protected:
 
     virtual NYTree::IAttributeDictionary::TPtr DoCreateUserAttributeDictionary()
     {
-        return New<TVersionedUserAttributeDictionary>(this);
+        return New<TVersionedUserAttributeDictionary>(NodeId, TransactionId, ~CypressManager);
     }
 
     class TVersionedUserAttributeDictionary
         : public NObjectServer::TObjectProxyBase::TUserAttributeDictionary
     {
     public:
-        TVersionedUserAttributeDictionary(TCypressNodeProxyBase* nodeProxy)
+        TVersionedUserAttributeDictionary(
+            TObjectId objectId,
+            TTransactionId transactionId,
+            TCypressManager* cypressManager)
             : TUserAttributeDictionary(
-                nodeProxy->NodeId,
-                nodeProxy->CypressManager->GetObjectManager())
-            , TransactionId(nodeProxy->TransactionId)
-            , TransactionManager(nodeProxy->CypressManager->GetTransactionManager())
-            , NodeProxy(nodeProxy)
+                objectId,
+                cypressManager->GetObjectManager())
+            , TransactionId(transactionId)
+            , CypressManager(cypressManager)
+            , TransactionManager(cypressManager->GetTransactionManager())
         { }
            
         
@@ -349,7 +352,7 @@ protected:
         virtual void SetAttribute(const Stroka& name, const NYTree::TYson& value)
         {
             // This also takes the lock.
-            auto id = NodeProxy->GetImplForUpdate(ObjectId).GetId();
+            auto id = CypressManager->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
 
             if (TransactionId == NullTransactionId) {
                 TUserAttributeDictionary::SetAttribute(name, value);
@@ -367,7 +370,7 @@ protected:
         virtual bool RemoveAttribute(const Stroka& name)
         {
             // This also takes the lock.
-            auto id = NodeProxy->GetImplForUpdate(ObjectId).GetId();
+            auto id = CypressManager->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
 
             if (TransactionId == NullTransactionId) {
                 return TUserAttributeDictionary::RemoveAttribute(name);
@@ -406,8 +409,8 @@ protected:
         }
     protected:
         TTransactionId TransactionId;
+        TCypressManager::TPtr CypressManager;
         NTransactionServer::TTransactionManager::TPtr TransactionManager;
-        typename TCypressNodeProxyBase::TPtr NodeProxy; // We need it for locking
     };
 
 };

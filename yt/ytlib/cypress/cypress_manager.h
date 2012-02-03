@@ -60,12 +60,12 @@ public:
     ICypressNode* FindVersionedNodeForUpdate(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        ELockMode requestedMode);
+        ELockMode requestedMode = ELockMode::Exclusive);
 
     ICypressNode& GetVersionedNodeForUpdate(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        ELockMode requestedMode);
+        ELockMode requestedMode = ELockMode::Exclusive);
 
     TIntrusivePtr<NObjectServer::IObjectProxy> FindObjectProxy(
         const TObjectId& objectId,
@@ -86,7 +86,7 @@ public:
     TLockId LockVersionedNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
-        ELockMode requestedMode);
+        ELockMode requestedMode = ELockMode::Exclusive);
 
     TIntrusivePtr<ICypressNodeProxy> CreateNode(
         EObjectType type,
