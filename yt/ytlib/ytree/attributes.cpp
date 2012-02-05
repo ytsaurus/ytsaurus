@@ -30,7 +30,7 @@ IMapNode::TPtr IAttributeDictionary::ToMap()
     return map;
 }
 
-void IAttributeDictionary::Merge(const IMapNode* map)
+void IAttributeDictionary::MergeFrom(const IMapNode* map)
 {
     FOREACH (const auto& pair, map->GetChildren()) {
         const auto& key = pair.first;

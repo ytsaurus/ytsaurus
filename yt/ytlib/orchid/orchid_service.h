@@ -27,7 +27,7 @@ public:
 private:
     typedef TOrchidService TThis;
 
-    NYTree::INode::TPtr Root;
+    NYTree::IYPathService::TPtr RootService;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Execute);
 

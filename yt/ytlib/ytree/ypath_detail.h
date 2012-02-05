@@ -32,6 +32,7 @@ public:
 protected:
     NLog::TLogger Logger;
 
+    void GuardedInvoke(NRpc::IServiceContext* context);
     virtual void DoInvoke(NRpc::IServiceContext* context);
     virtual TResolveResult ResolveSelf(const TYPath& path, const Stroka& verb);
     virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);
@@ -329,6 +330,8 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler);
+
+IYPathService::TPtr CreateRootService(IYPathService* underlyingService);
 
 ////////////////////////////////////////////////////////////////////////////////
 

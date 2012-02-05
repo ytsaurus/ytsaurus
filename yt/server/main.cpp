@@ -85,7 +85,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     // Configure logging.
-    NLog::TLogManager::Get()->Configure(configFileName, "/logging");
+    NLog::TLogManager::Get()->Configure(configFileName, "logging");
 
     // Parse configuration file.
     INode::TPtr configNode;

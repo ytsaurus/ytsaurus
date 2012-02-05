@@ -13,14 +13,12 @@ namespace NObjectServer {
 //! Provides a way for arbitrary objects to serve YPath requests.
 struct IObjectProxy
     : public virtual NYTree::IYPathService
+    , public virtual NYTree::IAttributeProvider
 {
     typedef TIntrusivePtr<IObjectProxy> TPtr;
 
     //! Returns object id.
     virtual TObjectId GetId() const = 0;
-
-    //! Returns object attributes.
-    virtual NYTree::IAttributeDictionary::TPtr GetAttributes() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

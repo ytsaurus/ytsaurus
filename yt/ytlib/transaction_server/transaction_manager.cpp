@@ -20,7 +20,6 @@ namespace NTransactionServer {
 using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NYTree;
-using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,8 +225,14 @@ public:
             : &Owner->GetTransactionForUpdate(transactionId);
 
         auto id = Owner->Start(parent, ~manifest).GetId();
-        ObjectManager->GetProxy(id)->GetAttributes()->Merge(manifestNode);
+        auto proxy = ObjectManager->GetProxy(id);
+        proxy->GetAttributes()->MergeFrom(manifestNode);
         return id;
+    }
+
+    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id)
+    {
+        return New<TTransactionProxy>(Owner, id.ObjectId);
     }
 
     virtual bool IsTransactionRequired() const
@@ -237,11 +242,6 @@ public:
 
 private:
     TTransactionManager* Owner;
-
-    virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id)
-    {
-        return New<TTransactionProxy>(Owner, id);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -411,7 +411,8 @@ void TTransactionManager::OnLeaderRecoveryComplete()
     FOREACH (const auto& pair, TransactionMap) {
         const auto& id = pair.first;
         const auto& transaction = *pair.second;
-        auto manifestNode = ObjectManager->GetProxy(id)->GetAttributes()->ToMap();
+        auto proxy = ObjectManager->GetProxy(id);
+        auto manifestNode = proxy->GetAttributes()->ToMap();
         auto manifest = New<TTransactionManifest>();
         manifest->LoadAndValidate(~manifestNode);
         CreateLease(transaction, ~manifest);
@@ -448,18 +449,13 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (!FindTransaction(id))
+    auto proxy = ObjectManager->FindProxy(id);
+    if (!proxy)
         return;
-
     LOG_INFO("Transaction expired (TransactionId: %s)", ~id.ToString());
 
-    auto req = TTransactionYPathProxy::Abort(FromObjectId(id));
-    ExecuteVerb(~req, ~CypressManager->CreateProcessor());
-}
-
-void TTransactionManager::SetCypressManager(NCypress::TCypressManager* cypressManager)
-{
-    CypressManager = cypressManager;
+    auto req = TTransactionYPathProxy::Abort();
+    ExecuteVerb(~proxy, ~req);
 }
 
 TObjectManager* TTransactionManager::GetObjectManager() const

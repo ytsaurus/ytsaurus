@@ -39,4 +39,3 @@ list(APPEND YT_SOURCE_FILES
 
 protoc( ${BASE}/cypress_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/cypress_service.proto YT_SOURCE_FILES )
-protoc( ${BASE}/cypress_manager.proto YT_SOURCE_FILES )

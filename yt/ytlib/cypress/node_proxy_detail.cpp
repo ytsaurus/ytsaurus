@@ -29,11 +29,10 @@ TNodeFactory::~TNodeFactory()
 
 ICypressNodeProxy::TPtr TNodeFactory::DoCreate(EObjectType type)
 {
-    auto node = CypressManager->CreateNode(type, TransactionId);
-    auto nodeId = node->GetId();
-    CypressManager->GetObjectManager()->RefObject(nodeId);
-    CreatedNodeIds.push_back(nodeId);
-    return node;
+    auto id = CypressManager->CreateNode(type, TransactionId);
+    CypressManager->GetObjectManager()->RefObject(id);
+    CreatedNodeIds.push_back(id);
+    return CypressManager->GetVersionedNodeProxy(id, NullTransactionId);
 }
 
 IStringNode::TPtr TNodeFactory::CreateString()

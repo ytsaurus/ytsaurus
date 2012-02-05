@@ -56,6 +56,7 @@ class TCypressNodeProxyBase
 public:
     typedef TIntrusivePtr<TCypressNodeProxyBase> TPtr;
 
+    // TODO(babenko): pass TVersionedNodeId
     TCypressNodeProxyBase(
         INodeTypeHandler* typeHandler,
         TCypressManager* cypressManager,
@@ -582,14 +583,16 @@ protected:
             ythrow yexception() << "Unknown object type";
         }
 
-        auto value = this->CypressManager->CreateDynamicNode(
+        auto nodeId = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
             EObjectType(request->type()),
             ~manifestNode->AsMap());
 
-        CreateRecursive(context->GetPath(), ~value);
+        auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, this->TransactionId);
 
-        response->set_object_id(value->GetId().ToProto());
+        CreateRecursive(context->GetPath(), ~proxy);
+
+        response->set_object_id(nodeId.ToProto());
 
         context->Reply();
     }

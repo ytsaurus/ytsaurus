@@ -3,12 +3,10 @@
 #include "ephemeral.h"
 #include "yson_writer.h"
 
+#include <ytlib/misc/nullable.h>
+#include <ytlib/misc/configurable.h>
+
 namespace NYT {
-
-class TConfigurable;
-template <class T>
-class TNullable;
-
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////

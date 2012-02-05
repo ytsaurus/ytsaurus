@@ -61,6 +61,11 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(const TYPath& 
 
 void TYPathServiceBase::Invoke(IServiceContext* context)
 {
+    GuardedInvoke(context);
+}
+
+void TYPathServiceBase::GuardedInvoke(IServiceContext* context)
+{
     try {
         DoInvoke(context);
     } catch (const TServiceException& ex) {
@@ -143,72 +148,74 @@ IMPLEMENT_SUPPORTS_VERB(Remove)
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-    static TYson DoGetAttribute(
-        IAttributeDictionary* userAttributeDictionary,
-        ISystemAttributeProvider* systemAttributeProvider,
-        const Stroka& name,
-        bool* isSystem = NULL)
-    {
-        if (systemAttributeProvider) {
-            TStringStream stream;
-            TYsonWriter writer(&stream, EYsonFormat::Binary);
-            if (systemAttributeProvider->GetSystemAttribute(name, &writer)) {
-                if (isSystem) {
-                    *isSystem = true;
-                }
-                return stream.Str();
-            }
-        }
 
-        if (isSystem) {
-            *isSystem = false;
-        }
-        return userAttributeDictionary->GetAttribute(name);
-    }
-
-    static void DoSetAttribute(
-        IAttributeDictionary* userAttributeDictionary,
-        ISystemAttributeProvider* systemAttributeProvider,
-        const Stroka& name,
-        INode* value,
-        bool isSystem)
-    {
-        if (isSystem) {
-            YASSERT(systemAttributeProvider);
-            if (!systemAttributeProvider->SetSystemAttribute(name, ~ProducerFromNode(value))) {
-                ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
+static TYson DoGetAttribute(
+    IAttributeDictionary* userAttributeDictionary,
+    ISystemAttributeProvider* systemAttributeProvider,
+    const Stroka& name,
+    bool* isSystem = NULL)
+{
+    if (systemAttributeProvider) {
+        TStringStream stream;
+        TYsonWriter writer(&stream, EYsonFormat::Binary);
+        if (systemAttributeProvider->GetSystemAttribute(name, &writer)) {
+            if (isSystem) {
+                *isSystem = true;
             }
-        } else {
-            userAttributeDictionary->SetAttribute(name, SerializeToYson(value));
+            return stream.Str();
         }
     }
 
-    static void DoSetAttribute(
-        IAttributeDictionary* userAttributeDictionary,
-        ISystemAttributeProvider* systemAttributeProvider,
-        const Stroka& name,
-        const TYson& value)
-    {
-        if (systemAttributeProvider) {
-            if (systemAttributeProvider->SetSystemAttribute(name, ~ProducerFromYson(value))) {
-                return;
-            }
+    if (isSystem) {
+        *isSystem = false;
+    }
+    return userAttributeDictionary->GetAttribute(name);
+}
 
-            // Check for system attributes
-	        yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-    	    systemAttributeProvider->GetSystemAttributes(&systemAttributes);
+static void DoSetAttribute(
+    IAttributeDictionary* userAttributeDictionary,
+    ISystemAttributeProvider* systemAttributeProvider,
+    const Stroka& name,
+    INode* value,
+    bool isSystem)
+{
+    if (isSystem) {
+        YASSERT(systemAttributeProvider);
+        if (!systemAttributeProvider->SetSystemAttribute(name, ~ProducerFromNode(value))) {
+            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
+        }
+    } else {
+        userAttributeDictionary->SetAttribute(name, SerializeToYson(value));
+    }
+}
+
+static void DoSetAttribute(
+    IAttributeDictionary* userAttributeDictionary,
+    ISystemAttributeProvider* systemAttributeProvider,
+    const Stroka& name,
+    const TYson& value)
+{
+    if (systemAttributeProvider) {
+        if (systemAttributeProvider->SetSystemAttribute(name, ~ProducerFromYson(value))) {
+            return;
+        }
+
+        // Check for system attributes
+	    yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+    	systemAttributeProvider->GetSystemAttributes(&systemAttributes);
     	        
-            FOREACH (const auto& attribute, systemAttributes) {
-	            if (attribute.Name == name) {
-    	            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
-                }
+        FOREACH (const auto& attribute, systemAttributes) {
+	        if (attribute.Name == name) {
+    	        ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
             }
         }
+    }
         
 
-        userAttributeDictionary->SetAttribute(name, value);
-    }
-} // namespace
+    userAttributeDictionary->SetAttribute(name, value);
+}
+
+} // namespace <anonymous>
 
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const NYTree::TYPath& path,
@@ -276,7 +283,7 @@ void TSupportsAttributes::GetAttribute(
             response->set_value(yson);
         } else {
             auto wholeValue = DeserializeFromYson(yson);
-            auto value = SyncYPathGet(~wholeValue, RootMarker + suffixPath);
+            auto value = SyncYPathGet(~wholeValue, suffixPath);
             response->set_value(value);
         }
     }
@@ -316,7 +323,7 @@ void TSupportsAttributes::ListAttribute(
         ChopYPathToken(path, &token, &suffixPath);
 
         auto wholeValue = DeserializeFromYson(DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token));
-        keys = SyncYPathList(~wholeValue, RootMarker + suffixPath);
+        keys = SyncYPathList(~wholeValue, suffixPath);
     }
 
     ToProto(*response->mutable_keys(), keys);
@@ -368,7 +375,7 @@ void TSupportsAttributes::SetAttribute(
             bool isSystem;
             auto yson = DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathSet(~wholeValue, RootMarker + suffixPath, request->value());
+            SyncYPathSet(~wholeValue, suffixPath, request->value());
             DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, ~wholeValue, isSystem);
         }
     }
@@ -407,7 +414,7 @@ void TSupportsAttributes::RemoveAttribute(
             bool isSystem;
             auto yson = DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathRemove(~wholeValue, RootMarker + suffixPath);
+            SyncYPathRemove(~wholeValue, suffixPath);
             DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, ~wholeValue, isSystem);
         }
     }
@@ -469,7 +476,7 @@ void TNodeSetterBase::OnMyBeginMap()
 
 void TNodeSetterBase::OnMyBeginAttributes()
 {
-    SyncYPathRemove(~Node, RootMarker + AttributeMarker);
+    SyncYPathRemove(~Node, AttributeMarker);
 }
 
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
@@ -483,7 +490,7 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 
 void TNodeSetterBase::OnForwardingFinished()
 {
-    SyncYPathSet(~Node, RootMarker + AttributeMarker + AttributeName, AttributeValue);
+    SyncYPathSet(~Node, AttributeMarker + AttributeName, AttributeValue);
     AttributeWriter.Destroy();
     AttributeStream.Destroy();
     AttributeName.clear();
@@ -573,6 +580,57 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
         requestMessage,
         responseHandler,
         loggingCategory);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRootService
+    : public IYPathService
+{
+public:
+    TRootService(IYPathService* underlyingService)
+        : UnderlyingService(underlyingService)
+    { }
+
+    virtual void Invoke(NRpc::IServiceContext* context)
+    {
+        UNUSED(context);
+        YUNREACHABLE();
+    }
+
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    {
+        UNUSED(verb);
+
+        auto currentPath = path;
+
+        if (!currentPath.has_prefix(RootMarker)) {
+            ythrow yexception() << Sprintf("YPath must start with %s", ~RootMarker.Quote());
+        }
+        currentPath = currentPath.substr(RootMarker.length());
+
+        return TResolveResult::There(~UnderlyingService, currentPath);
+    }
+
+    virtual Stroka GetLoggingCategory() const
+    {
+        YUNREACHABLE();
+    }
+
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    {
+        UNUSED(context);
+        YUNREACHABLE();
+    }
+
+private:
+    IYPathService::TPtr UnderlyingService;
+
+};
+
+IYPathService::TPtr CreateRootService(IYPathService* underlyingService)
+{
+    return New<TRootService>(underlyingService);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

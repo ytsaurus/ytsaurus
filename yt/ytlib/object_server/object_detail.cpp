@@ -92,7 +92,16 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
     context->Reply();
 }
 
-void TObjectProxyBase::DoInvoke(NRpc::IServiceContext* context)
+void TObjectProxyBase::Invoke(IServiceContext* context)
+{
+    ObjectManager->ExecuteVerb(
+        GetVersionedId(),
+        IsWriteRequest(context),
+        context,
+        ~FromMethod(&TObjectProxyBase::GuardedInvoke, TObjectProxyBase::TPtr(this)));
+}
+
+void TObjectProxyBase::DoInvoke(IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetId);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -162,6 +171,11 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& name, TYsonProducer* pro
     UNUSED(producer);
 
     return false;
+}
+
+TVersionedObjectId TObjectProxyBase::GetVersionedId() const
+{
+    return Id;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

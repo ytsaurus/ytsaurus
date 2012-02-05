@@ -23,10 +23,10 @@ class TNodeBehaviorBase
 {
 public:
     TNodeBehaviorBase(
-        const ICypressNode& node,
+        const TNodeId& nodeId,
         TCypressManager* cypressManager)
         : CypressManager(cypressManager)
-        , NodeId(node.GetId().ObjectId)
+        , NodeId(nodeId)
     { }
 
     virtual void Destroy()
@@ -58,6 +58,7 @@ class TCypressNodeTypeHandlerBase
     : public INodeTypeHandler
 {
 public:
+    // TODO(babenko): consider passing just objectManager
     explicit TCypressNodeTypeHandlerBase(TCypressManager* cypressManager)
         : CypressManager(cypressManager)
         , ObjectManager(cypressManager->GetObjectManager())
@@ -68,16 +69,16 @@ public:
         return new TImpl(id);
     }
 
-    virtual TAutoPtr<ICypressNode> CreateFromManifest(
+    virtual void CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         NYTree::IMapNode* manifest)
     {
-        UNUSED(nodeId);
-        UNUSED(transactionId);
         UNUSED(manifest);
-        ythrow yexception() << Sprintf("Nodes of type %s cannot be created from a manifest",
-            ~FormatEnum(GetObjectType()).Quote());
+        auto node = Create(nodeId);
+        CypressManager->RegisterNode(transactionId, node);
+        auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, transactionId);
+        proxy->GetAttributes()->MergeFrom(manifest);
     }
 
     virtual void Destroy(ICypressNode& node)
@@ -138,9 +139,9 @@ public:
         DoMerge(dynamic_cast<TImpl&>(originatingNode), dynamic_cast<TImpl&>(branchedNode));
     }
 
-    virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
+    virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& id)
     {
-        UNUSED(node);
+        UNUSED(id);
         return NULL;
     }
 

@@ -135,18 +135,18 @@ void TCellMasterBootstrap::Run()
         ~metaStateManager,
         ~metaState,
         ~objectManager);
+    objectManager->SetTransactionManager(~transactionManager);
 
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
         ~metaState,
         ~transactionManager,
         ~objectManager);
-
-    transactionManager->SetCypressManager(~cypressManager);
+    objectManager->SetCypressManager(~cypressManager);
 
     auto cypressService = New<TCypressService>(
         ~metaStateManager,
-        ~cypressManager);
+        ~objectManager);
     rpcServer->RegisterService(~cypressService);
 
     auto holderRegistry = CreateHolderAuthority(~cypressManager);
@@ -167,16 +167,16 @@ void TCellMasterBootstrap::Run()
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
-        "/ref_counted",
+        "ref_counted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
-        "/meta_state",
+        "meta_state",
         FromMethod(&IMetaStateManager::GetMonitoringInfo, metaStateManager));
     monitoringManager->Register(
-        "/bus_server",
+        "bus_server",
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
     monitoringManager->Register(
-        "/rpc_server",
+        "rpc_server",
         FromMethod(&IServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
@@ -184,11 +184,11 @@ void TCellMasterBootstrap::Run()
     auto orchidRoot = orchidFactory->CreateMap();
     SyncYPathSetNode(
         ~orchidRoot,
-        "/monitoring",
+        "monitoring",
         ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "/config",
+        "config",
         ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
@@ -239,10 +239,10 @@ void TCellMasterBootstrap::Run()
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
-        "/statistics",
+        "statistics",
         ~NMonitoring::GetProfilingHttpHandler());
     httpServer->Register(
-        "/orchid",
+        "orchid",
         ~NMonitoring::GetYPathHttpHandler(
             ~FromFunctor([=] () -> IYPathService::TPtr
                 {
@@ -250,7 +250,7 @@ void TCellMasterBootstrap::Run()
                 }),
             ~metaStateManager->GetStateInvoker()));
     httpServer->Register(
-        "/cypress",
+        "cypress",
         ~NMonitoring::GetYPathHttpHandler(
             ~FromFunctor([=] () -> IYPathService::TPtr
                 {

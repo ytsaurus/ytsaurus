@@ -5,7 +5,6 @@
 #include "type_handler.h"
 #include "node_proxy.h"
 #include "lock.h"
-#include "cypress_manager.pb.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/transaction_server/transaction.h>
@@ -42,8 +41,6 @@ public:
     void RegisterHandler(INodeTypeHandler* handler);
     INodeTypeHandler* GetHandler(EObjectType type);
 
-    DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
-
     TNodeId GetRootNodeId();
 
     NObjectServer::TObjectManager* GetObjectManager() const;
@@ -67,16 +64,8 @@ public:
         const TTransactionId& transactionId,
         ELockMode requestedMode = ELockMode::Exclusive);
 
-    TIntrusivePtr<NObjectServer::IObjectProxy> FindObjectProxy(
-        const TObjectId& objectId,
-        const TTransactionId& transactionId);
-
     TIntrusivePtr<ICypressNodeProxy> FindVersionedNodeProxy(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
-
-    TIntrusivePtr<NObjectServer::IObjectProxy> GetVersionedObjectProxy(
-        const TObjectId& objectId,
         const TTransactionId& transactionId);
 
     TIntrusivePtr<ICypressNodeProxy> GetVersionedNodeProxy(
@@ -88,25 +77,27 @@ public:
         const TTransactionId& transactionId,
         ELockMode requestedMode = ELockMode::Exclusive);
 
-    TIntrusivePtr<ICypressNodeProxy> CreateNode(
+    TNodeId CreateNode(
         EObjectType type,
         const TTransactionId& transactionId);
 
-    TIntrusivePtr<ICypressNodeProxy> CreateDynamicNode(
+    TNodeId CreateDynamicNode(
         const TTransactionId& transactionId,
         NObjectServer::EObjectType type,
         NYTree::IMapNode* manifest);
 
-    DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
+    void RegisterNode(
+        const TTransactionId& transactionId,
+        TAutoPtr<ICypressNode> node);
 
-    NYTree::IYPathProcessor::TPtr CreateProcessor();
+    DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
+    DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
 
 private:
     class TLockTypeHandler;
     class TNodeTypeHandler;
-    class TServiceContextWrapper;
     class TYPathProcessor;
-    class TSystemProxy;
+    class TRootProxy;
 
     class TNodeMapTraits
     {
@@ -136,12 +127,6 @@ private:
     i32 UnrefNode(const TNodeId& nodeId);
     i32 GetNodeRefCounter(const TNodeId& nodeId);
 
-    TVoid DoReplayVerb(const NProto::TMsgExecuteVerb& message);
-    TVoid DoExecuteVerb(
-        const TTransactionId& transactionId,
-        NObjectServer::IObjectProxy::TPtr proxy,
-        NRpc::IServiceContext::TPtr context);
-
     TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
     void Load(TInputStream* input);
     virtual void Clear();
@@ -151,12 +136,6 @@ private:
 
     void OnTransactionCommitted(NTransactionServer::TTransaction& transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction& transaction);
-
-    ICypressNodeProxy::TPtr RegisterNode(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        INodeTypeHandler* handler,
-        TAutoPtr<ICypressNode> node);
 
     void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
     void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
@@ -168,8 +147,8 @@ private:
 
     INodeTypeHandler* GetHandler(const ICypressNode& node);
 
-    void CreateNodeBehavior(const ICypressNode& node);
-    void DestroyNodeBehavior(const ICypressNode& node);
+    void CreateNodeBehavior(const TNodeId& id);
+    void DestroyNodeBehavior(const TNodeId& id);
 
     void ValidateLock(
         const TNodeId& nodeId,
@@ -195,7 +174,7 @@ private:
        ELockMode mode);
 
     template <class TImpl, class TProxy>
-    TIntrusivePtr<TProxy> CreateNode(
+    TNodeId CreateNode(
         const TTransactionId& transactionId,
         EObjectType type);
 
