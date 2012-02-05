@@ -38,9 +38,10 @@ public:
     typedef TIntrusivePtr<TOrchidYPathService> TPtr;
 
     explicit TOrchidYPathService(
-        TObjectManager* objectManager,
+        TCypressManager* cypressManager,
         const TVersionedObjectId& id)
-        : ObjectManager(objectManager)
+        : ObjectManager(cypressManager->GetObjectManager())
+        , CypressManager(cypressManager)
         , Id(id)
     { }
 
@@ -100,12 +101,16 @@ public:
 private:
     TVersionedObjectId Id;
     TObjectManager::TPtr ObjectManager;
+    TCypressManager::TPtr CypressManager;
 
     TOrchidManifest::TPtr LoadManifest()
     {
         auto manifest = New<TOrchidManifest>();
-        auto proxy = ObjectManager->GetProxy(Id);
-        auto manifestNode = proxy->GetAttributes()->ToMap();
+        auto manifestNode =
+        	ObjectManager
+        	->GetProxy(Id)
+        	->GetAttributes()
+        	->ToMap();
         try {
             manifest->LoadAndValidate(~manifestNode);
         } catch (const std::exception& ex) {
@@ -153,7 +158,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(TCypressManager* cypressManager)
         EObjectType::Orchid,
         ~FromFunctor([=] (const TVersionedObjectId& id) -> IYPathService::TPtr
             {
-                return New<TOrchidYPathService>(~objectManager, id);
+                return New<TOrchidYPathService>(cypressManager, id);
             }));
 }
 
