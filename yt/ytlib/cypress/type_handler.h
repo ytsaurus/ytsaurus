@@ -38,14 +38,13 @@ struct INodeTypeHandler
 {
     typedef TIntrusivePtr<INodeTypeHandler> TPtr;
 
-    // TODO(babenko): use versioned id
     //! Constructs a proxy.
     /*!
      *  \param transactionId The id of the transaction for which the proxy
      *  is being created (possibly #NullTransactionId).
      *  \return The constructed proxy.
      */
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id) = 0;
 
     //! Returns the (dynamic) node type.
     virtual EObjectType GetObjectType() = 0;
