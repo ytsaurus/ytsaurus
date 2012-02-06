@@ -199,15 +199,13 @@ TAutoPtr<ICypressNode> TListNode::Clone() const
     return new TListNode(Id, *this);
 }
 
-ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(
-    const ICypressNode& node,
-    const TTransactionId& transactionId)
+ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
 {
     return New<TMapNodeProxy>(
         this,
         ~CypressManager,
-        transactionId,
-        node.GetId().ObjectId);
+        id.TransactionId,
+        id.ObjectId);
 }
 
 void TListNode::Save(TOutputStream* output) const
@@ -241,15 +239,13 @@ ENodeType TListNodeTypeHandler::GetNodeType()
     return ENodeType::List;
 }
 
-ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(
-    const ICypressNode& node,
-    const TTransactionId& transactionId)
+ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
 {
     return New<TListNodeProxy>(
         this,
         ~CypressManager,
-        transactionId,
-        node.GetId().ObjectId);
+        id.TransactionId,
+        id.ObjectId);
 }
 
 void TListNodeTypeHandler::DoDestroy(TListNode& node)

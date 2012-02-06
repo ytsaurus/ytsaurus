@@ -107,16 +107,14 @@ public:
         ChunkManager->AttachToChunkList(chunkList, childrenIds);
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
         return New<TFileNodeProxy>(
             this,
             ~CypressManager,
             ~ChunkManager,
-            transactionId,
-            node.GetId().ObjectId);
+            id.TransactionId,
+            id.ObjectId);
     }
 
 protected:

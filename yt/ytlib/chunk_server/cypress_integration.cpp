@@ -331,16 +331,14 @@ public:
         return EObjectType::Holder;
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
         return New<THolderProxy>(
             this,
             ~CypressManager,
             ~ChunkManager,
-            transactionId,
-            node.GetId().ObjectId);
+            id.TransactionId,
+            id.ObjectId);
     }
 
 private:
@@ -528,17 +526,15 @@ public:
     {
         return EObjectType::HolderMap;
     }
-
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId)
+    
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
         return New<THolderMapProxy>(
             this,
             ~CypressManager,
             ~ChunkManager,
-            transactionId,
-            node.GetId().ObjectId);
+            id.TransactionId,
+            id.ObjectId);
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& nodeId)

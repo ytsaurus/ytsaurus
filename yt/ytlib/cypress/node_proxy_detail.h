@@ -474,15 +474,13 @@ public:
     }; \
     \
     template <> \
-    inline ICypressNodeProxy::TPtr TScalarNodeTypeHandler<type>::GetProxy( \
-        const ICypressNode& node, \
-        const TTransactionId& transactionId) \
+    inline ICypressNodeProxy::TPtr TScalarNodeTypeHandler<type>::GetProxy(const TVersionedNodeId& id) \
     { \
         return New<T##key##NodeProxy>( \
             this, \
             ~CypressManager, \
-            transactionId, \
-            node.GetId().ObjectId); \
+            id.TransactionId, \
+            id.ObjectId); \
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka)

@@ -301,9 +301,7 @@ public:
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
 
 protected:
     virtual void DoMerge(
@@ -353,9 +351,7 @@ public:
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
 
 private:
     typedef TMapNodeTypeHandler TThis;
@@ -405,9 +401,7 @@ public:
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
 
 private:
     typedef TListNodeTypeHandler TThis;
