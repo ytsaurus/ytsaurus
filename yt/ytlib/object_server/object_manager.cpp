@@ -148,20 +148,12 @@ i32 TObjectManager::GetObjectRefCounter(const TObjectId& id)
     return GetHandler(id)->GetObjectRefCounter(id);
 }
 
-TFuture<TVoid>::TPtr TObjectManager::Save(const TCompositeMetaState::TSaveContext& context)
+void TObjectManager::Save(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* output = context.Output;
-    auto invoker = context.Invoker;
-
-    auto typeToCounter = TypeToCounter;
-    invoker->Invoke(FromFunctor([=] ()
-        {
-            ::Save(output, typeToCounter);
-        }));
-    
-    return Attributes.Save(invoker, output);
+    ::Save(output, TypeToCounter);
+    Attributes.Save(output);
 }
 
 void TObjectManager::Load(TInputStream* input)

@@ -101,7 +101,7 @@ private:
     void FinishTransaction(TTransaction& transaction);
 
     // TMetaStatePart overrides
-    TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
+    void Save(TOutputStream* output);
     void Load(TInputStream* input);
     virtual void Clear();
 

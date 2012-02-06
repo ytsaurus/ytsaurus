@@ -52,7 +52,6 @@ template <
     class THash = ::THash<TKey>
 >
 class TMetaStateMap
-    : protected TMetaStateMapBase
 {
 public:
     typedef TMetaStateMap<TKey, TValue, TTraits, THash> TThis;

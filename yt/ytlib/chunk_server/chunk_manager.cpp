@@ -612,7 +612,7 @@ private:
     }
 
 
-    TFuture<TVoid>::TPtr Save(const TCompositeMetaState::TSaveContext& context)
+    void Save(TOutputStream* output))
     {
         auto* output = context.Output;
         auto invoker = context.Invoker;

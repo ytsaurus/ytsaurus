@@ -142,7 +142,7 @@ private:
         NObjectServer::IObjectProxy::TPtr proxy,
         NRpc::IServiceContext::TPtr context);
 
-    TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
+    void Save(TOutputStream* output));
     void Load(TInputStream* input);
     virtual void Clear();
 

@@ -199,7 +199,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Load(TInputStream* input)
         TKey key;
         ::Load(input, key);
         auto value = Traits.Load(key, input);
-        YVERIFY(Map.insert(MakePair(key, value.Release())));
+        YVERIFY(Map.insert(MakePair(key, value.Release())).second);
     }
 }
 
