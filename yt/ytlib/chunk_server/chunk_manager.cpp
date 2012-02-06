@@ -612,22 +612,14 @@ private:
     }
 
 
-    void Save(TOutputStream* output))
+    void Save(TOutputStream* output)
     {
-        auto* output = context.Output;
-        auto invoker = context.Invoker;
-
-        auto holderIdGenerator = HolderIdGenerator;
-        invoker->Invoke(FromFunctor([=] ()
-            {
-                ::Save(output, holderIdGenerator);
-            }));
-        
-        ChunkMap.Save(invoker, output);
-        ChunkListMap.Save(invoker, output);
-        HolderMap.Save(invoker, output);
-        JobMap.Save(invoker, output);
-        return JobListMap.Save(invoker, output);
+        ::Save(output, HolderIdGenerator);
+        ChunkMap.Save(output);
+        ChunkListMap.Save(output);
+        HolderMap.Save(output);
+        JobMap.Save(output);
+        JobListMap.Save(output);
     }
 
     void Load(TInputStream* input)
