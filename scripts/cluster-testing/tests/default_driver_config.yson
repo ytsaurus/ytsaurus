@@ -1,0 +1,33 @@
+{
+    masters = {
+        addresses = [
+            "localhost:8000";
+        ];
+    };
+
+    logging = {
+        rules = [
+            {
+                min_level = Debug;
+                writers = [ file ];
+                categories  = [ "*" ];
+            };
+            {
+                min_level = Info;
+                writers = [ stderr ];
+                categories  = [ "*" ];
+            };
+        ];
+        writers = {
+            stderr = {
+                type = StdErr;
+                pattern = "$(datetime) $(level) $(category) $(message)";
+            };
+            file = {
+                type = File;
+                file_name = "ytdriver.log";
+                pattern = "$(datetime) $(level) $(category) $(message)";
+            };
+        };
+    };
+}
