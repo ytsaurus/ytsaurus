@@ -7,13 +7,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TExtrinsicRefCounted::~TExtrinsicRefCounted()
 {
     // There are two common mistakes that may lead to triggering the checks below:
     // - Improper allocation/deallocation of ref-counted objects, e.g.
     //   creating an instance with raw "new" and deleting it afterwards with raw "delete"
-    //   (possibly with the help of auto_ptr, unique_ptr, shared_ptr or similar helpers),
+    //   (possibly inside auto_ptr, unique_ptr, shared_ptr or similar helpers),
     //   or declaring an instance with static or automatic durations.
     // - Throwing an exception from ctor.
     YASSERT(RefCounter->GetRefCount() == 0);

@@ -9,7 +9,7 @@ namespace NTransactionClient {
 
 //! A simple base class that listens for transaction aborts.
 class TTransactionListener
-    : public virtual TExtrinsicRefCounted
+    : public virtual TRefCounted
 {
 protected:
     TTransactionListener();
