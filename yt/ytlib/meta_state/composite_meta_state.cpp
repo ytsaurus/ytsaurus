@@ -68,15 +68,6 @@ void TMetaStatePart::OnStopLeading()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeMetaState::TSaveContext::TSaveContext(
-    TOutputStream* output,
-    IInvoker::TPtr invoker)
-    : Output(output)
-    , Invoker(invoker)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
 {
     YASSERT(part);
@@ -84,29 +75,23 @@ void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
     Parts.push_back(part);
 }
 
-TFuture<TVoid>::TPtr TCompositeMetaState::Save(TOutputStream* output, IInvoker::TPtr invoker)
+void TCompositeMetaState::Save(TOutputStream* output)
 {
     i32 size = Savers.size();
-    invoker->Invoke(FromFunctor([=] ()
-        {
-            ::Save(output, size);
-        }));
-
-    yvector< TPair<Stroka, TSaver::TPtr> > savers(Savers.begin(), Savers.end());
+    ::Save(output, size);
+    
+    yvector< TPair<TPair<ESavePhase, Stroka>, TSaver::TPtr> > savers;
+    FOREACH (const auto& pair, Savers) {
+        savers.push_back(
+            MakePair(MakePair(pair.second.second, pair.first), pair.second.first));
+    }
     std::sort(savers.begin(), savers.end());
 
-    TFuture<TVoid>::TPtr result;
     FOREACH(auto pair, savers) {
-        Stroka name = pair.first;
-        invoker->Invoke(FromFunctor([=] ()
-            {
-                ::Save(output, name);
-            }));
+        Stroka name = pair.first.second;
+        ::Save(output, name);
         auto saver = pair.second;
-        TSaveContext context(output, invoker);
-        result = saver->Do(context);
     }
-    return result;
 }
 
 void TCompositeMetaState::Load(TInputStream* input)
@@ -158,11 +143,14 @@ void TCompositeMetaState::RegisterLoader(const Stroka& name, TLoader::TPtr loade
     YVERIFY(Loaders.insert(MakePair(name, loader)).second);
 }
 
-void TCompositeMetaState::RegisterSaver(const Stroka& name, TSaver::TPtr saver)
+void TCompositeMetaState::RegisterSaver(
+    const Stroka& name,
+    TSaver::TPtr saver, 
+    ESavePhase phase)
 {
     YASSERT(saver);
 
-    YVERIFY(Savers.insert(MakePair(name, saver)).second);
+    YVERIFY(Savers.insert(MakePair(name, MakePair(saver, phase))).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
