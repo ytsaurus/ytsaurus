@@ -142,7 +142,7 @@ private:
         NObjectServer::IObjectProxy::TPtr proxy,
         NRpc::IServiceContext::TPtr context);
 
-    void Save(TOutputStream* output));
+    void Save(TOutputStream* output);
     void Load(TInputStream* input);
     virtual void Clear();
 

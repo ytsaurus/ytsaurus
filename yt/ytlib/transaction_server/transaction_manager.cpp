@@ -383,13 +383,11 @@ void TTransactionManager::RenewLease(const TTransactionId& id)
     TLeaseManager::RenewLease(it->second);
 }
 
-TFuture<TVoid>::TPtr TTransactionManager::Save(const TCompositeMetaState::TSaveContext& context)
+void TTransactionManager::Save(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* output = context.Output;
-    auto invoker = context.Invoker;
-    return TransactionMap.Save(invoker, output);
+    TransactionMap.Save(output);
 }
 
 void TTransactionManager::Load(TInputStream* input)
