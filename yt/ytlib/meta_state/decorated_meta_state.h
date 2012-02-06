@@ -69,7 +69,7 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TFuture<TVoid>::TPtr Save(TOutputStream* output);
+    void Save(TOutputStream* output);
 
     //! Delegates the call to IMetaState::Load and updates the version.
     /*!

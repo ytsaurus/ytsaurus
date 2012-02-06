@@ -57,9 +57,10 @@ public:
                     TPtr(this),
                     followerId));
         }
-
+        
+        TFuture<TLocalResult>::TPtr localResult = New< TFuture<TLocalResult> >(Creator->CreateLocal(Version));
         Awaiter->Await(
-            Creator->CreateLocal(Version),
+            localResult,
             FromMethod(&TSession::OnLocal, TPtr(this)));
 
         Awaiter->Complete(FromMethod(&TSession::OnComplete, TPtr(this)));
@@ -135,7 +136,6 @@ TSnapshotBuilder::TSnapshotBuilder(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
-    , LocalProgress(MakeFuture(TVoid()))
 {
     YASSERT(cellManager);
     YASSERT(metaState);
@@ -150,27 +150,15 @@ TSnapshotBuilder::EResultCode TSnapshotBuilder::CreateDistributed()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (IsInProgress()) {
-        return EResultCode::AlreadyInProgress;
-    }
-
     auto version = MetaState->GetVersion();
     New<TSession>(TPtr(this), version)->Run();
     return EResultCode::OK;
 }
 
-TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
+TSnapshotBuilder::TLocalResult TSnapshotBuilder::CreateLocal(
     TMetaVersion version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    if (IsInProgress()) {
-        LOG_ERROR("Could not create local snapshot, snapshot creation is already in progress (Version: %s)",
-            ~version.ToString());
-        return New<TAsyncLocalResult>(TLocalResult(EResultCode::AlreadyInProgress));
-    }
-
-    LocalProgress = New< TFuture<TVoid> >();
 
     LOG_INFO("Creating a local snapshot (Version: %s)", ~version.ToString());
 
@@ -179,7 +167,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
         LOG_WARNING("Invalid version, snapshot creation canceled (expected: %s, received: %s)",
             ~version.ToString(),
             ~MetaState->GetVersion().ToString());
-        return New<TAsyncLocalResult>(TLocalResult(EResultCode::InvalidVersion));
+        return TLocalResult(EResultCode::InvalidVersion);
     }
 
     // Prepare writer.
@@ -188,39 +176,18 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     writer->Open(version.RecordCount);
     
     auto* stream = &writer->GetStream();
-
-    // Start an async snapshot creation process.
-    auto saveResult = MetaState->Save(stream);
-
-    // Switch to a new changelog.
+    MetaState->Save(stream);
     MetaState->RotateChangeLog();
-
-    // The writer reference is being held by the closure action.
-    return saveResult->Apply(FromMethod(
-        &TSnapshotBuilder::OnSave,
-        TPtr(this),
-        snapshotId,
-        writer));
-}
-
-TSnapshotBuilder::TLocalResult TSnapshotBuilder::OnSave(
-    TVoid /* fake */,
-    i32 segmentId,
-    TSnapshotWriter::TPtr writer)
-{
     writer->Close();
 
-    SnapshotStore->UpdateMaxSnapshotId(segmentId);
+    SnapshotStore->UpdateMaxSnapshotId(snapshotId);
 
     LOG_INFO("Local snapshot is created (SegmentId: %d, Checksum: %" PRIx64 ")",
-        segmentId,
+        snapshotId,
         writer->GetChecksum());
-
-    LocalProgress->Set(TVoid());
 
     return TLocalResult(EResultCode::OK, writer->GetChecksum());
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

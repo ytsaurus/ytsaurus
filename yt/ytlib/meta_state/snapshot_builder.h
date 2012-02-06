@@ -56,8 +56,6 @@ public:
         { }
     };
 
-    typedef TFuture<TLocalResult> TAsyncLocalResult;
-
     TSnapshotBuilder(
         TConfig* config,
         TCellManager::TPtr cellManager,
@@ -78,28 +76,7 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TAsyncLocalResult::TPtr CreateLocal(TMetaVersion version);
-
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    TFuture<TVoid>::TPtr GetLocalProgress() const
-    {
-         VERIFY_THREAD_AFFINITY(StateThread);
-        
-         return LocalProgress;
-    }
-
-    /*!
-     * \note Thread affinity: StateThread
-     */
-    bool IsInProgress() const
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-    
-        TVoid fake;
-        return !LocalProgress->TryGet(&fake);
-    }
+    TLocalResult CreateLocal(TMetaVersion version);
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
@@ -116,13 +93,6 @@ private:
     TEpoch Epoch;
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr StateInvoker;
-
-    TFuture<TVoid>::TPtr LocalProgress;
-
-    TLocalResult OnSave(
-        TVoid /* fake */,
-        i32 segmentId,
-        TSnapshotWriter::TPtr writer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

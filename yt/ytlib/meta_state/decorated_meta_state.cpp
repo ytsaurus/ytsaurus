@@ -63,7 +63,7 @@ void TDecoratedMetaState::Clear()
     CurrentChangeLog.Reset();
 }
 
-TFuture<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
+void TDecoratedMetaState::Save(TOutputStream* output)
 {
     YASSERT(output);
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -71,12 +71,9 @@ TFuture<TVoid>::TPtr TDecoratedMetaState::Save(TOutputStream* output)
     LOG_INFO("Started saving snapshot");
 
     auto started = TInstant::Now();
-    return State->Save(output, GetSnapshotInvoker())->Apply(FromFunctor([=] (TVoid) -> TVoid
-        {
-            auto finished = TInstant::Now();
-            LOG_INFO("Finished saving snapshot (Time: %.3f)", (finished - started).SecondsFloat());
-            return TVoid();
-        }));
+    State->Save(output);
+    auto finished = TInstant::Now();
+    LOG_INFO("Finished saving snapshot (Time: %.3f)", (finished - started).SecondsFloat());
 }
 
 void TDecoratedMetaState::Load(
