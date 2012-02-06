@@ -949,12 +949,12 @@ IYPathProcessor::TPtr TCypressManager::CreateProcessor()
     return New<TYPathProcessor>(this);
 }
 
-TFuture<TVoid>::TPtr TCypressManager::Save(const TCompositeMetaState::TSaveContext& context)
+void TCypressManager::Save(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    NodeMap.Save(context.Invoker, context.Output);
-    return LockMap.Save(context.Invoker, context.Output);
+    NodeMap.Save(output);
+    LockMap.Save(output);
 }
 
 void TCypressManager::Load(TInputStream* input)
