@@ -15,33 +15,6 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: DECLARE_ENUM cannot be used in a template class.
-class TMetaStateMapBase
-    : private TNonCopyable
-{
-protected:
-    /*!
-     * Transitions
-     * - Normal -> LoadingSnapshot,
-     * - LoadingSnapshot -> Normal,
-     * - Normal -> SavingSnapshot,
-     * - HasPendingChanges -> Normal
-     * are performed from the user thread.
-     *
-     * Transition
-     * - SavingSnapshot -> HasPendingChanges
-     * is performed from the snapshot invoker.
-     */
-    DECLARE_ENUM(EState,
-        (Normal)
-        (LoadingSnapshot)
-        (SavingSnapshot)
-        (HasPendingChanges)
-    );
-
-    EState State;
-};
-
 //! Default traits for cloning, saving and loading values.
 template <class TKey, class TValue>
 struct TDefaultMetaMapTraits
@@ -193,7 +166,7 @@ public:
      *  \param output Output stream.
      *  \return An asynchronous result indicating that the snapshot is saved.
      */
-    TFuture<TVoid>::TPtr Save(IInvoker::TPtr invoker, TOutputStream* output);
+    void Save(TOutputStream* output);
 
     //! Synchronously loads the map from the stream.
     /*!
@@ -210,10 +183,7 @@ private:
      * When a snapshot is being created this map is kept read-only and
      * #PatchMap is used to store the changes.
      */
-    TMap PrimaryMap;
-
-    //! "(key, NULL)" indicates that the key should be deleted.
-    TMap PatchMap;
+    TMap Map;
 
     //! Traits for cloning, saving and loading values.
     TTraits Traits;
@@ -222,16 +192,6 @@ private:
     int Size;
     
     typedef TPair<TKey, TValue*> TItem;
-
-    //! Save snapshot of the map in the thread of the invoker passed to #Save.
-    TVoid DoSave(TOutputStream* output);
-    
-    /*!
-     * When in #HasPendingChanges state, merges all the pending changes from
-     * #PatchMap into #PrimaryMap. Must be called only in #HasPendingChanges or
-     * #Normal states.
-     */
-    void MergeTempTablesIfNeeded();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
