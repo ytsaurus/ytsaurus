@@ -5,9 +5,6 @@ import sys
 import re
 import subprocess
 
-#TODO:get rid of it
-sys.path.append('../yson')
-
 from yt_env import YTEnv
 
 TEST_ROOTDIR = os.path.abspath('tests')
@@ -27,8 +24,6 @@ class SomeTest(unittest.TestCase):
         print "Executing test:", folder
 
         run_path = os.path.join(SANDBOX_ROOTDIR, folder, "run")
-        os.system('rm -rf ' + run_path)
-        os.makedirs(run_path)
 
         path_to_actual = os.path.join(SANDBOX_ROOTDIR, folder)
         path_to_expected = os.path.join(TEST_ROOTDIR, folder)

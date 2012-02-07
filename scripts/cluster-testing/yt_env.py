@@ -1,4 +1,8 @@
 
+import sys
+#TODO:get rid of it
+sys.path.append('../yson')
+
 import yson_parser
 import yson
 
@@ -33,7 +37,7 @@ class YTEnv:
         self.holder_config = read_config(os.path.join(path_to_tests, 'default_holder_config.yson'))
         self.driver_config = read_config(os.path.join(path_to_tests, 'default_driver_config.yson'))
 
-        master_addresses = ["localhost:" + str(9000 + i) for i in xrange(self.NUM_MASTERS)]
+        master_addresses = ["localhost:" + str(8001 + i) for i in xrange(self.NUM_MASTERS)]
         self.master_config['meta_state']['cell']['addresses'] = master_addresses
         self.holder_config['masters']['addresses'] = master_addresses
         self.driver_config['masters']['addresses'] = master_addresses
@@ -42,6 +46,7 @@ class YTEnv:
 
     def setUp(self):
         print 'Setting up configuration with', self.NUM_MASTERS, 'masters and', self.NUM_HOLDERS, 'holders'
+        self._clean_run_path()
         self._prepare_configs()
         self._run_services()
         time.sleep(self. SETUP_TIMEOUT)
@@ -52,17 +57,21 @@ class YTEnv:
 
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
-            port = 9000 + i
+            port = 8001 + i
             config_path = self.config_paths['master'][i]
             p = subprocess.Popen('ytserver --cell-master --config {config_path}  --port {port} --id {i}'.format(**vars()).split())
             self.process_to_kill.append(p)
 
     def _run_holders(self):
         for i in xrange(self.NUM_HOLDERS):
-            port = 8000 + i
+            port = 7001 + i
             config_path = self.config_paths['holder'][i]
             p = subprocess.Popen('ytserver --chunk-holder --config {config_path} --port {port}'.format(**vars()).split())
             self.process_to_kill.append(p)
+
+    def _clean_run_path(self):
+        os.system('rm -rf ' + self.path_to_run)
+        os.makedirs(self.path_to_run)
 
     def _prepare_configs(self):
         self._prepare_masters_config()
