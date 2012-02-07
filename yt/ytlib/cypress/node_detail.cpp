@@ -104,10 +104,7 @@ TMapNode::TMapNode(const TVersionedNodeId& id)
 
 TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
     : TCypressNodeBase(id, other)
-{
-    KeyToChild_ = other.KeyToChild_;
-    ChildToKey_ = other.ChildToKey_;
-}
+{ }
 
 TAutoPtr<ICypressNode> TMapNode::Clone() const
 {
@@ -133,6 +130,7 @@ void TMapNode::Load(TInputStream* input)
 
 TMapNodeTypeHandler::TMapNodeTypeHandler(TCypressManager* cypressManager)
     : TCypressNodeTypeHandlerBase<TMapNode>(cypressManager)
+    , TransactionManager(cypressManager->GetTransactionManager())
 { }
 
 EObjectType TMapNodeTypeHandler::GetObjectType()
@@ -149,7 +147,9 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode& node)
 {
     // Drop references to the children.
     FOREACH (const auto& pair, node.KeyToChild()) {
-        CypressManager->GetObjectManager()->UnrefObject(pair.second);
+        if (pair.second != NullObjectId) {
+            ObjectManager->UnrefObject(pair.second);
+        }
     }
 }
 
@@ -158,25 +158,51 @@ void TMapNodeTypeHandler::DoBranch(
     TMapNode& branchedNode)
 {
     UNUSED(branchedNode);
-
-    // Reference all children.
-    FOREACH (const auto& pair, originatingNode.KeyToChild()) {
-        CypressManager->GetObjectManager()->RefObject(pair.second);
-    }
 }
 
 void TMapNodeTypeHandler::DoMerge(
     TMapNode& originatingNode,
     TMapNode& branchedNode)
 {
-    // Drop all references held by the originator.
-    FOREACH (const auto& pair, originatingNode.KeyToChild()) {
-        CypressManager->GetObjectManager()->UnrefObject(pair.second);
-    }
+    const auto& id = originatingNode.GetId();
+    FOREACH (const auto& pair, branchedNode.KeyToChild()) {
+        auto it = originatingNode.KeyToChild().find(pair.first);
+        if (it == originatingNode.KeyToChild().end()) {
+            YVERIFY(originatingNode.KeyToChild().insert(pair).second);
+        } else {
+            if (it->second != NullObjectId) {
+                ObjectManager->UnrefObject(it->second);
+                YVERIFY(originatingNode.ChildToKey().erase(it->second) > 0);
+            }
+            it->second = pair.second;
+            
+            if (pair.second == NullObjectId) {
+                const auto& transactionIds = TransactionManager->GetTransactionPath(
+                    id.TransactionId);
+                bool contains = false;
+                FOREACH (const auto& transactionId, transactionIds) {
+                    if (transactionId == id.TransactionId) continue;
+                    const auto& node = CypressManager->GetVersionedNode(
+                        id.ObjectId, transactionId);
+                    const auto& map = static_cast<const TMapNode&>(node).KeyToChild();
+                    auto innerIt = map.find(pair.first);
+                    if (innerIt != map.end()) {
+                        if (innerIt->second != NullObjectId) {
+                            contains = true;
+                        }
+                        break;
+                    }
+                }
+                if (!contains) {
+                    originatingNode.KeyToChild().erase(it);
+                }
+            }
 
-    // Replace the child list with the branched copy.
-    originatingNode.KeyToChild().swap(branchedNode.KeyToChild());
-    originatingNode.ChildToKey().swap(branchedNode.ChildToKey());
+        }
+        if (pair.second != NullObjectId) {
+            YVERIFY(originatingNode.ChildToKey().insert(MakePair(pair.second, pair.first)).second);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

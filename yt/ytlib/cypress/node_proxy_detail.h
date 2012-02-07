@@ -389,11 +389,10 @@ protected:
                 const auto* userAttributes = ObjectManager->FindAttributes(parentId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
-                    if (it == userAttributes->Attributes().end()) {
-                        // contains = false
-                        break;
-                    } else {
-                        contains = true;
+                    if (it != userAttributes->Attributes().end()) {
+                        if (!it->second.empty()) {
+                            contains = true;
+                        }
                         break;
                     }
                 }
@@ -632,6 +631,10 @@ protected:
     virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
     virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
+    yhash_map<Stroka, INode::TPtr> DoGetChildren() const;
+    INode::TPtr DoFindChild(const Stroka& key, bool skipCurrentTransaction) const;
+
+    NTransactionServer::TTransactionManager::TPtr TransactionManager;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

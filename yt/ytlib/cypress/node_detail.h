@@ -366,6 +366,7 @@ private:
         TMapNode& originatingNode,
         TMapNode& branchedNode);
 
+    NTransactionServer::TTransactionManager::TPtr TransactionManager;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
