@@ -4,7 +4,10 @@
 #include "yson_writer.h"
 
 #include <ytlib/misc/nullable.h>
-#include <ytlib/misc/configurable.h>
+
+namespace NYT {
+    class TConfigurable;
+}
 
 namespace NYT {
 namespace NYTree {
@@ -56,7 +59,7 @@ template <class T>
 void Read(
     TIntrusivePtr<T>& parameter,
     const NYTree::INode* node,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0);
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T, TConfigurable>, int>::TType = 0);
 
 // i64
 void Read(i64& parameter, const NYTree::INode* node);

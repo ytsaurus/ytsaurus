@@ -586,7 +586,7 @@ protected:
             EObjectType(request->type()),
             ~manifestNode->AsMap());
 
-        auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, this->TransactionId);
+        auto proxy = this->CypressManager->GetVersionedNodeProxy(nodeId, this->TransactionId);
 
         CreateRecursive(context->GetPath(), ~proxy);
 

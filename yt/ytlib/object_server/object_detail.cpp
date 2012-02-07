@@ -98,7 +98,7 @@ void TObjectProxyBase::Invoke(IServiceContext* context)
         GetVersionedId(),
         IsWriteRequest(context),
         context,
-        ~FromMethod(&TObjectProxyBase::GuardedInvoke, TObjectProxyBase::TPtr(this)));
+        ~FromMethod(&TYPathServiceBase::GuardedInvoke, TYPathServiceBase::TPtr(this)));
 }
 
 void TObjectProxyBase::DoInvoke(IServiceContext* context)
