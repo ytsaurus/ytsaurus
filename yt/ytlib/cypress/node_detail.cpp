@@ -44,9 +44,7 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
 { }
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other)
-    : LockIds_(other.LockIds_)
-    , SubtreeLockIds_(other.SubtreeLockIds_)
-    , ParentId_(other.ParentId_)
+    : ParentId_(other.ParentId_)
     , LockMode_(other.LockMode_)
     , Id(id)
 { }
@@ -113,7 +111,7 @@ TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
 
 TAutoPtr<ICypressNode> TMapNode::Clone() const
 {
-    return new TMapNode(Id, *this);
+    return new TMapNode(*this);
 }
 
 void TMapNode::Save(TOutputStream* output) const
@@ -196,7 +194,7 @@ TListNode::TListNode(const TVersionedNodeId& id, const TListNode& other)
 
 TAutoPtr<ICypressNode> TListNode::Clone() const
 {
-    return new TListNode(Id, *this);
+    return new TListNode(*this);
 }
 
 ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(const TVersionedNodeId& id)

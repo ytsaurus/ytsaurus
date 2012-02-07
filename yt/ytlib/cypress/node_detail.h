@@ -260,7 +260,7 @@ public:
 
     virtual TAutoPtr<ICypressNode> Clone() const
     {
-        return new TThis(Id, *this);
+        return new TThis(*this);
     }
 
     virtual void Save(TOutputStream* output) const
