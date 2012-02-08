@@ -185,7 +185,11 @@ public:
     {
         YASSERT(context);
 
-        if (!DeserializeProtobuf(&Request_, context->GetRequestBody())) {
+    }
+
+    void Deserialize()
+    {
+        if (!DeserializeProtobuf(&Request_, Context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
         }
@@ -458,6 +462,7 @@ private:
     void method##Thunk(::NYT::NRpc::IServiceContext* context) \
     { \
         auto typedContext = New<TCtx##method>(context); \
+        typedContext->Deserialize(); \
         method( \
             &typedContext->Request(), \
             &typedContext->Response(), \
@@ -487,6 +492,7 @@ private:
     void method##Thunk(::NYT::NRpc::IServiceContext* context) \
     { \
         auto typedContext = New<TCtx##method>(context); \
+        typedContext->Deserialize(); \
         method( \
             &typedContext->Request(), \
             typedContext); \
