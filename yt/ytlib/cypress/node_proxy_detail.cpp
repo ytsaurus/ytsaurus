@@ -91,16 +91,18 @@ void TMapNodeProxy::Clear()
 
     impl.KeyToChild().clear();
     impl.ChildToKey().clear();
+    impl.ChildCountDelta() = 0;
 
     const auto& children = DoGetChildren();
     FOREACH (const auto& pair, children) {
         YVERIFY(impl.KeyToChild().insert(MakePair(pair.first, NullObjectId)).second);
+        --impl.ChildCountDelta();
     }
 }
 
 int TMapNodeProxy::GetChildCount() const
 {
-    return DoGetChildren().size();
+    return GetTypedImpl().ChildCountDelta();
 }
 
 yvector< TPair<Stroka, INode::TPtr> > TMapNodeProxy::GetChildren() const
@@ -140,6 +142,7 @@ bool TMapNodeProxy::AddChild(INode* child, const Stroka& key)
 
     YVERIFY(impl.KeyToChild().insert(MakePair(key, childId)).second);
     YVERIFY(impl.ChildToKey().insert(MakePair(childId, key)).second);
+    ++impl.ChildCountDelta();
 
     auto& childImpl = childProxy->GetImplForUpdate();
     AttachChild(childImpl);
@@ -155,9 +158,12 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
     if (it != impl.KeyToChild().end()) {
         // NB: don't use const auto& here, it becomes invalid!
         auto childId = it->second;
+        if (childId == NullObjectId) {
+            return false;
+        }
         
         if (DoFindChild(key, true)) {
-            it->second = NullTransactionId;
+            it->second = NullObjectId;
         } else {
             impl.KeyToChild().erase(it);
         }
@@ -167,10 +173,13 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
         YVERIFY(impl.ChildToKey().erase(childId) > 0);
         DetachChild(childImpl);
     } else {
-        YASSERT(DoFindChild(key, true));
+        if (!DoFindChild(key, true)) {
+            return false;
+        }
         YVERIFY(impl.KeyToChild().insert(MakePair(key, NullObjectId)).second);
     }
     
+    --impl.ChildCountDelta();
     return true;
 }
 
@@ -197,6 +206,7 @@ void TMapNodeProxy::RemoveChild(INode* child)
         const auto& key = GetChildKey(child);
         YVERIFY(impl.KeyToChild().insert(MakePair(key, NullObjectId)).second);
     }
+    --impl.ChildCountDelta();
 }
 
 void TMapNodeProxy::ReplaceChild(INode* oldChild, INode* newChild)

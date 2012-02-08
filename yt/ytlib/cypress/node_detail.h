@@ -327,6 +327,7 @@ class TMapNode
 
     DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
+    DEFINE_BYREF_RW_PROPERTY(i32, ChildCountDelta); // It's very inconvenient to access it by ref
 
 public:
     explicit TMapNode(const TVersionedNodeId& id);
@@ -336,8 +337,6 @@ public:
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);
-
-
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
