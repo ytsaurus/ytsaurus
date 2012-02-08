@@ -27,11 +27,15 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TDuration Timeout;
+        TDuration RemoteTimeout;
+        TDuration LocalTimeout;
 
         TConfig()
         {
-            Register("timeout", Timeout)
+            Register("remote_timeout", RemoteTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Minutes(1));
+            Register("local_timeout", LocalTimeout)
                 .GreaterThan(TDuration())
                 .Default(TDuration::Minutes(1));
         }
@@ -41,6 +45,8 @@ public:
         (OK)
         (InvalidVersion)
         (AlreadyInProgress)
+        (ForkError)
+        (TimeoutExceeded)
     );
 
     struct TLocalResult
@@ -55,6 +61,8 @@ public:
             , Checksum(checksum)
         { }
     };
+
+    typedef TFuture<TLocalResult> TAsyncLocalResult;
 
     TSnapshotBuilder(
         TConfig* config,
@@ -76,7 +84,28 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TLocalResult CreateLocal(TMetaVersion version);
+    TAsyncLocalResult::TPtr CreateLocal(TMetaVersion version);
+
+    /*!
+     * \note Thread affinity: StateThread
+     */
+    TAsyncLocalResult::TPtr GetLocalResult() const
+    {
+         VERIFY_THREAD_AFFINITY(StateThread);
+        
+         return LocalResult;
+    }
+
+    /*!
+     * \note Thread affinity: StateThread
+     */
+    bool IsInProgress() const
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+    
+        TLocalResult fake;
+        return !LocalResult->TryGet(&fake);
+    }
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
@@ -84,6 +113,15 @@ private:
     class TSession;
 
     typedef TMetaStateManagerProxy TProxy;
+
+    TChecksum DoCreateLocal(TMetaVersion version);
+    void OnSave(const TChecksum& checksum);
+
+#if defined(_unix_)
+    static void* ThreadFunc(void* param);
+    THolder<TThread> Thread;
+    pid_t ChildPid;
+#endif
 
     TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
@@ -93,6 +131,9 @@ private:
     TEpoch Epoch;
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr StateInvoker;
+
+    TAsyncLocalResult::TPtr LocalResult;
+    i32 CurrentSnapshotId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

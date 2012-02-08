@@ -1023,6 +1023,10 @@ public:
         }
 
         if (SnapshotBuilder) {
+            GetStateInvoker()->Invoke(FromMethod(
+                &TThis::WaitSnapshotCreation,
+                TPtr(this),
+                SnapshotBuilder));
             SnapshotBuilder.Reset();
         }
     }
@@ -1071,6 +1075,10 @@ public:
         }
 
         if (SnapshotBuilder) {
+            GetStateInvoker()->Invoke(FromMethod(
+                &TThis::WaitSnapshotCreation,
+                TPtr(this),
+                SnapshotBuilder));
             SnapshotBuilder.Reset();
         }
     }
@@ -1143,6 +1151,13 @@ public:
         i32 segmentId = (priority >> 32);
         i32 recordCount = priority & ((1ll << 32) - 1);
         return Sprintf("(%d, %d)", segmentId, recordCount);
+    }
+
+    // Blocks state thread until snapshot creation is finished.
+    void WaitSnapshotCreation(TSnapshotBuilder::TPtr snapshotBuilder)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+        snapshotBuilder->GetLocalResult()->Get();
     }
 
     void DoStartLeading()

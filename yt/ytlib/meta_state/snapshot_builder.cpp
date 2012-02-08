@@ -7,6 +7,14 @@
 
 #include <util/system/fs.h>
 
+#if defined(_unix_)
+ /* for fork() */
+#include <sys/types.h>
+#include <unistd.h>
+ /* for wait*() */
+#include <sys/wait.h>
+#endif
+
 namespace NYT {
 namespace NMetaState {
 
@@ -43,7 +51,7 @@ public:
                 followerId);
 
             auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(followerId);
-            proxy->SetTimeout(config->Timeout);
+            proxy->SetTimeout(config->RemoteTimeout);
             auto request = proxy->AdvanceSegment();
             request->set_segment_id(Version.SegmentId);
             request->set_record_count(Version.RecordCount);
@@ -58,9 +66,8 @@ public:
                     followerId));
         }
         
-        TFuture<TLocalResult>::TPtr localResult = New< TFuture<TLocalResult> >(Creator->CreateLocal(Version));
         Awaiter->Await(
-            localResult,
+            Creator->CreateLocal(Version),
             FromMethod(&TSession::OnLocal, TPtr(this)));
 
         Awaiter->Complete(FromMethod(&TSession::OnComplete, TPtr(this)));
@@ -136,6 +143,8 @@ TSnapshotBuilder::TSnapshotBuilder(
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
     , ServiceInvoker(serviceInvoker)
+    , LocalResult(MakeFuture(TLocalResult()))
+    , CurrentSnapshotId(-1)
 {
     YASSERT(cellManager);
     YASSERT(metaState);
@@ -155,10 +164,17 @@ TSnapshotBuilder::EResultCode TSnapshotBuilder::CreateDistributed()
     return EResultCode::OK;
 }
 
-TSnapshotBuilder::TLocalResult TSnapshotBuilder::CreateLocal(
+TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     TMetaVersion version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+
+    if (IsInProgress()) {
+        LOG_ERROR("Could not create local snapshot, snapshot creation is already in progress (Version: %s)",
+            ~version.ToString());
+        return MakeFuture(TLocalResult(EResultCode::AlreadyInProgress));
+    }
+    LocalResult = New<TAsyncLocalResult>();
 
     LOG_INFO("Creating a local snapshot (Version: %s)", ~version.ToString());
 
@@ -167,27 +183,99 @@ TSnapshotBuilder::TLocalResult TSnapshotBuilder::CreateLocal(
         LOG_WARNING("Invalid version, snapshot creation canceled (expected: %s, received: %s)",
             ~version.ToString(),
             ~MetaState->GetVersion().ToString());
-        return TLocalResult(EResultCode::InvalidVersion);
+        return MakeFuture(TLocalResult(EResultCode::InvalidVersion));
     }
 
-    // Prepare writer.
-    i32 snapshotId = version.SegmentId + 1;
-    auto writer = SnapshotStore->GetWriter(snapshotId);
+    CurrentSnapshotId = version.SegmentId + 1;
+
+#if defined(_unix_)
+    ChildPid = fork();
+    if (ChildPid == -1) {
+        LOG_ERROR("Could not fork while createing local snapshot (SnapshotId: %d)",
+            SegmentId);
+        LocalResult->Set(TLocalResult(EResultCode::ForkError));
+    } else if (ChildPid == 0) {
+        DoCreateLocal(version);
+        _exit(0);
+    } else {
+        Thread.Reset(new TThread(ThreadFunc, (void*) this));
+        Thread.Start();
+    }
+#else
+    auto checksum = DoCreateLocal(version);
+    OnSave(checksum);
+#endif
+        
+    return LocalResult;
+}
+
+TChecksum TSnapshotBuilder::DoCreateLocal(TMetaVersion version)
+{
+    auto writer = SnapshotStore->GetWriter(CurrentSnapshotId);
     writer->Open(version.RecordCount);
-    
     auto* stream = &writer->GetStream();
     MetaState->Save(stream);
     MetaState->RotateChangeLog();
     writer->Close();
+    return writer->GetChecksum();
+}
 
-    SnapshotStore->UpdateMaxSnapshotId(snapshotId);
+void TSnapshotBuilder::OnSave(const TChecksum& checksum)
+{
+    SnapshotStore->UpdateMaxSnapshotId(CurrentSnapshotId);
 
     LOG_INFO("Local snapshot is created (SegmentId: %d, Checksum: %" PRIx64 ")",
-        snapshotId,
-        writer->GetChecksum());
+        CurrentSnapshotId,
+        checksum);
 
-    return TLocalResult(EResultCode::OK, writer->GetChecksum());
+    LocalResult->Set(TLocalResult(EResultCode::OK, checksum));
 }
+
+#if defined(_unix_)
+void* TSnapshotBuilder::ThreadFunc(void* param)
+{
+    auto* snapshotBuilder = static_cast<TSnapshotBuilder*>(param);
+    auto deadline = snapshotBuilder->Config->LocalTimeout.ToDeadLine();
+    auto childPid = snapshotBuilder->ChildPid;
+    auto segmentId = snapshotBuilder->CurrentSnapshotId;
+    int status;
+    while (waitpid(childPid, &status, WNOHANG) == 0) {
+        if (TInstant::Now() <= deadline) {
+            sleep(1);
+        } else {
+            LOG_ERROR("Local snapshot creating timed out. Killing child process. (SegmentId: %d),
+                segmentId);
+            kill(childPid, 9);
+            LocalResult->Set(TLocalResult(EResultCode::TimeoutExceeded));
+            return;
+        }
+    }
+    if (!WIFEXITED(&status)) {
+        LOG_ERROR("Local snapshot creating child process has not terminated correctly (SegmentId: %d),
+                segmentId);
+        LocalResult->Set(TLocalResult(EResultCode::ForkError));
+        return;
+    }
+    auto exitStatus = WEXITSTATUS(&status);
+    LOG_INFO("Local snapshot creating child process exited with exit status %d (SegmentId: %d)",
+        exitStatus,
+        segmentId);
+
+    auto result = snapshotBuilder->SnapshotStore->GetReader(segmentId);
+    if (!result.IsOK()) {
+        LOG_ERROR("Cannot open snapshot (SnapshotId: %d)\n%s",
+            segmentId,
+            ~result.ToString());
+        LocalResult->Set(TLocalResult(EResultCode::ForkError));
+        return;
+    }
+    auto reader = result.Value();
+    reader->Open();
+    auto checksum = reader->GetChecksum();
+    reader->Close();
+    snapshotBuilder->OnSave(checksum);
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
