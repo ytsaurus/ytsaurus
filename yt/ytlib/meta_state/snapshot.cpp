@@ -77,14 +77,14 @@ void TSnapshotReader::Open()
 {
     Close();
 
-    LOG_DEBUG("Opening snapshot reader %s", ~FileName);
+    LOG_DEBUG("Opening snapshot %s for reading", ~FileName.Quote());
     File.Reset(new TFile(FileName, OpenExisting));
     
     TSnapshotHeader header;
     Read(*File, &header);
     header.Validate();
     if (header.SegmentId != SegmentId) {
-        LOG_FATAL("Invalid snapshot id: expected %d, got %d",
+        LOG_FATAL("Invalid snapshot id in header: expected %d, got %d",
             SegmentId,
             header.SegmentId);
     }
@@ -113,7 +113,7 @@ void TSnapshotReader::Close()
     if (!FileInput)
         return;
 
-    LOG_DEBUG("Closing snapshot reader %s", ~FileName);
+    LOG_DEBUG("Closing snapshot %s", ~FileName.Quote());
     ChecksummableInput.Reset(NULL);
     DecompressedInput.Reset(NULL);
     FileInput.Reset(NULL);
@@ -145,7 +145,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
     PrevRecordCount = prevRecordCount;
     Close();
 
-    LOG_DEBUG("Opening snapshot writer %s", ~TempFileName);
+    LOG_DEBUG("Opening snapshot %s for writing", ~TempFileName.Quote());
     File.Reset(new TFile(TempFileName, RdWr | CreateAlways));
     FileOutput.Reset(new TBufferedFileOutput(*File));
 
@@ -169,7 +169,7 @@ void TSnapshotWriter::Close()
     if (!FileOutput)
         return;
 
-    LOG_DEBUG("Closing snapshot writer %s", ~TempFileName);
+    LOG_DEBUG("Closing snapshot %s", ~TempFileName.Quote());
 
     if (~ChecksummableOutput) {
         Checksum = ChecksummableOutput->GetChecksum();
@@ -178,7 +178,7 @@ void TSnapshotWriter::Close()
         CompressedOutput.Reset(NULL);
     }
 
-    FileOutput->Flush(); // ...but this is not!
+    FileOutput->Flush();
     FileOutput.Reset(NULL);
 
     TSnapshotHeader header(SegmentId, PrevRecordCount);
@@ -193,13 +193,15 @@ void TSnapshotWriter::Close()
 
     if (isexist(~FileName)) {
         if (!NFS::Remove(~FileName)) {
-            ythrow yexception() << "Error removing " << FileName;
+            ythrow yexception() << Sprintf("Error removing %s", FileName.Quote());
         }
-        LOG_WARNING("File %s already existed and is deleted", ~FileName);
+        LOG_WARNING("File %s already existed and was deleted", ~FileName.Quote());
     }
 
     if (!NFS::Rename(~TempFileName, ~FileName)) {
-        ythrow yexception() << "Error renaming " << TempFileName << " to " << FileName;
+        ythrow yexception() << Sprintf("Error renaming %s to %s",
+            ~TempFileName.Quote(),
+            ~FileName.Quote());
     }
 }
 
