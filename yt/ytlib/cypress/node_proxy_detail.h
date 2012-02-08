@@ -144,6 +144,12 @@ protected:
     const TNodeId NodeId;
 
 
+    virtual NObjectServer::TVersionedObjectId GetVersionedId() const
+    {
+        return TVersionedObjectId(NodeId, TransactionId);
+    }
+
+
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
