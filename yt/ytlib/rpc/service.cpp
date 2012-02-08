@@ -110,7 +110,9 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
             ~ServiceName,
             ~verb);
         LOG_WARNING("%s", ~message);
-        context->Reply(TError(EErrorCode::NoSuchVerb, message));
+        if (!context->IsOneWay()) {
+            context->Reply(TError(EErrorCode::NoSuchVerb, message));
+        }
 
         return;
     }
