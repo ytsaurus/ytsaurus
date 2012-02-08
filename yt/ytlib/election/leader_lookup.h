@@ -8,7 +8,6 @@
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/rpc/client.h>
 #include <ytlib/rpc/channel_cache.h>
-#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NElection {

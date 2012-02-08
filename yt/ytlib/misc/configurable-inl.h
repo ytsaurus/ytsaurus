@@ -32,7 +32,7 @@ struct TLoadHelper
 template <class T>
 struct TLoadHelper<
     T,
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, TConfigurable> >::TType
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TConfigurable*> >::TType
 >
 {
     static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)

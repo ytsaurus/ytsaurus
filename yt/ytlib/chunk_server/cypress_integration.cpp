@@ -331,26 +331,14 @@ public:
         return EObjectType::Holder;
     }
 
-    virtual TAutoPtr<ICypressNode> CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        NYTree::IMapNode* manifest)
-    {
-        UNUSED(transactionId);
-        UNUSED(manifest);
-        return Create(nodeId);
-    }
-
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
         return New<THolderProxy>(
             this,
             ~CypressManager,
             ~ChunkManager,
-            transactionId,
-            node.GetId().ObjectId);
+            id.TransactionId,
+            id.ObjectId);
     }
 
 private:
@@ -380,11 +368,11 @@ public:
     typedef TIntrusivePtr<TThis> TPtr;
 
     THolderMapBehavior(
-        const ICypressNode& node,
+        const TNodeId& nodeId,
         IMetaStateManager* metaStateManager,
         TCypressManager* cypressManager,
         TChunkManager* chunkManager)
-        : TBase(node, cypressManager)
+        : TBase(nodeId, cypressManager)
         , ChunkManager(chunkManager)
     {
         ChunkManager->HolderRegistered().Subscribe(
@@ -404,29 +392,23 @@ private:
         if (node->FindChild(address))
             return;
 
-
-        auto processor = CypressManager->CreateProcessor();
+        auto service = CypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
 
         // TODO(babenko): make a single transaction
 
         {
-            auto req = TCypressYPathProxy::Create(CombineYPaths(
-                FromObjectId(NodeId),
-                address));
+            auto req = TCypressYPathProxy::Create(address);
             req->set_type(EObjectType::Holder);
-            ExecuteVerb(~req, ~processor);
+            ExecuteVerb(~service, ~req);
         }
 
         {
-            auto req = TCypressYPathProxy::Create(CombineYPaths(
-                FromObjectId(NodeId),
-                address,
-                "orchid"));
+            auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
             req->set_type(EObjectType::Orchid);     
             auto manifest = New<TOrchidManifest>();
             manifest->RemoteAddress = address;
             req->set_manifest(SerializeToYson(~manifest));
-            ExecuteVerb(~req, ~processor);
+            ExecuteVerb(~service, ~req);
         }
     }
 
@@ -544,32 +526,24 @@ public:
     {
         return EObjectType::HolderMap;
     }
-
-    virtual TAutoPtr<ICypressNode> CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        NYTree::IMapNode* manifest)
-    {
-        UNUSED(transactionId);
-        UNUSED(manifest);
-        return Create(nodeId);
-    }
-
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId)
+    
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
         return New<THolderMapProxy>(
             this,
             ~CypressManager,
             ~ChunkManager,
-            transactionId,
-            node.GetId().ObjectId);
+            id.TransactionId,
+            id.ObjectId);
     }
 
-    virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
+    virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& nodeId)
     {
-        return New<THolderMapBehavior>(node, ~MetaStateManager, ~CypressManager, ~ChunkManager);
+        return New<THolderMapBehavior>(
+            nodeId,
+            ~MetaStateManager,
+            ~CypressManager,
+            ~ChunkManager);
     }
 
 private:

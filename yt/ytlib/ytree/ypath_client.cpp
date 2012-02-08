@@ -254,8 +254,8 @@ void OnYPathResponse(
 
 TFuture<IMessage::TPtr>::TPtr
 ExecuteVerb(
-    NBus::IMessage* requestMessage,
-    IYPathProcessor* processor)
+    IYPathService* service,
+    NBus::IMessage* requestMessage)
 {
     auto requestHeader = GetRequestHeader(requestMessage);
     TYPath path = requestHeader.path();
@@ -264,8 +264,12 @@ ExecuteVerb(
     IYPathService::TPtr suffixService;
     TYPath suffixPath;
     try {
-        // This may throw.
-        processor->Resolve(path, verb, &suffixService, &suffixPath);
+        ResolveYPath(
+            service,
+            path,
+            verb,
+            &suffixService,
+            &suffixPath);
     } catch (const std::exception& ex) {
         auto responseMessage = NRpc::CreateErrorResponseMessage(TError(
             EYPathErrorCode(EYPathErrorCode::ResolveError),
@@ -291,7 +295,7 @@ ExecuteVerb(
 
     try {
         // This should never throw.
-        processor->Execute(~suffixService, ~context);
+        suffixService->Invoke(~context);
     }
     catch (const std::exception& ex) {
         LOG_FATAL("Unexpected exception during verb execution\n%s", ex.what());
@@ -300,11 +304,11 @@ ExecuteVerb(
     return asyncResponseMessage;
 }
 
-TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* rootService, const TYPath& path)
+TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, const TYPath& path)
 {
     auto request = TYPathProxy::Get(path);
     return
-        ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))
+        ExecuteVerb(service, ~request)
         ->Apply(FromFunctor([] (TYPathProxy::TRspGet::TPtr response)
             {
                 return
@@ -314,50 +318,50 @@ TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* rootService, 
             }));
 }
 
-TYson SyncYPathGet(IYPathService* rootService, const TYPath& path)
+TYson SyncYPathGet(IYPathService* service, const TYPath& path)
 {
-    auto result = AsyncYPathGet(rootService, path)->Get();
+    auto result = AsyncYPathGet(service, path)->Get();
     if (!result.IsOK()) {
         ythrow yexception() << result.GetMessage();
     }
     return result.Value();
 }
 
-INode::TPtr SyncYPathGetNode(IYPathService* rootService, const TYPath& path)
+INode::TPtr SyncYPathGetNode(IYPathService* service, const TYPath& path)
 {
     auto request = TYPathProxy::GetNode(path);
-    auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
+    auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
     return reinterpret_cast<INode*>(response->value());
 }
 
-void SyncYPathSet(IYPathService* rootService, const TYPath& path, const TYson& value)
+void SyncYPathSet(IYPathService* service, const TYPath& path, const TYson& value)
 {
     auto request = TYPathProxy::Set(path);
     request->set_value(value);
-    auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
+    auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
 }
 
-void SyncYPathSetNode(IYPathService* rootService, const TYPath& path, INode* value)
+void SyncYPathSetNode(IYPathService* service, const TYPath& path, INode* value)
 {
     auto request = TYPathProxy::SetNode(path);
     request->set_value(reinterpret_cast<i64>(value));
-    auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
+    auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
 }
 
-void SyncYPathRemove(IYPathService* rootService, const TYPath& path)
+void SyncYPathRemove(IYPathService* service, const TYPath& path)
 {
     auto request = TYPathProxy::Remove(path);
-    auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
+    auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
 }
 
-yvector<Stroka> SyncYPathList(IYPathService* rootService, const TYPath& path)
+yvector<Stroka> SyncYPathList(IYPathService* service, const TYPath& path)
 {
     auto request = TYPathProxy::List(path);
-    auto response = ExecuteVerb(~request, ~CreateDefaultProcessor(rootService))->Get();
+    auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
     return FromProto<Stroka>(response->keys());
 }

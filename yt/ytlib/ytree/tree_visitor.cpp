@@ -25,7 +25,7 @@ void TTreeVisitor::VisitAny(const INode* node)
 {
     yvector<Stroka> attributeNames;
     if (VisitAttributes_) {
-        attributeNames = SyncYPathList(const_cast<INode*>(node), RootMarker + AttributeMarker);
+        attributeNames = SyncYPathList(const_cast<INode*>(node), AttributeMarker);
     }
 
     bool hasAttributes = !attributeNames.empty();
@@ -58,7 +58,7 @@ void TTreeVisitor::VisitAny(const INode* node)
         Consumer->OnBeginAttributes();
         FOREACH (const auto& attributeName, attributeNames) {
             Consumer->OnAttributesItem(attributeName);
-            auto attributeValue = SyncYPathGet(const_cast<INode*>(node), RootMarker + AttributeMarker + attributeName);
+            auto attributeValue = SyncYPathGet(const_cast<INode*>(node), AttributeMarker + attributeName);
             ProducerFromYson(attributeValue)->Do(Consumer);
         }
         Consumer->OnEndAttributes();

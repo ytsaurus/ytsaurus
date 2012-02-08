@@ -54,10 +54,12 @@ class TFileNodeTypeHandler
     : public NCypress::TCypressNodeTypeHandlerBase<TFileNode>
 {
 public:
+    typedef TCypressNodeTypeHandlerBase<TFileNode> TBase;
+
     TFileNodeTypeHandler(
         TCypressManager* cypressManager,
         TChunkManager* chunkManager)
-        : TCypressNodeTypeHandlerBase<TFileNode>(cypressManager)
+        : TBase(cypressManager)
         , ChunkManager(chunkManager)
     { }
 
@@ -71,14 +73,13 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual TAutoPtr<NCypress::ICypressNode> CreateFromManifest(
+    virtual void CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         IMapNode* manifestNode)
     {
-        UNUSED(transactionId);
-
         auto manifest = New<TFileManifest>();
+        manifest->SetKeepOptions(true);
         manifest->LoadAndValidate(manifestNode);
 
         auto chunkId = manifest->ChunkId;
@@ -92,31 +93,28 @@ public:
         }
 
         TAutoPtr<TFileNode> node = new TFileNode(nodeId);
-
         auto& chunkList = ChunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
         CypressManager->GetObjectManager()->RefObject(chunkListId);
+        CypressManager->RegisterNode(transactionId, node.Release());
 
-        ObjectManager->GetProxy(nodeId)->GetAttributes()->Merge(manifestNode);
+        auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
+        proxy->GetAttributes()->MergeFrom(~manifest->GetOptions());
         
         yvector<TChunkTreeId> childrenIds;
         childrenIds.push_back(chunkId);
         ChunkManager->AttachToChunkList(chunkList, childrenIds);
-
-        return node.Release();
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
         return New<TFileNodeProxy>(
             this,
             ~CypressManager,
             ~ChunkManager,
-            transactionId,
-            node.GetId().ObjectId);
+            id.TransactionId,
+            id.ObjectId);
     }
 
 protected:

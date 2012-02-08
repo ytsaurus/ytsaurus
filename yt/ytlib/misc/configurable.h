@@ -4,7 +4,6 @@
 #include "property.h"
 
 #include <ytlib/ytree/ytree.h>
-#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/yson_consumer.h>
 
 namespace NYT {
@@ -75,9 +74,9 @@ public:
 
     TConfigurable();
 
-    void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::RootMarker);
-    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = NYTree::RootMarker);
-    void Validate(const NYTree::TYPath& path = NYTree::RootMarker) const;
+    void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = "");
+    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = "");
+    void Validate(const NYTree::TYPath& path = "") const;
 
     void Save(NYTree::IYsonConsumer* consumer) const;
 

@@ -82,7 +82,7 @@ void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqG
             response->set_value(stream.Str());
         } else {
             auto wholeValue = DeserializeFromYson(stream.Str());
-            auto value = SyncYPathGet(~wholeValue, RootMarker + suffixPath);
+            auto value = SyncYPathGet(~wholeValue, suffixPath);
             response->set_value(value);
         }
     }
@@ -114,7 +114,7 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
         }
 
         auto wholeValue = DeserializeFromYson(stream.Str());
-        keys = SyncYPathList(~wholeValue, RootMarker + suffixPath);
+        keys = SyncYPathList(~wholeValue, suffixPath);
     }
 
     ToProto(*response->mutable_keys(), keys);

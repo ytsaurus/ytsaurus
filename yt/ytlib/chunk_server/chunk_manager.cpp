@@ -53,12 +53,12 @@ public:
         const TTransactionId& transactionId,
         IMapNode* manifest);
 
+    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
+
 private:
     TImpl* Owner;
 
     virtual void OnObjectDestroyed(TChunk& chunk);
-
-    virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id);
 
 };
 
@@ -79,13 +79,12 @@ public:
         const TTransactionId& transactionId,
         IMapNode* manifest);
 
+    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
+
 private:
     TImpl* Owner;
 
     virtual void OnObjectDestroyed(TChunkList& chunkList);
-
-    virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1249,9 +1248,9 @@ TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::CreateProxy(const TObjectId& id)
+IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::GetProxy(const TVersionedObjectId& id)
 {
-    return New<TChunkProxy>(Owner, id);
+    return New<TChunkProxy>(Owner, id.ObjectId);
 }
 
 TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
@@ -1262,7 +1261,8 @@ TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
     UNUSED(manifest);
 
     auto id = Owner->CreateChunk().GetId();
-    ObjectManager->GetProxy(id)->GetAttributes()->Merge(manifest);
+    auto proxy = ObjectManager->GetProxy(id);
+    proxy->GetAttributes()->MergeFrom(manifest);
     return id;
 }
 
@@ -1370,9 +1370,9 @@ TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::CreateProxy(const TObjectId& id)
+IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::GetProxy(const TVersionedObjectId& id)
 {
-    return New<TChunkListProxy>(Owner, id);
+    return New<TChunkListProxy>(Owner, id.ObjectId);
 }
 
 TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(
@@ -1383,7 +1383,8 @@ TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(
     UNUSED(manifest);
 
     auto id = Owner->CreateChunkList().GetId();
-    ObjectManager->GetProxy(id)->GetAttributes()->Merge(manifest);
+    auto proxy = ObjectManager->GetProxy(id);
+    proxy->GetAttributes()->MergeFrom(manifest);
     return id;
 }
 

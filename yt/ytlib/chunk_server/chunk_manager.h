@@ -23,7 +23,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager
-    : public TExtrinsicRefCounted
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TChunkManager> TPtr;

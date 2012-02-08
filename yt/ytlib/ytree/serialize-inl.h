@@ -3,8 +3,8 @@
 #endif
 #undef SERIALIZE_INL_H_
 
-#include "../misc/nullable.h"
-#include "../misc/configurable.h"
+#include <ytlib/misc/nullable.h>
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NYTree {
@@ -34,7 +34,7 @@ template <class T>
 inline void Read(
     TIntrusivePtr<T>& parameter,
     const NYTree::INode* node,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType)
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType)
 {
     if (!parameter) {
         parameter = New<T>();
@@ -49,7 +49,7 @@ template <class T>
 inline void Read(
     T& parameter,
     const NYTree::INode* node, 
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T, TEnumBase<T> >, int>::TType)
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
 {
     auto value = node->AsString()->GetValue();
     parameter = ParseEnum<T>(value);

@@ -63,13 +63,13 @@ void TSchedulerBootstrap::Run()
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
-        "/ref_counted",
+        "ref_counted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
-        "/bus_server",
+        "bus_server",
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
     monitoringManager->Register(
-        "/rpc_server",
+        "rpc_server",
         FromMethod(&IServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
@@ -77,11 +77,11 @@ void TSchedulerBootstrap::Run()
     auto orchidRoot = orchidFactory->CreateMap();
     SyncYPathSetNode(
         ~orchidRoot,
-        "/monitoring",
+        "monitoring",
         ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "/config",
+        "config",
         ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(
@@ -92,10 +92,10 @@ void TSchedulerBootstrap::Run()
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
-        "/statistics",
+        "statistics",
         ~NMonitoring::GetProfilingHttpHandler());
     httpServer->Register(
-        "/orchid",
+        "orchid",
         ~NMonitoring::GetYPathHttpHandler(
             ~FromFunctor([=] () -> IYPathService::TPtr
                 {

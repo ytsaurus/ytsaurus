@@ -13,12 +13,6 @@
 #include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
-
-// TODO(babenko): consider getting rid of this
-namespace NCypress {
-    class TCypressManager;
-}
-
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +56,7 @@ public:
         NMetaState::TCompositeMetaState* metaState,
         NObjectServer::TObjectManager* objectManager);
 
-    void SetCypressManager(NCypress::TCypressManager* cypressManager);
+    // TODO(babenko): killme
     NObjectServer::TObjectManager* GetObjectManager() const;
 
     NObjectServer::IObjectProxy::TPtr GetRootTransactionProxy();
@@ -86,7 +80,6 @@ private:
 
     TConfig::TPtr Config;
     NObjectServer::TObjectManager::TPtr ObjectManager;
-    TIntrusivePtr<NCypress::TCypressManager> CypressManager;
 
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;

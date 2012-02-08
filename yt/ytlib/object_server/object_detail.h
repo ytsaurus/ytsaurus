@@ -83,6 +83,7 @@ public:
     // IObjectProxy members
     virtual TObjectId GetId() const;
     virtual NYTree::IAttributeDictionary::TPtr GetAttributes();
+    virtual void Invoke(NRpc::IServiceContext* context);
 
 protected:
     TObjectManager::TPtr ObjectManager;
@@ -90,6 +91,8 @@ protected:
     NYTree::IAttributeDictionary::TPtr UserAttributeDictionary;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
+
+    virtual TVersionedObjectId GetVersionedId() const;
 
     // NYTree::TYPathServiceBase members
     virtual void DoInvoke(NRpc::IServiceContext* context);

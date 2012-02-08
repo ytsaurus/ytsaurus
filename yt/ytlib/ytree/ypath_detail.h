@@ -22,12 +22,16 @@ class TYPathServiceBase
     : public virtual IYPathService
 {
 public:
+    typedef TIntrusivePtr<TYPathServiceBase> TPtr;
+
     TYPathServiceBase(const Stroka& loggingCategory = YTreeLogger.GetCategory());
 
     virtual void Invoke(NRpc::IServiceContext* context);
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);
     virtual Stroka GetLoggingCategory() const;
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
+
+    void GuardedInvoke(NRpc::IServiceContext* context);
 
 protected:
     NLog::TLogger Logger;
@@ -329,6 +333,8 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler);
+
+IYPathService::TPtr CreateRootService(IYPathService* underlyingService);
 
 ////////////////////////////////////////////////////////////////////////////////
 

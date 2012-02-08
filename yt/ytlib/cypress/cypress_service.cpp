@@ -13,6 +13,7 @@ using namespace NMetaState;
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,10 +60,10 @@ public:
                 ~path,
                 ~verb);
 
-            auto processor = Owner->CypressManager->CreateProcessor();
+            auto service = Owner->ObjectManager->GetRootService();
 
             awaiter->Await(
-                ExecuteVerb(~requestMessage, ~processor),
+                ExecuteVerb(service, ~requestMessage),
                 FromMethod(&TExecuteSession::OnResponse, TPtr(this), requestIndex));
 
             requestPartIndex += partCount;
@@ -110,14 +111,14 @@ private:
 
 TCypressService::TCypressService(
     NMetaState::IMetaStateManager* metaStateManager,
-    TCypressManager* cypressManager)
+    TObjectManager* objectManager)
     : TMetaStateServiceBase(
         metaStateManager,
         TCypressServiceProxy::GetServiceName(),
         CypressLogger.GetCategory())
-    , CypressManager(cypressManager)
+    , ObjectManager(objectManager)
 {
-    YASSERT(cypressManager);
+    YASSERT(objectManager);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 }
