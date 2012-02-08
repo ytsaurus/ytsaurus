@@ -49,6 +49,7 @@ public:
         (TimeoutExceeded)
     );
 
+    // TODO(babenko): consider replacing with TValueOrError
     struct TLocalResult
     {
         EResultCode ResultCode;
@@ -115,11 +116,11 @@ private:
     typedef TMetaStateManagerProxy TProxy;
 
     TChecksum DoCreateLocal(TMetaVersion version);
-    void OnSave(const TChecksum& checksum);
+    void OnLocalCreated(const TChecksum& checksum);
 
 #if defined(_unix_)
-    static void* ThreadFunc(void* param);
-    THolder<TThread> Thread;
+    static void* WatchdogThreadFunc(void* param);
+    THolder<TThread> WatchdogThread;
     pid_t ChildPid;
 #endif
 

@@ -47,8 +47,7 @@ public:
         auto& config = Creator->Config;
         for (TPeerId followerId = 0; followerId < Creator->CellManager->GetPeerCount(); ++followerId) {
             if (followerId == Creator->CellManager->GetSelfId()) continue;
-            LOG_DEBUG("Requesting follower to create a snapshot (FollowerId: %d)",
-                followerId);
+            LOG_DEBUG("Requesting follower %d to create a snapshot", followerId);
 
             auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(followerId);
             proxy->SetTimeout(config->RemoteTimeout);
@@ -105,7 +104,7 @@ private:
     void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error creating a snapshot at follower (FollowerId: %d, Version: %s)\n%s",
+            LOG_WARNING("Error creating a snapshot at follower %d (Version: %s)\n%s",
                 followerId,
                 ~Version.ToString(),
                 ~response->GetError().ToString());
@@ -113,11 +112,11 @@ private:
         }
 
         auto checksum = response->checksum();
-        LOG_INFO("Remote snapshot is created (FollowerId: %d, Checksum: %" PRIx64 ")",
+        LOG_INFO("Remote snapshot is created at follower %d (Checksum: %" PRIx64 ")",
             followerId,
             checksum);
 
-        Checksums[followerId] = MakeNullable(checksum);
+        Checksums[followerId] = checksum;
     }
 
     TSnapshotBuilder::TPtr Creator;
@@ -170,7 +169,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     if (IsInProgress()) {
-        LOG_ERROR("Could not create local snapshot, snapshot creation is already in progress (Version: %s)",
+        LOG_ERROR("Unable to create a local snapshot, snapshot creation is already in progress (Version: %s)",
             ~version.ToString());
         return MakeFuture(TLocalResult(EResultCode::AlreadyInProgress));
     }
@@ -180,7 +179,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
 
     // TODO: handle IO errors
     if (MetaState->GetVersion() != version) {
-        LOG_WARNING("Invalid version, snapshot creation canceled (expected: %s, received: %s)",
+        LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, received %s",
             ~version.ToString(),
             ~MetaState->GetVersion().ToString());
         return MakeFuture(TLocalResult(EResultCode::InvalidVersion));
@@ -191,19 +190,18 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
 #if defined(_unix_)
     ChildPid = fork();
     if (ChildPid == -1) {
-        LOG_ERROR("Could not fork while createing local snapshot (SnapshotId: %d)",
-            CurrentSnapshotId);
+        LOG_ERROR("Could not fork while creating local snapshot %d", CurrentSnapshotId);
         LocalResult->Set(TLocalResult(EResultCode::ForkError));
     } else if (ChildPid == 0) {
         DoCreateLocal(version);
         _exit(0);
     } else {
-        Thread.Reset(new TThread(ThreadFunc, (void*) this));
-        Thread->Start();
+        WatchdogThread.Reset(new TThread(WatchdogThreadFunc, (void*) this));
+        WatchdogThread->Start();
     }
 #else
     auto checksum = DoCreateLocal(version);
-    OnSave(checksum);
+    OnLocalCreated(checksum);
 #endif
         
     return LocalResult;
@@ -220,11 +218,11 @@ TChecksum TSnapshotBuilder::DoCreateLocal(TMetaVersion version)
     return writer->GetChecksum();
 }
 
-void TSnapshotBuilder::OnSave(const TChecksum& checksum)
+void TSnapshotBuilder::OnLocalCreated(const TChecksum& checksum)
 {
     SnapshotStore->UpdateMaxSnapshotId(CurrentSnapshotId);
 
-    LOG_INFO("Local snapshot is created (SegmentId: %d, Checksum: %" PRIx64 ")",
+    LOG_INFO("Local snapshot %d is created (Checksum: %" PRIx64 ")",
         CurrentSnapshotId,
         checksum);
 
@@ -232,7 +230,7 @@ void TSnapshotBuilder::OnSave(const TChecksum& checksum)
 }
 
 #if defined(_unix_)
-void* TSnapshotBuilder::ThreadFunc(void* param)
+void* TSnapshotBuilder::WatchdogThreadFunc(void* param)
 {
     auto* snapshotBuilder = static_cast<TSnapshotBuilder*>(param);
     auto deadline = snapshotBuilder->Config->LocalTimeout.ToDeadLine();
@@ -244,7 +242,7 @@ void* TSnapshotBuilder::ThreadFunc(void* param)
         if (TInstant::Now() <= deadline) {
             sleep(1);
         } else {
-            LOG_ERROR("Local snapshot creating timed out. Killing child process. (SegmentId: %d)",
+            LOG_ERROR("Local snapshot creating timed out, killing child process (SegmentId: %d)",
                 segmentId);
             kill(childPid, 9);
             localResult->Set(TLocalResult(EResultCode::TimeoutExceeded));

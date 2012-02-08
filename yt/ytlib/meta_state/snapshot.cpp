@@ -68,9 +68,7 @@ struct TSnapshotHeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotReader::TSnapshotReader(
-    Stroka fileName,
-    i32 segmentId)
+TSnapshotReader::TSnapshotReader(const Stroka& fileName, i32 segmentId)
     : FileName(fileName)
     , SegmentId(segmentId)
 { }
