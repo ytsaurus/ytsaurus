@@ -192,14 +192,14 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     ChildPid = fork();
     if (ChildPid == -1) {
         LOG_ERROR("Could not fork while createing local snapshot (SnapshotId: %d)",
-            SegmentId);
+            CurrentSnapshotId);
         LocalResult->Set(TLocalResult(EResultCode::ForkError));
     } else if (ChildPid == 0) {
         DoCreateLocal(version);
         _exit(0);
     } else {
         Thread.Reset(new TThread(ThreadFunc, (void*) this));
-        Thread.Start();
+        Thread->Start();
     }
 #else
     auto checksum = DoCreateLocal(version);
@@ -238,25 +238,26 @@ void* TSnapshotBuilder::ThreadFunc(void* param)
     auto deadline = snapshotBuilder->Config->LocalTimeout.ToDeadLine();
     auto childPid = snapshotBuilder->ChildPid;
     auto segmentId = snapshotBuilder->CurrentSnapshotId;
+    auto localResult = snapshotBuilder->LocalResult;
     int status;
     while (waitpid(childPid, &status, WNOHANG) == 0) {
         if (TInstant::Now() <= deadline) {
             sleep(1);
         } else {
-            LOG_ERROR("Local snapshot creating timed out. Killing child process. (SegmentId: %d),
+            LOG_ERROR("Local snapshot creating timed out. Killing child process. (SegmentId: %d)",
                 segmentId);
             kill(childPid, 9);
-            LocalResult->Set(TLocalResult(EResultCode::TimeoutExceeded));
-            return;
+            localResult->Set(TLocalResult(EResultCode::TimeoutExceeded));
+            return NULL;
         }
     }
-    if (!WIFEXITED(&status)) {
-        LOG_ERROR("Local snapshot creating child process has not terminated correctly (SegmentId: %d),
+    if (!WIFEXITED(status)) {
+        LOG_ERROR("Local snapshot creating child process has not terminated correctly (SegmentId: %d)",
                 segmentId);
-        LocalResult->Set(TLocalResult(EResultCode::ForkError));
-        return;
+        localResult->Set(TLocalResult(EResultCode::ForkError));
+        return NULL;
     }
-    auto exitStatus = WEXITSTATUS(&status);
+    auto exitStatus = WEXITSTATUS(status);
     LOG_INFO("Local snapshot creating child process exited with exit status %d (SegmentId: %d)",
         exitStatus,
         segmentId);
@@ -266,14 +267,15 @@ void* TSnapshotBuilder::ThreadFunc(void* param)
         LOG_ERROR("Cannot open snapshot (SnapshotId: %d)\n%s",
             segmentId,
             ~result.ToString());
-        LocalResult->Set(TLocalResult(EResultCode::ForkError));
-        return;
+        localResult->Set(TLocalResult(EResultCode::ForkError));
+        return NULL;
     }
     auto reader = result.Value();
     reader->Open();
     auto checksum = reader->GetChecksum();
     reader->Close();
     snapshotBuilder->OnSave(checksum);
+    return NULL;
 }
 #endif
 
