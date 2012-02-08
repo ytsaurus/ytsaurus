@@ -48,10 +48,12 @@ class TTableNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TTableNode>
 {
 public:
+    typedef TCypressNodeTypeHandlerBase<TTableNode> TBase;
+
     TTableNodeTypeHandler(
         TCypressManager* cypressManager,
         TChunkManager* chunkManager)
-        : TCypressNodeTypeHandlerBase<TTableNode>(cypressManager)
+        : TBase(cypressManager)
         , ChunkManager(chunkManager)
     { }
 
@@ -73,38 +75,32 @@ public:
             mode == ELockMode::Snapshot;
     }
 
-    virtual TAutoPtr<ICypressNode> CreateFromManifest(
+    virtual void CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         IMapNode* manifest)
     {
-        UNUSED(transactionId);
-        UNUSED(manifest);
-
-        TAutoPtr<TTableNode> node = new TTableNode(nodeId);
+        TAutoPtr<TTableNode> node(new TTableNode(nodeId));
 
         // Create an empty chunk list and reference it from the node.
         auto& chunkList = ChunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
         CypressManager->GetObjectManager()->RefObject(chunkListId);
+        CypressManager->RegisterNode(transactionId, node.Release());
 
-        ObjectManager->AddAttributes(nodeId, manifest);
-
-        // TODO(babenko): stupid TAutoPtr does not support upcast.
-        return node.Release();
+        auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
+        proxy->GetAttributes()->MergeFrom(manifest);
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
         return New<TTableNodeProxy>(
             this,
             ~CypressManager,
             ~ChunkManager,
-            transactionId,
-            node.GetId().ObjectId);
+            id.TransactionId,
+            id.ObjectId);
     }
 
 protected:

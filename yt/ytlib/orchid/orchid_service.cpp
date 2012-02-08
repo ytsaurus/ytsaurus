@@ -26,10 +26,10 @@ TOrchidService::TOrchidService(
         invoker,
         TOrchidServiceProxy::GetServiceName(),
         OrchidLogger.GetCategory())
-    , Root(root)
 {
     YASSERT(root);
 
+    RootService = CreateRootService(root);
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 }
 
@@ -50,17 +50,13 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         ~path,
         ~verb);
 
-    auto processor = CreateDefaultProcessor(~Root);
-
-    ExecuteVerb(
-        ~requestMessage,
-        ~processor)
+    ExecuteVerb(~RootService, ~requestMessage)
     ->Subscribe(FromFunctor([=] (IMessage::TPtr responseMessage)
         {
             auto responseHeader = GetResponseHeader(~responseMessage);
             auto error = GetResponseError(responseHeader);
 
-            context->SetRequestInfo("YPathError: %s", ~error.ToString());
+            context->SetRequestInfo("Error: %s", ~error.ToString());
 
             response->Attachments() = responseMessage->GetParts();
             context->Reply();

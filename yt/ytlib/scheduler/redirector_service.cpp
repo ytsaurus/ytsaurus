@@ -41,7 +41,7 @@ TRedirectorService::TRedirectParams TRedirectorService::GetRedirectParams(IServi
 {
     // TODO(babenko): refactor using new API
     auto root = CypressManager->GetVersionedNodeProxy(CypressManager->GetRootNodeId(), NullTransactionId);
-    auto configYson = SyncYPathGet(~root, "/sys/scheduler@");
+    auto configYson = SyncYPathGet(~root, "sys/scheduler@");
     auto configNode = DeserializeFromYson(configYson);
     auto config = New<TConfig>();
     config->LoadAndValidate(~configNode);

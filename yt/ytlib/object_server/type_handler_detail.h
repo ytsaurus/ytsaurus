@@ -54,9 +54,9 @@ public:
         return obj.GetObjectRefCounter();
     }
 
-    virtual IObjectProxy::TPtr GetProxy(const TObjectId& id)
+    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id)
     {
-        return CreateProxy(id);
+        return New< TUnversionedObjectProxyBase<TObject> >(~ObjectManager, id.ObjectId, Map);
     }
 
     virtual TObjectId CreateFromManifest(
@@ -82,11 +82,6 @@ protected:
     virtual void OnObjectDestroyed(TObject& obj)
     {
         UNUSED(obj);
-    }
-
-    virtual IObjectProxy::TPtr CreateProxy(const TObjectId& id)
-    {
-        return New< TUnversionedObjectProxyBase<TObject> >(~ObjectManager, id, Map);
     }
 };
 

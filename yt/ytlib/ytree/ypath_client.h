@@ -123,7 +123,7 @@ protected:
     typedef ::NYT::NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method> TReq##method; \
     typedef ::NYT::NYTree::TTypedYPathResponse<ns::TReq##method, ns::TRsp##method> TRsp##method; \
     \
-    static TReq##method::TPtr method(const NYT::NYTree::TYPath& path) \
+    static TReq##method::TPtr method(const NYT::NYTree::TYPath& path  = "") \
     { \
         auto req = New<TReq##method>(#method); \
         req->SetPath(path); \
@@ -160,7 +160,7 @@ TYPath CombineYPaths(
 //! Returns True if the path is empty.
 bool IsEmptyYPath(const TYPath& path);
 
-//! Returns True if the path is empty or "/".
+//! Returns True if the path is empty or equals to "/".
 bool IsFinalYPath(const TYPath& path);
 
 //! Returns True if the path starts with "@".
@@ -170,8 +170,8 @@ bool IsAttributeYPath(const TYPath& path);
 /*!
  *  The empty path is handled by the virtual node itself.
  *  All other paths (including "/") are forwarded to the service.
- *  Thus "/virtual" denotes the virtual node while "/virtual/" denotes its content.
- *  Same applies to the attributes (cf. "/virtual@" vs "/virtual/@").
+ *  Thus "virtual" denotes the virtual node while "virtual/" denotes its content.
+ *  Same applies to the attributes (cf. "virtual@" vs "virtual/@").
  */
 bool IsLocalYPath(const TYPath& path);
 
@@ -184,33 +184,33 @@ void ResolveYPath(
 
 //! Asynchronously executes an untyped YPath verb against a given service.
 TFuture<NBus::IMessage::TPtr>::TPtr
-ExecuteVerb(NBus::IMessage* requestMessage, IYPathProcessor* processor);
+ExecuteVerb(IYPathService* service, NBus::IMessage* requestMessage);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteVerb(TTypedRequest* request, IYPathProcessor* processor);
+ExecuteVerb(IYPathService* service, TTypedRequest* request);
 
 //! Asynchronously executes "Get" verb. 
-TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* rootService, const TYPath& path);
+TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, const TYPath& path);
 
 //! Synchronously executes "Get" verb. Throws if an error has occurred.
-TYson SyncYPathGet(IYPathService* rootService, const TYPath& path);
+TYson SyncYPathGet(IYPathService* service, const TYPath& path);
 
 //! Synchronously executes "GetNode" verb. Throws if an error has occurred.
-INode::TPtr SyncYPathGetNode(IYPathService* rootService, const TYPath& path);
+INode::TPtr SyncYPathGetNode(IYPathService* service, const TYPath& path);
 
 //! Synchronously executes "Set" verb. Throws if an error has occurred.
-void SyncYPathSet(IYPathService* rootService, const TYPath& path, const TYson& value);
+void SyncYPathSet(IYPathService* service, const TYPath& path, const TYson& value);
 
 //! Synchronously executes "SetNode" verb. Throws if an error has occurred.
-void SyncYPathSetNode(IYPathService* rootService, const TYPath& path, INode* value);
+void SyncYPathSetNode(IYPathService* service, const TYPath& path, INode* value);
 
 //! Synchronously executes "Remove" verb. Throws if an error has occurred.
-void SyncYPathRemove(IYPathService* rootService, const TYPath& path);
+void SyncYPathRemove(IYPathService* service, const TYPath& path);
 
 //! Synchronously executes "List" verb. Throws if an error has occurred.
-yvector<Stroka> SyncYPathList(IYPathService* rootService, const TYPath& path);
+yvector<Stroka> SyncYPathList(IYPathService* service, const TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

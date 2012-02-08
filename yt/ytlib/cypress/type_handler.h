@@ -21,7 +21,7 @@ struct ICypressNodeProxy;
  *  Behaviors are only created for non-branched nodes.
  */
 struct INodeBehavior
-    : virtual TExtrinsicRefCounted
+    : virtual TRefCounted
 {
     typedef TIntrusivePtr<INodeBehavior> TPtr;
 
@@ -44,9 +44,7 @@ struct INodeTypeHandler
      *  is being created (possibly #NullTransactionId).
      *  \return The constructed proxy.
      */
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId) = 0;
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id) = 0;
 
     //! Returns the (dynamic) node type.
     virtual EObjectType GetObjectType() = 0;
@@ -54,22 +52,22 @@ struct INodeTypeHandler
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;
 
-    //! Creates a dynamic node with a given manifest.
-    /*!
-     *  This is called during <tt>Create<tt> verb execution.
-     */
-    virtual TAutoPtr<ICypressNode> CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        NYTree::IMapNode* manifest) = 0;
-
     //! Create a empty instance of the node.
     /*!
      *  This method is called when:
-     *  - a static node is being created
+     *  - a static or dynamic node is being created
      *  - a node (possibly dynamic) is being loaded from a snapshot
      */
     virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) = 0;
+
+    //! Creates and registers dynamic node with a given manifest.
+    /*!
+     *  This is called during <tt>Create<tt> verb execution.
+     */
+    virtual void CreateFromManifest(
+        const TNodeId& nodeId,
+        const TTransactionId& transactionId,
+        NYTree::IMapNode* manifest) = 0;
 
     //! Performs cleanup on node destruction.
     /*!
@@ -116,7 +114,7 @@ struct INodeTypeHandler
      *  content may get eventually destroyed by TMetaStateMap.
      *  It should keep node id instead.
      */
-    virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node) = 0;
+    virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& id) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

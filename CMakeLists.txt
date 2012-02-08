@@ -21,7 +21,7 @@ include(PCH)
 # Setup targets.
 
 if (YT_BUILD_WITH_STLPORT)
-  add_subdirectory(extern/STLport/build/cmake)
+  add_subdirectory(contrib/STLport/build/cmake)
 endif()
 
 add_subdirectory(util-build)

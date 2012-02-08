@@ -82,16 +82,14 @@ public:
         , ObjectType(objectType)
     { }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
-        auto service = Producer->Do(node.GetId());
+        auto service = Producer->Do(id);
         return New<TVirtualNodeProxy>(
             this,
             ~CypressManager,
-            transactionId,
-            node.GetId().ObjectId,
+            id.TransactionId,
+            id.ObjectId,
             ~service);
     }
 
@@ -103,17 +101,6 @@ public:
     virtual ENodeType GetNodeType()
     {
         return ENodeType::Entity;
-    }
-
-    virtual TAutoPtr<ICypressNode> CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        NYTree::IMapNode* manifest)
-    {
-        UNUSED(transactionId);
-        TAutoPtr<ICypressNode> node = new TVirtualNode(nodeId);
-        ObjectManager->AddAttributes(nodeId, manifest);
-        return node;
     }
 
     virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id)

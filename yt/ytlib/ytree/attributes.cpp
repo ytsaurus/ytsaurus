@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "attributes.h"
 
+#include "ytree.h"
+#include "ephemeral.h"
+#include "serialize.h"
+
 namespace NYT {
 namespace NYTree {
 
@@ -13,6 +17,26 @@ TYson IAttributeDictionary::GetAttribute(const Stroka& name)
         ythrow yexception() << Sprintf("Attribute %s is not found", ~name.Quote());
     }
     return result;
+}
+
+IMapNode::TPtr IAttributeDictionary::ToMap()
+{
+    auto map = GetEphemeralNodeFactory()->CreateMap();
+    auto names = ListAttributes();
+    FOREACH (const auto& name, names) {
+        auto value = DeserializeFromYson(GetAttribute(name));
+        map->AddChild(~value, name);
+    }
+    return map;
+}
+
+void IAttributeDictionary::MergeFrom(const IMapNode* map)
+{
+    FOREACH (const auto& pair, map->GetChildren()) {
+        const auto& key = pair.first;
+        auto value = SerializeToYson(~pair.second);
+        SetAttribute(key, value);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

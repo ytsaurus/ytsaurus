@@ -42,6 +42,7 @@ DECLARE_ENUM(ENodeType,
 //! A base DOM-like interface representing a node.
 struct INode
     : public virtual IYPathService
+    , public virtual IAttributeProvider
 {
     typedef TIntrusivePtr<INode> TPtr;
 
@@ -106,9 +107,6 @@ struct INode
     {
         NDetail::TScalarTypeTraits<T>::SetValue(this, value);
     }
-
-    //! Returns node attributes.
-    virtual IAttributeDictionary::TPtr GetAttributes() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

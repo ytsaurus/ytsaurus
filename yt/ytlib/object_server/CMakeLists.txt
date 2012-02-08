@@ -25,3 +25,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/object_ypath.proto YT_SOURCE_FILES )
+protoc( ${BASE}/object_manager.proto YT_SOURCE_FILES )

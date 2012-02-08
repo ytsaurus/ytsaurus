@@ -23,10 +23,10 @@ class TNodeBehaviorBase
 {
 public:
     TNodeBehaviorBase(
-        const ICypressNode& node,
+        const TNodeId& nodeId,
         TCypressManager* cypressManager)
         : CypressManager(cypressManager)
-        , NodeId(node.GetId().ObjectId)
+        , NodeId(nodeId)
     { }
 
     virtual void Destroy()
@@ -58,6 +58,7 @@ class TCypressNodeTypeHandlerBase
     : public INodeTypeHandler
 {
 public:
+    // TODO(babenko): consider passing just objectManager
     explicit TCypressNodeTypeHandlerBase(TCypressManager* cypressManager)
         : CypressManager(cypressManager)
         , ObjectManager(cypressManager->GetObjectManager())
@@ -68,16 +69,16 @@ public:
         return new TImpl(id);
     }
 
-    virtual TAutoPtr<ICypressNode> CreateFromManifest(
+    virtual void CreateFromManifest(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         NYTree::IMapNode* manifest)
     {
-        UNUSED(nodeId);
-        UNUSED(transactionId);
         UNUSED(manifest);
-        ythrow yexception() << Sprintf("Nodes of type %s cannot be created from a manifest",
-            ~FormatEnum(GetObjectType()).Quote());
+        auto node = Create(nodeId);
+        CypressManager->RegisterNode(transactionId, node);
+        auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, transactionId);
+        proxy->GetAttributes()->MergeFrom(manifest);
     }
 
     virtual void Destroy(ICypressNode& node)
@@ -138,9 +139,9 @@ public:
         DoMerge(dynamic_cast<TImpl&>(originatingNode), dynamic_cast<TImpl&>(branchedNode));
     }
 
-    virtual INodeBehavior::TPtr CreateBehavior(const ICypressNode& node)
+    virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& id)
     {
-        UNUSED(node);
+        UNUSED(id);
         return NULL;
     }
 
@@ -259,7 +260,7 @@ public:
 
     virtual TAutoPtr<ICypressNode> Clone() const
     {
-        return new TThis(Id, *this);
+        return new TThis(*this);
     }
 
     virtual void Save(TOutputStream* output) const
@@ -300,9 +301,7 @@ public:
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
 
 protected:
     virtual void DoMerge(
@@ -328,6 +327,7 @@ class TMapNode
 
     DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
+    DEFINE_BYREF_RW_PROPERTY(i32, ChildCountDelta); // It's very inconvenient to access it by ref
 
 public:
     explicit TMapNode(const TVersionedNodeId& id);
@@ -337,8 +337,6 @@ public:
 
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input);
-
-
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -352,9 +350,7 @@ public:
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
 
 private:
     typedef TMapNodeTypeHandler TThis;
@@ -369,6 +365,7 @@ private:
         TMapNode& originatingNode,
         TMapNode& branchedNode);
 
+    NTransactionServer::TTransactionManager::TPtr TransactionManager;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -404,9 +401,7 @@ public:
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
-        const ICypressNode& node,
-        const TTransactionId& transactionId);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
 
 private:
     typedef TListNodeTypeHandler TThis;

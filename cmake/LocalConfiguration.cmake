@@ -103,7 +103,7 @@ else()
 endif()
 
 if (YT_BUILD_WITH_STLPORT)
-  include_directories("${CMAKE_SOURCE_DIR}/extern/STLport/stlport")
+  include_directories("${CMAKE_SOURCE_DIR}/contrib/STLport/stlport")
 endif()
 
 #if (YT_WITH_VISIBILITY)

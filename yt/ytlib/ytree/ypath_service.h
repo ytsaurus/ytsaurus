@@ -98,25 +98,5 @@ typedef IFunc<NYTree::IYPathService::TPtr> TYPathServiceProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IYPathProcessor
-    : public virtual TRefCounted
-{
-    typedef TIntrusivePtr<IYPathProcessor> TPtr;
-
-    virtual void Resolve(
-        const TYPath& path,
-        const Stroka& verb,
-        IYPathService::TPtr* suffixService,
-        TYPath* suffixPath) = 0;
-
-    virtual void Execute(
-        IYPathService* service,
-        NRpc::IServiceContext* context) = 0;
-};
-
-IYPathProcessor::TPtr CreateDefaultProcessor(IYPathService* rootService);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYTree
 } // namespace NYT

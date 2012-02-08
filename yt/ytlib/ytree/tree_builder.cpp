@@ -172,7 +172,7 @@ void TTreeBuilder::OnEndAttributes()
     auto attributes = PopPop()->AsMap();
     auto attributesYson = SerializeToYson(~attributes);
     auto node = PeekPop();
-    SyncYPathSet(~node, RootMarker + AttributeMarker, attributesYson);
+    SyncYPathSet(~node, AttributeMarker, attributesYson);
 }
 
 void TTreeBuilder::AddToList()

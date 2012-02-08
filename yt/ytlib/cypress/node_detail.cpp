@@ -44,9 +44,7 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
 { }
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id, const TCypressNodeBase& other)
-    : LockIds_(other.LockIds_)
-    , SubtreeLockIds_(other.SubtreeLockIds_)
-    , ParentId_(other.ParentId_)
+    : ParentId_(other.ParentId_)
     , LockMode_(other.LockMode_)
     , Id(id)
 { }
@@ -102,32 +100,35 @@ void TCypressNodeBase::Load(TInputStream* input)
 
 TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
+    , ChildCountDelta_(0)
 { }
 
 TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
     : TCypressNodeBase(id, other)
-{
-    KeyToChild_ = other.KeyToChild_;
-    ChildToKey_ = other.ChildToKey_;
-}
+    , ChildCountDelta_(0) // Branched node has 0 delta
+{ }
 
 TAutoPtr<ICypressNode> TMapNode::Clone() const
 {
-    return new TMapNode(Id, *this);
+    return new TMapNode(*this);
 }
 
 void TMapNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
-    SaveMap(output, ChildToKey());
+    ::Save(output, ChildCountDelta_);
+    SaveMap(output, KeyToChild());
 }
 
 void TMapNode::Load(TInputStream* input)
 {
     TCypressNodeBase::Load(input);
-    LoadMap(input, ChildToKey());
-    FOREACH(const auto& pair, ChildToKey()) {
-        KeyToChild().insert(MakePair(pair.second, pair.first));
+    ::Load(input, ChildCountDelta_);
+    LoadMap(input, KeyToChild());
+    FOREACH(const auto& pair, KeyToChild()) {
+        if (pair.second != NullObjectId) {
+            ChildToKey().insert(MakePair(pair.second, pair.first));
+        }
     }
 }
 
@@ -135,6 +136,7 @@ void TMapNode::Load(TInputStream* input)
 
 TMapNodeTypeHandler::TMapNodeTypeHandler(TCypressManager* cypressManager)
     : TCypressNodeTypeHandlerBase<TMapNode>(cypressManager)
+    , TransactionManager(cypressManager->GetTransactionManager())
 { }
 
 EObjectType TMapNodeTypeHandler::GetObjectType()
@@ -151,7 +153,9 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode& node)
 {
     // Drop references to the children.
     FOREACH (const auto& pair, node.KeyToChild()) {
-        CypressManager->GetObjectManager()->UnrefObject(pair.second);
+        if (pair.second != NullObjectId) {
+            ObjectManager->UnrefObject(pair.second);
+        }
     }
 }
 
@@ -160,25 +164,52 @@ void TMapNodeTypeHandler::DoBranch(
     TMapNode& branchedNode)
 {
     UNUSED(branchedNode);
-
-    // Reference all children.
-    FOREACH (const auto& pair, originatingNode.KeyToChild()) {
-        CypressManager->GetObjectManager()->RefObject(pair.second);
-    }
 }
 
 void TMapNodeTypeHandler::DoMerge(
     TMapNode& originatingNode,
     TMapNode& branchedNode)
 {
-    // Drop all references held by the originator.
-    FOREACH (const auto& pair, originatingNode.KeyToChild()) {
-        CypressManager->GetObjectManager()->UnrefObject(pair.second);
-    }
+    const auto& id = originatingNode.GetId();
+    FOREACH (const auto& pair, branchedNode.KeyToChild()) {
+        auto it = originatingNode.KeyToChild().find(pair.first);
+        if (it == originatingNode.KeyToChild().end()) {
+            YVERIFY(originatingNode.KeyToChild().insert(pair).second);
+        } else {
+            if (it->second != NullObjectId) {
+                ObjectManager->UnrefObject(it->second);
+                YVERIFY(originatingNode.ChildToKey().erase(it->second) > 0);
+            }
+            it->second = pair.second;
+            
+            if (pair.second == NullObjectId) {
+                const auto& transactionIds = TransactionManager->GetTransactionPath(
+                    id.TransactionId);
+                bool contains = false;
+                FOREACH (const auto& transactionId, transactionIds) {
+                    if (transactionId == id.TransactionId) continue;
+                    const auto& node = CypressManager->GetVersionedNode(
+                        id.ObjectId, transactionId);
+                    const auto& map = static_cast<const TMapNode&>(node).KeyToChild();
+                    auto innerIt = map.find(pair.first);
+                    if (innerIt != map.end()) {
+                        if (innerIt->second != NullObjectId) {
+                            contains = true;
+                        }
+                        break;
+                    }
+                }
+                if (!contains) {
+                    originatingNode.KeyToChild().erase(it);
+                }
+            }
 
-    // Replace the child list with the branched copy.
-    originatingNode.KeyToChild().swap(branchedNode.KeyToChild());
-    originatingNode.ChildToKey().swap(branchedNode.ChildToKey());
+        }
+        if (pair.second != NullObjectId) {
+            YVERIFY(originatingNode.ChildToKey().insert(MakePair(pair.second, pair.first)).second);
+        }
+    }
+    originatingNode.ChildCountDelta() += branchedNode.ChildCountDelta();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,18 +227,16 @@ TListNode::TListNode(const TVersionedNodeId& id, const TListNode& other)
 
 TAutoPtr<ICypressNode> TListNode::Clone() const
 {
-    return new TListNode(Id, *this);
+    return new TListNode(*this);
 }
 
-ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(
-    const ICypressNode& node,
-    const TTransactionId& transactionId)
+ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
 {
     return New<TMapNodeProxy>(
         this,
         ~CypressManager,
-        transactionId,
-        node.GetId().ObjectId);
+        id.TransactionId,
+        id.ObjectId);
 }
 
 void TListNode::Save(TOutputStream* output) const
@@ -241,15 +270,13 @@ ENodeType TListNodeTypeHandler::GetNodeType()
     return ENodeType::List;
 }
 
-ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(
-    const ICypressNode& node,
-    const TTransactionId& transactionId)
+ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
 {
     return New<TListNodeProxy>(
         this,
         ~CypressManager,
-        transactionId,
-        node.GetId().ObjectId);
+        id.TransactionId,
+        id.ObjectId);
 }
 
 void TListNodeTypeHandler::DoDestroy(TListNode& node)

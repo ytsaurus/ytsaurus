@@ -56,6 +56,7 @@ class TCypressNodeProxyBase
 public:
     typedef TIntrusivePtr<TCypressNodeProxyBase> TPtr;
 
+    // TODO(babenko): pass TVersionedNodeId
     TCypressNodeProxyBase(
         INodeTypeHandler* typeHandler,
         TCypressManager* cypressManager,
@@ -388,11 +389,10 @@ protected:
                 const auto* userAttributes = ObjectManager->FindAttributes(parentId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
-                    if (it == userAttributes->Attributes().end()) {
-                        // contains = false
-                        break;
-                    } else {
-                        contains = true;
+                    if (it != userAttributes->Attributes().end()) {
+                        if (!it->second.empty()) {
+                            contains = true;
+                        }
                         break;
                     }
                 }
@@ -473,15 +473,13 @@ public:
     }; \
     \
     template <> \
-    inline ICypressNodeProxy::TPtr TScalarNodeTypeHandler<type>::GetProxy( \
-        const ICypressNode& node, \
-        const TTransactionId& transactionId) \
+    inline ICypressNodeProxy::TPtr TScalarNodeTypeHandler<type>::GetProxy(const TVersionedNodeId& id) \
     { \
         return New<T##key##NodeProxy>( \
             this, \
             ~CypressManager, \
-            transactionId, \
-            node.GetId().ObjectId); \
+            id.TransactionId, \
+            id.ObjectId); \
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka)
@@ -582,14 +580,16 @@ protected:
             ythrow yexception() << "Unknown object type";
         }
 
-        auto value = this->CypressManager->CreateDynamicNode(
+        auto nodeId = this->CypressManager->CreateDynamicNode(
             this->TransactionId,
             EObjectType(request->type()),
             ~manifestNode->AsMap());
 
-        CreateRecursive(context->GetPath(), ~value);
+        auto proxy = this->CypressManager->GetVersionedNodeProxy(nodeId, this->TransactionId);
 
-        response->set_object_id(value->GetId().ToProto());
+        CreateRecursive(context->GetPath(), ~proxy);
+
+        response->set_object_id(nodeId.ToProto());
 
         context->Reply();
     }
@@ -631,6 +631,10 @@ protected:
     virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
     virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
+    yhash_map<Stroka, INode::TPtr> DoGetChildren() const;
+    INode::TPtr DoFindChild(const Stroka& key, bool skipCurrentTransaction) const;
+
+    NTransactionServer::TTransactionManager::TPtr TransactionManager;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,9 +26,9 @@ struct IObjectTypeHandler
     virtual i32 UnrefObject(const TObjectId& id) = 0;
     virtual i32 GetObjectRefCounter(const TObjectId& id) = 0;
 
-    //! Given an object id, constructs a proxy for it.
+    //! Given a versioned object id, constructs a proxy for it.
     //! The object with the given id must exist.
-    virtual IObjectProxy::TPtr GetProxy(const TObjectId& id) = 0;
+    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id) = 0;
 
     //! Creates a new object instance.
     /*!
