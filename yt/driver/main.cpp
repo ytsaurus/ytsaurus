@@ -11,6 +11,7 @@
 
 #include <ytlib/misc/home.h>
 #include <ytlib/misc/fs.h>
+#include <ytlib/misc/errortrace.h>
 
 #include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
@@ -110,11 +111,13 @@ public:
             return new TSystemInput(0);
         }
 
+        //XXX(ijon): do we really need syntactic sugar like this? I guess not
         if (spec[0] == '&') {
             int handle = ParseHandle(spec);
             return new TSystemInput(handle);
         }
 
+        //XXX(ijon): do we really need syntactic sugar like this? I guess not
         if (spec[0] == '<') {
             auto fileName = TrimLeadingWhitespace(spec.substr(1));
             return new TFileInput(fileName);
@@ -129,11 +132,13 @@ public:
             return new TSystemOutput(1);
         }
 
+        //XXX(ijon): do we really need syntactic sugar like this? I guess not
         if (spec[0] == '&') {
             int handle = ParseHandle(spec);
             return new TSystemOutput(handle);
         }
 
+        //XXX(ijon): do we really need syntactic sugar like this? I guess not
         if (spec[0] == '>') {
             if (spec.length() >= 2 && spec[1] == '>') {
                 auto fileName = TrimLeadingWhitespace(spec.substr(2));
@@ -211,6 +216,11 @@ public:
                 .Optional()
                 .NoArgument();
 
+            // accept yson text as single free command line argument
+            opts.SetFreeArgsMin(0);
+            opts.SetFreeArgsMax(1);
+            opts.SetFreeArgTitle(0, "CMD");
+
             TOptsParseResult results(&opts, argc, argv);
             if (!results.Has(&configOpt)) {
                 auto configFromEnv = getenv("YT_CONFIG");
@@ -246,7 +256,13 @@ public:
 
             Driver = new TDriver(~config, &StreamProvider);
 
-            RunBatch();
+            yvector<Stroka> freeArgs(results.GetFreeArgs());
+            if (freeArgs.empty()) {
+                RunBatch();
+            } else {
+                // opts was configured to accept no more then one free arg
+                ExitCode = RunCmd(freeArgs[0]);
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR("%s", ex.what());
             ExitCode = 1;
@@ -283,6 +299,15 @@ private:
             }
         }
     }
+
+    int RunCmd(const Stroka& request)
+    {
+        auto error = Driver->Execute(request);
+        if (error.IsOK()) {
+            return 0;
+        }
+        return 1;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,6 +316,7 @@ private:
 
 int main(int argc, const char* argv[])
 {
+    NYT::SetupErrorHandler();
     NYT::TDriverProgram program;
     return program.Main(argc, argv);
 }

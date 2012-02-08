@@ -181,18 +181,7 @@ public:
         output->Write('\n');
     }
 
-    virtual void ReplySuccess()
-    {
-        YASSERT(Error.IsOK());
-        auto output = StreamProvider->CreateOutputStream();
-        TYsonWriter writer(~output, Config->OutputFormat);
-        BuildYsonFluently(&writer)
-            .BeginMap()
-            .EndMap();
-        output->Write('\n');
-    }
-
-    virtual void ReplySuccess(const TYson& yson, const Stroka& spec)
+    virtual void ReplySuccess(const TYson& yson, const Stroka& spec = "")
     {
         auto consumer = CreateOutputConsumer(spec);
         TStringInput input(yson);
@@ -200,6 +189,10 @@ public:
         reader.Read();
     }
 
+    // simplified version for unconditional success (yes, its empty output)
+    virtual void ReplySuccess()
+    {
+    }
 
     virtual TYsonProducer CreateInputProducer(const Stroka& spec)
     {
