@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/delayed_invoker.cpp
   ${BASE}/demangle.cpp
   ${BASE}/error.cpp
+  ${BASE}/errortrace.cpp
   ${BASE}/fs.cpp
   ${BASE}/guid.cpp
   ${BASE}/home.cpp
@@ -42,6 +43,7 @@ set( HDRS
   ${BASE}/demangle.h
   ${BASE}/enum.h
   ${BASE}/error.h
+  ${BASE}/errortrace.h
   ${BASE}/foreach.h
   ${BASE}/fs.h
   ${BASE}/guid.h
