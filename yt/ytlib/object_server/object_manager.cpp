@@ -118,7 +118,7 @@ public:
 
     virtual void SetResponseInfo(const Stroka& info)
     {
-        UnderlyingContext->SetRequestInfo(info);
+        UnderlyingContext->SetResponseInfo(info);
     }
 
     virtual Stroka GetResponseInfo()
