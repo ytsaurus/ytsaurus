@@ -69,13 +69,13 @@ TServer::TSyncHandler::TPtr GetProfilingHttpHandler()
 {
     return FromFunctor([] (Stroka path) -> Stroka
         {
-            if (path == "/") {
+            if (path == "") {
                 return FormatOKResponse(
                     NSTAT::GetDump(NSTAT::PLAINTEXT_LATEST));
-            } else if (path == "/full") {
+            } else if (path == "full") {
                 return FormatOKResponse(
                     NSTAT::GetDump(NSTAT::PLAINTEXT_FULL));
-            } else if (path == "/fullw") {
+            } else if (path == "fullw") {
                 return FormatOKResponse(
                     NSTAT::GetDump(NSTAT::PLAINTEXT_FULL_WITH_TIMES));
             } else {
