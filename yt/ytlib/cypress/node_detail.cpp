@@ -100,10 +100,12 @@ void TCypressNodeBase::Load(TInputStream* input)
 
 TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
+    , ChildCountDelta_(0)
 { }
 
 TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
     : TCypressNodeBase(id, other)
+    , ChildCountDelta_(0) // Branched node has 0 delta
 { }
 
 TAutoPtr<ICypressNode> TMapNode::Clone() const
@@ -114,15 +116,19 @@ TAutoPtr<ICypressNode> TMapNode::Clone() const
 void TMapNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
-    SaveMap(output, ChildToKey());
+    ::Save(output, ChildCountDelta_);
+    SaveMap(output, KeyToChild());
 }
 
 void TMapNode::Load(TInputStream* input)
 {
     TCypressNodeBase::Load(input);
-    LoadMap(input, ChildToKey());
-    FOREACH(const auto& pair, ChildToKey()) {
-        KeyToChild().insert(MakePair(pair.second, pair.first));
+    ::Load(input, ChildCountDelta_);
+    LoadMap(input, KeyToChild());
+    FOREACH(const auto& pair, KeyToChild()) {
+        if (pair.second != NullObjectId) {
+            ChildToKey().insert(MakePair(pair.second, pair.first));
+        }
     }
 }
 
@@ -203,6 +209,7 @@ void TMapNodeTypeHandler::DoMerge(
             YVERIFY(originatingNode.ChildToKey().insert(MakePair(pair.second, pair.first)).second);
         }
     }
+    originatingNode.ChildCountDelta() += branchedNode.ChildCountDelta();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
