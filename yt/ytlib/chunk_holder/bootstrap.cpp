@@ -166,10 +166,10 @@ void TBootstrap::Run()
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
-        "statistics",
+        "/statistics",
         ~NMonitoring::GetProfilingHttpHandler());
     httpServer->Register(
-        "orchid",
+        "/orchid",
         ~NMonitoring::GetYPathHttpHandler(
             ~FromFunctor([=] () -> IYPathService::TPtr
                 {
