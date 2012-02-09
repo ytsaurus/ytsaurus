@@ -342,7 +342,7 @@ protected:
         virtual NYTree::TYson FindAttribute(const Stroka& name)
         {
             if (TransactionId == NullTransactionId) {
-                return TUserAttributeDictionary::GetAttribute(name);
+                return TUserAttributeDictionary::FindAttribute(name);
             }
 
             auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
