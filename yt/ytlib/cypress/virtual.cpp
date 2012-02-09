@@ -55,9 +55,11 @@ public:
     {
         if (IsLocalYPath(path)) {
             return TBase::Resolve(path, verb);
-        } else {
-            return TResolveResult::There(~Service, path);
         }
+
+        // Chop off the initial "/", if any.
+        auto virtualPath = path.has_prefix("/") ? path.substr(1) : path;
+        return TResolveResult::There(~Service, virtualPath);
     }
 
 private:
