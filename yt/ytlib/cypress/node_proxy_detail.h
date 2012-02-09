@@ -339,7 +339,7 @@ protected:
             return attributes;
         }
 
-        virtual NYTree::TYson GetAttribute(const Stroka& name)
+        virtual NYTree::TYson FindAttribute(const Stroka& name)
         {
             if (TransactionId == NullTransactionId) {
                 return TUserAttributeDictionary::GetAttribute(name);
@@ -368,17 +368,7 @@ protected:
             // This also takes the lock.
             auto id = CypressManager->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
 
-            if (TransactionId == NullTransactionId) {
-                TUserAttributeDictionary::SetAttribute(name, value);
-                return;
-            }
-
-            auto* userAttributes = ObjectManager->FindAttributesForUpdate(id);
-            if (!userAttributes) {
-                userAttributes = ObjectManager->CreateAttributes(id);
-            }
-
-            userAttributes->Attributes()[name] = value;
+            TUserAttributeDictionary::SetAttribute(name, value);
         }
 
         virtual bool RemoveAttribute(const Stroka& name)
