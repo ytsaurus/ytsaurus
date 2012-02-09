@@ -101,7 +101,7 @@ void TRedirectorServiceBase::OnBeginRequest(IServiceContext* context)
             if (!result.IsOK()) {
                 context_->Reply(TError(
                     NRpc::EErrorCode::Unavailable,
-                    Sprintf("Redirection failed\n%s", result.GetMessage())));
+                    Sprintf("Redirection failed\n%s", ~result.GetMessage())));
                 return;
             }
 
