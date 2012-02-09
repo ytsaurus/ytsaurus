@@ -136,24 +136,7 @@ class YTEnv:
             self.config_paths['holder'].append(config_path)
 
     def _prepare_driver_config(self):
-        current = os.path.join(self.path_to_run, 'driver')
-        os.mkdir(current)
-
-        logging_file_name = os.path.join(current, 'driver.log')
-        self.driver_config['logging']['writers']['file']['file_name'] = logging_file_name
-
-        config_path = os.path.join(current, 'ytdriver.config.yson')
-        write_config(self.driver_config, config_path)
-
-        ytdriver_sh = os.path.join(current, 'ytdriver.sh')
-        f = open(ytdriver_sh, 'wt')
-        f.write('#!/bin/bash\n')
-        f.write("ytdriver --config {config_path}\n".format(**vars()))
-        f.close()
-        os.system('chmod 755 {ytdriver_sh}'.format(**vars()))
-
-        self.old_PATH=os.environ['PATH']
-        os.environ['PATH'] = current + ':' + os.environ['PATH']
+        pass
 
     def tearDown(self):
         os.environ['PATH'] = self.old_PATH

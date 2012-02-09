@@ -22,6 +22,7 @@ class SomeTest(unittest.TestCase):
 
     def RunOneTest(self, folder):
         print "Executing test:", folder
+        print os.environ['PATH']
 
         run_path = os.path.join(SANDBOX_ROOTDIR, folder, "run")
 
@@ -55,7 +56,7 @@ class SomeTest(unittest.TestCase):
         #self.assertTrue(os.path.exists(stderr_expected), "%s test doesn't contain stderr.txt" % folder)
 
         self.env.setUp()
-        
+
         exit_code = os.system("cd {run_path} && {test_sh} >{stdout_actual} 2> {stderr_actual}".format(**vars()))
         self.assertTrue(exit_code == 0, "test.sh finished with errors")
 
@@ -86,6 +87,7 @@ def RegisterTests():
 
   		
 if __name__ == "__main__":
-    sys.path.append('../yson/')
+    # setting path for ytdriver
+    os.environ['PATH'] = TEST_ROOTDIR + ':' + os.environ['PATH']
     RegisterTests()
     unittest.main()
