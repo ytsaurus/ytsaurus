@@ -95,9 +95,9 @@ void TTreeVisitor::VisitList(const IListNode* node, bool hasAttributes)
 {
     Consumer->OnBeginList();
     for (int i = 0; i < node->GetChildCount(); ++i) {
-        auto child = ~node->GetChild(i);
+        auto child = node->GetChild(i);
         Consumer->OnListItem();
-        VisitAny(child);
+        VisitAny(~child);
     }
     Consumer->OnEndList(hasAttributes);
 }
