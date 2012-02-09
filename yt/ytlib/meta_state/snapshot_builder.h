@@ -17,7 +17,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotBuilder
-    : public TRefCounted
+    : public TExtrinsicRefCounted
 {
 public:
     typedef TIntrusivePtr<TSnapshotBuilder> TPtr;
@@ -116,13 +116,7 @@ private:
     typedef TMetaStateManagerProxy TProxy;
 
     TChecksum DoCreateLocal(TMetaVersion version);
-    void OnLocalCreated(const TChecksum& checksum);
-
-#if defined(_unix_)
-    static void* WatchdogThreadFunc(void* param);
-    THolder<TThread> WatchdogThread;
-    pid_t ChildPid;
-#endif
+    void OnLocalCreated(i32 segmentId, const TChecksum& checksum);
 
     TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
@@ -134,7 +128,14 @@ private:
     IInvoker::TPtr StateInvoker;
 
     TAsyncLocalResult::TPtr LocalResult;
-    i32 CurrentSnapshotId;
+
+#if defined(_unix_)
+    static void WatchdogFork(
+        TWeakPtr<TSnapshotBuilder> weakSnapshotBuilder,
+        i32 segmentId, 
+        pid_t childPid);
+    TActionQueue::TPtr WatchdogQueue;
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////
