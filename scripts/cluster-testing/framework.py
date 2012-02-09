@@ -22,7 +22,6 @@ class SomeTest(unittest.TestCase):
 
     def RunOneTest(self, folder):
         print "Executing test:", folder
-        print os.environ['PATH']
 
         run_path = os.path.join(SANDBOX_ROOTDIR, folder, "run")
 
