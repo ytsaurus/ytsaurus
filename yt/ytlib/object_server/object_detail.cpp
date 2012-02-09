@@ -227,7 +227,7 @@ void TObjectProxyBase::TUserAttributeDictionary::SetAttribute(
     attributeSet->Attributes()[name] = value;
 }
 
-bool TObjectProxyBase::TUserAttributeDictionary::RemoveAttribute( const Stroka& name )
+bool TObjectProxyBase::TUserAttributeDictionary::RemoveAttribute(const Stroka& name)
 {
     auto* attributeSet = ObjectManager->FindAttributesForUpdate(ObjectId);
     if (!attributeSet) {
