@@ -96,8 +96,10 @@ private:
 
     void OnLocal(TLocalResult result)
     {
-        YASSERT(result.ResultCode == EResultCode::OK);
-
+        if (result.ResultCode != EResultCode::OK) {
+            LOG_FATAL("Failed to create snapshot locally (Result: %s)",
+                ~result.ResultCode.ToString());
+        }
         Checksums[Creator->CellManager->GetSelfId()] = MakeNullable(result.Checksum);
     }
 
@@ -188,6 +190,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     CurrentSnapshotId = version.SegmentId + 1;
 
 #if defined(_unix_)
+    LOG_TRACE("Going to fork...");
     ChildPid = fork();
     if (ChildPid == -1) {
         LOG_ERROR("Could not fork while creating local snapshot %d", CurrentSnapshotId);
@@ -196,6 +199,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
         DoCreateLocal(version);
         _exit(0);
     } else {
+        LOG_TRACE("Forked successfully. Starting watchdog thread...");
         WatchdogThread.Reset(new TThread(WatchdogThreadFunc, (void*) this));
         WatchdogThread->Start();
     }
@@ -238,6 +242,8 @@ void* TSnapshotBuilder::WatchdogThreadFunc(void* param)
     auto segmentId = snapshotBuilder->CurrentSnapshotId;
     auto localResult = snapshotBuilder->LocalResult;
     int status;
+    LOG_DEBUG("Waiting for child process (ChildPID: %d)",
+        childPid);
     while (waitpid(childPid, &status, WNOHANG) == 0) {
         if (TInstant::Now() <= deadline) {
             sleep(1);
