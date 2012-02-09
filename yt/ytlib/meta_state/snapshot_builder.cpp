@@ -75,9 +75,13 @@ public:
 private:
     void OnComplete()
     {
+        int count = 0;
         for (TPeerId id1 = 0; id1 < Checksums.ysize(); ++id1) {
+            const auto& checksum1 = Checksums[id1];
+            if (checksum1) {
+                ++count;
+            }
             for (TPeerId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
-                const auto& checksum1 = Checksums[id1];
                 const auto& checksum2 = Checksums[id2];
                 if (checksum1 && checksum2 && checksum1 != checksum2) {
                     // TODO: consider killing followers
@@ -91,15 +95,20 @@ private:
             }
         }
 
-        LOG_INFO("Distributed snapshot is created");
+        LOG_INFO("Distributed snapshot is created (Successful: %d, SegmentId: %d)",
+            count,
+            Version.SegmentId + 1);
+
     }
 
     void OnLocal(TLocalResult result)
     {
         if (result.ResultCode != EResultCode::OK) {
-            LOG_FATAL("Failed to create snapshot locally (Result: %s)",
+            LOG_ERROR("Failed to create snapshot locally (Result: %s)",
                 ~result.ResultCode.ToString());
+            return;
         }
+
         Checksums[Creator->CellManager->GetSelfId()] = MakeNullable(result.Checksum);
     }
 

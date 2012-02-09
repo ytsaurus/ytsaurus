@@ -91,6 +91,7 @@ void TCompositeMetaState::Save(TOutputStream* output)
         Stroka name = pair.first.second;
         ::Save(output, name);
         auto saver = pair.second;
+        saver->Do(output);
     }
 }
 
