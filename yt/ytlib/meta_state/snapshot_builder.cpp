@@ -217,6 +217,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     OnLocalCreated(checksum);
 #endif
         
+    MetaState->RotateChangeLog();
     return LocalResult;
 }
 
@@ -226,7 +227,6 @@ TChecksum TSnapshotBuilder::DoCreateLocal(TMetaVersion version)
     writer->Open(version.RecordCount);
     auto* stream = &writer->GetStream();
     MetaState->Save(stream);
-    MetaState->RotateChangeLog();
     writer->Close();
     return writer->GetChecksum();
 }
@@ -257,9 +257,15 @@ void* TSnapshotBuilder::WatchdogThreadFunc(void* param)
         if (TInstant::Now() <= deadline) {
             sleep(1);
         } else {
-            LOG_ERROR("Local snapshot creating timed out, killing child process (SegmentId: %d)",
+            LOG_ERROR("Local snapshot creating timed out, killing child process (ChildPID: %d, SegmentId: %d)",
+                childPid,
                 segmentId);
-            kill(childPid, 9);
+            auto killResult = kill(childPid, 9);
+            if (killResult != 0) {
+                LOG_ERROR("Could not kill child process (ChildPID: %d, ErrorCode: %d)",
+                    childPid,
+                    killResult);
+            }
             localResult->Set(TLocalResult(EResultCode::TimeoutExceeded));
             return NULL;
         }
