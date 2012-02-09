@@ -116,15 +116,15 @@ protected:
         // branchedNode is a copy of originatingNode.
         
         // Create composite chunk list and place it in the root of branchedNode.
-        auto& compositeChunkList = ChunkManager->CreateChunkList();
-        auto compositeChunkListId = compositeChunkList.GetId();
-        branchedNode.SetChunkListId(compositeChunkListId);
-        CypressManager->GetObjectManager()->RefObject(compositeChunkListId);
+        auto& branchedChunkList = ChunkManager->CreateChunkList();
+        auto branchedChunkListId = branchedChunkList.GetId();
+        branchedNode.SetChunkListId(branchedChunkListId);
+        CypressManager->GetObjectManager()->RefObject(branchedChunkListId);
 
         // Make the original chunk list a child of the composite one.
-        auto committedChunkListId = originatingNode.GetChunkListId();
-        compositeChunkList.ChildrenIds().push_back(committedChunkListId);
-        CypressManager->GetObjectManager()->RefObject(committedChunkListId);
+        yvector<TChunkTreeId> childrenIds;
+        childrenIds.push_back(originatingNode.GetChunkListId());
+        ChunkManager->AttachToChunkList(branchedChunkList, childrenIds);
     }
 
     virtual void DoMerge(
@@ -147,7 +147,6 @@ protected:
         CypressManager->GetObjectManager()->UnrefObject(oldFirstChildId);
 
         // Replace the chunk list of originatingNode.
-        auto originatingNodeId = originatingNode.GetId().ObjectId;
         originatingNode.SetChunkListId(branchedChunkListId);
         CypressManager->GetObjectManager()->UnrefObject(newFirstChildId);
     }

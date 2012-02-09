@@ -184,11 +184,11 @@ bool TServer::TImpl::HandleNewRequest(TPendingRequest& request) const
     if (!path.empty() && path[0] == '/') {
         auto slashPosition = path.find('/', 1);
         if (slashPosition == Stroka::npos) {
-            slashPosition = path.length() - 1;
+            slashPosition = path.length();
         }
 
         Stroka prefix = path.substr(0, slashPosition);
-        Stroka suffix = path.substr(slashPosition);
+        Stroka suffix = path.substr(slashPosition + 1);
 
         if (suffix.empty()) {
             suffix = "/";
@@ -293,11 +293,11 @@ private:
             if (!request.Request.empty() && request.Request[0] == '/') {
                 auto slashPosition = request.Request.find('/', 1);
                 if (slashPosition == Stroka::npos) {
-                    slashPosition = request.Request.length() - 1;
+                    slashPosition = request.Request.length();
                 }
 
                 Stroka prefix = request.Request.substr(0, slashPosition).ToString();
-                Stroka suffix = request.Request.substr(slashPosition).ToString();
+                Stroka suffix = request.Request.substr(slashPosition + 1).ToString();
                 
                 {
                     auto it = impl->SyncHandlers.find(prefix);

@@ -144,6 +144,12 @@ protected:
     const TNodeId NodeId;
 
 
+    virtual NObjectServer::TVersionedObjectId GetVersionedId() const
+    {
+        return TVersionedObjectId(NodeId, TransactionId);
+    }
+
+
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
@@ -156,6 +162,8 @@ protected:
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
         const auto& node = GetImpl();
+        // NB: LockIds and SubtreeLockIds are only valid for originating nodes.
+        const auto& origniatingNode = CypressManager->GetNode(Id);
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
@@ -171,7 +179,7 @@ protected:
 
         if (name == "lock_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(node.LockIds(), [=] (NYTree::TFluentList fluent, TLockId id)
+                .DoListFor(origniatingNode.LockIds(), [=] (NYTree::TFluentList fluent, TLockId id)
                     {
                         fluent.Item().Scalar(id.ToString());
                     });
@@ -180,7 +188,7 @@ protected:
 
         if (name == "subtree_lock_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(node.SubtreeLockIds(), [=] (NYTree::TFluentList fluent, TLockId id)
+                .DoListFor(origniatingNode.SubtreeLockIds(), [=] (NYTree::TFluentList fluent, TLockId id)
                     {
                         fluent.Item().Scalar(id.ToString());
                     });
