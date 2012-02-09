@@ -139,7 +139,6 @@ class YTEnv:
         pass
 
     def tearDown(self):
-        os.environ['PATH'] = self.old_PATH
         for p in self.process_to_kill:
             p.kill()
 
