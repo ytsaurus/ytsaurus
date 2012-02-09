@@ -56,7 +56,8 @@ class SomeTest(unittest.TestCase):
 
         self.env.setUp()
         
-        os.system("cd {run_path} && {test_sh} >{stdout_actual} 2> {stderr_actual}".format(**vars()))
+        exit_code = os.system("cd {run_path} && {test_sh} >{stdout_actual} 2> {stderr_actual}".format(**vars()))
+        self.assertTrue(exit_code == 0, "test.sh finished with errors")
 
         stdout_diff = get_output(["diff", stdout_actual, stdout_expected])
         stderr_diff = get_output(["diff", stderr_actual, stderr_expected])
