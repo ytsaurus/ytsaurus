@@ -28,11 +28,11 @@ class YTEnv:
     NUM_HOLDERS = 5
     SETUP_TIMEOUT = 7
 
-    # to be redefiened in succeccors
+    # to be redefiened in successors
     def modify_master_config(self, config):
         pass
 
-    # to be redefiened in succeccors
+    # to be redefiened in successors
     def modify_holder_config(self, config):
         pass
 
