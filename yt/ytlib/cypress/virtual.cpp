@@ -56,10 +56,8 @@ public:
         if (IsLocalYPath(path)) {
             return TBase::Resolve(path, verb);
         }
-
-        // Chop off the initial "/", if any.
-        auto virtualPath = path.has_prefix("/") ? path.substr(1) : path;
-        return TResolveResult::There(~Service, virtualPath);
+        auto redirectedPath = ChopYPathRedirectMarker(path);
+        return TResolveResult::There(~Service, redirectedPath);
     }
 
 private:

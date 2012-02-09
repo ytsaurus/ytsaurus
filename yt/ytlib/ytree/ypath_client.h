@@ -144,6 +144,8 @@ void ChopYPathToken(
 
 TYPath ChopYPathAttributeMarker(const TYPath& path);
 
+TYPath ChopYPathRedirectMarker(const TYPath& path);
+
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);

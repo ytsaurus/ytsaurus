@@ -196,6 +196,11 @@ TYPath ChopYPathAttributeMarker(const TYPath& path)
     return result;
 }
 
+TYPath ChopYPathRedirectMarker(const TYPath& path)
+{
+    return path.has_prefix("/") ? path.substr(1) : path;
+}
+
 bool IsLocalYPath(const TYPath& path)
 {
     return IsEmptyYPath(path) || IsAttributeYPath(path);
