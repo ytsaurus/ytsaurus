@@ -193,7 +193,7 @@ void TSnapshotWriter::Close()
 
     if (isexist(~FileName)) {
         if (!NFS::Remove(~FileName)) {
-            ythrow yexception() << Sprintf("Error removing %s", FileName.Quote());
+            ythrow yexception() << Sprintf("Error removing %s", ~FileName.Quote());
         }
         LOG_WARNING("File %s already existed and was deleted", ~FileName.Quote());
     }

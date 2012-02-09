@@ -278,7 +278,7 @@ void* TSnapshotBuilder::WatchdogThreadFunc(void* param)
     reader->Open();
     auto checksum = reader->GetChecksum();
     reader->Close();
-    snapshotBuilder->OnSave(checksum);
+    snapshotBuilder->OnLocalCreated(checksum);
     return NULL;
 }
 #endif
