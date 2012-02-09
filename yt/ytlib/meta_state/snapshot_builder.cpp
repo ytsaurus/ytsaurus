@@ -212,7 +212,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     } else {
         LOG_TRACE("Forked successfully. Starting watchdog thread...");
         WatchdogQueue->GetInvoker()->Invoke(
-            FromMethod
+            FromMethod(
                 &TSnapshotBuilder::WatchdogFork,
                 TWeakPtr<TSnapshotBuilder>(this),
                 segmentId,
@@ -270,11 +270,11 @@ void TSnapshotBuilder::WatchdogFork(
     LOG_DEBUG("Waiting for child process (ChildPID: %d)",
         childPid);
     while (waitpid(childPid, &status, WNOHANG) == 0) {
-        if (TInstant::Now() <= deadline && weakSnapshotBuilder) {
+        if (!weakSnapshotBuilder.IsExpired() && TInstant::Now() <= deadline) {
             sleep(1);
         } else {
-            if (weakSnapshotBuilder) {
-                LOG_INFO("Snapshot builder has been deleted, killing child process (ChildPID: %d, SegmentId: %d)"
+            if (!weakSnapshotBuilder.IsExpired()) {
+                LOG_INFO("Snapshot builder has been deleted, killing child process (ChildPID: %d, SegmentId: %d)",
                     childPid,
                     segmentId);
             } else {
