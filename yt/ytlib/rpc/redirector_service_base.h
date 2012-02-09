@@ -2,6 +2,8 @@
 
 #include "service.h"
 
+#include <ytlib/misc/error.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -21,7 +23,10 @@ protected:
         Stroka Address;
     };
 
-    virtual TRedirectParams GetRedirectParams(IServiceContext* context) const = 0;
+    typedef TValueOrError<TRedirectParams> TRedirectResult;
+    typedef TFuture<TRedirectResult>::TPtr TAsyncRedirectResult;
+
+    virtual TAsyncRedirectResult HandleRedirect(IServiceContext* context) = 0;
 
 private:
     class TRequest;
