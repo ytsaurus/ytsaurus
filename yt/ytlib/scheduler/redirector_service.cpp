@@ -37,8 +37,20 @@ struct TRedirectorService::TConfig
     }
 };
 
-TRedirectorService::TRedirectParams TRedirectorService::GetRedirectParams(IServiceContext* context) const
+TRedirectorService::TAsyncRedirectResult TRedirectorService::HandleRedirect(IServiceContext* context)
 {
+    return 
+        FromMethod(&TRedirectorService::DoHandleRedirect, TPtr(this))
+        ->AsyncVia(CypressManager->GetMetaStateManager()->GetStateInvoker())
+        ->Do(context);
+}
+
+TRedirectorService::TRedirectResult TRedirectorService::DoHandleRedirect(IServiceContext::TPtr context)
+{
+    if (CypressManager->GetMetaStateManager()->GetStateStatus() != NMetaState::EPeerStatus::Leading) {
+        return TError("Not a leader");
+    }
+
     // TODO(babenko): refactor using new API
     auto root = CypressManager->GetVersionedNodeProxy(CypressManager->GetRootNodeId(), NullTransactionId);
     auto configYson = SyncYPathGet(~root, "sys/scheduler@");

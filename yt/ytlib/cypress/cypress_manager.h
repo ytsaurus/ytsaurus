@@ -43,8 +43,10 @@ public:
 
     TNodeId GetRootNodeId();
 
+    // TODO: killme
     NObjectServer::TObjectManager* GetObjectManager() const;
     NTransactionServer::TTransactionManager* GetTransactionManager() const;
+    NMetaState::IMetaStateManager* GetMetaStateManager() const;
 
     const ICypressNode* FindVersionedNode(
         const TNodeId& nodeId,

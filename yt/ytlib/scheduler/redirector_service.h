@@ -12,6 +12,8 @@ class TRedirectorService
     : public NRpc::TRedirectorServiceBase
 {
 public:
+    typedef TIntrusivePtr<TRedirectorService> TPtr;
+
     TRedirectorService(NCypress::TCypressManager* cypressManager);
 
 protected:
@@ -19,7 +21,8 @@ protected:
 
     NCypress::TCypressManager::TPtr CypressManager;
 
-    virtual TRedirectParams GetRedirectParams(NRpc::IServiceContext* context) const;
+    virtual TAsyncRedirectResult HandleRedirect(NRpc::IServiceContext* context);
+    TRedirectResult DoHandleRedirect(NRpc::IServiceContext::TPtr context);
 
 };
 

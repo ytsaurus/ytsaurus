@@ -226,6 +226,13 @@ TTransactionManager* TCypressManager::GetTransactionManager() const
     return ~TransactionManager;
 }
 
+IMetaStateManager* TCypressManager::GetMetaStateManager() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ~MetaStateManager;
+}
+
 const ICypressNode* TCypressManager::FindVersionedNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId)
