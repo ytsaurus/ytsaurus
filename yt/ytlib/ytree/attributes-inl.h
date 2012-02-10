@@ -3,6 +3,8 @@
 #endif
 #undef ATTRIBUTES_INL_H_
 
+#include "serialize.h"
+
 namespace NYT {
 namespace NYTree {
 

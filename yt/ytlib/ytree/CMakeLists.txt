@@ -22,6 +22,7 @@ set( SRCS
 set( HDRS
   ${BASE}/attributes.h
   ${BASE}/attributes-inl.h
+  ${BASE}/attribute_provider.h
   ${BASE}/common.h
   ${BASE}/ephemeral.h
   ${BASE}/fluent.h

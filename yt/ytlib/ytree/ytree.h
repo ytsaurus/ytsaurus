@@ -1,6 +1,6 @@
 #pragma once
 
-#include "attributes.h"
+#include "attribute_provider.h"
 #include "common.h"
 #include "public.h"
 #include "ypath_service.h"

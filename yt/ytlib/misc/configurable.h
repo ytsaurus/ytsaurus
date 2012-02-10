@@ -3,7 +3,7 @@
 #include "mpl.h"
 #include "property.h"
 
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_consumer.h>
 
 namespace NYT {
@@ -81,7 +81,7 @@ public:
     void Save(NYTree::IYsonConsumer* consumer) const;
 
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
-    NYTree::IMapNode::TPtr GetOptions() const;
+    NYTree::TMapNodePtr GetOptions() const;
 
 protected:
     virtual void DoValidate() const;
@@ -96,7 +96,7 @@ private:
     typedef yhash_map<Stroka, NConfig::IParameter::TPtr> TParameterMap;
     
     TParameterMap Parameters;
-    NYTree::IMapNode::TPtr Options;
+    NYTree::TMapNodePtr Options;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

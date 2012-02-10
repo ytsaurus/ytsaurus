@@ -1,7 +1,9 @@
 #pragma once
 
-#include <util/generic/strbuf.h>
+#include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/intrusive_ptr.h>
+
+#include <util/generic/strbuf.h>
 
 namespace NYT {
 namespace NYTree {
@@ -19,12 +21,18 @@ struct IStringNode;
 struct IInt64Node;
 struct IDoubleNode;
 struct IListNode;
+
 struct IMapNode;
+typedef TIntrusivePtr<IMapNode> TMapNodePtr;
+
 struct IEntityNode;
 
 struct INodeFactory;
 
 struct IYsonConsumer;
+
+struct IAttributeDictionary;
+typedef TIntrusivePtr<IAttributeDictionary> TAttributeDictionaryPtr;
 
 struct IAttributeProvider;
 typedef TIntrusivePtr<IAttributeProvider> TAttributeProviderPtr;
