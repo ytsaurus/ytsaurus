@@ -51,6 +51,11 @@ TYson SerializeToYson(
     const TConfigurable* config,
     EYsonFormat format = EYsonFormat::Binary);
 
+template <class T>
+TYson SerializeToYson(
+    const T& value,
+    EYsonFormat format = EYsonFormat::Binary);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class>

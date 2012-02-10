@@ -41,6 +41,9 @@ struct IAttributeDictionary
     typename TNullableTraits<
         typename TDeserializeTraits<T>::TReturnType
     >::TNullableType Find(const Stroka& name);
+
+    template <class T>
+    void Set(const Stroka& name, const T& value);
     
     //! Converts the instance into a map node (by copying and deserliazing the values).
     TIntrusivePtr<IMapNode> ToMap();

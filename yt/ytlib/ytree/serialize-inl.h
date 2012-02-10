@@ -24,6 +24,17 @@ typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yso
 }
 
 template <class T>
+TYson SetializeToYson(
+    const T& value,
+    EYsonFormat format)
+{
+    TStringStream output;
+    TYsonWriter writer(&output, format);
+    Write(value, &writer);
+    return output.Str();
+}
+
+template <class T>
 T CheckedStaticCast(i64 value)
 {
     if (value < Min<T>() || value > Max<T>()) {

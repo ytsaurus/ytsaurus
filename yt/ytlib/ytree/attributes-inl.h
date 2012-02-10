@@ -32,6 +32,13 @@ typename TNullableTraits<
     return DeserializeFromYson<T>(*yson);
 }
 
+template <class T>
+void IAttributeDictionary::Set(const Stroka& name, const T& value)
+{
+    const auto& yson = SerializeToYson(value);
+    SetYson(name, yson);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
