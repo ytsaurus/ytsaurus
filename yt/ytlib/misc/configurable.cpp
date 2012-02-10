@@ -5,6 +5,7 @@
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/yson_consumer.h>
 
 namespace NYT {
 

@@ -4,7 +4,6 @@
 #include "property.h"
 
 #include <ytlib/ytree/public.h>
-#include <ytlib/ytree/yson_consumer.h>
 
 namespace NYT {
 namespace NConfig {
