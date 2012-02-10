@@ -62,7 +62,7 @@ public:
         TFuture< TIntrusivePtr<TRspExecuteBatch> >::TPtr Invoke();
 
         // Override base method for fluent use.
-        TIntrusivePtr<TReqExecuteBatch> SetTimeout(TDuration timeout)
+        TIntrusivePtr<TReqExecuteBatch> SetTimeout(TNullable<TDuration> timeout)
         {
             TClientRequest::SetTimeout(timeout);
             return this;

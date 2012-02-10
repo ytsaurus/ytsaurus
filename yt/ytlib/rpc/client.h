@@ -42,7 +42,7 @@ protected:
 
     TProxyBase(IChannel* channel, const Stroka& serviceName);
 
-    DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
     IChannel::TPtr Channel;
     Stroka ServiceName;

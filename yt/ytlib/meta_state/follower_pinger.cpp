@@ -68,7 +68,7 @@ void TFollowerPinger::SendPing()
         i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
         request->set_max_snapshot_id(maxSnapshotId);
         request->Invoke()->Subscribe(
-            FromMethod(&TFollowerPinger::OnSendPing, TPtr(this), peerId)
+            FromMethod(&TFollowerPinger::OnPingReply, TPtr(this), peerId)
             ->Via(ControlInvoker));
         
         LOG_DEBUG("Follower ping sent (FollowerId: %d, Version: %s, Epoch: %s, MaxSnapshotId: %d)",
@@ -80,7 +80,7 @@ void TFollowerPinger::SendPing()
 
 }
 
-void TFollowerPinger::OnSendPing(TProxy::TRspPingFollower::TPtr response, TPeerId followerId)
+void TFollowerPinger::OnPingReply(TProxy::TRspPingFollower::TPtr response, TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
