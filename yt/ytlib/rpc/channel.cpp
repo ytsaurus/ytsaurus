@@ -38,7 +38,7 @@ public:
     virtual void Send(
         IClientRequest* request,
         IClientResponseHandler* responseHandler,
-        TDuration timeout)
+        TNullable<TDuration> timeout)
     {
         YASSERT(request);
         YASSERT(responseHandler);
@@ -51,13 +51,13 @@ public:
         activeRequest.RequestId = requestId;
         activeRequest.ResponseHandler = responseHandler;
 
-        if (timeout != TDuration::Zero()) {
+        if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
                 ~FromMethod(
                     &TChannel::OnTimeout,
                     TPtr(this),
                     requestId),
-                timeout);
+                timeout.Get());
         }
 
         auto requestMessage = request->Serialize();

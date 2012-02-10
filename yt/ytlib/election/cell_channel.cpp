@@ -67,7 +67,7 @@ public:
     virtual void Send(
         IClientRequest* request,
         IClientResponseHandler* responseHandler,
-        TDuration timeout)
+        TNullable<TDuration> timeout)
     {
         YASSERT(request);
         YASSERT(responseHandler);
@@ -114,7 +114,7 @@ private:
         IChannel::TPtr channel,
         IClientRequest::TPtr request,
         IClientResponseHandler::TPtr responseHandler,
-        TDuration timeout)
+        TNullable<TDuration> timeout)
     {
         if (!channel) {
             responseHandler->OnError(TError(

@@ -55,7 +55,7 @@ IMessage::TPtr TClientRequest::Serialize() const
 
 void TClientRequest::DoInvoke(
     IClientResponseHandler* responseHandler,
-    TDuration timeout)
+    TNullable<TDuration> timeout)
 {
     Channel->Send(this, responseHandler, timeout);
 }
