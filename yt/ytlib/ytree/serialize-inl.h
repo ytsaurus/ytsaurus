@@ -124,7 +124,7 @@ template <class T>
 void Write(
     const TIntrusivePtr<T>& parameter,
     IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType)
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType)
 {
     YASSERT(parameter);
     parameter->Save(consumer);
@@ -135,7 +135,7 @@ template <class T>
 void Write(
     const T& parameter,
     IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T, TEnumBase<T> >, int>::TType)
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
 {
     consumer->OnStringScalar(parameter.ToString());
 }
