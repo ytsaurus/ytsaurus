@@ -65,29 +65,6 @@ TOutputStream& SerializeToYson(
     return output;
 }
 
-TYson SerializeToYson(const INode* node, EYsonFormat format)
-{
-    TStringStream output;
-    SerializeToYson(node, output, format);
-    return output.Str();
-}
-
-TYson SerializeToYson(TYsonProducer* producer, EYsonFormat format)
-{
-    TStringStream output;
-    TYsonWriter writer(&output, format);
-    producer->Do(&writer);
-    return output.Str();
-}
-
-TYson SerializeToYson(const TConfigurable* config, EYsonFormat format)
-{
-    TStringStream output;
-    TYsonWriter writer(&output, format);
-    config->Save(&writer);
-    return output.Str();
-}
-
 INode::TPtr CloneNode(const INode* node, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
@@ -219,11 +196,16 @@ void Write(const TGuid& parameter, IYsonConsumer* consumer)
 }
 
 // INode::TPtr
-void Write(const INode::TPtr& parameter, IYsonConsumer* consumer)
+void Write(const INode& parameter, IYsonConsumer* consumer)
 {
-    YASSERT(parameter);
     TTreeVisitor visitor(consumer, false);
-    visitor.Visit(~parameter);
+    visitor.Visit(&parameter);
+}
+
+// TYsonProducer
+void Write(TYsonProducer& parameter, IYsonConsumer* consumer)
+{
+    parameter.Do(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

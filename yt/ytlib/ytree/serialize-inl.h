@@ -119,15 +119,28 @@ void Read(yhash_map<Stroka, T>& parameter, const INode* node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+void Write(T* parameter, IYsonConsumer* consumer)
+{
+    YASSERT(parameter);
+    Write(*parameter, consumer);
+}
+
+template <class T>
+void Write(const TIntrusivePtr<T>& parameter, IYsonConsumer* consumer)
+{
+    YASSERT(parameter);
+    Write(*parameter, consumer);
+}
+
 // TConfigurable::TPtr
 template <class T>
 void Write(
-    const TIntrusivePtr<T>& parameter,
+    const T& parameter,
     IYsonConsumer* consumer,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType)
 {
-    YASSERT(parameter);
-    parameter->Save(consumer);
+    parameter.Save(consumer);
 }
 
 // TEnumBase

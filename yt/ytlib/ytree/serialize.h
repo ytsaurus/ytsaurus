@@ -39,18 +39,6 @@ TOutputStream& SerializeToYson(
     TOutputStream& output,
     EYsonFormat format = EYsonFormat::Binary);
 
-TYson SerializeToYson(
-    const INode* node,
-    EYsonFormat format = EYsonFormat::Binary);
-
-TYson SerializeToYson(
-    TYsonProducer* producer,
-    EYsonFormat format = EYsonFormat::Binary);
-
-TYson SerializeToYson(
-    const TConfigurable* config,
-    EYsonFormat format = EYsonFormat::Binary);
-
 template <class T>
 TYson SerializeToYson(
     const T& value,
@@ -142,12 +130,18 @@ void Read(yhash_map<Stroka, T>& parameter, const INode* node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+void Write(T* parameter, IYsonConsumer* consumer);
+
+template <class T>
+void Write(const TIntrusivePtr<T>& parameter, IYsonConsumer* consumer);
+
 // TConfigurable::TPtr
 template <class T>
 void Write(
-    const TIntrusivePtr<T>& parameter,
+    const T& parameter,
     IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0);
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType = 0);
 
 // i64
 void Write(i64 parameter, IYsonConsumer* consumer);
@@ -188,7 +182,7 @@ template <class T>
 void Write(const TNullable<T>& parameter, IYsonConsumer* consumer);
 
 // INode::TPtr
-void Write(const TNodePtr& parameter, IYsonConsumer* consumer);
+void Write(const INode& parameter, IYsonConsumer* consumer);
 
 // yvector
 template <class T>
@@ -201,6 +195,9 @@ void Write(const yhash_set<T>& parameter, IYsonConsumer* consumer);
 // yhash_map
 template <class T>
 void Write(const yhash_map<Stroka, T>& parameter, IYsonConsumer* consumer);
+
+// TYsonProducer
+void Write(TYsonProducer& parameter, IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
