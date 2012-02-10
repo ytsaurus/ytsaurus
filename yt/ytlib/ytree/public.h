@@ -1,7 +1,6 @@
 #pragma once
 
-#include <ytlib/misc/ref_counted.h>
-#include <ytlib/misc/intrusive_ptr.h>
+#include <ytlib/misc/common.h>
 
 #include <util/generic/strbuf.h>
 

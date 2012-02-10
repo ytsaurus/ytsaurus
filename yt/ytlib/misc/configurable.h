@@ -5,6 +5,8 @@
 
 #include <ytlib/ytree/public.h>
 
+#include <ytlib/actions/action.h>
+
 namespace NYT {
 namespace NConfig {
 

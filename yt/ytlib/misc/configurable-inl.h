@@ -6,6 +6,7 @@
 #include "guid.h"
 #include "string.h"
 #include "nullable.h"
+#include "enum.h"
 
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_client.h>
