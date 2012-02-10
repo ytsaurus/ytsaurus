@@ -187,7 +187,7 @@ TObjectProxyBase::TUserAttributeDictionary::TUserAttributeDictionary(
     , ObjectManager(objectManager)
 { }
 
-yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::ListAttributes()
+yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List()
 {
     yhash_set<Stroka> attributes;
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
@@ -201,7 +201,7 @@ yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::ListAttributes()
     return attributes;
 }
 
-TYson TObjectProxyBase::TUserAttributeDictionary::FindAttribute(const Stroka& name)
+TYson TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stroka& name)
 {
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
@@ -216,7 +216,7 @@ TYson TObjectProxyBase::TUserAttributeDictionary::FindAttribute(const Stroka& na
     return it->second;
 }
 
-void TObjectProxyBase::TUserAttributeDictionary::SetAttribute(
+void TObjectProxyBase::TUserAttributeDictionary::SetYson(
     const Stroka& name,
     const NYTree::TYson& value)
 {
@@ -227,7 +227,7 @@ void TObjectProxyBase::TUserAttributeDictionary::SetAttribute(
     attributeSet->Attributes()[name] = value;
 }
 
-bool TObjectProxyBase::TUserAttributeDictionary::RemoveAttribute(const Stroka& name)
+bool TObjectProxyBase::TUserAttributeDictionary::Remove(const Stroka& name)
 {
     auto* attributeSet = ObjectManager->FindAttributesForUpdate(ObjectId);
     if (!attributeSet) {

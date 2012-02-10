@@ -4,7 +4,7 @@
 #include "value.h"
 #include "schema.pb.h"
 
-#include <ytlib/ytree/ytree_fwd.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NTableClient {

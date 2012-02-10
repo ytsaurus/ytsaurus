@@ -1,6 +1,9 @@
 #pragma once
 
+#include "public.h"
 #include "yson_consumer.h"
+
+#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NYTree {
@@ -15,23 +18,31 @@ struct IAttributeDictionary
     typedef TIntrusivePtr<IAttributeDictionary> TPtr;
 
     // Returns the list of all attribute names.
-    virtual yhash_set<Stroka> ListAttributes() = 0;
+    virtual yhash_set<Stroka> List() = 0;
 
     //! Returns the value of the attribute (empty TYson indicates that the attribute is not found).
-    virtual TYson FindAttribute(const Stroka& name) = 0;
+    virtual TYson FindYson(const Stroka& name) = 0;
 
     //! Sets the value of the attribute.
-    virtual void SetAttribute(const Stroka& name, const TYson& value) = 0;
+    virtual void SetYson(const Stroka& name, const TYson& value) = 0;
 
     //! Removes the attribute.
-    virtual bool RemoveAttribute(const Stroka& name) = 0;
+    virtual bool Remove(const Stroka& name) = 0;
 
 
     // Extension methods
 
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
-    TYson GetAttribute(const Stroka& name);
+    TYson GetYson(const Stroka& name);
 
+    template <class T>
+    typename TDeserializeTraits<T>::TReturnType Get(const Stroka& name);
+
+    template <class T>
+    typename TNullableTraits<
+        typename TDeserializeTraits<T>::TReturnType
+    >::TNullableType Find(const Stroka& name);
+    
     //! Converts the instance into a map node (by copying and deserliazing the values).
     TIntrusivePtr<IMapNode> ToMap();
 
@@ -95,3 +106,7 @@ struct ISystemAttributeProvider
 
 } // namespace NYTree
 } // namespace NYT
+
+#define ATTRIBUTES_INL_H_
+#include "attributes-inl.h"
+#undef ATTRIBUTES_INL_H_

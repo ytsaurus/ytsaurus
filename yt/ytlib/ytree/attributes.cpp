@@ -10,10 +10,18 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYson IAttributeDictionary::GetAttribute(const Stroka& name)
+struct TTestConfig
+    : public TConfigurable
 {
-    const auto& result = FindAttribute(name);
+    typedef TIntrusivePtr<TTestConfig> TPtr;
+};
+
+TYson IAttributeDictionary::GetYson(const Stroka& name)
+{
+    const auto& result = FindYson(name);
     if (result.empty()) {
+        TNullable<TYson> a = Find<TYson>(name); // REMOVE IT
+        TTestConfig::TPtr b = Find<TTestConfig>(name);
         ythrow yexception() << Sprintf("Attribute %s is not found", ~name.Quote());
     }
     return result;
@@ -22,9 +30,9 @@ TYson IAttributeDictionary::GetAttribute(const Stroka& name)
 IMapNode::TPtr IAttributeDictionary::ToMap()
 {
     auto map = GetEphemeralNodeFactory()->CreateMap();
-    auto names = ListAttributes();
+    auto names = List();
     FOREACH (const auto& name, names) {
-        auto value = DeserializeFromYson(GetAttribute(name));
+        auto value = DeserializeFromYson(GetYson(name));
         map->AddChild(~value, name);
     }
     return map;
@@ -35,7 +43,7 @@ void IAttributeDictionary::MergeFrom(const IMapNode* map)
     FOREACH (const auto& pair, map->GetChildren()) {
         const auto& key = pair.first;
         auto value = SerializeToYson(~pair.second);
-        SetAttribute(key, value);
+        SetYson(key, value);
     }
 }
 
@@ -47,7 +55,7 @@ class TInMemoryAttributeDictionary
     typedef yhash_map<Stroka, TYPath> TAttributeMap;
     TAttributeMap Map;
 
-    virtual yhash_set<Stroka> ListAttributes()
+    virtual yhash_set<Stroka> List()
     {
         yhash_set<Stroka> names;
         FOREACH (const auto& pair, Map) {
@@ -56,18 +64,18 @@ class TInMemoryAttributeDictionary
         return names;
     }
 
-    virtual TYson FindAttribute(const Stroka& name)
+    virtual TYson FindYson(const Stroka& name)
     {
         auto it = Map.find(name);
         return it == Map.end() ? TYson() : it->second;
     }
 
-    virtual void SetAttribute(const Stroka& name, const TYson& value)
+    virtual void SetYson(const Stroka& name, const TYson& value)
     {
         Map[name] = value;
     }
 
-    virtual bool RemoveAttribute(const Stroka& name)
+    virtual bool Remove(const Stroka& name)
     {
         return Map.erase(name) > 0;
     }

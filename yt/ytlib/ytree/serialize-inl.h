@@ -12,11 +12,13 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T ParseYson(const TYson& yson)
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson)
 {
+    typedef typename TDeserializeTraits<T>::TReturnType TResult;
     auto node = DeserializeFromYson(yson);
-    T value;
+    TResult value;
     Read(value, ~node);
+    return value;
 }
 
 template <class T>

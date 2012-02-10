@@ -4,6 +4,7 @@
 #include "yson_writer.h"
 
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/mpl.h>
 
 namespace NYT {
     class TConfigurable;
@@ -49,8 +50,25 @@ TYson SerializeToYson(
     const TConfigurable* config,
     EYsonFormat format = EYsonFormat::Binary);
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class>
+struct TDeserializeTraits
+{
+    typedef T TReturnType;
+};
+
 template <class T>
-T ParseYson(const TYson& yson);
+struct TDeserializeTraits<
+    T, 
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TRefCounted*> >::TType
+>
+{
+    typedef TIntrusivePtr<T> TReturnType;
+};
+
+template <class T>
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson);
 
 ////////////////////////////////////////////////////////////////////////////////
 

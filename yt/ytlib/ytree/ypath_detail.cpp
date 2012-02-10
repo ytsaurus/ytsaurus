@@ -169,7 +169,7 @@ static TYson DoGetAttribute(
     if (isSystem) {
         *isSystem = false;
     }
-    return userAttributeDictionary->GetAttribute(name);
+    return userAttributeDictionary->GetYson(name);
 }
 
 static void DoSetAttribute(
@@ -185,7 +185,7 @@ static void DoSetAttribute(
             ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
         }
     } else {
-        userAttributeDictionary->SetAttribute(name, SerializeToYson(value));
+        userAttributeDictionary->SetYson(name, SerializeToYson(value));
     }
 }
 
@@ -212,7 +212,7 @@ static void DoSetAttribute(
     }
         
 
-    userAttributeDictionary->SetAttribute(name, value);
+    userAttributeDictionary->SetYson(name, value);
 }
 
 } // namespace <anonymous>
@@ -263,10 +263,10 @@ void TSupportsAttributes::GetAttribute(
             }
         }
 
-        const auto& userAttributes = userAttributeDictionary->ListAttributes();
+        const auto& userAttributes = userAttributeDictionary->List();
         FOREACH (const auto& name, userAttributes) {
             writer.OnMapItem(name);
-            writer.OnRaw(userAttributeDictionary->GetAttribute(name));
+            writer.OnRaw(userAttributeDictionary->GetYson(name));
         }
         
         writer.OnEndMap();
@@ -313,7 +313,7 @@ void TSupportsAttributes::ListAttribute(
             }
         }
         
-        const auto& userAttributes = userAttributeDictionary->ListAttributes();
+        const auto& userAttributes = userAttributeDictionary->List();
         // If we used vector instead of yvector, we could start with user
         // attributes instead of copying them.
         keys.insert(keys.end(), userAttributes.begin(), userAttributes.end());
@@ -345,9 +345,9 @@ void TSupportsAttributes::SetAttribute(
             ythrow yexception() << "Map value expected";
         }
 
-        const auto& userAttributes = userAttributeDictionary->ListAttributes();
+        const auto& userAttributes = userAttributeDictionary->List();
         FOREACH (const auto& name, userAttributes) {
-            YVERIFY(userAttributeDictionary->RemoveAttribute(name));
+            YVERIFY(userAttributeDictionary->Remove(name));
         }
 
         auto mapValue = value->AsMap();
@@ -393,9 +393,9 @@ void TSupportsAttributes::RemoveAttribute(
     auto systemAttributeProvider = GetSystemAttributeProvider();
     
    if (IsFinalYPath(path)) {
-        const auto& userAttributes = userAttributeDictionary->ListAttributes();
+        const auto& userAttributes = userAttributeDictionary->List();
         FOREACH (const auto& name, userAttributes) {
-            YVERIFY(userAttributeDictionary->RemoveAttribute(name));
+            YVERIFY(userAttributeDictionary->Remove(name));
         }
     } else {
         Stroka token;
@@ -403,7 +403,7 @@ void TSupportsAttributes::RemoveAttribute(
         ChopYPathToken(path, &token, &suffixPath);
 
         if (IsFinalYPath(suffixPath)) {
-            if (!userAttributeDictionary->RemoveAttribute(token)) {
+            if (!userAttributeDictionary->Remove(token)) {
                 ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
             }
         } else {
