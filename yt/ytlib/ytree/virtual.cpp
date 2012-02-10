@@ -267,7 +267,7 @@ protected:
     virtual IAttributeDictionary::TPtr GetUserAttributeDictionary()
     {
         if (!Attributes) {
-            Attributes = CreateInMemoryAttributeDictionary();
+            Attributes = CreateEphemeralAttributes();
         }
         return Attributes;
     }

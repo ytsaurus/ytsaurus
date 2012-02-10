@@ -10,11 +10,11 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYson IAttributeDictionary::GetAttribute(const Stroka& name)
+TYson IAttributeDictionary::GetAttribute(const Stroka& key)
 {
-    const auto& result = FindAttribute(name);
+    const auto& result = FindAttribute(key);
     if (result.empty()) {
-        ythrow yexception() << Sprintf("Attribute %s is not found", ~name.Quote());
+        ythrow yexception() << Sprintf("Attribute %s is not found", ~key.Quote());
     }
     return result;
 }
@@ -22,26 +22,34 @@ TYson IAttributeDictionary::GetAttribute(const Stroka& name)
 IMapNode::TPtr IAttributeDictionary::ToMap()
 {
     auto map = GetEphemeralNodeFactory()->CreateMap();
-    auto names = ListAttributes();
-    FOREACH (const auto& name, names) {
-        auto value = DeserializeFromYson(GetAttribute(name));
-        map->AddChild(~value, name);
+    auto keys = ListAttributes();
+    FOREACH (const auto& key, keys) {
+        auto value = DeserializeFromYson(GetAttribute(key));
+        map->AddChild(~value, key);
     }
     return map;
 }
 
-void IAttributeDictionary::MergeFrom(const IMapNode* map)
+void IAttributeDictionary::MergeFrom(const IMapNode* other)
 {
-    FOREACH (const auto& pair, map->GetChildren()) {
+    FOREACH (const auto& pair, other->GetChildren()) {
         const auto& key = pair.first;
         auto value = SerializeToYson(~pair.second);
         SetAttribute(key, value);
     }
 }
 
+void IAttributeDictionary::MergeFrom(IAttributeDictionary* other)
+{
+    FOREACH (const auto& key, other->ListAttributes()) {
+        auto value = other->GetAttribute(key);
+        SetAttribute(key, value);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInMemoryAttributeDictionary
+class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {
     typedef yhash_map<Stroka, TYPath> TAttributeMap;
@@ -49,33 +57,54 @@ class TInMemoryAttributeDictionary
 
     virtual yhash_set<Stroka> ListAttributes()
     {
-        yhash_set<Stroka> names;
+        yhash_set<Stroka> keys;
         FOREACH (const auto& pair, Map) {
-            names.insert(pair.first);
+            keys.insert(pair.first);
         }
-        return names;
+        return keys;
     }
 
-    virtual TYson FindAttribute(const Stroka& name)
+    virtual TYson FindAttribute(const Stroka& key)
     {
-        auto it = Map.find(name);
+        auto it = Map.find(key);
         return it == Map.end() ? TYson() : it->second;
     }
 
-    virtual void SetAttribute(const Stroka& name, const TYson& value)
+    virtual void SetAttribute(const Stroka& key, const TYson& value)
     {
-        Map[name] = value;
+        Map[key] = value;
     }
 
-    virtual bool RemoveAttribute(const Stroka& name)
+    virtual bool RemoveAttribute(const Stroka& key)
     {
-        return Map.erase(name) > 0;
+        return Map.erase(key) > 0;
     }
 };
 
-IAttributeDictionary::TPtr CreateInMemoryAttributeDictionary()
+IAttributeDictionary::TPtr CreateEphemeralAttributes()
 {
-    return New<TInMemoryAttributeDictionary>();
+    return New<TEphemeralAttributeDictionary>();
+}
+
+void ToProto(NProto::TAttributes* protoAttributes, IAttributeDictionary* attributes)
+{
+    FOREACH (const auto& key, attributes->ListAttributes()) {
+        auto value = attributes->GetAttribute(key);
+        auto protoAttribute = protoAttributes->add_attributes();
+        protoAttribute->set_key(key);
+        protoAttribute->set_value(value);
+    }
+}
+
+IAttributeDictionary::TPtr FromProto(const NProto::TAttributes& protoAttributes)
+{
+    auto attributes = CreateEphemeralAttributes();
+    FOREACH (const auto& protoAttribute, protoAttributes.attributes()) {
+        const auto& key = protoAttribute.key();
+        const auto& value = protoAttribute.value();
+        attributes->SetAttribute(key, value);
+    }
+    return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
