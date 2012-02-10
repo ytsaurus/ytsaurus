@@ -137,6 +137,68 @@ void Read(yhash_map<Stroka, T>& parameter, const INode* node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TConfigurable::TPtr
+template <class T>
+void Write(
+    const TIntrusivePtr<T>& parameter,
+    IYsonConsumer* consumer,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0);
+
+// i64
+void Write(i64 parameter, IYsonConsumer* consumer);
+
+// i32
+void Write(i32 parameter, IYsonConsumer* consumer);
+
+// ui32
+void Write(ui32 parameter, IYsonConsumer* consumer);
+
+// ui16
+void Write(ui16 parameter, IYsonConsumer* consumer);
+
+// double
+void Write(double parameter, IYsonConsumer* consumer);
+
+// Stroka
+void Write(const Stroka& parameter, IYsonConsumer* consumer);
+
+// bool
+void Write(bool parameter, IYsonConsumer* consumer);
+
+// TDuration
+void Write(const TDuration& parameter, IYsonConsumer* consumer);
+
+// TGuid
+void Write(const TGuid& parameter, IYsonConsumer* consumer);
+
+// TEnumBase
+template <class T>
+void Write(
+    const T& parameter,
+    IYsonConsumer* consumer,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType = 0);
+
+// TNullable
+template <class T>
+void Write(const TNullable<T>& parameter, IYsonConsumer* consumer);
+
+// INode::TPtr
+void Write(const TNodePtr& parameter, IYsonConsumer* consumer);
+
+// yvector
+template <class T>
+void Write(const yvector<T>& parameter, IYsonConsumer* consumer);
+
+// yhash_set
+template <class T>
+void Write(const yhash_set<T>& parameter, IYsonConsumer* consumer);
+
+// yhash_map
+template <class T>
+void Write(const yhash_map<Stroka, T>& parameter, IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT
 
