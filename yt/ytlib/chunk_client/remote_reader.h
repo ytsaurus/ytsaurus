@@ -20,9 +20,6 @@ struct TRemoteReaderConfig
     //! Timeout for a block request.
     TDuration HolderRpcTimeout;
     
-    //! Timeout for seeds request.
-    TDuration MasterRpcTimeout;
-    
     //! Time to wait before asking the master for seeds.
     TDuration RetryBackoffTime;
     
@@ -50,7 +47,6 @@ struct TRemoteReaderConfig
     TRemoteReaderConfig()
     {
         Register("holder_rpc_timeout", HolderRpcTimeout).Default(TDuration::Seconds(30));
-        Register("master_rpc_timeout", MasterRpcTimeout).Default(TDuration::Seconds(3));
         Register("retry_backoff_time", RetryBackoffTime).Default(TDuration::Seconds(3));
         Register("retry_count", RetryCount).Default(100);
         Register("pass_backoff_time", PassBackoffTime).Default(TDuration::Seconds(1));

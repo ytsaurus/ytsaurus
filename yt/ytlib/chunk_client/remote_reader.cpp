@@ -60,10 +60,7 @@ public:
         }
 
         ChunkProxy = new TChunkServiceProxy(masterChannel);
-        ChunkProxy->SetTimeout(config->MasterRpcTimeout);
-
         CypressProxy = new TCypressServiceProxy(masterChannel);
-        CypressProxy->SetTimeout(config->MasterRpcTimeout);
     }
 
     TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);

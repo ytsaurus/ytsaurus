@@ -40,13 +40,10 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TDuration MasterRpcTimeout;
         TChunkSequenceReader::TConfig::TPtr ChunkSequenceReader;
 
         TConfig()
         {
-            Register("cypress_rpc_timeout", MasterRpcTimeout)
-                .Default(TDuration::Seconds(5));
             Register("chunk_sequence_reader", ChunkSequenceReader)
                 .DefaultNew();
         }

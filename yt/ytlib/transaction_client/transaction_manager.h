@@ -33,14 +33,9 @@ public:
         //! An internal between successive transaction pings.
         TDuration PingPeriod;
 
-        //! A timeout for RPC requests to masters.
-        TDuration MasterRpcTimeout;
-
         TConfig()
         {
             Register("ping_period", PingPeriod)
-                .Default(TDuration::Seconds(5));
-            Register("master_rpc_timeout", PingPeriod)
                 .Default(TDuration::Seconds(5));
         }
     };

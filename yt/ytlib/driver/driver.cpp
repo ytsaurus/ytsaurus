@@ -12,7 +12,7 @@
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ephemeral.h>
-#include <ytlib/election/cell_channel.h>
+#include <ytlib/election/leader_channel.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 
 namespace NYT {
@@ -112,7 +112,7 @@ public:
         YASSERT(config);
         YASSERT(streamProvider);
 
-        MasterChannel = CreateCellChannel(~config->Masters);
+        MasterChannel = CreateLeaderChannel(~config->Masters);
 
         BlockCache = CreateClientBlockCache(~config->BlockCache);
 

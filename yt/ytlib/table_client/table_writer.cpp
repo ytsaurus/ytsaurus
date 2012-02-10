@@ -42,8 +42,6 @@ TTableWriter::TTableWriter(
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~path,
         ~TransactionId.ToString()));
-
-    Proxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
 void TTableWriter::Open()

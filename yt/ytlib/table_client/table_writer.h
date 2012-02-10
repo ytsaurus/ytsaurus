@@ -39,13 +39,10 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TDuration MasterRpcTimeout;
         TChunkSequenceWriter::TConfig::TPtr ChunkSequenceWriter;
 
         TConfig()
         {
-            Register("master_rpc_timeout", MasterRpcTimeout)
-                .Default(TDuration::Seconds(5));
             Register("chunk_sequence_writer", ChunkSequenceWriter)
                 .DefaultNew();
         }

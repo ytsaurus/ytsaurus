@@ -40,8 +40,6 @@ public:
     {
         YASSERT(cellChannel);
         YASSERT(owner);
-
-        Proxy.SetTimeout(Owner->Config->MasterRpcTimeout);
     }
 
     void Start()
@@ -252,8 +250,6 @@ TTransactionManager::TTransactionManager(
     , CypressProxy(channel)
 {
     YASSERT(channel);
-
-    CypressProxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
 ITransaction::TPtr TTransactionManager::Start(

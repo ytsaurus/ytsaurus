@@ -11,7 +11,7 @@
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
-#include <ytlib/election/cell_channel.h>
+#include <ytlib/election/leader_channel.h>
 #include <ytlib/transaction_server/common.h>
 
 namespace NYT {
@@ -48,7 +48,7 @@ public:
         , BlockStore(blockStore)
         , ChunkCache(chunkCache)
     {
-        MasterChannel = CreateCellChannel(~config->Masters);
+        MasterChannel = CreateLeaderChannel(~config->Masters);
     }
 
     void Register(TCachedChunk* chunk)

@@ -6,7 +6,7 @@
 #include "job_executor.h"
 
 #include <ytlib/rpc/client.h>
-#include <ytlib/election/cell_channel.h>
+#include <ytlib/election/leader_channel.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
@@ -37,9 +37,8 @@ TMasterConnector::TMasterConnector(TBootstrap* bootstrap)
     YASSERT(bootstrap);
 
     auto config = bootstrap->GetConfig();
-    auto channel = CreateCellChannel(~config->Masters);
+    auto channel = CreateLeaderChannel(~config->Masters);
     Proxy.Reset(new TProxy(~channel));
-    Proxy->SetTimeout(config->MasterRpcTimeout);
 
     // TODO(babenko): use AsWeak
     bootstrap->GetChunkStore()->ChunkAdded().Subscribe(FromMethod(
