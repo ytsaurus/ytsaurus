@@ -65,7 +65,7 @@ class TInMemoryAttributeDictionary
     virtual TNullable<TYson> FindYson(const Stroka& name)
     {
         auto it = Map.find(name);
-        return it == Map.end() ? TNullable<TYson>() : it->second;
+        return it == Map.end() ? NULL : it->second;
     }
 
     virtual void SetYson(const Stroka& name, const TYson& value)

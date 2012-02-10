@@ -205,11 +205,11 @@ TNullable<TYson> TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stro
 {
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
-        return TNullable<TYson>();
+        return NULL;
     }
     auto it = attributeSet->Attributes().find(name);
     if (it == attributeSet->Attributes().end()) {
-        return TNullable<TYson>();
+        return NULL;
     }
     // Attribute cannot be empty (i.e. deleted) in null transaction.
     YASSERT(!it->second.empty());
