@@ -118,7 +118,7 @@ protected:
 
         // NYTree::IAttributeDictionary members
         virtual yhash_set<Stroka> List();
-        virtual NYTree::TYson FindYson(const Stroka& name);
+        virtual TNullable<NYTree::TYson> FindYson(const Stroka& name);
         virtual void SetYson(const Stroka& name, const NYTree::TYson& value);
         virtual bool Remove(const Stroka& name);
 

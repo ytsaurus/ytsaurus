@@ -339,7 +339,7 @@ protected:
             return attributes;
         }
 
-        virtual NYTree::TYson FindYson(const Stroka& name)
+        virtual TNullable<NYTree::TYson> FindYson(const Stroka& name)
         {
             if (TransactionId == NullTransactionId) {
                 return TUserAttributeDictionary::FindYson(name);
@@ -360,7 +360,7 @@ protected:
                     }
                 }
             }
-            return NYTree::TYson();
+            return TNullable<NYTree::TYson>();
         }
 
         virtual void SetYson(const Stroka& name, const NYTree::TYson& value)

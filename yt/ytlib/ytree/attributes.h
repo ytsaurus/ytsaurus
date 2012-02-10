@@ -20,7 +20,7 @@ struct IAttributeDictionary
     virtual yhash_set<Stroka> List() = 0;
 
     //! Returns the value of the attribute (empty TYson indicates that the attribute is not found).
-    virtual TYson FindYson(const Stroka& name) = 0;
+    virtual TNullable<TYson> FindYson(const Stroka& name) = 0;
 
     //! Sets the value of the attribute.
     virtual void SetYson(const Stroka& name, const TYson& value) = 0;

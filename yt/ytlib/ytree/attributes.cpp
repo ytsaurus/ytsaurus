@@ -19,12 +19,10 @@ struct TTestConfig
 TYson IAttributeDictionary::GetYson(const Stroka& name)
 {
     const auto& result = FindYson(name);
-    if (result.empty()) {
-        TNullable<TYson> a = Find<TYson>(name); // REMOVE IT
-        TTestConfig::TPtr b = Find<TTestConfig>(name);
+    if (!result) {
         ythrow yexception() << Sprintf("Attribute %s is not found", ~name.Quote());
     }
-    return result;
+    return *result;
 }
 
 IMapNode::TPtr IAttributeDictionary::ToMap()
@@ -64,10 +62,10 @@ class TInMemoryAttributeDictionary
         return names;
     }
 
-    virtual TYson FindYson(const Stroka& name)
+    virtual TNullable<TYson> FindYson(const Stroka& name)
     {
         auto it = Map.find(name);
-        return it == Map.end() ? TYson() : it->second;
+        return it == Map.end() ? TNullable<TYson>() : it->second;
     }
 
     virtual void SetYson(const Stroka& name, const TYson& value)

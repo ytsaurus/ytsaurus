@@ -201,15 +201,15 @@ yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List()
     return attributes;
 }
 
-TYson TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stroka& name)
+TNullable<TYson> TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stroka& name)
 {
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
-        return "";
+        return TNullable<TYson>();
     }
     auto it = attributeSet->Attributes().find(name);
     if (it == attributeSet->Attributes().end()) {
-        return "";
+        return TNullable<TYson>();
     }
     // Attribute cannot be empty (i.e. deleted) in null transaction.
     YASSERT(!it->second.empty());
