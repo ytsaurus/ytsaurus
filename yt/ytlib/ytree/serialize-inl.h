@@ -24,7 +24,7 @@ typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yso
 }
 
 template <class T>
-TYson SetializeToYson(
+TYson SerializeToYson(
     const T& value,
     EYsonFormat format)
 {
