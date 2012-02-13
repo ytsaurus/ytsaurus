@@ -326,6 +326,8 @@ void TSupportsAttributes::ListAttribute(
         keys = SyncYPathList(~wholeValue, suffixPath);
     }
 
+    std::sort(keys.begin(), keys.end());
+
     ToProto(*response->mutable_keys(), keys);
     context->Reply();
 }
