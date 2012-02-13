@@ -40,6 +40,7 @@ class YTEnv:
         self.process_to_kill = []
 
         self.path_to_run = path_to_run
+        self.path_to_tests = path_to_tests
 
         self.master_config = read_config(os.path.join(path_to_tests, 'default_master_config.yson'))
         self.holder_config = read_config(os.path.join(path_to_tests, 'default_holder_config.yson'))
@@ -58,6 +59,7 @@ class YTEnv:
         self._prepare_configs()
         self._run_services()
         time.sleep(self. SETUP_TIMEOUT)
+        self._init_sys()
 
     def _run_services(self):
         self._run_masters()
@@ -76,6 +78,16 @@ class YTEnv:
             config_path = self.config_paths['holder'][i]
             p = subprocess.Popen('ytserver --chunk-holder --config {config_path} --port {port}'.format(**vars()).split())
             self.process_to_kill.append(p)
+
+    def _init_sys(self):
+        init_file = os.path.join(self.path_to_tests, 'default_init.yt')
+        os.system('cat {init_file} | ytdriver'.format(**vars()))
+        for i in xrange(self.NUM_MASTERS):
+            port = 8001 + i
+            orchid_yson = '{do=create;path="/sys/masters/localhost:%d/orchid";type=orchid;manifest={remote_address="localhost:%d"}}' %(port, port)
+            print orchid_yson
+            os.system("echo '{orchid_yson}'| ytdriver ".format(**vars()))
+        
 
     def _clean_run_path(self):
         os.system('rm -rf ' + self.path_to_run)
