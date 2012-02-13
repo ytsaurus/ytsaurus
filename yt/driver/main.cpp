@@ -258,10 +258,11 @@ public:
 
             yvector<Stroka> freeArgs(results.GetFreeArgs());
             if (freeArgs.empty()) {
-                RunBatch();
+                RunBatch(Cin);
             } else {
                 // opts was configured to accept no more then one free arg
-                ExitCode = RunCmd(freeArgs[0]);
+                TStringInput input(freeArgs[0]);
+                RunBatch(input);
             }
         } catch (const std::exception& ex) {
             LOG_ERROR("%s", ex.what());
@@ -282,11 +283,11 @@ private:
     TStreamProvider StreamProvider;
     TAutoPtr<TDriver> Driver;
 
-    void RunBatch()
+    void RunBatch(TInputStream& input)
     {
         while (true) {
             Stroka request;
-            if (!Cin.ReadLine(request))
+            if (!input.ReadLine(request))
                 break;
 
             if (request.empty())
@@ -298,15 +299,6 @@ private:
                 break;
             }
         }
-    }
-
-    int RunCmd(const Stroka& request)
-    {
-        auto error = Driver->Execute(request);
-        if (error.IsOK()) {
-            return 0;
-        }
-        return 1;
     }
 };
 
