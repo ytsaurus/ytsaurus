@@ -65,7 +65,7 @@ const TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Find(const TKey& key)
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
-TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::FindForUpdate(const TKey& key)
+TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Find(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -84,11 +84,11 @@ const TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key) 
 }
 
 template <class TKey, class TValue, class TTraits, class THash >
-TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::GetForUpdate(const TKey& key)
+TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    auto* value = FindForUpdate(key);
+    auto* value = Find(key);
     YASSERT(value);
     return *value;
 }

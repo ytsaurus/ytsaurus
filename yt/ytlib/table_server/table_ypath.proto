@@ -5,10 +5,10 @@ import "yt/ytlib/table_client/schema.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetChunkListForUpdate
+message TReqGetChunkList
 { }
 
-message TRspGetChunkListForUpdate
+message TRspGetChunkList
 {
     required bytes chunk_list_id = 1;
 }

@@ -135,7 +135,7 @@ protected:
 
         // Obtain the chunk list of branchedNode.
         auto branchedChunkListId = branchedNode.GetChunkListId();
-        auto& branchedChunkList = ChunkManager->GetChunkListForUpdate(branchedChunkListId);
+        auto& branchedChunkList = ChunkManager->GetChunkList(branchedChunkListId);
         YASSERT(branchedChunkList.GetObjectRefCounter() == 1);
 
         // Replace the first child of the branched chunk list with the current chunk list of originatingNode.

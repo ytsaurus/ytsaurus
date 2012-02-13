@@ -220,7 +220,7 @@ void TObjectProxyBase::TUserAttributeDictionary::SetYson(
     const Stroka& name,
     const NYTree::TYson& value)
 {
-    auto* attributeSet = ObjectManager->FindAttributesForUpdate(ObjectId);
+    auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
         attributeSet = ObjectManager->CreateAttributes(ObjectId);
     }
@@ -229,7 +229,7 @@ void TObjectProxyBase::TUserAttributeDictionary::SetYson(
 
 bool TObjectProxyBase::TUserAttributeDictionary::Remove(const Stroka& name)
 {
-    auto* attributeSet = ObjectManager->FindAttributesForUpdate(ObjectId);
+    auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
         return false;
     }

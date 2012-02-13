@@ -30,7 +30,7 @@ struct ICypressNodeProxy
     virtual const ICypressNode& GetImpl() const = 0;
     
     //! Returns the physical node and allows its mutation.
-    virtual ICypressNode& GetImplForUpdate() = 0;
+    virtual ICypressNode& GetImpl() = 0;
 
     virtual NYTree::IAttributeDictionary::TPtr GetAttributes() = 0;
 

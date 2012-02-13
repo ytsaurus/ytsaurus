@@ -111,7 +111,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        Owner->Commit(GetTypedImplForUpdate());
+        Owner->Commit(GetTypedImpl());
         context->Reply();
     }
 
@@ -120,7 +120,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        Owner->Abort(GetTypedImplForUpdate());
+        Owner->Abort(GetTypedImpl());
         context->Reply();
     }
 
@@ -165,7 +165,7 @@ private:
             ~manifestNode->AsMap());
 
         if (GetId() != NullTransactionId) {
-            auto& transaction = GetTypedImplForUpdate();
+            auto& transaction = GetTypedImpl();
             YVERIFY(transaction.CreatedObjectIds().insert(objectId).second);
             Owner->ObjectManager->RefObject(objectId);
         }
@@ -185,7 +185,7 @@ private:
 
         context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
 
-        auto& transaction = GetTypedImplForUpdate();
+        auto& transaction = GetTypedImpl();
         if (transaction.CreatedObjectIds().erase(objectId) != 1) {
             ythrow yexception() << Sprintf("Transaction does not own the object (ObjectId: %s)", ~objectId.ToString());
         }
@@ -222,7 +222,7 @@ public:
         auto* parent =
             transactionId == NullTransactionId
             ? NULL
-            : &Owner->GetTransactionForUpdate(transactionId);
+            : &Owner->GetTransaction(transactionId);
 
         auto id = Owner->Start(parent, ~manifest).GetId();
         auto proxy = ObjectManager->GetProxy(id);
@@ -339,7 +339,7 @@ void TTransactionManager::Abort(TTransaction& transaction)
     // Make a copy, the set will be modified.
     auto nestedIds = transaction.NestedTransactionIds();
     FOREACH (const auto& nestedId, nestedIds) {
-        Abort(GetTransactionForUpdate(nestedId));
+        Abort(GetTransaction(nestedId));
     }
     YASSERT(transaction.NestedTransactionIds().empty());
 
@@ -361,7 +361,7 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
     auto transactionId = transaction.GetId();
 
     if (transaction.GetParentId() != NullTransactionId) {
-        auto& parent = GetTransactionForUpdate(transaction.GetParentId());
+        auto& parent = GetTransaction(transaction.GetParentId());
         YVERIFY(parent.NestedTransactionIds().erase(transactionId) == 1);
         ObjectManager->UnrefObject(transactionId);
     }

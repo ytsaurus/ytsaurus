@@ -235,14 +235,14 @@ IMetaStateManager* TCypressManager::GetMetaStateManager() const
 
 const ICypressNode* TCypressManager::FindVersionedNode(
     const TNodeId& nodeId,
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId) const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     // Walk up from the current transaction to the root.
     auto currentTransactionId = transactionId;
     while (true) {
-        auto* currentNode = FindNodeForUpdate(TVersionedNodeId(nodeId, currentTransactionId));
+        auto* currentNode = FindNode(TVersionedNodeId(nodeId, currentTransactionId));
         if (currentNode) {
             return currentNode;
         }
@@ -260,14 +260,14 @@ const ICypressNode* TCypressManager::FindVersionedNode(
 
 const ICypressNode& TCypressManager::GetVersionedNode(
     const TNodeId& nodeId,
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId) const
 {
     auto* node = FindVersionedNode(nodeId, transactionId);
     YASSERT(node);
     return *node;
 }
 
-ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
+ICypressNode* TCypressManager::FindVersionedNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     ELockMode requestedMode)
@@ -291,7 +291,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
     // Walk up from the current transaction to the root.
     auto currentTransactionId = transactionId;
     while (true) {
-        auto* currentNode = FindNodeForUpdate(TVersionedNodeId(nodeId, currentTransactionId));
+        auto* currentNode = FindNode(TVersionedNodeId(nodeId, currentTransactionId));
         if (currentNode) {
             // Check if we have found a node for the requested transaction or we need to branch it.
             if (currentTransactionId == transactionId) {
@@ -321,14 +321,14 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
     }
 }
 
-ICypressNode& TCypressManager::GetVersionedNodeForUpdate(
+ICypressNode& TCypressManager::GetVersionedNode(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     ELockMode requestedMode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* node = FindVersionedNodeForUpdate(nodeId, transactionId, requestedMode);
+    auto* node = FindVersionedNode(nodeId, transactionId, requestedMode);
     YASSERT(node);
     return *node;
 }
@@ -499,7 +499,7 @@ TLockId TCypressManager::AcquireLock(
     LockMap.Insert(lockId, lock);
     ObjectManager->RefObject(lockId);
 
-    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+    auto& transaction = TransactionManager->GetTransaction(transactionId);
     transaction.LockIds().push_back(lock->GetId());
 
     LOG_INFO_IF(!IsRecovery(), "Node locked (LockId: %s, NodeId: %s, TransactionId: %s, Mode: %s)",
@@ -509,14 +509,14 @@ TLockId TCypressManager::AcquireLock(
         ~mode.ToString());
 
     // Assign the node to the node itself.
-    auto& lockedNode = NodeMap.GetForUpdate(nodeId);
+    auto& lockedNode = NodeMap.Get(nodeId);
     YVERIFY(lockedNode.LockIds().insert(lockId).second);
 
     // For recursive locks, also assign this lock to every node on the upward path.
     if (IsLockRecursive(mode)) {
         auto currentNodeId = lockedNode.GetParentId();
         while (currentNodeId != NullObjectId) {
-            auto& currentNode = NodeMap.GetForUpdate(currentNodeId);
+            auto& currentNode = NodeMap.Get(currentNodeId);
             YVERIFY(currentNode.SubtreeLockIds().insert(lockId).second);
             currentNodeId = currentNode.GetParentId();
         }
@@ -528,7 +528,7 @@ TLockId TCypressManager::AcquireLock(
         if (originatingNode.GetId().TransactionId == transactionId) {
             YASSERT(originatingNode.GetLockMode() == ELockMode::Snapshot);
         } else {
-            BranchNode(GetNodeForUpdate(originatingNode.GetId()), transactionId, mode);
+            BranchNode(GetNode(originatingNode.GetId()), transactionId, mode);
         }
     }
 
@@ -540,14 +540,14 @@ void TCypressManager::ReleaseLock(const TLockId& lockId)
     const auto& lock = LockMap.Get(lockId);
 
     // Remove the lock from the node itself.
-    auto& lockedNode = NodeMap.GetForUpdate(lock.GetNodeId());
+    auto& lockedNode = NodeMap.Get(lock.GetNodeId());
     YVERIFY(lockedNode.LockIds().erase(lockId) == 1);
 
     // For recursive locks, also remove the lock from the nodes on the upward path.
     if (IsLockRecursive(lock.GetMode())) {
         auto currentNodeId = lockedNode.GetParentId();
         while (currentNodeId != NullObjectId) {
-            auto& node = NodeMap.GetForUpdate(currentNodeId);
+            auto& node = NodeMap.Get(currentNodeId);
             YVERIFY(node.SubtreeLockIds().erase(lockId) == 1);
             currentNodeId = node.GetParentId();
         }
@@ -615,7 +615,7 @@ void TCypressManager::RegisterNode(
 
     // If there's a transaction then append this node's id to the list.
     if (transactionId != NullTransactionId) {
-        auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+        auto& transaction = TransactionManager->GetTransaction(transactionId);
         transaction.CreatedNodeIds().push_back(nodeId);
     }
 
@@ -642,7 +642,7 @@ ICypressNode& TCypressManager::BranchNode(
     NodeMap.Insert(TVersionedNodeId(nodeId, transactionId), branchedNode_);
 
     // Register the branched node with the transaction.
-    auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+    auto& transaction = TransactionManager->GetTransaction(transactionId);
     transaction.BranchedNodeIds().push_back(nodeId);
 
     // The branched node holds an implicit reference to its originator.
@@ -707,7 +707,7 @@ i32 TCypressManager::RefNode(const TNodeId& nodeId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto& node = NodeMap.GetForUpdate(nodeId);
+    auto& node = NodeMap.Get(nodeId);
     return node.RefObject();
 }
 
@@ -715,7 +715,7 @@ i32 TCypressManager::UnrefNode(const TNodeId& nodeId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto& node = NodeMap.GetForUpdate(nodeId);
+    auto& node = NodeMap.Get(nodeId);
 
     i32 refCounter = node.UnrefObject();
     if (refCounter == 0) {
@@ -767,14 +767,14 @@ void TCypressManager::MergeBranchedNode(
     const TNodeId& nodeId)
 {
     TVersionedNodeId branchedId(nodeId, transaction.GetId());
-    auto& branchedNode = NodeMap.GetForUpdate(branchedId);
+    auto& branchedNode = NodeMap.Get(branchedId);
 
     // Find the appropriate originating node.
     ICypressNode* originatingNode;
     auto currentTransactionId = transaction.GetParentId();
     while (true) {
         TVersionedNodeId currentOriginatingId(nodeId, currentTransactionId);
-        originatingNode = FindNodeForUpdate(currentOriginatingId);
+        originatingNode = FindNode(currentOriginatingId);
         if (originatingNode)
             break;
 
@@ -812,7 +812,7 @@ void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
     auto transactionId = transaction.GetId();
     FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
         TVersionedNodeId versionedId(nodeId, transactionId);
-        auto& node = NodeMap.GetForUpdate(versionedId);
+        auto& node = NodeMap.Get(versionedId);
         GetHandler(node)->Destroy(node);
         NodeMap.Remove(versionedId);
 

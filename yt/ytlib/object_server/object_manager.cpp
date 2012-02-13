@@ -459,7 +459,7 @@ void TObjectManager::MergeAttributes(
     const TVersionedObjectId& originatingId,
     const TVersionedObjectId& branchedId)
 {
-    auto* originatingAttributes = FindAttributesForUpdate(originatingId);
+    auto* originatingAttributes = FindAttributes(originatingId);
     const auto* branchedAttributes = FindAttributes(branchedId);
     if (!branchedAttributes) {
         return;

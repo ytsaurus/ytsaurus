@@ -50,18 +50,18 @@ public:
 
     const ICypressNode* FindVersionedNode(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId) const;
 
     const ICypressNode& GetVersionedNode(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId) const;
 
-    ICypressNode* FindVersionedNodeForUpdate(
+    ICypressNode* FindVersionedNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         ELockMode requestedMode = ELockMode::Exclusive);
 
-    ICypressNode& GetVersionedNodeForUpdate(
+    ICypressNode& GetVersionedNode(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         ELockMode requestedMode = ELockMode::Exclusive);

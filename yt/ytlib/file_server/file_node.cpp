@@ -83,7 +83,7 @@ public:
         manifest->LoadAndValidate(manifestNode);
 
         auto chunkId = manifest->ChunkId;
-        auto* chunk = ChunkManager->FindChunkForUpdate(chunkId);
+        auto* chunk = ChunkManager->FindChunk(chunkId);
         if (!chunk) {
             ythrow yexception() << Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
         }

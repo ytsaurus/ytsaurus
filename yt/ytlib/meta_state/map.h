@@ -86,7 +86,7 @@ public:
      * \param key A key.
      * \return A pointer to the value if found, NULL otherwise.
      */
-    TValue* FindForUpdate(const TKey& key);
+    TValue* Find(const TKey& key);
 
     //! Returns a read-only value corresponding to the key.
     /*!
@@ -102,7 +102,7 @@ public:
      *  \param key A key.
      *  \returns A reference to the value.
      */
-    TValue& GetForUpdate(const TKey& key);
+    TValue& Get(const TKey& key);
 
     //! Removes the key from the map and deletes the corresponding value.
     /*!
@@ -223,9 +223,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
 
 #define DECLARE_METAMAP_ACCESSORS(entityName, entityType, idType) \
     const entityType* Find ## entityName(const idType& id) const; \
-    entityType* Find ## entityName ## ForUpdate(const idType& id); \
+    entityType* Find ## entityName(const idType& id); \
     const entityType& Get ## entityName(const idType& id) const; \
-    entityType& Get ## entityName ## ForUpdate(const idType& id); \
+    entityType& Get ## entityName(const idType& id); \
     yvector<idType> Get ## entityName ## Ids(size_t sizeLimit = Max<size_t>()); \
     int Get ## entityName ## Count() const;
 
@@ -235,9 +235,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (map).Find(id); \
     } \
     \
-    entityType* declaringType::Find ## entityName ## ForUpdate(const idType& id) \
+    entityType* declaringType::Find ## entityName(const idType& id) \
     { \
-        return (map).FindForUpdate(id); \
+        return (map).Find(id); \
     } \
     \
     const entityType& declaringType::Get ## entityName(const idType& id) const \
@@ -245,9 +245,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (map).Get(id); \
     } \
     \
-    entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
+    entityType& declaringType::Get ## entityName(const idType& id) \
     { \
-        return (map).GetForUpdate(id); \
+        return (map).Get(id); \
     } \
     \
     yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
@@ -266,9 +266,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (delegateTo).Find ## entityName(id); \
     } \
     \
-    entityType* declaringType::Find ## entityName ## ForUpdate(const idType& id) \
+    entityType* declaringType::Find ## entityName(const idType& id) \
     { \
-        return (delegateTo).Find ## entityName ## ForUpdate(id); \
+        return (delegateTo).Find ## entityName(id); \
     } \
     \
     const entityType& declaringType::Get ## entityName(const idType& id) const \
@@ -276,9 +276,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (delegateTo).Get ## entityName(id); \
     } \
     \
-    entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
+    entityType& declaringType::Get ## entityName(const idType& id) \
     { \
-        return (delegateTo).Get ## entityName ## ForUpdate(id); \
+        return (delegateTo).Get ## entityName(id); \
     } \
     \
     yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
