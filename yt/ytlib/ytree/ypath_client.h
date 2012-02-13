@@ -144,6 +144,8 @@ void ChopYPathToken(
 
 TYPath ChopYPathAttributeMarker(const TYPath& path);
 
+TYPath ChopYPathRedirectMarker(const TYPath& path);
+
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
@@ -166,7 +168,7 @@ bool IsFinalYPath(const TYPath& path);
 //! Returns True if the path starts with "@".
 bool IsAttributeYPath(const TYPath& path);
 
-//! Returns True if the path is empty of starts with "@".
+//! Returns True if the path is empty or starts with "@".
 /*!
  *  The empty path is handled by the virtual node itself.
  *  All other paths (including "/") are forwarded to the service.

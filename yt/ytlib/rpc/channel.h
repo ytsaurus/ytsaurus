@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include <ytlib/misc/nullable.h>
 #include <ytlib/bus/client.h>
 
 namespace NYT {
@@ -29,7 +30,7 @@ struct IChannel
     virtual void Send(
         IClientRequest* request,
         IClientResponseHandler* responseHandler,
-        TDuration timeout) = 0;
+        TNullable<TDuration> timeout) = 0;
 
     //! Shuts down the channel.
     /*!

@@ -90,29 +90,40 @@ void ChopYPathToken(
     TYPath* suffixPath)
 {
     size_t index = path.find_first_of("/@[{");
+
     if (index == TYPath::npos) {
         *token = path;
-        *suffixPath = TYPath(path.end(), static_cast<size_t>(0));
-    } else {
-        switch (path[index]) {
-            case '/':
-                *token = path.substr(0, index);
-                *suffixPath =
-                    index == path.length() - 1
-                    ? path.substr(index)
-                    : path.substr(index + 1);
-                break;
+        *suffixPath = "";
+        return;
+    }
 
-            case '@':
-            case '[':
-            case '{':
-                *token = path.substr(0, index);
+    if (index == 0) {
+        ythrow yexception() << "Empty token in YPath";
+    }
+
+    switch (path[index]) {
+        case '/':
+            *token = path.substr(0, index);
+            if (index == path.length() - 1 ||
+                path[index + 1] == '@' ||
+                path[index + 1] == '[' ||
+                path[index + 1] == '{')
+            {
                 *suffixPath = path.substr(index);
-                break;
+            } else {
+                *suffixPath = path.substr(index + 1);
+            }
+            break;
 
-            default:
-                YUNREACHABLE();
-        }
+        case '@':
+        case '[':
+        case '{':
+            *token = path.substr(0, index);
+            *suffixPath = path.substr(index);
+            break;
+
+        default:
+            YUNREACHABLE();
     }
 }
 
@@ -183,6 +194,11 @@ TYPath ChopYPathAttributeMarker(const TYPath& path)
         ythrow yexception() << "Repeated attribute marker in YPath";
     }
     return result;
+}
+
+TYPath ChopYPathRedirectMarker(const TYPath& path)
+{
+    return path.has_prefix("/") ? path.substr(1) : path;
 }
 
 bool IsLocalYPath(const TYPath& path)

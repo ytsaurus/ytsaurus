@@ -3,7 +3,7 @@
 #include "common.h"
 #include "id.h"
 
-#include <ytlib/ytree/ytree_fwd.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/misc/property.h>
 
 namespace NYT {

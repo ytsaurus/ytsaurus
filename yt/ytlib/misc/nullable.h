@@ -27,6 +27,14 @@ public:
         : Initialized(true)
         , Value(MoveRV(value))
     { }
+
+    TNullable(const T* value)
+        : Initialized(false)
+    {
+        if (value) {
+            Assign(*value);
+        }
+    }
     
     template<class U>
     TNullable(const TNullable<U>& other)
@@ -198,6 +206,26 @@ private:
 
     bool Initialized;
     T Value;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TNullableTraits
+{
+    typedef TNullable<T> TNullableType;
+};
+
+template <class T>
+struct TNullableTraits<T*>
+{
+    typedef T* TNullableType;
+};
+
+template <class T>
+struct TNullableTraits< TIntrusivePtr<T> >
+{
+    typedef TIntrusivePtr<T> TNullableType;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

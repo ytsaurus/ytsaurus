@@ -55,9 +55,9 @@ public:
     {
         if (IsLocalYPath(path)) {
             return TBase::Resolve(path, verb);
-        } else {
-            return TResolveResult::There(~Service, path);
         }
+        auto redirectedPath = ChopYPathRedirectMarker(path);
+        return TResolveResult::There(~Service, redirectedPath);
     }
 
 private:

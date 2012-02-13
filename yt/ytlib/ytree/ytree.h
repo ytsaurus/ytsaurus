@@ -1,8 +1,8 @@
 #pragma once
 
-#include "attributes.h"
+#include "attribute_provider.h"
 #include "common.h"
-#include "ytree_fwd.h"
+#include "public.h"
 #include "ypath_service.h"
 #include "yson_consumer.h"
 
@@ -44,7 +44,7 @@ struct INode
     : public virtual IYPathService
     , public virtual IAttributeProvider
 {
-    typedef TIntrusivePtr<INode> TPtr;
+    typedef TIntrusivePtr<INode> TPtr; // TODO(roizner): Remove it, use TNodePtr
 
     //! Returns the static type of the node.
     virtual ENodeType GetType() const = 0;

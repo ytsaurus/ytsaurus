@@ -42,7 +42,7 @@ protected:
 
     TProxyBase(IChannel* channel, const Stroka& serviceName);
 
-    DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
     IChannel::TPtr Channel;
     Stroka ServiceName;
@@ -69,7 +69,7 @@ class TClientRequest
 {
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RO_PROPERTY(bool, OneWay);
-    DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
 
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
@@ -95,7 +95,7 @@ protected:
 
     virtual TBlob SerializeBody() const = 0;
 
-    void DoInvoke(IClientResponseHandler* responseHandler, TDuration timeout);
+    void DoInvoke(IClientResponseHandler* responseHandler, TNullable<TDuration> timeout);
 
 };
 
@@ -126,7 +126,7 @@ public:
     }
 
     // Override base method for fluent use.
-    TIntrusivePtr<TTypedClientRequest> SetTimeout(TDuration timeout)
+    TIntrusivePtr<TTypedClientRequest> SetTimeout(TNullable<TDuration> timeout)
     {
         TClientRequest::SetTimeout(timeout);
         return this;
