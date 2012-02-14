@@ -1,8 +1,7 @@
 #pragma once
 
-#include "attribute_provider.h"
-#include "common.h"
 #include "public.h"
+#include "attribute_provider.h"
 #include "ypath_service.h"
 #include "yson_consumer.h"
 
@@ -23,22 +22,6 @@ struct TScalarTypeTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A static node type.
-DECLARE_ENUM(ENodeType,
-    // Node contains a string (Stroka).
-    (String)
-    // Node contains an integer number (i64).
-    (Int64)
-    // Node contains an FP number (double).
-    (Double)
-    // Node contains a map from strings to other nodes.
-    (Map)
-    // Node contains a list (vector) of other nodes.
-    (List)
-    // Node is atomic, i.e. has no visible properties (aside from attributes).
-    (Entity)
-);
-    
 //! A base DOM-like interface representing a node.
 struct INode
     : public virtual IYPathService
@@ -125,7 +108,6 @@ struct IScalarNode
     virtual void SetValue(const TValue& value) = 0;
 };
 
-
 // Define the actual scalar node types: IStringNode, IInt64Node, IDoubleNode.
 #define DECLARE_SCALAR_TYPE(name, type, paramType) \
     struct I##name##Node \
@@ -197,7 +179,7 @@ struct IMapNode
     /*!
      *  Map items are returned in unspecified order.
      */
-    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const = 0;
+    virtual yvector< TPair<Stroka, TNodePtr> > GetChildren() const = 0;
 
     //! Returns map keys.
     /*!
@@ -210,7 +192,7 @@ struct IMapNode
      *  \param key A key.
      *  \return A child with the given key or NULL if the index is not valid.
      */
-    virtual INode::TPtr FindChild(const Stroka& key) const = 0;
+    virtual TNodePtr FindChild(const Stroka& key) const = 0;
 
     //! Adds a new child with a given key.
     /*!
@@ -231,7 +213,7 @@ struct IMapNode
     virtual bool RemoveChild(const Stroka& key) = 0;
 
     //! Similar to #FindChild but fails if no child is found.
-    INode::TPtr GetChild(const Stroka& key) const
+    TNodePtr GetChild(const Stroka& key) const
     {
         auto child = FindChild(key);
         YASSERT(child);
@@ -257,14 +239,14 @@ struct IListNode
     using ICompositeNode::RemoveChild;
 
     //! Returns the current snapshot of the list.
-    virtual yvector<INode::TPtr> GetChildren() const = 0;
+    virtual yvector<TNodePtr> GetChildren() const = 0;
 
     //! Gets a child by its index.
     /*!
      *  \param index An index.
      *  \return A child with the given index or NULL if the index is not valid.
      */
-    virtual INode::TPtr FindChild(int index) const = 0;
+    virtual TNodePtr FindChild(int index) const = 0;
 
     //! Adds a new child at a given position.
     /*!
@@ -286,7 +268,7 @@ struct IListNode
     virtual bool RemoveChild(int index) = 0;
 
     //! Similar to #FindChild but fails if the index is not valid.
-    INode::TPtr GetChild(int index) const
+    TNodePtr GetChild(int index) const
     {
         auto child = FindChild(index);
         YASSERT(child);

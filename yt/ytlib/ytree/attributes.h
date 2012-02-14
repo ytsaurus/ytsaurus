@@ -10,8 +10,6 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IMapNode;
-
 struct IAttributeDictionary
 {
     ~IAttributeDictionary()
@@ -20,9 +18,8 @@ struct IAttributeDictionary
     // Returns the list of all attribute names.
     virtual yhash_set<Stroka> List() = 0;
 
-    //! Returns the value of the attribute (empty TYson indicates that the attribute is not found).
-    // TODO(babenko): make const
-    virtual TYson FindYson(const Stroka& key) = 0;
+    //! Returns the value of the attribute (NULL indicates that the attribute is not found).
+    virtual TNullable<TYson> FindYson(const Stroka& key) = 0;
 
     //! Sets the value of the attribute.
     virtual void SetYson(const Stroka& key, const TYson& value) = 0;
@@ -34,16 +31,19 @@ struct IAttributeDictionary
 
     // TODO(babenko): make const
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
-    TYson GetYson(const Stroka& name);
+    TYson GetYson(const Stroka& key);
 
     // TODO(babenko): make const
     template <class T>
-    typename TDeserializeTraits<T>::TReturnType Get(const Stroka& name);
+    typename TDeserializeTraits<T>::TReturnType Get(const Stroka& key);
 
     template <class T>
     typename TNullableTraits<
         typename TDeserializeTraits<T>::TReturnType
-    >::TNullableType Find(const Stroka& name);
+    >::TNullableType Find(const Stroka& key);
+
+    template <class T>
+    void Set(const Stroka& key, const T& value);
     
     //! Converts the instance into a map node (by copying and deserliazing the values).
     TIntrusivePtr<IMapNode> ToMap();

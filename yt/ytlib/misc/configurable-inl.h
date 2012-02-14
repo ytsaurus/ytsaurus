@@ -107,137 +107,6 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TConfigurable::TPtr
-template <class T>
-inline void Write(
-    const TIntrusivePtr<T>& parameter,
-    NYTree::IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
-{
-    YASSERT(parameter);
-    parameter->Save(consumer);
-}
-
-// i64
-inline void Write(i64 parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter);
-}
-
-// i32
-inline void Write(i32 parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter);
-}
-
-// ui32
-inline void Write(ui32 parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter);
-}
-
-// ui16
-inline void Write(ui16 parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter);
-}
-
-// double
-inline void Write(double parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnDoubleScalar(parameter);
-}
-
-// Stroka
-inline void Write(const Stroka& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(parameter);
-}
-
-// bool
-inline void Write(bool parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(FormatBool(parameter));
-}
-
-// TDuration
-inline void Write(const TDuration& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter.MilliSeconds());
-}
-
-// TGuid
-inline void Write(const TGuid& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(parameter.ToString());
-}
-
-// TEnumBase
-template <class T>
-inline void Write(
-    const T& parameter,
-    NYTree::IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T, TEnumBase<T> >, int>::TType = 0)
-{
-    consumer->OnStringScalar(parameter.ToString());
-}
-
-// TNullable
-template <class T>
-inline void Write(const TNullable<T>& parameter, NYTree::IYsonConsumer* consumer)
-{
-    YASSERT(parameter);
-    Write(*parameter, consumer);
-}
-
-// INode::TPtr
-inline void Write(const NYTree::INode::TPtr& parameter, NYTree::IYsonConsumer* consumer)
-{
-    YASSERT(parameter);
-    NYTree::TTreeVisitor visitor(consumer, false);
-    visitor.Visit(~parameter);
-}
-
-// yvector
-template <class T>
-inline void Write(const yvector<T>& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnBeginList();
-    FOREACH (const auto& value, parameter) {
-        consumer->OnListItem();
-        Write(value, consumer);
-    }
-    consumer->OnEndList();
-}
-
-// yhash_set
-template <class T>
-inline void Write(const yhash_set<T>& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnBeginList();
-    auto sortedItems = GetSortedIterators(parameter);
-    FOREACH (const auto& value, sortedItems) {
-        consumer->OnListItem();
-        Write(*value, consumer);
-    }
-    consumer->OnEndList();
-}
-
-// yhash_map
-template <class T>
-inline void Write(const yhash_map<Stroka, T>& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnBeginMap();
-    auto sortedItems = GetSortedIterators(parameter);
-    FOREACH (const auto& pair, sortedItems) {
-        consumer->OnMapItem(pair->first);
-        Write(pair->second, consumer);
-    }
-    consumer->OnEndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // all
 inline void ValidateSubconfigs(
     const void* /* parameter */,
@@ -349,7 +218,7 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
 template<class T>
 void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
 {
-    Write(Parameter, consumer);
+    NYTree::Write(Parameter, consumer);
 }
 
 template<class T>

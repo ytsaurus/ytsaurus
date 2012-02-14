@@ -170,7 +170,7 @@ public:
     struct TConfig
         : public TDriver::TConfig
     {
-        INode::TPtr Logging;
+        TNodePtr Logging;
 
         TConfig()
         {
@@ -215,7 +215,7 @@ public:
             }
 
             auto config = New<TConfig>();
-            INode::TPtr configNode;
+            TNodePtr configNode;
             try {
                 TIFStream configStream(configFileName);
                 configNode = DeserializeFromYson(&configStream);

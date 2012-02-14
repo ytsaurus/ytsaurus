@@ -193,7 +193,7 @@ void TListNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
 {
-    INode::TPtr currentNode = this;
+    TNodePtr currentNode = this;
     TYPath currentPath = path;
 
     Stroka token;

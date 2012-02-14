@@ -12,6 +12,7 @@
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/assert.h>
 #include <ytlib/logging/log.h>
+#include <ytlib/rpc/service.h>
 
 namespace NYT {
 namespace NYTree {
@@ -131,13 +132,13 @@ protected:
     virtual void OnMyBeginMap();
 
     virtual void OnMyBeginAttributes();
-    virtual void OnMyAttributesItem(const Stroka& name);
+    virtual void OnMyAttributesItem(const Stroka& key);
     virtual void OnMyEndAttributes();
 
 protected:
     typedef TNodeSetterBase TThis;
 
-    INode::TPtr Node;
+    TNodePtr Node;
     ITreeBuilder* TreeBuilder;
     INodeFactory::TPtr NodeFactory;
 
@@ -206,7 +207,7 @@ private:
     typedef TNodeSetter<IMapNode> TThis;
 
     IMapNode::TPtr Map;
-    Stroka ItemName;
+    Stroka ItemKey;
 
     virtual ENodeType GetExpectedType()
     {
@@ -218,17 +219,17 @@ private:
         Map->Clear();
     }
 
-    virtual void OnMyMapItem(const Stroka& name)
+    virtual void OnMyMapItem(const Stroka& key)
     {
-        ItemName = name;
+        ItemKey = key;
         TreeBuilder->BeginTree();
         ForwardNode(TreeBuilder, ~FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
     {
-        YVERIFY(Map->AddChild(~TreeBuilder->EndTree(), ItemName));
-        ItemName.clear();
+        YVERIFY(Map->AddChild(~TreeBuilder->EndTree(), ItemKey));
+        ItemKey.clear();
     }
 
     virtual void OnMyEndMap(bool hasAttributes)
@@ -312,7 +313,7 @@ private:
 template <class TNode>
 void SetNodeFromProducer(
     TNode* node,
-    TYsonProducer* producer,
+    TYsonProducer producer,
     ITreeBuilder* builder)
 {
     YASSERT(node);

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "common.h"
 
 #include <ytlib/actions/action.h>
 
@@ -79,9 +78,9 @@ struct IYsonConsumer
 
     //! Designates a list item.
     /*!
-     *  \param name Item name in the map.
+     *  \param key Item key in the map.
      */
-    virtual void OnMapItem(const Stroka& name) = 0;
+    virtual void OnMapItem(const Stroka& key) = 0;
 
     //! Ends the current map.
     /*!
@@ -104,20 +103,13 @@ struct IYsonConsumer
 
     //! Designates an attribute.
     /*!
-     *  \param name An attribute name.
+     *  \param key An attribute key.
      */
-    virtual void OnAttributesItem(const Stroka& name) = 0;
+    virtual void OnAttributesItem(const Stroka& key) = 0;
 
     //! Ends the current attribute map.
     virtual void OnEndAttributes() = 0;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A callback capable of generating YSON by calling appropriate
-//! methods for its IYsonConsumer argument.
-typedef IParamAction<IYsonConsumer*> TYsonProducer;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

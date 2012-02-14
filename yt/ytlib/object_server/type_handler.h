@@ -3,7 +3,7 @@
 #include "id.h"
 #include "object_proxy.h"
 
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NObjectServer {

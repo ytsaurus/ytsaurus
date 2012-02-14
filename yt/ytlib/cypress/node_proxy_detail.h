@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "node_proxy.h"
 #include "node_detail.h"
 #include "cypress_ypath.pb.h"
@@ -339,7 +338,7 @@ protected:
             return attributes;
         }
 
-        virtual NYTree::TYson FindYson(const Stroka& name)
+        virtual TNullable<NYTree::TYson> FindYson(const Stroka& name)
         {
             if (TransactionId == NullTransactionId) {
                 return TUserAttributeDictionary::FindYson(name);
@@ -360,7 +359,7 @@ protected:
                     }
                 }
             }
-            return NYTree::TYson();
+            return NULL;
         }
 
         virtual void SetYson(const Stroka& name, const NYTree::TYson& value)
@@ -564,7 +563,7 @@ protected:
             return;
         }
 
-        NYTree::INode::TPtr manifestNode =
+        NYTree::TNodePtr manifestNode =
             request->has_manifest()
             ? NYTree::DeserializeFromYson(request->manifest())
             : NYTree::GetEphemeralNodeFactory()->CreateMap();
@@ -611,9 +610,9 @@ public:
 
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector< TPair<Stroka, NYTree::INode::TPtr> > GetChildren() const;
+    virtual yvector< TPair<Stroka, NYTree::TNodePtr> > GetChildren() const;
     virtual yvector<Stroka> GetKeys() const;
-    virtual INode::TPtr FindChild(const Stroka& key) const;
+    virtual NYTree::TNodePtr FindChild(const Stroka& key) const;
     virtual bool AddChild(NYTree::INode* child, const Stroka& key);
     virtual bool RemoveChild(const Stroka& key);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
@@ -629,8 +628,8 @@ protected:
     virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
     virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
-    yhash_map<Stroka, INode::TPtr> DoGetChildren() const;
-    INode::TPtr DoFindChild(const Stroka& key, bool skipCurrentTransaction) const;
+    yhash_map<Stroka, NYTree::TNodePtr> DoGetChildren() const;
+    NYTree::TNodePtr DoFindChild(const Stroka& key, bool skipCurrentTransaction) const;
 
     NTransactionServer::TTransactionManager::TPtr TransactionManager;
 };
@@ -652,8 +651,8 @@ public:
 
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector<INode::TPtr> GetChildren() const;
-    virtual INode::TPtr FindChild(int index) const;
+    virtual yvector<NYTree::TNodePtr> GetChildren() const;
+    virtual NYTree::TNodePtr FindChild(int index) const;
     virtual void AddChild(NYTree::INode* child, int beforeIndex = -1);
     virtual bool RemoveChild(int index);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);

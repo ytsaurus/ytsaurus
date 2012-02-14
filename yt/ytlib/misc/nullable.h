@@ -27,6 +27,14 @@ public:
         : Initialized(true)
         , Value(MoveRV(value))
     { }
+
+    TNullable(const T* value)
+        : Initialized(false)
+    {
+        if (value) {
+            Assign(*value);
+        }
+    }
     
     template<class U>
     TNullable(const TNullable<U>& other)

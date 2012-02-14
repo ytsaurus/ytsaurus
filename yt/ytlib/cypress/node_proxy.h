@@ -3,7 +3,7 @@
 #include "common.h"
 #include "node.h"
 
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/object_server/object_proxy.h>
 
 namespace NYT {

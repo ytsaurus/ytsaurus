@@ -218,7 +218,7 @@ private:
 
     TPeriodicInvoker::TPtr PingInvoker;
     TTransactionId Id;
-    INode::TPtr Manifest;
+    TNodePtr Manifest;
     TTransactionId ParentId;
 
     TSignal Aborted;

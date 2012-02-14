@@ -10,19 +10,19 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYson IAttributeDictionary::GetAttribute(const Stroka& key)
+TYson IAttributeDictionary::GetYson(const Stroka& key)
 {
-    const auto& result = FindAttribute(key);
-    if (result.empty()) {
+    const auto& result = FindYson(key);
+    if (!result) {
         ythrow yexception() << Sprintf("Attribute %s is not found", ~key.Quote());
     }
-    return result;
+    return *result;
 }
 
 IMapNode::TPtr IAttributeDictionary::ToMap()
 {
     auto map = GetEphemeralNodeFactory()->CreateMap();
-    auto keys = ListAttributes();
+    auto keys = List();
     FOREACH (const auto& key, keys) {
         auto value = DeserializeFromYson(GetYson(key));
         map->AddChild(~value, key);
@@ -41,9 +41,9 @@ void IAttributeDictionary::MergeFrom(const IMapNode* other)
 
 void IAttributeDictionary::MergeFrom(IAttributeDictionary* other)
 {
-    FOREACH (const auto& key, other->ListAttributes()) {
-        auto value = other->GetAttribute(key);
-        SetAttribute(key, value);
+    FOREACH (const auto& key, other->List()) {
+        auto value = other->GetYson(key);
+        SetYson(key, value);
     }
 }
 
@@ -64,10 +64,10 @@ class TEphemeralAttributeDictionary
         return keys;
     }
 
-    virtual TYson FindYson(const Stroka& key)
+    virtual TNullable<TYson> FindYson(const Stroka& key)
     {
         auto it = Map.find(key);
-        return it == Map.end() ? TYson() : it->second;
+        return it == Map.end() ? NULL : it->second;
     }
 
     virtual void SetYson(const Stroka& key, const TYson& value)
@@ -88,8 +88,8 @@ TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes()
 
 void ToProto(NProto::TAttributes* protoAttributes, IAttributeDictionary& attributes)
 {
-    FOREACH (const auto& key, attributes.ListAttributes()) {
-        auto value = attributes.GetAttribute(key);
+    FOREACH (const auto& key, attributes.List()) {
+        auto value = attributes.GetYson(key);
         auto protoAttribute = protoAttributes->add_attributes();
         protoAttribute->set_key(key);
         protoAttribute->set_value(value);
@@ -102,7 +102,7 @@ TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttribu
     FOREACH (const auto& protoAttribute, protoAttributes.attributes()) {
         const auto& key = protoAttribute.key();
         const auto& value = protoAttribute.value();
-        attributes->SetAttribute(key, value);
+        attributes->SetYson(key, value);
     }
     return attributes;
 }

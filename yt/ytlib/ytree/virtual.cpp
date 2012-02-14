@@ -36,12 +36,12 @@ void TAttributedYPathServiceBase::GetSystemAttributes(std::vector<TAttributeInfo
     UNUSED(attributes);
 }
 
-bool TAttributedYPathServiceBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+bool TAttributedYPathServiceBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     return false;
 }
 
-bool TAttributedYPathServiceBase::SetSystemAttribute(const Stroka& name, TYsonProducer* producer)
+bool TAttributedYPathServiceBase::SetSystemAttribute(const Stroka& key, TYsonProducer producer)
 {
     return false;
 }
@@ -205,15 +205,15 @@ void TVirtualMapBase::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     TAttributedYPathServiceBase::GetSystemAttributes(attributes);
 }
 
-bool TVirtualMapBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    if (name == "size") {
+    if (key == "size") {
         BuildYsonFluently(consumer)
             .Scalar(static_cast<i64>(GetSize()));
         return true;
     }
 
-    return TAttributedYPathServiceBase::GetSystemAttribute(name, consumer);
+    return TAttributedYPathServiceBase::GetSystemAttribute(key, consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -284,12 +284,12 @@ private:
 
 };
 
-INode::TPtr CreateVirtualNode(TYPathServiceProvider* provider)
+TNodePtr CreateVirtualNode(TYPathServiceProvider* provider)
 {
     return New<TVirtualEntityNode>(provider);
 }
 
-INode::TPtr CreateVirtualNode(IYPathService* service)
+TNodePtr CreateVirtualNode(IYPathService* service)
 {
     IYPathService::TPtr service_ = service;
     return CreateVirtualNode(~FromFunctor([=] () -> NYTree::IYPathService::TPtr

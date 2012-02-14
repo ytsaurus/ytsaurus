@@ -29,7 +29,7 @@ TMonitoringManager::TMonitoringManager()
         Period);
 }
 
-void TMonitoringManager::Register(const TYPath& path, TYsonProducer::TPtr producer)
+void TMonitoringManager::Register(const TYPath& path, TYsonProducer producer)
 {
     TGuard<TSpinLock> guard(SpinLock);
     YVERIFY(MonitoringMap.insert(MakePair(path, producer)).second);
@@ -41,7 +41,7 @@ void TMonitoringManager::Unregister(const TYPath& path)
     YVERIFY(MonitoringMap.erase(Stroka(path)));
 }
 
-INode::TPtr TMonitoringManager::GetRoot() const
+TNodePtr TMonitoringManager::GetRoot() const
 {
     return Root;
 }
@@ -103,7 +103,7 @@ void TMonitoringManager::Visit(IYsonConsumer* consumer)
     )
 }
 
-TYsonProducer::TPtr TMonitoringManager::GetProducer()
+TYsonProducer TMonitoringManager::GetProducer()
 {
     YASSERT(IsStarted);
     YASSERT(Root);

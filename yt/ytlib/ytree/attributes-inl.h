@@ -23,13 +23,20 @@ typename TNullableTraits<
 >::TNullableType IAttributeDictionary::Find(const Stroka& name)
 {
     const auto& yson = FindYson(name);
-    if (yson.empty()) {
+    if (!yson) {
         return
             typename TNullableTraits<
                 typename TDeserializeTraits<T>::TReturnType
             >::TNullableType();
     }
-    return DeserializeFromYson<T>(yson);
+    return DeserializeFromYson<T>(*yson);
+}
+
+template <class T>
+void IAttributeDictionary::Set(const Stroka& name, const T& value)
+{
+    const auto& yson = SerializeToYson(value);
+    SetYson(name, yson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

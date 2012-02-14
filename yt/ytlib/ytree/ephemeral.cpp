@@ -150,9 +150,9 @@ public:
         return KeyToChild.ysize();
     }
 
-    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const
+    virtual yvector< TPair<Stroka, TNodePtr> > GetChildren() const
     {
-        return yvector< TPair<Stroka, INode::TPtr> >(KeyToChild.begin(), KeyToChild.end());
+        return yvector< TPair<Stroka, TNodePtr> >(KeyToChild.begin(), KeyToChild.end());
     }
 
     virtual yvector<Stroka> GetKeys() const
@@ -165,7 +165,7 @@ public:
         return result;
     }
 
-    virtual INode::TPtr FindChild(const Stroka& key) const
+    virtual TNodePtr FindChild(const Stroka& key) const
     {
         auto it = KeyToChild.find(key);
         return it == KeyToChild.end() ? NULL : it->second;
@@ -246,8 +246,8 @@ public:
     }
 
 private:
-    yhash_map<Stroka, INode::TPtr> KeyToChild;
-    yhash_map<INode::TPtr, Stroka> ChildToKey;
+    yhash_map<Stroka, TNodePtr> KeyToChild;
+    yhash_map<TNodePtr, Stroka> ChildToKey;
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
@@ -303,12 +303,12 @@ public:
         return IndexToChild.ysize();
     }
 
-    virtual yvector<INode::TPtr> GetChildren() const
+    virtual yvector<TNodePtr> GetChildren() const
     {
         return IndexToChild;
     }
 
-    virtual INode::TPtr FindChild(int index) const
+    virtual TNodePtr FindChild(int index) const
     {
         return index >= 0 && index < IndexToChild.ysize() ? IndexToChild[index] : NULL;
     }
@@ -388,8 +388,8 @@ public:
     }
 
 private:
-    yvector<INode::TPtr> IndexToChild;
-    yhash_map<INode::TPtr, int> ChildToIndex;
+    yvector<TNodePtr> IndexToChild;
+    yhash_map<TNodePtr, int> ChildToIndex;
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb)
     {
