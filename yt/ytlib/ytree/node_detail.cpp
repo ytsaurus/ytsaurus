@@ -127,7 +127,7 @@ void TMapNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
 {
-    IMapNode::TPtr currentNode = this;
+    TMapNodePtr currentNode = this;
     TYPath currentPath = path;
 
     while (true) {

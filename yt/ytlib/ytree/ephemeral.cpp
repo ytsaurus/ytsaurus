@@ -22,12 +22,12 @@ public:
         : Parent(NULL)
     { }
 
-    virtual INodeFactory::TPtr CreateFactory() const
+    virtual TNodeFactoryPtr CreateFactory() const
     {
         return GetEphemeralNodeFactory();
     }
 
-    virtual ICompositeNode::TPtr GetParent() const
+    virtual TCompositeNodePtr GetParent() const
     {
         return Parent;
     }
@@ -432,32 +432,32 @@ class TEphemeralNodeFactory
     : public INodeFactory
 {
 public:
-    virtual IStringNode::TPtr CreateString()
+    virtual TStringNodePtr CreateString()
     {
         return New<TStringNode>();
     }
 
-    virtual IInt64Node::TPtr CreateInt64()
+    virtual TInt64NodePtr CreateInt64()
     {
         return New<TInt64Node>();
     }
 
-    virtual IDoubleNode::TPtr CreateDouble()
+    virtual TDoubleNodePtr CreateDouble()
     {
         return New<TDoubleNode>();
     }
 
-    virtual IMapNode::TPtr CreateMap()
+    virtual TMapNodePtr CreateMap()
     {
         return New<TMapNode>();
     }
 
-    virtual IListNode::TPtr CreateList()
+    virtual TListNodePtr CreateList()
     {
         return New<TListNode>();
     }
 
-    virtual IEntityNode::TPtr CreateEntity()
+    virtual TEntityNodePtr CreateEntity()
     {
         return New<TEntityNode>();
     }

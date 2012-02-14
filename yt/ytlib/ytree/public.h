@@ -53,6 +53,7 @@ struct IEntityNode;
 typedef TIntrusivePtr<IEntityNode> TEntityNodePtr;
 
 struct INodeFactory;
+typedef TIntrusivePtr<INodeFactory> TNodeFactoryPtr;
 
 struct IYsonConsumer;
 

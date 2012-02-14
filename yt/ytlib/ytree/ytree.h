@@ -27,8 +27,6 @@ struct INode
     : public virtual IYPathService
     , public virtual IAttributeProvider
 {
-    typedef TIntrusivePtr<INode> TPtr; // TODO(roizner): Remove it, use TNodePtr
-
     //! Returns the static type of the node.
     virtual ENodeType GetType() const = 0;
     
@@ -100,9 +98,8 @@ struct IScalarNode
     : virtual INode
 {
     typedef T TValue;
-    typedef TIntrusivePtr< IScalarNode<T> > TPtr;
 
-    //! Gets the values.
+    //! Gets the value.
     virtual TValue GetValue() const = 0;
     //! Sets the value.
     virtual void SetValue(const TValue& value) = 0;
@@ -112,9 +109,7 @@ struct IScalarNode
 #define DECLARE_SCALAR_TYPE(name, type, paramType) \
     struct I##name##Node \
         : IScalarNode<type> \
-    { \
-        typedef TIntrusivePtr<I##name##Node> TPtr; \
-    }; \
+    { }; \
     \
     namespace NDetail { \
     \
@@ -151,8 +146,6 @@ DECLARE_SCALAR_TYPE(Double, double, double)
 struct ICompositeNode
     : public virtual INode
 {
-    typedef TIntrusivePtr<ICompositeNode> TPtr;
-
     //! Removes all child nodes.
     virtual void Clear() = 0;
     //! Returns the number of child nodes.
@@ -171,8 +164,6 @@ struct ICompositeNode
 struct IMapNode
     : public ICompositeNode
 {
-    typedef TIntrusivePtr<IMapNode> TPtr;
-
     using ICompositeNode::RemoveChild;
 
     //! Returns the current snapshot of the map.
@@ -232,10 +223,8 @@ struct IMapNode
 
 //! A list node, which keeps a list (vector) of children.
 struct IListNode
-    : ICompositeNode
+    : public ICompositeNode
 {
-    typedef TIntrusivePtr<IListNode> TPtr;
-
     using ICompositeNode::RemoveChild;
 
     //! Returns the current snapshot of the list.
@@ -287,10 +276,8 @@ struct IListNode
 
 //! An structureless entity node.
 struct IEntityNode
-    : virtual INode
-{
-    typedef TIntrusivePtr<IEntityNode> TPtr;
-};
+    : public virtual INode
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -301,20 +288,18 @@ struct IEntityNode
 struct INodeFactory
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<INodeFactory> TPtr;
-
     //! Creates a string node.
-    virtual IStringNode::TPtr CreateString() = 0;
+    virtual TStringNodePtr CreateString() = 0;
     //! Creates an integer node.
-    virtual IInt64Node::TPtr CreateInt64() = 0;
+    virtual TInt64NodePtr CreateInt64() = 0;
     //! Creates an FP number node.
-    virtual IDoubleNode::TPtr CreateDouble() = 0;
+    virtual TDoubleNodePtr CreateDouble() = 0;
     //! Creates a map node.
-    virtual IMapNode::TPtr CreateMap() = 0;
+    virtual TMapNodePtr CreateMap() = 0;
     //! Creates a list node.
-    virtual IListNode::TPtr CreateList() = 0;
+    virtual TListNodePtr CreateList() = 0;
     //! Creates an entity node.
-    virtual IEntityNode::TPtr CreateEntity() = 0;
+    virtual TEntityNodePtr CreateEntity() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

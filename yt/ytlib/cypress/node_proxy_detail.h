@@ -27,12 +27,12 @@ public:
         const TTransactionId& transactionId);
     ~TNodeFactory();
 
-    virtual NYTree::IStringNode::TPtr CreateString();
-    virtual NYTree::IInt64Node::TPtr CreateInt64();
-    virtual NYTree::IDoubleNode::TPtr CreateDouble();
-    virtual NYTree::IMapNode::TPtr CreateMap();
-    virtual NYTree::IListNode::TPtr CreateList();
-    virtual NYTree::IEntityNode::TPtr CreateEntity();
+    virtual NYTree::TStringNodePtr CreateString();
+    virtual NYTree::TInt64NodePtr CreateInt64();
+    virtual NYTree::TDoubleNodePtr CreateDouble();
+    virtual NYTree::TMapNodePtr CreateMap();
+    virtual NYTree::TListNodePtr CreateList();
+    virtual NYTree::TEntityNodePtr CreateEntity();
 
 private:
     const TCypressManager::TPtr CypressManager;
@@ -75,7 +75,7 @@ public:
         YASSERT(cypressManager);
     }
 
-    NYTree::INodeFactory::TPtr CreateFactory() const
+    NYTree::TNodeFactoryPtr CreateFactory() const
     {
         return New<TNodeFactory>(~CypressManager, TransactionId);
     }
@@ -108,7 +108,7 @@ public:
     }
 
 
-    virtual NYTree::ICompositeNode::TPtr GetParent() const
+    virtual NYTree::TCompositeNodePtr GetParent() const
     {
         auto nodeId = GetImpl().GetParentId();
         return nodeId == NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();

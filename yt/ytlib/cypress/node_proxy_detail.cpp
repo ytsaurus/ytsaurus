@@ -35,32 +35,32 @@ ICypressNodeProxy::TPtr TNodeFactory::DoCreate(EObjectType type)
     return CypressManager->GetVersionedNodeProxy(id, NullTransactionId);
 }
 
-IStringNode::TPtr TNodeFactory::CreateString()
+TStringNodePtr TNodeFactory::CreateString()
 {
     return DoCreate(EObjectType::StringNode)->AsString();
 }
 
-IInt64Node::TPtr TNodeFactory::CreateInt64()
+TInt64NodePtr TNodeFactory::CreateInt64()
 {
     return DoCreate(EObjectType::Int64Node)->AsInt64();
 }
 
-IDoubleNode::TPtr TNodeFactory::CreateDouble()
+TDoubleNodePtr TNodeFactory::CreateDouble()
 {
     return DoCreate(EObjectType::DoubleNode)->AsDouble();
 }
 
-IMapNode::TPtr TNodeFactory::CreateMap()
+TMapNodePtr TNodeFactory::CreateMap()
 {
     return DoCreate(EObjectType::MapNode)->AsMap();
 }
 
-IListNode::TPtr TNodeFactory::CreateList()
+TListNodePtr TNodeFactory::CreateList()
 {
     return DoCreate(EObjectType::ListNode)->AsList();
 }
 
-IEntityNode::TPtr TNodeFactory::CreateEntity()
+TEntityNodePtr TNodeFactory::CreateEntity()
 {
     ythrow yexception() << "Entity nodes cannot be created inside Cypress";
 }

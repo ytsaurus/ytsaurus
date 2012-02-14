@@ -140,7 +140,7 @@ protected:
 
     TNodePtr Node;
     ITreeBuilder* TreeBuilder;
-    INodeFactory::TPtr NodeFactory;
+    TNodeFactoryPtr NodeFactory;
 
     Stroka AttributeKey;
     TYson AttributeValue;
@@ -157,26 +157,26 @@ template <class TValue>
 class TNodeSetter
 { };
 
-#define DECLARE_SCALAR_TYPE(key, type) \
+#define DECLARE_SCALAR_TYPE(name, type) \
     template <> \
-    class TNodeSetter<I##key##Node> \
+    class TNodeSetter<I##name##Node> \
         : public TNodeSetterBase \
     { \
     public: \
-        TNodeSetter(I##key##Node* node, ITreeBuilder* builder) \
+        TNodeSetter(I##name##Node* node, ITreeBuilder* builder) \
             : TNodeSetterBase(node, builder) \
             , Node(node) \
         { } \
     \
     private: \
-        I##key##Node::TPtr Node; \
+        T##name##NodePtr Node; \
         \
         virtual ENodeType GetExpectedType() \
         { \
-            return ENodeType::key; \
+            return ENodeType::name; \
         } \
         \
-        virtual void On ## key ## Scalar( \
+        virtual void On##name##Scalar( \
             NDetail::TScalarTypeTraits<type>::TParamType value, \
             bool hasAttributes) \
         { \
@@ -206,7 +206,7 @@ public:
 private:
     typedef TNodeSetter<IMapNode> TThis;
 
-    IMapNode::TPtr Map;
+    TMapNodePtr Map;
     Stroka ItemKey;
 
     virtual ENodeType GetExpectedType()
@@ -254,7 +254,7 @@ public:
 private:
     typedef TNodeSetter<IListNode> TThis;
 
-    IListNode::TPtr List;
+    TListNodePtr List;
 
     virtual ENodeType GetExpectedType()
     {

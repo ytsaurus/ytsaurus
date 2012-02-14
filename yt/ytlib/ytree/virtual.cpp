@@ -230,13 +230,13 @@ public:
         : Provider(builder)
     { }
 
-    virtual INodeFactory::TPtr CreateFactory() const
+    virtual TNodeFactoryPtr CreateFactory() const
     {
         YASSERT(Parent);
         return Parent->CreateFactory();
     }
 
-    virtual ICompositeNode::TPtr GetParent() const
+    virtual TCompositeNodePtr GetParent() const
     {
         return Parent;
     }

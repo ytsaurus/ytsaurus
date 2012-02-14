@@ -19,7 +19,7 @@ TYson IAttributeDictionary::GetYson(const Stroka& key)
     return *result;
 }
 
-IMapNode::TPtr IAttributeDictionary::ToMap()
+TMapNodePtr IAttributeDictionary::ToMap()
 {
     auto map = GetEphemeralNodeFactory()->CreateMap();
     auto keys = List();
