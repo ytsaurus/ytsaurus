@@ -89,7 +89,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* co
 {
     UNUSED(request);
 
-    ToProto(*response->mutable_keys(), GetKeys());
+    NYT::ToProto(response->mutable_keys(), GetKeys());
     context->Reply();
 }
 

@@ -31,9 +31,6 @@ struct ICypressNodeProxy
     
     //! Returns the physical node and allows its mutation.
     virtual ICypressNode& GetImplForUpdate() = 0;
-
-    virtual NYTree::IAttributeDictionary::TPtr GetAttributes() = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

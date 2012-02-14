@@ -76,10 +76,10 @@ class TSupportsAttributes
 protected:
     // TODO(roizner,babenko): support NULL user attribute dictionary to
     // allow TVirtualMapBase to use this mix-in.
-    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary() = 0;
+    virtual IAttributeDictionary* GetUserAttributes() = 0;
 
     // Can be NULL.
-    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() = 0;
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider() = 0;
 
     virtual TResolveResult ResolveAttributes(
         const NYTree::TYPath& path,
@@ -141,7 +141,7 @@ protected:
     ITreeBuilder* TreeBuilder;
     INodeFactory::TPtr NodeFactory;
 
-    Stroka AttributeName;
+    Stroka AttributeKey;
     TYson AttributeValue;
     TAutoPtr<TStringOutput> AttributeStream;
     TAutoPtr<TYsonWriter> AttributeWriter;
@@ -156,26 +156,26 @@ template <class TValue>
 class TNodeSetter
 { };
 
-#define DECLARE_SCALAR_TYPE(name, type) \
+#define DECLARE_SCALAR_TYPE(key, type) \
     template <> \
-    class TNodeSetter<I##name##Node> \
+    class TNodeSetter<I##key##Node> \
         : public TNodeSetterBase \
     { \
     public: \
-        TNodeSetter(I##name##Node* node, ITreeBuilder* builder) \
+        TNodeSetter(I##key##Node* node, ITreeBuilder* builder) \
             : TNodeSetterBase(node, builder) \
             , Node(node) \
         { } \
     \
     private: \
-        I##name##Node::TPtr Node; \
+        I##key##Node::TPtr Node; \
         \
         virtual ENodeType GetExpectedType() \
         { \
-            return ENodeType::name; \
+            return ENodeType::key; \
         } \
         \
-        virtual void On ## name ## Scalar( \
+        virtual void On ## key ## Scalar( \
             NDetail::TScalarTypeTraits<type>::TParamType value, \
             bool hasAttributes) \
         { \

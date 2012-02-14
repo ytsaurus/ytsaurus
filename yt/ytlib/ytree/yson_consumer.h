@@ -1,7 +1,7 @@
 #pragma once
 
+#include "public.h"
 #include "common.h"
-#include "ytree_fwd.h"
 
 #include <ytlib/actions/action.h>
 

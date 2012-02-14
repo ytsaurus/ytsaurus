@@ -8,6 +8,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/bus/client.h>
 #include <ytlib/actions/future.h>
+#include <ytlib/ytree/attributes.h>
 
 namespace NYT {
 namespace NRpc {
@@ -60,6 +61,9 @@ struct IClientRequest
     virtual const TRequestId& GetRequestId() const = 0;
     virtual const Stroka& GetPath() const = 0;
     virtual const Stroka& GetVerb() const = 0;
+
+    virtual NYTree::IAttributeDictionary* Attributes() = 0;
+    virtual const NYTree::IAttributeDictionary* Attributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,18 +78,21 @@ class TClientRequest
 public:
     typedef TIntrusivePtr<TClientRequest> TPtr;
 
-    NBus::IMessage::TPtr Serialize() const;
+    virtual NBus::IMessage::TPtr Serialize() const;
 
-    const Stroka& GetPath() const;
-    const Stroka& GetVerb() const;
+    virtual const TRequestId& GetRequestId() const;
+    virtual const Stroka& GetPath() const;
+    virtual const Stroka& GetVerb() const;
 
-    const TRequestId& GetRequestId() const;
+    virtual NYTree::IAttributeDictionary* Attributes();
+    virtual const NYTree::IAttributeDictionary* Attributes() const;
 
 protected:
     IChannel::TPtr Channel;
     Stroka Path;
     Stroka Verb;
     TRequestId RequestId;
+    TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(
         IChannel* channel,
@@ -95,8 +102,9 @@ protected:
 
     virtual TBlob SerializeBody() const = 0;
 
-    void DoInvoke(IClientResponseHandler* responseHandler, TNullable<TDuration> timeout);
-
+    void DoInvoke(
+        IClientResponseHandler* responseHandler,
+        TNullable<TDuration> timeout);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

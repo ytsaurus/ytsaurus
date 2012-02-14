@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "enum.h"
 
 namespace NYT {
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "ytree_fwd.h"
+#include "public.h"
 #include "yson_consumer.h"
 
 #include <ytlib/misc/property.h>

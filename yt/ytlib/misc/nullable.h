@@ -202,6 +202,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+struct TNullableTraits
+{
+    typedef TNullable<T> TNullableType;
+};
+
+template <class T>
+struct TNullableTraits<T*>
+{
+    typedef T* TNullableType;
+};
+
+template <class T>
+struct TNullableTraits< TIntrusivePtr<T> >
+{
+    typedef TIntrusivePtr<T> TNullableType;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(panin): sandello, add decay here!
 template <class T>
 TNullable< typename NDetail::TRemoveReference<T>::TType > MakeNullable(T&& value)

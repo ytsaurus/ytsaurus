@@ -109,7 +109,7 @@ private:
         auto manifestNode =
         	ObjectManager
         	->GetProxy(Id)
-        	->GetAttributes()
+        	->Attributes()
         	->ToMap();
         try {
             manifest->LoadAndValidate(~manifestNode);

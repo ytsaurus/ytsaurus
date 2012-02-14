@@ -131,9 +131,9 @@ public:
         return NYTree::TNodeBase::IsWriteRequest(context);
     }
 
-    virtual NYTree::IAttributeDictionary::TPtr GetAttributes()
+    virtual NYTree::IAttributeDictionary* Attributes()
     {
-        return NObjectServer::TObjectProxyBase::GetAttributes();
+        return NObjectServer::TObjectProxyBase::Attributes();
     }
 
 protected:
@@ -293,9 +293,9 @@ protected:
         ObjectManager->UnrefObject(child.GetId().ObjectId);
     }
 
-    virtual NYTree::IAttributeDictionary::TPtr DoCreateUserAttributeDictionary()
+    virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes()
     {
-        return New<TVersionedUserAttributeDictionary>(NodeId, TransactionId, ~CypressManager);
+        return new TVersionedUserAttributeDictionary(NodeId, TransactionId, ~CypressManager);
     }
 
     class TVersionedUserAttributeDictionary
@@ -315,10 +315,10 @@ protected:
         { }
            
         
-        virtual yhash_set<Stroka> ListAttributes()
+        virtual yhash_set<Stroka> List()
         {
             if (TransactionId == NullTransactionId) {
-                return TUserAttributeDictionary::ListAttributes();
+                return TUserAttributeDictionary::List();
             }
 
             yhash_set<Stroka> attributes;
@@ -339,10 +339,10 @@ protected:
             return attributes;
         }
 
-        virtual NYTree::TYson FindAttribute(const Stroka& name)
+        virtual NYTree::TYson FindYson(const Stroka& name)
         {
             if (TransactionId == NullTransactionId) {
-                return TUserAttributeDictionary::FindAttribute(name);
+                return TUserAttributeDictionary::FindYson(name);
             }
 
             auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
@@ -363,21 +363,21 @@ protected:
             return NYTree::TYson();
         }
 
-        virtual void SetAttribute(const Stroka& name, const NYTree::TYson& value)
+        virtual void SetYson(const Stroka& name, const NYTree::TYson& value)
         {
             // This also takes the lock.
             auto id = CypressManager->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
 
-            TUserAttributeDictionary::SetAttribute(name, value);
+            TUserAttributeDictionary::SetYson(name, value);
         }
 
-        virtual bool RemoveAttribute(const Stroka& name)
+        virtual bool Remove(const Stroka& name)
         {
             // This also takes the lock.
             auto id = CypressManager->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
 
             if (TransactionId == NullTransactionId) {
-                return TUserAttributeDictionary::RemoveAttribute(name);
+                return TUserAttributeDictionary::Remove(name);
             }
 
             bool contains = false;

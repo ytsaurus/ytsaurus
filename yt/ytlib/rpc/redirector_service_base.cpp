@@ -29,23 +29,34 @@ public:
         , Verb(verb)
     { }
 
-    IMessage::TPtr Serialize() const
+    virtual IMessage::TPtr Serialize() const
     {
         return Message;
     }
 
-    const TRequestId& GetRequestId() const
+    virtual const TRequestId& GetRequestId() const
     {
         return RequestId;
     }
 
-    const Stroka& GetPath() const
+    virtual const Stroka& GetPath() const
     {
         return Path;
     }
-    const Stroka& GetVerb() const
+
+    virtual const Stroka& GetVerb() const
     {
         return Verb;
+    }
+
+    virtual NYTree::IAttributeDictionary* Attributes()
+    {
+        YUNREACHABLE();
+    }
+
+    virtual const NYTree::IAttributeDictionary* Attributes() const
+    {
+        YUNREACHABLE();
     }
 
 private:

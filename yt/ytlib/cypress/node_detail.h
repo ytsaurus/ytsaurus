@@ -78,7 +78,7 @@ public:
         auto node = Create(nodeId);
         CypressManager->RegisterNode(transactionId, node);
         auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, transactionId);
-        proxy->GetAttributes()->MergeFrom(manifest);
+        proxy->Attributes()->MergeFrom(manifest);
     }
 
     virtual void Destroy(ICypressNode& node)

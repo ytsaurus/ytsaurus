@@ -3,6 +3,8 @@
 #endif
 #undef SERIALIZE_INL_H_
 
+#include "ytree.h"
+
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/configurable.h>
 
@@ -12,11 +14,13 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T ParseYson(const TYson& yson)
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson)
 {
-    auto node = DeserializeFromYson(yson);
-    T value;
+    typedef typename TDeserializeTraits<T>::TReturnType TResult;
+    auto node = DeserializeFromYson(yson, GetEphemeralNodeFactory());
+    TResult value;
     Read(value, ~node);
+    return value;
 }
 
 template <class T>

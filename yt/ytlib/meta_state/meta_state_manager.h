@@ -4,7 +4,7 @@
 #include "meta_state.h"
 
 #include <ytlib/actions/signal.h>
-#include <ytlib/ytree/ytree_fwd.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NMetaState {

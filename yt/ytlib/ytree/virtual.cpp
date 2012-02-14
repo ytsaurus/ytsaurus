@@ -58,11 +58,11 @@ void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqG
         writer.OnBeginMap();
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
-                writer.OnMapItem(attribute.Name);
+                writer.OnMapItem(attribute.Key);
                 if (attribute.IsOpaque) {
                     writer.OnEntity();
                 } else {
-                    YVERIFY(GetSystemAttribute(attribute.Name, &writer));
+                    YVERIFY(GetSystemAttribute(attribute.Key, &writer));
                 }
             }
         }
@@ -99,7 +99,7 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
         GetSystemAttributes(&systemAttributes);
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
-                keys.push_back(attribute.Name);
+                keys.push_back(attribute.Key);
             }
         }
     } else {
@@ -117,7 +117,7 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
         keys = SyncYPathList(~wholeValue, suffixPath);
     }
 
-    ToProto(*response->mutable_keys(), keys);
+    NYT::ToProto(response->mutable_keys(), keys);
     context->Reply();
 }
 
@@ -195,7 +195,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* 
     YASSERT(IsFinalYPath(context->GetPath()));
 
     auto keys = GetKeys();
-    ToProto(*response->mutable_keys(), keys);
+    NYT::ToProto(response->mutable_keys(), keys);
     context->Reply();
 }
 
@@ -256,23 +256,23 @@ public:
         }
     }
 
-    virtual IAttributeDictionary::TPtr GetAttributes()
+    virtual IAttributeDictionary* Attributes()
     {
-        return GetUserAttributeDictionary();
+        return GetUserAttributes();
     }
 
 protected:
     // TSupportsAttributes members
 
-    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary()
+    virtual IAttributeDictionary* GetUserAttributes()
     {
-        if (!Attributes) {
-            Attributes = CreateEphemeralAttributes();
+        if (!Attributes_) {
+            Attributes_ = CreateEphemeralAttributes();
         }
-        return Attributes;
+        return Attributes_.Get();
     }
 
-    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() 
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
     {
         return NULL;
     }
@@ -280,7 +280,8 @@ protected:
 private:
     TYPathServiceProvider::TPtr Provider;
     ICompositeNode* Parent;
-    IAttributeDictionary::TPtr Attributes;
+    TAutoPtr<IAttributeDictionary> Attributes_;
+
 };
 
 INode::TPtr CreateVirtualNode(TYPathServiceProvider* provider)

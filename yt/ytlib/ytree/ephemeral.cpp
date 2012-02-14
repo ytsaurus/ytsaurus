@@ -39,30 +39,31 @@ public:
     }
 
 
-    virtual IAttributeDictionary::TPtr GetAttributes()
+    virtual IAttributeDictionary* Attributes()
     {
-        return GetUserAttributeDictionary();
+        return GetUserAttributes();
     }
 
 protected:
     // TSupportsAttributes members
 
-    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary()
+    virtual IAttributeDictionary* GetUserAttributes()
     {
-        if (!Attributes) {
-            Attributes = CreateEphemeralAttributes();
+        if (!Attributes_) {
+            Attributes_ = CreateEphemeralAttributes();
         }
-        return Attributes;
+        return Attributes_.Get();
     }
 
-    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() 
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
     {
         return NULL;
     }
 
 private:
     ICompositeNode* Parent;
-    IAttributeDictionary::TPtr Attributes;
+    TAutoPtr<IAttributeDictionary> Attributes_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

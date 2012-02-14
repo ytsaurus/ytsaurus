@@ -24,7 +24,7 @@ IMapNode::TPtr IAttributeDictionary::ToMap()
     auto map = GetEphemeralNodeFactory()->CreateMap();
     auto keys = ListAttributes();
     FOREACH (const auto& key, keys) {
-        auto value = DeserializeFromYson(GetAttribute(key));
+        auto value = DeserializeFromYson(GetYson(key));
         map->AddChild(~value, key);
     }
     return map;
@@ -35,7 +35,7 @@ void IAttributeDictionary::MergeFrom(const IMapNode* other)
     FOREACH (const auto& pair, other->GetChildren()) {
         const auto& key = pair.first;
         auto value = SerializeToYson(~pair.second);
-        SetAttribute(key, value);
+        SetYson(key, value);
     }
 }
 
@@ -55,7 +55,7 @@ class TEphemeralAttributeDictionary
     typedef yhash_map<Stroka, TYPath> TAttributeMap;
     TAttributeMap Map;
 
-    virtual yhash_set<Stroka> ListAttributes()
+    virtual yhash_set<Stroka> List()
     {
         yhash_set<Stroka> keys;
         FOREACH (const auto& pair, Map) {
@@ -64,39 +64,39 @@ class TEphemeralAttributeDictionary
         return keys;
     }
 
-    virtual TYson FindAttribute(const Stroka& key)
+    virtual TYson FindYson(const Stroka& key)
     {
         auto it = Map.find(key);
         return it == Map.end() ? TYson() : it->second;
     }
 
-    virtual void SetAttribute(const Stroka& key, const TYson& value)
+    virtual void SetYson(const Stroka& key, const TYson& value)
     {
         Map[key] = value;
     }
 
-    virtual bool RemoveAttribute(const Stroka& key)
+    virtual bool Remove(const Stroka& key)
     {
         return Map.erase(key) > 0;
     }
 };
 
-IAttributeDictionary::TPtr CreateEphemeralAttributes()
+TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes()
 {
-    return New<TEphemeralAttributeDictionary>();
+    return new TEphemeralAttributeDictionary();
 }
 
-void ToProto(NProto::TAttributes* protoAttributes, IAttributeDictionary* attributes)
+void ToProto(NProto::TAttributes* protoAttributes, IAttributeDictionary& attributes)
 {
-    FOREACH (const auto& key, attributes->ListAttributes()) {
-        auto value = attributes->GetAttribute(key);
+    FOREACH (const auto& key, attributes.ListAttributes()) {
+        auto value = attributes.GetAttribute(key);
         auto protoAttribute = protoAttributes->add_attributes();
         protoAttribute->set_key(key);
         protoAttribute->set_value(value);
     }
 }
 
-IAttributeDictionary::TPtr FromProto(const NProto::TAttributes& protoAttributes)
+TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes)
 {
     auto attributes = CreateEphemeralAttributes();
     FOREACH (const auto& protoAttribute, protoAttributes.attributes()) {

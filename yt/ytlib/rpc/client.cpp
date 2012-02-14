@@ -7,6 +7,7 @@ namespace NRpc {
 
 using namespace NBus;
 using namespace NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,6 +34,7 @@ TClientRequest::TClientRequest(
     , RequestId(TRequestId::Create())
     , OneWay_(oneWay)
     , Channel(channel)
+    , Attributes_(NYTree::CreateEphemeralAttributes())
 {
     YASSERT(channel);
 }
@@ -44,6 +46,7 @@ IMessage::TPtr TClientRequest::Serialize() const
     header.set_path(Path);
     header.set_verb(Verb);
     header.set_one_way(OneWay_);
+    ToProto(header.mutable_attributes(), *Attributes_);
 
     auto bodyData = SerializeBody();
 
@@ -73,6 +76,16 @@ const Stroka& TClientRequest::GetVerb() const
 const TRequestId& TClientRequest::GetRequestId() const
 {
     return RequestId;
+}
+
+NYTree::IAttributeDictionary* TClientRequest::Attributes()
+{
+    return Attributes_.Get();
+}
+
+const NYTree::IAttributeDictionary* TClientRequest::Attributes() const
+{
+    return Attributes_.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
