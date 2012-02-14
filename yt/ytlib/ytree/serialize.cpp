@@ -198,7 +198,7 @@ void Write(const TGuid& parameter, IYsonConsumer* consumer)
 // INode::TPtr
 void Write(const INode& parameter, IYsonConsumer* consumer)
 {
-    TTreeVisitor visitor(consumer, false);
+    TTreeVisitor visitor(consumer);
     visitor.Visit(&parameter);
 }
 

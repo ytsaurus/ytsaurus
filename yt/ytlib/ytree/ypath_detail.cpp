@@ -265,6 +265,7 @@ void TSupportsAttributes::GetAttribute(
 
         const auto& userAttributeSet = userAttributeDictionary->List();
         std::vector<Stroka> userAttributes(userAttributeSet.begin(), userAttributeSet.end());
+        std::sort(userAttributes.begin(), userAttributes.end());
         FOREACH (const auto& name, userAttributes) {
             writer.OnMapItem(name);
             writer.OnRaw(userAttributeDictionary->GetYson(name));

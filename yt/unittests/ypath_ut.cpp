@@ -196,7 +196,7 @@ TEST_F(TYPathTest, Attributes)
     Check("root/2@", "{\"author\"=\"ignat\"}");
     Check("root/2@author", "\"ignat\"");
 
-    Set("root/3", "<\"dir\"=<\"file\"=-100<>>>");
+    Set("root/3", "<dir=<file=-100<>>>");
     Check("root/3@", "{\"dir\"=<\"file\"=-100>}");
     Check("root/3@dir@", "{\"file\"=-100}");
     Check("root/3@dir@file", "-100");
