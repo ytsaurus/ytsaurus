@@ -90,7 +90,7 @@ TEST(TNullableTest, MakeNullable)
 TEST(TNullableTest, Null)
 {
     TestNullable(Null, false);
-    TestNullable(NULL, true, 0); // since NULL = 0
+    // TestNullable(NULL, true, 0); // Doesn't compile with gcc (ambigous conversion). Don't use this.
 }
 
 TEST(TNullableTest, Operators)
