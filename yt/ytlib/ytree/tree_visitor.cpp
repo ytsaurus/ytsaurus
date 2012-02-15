@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "tree_visitor.h"
 #include "serialize.h"
+#include "attributes.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/assert.h>
