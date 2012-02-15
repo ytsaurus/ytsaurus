@@ -67,7 +67,7 @@ class TEphemeralAttributeDictionary
     virtual TNullable<TYson> FindYson(const Stroka& key)
     {
         auto it = Map.find(key);
-        return it == Map.end() ? NULL : it->second;
+        return it == Map.end() ? Null : MakeNullable(it->second);
     }
 
     virtual void SetYson(const Stroka& key, const TYson& value)

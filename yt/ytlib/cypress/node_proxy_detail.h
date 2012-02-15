@@ -360,7 +360,7 @@ protected:
                     }
                 }
             }
-            return NULL;
+            return Null;
         }
 
         virtual void SetYson(const Stroka& name, const NYTree::TYson& value)

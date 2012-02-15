@@ -8,6 +8,19 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+struct TNullHelper
+{ };
+
+}
+
+typedef int NDetail::TNullHelper::*TNull;
+
+const TNull Null = static_cast<TNull>(NULL);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 class TNullable
 {
@@ -28,13 +41,9 @@ public:
         , Value(MoveRV(value))
     { }
 
-    TNullable(const T* value)
+    TNullable(TNull)
         : Initialized(false)
-    {
-        if (value) {
-            Assign(*value);
-        }
-    }
+    { }
     
     template<class U>
     TNullable(const TNullable<U>& other)
@@ -77,6 +86,12 @@ public:
         return *this;
     }
 
+    TNullable& operator=(TNull value)
+    {
+        Assign(value);
+        return *this;
+    }
+
     template <class U>
     TNullable& operator=(const TNullable<U>& other)
     {
@@ -102,6 +117,11 @@ public:
     {
         Initialized = true;
         Value = MoveRV(value);
+    }
+
+    void Assign(TNull)
+    {
+        Reset();
     }
 
     template <class U>

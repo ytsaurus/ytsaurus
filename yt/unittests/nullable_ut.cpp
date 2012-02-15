@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/property.h>
 
 #include <contrib/testing/framework.h>
 
@@ -84,6 +85,12 @@ TEST(TNullableTest, MakeNullable)
     TestNullable(MakeNullable(1), true, 1);
     TestNullable(MakeNullable(true, 1), true, 1);
     TestNullable(MakeNullable(false, 1), false);
+}
+
+TEST(TNullableTest, Null)
+{
+    TestNullable(Null, false);
+    TestNullable(NULL, true, 0); // since NULL = 0
 }
 
 TEST(TNullableTest, Operators)
