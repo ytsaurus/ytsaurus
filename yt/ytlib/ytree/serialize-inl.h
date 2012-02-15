@@ -6,6 +6,7 @@
 #include "ytree.h"
 
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/serialize.h>
 #include <ytlib/misc/configurable.h>
 
 namespace NYT {

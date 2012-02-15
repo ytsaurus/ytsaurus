@@ -5,6 +5,7 @@
 #include "cypress_ypath.pb.h"
 
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/node_detail.h>

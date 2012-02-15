@@ -8,12 +8,21 @@
 #include "nullable.h"
 #include "enum.h"
 
+#include <ytlib/actions/action_util.h>
 #include <ytlib/ytree/serialize.h>
-#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/yson_consumer.h>
 
 #include <util/datetime/base.h>
+
+// Avoid circular references.
+namespace NYT {
+namespace NYTree {
+    TYPath CombineYPaths(
+        const TYPath& path1,
+        const TYPath& path2);
+}
+}
 
 namespace NYT {
 namespace NConfig {
