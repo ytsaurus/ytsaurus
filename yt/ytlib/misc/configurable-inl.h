@@ -23,7 +23,7 @@ namespace NConfig {
 template <class T, class = void>
 struct TLoadHelper
 {
-    static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(T& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         UNUSED(path);
         NYTree::Read(parameter, node);
@@ -37,7 +37,7 @@ struct TLoadHelper<
     typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TConfigurable*> >::TType
 >
 {
-    static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(T& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         if (!parameter) {
             parameter = New<T>();
@@ -50,7 +50,7 @@ struct TLoadHelper<
 template <class T>
 struct TLoadHelper<TNullable<T>, void>
 {
-    static void Load(TNullable<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(TNullable<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         T value;
         TLoadHelper<T>::Load(value, node, path);
@@ -62,7 +62,7 @@ struct TLoadHelper<TNullable<T>, void>
 template <class T>
 struct TLoadHelper<yvector<T>, void>
 {
-    static void Load(yvector<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yvector<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
@@ -77,7 +77,7 @@ struct TLoadHelper<yvector<T>, void>
 template <class T>
 struct TLoadHelper<yhash_set<T>, void>
 {
-    static void Load(yhash_set<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yhash_set<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
@@ -93,7 +93,7 @@ struct TLoadHelper<yhash_set<T>, void>
 template <class T>
 struct TLoadHelper<yhash_map<Stroka, T>, void>
 {
-    static void Load(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yhash_map<Stroka, T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         auto mapNode = node->AsMap();
         FOREACH (const auto& pair, mapNode->GetChildren()) {
@@ -182,7 +182,7 @@ TParameter<T>::TParameter(T& parameter)
 { }
 
 template <class T>
-void TParameter<T>::Load(const NYTree::INode* node, const NYTree::TYPath& path)
+void TParameter<T>::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
     if (node) {
         try {

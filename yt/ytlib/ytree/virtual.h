@@ -20,8 +20,8 @@ protected:
     virtual void DoInvoke(NRpc::IServiceContext* context);
     
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer);
-    virtual bool SetSystemAttribute(const Stroka& name, TYsonProducer* producer);
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer);
+    virtual bool SetSystemAttribute(const Stroka& key, TYsonProducer producer);
    
     // TODO(roizner): Use mix-in TSupportsAttributes
     virtual void GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context);
@@ -44,13 +44,13 @@ private:
     virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer);
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INode::TPtr CreateVirtualNode(TYPathServiceProvider* provider);
-INode::TPtr CreateVirtualNode(IYPathService* service);
+TNodePtr CreateVirtualNode(TYPathServiceProvider* provider);
+TNodePtr CreateVirtualNode(IYPathService* service);
 
 ////////////////////////////////////////////////////////////////////////////////
 

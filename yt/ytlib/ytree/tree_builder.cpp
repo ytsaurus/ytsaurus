@@ -18,7 +18,7 @@ public:
     TTreeBuilder(INodeFactory* factory);
 
     virtual void BeginTree();
-    virtual INode::TPtr EndTree();
+    virtual TNodePtr EndTree();
 
     virtual void OnNode(INode* node);
 
@@ -42,7 +42,7 @@ public:
 private:
     INodeFactory* Factory;
     //! Contains nodes forming the current path in the tree.
-    yvector<INode::TPtr> NodeStack;
+    yvector<TNodePtr> NodeStack;
     //! Contains names of the currently active map children.
     yvector<Stroka> NameStack;
 
@@ -53,8 +53,8 @@ private:
     Stroka PopName();
 
     void PushNode(INode* node);
-    INode::TPtr PopPop();
-    INode::TPtr PeekPop();
+    TNodePtr PopPop();
+    TNodePtr PeekPop();
 };
 
 TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
@@ -74,7 +74,7 @@ void TTreeBuilder::BeginTree()
     NameStack.clear();
 }
 
-INode::TPtr TTreeBuilder::EndTree()
+TNodePtr TTreeBuilder::EndTree()
 {
     // Failure here means that the tree is not fully constructed yet.
     YASSERT(NodeStack.ysize() == 1);
@@ -199,7 +199,7 @@ void TTreeBuilder::PushNode(INode* node)
     NodeStack.push_back(node);
 }
 
-INode::TPtr TTreeBuilder::PopPop()
+TNodePtr TTreeBuilder::PopPop()
 {
     YASSERT(!NodeStack.empty());
     auto result = NodeStack.back();
@@ -207,7 +207,7 @@ INode::TPtr TTreeBuilder::PopPop()
     return result;
 }
 
-INode::TPtr TTreeBuilder::PeekPop()
+TNodePtr TTreeBuilder::PeekPop()
 {
     YASSERT(!NodeStack.empty());
     return NodeStack.back();

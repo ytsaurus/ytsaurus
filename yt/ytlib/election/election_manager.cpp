@@ -114,7 +114,8 @@ private:
         LOG_DEBUG("Sending ping (FollowerId: %d)", id);
 
         auto proxy = ElectionManager->CellManager->GetMasterProxy<TProxy>(id);
-        proxy->SetTimeout(ElectionManager->Config->RpcTimeout);
+        proxy->SetDefaultTimeout(ElectionManager->Config->RpcTimeout);
+
         auto request = proxy->PingFollower();
         request->set_leader_id(ElectionManager->CellManager->GetSelfId());
         request->set_epoch(ElectionManager->Epoch.ToProto());
@@ -250,7 +251,8 @@ public:
             if (id == cellManager->GetSelfId()) continue;
 
             auto proxy = cellManager->GetMasterProxy<TProxy>(id);
-            proxy->SetTimeout(ElectionManager->Config->RpcTimeout);
+            proxy->SetDefaultTimeout(ElectionManager->Config->RpcTimeout);
+
             auto request = proxy->GetStatus();
             Awaiter->Await(
                 request->Invoke(),

@@ -421,11 +421,11 @@ private:
                 auto channel = HolderChannelCache->GetChannel(address);
 
                 TChunkHolderServiceProxy proxy(~channel);
-                proxy.SetTimeout(Reader->Config->HolderRpcTimeout);
+                proxy.SetDefaultTimeout(Reader->Config->HolderRpcTimeout);
 
                 auto request = proxy.GetBlocks();
                 request->set_chunk_id(Reader->ChunkId.ToProto());
-                ToProto(*request->mutable_block_indexes(), unfetchedBlockIndexes);
+                ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
                 if (Reader->Config->PublishPeer) {
                     request->set_peer_address(Reader->Config->PeerAddress);
                     request->set_peer_expiration_time((TInstant::Now() + Reader->Config->PeerExpirationTimeout).GetValue());
@@ -579,7 +579,7 @@ private:
         auto channel = HolderChannelCache->GetChannel(address);
 
         TChunkHolderServiceProxy proxy(~channel);
-        proxy.SetTimeout(Reader->Config->HolderRpcTimeout);
+        proxy.SetDefaultTimeout(Reader->Config->HolderRpcTimeout);
 
         auto request = proxy.GetChunkInfo();
         request->set_chunk_id(Reader->ChunkId.ToProto());

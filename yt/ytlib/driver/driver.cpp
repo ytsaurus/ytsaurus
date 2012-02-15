@@ -201,7 +201,7 @@ public:
     }
 
 
-    virtual TYsonProducer::TPtr CreateInputProducer(const Stroka& spec)
+    virtual TYsonProducer CreateInputProducer(const Stroka& spec)
     {
         auto stream = CreateInputStream(spec);
         return FromFunctor([=] (IYsonConsumer* consumer)
@@ -275,7 +275,7 @@ private:
 
     void DoExecute(const TYson& requestYson)
     {
-        INode::TPtr requestNode;
+        TNodePtr requestNode;
         auto request = New<TRequestBase>();
         try {
             requestNode = DeserializeFromYson(requestYson);

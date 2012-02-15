@@ -9,27 +9,29 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IAttributeProvider
-    : public virtual TRefCounted
 {
-    virtual TAttributeDictionaryPtr GetAttributes() = 0;
+    ~IAttributeProvider()
+    { }
+
+    virtual IAttributeDictionary* Attributes() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISystemAttributeProvider
-    : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<ISystemAttributeProvider> TPtr;
+    ~ISystemAttributeProvider()
+    { }
 
     //! Describes a system attribute.
     struct TAttributeInfo
     {
-        Stroka Name;
+        Stroka Key;
         bool IsPresent;
         bool IsOpaque;
 
-        TAttributeInfo(const char* name, bool isPresent = true, bool isOpaque = false)
-            : Name(name)
+        TAttributeInfo(const char* key, bool isPresent = true, bool isOpaque = false)
+            : Key(key)
             , IsPresent(isPresent)
             , IsOpaque(isOpaque)
         { }
@@ -44,16 +46,16 @@ struct ISystemAttributeProvider
 
     //! Gets the value of a system attribute.
     /*!
-     *  \returns False if there is no system attribute with the given name.
+     *  \returns False if there is no system attribute with the given key.
      */
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) = 0;
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) = 0;
 
     //! Sets the value of a system attribute.
     /*! 
      *  \returns False if the attribute cannot be set or
-     *  there is no system attribute with the given name.
+     *  there is no system attribute with the given key.
      */
-    virtual bool SetSystemAttribute(const Stroka& name, TYsonProducer* producer) = 0;
+    virtual bool SetSystemAttribute(const Stroka& key, TYsonProducer producer) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

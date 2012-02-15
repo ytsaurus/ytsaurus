@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "node_proxy.h"
 #include "node_detail.h"
 #include "cypress_ypath.pb.h"
@@ -28,12 +27,12 @@ public:
         const TTransactionId& transactionId);
     ~TNodeFactory();
 
-    virtual NYTree::IStringNode::TPtr CreateString();
-    virtual NYTree::IInt64Node::TPtr CreateInt64();
-    virtual NYTree::IDoubleNode::TPtr CreateDouble();
-    virtual NYTree::IMapNode::TPtr CreateMap();
-    virtual NYTree::IListNode::TPtr CreateList();
-    virtual NYTree::IEntityNode::TPtr CreateEntity();
+    virtual NYTree::TStringNodePtr CreateString();
+    virtual NYTree::TInt64NodePtr CreateInt64();
+    virtual NYTree::TDoubleNodePtr CreateDouble();
+    virtual NYTree::TMapNodePtr CreateMap();
+    virtual NYTree::TListNodePtr CreateList();
+    virtual NYTree::TEntityNodePtr CreateEntity();
 
 private:
     const TCypressManager::TPtr CypressManager;
@@ -76,7 +75,7 @@ public:
         YASSERT(cypressManager);
     }
 
-    NYTree::INodeFactory::TPtr CreateFactory() const
+    NYTree::TNodeFactoryPtr CreateFactory() const
     {
         return New<TNodeFactory>(~CypressManager, TransactionId);
     }
@@ -109,7 +108,7 @@ public:
     }
 
 
-    virtual NYTree::ICompositeNode::TPtr GetParent() const
+    virtual NYTree::TCompositeNodePtr GetParent() const
     {
         auto nodeId = GetImpl().GetParentId();
         return nodeId == NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();
@@ -131,9 +130,9 @@ public:
         return NYTree::TNodeBase::IsWriteRequest(context);
     }
 
-    virtual NYTree::IAttributeDictionary::TPtr GetAttributes()
+    virtual NYTree::IAttributeDictionary* Attributes()
     {
-        return NObjectServer::TObjectProxyBase::GetAttributes();
+        return NObjectServer::TObjectProxyBase::Attributes();
     }
 
 protected:
@@ -293,9 +292,9 @@ protected:
         ObjectManager->UnrefObject(child.GetId().ObjectId);
     }
 
-    virtual NYTree::IAttributeDictionary::TPtr DoCreateUserAttributeDictionary()
+    virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes()
     {
-        return New<TVersionedUserAttributeDictionary>(NodeId, TransactionId, ~CypressManager);
+        return new TVersionedUserAttributeDictionary(NodeId, TransactionId, ~CypressManager);
     }
 
     class TVersionedUserAttributeDictionary
@@ -564,7 +563,7 @@ protected:
             return;
         }
 
-        NYTree::INode::TPtr manifestNode =
+        NYTree::TNodePtr manifestNode =
             request->has_manifest()
             ? NYTree::DeserializeFromYson(request->manifest())
             : NYTree::GetEphemeralNodeFactory()->CreateMap();
@@ -611,9 +610,9 @@ public:
 
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector< TPair<Stroka, NYTree::INode::TPtr> > GetChildren() const;
+    virtual yvector< TPair<Stroka, NYTree::TNodePtr> > GetChildren() const;
     virtual yvector<Stroka> GetKeys() const;
-    virtual INode::TPtr FindChild(const Stroka& key) const;
+    virtual NYTree::TNodePtr FindChild(const Stroka& key) const;
     virtual bool AddChild(NYTree::INode* child, const Stroka& key);
     virtual bool RemoveChild(const Stroka& key);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
@@ -629,8 +628,8 @@ protected:
     virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
     virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
-    yhash_map<Stroka, INode::TPtr> DoGetChildren() const;
-    INode::TPtr DoFindChild(const Stroka& key, bool skipCurrentTransaction) const;
+    yhash_map<Stroka, NYTree::TNodePtr> DoGetChildren() const;
+    NYTree::TNodePtr DoFindChild(const Stroka& key, bool skipCurrentTransaction) const;
 
     NTransactionServer::TTransactionManager::TPtr TransactionManager;
 };
@@ -652,8 +651,8 @@ public:
 
     virtual void Clear();
     virtual int GetChildCount() const;
-    virtual yvector<INode::TPtr> GetChildren() const;
-    virtual INode::TPtr FindChild(int index) const;
+    virtual yvector<NYTree::TNodePtr> GetChildren() const;
+    virtual NYTree::TNodePtr FindChild(int index) const;
     virtual void AddChild(NYTree::INode* child, int beforeIndex = -1);
     virtual bool RemoveChild(int index);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);

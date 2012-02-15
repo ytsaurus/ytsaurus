@@ -1,8 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "ytree.h"
-#include "yson_consumer.h"
+#include "public.h"
 
 namespace NYT {
 namespace NYTree {
@@ -25,17 +23,17 @@ public:
     /*!
      *  \param root A root from which to start.
      */
-    void Visit(const INode* root);
+    void Visit(INode* root);
 
 private:
     IYsonConsumer* Consumer;
     bool VisitAttributes_;
 
-    void VisitAny(const INode* node);
-    void VisitScalar(const INode* node, bool hasAttributes);
-    void VisitEntity(const INode* node, bool hasAttributes);
-    void VisitList(const IListNode* node, bool hasAttributes);
-    void VisitMap(const IMapNode* node, bool hasAttributes);
+    void VisitAny(INode* node);
+    void VisitScalar(INode* node, bool hasAttributes);
+    void VisitEntity(INode* node, bool hasAttributes);
+    void VisitList(IListNode* node, bool hasAttributes);
+    void VisitMap(IMapNode* node, bool hasAttributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

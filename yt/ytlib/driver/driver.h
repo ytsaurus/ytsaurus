@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/configurable.h>
 #include <ytlib/misc/error.h>
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_consumer.h>
 #include <ytlib/ytree/yson_writer.h>
 // TODO: consider using forward declarations.

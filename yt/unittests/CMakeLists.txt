@@ -6,6 +6,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
+  ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
 )
 
 if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )

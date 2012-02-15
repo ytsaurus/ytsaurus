@@ -1,8 +1,7 @@
 #pragma once
 
-#include "attribute_provider.h"
-#include "common.h"
 #include "public.h"
+#include "attribute_provider.h"
 #include "ypath_service.h"
 #include "yson_consumer.h"
 
@@ -23,29 +22,11 @@ struct TScalarTypeTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A static node type.
-DECLARE_ENUM(ENodeType,
-    // Node contains a string (Stroka).
-    (String)
-    // Node contains an integer number (i64).
-    (Int64)
-    // Node contains an FP number (double).
-    (Double)
-    // Node contains a map from strings to other nodes.
-    (Map)
-    // Node contains a list (vector) of other nodes.
-    (List)
-    // Node is atomic, i.e. has no visible properties (aside from attributes).
-    (Entity)
-);
-    
 //! A base DOM-like interface representing a node.
 struct INode
     : public virtual IYPathService
     , public virtual IAttributeProvider
 {
-    typedef TIntrusivePtr<INode> TPtr; // TODO(roizner): Remove it, use TNodePtr
-
     //! Returns the static type of the node.
     virtual ENodeType GetType() const = 0;
     
@@ -117,22 +98,18 @@ struct IScalarNode
     : virtual INode
 {
     typedef T TValue;
-    typedef TIntrusivePtr< IScalarNode<T> > TPtr;
 
-    //! Gets the values.
+    //! Gets the value.
     virtual TValue GetValue() const = 0;
     //! Sets the value.
     virtual void SetValue(const TValue& value) = 0;
 };
 
-
 // Define the actual scalar node types: IStringNode, IInt64Node, IDoubleNode.
 #define DECLARE_SCALAR_TYPE(name, type, paramType) \
     struct I##name##Node \
         : IScalarNode<type> \
-    { \
-        typedef TIntrusivePtr<I##name##Node> TPtr; \
-    }; \
+    { }; \
     \
     namespace NDetail { \
     \
@@ -169,8 +146,6 @@ DECLARE_SCALAR_TYPE(Double, double, double)
 struct ICompositeNode
     : public virtual INode
 {
-    typedef TIntrusivePtr<ICompositeNode> TPtr;
-
     //! Removes all child nodes.
     virtual void Clear() = 0;
     //! Returns the number of child nodes.
@@ -189,15 +164,13 @@ struct ICompositeNode
 struct IMapNode
     : public ICompositeNode
 {
-    typedef TIntrusivePtr<IMapNode> TPtr;
-
     using ICompositeNode::RemoveChild;
 
     //! Returns the current snapshot of the map.
     /*!
      *  Map items are returned in unspecified order.
      */
-    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const = 0;
+    virtual yvector< TPair<Stroka, TNodePtr> > GetChildren() const = 0;
 
     //! Returns map keys.
     /*!
@@ -210,7 +183,7 @@ struct IMapNode
      *  \param key A key.
      *  \return A child with the given key or NULL if the index is not valid.
      */
-    virtual INode::TPtr FindChild(const Stroka& key) const = 0;
+    virtual TNodePtr FindChild(const Stroka& key) const = 0;
 
     //! Adds a new child with a given key.
     /*!
@@ -231,7 +204,7 @@ struct IMapNode
     virtual bool RemoveChild(const Stroka& key) = 0;
 
     //! Similar to #FindChild but fails if no child is found.
-    INode::TPtr GetChild(const Stroka& key) const
+    TNodePtr GetChild(const Stroka& key) const
     {
         auto child = FindChild(key);
         YASSERT(child);
@@ -250,21 +223,19 @@ struct IMapNode
 
 //! A list node, which keeps a list (vector) of children.
 struct IListNode
-    : ICompositeNode
+    : public ICompositeNode
 {
-    typedef TIntrusivePtr<IListNode> TPtr;
-
     using ICompositeNode::RemoveChild;
 
     //! Returns the current snapshot of the list.
-    virtual yvector<INode::TPtr> GetChildren() const = 0;
+    virtual yvector<TNodePtr> GetChildren() const = 0;
 
     //! Gets a child by its index.
     /*!
      *  \param index An index.
      *  \return A child with the given index or NULL if the index is not valid.
      */
-    virtual INode::TPtr FindChild(int index) const = 0;
+    virtual TNodePtr FindChild(int index) const = 0;
 
     //! Adds a new child at a given position.
     /*!
@@ -286,7 +257,7 @@ struct IListNode
     virtual bool RemoveChild(int index) = 0;
 
     //! Similar to #FindChild but fails if the index is not valid.
-    INode::TPtr GetChild(int index) const
+    TNodePtr GetChild(int index) const
     {
         auto child = FindChild(index);
         YASSERT(child);
@@ -305,10 +276,8 @@ struct IListNode
 
 //! An structureless entity node.
 struct IEntityNode
-    : virtual INode
-{
-    typedef TIntrusivePtr<IEntityNode> TPtr;
-};
+    : public virtual INode
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -319,20 +288,18 @@ struct IEntityNode
 struct INodeFactory
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<INodeFactory> TPtr;
-
     //! Creates a string node.
-    virtual IStringNode::TPtr CreateString() = 0;
+    virtual TStringNodePtr CreateString() = 0;
     //! Creates an integer node.
-    virtual IInt64Node::TPtr CreateInt64() = 0;
+    virtual TInt64NodePtr CreateInt64() = 0;
     //! Creates an FP number node.
-    virtual IDoubleNode::TPtr CreateDouble() = 0;
+    virtual TDoubleNodePtr CreateDouble() = 0;
     //! Creates a map node.
-    virtual IMapNode::TPtr CreateMap() = 0;
+    virtual TMapNodePtr CreateMap() = 0;
     //! Creates a list node.
-    virtual IListNode::TPtr CreateList() = 0;
+    virtual TListNodePtr CreateList() = 0;
     //! Creates an entity node.
-    virtual IEntityNode::TPtr CreateEntity() = 0;
+    virtual TEntityNodePtr CreateEntity() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

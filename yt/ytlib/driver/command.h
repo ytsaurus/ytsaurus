@@ -5,7 +5,7 @@
 
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/configurable.h>
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_consumer.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/yson_writer.h>
@@ -28,7 +28,7 @@ struct IDriverImpl
     virtual TDriver::TConfig* GetConfig() const = 0;
     virtual NRpc::IChannel* GetMasterChannel() const = 0;
 
-    virtual NYTree::TYsonProducer::TPtr CreateInputProducer(const Stroka& spec = "") = 0;
+    virtual NYTree::TYsonProducer CreateInputProducer(const Stroka& spec = "") = 0;
     virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec = "") = 0;
 
     virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec = "") = 0;
@@ -57,10 +57,10 @@ struct TRequestBase
         Register("do", Do);
     }
 
-    static IParamAction<const NYTree::INode::TPtr&>::TPtr StreamSpecIsValid;
+    static IParamAction<const NYTree::TNodePtr&>::TPtr StreamSpecIsValid;
 };
 
-Stroka ToStreamSpec(NYTree::INode::TPtr node);
+Stroka ToStreamSpec(NYTree::TNodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

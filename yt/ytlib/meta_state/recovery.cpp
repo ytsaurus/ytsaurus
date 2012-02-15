@@ -179,10 +179,10 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
         }
 
         if (!IsLeader()) {
-            auto proxy = CellManager->GetMasterProxy<TProxy>(LeaderId);
-            proxy->SetTimeout(Config->RpcTimeout);
-
-            auto request = proxy->GetChangeLogInfo();
+            auto request =
+                CellManager->GetMasterProxy<TProxy>(LeaderId)
+                ->GetChangeLogInfo()
+                ->SetTimeout(Config->RpcTimeout);
             request->set_change_log_id(segmentId);
 
             auto response = request->Invoke()->Get();

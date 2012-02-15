@@ -338,10 +338,10 @@ TEST_F(TRpcTest, NoMethod)
 
 TEST_F(TRpcTest, Timeout)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
-    proxy->SetTimeout(TDuration::Seconds(1));
+    TMyProxy proxy(~CreateBusChannel("localhost:2000"));
+    proxy.SetDefaultTimeout(TDuration::Seconds(1));
 
-    auto request = proxy->EmptyCall();
+    auto request = proxy.EmptyCall();
     auto response = request->Invoke()->Get();
 
     EXPECT_EQ(EErrorCode::Timeout, response->GetErrorCode());
@@ -349,8 +349,8 @@ TEST_F(TRpcTest, Timeout)
 
 TEST_F(TRpcTest, CustomErrorMessage)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
-    auto request = proxy->CustomMessageError();
+    TMyProxy proxy(~CreateBusChannel("localhost:2000"));
+    auto request = proxy.CustomMessageError();
     auto response = request->Invoke()->Get();
 
     EXPECT_EQ(42, response->GetErrorCode());
