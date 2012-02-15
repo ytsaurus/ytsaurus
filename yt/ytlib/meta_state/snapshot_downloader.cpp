@@ -56,10 +56,10 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
 
         LOG_INFO("Requesting snapshot info from peer %d", peerId);
 
-        auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
-        proxy->SetTimeout(Config->LookupTimeout);
-
-        auto request = proxy->GetSnapshotInfo();
+        auto request =
+            CellManager->GetMasterProxy<TProxy>(peerId)
+            ->GetSnapshotInfo()
+            ->SetTimeout(Config->LookupTimeout);
         request->set_snapshot_id(snapshotId);
         awaiter->Await(request->Invoke(), FromMethod(
             &TSnapshotDownloader::OnResponse,
@@ -128,7 +128,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
         snapshotFile->Flush();
         snapshotFile->Close();
     } catch (const std::exception& ex) {
-        LOG_FATAL("Error closing snapshot writer (SnapshotId: %d)\n%s",
+        LOG_FATAL("Error closing snapshot %d\n%s",
             segmentId,
             ex.what());
     }
@@ -142,13 +142,13 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
     i32 sourceId,
     TOutputStream& output)
 {
-    LOG_INFO("Started downloading snapshot (SnapshotId: %d, Length: %" PRId64 ", PeerId: %d)",
-            snapshotId,
-            snapshotLength,
-            sourceId);
+    LOG_INFO("Started downloading snapshot %d from peer %d (Length: %" PRId64 ")",
+        snapshotId,
+        sourceId,
+        snapshotLength);
 
     auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
-    proxy->SetTimeout(Config->ReadTimeout);
+    proxy->SetDefaultTimeout(Config->ReadTimeout);
 
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
@@ -201,7 +201,9 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         try {
             output.Write(block.Begin(), block.Size());
         } catch (const std::exception& ex) {
-            LOG_FATAL("Error writing snapshot\n%s", ex.what());
+            LOG_FATAL("Error writing snapshot %d\n%s",
+                snapshotId,
+                ex.what());
         }
 
         downloadedLength += block.Size();

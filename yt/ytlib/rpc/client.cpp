@@ -18,6 +18,7 @@ static NLog::TLogger& Logger = RpcLogger;
 TProxyBase::TProxyBase(IChannel* channel, const Stroka& serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
+    , DefaultTimeout_(channel->GetDefaultTimeout())
 {
     YASSERT(channel);
 }

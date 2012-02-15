@@ -421,7 +421,7 @@ private:
                 auto channel = HolderChannelCache->GetChannel(address);
 
                 TChunkHolderServiceProxy proxy(~channel);
-                proxy.SetTimeout(Reader->Config->HolderRpcTimeout);
+                proxy.SetDefaultTimeout(Reader->Config->HolderRpcTimeout);
 
                 auto request = proxy.GetBlocks();
                 request->set_chunk_id(Reader->ChunkId.ToProto());
@@ -579,7 +579,7 @@ private:
         auto channel = HolderChannelCache->GetChannel(address);
 
         TChunkHolderServiceProxy proxy(~channel);
-        proxy.SetTimeout(Reader->Config->HolderRpcTimeout);
+        proxy.SetDefaultTimeout(Reader->Config->HolderRpcTimeout);
 
         auto request = proxy.GetChunkInfo();
         request->set_chunk_id(Reader->ChunkId.ToProto());

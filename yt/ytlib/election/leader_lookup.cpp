@@ -33,7 +33,8 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
         LOG_DEBUG("Requesting leader from peer (Address: %s)", ~address);
 
         TProxy proxy(~ChannelCache.GetChannel(address));
-        proxy.SetTimeout(Config->RpcTimeout);
+        proxy.SetDefaultTimeout(Config->RpcTimeout);
+
         auto request = proxy.GetStatus();
         awaiter->Await(request->Invoke(), FromMethod(
             &TLeaderLookup::OnResponse,

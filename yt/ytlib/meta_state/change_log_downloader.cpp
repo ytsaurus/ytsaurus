@@ -49,19 +49,19 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
     auto asyncResult = New< TFuture<TPeerId> >();
     auto awaiter = New<TParallelAwaiter>();
 
-    for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
-        LOG_INFO("Requesting changelog info from peer %d", i);
+    for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+        LOG_INFO("Requesting changelog info from peer %d", id);
 
-        auto proxy = CellManager->GetMasterProxy<TProxy>(i);
-        proxy->SetTimeout(Config->LookupTimeout);
-
-        auto request = proxy->GetChangeLogInfo();
+        auto request =
+            CellManager->GetMasterProxy<TProxy>(id)
+            ->GetChangeLogInfo()
+            ->SetTimeout(Config->LookupTimeout);
         request->set_change_log_id(version.SegmentId);
         awaiter->Await(request->Invoke(), FromMethod(
             &TChangeLogDownloader::OnResponse,
             awaiter,
             asyncResult,
-            i,
+            id,
             version));
     }
 
@@ -85,7 +85,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
         sourceId);
 
     auto proxy = CellManager->GetMasterProxy<TProxy>(sourceId);
-    proxy->SetTimeout(Config->ReadTimeout);
+    proxy->SetDefaultTimeout(Config->ReadTimeout);
 
     while (downloadedRecordCount < version.RecordCount) {
         auto request = proxy->ReadChangeLog();

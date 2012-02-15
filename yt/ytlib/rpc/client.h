@@ -43,7 +43,7 @@ protected:
 
     TProxyBase(IChannel* channel, const Stroka& serviceName);
 
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
 
     IChannel::TPtr Channel;
     Stroka ServiceName;
@@ -314,7 +314,7 @@ private:
     { \
         return \
             New<TReq##method>(~Channel, ServiceName, #method, false) \
-            ->SetTimeout(Timeout_); \
+            ->SetTimeout(DefaultTimeout_); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,7 +328,7 @@ private:
     { \
         return \
             New<TReq##method>(~Channel, ServiceName, #method, true) \
-            ->SetTimeout(Timeout_); \
+            ->SetTimeout(DefaultTimeout_); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
