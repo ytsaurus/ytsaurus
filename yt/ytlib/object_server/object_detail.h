@@ -117,8 +117,8 @@ protected:
         TUserAttributeDictionary(const TObjectId& objectId, TObjectManager* objectManager);
 
         // NYTree::IAttributeDictionary members
-        virtual yhash_set<Stroka> List();
-        virtual TNullable<NYTree::TYson> FindYson(const Stroka& key);
+        virtual yhash_set<Stroka> List() const;
+        virtual TNullable<NYTree::TYson> FindYson(const Stroka& key) const;
         virtual void SetYson(const Stroka& key, const NYTree::TYson& value);
         virtual bool Remove(const Stroka& key);
 

@@ -315,7 +315,7 @@ protected:
         { }
            
         
-        virtual yhash_set<Stroka> List()
+        virtual yhash_set<Stroka> List() const
         {
             if (TransactionId == NullTransactionId) {
                 return TUserAttributeDictionary::List();
@@ -339,7 +339,7 @@ protected:
             return attributes;
         }
 
-        virtual TNullable<NYTree::TYson> FindYson(const Stroka& name)
+        virtual TNullable<NYTree::TYson> FindYson(const Stroka& name) const
         {
             if (TransactionId == NullTransactionId) {
                 return TUserAttributeDictionary::FindYson(name);

@@ -187,7 +187,7 @@ TObjectProxyBase::TUserAttributeDictionary::TUserAttributeDictionary(
     , ObjectManager(objectManager)
 { }
 
-yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List()
+yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List() const
 {
     yhash_set<Stroka> attributes;
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
@@ -201,7 +201,7 @@ yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List()
     return attributes;
 }
 
-TNullable<TYson> TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stroka& key)
+TNullable<TYson> TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stroka& key) const
 {
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {

@@ -11,7 +11,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-typename TDeserializeTraits<T>::TReturnType IAttributeDictionary::Get(const Stroka& name)
+typename TDeserializeTraits<T>::TReturnType IAttributeDictionary::Get(const Stroka& name) const
 {
     const auto& yson = GetYson(name);
     return DeserializeFromYson<T>(yson);
@@ -20,7 +20,7 @@ typename TDeserializeTraits<T>::TReturnType IAttributeDictionary::Get(const Stro
 template <class T>
 typename TNullableTraits<
     typename TDeserializeTraits<T>::TReturnType
->::TNullableType IAttributeDictionary::Find(const Stroka& name)
+>::TNullableType IAttributeDictionary::Find(const Stroka& name) const
 {
     const auto& yson = FindYson(name);
     if (!yson) {

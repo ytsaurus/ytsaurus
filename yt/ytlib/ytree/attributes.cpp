@@ -10,7 +10,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYson IAttributeDictionary::GetYson(const Stroka& key)
+TYson IAttributeDictionary::GetYson(const Stroka& key) const
 {
     const auto& result = FindYson(key);
     if (!result) {
@@ -19,7 +19,7 @@ TYson IAttributeDictionary::GetYson(const Stroka& key)
     return *result;
 }
 
-TMapNodePtr IAttributeDictionary::ToMap()
+TMapNodePtr IAttributeDictionary::ToMap() const
 {
     auto map = GetEphemeralNodeFactory()->CreateMap();
     auto keys = List();
@@ -39,7 +39,7 @@ void IAttributeDictionary::MergeFrom(const IMapNode* other)
     }
 }
 
-void IAttributeDictionary::MergeFrom(IAttributeDictionary* other)
+void IAttributeDictionary::MergeFrom(const IAttributeDictionary* other)
 {
     FOREACH (const auto& key, other->List()) {
         auto value = other->GetYson(key);
@@ -55,7 +55,7 @@ class TEphemeralAttributeDictionary
     typedef yhash_map<Stroka, TYPath> TAttributeMap;
     TAttributeMap Map;
 
-    virtual yhash_set<Stroka> List()
+    virtual yhash_set<Stroka> List() const
     {
         yhash_set<Stroka> keys;
         FOREACH (const auto& pair, Map) {
@@ -64,7 +64,7 @@ class TEphemeralAttributeDictionary
         return keys;
     }
 
-    virtual TNullable<TYson> FindYson(const Stroka& key)
+    virtual TNullable<TYson> FindYson(const Stroka& key) const
     {
         auto it = Map.find(key);
         return it == Map.end() ? Null : MakeNullable(it->second);
