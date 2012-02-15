@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "tree_visitor.h"
-#include "ypath_client.h"
 #include "serialize.h"
 
 #include <ytlib/misc/serialize.h>
@@ -16,19 +15,18 @@ TTreeVisitor::TTreeVisitor(IYsonConsumer* consumer, bool visitAttributes)
     , VisitAttributes_(visitAttributes)
 { }
 
-void TTreeVisitor::Visit(const INode* root)
+void TTreeVisitor::Visit(INode* root)
 {
     VisitAny(root);
 }
 
-void TTreeVisitor::VisitAny(const INode* node)
+void TTreeVisitor::VisitAny(INode* node)
 {
-    yvector<Stroka> attributeNames;
+    yhash_set<Stroka> attributeKeySet;
     if (VisitAttributes_) {
-        attributeNames = SyncYPathList(const_cast<INode*>(node), AttributeMarker);
+        attributeKeySet = node->Attributes()->List();
     }
-
-    bool hasAttributes = !attributeNames.empty();
+    bool hasAttributes = !attributeKeySet.empty();
 
     switch (node->GetType()) {
         case ENodeType::String:
@@ -54,18 +52,19 @@ void TTreeVisitor::VisitAny(const INode* node)
     }
 
     if (hasAttributes) {
-        std::sort(attributeNames.begin(), attributeNames.end());
+        std::vector<Stroka> attributeKeyList(attributeKeySet.begin(), attributeKeySet.end());
+        std::sort(attributeKeyList.begin(), attributeKeyList.end());
         Consumer->OnBeginAttributes();
-        FOREACH (const auto& attributeName, attributeNames) {
-            Consumer->OnAttributesItem(attributeName);
-            auto attributeValue = SyncYPathGet(const_cast<INode*>(node), AttributeMarker + attributeName);
-            ProducerFromYson(attributeValue)->Do(Consumer);
+        FOREACH (const auto& key, attributeKeyList) {
+            Consumer->OnAttributesItem(key);
+            auto value = node->Attributes()->GetYson(key);
+            ProducerFromYson(value)->Do(Consumer);
         }
         Consumer->OnEndAttributes();
     }
 }
 
-void TTreeVisitor::VisitScalar(const INode* node, bool hasAttributes)
+void TTreeVisitor::VisitScalar(INode* node, bool hasAttributes)
 {
     switch (node->GetType()) {
         case ENodeType::String:
@@ -85,13 +84,13 @@ void TTreeVisitor::VisitScalar(const INode* node, bool hasAttributes)
     }
 }
 
-void TTreeVisitor::VisitEntity(const INode* node, bool hasAttributes)
+void TTreeVisitor::VisitEntity(INode* node, bool hasAttributes)
 {
     UNUSED(node);
     Consumer->OnEntity(hasAttributes);
 }
 
-void TTreeVisitor::VisitList(const IListNode* node, bool hasAttributes)
+void TTreeVisitor::VisitList(IListNode* node, bool hasAttributes)
 {
     Consumer->OnBeginList();
     for (int i = 0; i < node->GetChildCount(); ++i) {
@@ -102,7 +101,7 @@ void TTreeVisitor::VisitList(const IListNode* node, bool hasAttributes)
     Consumer->OnEndList(hasAttributes);
 }
 
-void TTreeVisitor::VisitMap(const IMapNode* node, bool hasAttributes)
+void TTreeVisitor::VisitMap(IMapNode* node, bool hasAttributes)
 {
     Consumer->OnBeginMap();
     auto children = node->GetChildren();
