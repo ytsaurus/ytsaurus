@@ -118,9 +118,11 @@ void TRedirectorServiceBase::OnBeginRequest(IServiceContext* context)
 
             const auto& params = result.Value();
 
-            context_->SetRequestInfo(Sprintf("Address: %s, Timeout: %d",
+            context_->SetRequestInfo(Sprintf("Address: %s, Timeout: %s",
                 ~params.Address,
-                static_cast<int>(params.Timeout.MilliSeconds())));
+                params.Timeout
+                ? ~ToString(params.Timeout.Get().MilliSeconds())
+                : "None"));
 
             auto channel = ChannelCache.GetChannel(params.Address);
 

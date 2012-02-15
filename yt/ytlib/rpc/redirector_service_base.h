@@ -19,8 +19,8 @@ protected:
 
     struct TRedirectParams
     {
-        TDuration Timeout;
         Stroka Address;
+        TNullable<TDuration> Timeout;
     };
 
     typedef TValueOrError<TRedirectParams> TRedirectResult;
