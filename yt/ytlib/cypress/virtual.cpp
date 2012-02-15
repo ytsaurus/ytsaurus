@@ -61,7 +61,7 @@ public:
     }
 
 private:
-    IYPathService::TPtr Service;
+    TYPathServicePtr Service;
 
 };
 
@@ -130,11 +130,11 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     EObjectType objectType,
     IYPathService* service)
 {
-    IYPathService::TPtr service_ = service;
+    TYPathServicePtr service_ = service;
     return CreateVirtualTypeHandler(
         cypressManager,
         objectType,
-        ~FromFunctor([=] (const TVersionedNodeId& id) -> IYPathService::TPtr
+        ~FromFunctor([=] (const TVersionedNodeId& id) -> TYPathServicePtr
             {
                 UNUSED(id);
                 return service_;

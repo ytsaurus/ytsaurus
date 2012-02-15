@@ -173,7 +173,7 @@ public:
 private:
     Stroka FileName;
     TNodePtr Root;
-    IYPathService::TPtr UnderlyingService;
+    TYPathServicePtr UnderlyingService;
 
     void SaveFile()
     {
@@ -243,7 +243,7 @@ private:
 
 TYPathServiceProvider::TPtr CreateYsonFileProvider(const Stroka& fileName)
 {
-    return FromFunctor([=] () -> IYPathService::TPtr
+    return FromFunctor([=] () -> TYPathServicePtr
         {
             return New<TYsonFileService>(fileName);
         });

@@ -40,11 +40,9 @@ DECLARE_ENUM(EYPathErrorCode,
 struct IYPathService
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IYPathService> TPtr;
-
     class TResolveResult
     {
-        DEFINE_BYVAL_RO_PROPERTY(IYPathService::TPtr, Service);
+        DEFINE_BYVAL_RO_PROPERTY(TYPathServicePtr, Service);
         DEFINE_BYVAL_RO_PROPERTY(TYPath, Path);
 
     public:
@@ -99,10 +97,10 @@ struct IYPathService
     /*!
      *  Constructs an ephemeral tree from #producer and returns its root.
      */
-    static IYPathService::TPtr FromProducer(TYsonProducer producer);
+    static TYPathServicePtr FromProducer(TYsonProducer producer);
 };
 
-typedef IFunc<NYTree::IYPathService::TPtr> TYPathServiceProvider;
+typedef IFunc<NYTree::TYPathServicePtr> TYPathServiceProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 

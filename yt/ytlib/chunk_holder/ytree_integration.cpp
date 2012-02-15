@@ -42,7 +42,7 @@ private:
         return Collection->GetChunkCount();
     }
 
-    virtual IYPathService::TPtr GetItemService(const Stroka& key) const
+    virtual TYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkId::FromString(key);
         auto chunk = Collection->FindChunk(id);
@@ -62,12 +62,12 @@ private:
 
 };
 
-IYPathService::TPtr CreateStoredChunkMapService(TChunkStore* chunkStore)
+TYPathServicePtr CreateStoredChunkMapService(TChunkStore* chunkStore)
 {
     return New< TVirtualChunkMap<TChunkStore> >(chunkStore);
 }
 
-IYPathService::TPtr CreateCachedChunkMapService(TChunkCache* chunkCache)
+TYPathServicePtr CreateCachedChunkMapService(TChunkCache* chunkCache)
 {
     return New< TVirtualChunkMap<TChunkCache> >(chunkCache);
 }

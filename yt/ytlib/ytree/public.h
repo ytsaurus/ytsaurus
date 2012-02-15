@@ -66,6 +66,7 @@ struct IAttributeDictionary;
 struct IAttributeProvider;
 
 struct IYPathService;
+typedef TIntrusivePtr<IYPathService> TYPathServicePtr;
 
 // TODO(roizner): Rename it and move somewhere.
 template <class T, class = void>

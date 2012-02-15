@@ -168,7 +168,7 @@ void ResolveYPath(
     IYPathService* rootService,
     const TYPath& path,
     const Stroka& verb,
-    IYPathService::TPtr* suffixService,
+    TYPathServicePtr* suffixService,
     TYPath* suffixPath);
 
 //! Asynchronously executes an untyped YPath verb against a given service.

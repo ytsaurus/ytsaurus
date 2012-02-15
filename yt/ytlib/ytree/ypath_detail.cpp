@@ -628,11 +628,11 @@ public:
     }
 
 private:
-    IYPathService::TPtr UnderlyingService;
+    TYPathServicePtr UnderlyingService;
 
 };
 
-IYPathService::TPtr CreateRootService(IYPathService* underlyingService)
+TYPathServicePtr CreateRootService(IYPathService* underlyingService)
 {
     return New<TRootService>(underlyingService);
 }
