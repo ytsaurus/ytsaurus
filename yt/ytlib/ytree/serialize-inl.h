@@ -3,7 +3,10 @@
 #endif
 #undef SERIALIZE_INL_H_
 
+#include "ytree.h"
+
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/serialize.h>
 #include <ytlib/misc/configurable.h>
 
 namespace NYT {
@@ -12,11 +15,24 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T ParseYson(const TYson& yson)
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson)
 {
-    auto node = DeserializeFromYson(yson);
-    T value;
+    typedef typename TDeserializeTraits<T>::TReturnType TResult;
+    auto node = DeserializeFromYson(yson, GetEphemeralNodeFactory());
+    TResult value;
     Read(value, ~node);
+    return value;
+}
+
+template <class T>
+TYson SerializeToYson(
+    const T& value,
+    EYsonFormat format)
+{
+    TStringStream output;
+    TYsonWriter writer(&output, format);
+    Write(value, &writer);
+    return output.Str();
 }
 
 template <class T>
@@ -31,9 +47,9 @@ T CheckedStaticCast(i64 value)
 
 // TConfigurable::TPtr
 template <class T>
-inline void Read(
+void Read(
     TIntrusivePtr<T>& parameter,
-    const NYTree::INode* node,
+    INode* node,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType)
 {
     if (!parameter) {
@@ -46,9 +62,9 @@ inline void Read(
 
 // TEnumBase
 template <class T>
-inline void Read(
+void Read(
     T& parameter,
-    const NYTree::INode* node, 
+    INode* node, 
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
 {
     auto value = node->AsString()->GetValue();
@@ -57,7 +73,7 @@ inline void Read(
 
 // TNullable
 template <class T>
-inline void Read(TNullable<T>& parameter, const NYTree::INode* node)
+void Read(TNullable<T>& parameter, INode* node)
 {
     T value;
     Read(value, node);
@@ -66,7 +82,7 @@ inline void Read(TNullable<T>& parameter, const NYTree::INode* node)
 
 // yvector
 template <class T>
-inline void Read(yvector<T>& parameter, const NYTree::INode* node)
+void Read(yvector<T>& parameter, INode* node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -78,7 +94,7 @@ inline void Read(yvector<T>& parameter, const NYTree::INode* node)
 
 // yhash_set
 template <class T>
-inline void Read(yhash_set<T>& parameter, const NYTree::INode* node)
+void Read(yhash_set<T>& parameter, INode* node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -91,7 +107,7 @@ inline void Read(yhash_set<T>& parameter, const NYTree::INode* node)
 
 // yhash_map
 template <class T>
-inline void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node)
+void Read(yhash_map<Stroka, T>& parameter, INode* node)
 {
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, mapNode->GetChildren()) {
@@ -104,5 +120,87 @@ inline void Read(yhash_map<Stroka, T>& parameter, const NYTree::INode* node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+void Write(T* parameter, IYsonConsumer* consumer)
+{
+    YASSERT(parameter);
+    Write(*parameter, consumer);
 }
+
+template <class T>
+void Write(const TIntrusivePtr<T>& parameter, IYsonConsumer* consumer)
+{
+    YASSERT(parameter);
+    Write(*parameter, consumer);
 }
+
+// TConfigurable::TPtr
+template <class T>
+void Write(
+    const T& parameter,
+    IYsonConsumer* consumer,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType)
+{
+    parameter.Save(consumer);
+}
+
+// TEnumBase
+template <class T>
+void Write(
+    T parameter,
+    IYsonConsumer* consumer,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
+{
+    consumer->OnStringScalar(parameter.ToString());
+}
+
+// TNullable
+template <class T>
+void Write(const TNullable<T>& parameter, IYsonConsumer* consumer)
+{
+    YASSERT(parameter);
+    Write(*parameter, consumer);
+}
+
+// yvector
+template <class T>
+void Write(const yvector<T>& parameter, IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    FOREACH (const auto& value, parameter) {
+        consumer->OnListItem();
+        Write(value, consumer);
+    }
+    consumer->OnEndList();
+}
+
+// yhash_set
+template <class T>
+void Write(const yhash_set<T>& parameter, IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    auto sortedItems = GetSortedIterators(parameter);
+    FOREACH (const auto& value, sortedItems) {
+        consumer->OnListItem();
+        Write(*value, consumer);
+    }
+    consumer->OnEndList();
+}
+
+// yhash_map
+template <class T>
+void Write(const yhash_map<Stroka, T>& parameter, IYsonConsumer* consumer)
+{
+    consumer->OnBeginMap();
+    auto sortedItems = GetSortedIterators(parameter);
+    FOREACH (const auto& pair, sortedItems) {
+        consumer->OnMapItem(pair->first);
+        Write(pair->second, consumer);
+    }
+    consumer->OnEndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYTree
+} // namespace NYT

@@ -4,7 +4,7 @@
 #include "service.h"
 
 #include <ytlib/bus/server.h>
-#include <ytlib/ytree/ytree_fwd.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NRpc {

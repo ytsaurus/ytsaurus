@@ -255,7 +255,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     startInfo.set_job_id(jobId.ToProto());
     startInfo.set_type(EJobType::Replicate);
     startInfo.set_chunk_id(chunkId.ToProto());
-    ToProto(*startInfo.mutable_target_addresses(), targetAddresses);
+    ToProto(startInfo.mutable_target_addresses(), targetAddresses);
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 

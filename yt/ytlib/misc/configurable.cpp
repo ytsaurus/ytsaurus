@@ -1,9 +1,11 @@
 #include "stdafx.h"
 #include "configurable.h"
 
+#include <ytlib/ytree/ytree.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/yson_consumer.h>
 
 namespace NYT {
 
@@ -15,22 +17,22 @@ TConfigurable::TConfigurable()
     : KeepOptions_(false)
 { }
 
-NYTree::IMapNode::TPtr TConfigurable::GetOptions() const
+NYTree::TMapNodePtr TConfigurable::GetOptions() const
 {
     YASSERT(KeepOptions_);
     return Options;
 }
 
-void TConfigurable::LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path)
+void TConfigurable::LoadAndValidate(NYTree::INode* node, const NYTree::TYPath& path)
 {
     Load(node, path);
     Validate(path);
 }
 
-void TConfigurable::Load(const NYTree::INode* node, const NYTree::TYPath& path)
+void TConfigurable::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
     YASSERT(node);
-    TIntrusivePtr<const IMapNode> mapNode;
+    TIntrusivePtr<IMapNode> mapNode;
     try {
         mapNode = node->AsMap();
     } catch (const std::exception& ex) {
@@ -49,10 +51,10 @@ void TConfigurable::Load(const NYTree::INode* node, const NYTree::TYPath& path)
     if (KeepOptions_) {
         Options = GetEphemeralNodeFactory()->CreateMap();
         FOREACH (const auto& pair, mapNode->GetChildren()) {
-            const auto& name = pair.first;
+            const auto& key = pair.first;
             auto child = pair.second;
-            if (Parameters.find(name) == Parameters.end()) {
-                Options->AddChild(~CloneNode(~child), name);
+            if (Parameters.find(key) == Parameters.end()) {
+                Options->AddChild(~CloneNode(~child), key);
             }
         }
     }

@@ -37,9 +37,6 @@ TFileWriterBase::TFileWriterBase(
     YASSERT(masterChannel);
 
     Codec = GetCodec(Config->CodecId);
-
-    ChunkProxy.SetTimeout(config->MasterRpcTimeout);
-    CypressProxy.SetTimeout(config->MasterRpcTimeout);
 }
 
 void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)

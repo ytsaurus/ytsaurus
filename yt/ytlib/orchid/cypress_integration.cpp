@@ -56,8 +56,9 @@ public:
         auto manifest = LoadManifest();
 
         auto channel = ChannelCache.GetChannel(manifest->RemoteAddress);
+
         TOrchidServiceProxy proxy(~channel);
-        proxy.SetTimeout(manifest->Timeout);
+        proxy.SetDefaultTimeout(manifest->Timeout);
 
         auto path = GetRedirectPath(~manifest, context->GetPath());
         auto verb = context->GetVerb();
@@ -67,7 +68,7 @@ public:
         requestHeader.set_path(path);
         auto innerRequestMessage = SetRequestHeader(~requestMessage, requestHeader);
 
-        auto outerRequest = proxy.Execute();
+        auto outerRequest =proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage->GetParts();
 
         LOG_INFO("Sending request to a remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
@@ -109,7 +110,7 @@ private:
         auto manifestNode =
         	ObjectManager
         	->GetProxy(Id)
-        	->GetAttributes()
+        	->Attributes()
         	->ToMap();
         try {
             manifest->LoadAndValidate(~manifestNode);

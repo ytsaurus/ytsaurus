@@ -12,6 +12,7 @@
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/assert.h>
 #include <ytlib/logging/log.h>
+#include <ytlib/rpc/service.h>
 
 namespace NYT {
 namespace NYTree {
@@ -76,10 +77,10 @@ class TSupportsAttributes
 protected:
     // TODO(roizner,babenko): support NULL user attribute dictionary to
     // allow TVirtualMapBase to use this mix-in.
-    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary() = 0;
+    virtual IAttributeDictionary* GetUserAttributes() = 0;
 
     // Can be NULL.
-    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() = 0;
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider() = 0;
 
     virtual TResolveResult ResolveAttributes(
         const NYTree::TYPath& path,
@@ -131,17 +132,17 @@ protected:
     virtual void OnMyBeginMap();
 
     virtual void OnMyBeginAttributes();
-    virtual void OnMyAttributesItem(const Stroka& name);
+    virtual void OnMyAttributesItem(const Stroka& key);
     virtual void OnMyEndAttributes();
 
 protected:
     typedef TNodeSetterBase TThis;
 
-    INode::TPtr Node;
+    TNodePtr Node;
     ITreeBuilder* TreeBuilder;
-    INodeFactory::TPtr NodeFactory;
+    TNodeFactoryPtr NodeFactory;
 
-    Stroka AttributeName;
+    Stroka AttributeKey;
     TYson AttributeValue;
     TAutoPtr<TStringOutput> AttributeStream;
     TAutoPtr<TYsonWriter> AttributeWriter;
@@ -168,14 +169,14 @@ class TNodeSetter
         { } \
     \
     private: \
-        I##name##Node::TPtr Node; \
+        T##name##NodePtr Node; \
         \
         virtual ENodeType GetExpectedType() \
         { \
             return ENodeType::name; \
         } \
         \
-        virtual void On ## name ## Scalar( \
+        virtual void On##name##Scalar( \
             NDetail::TScalarTypeTraits<type>::TParamType value, \
             bool hasAttributes) \
         { \
@@ -205,8 +206,8 @@ public:
 private:
     typedef TNodeSetter<IMapNode> TThis;
 
-    IMapNode::TPtr Map;
-    Stroka ItemName;
+    TMapNodePtr Map;
+    Stroka ItemKey;
 
     virtual ENodeType GetExpectedType()
     {
@@ -218,17 +219,17 @@ private:
         Map->Clear();
     }
 
-    virtual void OnMyMapItem(const Stroka& name)
+    virtual void OnMyMapItem(const Stroka& key)
     {
-        ItemName = name;
+        ItemKey = key;
         TreeBuilder->BeginTree();
         ForwardNode(TreeBuilder, ~FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
     {
-        YVERIFY(Map->AddChild(~TreeBuilder->EndTree(), ItemName));
-        ItemName.clear();
+        YVERIFY(Map->AddChild(~TreeBuilder->EndTree(), ItemKey));
+        ItemKey.clear();
     }
 
     virtual void OnMyEndMap(bool hasAttributes)
@@ -253,7 +254,7 @@ public:
 private:
     typedef TNodeSetter<IListNode> TThis;
 
-    IListNode::TPtr List;
+    TListNodePtr List;
 
     virtual ENodeType GetExpectedType()
     {
@@ -312,7 +313,7 @@ private:
 template <class TNode>
 void SetNodeFromProducer(
     TNode* node,
-    TYsonProducer* producer,
+    TYsonProducer producer,
     ITreeBuilder* builder)
 {
     YASSERT(node);

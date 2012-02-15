@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "ytree.h"
+#include "public.h"
 
 namespace NYT {
 namespace NYTree {

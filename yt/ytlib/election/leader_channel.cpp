@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "cell_channel.h"
+#include "leader_channel.h"
 
 namespace NYT {
 namespace NElection {
@@ -53,34 +53,39 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellChannel
+class TLeaderChannel
     : public IChannel
 {
 public:
-    typedef TIntrusivePtr<TCellChannel> TPtr;
+    typedef TIntrusivePtr<TLeaderChannel> TPtr;
 
-    TCellChannel(TLeaderLookup::TConfig* config)
-        : LeaderLookup(New<TLeaderLookup>(config))
+    TLeaderChannel(TLeaderLookup::TConfig* config)
+        : Config(config)
+        , LeaderLookup(New<TLeaderLookup>(config))
         , State(EState::NotConnected)
     { }
-    
+
+    virtual TNullable<TDuration> GetDefaultTimeout() const
+    {
+        return Config->RpcTimeout;
+    }
+
     virtual void Send(
         IClientRequest* request,
         IClientResponseHandler* responseHandler,
-        TDuration timeout)
+        TNullable<TDuration> timeout)
     {
         YASSERT(request);
         YASSERT(responseHandler);
         YASSERT(State != EState::Terminated);
 
         GetChannel()->Subscribe(FromMethod(
-            &TCellChannel::OnGotChannel,
+            &TLeaderChannel::OnGotChannel,
             TPtr(this),
             request,
             responseHandler,
             timeout));
     }
-
 
     virtual void Terminate()
     {
@@ -114,7 +119,7 @@ private:
         IChannel::TPtr channel,
         IClientRequest::TPtr request,
         IClientResponseHandler::TPtr responseHandler,
-        TDuration timeout)
+        TNullable<TDuration> timeout)
     {
         if (!channel) {
             responseHandler->OnError(TError(
@@ -123,7 +128,7 @@ private:
         } else {
             auto responseHandlerWrapper = New<TResponseHandlerWrapper>(
                 ~responseHandler,
-                ~FromMethod(&TCellChannel::OnChannelFailed, TPtr(this)));
+                ~FromMethod(&TLeaderChannel::OnChannelFailed, TPtr(this)));
             channel->Send(~request, ~responseHandlerWrapper, timeout);
         }
     }
@@ -151,7 +156,7 @@ private:
                 guard.Release();
 
                 return lookupResult->Apply(FromMethod(
-                    &TCellChannel::OnFirstLookupResult,
+                    &TLeaderChannel::OnFirstLookupResult,
                     TPtr(this)));
             }
 
@@ -167,7 +172,7 @@ private:
                 guard.Release();
 
                 return lookupResult->Apply(FromMethod(
-                    &TCellChannel::OnSecondLookupResult,
+                    &TLeaderChannel::OnSecondLookupResult,
                     TPtr(this)));
             }
 
@@ -205,17 +210,18 @@ private:
     }
 
 
-    TSpinLock SpinLock;
+    TLeaderLookup::TConfig::TPtr Config;
     TLeaderLookup::TPtr LeaderLookup;
     EState State;
+    TSpinLock SpinLock;
     TFuture<TLeaderLookup::TResult>::TPtr LookupResult;
     IChannel::TPtr Channel;
 
 };
 
-IChannel::TPtr CreateCellChannel(TLeaderLookup::TConfig* config)
+IChannel::TPtr CreateLeaderChannel(TLeaderLookup::TConfig* config)
 {
-    return New<TCellChannel>(config);
+    return New<TLeaderChannel>(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

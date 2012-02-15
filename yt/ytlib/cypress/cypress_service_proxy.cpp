@@ -127,7 +127,7 @@ TCypressServiceProxy::TReqExecuteBatch::TPtr TCypressServiceProxy::ExecuteBatch(
     // Keep this in sync with DEFINE_RPC_PROXY_METHOD.
     return
         New<TReqExecuteBatch>(~Channel, ServiceName, "Execute")
-        ->SetTimeout(Timeout_);
+        ->SetTimeout(DefaultTimeout_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

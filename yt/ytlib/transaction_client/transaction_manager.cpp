@@ -40,8 +40,6 @@ public:
     {
         YASSERT(cellChannel);
         YASSERT(owner);
-
-        Proxy.SetTimeout(Owner->Config->MasterRpcTimeout);
     }
 
     void Start()
@@ -220,7 +218,7 @@ private:
 
     TPeriodicInvoker::TPtr PingInvoker;
     TTransactionId Id;
-    INode::TPtr Manifest;
+    TNodePtr Manifest;
     TTransactionId ParentId;
 
     TSignal Aborted;
@@ -252,8 +250,6 @@ TTransactionManager::TTransactionManager(
     , CypressProxy(channel)
 {
     YASSERT(channel);
-
-    CypressProxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
 ITransaction::TPtr TTransactionManager::Start(

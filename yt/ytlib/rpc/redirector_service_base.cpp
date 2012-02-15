@@ -29,23 +29,34 @@ public:
         , Verb(verb)
     { }
 
-    IMessage::TPtr Serialize() const
+    virtual IMessage::TPtr Serialize() const
     {
         return Message;
     }
 
-    const TRequestId& GetRequestId() const
+    virtual const TRequestId& GetRequestId() const
     {
         return RequestId;
     }
 
-    const Stroka& GetPath() const
+    virtual const Stroka& GetPath() const
     {
         return Path;
     }
-    const Stroka& GetVerb() const
+
+    virtual const Stroka& GetVerb() const
     {
         return Verb;
+    }
+
+    virtual NYTree::IAttributeDictionary* Attributes()
+    {
+        YUNREACHABLE();
+    }
+
+    virtual const NYTree::IAttributeDictionary* Attributes() const
+    {
+        YUNREACHABLE();
     }
 
 private:
@@ -94,31 +105,36 @@ TRedirectorServiceBase::TRedirectorServiceBase(
 
 void TRedirectorServiceBase::OnBeginRequest(IServiceContext* context)
 {
-    TRedirectParams redirectParams;
-    try {
-        redirectParams = GetRedirectParams(context);
-    }
-    catch (const std::exception& ex) {
-        context->Reply(TError(
-            NRpc::EErrorCode::Unavailable,
-            Sprintf("Redirection failed\n%s", ex.what())));
-        return;
-    }
+    // TODO(babenko): use AsStrong
+    auto context_= IServiceContext::TPtr(context);
+    HandleRedirect(context)->Subscribe(FromFunctor([=] (TRedirectResult result)
+        {
+            if (!result.IsOK()) {
+                context_->Reply(TError(
+                    NRpc::EErrorCode::Unavailable,
+                    Sprintf("Redirection failed\n%s", ~result.GetMessage())));
+                return;
+            }
 
-    context->SetRequestInfo(Sprintf("Address: %s, Timeout: %d",
-        ~redirectParams.Address,
-        static_cast<int>(redirectParams.Timeout.MilliSeconds())));
+            const auto& params = result.Value();
 
-    auto channel = ChannelCache.GetChannel(redirectParams.Address);
+            context_->SetRequestInfo(Sprintf("Address: %s, Timeout: %s",
+                ~params.Address,
+                params.Timeout
+                ? ~ToString(params.Timeout.Get().MilliSeconds())
+                : "None"));
 
-    auto request = New<TRequest>(
-        context->GetRequestMessage(),
-        context->GetRequestId(),
-        context->GetPath(),
-        context->GetVerb());
+            auto channel = ChannelCache.GetChannel(params.Address);
 
-    auto responseHandler = New<TResponseHandler>(context);
-    channel->Send(~request, ~responseHandler, redirectParams.Timeout);
+            auto request = New<TRequest>(
+                context_->GetRequestMessage(),
+                context_->GetRequestId(),
+                context_->GetPath(),
+                context_->GetVerb());
+
+            auto responseHandler = New<TResponseHandler>(~context_);
+            channel->Send(~request, ~responseHandler, params.Timeout);
+        }));
 }
 
 void TRedirectorServiceBase::OnEndRequest(IServiceContext* context)

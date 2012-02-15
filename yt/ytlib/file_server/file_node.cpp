@@ -100,7 +100,7 @@ public:
         CypressManager->RegisterNode(transactionId, node.Release());
 
         auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
-        proxy->GetAttributes()->MergeFrom(~manifest->GetOptions());
+        proxy->Attributes()->MergeFrom(~manifest->GetOptions());
         
         yvector<TChunkTreeId> childrenIds;
         childrenIds.push_back(chunkId);

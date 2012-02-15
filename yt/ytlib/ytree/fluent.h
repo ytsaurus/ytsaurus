@@ -29,7 +29,7 @@ public:
     class TFluentBase
     {
     public:
-        TParent Do(TYsonProducer* producer)
+        TParent Do(TYsonProducer producer)
         {
             producer->Do(this->Consumer);
             return this->Parent;
@@ -221,9 +221,9 @@ public:
             : TFluentBase<TParent>(consumer, parent)
         { }
 
-        TAny<TThis> Item(const Stroka& name)
+        TAny<TThis> Item(const Stroka& key)
         {
-            this->Consumer->OnAttributesItem(name);
+            this->Consumer->OnAttributesItem(key);
             return TAny<TThis>(this->Consumer, *this, false);
         }
 
@@ -320,9 +320,9 @@ public:
             : TFluentBase<TVoid>(consumer, TVoid())
         { }
 
-        TAny<TMapCore> Item(const Stroka& name)
+        TAny<TMapCore> Item(const Stroka& key)
         {
-            this->Consumer->OnMapItem(name);
+            this->Consumer->OnMapItem(key);
             return TAny<TMapCore>(this->Consumer, *this, false);
         }
     };
@@ -339,9 +339,9 @@ public:
             , HasAttributes(hasAttributes)
         { }
 
-        TAny<TThis> Item(const Stroka& name)
+        TAny<TThis> Item(const Stroka& key)
         {
-            this->Consumer->OnMapItem(name);
+            this->Consumer->OnMapItem(key);
             return TAny<TThis>(this->Consumer, *this, false);
         }
 

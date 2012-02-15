@@ -10,72 +10,101 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYson IAttributeDictionary::GetAttribute(const Stroka& name)
+TYson IAttributeDictionary::GetYson(const Stroka& key) const
 {
-    const auto& result = FindAttribute(name);
-    if (result.empty()) {
-        ythrow yexception() << Sprintf("Attribute %s is not found", ~name.Quote());
+    const auto& result = FindYson(key);
+    if (!result) {
+        ythrow yexception() << Sprintf("Attribute %s is not found", ~key.Quote());
     }
-    return result;
+    return *result;
 }
 
-IMapNode::TPtr IAttributeDictionary::ToMap()
+TMapNodePtr IAttributeDictionary::ToMap() const
 {
     auto map = GetEphemeralNodeFactory()->CreateMap();
-    auto names = ListAttributes();
-    FOREACH (const auto& name, names) {
-        auto value = DeserializeFromYson(GetAttribute(name));
-        map->AddChild(~value, name);
+    auto keys = List();
+    FOREACH (const auto& key, keys) {
+        auto value = DeserializeFromYson(GetYson(key));
+        map->AddChild(~value, key);
     }
     return map;
 }
 
-void IAttributeDictionary::MergeFrom(const IMapNode* map)
+void IAttributeDictionary::MergeFrom(const IMapNode* other)
 {
-    FOREACH (const auto& pair, map->GetChildren()) {
+    FOREACH (const auto& pair, other->GetChildren()) {
         const auto& key = pair.first;
         auto value = SerializeToYson(~pair.second);
-        SetAttribute(key, value);
+        SetYson(key, value);
+    }
+}
+
+void IAttributeDictionary::MergeFrom(const IAttributeDictionary* other)
+{
+    FOREACH (const auto& key, other->List()) {
+        auto value = other->GetYson(key);
+        SetYson(key, value);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInMemoryAttributeDictionary
+class TEphemeralAttributeDictionary
     : public IAttributeDictionary
 {
     typedef yhash_map<Stroka, TYPath> TAttributeMap;
     TAttributeMap Map;
 
-    virtual yhash_set<Stroka> ListAttributes()
+    virtual yhash_set<Stroka> List() const
     {
-        yhash_set<Stroka> names;
+        yhash_set<Stroka> keys;
         FOREACH (const auto& pair, Map) {
-            names.insert(pair.first);
+            keys.insert(pair.first);
         }
-        return names;
+        return keys;
     }
 
-    virtual TYson FindAttribute(const Stroka& name)
+    virtual TNullable<TYson> FindYson(const Stroka& key) const
     {
-        auto it = Map.find(name);
-        return it == Map.end() ? TYson() : it->second;
+        auto it = Map.find(key);
+        return it == Map.end() ? Null : MakeNullable(it->second);
     }
 
-    virtual void SetAttribute(const Stroka& name, const TYson& value)
+    virtual void SetYson(const Stroka& key, const TYson& value)
     {
-        Map[name] = value;
+        Map[key] = value;
     }
 
-    virtual bool RemoveAttribute(const Stroka& name)
+    virtual bool Remove(const Stroka& key)
     {
-        return Map.erase(name) > 0;
+        return Map.erase(key) > 0;
     }
 };
 
-IAttributeDictionary::TPtr CreateInMemoryAttributeDictionary()
+TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes()
 {
-    return New<TInMemoryAttributeDictionary>();
+    return new TEphemeralAttributeDictionary();
+}
+
+void ToProto(NProto::TAttributes* protoAttributes, IAttributeDictionary& attributes)
+{
+    FOREACH (const auto& key, attributes.List()) {
+        auto value = attributes.GetYson(key);
+        auto protoAttribute = protoAttributes->add_attributes();
+        protoAttribute->set_key(key);
+        protoAttribute->set_value(value);
+    }
+}
+
+TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes)
+{
+    auto attributes = CreateEphemeralAttributes();
+    FOREACH (const auto& protoAttribute, protoAttributes.attributes()) {
+        const auto& key = protoAttribute.key();
+        const auto& value = protoAttribute.value();
+        attributes->SetYson(key, value);
+    }
+    return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

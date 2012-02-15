@@ -35,8 +35,6 @@ TFileReaderBase::TFileReaderBase(
     YASSERT(config);
     YASSERT(masterChannel);
     YASSERT(blockCache);
-
-    Proxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
 void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<Stroka>& holderAddresses)

@@ -75,8 +75,8 @@ struct TChunkHolderConfig
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
-    //! Timeout for RPC requests to masters.
-    TDuration MasterRpcTimeout;
+    //! Timeout for "PutBlock" requests to other holders.
+    TDuration HolderRpcTimeout;
 
     //! RPC interface port number.
     int RpcPort;
@@ -124,8 +124,6 @@ struct TChunkHolderConfig
      */
     TChunkHolderConfig()
     {
-        // TODO: consider GreaterThan(0)
-
         Register("max_cached_blocks_size", MaxCachedBlocksSize)
             .GreaterThan(0)
             .Default(1024 * 1024);
@@ -136,8 +134,8 @@ struct TChunkHolderConfig
             .Default(TDuration::Seconds(15));
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
-        Register("master_rpc_timeout", MasterRpcTimeout)
-            .Default(TDuration::Seconds(5));
+        Register("holder_rpc_timeout", HolderRpcTimeout)
+            .Default(TDuration::Seconds(15));
         Register("rpc_port", RpcPort)
             .Default(9000);
         Register("monitoring_port", MonitoringPort)

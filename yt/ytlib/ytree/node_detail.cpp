@@ -89,7 +89,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* co
 {
     UNUSED(request);
 
-    ToProto(*response->mutable_keys(), GetKeys());
+    NYT::ToProto(response->mutable_keys(), GetKeys());
     context->Reply();
 }
 
@@ -127,7 +127,7 @@ void TMapNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
 {
-    IMapNode::TPtr currentNode = this;
+    TMapNodePtr currentNode = this;
     TYPath currentPath = path;
 
     while (true) {
@@ -193,7 +193,7 @@ void TListNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
 {
-    INode::TPtr currentNode = this;
+    TNodePtr currentNode = this;
     TYPath currentPath = path;
 
     Stroka token;

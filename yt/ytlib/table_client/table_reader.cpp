@@ -34,8 +34,6 @@ TTableReader::TTableReader(
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~path,
         ~TransactionId.ToString()));
-
-    Proxy.SetTimeout(Config->MasterRpcTimeout);
 }
 
 void TTableReader::Open()

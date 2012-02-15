@@ -21,6 +21,8 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/attributes.h
+  ${BASE}/attributes-inl.h
+  ${BASE}/attribute_provider.h
   ${BASE}/common.h
   ${BASE}/ephemeral.h
   ${BASE}/fluent.h
@@ -28,6 +30,7 @@ set( HDRS
   ${BASE}/json_adapter.h
   ${BASE}/node_detail.h
   ${BASE}/null_yson_consumer.h
+  ${BASE}/public.h
   ${BASE}/serialize.h
   ${BASE}/serialize-inl.h
   ${BASE}/tree_builder.h
@@ -45,7 +48,6 @@ set( HDRS
   ${BASE}/yson_reader.h
   ${BASE}/yson_writer.h
   ${BASE}/ytree.h
-  ${BASE}/ytree_fwd.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -54,3 +56,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/ypath.proto YT_SOURCE_FILES )
+protoc( ${BASE}/attributes.proto YT_SOURCE_FILES )

@@ -59,16 +59,17 @@ void TFollowerPinger::SendPing()
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
         if (peerId == CellManager->GetSelfId()) continue;
 
-        auto proxy = CellManager->GetMasterProxy<TProxy>(peerId);
-        proxy->SetTimeout(Config->RpcTimeout);
-        auto request = proxy->PingFollower();
+        auto request =
+            CellManager->GetMasterProxy<TProxy>(peerId)
+            ->PingFollower()
+            ->SetTimeout(Config->RpcTimeout);
         request->set_segment_id(version.SegmentId);
         request->set_record_count(version.RecordCount);
         request->set_epoch(Epoch.ToProto());
         i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
         request->set_max_snapshot_id(maxSnapshotId);
         request->Invoke()->Subscribe(
-            FromMethod(&TFollowerPinger::OnSendPing, TPtr(this), peerId)
+            FromMethod(&TFollowerPinger::OnPingReply, TPtr(this), peerId)
             ->Via(ControlInvoker));
         
         LOG_DEBUG("Follower ping sent (FollowerId: %d, Version: %s, Epoch: %s, MaxSnapshotId: %d)",
@@ -80,7 +81,7 @@ void TFollowerPinger::SendPing()
 
 }
 
-void TFollowerPinger::OnSendPing(TProxy::TRspPingFollower::TPtr response, TPeerId followerId)
+void TFollowerPinger::OnPingReply(TProxy::TRspPingFollower::TPtr response, TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

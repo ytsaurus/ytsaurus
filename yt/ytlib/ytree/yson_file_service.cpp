@@ -4,6 +4,8 @@
 #include "tree_builder.h"
 #include "ephemeral.h"
 
+#include <ytlib/rpc/service.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -170,7 +172,7 @@ public:
 
 private:
     Stroka FileName;
-    INode::TPtr Root;
+    TNodePtr Root;
     IYPathService::TPtr UnderlyingService;
 
     void SaveFile()
@@ -226,7 +228,7 @@ public:
 private:
     Stroka FileName;
 
-    INode::TPtr LoadFile()
+    TNodePtr LoadFile()
     {
         try {
             TIFStream stream(FileName);

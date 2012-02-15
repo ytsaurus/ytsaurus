@@ -8,6 +8,19 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+struct TNullHelper
+{ };
+
+}
+
+typedef int NDetail::TNullHelper::*TNull;
+
+const TNull Null = static_cast<TNull>(NULL);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 class TNullable
 {
@@ -26,6 +39,10 @@ public:
     TNullable(T&& value)
         : Initialized(true)
         , Value(MoveRV(value))
+    { }
+
+    TNullable(TNull)
+        : Initialized(false)
     { }
     
     template<class U>
@@ -69,6 +86,12 @@ public:
         return *this;
     }
 
+    TNullable& operator=(TNull value)
+    {
+        Assign(value);
+        return *this;
+    }
+
     template <class U>
     TNullable& operator=(const TNullable<U>& other)
     {
@@ -94,6 +117,11 @@ public:
     {
         Initialized = true;
         Value = MoveRV(value);
+    }
+
+    void Assign(TNull)
+    {
+        Reset();
     }
 
     template <class U>
@@ -198,6 +226,26 @@ private:
 
     bool Initialized;
     T Value;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TNullableTraits
+{
+    typedef TNullable<T> TNullableType;
+};
+
+template <class T>
+struct TNullableTraits<T*>
+{
+    typedef T* TNullableType;
+};
+
+template <class T>
+struct TNullableTraits< TIntrusivePtr<T> >
+{
+    typedef TIntrusivePtr<T> TNullableType;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,16 +49,32 @@ class SomeTest(unittest.TestCase):
         stdout_actual, stderr_actual = [os.path.join(path_to_actual, f) for f in output_names]
         stdout_expected, stderr_expected = [os.path.join(path_to_expected, f) for f in output_names]
 
-        self.assertTrue(os.path.exists(stdout_expected), "%s test doesn't contain stdout.txt" % folder)
-        self.assertTrue(os.path.exists(stderr_expected), "%s test doesn't contain stderr.txt" % folder)
+        os.system('touch {stdout_expected}'.format(**vars()))
+        os.system('touch {stderr_expected}'.format(**vars()))
+        #self.assertTrue(os.path.exists(stdout_expected), "%s test doesn't contain stdout.txt" % folder)
+        #self.assertTrue(os.path.exists(stderr_expected), "%s test doesn't contain stderr.txt" % folder)
 
         self.env.setUp()
-        
-        os.system("cd {run_path} && {test_sh} >{stdout_actual} 2> {stderr_actual}".format(**vars()))
+
+        #raw_input('press any key')
+        exit_code = os.system("cd {run_path} && {test_sh} >{stdout_actual} 2> {stderr_actual}".format(**vars()))
+        self.assertTrue(exit_code == 0, "test.sh finished with errors")
 
         stdout_diff = get_output(["diff", stdout_actual, stdout_expected])
         stderr_diff = get_output(["diff", stderr_actual, stderr_expected])
         
+        if stdout_diff:
+            print '-----------------------'
+            print 'actual stdout:'
+            os.system('cat ' + stdout_actual)
+            print '-----------------------'
+
+        if stderr_diff:
+            print '-----------------------'
+            print 'actual stderr:'
+            os.system('cat ' + stderr_actual)
+            print '-----------------------'
+
         self.assertFalse(stdout_diff, "Stdout differs")
         self.assertFalse(stderr_diff, "Stderr differs")
 
@@ -83,6 +99,7 @@ def RegisterTests():
 
   		
 if __name__ == "__main__":
-    sys.path.append('../yson/')
+    # setting path for ytdriver
+    os.environ['PATH'] = TEST_ROOTDIR + ':' + os.environ['PATH']
     RegisterTests()
     unittest.main()

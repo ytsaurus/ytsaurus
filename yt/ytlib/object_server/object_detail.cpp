@@ -79,9 +79,9 @@ TObjectId TObjectProxyBase::GetId() const
     return Id;
 }
 
-IAttributeDictionary::TPtr TObjectProxyBase::GetAttributes()
+IAttributeDictionary* TObjectProxyBase::Attributes()
 {
-    return GetUserAttributeDictionary();
+    return GetUserAttributes();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
@@ -118,22 +118,22 @@ bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
     return TYPathServiceBase::IsWriteRequest(context);
 }
 
-IAttributeDictionary::TPtr TObjectProxyBase::GetUserAttributeDictionary()
+IAttributeDictionary* TObjectProxyBase::GetUserAttributes()
 {
-    if (!UserAttributeDictionary) {
-        UserAttributeDictionary = DoCreateUserAttributeDictionary();
+    if (!UserAttributes) {
+        UserAttributes = DoCreateUserAttributes();
     }
-    return UserAttributeDictionary;
+    return UserAttributes.Get();
 }
 
-ISystemAttributeProvider::TPtr TObjectProxyBase::GetSystemAttributeProvider()
+ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
 {
     return this;
 }
 
-IAttributeDictionary::TPtr TObjectProxyBase::DoCreateUserAttributeDictionary()
+TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
 {
-    return New<TUserAttributeDictionary>(Id, ~ObjectManager);
+    return new TUserAttributeDictionary(Id, ~ObjectManager);
 }
 
 void TObjectProxyBase::GetSystemAttributes(std::vector<TAttributeInfo>* names)
@@ -143,21 +143,21 @@ void TObjectProxyBase::GetSystemAttributes(std::vector<TAttributeInfo>* names)
     names->push_back("ref_counter");
 }
 
-bool TObjectProxyBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    if (name == "id") {
+    if (key == "id") {
         BuildYsonFluently(consumer)
             .Scalar(GetId().ToString());
         return true;
     }
 
-    if (name == "type") {
+    if (key == "type") {
         BuildYsonFluently(consumer)
             .Scalar(CamelCaseToUnderscoreCase(TypeFromId(Id).ToString()));
         return true;
     }
 
-    if (name == "ref_counter") {
+    if (key == "ref_counter") {
         BuildYsonFluently(consumer)
             .Scalar(ObjectManager->GetObjectRefCounter(Id));
         return true;
@@ -166,7 +166,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* con
     return false;
 }
 
-bool TObjectProxyBase::SetSystemAttribute(const Stroka& name, TYsonProducer* producer)
+bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, TYsonProducer producer)
 {
     UNUSED(producer);
 
@@ -181,13 +181,13 @@ TVersionedObjectId TObjectProxyBase::GetVersionedId() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectProxyBase::TUserAttributeDictionary::TUserAttributeDictionary(
-    TObjectId objectId,
+    const TObjectId& objectId,
     TObjectManager* objectManager)
     : ObjectId(objectId)
     , ObjectManager(objectManager)
 { }
 
-yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::ListAttributes()
+yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List() const
 {
     yhash_set<Stroka> attributes;
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
@@ -201,39 +201,39 @@ yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::ListAttributes()
     return attributes;
 }
 
-TYson TObjectProxyBase::TUserAttributeDictionary::FindAttribute(const Stroka& name)
+TNullable<TYson> TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stroka& key) const
 {
     const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
     if (!attributeSet) {
-        return "";
+        return Null;
     }
-    auto it = attributeSet->Attributes().find(name);
+    auto it = attributeSet->Attributes().find(key);
     if (it == attributeSet->Attributes().end()) {
-        return "";
+        return Null;
     }
     // Attribute cannot be empty (i.e. deleted) in null transaction.
     YASSERT(!it->second.empty());
     return it->second;
 }
 
-void TObjectProxyBase::TUserAttributeDictionary::SetAttribute(
-    const Stroka& name,
+void TObjectProxyBase::TUserAttributeDictionary::SetYson(
+    const Stroka& key,
     const NYTree::TYson& value)
 {
     auto* attributeSet = ObjectManager->FindAttributesForUpdate(ObjectId);
     if (!attributeSet) {
         attributeSet = ObjectManager->CreateAttributes(ObjectId);
     }
-    attributeSet->Attributes()[name] = value;
+    attributeSet->Attributes()[key] = value;
 }
 
-bool TObjectProxyBase::TUserAttributeDictionary::RemoveAttribute( const Stroka& name )
+bool TObjectProxyBase::TUserAttributeDictionary::Remove(const Stroka& key)
 {
     auto* attributeSet = ObjectManager->FindAttributesForUpdate(ObjectId);
     if (!attributeSet) {
         return false;
     }
-    auto it = attributeSet->Attributes().find(name);
+    auto it = attributeSet->Attributes().find(key);
     if (it == attributeSet->Attributes().end()) {
         return false;
     }

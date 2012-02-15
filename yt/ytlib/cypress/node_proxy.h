@@ -3,7 +3,7 @@
 #include "common.h"
 #include "node.h"
 
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/object_server/object_proxy.h>
 
 namespace NYT {
@@ -31,9 +31,6 @@ struct ICypressNodeProxy
     
     //! Returns the physical node and allows its mutation.
     virtual ICypressNode& GetImplForUpdate() = 0;
-
-    virtual NYTree::IAttributeDictionary::TPtr GetAttributes() = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,32 +23,29 @@ TRedirectorService::TRedirectorService(TCypressManager* cypressManager)
     , CypressManager(cypressManager)
 { }
 
-struct TRedirectorService::TConfig
-    : public TConfigurable
+TRedirectorService::TAsyncRedirectResult TRedirectorService::HandleRedirect(IServiceContext* context)
 {
-    Stroka Address;
-    TDuration Timeout;
+    return 
+        FromMethod(&TRedirectorService::DoHandleRedirect, TPtr(this))
+        ->AsyncVia(CypressManager->GetMetaStateManager()->GetStateInvoker())
+        ->Do(context);
+}
 
-    TConfig()
-    {
-        Register("address", Address);
-        Register("timeout", Timeout)
-            .Default(TDuration::MilliSeconds(5000));
+TRedirectorService::TRedirectResult TRedirectorService::DoHandleRedirect(IServiceContext::TPtr context)
+{
+    if (CypressManager->GetMetaStateManager()->GetStateStatus() != NMetaState::EPeerStatus::Leading) {
+        return TError("Not a leader");
     }
-};
 
-TRedirectorService::TRedirectParams TRedirectorService::GetRedirectParams(IServiceContext* context) const
-{
-    // TODO(babenko): refactor using new API
     auto root = CypressManager->GetVersionedNodeProxy(CypressManager->GetRootNodeId(), NullTransactionId);
-    auto configYson = SyncYPathGet(~root, "sys/scheduler@");
-    auto configNode = DeserializeFromYson(configYson);
-    auto config = New<TConfig>();
-    config->LoadAndValidate(~configNode);
 
     TRedirectParams redirectParams;
-    redirectParams.Address = config->Address;
-    redirectParams.Timeout = config->Timeout;
+    try {
+        redirectParams.Address = SyncYPathGet(~root, "sys/scheduler@address");
+    } catch (const std::exception& ex) {
+        return TError(Sprintf("Error reading redirection parameters\n%s", ex.what()));
+    }
+
     return redirectParams;
 }
 

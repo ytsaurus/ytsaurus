@@ -1,97 +1,71 @@
 #pragma once
 
-#include "yson_consumer.h"
+#include "public.h"
+#include "attributes.pb.h"
+
+#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IMapNode;
-
 struct IAttributeDictionary
-    : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IAttributeDictionary> TPtr;
+    ~IAttributeDictionary()
+    { }
 
     // Returns the list of all attribute names.
-    virtual yhash_set<Stroka> ListAttributes() = 0;
+    virtual yhash_set<Stroka> List() const = 0;
 
-    //! Returns the value of the attribute (empty TYson indicates that the attribute is not found).
-    virtual TYson FindAttribute(const Stroka& name) = 0;
+    //! Returns the value of the attribute (NULL indicates that the attribute is not found).
+    virtual TNullable<TYson> FindYson(const Stroka& key) const = 0;
 
     //! Sets the value of the attribute.
-    virtual void SetAttribute(const Stroka& name, const TYson& value) = 0;
+    virtual void SetYson(const Stroka& key, const TYson& value) = 0;
 
     //! Removes the attribute.
-    virtual bool RemoveAttribute(const Stroka& name) = 0;
-
+    virtual bool Remove(const Stroka& key) = 0;
 
     // Extension methods
 
+    // TODO(babenko): make const
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
-    TYson GetAttribute(const Stroka& name);
+    TYson GetYson(const Stroka& key) const;
 
+    // TODO(babenko): make const
+    template <class T>
+    typename TDeserializeTraits<T>::TReturnType Get(const Stroka& key) const;
+
+    template <class T>
+    typename TNullableTraits<
+        typename TDeserializeTraits<T>::TReturnType
+    >::TNullableType Find(const Stroka& key) const;
+
+    template <class T>
+    void Set(const Stroka& key, const T& value);
+    
     //! Converts the instance into a map node (by copying and deserliazing the values).
-    TIntrusivePtr<IMapNode> ToMap();
+    TIntrusivePtr<IMapNode> ToMap() const;
 
     //! Adds more attributes from another map node.
-    void MergeFrom(const IMapNode* map);
+    void MergeFrom(const IMapNode* other);
+
+    //! Adds more attributes from another attribute dictionary.
+    void MergeFrom(const IAttributeDictionary* other);
 };
 
-IAttributeDictionary::TPtr CreateInMemoryAttributeDictionary();
+TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct IAttributeProvider
-    : public virtual TRefCounted
-{
-    virtual IAttributeDictionary::TPtr GetAttributes() = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct ISystemAttributeProvider
-    : public virtual TRefCounted
-{
-    typedef TIntrusivePtr<ISystemAttributeProvider> TPtr;
-
-    //! Describes a system attribute.
-    struct TAttributeInfo
-    {
-        Stroka Name;
-        bool IsPresent;
-        bool IsOpaque;
-
-        TAttributeInfo(const char* name, bool isPresent = true, bool isOpaque = false)
-            : Name(name)
-            , IsPresent(isPresent)
-            , IsOpaque(isOpaque)
-        { }
-    };
-
-    //! Populates the list of all system attributes supported by this object.
-    /*!
-     *  \note
-     *  Must not clear #attributes since additional items may be added in inheritors.
-     */
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) = 0;
-
-    //! Gets the value of a system attribute.
-    /*!
-     *  \returns False if there is no system attribute with the given name.
-     */
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) = 0;
-
-    //! Sets the value of a system attribute.
-    /*! 
-     *  \returns False if the attribute cannot be set or
-     *  there is no system attribute with the given name.
-     */
-    virtual bool SetSystemAttribute(const Stroka& name, TYsonProducer* producer) = 0;
-};
+// TODO(babenko): add const for attributes
+void ToProto(NProto::TAttributes* protoAttributes, IAttributeDictionary& attributes);
+TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT
+
+#define ATTRIBUTES_INL_H_
+#include "attributes-inl.h"
+#undef ATTRIBUTES_INL_H_

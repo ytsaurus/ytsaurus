@@ -34,7 +34,7 @@ public:
             Register("ping_interval", PingInterval)
                 .GreaterThan(TDuration())
                 .Default(TDuration::MilliSeconds(1000));
-            Register("rpc_timeout", PingInterval)
+            Register("rpc_timeout", RpcTimeout)
                 .GreaterThan(TDuration())
                 .Default(TDuration::MilliSeconds(1000));
         }
@@ -55,7 +55,7 @@ private:
     typedef TMetaStateManagerProxy TProxy;
 
     void SendPing();
-    void OnSendPing(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
+    void OnPingReply(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
 
     TConfig::TPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;

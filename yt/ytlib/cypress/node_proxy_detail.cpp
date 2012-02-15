@@ -35,32 +35,32 @@ ICypressNodeProxy::TPtr TNodeFactory::DoCreate(EObjectType type)
     return CypressManager->GetVersionedNodeProxy(id, NullTransactionId);
 }
 
-IStringNode::TPtr TNodeFactory::CreateString()
+TStringNodePtr TNodeFactory::CreateString()
 {
     return DoCreate(EObjectType::StringNode)->AsString();
 }
 
-IInt64Node::TPtr TNodeFactory::CreateInt64()
+TInt64NodePtr TNodeFactory::CreateInt64()
 {
     return DoCreate(EObjectType::Int64Node)->AsInt64();
 }
 
-IDoubleNode::TPtr TNodeFactory::CreateDouble()
+TDoubleNodePtr TNodeFactory::CreateDouble()
 {
     return DoCreate(EObjectType::DoubleNode)->AsDouble();
 }
 
-IMapNode::TPtr TNodeFactory::CreateMap()
+TMapNodePtr TNodeFactory::CreateMap()
 {
     return DoCreate(EObjectType::MapNode)->AsMap();
 }
 
-IListNode::TPtr TNodeFactory::CreateList()
+TListNodePtr TNodeFactory::CreateList()
 {
     return DoCreate(EObjectType::ListNode)->AsList();
 }
 
-IEntityNode::TPtr TNodeFactory::CreateEntity()
+TEntityNodePtr TNodeFactory::CreateEntity()
 {
     ythrow yexception() << "Entity nodes cannot be created inside Cypress";
 }
@@ -105,10 +105,10 @@ int TMapNodeProxy::GetChildCount() const
     return GetTypedImpl().ChildCountDelta();
 }
 
-yvector< TPair<Stroka, INode::TPtr> > TMapNodeProxy::GetChildren() const
+yvector< TPair<Stroka, TNodePtr> > TMapNodeProxy::GetChildren() const
 {
     const auto& children = DoGetChildren();
-    return yvector< TPair<Stroka, INode::TPtr> >(children.begin(), children.end());
+    return yvector< TPair<Stroka, TNodePtr> >(children.begin(), children.end());
 }
 
 yvector<Stroka> TMapNodeProxy::GetKeys() const
@@ -121,7 +121,7 @@ yvector<Stroka> TMapNodeProxy::GetKeys() const
     return result;
 }
 
-INode::TPtr TMapNodeProxy::FindChild(const Stroka& key) const
+TNodePtr TMapNodeProxy::FindChild(const Stroka& key) const
 {
     return DoFindChild(key, false);
 }
@@ -256,9 +256,9 @@ Stroka TMapNodeProxy::GetChildKey(const INode* child)
     YUNREACHABLE();
 }
 
-yhash_map<Stroka, INode::TPtr> TMapNodeProxy::DoGetChildren() const
+yhash_map<Stroka, TNodePtr> TMapNodeProxy::DoGetChildren() const
 {
-    yhash_map<Stroka, INode::TPtr> result;
+    yhash_map<Stroka, TNodePtr> result;
     auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
     for (auto it = transactionIds.rbegin(); it != transactionIds.rend(); ++it) {
         const auto& transactionId = *it;
@@ -275,7 +275,7 @@ yhash_map<Stroka, INode::TPtr> TMapNodeProxy::DoGetChildren() const
     return result;
 }
 
-INode::TPtr TMapNodeProxy::DoFindChild(const Stroka& key, bool skipCurrentTransaction) const
+TNodePtr TMapNodeProxy::DoFindChild(const Stroka& key, bool skipCurrentTransaction) const
 {
     auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
     FOREACH (const auto& transactionId, transactionIds) {
@@ -375,9 +375,9 @@ int TListNodeProxy::GetChildCount() const
     return GetTypedImpl().IndexToChild().ysize();
 }
 
-yvector<INode::TPtr> TListNodeProxy::GetChildren() const
+yvector<TNodePtr> TListNodeProxy::GetChildren() const
 {
-    yvector<INode::TPtr> result;
+    yvector<TNodePtr> result;
     const auto& list = GetTypedImpl().IndexToChild();
     result.reserve(list.ysize());
     FOREACH (const auto& nodeId, list) {
@@ -386,7 +386,7 @@ yvector<INode::TPtr> TListNodeProxy::GetChildren() const
     return result;
 }
 
-INode::TPtr TListNodeProxy::FindChild(int index) const
+TNodePtr TListNodeProxy::FindChild(int index) const
 {
     const auto& list = GetTypedImpl().IndexToChild();
     return index >= 0 && index < list.ysize() ? GetProxy(list[index]) : NULL;

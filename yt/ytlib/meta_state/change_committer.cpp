@@ -94,10 +94,10 @@ public:
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfId()) continue;
 
-            auto proxy = cellManager->GetMasterProxy<TProxy>(id);
-            proxy->SetTimeout(Committer->Config->RpcTimeout);
-
-            auto request = proxy->ApplyChanges();
+            auto request =
+                cellManager->GetMasterProxy<TProxy>(id)
+                ->ApplyChanges()
+                ->SetTimeout(Committer->Config->RpcTimeout);
             request->set_segment_id(StartVersion.SegmentId);
             request->set_record_count(StartVersion.RecordCount);
             request->set_epoch(Committer->Epoch.ToProto());

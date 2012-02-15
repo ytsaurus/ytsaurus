@@ -31,12 +31,14 @@ public:
         TRetryConfig* config,
         IChannel* underlyingChannel);
 
-    void Send(
+    virtual TNullable<TDuration> GetDefaultTimeout() const;
+
+    virtual void Send(
         IClientRequest* request, 
         IClientResponseHandler* responseHandler, 
-        TDuration timeout);
+        TNullable<TDuration> timeout);
 
-    void Terminate();
+    virtual void Terminate();
 
 };
 
@@ -61,7 +63,7 @@ public:
         TRetriableChannel* channel,
         IClientRequest* request,
         IClientResponseHandler* originalHandler,
-        TDuration timeout)
+        TNullable<TDuration> timeout)
         : CurrentAttempt(0)
         , Channel(channel)
         , Request(request)
@@ -72,7 +74,7 @@ public:
         YASSERT(request);
         YASSERT(originalHandler);
 
-        DeadLine = TInstant::Now() + Timeout;
+        Deadline = Timeout ? TInstant::Now() + Timeout.Get() : TInstant::Max();
     }
 
     void Send() 
@@ -82,11 +84,11 @@ public:
             static_cast<int>(CurrentAttempt));
 
         auto now = TInstant::Now();
-        if (now < DeadLine) {
+        if (now < Deadline) {
             Channel->GetUnderlyingChannel()->Send(
                 ~Request,
                 this,
-                DeadLine - now);
+                Deadline - now);
         } else {
             ReportUnavailable();
         }
@@ -98,8 +100,8 @@ private:
     TRetriableChannel::TPtr Channel;
     IClientRequest::TPtr Request;
     IClientResponseHandler::TPtr OriginalHandler;
-    TDuration Timeout;
-    TInstant DeadLine;
+    TNullable<TDuration> Timeout;
+    TInstant Deadline;
     Stroka CumulativeErrorMessage;
 
     DECLARE_ENUM(EState, 
@@ -146,7 +148,7 @@ private:
 
             TDuration backoffTime = Channel->GetConfig()->BackoffTime;
             if (count < Channel->GetConfig()->RetryCount &&
-                TInstant::Now() + backoffTime < DeadLine)
+                TInstant::Now() + backoffTime < Deadline)
             {
                 TDelayedInvoker::Submit(
                     ~FromMethod(&TRetriableRequest::Send, TPtr(this)),
@@ -201,7 +203,7 @@ TRetriableChannel::TRetriableChannel(
 void TRetriableChannel::Send(
     IClientRequest* request, 
     IClientResponseHandler* responseHandler, 
-    TDuration timeout)
+    TNullable<TDuration> timeout)
 {
     YASSERT(request);
     YASSERT(responseHandler);
@@ -218,6 +220,11 @@ void TRetriableChannel::Send(
 void TRetriableChannel::Terminate()
 {
     UnderlyingChannel_->Terminate();
+}
+
+TNullable<TDuration> TRetriableChannel::GetDefaultTimeout() const
+{
+    return UnderlyingChannel_->GetDefaultTimeout();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -150,15 +150,15 @@ IMPLEMENT_SUPPORTS_VERB(Remove)
 namespace {
 
 static TYson DoGetAttribute(
-    IAttributeDictionary* userAttributeDictionary,
+    IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
-    const Stroka& name,
+    const Stroka& key,
     bool* isSystem = NULL)
 {
     if (systemAttributeProvider) {
         TStringStream stream;
         TYsonWriter writer(&stream, EYsonFormat::Binary);
-        if (systemAttributeProvider->GetSystemAttribute(name, &writer)) {
+        if (systemAttributeProvider->GetSystemAttribute(key, &writer)) {
             if (isSystem) {
                 *isSystem = true;
             }
@@ -169,34 +169,34 @@ static TYson DoGetAttribute(
     if (isSystem) {
         *isSystem = false;
     }
-    return userAttributeDictionary->GetAttribute(name);
+    return userAttributes->GetYson(key);
 }
 
 static void DoSetAttribute(
-    IAttributeDictionary* userAttributeDictionary,
+    IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
-    const Stroka& name,
+    const Stroka& key,
     INode* value,
     bool isSystem)
 {
     if (isSystem) {
         YASSERT(systemAttributeProvider);
-        if (!systemAttributeProvider->SetSystemAttribute(name, ~ProducerFromNode(value))) {
-            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
+        if (!systemAttributeProvider->SetSystemAttribute(key, ~ProducerFromNode(value))) {
+            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
         }
     } else {
-        userAttributeDictionary->SetAttribute(name, SerializeToYson(value));
+        userAttributes->SetYson(key, SerializeToYson(value));
     }
 }
 
 static void DoSetAttribute(
-    IAttributeDictionary* userAttributeDictionary,
+    IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
-    const Stroka& name,
+    const Stroka& key,
     const TYson& value)
 {
     if (systemAttributeProvider) {
-        if (systemAttributeProvider->SetSystemAttribute(name, ~ProducerFromYson(value))) {
+        if (systemAttributeProvider->SetSystemAttribute(key, ~ProducerFromYson(value))) {
             return;
         }
 
@@ -205,14 +205,14 @@ static void DoSetAttribute(
     	systemAttributeProvider->GetSystemAttributes(&systemAttributes);
     	        
         FOREACH (const auto& attribute, systemAttributes) {
-	        if (attribute.Name == name) {
-    	        ythrow yexception() << Sprintf("System attribute %s cannot be set", ~name.Quote());
+	        if (attribute.Key == key) {
+    	        ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
             }
         }
     }
         
 
-    userAttributeDictionary->SetAttribute(name, value);
+    userAttributes->SetYson(key, value);
 }
 
 } // namespace <anonymous>
@@ -239,7 +239,7 @@ void TSupportsAttributes::GetAttribute(
     TRspGet* response,
     TCtxGet* context)
 {
-    auto userAttributeDictionary = GetUserAttributeDictionary();
+    auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
     
     if (IsFinalYPath(path)) {
@@ -253,20 +253,22 @@ void TSupportsAttributes::GetAttribute(
             systemAttributeProvider->GetSystemAttributes(&systemAttributes);
             FOREACH (const auto& attribute, systemAttributes) {
                 if (attribute.IsPresent) {
-                    writer.OnMapItem(attribute.Name);
+                    writer.OnMapItem(attribute.Key);
                     if (attribute.IsOpaque) {
                         writer.OnEntity();
                     } else {
-                        YVERIFY(systemAttributeProvider->GetSystemAttribute(attribute.Name, &writer));
+                        YVERIFY(systemAttributeProvider->GetSystemAttribute(attribute.Key, &writer));
                     }
                 }
             }
         }
 
-        const auto& userAttributes = userAttributeDictionary->ListAttributes();
-        FOREACH (const auto& name, userAttributes) {
-            writer.OnMapItem(name);
-            writer.OnRaw(userAttributeDictionary->GetAttribute(name));
+        const auto& userAttributeSet = userAttributes->List();
+        std::vector<Stroka> userAttributeList(userAttributeSet.begin(), userAttributeSet.end());
+        std::sort(userAttributeList.begin(), userAttributeList.end());
+        FOREACH (const auto& key, userAttributeList) {
+            writer.OnMapItem(key);
+            writer.OnRaw(userAttributes->GetYson(key));
         }
         
         writer.OnEndMap();
@@ -277,7 +279,7 @@ void TSupportsAttributes::GetAttribute(
         TYPath suffixPath;
         ChopYPathToken(path, &token, &suffixPath);
 
-        const auto& yson = DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token);
+        const auto& yson = DoGetAttribute(userAttributes, systemAttributeProvider, token);
 
         if (IsFinalYPath(suffixPath)) {
             response->set_value(yson);
@@ -297,7 +299,7 @@ void TSupportsAttributes::ListAttribute(
     TRspList* response,
     TCtxList* context)
 {
-    auto userAttributeDictionary = GetUserAttributeDictionary();
+    auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
     
     yvector<Stroka> keys;
@@ -308,25 +310,27 @@ void TSupportsAttributes::ListAttribute(
             systemAttributeProvider->GetSystemAttributes(&systemAttributes);
             FOREACH (const auto& attribute, systemAttributes) {
                 if (attribute.IsPresent) {
-                    keys.push_back(attribute.Name);
+                    keys.push_back(attribute.Key);
                 }
             }
         }
         
-        const auto& userAttributes = userAttributeDictionary->ListAttributes();
+        const auto& userKeys = userAttributes->List();
         // If we used vector instead of yvector, we could start with user
         // attributes instead of copying them.
-        keys.insert(keys.end(), userAttributes.begin(), userAttributes.end());
+        keys.insert(keys.end(), userKeys.begin(), userKeys.end());
     } else {
         Stroka token;
         TYPath suffixPath;
         ChopYPathToken(path, &token, &suffixPath);
 
-        auto wholeValue = DeserializeFromYson(DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token));
+        auto wholeValue = DeserializeFromYson(DoGetAttribute(userAttributes, systemAttributeProvider, token));
         keys = SyncYPathList(~wholeValue, suffixPath);
     }
 
-    ToProto(*response->mutable_keys(), keys);
+    std::sort(keys.begin(), keys.end());
+
+    NYT::ToProto(response->mutable_keys(), keys);
     context->Reply();
 }
 
@@ -336,7 +340,7 @@ void TSupportsAttributes::SetAttribute(
     TRspSet* response,
     TCtxSet* context)
 {
-    auto userAttributeDictionary = GetUserAttributeDictionary();
+    auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
     
     if (IsFinalYPath(path)) {
@@ -345,9 +349,9 @@ void TSupportsAttributes::SetAttribute(
             ythrow yexception() << "Map value expected";
         }
 
-        const auto& userAttributes = userAttributeDictionary->ListAttributes();
-        FOREACH (const auto& name, userAttributes) {
-            YVERIFY(userAttributeDictionary->RemoveAttribute(name));
+        const auto& userKeys = userAttributes->List();
+        FOREACH (const auto& key, userKeys) {
+            YVERIFY(userAttributes->Remove(key));
         }
 
         auto mapValue = value->AsMap();
@@ -355,7 +359,7 @@ void TSupportsAttributes::SetAttribute(
             auto key = pair.first;
             YASSERT(!key.empty());
             auto value = SerializeToYson(~pair.second);
-            DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, key, value);
+            DoSetAttribute(userAttributes, systemAttributeProvider, key, value);
         }
     } else {
         Stroka token;
@@ -366,17 +370,17 @@ void TSupportsAttributes::SetAttribute(
             if (token.empty()) {
                 ythrow yexception() << "Attribute key cannot be empty";
             }
-            DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, request->value());
+            DoSetAttribute(userAttributes, systemAttributeProvider, token, request->value());
         } else {
             Stroka token;
             TYPath suffixPath;
             ChopYPathToken(path, &token, &suffixPath);
 
             bool isSystem;
-            auto yson = DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, &isSystem);
+            auto yson = DoGetAttribute(userAttributes, systemAttributeProvider, token, &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
             SyncYPathSet(~wholeValue, suffixPath, request->value());
-            DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, ~wholeValue, isSystem);
+            DoSetAttribute(userAttributes, systemAttributeProvider, token, ~wholeValue, isSystem);
         }
     }
 
@@ -389,13 +393,13 @@ void TSupportsAttributes::RemoveAttribute(
     TRspRemove* response,
     TCtxRemove* context)
 {
-    auto userAttributeDictionary = GetUserAttributeDictionary();
+    auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
     
    if (IsFinalYPath(path)) {
-        const auto& userAttributes = userAttributeDictionary->ListAttributes();
-        FOREACH (const auto& name, userAttributes) {
-            YVERIFY(userAttributeDictionary->RemoveAttribute(name));
+        const auto& userKeys = userAttributes->List();
+        FOREACH (const auto& key, userKeys) {
+            YVERIFY(userAttributes->Remove(key));
         }
     } else {
         Stroka token;
@@ -403,7 +407,7 @@ void TSupportsAttributes::RemoveAttribute(
         ChopYPathToken(path, &token, &suffixPath);
 
         if (IsFinalYPath(suffixPath)) {
-            if (!userAttributeDictionary->RemoveAttribute(token)) {
+            if (!userAttributes->Remove(token)) {
                 ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
             }
         } else {
@@ -412,10 +416,10 @@ void TSupportsAttributes::RemoveAttribute(
             ChopYPathToken(path, &token, &suffixPath);
 
             bool isSystem;
-            auto yson = DoGetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, &isSystem);
+            auto yson = DoGetAttribute(userAttributes, systemAttributeProvider, token, &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
             SyncYPathRemove(~wholeValue, suffixPath);
-            DoSetAttribute(~userAttributeDictionary, ~systemAttributeProvider, token, ~wholeValue, isSystem);
+            DoSetAttribute(userAttributes, systemAttributeProvider, token, ~wholeValue, isSystem);
         }
     }
 
@@ -479,10 +483,10 @@ void TNodeSetterBase::OnMyBeginAttributes()
     SyncYPathRemove(~Node, AttributeMarker);
 }
 
-void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
+void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
 {
     YASSERT(!AttributeWriter);
-    AttributeName = name;
+    AttributeKey = key;
     AttributeStream = new TStringOutput(AttributeValue);
     AttributeWriter = new TYsonWriter(AttributeStream.Get());
     ForwardNode(~AttributeWriter, ~FromMethod(&TThis::OnForwardingFinished, this));
@@ -490,10 +494,10 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& name)
 
 void TNodeSetterBase::OnForwardingFinished()
 {
-    SyncYPathSet(~Node, AttributeMarker + AttributeName, AttributeValue);
+    SyncYPathSet(~Node, AttributeMarker + AttributeKey, AttributeValue);
     AttributeWriter.Destroy();
     AttributeStream.Destroy();
-    AttributeName.clear();
+    AttributeKey.clear();
 }
 
 void TNodeSetterBase::OnMyEndAttributes()

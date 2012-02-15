@@ -6,12 +6,23 @@
 #include "guid.h"
 #include "string.h"
 #include "nullable.h"
+#include "enum.h"
 
+#include <ytlib/actions/action_util.h>
 #include <ytlib/ytree/serialize.h>
-#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/tree_visitor.h>
+#include <ytlib/ytree/yson_consumer.h>
 
 #include <util/datetime/base.h>
+
+// Avoid circular references.
+namespace NYT {
+namespace NYTree {
+    TYPath CombineYPaths(
+        const TYPath& path1,
+        const TYPath& path2);
+}
+}
 
 namespace NYT {
 namespace NConfig {
@@ -21,7 +32,7 @@ namespace NConfig {
 template <class T, class = void>
 struct TLoadHelper
 {
-    static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(T& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         UNUSED(path);
         NYTree::Read(parameter, node);
@@ -35,7 +46,7 @@ struct TLoadHelper<
     typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TConfigurable*> >::TType
 >
 {
-    static void Load(T& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(T& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         if (!parameter) {
             parameter = New<T>();
@@ -48,7 +59,7 @@ struct TLoadHelper<
 template <class T>
 struct TLoadHelper<TNullable<T>, void>
 {
-    static void Load(TNullable<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(TNullable<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         T value;
         TLoadHelper<T>::Load(value, node, path);
@@ -60,7 +71,7 @@ struct TLoadHelper<TNullable<T>, void>
 template <class T>
 struct TLoadHelper<yvector<T>, void>
 {
-    static void Load(yvector<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yvector<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
@@ -75,7 +86,7 @@ struct TLoadHelper<yvector<T>, void>
 template <class T>
 struct TLoadHelper<yhash_set<T>, void>
 {
-    static void Load(yhash_set<T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yhash_set<T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
@@ -91,7 +102,7 @@ struct TLoadHelper<yhash_set<T>, void>
 template <class T>
 struct TLoadHelper<yhash_map<Stroka, T>, void>
 {
-    static void Load(yhash_map<Stroka, T>& parameter, const NYTree::INode* node, const NYTree::TYPath& path)
+    static void Load(yhash_map<Stroka, T>& parameter, NYTree::INode* node, const NYTree::TYPath& path)
     {
         auto mapNode = node->AsMap();
         FOREACH (const auto& pair, mapNode->GetChildren()) {
@@ -102,137 +113,6 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
         }
     }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TConfigurable::TPtr
-template <class T>
-inline void Write(
-    const TIntrusivePtr<T>& parameter,
-    NYTree::IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TConfigurable* >, int>::TType = 0)
-{
-    YASSERT(parameter);
-    parameter->Save(consumer);
-}
-
-// i64
-inline void Write(i64 parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter);
-}
-
-// i32
-inline void Write(i32 parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter);
-}
-
-// ui32
-inline void Write(ui32 parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter);
-}
-
-// ui16
-inline void Write(ui16 parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter);
-}
-
-// double
-inline void Write(double parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnDoubleScalar(parameter);
-}
-
-// Stroka
-inline void Write(const Stroka& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(parameter);
-}
-
-// bool
-inline void Write(bool parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(FormatBool(parameter));
-}
-
-// TDuration
-inline void Write(const TDuration& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnInt64Scalar(parameter.MilliSeconds());
-}
-
-// TGuid
-inline void Write(const TGuid& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnStringScalar(parameter.ToString());
-}
-
-// TEnumBase
-template <class T>
-inline void Write(
-    const T& parameter,
-    NYTree::IYsonConsumer* consumer,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible< T, TEnumBase<T> >, int>::TType = 0)
-{
-    consumer->OnStringScalar(parameter.ToString());
-}
-
-// TNullable
-template <class T>
-inline void Write(const TNullable<T>& parameter, NYTree::IYsonConsumer* consumer)
-{
-    YASSERT(parameter);
-    Write(*parameter, consumer);
-}
-
-// INode::TPtr
-inline void Write(const NYTree::INode::TPtr& parameter, NYTree::IYsonConsumer* consumer)
-{
-    YASSERT(parameter);
-    NYTree::TTreeVisitor visitor(consumer, false);
-    visitor.Visit(~parameter);
-}
-
-// yvector
-template <class T>
-inline void Write(const yvector<T>& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnBeginList();
-    FOREACH (const auto& value, parameter) {
-        consumer->OnListItem();
-        Write(value, consumer);
-    }
-    consumer->OnEndList();
-}
-
-// yhash_set
-template <class T>
-inline void Write(const yhash_set<T>& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnBeginList();
-    auto sortedItems = GetSortedIterators(parameter);
-    FOREACH (const auto& value, sortedItems) {
-        consumer->OnListItem();
-        Write(*value, consumer);
-    }
-    consumer->OnEndList();
-}
-
-// yhash_map
-template <class T>
-inline void Write(const yhash_map<Stroka, T>& parameter, NYTree::IYsonConsumer* consumer)
-{
-    consumer->OnBeginMap();
-    auto sortedItems = GetSortedIterators(parameter);
-    FOREACH (const auto& pair, sortedItems) {
-        consumer->OnMapItem(pair->first);
-        Write(pair->second, consumer);
-    }
-    consumer->OnEndMap();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -311,7 +191,7 @@ TParameter<T>::TParameter(T& parameter)
 { }
 
 template <class T>
-void TParameter<T>::Load(const NYTree::INode* node, const NYTree::TYPath& path)
+void TParameter<T>::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
     if (node) {
         try {
@@ -347,7 +227,7 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
 template<class T>
 void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
 {
-    Write(Parameter, consumer);
+    NYTree::Write(Parameter, consumer);
 }
 
 template<class T>

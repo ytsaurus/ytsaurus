@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "enum.h"
 
 namespace NYT {
 
@@ -90,6 +91,18 @@ inline Stroka CamelCaseToUnderscoreCase(const Stroka& data)
         first = false;
     }
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline Stroka TrimLeadingWhitespace(const Stroka& data)
+{
+    for (int i = 0; i < data.size(); ++i) {
+        if (data[i] != ' ') {
+            return data.substr(i);
+        }
+    }
+    return "";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

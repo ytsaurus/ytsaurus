@@ -7,7 +7,7 @@
 #include <ytlib/rpc/channel.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
-#include <ytlib/ytree/ytree_fwd.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -33,14 +33,9 @@ public:
         //! An internal between successive transaction pings.
         TDuration PingPeriod;
 
-        //! A timeout for RPC requests to masters.
-        TDuration MasterRpcTimeout;
-
         TConfig()
         {
             Register("ping_period", PingPeriod)
-                .Default(TDuration::Seconds(5));
-            Register("master_rpc_timeout", PingPeriod)
                 .Default(TDuration::Seconds(5));
         }
     };
