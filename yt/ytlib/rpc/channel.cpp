@@ -29,10 +29,16 @@ class TChannel
 public:
     typedef TIntrusivePtr<TChannel> TPtr;
 
-    TChannel(NBus::IBusClient* client)
-        : Terminated(false)
+    TChannel(IBusClient* client, TNullable<TDuration> defaultTimeout)
+        : DefaultTimeout(defaultTimeout)
+        , Terminated(false)
     {
         Bus = client->CreateBus(this);
+    }
+
+    virtual TNullable<TDuration> GetDefaultTimeout() const
+    {
+        return DefaultTimeout;
     }
 
     virtual void Send(
@@ -112,8 +118,9 @@ private:
 
     typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
 
+    TNullable<TDuration> DefaultTimeout;
     volatile bool Terminated;
-    NBus::IBus::TPtr Bus;
+    IBus::TPtr Bus;
     TRequestMap ActiveRequests;
     //! Protects #ActiveRequests and #Terminated.
     TSpinLock SpinLock;
@@ -233,16 +240,22 @@ private:
 
 };          
 
-IChannel::TPtr CreateBusChannel(NBus::IBusClient* client)
+IChannel::TPtr CreateBusChannel(
+    IBusClient* client,
+    TNullable<TDuration> defaultTimeout)
 {
     YASSERT(client);
 
-    return New<TChannel>(client);
+    return New<TChannel>(client, defaultTimeout);
 }
 
-IChannel::TPtr CreateBusChannel(const Stroka& address)
+IChannel::TPtr CreateBusChannel(
+    const Stroka& address,
+    TNullable<TDuration> defaultTimeout)
 {
-    return New<TChannel>(~CreateNLBusClient(~New<TNLBusClientConfig>(address)));
+    return CreateBusChannel(
+        ~CreateNLBusClient(~New<TNLBusClientConfig>(address)),
+        defaultTimeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

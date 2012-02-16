@@ -29,23 +29,34 @@ public:
         , Verb(verb)
     { }
 
-    IMessage::TPtr Serialize() const
+    virtual IMessage::TPtr Serialize() const
     {
         return Message;
     }
 
-    const TRequestId& GetRequestId() const
+    virtual const TRequestId& GetRequestId() const
     {
         return RequestId;
     }
 
-    const Stroka& GetPath() const
+    virtual const Stroka& GetPath() const
     {
         return Path;
     }
-    const Stroka& GetVerb() const
+
+    virtual const Stroka& GetVerb() const
     {
         return Verb;
+    }
+
+    virtual NYTree::IAttributeDictionary* Attributes()
+    {
+        YUNREACHABLE();
+    }
+
+    virtual const NYTree::IAttributeDictionary* Attributes() const
+    {
+        YUNREACHABLE();
     }
 
 private:
@@ -107,9 +118,11 @@ void TRedirectorServiceBase::OnBeginRequest(IServiceContext* context)
 
             const auto& params = result.Value();
 
-            context_->SetRequestInfo(Sprintf("Address: %s, Timeout: %d",
+            context_->SetRequestInfo(Sprintf("Address: %s, Timeout: %s",
                 ~params.Address,
-                static_cast<int>(params.Timeout.MilliSeconds())));
+                params.Timeout
+                ? ~ToString(params.Timeout.Get().MilliSeconds())
+                : "None"));
 
             auto channel = ChannelCache.GetChannel(params.Address);
 

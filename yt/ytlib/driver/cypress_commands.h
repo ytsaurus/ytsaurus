@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/object_server/id.h>
 
 namespace NYT {
@@ -14,7 +14,7 @@ struct TGetRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::INode::TPtr Stream;
+    NYTree::TNodePtr Stream;
 
     TGetRequest()
     {
@@ -43,8 +43,8 @@ struct TSetRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::INode::TPtr Value;
-    NYTree::INode::TPtr Stream;
+    NYTree::TNodePtr Value;
+    NYTree::TNodePtr Stream;
 
     TSetRequest()
     {
@@ -110,7 +110,7 @@ struct TListRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::INode::TPtr Stream;
+    NYTree::TNodePtr Stream;
 
     TListRequest()
     {
@@ -139,9 +139,9 @@ struct TCreateRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::INode::TPtr Stream;
+    NYTree::TNodePtr Stream;
     NObjectServer::EObjectType Type;
-    NYTree::INode::TPtr Manifest;
+    NYTree::TNodePtr Manifest;
 
     TCreateRequest()
     {

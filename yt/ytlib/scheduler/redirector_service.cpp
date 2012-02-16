@@ -23,20 +23,6 @@ TRedirectorService::TRedirectorService(TCypressManager* cypressManager)
     , CypressManager(cypressManager)
 { }
 
-struct TRedirectorService::TConfig
-    : public TConfigurable
-{
-    Stroka Address;
-    TDuration Timeout;
-
-    TConfig()
-    {
-        Register("address", Address);
-        Register("timeout", Timeout)
-            .Default(TDuration::MilliSeconds(5000));
-    }
-};
-
 TRedirectorService::TAsyncRedirectResult TRedirectorService::HandleRedirect(IServiceContext* context)
 {
     return 
@@ -51,16 +37,15 @@ TRedirectorService::TRedirectResult TRedirectorService::DoHandleRedirect(IServic
         return TError("Not a leader");
     }
 
-    // TODO(babenko): refactor using new API
     auto root = CypressManager->GetVersionedNodeProxy(CypressManager->GetRootNodeId(), NullTransactionId);
-    auto configYson = SyncYPathGet(~root, "sys/scheduler@");
-    auto configNode = DeserializeFromYson(configYson);
-    auto config = New<TConfig>();
-    config->LoadAndValidate(~configNode);
 
     TRedirectParams redirectParams;
-    redirectParams.Address = config->Address;
-    redirectParams.Timeout = config->Timeout;
+    try {
+        redirectParams.Address = SyncYPathGet(~root, "sys/scheduler@address");
+    } catch (const std::exception& ex) {
+        return TError(Sprintf("Error reading redirection parameters\n%s", ex.what()));
+    }
+
     return redirectParams;
 }
 

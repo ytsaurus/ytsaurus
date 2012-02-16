@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NDriver {
@@ -13,7 +13,7 @@ struct TReadRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::INode::TPtr Stream;
+    NYTree::TNodePtr Stream;
 
     TReadRequest()
     {
@@ -42,8 +42,8 @@ struct TWriteRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::INode::TPtr Stream;
-    NYTree::INode::TPtr Value;
+    NYTree::TNodePtr Stream;
+    NYTree::TNodePtr Value;
 
     TWriteRequest()
     {

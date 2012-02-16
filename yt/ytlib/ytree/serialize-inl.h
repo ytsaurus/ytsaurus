@@ -6,6 +6,7 @@
 #include "ytree.h"
 
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/serialize.h>
 #include <ytlib/misc/configurable.h>
 
 namespace NYT {
@@ -48,7 +49,7 @@ T CheckedStaticCast(i64 value)
 template <class T>
 void Read(
     TIntrusivePtr<T>& parameter,
-    const INode* node,
+    INode* node,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TConfigurable*>, int>::TType)
 {
     if (!parameter) {
@@ -63,7 +64,7 @@ void Read(
 template <class T>
 void Read(
     T& parameter,
-    const INode* node, 
+    INode* node, 
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
 {
     auto value = node->AsString()->GetValue();
@@ -72,7 +73,7 @@ void Read(
 
 // TNullable
 template <class T>
-void Read(TNullable<T>& parameter, const INode* node)
+void Read(TNullable<T>& parameter, INode* node)
 {
     T value;
     Read(value, node);
@@ -81,7 +82,7 @@ void Read(TNullable<T>& parameter, const INode* node)
 
 // yvector
 template <class T>
-void Read(yvector<T>& parameter, const INode* node)
+void Read(yvector<T>& parameter, INode* node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -93,7 +94,7 @@ void Read(yvector<T>& parameter, const INode* node)
 
 // yhash_set
 template <class T>
-void Read(yhash_set<T>& parameter, const INode* node)
+void Read(yhash_set<T>& parameter, INode* node)
 {
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
@@ -106,7 +107,7 @@ void Read(yhash_set<T>& parameter, const INode* node)
 
 // yhash_map
 template <class T>
-void Read(yhash_map<Stroka, T>& parameter, const INode* node)
+void Read(yhash_map<Stroka, T>& parameter, INode* node)
 {
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, mapNode->GetChildren()) {
@@ -146,7 +147,7 @@ void Write(
 // TEnumBase
 template <class T>
 void Write(
-    const T& parameter,
+    T parameter,
     IYsonConsumer* consumer,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
 {
@@ -201,5 +202,5 @@ void Write(const yhash_map<Stroka, T>& parameter, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-}
+} // namespace NYTree
+} // namespace NYT

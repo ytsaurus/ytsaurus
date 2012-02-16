@@ -343,7 +343,7 @@ TYson SyncYPathGet(IYPathService* service, const TYPath& path)
     return result.Value();
 }
 
-INode::TPtr SyncYPathGetNode(IYPathService* service, const TYPath& path)
+TNodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path)
 {
     auto request = TYPathProxy::GetNode(path);
     auto response = ExecuteVerb(service, ~request)->Get();
@@ -379,7 +379,7 @@ yvector<Stroka> SyncYPathList(IYPathService* service, const TYPath& path)
     auto request = TYPathProxy::List(path);
     auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
-    return FromProto<Stroka>(response->keys());
+    return NYT::FromProto<Stroka>(response->keys());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

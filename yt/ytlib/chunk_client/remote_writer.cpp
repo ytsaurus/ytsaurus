@@ -46,7 +46,7 @@ struct TRemoteWriter::THolder
         , Address(address)
         , Proxy(~HolderChannelCache->GetChannel(address))
     {
-        Proxy.SetTimeout(timeout);
+        Proxy.SetDefaultTimeout(timeout);
     }
 };
 

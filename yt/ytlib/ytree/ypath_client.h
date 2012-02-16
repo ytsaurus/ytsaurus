@@ -1,8 +1,7 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "ypath_service.h"
-#include "ytree.h"
 
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/property.h>
@@ -12,18 +11,6 @@
 
 namespace NYT {
 namespace NYTree {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TYPathRequest;
-
-template <class TRequestMessage, class TResponseMessage>
-class TTypedYPathRequest;
-
-class TYPathResponse;
-
-template <class TRequestMessage, class TResponseMessage>
-class TTypedYPathResponse;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,7 +187,7 @@ TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, cons
 TYson SyncYPathGet(IYPathService* service, const TYPath& path);
 
 //! Synchronously executes "GetNode" verb. Throws if an error has occurred.
-INode::TPtr SyncYPathGetNode(IYPathService* service, const TYPath& path);
+TNodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path);
 
 //! Synchronously executes "Set" verb. Throws if an error has occurred.
 void SyncYPathSet(IYPathService* service, const TYPath& path, const TYson& value);

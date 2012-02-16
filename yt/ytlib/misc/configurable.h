@@ -18,7 +18,7 @@ struct IParameter
     typedef TIntrusivePtr<IParameter> TPtr;
 
     // node can be NULL
-    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path) = 0;
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path) = 0;
     virtual void Validate(const NYTree::TYPath& path) const = 0;
     virtual void Save(NYTree::IYsonConsumer* consumer) const = 0;
     virtual bool IsPresent() const = 0;
@@ -38,7 +38,7 @@ public:
 
     explicit TParameter(T& parameter);
 
-    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path);
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path);
     virtual void Validate(const NYTree::TYPath& path) const;
     virtual void Save(NYTree::IYsonConsumer *consumer) const;
     virtual bool IsPresent() const;
@@ -75,8 +75,8 @@ public:
 
     TConfigurable();
 
-    void LoadAndValidate(const NYTree::INode* node, const NYTree::TYPath& path = "");
-    virtual void Load(const NYTree::INode* node, const NYTree::TYPath& path = "");
+    void LoadAndValidate(NYTree::INode* node, const NYTree::TYPath& path = "");
+    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "");
     void Validate(const NYTree::TYPath& path = "") const;
 
     void Save(NYTree::IYsonConsumer* consumer) const;

@@ -46,7 +46,7 @@ void TSetCommand::DoExecute(TSetRequest* request)
         value = SerializeToYson(~request->Value);
     } else {
         auto producer = DriverImpl->CreateInputProducer(ToStreamSpec(request->Stream));
-        value = SerializeToYson(~producer);
+        value = SerializeToYson(producer);
     }
     ypathRequest->set_value(value);
 

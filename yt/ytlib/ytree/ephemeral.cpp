@@ -22,12 +22,12 @@ public:
         : Parent(NULL)
     { }
 
-    virtual INodeFactory::TPtr CreateFactory() const
+    virtual TNodeFactoryPtr CreateFactory() const
     {
         return GetEphemeralNodeFactory();
     }
 
-    virtual ICompositeNode::TPtr GetParent() const
+    virtual TCompositeNodePtr GetParent() const
     {
         return Parent;
     }
@@ -39,30 +39,31 @@ public:
     }
 
 
-    virtual IAttributeDictionary::TPtr GetAttributes()
+    virtual IAttributeDictionary* Attributes()
     {
-        return GetUserAttributeDictionary();
+        return GetUserAttributes();
     }
 
 protected:
     // TSupportsAttributes members
 
-    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary()
+    virtual IAttributeDictionary* GetUserAttributes()
     {
-        if (!Attributes) {
-            Attributes = CreateInMemoryAttributeDictionary();
+        if (!Attributes_) {
+            Attributes_ = CreateEphemeralAttributes();
         }
-        return Attributes;
+        return Attributes_.Get();
     }
 
-    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() 
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
     {
         return NULL;
     }
 
 private:
     ICompositeNode* Parent;
-    IAttributeDictionary::TPtr Attributes;
+    TAutoPtr<IAttributeDictionary> Attributes_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,9 +150,9 @@ public:
         return KeyToChild.ysize();
     }
 
-    virtual yvector< TPair<Stroka, INode::TPtr> > GetChildren() const
+    virtual yvector< TPair<Stroka, TNodePtr> > GetChildren() const
     {
-        return yvector< TPair<Stroka, INode::TPtr> >(KeyToChild.begin(), KeyToChild.end());
+        return yvector< TPair<Stroka, TNodePtr> >(KeyToChild.begin(), KeyToChild.end());
     }
 
     virtual yvector<Stroka> GetKeys() const
@@ -164,7 +165,7 @@ public:
         return result;
     }
 
-    virtual INode::TPtr FindChild(const Stroka& key) const
+    virtual TNodePtr FindChild(const Stroka& key) const
     {
         auto it = KeyToChild.find(key);
         return it == KeyToChild.end() ? NULL : it->second;
@@ -245,8 +246,8 @@ public:
     }
 
 private:
-    yhash_map<Stroka, INode::TPtr> KeyToChild;
-    yhash_map<INode::TPtr, Stroka> ChildToKey;
+    yhash_map<Stroka, TNodePtr> KeyToChild;
+    yhash_map<TNodePtr, Stroka> ChildToKey;
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
@@ -302,12 +303,12 @@ public:
         return IndexToChild.ysize();
     }
 
-    virtual yvector<INode::TPtr> GetChildren() const
+    virtual yvector<TNodePtr> GetChildren() const
     {
         return IndexToChild;
     }
 
-    virtual INode::TPtr FindChild(int index) const
+    virtual TNodePtr FindChild(int index) const
     {
         return index >= 0 && index < IndexToChild.ysize() ? IndexToChild[index] : NULL;
     }
@@ -387,8 +388,8 @@ public:
     }
 
 private:
-    yvector<INode::TPtr> IndexToChild;
-    yhash_map<INode::TPtr, int> ChildToIndex;
+    yvector<TNodePtr> IndexToChild;
+    yhash_map<TNodePtr, int> ChildToIndex;
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb)
     {
@@ -431,32 +432,32 @@ class TEphemeralNodeFactory
     : public INodeFactory
 {
 public:
-    virtual IStringNode::TPtr CreateString()
+    virtual TStringNodePtr CreateString()
     {
         return New<TStringNode>();
     }
 
-    virtual IInt64Node::TPtr CreateInt64()
+    virtual TInt64NodePtr CreateInt64()
     {
         return New<TInt64Node>();
     }
 
-    virtual IDoubleNode::TPtr CreateDouble()
+    virtual TDoubleNodePtr CreateDouble()
     {
         return New<TDoubleNode>();
     }
 
-    virtual IMapNode::TPtr CreateMap()
+    virtual TMapNodePtr CreateMap()
     {
         return New<TMapNode>();
     }
 
-    virtual IListNode::TPtr CreateList()
+    virtual TListNodePtr CreateList()
     {
         return New<TListNode>();
     }
 
-    virtual IEntityNode::TPtr CreateEntity()
+    virtual TEntityNodePtr CreateEntity()
     {
         return New<TEntityNode>();
     }

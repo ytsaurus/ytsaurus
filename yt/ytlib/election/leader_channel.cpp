@@ -64,7 +64,12 @@ public:
         , LeaderLookup(New<TLeaderLookup>(config))
         , State(EState::NotConnected)
     { }
-    
+
+    virtual TNullable<TDuration> GetDefaultTimeout() const
+    {
+        return Config->RpcTimeout;
+    }
+
     virtual void Send(
         IClientRequest* request,
         IClientResponseHandler* responseHandler,
@@ -79,9 +84,8 @@ public:
             TPtr(this),
             request,
             responseHandler,
-            timeout ? timeout.Get() : Config->RpcTimeout));
+            timeout));
     }
-
 
     virtual void Terminate()
     {

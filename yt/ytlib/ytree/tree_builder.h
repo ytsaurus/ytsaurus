@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common.h"
-#include "ytree.h"
 #include "yson_consumer.h"
 
 namespace NYT {
@@ -21,7 +19,7 @@ struct ITreeBuilder
      *  \note
      *  Must be called after the tree is fully constructed.
      */
-    virtual INode::TPtr EndTree() = 0;
+    virtual TNodePtr EndTree() = 0;
 
 
     //! Enables inserting a pre-existing subtree into

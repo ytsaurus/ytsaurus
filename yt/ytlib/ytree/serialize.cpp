@@ -11,7 +11,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonProducer::TPtr ProducerFromYson(TInputStream* input)
+TYsonProducer ProducerFromYson(TInputStream* input)
 {
     return FromFunctor([=] (IYsonConsumer* consumer)
         {
@@ -20,7 +20,7 @@ TYsonProducer::TPtr ProducerFromYson(TInputStream* input)
         });
 }
 
-TYsonProducer::TPtr ProducerFromYson(const TYson& data)
+TYsonProducer ProducerFromYson(const TYson& data)
 {
     return FromFunctor([=] (IYsonConsumer* consumer)
         {
@@ -30,7 +30,7 @@ TYsonProducer::TPtr ProducerFromYson(const TYson& data)
         });
 }
 
-TYsonProducer::TPtr ProducerFromNode(const INode* node)
+TYsonProducer ProducerFromNode(INode* node)
 {
     return FromFunctor([=] (IYsonConsumer* consumer)
         {
@@ -39,7 +39,7 @@ TYsonProducer::TPtr ProducerFromNode(const INode* node)
         });
 }
 
-INode::TPtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
+TNodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
@@ -48,14 +48,14 @@ INode::TPtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
     return builder->EndTree();
 }
 
-INode::TPtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
+TNodePtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
 {
     TStringInput input(yson);
     return DeserializeFromYson(&input, factory);
 }
 
 TOutputStream& SerializeToYson(
-    const INode* node,
+    INode* node,
     TOutputStream& output,
     EYsonFormat format)
 {
@@ -65,7 +65,7 @@ TOutputStream& SerializeToYson(
     return output;
 }
 
-INode::TPtr CloneNode(const INode* node, INodeFactory* factory)
+TNodePtr CloneNode(INode* node, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
@@ -77,66 +77,66 @@ INode::TPtr CloneNode(const INode* node, INodeFactory* factory)
 ////////////////////////////////////////////////////////////////////////////////
 
 // i64
-void Read(i64& parameter, const INode* node)
+void Read(i64& parameter, INode* node)
 {
     parameter = node->AsInt64()->GetValue();
 }
 
 // i32
-void Read(i32& parameter, const INode* node)
+void Read(i32& parameter, INode* node)
 {
     parameter = CheckedStaticCast<i32>(node->AsInt64()->GetValue());
 }
 
 // ui32
-void Read(ui32& parameter, const INode* node)
+void Read(ui32& parameter, INode* node)
 {
     parameter = CheckedStaticCast<ui32>(node->AsInt64()->GetValue());
 }
 
 // ui16
-void Read(ui16& parameter, const INode* node)
+void Read(ui16& parameter, INode* node)
 {
     parameter = CheckedStaticCast<ui16>(node->AsInt64()->GetValue());
 }
 
 // double
-void Read(double& parameter, const INode* node)
+void Read(double& parameter, INode* node)
 {
     parameter = node->AsDouble()->GetValue();
 }
 
 // Stroka
-void Read(Stroka& parameter, const INode* node)
+void Read(Stroka& parameter, INode* node)
 {
     parameter = node->AsString()->GetValue();
 }
 
 // bool
-void Read(bool& parameter, const INode* node)
+void Read(bool& parameter, INode* node)
 {
     Stroka value = node->AsString()->GetValue();
     parameter = ParseBool(value);
 }
 
 // TDuration
-void Read(TDuration& parameter, const INode* node)
+void Read(TDuration& parameter, INode* node)
 {
     parameter = TDuration::MilliSeconds(node->AsInt64()->GetValue());
 }
 
 // TGuid
-void Read(TGuid& parameter, const INode* node)
+void Read(TGuid& parameter, INode* node)
 {
     parameter = TGuid::FromString(node->AsString()->GetValue());
 }
 
-// INode::TPtr
+// TNodePtr
 void Read(
-    INode::TPtr& parameter,
-    const INode* node)
+    TNodePtr& parameter,
+    INode* node)
 {
-    parameter = const_cast<INode*>(node);
+    parameter = node;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +184,7 @@ void Write(bool parameter, IYsonConsumer* consumer)
 }
 
 // TDuration
-void Write(const TDuration& parameter, IYsonConsumer* consumer)
+void Write(TDuration parameter, IYsonConsumer* consumer)
 {
     consumer->OnInt64Scalar(parameter.MilliSeconds());
 }
@@ -195,17 +195,17 @@ void Write(const TGuid& parameter, IYsonConsumer* consumer)
     consumer->OnStringScalar(parameter.ToString());
 }
 
-// INode::TPtr
-void Write(const INode& parameter, IYsonConsumer* consumer)
+// TNodePtr
+void Write(INode& parameter, IYsonConsumer* consumer)
 {
-    TTreeVisitor visitor(consumer, false);
+    TTreeVisitor visitor(consumer);
     visitor.Visit(&parameter);
 }
 
 // TYsonProducer
-void Write(TYsonProducer& parameter, IYsonConsumer* consumer)
+void Write(TYsonProducer parameter, IYsonConsumer* consumer)
 {
-    parameter.Do(consumer);
+    parameter->Do(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

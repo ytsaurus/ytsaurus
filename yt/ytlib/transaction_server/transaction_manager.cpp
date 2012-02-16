@@ -146,7 +146,7 @@ private:
             ythrow yexception() << "Unknown object type";
         }
 
-        NYTree::INode::TPtr manifestNode =
+        NYTree::TNodePtr manifestNode =
             request->has_manifest()
             ? DeserializeFromYson(request->manifest())
             : GetEphemeralNodeFactory()->CreateMap();
@@ -226,7 +226,7 @@ public:
 
         auto id = Owner->Start(parent, ~manifest).GetId();
         auto proxy = ObjectManager->GetProxy(id);
-        proxy->GetAttributes()->MergeFrom(manifestNode);
+        proxy->Attributes()->MergeFrom(manifestNode);
         return id;
     }
 
@@ -410,7 +410,7 @@ void TTransactionManager::OnLeaderRecoveryComplete()
         const auto& id = pair.first;
         const auto& transaction = *pair.second;
         auto proxy = ObjectManager->GetProxy(id);
-        auto manifestNode = proxy->GetAttributes()->ToMap();
+        auto manifestNode = proxy->Attributes()->ToMap();
         auto manifest = New<TTransactionManifest>();
         manifest->LoadAndValidate(~manifestNode);
         CreateLease(transaction, ~manifest);

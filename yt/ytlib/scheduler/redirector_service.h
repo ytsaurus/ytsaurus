@@ -17,8 +17,6 @@ public:
     TRedirectorService(NCypress::TCypressManager* cypressManager);
 
 protected:
-    class TConfig;
-
     NCypress::TCypressManager::TPtr CypressManager;
 
     virtual TAsyncRedirectResult HandleRedirect(NRpc::IServiceContext* context);

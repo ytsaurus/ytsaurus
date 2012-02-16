@@ -95,6 +95,18 @@ inline Stroka CamelCaseToUnderscoreCase(const Stroka& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline Stroka TrimLeadingWhitespace(const Stroka& data)
+{
+    for (int i = 0; i < data.size(); ++i) {
+        if (data[i] != ' ') {
+            return data.substr(i);
+        }
+    }
+    return "";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline bool ParseBool(const Stroka& value)
 {
     if (value == "true") {

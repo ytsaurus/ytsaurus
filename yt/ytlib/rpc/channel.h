@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/property.h>
 #include <ytlib/bus/client.h>
 
 namespace NYT {
@@ -20,6 +21,9 @@ struct IChannel
     : public virtual TRefCounted
 {
     typedef TIntrusivePtr<IChannel> TPtr;
+
+    //! Gets default timeout.
+    virtual TNullable<TDuration> GetDefaultTimeout() const = 0;
 
     //! Sends a request via the channel.
     /*!
@@ -41,10 +45,14 @@ struct IChannel
 };
 
 //! Creates a channel implemented via NBus.
-IChannel::TPtr CreateBusChannel(NBus::IBusClient* client);
+IChannel::TPtr CreateBusChannel(
+    NBus::IBusClient* client,
+    TNullable<TDuration> defaultTimeout = NULL);
 
 //! Creates a channel implemented via NBus.
-IChannel::TPtr CreateBusChannel(const Stroka& address);
+IChannel::TPtr CreateBusChannel(
+    const Stroka& address,
+    TNullable<TDuration> defaultTimeout = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 

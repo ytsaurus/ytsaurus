@@ -194,7 +194,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
                 auto attributes = chunk.GetAttributes();
                 chunkInfo->mutable_attributes()->ParseFromArray(attributes.Begin(), attributes.Size());
             }
-        }
+        }   
     }
 
     auto channel = TChannel::Empty();

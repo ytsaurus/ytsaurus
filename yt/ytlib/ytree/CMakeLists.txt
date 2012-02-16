@@ -56,3 +56,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/ypath.proto YT_SOURCE_FILES )
+protoc( ${BASE}/attributes.proto YT_SOURCE_FILES )

@@ -216,29 +216,29 @@ struct TProtoTraits<TGuid>
 
 template <class TArrayItem, class TProtoItem>
 inline void ToProto(
-    ::google::protobuf::RepeatedPtrField<TProtoItem>& proto,
+    ::google::protobuf::RepeatedPtrField<TProtoItem>* proto,
     const yvector<TArrayItem>& array,
     bool clear = true)
 {
     if (clear) {
-        proto.Clear();
+        proto->Clear();
     }
     for (int i = 0; i < array.ysize(); ++i) {
-        *proto.Add() = TProtoTraits<TArrayItem>::ToProto(array[i]);
+        *proto->Add() = TProtoTraits<TArrayItem>::ToProto(array[i]);
     }
 }
 
 template <class T>
 inline void ToProto(
-    ::google::protobuf::RepeatedField<T>& proto,
+    ::google::protobuf::RepeatedField<T>* proto,
     const yvector<T>& array,
     bool clear = true)
 {
     if (clear) {
-        proto.Clear();
+        proto->Clear();
     }
     for (int i = 0; i < array.ysize(); ++i) {
-        *proto.Add() = array[i];
+        *proto->Add() = array[i];
     }
 }
 

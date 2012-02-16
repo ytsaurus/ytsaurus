@@ -36,12 +36,12 @@ void TAttributedYPathServiceBase::GetSystemAttributes(std::vector<TAttributeInfo
     UNUSED(attributes);
 }
 
-bool TAttributedYPathServiceBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+bool TAttributedYPathServiceBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     return false;
 }
 
-bool TAttributedYPathServiceBase::SetSystemAttribute(const Stroka& name, TYsonProducer* producer)
+bool TAttributedYPathServiceBase::SetSystemAttribute(const Stroka& key, TYsonProducer producer)
 {
     return false;
 }
@@ -58,11 +58,11 @@ void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqG
         writer.OnBeginMap();
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
-                writer.OnMapItem(attribute.Name);
+                writer.OnMapItem(attribute.Key);
                 if (attribute.IsOpaque) {
                     writer.OnEntity();
                 } else {
-                    YVERIFY(GetSystemAttribute(attribute.Name, &writer));
+                    YVERIFY(GetSystemAttribute(attribute.Key, &writer));
                 }
             }
         }
@@ -99,7 +99,7 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
         GetSystemAttributes(&systemAttributes);
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.IsPresent) {
-                keys.push_back(attribute.Name);
+                keys.push_back(attribute.Key);
             }
         }
     } else {
@@ -117,7 +117,7 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
         keys = SyncYPathList(~wholeValue, suffixPath);
     }
 
-    ToProto(*response->mutable_keys(), keys);
+    NYT::ToProto(response->mutable_keys(), keys);
     context->Reply();
 }
 
@@ -195,7 +195,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* 
     YASSERT(IsFinalYPath(context->GetPath()));
 
     auto keys = GetKeys();
-    ToProto(*response->mutable_keys(), keys);
+    NYT::ToProto(response->mutable_keys(), keys);
     context->Reply();
 }
 
@@ -205,15 +205,15 @@ void TVirtualMapBase::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     TAttributedYPathServiceBase::GetSystemAttributes(attributes);
 }
 
-bool TVirtualMapBase::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    if (name == "size") {
+    if (key == "size") {
         BuildYsonFluently(consumer)
             .Scalar(static_cast<i64>(GetSize()));
         return true;
     }
 
-    return TAttributedYPathServiceBase::GetSystemAttribute(name, consumer);
+    return TAttributedYPathServiceBase::GetSystemAttribute(key, consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,13 +230,13 @@ public:
         : Provider(builder)
     { }
 
-    virtual INodeFactory::TPtr CreateFactory() const
+    virtual TNodeFactoryPtr CreateFactory() const
     {
         YASSERT(Parent);
         return Parent->CreateFactory();
     }
 
-    virtual ICompositeNode::TPtr GetParent() const
+    virtual TCompositeNodePtr GetParent() const
     {
         return Parent;
     }
@@ -256,23 +256,23 @@ public:
         }
     }
 
-    virtual IAttributeDictionary::TPtr GetAttributes()
+    virtual IAttributeDictionary* Attributes()
     {
-        return GetUserAttributeDictionary();
+        return GetUserAttributes();
     }
 
 protected:
     // TSupportsAttributes members
 
-    virtual IAttributeDictionary::TPtr GetUserAttributeDictionary()
+    virtual IAttributeDictionary* GetUserAttributes()
     {
-        if (!Attributes) {
-            Attributes = CreateInMemoryAttributeDictionary();
+        if (!Attributes_) {
+            Attributes_ = CreateEphemeralAttributes();
         }
-        return Attributes;
+        return Attributes_.Get();
     }
 
-    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider() 
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
     {
         return NULL;
     }
@@ -280,15 +280,16 @@ protected:
 private:
     TYPathServiceProvider::TPtr Provider;
     ICompositeNode* Parent;
-    IAttributeDictionary::TPtr Attributes;
+    TAutoPtr<IAttributeDictionary> Attributes_;
+
 };
 
-INode::TPtr CreateVirtualNode(TYPathServiceProvider* provider)
+TNodePtr CreateVirtualNode(TYPathServiceProvider* provider)
 {
     return New<TVirtualEntityNode>(provider);
 }
 
-INode::TPtr CreateVirtualNode(IYPathService* service)
+TNodePtr CreateVirtualNode(IYPathService* service)
 {
     IYPathService::TPtr service_ = service;
     return CreateVirtualNode(~FromFunctor([=] () -> NYTree::IYPathService::TPtr

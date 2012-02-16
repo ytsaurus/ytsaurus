@@ -31,12 +31,14 @@ public:
         TRetryConfig* config,
         IChannel* underlyingChannel);
 
-    void Send(
+    virtual TNullable<TDuration> GetDefaultTimeout() const;
+
+    virtual void Send(
         IClientRequest* request, 
         IClientResponseHandler* responseHandler, 
         TNullable<TDuration> timeout);
 
-    void Terminate();
+    virtual void Terminate();
 
 };
 
@@ -218,6 +220,11 @@ void TRetriableChannel::Send(
 void TRetriableChannel::Terminate()
 {
     UnderlyingChannel_->Terminate();
+}
+
+TNullable<TDuration> TRetriableChannel::GetDefaultTimeout() const
+{
+    return UnderlyingChannel_->GetDefaultTimeout();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

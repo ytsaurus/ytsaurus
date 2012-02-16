@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "ytree_integration.h"
 
+#include <ytlib/actions/action_util.h>
+#include <ytlib/ytree/ytree.h>
+
 namespace NYT {
 namespace NMonitoring {
 

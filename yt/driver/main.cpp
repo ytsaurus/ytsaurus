@@ -116,7 +116,8 @@ public:
         }
 
         if (spec[0] == '<') {
-            return new TFileInput(spec.substr(1));
+            auto fileName = TrimLeadingWhitespace(spec.substr(1));
+            return new TFileInput(fileName);
         }
 
         return new TPipeInput(~spec);
@@ -135,10 +136,12 @@ public:
 
         if (spec[0] == '>') {
             if (spec.length() >= 2 && spec[1] == '>') {
-                TFile file(spec.substr(2), OpenAlways | ForAppend | WrOnly | Seq);
+                auto fileName = TrimLeadingWhitespace(spec.substr(2));
+                TFile file(fileName, OpenAlways | ForAppend | WrOnly | Seq);
                 return new TFileOutput(file);
             } else {
-                return new TFileOutput(spec.substr(1));
+                auto fileName = TrimLeadingWhitespace(spec.substr(1));
+                return new TFileOutput(fileName);
             }
         }
 
@@ -170,7 +173,7 @@ public:
     struct TConfig
         : public TDriver::TConfig
     {
-        INode::TPtr Logging;
+        TNodePtr Logging;
 
         TConfig()
         {
@@ -215,7 +218,7 @@ public:
             }
 
             auto config = New<TConfig>();
-            INode::TPtr configNode;
+            TNodePtr configNode;
             try {
                 TIFStream configStream(configFileName);
                 configNode = DeserializeFromYson(&configStream);

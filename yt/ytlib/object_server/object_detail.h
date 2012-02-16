@@ -82,13 +82,13 @@ public:
 
     // IObjectProxy members
     virtual TObjectId GetId() const;
-    virtual NYTree::IAttributeDictionary::TPtr GetAttributes();
+    virtual NYTree::IAttributeDictionary* Attributes();
     virtual void Invoke(NRpc::IServiceContext* context);
 
 protected:
     TObjectManager::TPtr ObjectManager;
     TObjectId Id;
-    NYTree::IAttributeDictionary::TPtr UserAttributeDictionary;
+    TAutoPtr<NYTree::IAttributeDictionary> UserAttributes;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectServer::NProto, GetId);
 
@@ -99,28 +99,28 @@ protected:
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
     // NYTree::TSupportsAttributes members
-    virtual NYTree::IAttributeDictionary::TPtr GetUserAttributeDictionary();
-    virtual ISystemAttributeProvider::TPtr GetSystemAttributeProvider();
+    virtual NYTree::IAttributeDictionary* GetUserAttributes();
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider();
 
-    virtual NYTree::IAttributeDictionary::TPtr DoCreateUserAttributeDictionary();
+    virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes();
 
     // NYTree::ISystemAttributeProvider members
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
-    virtual bool SetSystemAttribute(const Stroka& name, NYTree::TYsonProducer* producer);
+    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer);
+    virtual bool SetSystemAttribute(const Stroka& key, NYTree::TYsonProducer producer);
 
     // We need definition of this class in header because we want to inherit it.
     class TUserAttributeDictionary
         : public NYTree::IAttributeDictionary
     {
     public:
-        TUserAttributeDictionary(TObjectId objectId, TObjectManager* objectManager);
+        TUserAttributeDictionary(const TObjectId& objectId, TObjectManager* objectManager);
 
         // NYTree::IAttributeDictionary members
-        virtual yhash_set<Stroka> List();
-        virtual TNullable<NYTree::TYson> FindYson(const Stroka& name);
-        virtual void SetYson(const Stroka& name, const NYTree::TYson& value);
-        virtual bool Remove(const Stroka& name);
+        virtual yhash_set<Stroka> List() const;
+        virtual TNullable<NYTree::TYson> FindYson(const Stroka& key) const;
+        virtual void SetYson(const Stroka& key, const NYTree::TYson& value);
+        virtual bool Remove(const Stroka& key);
 
     protected:
         TObjectId ObjectId;

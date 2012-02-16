@@ -1,11 +1,19 @@
 #pragma once
 
-#include "common.h"
 #include "public.h"
 #include "yson_consumer.h"
 
 #include <ytlib/misc/property.h>
-#include <ytlib/rpc/service.h>
+#include <ytlib/misc/enum.h>
+
+
+// TODO(babenko): move to rpc/public.h
+
+namespace NYT {
+namespace NRpc {
+    class IServiceContext;
+}
+}
 
 namespace NYT {
 namespace NYTree {
@@ -91,7 +99,7 @@ struct IYPathService
     /*!
      *  Constructs an ephemeral tree from #producer and returns its root.
      */
-    static IYPathService::TPtr FromProducer(TYsonProducer* producer);
+    static IYPathService::TPtr FromProducer(TYsonProducer producer);
 };
 
 typedef IFunc<NYTree::IYPathService::TPtr> TYPathServiceProvider;
