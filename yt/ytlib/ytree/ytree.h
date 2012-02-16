@@ -44,7 +44,7 @@ struct INode
      *  Each created node must be somehow attached to the tree before
      *  the factory dies. Otherwise the node also gets disposed.
      */
-    virtual TIntrusivePtr<INodeFactory> CreateFactory() const = 0;
+    virtual INodeFactoryPtr CreateFactory() const = 0;
 
     // A bunch of "AsSomething" methods that return a pointer
     // to the same node but typed as "Something".
@@ -95,7 +95,7 @@ struct INode
 //! A base interface for all scalar nodes, i.e. nodes containing a single atomic value.
 template<class T>
 struct IScalarNode
-    : virtual INode
+    : public virtual INode
 {
     typedef T TValue;
 

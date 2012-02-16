@@ -44,7 +44,7 @@ struct IAttributeDictionary
     void Set(const Stroka& key, const T& value);
     
     //! Converts the instance into a map node (by copying and deserliazing the values).
-    TIntrusivePtr<IMapNode> ToMap() const;
+    IMapNodePtr ToMap() const;
 
     //! Adds more attributes from another map node.
     void MergeFrom(const IMapNode* other);
