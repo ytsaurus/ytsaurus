@@ -88,6 +88,11 @@ void TFileWriter::SpecificClose(const NChunkServer::TChunkId& ChunkId)
     LOG_INFO("Upload transaction committed");
 }
 
+NCypress::TNodeId TFileWriter::GetNodeId() const
+{
+    return NodeId;
+}
+
 void TFileWriter::Cancel()
 {
     VERIFY_THREAD_AFFINITY_ANY();

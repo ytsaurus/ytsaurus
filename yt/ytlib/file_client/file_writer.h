@@ -36,6 +36,8 @@ public:
     //! Cancels the writing process and releases all resources.
     void Cancel();
 
+    NCypress::TNodeId GetNodeId() const;
+
 protected:
     virtual void SpecificClose(const NChunkServer::TChunkId&);
 
