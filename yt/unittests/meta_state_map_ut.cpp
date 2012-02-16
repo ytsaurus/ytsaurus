@@ -73,7 +73,7 @@ TEST_F(TMetaStateMapTest, BasicsInNormalMode)
     ASSERT_DEATH(map.Remove("a"), ".*"); // remove non existing
 
     map.Insert("a", new TValue(10));
-    TValue* ptr = map.FindForUpdate("a");
+    TValue* ptr = map.Find("a");
     EXPECT_EQ(ptr->Value, 10);
     ptr->Value = 100; // update value
     EXPECT_EQ(map.Find("a")->Value, 100);
@@ -168,7 +168,7 @@ TEST_F(TMetaStateMapTest, StressSave)
             case 1: {
                 SCOPED_TRACE("Performing Update");
 
-                TValue* ptr = map.FindForUpdate(key);
+                TValue* ptr = map.Find(key);
                 auto it = checkMap.find(key);
                 if (it == checkMap.end()) {
                     EXPECT_IS_TRUE(!ptr);

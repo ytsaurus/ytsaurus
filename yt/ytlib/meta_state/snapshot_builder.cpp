@@ -50,8 +50,7 @@ public:
             LOG_DEBUG("Requesting follower %d to create a snapshot", followerId);
 
             auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(followerId);
-            proxy->SetTimeout(config->RemoteTimeout);
-            auto request = proxy->AdvanceSegment();
+            auto request = proxy->AdvanceSegment()->SetTimeout(config->RemoteTimeout);
             request->set_segment_id(Version.SegmentId);
             request->set_record_count(Version.RecordCount);
             request->set_epoch(Creator->Epoch.ToProto());
