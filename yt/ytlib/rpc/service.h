@@ -56,7 +56,7 @@ struct IServiceContext
     //! Returns the id of the request.
     /*!
      *  These ids are assigned by the client to distinguish between responses.
-     *  The server should not rely on its uniqueness.
+     *  The server should not rely on their uniqueness.
      *  #NullRequestId is a possible value.
      */
     virtual const TRequestId& GetRequestId() const = 0;
