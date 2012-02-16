@@ -29,6 +29,9 @@ struct IAttributeDictionary
 
     // Extension methods
 
+    //! Removes all attributes.
+    void Clear();
+
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
     TYson GetYson(const Stroka& key) const;
 

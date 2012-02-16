@@ -47,6 +47,14 @@ void IAttributeDictionary::MergeFrom(const IAttributeDictionary* other)
     }
 }
 
+void IAttributeDictionary::Clear()
+{
+    auto keys = List();
+    FOREACH (const auto& key, keys) {
+        Remove(key);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralAttributeDictionary
