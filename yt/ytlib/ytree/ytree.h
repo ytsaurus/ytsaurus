@@ -63,7 +63,7 @@ struct INode
 
     //! Returns the parent of the node.
     //! NULL indicates that the current node is the root.
-    virtual TIntrusivePtr<ICompositeNode> GetParent() const = 0;
+    virtual ICompositeNodePtr GetParent() const = 0;
     //! Sets the parent of the node.
     /*!
      *  This method is called automatically when one subtree (possibly)
