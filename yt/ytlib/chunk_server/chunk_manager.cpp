@@ -1228,12 +1228,8 @@ private:
                 continue;
             }
 
-            chunk.AddLocation(holder->GetId(), false);
+            Owner->DoAddChunkReplica(*holder, chunk, false);
             holder->AddUnapprovedChunk(chunk.GetId());
-
-            if (Owner->IsLeader()) {
-                Owner->ChunkReplication->OnReplicaAdded(*holder, chunk);
-            }
         }
 
         TBlob blob;
