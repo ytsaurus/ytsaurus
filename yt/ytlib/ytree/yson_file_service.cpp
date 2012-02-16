@@ -91,6 +91,16 @@ public:
         return UnderlyingContext->ResponseAttachments();
     }
 
+    virtual const IAttributeDictionary& RequestAttributes() const
+    {
+        return UnderlyingContext->RequestAttributes();
+    }
+
+    virtual IAttributeDictionary& ResponseAttributes()
+    {
+        return UnderlyingContext->ResponseAttributes();
+    }
+
     virtual void SetRequestInfo(const Stroka& info)
     {
        UnderlyingContext->SetRequestInfo(info);

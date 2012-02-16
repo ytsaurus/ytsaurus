@@ -49,12 +49,12 @@ public:
         return Verb;
     }
 
-    virtual NYTree::IAttributeDictionary* Attributes()
+    virtual NYTree::IAttributeDictionary& Attributes()
     {
         YUNREACHABLE();
     }
 
-    virtual const NYTree::IAttributeDictionary* Attributes() const
+    virtual const NYTree::IAttributeDictionary& Attributes() const
     {
         YUNREACHABLE();
     }

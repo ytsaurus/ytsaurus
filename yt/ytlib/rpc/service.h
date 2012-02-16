@@ -60,18 +60,22 @@ struct IServiceContext
      *  #NullRequestId is a possible value.
      */
     virtual const TRequestId& GetRequestId() const = 0;
+
     //! Returns the requested path.
     virtual const Stroka& GetPath() const = 0;
+
     //! Returns the requested verb.
     virtual const Stroka& GetVerb() const = 0;
 
     //! Returns True if the request if one-way, i.e. replying to it is not possible.
     virtual bool IsOneWay() const = 0;
+
     //! Returns True if the request was already replied.
     virtual bool IsReplied() const = 0;
 
     //! Signals that the request processing is complete and sends reply to the client.
     virtual void Reply(const TError& error) = 0;
+
     //! An extension method that extracts the error code, the response body, and attachments
     //! from #message and replies to the client.
     void Reply(NBus::IMessage* message);
@@ -84,21 +88,31 @@ struct IServiceContext
 
     //! Returns the request body.
     virtual TSharedRef GetRequestBody() const = 0;
+
     //! Sets the response body.
     virtual void SetResponseBody(const TSharedRef& responseBody) = 0;
 
     //! Returns an immutable vector of request attachments.
     virtual const yvector<TSharedRef>& RequestAttachments() const = 0;
+
+    //! Returns immutable request attributes.
+    virtual const NYTree::IAttributeDictionary& RequestAttributes() const = 0;
+
     //! Returns a mutable vector of response attachments.
     virtual yvector<TSharedRef>& ResponseAttachments() = 0;
 
+    //! Returns immutable request attributes.
+    virtual NYTree::IAttributeDictionary& ResponseAttributes() = 0;
+
     //! Sets and immediately logs the request logging info.
     virtual void SetRequestInfo(const Stroka& info) = 0;
+
     //! Returns the previously set request logging info.
     virtual Stroka GetRequestInfo() const = 0;
 
     //! Sets the response logging info. This info will be logged when the context is replied.
     virtual void SetResponseInfo(const Stroka& info) = 0;
+
     //! Returns the currently set response logging info.
     virtual Stroka GetResponseInfo() = 0;
 
@@ -136,6 +150,11 @@ public:
         return Context->RequestAttachments();
     }
 
+    const NYTree::IAttributeDictionary& Attributes() const
+    {
+        return Context->RequestAttributes();
+    }
+
 private:
     IServiceContext::TPtr Context;
 
@@ -155,6 +174,11 @@ public:
     yvector<TSharedRef>& Attachments()
     {
         return Context->ResponseAttachments();
+    }
+
+    NYTree::IAttributeDictionary& Attributes()
+    {
+        return Context->ResponseAttributes();
     }
 
 private:
