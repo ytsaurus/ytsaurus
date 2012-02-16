@@ -60,25 +60,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
     
+DECLARE_ENUM(ESavePhase,
+    (Keys)
+    (Values)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCompositeMetaState
     : public IMetaState 
 {
 public:
     typedef TIntrusivePtr<TCompositeMetaState> TPtr;
-   
-    DECLARE_ENUM(ESavePhase,
-        (Objects)
-        (Relations)
-    );
-
-
 
     typedef IParamAction<TOutputStream*> TSaver;
     typedef IParamAction<TInputStream*> TLoader;
 
     void RegisterPart(TMetaStatePart::TPtr part);
     void RegisterLoader(const Stroka& name, TLoader::TPtr loader);
-    void RegisterSaver(const Stroka& name, TSaver::TPtr saver, ESavePhase phase = ESavePhase::Objects);
+    void RegisterSaver(const Stroka& name, TSaver::TPtr saver, ESavePhase phase);
 
 private:
     friend class TMetaStatePart;

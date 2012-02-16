@@ -11,32 +11,20 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue>
-TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Clone(TValue* value) const
+TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Create(const TKey& key) const
 {
-    return value->Clone();
-}
-
-template <class TKey, class TValue>
-void TDefaultMetaMapTraits<TKey, TValue>::Save(TValue* value, TOutputStream* output) const
-{
-    value->Save(output);
-}
-
-template <class TKey, class TValue>
-TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Load(const TKey& key, TInputStream* input) const
-{
-    return TValue::Load(key, input);
+    return new TValue(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 TMetaStateMap<TKey, TValue, TTraits, THash>::TMetaStateMap(TTraits traits)
     : Traits(traits)
     , Size(0)
 { }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 TMetaStateMap<TKey, TValue, TTraits, THash>::~TMetaStateMap()
 {
     FOREACH (const auto& pair, Map) {
@@ -45,7 +33,7 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::~TMetaStateMap()
     Map.clear();
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue* value)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -55,7 +43,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue
     ++Size;
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 const TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Find(const TKey& key) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -64,7 +52,7 @@ const TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Find(const TKey& key)
     return it == Map.end() ? NULL : it->second;
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Find(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -73,7 +61,7 @@ TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Find(const TKey& key)
     return it == Map.end() ? NULL : it->second;
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 const TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -83,7 +71,7 @@ const TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key) 
     return *value;
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -93,7 +81,7 @@ TValue& TMetaStateMap<TKey, TValue, TTraits, THash>::Get(const TKey& key)
     return *value;
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -105,7 +93,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
     --Size;
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 bool TMetaStateMap<TKey, TValue, TTraits, THash>::Contains(const TKey& key) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -113,7 +101,7 @@ bool TMetaStateMap<TKey, TValue, TTraits, THash>::Contains(const TKey& key) cons
     return Find(key);
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -125,7 +113,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
     Size = 0;
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 int TMetaStateMap<TKey, TValue, TTraits, THash>::GetSize() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -133,7 +121,7 @@ int TMetaStateMap<TKey, TValue, TTraits, THash>::GetSize() const
     return Size;
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLimit) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
@@ -151,7 +139,7 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLi
     return keys;
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 typename TMetaStateMap<TKey, TValue, TTraits, THash>::TIterator
 TMetaStateMap<TKey, TValue, TTraits, THash>::Begin()
 {
@@ -160,7 +148,7 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::Begin()
     return Map.begin();
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 typename TMetaStateMap<TKey, TValue, TTraits, THash>::TIterator
 TMetaStateMap<TKey, TValue, TTraits, THash>::End()
 {
@@ -169,7 +157,7 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::End()
     return Map.end();
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 typename TMetaStateMap<TKey, TValue, TTraits, THash>::TConstIterator
 TMetaStateMap<TKey, TValue, TTraits, THash>::Begin() const
 {
@@ -178,7 +166,7 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::Begin() const
     return Map.begin();
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
+template <class TKey, class TValue, class TTraits, class THash>
 typename TMetaStateMap<TKey, TValue, TTraits, THash>::TConstIterator
 TMetaStateMap<TKey, TValue, TTraits, THash>::End() const
 {
@@ -188,34 +176,79 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::End() const
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::Load(TInputStream* input)
+void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     Map.clear();
     Size = ::LoadSize(input);
     
+    TKey previousKey;
     for (i32 index = 0; index < Size; ++index) {
         TKey key;
         ::Load(input, key);
-        auto value = Traits.Load(key, input);
+
+        if (index > 0) {
+            YASSERT(previousKey < key);
+        }
+        previousKey = key;
+
+        auto value = Traits.Create(key);
         YVERIFY(Map.insert(MakePair(key, value.Release())).second);
     }
 }
 
-template <class TKey, class TValue, class TTraits, class THash >
-void TMetaStateMap<TKey, TValue, TTraits, THash>::Save(TOutputStream* output)
+template <class TKey, class TValue, class TTraits, class THash>
+template <class TContext>
+void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(
+    TInputStream* input,
+    const TContext& context)
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
+    yvector<TKey> keys;
+    keys.reserve(Map.size());
+    FOREACH (const auto& pair, Map) {
+        keys.push_back(pair.first);
+    }
+    std::sort(keys.begin(), keys.end());
+
+    FOREACH (const auto& key, keys) {
+        auto it = Map.find(key);
+        YASSERT(it != Map.end());
+        it->second->Load(input, context);
+    }
+}
+
+template <class TKey, class TValue, class TTraits, class THash>
+void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     ::SaveSize(output, Map.size());
 
+    yvector<TKey> keys;
+    keys.reserve(Map.size());
+    FOREACH (const auto& pair, Map) {
+        keys.push_back(pair.first);
+    }
+    std::sort(keys.begin(), keys.end());
+
+    FOREACH(const auto& key, keys) {
+        ::Save(output, key);
+    }
+}
+
+template <class TKey, class TValue, class TTraits, class THash>
+void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(TOutputStream* output)
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
     yvector<TItem> items(Map.begin(), Map.end());
     std::sort(items.begin(), items.end());
 
     FOREACH(const auto& item, items) {
-        ::Save(output, item.first);
-        Traits.Save(item.second, output);
+        item.second->Save(output);
     }
 }
 

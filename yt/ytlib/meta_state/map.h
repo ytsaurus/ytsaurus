@@ -19,14 +19,7 @@ namespace NMetaState {
 template <class TKey, class TValue>
 struct TDefaultMetaMapTraits
 {
-    //! Clones the value
-    TAutoPtr<TValue> Clone(TValue* value) const;
-
-    //! Saves the value to the output
-    void Save(TValue* value, TOutputStream* output) const;
-
-    //! Loads a value from the input using the key
-    TAutoPtr<TValue> Load(const TKey& key, TInputStream* input) const;
+    TAutoPtr<TValue> Create(const TKey& key) const;
 };
 
 //! Snapshottable map used to store various meta-state tables.
@@ -165,13 +158,18 @@ public:
      *  \param output Output stream.
      *  \return An asynchronous result indicating that the snapshot is saved.
      */
-    void Save(TOutputStream* output);
+    void SaveKeys(TOutputStream* output);
+
+    void SaveValues(TOutputStream* output);
 
     //! Synchronously loads the map from the stream.
     /*!
      * \param input Input stream.
      */
-    void Load(TInputStream* input);
+    void LoadKeys(TInputStream* input);
+
+    template <class TContext>
+    void LoadValues(TInputStream* input, const TContext& context);
     
 private:
     //! Slot for the thread in which all the public methods are called.

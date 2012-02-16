@@ -122,11 +122,19 @@ public:
         RegisterMethod(this, &TImpl::CreateChunks);
 
         metaState->RegisterLoader(
-            "ChunkManager.1",
-            FromMethod(&TChunkManager::TImpl::Load, TPtr(this)));
+            "ChunkManager.Keys.1",
+            FromMethod(&TChunkManager::TImpl::LoadKeys, TPtr(this)));
+        metaState->RegisterLoader(
+            "ChunkManager.Values.1",
+            FromMethod(&TChunkManager::TImpl::LoadValues, TPtr(this)));
         metaState->RegisterSaver(
-            "ChunkManager.1",
-            FromMethod(&TChunkManager::TImpl::Save, TPtr(this)));
+            "ChunkManager.Keys.1",
+            FromMethod(&TChunkManager::TImpl::SaveKeys, TPtr(this)),
+            ESavePhase::Keys);
+        metaState->RegisterSaver(
+            "ChunkManager.Values.1",
+            FromMethod(&TChunkManager::TImpl::SaveValues, TPtr(this)),
+            ESavePhase::Values);
 
         metaState->RegisterPart(this);
 
@@ -611,25 +619,46 @@ private:
     }
 
 
-    void Save(TOutputStream* output)
+    void SaveKeys(TOutputStream* output)
     {
-        ::Save(output, HolderIdGenerator);
-        ChunkMap.Save(output);
-        ChunkListMap.Save(output);
-        HolderMap.Save(output);
-        JobMap.Save(output);
-        JobListMap.Save(output);
+        ChunkMap.SaveKeys(output);
+        ChunkListMap.SaveKeys(output);
+        HolderMap.SaveKeys(output);
+        JobMap.SaveKeys(output);
+        JobListMap.SaveKeys(output);
     }
 
-    void Load(TInputStream* input)
+    void SaveValues(TOutputStream* output)
+    {
+        ::Save(output, HolderIdGenerator);
+
+        ChunkMap.SaveValues(output);
+        ChunkListMap.SaveValues(output);
+        HolderMap.SaveValues(output);
+        JobMap.SaveValues(output);
+        JobListMap.SaveValues(output);
+    }
+
+    void LoadKeys(TInputStream* input)
+    {
+        ChunkMap.LoadKeys(input);
+        ChunkListMap.LoadKeys(input);
+        HolderMap.LoadKeys(input);
+        JobMap.LoadKeys(input);
+        JobListMap.LoadKeys(input);
+    }
+
+    void LoadValues(TInputStream* input)
     {
         ::Load(input, HolderIdGenerator);
-        
-        ChunkMap.Load(input);
-        ChunkListMap.Load(input);
-        HolderMap.Load(input);
-        JobMap.Load(input);
-        JobListMap.Load(input);
+
+        TVoid context; // TODO(roizner): use real context
+
+        ChunkMap.LoadValues(input, context);
+        ChunkListMap.LoadValues(input, context);
+        HolderMap.LoadValues(input, context);
+        JobMap.LoadValues(input, context);
+        JobListMap.LoadValues(input, context);
 
         // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();

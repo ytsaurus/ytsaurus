@@ -20,21 +20,14 @@ struct TJobList
         , JobIds_(other.JobIds_)
     { }
 
-    TAutoPtr<TJobList> Clone() const
-    {
-        return new TJobList(*this);
-    }
-
     void Save(TOutputStream* output) const
     {
         ::Save(output, JobIds_);
     }
 
-    static TAutoPtr<TJobList> Load(const TChunkId& chunkId, TInputStream* input)
+    void Load(TInputStream* input, TVoid /* context */)
     {
-        TAutoPtr<TJobList> jobList = new TJobList(chunkId);
-        ::Load(input, jobList->JobIds_);
-        return jobList;
+        ::Load(input, JobIds_);
     }
 
     void AddJob(const TJobId& id)
