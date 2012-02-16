@@ -36,7 +36,7 @@ class TVirtualMapBase
 protected:
     virtual yvector<Stroka> GetKeys(size_t sizeLimit = Max<size_t>()) const = 0;
     virtual size_t GetSize() const = 0;
-    virtual IYPathService::TPtr GetItemService(const Stroka& key) const = 0;
+    virtual TYPathServicePtr GetItemService(const Stroka& key) const = 0;
 
 private:
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);

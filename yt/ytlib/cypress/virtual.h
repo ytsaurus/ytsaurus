@@ -15,7 +15,7 @@ namespace NCypress {
 typedef
     IParamFunc<
         const TVersionedNodeId&,
-        NYTree::IYPathService::TPtr
+        NYTree::TYPathServicePtr
     >
     TYPathServiceProducer;
 

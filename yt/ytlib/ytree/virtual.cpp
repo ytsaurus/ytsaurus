@@ -291,8 +291,8 @@ TNodePtr CreateVirtualNode(TYPathServiceProvider* provider)
 
 TNodePtr CreateVirtualNode(IYPathService* service)
 {
-    IYPathService::TPtr service_ = service;
-    return CreateVirtualNode(~FromFunctor([=] () -> NYTree::IYPathService::TPtr
+    TYPathServicePtr service_ = service;
+    return CreateVirtualNode(~FromFunctor([=] () -> NYTree::TYPathServicePtr
         {
             return service_;
         }));

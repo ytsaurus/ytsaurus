@@ -210,14 +210,14 @@ void ResolveYPath(
     IYPathService* rootService,
     const TYPath& path,
     const Stroka& verb,
-    IYPathService::TPtr* suffixService,
+    TYPathServicePtr* suffixService,
     TYPath* suffixPath)
 {
     YASSERT(rootService);
     YASSERT(suffixService);
     YASSERT(suffixPath);
 
-    IYPathService::TPtr currentService = rootService;
+    TYPathServicePtr currentService = rootService;
     auto currentPath = path;
 
     while (true) {
@@ -277,7 +277,7 @@ ExecuteVerb(
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();
 
-    IYPathService::TPtr suffixService;
+    TYPathServicePtr suffixService;
     TYPath suffixPath;
     try {
         ResolveYPath(

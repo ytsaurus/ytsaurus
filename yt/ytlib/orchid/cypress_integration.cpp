@@ -157,7 +157,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(TCypressManager* cypressManager)
     return CreateVirtualTypeHandler(
         cypressManager,
         EObjectType::Orchid,
-        ~FromFunctor([=] (const TVersionedObjectId& id) -> IYPathService::TPtr
+        ~FromFunctor([=] (const TVersionedObjectId& id) -> TYPathServicePtr
             {
                 return New<TOrchidYPathService>(cypressManager, id);
             }));

@@ -83,7 +83,7 @@ private:
         }
     }
 
-    virtual IYPathService::TPtr GetItemService(const Stroka& key) const
+    virtual TYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkId::FromString(key);
 
@@ -171,7 +171,7 @@ private:
         return ChunkManager->GetChunkListCount();
     }
 
-    virtual IYPathService::TPtr GetItemService(const Stroka& key) const
+    virtual TYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkListId::FromString(key);
         return ChunkManager->GetObjectManager()->GetProxy(id);
