@@ -42,7 +42,7 @@ struct IYPathService
 {
     class TResolveResult
     {
-        DEFINE_BYVAL_RO_PROPERTY(TYPathServicePtr, Service);
+        DEFINE_BYVAL_RO_PROPERTY(IYPathServicePtr, Service);
         DEFINE_BYVAL_RO_PROPERTY(TYPath, Path);
 
     public:
@@ -97,10 +97,10 @@ struct IYPathService
     /*!
      *  Constructs an ephemeral tree from #producer and returns its root.
      */
-    static TYPathServicePtr FromProducer(TYsonProducer producer);
+    static IYPathServicePtr FromProducer(TYsonProducer producer);
 };
 
-typedef IFunc<NYTree::TYPathServicePtr> TYPathServiceProvider;
+typedef IFunc<NYTree::IYPathServicePtr> TYPathServiceProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 

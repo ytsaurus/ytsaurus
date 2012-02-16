@@ -34,7 +34,7 @@ using NRpc::IServer;
 using NRpc::CreateRpcServer;
 
 using NYTree::IYPathService;
-using NYTree::TYPathServicePtr;
+using NYTree::IYPathServicePtr;
 using NYTree::SyncYPathSetNode;
 
 using NMonitoring::TMonitoringManager;
@@ -98,7 +98,7 @@ void TSchedulerBootstrap::Run()
     httpServer->Register(
         "orchid",
         ~NMonitoring::GetYPathHttpHandler(
-            ~FromFunctor([=] () -> TYPathServicePtr
+            ~FromFunctor([=] () -> IYPathServicePtr
                 {
                     return orchidRoot;
                 }),

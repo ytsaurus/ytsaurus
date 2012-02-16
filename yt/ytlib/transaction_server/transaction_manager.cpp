@@ -146,7 +146,7 @@ private:
             ythrow yexception() << "Unknown object type";
         }
 
-        NYTree::TNodePtr manifestNode =
+        NYTree::INodePtr manifestNode =
             request->has_manifest()
             ? DeserializeFromYson(request->manifest())
             : GetEphemeralNodeFactory()->CreateMap();

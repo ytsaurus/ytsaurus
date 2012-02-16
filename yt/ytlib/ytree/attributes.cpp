@@ -19,7 +19,7 @@ TYson IAttributeDictionary::GetYson(const Stroka& key) const
     return *result;
 }
 
-TMapNodePtr IAttributeDictionary::ToMap() const
+IMapNodePtr IAttributeDictionary::ToMap() const
 {
     auto map = GetEphemeralNodeFactory()->CreateMap();
     auto keys = List();
@@ -86,7 +86,7 @@ TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes()
     return new TEphemeralAttributeDictionary();
 }
 
-void ToProto(NProto::TAttributes* protoAttributes, IAttributeDictionary& attributes)
+void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes)
 {
     FOREACH (const auto& key, attributes.List()) {
         auto value = attributes.GetYson(key);

@@ -20,7 +20,7 @@ namespace NYTree {
 class TYPathTest: public ::testing::Test
 {
 public:
-    TYPathServicePtr RootService;
+    IYPathServicePtr RootService;
 
     virtual void SetUp()
     {

@@ -41,7 +41,7 @@ void TMonitoringManager::Unregister(const TYPath& path)
     YVERIFY(MonitoringMap.erase(Stroka(path)));
 }
 
-TNodePtr TMonitoringManager::GetRoot() const
+INodePtr TMonitoringManager::GetRoot() const
 {
     return Root;
 }

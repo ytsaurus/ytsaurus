@@ -35,7 +35,7 @@ private:
         return CypressManager->GetNodeCount();
     }
 
-    virtual TYPathServicePtr GetItemService(const Stroka& key) const
+    virtual IYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TVersionedNodeId::FromString(key);
         return CypressManager->FindVersionedNodeProxy(id.ObjectId, id.TransactionId);
@@ -77,7 +77,7 @@ private:
         return CypressManager->GetLockCount();
     }
 
-    virtual TYPathServicePtr GetItemService(const Stroka& key) const
+    virtual IYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TLockId::FromString(key);
         auto* lock = CypressManager->FindLock(id);

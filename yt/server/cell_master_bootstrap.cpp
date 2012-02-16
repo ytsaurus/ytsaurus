@@ -56,7 +56,7 @@ using NRpc::IServer;
 using NRpc::CreateRpcServer;
 
 using NYTree::IYPathService;
-using NYTree::TYPathServicePtr;
+using NYTree::IYPathServicePtr;
 using NYTree::SyncYPathSetNode;
 
 using NTransactionServer::TTransactionManager;
@@ -245,7 +245,7 @@ void TCellMasterBootstrap::Run()
     httpServer->Register(
         "/orchid",
         ~NMonitoring::GetYPathHttpHandler(
-            ~FromFunctor([=] () -> TYPathServicePtr
+            ~FromFunctor([=] () -> IYPathServicePtr
                 {
                     return orchidRoot;
                 }),
@@ -253,7 +253,7 @@ void TCellMasterBootstrap::Run()
     httpServer->Register(
         "/cypress",
         ~NMonitoring::GetYPathHttpHandler(
-            ~FromFunctor([=] () -> TYPathServicePtr
+            ~FromFunctor([=] () -> IYPathServicePtr
                 {
                     auto status = metaStateManager->GetStateStatus();
                     if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {

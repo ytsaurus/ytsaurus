@@ -172,8 +172,8 @@ public:
 
 private:
     Stroka FileName;
-    TNodePtr Root;
-    TYPathServicePtr UnderlyingService;
+    INodePtr Root;
+    IYPathServicePtr UnderlyingService;
 
     void SaveFile()
     {
@@ -228,7 +228,7 @@ public:
 private:
     Stroka FileName;
 
-    TNodePtr LoadFile()
+    INodePtr LoadFile()
     {
         try {
             TIFStream stream(FileName);
@@ -243,7 +243,7 @@ private:
 
 TYPathServiceProvider::TPtr CreateYsonFileProvider(const Stroka& fileName)
 {
-    return FromFunctor([=] () -> TYPathServicePtr
+    return FromFunctor([=] () -> IYPathServicePtr
         {
             return New<TYsonFileService>(fileName);
         });

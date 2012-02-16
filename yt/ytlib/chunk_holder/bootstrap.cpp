@@ -171,7 +171,7 @@ void TBootstrap::Run()
     httpServer->Register(
         "/orchid",
         ~NMonitoring::GetYPathHttpHandler(
-            ~FromFunctor([=] () -> TYPathServicePtr
+            ~FromFunctor([=] () -> IYPathServicePtr
                 {
                     return orchidRoot;
                 }),

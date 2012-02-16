@@ -170,7 +170,7 @@ struct IMapNode
     /*!
      *  Map items are returned in unspecified order.
      */
-    virtual yvector< TPair<Stroka, TNodePtr> > GetChildren() const = 0;
+    virtual yvector< TPair<Stroka, INodePtr> > GetChildren() const = 0;
 
     //! Returns map keys.
     /*!
@@ -183,7 +183,7 @@ struct IMapNode
      *  \param key A key.
      *  \return A child with the given key or NULL if the index is not valid.
      */
-    virtual TNodePtr FindChild(const Stroka& key) const = 0;
+    virtual INodePtr FindChild(const Stroka& key) const = 0;
 
     //! Adds a new child with a given key.
     /*!
@@ -204,7 +204,7 @@ struct IMapNode
     virtual bool RemoveChild(const Stroka& key) = 0;
 
     //! Similar to #FindChild but fails if no child is found.
-    TNodePtr GetChild(const Stroka& key) const
+    INodePtr GetChild(const Stroka& key) const
     {
         auto child = FindChild(key);
         YASSERT(child);
@@ -228,14 +228,14 @@ struct IListNode
     using ICompositeNode::RemoveChild;
 
     //! Returns the current snapshot of the list.
-    virtual yvector<TNodePtr> GetChildren() const = 0;
+    virtual yvector<INodePtr> GetChildren() const = 0;
 
     //! Gets a child by its index.
     /*!
      *  \param index An index.
      *  \return A child with the given index or NULL if the index is not valid.
      */
-    virtual TNodePtr FindChild(int index) const = 0;
+    virtual INodePtr FindChild(int index) const = 0;
 
     //! Adds a new child at a given position.
     /*!
@@ -257,7 +257,7 @@ struct IListNode
     virtual bool RemoveChild(int index) = 0;
 
     //! Similar to #FindChild but fails if the index is not valid.
-    TNodePtr GetChild(int index) const
+    INodePtr GetChild(int index) const
     {
         auto child = FindChild(index);
         YASSERT(child);
@@ -289,17 +289,17 @@ struct INodeFactory
     : public virtual TRefCounted
 {
     //! Creates a string node.
-    virtual TStringNodePtr CreateString() = 0;
+    virtual IStringNodePtr CreateString() = 0;
     //! Creates an integer node.
-    virtual TInt64NodePtr CreateInt64() = 0;
+    virtual IInt64NodePtr CreateInt64() = 0;
     //! Creates an FP number node.
-    virtual TDoubleNodePtr CreateDouble() = 0;
+    virtual IDoubleNodePtr CreateDouble() = 0;
     //! Creates a map node.
-    virtual TMapNodePtr CreateMap() = 0;
+    virtual IMapNodePtr CreateMap() = 0;
     //! Creates a list node.
-    virtual TListNodePtr CreateList() = 0;
+    virtual IListNodePtr CreateList() = 0;
     //! Creates an entity node.
-    virtual TEntityNodePtr CreateEntity() = 0;
+    virtual IEntityNodePtr CreateEntity() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

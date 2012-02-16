@@ -29,11 +29,9 @@ struct IAttributeDictionary
 
     // Extension methods
 
-    // TODO(babenko): make const
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
     TYson GetYson(const Stroka& key) const;
 
-    // TODO(babenko): make const
     template <class T>
     typename TDeserializeTraits<T>::TReturnType Get(const Stroka& key) const;
 
@@ -57,8 +55,7 @@ struct IAttributeDictionary
 
 TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();
 
-// TODO(babenko): add const for attributes
-void ToProto(NProto::TAttributes* protoAttributes, IAttributeDictionary& attributes);
+void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
 TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -57,10 +57,10 @@ struct TRequestBase
         Register("do", Do);
     }
 
-    static IParamAction<const NYTree::TNodePtr&>::TPtr StreamSpecIsValid;
+    static IParamAction<const NYTree::INodePtr&>::TPtr StreamSpecIsValid;
 };
 
-Stroka ToStreamSpec(NYTree::TNodePtr node);
+Stroka ToStreamSpec(NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

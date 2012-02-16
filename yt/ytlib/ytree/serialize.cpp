@@ -39,7 +39,7 @@ TYsonProducer ProducerFromNode(INode* node)
         });
 }
 
-TNodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
+INodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
@@ -48,7 +48,7 @@ TNodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
     return builder->EndTree();
 }
 
-TNodePtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
+INodePtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
 {
     TStringInput input(yson);
     return DeserializeFromYson(&input, factory);
@@ -65,7 +65,7 @@ TOutputStream& SerializeToYson(
     return output;
 }
 
-TNodePtr CloneNode(INode* node, INodeFactory* factory)
+INodePtr CloneNode(INode* node, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
@@ -133,7 +133,7 @@ void Read(TGuid& parameter, INode* node)
 
 // TNodePtr
 void Read(
-    TNodePtr& parameter,
+    INodePtr& parameter,
     INode* node)
 {
     parameter = node;
