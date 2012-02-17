@@ -31,20 +31,15 @@ EObjectType TFileNode::GetObjectType() const
     return EObjectType::File;
 }
 
-TAutoPtr<ICypressNode> TFileNode::Clone() const
-{
-    return new TFileNode(Id, *this);
-}
-
 void TFileNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
     ::Save(output, ChunkListId_);
 }
 
-void TFileNode::Load(TInputStream* input)
+void TFileNode::Load(TInputStream* input, TVoid context)
 {
-    TCypressNodeBase::Load(input);
+    TCypressNodeBase::Load(input, context);
     ::Load(input, ChunkListId_);
 }
 

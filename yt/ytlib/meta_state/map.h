@@ -158,9 +158,9 @@ public:
      *  \param output Output stream.
      *  \return An asynchronous result indicating that the snapshot is saved.
      */
-    void SaveKeys(TOutputStream* output);
+    void SaveKeys(TOutputStream* output) const;
 
-    void SaveValues(TOutputStream* output);
+    void SaveValues(TOutputStream* output) const;
 
     //! Synchronously loads the map from the stream.
     /*!

@@ -25,20 +25,15 @@ EObjectType TTableNode::GetObjectType() const
     return EObjectType::Table;
 }
 
-TAutoPtr<ICypressNode> TTableNode::Clone() const
-{
-    return new TTableNode(Id, *this);
-}
-
 void TTableNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
     ::Save(output, ChunkListId_);
 }
 
-void TTableNode::Load(TInputStream* input)
+void TTableNode::Load(TInputStream* input, TVoid context)
 {
-    TCypressNodeBase::Load(input);
+    TCypressNodeBase::Load(input, context);
     ::Load(input, ChunkListId_);
 }
 

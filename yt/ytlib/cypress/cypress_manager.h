@@ -106,13 +106,10 @@ private:
     public:
         TNodeMapTraits(TCypressManager* cypressManager);
 
-        TAutoPtr<ICypressNode> Clone(ICypressNode* value) const;
-        void Save(ICypressNode* value, TOutputStream* output) const;
-        TAutoPtr<ICypressNode> Load(const TVersionedNodeId& id, TInputStream* input) const;
+        TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) const;
 
     private:
         TCypressManager::TPtr CypressManager;
-
     };
     
     NTransactionServer::TTransactionManager::TPtr TransactionManager;
@@ -129,8 +126,10 @@ private:
     i32 UnrefNode(const TNodeId& nodeId);
     i32 GetNodeRefCounter(const TNodeId& nodeId);
 
-    void Save(TOutputStream* output);
-    void Load(TInputStream* input);
+    void SaveKeys(TOutputStream* output); // TODO(roizner): make const once new actions are ready
+    void SaveValues(TOutputStream* output); // TODO(roizner): make const once new actions are ready
+    void LoadKeys(TInputStream* input);
+    void LoadValues(TInputStream* input);
     virtual void Clear();
 
     virtual void OnLeaderRecoveryComplete();

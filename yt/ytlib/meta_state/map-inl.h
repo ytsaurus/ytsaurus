@@ -221,7 +221,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TOutputStream* output)
+void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TOutputStream* output) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -240,7 +240,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TOutputStream* output
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(TOutputStream* output)
+void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(TOutputStream* output) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 

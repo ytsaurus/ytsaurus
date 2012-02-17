@@ -140,11 +140,19 @@ TCypressManager::TCypressManager(
     RegisterHandler(~New<TListNodeTypeHandler>(this));
 
     metaState->RegisterLoader(
-        "Cypress.1",
-        FromMethod(&TCypressManager::Load, TPtr(this)));
+        "Cypress.Keys.1",
+        FromMethod(&TCypressManager::LoadKeys, TPtr(this)));
+    metaState->RegisterLoader(
+        "Cypress.Values.1",
+        FromMethod(&TCypressManager::LoadValues, TPtr(this)));
     metaState->RegisterSaver(
-        "Cypress.1",
-        FromMethod(&TCypressManager::Save, TPtr(this)));
+        "Cypress.Keys.1",
+        FromMethod(&TCypressManager::SaveKeys, TPtr(this)),
+        ESavePhase::Keys);
+    metaState->RegisterSaver(
+        "Cypress.Values.1",
+        FromMethod(&TCypressManager::SaveValues, TPtr(this)),
+        ESavePhase::Values);
 
     metaState->RegisterPart(this);
 }
@@ -656,20 +664,38 @@ ICypressNode& TCypressManager::BranchNode(
     return *branchedNode_;
 }
 
-void TCypressManager::Save(TOutputStream* output)
+void TCypressManager::SaveKeys(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    NodeMap.Save(output);
-    LockMap.Save(output);
+    NodeMap.SaveKeys(output);
+    LockMap.SaveKeys(output);
 }
 
-void TCypressManager::Load(TInputStream* input)
+void TCypressManager::SaveValues(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    NodeMap.Load(input);
-    LockMap.Load(input);
+    NodeMap.SaveValues(output);
+    LockMap.SaveValues(output);
+}
+
+void TCypressManager::LoadKeys(TInputStream* input)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    NodeMap.LoadKeys(input);
+    LockMap.LoadKeys(input);
+}
+
+void TCypressManager::LoadValues(TInputStream* input)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    TVoid context; // TODO(roizner): use real context
+
+    NodeMap.LoadValues(input, context);
+    LockMap.LoadValues(input, context);
 }
 
 void TCypressManager::Clear()
@@ -831,26 +857,10 @@ TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* cypressManager)
     : CypressManager(cypressManager)
 { }
 
-TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Clone(ICypressNode* value) const
+TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
 {
-    return value->Clone();
-}
-
-void TCypressManager::TNodeMapTraits::Save(ICypressNode* value, TOutputStream* output) const
-{
-    ::Save(output, value->GetObjectType());
-    value->Save(output);
-}
-
-TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Load(const TVersionedNodeId& id, TInputStream* input) const
-{
-    EObjectType type;
-    ::Load(input, type);
-    
-    auto value = CypressManager->GetHandler(type)->Create(id);
-    value->Load(input);
-
-    return value;
+    auto type = TypeFromId(id.ObjectId);
+    return CypressManager->GetHandler(type)->Create(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -200,7 +200,7 @@ public:
     virtual i32 GetObjectRefCounter() const;
 
     virtual void Save(TOutputStream* output) const;
-    virtual void Load(TInputStream* input);
+    virtual void Load(TInputStream* input, TVoid context);
 
 protected:
     TVersionedNodeId Id;
@@ -269,9 +269,9 @@ public:
         ::Save(output, Value_);
     }
     
-    virtual void Load(TInputStream* input)
+    virtual void Load(TInputStream* input, TVoid context)
     {
-        TCypressNodeBase::Load(input);
+        TCypressNodeBase::Load(input, context);
         ::Load(input, Value_);
     }
 };
@@ -333,10 +333,8 @@ public:
     explicit TMapNode(const TVersionedNodeId& id);
     TMapNode(const TVersionedNodeId& id, const TMapNode& other);
 
-    virtual TAutoPtr<ICypressNode> Clone() const;
-
     virtual void Save(TOutputStream* output) const;
-    virtual void Load(TInputStream* input);
+    virtual void Load(TInputStream* input, TVoid);
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -386,7 +384,7 @@ public:
     virtual TAutoPtr<ICypressNode> Clone() const;
 
     virtual void Save(TOutputStream* output) const;
-    virtual void Load(TInputStream* input);
+    virtual void Load(TInputStream* input, TVoid);
 
 };
 
