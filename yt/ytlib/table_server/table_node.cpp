@@ -90,7 +90,7 @@ public:
         CypressManager->RegisterNode(transactionId, node.Release());
 
         auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
-        proxy->Attributes()->MergeFrom(manifest);
+        proxy->Attributes().MergeFrom(manifest);
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)

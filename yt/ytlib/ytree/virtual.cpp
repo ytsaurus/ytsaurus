@@ -256,9 +256,9 @@ public:
         }
     }
 
-    virtual IAttributeDictionary* Attributes()
+    virtual IAttributeDictionary& Attributes()
     {
-        return GetUserAttributes();
+        return *GetUserAttributes();
     }
 
 protected:

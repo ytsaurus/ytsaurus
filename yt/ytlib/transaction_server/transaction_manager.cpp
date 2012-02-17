@@ -226,7 +226,7 @@ public:
 
         auto id = Owner->Start(parent, ~manifest).GetId();
         auto proxy = ObjectManager->GetProxy(id);
-        proxy->Attributes()->MergeFrom(manifestNode);
+        proxy->Attributes().MergeFrom(manifestNode);
         return id;
     }
 
@@ -412,7 +412,7 @@ void TTransactionManager::OnLeaderRecoveryComplete()
         const auto& id = pair.first;
         const auto& transaction = *pair.second;
         auto proxy = ObjectManager->GetProxy(id);
-        auto manifestNode = proxy->Attributes()->ToMap();
+        auto manifestNode = proxy->Attributes().ToMap();
         auto manifest = New<TTransactionManifest>();
         manifest->LoadAndValidate(~manifestNode);
         CreateLease(transaction, ~manifest);

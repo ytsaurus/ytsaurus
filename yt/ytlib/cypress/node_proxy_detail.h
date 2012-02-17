@@ -131,7 +131,7 @@ public:
         return NYTree::TNodeBase::IsWriteRequest(context);
     }
 
-    virtual NYTree::IAttributeDictionary* Attributes()
+    virtual NYTree::IAttributeDictionary& Attributes()
     {
         return NObjectServer::TObjectProxyBase::Attributes();
     }

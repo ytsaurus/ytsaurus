@@ -39,10 +39,10 @@ void IAttributeDictionary::MergeFrom(const IMapNode* other)
     }
 }
 
-void IAttributeDictionary::MergeFrom(const IAttributeDictionary* other)
+void IAttributeDictionary::MergeFrom(const IAttributeDictionary& other)
 {
-    FOREACH (const auto& key, other->List()) {
-        auto value = other->GetYson(key);
+    FOREACH (const auto& key, other.List()) {
+        auto value = other.GetYson(key);
         SetYson(key, value);
     }
 }

@@ -107,11 +107,7 @@ private:
     TOrchidManifest::TPtr LoadManifest()
     {
         auto manifest = New<TOrchidManifest>();
-        auto manifestNode =
-        	ObjectManager
-        	->GetProxy(Id)
-        	->Attributes()
-        	->ToMap();
+        auto manifestNode = ObjectManager->GetProxy(Id)->Attributes().ToMap();
         try {
             manifest->LoadAndValidate(~manifestNode);
         } catch (const std::exception& ex) {

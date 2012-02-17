@@ -46,14 +46,14 @@ struct IAttributeDictionary
     template <class T>
     void Set(const Stroka& key, const T& value);
     
-    //! Converts the instance into a map node (by copying and deserliazing the values).
+    //! Converts the instance into a map node (by copying and deserializing the values).
     IMapNodePtr ToMap() const;
 
     //! Adds more attributes from another map node.
     void MergeFrom(const IMapNode* other);
 
     //! Adds more attributes from another attribute dictionary.
-    void MergeFrom(const IAttributeDictionary* other);
+    void MergeFrom(const IAttributeDictionary& other);
 };
 
 TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();

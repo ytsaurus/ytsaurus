@@ -25,7 +25,7 @@ void TTreeVisitor::VisitAny(INode* node)
 {
     yhash_set<Stroka> attributeKeySet;
     if (VisitAttributes_) {
-        attributeKeySet = node->Attributes()->List();
+        attributeKeySet = node->Attributes().List();
     }
     bool hasAttributes = !attributeKeySet.empty();
 
@@ -58,7 +58,7 @@ void TTreeVisitor::VisitAny(INode* node)
         Consumer->OnBeginAttributes();
         FOREACH (const auto& key, attributeKeyList) {
             Consumer->OnAttributesItem(key);
-            auto value = node->Attributes()->GetYson(key);
+            auto value = node->Attributes().GetYson(key);
             ProducerFromYson(value)->Do(Consumer);
         }
         Consumer->OnEndAttributes();
