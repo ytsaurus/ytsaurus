@@ -97,9 +97,7 @@ void TMonitoringManager::Visit(IYsonConsumer* consumer)
 {
     TIMEIT("stateman.visittime", "tv",
 
-    TTreeVisitor visitor(consumer);
-    visitor.Visit(~GetRoot());
-
+    VisitTree(~GetRoot(), consumer);
     )
 }
 

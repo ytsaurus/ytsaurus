@@ -182,15 +182,13 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
         switch (value->GetType()) {
             case ENodeType::List: {
                 FOREACH (const auto& child, value->AsList()->GetChildren()) {
-                    TTreeVisitor visitor(&consumer);
-                    visitor.Visit(~child);
+                    VisitTree(~child, &consumer);
                 }
                 break;
             }
 
             case ENodeType::Map: {
-                TTreeVisitor visitor(&consumer);
-                visitor.Visit(~value);
+                VisitTree(~value, &consumer);
                 break;
             }
 
