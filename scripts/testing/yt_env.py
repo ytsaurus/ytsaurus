@@ -45,7 +45,7 @@ class YTEnv:
         self._clean_run_path()
         self._prepare_configs()
         self._run_services()
-        time.sleep(self. SETUP_TIMEOUT)
+        time.sleep(self.SETUP_TIMEOUT)
         self._init_sys()
 
     def _set_path(self, path_to_run):
@@ -87,12 +87,13 @@ class YTEnv:
     def _init_sys(self):
         if self.NUM_MASTERS == 0: return
         init_file = os.path.join(CONFIGS_ROOTDIR, 'default_init.yt')
-        os.system('cat {init_file} | ytdriver'.format(**vars()))
+        path_to_run = self.path_to_run
+        os.system('cd {path_to_run} && cat {init_file} | ytdriver'.format(**vars()))
         for i in xrange(self.NUM_MASTERS):
             port = 8001 + i
             orchid_yson = '{do=create;path="/sys/masters/localhost:%d/orchid";type=orchid;manifest={remote_address="localhost:%d"}}' %(port, port)
             print orchid_yson
-            os.system("echo '{orchid_yson}'| ytdriver ".format(**vars()))
+            os.system("cd {path_to_run} && echo '{orchid_yson}'| ytdriver ".format(**vars()))
         
 
     def _clean_run_path(self):
