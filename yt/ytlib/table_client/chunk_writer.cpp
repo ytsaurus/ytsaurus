@@ -204,7 +204,7 @@ void TChunkWriter::Cancel(const TError& error)
     VERIFY_THREAD_AFFINITY_ANY();
 
     State.Cancel(error);
-    ChunkWriter->Cancel(error);
+    ChunkWriter.Reset();
 }
 
 TChunkId TChunkWriter::GetChunkId() const
