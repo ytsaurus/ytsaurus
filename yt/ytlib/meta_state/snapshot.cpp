@@ -77,8 +77,6 @@ TSnapshotReader::TSnapshotReader(
 
 void TSnapshotReader::Open()
 {
-    Close();
-
     LOG_DEBUG("Opening snapshot reader %s", ~FileName);
     File.Reset(new TFile(FileName, OpenExisting));
     
@@ -108,17 +106,6 @@ TInputStream& TSnapshotReader::GetStream() const
 i64 TSnapshotReader::GetLength() const
 {
     return File->GetLength();
-}
-
-void TSnapshotReader::Close()
-{
-    if (!FileInput)
-        return;
-
-    LOG_DEBUG("Closing snapshot reader %s", ~FileName);
-    ChecksummableInput.Reset(NULL);
-    DecompressedInput.Reset(NULL);
-    FileInput.Reset(NULL);
 }
 
 TChecksum TSnapshotReader::GetChecksum() const
