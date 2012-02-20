@@ -78,7 +78,7 @@ public:
             LOG_INFO("Fresh chunk seeds are needed");
             GetSeedsResult = New<TAsyncGetSeedsResult>();
             TDelayedInvoker::Submit(
-                ~FromMethod(&TRemoteReader::DoFindChunk, TPtr(this)),
+                ~FromMethod(&TRemoteReader::DoFindChunk, TWeakPtr<TRemoteReader>(this)),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
 
@@ -227,7 +227,25 @@ protected:
         }
     }
 
-    virtual void OnGotSeeds() = 0;
+    virtual void OnGotSeeds()
+    {
+        auto& hostName = Sprintf("%s:", GetHostName());
+
+        // Prefer local holder if in seeds.
+        // ToDo(psushin): consider using more effective container?
+
+        for (auto it = SeedAddresses.begin(); it != SeedAddresses.end(); ++it)
+        {
+            if (it->has_prefix(hostName)) {
+                auto localSeed = *it;
+                SeedAddresses.erase(it);
+                SeedAddresses.insert(SeedAddresses.begin(), localSeed);
+                break;
+            }
+        }
+    }
+
+
     virtual void OnSessionFailed(const TError& error) = 0;
 
 };
@@ -348,12 +366,12 @@ private:
         return result;
     }
 
-    yvector<int> GetRequestBlockIndexes(const Stroka& addresss, const yvector<int>& indexesToFetch)
+    yvector<int> GetRequestBlockIndexes(const Stroka& address, const yvector<int>& indexesToFetch)
     {
         yvector<int> result;
         result.reserve(indexesToFetch.size());
 
-        auto peerBlocksMapIt = PeerBlocksMap.find(addresss);
+        auto peerBlocksMapIt = PeerBlocksMap.find(address);
         YASSERT(peerBlocksMapIt != PeerBlocksMap.end());
 
         const auto& blocksInfo = peerBlocksMapIt->second;
@@ -383,6 +401,7 @@ private:
 
     virtual void OnGotSeeds()
     {
+        TSessionBase::OnGotSeeds();
         NewPass();
     }
 
@@ -471,7 +490,6 @@ private:
         int receivedBlockCount = 0;
         int oldPeerCount = PeerAddressList.ysize();
 
-        yvector<Stroka> receivedPeers;
         for (int index = 0; index < static_cast<int>(blockCount); ++index) {
             int blockIndex = request->block_indexes(index);
             TBlockId blockId(Reader->ChunkId, blockIndex);
@@ -604,6 +622,7 @@ private:
 
     virtual void OnGotSeeds()
     {
+        TSessionBase::OnGotSeeds();
         RequestInfo();
     }
 
