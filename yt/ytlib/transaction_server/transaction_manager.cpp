@@ -260,11 +260,19 @@ TTransactionManager::TTransactionManager(
     YASSERT(objectManager);
 
     metaState->RegisterLoader(
-        "TransactionManager.1",
-        FromMethod(&TTransactionManager::Load, TPtr(this)));
+        "TransactionManager.Keys.1",
+        FromMethod(&TTransactionManager::LoadKeys, TPtr(this)));
+    metaState->RegisterLoader(
+        "TransactionManager.Values.1",
+        FromMethod(&TTransactionManager::LoadValues, TPtr(this)));
     metaState->RegisterSaver(
-        "TransactionManager.1",
-        FromMethod(&TTransactionManager::Save, TPtr(this)));
+        "TransactionManager.Keys.1",
+        FromMethod(&TTransactionManager::SaveKeys, TPtr(this)),
+        ESavePhase::Keys);
+    metaState->RegisterSaver(
+        "TransactionManager.Values.1",
+        FromMethod(&TTransactionManager::SaveValues, TPtr(this)),
+        ESavePhase::Values);
 
     metaState->RegisterPart(this);
 
@@ -383,18 +391,33 @@ void TTransactionManager::RenewLease(const TTransactionId& id)
     TLeaseManager::RenewLease(it->second);
 }
 
-void TTransactionManager::Save(TOutputStream* output)
+void TTransactionManager::SaveKeys(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.Save(output);
+    TransactionMap.SaveKeys(output);
 }
 
-void TTransactionManager::Load(TInputStream* input)
+void TTransactionManager::SaveValues(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.Load(input);
+    TransactionMap.SaveValues(output);
+}
+
+void TTransactionManager::LoadKeys(TInputStream* input)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    TransactionMap.LoadKeys(input);
+}
+
+void TTransactionManager::LoadValues(TInputStream* input)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    TVoid context;
+    TransactionMap.LoadValues(input, context);
 }
 
 void TTransactionManager::Clear()

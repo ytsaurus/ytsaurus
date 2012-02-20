@@ -94,6 +94,19 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
+TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Release(const TKey& key)
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
+    auto it = Map.find(key);
+    YASSERT(it != Map.end());
+    TValue* value = it->second;
+    Map.erase(it);
+    --Size;
+    return value;
+}
+
+template <class TKey, class TValue, class TTraits, class THash>
 bool TMetaStateMap<TKey, TValue, TTraits, THash>::Contains(const TKey& key) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);

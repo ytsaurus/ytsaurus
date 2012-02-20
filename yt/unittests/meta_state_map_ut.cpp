@@ -23,29 +23,21 @@ namespace {
         TMyInt()
         { }
 
-        TMyInt(const TMyInt& other)
-            : Value(other.Value)
+        TMyInt(const Stroka&)
         { }
 
         TMyInt(int value)
             : Value(value)
         { }
 
-        TAutoPtr<TMyInt> Clone() const
-        {
-            return new TMyInt(*this);
-        }
-
         void Save(TOutputStream* output) const
         {
             Write(*output, Value);
         }
 
-        static TAutoPtr<TMyInt> Load(const TKey& /* fake */, TInputStream* input)
+        void Load(TInputStream* input, TVoid)
         {
-            int value;
-            Read(*input, &value);
-            return new TMyInt(value);
+            Read(*input, &Value);
         }
     };
 
@@ -103,12 +95,15 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
             }
         }
         TStringOutput output(snapshotData);
-        map.Save(&output);
+        map.SaveKeys(&output);
+        map.SaveValues(&output);
     }
     {
         NMetaState::TMetaStateMap<TKey, TValue> map;
         TStringInput input(snapshotData);
-        map.Load(&input);
+        map.LoadKeys(&input);
+        TVoid context;
+        map.LoadValues(&input, context);
 
         // assert checkMap \subseteq map
         FOREACH(const auto& pair, checkMap) {
@@ -144,7 +139,8 @@ TEST_F(TMetaStateMapTest, StressSave)
             EXPECT_EQ(map.Get(key).Value, checkMap[key]);
         }
     }
-    map.Save(&output);
+    map.SaveKeys(&output);
+    map.SaveValues(&output);
 
     const int actionCount = 100000;
     const int selectRange = 200000;

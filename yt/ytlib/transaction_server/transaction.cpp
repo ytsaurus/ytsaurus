@@ -12,15 +12,8 @@ TTransaction::TTransaction(const TTransactionId& id)
     : TObjectWithIdBase(id)
 { }
 
-TAutoPtr<TTransaction> TTransaction::Clone() const
-{
-    return new TTransaction(*this);
-}
-
 void TTransaction::Save(TOutputStream* output) const
 {
-    YASSERT(output);
-
     TObjectWithIdBase::Save(output);
     ::Save(output, State_);
     SaveSet(output, NestedTransactionIds_);
@@ -31,32 +24,17 @@ void TTransaction::Save(TOutputStream* output) const
     ::Save(output, CreatedNodeIds_);
 }
 
-TAutoPtr<TTransaction> TTransaction::Load(const TTransactionId& id, TInputStream* input)
+void TTransaction::Load(TInputStream* input, TVoid)
 {
-    YASSERT(input);
-
-    auto* transaction = new TTransaction(id);
-    transaction->TObjectWithIdBase::Load(input);
-    ::Load(input, transaction->State_);
-    LoadSet(input, transaction->NestedTransactionIds_);
-    ::Load(input, transaction->ParentId_);
-    LoadSet(input, transaction->CreatedObjectIds_);
-    ::Load(input, transaction->LockIds_);
-    ::Load(input, transaction->BranchedNodeIds_);
-    ::Load(input, transaction->CreatedNodeIds_);
-    return transaction;
+    TObjectWithIdBase::Load(input);
+    ::Load(input, State_);
+    LoadSet(input, NestedTransactionIds_);
+    ::Load(input, ParentId_);
+    LoadSet(input, CreatedObjectIds_);
+    ::Load(input, LockIds_);
+    ::Load(input, BranchedNodeIds_);
+    ::Load(input, CreatedNodeIds_);
 }
-
-TTransaction::TTransaction(const TTransaction& other)
-    : TObjectWithIdBase(other)
-    , State_(other.State_)
-    , NestedTransactionIds_(other.NestedTransactionIds_)
-    , ParentId_(other.ParentId_)
-    , CreatedObjectIds_(other.CreatedObjectIds_)
-    , LockIds_(other.LockIds_)
-    , BranchedNodeIds_(other.BranchedNodeIds_)
-    , CreatedNodeIds_(other.CreatedNodeIds_)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

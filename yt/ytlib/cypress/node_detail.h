@@ -381,8 +381,6 @@ public:
     explicit TListNode(const TVersionedNodeId& id);
     TListNode(const TVersionedNodeId& id, const TListNode& other);
 
-    virtual TAutoPtr<ICypressNode> Clone() const;
-
     virtual void Save(TOutputStream* output) const;
     virtual void Load(TInputStream* input, TVoid);
 

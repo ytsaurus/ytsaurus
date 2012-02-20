@@ -105,6 +105,8 @@ public:
      */
     void Remove(const TKey& key);
 
+    TValue* Release(const TKey& key);
+
     //! Checks whether the key exists in the map.
     /*!
      *  \param key A key.

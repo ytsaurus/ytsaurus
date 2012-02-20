@@ -94,8 +94,10 @@ private:
     void FinishTransaction(TTransaction& transaction);
 
     // TMetaStatePart overrides
-    void Save(TOutputStream* output);
-    void Load(TInputStream* input);
+    void SaveKeys(TOutputStream* output);
+    void SaveValues(TOutputStream* output);
+    void LoadKeys(TInputStream* input);
+    void LoadValues(TInputStream* input);
     virtual void Clear();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

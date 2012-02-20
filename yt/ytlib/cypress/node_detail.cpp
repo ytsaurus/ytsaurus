@@ -207,6 +207,15 @@ void TMapNodeTypeHandler::DoMerge(
     originatingNode.ChildCountDelta() += branchedNode.ChildCountDelta();
 }
 
+ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
+{
+    return New<TMapNodeProxy>(
+        this,
+        ~CypressManager,
+        id.TransactionId,
+        id.ObjectId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNode::TListNode(const TVersionedNodeId& id)
@@ -218,15 +227,6 @@ TListNode::TListNode(const TVersionedNodeId& id, const TListNode& other)
 {
     IndexToChild_ = other.IndexToChild_;
     ChildToIndex_ = other.ChildToIndex_;
-}
-
-ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
-{
-    return New<TMapNodeProxy>(
-        this,
-        ~CypressManager,
-        id.TransactionId,
-        id.ObjectId);
 }
 
 void TListNode::Save(TOutputStream* output) const
