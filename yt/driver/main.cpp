@@ -212,7 +212,6 @@ public:
                 .NoArgument();
 
             TOptsParseResult results(&opts, argc, argv);
-
             if (!results.Has(&configOpt)) {
                 auto configFromEnv = getenv("YTDRIVER_CONFIG");
                 if (configFromEnv) {

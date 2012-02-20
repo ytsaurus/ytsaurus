@@ -50,7 +50,7 @@ class YTEnv:
 
     def _set_path(self, path_to_run):
         path_to_run = os.path.abspath(path_to_run)
-        print 'initialzing at', path_to_run
+        print 'initializing at', path_to_run
         self.process_to_kill = []
 
         self.path_to_run = path_to_run
@@ -154,7 +154,9 @@ class YTEnv:
             self.config_paths['holder'].append(config_path)
 
     def _prepare_driver_config(self):
-        pass
+        config_path = os.path.join(self.path_to_run, 'driver_config.yson')
+        write_config(self.driver_config, config_path)
+        os.environ['YTDRIVER_CONFIG'] = config_path
 
     def tearDown(self):
         for p in self.process_to_kill:
