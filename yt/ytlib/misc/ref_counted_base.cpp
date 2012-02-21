@@ -50,6 +50,16 @@ void TIntrinsicRefCounted::BindToCookie(void* cookie)
 }
 #endif
 
+void NDetail::TRefCounter::Dispose()
+{
+    delete that;
+}
+
+void NDetail::TRefCounter::Destroy()
+{
+    delete this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
