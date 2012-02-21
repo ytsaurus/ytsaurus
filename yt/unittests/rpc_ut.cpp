@@ -299,7 +299,7 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttributes)
     EXPECT_EQ("stroka3", attributes.GetYson("value3"));
 
     auto& new_attributes = response->Attributes();
-    new_attributes.MergeFrom(&attributes);
+    new_attributes.MergeFrom(attributes);
     new_attributes.Remove("value1");
     new_attributes.SetYson("value2", "another_stroka");
 

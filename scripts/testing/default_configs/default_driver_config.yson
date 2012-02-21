@@ -13,7 +13,7 @@
                 categories  = [ "*" ];
             };
             {
-                min_level = Info;
+                min_level = Warning;
                 writers = [ stderr ];
                 categories  = [ "*" ];
             };
