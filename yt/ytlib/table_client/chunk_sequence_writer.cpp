@@ -44,11 +44,6 @@ TChunkSequenceWriter::TChunkSequenceWriter(
     // TODO(babenko): use TTaggedLogger here
 }
 
-TChunkSequenceWriter::~TChunkSequenceWriter()
-{
-    Cancel(TError("Chunk sequence writing aborted"));
-}
-
 void TChunkSequenceWriter::CreateNextChunk()
 {
     YASSERT(!NextChunk);
@@ -74,7 +69,7 @@ void TChunkSequenceWriter::CreateNextChunk()
     req->Invoke()->Subscribe(
         FromMethod(
             &TChunkSequenceWriter::OnChunkCreated,
-            TPtr(this))
+            TWeakPtr<TChunkSequenceWriter>(this))
         ->Via(WriterThread->GetInvoker()));
 }
 
@@ -121,7 +116,7 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncOpen()
     State.StartOperation();
     NextChunk->Subscribe(FromMethod(
         &TChunkSequenceWriter::InitCurrentChunk,
-        TPtr(this)));
+        TWeakPtr<TChunkSequenceWriter>(this)));
 
     return State.GetOperationError();
 }
@@ -129,11 +124,9 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncOpen()
 void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    {
-        TGuard<TSpinLock> guard(CurrentSpinLock);
-        CurrentChunk = nextChunk;
-        NextChunk.Reset();
-    }
+
+    CurrentChunk = nextChunk;
+    NextChunk.Reset();
     State.FinishOperation();
 }
 
@@ -154,7 +147,7 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncEndRow()
 
     CurrentChunk->AsyncEndRow()->Subscribe(FromMethod(
         &TChunkSequenceWriter::OnRowEnded,
-        TPtr(this)));
+        TWeakPtr<TChunkSequenceWriter>(this)));
 
     return State.GetOperationError();
 }
@@ -184,7 +177,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
         FinishCurrentChunk();
         NextChunk->Subscribe(FromMethod(
             &TChunkSequenceWriter::InitCurrentChunk,
-            TPtr(this)));
+            TWeakPtr<TChunkSequenceWriter>(this)));
     } else {
         State.FinishOperation();
     }
@@ -200,22 +193,20 @@ void TChunkSequenceWriter::FinishCurrentChunk()
         CloseChunksAwaiter->Await(finishResult, 
             FromMethod(
                 &TChunkSequenceWriter::OnChunkFinished, 
-                TPtr(this),
+                TWeakPtr<TChunkSequenceWriter>(this),
                 CurrentChunk->GetChunkId()));
 
         CurrentChunk->AsyncClose()->Subscribe(FromMethod(
             &TChunkSequenceWriter::OnChunkClosed,
-            TPtr(this),
+            TWeakPtr<TChunkSequenceWriter>(this),
             CurrentChunk,
             finishResult));
 
     } else {
         LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
-        CurrentChunk->Cancel(TError("Chunk is empty"));
     }
 
-    TGuard<TSpinLock> guard(CurrentSpinLock);
     CurrentChunk.Reset();
 }
 
@@ -258,7 +249,7 @@ void TChunkSequenceWriter::OnChunkClosed(
 
     batchReq->Invoke()->Subscribe(FromMethod(
         &TChunkSequenceWriter::OnChunkRegistered,
-        TPtr(this),
+        TWeakPtr<TChunkSequenceWriter>(this),
         currentChunk->GetChunkId(),
         finishResult));
 }
@@ -313,7 +304,7 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncClose()
 
     CloseChunksAwaiter->Complete(FromMethod(
         &TChunkSequenceWriter::OnClose,
-        TPtr(this)));
+        TWeakPtr<TChunkSequenceWriter>(this)));
 
     return State.GetOperationError();
 }
@@ -328,18 +319,6 @@ void TChunkSequenceWriter::OnClose()
         ~TransactionId.ToString());
 
     State.FinishOperation();
-}
-
-void TChunkSequenceWriter::Cancel(const TError& error)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    State.Cancel(error);
-
-    TGuard<TSpinLock> guard(CurrentSpinLock);
-    if (CurrentChunk) {
-        CurrentChunk->Cancel(error);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
