@@ -229,7 +229,7 @@ protected:
 
     virtual void OnGotSeeds()
     {
-        auto& hostName = Sprintf("%s:", GetHostName());
+        auto hostName = Sprintf("%s:", GetHostName());
 
         // Prefer local holder if in seeds.
         // ToDo(psushin): consider using more effective container?
