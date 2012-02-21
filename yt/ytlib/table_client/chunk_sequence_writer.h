@@ -82,7 +82,6 @@ public:
     void Write(const TColumn& column, TValue value);
     TAsyncError::TPtr AsyncEndRow();
     TAsyncError::TPtr AsyncClose();
-    void Cancel(const TError& error);
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -124,7 +123,6 @@ private:
     TAsyncStreamState State;
 
     //! Protects #CurrentChunk.
-    TSpinLock CurrentSpinLock;
     TChunkWriter::TPtr CurrentChunk;
     TFuture<TChunkWriter::TPtr>::TPtr NextChunk;
 

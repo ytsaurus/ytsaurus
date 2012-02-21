@@ -286,7 +286,7 @@ TFuture<TVoid>::TPtr TSession::DeleteFile(const TError& error)
 
 TVoid TSession::DoDeleteFile(const TError& error)
 {
-    Writer->Cancel(error);
+    Writer.Reset();
 
     LOG_DEBUG("Chunk file deleted\n%s",
         ~error.ToString());

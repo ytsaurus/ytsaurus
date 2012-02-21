@@ -212,9 +212,13 @@ public:
                 .NoArgument();
 
             TOptsParseResult results(&opts, argc, argv);
-
             if (!results.Has(&configOpt)) {
-                configFileName = NFS::CombinePaths(GetHomePath(), DefaultConfigFileName);
+                auto configFromEnv = getenv("YT_CONFIG");
+                if (configFromEnv) {
+                    configFileName = Stroka(configFromEnv);
+                } else {
+                    configFileName = NFS::CombinePaths(GetHomePath(), DefaultConfigFileName);
+                }
             }
 
             auto config = New<TConfig>();

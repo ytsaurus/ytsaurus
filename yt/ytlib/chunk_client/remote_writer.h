@@ -95,11 +95,6 @@ public:
      * \note Thread affinity: ClientThread.
      */
     virtual TAsyncError::TPtr AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
-    
-    /*!
-     * \note Thread affinity: any.
-     */
-    void Cancel(const TError& error);
 
     ~TRemoteWriter();
 
@@ -123,6 +118,8 @@ public:
     NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest();
 
 private:
+    typedef TWeakPtr<TRemoteWriter> TWeak;
+
     //! A group is a bunch of blocks that is sent in a single RPC request.
     class TGroup;
     typedef TIntrusivePtr<TGroup> TGroupPtr;
@@ -180,11 +177,6 @@ private:
      * Sets #IsCloseRequested.
      */
     void DoClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
-    
-    /*!
-     * Invoked from #Cancel
-     */
-    void DoCancel();
 
     void AddGroup(TGroupPtr group);
 

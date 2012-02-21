@@ -33,6 +33,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttachments);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, ModifyAttributes);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ReplyingCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
@@ -95,6 +96,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttachments));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyAttributes));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplyingCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(EmptyCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
@@ -107,6 +109,7 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttachments);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ModifyAttributes);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ReplyingCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, EmptyCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
@@ -135,17 +138,6 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, ReplyingCall)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
-{
-    for (int i = 0; i < request->Attachments().ysize(); ++i) {
-        auto blob = request->Attachments()[i].ToBlob();
-        blob.push_back('_');
-
-        response->Attachments().push_back(MoveRV(blob));
-    }
-    context->Reply();
-}
-
 DEFINE_RPC_SERVICE_METHOD(TMyService, EmptyCall)
 {
     UNUSED(request);
@@ -171,21 +163,6 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, CustomMessageError)
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
 {
     UNUSED(request);
-}
-
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
-{
-    EXPECT_EQ(12345, request->value());
-    EXPECT_EQ(true, request->ok());
-    EXPECT_EQ(Stroka("hello, TMyService"), request->message());
-
-    const auto& attachments = request->Attachments();
-    EXPECT_EQ(3, attachments.ysize());
-    EXPECT_EQ("Attachments",     StringFromSharedRef(attachments[0]));
-    EXPECT_EQ("are",      StringFromSharedRef(attachments[1]));
-    EXPECT_EQ("ok",  StringFromSharedRef(attachments[2]));
-
-    Event_->Signal();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,6 +258,19 @@ TEST_F(TRpcTest, ManyAsyncSends)
     EXPECT_IS_TRUE(handler->Event_.WaitT(TDuration::Seconds(4))); // assert no timeout
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
+{
+    for (int i = 0; i < request->Attachments().ysize(); ++i) {
+        auto blob = request->Attachments()[i].ToBlob();
+        blob.push_back('_');
+
+        response->Attachments().push_back(MoveRV(blob));
+    }
+    context->Reply();
+}
+
 TEST_F(TRpcTest, Attachments)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
@@ -298,6 +288,43 @@ TEST_F(TRpcTest, Attachments)
     EXPECT_EQ("from_",      StringFromSharedRef(attachments[1]));
     EXPECT_EQ("TMyProxy_",  StringFromSharedRef(attachments[2]));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttributes)
+{
+    const auto& attributes = request->Attributes();
+    EXPECT_EQ("stroka1", attributes.GetYson("value1"));
+    EXPECT_EQ("stroka2", attributes.GetYson("value2"));
+    EXPECT_EQ("stroka3", attributes.GetYson("value3"));
+
+    auto& new_attributes = response->Attributes();
+    new_attributes.MergeFrom(&attributes);
+    new_attributes.Remove("value1");
+    new_attributes.SetYson("value2", "another_stroka");
+
+    context->Reply();
+}
+
+TEST_F(TRpcTest, Attributes)
+{
+    TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
+    auto request = proxy->ModifyAttributes();
+
+    request->Attributes().SetYson("value1", "stroka1");
+    request->Attributes().SetYson("value2", "stroka2");
+    request->Attributes().SetYson("value3", "stroka3");
+
+    auto response = request->Invoke()->Get();
+    const auto& attributes = response->Attributes();
+
+    EXPECT_EQ(false, attributes.FindYson("value1").IsInitialized());
+    EXPECT_EQ("another_stroka", attributes.GetYson("value2"));
+    EXPECT_EQ("stroka3", attributes.GetYson("value3"));
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Now test different types of errors
 TEST_F(TRpcTest, OK)
@@ -359,6 +386,30 @@ TEST_F(TRpcTest, CustomErrorMessage)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
+{
+    EXPECT_EQ(12345, request->value());
+    EXPECT_EQ(true, request->ok());
+    EXPECT_EQ(Stroka("hello, TMyService"), request->message());
+
+    const auto& attachments = request->Attachments();
+    EXPECT_EQ(3, attachments.ysize());
+    EXPECT_EQ("Attachments",     StringFromSharedRef(attachments[0]));
+    EXPECT_EQ("are",      StringFromSharedRef(attachments[1]));
+    EXPECT_EQ("ok",  StringFromSharedRef(attachments[2]));
+
+    auto& attributes = request->Attributes();
+    EXPECT_EQ("world", attributes.GetYson("hello"));
+    EXPECT_EQ("42", attributes.GetYson("value"));
+
+    EXPECT_EQ("world", attributes.Get<Stroka>("hello"));
+    EXPECT_EQ(42, attributes.Get<i64>("value"));
+
+    EXPECT_EQ(false, attributes.FindYson("another_value").IsInitialized());
+
+    Event_->Signal();
+}
+
 TEST_F(TRpcTest, OneWaySend)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
@@ -371,11 +422,16 @@ TEST_F(TRpcTest, OneWaySend)
     request->Attachments().push_back(SharedRefFromString("are"));
     request->Attachments().push_back(SharedRefFromString("ok"));
 
+    request->Attributes().SetYson("hello", "world");
+    request->Attributes().SetYson("value", "42");
+
     auto response = request->Invoke()->Get();
     EXPECT_EQ(TError::OK, response->GetErrorCode());
 
     EXPECT_IS_TRUE(ReadyEvent.WaitT(TDuration::Seconds(4))); // assert no timeout
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Different types of errors in one-way rpc
 // TODO: think about refactoring

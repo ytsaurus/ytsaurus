@@ -27,8 +27,6 @@ public:
 
     virtual TAsyncError::TPtr AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
 
-    void Cancel(const TError& error);
-
     TChunkId GetChunkId() const;
 
     //! Returns chunk info. The writer must be already closed.
