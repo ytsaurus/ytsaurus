@@ -157,7 +157,7 @@ class YTEnv:
     def _prepare_driver_config(self):
         config_path = os.path.join(self.path_to_run, 'driver_config.yson')
         write_config(self.driver_config, config_path)
-        os.environ['YTDRIVER_CONFIG'] = config_path
+        os.environ['YT_CONFIG'] = config_path
 
     def tearDown(self):
         for p in self.process_to_kill:

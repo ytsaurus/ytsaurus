@@ -213,7 +213,7 @@ public:
 
             TOptsParseResult results(&opts, argc, argv);
             if (!results.Has(&configOpt)) {
-                auto configFromEnv = getenv("YTDRIVER_CONFIG");
+                auto configFromEnv = getenv("YT_CONFIG");
                 if (configFromEnv) {
                     configFileName = Stroka(configFromEnv);
                 } else {
