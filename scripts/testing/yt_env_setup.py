@@ -11,6 +11,7 @@ class YTEnvSetup(YTEnv):
         path_to_run = os.path.join(path_to_test, "run")
         cls.Env = cls()
         cls.Env.setUp(path_to_run)
+        print '=' * 70
 
     @classmethod
     def teardown_class(cls):
