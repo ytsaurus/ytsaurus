@@ -125,7 +125,7 @@ private:
         auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
         CypressProxy
             ->Execute(~req)
-            ->Subscribe(FromMethod(&TRemoteReader::OnChunkFetched, TPtr(this)));
+            ->Subscribe(FromMethod(&TRemoteReader::OnChunkFetched, TWeakPtr<TRemoteReader>(this)));
     }
 
     void OnChunkFetched(TChunkYPathProxy::TRspFetch::TPtr rsp)
@@ -168,7 +168,7 @@ class TSessionBase
 protected:
     typedef TIntrusivePtr<TSessionBase> TPtr;
 
-    TRemoteReader::TPtr Reader;
+    TWeakPtr<TRemoteReader> Reader;
     int RetryIndex;
     TRemoteReader::TAsyncGetSeedsResult::TPtr GetSeedsResult;
     NLog::TTaggedLogger Logger;
@@ -179,16 +179,20 @@ protected:
         , RetryIndex(0)
         , Logger(ChunkClientLogger)
     {
-        Logger.AddTag(Sprintf("ChunkId: %s", ~Reader->ChunkId.ToString()));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~reader->ChunkId.ToString()));
     }
 
     virtual void NewRetry()
     {
+        auto reader = Reader.Lock();
+        if (!reader)
+            return;
+
         YASSERT(!GetSeedsResult);
 
         LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
-        GetSeedsResult = Reader->AsyncGetSeeds();
+        GetSeedsResult = reader->AsyncGetSeeds();
         GetSeedsResult->Subscribe(FromMethod(&TSessionBase::OnGetSeedsReply, TPtr(this)));
     }
 
@@ -210,15 +214,19 @@ protected:
 
     void OnRetryFailed(const TError& error)
     {
+        auto reader = Reader.Lock();
+        if (!reader)
+            return;
+
         LOG_WARNING("Retry failed (RetryIndex: %d)\n%s",
             RetryIndex,
             ~error.ToString());
 
         YASSERT(GetSeedsResult);
-        Reader->DiscardSeeds(~GetSeedsResult);
+        reader->DiscardSeeds(~GetSeedsResult);
         GetSeedsResult.Reset();
 
-        if (RetryIndex < Reader->Config->RetryCount) {
+        if (RetryIndex < reader->Config->RetryCount) {
             ++RetryIndex;
             NewRetry();
         } else {
@@ -244,7 +252,6 @@ protected:
             }
         }
     }
-
 
     virtual void OnSessionFailed(const TError& error) = 0;
 
@@ -387,10 +394,14 @@ private:
 
     void FetchBlocksFromCache()
     {
+        auto reader = Reader.Lock();
+        if (!reader)
+            return;
+
         FOREACH (int blockIndex, BlockIndexes) {
             if (FetchedBlocks.find(blockIndex) == FetchedBlocks.end()) {
-                TBlockId blockId(Reader->ChunkId, blockIndex);
-                auto block = Reader->BlockCache->Find(blockId);
+                TBlockId blockId(reader->ChunkId, blockIndex);
+                auto block = reader->BlockCache->Find(blockId);
                 if (block) {
                     LOG_INFO("Block is fetched from cache (BlockIndex: %d)", blockIndex);
                     YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
@@ -407,6 +418,10 @@ private:
 
     void RequestPeer()
     {
+        auto reader = Reader.Lock();
+        if (!reader)
+            return;
+
         while (true) {
             FetchBlocksFromCache();
 
@@ -419,12 +434,12 @@ private:
             if (PeerIndex >= PeerAddressList.ysize()) {
                 LOG_INFO("Pass completed (PassIndex: %d)", PassIndex);
                 ++PassIndex;
-                if (PassIndex >= Reader->Config->PassCount) {
+                if (PassIndex >= reader->Config->PassCount) {
                     OnRetryFailed(TError("Unable to fetch all chunk blocks"));
                 } else {
                     TDelayedInvoker::Submit(
                         ~FromMethod(&TReadSession::NewPass, TPtr(this)),
-                        Reader->Config->PassBackoffTime);
+                        reader->Config->PassBackoffTime);
                 }
                 return;
             }
@@ -440,14 +455,14 @@ private:
                 auto channel = HolderChannelCache->GetChannel(address);
 
                 TChunkHolderServiceProxy proxy(~channel);
-                proxy.SetDefaultTimeout(Reader->Config->HolderRpcTimeout);
+                proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
 
                 auto request = proxy.GetBlocks();
-                request->set_chunk_id(Reader->ChunkId.ToProto());
+                request->set_chunk_id(reader->ChunkId.ToProto());
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
-                if (Reader->Config->PublishPeer) {
-                    request->set_peer_address(Reader->Config->PeerAddress);
-                    request->set_peer_expiration_time((TInstant::Now() + Reader->Config->PeerExpirationTimeout).GetValue());
+                if (reader->Config->PublishPeer) {
+                    request->set_peer_address(reader->Config->PeerAddress);
+                    request->set_peer_expiration_time((TInstant::Now() + reader->Config->PeerExpirationTimeout).GetValue());
                 }
 
                 request->Invoke()->Subscribe(FromMethod(
@@ -483,6 +498,10 @@ private:
         TChunkHolderServiceProxy::TReqGetBlocks* request,
         TChunkHolderServiceProxy::TRspGetBlocks* response)
     {
+        auto reader = Reader.Lock();
+        if (!reader)
+            return;
+
         size_t blockCount = request->block_indexes_size();
         YASSERT(response->blocks_size() == blockCount);
         YASSERT(response->Attachments().size() == blockCount);
@@ -492,7 +511,7 @@ private:
 
         for (int index = 0; index < static_cast<int>(blockCount); ++index) {
             int blockIndex = request->block_indexes(index);
-            TBlockId blockId(Reader->ChunkId, blockIndex);
+            TBlockId blockId(reader->ChunkId, blockIndex);
             const auto& blockInfo = response->blocks(index);
             if (blockInfo.data_attached()) {
                 LOG_INFO("Block received (Address: %s, BlockIndex: %d)",
@@ -504,14 +523,14 @@ private:
                 // If we don't publish peer we should forget source address
                 // to avoid updating peer in TPeerBlockUpdater.
                 Stroka source;
-                if (Reader->Config->PublishPeer) {
+                if (reader->Config->PublishPeer) {
                     source = address;
                 }
-                Reader->BlockCache->Put(blockId, block, source);
+                reader->BlockCache->Put(blockId, block, source);
                 
                 YVERIFY(FetchedBlocks.insert(MakePair(blockIndex, block)).second);
                 ++receivedBlockCount;
-            } else if (Reader->Config->FetchFromPeers) {
+            } else if (reader->Config->FetchFromPeers) {
                 FOREACH (const auto& peerAddress, blockInfo.peer_addresses()) {
                     LOG_INFO("Peer info received (Address: %s, PeerAddress: %s, BlockIndex: %d)",
                         ~address,
@@ -590,6 +609,10 @@ private:
 
     void RequestInfo()
     {
+        auto reader = Reader.Lock();
+        if (!reader)
+            return;
+
         auto address = SeedAddresses[SeedIndex];
 
         LOG_INFO("Requesting chunk info from holder (Address: %s)", ~address);
@@ -597,10 +620,10 @@ private:
         auto channel = HolderChannelCache->GetChannel(address);
 
         TChunkHolderServiceProxy proxy(~channel);
-        proxy.SetDefaultTimeout(Reader->Config->HolderRpcTimeout);
+        proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
 
         auto request = proxy.GetChunkInfo();
-        request->set_chunk_id(Reader->ChunkId.ToProto());
+        request->set_chunk_id(reader->ChunkId.ToProto());
         request->Invoke()->Subscribe(FromMethod(&TGetInfoSession::OnGotChunkInfo, TPtr(this)));
     }
 
