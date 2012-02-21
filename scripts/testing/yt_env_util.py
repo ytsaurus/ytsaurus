@@ -11,7 +11,7 @@ def execute_cmd(cmd, yt = None):
         yt = launch_yt()
         return yt.communicate(cmd + '\n')[0]
 
-def execute_with_error(cmd, yt = None):
+def execute_error_cmd(cmd, yt = None):
     if yt:
         yt.stdin.write(cmd + '\n')
         return yt.stderr.readline().strip('\n')
