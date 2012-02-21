@@ -246,6 +246,7 @@ bool operator!=(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
     return lhs.Lock().Get() != rhs.Lock().Get();
 }
 
+#if 0
 template<class T, class U>
 bool operator==(const TWeakPtr<T>& lhs, U* rhs)
 {
@@ -269,6 +270,7 @@ bool operator!=(T* lhs, const TWeakPtr<U>& rhs)
 {
     return lhs != rhs.Lock().Get();
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
