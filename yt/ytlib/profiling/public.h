@@ -1,0 +1,19 @@
+#pragma once
+
+#include <ytlib/misc/common.h>
+
+namespace NYT {
+namespace NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProfiler;
+class TProfilingManager;
+struct TSample;
+typedef i64 TValue;
+typedef ui64 TCpuClock;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NProfiling
+} // namespace NYT
