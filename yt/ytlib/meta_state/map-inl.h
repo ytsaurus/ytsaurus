@@ -305,7 +305,8 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLi
             YUNREACHABLE();
     }
 
-    YASSERT(keys.ysize() == Size);
+    YASSERT(keys.ysize() == Min(static_cast<size_t>(Size), sizeLimit));
+
     return MoveRV(keys);
 }
 
