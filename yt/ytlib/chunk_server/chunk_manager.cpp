@@ -765,7 +765,7 @@ private:
         holder.AddChunk(chunkId, cached);
         chunk.AddLocation(holderId, cached);
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+        LOG_DEBUG_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~::ToString(cached),
             ~holder.GetAddress(),
@@ -804,7 +804,7 @@ private:
         holder.RemoveChunk(chunk.GetId(), cached);
         chunk.RemoveLocation(holder.GetId(), cached);
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+        LOG_DEBUG_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
              ~chunkId.ToString(),
              ~::ToString(cached),
              ~holder.GetAddress(),
@@ -823,7 +823,7 @@ private:
          holder.RemoveUnapprovedChunk(chunk.GetId());
          chunk.RemoveLocation(holder.GetId(), false);
 
-        LOG_INFO_IF(!IsRecovery(), "Unapproved chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_DEBUG_IF(!IsRecovery(), "Unapproved chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunkId.ToString(),
              ~holder.GetAddress(),
              holderId);
@@ -837,7 +837,7 @@ private:
     {
         chunk.RemoveLocation(holder.GetId(), cached);
 
-        LOG_INFO_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+        LOG_DEBUG_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
              ~chunk.GetId().ToString(),
              ~::ToString(cached),
              ~holder.GetAddress(),
@@ -873,7 +873,7 @@ private:
 
         RegisterReplicationSinks(*job);
 
-        LOG_INFO_IF(!IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
+        LOG_DEBUG_IF(!IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
             ~holder.GetAddress(),
             holder.GetId(),
@@ -942,7 +942,7 @@ private:
                 return;
             }
 
-            LOG_INFO_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s, Size: %" PRId64 ")",
+            LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s, Size: %" PRId64 ")",
                 ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString(),
@@ -979,7 +979,7 @@ private:
 
         auto* chunk = FindChunkForUpdate(chunkId);
         if (!chunk) {
-            LOG_INFO_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
                  ~::ToString(cached),
                  ~holder.GetAddress(),
