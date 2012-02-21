@@ -9,12 +9,17 @@ namespace NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSample
+struct TQueuedSample
 {
-    TSample(i64 id, i64 time, TValue value);
+    TQueuedSample()
+		: Time(-1)
+		, Value(-1)
+	{ }
 
-    i64 Id;
-    i64 Time;
+    TCpuClock Time;
+	// Full path is computed in the profiler thread.
+	NYTree::TYPath PathPrefix;
+	NYTree::TYPath Path;
     TValue Value;
 };
 
@@ -27,13 +32,33 @@ public:
 
     static TProfilingManager* Get();
 
-    void AddSample(const TSample& sample);
+    void Enqueue(const TQueuedSample& sample);
+
+	IInvoker* GetInvoker() const;
+	NYTree::IYPathService* GetService() const;
 
 private:
+	class TTimeConverter;
+	class TImpl;
 
+	class TBucket;
+	typedef TIntrusivePtr<TBucket> TBucketPtr;
+
+	struct TStoredSample;
+
+	THolder<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProfiling
 } // namespace NYT
+
+template <>
+struct TSingletonTraits<NYT::NProfiling::TProfilingManager>
+{
+	enum
+	{
+		Priority = 2048
+	};
+};

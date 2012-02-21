@@ -14,7 +14,7 @@ class TProfiler
 public:
     explicit TProfiler(const NYTree::TYPath& pathPrefix);
 
-    void AddValue(const NYTree::TYPath& path, TValue value);
+    void Enqueue(const NYTree::TYPath& path, TValue value);
 
     TCpuClock StartTiming();
     void StopTiming(TCpuClock start, const NYTree::TYPath& path);
@@ -64,7 +64,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 #define PROFILE_VALUE(path, value) \
-    Profiler.AddValue(path, value)
+    Profiler.Enqueue(path, value)
 
 #define PROFILE_TIMING(path) \
     if (auto timingGuard_##__LINE__ = \

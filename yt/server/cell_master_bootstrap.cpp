@@ -44,6 +44,8 @@
 
 #include <ytlib/bus/nl_server.h>
 
+#include <ytlib/profiling/profiling_manager.h>
+
 namespace NYT {
 
 static NLog::TLogger Logger("Server");
@@ -189,8 +191,12 @@ void TCellMasterBootstrap::Run()
         ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "config",
-        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
+        "profiling",
+        ~NYTree::CreateVirtualNode(NProfiling::TProfilingManager::Get()->GetService()));
+	SyncYPathSetNode(
+		~orchidRoot,
+		"config",
+		~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,

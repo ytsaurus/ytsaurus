@@ -15,9 +15,14 @@ TProfiler::TProfiler(const TYPath& pathPrefix)
     : PathPrefix(pathPrefix)
 { }
 
-void TProfiler::AddValue(const TYPath& path, TValue value)
+void TProfiler::Enqueue(const TYPath& path, TValue value)
 {
-
+	TQueuedSample sample;
+	sample.Time = GetCycleCount();
+	sample.PathPrefix = PathPrefix;
+	sample.Path = path;
+	sample.Value = value;
+	TProfilingManager::Get()->Enqueue(sample);
 }
 
 TCpuClock TProfiler::StartTiming()
@@ -29,7 +34,7 @@ void TProfiler::StopTiming(TCpuClock start, const NYTree::TYPath& path)
 {
     TCpuClock end = GetCycleCount();
     YASSERT(end >= start);
-    AddValue(path, end - start);
+    Enqueue(path, end - start);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +45,7 @@ TScopedProfiler::TScopedProfiler(const TYPath& pathPrefix)
 
 void TScopedProfiler::StartScopedTiming(const TYPath& path)
 {
-    TCpuClock start = GetCycleCount();
+    auto start = StartTiming();
     // Failure here means that another measurement for the same
     // path is already in progress.
     YVERIFY(Starts.insert(MakePair(path, start)).second);
@@ -52,11 +57,9 @@ void TScopedProfiler::StopScopedTiming(const NYTree::TYPath& path)
     // Failure here means that there is no active measurement for the
     // given path.
     YASSERT(it != Starts.end()); 
-    TCpuClock start = it->second;
+    auto start = it->second;
     Starts.erase(it);
-    TCpuClock end = GetCycleCount();
-    YASSERT(end >= start);
-    AddValue(path, end - start);
+	StopTiming(start, path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

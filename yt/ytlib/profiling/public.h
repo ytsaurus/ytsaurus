@@ -9,7 +9,7 @@ namespace NProfiling {
 
 class TProfiler;
 class TProfilingManager;
-struct TSample;
+struct TQueuedSample;
 typedef i64 TValue;
 typedef ui64 TCpuClock;
 

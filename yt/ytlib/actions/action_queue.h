@@ -19,8 +19,6 @@ class TQueueInvoker
     : public IInvoker
 {
 public:
-    typedef TIntrusivePtr<TQueueInvoker> TPtr;
-
     TQueueInvoker(TActionQueueBase* owner, bool enableLogging);
 
     void Invoke(IAction::TPtr action);
@@ -35,6 +33,8 @@ private:
     TLockFreeQueue<TItem> Queue;
     TAtomic QueueSize;
 };
+
+typedef TIntrusivePtr<TQueueInvoker> TQueueInvokerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,9 +52,10 @@ protected:
     TActionQueueBase(const Stroka& threadName, bool enableLogging);
 
     void Start();
+	void Signal();
 
     virtual bool DequeueAndExecute() = 0;
-    virtual void OnIdle() = 0;
+    virtual void OnIdle();
 
 private:
     friend class TQueueInvoker;
@@ -89,10 +90,9 @@ public:
     
 protected:
     virtual bool DequeueAndExecute();
-    virtual void OnIdle();
 
 private:
-    TIntrusivePtr<TQueueInvoker> QueueInvoker;
+    TQueueInvokerPtr QueueInvoker;
 
 };
 
@@ -111,14 +111,13 @@ public:
 
 protected:
     virtual bool DequeueAndExecute();
-    virtual void OnIdle();
 
 private:
-    autoarray< TIntrusivePtr<TQueueInvoker> > QueueInvokers;
+    autoarray<TQueueInvokerPtr> QueueInvokers;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT
 

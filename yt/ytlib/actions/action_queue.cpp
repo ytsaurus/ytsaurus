@@ -25,18 +25,19 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
 {
     if (!Owner) {
         LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
-    } else {
-        LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
-        Queue.Enqueue(MakePair(action, GetCycleCount()));
-        auto size = AtomicIncrement(QueueSize);
-        DATA_POINT("actionqueue.size", "smv", size);
-        Owner->WakeupEvent.Signal();
+		return;
     }
+
+    LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
+    Queue.Enqueue(MakePair(action, GetCycleCount()));
+    auto size = AtomicIncrement(QueueSize);
+    DATA_POINT("actionqueue.size", "smv", size);
+    Owner->Signal();
 }
 
 void TQueueInvoker::OnShutdown()
 {
-    Owner = 0;
+    Owner = NULL;
 }
 
 bool TQueueInvoker::OnDequeueAndExecute()
@@ -122,6 +123,14 @@ void TActionQueueBase::Shutdown()
     Thread.Join();
 }
 
+void TActionQueueBase::OnIdle()
+{ }
+
+void TActionQueueBase::Signal()
+{
+	WakeupEvent.Signal();
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
@@ -140,9 +149,6 @@ bool TActionQueue::DequeueAndExecute()
 {
     return QueueInvoker->OnDequeueAndExecute();
 }
-
-void TActionQueue::OnIdle()
-{ }
 
 IInvoker::TPtr TActionQueue::GetInvoker()
 {
@@ -192,9 +198,6 @@ bool TPrioritizedActionQueue::DequeueAndExecute()
     }
     return false;
 }
-
-void TPrioritizedActionQueue::OnIdle()
-{ }
 
 ///////////////////////////////////////////////////////////////////////////////
 
