@@ -129,7 +129,7 @@ i64 GetAvailableSpace(const Stroka& path)
 #if !defined( _win_)
     struct statfs fsData;
     int result = statfs(~path, &fsData);
-    i64 availableSpace = fsData.f_bavail * fsData.f_bsize;
+    i64 availableSpace = (i64) fsData.f_bavail * fsData.f_bsize;
 #else
     ui64 freeBytes;
     int result = GetDiskFreeSpaceExA(
