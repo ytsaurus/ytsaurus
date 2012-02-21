@@ -13,7 +13,7 @@ $$==============================================================================
 */
 
 #include <ytlib/misc/intrusive_ptr.h>
-#include <ytlib/misc/ref_counted_base.h>
+#include <ytlib/misc/ref_counted.h>
 
 namespace NYT {
 namespace NDetail {

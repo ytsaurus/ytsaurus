@@ -89,7 +89,7 @@ void PrintTo(const TIntricateObject& arg, ::std::ostream* os)
 // This is an object which creates intrusive pointers to the self
 // during its construction.
 class TObjectWithSelfPointers
-    : public TRefCountedBase
+    : public TRefCounted
 {
 private:
     TOutputStream* Output;

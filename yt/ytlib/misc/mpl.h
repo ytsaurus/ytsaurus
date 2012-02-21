@@ -113,7 +113,7 @@ template <class T> struct TIsRvalueReference<T&&> : TTrueType {};
 
 template <class T> struct TIsArray : public TFalseType {};
 template <class T> struct TIsArray<T[]> : public TTrueType {};
-template <class T, size_t N> struct TIsArray<T[N]> : public TTrueType {};
+template <class T, int N> struct TIsArray<T[N]> : public TTrueType {};
 
 ////////////////////////////////////////////////////////////////////////////////
 // Reference transformations.
@@ -137,7 +137,7 @@ template <> struct TAddRvalueReference<const volatile void> { typedef const vola
 
 template <class T> struct TRemoveExtent { typedef T TType; };
 template <class T> struct TRemoveExtent<T[]> { typedef T TType; };
-template <class T, size_t N> struct TRemoveExtent<T[N]> { typedef T TType; };
+template <class T, int N> struct TRemoveExtent<T[N]> { typedef T TType; };
 
 // 20.9.7.6, [meta.trans.other]
 // Note on std::decay:

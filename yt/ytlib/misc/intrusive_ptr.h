@@ -127,6 +127,7 @@ public:
     template <class U>
     TIntrusivePtr& operator=(const TIntrusivePtr<U>& other) // noexcept
     {
+        static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
         TIntrusivePtr(other).Swap(*this);
         return *this;
     }
@@ -142,6 +143,7 @@ public:
     template <class U>
     TIntrusivePtr& operator=(TIntrusivePtr<U>&& other) // noexcept
     {
+        static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
         TIntrusivePtr(MoveRV(other)).Swap(*this);
         return *this;
     }
