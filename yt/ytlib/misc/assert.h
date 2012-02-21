@@ -37,8 +37,9 @@ namespace NYT {
 #ifdef __GNUC__
 #define YUNREACHABLE() \
     do { \
-        ::std::fputs(stderr, "YUNREACHABLE(): " \
-            __FILE__ ":" PP_STRINGIZE(__LINE__) "\n"); \
+        ::std::fputs( \
+            "YUNREACHABLE(): " __FILE__ ":" PP_STRINGIZE(__LINE__) "\n", \
+            stderr); \
         __builtin_trap(); \
         __builtin_unreachable(); \
     } while(0)
@@ -51,8 +52,9 @@ namespace NYT {
 #ifdef __GNUC__
 #define YUNIMPLEMENTED() \
     do { \
-        ::std::fputs(stderr, "YUNIMPLEMENTED(): " \
-            __FILE__ ":" PP_STRINGIZE(__LINE__) "\n"); \
+        ::std::fputs( \
+            "YUNIMPLEMENTED(): " __FILE__ ":" PP_STRINGIZE(__LINE__) "\n", \
+            stderr); \
         __builtin_trap(); \
         __builtin_unreachable(); \
     } while(0)

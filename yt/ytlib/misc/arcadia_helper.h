@@ -3,8 +3,11 @@
 // Here resides evilish code.
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NYT
+{
+
 template<class T>
-T* operator~(const NYT::TIntrusivePtr<T>& ptr)
+T* operator~(const TIntrusivePtr<T>& ptr)
 {
     return ptr.Get();
 }
@@ -26,3 +29,5 @@ T* operator~(const THolder<T>& ptr)
 {
     return ptr.Get();
 }
+
+} // namespace NYT

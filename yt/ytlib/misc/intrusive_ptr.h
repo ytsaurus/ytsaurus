@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mpl.h"
+#include "rvalue.h"
 
 namespace NYT {
 
