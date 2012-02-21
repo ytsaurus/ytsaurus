@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/actions )
 set( SRCS
   ${BASE}/action.cpp
   ${BASE}/action_queue.cpp
+  ${BASE}/callback_internal.cpp
   ${BASE}/invoker_util.cpp
 )
 set( HDRS
@@ -24,13 +25,9 @@ set( HDRS
 list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
-
-  ${BASE}/action_util-gen.h
 )
 
-add_custom_command(
-    OUTPUT  ${BASE}/action_util-gen.h
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py ${BASE}/action_util-gen.h.pump > ${BASE}/action_util-gen.h
-    DEPENDS ${BASE}/action_util-gen.h.pump
-    COMMENT "Regenerating action_util-gen.h..."
-)
+PUMP( ${BASE}/action_util-gen.h.pump YT_SOURCE_FILES )
+PUMP( ${BASE}/bind.h.pump YT_SOURCE_FILES )
+PUMP( ${BASE}/bind_internal.h.pump YT_SOURCE_FILES )
+PUMP( ${BASE}/callback.h.pump YT_SOURCE_FILES )

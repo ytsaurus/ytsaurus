@@ -39,3 +39,23 @@ function( PROTOC proto output )
     COMMENT "Generating protobuf from ${proto}..."
   )
 endfunction( PROTOC )
+
+function( PUMP pump output )
+  get_filename_component( _source_path ${pump} REALPATH )
+  string(REPLACE ".pump" "" _target_path "${_source_path}")
+
+  set(${output} ${${output}} ${_target_path} PARENT_SCOPE)
+
+  add_custom_command(
+    OUTPUT
+      ${_target_path}
+    COMMAND
+      ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py
+      ${_source_path} > ${_target_path}
+    MAIN_DEPENDENCY
+      ${_source_path}
+    DEPENDS
+      ${CMAKE_SOURCE_DIR}/scripts/pump.py
+    COMMENT "Pumping ${pump}..."
+)
+endfunction( PUMP )

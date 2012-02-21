@@ -1,8 +1,7 @@
 #pragma once
 
 #include "mpl.h"
-
-#include <util/generic/ptr.h>
+#include "rvalue.h"
 
 namespace NYT {
 
@@ -84,7 +83,7 @@ public:
     template <class U>
     TIntrusivePtr(
         const TIntrusivePtr<U>& other,
-        typename NMpl::TEnableIfC<NMpl::TIsConvertible<U*, T*>::Value, int>::TType = 0) // noexcept
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
         : T_(other.Get())
     {
         if (T_) {
@@ -248,30 +247,6 @@ template <class T, class U>
 bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 {
     return lhs != rhs.Get();
-}
-
-template <class T>
-T* operator~(const TIntrusivePtr<T>& ptr)
-{
-    return ptr.Get();
-}
-
-template <class T>
-T* operator~(const TAutoPtr<T>& ptr)
-{
-    return ptr.Get();
-}
-
-template <class T>
-T* operator~(const TSharedPtr<T>& ptr)
-{
-    return ptr.Get();
-}
-
-template <class T>
-T* operator~(const THolder<T>& ptr)
-{
-    return ptr.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -79,7 +79,7 @@ void* GetRefCountedTrackerCookie(const void* key);
     static void* cookie = NULL; \
     do { \
         if (EXPECT_FALSE(cookie == NULL)) { \
-            cookie = NYT::NDetail::GetRefCountedTrackerCookie(&typeid(TResult)); \
+            cookie = NDetail::GetRefCountedTrackerCookie(&typeid(TType)); \
         } \
     } while(0)
 
@@ -111,17 +111,14 @@ $var tmpl_args = [[$for j [[, class TArg$j]]]]
 $var ctor_args = [[$for j , [[ TArg$j&& arg$j]]]]
 $var args_list = [[$for j , [[ ForwardRV<TArg$j>(arg$j)]]]]
 
-template<
-    class TResult$tmpl_args
->
-inline TIntrusivePtr<TResult> New($ctor_args)
+template<class TType$tmpl_args>
+inline TIntrusivePtr<TType> New($ctor_args)
 {
     REF_COUNTED_NEW_PROLOGUE();
-    TIntrusivePtr<TResult> result(new TResult($args_list), false);
+    TIntrusivePtr<TType> result(new TType($args_list), false);
     REF_COUNTED_NEW_EPILOGUE();
     return result;
 }
-
 ]]
 
 #undef REF_COUNTED_NEW_PROLOGUE
