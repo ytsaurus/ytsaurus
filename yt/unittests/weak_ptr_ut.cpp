@@ -18,6 +18,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+    // TODO: hide these into class details.
     static int ConstructorShadowState = 0;
     static int DestructorShadowState = 0;
 
@@ -48,11 +49,15 @@ namespace {
             ++DestructorShadowState;
         }
 
+        // Prevent the counter from destruction by holding an additional
+        // reference to the counter.
         void LockCounter()
         {
             GetRefCounter()->WeakRef();
         }
 
+        // Release an additional reference to the reference counter acquired by
+        // #LockCounter().
         void UnlockCounter()
         {
             GetRefCounter()->WeakUnRef();
@@ -61,9 +66,9 @@ namespace {
     private:
         // Explicitly non-copyable.
         TIntricateObject(const TIntricateObject&);
-        TIntricateObject(const TIntricateObject&&);
+        TIntricateObject(TIntricateObject&&);
         TIntricateObject& operator=(const TIntricateObject&);
-        TIntricateObject& operator=(const TIntricateObject&&);
+        TIntricateObject& operator=(TIntricateObject&&);
     };
 
     class TDerivedIntricateObject
