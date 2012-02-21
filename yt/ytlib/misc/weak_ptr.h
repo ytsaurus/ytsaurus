@@ -125,6 +125,7 @@ public:
     template <class U>
     TWeakPtr& operator=(const TIntrusivePtr<U>& p) // noexcept
     {
+        static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
         TWeakPtr(p).Swap(*this);
         return *this;
     }
@@ -140,6 +141,7 @@ public:
     template <class U>
     TWeakPtr& operator=(const TWeakPtr<U>& other) // noexcept
     {
+        static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
         TWeakPtr(other).Swap(*this);
         return *this;
     }
@@ -155,6 +157,7 @@ public:
     template <class U>
     TWeakPtr& operator=(TWeakPtr<U>&& other) // noexcept
     {
+        static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
         TWeakPtr(MoveRV(other)).Swap(*this);
         return *this;
     }
@@ -175,6 +178,7 @@ public:
     template <class U>
     void Reset(const TIntrusivePtr<U>& p) // noexcept
     {
+        static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
         TWeakPtr(p).Swap(*this);
     }
 
@@ -238,6 +242,7 @@ bool operator!=(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
     return lhs.Lock().Get() != rhs.Lock().Get();
 }
 
+#if 0
 template <class T, class U>
 bool operator==(const TWeakPtr<T>& lhs, U* rhs)
 {
@@ -261,6 +266,7 @@ bool operator!=(T* lhs, const TWeakPtr<U>& rhs)
 {
     return lhs != rhs.Lock().Get();
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

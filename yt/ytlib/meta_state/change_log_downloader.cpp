@@ -182,7 +182,7 @@ void TChangeLogDownloader::OnResponse(
         return;
     }
 
-    LOG_INFO("Peer %d has %s records, which is enough",
+    LOG_INFO("Peer %d has %d records, which is enough",
         peerId,
         recordCount);
 

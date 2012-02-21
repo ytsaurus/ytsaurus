@@ -44,6 +44,9 @@ TChunkSequenceWriter::TChunkSequenceWriter(
     // TODO(babenko): use TTaggedLogger here
 }
 
+TChunkSequenceWriter::~TChunkSequenceWriter()
+{ }
+
 void TChunkSequenceWriter::CreateNextChunk()
 {
     YASSERT(!NextChunk);

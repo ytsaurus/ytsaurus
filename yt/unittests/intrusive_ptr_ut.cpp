@@ -13,145 +13,163 @@ using ::testing::MockFunction;
 using ::testing::StrictMock;
 
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+// Auxiliary types and functions.
+////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-    // This object tracks number of incremenets and decrements
-    // to the reference counter.
-    class TIntricateObject
+// This object tracks number of incremenets and decrements
+// to the reference counter (see traits specialization below).
+class TIntricateObject
+{
+public:
+    typedef TIntrusivePtr<TIntricateObject> TPtr;
+
+    int Increments;
+    int Decrements;
+    int Zeros;
+
+public:
+    TIntricateObject()
+        : Increments(0)
+        , Decrements(0)
+        , Zeros(0)
+    { }
+
+    // TRefCountedTracker calls BindToCookie() on object creation.
+    // So we have to stub it. 
+    template<typename T>
+    void BindToCookie(const T&)
+    { }
+
+    void DoIncrement()
     {
-    public:
-        typedef TIntrusivePtr<TIntricateObject> TPtr;
-
-        int Increments;
-        int Decrements;
-        int Zeros;
-
-    public:
-        TIntricateObject()
-            : Increments(0)
-            , Decrements(0)
-            , Zeros(0)
-        { }
-
-        // TRefCountedTracker calls BindToCookie() on object creation.
-        // So we have to stub it. 
-        template<typename T>
-        void BindToCookie(const T&)
-        { }
-
-        void CountedIncrement()
-        {
-            ++Increments;
-        }
-
-        void CountedDecrement()
-        {
-            ++Decrements;
-
-            if (Increments == Decrements) {
-                ++Zeros;
-            }
-        }
-
-    private:
-        // Explicitly non-copyable.
-        TIntricateObject(const TIntricateObject&);
-        TIntricateObject(const TIntricateObject&&);
-        TIntricateObject& operator=(const TIntricateObject&);
-        TIntricateObject& operator=(const TIntricateObject&&);
-    };
-
-    MATCHER_P3(HasRefCounts, increments, decrements, zeros,
-        "Reference counter " \
-        "was incremented " + ::testing::PrintToString(increments) + " times, " +
-        "was decremented " + ::testing::PrintToString(decrements) + " times, " +
-        "vanished to zero " + ::testing::PrintToString(zeros) + " times")
-    {
-        UNUSED(result_listener);
-        return
-            arg.Increments == increments &&
-            arg.Decrements == decrements &&
-            arg.Zeros == zeros;
+        ++Increments;
     }
 
-    void PrintTo(const TIntricateObject& arg, ::std::ostream* os)
+    void DoDecrement()
     {
-        Stroka repr = Sprintf(
-            "%d increments, %d decrements and %d times vanished",
-            arg.Increments, arg.Decrements, arg.Zeros);
-        *os << repr.c_str();
+        ++Decrements;
+
+        if (Increments == Decrements) {
+            ++Zeros;
+        }
     }
 
-    //! This is an object which creates intrusive pointers to the self
-    //! during its construction.
-    class TObjectWithSelfPointers
-        : public TRefCounted
+private:
+    // Explicitly non-copyable.
+    TIntricateObject(const TIntricateObject&);
+    TIntricateObject(TIntricateObject&&);
+    TIntricateObject& operator=(const TIntricateObject&);
+    TIntricateObject& operator=(TIntricateObject&&);
+};
+
+MATCHER_P3(HasRefCounts, increments, decrements, zeros,
+    "Reference counter " \
+    "was incremented " + ::testing::PrintToString(increments) + " times, " +
+    "was decremented " + ::testing::PrintToString(decrements) + " times, " +
+    "vanished to zero " + ::testing::PrintToString(zeros) + " times")
+{
+    UNUSED(result_listener);
+    return
+        arg.Increments == increments &&
+        arg.Decrements == decrements &&
+        arg.Zeros == zeros;
+}
+
+void PrintTo(const TIntricateObject& arg, ::std::ostream* os)
+{
+    Stroka repr = Sprintf(
+        "%d increments, %d decrements and %d times vanished",
+        arg.Increments, arg.Decrements, arg.Zeros);
+    *os << repr.c_str();
+}
+
+// This is an object which creates intrusive pointers to the self
+// during its construction.
+class TObjectWithSelfPointers
+    : public TRefCounted
+{
+private:
+    TOutputStream* Output;
+public:
+    TObjectWithSelfPointers(TOutputStream* output)
+        : Output(output)
     {
-    private:
-        TOutputStream* Output;
-    public:
-        TObjectWithSelfPointers(TOutputStream* output)
-            : Output(output)
-        {
-            *Output << "Cb";
+        *Output << "Cb";
 
-            for (int i = 0; i < 3; ++i) {
-                *Output << '!';
-                TIntrusivePtr<TObjectWithSelfPointers> ptr(this);
-            }
-
-            *Output << "Ca";
-        }
-
-        virtual ~TObjectWithSelfPointers()
-        {
-            *Output << 'D';
-        }
-    };
-
-    class TObjectWithIntrinsicRC
-        : public TIntrinsicRefCounted
-    {
-    private:
-        TOutputStream* Output;
-    public:
-        TObjectWithIntrinsicRC(TOutputStream* output)
-            : Output(output)
-        {
-            *Output << 'C';           
-        }
-        virtual ~TObjectWithIntrinsicRC()
-        {
-            *Output << 'D';
-        }
-        void DoSomething()
-        {
+        for (int i = 0; i < 3; ++i) {
             *Output << '!';
+            TIntrusivePtr<TObjectWithSelfPointers> ptr(this);
         }
-    };
 
-    class TObjectWithExtrinsicRC
-        : public TExtrinsicRefCounted
+        *Output << "Ca";
+    }
+
+    virtual ~TObjectWithSelfPointers()
     {
-    private:
-        TOutputStream* Output;
-    public:
-        TObjectWithExtrinsicRC(TOutputStream* output)
-            : Output(output)
-        {
-            *Output << 'C';
-        }
-        virtual ~TObjectWithExtrinsicRC()
-        {
-            *Output << 'D';
-        }
-        void DoSomething()
-        {
-            *Output << '!';
-        }
-    };
+        *Output << 'D';
+    }
+};
+
+// This is an object which throws an exception during its construction.
+class TObjectThrowingException
+    : public TRefCounted
+{
+public:
+    TObjectThrowingException()
+    {
+        ythrow yexception() << "Sample Exception";   
+    }
+
+    virtual ~TObjectThrowingException()
+    { }
+};
+
+// This is a simple object with intrinsic reference counting.
+class TObjectWithIntrinsicRC
+    : public TIntrinsicRefCounted
+{
+private:
+    TOutputStream* Output;
+public:
+    TObjectWithIntrinsicRC(TOutputStream* output)
+        : Output(output)
+    {
+        *Output << 'C';           
+    }
+    virtual ~TObjectWithIntrinsicRC()
+    {
+        *Output << 'D';
+    }
+    void DoSomething()
+    {
+        *Output << '!';
+    }
+};
+
+// This is a simple object with extrinsic reference counting.
+class TObjectWithExtrinsicRC
+    : public TExtrinsicRefCounted
+{
+private:
+    TOutputStream* Output;
+public:
+    TObjectWithExtrinsicRC(TOutputStream* output)
+        : Output(output)
+    {
+        *Output << 'C';
+    }
+    virtual ~TObjectWithExtrinsicRC()
+    {
+        *Output << 'D';
+    }
+    void DoSomething()
+    {
+        *Output << '!';
+    }
+};
 
 } // namespace <anonymous>
 
@@ -160,12 +178,12 @@ struct TIntrusivePtrTraits<TIntricateObject>
 {
     static void Ref(TIntricateObject* object)
     {
-        object->CountedIncrement();
+        object->DoIncrement();
     }
 
     static void UnRef(TIntricateObject* object)
     {
-        object->CountedDecrement();
+        object->DoDecrement();
     }
 };
 
@@ -372,6 +390,7 @@ TEST(TIntrusivePtrTest, ObjectIsNotDestroyedPrematurely)
 TEST(TIntrusivePtrTest, EqualityOperator)
 {
     TIntricateObject object, anotherObject;
+
     TIntricateObject::TPtr emptyPointer;
     TIntricateObject::TPtr somePointer(&object);
     TIntricateObject::TPtr samePointer(&object);
@@ -409,16 +428,16 @@ TEST(TIntrusivePtrTest, IntrisicRCBehaviour)
 
     TStringStream output;
     {
-        TMyPtr pointer = New<TObjectWithIntrinsicRC>(&output);
+        TMyPtr ptr = New<TObjectWithIntrinsicRC>(&output);
         {
-            TMyPtr anotherPointer(pointer);
-            anotherPointer->DoSomething();
+            TMyPtr anotherPtr(ptr);
+            anotherPtr->DoSomething();
         }
         {
-            TMyPtr anotherPointer(pointer);
-            anotherPointer->DoSomething();
+            TMyPtr anotherPtr(ptr);
+            anotherPtr->DoSomething();
         }
-        pointer->DoSomething();
+        ptr->DoSomething();
     }
 
     // TObject... appends symbols to the output; see definitions.
@@ -431,16 +450,16 @@ TEST(TIntrusivePtrTest, ExtrinsicRCBehaviour)
 
     TStringStream output;
     {
-        TMyPtr pointer = New<TObjectWithExtrinsicRC>(&output);
+        TMyPtr ptr = New<TObjectWithExtrinsicRC>(&output);
         {
-            TMyPtr anotherPointer(pointer);
-            anotherPointer->DoSomething();
+            TMyPtr anotherPtr(ptr);
+            anotherPtr->DoSomething();
         }
         {
-            TMyPtr anotherPointer(pointer);
-            anotherPointer->DoSomething();
+            TMyPtr anotherPtr(ptr);
+            anotherPtr->DoSomething();
         }
-        pointer->DoSomething();
+        ptr->DoSomething();
     }
 
     // TObject... appends symbols to the output; see definitions.

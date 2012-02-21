@@ -136,10 +136,19 @@ private:
     void OnChannelFailed()
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (State != EState::Terminated) {
-            State = EState::Failed;
-            LookupResult.Reset();
-            Channel.Reset();
+        switch (State) {
+            case EState::Connected:
+                State = EState::Failed;
+                LookupResult.Reset();
+                Channel.Reset();
+
+            case EState::Connecting:
+            case EState::Failed:
+            case EState::Terminated:
+                break;
+
+            default:
+                YUNREACHABLE();
         }
     }
 
