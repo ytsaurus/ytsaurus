@@ -198,7 +198,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 {
     const auto* chunk = ChunkManager->FindChunk(chunkId);
     if (!chunk) {
-        LOG_INFO("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_DEBUG("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -206,7 +206,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     }
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_INFO("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_DEBUG("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -228,7 +228,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 
     int requestedCount = desiredCount - (storedCount + plusCount);
     if (requestedCount <= 0) {
-        LOG_INFO("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_DEBUG("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -259,7 +259,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
-    LOG_INFO("Chunk replication scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
+    LOG_DEBUG("Chunk replication scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
         ~chunkId.ToString(),
         ~sourceHolder.GetAddress(),
         sourceHolder.GetId(),
@@ -312,7 +312,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
-    LOG_INFO("Chunk balancing scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddress: %s)",
+    LOG_DEBUG("Chunk balancing scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddress: %s)",
         ~chunkId.ToString(),
         ~sourceHolder.GetAddress(),
         sourceHolder.GetId(),
@@ -348,7 +348,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
-    LOG_INFO("Removal job scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s)",
+    LOG_DEBUG("Removal job scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s)",
         ~chunkId.ToString(),
         ~holder.GetAddress(),
         holder.GetId(),
@@ -519,7 +519,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
     UnderreplicatedChunkIds_.erase(chunkId);
 
     if (storedCount == 0) {
-        LOG_INFO("Chunk is lost (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+        LOG_DEBUG("Chunk is lost (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
             desiredCount);
@@ -548,7 +548,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             holderAddresses.push_back(holder.GetAddress());
         }
 
-        LOG_INFO("Chunk is over-replicated, removal is scheduled at [%s] (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+        LOG_DEBUG("Chunk is over-replicated, removal is scheduled at [%s] (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
             ~JoinToString(holderAddresses),
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
@@ -571,13 +571,13 @@ void TChunkReplication::Refresh(const TChunk& chunk)
 
         holderInfo.ChunksToReplicate.insert(chunk.GetId());
 
-        LOG_INFO("Chunk is under-replicated, replication is scheduled at %s (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+        LOG_DEBUG("Chunk is under-replicated, replication is scheduled at %s (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
             ~holder.GetAddress(),
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
             desiredCount);
     } else {
-        LOG_INFO("Chunk is OK (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+        LOG_DEBUG("Chunk is OK (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
             desiredCount);
