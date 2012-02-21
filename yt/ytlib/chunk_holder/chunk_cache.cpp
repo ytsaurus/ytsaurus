@@ -280,7 +280,6 @@ private:
         {
             Owner.Reset();
             if (FileWriter) {
-                FileWriter->Cancel(TError("Chunk download canceled"));
                 FileWriter.Reset();
             }
             RemoteReader.Reset();

@@ -168,7 +168,7 @@ void ResolveYPath(
     IYPathService* rootService,
     const TYPath& path,
     const Stroka& verb,
-    IYPathService::TPtr* suffixService,
+    IYPathServicePtr* suffixService,
     TYPath* suffixPath);
 
 //! Asynchronously executes an untyped YPath verb against a given service.
@@ -187,7 +187,7 @@ TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, cons
 TYson SyncYPathGet(IYPathService* service, const TYPath& path);
 
 //! Synchronously executes "GetNode" verb. Throws if an error has occurred.
-TNodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path);
+INodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path);
 
 //! Synchronously executes "Set" verb. Throws if an error has occurred.
 void SyncYPathSet(IYPathService* service, const TYPath& path, const TYson& value);

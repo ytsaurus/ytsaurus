@@ -10,7 +10,7 @@ namespace NDriver {
 struct TStartTransactionRequest
     : public TRequestBase
 {
-    NYTree::TNodePtr Manifest;
+    NYTree::INodePtr Manifest;
 
     TStartTransactionRequest()
     {

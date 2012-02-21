@@ -40,6 +40,8 @@ public:
 
     TNLBusClient(TNLBusClientConfig* config);
 
+    void Start();
+
     virtual ~TNLBusClient()
     { }
 
@@ -55,7 +57,9 @@ private:
 
 IBusClient::TPtr CreateNLBusClient(TNLBusClientConfig* config)
 {
-    return New<TNLBusClient>(config);
+    auto client = New<TNLBusClient>(config);
+    client->Start();
+    return client;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -567,13 +571,14 @@ Stroka GetClientDispatcherDebugInfo()
 
 TNLBusClient::TNLBusClient(TNLBusClientConfig* config)
     : Config(config)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
+{ }
 
-    ServerAddress = CreateAddress(config->Address, 0);
+void TNLBusClient::Start()
+{
+    ServerAddress = CreateAddress(Config->Address, 0);
     if (ServerAddress == TUdpAddress()) {
         ythrow yexception() << Sprintf("Failed to resolve the address %s",
-            ~config->Address.Quote());
+            ~Config->Address.Quote());
     }
 }
 

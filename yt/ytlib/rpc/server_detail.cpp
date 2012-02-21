@@ -8,6 +8,7 @@ namespace NRpc {
 
 using namespace NBus;
 using namespace NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +21,7 @@ TServiceContextBase::TServiceContextBase(
     , RequestMessage(requestMessage)
     , OneWay(header.has_one_way() ? header.one_way() : false)
     , Replied(false)
+    , ResponseAttributes_(CreateEphemeralAttributes())
 {
     YASSERT(requestMessage);
 
@@ -27,6 +29,10 @@ TServiceContextBase::TServiceContextBase(
     YASSERT(parts.size() >= 2);
     RequestBody = parts[1];
     RequestAttachments_ = yvector<TSharedRef>(parts.begin() + 2, parts.end());
+    RequestAttributes_ =
+        header.has_attributes()
+        ? FromProto(header.attributes())
+        : CreateEphemeralAttributes();
 }
 
 void TServiceContextBase::Reply(const TError& error)
@@ -43,6 +49,7 @@ void TServiceContextBase::Reply(const TError& error)
         TResponseHeader header;
         header.set_request_id(RequestId.ToProto());
         header.set_error_code(TError::OK);
+        ToProto(header.mutable_attributes(), *ResponseAttributes_);
         responseMessage = CreateResponseMessage(
             header,
             MoveRV(ResponseBody),
@@ -82,6 +89,11 @@ const yvector<TSharedRef>& TServiceContextBase::RequestAttachments() const
     return RequestAttachments_;
 }
 
+const IAttributeDictionary& TServiceContextBase::RequestAttributes() const
+{
+    return *RequestAttributes_;
+}
+
 void TServiceContextBase::SetResponseBody(const TSharedRef& responseBody)
 {
     CheckRepliable();
@@ -92,6 +104,11 @@ yvector<TSharedRef>& TServiceContextBase::ResponseAttachments()
 {
     YASSERT(!OneWay);
     return ResponseAttachments_;
+}
+
+IAttributeDictionary& TServiceContextBase::ResponseAttributes()
+{
+    return *ResponseAttributes_;
 }
 
 IMessage::TPtr TServiceContextBase::GetRequestMessage() const

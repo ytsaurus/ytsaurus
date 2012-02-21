@@ -62,8 +62,8 @@ struct IClientRequest
     virtual const Stroka& GetPath() const = 0;
     virtual const Stroka& GetVerb() const = 0;
 
-    virtual NYTree::IAttributeDictionary* Attributes() = 0;
-    virtual const NYTree::IAttributeDictionary* Attributes() const = 0;
+    virtual NYTree::IAttributeDictionary& Attributes() = 0;
+    virtual const NYTree::IAttributeDictionary& Attributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,8 +84,8 @@ public:
     virtual const Stroka& GetPath() const;
     virtual const Stroka& GetVerb() const;
 
-    virtual NYTree::IAttributeDictionary* Attributes();
-    virtual const NYTree::IAttributeDictionary* Attributes() const;
+    virtual NYTree::IAttributeDictionary& Attributes();
+    virtual const NYTree::IAttributeDictionary& Attributes() const;
 
 protected:
     IChannel::TPtr Channel;
@@ -224,6 +224,9 @@ public:
 
     NBus::IMessage::TPtr GetResponseMessage() const;
 
+    NYTree::IAttributeDictionary& Attributes();
+    const NYTree::IAttributeDictionary& Attributes() const;
+
 protected:
     TClientResponse(const TRequestId& requestId);
 
@@ -232,6 +235,7 @@ protected:
 private:
     // Protected by #SpinLock.
     NBus::IMessage::TPtr ResponseMessage;
+    TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement();

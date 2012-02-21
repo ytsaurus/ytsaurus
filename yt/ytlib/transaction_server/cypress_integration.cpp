@@ -36,7 +36,7 @@ private:
         return TransactionManager->GetTransactionCount();
     }
 
-    virtual IYPathService::TPtr GetItemService(const Stroka& key) const
+    virtual IYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TTransactionId::FromString(key);
         return TransactionManager->GetObjectManager()->FindProxy(id);

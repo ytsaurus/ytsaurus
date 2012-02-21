@@ -138,9 +138,9 @@ protected:
 protected:
     typedef TNodeSetterBase TThis;
 
-    TNodePtr Node;
+    INodePtr Node;
     ITreeBuilder* TreeBuilder;
-    TNodeFactoryPtr NodeFactory;
+    INodeFactoryPtr NodeFactory;
 
     Stroka AttributeKey;
     TYson AttributeValue;
@@ -169,7 +169,7 @@ class TNodeSetter
         { } \
     \
     private: \
-        T##name##NodePtr Node; \
+        I##name##NodePtr Node; \
         \
         virtual ENodeType GetExpectedType() \
         { \
@@ -206,7 +206,7 @@ public:
 private:
     typedef TNodeSetter<IMapNode> TThis;
 
-    TMapNodePtr Map;
+    IMapNodePtr Map;
     Stroka ItemKey;
 
     virtual ENodeType GetExpectedType()
@@ -254,7 +254,7 @@ public:
 private:
     typedef TNodeSetter<IListNode> TThis;
 
-    TListNodePtr List;
+    IListNodePtr List;
 
     virtual ENodeType GetExpectedType()
     {
@@ -335,7 +335,7 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     const Stroka& loggingCategory,
     TYPathResponseHandler* responseHandler);
 
-IYPathService::TPtr CreateRootService(IYPathService* underlyingService);
+IYPathServicePtr CreateRootService(IYPathService* underlyingService);
 
 ////////////////////////////////////////////////////////////////////////////////
 

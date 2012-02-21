@@ -2,13 +2,9 @@
 #include "file_writer.h"
 #include "file_chunk_meta.pb.h"
 
-//#include <ytlib/misc/string.h>
-//#include <ytlib/misc/sync.h>
-//#include <ytlib/misc/serialize.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
-//#include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -90,6 +86,11 @@ void TFileWriter::SpecificClose(const NChunkServer::TChunkId& ChunkId)
             ex.what());
     }
     LOG_INFO("Upload transaction committed");
+}
+
+NCypress::TNodeId TFileWriter::GetNodeId() const
+{
+    return NodeId;
 }
 
 void TFileWriter::Cancel()

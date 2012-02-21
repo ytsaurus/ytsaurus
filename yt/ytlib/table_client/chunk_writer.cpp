@@ -74,7 +74,7 @@ void TChunkWriter::ContinueEndRow(
                 ChunkWriter->AsyncWriteBlock(block)->Subscribe(
                     FromMethod(
                         &TChunkWriter::ContinueEndRow,
-                        TPtr(this),
+                        TWeakPtr<TChunkWriter>(this),
                         channelIndex + 1)
                     ->Via(WriterThread->GetInvoker()));
                 return;
@@ -167,7 +167,7 @@ void TChunkWriter::ContinueClose(
         auto data = PrepareBlock(channelIndex);
         ChunkWriter->AsyncWriteBlock(data)->Subscribe(FromMethod(
             &TChunkWriter::ContinueClose,
-            TPtr(this),
+            TWeakPtr<TChunkWriter>(this),
             channelIndex + 1));
         return;
     }
@@ -181,7 +181,7 @@ void TChunkWriter::ContinueClose(
     
     ChunkWriter->AsyncClose(attributes)->Subscribe(FromMethod(
         &TChunkWriter::OnClosed,
-        TPtr(this)));
+        TWeakPtr<TChunkWriter>(this)));
 }
 
 TAsyncError::TPtr TChunkWriter::AsyncClose()
@@ -197,14 +197,6 @@ TAsyncError::TPtr TChunkWriter::AsyncClose()
     ContinueClose(State.GetCurrentError(), 0);
 
     return State.GetOperationError();
-}
-
-void TChunkWriter::Cancel(const TError& error)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    State.Cancel(error);
-    ChunkWriter->Cancel(error);
 }
 
 TChunkId TChunkWriter::GetChunkId() const

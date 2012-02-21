@@ -75,9 +75,8 @@ TEST(TNullableTest, Swap)
 
 TEST(TNullableTest, GetValueOrDefault)
 {
-    EXPECT_EQ(2, TNullable<int>(2).GetValueOrDefault(1));
-    EXPECT_EQ(1, TNullable<int>().GetValueOrDefault(1));
-    EXPECT_EQ(0, TNullable<int>().GetValueOrDefault());
+    EXPECT_EQ(2, TNullable<int>(2).Get(1));
+    EXPECT_EQ(1, TNullable<int>().Get(1));
 }
 
 TEST(TNullableTest, MakeNullable)
@@ -113,6 +112,12 @@ TEST(TNullableTest, Operators)
         EXPECT_NE(TNullable<int>(1), TNullable<int>());
         EXPECT_NE(TNullable<int>(), TNullable<int>(2));
     }
+}
+
+TEST(TNullableTest, ToString)
+{
+    EXPECT_EQ(MakeNullable(1).ToString(), "1");
+    EXPECT_EQ(TNullable<int>().ToString(), "<NULL>");
 }
 
 }

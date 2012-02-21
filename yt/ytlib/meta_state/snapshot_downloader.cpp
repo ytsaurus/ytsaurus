@@ -101,7 +101,7 @@ void TSnapshotDownloader::OnComplete(
     i32 segmentId,
     TFuture<TSnapshotInfo>::TPtr asyncResult)
 {
-    LOG_INFO("Could not get snapshot %d info from masters", segmentId);
+    LOG_INFO("Could not get snapshot %d info from peers", segmentId);
 
     asyncResult->Set(TSnapshotInfo(NElection::InvalidPeerId, -1));
 }

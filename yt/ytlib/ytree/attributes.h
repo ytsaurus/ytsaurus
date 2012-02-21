@@ -29,11 +29,12 @@ struct IAttributeDictionary
 
     // Extension methods
 
-    // TODO(babenko): make const
+    //! Removes all attributes.
+    void Clear();
+
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
     TYson GetYson(const Stroka& key) const;
 
-    // TODO(babenko): make const
     template <class T>
     typename TDeserializeTraits<T>::TReturnType Get(const Stroka& key) const;
 
@@ -45,20 +46,19 @@ struct IAttributeDictionary
     template <class T>
     void Set(const Stroka& key, const T& value);
     
-    //! Converts the instance into a map node (by copying and deserliazing the values).
-    TIntrusivePtr<IMapNode> ToMap() const;
+    //! Converts the instance into a map node (by copying and deserializing the values).
+    IMapNodePtr ToMap() const;
 
     //! Adds more attributes from another map node.
     void MergeFrom(const IMapNode* other);
 
     //! Adds more attributes from another attribute dictionary.
-    void MergeFrom(const IAttributeDictionary* other);
+    void MergeFrom(const IAttributeDictionary& other);
 };
 
 TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();
 
-// TODO(babenko): add const for attributes
-void ToProto(NProto::TAttributes* protoAttributes, IAttributeDictionary& attributes);
+void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
 TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);
 
 ////////////////////////////////////////////////////////////////////////////////

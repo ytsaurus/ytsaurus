@@ -88,7 +88,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     NLog::TLogManager::Get()->Configure(configFileName, "logging");
 
     // Parse configuration file.
-    TNodePtr configNode;
+    INodePtr configNode;
     try {
         TIFStream configStream(configFileName);
         configNode = DeserializeFromYson(&configStream);

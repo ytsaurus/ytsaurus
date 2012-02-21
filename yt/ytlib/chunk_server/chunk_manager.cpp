@@ -1228,12 +1228,8 @@ private:
                 continue;
             }
 
-            chunk.AddLocation(holder->GetId(), false);
+            Owner->DoAddChunkReplica(*holder, chunk, false);
             holder->AddUnapprovedChunk(chunk.GetId());
-
-            if (Owner->IsLeader()) {
-                Owner->ChunkReplication->OnReplicaAdded(*holder, chunk);
-            }
         }
 
         TBlob blob;
@@ -1270,7 +1266,7 @@ TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
 
     auto id = Owner->CreateChunk().GetId();
     auto proxy = ObjectManager->GetProxy(id);
-    proxy->Attributes()->MergeFrom(manifest);
+    proxy->Attributes().MergeFrom(manifest);
     return id;
 }
 
@@ -1392,7 +1388,7 @@ TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(
 
     auto id = Owner->CreateChunkList().GetId();
     auto proxy = ObjectManager->GetProxy(id);
-    proxy->Attributes()->MergeFrom(manifest);
+    proxy->Attributes().MergeFrom(manifest);
     return id;
 }
 

@@ -275,7 +275,7 @@ private:
 
     void DoExecute(const TYson& requestYson)
     {
-        TNodePtr requestNode;
+        INodePtr requestNode;
         auto request = New<TRequestBase>();
         try {
             requestNode = DeserializeFromYson(requestYson);

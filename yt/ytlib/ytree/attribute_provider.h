@@ -13,7 +13,7 @@ struct IAttributeProvider
     ~IAttributeProvider()
     { }
 
-    virtual IAttributeDictionary* Attributes() = 0;
+    virtual IAttributeDictionary& Attributes() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

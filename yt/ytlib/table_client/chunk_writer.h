@@ -60,8 +60,6 @@ public:
 
     TAsyncError::TPtr AsyncClose();
 
-    void Cancel(const TError& error);
-
     i64 GetCurrentSize() const;
 
     NChunkServer::TChunkId GetChunkId() const;

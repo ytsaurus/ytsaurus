@@ -63,7 +63,11 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
 
     writer->Close();
 
-    DriverImpl->ReplySuccess();
+    auto id = writer->GetNodeId();
+    BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
+        .BeginMap()
+            .Item("object_id").Scalar(id.ToString())
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,9 @@ message TRspSomeCall
 message TReqModifyAttachments { }
 message TRspModifyAttachments { }
 
+message TReqModifyAttributes { }
+message TRspModifyAttributes { }
+
 message TReqReplyingCall { }
 message TRspReplyingCall { }
 

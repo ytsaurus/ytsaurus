@@ -51,14 +51,6 @@ struct IAsyncWriter
      */
     virtual TAsyncError::TPtr AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes) = 0;
 
-    //! Cancels the current upload. 
-    //! This method is safe to call at any time.
-    /*!
-     *  It is safe to call this method at any time and possibly multiple times.
-     *  Calling #AsyncWriteBlock afterwards is an error.
-     */
-    virtual void Cancel(const TError& error) = 0;
-
     //! Returns the id of the chunk being written.
     virtual TChunkId GetChunkId() const = 0;
 

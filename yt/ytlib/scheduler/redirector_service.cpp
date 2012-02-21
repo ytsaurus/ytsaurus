@@ -41,7 +41,7 @@ TRedirectorService::TRedirectResult TRedirectorService::DoHandleRedirect(IServic
 
     TRedirectParams redirectParams;
     try {
-        redirectParams.Address = SyncYPathGet(~root, "sys/scheduler@address");
+        redirectParams.Address = DeserializeFromYson<Stroka>(SyncYPathGet(~root, "sys/scheduler@address"));
     } catch (const std::exception& ex) {
         return TError(Sprintf("Error reading redirection parameters\n%s", ex.what()));
     }

@@ -24,8 +24,6 @@ struct IAsyncWriter
 
     virtual TAsyncError::TPtr AsyncEndRow() = 0;
     virtual TAsyncError::TPtr AsyncClose() = 0;
-
-    virtual void Cancel(const TError& error) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

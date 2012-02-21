@@ -49,12 +49,12 @@ public:
         return Verb;
     }
 
-    virtual NYTree::IAttributeDictionary* Attributes()
+    virtual NYTree::IAttributeDictionary& Attributes()
     {
         YUNREACHABLE();
     }
 
-    virtual const NYTree::IAttributeDictionary* Attributes() const
+    virtual const NYTree::IAttributeDictionary& Attributes() const
     {
         YUNREACHABLE();
     }
@@ -120,6 +120,7 @@ void TRedirectorServiceBase::OnBeginRequest(IServiceContext* context)
 
             context_->SetRequestInfo(Sprintf("Address: %s, Timeout: %s",
                 ~params.Address,
+                // TODO(babenko): get rid of this once ToString works for TNullable
                 params.Timeout
                 ? ~ToString(params.Timeout.Get().MilliSeconds())
                 : "None"));

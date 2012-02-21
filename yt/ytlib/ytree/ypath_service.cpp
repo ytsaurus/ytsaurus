@@ -10,7 +10,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TPtr IYPathService::FromProducer(TYsonProducer producer)
+IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();

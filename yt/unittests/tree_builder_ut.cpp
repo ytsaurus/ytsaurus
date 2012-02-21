@@ -23,7 +23,6 @@ public:
     StrictMock<TMockYsonConsumer> Mock;
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TTreeBuilderTest, EmptyMap)
@@ -39,8 +38,7 @@ TEST_F(TTreeBuilderTest, EmptyMap)
     builder->OnEndMap(false);
     auto root = builder->EndTree();
 
-    TTreeVisitor visitor(&Mock);
-    visitor.Visit(~root);
+    VisitTree(~root, &Mock);
 }
 
 TEST_F(TTreeBuilderTest, NestedMaps)
@@ -72,8 +70,7 @@ TEST_F(TTreeBuilderTest, NestedMaps)
     builder->OnEndMap(false);
     auto root = builder->EndTree();
 
-    TTreeVisitor visitor(&Mock);
-    visitor.Visit(~root);
+    VisitTree(~root, &Mock);
 }
 
 TEST_F(TTreeBuilderTest, MapWithAttributes)
@@ -149,8 +146,7 @@ TEST_F(TTreeBuilderTest, MapWithAttributes)
     builder->OnEndAttributes();
     auto root = builder->EndTree();
 
-    TTreeVisitor visitor(&Mock);
-    visitor.Visit(~root);
+    VisitTree(~root, &Mock);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

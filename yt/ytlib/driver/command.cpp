@@ -8,7 +8,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void StreamSpecValidator(const TNodePtr& node)
+static void StreamSpecValidator(const INodePtr& node)
 {
     if (!node)
         return;
@@ -32,9 +32,9 @@ static void StreamSpecValidator(const TNodePtr& node)
     }
 }
 
-IParamAction<const TNodePtr&>::TPtr TRequestBase::StreamSpecIsValid = FromMethod(&StreamSpecValidator);
+IParamAction<const INodePtr&>::TPtr TRequestBase::StreamSpecIsValid = FromMethod(&StreamSpecValidator);
 
-Stroka ToStreamSpec(TNodePtr node)
+Stroka ToStreamSpec(INodePtr node)
 {
     if (!node) {
         return "";

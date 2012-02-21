@@ -98,9 +98,7 @@ void TJob::Start()
 void TJob::Stop()
 {
     CancelableInvoker->Cancel();
-    if (Writer) {
-        Writer->Cancel(TError("Replication job stopped"));
-    }
+    Writer.Reset();
 }
 
 void TJob::OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result)

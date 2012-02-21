@@ -3,6 +3,7 @@
 #include "rvalue.h"
 
 #include <util/generic/utility.h>
+#include <util/string/cast.h>
 
 namespace NYT {
 
@@ -176,6 +177,11 @@ public:
         return Value;
     }
 
+    const T& Get(const T& defaultValue) const
+    {
+        return Initialized ? Value : defaultValue;
+    }
+
     const T* GetPtr() const
     {
         return Initialized ? &Value : NULL;
@@ -185,12 +191,6 @@ public:
     {
         return Initialized ? &Value : NULL;
     }
-
-    const T& GetValueOrDefault(const T& defaultValue = T()) const
-    {
-        return Initialized ? Value : defaultValue;
-    }
-
 
     const T& operator*() const
     {
@@ -218,6 +218,11 @@ public:
     operator TUnspecifiedBoolType() const
     {
         return Initialized ? &TNullable::Value : NULL;
+    }
+
+    Stroka ToString() const
+    {
+        return Initialized ? ::ToString(Value) : "<NULL>";
     }
 
 private:
@@ -310,6 +315,14 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 {
     return !(lhs == rhs);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+//template <class T>
+//Stroka ToString(const TNullable<T>& nullable)
+//{
+//    return nullable ? ToString(*nullable) : "<NULL>";
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 

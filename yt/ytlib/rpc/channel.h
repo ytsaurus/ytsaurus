@@ -47,12 +47,12 @@ struct IChannel
 //! Creates a channel implemented via NBus.
 IChannel::TPtr CreateBusChannel(
     NBus::IBusClient* client,
-    TNullable<TDuration> defaultTimeout = NULL);
+    TNullable<TDuration> defaultTimeout = Null);
 
 //! Creates a channel implemented via NBus.
 IChannel::TPtr CreateBusChannel(
     const Stroka& address,
-    TNullable<TDuration> defaultTimeout = NULL);
+    TNullable<TDuration> defaultTimeout = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 
