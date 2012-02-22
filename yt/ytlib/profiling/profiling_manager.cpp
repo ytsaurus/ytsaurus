@@ -38,7 +38,7 @@ class TProfilingManager::TBucket
 {
 public:
 	TBucket()
-		: TYPathServiceBase(Logger.GetCategory())
+		: TYPathServiceBase("Profiling")
 	{ }
 
 	void Store(const TStoredSample& sample)
