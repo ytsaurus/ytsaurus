@@ -227,7 +227,15 @@ TMetaVersion TDecoratedMetaState::GetVersion() const
     return Version;
 }
 
-TMetaVersion TDecoratedMetaState::GetReachableVersion() const
+TMetaVersion TDecoratedMetaState::SafeGetVersion() const
+{
+	VERIFY_THREAD_AFFINITY_ANY();
+
+	TGuard<TSpinLock> guard(VersionSpinLock);
+	return Version;
+}
+
+TMetaVersion TDecoratedMetaState::SafeGetReachableVersion() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

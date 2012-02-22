@@ -355,7 +355,7 @@ TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto version = MetaState->GetReachableVersion();
+    auto version = MetaState->SafeGetReachableVersion();
     i32 maxAvailableSnapshotId = SnapshotStore->GetMaxSnapshotId();
     YASSERT(maxAvailableSnapshotId <= version.SegmentId);
 

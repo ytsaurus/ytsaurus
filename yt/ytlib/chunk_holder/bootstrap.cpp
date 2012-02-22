@@ -27,6 +27,7 @@
 #include <ytlib/monitoring/statlog.h>
 #include <ytlib/ytree/yson_file_service.h>
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/profiling/profiling_manager.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -37,6 +38,7 @@ using namespace NYTree;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NChunkServer;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,9 +64,6 @@ void TBootstrap::Run()
     Config->CacheRemoteReader->PeerAddress = Config->PeerAddress;
 
     LOG_INFO("Starting chunk holder (IncarnationId: %s)", ~IncarnationId.ToString());
-
-    // TODO: fixme
-    //NSTAT::EnableStatlog(true);
 
     auto controlQueue = New<TActionQueue>("Control");
     ServiceInvoker = controlQueue->GetInvoker();
@@ -145,11 +144,15 @@ void TBootstrap::Run()
     SyncYPathSetNode(
         ~orchidRoot,
         "monitoring",
-        ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
+        ~NYTree::CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
+	SyncYPathSetNode(
+		~orchidRoot,
+		"profiling",
+		~CreateVirtualNode(TProfilingManager::Get()->GetService()));
     SyncYPathSetNode(
         ~orchidRoot,
         "config",
-        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
+        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProducer(ConfigFileName)));
     SyncYPathSetNode(
         ~orchidRoot,
         "stored_chunks",
@@ -166,16 +169,8 @@ void TBootstrap::Run()
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
-        "/statistics",
-        ~NMonitoring::GetProfilingHttpHandler());
-    httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(
-            ~FromFunctor([=] () -> IYPathServicePtr
-                {
-                    return orchidRoot;
-                }),
-            ~controlQueue->GetInvoker()));
+        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~controlQueue->GetInvoker())));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

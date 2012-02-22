@@ -67,6 +67,7 @@ struct IAttributeProvider;
 
 struct IYPathService;
 typedef TIntrusivePtr<IYPathService> IYPathServicePtr;
+typedef IFunc<IYPathServicePtr>::TPtr TYPathServiceProducer;
 
 // TODO(roizner): Rename it and move somewhere.
 template <class T, class = void>
