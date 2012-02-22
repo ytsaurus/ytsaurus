@@ -17,7 +17,7 @@ struct TEmpty
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Base metaprogramming class which represents integral constant.
-template<class T, T ValueOfTheConstant>
+template <class T, T ValueOfTheConstant>
 struct TIntegralConstant
 {
     static /* constexpr */ const T Value = ValueOfTheConstant;
@@ -31,7 +31,7 @@ struct TIntegralConstant
     }
 };
 
-template<class T, T ValueOfTheConstant>
+template <class T, T ValueOfTheConstant>
 /* constexpr */ const T TIntegralConstant<T, ValueOfTheConstant>::Value;
 
 //! Useful integral constants: True and False.
@@ -170,7 +170,7 @@ namespace NDetail {
 typedef char (&TYesType)[1];
 typedef char (&TNoType) [2];
 
-template <typename TFromType, typename TToType>
+template <class TFromType, class TToType>
 struct TIsConvertibleImpl
 {
     static TYesType Consumer(TToType);
@@ -184,7 +184,7 @@ struct TIsConvertibleImpl
     };
 };
 
-template <typename T>
+template <class T>
 struct TIsClassImpl
 {
     static TYesType Test(void (T::*)(void));
@@ -201,7 +201,7 @@ struct TIsClassImpl
 ////////////////////////////////////////////////////////////////////////////////
 
 //! TIsConvertible<U, T>::Value is True iff #U is convertable to #T.
-template<class TFromType, class TToType>
+template <class TFromType, class TToType>
 struct TIsConvertible
     : TIntegralConstant<
         bool, NDetail::TIsConvertibleImpl<TFromType, TToType>::Value

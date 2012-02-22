@@ -79,8 +79,8 @@ $range ARITY 0..MAX_ARITY
 $for ARITY [[
 $range ARG 1..ARITY
 
-template <typename Functor[[]]
-$if ARITY > 0 [[, ]] $for ARG , [[typename P$(ARG)]]>
+template <class Functor[[]]
+$if ARITY > 0 [[, ]] $for ARG , [[class P$(ARG)]]>
 TCallback<
     typename NDetail::TBindState<
         typename NDetail::TFunctorTraits<Functor>::TRunnableType,

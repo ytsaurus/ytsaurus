@@ -17,7 +17,7 @@ public:
 
     explicit TParallelAwaiter(IInvoker::TPtr invoker = TSyncInvoker::Get());
 
-    template<class T>
+    template <class T>
     void Await(
         TIntrusivePtr< TFuture<T> > result,
         TIntrusivePtr< IParamAction<T> > onResult = NULL);
@@ -38,7 +38,7 @@ private:
 
     void Terminate();
 
-    template<class T>
+    template <class T>
     void OnResult(
         T result,
         typename IParamAction<T>::TPtr onResult);

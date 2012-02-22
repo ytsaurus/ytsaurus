@@ -211,13 +211,13 @@ public:
 #endif
 
     //! Increments the reference counter.
-    inline void Ref() // noexcept
+    inline void Ref() const // noexcept
     {
         RefCounter->Ref();
     }
 
     //! Decrements the reference counter.
-    inline void UnRef() // noexcept
+    inline void UnRef() const // noexcept
     {
         RefCounter->UnRef();
     }
@@ -243,7 +243,7 @@ public:
     }
 
     //! See #TIntrinsicRefCounted::DangerousGetPtr.
-    template<class T>
+    template <class T>
     static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
         return
@@ -253,7 +253,7 @@ public:
     }
 
 private:
-    NDetail::TRefCounter* RefCounter;
+    mutable NDetail::TRefCounter* RefCounter;
 #ifdef ENABLE_REF_COUNTED_TRACKING
     void* Cookie;
 #endif
@@ -282,14 +282,14 @@ public:
 #endif
 
     //! Increments the reference counter.
-    inline void Ref() // noexcept
+    inline void Ref() const // noexcept
     {
         YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
         NDetail::AtomicallyIncrement(&RefCounter);
     }
 
     //! Decrements the reference counter.
-    inline void UnRef() // noexcept
+    inline void UnRef() const // noexcept
     {
         YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
         if (NDetail::AtomicallyDecrement(&RefCounter) == 1) {
@@ -323,7 +323,7 @@ public:
      * raw pointers, taking a lock in object's destructor, and unregistering
      * its raw pointer from the collection there.
      */
-    template<class T>
+    template <class T>
     static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
         return
@@ -333,7 +333,7 @@ public:
     }
 
 private:
-    NDetail::TVolatileCounter RefCounter;
+    mutable NDetail::TVolatileCounter RefCounter;
 #ifdef ENABLE_REF_COUNTED_TRACKING
     void* Cookie;
 #endif

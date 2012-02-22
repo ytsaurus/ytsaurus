@@ -15,7 +15,7 @@ namespace NYTree {
 // String-like Scalars {{{
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename T>
+template <class T>
 class TYTreeFluentStringScalarTest
     : public ::testing::Test
 {
@@ -47,7 +47,7 @@ INSTANTIATE_TYPED_TEST_CASE_P(TypeParametrized, TYTreeFluentStringScalarTest,
 // Integer-like Scalars {{{
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename T>
+template <class T>
 class TYTreeFluentIntegerScalarTest
     : public ::testing::Test
 {
@@ -79,7 +79,7 @@ INSTANTIATE_TYPED_TEST_CASE_P(TypeParametrized, TYTreeFluentIntegerScalarTest,
 // Float-like Scalars {{{
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename T>
+template <class T>
 class TYTreeFluentFloatScalarTest
     : public ::testing::Test
 {

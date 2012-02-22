@@ -73,9 +73,9 @@ private:
     struct THelper
     { };
 
-    template <typename U>
+    template <class U>
     static NMpl::NDetail::TNoType  Test(THelper<&U::Ref>*);
-    template <typename>
+    template <class>
     static NMpl::NDetail::TYesType Test(...);
 
 public:
@@ -109,9 +109,9 @@ private:
     struct THelper
     { };
 
-    template <typename U>
+    template <class U>
     static NMpl::NDetail::TNoType  Test(THelper<&U::UnRef>*);
-    template <typename>
+    template <class>
     static NMpl::NDetail::TYesType Test(...);
 
 public:
@@ -143,9 +143,9 @@ template <class T>
 struct TIsMethodHelper
 {
 private:
-    template <typename U>
+    template <class U>
     static NMpl::NDetail::TYesType& Test(typename U::IsMethod*);
-    template <typename U>
+    template <class U>
     static NMpl::NDetail::TNoType&  Test(...);
 
 public:
@@ -162,7 +162,7 @@ public:
  *
  * P1 should be the type of the object that will be received of the method.
  */
-template <bool IsMethod, typename P1>
+template <bool IsMethod, class P1>
 struct TIsWeakMethodHelper
     : NMpl::TFalseType
 { };
@@ -196,7 +196,7 @@ struct TIsWeakMethodHelper<true, TConstRefWrapper< TWeakPtr<T> > >
 // XXX(sandello): The code is a little bit messy, but works fine.
 //
  
-template<bool IsMethod, class T>
+template <bool IsMethod, class T>
 struct TMaybeLockHelper
 {
     T&& T_;
@@ -213,7 +213,7 @@ struct TMaybeLockHelper
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, TIntrusivePtr<U> >
 {
     typedef TIntrusivePtr<U> T;
@@ -223,7 +223,7 @@ struct TMaybeLockHelper< true, TIntrusivePtr<U> >
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, TIntrusivePtr<U>& >
 {
     typedef TIntrusivePtr<U>& T;
@@ -237,7 +237,7 @@ struct TMaybeLockHelper< true, TIntrusivePtr<U>& >
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, const TIntrusivePtr<U>& >
 {
     typedef const TIntrusivePtr<U>& T;
@@ -251,7 +251,7 @@ struct TMaybeLockHelper< true, const TIntrusivePtr<U>& >
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, TWeakPtr<U> >
 {
     typedef TWeakPtr<U> T;
@@ -261,7 +261,7 @@ struct TMaybeLockHelper< true, TWeakPtr<U> >
     } 
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, TWeakPtr<U>& >
 {
     typedef TWeakPtr<U>& T;
@@ -275,7 +275,7 @@ struct TMaybeLockHelper< true, TWeakPtr<U>& >
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, const TWeakPtr<U>& >
 {
     typedef const TWeakPtr<U>& T;
@@ -424,7 +424,7 @@ struct TIsNonConstReference<const T&>
 
 /*! \} */
 
-template <typename T>
+template <class T>
 struct TExpectedIntrusivePtrAndActualRawPtrHelper
 {
 #if defined(_win_)

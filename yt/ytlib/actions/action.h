@@ -12,18 +12,18 @@ namespace NYT {
 struct TVoid
 { };
 
-template<class T>
+template <class T>
 class TFuture;
 
 struct IAction;
 
-template<class TResult>
+template <class TResult>
 struct IFunc;
 
-template<class TParam>
+template <class TParam>
 struct IParamAction;
 
-template<class TParam, class TResult>
+template <class TParam, class TResult>
 struct IParamFunc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +37,7 @@ struct IAction
 
     TPtr Via(TIntrusivePtr<IInvoker> invoker);
 
-    template<class TParam>
+    template <class TParam>
     typename IParamAction<TParam>::TPtr ToParamAction();
 };
 
@@ -57,7 +57,7 @@ struct TAsyncTraits< TIntrusivePtr< TFuture<TResult> > >
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TResult>
+template <class TResult>
 struct IFunc
     : public virtual TIntrinsicRefCounted
 {
@@ -71,7 +71,7 @@ struct IFunc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TParam>
+template <class TParam>
 struct IParamAction
     : public virtual TIntrinsicRefCounted
 {
@@ -86,7 +86,7 @@ struct IParamAction
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TParam, class TResult>
+template <class TParam, class TResult>
 struct IParamFunc
     : public virtual TIntrinsicRefCounted
 {

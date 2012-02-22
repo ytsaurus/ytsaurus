@@ -26,7 +26,7 @@ struct TFakeInvoker
 
 namespace NDetail {
 
-template <typename Runnable, typename Signature, typename BoundArgsType>
+template <class Runnable, class Signature, class BoundArgsType>
 struct TBindState;
 
 // White-box injection into a TCallback<> object for checking

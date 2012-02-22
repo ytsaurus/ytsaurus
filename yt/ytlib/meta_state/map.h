@@ -203,14 +203,14 @@ namespace NYT {
 namespace NForeach {
 
 //! Provides a begin-like iterator for #FOREACH macro.
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 inline auto Begin(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.Begin())
 {
     return collection.Begin();
 }
 
 //! Provides an end-like iterator for #FOREACH macro.
-template<class TKey, class TValue, class THash>
+template <class TKey, class TValue, class THash>
 inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> decltype(collection.End())
 {
     return collection.End();

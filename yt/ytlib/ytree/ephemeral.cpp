@@ -68,7 +68,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TValue, class IBase>
+template <class TValue, class IBase>
 class TScalarNode
     : public TEphemeralNodeBase
     , public virtual IBase
