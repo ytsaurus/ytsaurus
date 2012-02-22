@@ -126,7 +126,7 @@ namespace NDetail {
         }
 
         //! Removes a strong reference to the counter.
-        inline void UnRef() // noexcept
+        inline void Unref() // noexcept
         {
             YASSERT(StrongCount > 0 && WeakCount > 0);
             if (AtomicallyDecrement(&StrongCount) == 1) {
@@ -153,7 +153,7 @@ namespace NDetail {
         }
 
         //! Removes a weak reference to the counter.
-        inline void WeakUnRef() // noexcept
+        inline void WeakUnref() // noexcept
         {
             YASSERT(WeakCount > 0);
             if (AtomicallyDecrement(&WeakCount) == 1) {
@@ -217,9 +217,9 @@ public:
     }
 
     //! Decrements the reference counter.
-    inline void UnRef() const // noexcept
+    inline void Unref() const // noexcept
     {
-        RefCounter->UnRef();
+        RefCounter->Unref();
     }
 
     //! Returns current number of references to the object.
@@ -289,7 +289,7 @@ public:
     }
 
     //! Decrements the reference counter.
-    inline void UnRef() const // noexcept
+    inline void Unref() const // noexcept
     {
         YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
         if (NDetail::AtomicallyDecrement(&RefCounter) == 1) {

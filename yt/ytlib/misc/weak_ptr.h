@@ -117,7 +117,7 @@ public:
     ~TWeakPtr()
     {
         if (RefCounter) {
-            RefCounter->WeakUnRef();
+            RefCounter->WeakUnref();
         }
     }
 

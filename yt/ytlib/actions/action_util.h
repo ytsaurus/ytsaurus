@@ -36,7 +36,7 @@ struct TActionTargetTraits< TWeakPtr<T> >
 
     static FORCED_INLINE TUnderlying* Get(const TTargetPtr& ptr)
     {
-        // Note that this line incurs extra Ref/UnRef pair.
+        // Note that this line incurs extra Ref/Unref pair.
         // This will be optimized in new-style closures.
         return ptr.Lock().Get();
     }

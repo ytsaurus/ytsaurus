@@ -48,7 +48,7 @@ public:
         ++Increments;
     }
 
-    void UnRef()
+    void Unref()
     {
         ++Decrements;
 

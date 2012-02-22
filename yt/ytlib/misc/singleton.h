@@ -10,7 +10,7 @@ template <class T>
 void RefCountedSingletonDestroyer(void* ctx)
 {
     T** obj = reinterpret_cast<T**>(ctx);
-    (*obj)->UnRef();
+    (*obj)->Unref();
     *obj = reinterpret_cast<T*>(-1);
 }
 

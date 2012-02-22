@@ -66,7 +66,7 @@ namespace NYT {
 //   cb.Run(); // Prints "Hello!".
 //
 // Without the #Unretained() wrapper on |&foo|, the above call would fail
-// to compile because |TFoo| does not support the Ref() and UnRef() methods.
+// to compile because |TFoo| does not support the Ref() and Unref() methods.
 //
 //
 // EXAMPLE OF Owned()

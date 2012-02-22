@@ -575,7 +575,7 @@ $if ARITY == 0 [[
     {
 
 $if ARITY > 0 [[
-        TMaybeRefCountHelper<IsMethod::Value, S1>::UnRef(S1_);
+        TMaybeRefCountHelper<IsMethod::Value, S1>::Unref(S1_);
 ]] $$ if ARITY > 0
 
     }

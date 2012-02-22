@@ -54,7 +54,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(sandello): Implement accurate check on the number of Ref() and UnRef()s.
+// TODO(sandello): Implement accurate check on the number of Ref() and Unref()s.
 
 namespace {
 
