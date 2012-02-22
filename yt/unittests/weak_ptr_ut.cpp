@@ -60,7 +60,7 @@ namespace {
         // #LockCounter().
         void UnlockCounter()
         {
-            GetRefCounter()->WeakUnRef();
+            GetRefCounter()->WeakUnref();
         }
 
     private:
@@ -114,7 +114,7 @@ namespace {
         }
     };
 
-    template<class T>
+    template <class T>
     void PrintExtrinsicRefCounted(const T& arg, ::std::ostream* os)
     {
         Stroka repr = Sprintf(

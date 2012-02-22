@@ -9,7 +9,7 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TMessage, class TResult>
+template <class TMessage, class TResult>
 void TMetaStatePart::RegisterMethod(
     TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod)
 {
@@ -23,7 +23,7 @@ void TMetaStatePart::RegisterMethod(
     YVERIFY(MetaState->Methods.insert(MakePair(changeType, action)).second == 1);
 }
 
-template<class TMessage, class TResult>
+template <class TMessage, class TResult>
 void TMetaStatePart::MethodThunk(
     const TRef& changeData,
     typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod)

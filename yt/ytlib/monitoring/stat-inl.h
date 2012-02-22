@@ -8,7 +8,7 @@ namespace NSTAT {
 //
 // Scalar measure points
 
-template<class T>
+template <class T>
 inline void LOG_VALUE(const char *name, const T &value) {
     TLogCommand *cmd = new TLogCommandScalar(Stroka(name), ToAnyValue(value));
     LogQueueAppend(cmd);
@@ -16,7 +16,7 @@ inline void LOG_VALUE(const char *name, const T &value) {
 
 // spec pointer could be 0, then it would be a bit slower
 // equivalent of LOG_VALUE(const char *, const T &)
-template<class T>
+template <class T>
 inline void LOG_VALUE(const char *name, const char *const spec, const T &value) {
     TLogCommand *cmd = new TLogCommandScalar(Stroka(name), ToAnyValue(value), ToString(spec));
     LogQueueAppend(cmd);
@@ -102,12 +102,12 @@ extern THREAD(TTempCounters) Counters;
 
 TCounter* CreateCounter(ECounterType type);
 
-template<class T>
+template <class T>
 T* CreateCounter() {
     return static_cast<T*>(CreateCounter(T::Type));
 }
 
-template<class T>
+template <class T>
 T* GetCounter(const char *name) {
     const TTempCounters &counters = Counters.Get();
     TTempCounters::const_iterator i = counters.find(name);
@@ -120,7 +120,7 @@ T* GetCounter(const char *name) {
     return 0;
 }
 
-template<class T>
+template <class T>
 T* GetOrCreateCounter(const char *name) {
     T *counter = GetCounter<T>(name);
     if (!counter) {

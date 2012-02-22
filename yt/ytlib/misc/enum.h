@@ -34,7 +34,7 @@ namespace NYT {
  */
 
 //! Base class for strongly-typed enumerations.
-template<class TDerived>
+template <class TDerived>
 class TEnumBase
 {
 public:

@@ -14,7 +14,7 @@ namespace NYTree {
 
 namespace NDetail {
 
-template<class T>
+template <class T>
 struct TScalarTypeTraits
 { };
 
@@ -75,7 +75,7 @@ struct INode
 
     //! A helper method for retrieving a scalar value from a node.
     //! Invokes an appropriate "AsSomething" call followed by "GetValue".
-    template<class T>
+    template <class T>
     T GetValue() const
     {
         return NDetail::TScalarTypeTraits<T>::GetValue(this);
@@ -83,7 +83,7 @@ struct INode
 
     //! A helper method for assigning a scalar value to a node.
     //! Invokes an appropriate "AsSomething" call followed by "SetValue".
-    template<class T>
+    template <class T>
     void SetValue(typename NDetail::TScalarTypeTraits<T>::TParamType value)
     {
         NDetail::TScalarTypeTraits<T>::SetValue(this, value);
@@ -93,7 +93,7 @@ struct INode
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A base interface for all scalar nodes, i.e. nodes containing a single atomic value.
-template<class T>
+template <class T>
 struct IScalarNode
     : public virtual INode
 {

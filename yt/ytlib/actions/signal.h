@@ -18,7 +18,7 @@ namespace NYT {
  *
  *  Signals are thread-safe.
  */
-template<class T>
+template <class T>
 class TSignalBase
 {
 public:
@@ -91,7 +91,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A signal whose handlers are of type #IParamAction<T>. \see #TSignalBase<T>
-template<class TParam>
+template <class TParam>
 class TParamSignal
     : public TSignalBase< IParamAction<TParam> >
 {

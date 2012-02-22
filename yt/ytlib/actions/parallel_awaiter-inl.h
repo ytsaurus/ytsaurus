@@ -19,7 +19,7 @@ inline TParallelAwaiter::TParallelAwaiter(IInvoker::TPtr invoker)
 }
 
 
-template<class T>
+template <class T>
 void TParallelAwaiter::Await(
     TIntrusivePtr< TFuture<T> > result,
     TIntrusivePtr< IParamAction<T> > onResult)
@@ -47,7 +47,7 @@ void TParallelAwaiter::Await(
         wrappedOnResult));
 }
 
-template<class T>
+template <class T>
 void TParallelAwaiter::OnResult(T result, typename IParamAction<T>::TPtr onResult)
 {
     if (onResult) {

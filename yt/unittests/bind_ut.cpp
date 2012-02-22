@@ -42,7 +42,7 @@ private:
     TObject& operator=(TObject&&);
 };
 
-// A simple mock which also mocks Ref()/UnRef() hence mocking reference counting
+// A simple mock which also mocks Ref()/Unref() hence mocking reference counting
 // behaviour.
 class TObjectWithRC
     : public TObject
@@ -54,7 +54,7 @@ public:
     { }
 
     MOCK_CONST_METHOD0(Ref, void(void));
-    MOCK_CONST_METHOD0(UnRef, void(void));
+    MOCK_CONST_METHOD0(Unref, void(void));
 
 private:
     // Explicitly non-copyable and non-movable.
@@ -65,7 +65,7 @@ private:
     TObjectWithRC& operator=(TObjectWithRC&&);
 };
 
-// A simple mock object which mocks Ref()/UnRef() and prohibits
+// A simple mock object which mocks Ref()/Unref() and prohibits
 // public destruction.
 class TObjectWithRCAndPrivateDtor
     : public TObjectWithRC 
@@ -99,7 +99,7 @@ public:
     // Stub methods for reference counting.
     void Ref(void)
     { }
-    void UnRef(void)
+    void Unref(void)
     { }
 
     virtual void VirtualSet()
@@ -404,19 +404,19 @@ const char* StringIdentity(const char* s)
     return s;
 }
 
-template <typename T>
+template <class T>
 T PolymorphicIdentity(T t)
 {
     return t; // Copy
 }
 
-template <typename T>
+template <class T>
 T PolymorphicPassThrough(T t)
 {
     return MoveRV(t); // Move
 }
 
-template <typename T>
+template <class T>
 void VoidPolymorphic1(T t)
 {
     UNUSED(t); 
@@ -443,7 +443,7 @@ void SetIntViaPtr(int* n)
     *n = 2012;
 }
 
-template<typename T>
+template <class T>
 int FunctionWithWeakParam(TWeakPtr<T> ptr, int n)
 {
     return n;
@@ -595,7 +595,7 @@ TEST_F(TBindTest, FunctionTypeSupport)
     EXPECT_CALL(StaticObject, VoidMethod0());
 
     EXPECT_CALL(ObjectWithRC, Ref()).Times(4);
-    EXPECT_CALL(ObjectWithRC, UnRef()).Times(4);
+    EXPECT_CALL(ObjectWithRC, Unref()).Times(4);
 
     EXPECT_CALL(ObjectWithRC, VoidMethod0()).Times(2);
     EXPECT_CALL(ObjectWithRC, VoidConstMethod0()).Times(2);
@@ -650,7 +650,7 @@ TEST_F(TBindTest, ReturnValuesSupport)
     EXPECT_CALL(StaticObject, IntMethod0()).WillOnce(Return(13));
 
     EXPECT_CALL(ObjectWithRC, Ref()).Times(3);
-    EXPECT_CALL(ObjectWithRC, UnRef()).Times(3);
+    EXPECT_CALL(ObjectWithRC, Unref()).Times(3);
 
     EXPECT_CALL(ObjectWithRC, IntMethod0()).WillOnce(Return(17));
     EXPECT_CALL(ObjectWithRC, IntConstMethod0())
@@ -685,7 +685,7 @@ TEST_F(TBindTest, IgnoreResultWrapper)
     EXPECT_CALL(StaticObject, IntMethod0()).WillOnce(Return(13));
 
     EXPECT_CALL(ObjectWithRC, Ref()).Times(2);
-    EXPECT_CALL(ObjectWithRC, UnRef()).Times(2);
+    EXPECT_CALL(ObjectWithRC, Unref()).Times(2);
 
     EXPECT_CALL(ObjectWithRC, IntMethod0()).WillOnce(Return(17));
     EXPECT_CALL(ObjectWithRC, IntConstMethod0()).WillOnce(Return(19));
@@ -854,12 +854,12 @@ TEST_F(TBindTest, ArrayArgumentBinding)
 }
 
 // Verify THasRefAndUnrefMethods correctly introspects the class type for a pair of
-// Ref() and UnRef().
-//   - Class with Ref() and UnRef().
-//   - Class without Ref() and UnRef().
-//   - Derived class with Ref() and UnRef().
-//   - Derived class without Ref() and UnRef().
-//   - Derived class with Ref() and UnRef() and a private destructor.
+// Ref() and Unref().
+//   - Class with Ref() and Unref().
+//   - Class without Ref() and Unref().
+//   - Derived class with Ref() and Unref().
+//   - Derived class without Ref() and Unref().
+//   - Derived class with Ref() and Unref() and a private destructor.
 TEST_F(TBindTest, HasRefAndUnrefMethods)
 {
     EXPECT_IS_TRUE(NDetail::THasRefAndUnrefMethods<TObjectWithRC>::Value);
@@ -886,7 +886,7 @@ TEST_F(TBindTest, UnretainedWrapper)
     EXPECT_CALL(Object, VoidConstMethod0()).Times(2);
 
     EXPECT_CALL(ObjectWithRC, Ref()).Times(0);
-    EXPECT_CALL(ObjectWithRC, UnRef()).Times(0);
+    EXPECT_CALL(ObjectWithRC, Unref()).Times(0);
     EXPECT_CALL(ObjectWithRC, VoidMethod0()).Times(1);
     EXPECT_CALL(ObjectWithRC, VoidConstMethod0()).Times(2);
 

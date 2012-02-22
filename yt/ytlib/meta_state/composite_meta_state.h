@@ -25,11 +25,11 @@ protected:
     IMetaStateManager::TPtr MetaStateManager;
     TIntrusivePtr<TCompositeMetaState> MetaState;
 
-    template<class TMessage, class TResult>
+    template <class TMessage, class TResult>
     void RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod);
 
     // TODO: move to inl
-    template<class TThis, class TMessage, class TResult>
+    template <class TThis, class TMessage, class TResult>
     void RegisterMethod(
         TThis* this_,
         TResult (TThis::* changeMethod)(const TMessage&))
@@ -51,7 +51,7 @@ private:
     friend class TCompositeMetaState;
     typedef TMetaStatePart TThis;
 
-    template<class TMessage, class TResult>
+    template <class TMessage, class TResult>
     void MethodThunk(
         const TRef& changeData,
         typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod);

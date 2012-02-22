@@ -27,7 +27,7 @@ $range j 1..i
 // $i-arity
 ////////////////////////////////////////////////////////////////////////////////
 
-$var tmpl_args = [[$for j, [[typename TArg$j]]]]
+$var tmpl_args = [[$for j, [[class TArg$j]]]]
 $var ctor_args = [[$for j [[, const TArgCopy$j& arg$j]]]]
 $var ctor_list = [[$for j [[, Arg$j(arg$j)]]]]
 $var wrap_args = [[$for j [[,
