@@ -10,7 +10,7 @@ namespace NYTree {
 
 //! Creates a service for performing simple, non-cached YPath
 //! requests to a given file.
-NYTree::TYPathServiceProvider::TPtr CreateYsonFileProvider(const Stroka& fileName);
+NYTree::TYPathServiceProvider CreateYsonFileProvider(const Stroka& fileName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

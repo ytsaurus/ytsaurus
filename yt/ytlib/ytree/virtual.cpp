@@ -228,8 +228,8 @@ class TVirtualEntityNode
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
-    TVirtualEntityNode(TYPathServiceProvider* builder)
-        : Provider(builder)
+    TVirtualEntityNode(TYPathServiceProvider provider)
+        : Provider(provider)
     { }
 
     virtual INodeFactoryPtr CreateFactory() const
@@ -280,13 +280,13 @@ protected:
     }
 
 private:
-    TYPathServiceProvider::TPtr Provider;
+    TYPathServiceProvider Provider;
     ICompositeNode* Parent;
     TAutoPtr<IAttributeDictionary> Attributes_;
 
 };
 
-INodePtr CreateVirtualNode(TYPathServiceProvider* provider)
+INodePtr CreateVirtualNode(TYPathServiceProvider provider)
 {
     return New<TVirtualEntityNode>(provider);
 }

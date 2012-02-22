@@ -36,7 +36,7 @@ Stroka OnResponse(TValueOrError<TYson> response)
     return FormatOKResponse(output.Str());
 }
 
-TFuture<Stroka>::TPtr HandleRequest(TYPathServiceProvider::TPtr provider, const TYPath& path)
+TFuture<Stroka>::TPtr HandleRequest(TYPathServiceProvider provider, const TYPath& path)
 {
     auto service = provider->Do();
     if (!service) {
@@ -48,18 +48,14 @@ TFuture<Stroka>::TPtr HandleRequest(TYPathServiceProvider::TPtr provider, const 
 } // namespace <anonymous>
 
 TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
-    TYPathServiceProvider* provider,
+    TYPathServiceProvider provider,
     IInvoker* invoker)
 {
-    TYPathServiceProvider::TPtr provider_ = provider;
     IInvoker::TPtr invoker_ = invoker;
     return FromFunctor([=] (Stroka path) -> TFuture<Stroka>::TPtr
         {
             return
-                FromMethod(
-                    &HandleRequest,
-                    provider_,
-                    path)
+                FromMethod(&HandleRequest, provider, path)
                 ->AsyncVia(invoker_)
                 ->Do();
         });

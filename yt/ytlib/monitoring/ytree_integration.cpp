@@ -11,7 +11,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TYPathServiceProvider::TPtr CreateMonitoringProvider(
+NYTree::TYPathServiceProvider CreateMonitoringProvider(
     TMonitoringManager* monitoringManager)
 {
     TMonitoringManager::TPtr monitoringManager_ = monitoringManager;
