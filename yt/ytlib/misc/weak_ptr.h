@@ -242,32 +242,6 @@ bool operator!=(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
     return lhs.Lock().Get() != rhs.Lock().Get();
 }
 
-#if 0
-template <class T, class U>
-bool operator==(const TWeakPtr<T>& lhs, U* rhs)
-{
-    return lhs.Lock().Get() == rhs;
-}
-
-template <class T, class U>
-bool operator!=(const TWeakPtr<T>& lhs, U* rhs)
-{
-    return lhs.Lock().Get() != rhs;
-}
-
-template <class T, class U>
-bool operator==(T* lhs, const TWeakPtr<U>& rhs)
-{
-    return lhs == rhs.Lock().Get();
-}
-
-template <class T, class U>
-bool operator!=(T* lhs, const TWeakPtr<U>& rhs)
-{
-    return lhs != rhs.Lock().Get();
-}
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
