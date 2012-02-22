@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 void RefCountedSingletonDestroyer(void* ctx)
 {
     T** obj = reinterpret_cast<T**>(ctx);
@@ -14,7 +14,7 @@ void RefCountedSingletonDestroyer(void* ctx)
     *obj = reinterpret_cast<T*>(-1);
 }
 
-template<class T>
+template <class T>
 TIntrusivePtr<T> RefCountedSingleton()
 {
     static T* volatile instance;

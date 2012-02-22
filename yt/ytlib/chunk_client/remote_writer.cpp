@@ -655,7 +655,7 @@ void TRemoteWriter::OnHolderDied(THolderPtr holder)
     }
 }
 
-template<class TResponse>
+template <class TResponse>
 void TRemoteWriter::CheckResponse(
     TIntrusivePtr<TResponse> rsp,
     THolderPtr holder,

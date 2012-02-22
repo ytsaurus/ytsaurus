@@ -224,13 +224,13 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
     }
 }
 
-template<class T>
+template <class T>
 void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
 {
     NYTree::Write(Parameter, consumer);
 }
 
-template<class T>
+template <class T>
 bool TParameter<T>::IsPresent() const
 {
     return NConfig::IsPresent(&Parameter);

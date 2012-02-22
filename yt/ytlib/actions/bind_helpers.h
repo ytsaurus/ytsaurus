@@ -143,7 +143,7 @@ namespace NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
+template <class T>
 class TUnretainedWrapper
 {
 public:
@@ -158,7 +158,7 @@ private:
     T* T_;
 };
 
-template <typename T>
+template <class T>
 class TOwnedWrapper
 {
 public:
@@ -182,7 +182,7 @@ private:
     mutable T* T_;
 };
 
-template <typename T>
+template <class T>
 class TPassedWrapper
 {
 public:
@@ -205,7 +205,7 @@ private:
     mutable T T_;
 };
 
-template <typename T>
+template <class T>
 class TConstRefWrapper
 {
 public:
@@ -224,7 +224,7 @@ private:
 // #TUnwrapTraits that define how precisely the values are unwrapped at the
 // invocation site and what types do they have after unwrapping.
 
-template <typename T>
+template <class T>
 struct TUnwrapTraits
 {
     typedef const T& TType;
@@ -234,7 +234,7 @@ struct TUnwrapTraits
     }
 };
 
-template <typename T>
+template <class T>
 struct TUnwrapTraits< TUnretainedWrapper<T> >
 {
     typedef T* TType;
@@ -244,7 +244,7 @@ struct TUnwrapTraits< TUnretainedWrapper<T> >
     }
 };
 
-template <typename T>
+template <class T>
 struct TUnwrapTraits< TOwnedWrapper<T> >
 {
     typedef T* TType;
@@ -254,7 +254,7 @@ struct TUnwrapTraits< TOwnedWrapper<T> >
     }
 };
 
-template <typename T>
+template <class T>
 struct TUnwrapTraits< TPassedWrapper<T> >
 {
     typedef T&& TType;
@@ -264,7 +264,7 @@ struct TUnwrapTraits< TPassedWrapper<T> >
     }
 };
 
-template <typename T>
+template <class T>
 struct TUnwrapTraits< TConstRefWrapper<T> >
 {
     typedef const T& TType;
@@ -278,31 +278,31 @@ struct TUnwrapTraits< TConstRefWrapper<T> >
 /*! \endinternal */
 } // namespace NDetail
 
-template <typename T>
+template <class T>
 static inline NDetail::TUnretainedWrapper<T> Unretained(T* x)
 {
     return NDetail::TUnretainedWrapper<T>(x);
 }
 
-template <typename T>
+template <class T>
 static inline NDetail::TOwnedWrapper<T> Owned(T* x)
 {
     return NDetail::TOwnedWrapper<T>(x);
 }
 
-template <typename T>
+template <class T>
 static inline NDetail::TPassedWrapper<T> Passed(T&& x)
 {
     return NDetail::TPassedWrapper<T>(ForwardRV<T>(x));
 }
 
-template <typename T>
+template <class T>
 static inline NDetail::TPassedWrapper<T> Passed(T* x)
 {
     return NDetail::TPassedWrapper<T>(MoveRV(*x));
 }
 
-template <typename T>
+template <class T>
 static inline NDetail::TConstRefWrapper<T> ConstRef(const T& x)
 {
     return NDetail::TConstRefWrapper<T>(x);
@@ -314,7 +314,7 @@ static inline NDetail::TConstRefWrapper<T> ConstRef(const T& x)
 namespace NDetail {
 /* \internal */
 
-template <typename T>
+template <class T>
 struct TIgnoreResultWrapper
 {
     explicit TIgnoreResultWrapper(T functor)
@@ -323,7 +323,7 @@ struct TIgnoreResultWrapper
     T Functor;
 };
 
-template <typename T>
+template <class T>
 struct TIgnoreResultWrapper< TCallback<T> >
 {
     explicit TIgnoreResultWrapper(const TCallback<T>& callback)
@@ -335,13 +335,13 @@ struct TIgnoreResultWrapper< TCallback<T> >
 /*! \endinternal */
 } // namespace NDetail
 
-template <typename T>
+template <class T>
 static inline NDetail::TIgnoreResultWrapper<T> IgnoreResult(T x)
 {
     return NDetail::TIgnoreResultWrapper<T>(x);
 }
 
-template <typename T>
+template <class T>
 static inline NDetail::TIgnoreResultWrapper< TCallback<T> >
 IgnoreResult(const TCallback<T>& x)
 {

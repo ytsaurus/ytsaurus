@@ -243,7 +243,7 @@ public:
     }
 
     //! See #TIntrinsicRefCounted::DangerousGetPtr.
-    template<class T>
+    template <class T>
     static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
         return
@@ -323,7 +323,7 @@ public:
      * raw pointers, taking a lock in object's destructor, and unregistering
      * its raw pointer from the collection there.
      */
-    template<class T>
+    template <class T>
     static ::NYT::TIntrusivePtr<T> DangerousGetPtr(T* object)
     {
         return

@@ -27,7 +27,7 @@ class TChildWithRC
 };
 
 // A class with specialization for types derived from TParent.
-template<class T, typename = void>
+template <class T, class = void>
 class TWrapped
 {
 public:
@@ -37,7 +37,7 @@ public:
     }
 };
 
-template<class T>
+template <class T>
 class TWrapped<T, typename NMpl::TEnableIf<
         NMpl::TIsConvertible<T*, TParent*>
     >::TType>

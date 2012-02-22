@@ -39,7 +39,7 @@ public:
 
     // TRefCountedTracker calls BindToCookie() on object creation.
     // So we have to stub it. 
-    template<typename T>
+    template <class T>
     void BindToCookie(const T&)
     { }
 

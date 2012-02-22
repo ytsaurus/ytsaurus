@@ -15,39 +15,39 @@ inline bool SetFalse(bool& flag)
     return false;
 }
 
-template<class T>
+template <class T>
 inline auto Begin(T& collection) -> decltype(collection.begin())
 {
     return collection.begin();
 }
 
-template<class T>
+template <class T>
 inline auto End(T& collection) -> decltype(collection.end())
 {
     return collection.end();
 }
 
 
-template<class T>
+template <class T>
 inline auto Deref(T& it) -> decltype(*it)
 {
     return *it;
 }
 
-template<class T>
+template <class T>
 inline void MoveNext(T& it)
 {
     ++it;
 }
 
 // Provide a speciailization for TIntrusiveList, which has Begin/End instead of begin/end.
-template<class T>
+template <class T>
 inline auto Begin(TIntrusiveList<T>& collection) -> decltype(collection.Begin())
 {
     return collection.Begin();
 }
 
-template<class T>
+template <class T>
 inline auto End(TIntrusiveList<T>& collection) -> decltype(collection.End())
 {
     return collection.End();

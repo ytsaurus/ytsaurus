@@ -404,19 +404,19 @@ const char* StringIdentity(const char* s)
     return s;
 }
 
-template <typename T>
+template <class T>
 T PolymorphicIdentity(T t)
 {
     return t; // Copy
 }
 
-template <typename T>
+template <class T>
 T PolymorphicPassThrough(T t)
 {
     return MoveRV(t); // Move
 }
 
-template <typename T>
+template <class T>
 void VoidPolymorphic1(T t)
 {
     UNUSED(t); 
@@ -443,7 +443,7 @@ void SetIntViaPtr(int* n)
     *n = 2012;
 }
 
-template<typename T>
+template <class T>
 int FunctionWithWeakParam(TWeakPtr<T> ptr, int n)
 {
     return n;

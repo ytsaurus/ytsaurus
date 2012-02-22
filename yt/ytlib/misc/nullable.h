@@ -46,7 +46,7 @@ public:
         : Initialized(false)
     { }
     
-    template<class U>
+    template <class U>
     TNullable(
         const TNullable<U>& other,
         typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
@@ -54,7 +54,7 @@ public:
         , Value(other.Value)
     { }
 
-    template<class U>
+    template <class U>
     TNullable(
         TNullable<U>&& other,
         typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
