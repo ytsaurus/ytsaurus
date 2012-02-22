@@ -17,7 +17,6 @@
 #include <ytlib/monitoring/ytree_integration.h>
 #include <ytlib/monitoring/http_server.h>
 #include <ytlib/monitoring/http_integration.h>
-#include <ytlib/monitoring/statlog.h>
 
 #include <ytlib/ytree/yson_file_service.h>
 #include <ytlib/ytree/ypath_client.h>
