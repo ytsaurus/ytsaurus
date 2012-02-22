@@ -27,7 +27,6 @@
 #include <ytlib/monitoring/ytree_integration.h>
 #include <ytlib/monitoring/http_server.h>
 #include <ytlib/monitoring/http_integration.h>
-#include <ytlib/monitoring/statlog.h>
 
 #include <ytlib/orchid/cypress_integration.h>
 #include <ytlib/orchid/orchid_service.h>

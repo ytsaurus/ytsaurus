@@ -7,8 +7,6 @@
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/virtual.h>
 
-#include "stat.h"
-
 namespace NYT {
 namespace NMonitoring {
     
