@@ -17,7 +17,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotBuilder
-    : public TRefCounted
+    : public TExtrinsicRefCounted
 {
 public:
     typedef TIntrusivePtr<TSnapshotBuilder> TPtr;
@@ -27,11 +27,15 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        TDuration Timeout;
+        TDuration RemoteTimeout;
+        TDuration LocalTimeout;
 
         TConfig()
         {
-            Register("timeout", Timeout)
+            Register("remote_timeout", RemoteTimeout)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Minutes(1));
+            Register("local_timeout", LocalTimeout)
                 .GreaterThan(TDuration())
                 .Default(TDuration::Minutes(1));
         }
@@ -41,8 +45,11 @@ public:
         (OK)
         (InvalidVersion)
         (AlreadyInProgress)
+        (ForkError)
+        (TimeoutExceeded)
     );
 
+    // TODO(babenko): consider replacing with TValueOrError
     struct TLocalResult
     {
         EResultCode ResultCode;
@@ -83,11 +90,11 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TFuture<TVoid>::TPtr GetLocalProgress() const
+    TAsyncLocalResult::TPtr GetLocalResult() const
     {
          VERIFY_THREAD_AFFINITY(StateThread);
         
-         return LocalProgress;
+         return LocalResult;
     }
 
     /*!
@@ -97,8 +104,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
     
-        TVoid fake;
-        return !LocalProgress->TryGet(&fake);
+        TLocalResult fake;
+        return !LocalResult->TryGet(&fake);
     }
 
 private:
@@ -107,6 +114,9 @@ private:
     class TSession;
 
     typedef TMetaStateManagerProxy TProxy;
+
+    TChecksum DoCreateLocal(TMetaVersion version);
+    void OnLocalCreated(i32 segmentId, const TChecksum& checksum);
 
     TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
@@ -117,12 +127,15 @@ private:
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr StateInvoker;
 
-    TFuture<TVoid>::TPtr LocalProgress;
+    TAsyncLocalResult::TPtr LocalResult;
 
-    TLocalResult OnSave(
-        TVoid /* fake */,
-        i32 segmentId,
-        TSnapshotWriter::TPtr writer);
+#if defined(_unix_)
+    static void WatchdogFork(
+        TWeakPtr<TSnapshotBuilder> weakSnapshotBuilder,
+        i32 segmentId, 
+        pid_t childPid);
+    TActionQueue::TPtr WatchdogQueue;
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////

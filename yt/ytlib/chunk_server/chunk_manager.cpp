@@ -122,11 +122,19 @@ public:
         RegisterMethod(this, &TImpl::CreateChunks);
 
         metaState->RegisterLoader(
-            "ChunkManager.1",
-            FromMethod(&TChunkManager::TImpl::Load, TPtr(this)));
+            "ChunkManager.Keys.1",
+            FromMethod(&TChunkManager::TImpl::LoadKeys, TPtr(this)));
+        metaState->RegisterLoader(
+            "ChunkManager.Values.1",
+            FromMethod(&TChunkManager::TImpl::LoadValues, TPtr(this)));
         metaState->RegisterSaver(
-            "ChunkManager.1",
-            FromMethod(&TChunkManager::TImpl::Save, TPtr(this)));
+            "ChunkManager.Keys.1",
+            FromMethod(&TChunkManager::TImpl::SaveKeys, TPtr(this)),
+            ESavePhase::Keys);
+        metaState->RegisterSaver(
+            "ChunkManager.Values.1",
+            FromMethod(&TChunkManager::TImpl::SaveValues, TPtr(this)),
+            ESavePhase::Values);
 
         metaState->RegisterPart(this);
 
@@ -199,16 +207,16 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
 
 
-    const THolder* FindHolder(const Stroka& address)
+    const THolder* FindHolder(const Stroka& address) const
     {
         auto it = HolderAddressMap.find(address);
         return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
     }
 
-    THolder* FindHolderForUpdate(const Stroka& address)
+    THolder* FindHolder(const Stroka& address)
     {
         auto it = HolderAddressMap.find(address);
-        return it == HolderAddressMap.end() ? NULL : FindHolderForUpdate(it->second);
+        return it == HolderAddressMap.end() ? NULL : FindHolder(it->second);
     }
 
     const TReplicationSink* FindReplicationSink(const Stroka& address)
@@ -363,7 +371,7 @@ private:
             ChunkMap.Insert(chunkId, chunk);
 
             // The newly created chunk is referenced from the transaction.
-            auto& transaction = TransactionManager->GetTransactionForUpdate(transactionId);
+            auto& transaction = TransactionManager->GetTransaction(transactionId);
             YVERIFY(transaction.CreatedObjectIds().insert(chunkId).second);
             ObjectManager->RefObject(chunkId);
 
@@ -436,7 +444,7 @@ private:
         while (!dfsStack.empty()) {
             auto currentChunkListId = dfsStack.back();
             dfsStack.pop_back();
-            auto& currentChunkList = GetChunkListForUpdate(currentChunkListId);
+            auto& currentChunkList = GetChunkList(currentChunkListId);
             currentChunkList.Statistics().Accumulate(delta);
             dfsStack.insert(dfsStack.end(), currentChunkList.ParentIds().begin(), currentChunkList.ParentIds().end());
         }
@@ -446,7 +454,7 @@ private:
     void SetChunkTreeParent(TChunkList& parent, const TChunkTreeId& childId)
     {
         if (TypeFromId(childId) == EObjectType::ChunkList) {
-            auto& childChunkList = GetChunkListForUpdate(childId);
+            auto& childChunkList = GetChunkList(childId);
             YVERIFY(childChunkList.ParentIds().insert(parent.GetId()).second);
         }
         UpdateStatistics(parent, childId, false);
@@ -455,7 +463,7 @@ private:
     void ResetChunkTreeParent(TChunkList& parent, const TChunkTreeId& childId, bool updateStatistics)
     {
         if (TypeFromId(childId) == EObjectType::ChunkList) {
-            auto& childChunkList = GetChunkListForUpdate(childId);
+            auto& childChunkList = GetChunkList(childId);
             YVERIFY(childChunkList.ParentIds().erase(parent.GetId()) == 1);
         }
         if (updateStatistics) {
@@ -547,7 +555,7 @@ private:
         auto holderId = message.holder_id();
         const auto& statistics = message.statistics();
 
-        auto& holder = GetHolderForUpdate(holderId);
+        auto& holder = GetHolder(holderId);
         holder.Statistics() = statistics;
 
         if (IsLeader()) {
@@ -566,7 +574,7 @@ private:
         yvector<TChunkId> unapprovedChunkIds(
             holder.UnapprovedChunkIds().begin(), holder.UnapprovedChunkIds().end());
         FOREACH (const auto& chunkId, unapprovedChunkIds) {
-            DoRemoveUnapprovedChunkReplica(holder, GetChunkForUpdate(chunkId));
+            DoRemoveUnapprovedChunkReplica(holder, GetChunk(chunkId));
         }
 
         bool isFirstHeartbeat = holder.GetState() == EHolderState::Inactive;
@@ -588,7 +596,7 @@ private:
     TVoid HeartbeatResponse(const TMsgHeartbeatResponse& message)
     {
         auto holderId = message.holder_id();
-        auto& holder = GetHolderForUpdate(holderId);
+        auto& holder = GetHolder(holderId);
 
         FOREACH (const auto& startInfo, message.started_jobs()) {
             DoAddJob(holder, startInfo);
@@ -611,33 +619,46 @@ private:
     }
 
 
-    TFuture<TVoid>::TPtr Save(const TCompositeMetaState::TSaveContext& context)
+    void SaveKeys(TOutputStream* output)
     {
-        auto* output = context.Output;
-        auto invoker = context.Invoker;
-
-        auto holderIdGenerator = HolderIdGenerator;
-        invoker->Invoke(FromFunctor([=] ()
-            {
-                ::Save(output, holderIdGenerator);
-            }));
-        
-        ChunkMap.Save(invoker, output);
-        ChunkListMap.Save(invoker, output);
-        HolderMap.Save(invoker, output);
-        JobMap.Save(invoker, output);
-        return JobListMap.Save(invoker, output);
+        ChunkMap.SaveKeys(output);
+        ChunkListMap.SaveKeys(output);
+        HolderMap.SaveKeys(output);
+        JobMap.SaveKeys(output);
+        JobListMap.SaveKeys(output);
     }
 
-    void Load(TInputStream* input)
+    void SaveValues(TOutputStream* output)
+    {
+        ::Save(output, HolderIdGenerator);
+
+        ChunkMap.SaveValues(output);
+        ChunkListMap.SaveValues(output);
+        HolderMap.SaveValues(output);
+        JobMap.SaveValues(output);
+        JobListMap.SaveValues(output);
+    }
+
+    void LoadKeys(TInputStream* input)
+    {
+        ChunkMap.LoadKeys(input);
+        ChunkListMap.LoadKeys(input);
+        HolderMap.LoadKeys(input);
+        JobMap.LoadKeys(input);
+        JobListMap.LoadKeys(input);
+    }
+
+    void LoadValues(TInputStream* input)
     {
         ::Load(input, HolderIdGenerator);
-        
-        ChunkMap.Load(input);
-        ChunkListMap.Load(input);
-        HolderMap.Load(input);
-        JobMap.Load(input);
-        JobListMap.Load(input);
+
+        TVoid context; // TODO(roizner): use real context
+
+        ChunkMap.LoadValues(input, context);
+        ChunkListMap.LoadValues(input, context);
+        HolderMap.LoadValues(input, context);
+        JobMap.LoadValues(input, context);
+        JobListMap.LoadValues(input, context);
 
         // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
@@ -729,12 +750,12 @@ private:
         }
 
         FOREACH (const auto& chunkId, holder.StoredChunkIds()) {
-            auto& chunk = GetChunkForUpdate(chunkId);
+            auto& chunk = GetChunk(chunkId);
             DoRemoveChunkReplicaAtDeadHolder(holder, chunk, false);
         }
 
         FOREACH (const auto& chunkId, holder.CachedChunkIds()) {
-            auto& chunk = GetChunkForUpdate(chunkId);
+            auto& chunk = GetChunk(chunkId);
             DoRemoveChunkReplicaAtDeadHolder(holder, chunk, true);
         }
 
@@ -779,7 +800,7 @@ private:
     void DoRemoveChunkFromLocation(THolderId holderId, TChunk& chunk, bool cached)
     {
         auto chunkId = chunk.GetId();
-        auto& holder = GetHolderForUpdate(holderId);
+        auto& holder = GetHolder(holderId);
         holder.RemoveChunk(chunkId, cached);
 
         if (!cached && IsLeader()) {
@@ -866,7 +887,7 @@ private:
             startTime);
         JobMap.Insert(jobId, job);
 
-        auto& list = GetOrCreateJobListForUpdate(chunkId);
+        auto& list = GetOrCreateJobList(chunkId);
         list.AddJob(jobId);
 
         holder.AddJob(jobId);
@@ -885,7 +906,7 @@ private:
     {
         auto jobId = job.GetJobId();
 
-        auto& list = GetJobListForUpdate(job.GetChunkId());
+        auto& list = GetJobList(job.GetChunkId());
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
 
@@ -905,7 +926,7 @@ private:
     {
         auto jobId = job.GetJobId();
 
-        auto& list = GetJobListForUpdate(job.GetChunkId());
+        auto& list = GetJobList(job.GetChunkId());
         list.RemoveJob(jobId);
         MaybeDropJobList(list);
 
@@ -934,7 +955,7 @@ private:
             return;
         }
 
-        auto* chunk = FindChunkForUpdate(chunkId);
+        auto* chunk = FindChunk(chunkId);
         if (!chunk) {
             // Holders may still contain cached replicas of chunks that no longer exist.
             // Here we just silently ignore this case.
@@ -977,7 +998,7 @@ private:
         auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
         bool cached = chunkInfo.cached();
 
-        auto* chunk = FindChunkForUpdate(chunkId);
+        auto* chunk = FindChunk(chunkId);
         if (!chunk) {
             LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
                  ~chunkId.ToString(),
@@ -991,14 +1012,14 @@ private:
     }
 
 
-    TJobList& GetOrCreateJobListForUpdate(const TChunkId& id)
+    TJobList& GetOrCreateJobList(const TChunkId& id)
     {
-        auto* list = FindJobListForUpdate(id);
+        auto* list = FindJobList(id);
         if (list)
             return *list;
 
         JobListMap.Insert(id, new TJobList(id));
-        return GetJobListForUpdate(id);
+        return GetJobList(id);
     }
 
     void MaybeDropJobList(const TJobList& list)
@@ -1201,7 +1222,7 @@ private:
             size,
             ~JoinToString(holderAddresses));
 
-        auto& chunk = GetTypedImplForUpdate();
+        auto& chunk = GetTypedImpl();
 
         // Skip chunks that are already confirmed.
         if (chunk.IsConfirmed()) {
@@ -1220,7 +1241,7 @@ private:
         chunk.SetSize(size);
         
         FOREACH (const auto& address, holderAddresses) {
-            auto* holder = Owner->FindHolderForUpdate(address);
+            auto* holder = Owner->FindHolder(address);
             if (!holder) {
                 LOG_WARNING("Client has confirmed a chunk at unknown holder (ChunkId: %s, HolderAddress: %s)",
                     ~Id.ToString(),
@@ -1345,7 +1366,7 @@ private:
 
         context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
 
-        auto& chunkList = GetTypedImplForUpdate();
+        auto& chunkList = GetTypedImpl();
         Owner->AttachToChunkList(chunkList, childrenIds);
 
         context->Reply();
@@ -1360,7 +1381,7 @@ private:
 
         context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
 
-        auto& chunkList = GetTypedImplForUpdate();
+        auto& chunkList = GetTypedImpl();
         Owner->DetachFromChunkList(chunkList, childrenIds);
 
         context->Reply();
@@ -1421,14 +1442,14 @@ TObjectManager* TChunkManager::GetObjectManager() const
     return Impl->GetObjectManager();
 }
 
-const THolder* TChunkManager::FindHolder(const Stroka& address)
+const THolder* TChunkManager::FindHolder(const Stroka& address) const
 {
     return Impl->FindHolder(address);
 }
 
-THolder* TChunkManager::FindHolderForUpdate(const Stroka& address)
+THolder* TChunkManager::FindHolder(const Stroka& address)
 {
-    return Impl->FindHolderForUpdate(address);
+    return Impl->FindHolder(address);
 }
 
 const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address)

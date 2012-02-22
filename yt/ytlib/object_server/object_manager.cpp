@@ -249,11 +249,19 @@ TObjectManager::TObjectManager(
     , RootService(New<TRootService>(this))
 {
     metaState->RegisterLoader(
-        "ObjectManager.1",
-        FromMethod(&TObjectManager::Load, TPtr(this)));
+        "ObjectManager.Keys.1",
+        FromMethod(&TObjectManager::LoadKeys, TPtr(this)));
+    metaState->RegisterLoader(
+        "ObjectManager.Values.1",
+        FromMethod(&TObjectManager::LoadValues, TPtr(this)));
     metaState->RegisterSaver(
-        "ObjectManager.1",
-        FromMethod(&TObjectManager::Save, TPtr(this)));
+        "ObjectManager.Keys.1",
+        FromMethod(&TObjectManager::SaveKeys, TPtr(this)),
+        ESavePhase::Keys);
+    metaState->RegisterSaver(
+        "ObjectManager.Values.1",
+        FromMethod(&TObjectManager::SaveValues, TPtr(this)),
+        ESavePhase::Values);
 
     metaState->RegisterPart(this);
 
@@ -387,28 +395,36 @@ i32 TObjectManager::GetObjectRefCounter(const TObjectId& id)
     return GetHandler(id)->GetObjectRefCounter(id);
 }
 
-TFuture<TVoid>::TPtr TObjectManager::Save(const TCompositeMetaState::TSaveContext& context)
+void TObjectManager::SaveKeys(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* output = context.Output;
-    auto invoker = context.Invoker;
-
-    auto typeToCounter = TypeToCounter;
-    invoker->Invoke(FromFunctor([=] ()
-        {
-            ::Save(output, typeToCounter);
-        }));
-    
-    return Attributes.Save(invoker, output);
+    Attributes.SaveKeys(output);
 }
 
-void TObjectManager::Load(TInputStream* input)
+void TObjectManager::SaveValues(TOutputStream* output)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    ::Save(output, TypeToCounter);
+    Attributes.SaveValues(output);
+}
+
+void TObjectManager::LoadKeys(TInputStream* input)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    Attributes.LoadKeys(input);
+}
+
+void TObjectManager::LoadValues(TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     ::Load(input, TypeToCounter);
-    Attributes.Load(input);
+
+    TVoid context;
+    Attributes.LoadValues(input, context);
 }
 
 void TObjectManager::Clear()
@@ -477,13 +493,15 @@ void TObjectManager::MergeAttributes(
     const TVersionedObjectId& originatingId,
     const TVersionedObjectId& branchedId)
 {
-    auto* originatingAttributes = FindAttributesForUpdate(originatingId);
+    auto* originatingAttributes = FindAttributes(originatingId);
     const auto* branchedAttributes = FindAttributes(branchedId);
     if (!branchedAttributes) {
         return;
     }
     if (!originatingAttributes) {
-        Attributes.Insert(originatingId, ~branchedAttributes->Clone());
+        Attributes.Insert(
+            originatingId,
+            Attributes.Release(branchedId));
     } else {
         FOREACH (const auto& pair, branchedAttributes->Attributes()) {
             if (pair.second.empty() && !originatingId.IsBranched()) {

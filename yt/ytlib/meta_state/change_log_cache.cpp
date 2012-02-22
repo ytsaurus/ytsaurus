@@ -57,9 +57,11 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
     i32 changeLogId,
     i32 prevRecordCount)
 {
+    // Do not use logging here. This method is used in forked process.
+
     TInsertCookie cookie(changeLogId);
     if (!BeginInsert(&cookie)) {
-        LOG_FATAL("Trying to create an already existing changelog (ChangeLogId: %d)",
+        ythrow yexception() << Sprintf("Trying to create an already existing changelog (ChangeLogId: %d)",
             changeLogId);
     }
 
@@ -70,7 +72,7 @@ TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
         changeLog->Create(prevRecordCount);
         cookie.EndInsert(New<TCachedAsyncChangeLog>(~changeLog));
     } catch (const std::exception& ex) {
-        LOG_FATAL("Error creating changelog (ChangeLogId: %d)\n%s",
+        ythrow yexception() << Sprintf("Error creating changelog (ChangeLogId: %d)\n%s",
             changeLogId,
             ex.what());
     }

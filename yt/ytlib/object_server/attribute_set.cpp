@@ -8,25 +8,20 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<TAttributeSet> TAttributeSet::Clone() const
-{
-    TAutoPtr<TAttributeSet> result = new TAttributeSet();
-    result->Attributes_ = Attributes_;
-    return result;
-}
+TAttributeSet::TAttributeSet()
+{ }
+
+TAttributeSet::TAttributeSet(const TVersionedObjectId&)
+{ }
 
 void TAttributeSet::Save(TOutputStream* output) const
 {
     SaveMap(output, Attributes_);
 }
 
-TAutoPtr<TAttributeSet> TAttributeSet::Load(const TVersionedObjectId& id, TInputStream* input)
+void TAttributeSet::Load(TInputStream* input, TVoid)
 {
-    UNUSED(id);
-
-    TAutoPtr<TAttributeSet> result = new TAttributeSet();
-    LoadMap(input, result->Attributes_);
-    return result;
+    LoadMap(input, Attributes_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

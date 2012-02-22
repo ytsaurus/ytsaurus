@@ -1157,7 +1157,7 @@ public:
     void WaitSnapshotCreation(TSnapshotBuilder::TPtr snapshotBuilder)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        snapshotBuilder->GetLocalProgress()->Get();
+        snapshotBuilder->GetLocalResult()->Get();
     }
 
     void DoStartLeading()

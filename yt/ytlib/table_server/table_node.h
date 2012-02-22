@@ -20,13 +20,11 @@ public:
     explicit TTableNode(const NCypress::TVersionedNodeId& id);
     TTableNode(const NCypress::TVersionedNodeId& id, const TTableNode& other);
 
-    virtual TAutoPtr<NCypress::ICypressNode> Clone() const;
-
     virtual NCypress::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
     
-    virtual void Load(TInputStream* input);
+    virtual void Load(TInputStream* input, TVoid context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

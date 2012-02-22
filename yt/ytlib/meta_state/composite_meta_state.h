@@ -60,27 +60,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
     
+DECLARE_ENUM(ESavePhase,
+    (Keys)
+    (Values)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCompositeMetaState
     : public IMetaState 
 {
 public:
     typedef TIntrusivePtr<TCompositeMetaState> TPtr;
-   
 
-    struct TSaveContext
-    {
-        TSaveContext(TOutputStream* output, IInvoker::TPtr invoker);
-
-        TOutputStream* Output;
-        IInvoker::TPtr Invoker;
-    };
-
-    typedef IParamFunc<const TSaveContext&, TFuture<TVoid>::TPtr> TSaver;
+    typedef IParamAction<TOutputStream*> TSaver;
     typedef IParamAction<TInputStream*> TLoader;
 
     void RegisterPart(TMetaStatePart::TPtr part);
     void RegisterLoader(const Stroka& name, TLoader::TPtr loader);
-    void RegisterSaver(const Stroka& name, TSaver::TPtr saver);
+    void RegisterSaver(const Stroka& name, TSaver::TPtr saver, ESavePhase phase);
 
 private:
     friend class TMetaStatePart;
@@ -91,12 +89,12 @@ private:
     yvector<TMetaStatePart::TPtr> Parts;
 
     typedef yhash_map<Stroka, TLoader::TPtr> TLoaderMap;
-    typedef yhash_map<Stroka, TSaver::TPtr> TSaverMap;
+    typedef yhash_map<Stroka, TPair<TSaver::TPtr, ESavePhase> > TSaverMap;
 
     TLoaderMap Loaders;
     TSaverMap Savers;
 
-    virtual TFuture<TVoid>::TPtr Save(TOutputStream* output, IInvoker::TPtr invoker);
+    virtual void Save(TOutputStream* output);
     virtual void Load(TInputStream* input);
 
     virtual void ApplyChange(const TRef& changeData);

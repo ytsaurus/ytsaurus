@@ -17,10 +17,10 @@ TLock::TLock(
     , Mode_(mode)
 { }
 
-TAutoPtr<TLock> TLock::Clone() const
-{
-    return new TLock(*this);
-}
+
+TLock::TLock(const TLockId& id)
+    : TObjectWithIdBase(id)
+{ }
 
 void TLock::Save(TOutputStream* output) const
 {
@@ -29,27 +29,12 @@ void TLock::Save(TOutputStream* output) const
     ::Save(output, Mode_);
 }
 
-TAutoPtr<TLock> TLock::Load(const TLockId& id, TInputStream* input)
+void TLock::Load(TInputStream* input, TVoid)
 {
-    TNodeId nodeId;
-    TTransactionId transactionId;
-    ELockMode mode;
-    ::Load(input, nodeId);
-    ::Load(input, transactionId);
-    ::Load(input, mode);
-    return new TLock(
-        id,
-        nodeId,
-        transactionId,
-        mode);
+    ::Load(input, NodeId_);
+    ::Load(input, TransactionId_);
+    ::Load(input, Mode_);
 }
-
-TLock::TLock(const TLock& other)
-    : TObjectWithIdBase(other)
-    , NodeId_(other.NodeId_)
-    , TransactionId_(other.TransactionId_)
-    , Mode_(other.Mode_)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

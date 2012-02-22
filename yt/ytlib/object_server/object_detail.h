@@ -165,9 +165,9 @@ protected:
         return Map->Get(GetId());
     }
 
-    TObject& GetTypedImplForUpdate()
+    TObject& GetTypedImpl()
     {
-        return Map->GetForUpdate(GetId());
+        return Map->Get(GetId());
     }
 };
 

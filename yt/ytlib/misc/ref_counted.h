@@ -64,7 +64,7 @@ namespace NDetail {
 #else
     // Fallback to Arcadia's implementation (efficiency is not crucial here).
 
-    static inline TNonVolatileCounter AtomicallyFetch(TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
     {
         return AtomicAdd(*const_cast<TVolatileCounter*>(p), 0);
     }
@@ -164,13 +164,13 @@ namespace NDetail {
         //! Returns current number of strong references.
         int GetRefCount() const // noexcept
         {
-            return AtomicallyFetch(&const_cast<TVolatileCounter>(StrongCount));
+            return AtomicallyFetch(&StrongCount);
         }
 
         //! Returns current number of weak references.
         int GetWeakRefCount() const // noexcept
         {
-            return AtomicallyFetch(&const_cast<TVolatileCounter>(StrongCount));
+            return AtomicallyFetch(&StrongCount);
         }
 
     private:
