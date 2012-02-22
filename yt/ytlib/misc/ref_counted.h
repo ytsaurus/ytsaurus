@@ -170,7 +170,7 @@ namespace NDetail {
         //! Returns current number of weak references.
         int GetWeakRefCount() const // noexcept
         {
-            return AtomicallyFetch(&StrongCount);
+            return AtomicallyFetch(&WeakCount);
         }
 
     private:

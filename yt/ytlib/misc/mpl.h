@@ -103,7 +103,9 @@ template <class T> struct TIsPointer
 
 template <class T> struct TIsReference : TFalseType {};
 template <class T> struct TIsReference<T&> : TTrueType {};
+#ifndef _win_ // Somewhat broken for MSVC
 template <class T> struct TIsReference<T&&> : TTrueType {};
+#endif
 
 template <class T> struct TIsLvalueReference : TFalseType {};
 template <class T> struct TIsLvalueReference<T&> : TTrueType {};
