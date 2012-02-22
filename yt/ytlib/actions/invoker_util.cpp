@@ -14,9 +14,9 @@ void TSyncInvoker::Invoke(IAction::TPtr action)
     action->Do();
 }
 
-IInvoker::TPtr TSyncInvoker::Get()
+IInvoker* TSyncInvoker::Get()
 {
-    return RefCountedSingleton<TSyncInvoker>();
+    return ~RefCountedSingleton<TSyncInvoker>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +34,7 @@ void TCancelableInvoker::Invoke(IAction::TPtr action)
 
     if (Canceled)
         return;
+
     UnderlyingInvoker->Invoke(FromMethod(
         &TCancelableInvoker::ActionThunk,
         TPtr(this),
@@ -59,4 +60,4 @@ bool TCancelableInvoker::IsCanceled() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT
