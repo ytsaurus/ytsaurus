@@ -9,6 +9,13 @@ import pytest
 def get_output(command):
     return subprocess.Popen(command, stdout=subprocess.PIPE).communicate()[0]
 
+class ShellException(Exception):
+    def __init__(self, message, exit_code, stdout_diff, stderr_diff):
+        Exception.__init__(self, message)
+        self.exit_code = exit_code
+        self.stdout_diff = stdout_diff
+        self.stderr_diff = stderr_diff
+
 class ShellFile(pytest.File):
     def collect(self):
         name = self.fspath.basename[:-3]
@@ -40,7 +47,9 @@ class ShellItem(pytest.Item):
         
         print path_to_run
 
-        class CurYTEnv(YTEnv): pass
+        class CurYTEnv(YTEnv):
+            pass
+
         for name, value in self.get_options(script_path):
             print 'Setting', name, 'equal to', value
             setattr(CurYTEnv, name, value)
@@ -62,19 +71,28 @@ class ShellItem(pytest.Item):
         stdout_diff = get_output(["diff", "-ui", stdout_actual, stdout_expected])
         stderr_diff = get_output(["diff", "-ui", stderr_actual, stderr_expected])
         
-        if stdout_diff:
-            print '-' * 70
-            print 'stdout_diff:'
-            print stdout_diff
-            print '-' * 70
+        if stdout_diff or stderr_diff or exit_code != 0:
+            raise ShellException(
+                "{script_path} finished with errors".format(**vars()),
+                exit_code,
+                stdout_diff,
+                stderr_diff)
 
-        if stderr_diff:
-            print '-' * 70
-            print 'stderr_diff:'
-            print stderr_diff
-            print '-' * 70
+    def repr_failure(self, excinfo):
+        exc = excinfo.value
+        if isinstance(exc, ShellException):
+            return "\n".join([
+                "shell test execution failed (exit code {0})".format(exc.exit_code),
+                "-" * 80,
+                "stdout diff:",
+                exc.stdout_diff,
+                "-" * 80,
+                "stderr diff:",
+                exc.stderr_diff,
+                "-" * 80
+            ])
+        else:
+            return super(ShellItem, self).repr_failure(excinfo)
 
-        assert exit_code == 0,  "{script_path} finished with errors".format(**vars())
-        assert not stdout_diff, "Stdout differs"
-        assert not stderr_diff, "Stderr differs"
-        
+    def reportinfo(self):
+        return self.fspath, 0, "shell: %s (%s)" % (self.name, self.fspath)

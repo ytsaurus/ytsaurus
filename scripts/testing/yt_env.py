@@ -136,7 +136,7 @@ class YTEnv:
             master_config['logging']['writers']['file']['file_name'] = logging_file_name
 
             self.modify_master_config(master_config)
-            deepupdate(config, DELTA_MASTER_CONFIG)
+            deepupdate(master_config, self.DELTA_MASTER_CONFIG)
 
             config_path = os.path.join(current, 'master_config.yson')
             write_config(master_config, config_path)
@@ -164,7 +164,7 @@ class YTEnv:
             holder_config['logging']['writers']['file']['file_name'] = logging_file_name
 
             self.modify_holder_config(config)
-            deepupdate(config, DELTA_HOLDER_CONFIG)
+            deepupdate(holder_config, self.DELTA_HOLDER_CONFIG)
 
             config_path = os.path.join(current, 'holder_config.yson')
             write_config(holder_config, config_path)
