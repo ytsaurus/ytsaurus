@@ -17,7 +17,7 @@ public:
     void Enqueue(const NYTree::TYPath& path, TValue value);
 
     TCpuClock StartTiming();
-    void StopTiming(TCpuClock start, const NYTree::TYPath& path);
+    void StopTiming(const NYTree::TYPath& path, TCpuClock start);
 
 private:
     NYTree::TYPath PathPrefix;
@@ -72,10 +72,16 @@ private:
     { } \
     else
 
-#define PROFILE_TIMING_START(path) \
+#define PROFILE_TIMING_START() \
+	Profiler.StartTiming()
+
+#define PROFILE_TIMING_STOP(path, start) \
+	Profiler.StopTiming(path, start)
+
+#define PROFILE_SCOPED_TIMING_START(path) \
     Profiler.StartScopedTiming(path)
 
-#define PROFILE_TIMING_END(path) \
+#define PROFILE_SCOPED_TIMING_END(path) \
     Profiler.StopScopedTiming(path)
 
 ////////////////////////////////////////////////////////////////////////////////

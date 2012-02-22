@@ -38,7 +38,7 @@ public:
 	NYTree::IYPathService* GetService() const;
 
 private:
-	class TTimeConverter;
+	class TClockConverter;
 	class TImpl;
 
 	class TBucket;

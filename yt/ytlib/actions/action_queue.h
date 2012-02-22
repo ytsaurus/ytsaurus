@@ -3,7 +3,7 @@
 #include "common.h"
 #include "action.h"
 
-#include <ytlib/misc/common.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <util/system/thread.h>
 #include <util/system/event.h>
@@ -26,10 +26,16 @@ public:
     bool OnDequeueAndExecute();
 
 private:
-    typedef TPair<IAction::TPtr, ui64> TItem;
+	struct TItem
+	{
+		NProfiling::TCpuClock EnqueueTime;
+		IAction::TPtr Action;
+	};
 
+	TActionQueueBase* Owner;
     bool EnableLogging;
-    TActionQueueBase* Owner;
+	NProfiling::TProfiler Profiler;
+
     TLockFreeQueue<TItem> Queue;
     TAtomic QueueSize;
 };

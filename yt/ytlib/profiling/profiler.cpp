@@ -30,7 +30,7 @@ TCpuClock TProfiler::StartTiming()
     return GetCycleCount();
 }
 
-void TProfiler::StopTiming(TCpuClock start, const NYTree::TYPath& path)
+void TProfiler::StopTiming(const NYTree::TYPath& path, TCpuClock start)
 {
     TCpuClock end = GetCycleCount();
     YASSERT(end >= start);
@@ -59,7 +59,7 @@ void TScopedProfiler::StopScopedTiming(const NYTree::TYPath& path)
     YASSERT(it != Starts.end()); 
     auto start = it->second;
     Starts.erase(it);
-	StopTiming(start, path);
+	StopTiming(path, start);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +78,7 @@ TTimingGuard::~TTimingGuard()
 {
     // Don't measure the time if an handled exception was raised.
     if (!std::uncaught_exception()) {
-        Profiler->StopTiming(Start, Path);
+        Profiler->StopTiming(Path, Start);
     }
 }
 

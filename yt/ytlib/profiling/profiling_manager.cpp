@@ -38,7 +38,7 @@ class TProfilingManager::TBucket
 {
 public:
 	TBucket()
-		: TYPathServiceBase(Logger.GetCategory())
+		: TYPathServiceBase("Profiling"/*Logger.GetCategory()*/)
 	{ }
 
 	void Store(const TStoredSample& sample)
@@ -67,6 +67,12 @@ public:
 private:
 	std::deque<TStoredSample> Samples;
 
+	void DoInvoke(NRpc::IServiceContext* context)
+	{
+		DISPATCH_YPATH_SERVICE_METHOD(Get);
+		TYPathServiceBase::DoInvoke(context);
+	}
+
 	void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 	{
 		TYson yson = BuildYsonFluently()
@@ -74,6 +80,7 @@ private:
 				{
 					fluent
 						.Item().BeginMap()
+							.Item("id").Scalar(sample.Id)
 							.Item("time").Scalar(static_cast<i64>(sample.Time.MicroSeconds()))
 							.Item("value").Scalar(sample.Value)
 						.EndMap();
@@ -86,10 +93,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProfilingManager::TTimeConverter
+class TProfilingManager::TClockConverter
 {
 public:
-	TTimeConverter()
+	TClockConverter()
 	{
 		Calibrate();
 	}
@@ -124,7 +131,7 @@ private:
 
 };
 
-const TDuration TProfilingManager::TTimeConverter::CalibrationInterval = TDuration::Seconds(5);
+const TDuration TProfilingManager::TClockConverter::CalibrationInterval = TDuration::Seconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +143,9 @@ public:
 		: TActionQueueBase("Profiling", true)
 		, Invoker(New<TQueueInvoker>(this, true))
 		, Root(GetEphemeralNodeFactory()->CreateMap())
-	{ }
+	{
+		Start();
+	}
 
 	~TImpl()
 	{
@@ -165,7 +174,7 @@ private:
 	TLockFreeQueue<TQueuedSample> SampleQueue;
 	yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
 	TIdGenerator<i64> IdGenerator;
-	TTimeConverter TimeConverter;
+	TClockConverter ClockConverter;
 
 	static const TDuration MaxKeepInterval;
 
@@ -208,7 +217,7 @@ private:
 	}
 
 	// TODO(babenko): currently not used
-	void RecycleBucketCache()
+	void SweepBucketCache()
 	{
 		auto it = PathToBucket.begin();
 		while (it != PathToBucket.end()) {
@@ -230,7 +239,7 @@ private:
 
 		TStoredSample storedSample;
 		storedSample.Id = IdGenerator.Next();
-		storedSample.Time = TimeConverter.ToInstant(queuedSample.Time);
+		storedSample.Time = ClockConverter.ToInstant(queuedSample.Time);
 		storedSample.Value = queuedSample.Value;
 
 		bucket->Store(storedSample);

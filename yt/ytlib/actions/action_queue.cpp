@@ -3,11 +3,12 @@
 
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/thread.h>
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/actions/action_util.h>
-#include <ytlib/monitoring/stat.h>
 
 namespace NYT {
+
+using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -16,8 +17,9 @@ static NLog::TLogger Logger("ActionQueue");
 ///////////////////////////////////////////////////////////////////////////////
 
 TQueueInvoker::TQueueInvoker(TActionQueueBase* owner, bool enableLogging)
-    : EnableLogging(enableLogging)
-    , Owner(owner)
+    : Owner(owner)
+	, EnableLogging(enableLogging)
+	, Profiler(CombineYPaths("action_queues", owner->ThreadName))
     , QueueSize(0)
 { }
 
@@ -28,10 +30,15 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
 		return;
     }
 
-    LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
-    Queue.Enqueue(MakePair(action, GetCycleCount()));
+	TItem item;
+	item.EnqueueTime = PROFILE_TIMING_START();
+	item.Action = action;
+    Queue.Enqueue(item);
+	LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
+
     auto size = AtomicIncrement(QueueSize);
-    DATA_POINT("actionqueue.size", "smv", size);
+    PROFILE_VALUE("size", size);
+
     Owner->Signal();
 }
 
@@ -47,17 +54,15 @@ bool TQueueInvoker::OnDequeueAndExecute()
         return false;
     
     auto size = AtomicDecrement(QueueSize);
-    DATA_POINT("actionqueue.size", "smv", size);
+	PROFILE_VALUE("size", size);
 
-    auto startTime = item.second;
-    DATA_POINT("actionqueue.waitingtime", "tv", GetCycleCount() - startTime);
+	PROFILE_TIMING_STOP("wait_time", item.EnqueueTime);
 
-    IAction::TPtr action = item.first;
-    
+	auto action = item.Action;
     LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", ~action);
-    TIMEIT("actionqueue.executiontime", "tv",
-        action->Do();
-    )
+	PROFILE_TIMING("exec_time") {
+		action->Do();
+	}
     LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", ~action);
 
     return true;
@@ -99,9 +104,7 @@ void TActionQueueBase::ThreadMain()
             if (!DequeueAndExecute()) {
                 WakeupEvent.Reset();
                 if (!DequeueAndExecute()) {
-                    TIMEIT("actionqueue.idletime", "tv",
-                        OnIdle();
-                    )
+                    OnIdle();
                     if (Running) {
                         WakeupEvent.Wait();
                     }
@@ -201,4 +204,4 @@ bool TPrioritizedActionQueue::DequeueAndExecute()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT

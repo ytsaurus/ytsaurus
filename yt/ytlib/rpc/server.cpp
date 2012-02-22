@@ -6,17 +6,21 @@
 #include <ytlib/logging/log.h>
 #include <ytlib/bus/server.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/rpc/message.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
 using namespace NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = RpcLogger;
+static NLog::TLogger Logger("RPC");
+static NProfiling::TProfiler Profiler("rpc_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,9 +40,9 @@ public:
         , ReplyBus(replyBus)
         , Service(service)
         , Logger(loggingCategory)
+		, StartClock(PROFILE_TIMING_START())
     {
         YASSERT(replyBus);
-        YASSERT(service);
         YASSERT(service);
     }
 
@@ -46,6 +50,7 @@ private:
     IBus::TPtr ReplyBus;
     IService::TPtr Service;
     NLog::TLogger Logger;
+	NProfiling::TCpuClock StartClock;
 
     virtual void DoReply(const TError& error, IMessage* responseMessage)
     {
@@ -53,6 +58,8 @@ private:
 
         ReplyBus->Send(responseMessage);
         Service->OnEndRequest(this);
+
+		PROFILE_TIMING_STOP(CombineYPaths(Path, Verb, "serve_time"), StartClock);
     }
 
     virtual void LogRequest()
@@ -102,8 +109,7 @@ public:
     TRpcServer(IBusServer* busServer)
         : BusServer(busServer)
         , Started(false)
-    {
-    }
+	{ }
 
     virtual void RegisterService(IService* service)
     {
@@ -135,18 +141,11 @@ public:
         LOG_INFO("RPC server stopped");
     }
 
-    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
-    {
-        // TODO: more
-        BuildYsonFluently(consumer)
-            .BeginMap()
-            .EndMap();
-    }
-
 private:
     IBusServer::TPtr BusServer;
-    yhash_map<Stroka, IService::TPtr> Services;
     volatile bool Started;
+
+	yhash_map<Stroka, IService::TPtr> Services;
 
     IService::TPtr GetService(const Stroka& serviceName)
     {
@@ -194,9 +193,9 @@ private:
 
         auto service = GetService(serviceName);
         if (!service) {
-            Stroka message = Sprintf("Unknown service name (RequestId: %s, ServiceName: %s)",
-                ~requestId.ToString(),
-                ~serviceName);
+            Stroka message = Sprintf("Unknown service name %s (RequestId: %s)",
+                ~serviceName.Quote(),
+				~requestId.ToString());
 
             if (!oneWay) {
                 auto response = CreateErrorResponseMessage(
