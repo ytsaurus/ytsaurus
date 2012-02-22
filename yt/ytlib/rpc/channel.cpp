@@ -8,17 +8,22 @@
 
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/actions/future.h>
+#include <ytlib/profiling/profiler.h>
+#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
 using namespace NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = RpcLogger;
+static NLog::TLogger Logger("RPC");
+// TODO(babenko): consider using per-channel profiler
+static NProfiling::TProfiler Profiler("rpc/client");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,9 +58,10 @@ public:
 
         auto requestId = request->GetRequestId();
 
-        TActiveRequest activeRequest;
-        activeRequest.RequestId = requestId;
+		TActiveRequest activeRequest;
+        activeRequest.ClientRequest = request;
         activeRequest.ResponseHandler = responseHandler;
+		activeRequest.StartClock = PROFILE_TIMING_START();
 
         if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
@@ -111,9 +117,10 @@ private:
 
     struct TActiveRequest
     {
-        TRequestId RequestId;
+		IClientRequest::TPtr ClientRequest;
         TIntrusivePtr<IClientResponseHandler> ResponseHandler;
         TDelayedInvoker::TCookie TimeoutCookie;
+		NProfiling::TCpuClock StartClock;
     };
 
     typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
@@ -125,6 +132,7 @@ private:
     //! Protects #ActiveRequests and #Terminated.
     TSpinLock SpinLock;
 
+	// TODO(babenko): make const&
     void OnAcknowledgement(ESendResult sendResult, TRequestId requestId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -144,7 +152,7 @@ private:
         auto responseHandler = activeRequest.ResponseHandler;
 
         if (sendResult == ESendResult::Failed) {
-            UnregisterRequest(it);
+            CompleteRequest(it);
         
             // Don't need the guard anymore.
             guard.Release();
@@ -188,7 +196,7 @@ private:
 
             responseHandler = it->second.ResponseHandler;
 
-            UnregisterRequest(it);
+            CompleteRequest(it);
         }
 
         if (header.error_code() == TError::OK) {
@@ -201,6 +209,7 @@ private:
     }
 
 
+	// TODO(babenko): make const&
     void OnTimeout(TRequestId requestId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -218,7 +227,7 @@ private:
 
             responseHandler = it->second.ResponseHandler;
 
-            UnregisterRequest(it);
+            CompleteRequest(it);
         }
 
         responseHandler->OnError(TError(
@@ -226,14 +235,20 @@ private:
             "Request timed out"));
     }
 
-    void UnregisterRequest(TRequestMap::iterator it)
+    void CompleteRequest(TRequestMap::iterator it)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
 
         auto& activeRequest = it->second;
+
         if (activeRequest.TimeoutCookie != TDelayedInvoker::NullCookie) {
             TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
         }
+
+		const auto& clientRequest = activeRequest.ClientRequest;
+		PROFILE_TIMING_STOP(
+			CombineYPaths(clientRequest->GetPath(), clientRequest->GetVerb(), "serve_time"),
+			activeRequest.StartClock);
 
         ActiveRequests.erase(it);
     }

@@ -3,6 +3,8 @@
 #include "common.h"
 #include "ypath_detail.h"
 
+#include <ytlib/actions/invoker_util.h>
+
 namespace NYT {
 namespace NYTree {
 

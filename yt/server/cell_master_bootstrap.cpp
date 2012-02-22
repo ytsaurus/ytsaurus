@@ -174,9 +174,6 @@ void TCellMasterBootstrap::Run()
     monitoringManager->Register(
         "bus_server",
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
-    monitoringManager->Register(
-        "rpc_server",
-        FromMethod(&IServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
     auto orchidFactory = GetEphemeralNodeFactory();
@@ -192,7 +189,7 @@ void TCellMasterBootstrap::Run()
 	SyncYPathSetNode(
 		~orchidRoot,
 		"config",
-		~CreateVirtualNode(~CreateYsonFileProducer(ConfigFileName)));
+		~CreateVirtualNode(~CreateYsonFileProvider(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,

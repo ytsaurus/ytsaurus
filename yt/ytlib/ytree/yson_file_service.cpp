@@ -252,7 +252,7 @@ private:
     }
 };
 
-TYPathServiceProducer CreateYsonFileProducer(const Stroka& fileName)
+TYPathServiceProducer CreateYsonFileProvider(const Stroka& fileName)
 {
     return FromFunctor([=] () -> IYPathServicePtr
         {

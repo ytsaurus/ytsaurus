@@ -13,7 +13,7 @@ namespace NMetaState {
 
 //! Manages local snapshots.
 /*!
- *  Thread affinity: single-threaded.
+ *  Thread affinity: single-threaded
  */
 class TSnapshotStore
     : public TRefCounted

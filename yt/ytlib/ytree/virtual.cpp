@@ -139,6 +139,8 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
     return TResolveResult::There(~service, suffixPath);
 }
 
+// TODO: pass "max_size" in RPC request attributes
+
 struct TGetConfig
     : public TConfigurable
 {

@@ -236,7 +236,7 @@ public:
     TImpl()
         : ConfigVersion(0)
         , Config(TLogConfig::CreateDefault())
-        , Queue(New<TActionQueue>("LogManager", false))
+        , Queue(New<TActionQueue>("Logging", false))
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
     }

@@ -106,8 +106,6 @@ struct IYPathService
 	static IYPathServicePtr FromProducer(TYPathServiceProducer producer);
 };
 
-typedef IFunc<NYTree::IYPathServicePtr> TYPathServiceProvider;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
