@@ -64,4 +64,10 @@ make -j 1
 gdb --batch --command=$CHECKOUT_DIRECTORY/scripts/teamcity-gdb-script --args \
     ./bin/unittester \
         --gtest_color=no \
-        --gtest_output=xml:$WORKING_DIRECTORY/test_details.xml
+        --gtest_output=xml:$WORKING_DIRECTORY/test_unit.xml
+
+PATH=$WORKING_DIRECTORY/bin:$PATH \
+    (cd $CHECKOUT_DIRECTORY/scripts/testing && py.test \
+        -rxs -v \
+        --assert=plain \
+        --junitxml=$WORKING_DIRECTORY/test_integration.xml)
