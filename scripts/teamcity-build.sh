@@ -61,7 +61,7 @@ make -j 8 >/dev/null 2>/dev/null || true
 echo "* Running make (2/2; slow)..." >&2
 make -j 1
 
-./bin/unittester \
-    --gtest_color=no \
-    --gtest_output=xml:$WORKING_DIRECTORY/test_details.xml
-
+gdb --batch --command=$CHECKOUT_DIRECTORY/scripts/teamcity-gdb-script --args \
+    ./bin/unittester \
+        --gtest_color=no \
+        --gtest_output=xml:$WORKING_DIRECTORY/test_details.xml
