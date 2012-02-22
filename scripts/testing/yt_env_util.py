@@ -10,15 +10,11 @@ def launch_yt(**kw):
         )
     args.update(kw)
     return subprocess.Popen(['ytdriver'], **args)
-        bufsize=1,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
 
 def exec_cmd(cmd):
     yt = launch_yt()
-    output = yt.communicate(cmd + '\n')
-    return (*output, yt.returncode)
+    stdout, stderr = yt.communicate(cmd + '\n')
+    return (stdout, stderr, yt.returncode)
 
 
 ###########################################################################
