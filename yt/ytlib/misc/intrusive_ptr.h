@@ -8,36 +8,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-struct TIntrusivePtrTraits
-{
-    static void Ref(T* p)
-    {
-        p->Ref();
-    }
-
-    static void UnRef(T* p)
-    {
-        p->UnRef();
-    }
-};
-
-template <class T>
-struct TIntrusivePtrTraits<const T>
-{
-    static void Ref(const T* p)
-    {
-        const_cast<T*>(p)->Ref();
-    }
-
-    static void UnRef(const T* p)
-    {
-        const_cast<T*>(p)->UnRef();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
 class TIntrusivePtr
 {
 public:
@@ -60,7 +30,7 @@ public:
         : T_(p)
     {
         if (T_) {
-            TIntrusivePtrTraits<T>::Ref(T_);
+            T_->Ref();
         }
     }
 
@@ -69,7 +39,7 @@ public:
         : T_(p)
     {
         if (T_ && addReference) {
-            TIntrusivePtrTraits<T>::Ref(T_);
+            T_->Ref();
         }
     }
 
@@ -78,7 +48,7 @@ public:
         : T_(other.Get())
     {
         if (T_) {
-            TIntrusivePtrTraits<T>::Ref(T_);
+            T_->Ref();
         }           
     }
 
@@ -90,7 +60,7 @@ public:
         : T_(other.Get())
     {
         if (T_) {
-            TIntrusivePtrTraits<T>::Ref(T_);
+            T_->Ref();
         }
     }
 
@@ -115,7 +85,7 @@ public:
     ~TIntrusivePtr()
     {
         if (T_) {
-            TIntrusivePtrTraits<T>::UnRef(T_);
+            T_->UnRef();
         }
     }
 

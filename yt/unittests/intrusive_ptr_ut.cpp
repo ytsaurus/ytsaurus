@@ -43,12 +43,12 @@ public:
     void BindToCookie(const T&)
     { }
 
-    void DoIncrement()
+    void Ref()
     {
         ++Increments;
     }
 
-    void DoDecrement()
+    void UnRef()
     {
         ++Decrements;
 
@@ -172,20 +172,6 @@ public:
 };
 
 } // namespace <anonymous>
-
-template<>
-struct TIntrusivePtrTraits<TIntricateObject>
-{
-    static void Ref(TIntricateObject* object)
-    {
-        object->DoIncrement();
-    }
-
-    static void UnRef(TIntricateObject* object)
-    {
-        object->DoDecrement();
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
