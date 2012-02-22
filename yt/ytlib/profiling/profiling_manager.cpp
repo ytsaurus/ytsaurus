@@ -44,7 +44,7 @@ public:
 	void Store(const TStoredSample& sample)
 	{
 		// Samples are ordered by time.
-		// Search for an appropriate insertion point starting from the back,
+		// Search for an appropriate insertion point starting from the the back,
 		// this should usually be fast.
 		int index = static_cast<int>(Samples.size());
 		while (index > 0 && Samples[index - 1].Time > sample.Time) {
