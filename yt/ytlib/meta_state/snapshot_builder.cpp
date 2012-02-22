@@ -319,7 +319,6 @@ void TSnapshotBuilder::WatchdogFork(
     auto reader = result.Value();
     reader->Open();
     auto checksum = reader->GetChecksum();
-    reader->Close();
     snapshotBuilder->OnLocalCreated(segmentId, checksum);
 }
 #endif
