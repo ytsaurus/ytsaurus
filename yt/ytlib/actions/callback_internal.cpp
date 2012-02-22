@@ -43,12 +43,14 @@ TCallbackBase& TCallbackBase::operator=(TCallbackBase& other)
 {
     BindState = other.BindState;
     UntypedInvoke = other.UntypedInvoke;
+    return *this;
 }
 
 TCallbackBase& TCallbackBase::operator=(TCallbackBase&& other)
 {
     BindState = MoveRV(other.BindState);
     UntypedInvoke = MoveRV(other.UntypedInvoke);
+    return *this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
