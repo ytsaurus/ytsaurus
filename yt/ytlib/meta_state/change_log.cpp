@@ -369,6 +369,8 @@ void TChangeLog::TImpl::Open()
 
 void TChangeLog::TImpl::Create(i32 prevRecordCount)
 {
+    // Do not use logging here. This method is used in forked process.
+
     YASSERT(State == EState::Closed);
 
     PrevRecordCount = prevRecordCount;
@@ -388,7 +390,7 @@ void TChangeLog::TImpl::Create(i32 prevRecordCount)
 
     State = EState::Open;
 
-    LOG_DEBUG("Changelog created");
+    //LOG_DEBUG("Changelog created");
 }
 
 void TChangeLog::TImpl::Finalize()

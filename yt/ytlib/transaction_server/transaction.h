@@ -36,14 +36,8 @@ class TTransaction
 public:
     TTransaction(const TTransactionId& id);
 
-    TAutoPtr<TTransaction> Clone() const;
-
     void Save(TOutputStream* output) const;
-    static TAutoPtr<TTransaction> Load(const TTransactionId& id, TInputStream* input);
-
-private:
-    TTransaction(const TTransaction& other);
-
+    void Load(TInputStream* input, TVoid);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

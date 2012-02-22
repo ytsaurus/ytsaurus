@@ -17,10 +17,11 @@ class TAttributeSet
     DEFINE_BYREF_RW_PROPERTY(TAttributeMap, Attributes);
     
 public:
-    TAutoPtr<TAttributeSet> Clone() const;
+    TAttributeSet();
+    TAttributeSet(const TVersionedObjectId&); // Just for meta map
 
     void Save(TOutputStream* output) const;
-    static TAutoPtr<TAttributeSet> Load(const TVersionedObjectId& id, TInputStream* input);
+    void Load(TInputStream* input, TVoid context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

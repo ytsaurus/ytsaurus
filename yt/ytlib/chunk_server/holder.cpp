@@ -24,22 +24,9 @@ THolder::THolder(
     , Statistics_(statistics)
 { }
 
-THolder::THolder(const THolder& other)
-    : Id_(other.Id_)
-    , Address_(other.Address_)
-    , IncarnationId_(other.IncarnationId_)
-    , State_(other.State_)
-    , Statistics_(other.Statistics_)
-    , StoredChunkIds_(other.StoredChunkIds_)
-    , CachedChunkIds_(other.CachedChunkIds_)
-    , UnapprovedChunkIds_(other.UnapprovedChunkIds_)
-    , JobIds_(other.JobIds_)
+THolder::THolder(THolderId id)
+    : Id_(id)
 { }
-
-TAutoPtr<THolder> THolder::Clone() const
-{
-    return new THolder(*this);
-}
 
 void THolder::Save(TOutputStream* output) const
 {
@@ -53,23 +40,16 @@ void THolder::Save(TOutputStream* output) const
     ::Save(output, JobIds_);
 }
 
-TAutoPtr<THolder> THolder::Load(THolderId id, TInputStream* input)
+void THolder::Load(TInputStream* input, TVoid)
 {
-    Stroka address;
-    TIncarnationId incarnationId;
-    EHolderState state;
-    THolderStatistics statistics;
-    ::Load(input, address);
-    ::Load(input, incarnationId);
-    ::Load(input, state);
-    LoadProto(input, statistics);
-
-    TAutoPtr<THolder> holder = new THolder(id, address, incarnationId, state, statistics);
-    LoadSet(input, holder->StoredChunkIds_);
-    LoadSet(input, holder->CachedChunkIds_);
-    LoadSet(input, holder->UnapprovedChunkIds_);
-    ::Load(input, holder->JobIds_);
-    return holder;
+    ::Load(input, Address_);
+    ::Load(input, IncarnationId_);
+    ::Load(input, State_);
+    LoadProto(input, Statistics_);
+    LoadSet(input, StoredChunkIds_);
+    LoadSet(input, CachedChunkIds_);
+    LoadSet(input, UnapprovedChunkIds_);
+    ::Load(input, JobIds_);
 }
 
 void THolder::AddJob(const TJobId& id)

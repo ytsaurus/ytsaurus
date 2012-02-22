@@ -20,12 +20,10 @@ struct TJob
         const yvector<Stroka>& targetAddresses,
         TInstant startTime);
 
-    TJob(const TJob& other);
-
-    TAutoPtr<TJob> Clone();
+    TJob(const TJobId& jobId);
 
     void Save(TOutputStream* output) const;
-    static TAutoPtr<TJob> Load(const TJobId& jobId, TInputStream* input);
+    void Load(TInputStream* input, TVoid /* context */);
 
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);

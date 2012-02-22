@@ -137,8 +137,10 @@ private:
     // Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
-    TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
-    void Load(TInputStream* input);
+    void SaveKeys(TOutputStream* output);
+    void SaveValues(TOutputStream* output);
+    void LoadKeys(TInputStream* input);
+    void LoadValues(TInputStream* input);
     virtual void Clear();
 
     TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);

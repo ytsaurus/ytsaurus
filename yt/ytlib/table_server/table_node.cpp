@@ -25,20 +25,15 @@ EObjectType TTableNode::GetObjectType() const
     return EObjectType::Table;
 }
 
-TAutoPtr<ICypressNode> TTableNode::Clone() const
-{
-    return new TTableNode(Id, *this);
-}
-
 void TTableNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
     ::Save(output, ChunkListId_);
 }
 
-void TTableNode::Load(TInputStream* input)
+void TTableNode::Load(TInputStream* input, TVoid context)
 {
-    TCypressNodeBase::Load(input);
+    TCypressNodeBase::Load(input, context);
     ::Load(input, ChunkListId_);
 }
 
@@ -135,7 +130,7 @@ protected:
 
         // Obtain the chunk list of branchedNode.
         auto branchedChunkListId = branchedNode.GetChunkListId();
-        auto& branchedChunkList = ChunkManager->GetChunkListForUpdate(branchedChunkListId);
+        auto& branchedChunkList = ChunkManager->GetChunkList(branchedChunkListId);
         YASSERT(branchedChunkList.GetObjectRefCounter() == 1);
 
         // Replace the first child of the branched chunk list with the current chunk list of originatingNode.

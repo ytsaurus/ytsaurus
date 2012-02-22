@@ -20,17 +20,15 @@ class TChunk
     // Usually small, e.g. 3 replicas.
     DEFINE_BYREF_RO_PROPERTY(yvector<THolderId>, StoredLocations);
     // Usually empty.
-    DEFINE_BYREF_RO_PROPERTY(TAutoPtr< yhash_set<THolderId> >, CachedLocations);
+    DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<THolderId> >, CachedLocations);
 
 public:
     static const i64 UnknownSize = -1;
     
     TChunk(const TChunkId& id);
 
-    TAutoPtr<TChunk> Clone() const;
-
     void Save(TOutputStream* output) const;
-    static TAutoPtr<TChunk> Load(const TChunkId& id, TInputStream* input);
+    void Load(TInputStream* input, TVoid /* context */);
 
     void AddLocation(THolderId holderId, bool cached);
     void RemoveLocation(THolderId holderId, bool cached);
@@ -39,10 +37,6 @@ public:
     bool IsConfirmed() const;
 
     NChunkHolder::NProto::TChunkAttributes DeserializeAttributes() const;
-
-private:
-    TChunk(const TChunk& other);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

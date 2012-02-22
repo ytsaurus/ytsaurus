@@ -2,6 +2,8 @@
 
 #include "id.h"
 
+#include <ytlib/actions/action.h>
+
 namespace NYT {
 namespace NCypress {
 
@@ -16,18 +18,11 @@ struct ICypressNode
     //! Returns node type.
     virtual EObjectType GetObjectType() const = 0;
 
-    //! Makes a copy of the node.
-    /*!
-     *  \note
-     *  Used by TMetaStateMap.
-     */
-    virtual TAutoPtr<ICypressNode> Clone() const = 0;
-
     //! Saves the node into the snapshot stream.
     virtual void Save(TOutputStream* output) const = 0;
     
     //! Loads the node from the snapshot stream.
-    virtual void Load(TInputStream* input) = 0;
+    virtual void Load(TInputStream* input, TVoid /* context */) = 0;
 
     //! Returns the id of the node (which is the key in the respective meta-map).
     virtual TVersionedObjectId GetId() const = 0;

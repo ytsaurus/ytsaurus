@@ -94,8 +94,10 @@ private:
     void FinishTransaction(TTransaction& transaction);
 
     // TMetaStatePart overrides
-    TFuture<TVoid>::TPtr Save(const NMetaState::TCompositeMetaState::TSaveContext& context);
-    void Load(TInputStream* input);
+    void SaveKeys(TOutputStream* output);
+    void SaveValues(TOutputStream* output);
+    void LoadKeys(TInputStream* input);
+    void LoadValues(TInputStream* input);
     virtual void Clear();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

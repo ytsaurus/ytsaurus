@@ -103,9 +103,9 @@ public:
         return this->GetTypedImpl();
     }
 
-    virtual ICypressNode& GetImplForUpdate()
+    virtual ICypressNode& GetImpl()
     {
-        return this->GetTypedImplForUpdate();
+        return this->GetTypedImpl();
     }
 
 
@@ -117,7 +117,7 @@ public:
 
     virtual void SetParent(NYTree::ICompositeNode* parent)
     {
-        GetImplForUpdate().SetParentId(
+        GetImpl().SetParentId(
             parent
             ? ToProxy(parent)->GetId()
             : NullObjectId);
@@ -245,9 +245,9 @@ protected:
         return CypressManager->GetVersionedNode(nodeId, TransactionId);
     }
 
-    ICypressNode& GetImplForUpdate(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive) const
+    ICypressNode& GetImpl(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive)
     {
-        return CypressManager->GetVersionedNodeForUpdate(nodeId, TransactionId, requestedMode);
+        return CypressManager->GetVersionedNode(nodeId, TransactionId, requestedMode);
     }
 
 
@@ -256,9 +256,9 @@ protected:
         return dynamic_cast<const TImpl&>(GetImpl(NodeId));
     }
 
-    TImpl& GetTypedImplForUpdate(ELockMode requestedMode = ELockMode::Exclusive)
+    TImpl& GetTypedImpl(ELockMode requestedMode = ELockMode::Exclusive)
     {
-        return dynamic_cast<TImpl&>(GetImplForUpdate(NodeId, requestedMode));
+        return dynamic_cast<TImpl&>(GetImpl(NodeId, requestedMode));
     }
 
 
@@ -366,7 +366,7 @@ protected:
         virtual void SetYson(const Stroka& name, const NYTree::TYson& value)
         {
             // This also takes the lock.
-            auto id = CypressManager->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
+            auto id = CypressManager->GetVersionedNode(ObjectId, TransactionId).GetId();
 
             TUserAttributeDictionary::SetYson(name, value);
         }
@@ -374,7 +374,7 @@ protected:
         virtual bool Remove(const Stroka& name)
         {
             // This also takes the lock.
-            auto id = CypressManager->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
+            auto id = CypressManager->GetVersionedNode(ObjectId, TransactionId).GetId();
 
             if (TransactionId == NullTransactionId) {
                 return TUserAttributeDictionary::Remove(name);
@@ -396,7 +396,7 @@ protected:
                 }
             }
 
-            auto* userAttributes = ObjectManager->FindAttributesForUpdate(id);
+            auto* userAttributes = ObjectManager->FindAttributes(id);
             if (contains) {
                 if (!userAttributes) {
                     userAttributes = ObjectManager->CreateAttributes(id);
@@ -444,7 +444,7 @@ public:
 
     virtual void SetValue(const TValue& value)
     {
-        this->GetTypedImplForUpdate(ELockMode::Exclusive).Value() = value;
+        this->GetTypedImpl(ELockMode::Exclusive).Value() = value;
     }
 };
 

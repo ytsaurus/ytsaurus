@@ -31,20 +31,15 @@ EObjectType TFileNode::GetObjectType() const
     return EObjectType::File;
 }
 
-TAutoPtr<ICypressNode> TFileNode::Clone() const
-{
-    return new TFileNode(Id, *this);
-}
-
 void TFileNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
     ::Save(output, ChunkListId_);
 }
 
-void TFileNode::Load(TInputStream* input)
+void TFileNode::Load(TInputStream* input, TVoid context)
 {
-    TCypressNodeBase::Load(input);
+    TCypressNodeBase::Load(input, context);
     ::Load(input, ChunkListId_);
 }
 
@@ -83,7 +78,7 @@ public:
         manifest->LoadAndValidate(manifestNode);
 
         auto chunkId = manifest->ChunkId;
-        auto* chunk = ChunkManager->FindChunkForUpdate(chunkId);
+        auto* chunk = ChunkManager->FindChunk(chunkId);
         if (!chunk) {
             ythrow yexception() << Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
         }

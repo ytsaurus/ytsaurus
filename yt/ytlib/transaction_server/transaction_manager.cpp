@@ -111,7 +111,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        Owner->Commit(GetTypedImplForUpdate());
+        Owner->Commit(GetTypedImpl());
         context->Reply();
     }
 
@@ -120,7 +120,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        Owner->Abort(GetTypedImplForUpdate());
+        Owner->Abort(GetTypedImpl());
         context->Reply();
     }
 
@@ -165,7 +165,7 @@ private:
             ~manifestNode->AsMap());
 
         if (GetId() != NullTransactionId) {
-            auto& transaction = GetTypedImplForUpdate();
+            auto& transaction = GetTypedImpl();
             YVERIFY(transaction.CreatedObjectIds().insert(objectId).second);
             Owner->ObjectManager->RefObject(objectId);
         }
@@ -185,7 +185,7 @@ private:
 
         context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
 
-        auto& transaction = GetTypedImplForUpdate();
+        auto& transaction = GetTypedImpl();
         if (transaction.CreatedObjectIds().erase(objectId) != 1) {
             ythrow yexception() << Sprintf("Transaction does not own the object (ObjectId: %s)", ~objectId.ToString());
         }
@@ -222,7 +222,7 @@ public:
         auto* parent =
             transactionId == NullTransactionId
             ? NULL
-            : &Owner->GetTransactionForUpdate(transactionId);
+            : &Owner->GetTransaction(transactionId);
 
         auto id = Owner->Start(parent, ~manifest).GetId();
         auto proxy = ObjectManager->GetProxy(id);
@@ -260,11 +260,19 @@ TTransactionManager::TTransactionManager(
     YASSERT(objectManager);
 
     metaState->RegisterLoader(
-        "TransactionManager.1",
-        FromMethod(&TTransactionManager::Load, TPtr(this)));
+        "TransactionManager.Keys.1",
+        FromMethod(&TTransactionManager::LoadKeys, TPtr(this)));
+    metaState->RegisterLoader(
+        "TransactionManager.Values.1",
+        FromMethod(&TTransactionManager::LoadValues, TPtr(this)));
     metaState->RegisterSaver(
-        "TransactionManager.1",
-        FromMethod(&TTransactionManager::Save, TPtr(this)));
+        "TransactionManager.Keys.1",
+        FromMethod(&TTransactionManager::SaveKeys, TPtr(this)),
+        ESavePhase::Keys);
+    metaState->RegisterSaver(
+        "TransactionManager.Values.1",
+        FromMethod(&TTransactionManager::SaveValues, TPtr(this)),
+        ESavePhase::Values);
 
     metaState->RegisterPart(this);
 
@@ -339,7 +347,7 @@ void TTransactionManager::Abort(TTransaction& transaction)
     // Make a copy, the set will be modified.
     auto nestedIds = transaction.NestedTransactionIds();
     FOREACH (const auto& nestedId, nestedIds) {
-        Abort(GetTransactionForUpdate(nestedId));
+        Abort(GetTransaction(nestedId));
     }
     YASSERT(transaction.NestedTransactionIds().empty());
 
@@ -361,7 +369,7 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
     auto transactionId = transaction.GetId();
 
     if (transaction.GetParentId() != NullTransactionId) {
-        auto& parent = GetTransactionForUpdate(transaction.GetParentId());
+        auto& parent = GetTransaction(transaction.GetParentId());
         YVERIFY(parent.NestedTransactionIds().erase(transactionId) == 1);
         ObjectManager->UnrefObject(transactionId);
     }
@@ -383,20 +391,33 @@ void TTransactionManager::RenewLease(const TTransactionId& id)
     TLeaseManager::RenewLease(it->second);
 }
 
-TFuture<TVoid>::TPtr TTransactionManager::Save(const TCompositeMetaState::TSaveContext& context)
+void TTransactionManager::SaveKeys(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* output = context.Output;
-    auto invoker = context.Invoker;
-    return TransactionMap.Save(invoker, output);
+    TransactionMap.SaveKeys(output);
 }
 
-void TTransactionManager::Load(TInputStream* input)
+void TTransactionManager::SaveValues(TOutputStream* output)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.Load(input);
+    TransactionMap.SaveValues(output);
+}
+
+void TTransactionManager::LoadKeys(TInputStream* input)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    TransactionMap.LoadKeys(input);
+}
+
+void TTransactionManager::LoadValues(TInputStream* input)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    TVoid context;
+    TransactionMap.LoadValues(input, context);
 }
 
 void TTransactionManager::Clear()

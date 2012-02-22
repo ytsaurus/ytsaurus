@@ -7,6 +7,8 @@ set( SRCS
   ${BASE}/chunk_placement.cpp
   ${BASE}/chunk_replication.cpp
   ${BASE}/chunk_service.cpp
+  ${BASE}/chunk_statistics.cpp
+  ${BASE}/chunk_tree_ref.cpp
   ${BASE}/common.cpp
   ${BASE}/cypress_integration.cpp
   ${BASE}/holder.cpp
@@ -16,7 +18,6 @@ set( SRCS
   ${BASE}/id.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
-  ${BASE}/chunk_statistics.cpp
 )
 set( HDRS
   ${BASE}/chunk.h
@@ -27,6 +28,8 @@ set( HDRS
   ${BASE}/chunk_replication.h
   ${BASE}/chunk_service.h
   ${BASE}/chunk_service_proxy.h
+  ${BASE}/chunk_statistics.h
+  ${BASE}/chunk_tree_ref.h
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/common.h
   ${BASE}/config.h
@@ -38,7 +41,6 @@ set( HDRS
   ${BASE}/id.h
   ${BASE}/job.h
   ${BASE}/job_list.h
-  ${BASE}/chunk_statistics.h
 )
 
 list(APPEND YT_SOURCE_FILES

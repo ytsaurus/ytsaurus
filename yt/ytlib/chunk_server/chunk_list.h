@@ -22,14 +22,8 @@ class TChunkList
 public:
     TChunkList(const TChunkListId& id);
 
-    TAutoPtr<TChunkList> Clone() const;
-
     void Save(TOutputStream* output) const;
-    static TAutoPtr<TChunkList> Load(const TChunkListId& id, TInputStream* input);
-
-private:
-    TChunkList(const TChunkList& other);
-
+    void Load(TInputStream* input, TVoid /* context */);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

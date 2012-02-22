@@ -18,22 +18,6 @@ TChunk::TChunk(const TChunkId& id)
     , Size_(UnknownSize)
 { }
 
-TChunk::TChunk(const TChunk& other)
-    : TObjectWithIdBase(other)
-    , Size_(other.Size_)
-    , Attributes_(Attributes_)
-    , StoredLocations_(other.StoredLocations_)
-{
-    if (~other.CachedLocations_) {
-        CachedLocations_ = new yhash_set<THolderId>(*other.CachedLocations_);
-    }
-}
-
-TAutoPtr<TChunk> TChunk::Clone() const
-{
-    return new TChunk(*this);
-}
-
 void TChunk::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
@@ -41,25 +25,22 @@ void TChunk::Save(TOutputStream* output) const
     ::Save(output, Attributes_);
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
-
 }
 
-TAutoPtr<TChunk> TChunk::Load(const TChunkId& id, TInputStream* input)
+void TChunk::Load(TInputStream* input, TVoid)
 {
-    TAutoPtr<TChunk> chunk = new TChunk(id);
-    chunk->TObjectWithIdBase::Load(input);
-    ::Load(input, chunk->Size_);
-    ::Load(input, chunk->Attributes_);
-    ::Load(input, chunk->StoredLocations_);
-    LoadNullableSet(input, chunk->CachedLocations_);
-    return chunk;
+    TObjectWithIdBase::Load(input);
+    ::Load(input, Size_);
+    ::Load(input, Attributes_);
+    ::Load(input, StoredLocations_);
+    LoadNullableSet(input, CachedLocations_);
 }
 
 void TChunk::AddLocation(THolderId holderId, bool cached)
 {
     if (cached) {
         if (!CachedLocations_) {
-            CachedLocations_ = new yhash_set<THolderId>();
+            CachedLocations_.Reset(new yhash_set<THolderId>());
         }
         YVERIFY(CachedLocations_->insert(holderId).second);
     } else {
