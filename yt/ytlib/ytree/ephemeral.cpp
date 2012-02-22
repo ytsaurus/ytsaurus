@@ -22,12 +22,12 @@ public:
         : Parent(NULL)
     { }
 
-    virtual TNodeFactoryPtr CreateFactory() const
+    virtual INodeFactoryPtr CreateFactory() const
     {
         return GetEphemeralNodeFactory();
     }
 
-    virtual TCompositeNodePtr GetParent() const
+    virtual ICompositeNodePtr GetParent() const
     {
         return Parent;
     }
@@ -39,9 +39,9 @@ public:
     }
 
 
-    virtual IAttributeDictionary* Attributes()
+    virtual IAttributeDictionary& Attributes()
     {
-        return GetUserAttributes();
+        return *GetUserAttributes();
     }
 
 protected:
@@ -150,9 +150,9 @@ public:
         return KeyToChild.ysize();
     }
 
-    virtual yvector< TPair<Stroka, TNodePtr> > GetChildren() const
+    virtual yvector< TPair<Stroka, INodePtr> > GetChildren() const
     {
-        return yvector< TPair<Stroka, TNodePtr> >(KeyToChild.begin(), KeyToChild.end());
+        return yvector< TPair<Stroka, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
     }
 
     virtual yvector<Stroka> GetKeys() const
@@ -165,7 +165,7 @@ public:
         return result;
     }
 
-    virtual TNodePtr FindChild(const Stroka& key) const
+    virtual INodePtr FindChild(const Stroka& key) const
     {
         auto it = KeyToChild.find(key);
         return it == KeyToChild.end() ? NULL : it->second;
@@ -246,8 +246,8 @@ public:
     }
 
 private:
-    yhash_map<Stroka, TNodePtr> KeyToChild;
-    yhash_map<TNodePtr, Stroka> ChildToKey;
+    yhash_map<Stroka, INodePtr> KeyToChild;
+    yhash_map<INodePtr, Stroka> ChildToKey;
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
@@ -303,12 +303,12 @@ public:
         return IndexToChild.ysize();
     }
 
-    virtual yvector<TNodePtr> GetChildren() const
+    virtual yvector<INodePtr> GetChildren() const
     {
         return IndexToChild;
     }
 
-    virtual TNodePtr FindChild(int index) const
+    virtual INodePtr FindChild(int index) const
     {
         return index >= 0 && index < IndexToChild.ysize() ? IndexToChild[index] : NULL;
     }
@@ -388,8 +388,8 @@ public:
     }
 
 private:
-    yvector<TNodePtr> IndexToChild;
-    yhash_map<TNodePtr, int> ChildToIndex;
+    yvector<INodePtr> IndexToChild;
+    yhash_map<INodePtr, int> ChildToIndex;
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb)
     {
@@ -432,32 +432,32 @@ class TEphemeralNodeFactory
     : public INodeFactory
 {
 public:
-    virtual TStringNodePtr CreateString()
+    virtual IStringNodePtr CreateString()
     {
         return New<TStringNode>();
     }
 
-    virtual TInt64NodePtr CreateInt64()
+    virtual IInt64NodePtr CreateInt64()
     {
         return New<TInt64Node>();
     }
 
-    virtual TDoubleNodePtr CreateDouble()
+    virtual IDoubleNodePtr CreateDouble()
     {
         return New<TDoubleNode>();
     }
 
-    virtual TMapNodePtr CreateMap()
+    virtual IMapNodePtr CreateMap()
     {
         return New<TMapNode>();
     }
 
-    virtual TListNodePtr CreateList()
+    virtual IListNodePtr CreateList()
     {
         return New<TListNode>();
     }
 
-    virtual TEntityNodePtr CreateEntity()
+    virtual IEntityNodePtr CreateEntity()
     {
         return New<TEntityNode>();
     }

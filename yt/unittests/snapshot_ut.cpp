@@ -43,7 +43,6 @@ TEST_F(TSnapshotTest, EmptySnapshot)
         TSnapshotReader::TPtr reader = New<TSnapshotReader>(
             TemporaryFile->Name(), 0);
         reader->Open();
-        reader->Close();
     });
 }
 
@@ -77,7 +76,6 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
         EXPECT_EQ(i, data);
     }
 
-    reader->Close();
     reader.Reset();
 }
 

@@ -68,7 +68,7 @@ void TChunkSequenceReader::PrepareNextChunk()
 
     chunkReader->AsyncOpen()->Subscribe(FromMethod(
         &TChunkSequenceReader::OnNextReaderOpened,
-        TPtr(this),
+        TWeakPtr<TChunkSequenceReader>(this),
         chunkReader));
 }
 
@@ -96,7 +96,7 @@ TAsyncError::TPtr TChunkSequenceReader::AsyncOpen()
         State.StartOperation();
         NextReader->Subscribe(FromMethod(
             &TChunkSequenceReader::SetCurrentChunk,
-            TPtr(this)));
+            TWeakPtr<TChunkSequenceReader>(this)));
     }
 
     return State.GetOperationError();
@@ -114,7 +114,7 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
             YASSERT(CurrentReader->HasNextRow());
             CurrentReader->AsyncNextRow()->Subscribe(FromMethod(
                 &TChunkSequenceReader::OnNextRow,
-                TPtr(this)));
+                TWeakPtr<TChunkSequenceReader>(this)));
             return;
         }
 
@@ -152,7 +152,7 @@ TAsyncError::TPtr TChunkSequenceReader::AsyncNextRow()
 
         NextReader->Subscribe(FromMethod(
             &TChunkSequenceReader::SetCurrentChunk,
-            TPtr(this)));
+            TWeakPtr<TChunkSequenceReader>(this)));
 
         return State.GetOperationError();
     }

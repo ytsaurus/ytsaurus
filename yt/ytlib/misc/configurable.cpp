@@ -17,7 +17,7 @@ TConfigurable::TConfigurable()
     : KeepOptions_(false)
 { }
 
-NYTree::TMapNodePtr TConfigurable::GetOptions() const
+NYTree::IMapNodePtr TConfigurable::GetOptions() const
 {
     YASSERT(KeepOptions_);
     return Options;

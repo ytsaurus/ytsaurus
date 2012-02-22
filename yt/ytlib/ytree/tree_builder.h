@@ -19,7 +19,7 @@ struct ITreeBuilder
      *  \note
      *  Must be called after the tree is fully constructed.
      */
-    virtual TNodePtr EndTree() = 0;
+    virtual INodePtr EndTree() = 0;
 
 
     //! Enables inserting a pre-existing subtree into

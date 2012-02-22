@@ -14,7 +14,7 @@ struct TGetRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::TNodePtr Stream;
+    NYTree::INodePtr Stream;
 
     TGetRequest()
     {
@@ -43,8 +43,8 @@ struct TSetRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::TNodePtr Value;
-    NYTree::TNodePtr Stream;
+    NYTree::INodePtr Value;
+    NYTree::INodePtr Stream;
 
     TSetRequest()
     {
@@ -110,7 +110,7 @@ struct TListRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::TNodePtr Stream;
+    NYTree::INodePtr Stream;
 
     TListRequest()
     {
@@ -139,9 +139,9 @@ struct TCreateRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::TNodePtr Stream;
+    NYTree::INodePtr Stream;
     NObjectServer::EObjectType Type;
-    NYTree::TNodePtr Manifest;
+    NYTree::INodePtr Manifest;
 
     TCreateRequest()
     {

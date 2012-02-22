@@ -210,14 +210,14 @@ void ResolveYPath(
     IYPathService* rootService,
     const TYPath& path,
     const Stroka& verb,
-    IYPathService::TPtr* suffixService,
+    IYPathServicePtr* suffixService,
     TYPath* suffixPath)
 {
     YASSERT(rootService);
     YASSERT(suffixService);
     YASSERT(suffixPath);
 
-    IYPathService::TPtr currentService = rootService;
+    IYPathServicePtr currentService = rootService;
     auto currentPath = path;
 
     while (true) {
@@ -277,7 +277,7 @@ ExecuteVerb(
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();
 
-    IYPathService::TPtr suffixService;
+    IYPathServicePtr suffixService;
     TYPath suffixPath;
     try {
         ResolveYPath(
@@ -343,7 +343,7 @@ TYson SyncYPathGet(IYPathService* service, const TYPath& path)
     return result.Value();
 }
 
-TNodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path)
+INodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path)
 {
     auto request = TYPathProxy::GetNode(path);
     auto response = ExecuteVerb(service, ~request)->Get();

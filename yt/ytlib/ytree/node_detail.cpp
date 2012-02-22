@@ -40,8 +40,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
     
     TStringStream stream;
     TYsonWriter writer(&stream);
-    TTreeVisitor visitor(&writer, false);
-    visitor.Visit(this);
+    VisitTree(this, &writer, false);
 
     response->set_value(stream.Str());
     context->Reply();
@@ -127,7 +126,7 @@ void TMapNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
 {
-    TMapNodePtr currentNode = this;
+    IMapNodePtr currentNode = this;
     TYPath currentPath = path;
 
     while (true) {
@@ -193,7 +192,7 @@ void TListNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
 {
-    TNodePtr currentNode = this;
+    INodePtr currentNode = this;
     TYPath currentPath = path;
 
     Stroka token;

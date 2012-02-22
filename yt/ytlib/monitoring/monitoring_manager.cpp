@@ -41,7 +41,7 @@ void TMonitoringManager::Unregister(const TYPath& path)
     YVERIFY(MonitoringMap.erase(Stroka(path)));
 }
 
-TNodePtr TMonitoringManager::GetRoot() const
+INodePtr TMonitoringManager::GetRoot() const
 {
     return Root;
 }
@@ -97,9 +97,7 @@ void TMonitoringManager::Visit(IYsonConsumer* consumer)
 {
     TIMEIT("stateman.visittime", "tv",
 
-    TTreeVisitor visitor(consumer);
-    visitor.Visit(~GetRoot());
-
+    VisitTree(~GetRoot(), consumer);
     )
 }
 

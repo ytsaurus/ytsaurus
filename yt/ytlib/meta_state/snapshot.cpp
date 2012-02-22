@@ -75,9 +75,7 @@ TSnapshotReader::TSnapshotReader(const Stroka& fileName, i32 segmentId)
 
 void TSnapshotReader::Open()
 {
-    Close();
-
-    LOG_DEBUG("Opening snapshot %s for reading", ~FileName.Quote());
+    LOG_DEBUG("Opening snapshot reader %s", ~FileName);
     File.Reset(new TFile(FileName, OpenExisting));
     
     TSnapshotHeader header;
@@ -106,17 +104,6 @@ TInputStream& TSnapshotReader::GetStream() const
 i64 TSnapshotReader::GetLength() const
 {
     return File->GetLength();
-}
-
-void TSnapshotReader::Close()
-{
-    if (!FileInput)
-        return;
-
-    LOG_DEBUG("Closing snapshot %s", ~FileName.Quote());
-    ChecksummableInput.Reset(NULL);
-    DecompressedInput.Reset(NULL);
-    FileInput.Reset(NULL);
 }
 
 TChecksum TSnapshotReader::GetChecksum() const

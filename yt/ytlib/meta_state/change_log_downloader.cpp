@@ -182,7 +182,7 @@ void TChangeLogDownloader::OnResponse(
         return;
     }
 
-    LOG_INFO("An appropriate download source found (PeerId: %d, RecordCount: %d)",
+    LOG_INFO("Peer %d has %d records, which is enough",
         peerId,
         recordCount);
 
@@ -193,7 +193,7 @@ void TChangeLogDownloader::OnResponse(
 void TChangeLogDownloader::OnComplete(
     TFuture<TPeerId>::TPtr asyncResult)
 {
-    LOG_INFO("Unable to find requested records at any master");
+    LOG_INFO("Unable to find requested records at any peer");
 
     asyncResult->Set(NElection::InvalidPeerId);
 }

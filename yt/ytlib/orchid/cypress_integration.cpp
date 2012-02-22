@@ -107,11 +107,7 @@ private:
     TOrchidManifest::TPtr LoadManifest()
     {
         auto manifest = New<TOrchidManifest>();
-        auto manifestNode =
-        	ObjectManager
-        	->GetProxy(Id)
-        	->Attributes()
-        	->ToMap();
+        auto manifestNode = ObjectManager->GetProxy(Id)->Attributes().ToMap();
         try {
             manifest->LoadAndValidate(~manifestNode);
         } catch (const std::exception& ex) {
@@ -157,7 +153,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(TCypressManager* cypressManager)
     return CreateVirtualTypeHandler(
         cypressManager,
         EObjectType::Orchid,
-        ~FromFunctor([=] (const TVersionedObjectId& id) -> IYPathService::TPtr
+        ~FromFunctor([=] (const TVersionedObjectId& id) -> IYPathServicePtr
             {
                 return New<TOrchidYPathService>(cypressManager, id);
             }));

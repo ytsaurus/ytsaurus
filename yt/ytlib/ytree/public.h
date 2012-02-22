@@ -29,31 +29,31 @@ DECLARE_ENUM(ENodeType,
 );
     
 struct INode;
-typedef TIntrusivePtr<INode> TNodePtr;
+typedef TIntrusivePtr<INode> INodePtr;
 
 struct ICompositeNode;
-typedef TIntrusivePtr<ICompositeNode> TCompositeNodePtr;
+typedef TIntrusivePtr<ICompositeNode> ICompositeNodePtr;
 
 struct IStringNode;
-typedef TIntrusivePtr<IStringNode> TStringNodePtr;
+typedef TIntrusivePtr<IStringNode> IStringNodePtr;
 
 struct IInt64Node;
-typedef TIntrusivePtr<IInt64Node> TInt64NodePtr;
+typedef TIntrusivePtr<IInt64Node> IInt64NodePtr;
 
 struct IDoubleNode;
-typedef TIntrusivePtr<IDoubleNode> TDoubleNodePtr;
+typedef TIntrusivePtr<IDoubleNode> IDoubleNodePtr;
 
 struct IListNode;
-typedef TIntrusivePtr<IListNode> TListNodePtr;
+typedef TIntrusivePtr<IListNode> IListNodePtr;
 
 struct IMapNode;
-typedef TIntrusivePtr<IMapNode> TMapNodePtr;
+typedef TIntrusivePtr<IMapNode> IMapNodePtr;
 
 struct IEntityNode;
-typedef TIntrusivePtr<IEntityNode> TEntityNodePtr;
+typedef TIntrusivePtr<IEntityNode> IEntityNodePtr;
 
 struct INodeFactory;
-typedef TIntrusivePtr<INodeFactory> TNodeFactoryPtr;
+typedef TIntrusivePtr<INodeFactory> INodeFactoryPtr;
 
 struct IYsonConsumer;
 
@@ -66,6 +66,7 @@ struct IAttributeDictionary;
 struct IAttributeProvider;
 
 struct IYPathService;
+typedef TIntrusivePtr<IYPathService> IYPathServicePtr;
 
 // TODO(roizner): Rename it and move somewhere.
 template <class T, class = void>

@@ -1,0 +1,592 @@
+$$ Please, use Pump to convert this source file to valid C++ header.
+$$ Note that lines in this file could be longer than 80 symbols.
+#pragma once
+
+/*
+//==============================================================================
+// The following code is merely an adaptation of Chromium's Binds and Callbacks.
+// Kudos to Chromium authors.
+//
+// Original Chromium revision:
+//   - git-treeish: 206a2ae8a1ebd2b040753fff7da61bbca117757f
+//   - git-svn-id:  svn://svn.chromium.org/chrome/trunk/src@115607
+//
+// See bind.h for an extended commentary.
+//==============================================================================
+*/
+
+$$ See bind.h.pump.
+
+$var MAX_ARITY = 7
+$range ARITY 0..MAX_ARITY
+
+#include "bind_helpers.h"
+#include "bind_mpl.h"
+#include "callback_internal.h"
+
+namespace NYT {
+namespace NDetail {
+/*! \internal */
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// CONCEPTS
+//
+// === Runnable ===
+// A type (really a typeclass) that has a single Run() method and a Signature
+// typedef that corresponds to the type of Run(). A Runnable can declare that
+// it should treated like a method call by including a typedef named IsMethod.
+// The value of this typedef is not inspected, only the existence (see "bind_mpl.h").
+// When a Runnable declares itself a method, #Bind() will enforce special
+// reference counting and weak reference handling semantics for the first
+// parameter which is expected to be an object (an invocation target).
+//
+// === Functor ===
+// A copyable type representing something that should be called. All function
+// pointers, #TCallback<>s and Runnables are functors even if the invocation
+// syntax differs.
+//
+// === Signature ===
+// A function type (as opposed to function _pointer_ type) for a Run() function.
+// Usually just a convenience typedef.
+//
+// === (Bound)ArgsType ===
+// A function type that is being (ab)used to store the types of set of arguments.
+// The "return" type is always void here. We use this hack so that we do not need
+// a new type name for each arity of type. (eg., BindState1, BindState2, ...).
+// This makes forward declarations and friending much much easier.
+//
+//
+// TYPES
+//
+// === TRunnableAdapter ===
+// Wraps the various "function" pointer types into an object that adheres to the
+// Runnable interface.
+// There are |3 * ARITY| TRunnableAdapter types.
+//
+// === TFunctionTraits ===
+// Type traits that unwrap a function signature into a set of easier to use
+// typedefs.  Used mainly for compile time asserts.
+// There are |ARITY| TFunctionTraits types.
+//
+// === TForceVoidReturn ===
+// Helper class for translating function signatures to equivalent forms with
+// a "void" return type.
+// There are |ARITY| TForceVoidReturn types.
+//
+// === TFunctorTraits ===
+// Type traits used determine the correct Signature and TRunnableType for
+// a Functor. This is where function signature adapters are applied.
+// There are |O(1)| TFunctorTraits types.
+//
+// === MakeRunnable ===
+// Takes a Functor and returns an object in the Runnable typeclass that
+// represents the underlying Functor.
+// There are |O(1)| MakeRunnable types.
+//
+// === TInvokeHelper ===
+// Take a Runnable and arguments and actully invokes it. Also handles
+// the differing syntaxes needed for #TWeakPtr<> support and for ignoring
+// return values. This is separate from TInvoker to avoid creating multiple
+// version of #TInvoker<> which grows at |O(n^2)| with the arity.
+// There are |k * ARITY| TInvokeHelper types.
+//
+// === TInvoker ===
+// Unwraps the curried parameters and executes the Runnable.
+// There are |(ARITY^2 + ARITY)/2| Invoke types.
+//
+// === TBindState ===
+// Stores the curried parameters, and is the main entry point into the #Bind()
+// system, doing most of the type resolution.
+// There are |ARITY| TBindState types.
+//
+
+////////////////////////////////////////////////////////////////////////////////
+// #TRunnableAdapter<>
+////////////////////////////////////////////////////////////////////////////////
+//
+// The #TRunnableAdapter<> templates provide a uniform interface for invoking
+// a function pointer, method pointer, or const method pointer. The adapter
+// exposes a Run() method with an appropriate signature. Using this wrapper
+// allows for writing code that supports all three pointer types without
+// undue repetition.  Without it, a lot of code would need to be repeated 3
+// times.
+//
+// For method pointers and const method pointers the first argument to Run()
+// is considered to be the received of the method.  This is similar to STL's
+// mem_fun().
+//
+// This class also exposes a Signature typedef that is the function type of the
+// Run() function.
+//
+// If and only if the wrapper contains a method or const method pointer, an
+// IsMethod typedef is exposed.  The existence of this typedef (NOT the value)
+// marks that the wrapper should be considered a method wrapper.
+//
+
+template <typename Functor>
+class TRunnableAdapter;
+
+$for ARITY [[
+$range ARG 1..ARITY
+
+// === Arity $(ARITY).
+
+// Function Adapter
+template <typename R[[]]
+$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+class TRunnableAdapter<R(*)($for ARG , [[A$(ARG)]])>
+{
+public:
+    typedef R (Signature)($for ARG , [[A$(ARG)]]);
+
+    explicit TRunnableAdapter(R(*function)($for ARG , [[A$(ARG)]]))
+        : Function(function)
+    { }
+
+    R Run($for ARG , [[A$(ARG)&& a$(ARG)]])
+    {
+        return Function($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+    }
+
+private:
+    R (*Function)($for ARG , [[A$(ARG)]]);
+};
+
+// Bound Method Adapter
+template <typename R, typename T[[]]
+$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+class TRunnableAdapter<R(T::*)($for ARG , [[A$(ARG)]])>
+{
+public:
+    typedef NMpl::TTrueType IsMethod;
+
+    typedef R (Signature)(T*[[]]
+$if ARITY > 0 [[, ]]
+$for ARG , [[A$(ARG)]]);
+
+    explicit TRunnableAdapter(R(T::*method)($for ARG , [[A$(ARG)]]))
+        : Method(method)
+    { }
+
+    R Run(T* target[[]]
+$if ARITY > 0 [[, ]]
+$for ARG , [[A$(ARG)&& a$(ARG)]])
+    {
+        return (target->*Method)($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+    }
+
+private:
+    R (T::*Method)($for ARG , [[A$(ARG)]]);
+};
+
+// Const Bound Method Adapter
+template <typename R, typename T[[]]
+$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+class TRunnableAdapter<R(T::*)($for ARG , [[A$(ARG)]]) const>
+{
+public:
+    typedef NMpl::TTrueType IsMethod;
+
+    typedef R (Signature)(const T*[[]]
+$if ARITY > 0[[, ]]
+$for ARG , [[A$(ARG)]]);
+
+    explicit TRunnableAdapter(R(T::*method)($for ARG , [[A$(ARG)]]) const)
+        : Method(method)
+    { }
+
+    R Run(const T* target[[]]
+$if ARITY > 0[[, ]]
+$for ARG , [[A$(ARG)&& a$(ARG)]])
+    {
+        return (target->*Method)($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+    }
+
+private:
+    R (T::*Method)($for ARG , [[A$(ARG)]]) const;
+};
+
+]] $$ for ARITY
+
+////////////////////////////////////////////////////////////////////////////////
+// #TFunctionTraits<>s
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename Signature>
+struct TFunctionTraits;
+
+$for ARITY [[
+$range ARG 1..ARITY
+
+// === Arity $(ARITY).
+template <typename R[[]]
+$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+struct TFunctionTraits<R($for ARG , [[A$(ARG)]])>
+{
+    typedef R ReturnType;
+
+$for ARG [[
+    typedef A$(ARG) A$(ARG)Type;
+
+]]
+};
+
+]] $$ for ARITY
+
+////////////////////////////////////////////////////////////////////////////////
+// #TForceVoidReturn<>
+////////////////////////////////////////////////////////////////////////////////
+template <typename Signature>
+struct TForceVoidReturn;
+
+$for ARITY [[
+$range ARG 1..ARITY
+
+// === Arity $(ARITY).
+template <typename R[[]]
+$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+struct TForceVoidReturn<R($for ARG , [[A$(ARG)]])>
+{
+    typedef void(Signature)($for ARG , [[A$(ARG)]]);
+};
+
+]] $$ for ARITY
+
+////////////////////////////////////////////////////////////////////////////////
+// #TFunctorTraits<>
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename Functor>
+struct TFunctorTraits
+{
+    typedef TRunnableAdapter<Functor> TRunnableType;
+    typedef typename TRunnableType::Signature Signature;
+};
+
+template <typename Functor>
+struct TFunctorTraits< TIgnoreResultWrapper<Functor> >
+{
+    typedef typename TFunctorTraits<Functor>::TRunnableType TRunnableType;
+    typedef typename TForceVoidReturn<
+        typename TRunnableType::Signature
+    >::Signature Signature;
+};
+
+template <typename T>
+struct TFunctorTraits< TCallback<T> >
+{
+    typedef TCallback<T> TRunnableType;
+    typedef typename TCallback<T>::Signature Signature;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// #MakeRunnable()
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+typename TFunctorTraits<T>::TRunnableType
+MakeRunnable(const T& x)
+{
+    return TRunnableAdapter<T>(x);
+}
+
+template <typename T>
+typename TFunctorTraits<T>::TRunnableType
+MakeRunnable(const TIgnoreResultWrapper<T>& wrapper)
+{
+    return MakeRunnable(wrapper.Functor);
+}
+
+template <typename T>
+const typename TFunctorTraits< TCallback<T> >::TRunnableType&
+MakeRunnable(const TCallback<T>& x)
+{
+    return x;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// #TInvokeHelper<>
+////////////////////////////////////////////////////////////////////////////////
+//
+// There are 3 logical #TInvokeHelper<> specializations: normal, void-return,
+// weak method calls.
+//
+// The normal type just calls the underlying runnable.
+//
+// We need a TInvokeHelper to handle void return types in order to support
+// IgnoreResult().  Normally, if the Runnable's Signature had a void return,
+// the template system would just accept "return functor.Run()" ignoring
+// the fact that a void function is being used with return. This piece of
+// sugar breaks though when the Runnable's Signature is not void.  Thus, we
+// need a partial specialization to change the syntax to drop the "return"
+// from the invocation call.
+//
+// WeakCalls similarly need special syntax that is applied to the first
+// argument to check if they should no-op themselves.
+//
+
+template <bool IsWeakMethod, typename Runnable, typename ReturnType, typename ArgsType>
+struct TInvokeHelper;
+
+$for ARITY [[
+$range ARG 1..ARITY
+
+// === Arity $(ARITY).
+
+template <typename Runnable, typename R[[]]
+$if ARITY > 0 [[, ]] $for ARG , [[typename A$(ARG)]]>
+struct TInvokeHelper<false, Runnable, R,
+    void($for ARG , [[A$(ARG)]])>
+{
+    static inline R Run(Runnable runnable[[]]
+$if ARITY > 0 [[, ]]
+$for ARG , [[A$(ARG)&& a$(ARG)]])
+    {
+        return runnable.Run($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+    }
+};
+
+template <typename Runnable[[]]
+$if ARITY > 0 [[, ]] $for ARG , [[typename A$(ARG)]]>
+struct TInvokeHelper<false, Runnable, void,
+    void($for ARG , [[A$(ARG)]])>
+{
+    static inline void Run(Runnable runnable[[]]
+$if ARITY > 0 [[, ]]
+$for ARG , [[A$(ARG)&& a$(ARG)]])
+    {
+        runnable.Run($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+    }
+};
+
+$if ARITY > 0 [[
+
+template <typename Runnable[[]], $for ARG , [[typename A$(ARG)]]>
+struct TInvokeHelper<true, Runnable, void,
+    void($for ARG , [[A$(ARG)]])>
+{
+    static inline void Run(Runnable runnable[[]]
+$if ARITY > 0 [[, ]]
+$for ARG , [[A$(ARG)&& a$(ARG)]])
+    {
+        if (!a1) {
+            return;
+        }
+
+        runnable.Run($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+    }
+};
+
+]] $$ if ARITY > 0
+
+]] $$ for ARITY
+
+template <typename Runnable, typename R, typename ArgsType>
+struct TInvokeHelper<true, Runnable, R, ArgsType>
+{
+    // Weak calls are only supported for functions with a void return type.
+    // Otherwise, the function result would be undefined if the #TWeakPtr<>
+    // is expired.
+    static_assert(NMpl::TIsVoid<R>::Value,
+        "Weak calls are only supported for functions with a void return type");
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// #TInvoker<>
+////////////////////////////////////////////////////////////////////////////////
+template <int BoundArguments, typename BindStateType, typename Signature>
+struct TInvoker;
+
+$for ARITY [[
+
+$$ Number of bound arguments.
+$range BOUND 0..ARITY
+$for BOUND [[
+
+$var UNBOUND = ARITY - BOUND
+$range ARG 1..ARITY
+$range BOUND_ARG 1..BOUND
+$range UNBOUND_ARG (ARITY - UNBOUND + 1)..ARITY
+
+// === Arity $(ARITY) -> $(UNBOUND) unbound.
+template <typename BindStateType, typename R[[]]
+$if ARITY > 0 [[, ]][[]]
+$for ARG , [[typename A$(ARG)]]>
+struct TInvoker<$(BOUND), BindStateType, R($for ARG , [[A$(ARG)]])>
+{
+    typedef R(RunSignature)(TBindStateBase*[[]]
+$if UNBOUND != 0 [[, ]][[]]
+$for UNBOUND_ARG , [[A$(UNBOUND_ARG)&&]]);
+    typedef R(UnboundSignature)($for UNBOUND_ARG , [[A$(UNBOUND_ARG)]]);
+
+    static R Run(TBindStateBase* stateBase[[]]
+$if UNBOUND != 0 [[, ]][[]]
+$for UNBOUND_ARG , [[A$(UNBOUND_ARG)&& a$(UNBOUND_ARG)]])
+    {
+        BindStateType* state = static_cast<BindStateType*>(stateBase);
+
+        // Local references to make debugger stepping easier.
+        // If in a debugger you really want to warp ahead and step through the
+        // #TInvokeHelper<>::MakeItSo() call below.
+$for BOUND_ARG
+[[
+
+        typedef typename BindStateType::TBound$(BOUND_ARG)UnwrapTraits TBound$(BOUND_ARG)UnwrapTraits;
+]]
+
+$for BOUND_ARG
+[[
+
+        typedef typename TBound$(BOUND_ARG)UnwrapTraits::TType BoundA$(BOUND_ARG);
+]]
+
+
+$for BOUND_ARG
+[[
+
+        BoundA$(BOUND_ARG) a$(BOUND_ARG) = TBound$(BOUND_ARG)UnwrapTraits::Unwrap(state->S$(BOUND_ARG)_);
+]]
+
+
+        static_assert(!BindStateType::IsMethod::Value || ($BOUND > 0),
+            "The target object for a bound method have to be bound.");
+
+        // If someone would like to change this, please expand target locking
+        // and extraction logic to the unbound arguments (specifically,
+        // change the code generation logic in the pump file).
+
+$if BOUND > 0 [[
+        typedef TMaybeCopyHelper<A1>
+            TTargetCopy;
+        typedef TMaybeLockHelper<BindStateType::IsMethod::Value, BoundA1>
+            TTargetLock;
+]]
+
+        return TInvokeHelper<
+            BindStateType::IsWeakMethod::Value,
+            typename BindStateType::TRunnableType,
+            R,
+            void($for ARG , [[A$(ARG)]])
+        >::Run(state->Runnable_
+$if ARITY > 0 [[, 
+]]
+
+$for BOUND_ARG , [[
+$if BOUND_ARG == 1 [[
+TTargetCopy::Do(TTargetLock(ForwardRV<BoundA$(BOUND_ARG)>(a$(BOUND_ARG))).Lock().Get())
+]] $else [[
+TMaybeCopyHelper<A$(BOUND_ARG)>::Do(ForwardRV<BoundA$(BOUND_ARG)>(a$(BOUND_ARG)))
+]]]]
+
+$if UNBOUND > 0 [[$if BOUND > 0 [[, ]]]][[]]
+
+$for UNBOUND_ARG , [[
+ForwardRV<A$(UNBOUND_ARG)>(a$(UNBOUND_ARG))
+]]
+);
+    }
+};
+
+]] $$ for BOUND
+]] $$ for ARITY
+
+////////////////////////////////////////////////////////////////////////////////
+// #TBindState<>
+////////////////////////////////////////////////////////////////////////////////
+//
+// This stores all the state passed into Bind() and is also where most
+// of the template resolution magic occurs.
+//
+// Runnable is the functor we are binding arguments to.
+// Signature is type of the Run() function that the TInvoker<> should use.
+// Normally, this is the same as the Signature of the Runnable, but it can
+// be different if an adapter like IgnoreResult() has been used.
+//
+// BoundArgsType contains the storage type for all the bound arguments by
+// (ab)using a function type.
+template <typename Runnable, typename Signature, typename BoundArgsType>
+struct TBindState;
+
+$for ARITY [[
+$range ARG 1..ARITY
+
+template <typename Runnable, typename Signature[[]]
+$if ARITY > 0 [[, ]]
+$for ARG , [[typename S$(ARG)]]
+>
+struct TBindState<Runnable, Signature, void($for ARG , [[S$(ARG)]])>
+    : public TBindStateBase
+{
+    typedef TIsMethodHelper<Runnable> IsMethod;
+
+$if ARITY > 0 [[
+    typedef TIsWeakMethodHelper<IsMethod::Value, S1> IsWeakMethod;
+]] $else [[
+    typedef NMpl::TFalseType IsWeakMethod;
+]]
+
+ 
+    typedef Runnable TRunnableType;
+    typedef TInvoker<$(ARITY), TBindState, Signature> TInvokerType;
+    typedef typename TInvokerType::UnboundSignature UnboundSignature;
+
+$if ARITY > 0 [[
+
+    // Convenience typedefs for bound argument types.
+
+$for ARG [[
+    typedef TUnwrapTraits<S$(ARG)> TBound$(ARG)UnwrapTraits;
+
+]] $$ for ARG
+
+
+]] $$ if ARITY > 0
+
+$if ARITY > 0 [[
+    template<$for ARG , [[typename P$(ARG)]]>
+
+]]
+$$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
+[[    ]]$if ARITY == 0 [[explicit ]]TBindState(const Runnable& runnable
+$if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]])
+        : Runnable_(runnable)[[]]
+$if ARITY == 0 [[
+
+    {
+
+]] $else [[ $for ARG [[
+
+        , S$(ARG)_(ForwardRV<P$(ARG)>(p$(ARG)))
+]] $$ for ARG
+
+    {
+        TMaybeRefCountHelper<IsMethod::Value, S1>::Ref(S1_);
+
+]]
+    }
+
+    virtual ~TBindState()
+    {
+
+$if ARITY > 0 [[
+        TMaybeRefCountHelper<IsMethod::Value, S1>::UnRef(S1_);
+]] $$ if ARITY > 0
+
+    }
+
+    TRunnableType Runnable_;
+
+$for ARG [[
+    S$(ARG) S$(ARG)_;
+
+]] $$ for ARG
+};
+
+]] $$ for ARITY
+
+////////////////////////////////////////////////////////////////////////////////
+/*! \endinternal */
+} // namespace NDetail
+} // namespace NYT

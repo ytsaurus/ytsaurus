@@ -16,7 +16,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodePtr CloneNode(
+INodePtr CloneNode(
     INode* node,
     INodeFactory* factory = GetEphemeralNodeFactory());
 
@@ -26,11 +26,11 @@ TYsonProducer ProducerFromYson(const TYson& data);
 
 TYsonProducer ProducerFromNode(INode* node);
 
-TNodePtr DeserializeFromYson(
+INodePtr DeserializeFromYson(
     TInputStream* input,
     INodeFactory* factory = GetEphemeralNodeFactory());
 
-TNodePtr DeserializeFromYson(
+INodePtr DeserializeFromYson(
     const TYson& yson,
     INodeFactory* factory = GetEphemeralNodeFactory());
 
@@ -113,7 +113,7 @@ void Read(TNullable<T>& parameter, INode* node);
 
 // TNodePtr
 void Read(
-    TNodePtr& parameter,
+    INodePtr& parameter,
     INode* node);
 
 // yvector

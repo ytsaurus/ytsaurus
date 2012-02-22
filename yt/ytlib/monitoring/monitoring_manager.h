@@ -38,7 +38,7 @@ public:
     /*!
      * \note Every update, the previous root expires and a new root is generated.
      */
-    NYTree::TNodePtr GetRoot() const;
+    NYTree::INodePtr GetRoot() const;
 
     //! Starts periodic updates.
     void Start();
@@ -64,7 +64,7 @@ private:
     TSpinLock SpinLock;
     TProducerMap MonitoringMap;
 
-    NYTree::TNodePtr Root;
+    NYTree::INodePtr Root;
 
     void Update();
     void Visit(NYTree::IYsonConsumer* consumer);

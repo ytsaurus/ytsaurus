@@ -34,6 +34,9 @@ public:
     virtual const yvector<TSharedRef>& RequestAttachments() const;
     virtual yvector<TSharedRef>& ResponseAttachments();
 
+    virtual const NYTree::IAttributeDictionary& RequestAttributes() const;
+    virtual NYTree::IAttributeDictionary& ResponseAttributes();
+
     virtual void SetRequestInfo(const Stroka& info);
     virtual Stroka GetRequestInfo() const;
 
@@ -56,12 +59,14 @@ protected:
 
     TSharedRef RequestBody;
     yvector<TSharedRef> RequestAttachments_;
+    TAutoPtr<NYTree::IAttributeDictionary> RequestAttributes_;
     bool OneWay;
     bool Replied;
     TError Error;
 
     TSharedRef ResponseBody;
     yvector<TSharedRef> ResponseAttachments_;
+    TAutoPtr<NYTree::IAttributeDictionary> ResponseAttributes_;
 
     Stroka RequestInfo;
     Stroka ResponseInfo;

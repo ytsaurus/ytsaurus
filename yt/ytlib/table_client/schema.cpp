@@ -366,7 +366,7 @@ struct TSchema::TConfig
             .Default();
     }
 
-    yvector<TNodePtr> Channels;
+    yvector<INodePtr> Channels;
     // TODO(babenko): add Keys here
 };
 

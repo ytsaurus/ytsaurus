@@ -6,7 +6,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(sandello): TExtrinsically?
 class TExtrinsicRefCounted;
 class TIntrinsicRefCounted;
 
@@ -23,26 +22,26 @@ namespace NDetail {
     // Note that returning previous value is a micro-tiny-bit faster.
     // (see http://lwn.net/Articles/256433/)
 
-    inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
     {
         return __sync_fetch_and_add(const_cast<TVolatileCounter*>(p), 0);
     }
 
-    inline TNonVolatileCounter AtomicallyIncrement(TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyIncrement(TVolatileCounter* p)
     {
         // Atomically performs the following:
         // { return (*p)++; }
         return __sync_fetch_and_add(p, +1);
     }
 
-    inline TNonVolatileCounter AtomicallyDecrement(TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyDecrement(TVolatileCounter* p)
     {
         // Atomically performs the following:
         // { return (*p)--; }
         return __sync_fetch_and_add(p, -1);
     }
 
-    inline TNonVolatileCounter AtomicallyIncrementIfNonZero(TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyIncrementIfNonZero(TVolatileCounter* p)
     {
         // Atomically performs the following:
         // { auto v = *p; if (v != 0) ++(*p); return v; }
@@ -65,22 +64,22 @@ namespace NDetail {
 #else
     // Fallback to Arcadia's implementation (efficiency is not crucial here).
 
-    inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyFetch(TVolatileCounter* p)
     {
         return AtomicAdd(*const_cast<TVolatileCounter*>(p), 0);
     }
 
-    inline TNonVolatileCounter AtomicallyIncrement(TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyIncrement(TVolatileCounter* p)
     {
         return AtomicIncrement(*p) - 1;
     }
 
-    inline TNonVolatileCounter AtomicallyDecrement(TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyDecrement(TVolatileCounter* p)
     {
         return AtomicDecrement(*p) + 1;
     }
 
-    inline TNonVolatileCounter AtomicallyIncrementIfNonZero(TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyIncrementIfNonZero(TVolatileCounter* p)
     {
         for (;;) {
             TNonVolatileCounter v = *p;
@@ -103,7 +102,7 @@ namespace NDetail {
         TRefCounter(TExtrinsicRefCounted* object)
             : StrongCount(1)
             , WeakCount(1)
-            , Object(object)
+            , that(object)
         { }
 
         ~TRefCounter()
@@ -112,12 +111,12 @@ namespace NDetail {
         //! This method is called when there are no strong references remaining
         //! and the object have to be disposed (technically this means that
         //! there are no more strong references being held).
-        inline void Dispose();
+        void Dispose();
 
         //! This method is called when the counter is about to be destroyed
         //! (technically this means that there are neither strong
         //! nor weak references being held).
-        inline void Destroy();
+        void Destroy();
 
         //! Adds a strong reference to the counter.
         inline void Ref() // noexcept
@@ -187,7 +186,7 @@ namespace NDetail {
         //! Number of weak references plus one if there is at least one strong reference.
         TVolatileCounter WeakCount;
         //! The object.
-        TExtrinsicRefCounted* Object;
+        TExtrinsicRefCounted* that;
     };
 } // namespace NDetail
 
@@ -340,18 +339,6 @@ private:
 #endif
 
 };
-
-namespace NDetail {
-    void TRefCounter::Dispose()
-    {
-        delete Object;
-    }
-
-    void TRefCounter::Destroy()
-    {
-        delete this;
-    }
-} // namespace NDetail
 
 // This is a reasonable default.
 // For performance-critical bits of code use TIntrinsicRefCounted instead.

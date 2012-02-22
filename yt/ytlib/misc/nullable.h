@@ -3,6 +3,7 @@
 #include "rvalue.h"
 
 #include <util/generic/utility.h>
+#include <util/string/cast.h>
 
 namespace NYT {
 
@@ -13,9 +14,9 @@ namespace NDetail {
 struct TNullHelper
 { };
 
-}
+} // namespace NDetail
 
-typedef int NDetail::TNullHelper::*TNull;
+typedef int NDetail::TNullHelper::* TNull;
 
 const TNull Null = static_cast<TNull>(NULL);
 
@@ -46,13 +47,17 @@ public:
     { }
     
     template<class U>
-    TNullable(const TNullable<U>& other)
+    TNullable(
+        const TNullable<U>& other,
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
         : Initialized(other.Initialized)
         , Value(other.Value)
     { }
 
     template<class U>
-    TNullable(TNullable<U>&& other)
+    TNullable(
+        TNullable<U>&& other,
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
         : Initialized(other.Initialized)
         , Value(MoveRV(other.Value))
     { }
@@ -72,7 +77,6 @@ public:
             Assign(MoveRV(value));
         }
     }
-    
 
     TNullable& operator=(const T& value)
     {
@@ -95,6 +99,7 @@ public:
     template <class U>
     TNullable& operator=(const TNullable<U>& other)
     {
+        static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
         Assign(other);
         return *this;
     }
@@ -102,10 +107,10 @@ public:
     template <class U>
     TNullable& operator=(TNullable<U>&& other)
     {
+        static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
         Assign(other);
         return *this;
     }
-
     
     void Assign(const T& value)
     {
@@ -127,6 +132,8 @@ public:
     template <class U>
     void Assign(const TNullable<U>& other)
     {
+        static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
+        
         bool wasInitalized = Initialized;
         Initialized = other.Initialized;
         if (other.Initialized) {
@@ -139,6 +146,8 @@ public:
     template <class U>
     void Assign(TNullable<U>&& other)
     {
+        static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
+
         TNullable<T>(MoveRV(other)).Swap(*this);
     }
 
@@ -176,6 +185,11 @@ public:
         return Value;
     }
 
+    const T& Get(const T& defaultValue) const
+    {
+        return Initialized ? Value : defaultValue;
+    }
+
     const T* GetPtr() const
     {
         return Initialized ? &Value : NULL;
@@ -185,12 +199,6 @@ public:
     {
         return Initialized ? &Value : NULL;
     }
-
-    const T& GetValueOrDefault(const T& defaultValue = T()) const
-    {
-        return Initialized ? Value : defaultValue;
-    }
-
 
     const T& operator*() const
     {
@@ -212,12 +220,16 @@ public:
         return GetPtr();
     }
 
-
     // Implicit conversion to bool.
     typedef T TNullable::*TUnspecifiedBoolType;
     operator TUnspecifiedBoolType() const
     {
         return Initialized ? &TNullable::Value : NULL;
+    }
+
+    Stroka ToString() const
+    {
+        return Initialized ? ::ToString(Value) : "<NULL>";
     }
 
 private:
@@ -250,17 +262,16 @@ struct TNullableTraits< TIntrusivePtr<T> >
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(panin): sandello, add decay here!
 template <class T>
-TNullable< typename NDetail::TRemoveReference<T>::TType > MakeNullable(T&& value)
+TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(T&& value)
 {
-    return TNullable< typename NDetail::TRemoveReference<T>::TType >(ForwardRV<T>(value));
+    return TNullable< typename NMpl::TDecay<T>::TType >(ForwardRV<T>(value));
 }
 
 template <class T>
-TNullable< typename NDetail::TRemoveReference<T>::TType > MakeNullable(bool condition, T&& value)
+TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(bool condition, T&& value)
 {
-    return TNullable< typename NDetail::TRemoveReference<T>::TType >(condition, ForwardRV<T>(value));
+    return TNullable< typename NMpl::TDecay<T>::TType >(condition, ForwardRV<T>(value));
 }
 
 template <class T>
@@ -310,6 +321,14 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 {
     return !(lhs == rhs);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+//template <class T>
+//Stroka ToString(const TNullable<T>& nullable)
+//{
+//    return nullable ? ToString(*nullable) : "<NULL>";
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 

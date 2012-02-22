@@ -13,7 +13,7 @@ struct TReadRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::TNodePtr Stream;
+    NYTree::INodePtr Stream;
 
     TReadRequest()
     {
@@ -42,8 +42,8 @@ struct TWriteRequest
     : public TRequestBase
 {
     NYTree::TYPath Path;
-    NYTree::TNodePtr Stream;
-    NYTree::TNodePtr Value;
+    NYTree::INodePtr Stream;
+    NYTree::INodePtr Value;
 
     TWriteRequest()
     {

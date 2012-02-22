@@ -82,7 +82,7 @@ public:
 
     // IObjectProxy members
     virtual TObjectId GetId() const;
-    virtual NYTree::IAttributeDictionary* Attributes();
+    virtual NYTree::IAttributeDictionary& Attributes();
     virtual void Invoke(NRpc::IServiceContext* context);
 
 protected:

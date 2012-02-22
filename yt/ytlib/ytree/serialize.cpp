@@ -34,12 +34,11 @@ TYsonProducer ProducerFromNode(INode* node)
 {
     return FromFunctor([=] (IYsonConsumer* consumer)
         {
-            TTreeVisitor visitor(consumer);
-            visitor.Visit(node);
+            VisitTree(node, consumer);
         });
 }
 
-TNodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
+INodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
@@ -48,7 +47,7 @@ TNodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
     return builder->EndTree();
 }
 
-TNodePtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
+INodePtr DeserializeFromYson(const TYson& yson, INodeFactory* factory)
 {
     TStringInput input(yson);
     return DeserializeFromYson(&input, factory);
@@ -60,17 +59,15 @@ TOutputStream& SerializeToYson(
     EYsonFormat format)
 {
     TYsonWriter writer(&output, format);
-    TTreeVisitor visitor(&writer);
-    visitor.Visit(node);
+    VisitTree(node, &writer);
     return output;
 }
 
-TNodePtr CloneNode(INode* node, INodeFactory* factory)
+INodePtr CloneNode(INode* node, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
-    TTreeVisitor visitor(~builder);
-    visitor.Visit(node);
+    VisitTree(node, ~builder);
     return builder->EndTree();
 }
 
@@ -133,7 +130,7 @@ void Read(TGuid& parameter, INode* node)
 
 // TNodePtr
 void Read(
-    TNodePtr& parameter,
+    INodePtr& parameter,
     INode* node)
 {
     parameter = node;
@@ -198,8 +195,7 @@ void Write(const TGuid& parameter, IYsonConsumer* consumer)
 // TNodePtr
 void Write(INode& parameter, IYsonConsumer* consumer)
 {
-    TTreeVisitor visitor(consumer);
-    visitor.Visit(&parameter);
+    VisitTree(&parameter, consumer);
 }
 
 // TYsonProducer

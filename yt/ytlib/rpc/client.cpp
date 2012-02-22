@@ -35,7 +35,7 @@ TClientRequest::TClientRequest(
     , RequestId(TRequestId::Create())
     , OneWay_(oneWay)
     , Channel(channel)
-    , Attributes_(NYTree::CreateEphemeralAttributes())
+    , Attributes_(CreateEphemeralAttributes())
 {
     YASSERT(channel);
 }
@@ -79,14 +79,14 @@ const TRequestId& TClientRequest::GetRequestId() const
     return RequestId;
 }
 
-NYTree::IAttributeDictionary* TClientRequest::Attributes()
+NYTree::IAttributeDictionary& TClientRequest::Attributes()
 {
-    return Attributes_.Get();
+    return *Attributes_;
 }
 
-const NYTree::IAttributeDictionary* TClientRequest::Attributes() const
+const NYTree::IAttributeDictionary& TClientRequest::Attributes() const
 {
-    return Attributes_.Get();
+    return *Attributes_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,6 +131,7 @@ void TClientResponseBase::OnError(const TError& error)
 
 TClientResponse::TClientResponse(const TRequestId& requestId)
     : TClientResponseBase(requestId)
+    , Attributes_(CreateEphemeralAttributes())
 { }
 
 IMessage::TPtr TClientResponse::GetResponseMessage() const
@@ -156,6 +157,12 @@ void TClientResponse::Deserialize(IMessage* responseMessage)
         parts.begin() + 2,
         parts.end(),
         std::back_inserter(Attachments_));
+
+    auto header = GetResponseHeader(responseMessage);
+
+    if (header.has_attributes()) {
+        Attributes_ = FromProto(header.attributes());
+    }
 }
 
 void TClientResponse::OnAcknowledgement()
@@ -180,6 +187,16 @@ void TClientResponse::OnResponse(IMessage* message)
 
     Deserialize(message);
     FireCompleted();
+}
+
+IAttributeDictionary& TClientResponse::Attributes()
+{
+    return *Attributes_;
+}
+
+const IAttributeDictionary& TClientResponse::Attributes() const
+{
+    return *Attributes_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

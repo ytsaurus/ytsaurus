@@ -91,6 +91,16 @@ public:
         return UnderlyingContext->ResponseAttachments();
     }
 
+    virtual const IAttributeDictionary& RequestAttributes() const
+    {
+        return UnderlyingContext->RequestAttributes();
+    }
+
+    virtual IAttributeDictionary& ResponseAttributes()
+    {
+        return UnderlyingContext->ResponseAttributes();
+    }
+
     virtual void SetRequestInfo(const Stroka& info)
     {
        UnderlyingContext->SetRequestInfo(info);
@@ -172,8 +182,8 @@ public:
 
 private:
     Stroka FileName;
-    TNodePtr Root;
-    IYPathService::TPtr UnderlyingService;
+    INodePtr Root;
+    IYPathServicePtr UnderlyingService;
 
     void SaveFile()
     {
@@ -228,7 +238,7 @@ public:
 private:
     Stroka FileName;
 
-    TNodePtr LoadFile()
+    INodePtr LoadFile()
     {
         try {
             TIFStream stream(FileName);
@@ -243,7 +253,7 @@ private:
 
 TYPathServiceProvider::TPtr CreateYsonFileProvider(const Stroka& fileName)
 {
-    return FromFunctor([=] () -> IYPathService::TPtr
+    return FromFunctor([=] () -> IYPathServicePtr
         {
             return New<TYsonFileService>(fileName);
         });

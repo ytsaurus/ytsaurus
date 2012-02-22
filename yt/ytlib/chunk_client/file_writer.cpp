@@ -106,11 +106,6 @@ TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attribute
     return MakeFuture(TError());
 }
 
-void TChunkFileWriter::Cancel(const TError& error)
-{
-    // TODO(babenko): get rid of Cancel
-}
-
 TChunkId TChunkFileWriter::GetChunkId() const
 {
     return Id;

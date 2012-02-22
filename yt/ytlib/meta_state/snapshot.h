@@ -22,7 +22,6 @@ public:
     void Open();
     TInputStream& GetStream() const;
     i64 GetLength() const;
-    void Close();
     TChecksum GetChecksum() const;
     i32 GetPrevRecordCount() const;
 

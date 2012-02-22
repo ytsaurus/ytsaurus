@@ -230,13 +230,13 @@ public:
         : Provider(builder)
     { }
 
-    virtual TNodeFactoryPtr CreateFactory() const
+    virtual INodeFactoryPtr CreateFactory() const
     {
         YASSERT(Parent);
         return Parent->CreateFactory();
     }
 
-    virtual TCompositeNodePtr GetParent() const
+    virtual ICompositeNodePtr GetParent() const
     {
         return Parent;
     }
@@ -256,9 +256,9 @@ public:
         }
     }
 
-    virtual IAttributeDictionary* Attributes()
+    virtual IAttributeDictionary& Attributes()
     {
-        return GetUserAttributes();
+        return *GetUserAttributes();
     }
 
 protected:
@@ -284,15 +284,15 @@ private:
 
 };
 
-TNodePtr CreateVirtualNode(TYPathServiceProvider* provider)
+INodePtr CreateVirtualNode(TYPathServiceProvider* provider)
 {
     return New<TVirtualEntityNode>(provider);
 }
 
-TNodePtr CreateVirtualNode(IYPathService* service)
+INodePtr CreateVirtualNode(IYPathService* service)
 {
-    IYPathService::TPtr service_ = service;
-    return CreateVirtualNode(~FromFunctor([=] () -> NYTree::IYPathService::TPtr
+    IYPathServicePtr service_ = service;
+    return CreateVirtualNode(~FromFunctor([=] () -> NYTree::IYPathServicePtr
         {
             return service_;
         }));

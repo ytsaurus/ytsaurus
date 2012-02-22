@@ -148,8 +148,10 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLi
             break;
         }
     }
-    
-    return keys;
+
+    YASSERT(keys.ysize() == Min(static_cast<size_t>(Size), sizeLimit));
+
+    return MoveRV(keys);
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
