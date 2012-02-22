@@ -15,6 +15,15 @@ import time
 SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
 CONFIGS_ROOTDIR = os.path.abspath('default_configs')
 
+
+def deepupdate(d, other):
+    for key, value in other.iteritems():
+        if key in d and isinstance(value, dict):
+            deepupdate(d[key], value)
+        else:
+            d[key] = value
+    return d
+
 def read_config(filename):
     f = open(filename, 'rt')
     config = yson_parser.parse_string(f.read())
@@ -30,6 +39,9 @@ class YTEnv:
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
     SETUP_TIMEOUT = 8
+
+    DELTA_MASTER_CONFIG = {}
+    DELTA_HOLDER_CONFIG = {}
 
     # to be redefiened in successors
     def modify_master_config(self, config):
@@ -124,6 +136,7 @@ class YTEnv:
             master_config['logging']['writers']['file']['file_name'] = logging_file_name
 
             self.modify_master_config(master_config)
+            deepupdate(config, DELTA_MASTER_CONFIG)
 
             config_path = os.path.join(current, 'master_config.yson')
             write_config(master_config, config_path)
@@ -149,6 +162,9 @@ class YTEnv:
             store_location[0]['path'] = chunk_store
             holder_config['chunk_store_locations'] = store_location
             holder_config['logging']['writers']['file']['file_name'] = logging_file_name
+
+            self.modify_holder_config(config)
+            deepupdate(config, DELTA_HOLDER_CONFIG)
 
             config_path = os.path.join(current, 'holder_config.yson')
             write_config(holder_config, config_path)
