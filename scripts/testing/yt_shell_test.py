@@ -41,9 +41,8 @@ class ShellItem(pytest.Item):
         print path_to_run
 
         class CurYTEnv(YTEnv): pass
-
         for name, value in self.get_options(script_path):
-            print name, value
+            print 'Setting', name, 'equal to', value
             setattr(CurYTEnv, name, value)
 
         Env = CurYTEnv()
@@ -64,16 +63,16 @@ class ShellItem(pytest.Item):
         stderr_diff = get_output(["diff", "-ui", stderr_actual, stderr_expected])
         
         if stdout_diff:
-            print '-----------------------'
+            print '-' * 70
             print 'stdout_diff:'
             print stdout_diff
-            print '-----------------------'
+            print '-' * 70
 
         if stderr_diff:
-            print '-----------------------'
+            print '-' * 70
             print 'stderr_diff:'
             print stderr_diff
-            print '-----------------------'
+            print '-' * 70
 
         assert exit_code == 0,  "{script_path} finished with errors".format(**vars())
         assert not stdout_diff, "Stdout differs"
