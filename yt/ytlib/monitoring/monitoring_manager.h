@@ -46,7 +46,7 @@ public:
     //! Stops periodic updates.
     void Stop();
 
-    //! Provides YSON producer for all monitoring info.
+    //! Provides YSON producer for all monitoring infos.
     /*!
      * \note Producer is sustained between updates.
      */
