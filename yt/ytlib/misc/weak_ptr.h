@@ -24,7 +24,7 @@ public:
      * Note that this constructor could be racy due to unsynchronized operations
      * on the object and on the counter.
      */
-    TWeakPtr(T* p) // noexcept
+    explicit TWeakPtr(T* p) // noexcept
         : T_(p)
         , RefCounter(NULL)
     {
@@ -53,7 +53,7 @@ public:
     }
 
     //! Copy constructor.
-    TWeakPtr(const TWeakPtr& other) // noexcept
+    explicit TWeakPtr(const TWeakPtr& other) // noexcept
         : T_(other.T_)
         , RefCounter(other.RefCounter)
     {
@@ -83,7 +83,7 @@ public:
     }
 
     //! Move constructor.
-    TWeakPtr(TWeakPtr&& other) // noexcept
+    explicit TWeakPtr(TWeakPtr&& other) // noexcept
         : T_(other.T_)
         , RefCounter(other.RefCounter)
     {

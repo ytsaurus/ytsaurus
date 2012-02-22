@@ -52,6 +52,9 @@ public:
     /*!
      * Note that this constructor could be racy due to unsynchronized operations
      * on the object and on the counter.
+     *
+     * Note that it notoriously hard to make this constructor explicit
+     * given the current amount of code written.
      */
     TIntrusivePtr(T* p) // noexcept
         : T_(p)
@@ -71,7 +74,7 @@ public:
     }
 
     //! Copy constructor.    
-    TIntrusivePtr(const TIntrusivePtr& other) // noexcept
+    explicit TIntrusivePtr(const TIntrusivePtr& other) // noexcept
         : T_(other.Get())
     {
         if (T_) {
@@ -92,7 +95,7 @@ public:
     }
 
     //! Move constructor.
-    TIntrusivePtr(TIntrusivePtr&& other) // noexcept
+    explicit TIntrusivePtr(TIntrusivePtr&& other) // noexcept
         : T_(other.Get())
     {
         other.T_ = NULL;
