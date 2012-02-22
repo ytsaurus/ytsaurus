@@ -69,9 +69,6 @@ void TSchedulerBootstrap::Run()
     monitoringManager->Register(
         "bus_server",
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
-    monitoringManager->Register(
-        "rpc_server",
-        FromMethod(&IServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
