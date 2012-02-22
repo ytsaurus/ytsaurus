@@ -164,13 +164,13 @@ namespace NDetail {
         //! Returns current number of strong references.
         int GetRefCount() const // noexcept
         {
-            return AtomicallyFetch(&StrongCount);
+            return AtomicallyFetch(&const_cast<TVolatileCounter>(StrongCount));
         }
 
         //! Returns current number of weak references.
         int GetWeakRefCount() const // noexcept
         {
-            return AtomicallyFetch(&WeakCount);
+            return AtomicallyFetch(&const_cast<TVolatileCounter>(StrongCount));
         }
 
     private:
