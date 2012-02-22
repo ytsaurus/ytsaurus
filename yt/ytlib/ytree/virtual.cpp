@@ -228,8 +228,8 @@ class TVirtualEntityNode
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
-    TVirtualEntityNode(TYPathServiceProvider provider)
-        : Provider(provider)
+    TVirtualEntityNode(IYPathService* underlyingService)
+        : UnderlyingService(underlyingService)
     { }
 
     virtual INodeFactoryPtr CreateFactory() const
@@ -253,8 +253,7 @@ public:
         if (IsLocalYPath(path)) {
             return TNodeBase::Resolve(path, verb);
         } else {
-            auto service = Provider->Do();
-            return TResolveResult::There(~service, path);
+            return TResolveResult::There(~UnderlyingService, path);
         }
     }
 
@@ -263,7 +262,11 @@ public:
         return *GetUserAttributes();
     }
 
-protected:
+private:
+	IYPathServicePtr UnderlyingService;
+	ICompositeNode* Parent;
+	TAutoPtr<IAttributeDictionary> Attributes_;
+
     // TSupportsAttributes members
 
     virtual IAttributeDictionary* GetUserAttributes()
@@ -278,26 +281,16 @@ protected:
     {
         return NULL;
     }
-
-private:
-    TYPathServiceProvider Provider;
-    ICompositeNode* Parent;
-    TAutoPtr<IAttributeDictionary> Attributes_;
-
 };
-
-INodePtr CreateVirtualNode(TYPathServiceProvider provider)
-{
-    return New<TVirtualEntityNode>(provider);
-}
 
 INodePtr CreateVirtualNode(IYPathService* service)
 {
-    IYPathServicePtr service_ = service;
-    return CreateVirtualNode(~FromFunctor([=] () -> NYTree::IYPathServicePtr
-        {
-            return service_;
-        }));
+	return New<TVirtualEntityNode>(service);
+}
+
+NYT::NYTree::INodePtr CreateVirtualNode(TYPathServiceProducer producer)
+{
+	return CreateVirtualNode(~IYPathService::FromProducer(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

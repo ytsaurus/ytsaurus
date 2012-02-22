@@ -33,13 +33,11 @@ using NBus::CreateNLBusServer;
 using NRpc::IServer;
 using NRpc::CreateRpcServer;
 
-using NYTree::IYPathService;
-using NYTree::IYPathServicePtr;
-using NYTree::SyncYPathSetNode;
+using namespace NYTree;
 
 using NMonitoring::TMonitoringManager;
 using NMonitoring::GetYPathHttpHandler;
-using NMonitoring::CreateMonitoringProvider;
+using NMonitoring::CreateMonitoringProducer;
 
 using NOrchid::TOrchidService;
 
@@ -71,16 +69,16 @@ void TSchedulerBootstrap::Run()
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
     monitoringManager->Start();
 
-    auto orchidFactory = NYTree::GetEphemeralNodeFactory();
+    auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
     SyncYPathSetNode(
         ~orchidRoot,
         "monitoring",
-        ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
+        ~CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
         "config",
-        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
+        ~CreateVirtualNode(~CreateYsonFileProvider(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
@@ -89,17 +87,9 @@ void TSchedulerBootstrap::Run()
     rpcServer->RegisterService(~orchidService);
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    httpServer->Register(
-        "statistics",
-        ~NMonitoring::GetProfilingHttpHandler());
-    httpServer->Register(
-        "orchid",
-        ~NMonitoring::GetYPathHttpHandler(
-            ~FromFunctor([=] () -> IYPathServicePtr
-                {
-                    return orchidRoot;
-                }),
-            ~controlQueue->GetInvoker()));
+	httpServer->Register(
+		"/orchid",
+		~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~controlQueue->GetInvoker())));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

@@ -143,6 +143,7 @@ public:
 		: TActionQueueBase("Profiling", true)
 		, Invoker(New<TQueueInvoker>(this, true))
 		, Root(GetEphemeralNodeFactory()->CreateMap())
+		, Service(Root->Via(~Invoker))
 	{
 		Start();
 	}
@@ -165,12 +166,13 @@ public:
 
 	IYPathService* GetService() const
 	{
-		return ~Root;
+		return ~Service;
 	}
 
 private:
 	TQueueInvokerPtr Invoker;
 	INodePtr Root;
+	IYPathServicePtr Service;
 	TLockFreeQueue<TQueuedSample> SampleQueue;
 	yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
 	TIdGenerator<i64> IdGenerator;

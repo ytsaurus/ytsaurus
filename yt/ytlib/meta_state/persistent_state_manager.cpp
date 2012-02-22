@@ -141,7 +141,7 @@ public:
         server->RegisterService(~ElectionManager);
     }
 
-    void Start()
+    virtual void Start()
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(ControlStatus == EPeerStatus::Stopped);
@@ -155,34 +155,41 @@ public:
         ElectionManager->Start();
     }
 
-    void Stop()
+    virtual void Stop()
     {
         //TODO: implement this
         YUNIMPLEMENTED();
     }
 
-    EPeerStatus GetControlStatus() const
+    virtual EPeerStatus GetControlStatus() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return ControlStatus;
     }
 
-    EPeerStatus GetStateStatus() const
+    virtual EPeerStatus GetStateStatus() const
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
         return StateStatus;
     }
 
-    IInvoker::TPtr GetStateInvoker() const
+	virtual EPeerStatus SafeGetStateStatus() const
+	{
+		VERIFY_THREAD_AFFINITY_ANY();
+
+		return StateStatus;
+	}
+
+    virtual IInvoker::TPtr GetStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return MetaState->GetStateInvoker();
     }
 
-    bool HasActiveQuorum() const
+    virtual bool HasActiveQuorum() const
     {
         auto tracker = FollowerTracker;
         if (!tracker) {
@@ -191,30 +198,29 @@ public:
         return tracker->HasActiveQuorum();
     }
 
-    IInvoker::TPtr GetEpochStateInvoker() const
+    virtual IInvoker::TPtr GetEpochStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
         return ~EpochStateInvoker;
     }
 
-    void SetReadOnly(bool readOnly)
+    virtual void SetReadOnly(bool readOnly)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         ReadOnly = readOnly;
     }
 
-    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
+    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     {
         auto tracker = FollowerTracker;
 
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("state").Scalar(ControlStatus.ToString())
-                // TODO: fixme, thread affinity
-                //.Item("version").Scalar(MetaState->GetVersion().ToString())
-                .Item("reachable_version").Scalar(MetaState->GetReachableVersion().ToString())
+                .Item("version").Scalar(MetaState->SafeGetVersion().ToString())
+                .Item("reachable_version").Scalar(MetaState->SafeGetReachableVersion().ToString())
                 .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent)
                     {
@@ -1140,7 +1146,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto version = MetaState->GetReachableVersion();
+        auto version = MetaState->SafeGetReachableVersion();
         return ((TPeerPriority) version.SegmentId << 32) | version.RecordCount;
     }
 

@@ -57,9 +57,7 @@ using NBus::CreateNLBusServer;
 using NRpc::IServer;
 using NRpc::CreateRpcServer;
 
-using NYTree::IYPathService;
-using NYTree::IYPathServicePtr;
-using NYTree::SyncYPathSetNode;
+using namespace NYTree;
 
 using NTransactionServer::TTransactionManager;
 using NTransactionServer::CreateTransactionMapTypeHandler;
@@ -84,13 +82,15 @@ using NCypress::CreateLockMapTypeHandler;
 
 using NMonitoring::TMonitoringManager;
 using NMonitoring::GetYPathHttpHandler;
-using NMonitoring::CreateMonitoringProvider;
+using NMonitoring::CreateMonitoringProducer;
 
 using NOrchid::CreateOrchidTypeHandler;
 
 using NFileServer::CreateFileTypeHandler;
 
 using NTableServer::CreateTableTypeHandler;
+
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,10 +109,6 @@ void TCellMasterBootstrap::Run()
     int rpcPort = FromString<int>(address.substr(index + 1));
 
     LOG_INFO("Starting cell master");
-
-    // TODO: fixme
-    // Explicitly instrumentation thread creation.
-    //NSTAT::EnableStatlog(true);
 
     auto metaState = New<TCompositeMetaState>();
 
@@ -180,20 +176,20 @@ void TCellMasterBootstrap::Run()
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
     monitoringManager->Start();
 
-    auto orchidFactory = NYTree::GetEphemeralNodeFactory();
+    auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
     SyncYPathSetNode(
         ~orchidRoot,
         "monitoring",
-        ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
+        ~CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
         "profiling",
-        ~NYTree::CreateVirtualNode(NProfiling::TProfilingManager::Get()->GetService()));
+        ~CreateVirtualNode(TProfilingManager::Get()->GetService()));
 	SyncYPathSetNode(
 		~orchidRoot,
 		"config",
-		~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
+		~CreateVirtualNode(~CreateYsonFileProvider(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
@@ -243,30 +239,11 @@ void TCellMasterBootstrap::Run()
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
-        "/statistics",
-        ~NMonitoring::GetProfilingHttpHandler());
-    httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(
-            ~FromFunctor([=] () -> IYPathServicePtr
-                {
-                    return orchidRoot;
-                }),
-            ~metaStateManager->GetStateInvoker()));
+        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~controlQueue->GetInvoker())));
     httpServer->Register(
         "/cypress",
-        ~NMonitoring::GetYPathHttpHandler(
-            ~FromFunctor([=] () -> IYPathServicePtr
-                {
-                    auto status = metaStateManager->GetStateStatus();
-                    if (status != EPeerStatus::Leading && status != EPeerStatus::Following) {
-                        return NULL;
-                    }
-                    return ~cypressManager->GetVersionedNodeProxy(
-                        cypressManager->GetRootNodeId(),
-                        NObjectServer::NullTransactionId);
-                }),
-            ~metaStateManager->GetStateInvoker()));
+        ~NMonitoring::GetYPathHttpHandler(cypressManager->GetRootServiceProducer()));
 
     metaStateManager->Start();
 

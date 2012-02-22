@@ -3,6 +3,7 @@
 #include "serialize.h"
 #include "tree_builder.h"
 #include "ephemeral.h"
+#include "virtual.h"
 
 #include <ytlib/rpc/service.h>
 
@@ -251,7 +252,7 @@ private:
     }
 };
 
-TYPathServiceProvider CreateYsonFileProvider(const Stroka& fileName)
+TYPathServiceProducer CreateYsonFileProvider(const Stroka& fileName)
 {
     return FromFunctor([=] () -> IYPathServicePtr
         {

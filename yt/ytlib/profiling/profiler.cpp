@@ -34,7 +34,7 @@ void TProfiler::StopTiming(const NYTree::TYPath& path, TCpuClock start)
 {
     TCpuClock end = GetCycleCount();
     YASSERT(end >= start);
-    Enqueue(path, end - start);
+    Enqueue(path, CyclesToDuration(end - start).MicroSeconds());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

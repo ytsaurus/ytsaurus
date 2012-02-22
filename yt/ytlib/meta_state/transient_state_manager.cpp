@@ -19,43 +19,48 @@ public:
         StateQueue = New<TActionQueue>("MetaState");
     }
 
-    void Start()
+    virtual void Start()
     {
         OnStartLeading_.Fire();
         OnLeaderRecoveryComplete_.Fire();
     }
 
-    void Stop()
+    virtual void Stop()
     {
         StateQueue->Shutdown();
     }
 
-    EPeerStatus GetControlStatus() const
+    virtual EPeerStatus GetControlStatus() const
     {
         return EPeerStatus::Leading;
     }
 
-    EPeerStatus GetStateStatus() const
+    virtual EPeerStatus GetStateStatus() const
     {
         return EPeerStatus::Leading;
     }
 
-    bool HasActiveQuorum() const
+	virtual EPeerStatus SafeGetStateStatus() const
+	{
+		return EPeerStatus::Leading;
+	}
+
+    virtual bool HasActiveQuorum() const
     {
         return true;
     }
 
-    IInvoker::TPtr GetStateInvoker() const
+    virtual IInvoker::TPtr GetStateInvoker() const
     {
         return StateQueue->GetInvoker();
     }
 
-    IInvoker::TPtr GetEpochStateInvoker() const
+    virtual IInvoker::TPtr GetEpochStateInvoker() const
     {
         return StateQueue->GetInvoker();
     }
 
-    TAsyncCommitResult::TPtr CommitChange(
+    virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
         IAction* changeAction = NULL)
     {
@@ -73,7 +78,7 @@ public:
         YUNIMPLEMENTED();
     }
 
-    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
+    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     {
         UNUSED(consumer);
         YUNIMPLEMENTED();
