@@ -348,11 +348,11 @@ class YSONParser(YSONParserBase):
 
 class YSONFragmentedParser(YSONParserBase):
     def __init__(self, stream):
-        super(YSONParser, self).__init__(stream)
+        super(YSONFragmentedParser, self).__init__(stream)
 
     def has_next(self):
         self._skip_whitespaces()
-        return self._peek_char() is not None
+        return len(self._peek_char()) > 0
 
     def parse_next(self):
         return self._parse_any()
