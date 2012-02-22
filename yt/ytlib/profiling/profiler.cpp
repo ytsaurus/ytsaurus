@@ -64,25 +64,5 @@ void TScopedProfiler::StopScopedTiming(const NYTree::TYPath& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTimingGuard::TTimingGuard(
-    TProfiler* profiler,
-    const TYPath& path)
-    : Profiler(profiler)
-    , Path(path)
-    , Start(profiler->StartTiming())
-{
-    YASSERT(profiler);
-}
-
-TTimingGuard::~TTimingGuard()
-{
-    // Don't measure the time if an handled exception was raised.
-    if (!std::uncaught_exception()) {
-        Profiler->StopTiming(Path, Start);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NProfiling
 } // namespace NYT

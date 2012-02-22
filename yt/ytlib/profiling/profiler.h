@@ -42,13 +42,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Keep implementation in header to ensure inlining.
 class TTimingGuard
 {
 public:
-    explicit TTimingGuard(TProfiler* profiler, const NYTree::TYPath& path);
-    ~TTimingGuard();
+    explicit TTimingGuard(TProfiler* profiler, const NYTree::TYPath& path)
+		: Profiler(profiler)
+		, Path(path)
+		, Start(profiler->StartTiming())
+	{
+		YASSERT(profiler);
+	}
 
-    // Keep implementation in header to ensure inlining.
+    ~TTimingGuard()
+	{
+		// Don't measure the time if an handled exception was raised.
+		if (!std::uncaught_exception()) {
+			Profiler->StopTiming(Path, Start);
+		}
+	}
+
     operator bool() const
     {
         return false;
