@@ -318,7 +318,7 @@ TEST_F(TRpcTest, Attributes)
     auto response = request->Invoke()->Get();
     const auto& attributes = response->Attributes();
 
-    EXPECT_EQ(false, attributes.FindYson("value1").IsInitialized());
+    EXPECT_IS_FALSE(attributes.FindYson("value1").IsInitialized());
     EXPECT_EQ("another_stroka", attributes.GetYson("value2"));
     EXPECT_EQ("stroka3", attributes.GetYson("value3"));
 }
@@ -405,7 +405,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
     EXPECT_EQ("world", attributes.Get<Stroka>("hello"));
     EXPECT_EQ(42, attributes.Get<i64>("value"));
 
-    EXPECT_EQ(false, attributes.FindYson("another_value").IsInitialized());
+    EXPECT_IS_FALSE(attributes.FindYson("another_value").IsInitialized());
 
     Event_->Signal();
 }
