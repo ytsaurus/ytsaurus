@@ -7,7 +7,8 @@
 #include <ytlib/rpc/rpc_manager.h>
 
 #include <ytlib/ytree/serialize.h>
-#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/tree_builder.h>
 
 #include <ytlib/misc/home.h>
 #include <ytlib/misc/fs.h>
@@ -285,15 +286,14 @@ private:
 
     void RunBatch(TInputStream& input)
     {
-        while (true) {
-            Stroka request;
-            if (!input.ReadLine(request))
-                break;
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        TYsonFragmentReader parser(~builder, &input);
+        while(parser.HasNext()) {
+            builder->BeginTree();
+            parser.ReadNext();
+            auto commandNode = builder->EndTree();
 
-            if (request.empty())
-                continue;
-
-            auto error = Driver->Execute(request);
+            auto error = Driver->Execute(commandNode);
             if (!error.IsOK() && HaltOnError) {
                 ExitCode = 1;
                 break;

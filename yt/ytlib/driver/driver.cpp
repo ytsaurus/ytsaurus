@@ -140,17 +140,16 @@ public:
         RegisterCommand("map", ~New<TMapCommand>(this));
     }
 
-    TError Execute(const TYson& request)
+    TError Execute(INodePtr command)
     {
         Error = TError();
         try {
-            DoExecute(request);
+            DoExecute(command);
         } catch (const std::exception& ex) {
             ReplyError(TError(ex.what()));
         }
         return Error;
     }
-
 
     virtual TConfig* GetConfig() const
     {
@@ -266,16 +265,14 @@ private:
         YVERIFY(Commands.insert(MakePair(name, command)).second);
     }
 
-    void DoExecute(const TYson& requestYson)
+    void DoExecute(INodePtr requestNode)
     {
-        INodePtr requestNode;
         auto request = New<TRequestBase>();
         try {
-            requestNode = DeserializeFromYson(requestYson);
             request->Load(~requestNode);
         }
         catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing request\n%s", ex.what());
+            ythrow yexception() << Sprintf("Error parsing command from node\n%s", ex.what());
         }
 
         auto commandName = request->Do;
@@ -301,9 +298,9 @@ TDriver::TDriver(
 TDriver::~TDriver()
 { }
 
-TError TDriver::Execute(const TYson& request)
+TError TDriver::Execute(INodePtr command)
 {
-    return Impl->Execute(request);
+    return Impl->Execute(command);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
