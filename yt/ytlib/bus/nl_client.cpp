@@ -126,7 +126,8 @@ class TClientDispatcher
 
     TThread Thread;
     volatile bool Terminated;
-    TIntrusivePtr<IRequester> Requester;
+    // IRequester has to be stored by Arcadia's IntrusivePtr.
+    ::TIntrusivePtr<IRequester> Requester;
 
     TBusMap BusMap;
     TRequestMap RequestMap;

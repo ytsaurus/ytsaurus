@@ -60,7 +60,7 @@ namespace {
         // #LockCounter().
         void UnlockCounter()
         {
-            GetRefCounter()->WeakUnRef();
+            GetRefCounter()->WeakUnref();
         }
 
     private:

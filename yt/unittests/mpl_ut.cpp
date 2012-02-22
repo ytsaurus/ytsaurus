@@ -23,7 +23,7 @@ class TChild : public TParent
 class TChildWithRC
 {
     void Ref();
-    void UnRef();
+    void Unref();
 };
 
 // A class with specialization for types derived from TParent.

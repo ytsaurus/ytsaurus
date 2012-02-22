@@ -41,9 +41,9 @@ $var MAX_ARITY = 7
 // class and thus do not need to be deleted.
 //
 // The reason to pass via a const reference is to avoid unnecessary
-// Ref/UnRef pairs to the internal state.
+// Ref/Unref pairs to the internal state.
 //
-// However, the #TCallback<> have Ref/UnRef-efficient move constructors and
+// However, the #TCallback<> have Ref/Unref-efficient move constructors and
 // assignment operators so they also may be efficiently moved.
 //
 //

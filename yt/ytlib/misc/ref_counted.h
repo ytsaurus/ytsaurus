@@ -64,7 +64,7 @@ namespace NDetail {
 #else
     // Fallback to Arcadia's implementation (efficiency is not crucial here).
 
-    static inline TNonVolatileCounter AtomicallyFetch(TVolatileCounter* p)
+    static inline TNonVolatileCounter AtomicallyFetch(const TVolatileCounter* p)
     {
         return AtomicAdd(*const_cast<TVolatileCounter*>(p), 0);
     }
@@ -126,7 +126,7 @@ namespace NDetail {
         }
 
         //! Removes a strong reference to the counter.
-        inline void UnRef() // noexcept
+        inline void Unref() // noexcept
         {
             YASSERT(StrongCount > 0 && WeakCount > 0);
             if (AtomicallyDecrement(&StrongCount) == 1) {
@@ -153,7 +153,7 @@ namespace NDetail {
         }
 
         //! Removes a weak reference to the counter.
-        inline void WeakUnRef() // noexcept
+        inline void WeakUnref() // noexcept
         {
             YASSERT(WeakCount > 0);
             if (AtomicallyDecrement(&WeakCount) == 1) {
@@ -170,7 +170,7 @@ namespace NDetail {
         //! Returns current number of weak references.
         int GetWeakRefCount() const // noexcept
         {
-            return AtomicallyFetch(&WeakCount);
+            return AtomicallyFetch(&StrongCount);
         }
 
     private:
@@ -217,9 +217,9 @@ public:
     }
 
     //! Decrements the reference counter.
-    inline void UnRef() const // noexcept
+    inline void Unref() const // noexcept
     {
-        RefCounter->UnRef();
+        RefCounter->Unref();
     }
 
     //! Returns current number of references to the object.
@@ -289,7 +289,7 @@ public:
     }
 
     //! Decrements the reference counter.
-    inline void UnRef() const // noexcept
+    inline void Unref() const // noexcept
     {
         YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
         if (NDetail::AtomicallyDecrement(&RefCounter) == 1) {

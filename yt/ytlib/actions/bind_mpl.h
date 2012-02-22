@@ -32,10 +32,10 @@ namespace NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 //
-// === THas{Ref,UnRef}Method ===
+// === THas{Ref,Unref}Method ===
 //
 // Use the Substitution Failure Is Not An Error (SFINAE) trick to inspect T
-// for the existence of Ref() and UnRef() methods.
+// for the existence of Ref() and Unref() methods.
 //
 // http://en.wikipedia.org/wiki/Substitution_failure_is_not_an_error
 // http://stackoverflow.com/questions/257288/is-it-possible-to-write-a-c-template-to-check-for-a-functions-existence
@@ -85,14 +85,14 @@ public:
     };
 };
 
-//! An MPL functor which tests for existance of UnRef() method in a given type.
+//! An MPL functor which tests for existance of Unref() method in a given type.
 template <class T>
-struct THasUnRefMethod
+struct THasUnrefMethod
 {
 private:
     struct TMixin
     {
-        void UnRef();
+        void Unref();
     };
 #ifdef _win_
 #pragma warning(disable:4624)
@@ -110,7 +110,7 @@ private:
     { };
 
     template <class U>
-    static NMpl::NDetail::TNoType  Test(THelper<&U::UnRef>*);
+    static NMpl::NDetail::TNoType  Test(THelper<&U::Unref>*);
     template <class>
     static NMpl::NDetail::TYesType Test(...);
 
@@ -121,12 +121,12 @@ public:
     };
 };
 
-//! An MPL functor which tests for existance of both Ref() and UnRef() methods.
+//! An MPL functor which tests for existance of both Ref() and Unref() methods.
 template <class T>
 struct THasRefAndUnrefMethods
     : NMpl::TIntegralConstant<bool, NMpl::TAnd<
         THasRefMethod<T>,
-        THasUnRefMethod<T>
+        THasUnrefMethod<T>
     >::Value>
 { };
 
@@ -355,7 +355,7 @@ struct TMaybeRefCountHelper<false, T>
 {
     static void Ref(const T&)
     { }
-    static void UnRef(const T&)
+    static void Unref(const T&)
     { }
 };
 
@@ -364,7 +364,7 @@ struct TMaybeRefCountHelper<true, T>
 {
     static void Ref(const T&)
     { }
-    static void UnRef(const T&)
+    static void Unref(const T&)
     { }
 };
 
@@ -373,8 +373,8 @@ struct TMaybeRefCountHelper<true, T*>
 {
     static void Ref(T* p)
     { p->Ref(); }
-    static void UnRef(T* p)
-    { p->UnRef(); }
+    static void Unref(T* p)
+    { p->Unref(); }
 };
 
 template <class T>
@@ -382,8 +382,8 @@ struct TMaybeRefCountHelper<true, const T*>
 {
     static void Ref(const T* p)
     { p->Ref(); }
-    static void UnRef(const T* p)
-    { p->UnRef(); }
+    static void Unref(const T* p)
+    { p->Unref(); }
 };
 
 template <class T>
@@ -391,7 +391,7 @@ struct TMaybeRefCountHelper<true, TIntrusivePtr<T> >
 {
     static void Ref(const TIntrusivePtr<T>& ptr)
     { }
-    static void UnRef(const TIntrusivePtr<T>& ptr)
+    static void Unref(const TIntrusivePtr<T>& ptr)
     { }
 };
 
@@ -400,7 +400,7 @@ struct TMaybeRefCountHelper<true, TWeakPtr<T> >
 {
     static void Ref(const TWeakPtr<T>& ptr)
     { }
-    static void UnRef(const TWeakPtr<T>& ptr)
+    static void Unref(const TWeakPtr<T>& ptr)
     { }
 };
 
