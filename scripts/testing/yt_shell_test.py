@@ -9,12 +9,17 @@ import pytest
 def get_output(command):
     return subprocess.Popen(command, stdout=subprocess.PIPE).communicate()[0]
 
-class ShellTest(pytest.Item):
-    def __init__(self, path, name, parent):
+class ShellFile(pytest.File):
+    def collect(self):
+        name = self.fspath.basename[:-3]
+        yield ShellItem(name, self, self.fspath)
+
+class ShellItem(pytest.Item):
+    def __init__(self, name, parent, path):
         self.name = name
         self.path = str(path)
-        self.basepath = self.path.rstrip('.sh')
-        super(ShellTest, self).__init__(name, parent)
+        self.basepath = self.path[:-3]
+        super(ShellItem, self).__init__(name, parent)
         
     def get_options(self, source_path):
         with open(source_path, 'rt') as f:
