@@ -9,12 +9,12 @@ namespace NSTAT {
 //TODO: заменить на настоящий any-value
 typedef Stroka TAnyValue;
 
-template<class T>
+template <class T>
 inline TAnyValue ToAnyValue(const T &value) {
     return ToString<T>(value);
 }
 
-template<class T>
+template <class T>
 inline T FromAnyValue(const TAnyValue &value) {
     return FromString<T>(value);
 }

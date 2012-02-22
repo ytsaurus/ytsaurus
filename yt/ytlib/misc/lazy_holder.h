@@ -10,7 +10,7 @@ namespace NYT
 ////////////////////////////////////////////////////////////////////////////////
 
 // Holder with lazy creation and double-checked locking.
-template<class T, class TLock = TSpinLock>
+template <class T, class TLock = TSpinLock>
 class TLazyHolder
     : public TPointerCommon<TLazyHolder<T, TLock>, T>
 {

@@ -13,7 +13,7 @@ namespace NYT {
 
 namespace NDetail {
 
-template<typename T>
+template <class T>
 struct TIdentity {
     typedef T TType;
 };
@@ -23,7 +23,7 @@ struct TIdentity {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Implements #std::move<T>-like behaviour from C++11.
-template<typename T>
+template <class T>
 FORCED_INLINE typename NMpl::TRemoveReference<T>::TType&&
 MoveRV(T&& x) // noexcept
 {

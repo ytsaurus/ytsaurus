@@ -31,14 +31,14 @@ protected:
         TemporaryIndexFile.Reset(0);
     }
 
-    template<class T>
+    template <class T>
     static void CheckRecord(T data, TRef record)
     {
         EXPECT_EQ(record.Size(), sizeof(data));
         EXPECT_EQ(*(reinterpret_cast<T*>(record.Begin())), data);
     }
 
-    template<class T>
+    template <class T>
     static void CheckRead(
         TChangeLog::TPtr changeLog,
         i32 firstRecordId,
@@ -58,7 +58,7 @@ protected:
         }
     }
 
-    template<class T>
+    template <class T>
     static void CheckReads(TChangeLog::TPtr changeLog, i32 logRecordCount)
     {
         for (i32 start = 0; start <= logRecordCount; ++start) {

@@ -8,36 +8,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-struct TIntrusivePtrTraits
-{
-    static void Ref(T* p)
-    {
-        p->Ref();
-    }
-
-    static void UnRef(T* p)
-    {
-        p->UnRef();
-    }
-};
-
-template <class T>
-struct TIntrusivePtrTraits<const T>
-{
-    static void Ref(const T* p)
-    {
-        const_cast<T*>(p)->Ref();
-    }
-
-    static void UnRef(const T* p)
-    {
-        const_cast<T*>(p)->UnRef();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
 class TIntrusivePtr
 {
 public:
@@ -52,12 +22,15 @@ public:
     /*!
      * Note that this constructor could be racy due to unsynchronized operations
      * on the object and on the counter.
+     *
+     * Note that it notoriously hard to make this constructor explicit
+     * given the current amount of code written.
      */
     TIntrusivePtr(T* p) // noexcept
         : T_(p)
     {
         if (T_) {
-            TIntrusivePtrTraits<T>::Ref(T_);
+            T_->Ref();
         }
     }
 
@@ -66,16 +39,16 @@ public:
         : T_(p)
     {
         if (T_ && addReference) {
-            TIntrusivePtrTraits<T>::Ref(T_);
+            T_->Ref();
         }
     }
 
     //! Copy constructor.    
-    TIntrusivePtr(const TIntrusivePtr& other) // noexcept
+    explicit TIntrusivePtr(const TIntrusivePtr& other) // noexcept
         : T_(other.Get())
     {
         if (T_) {
-            TIntrusivePtrTraits<T>::Ref(T_);
+            T_->Ref();
         }           
     }
 
@@ -87,12 +60,12 @@ public:
         : T_(other.Get())
     {
         if (T_) {
-            TIntrusivePtrTraits<T>::Ref(T_);
+            T_->Ref();
         }
     }
 
     //! Move constructor.
-    TIntrusivePtr(TIntrusivePtr&& other) // noexcept
+    explicit TIntrusivePtr(TIntrusivePtr&& other) // noexcept
         : T_(other.Get())
     {
         other.T_ = NULL;
@@ -112,7 +85,7 @@ public:
     ~TIntrusivePtr()
     {
         if (T_) {
-            TIntrusivePtrTraits<T>::UnRef(T_);
+            T_->Unref();
         }
     }
 

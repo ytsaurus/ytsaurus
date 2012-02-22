@@ -108,7 +108,7 @@ void FindTimeRange(const TValueLogs &logs, i64 *min, i64 *max) {
     }
 }
 
-template<class T, i64 T::value_type::*TimeField>
+template <class T, i64 T::value_type::*TimeField>
 void CutTimedSequence(T *sequence, const i64 keepPeriod) {
     const i64 time = sequence->back().*TimeField - keepPeriod;
     typename T::iterator i = sequence->begin();
@@ -435,7 +435,7 @@ struct TCachedDump {
         , LastUpdateTime(0)
     {}
 
-    template<class Func>
+    template <class Func>
     void TryUpdateWith(Func func) {
         i64 time = GetCycleCount();
         if ((time - LastUpdateTime) > UpdatePeriod) {
@@ -450,13 +450,13 @@ struct TElementCounter {
 
     TElementCounter() : ElementCount(0) {}
 
-    template<class T>
+    template <class T>
     void IncCount(const T &data)
     {
         (void)data;
         ++ElementCount;
     }
-    template<class T>
+    template <class T>
     void DecCount(const T &data)
     {
         (void)data;

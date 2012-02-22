@@ -26,7 +26,7 @@ struct TFakeInvoker
 
 namespace NDetail {
 
-template <typename Runnable, typename Signature, typename BoundArgsType>
+template <class Runnable, class Signature, class BoundArgsType>
 struct TBindState;
 
 // White-box injection into a TCallback<> object for checking
@@ -54,7 +54,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(sandello): Implement accurate check on the number of Ref() and UnRef()s.
+// TODO(sandello): Implement accurate check on the number of Ref() and Unref()s.
 
 namespace {
 

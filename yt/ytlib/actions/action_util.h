@@ -21,7 +21,7 @@ template <class T>
 struct TActionTargetTraits
 { };
 
-template<class T>
+template <class T>
 struct TActionTargetTraits< TWeakPtr<T> >
 {
     typedef TWeakPtr<T> TTargetPtr;
@@ -36,13 +36,13 @@ struct TActionTargetTraits< TWeakPtr<T> >
 
     static FORCED_INLINE TUnderlying* Get(const TTargetPtr& ptr)
     {
-        // Note that this line incurs extra Ref/UnRef pair.
+        // Note that this line incurs extra Ref/Unref pair.
         // This will be optimized in new-style closures.
         return ptr.Lock().Get();
     }
 };
 
-template<class T>
+template <class T>
 struct TActionTargetTraits< TIntrusivePtr<T> >
 {
     typedef TIntrusivePtr<T> TTargetPtr;
@@ -61,7 +61,7 @@ struct TActionTargetTraits< TIntrusivePtr<T> >
     }
 };
 
-template<class T>
+template <class T>
 struct TActionTargetTraits<T*>
 {
     typedef T* TTargetPtr;
@@ -88,7 +88,7 @@ struct TActionArgTraits
     typedef T TCopy;
 };
 
-template<class T>
+template <class T>
 struct TActionArgTraits<const T&>
 {
     typedef T TCopy;

@@ -12,7 +12,7 @@ namespace NYT
 ////////////////////////////////////////////////////////////////////////////////
 
 // Intrusive ptr with lazy creation and double-checked locking.
-template<class T, class TLock = TSpinLock>
+template <class T, class TLock = TSpinLock>
 class TLazyPtr
     : public TPointerCommon<TLazyPtr<T, TLock>, T>
 {
@@ -46,7 +46,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 T* operator ~ (const TLazyPtr<T>& ptr)
 {
     return ptr.Get();
@@ -55,7 +55,7 @@ T* operator ~ (const TLazyPtr<T>& ptr)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Non-intrusive ptr with lazy creation and double-checked locking.
-template<class T, class TLock = TSpinLock>
+template <class T, class TLock = TSpinLock>
 class TLazyHolder
     : public TPointerCommon<TLazyHolder<T, TLock>, T>
 {
@@ -86,7 +86,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 T* operator ~ (const TLazyHolder<T>& ptr)
 {
     return ptr.Get();

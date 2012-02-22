@@ -53,7 +53,7 @@ struct TAsyncFuncTraits< TIntrusivePtr< TFuture<TResult> > >
     }
 };
 
-template<class TResult>
+template <class TResult>
 TIntrusivePtr< IFunc <typename TAsyncTraits<TResult>::TAsync> >
 IFunc<TResult>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
 {
@@ -65,7 +65,7 @@ IFunc<TResult>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TParam>
+template <class TParam>
 IAction::TPtr IParamAction<TParam>::Bind(TParam param)
 {
     return FromMethod(
@@ -74,7 +74,7 @@ IAction::TPtr IParamAction<TParam>::Bind(TParam param)
         param);
 }
 
-template<class TParam>
+template <class TParam>
 void ParamActionViaThunk(
     TParam param,
     typename IParamAction<TParam>::TPtr paramAction,
@@ -83,7 +83,7 @@ void ParamActionViaThunk(
     invoker->Invoke(paramAction->Bind(param));
 }
 
-template<class TParam>
+template <class TParam>
 typename IParamAction<TParam>::TPtr IParamAction<TParam>::Via(
     TIntrusivePtr< IInvoker > invoker)
 {
@@ -93,7 +93,7 @@ typename IParamAction<TParam>::TPtr IParamAction<TParam>::Via(
         invoker);
 }
 
-template<class TParam>
+template <class TParam>
 void ParamActionViaThunk(TParam param, IAction::TPtr action)
 {
     UNUSED(param);
@@ -152,7 +152,7 @@ struct TAsyncParamFuncTraits< TParam, TIntrusivePtr< TFuture<TResult> > >
     }
 };
 
-template<class TParam, class TResult>
+template <class TParam, class TResult>
 TIntrusivePtr< IParamFunc<TParam, typename TAsyncTraits<TResult>::TAsync> >
 IParamFunc<TParam, TResult>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
 {
@@ -164,7 +164,7 @@ IParamFunc<TParam, TResult>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TParam>
+template <class TParam>
 typename IParamAction<TParam>::TPtr IAction::ToParamAction()
 {
     return FromMethod(&ParamActionViaThunk<TParam>, TPtr(this));

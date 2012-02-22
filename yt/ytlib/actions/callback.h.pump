@@ -41,9 +41,9 @@ $var MAX_ARITY = 7
 // class and thus do not need to be deleted.
 //
 // The reason to pass via a const reference is to avoid unnecessary
-// Ref/UnRef pairs to the internal state.
+// Ref/Unref pairs to the internal state.
 //
-// However, the #TCallback<> have Ref/UnRef-efficient move constructors and
+// However, the #TCallback<> have Ref/Unref-efficient move constructors and
 // assignment operators so they also may be efficiently moved.
 //
 //
@@ -128,11 +128,11 @@ namespace NYT {
 // please include "callback_forward.h" instead.
 //
 
-template <typename Signature>
+template <class Signature>
 class TCallback;
 
 namespace NDetail {
-    template <typename Runnable, typename Signature, typename BoundArgsType>
+    template <class Runnable, class Signature, class BoundArgsType>
     struct TBindState;
 } // namespace NDetail
 
@@ -142,12 +142,12 @@ $for ARITY [[
 $range ARG 1..ARITY
 
 $if ARITY == 0 [[
-template <typename R>
+template <class R>
 class TCallback<R(void)>
     : public NDetail::TCallbackBase
 {
 ]] $else [[
-template <typename R, $for ARG , [[typename A$(ARG)]]>
+template <class R, $for ARG , [[class A$(ARG)]]>
 class TCallback<R($for ARG , [[A$(ARG)]])>
     : public NDetail::TCallbackBase
 {
@@ -164,7 +164,7 @@ public:
         : TCallbackBase(MoveRV(other))
     { }
 
-    template <typename Runnable, typename Signature, typename BoundArgsType>
+    template <class Runnable, class Signature, class BoundArgsType>
     explicit TCallback(TIntrusivePtr<
             NDetail::TBindState<Runnable, Signature, BoundArgsType>
         >&& bindState)

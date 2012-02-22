@@ -32,10 +32,10 @@ namespace NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 //
-// === THas{Ref,UnRef}Method ===
+// === THas{Ref,Unref}Method ===
 //
 // Use the Substitution Failure Is Not An Error (SFINAE) trick to inspect T
-// for the existence of Ref() and UnRef() methods.
+// for the existence of Ref() and Unref() methods.
 //
 // http://en.wikipedia.org/wiki/Substitution_failure_is_not_an_error
 // http://stackoverflow.com/questions/257288/is-it-possible-to-write-a-c-template-to-check-for-a-functions-existence
@@ -73,9 +73,9 @@ private:
     struct THelper
     { };
 
-    template <typename U>
+    template <class U>
     static NMpl::NDetail::TNoType  Test(THelper<&U::Ref>*);
-    template <typename>
+    template <class>
     static NMpl::NDetail::TYesType Test(...);
 
 public:
@@ -85,14 +85,14 @@ public:
     };
 };
 
-//! An MPL functor which tests for existance of UnRef() method in a given type.
+//! An MPL functor which tests for existance of Unref() method in a given type.
 template <class T>
-struct THasUnRefMethod
+struct THasUnrefMethod
 {
 private:
     struct TMixin
     {
-        void UnRef();
+        void Unref();
     };
 #ifdef _win_
 #pragma warning(disable:4624)
@@ -109,9 +109,9 @@ private:
     struct THelper
     { };
 
-    template <typename U>
-    static NMpl::NDetail::TNoType  Test(THelper<&U::UnRef>*);
-    template <typename>
+    template <class U>
+    static NMpl::NDetail::TNoType  Test(THelper<&U::Unref>*);
+    template <class>
     static NMpl::NDetail::TYesType Test(...);
 
 public:
@@ -121,12 +121,12 @@ public:
     };
 };
 
-//! An MPL functor which tests for existance of both Ref() and UnRef() methods.
+//! An MPL functor which tests for existance of both Ref() and Unref() methods.
 template <class T>
 struct THasRefAndUnrefMethods
     : NMpl::TIntegralConstant<bool, NMpl::TAnd<
         THasRefMethod<T>,
-        THasUnRefMethod<T>
+        THasUnrefMethod<T>
     >::Value>
 { };
 
@@ -143,9 +143,9 @@ template <class T>
 struct TIsMethodHelper
 {
 private:
-    template <typename U>
+    template <class U>
     static NMpl::NDetail::TYesType& Test(typename U::IsMethod*);
-    template <typename U>
+    template <class U>
     static NMpl::NDetail::TNoType&  Test(...);
 
 public:
@@ -162,7 +162,7 @@ public:
  *
  * P1 should be the type of the object that will be received of the method.
  */
-template <bool IsMethod, typename P1>
+template <bool IsMethod, class P1>
 struct TIsWeakMethodHelper
     : NMpl::TFalseType
 { };
@@ -196,7 +196,7 @@ struct TIsWeakMethodHelper<true, TConstRefWrapper< TWeakPtr<T> > >
 // XXX(sandello): The code is a little bit messy, but works fine.
 //
  
-template<bool IsMethod, class T>
+template <bool IsMethod, class T>
 struct TMaybeLockHelper
 {
     T&& T_;
@@ -213,7 +213,7 @@ struct TMaybeLockHelper
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, TIntrusivePtr<U> >
 {
     typedef TIntrusivePtr<U> T;
@@ -223,7 +223,7 @@ struct TMaybeLockHelper< true, TIntrusivePtr<U> >
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, TIntrusivePtr<U>& >
 {
     typedef TIntrusivePtr<U>& T;
@@ -237,7 +237,7 @@ struct TMaybeLockHelper< true, TIntrusivePtr<U>& >
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, const TIntrusivePtr<U>& >
 {
     typedef const TIntrusivePtr<U>& T;
@@ -251,7 +251,7 @@ struct TMaybeLockHelper< true, const TIntrusivePtr<U>& >
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, TWeakPtr<U> >
 {
     typedef TWeakPtr<U> T;
@@ -261,7 +261,7 @@ struct TMaybeLockHelper< true, TWeakPtr<U> >
     } 
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, TWeakPtr<U>& >
 {
     typedef TWeakPtr<U>& T;
@@ -275,7 +275,7 @@ struct TMaybeLockHelper< true, TWeakPtr<U>& >
     }
 };
 
-template<class U>
+template <class U>
 struct TMaybeLockHelper< true, const TWeakPtr<U>& >
 {
     typedef const TWeakPtr<U>& T;
@@ -355,7 +355,7 @@ struct TMaybeRefCountHelper<false, T>
 {
     static void Ref(const T&)
     { }
-    static void UnRef(const T&)
+    static void Unref(const T&)
     { }
 };
 
@@ -364,7 +364,7 @@ struct TMaybeRefCountHelper<true, T>
 {
     static void Ref(const T&)
     { }
-    static void UnRef(const T&)
+    static void Unref(const T&)
     { }
 };
 
@@ -373,8 +373,8 @@ struct TMaybeRefCountHelper<true, T*>
 {
     static void Ref(T* p)
     { p->Ref(); }
-    static void UnRef(T* p)
-    { p->UnRef(); }
+    static void Unref(T* p)
+    { p->Unref(); }
 };
 
 template <class T>
@@ -382,8 +382,8 @@ struct TMaybeRefCountHelper<true, const T*>
 {
     static void Ref(const T* p)
     { p->Ref(); }
-    static void UnRef(const T* p)
-    { p->UnRef(); }
+    static void Unref(const T* p)
+    { p->Unref(); }
 };
 
 template <class T>
@@ -391,7 +391,7 @@ struct TMaybeRefCountHelper<true, TIntrusivePtr<T> >
 {
     static void Ref(const TIntrusivePtr<T>& ptr)
     { }
-    static void UnRef(const TIntrusivePtr<T>& ptr)
+    static void Unref(const TIntrusivePtr<T>& ptr)
     { }
 };
 
@@ -400,7 +400,7 @@ struct TMaybeRefCountHelper<true, TWeakPtr<T> >
 {
     static void Ref(const TWeakPtr<T>& ptr)
     { }
-    static void UnRef(const TWeakPtr<T>& ptr)
+    static void Unref(const TWeakPtr<T>& ptr)
     { }
 };
 
@@ -424,7 +424,7 @@ struct TIsNonConstReference<const T&>
 
 /*! \} */
 
-template <typename T>
+template <class T>
 struct TExpectedIntrusivePtrAndActualRawPtrHelper
 {
 #if defined(_win_)

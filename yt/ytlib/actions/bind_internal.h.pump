@@ -125,7 +125,7 @@ namespace NDetail {
 // marks that the wrapper should be considered a method wrapper.
 //
 
-template <typename Functor>
+template <class Functor>
 class TRunnableAdapter;
 
 $for ARITY [[
@@ -134,8 +134,8 @@ $range ARG 1..ARITY
 // === Arity $(ARITY).
 
 // Function Adapter
-template <typename R[[]]
-$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+template <class R[[]]
+$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
 class TRunnableAdapter<R(*)($for ARG , [[A$(ARG)]])>
 {
 public:
@@ -155,8 +155,8 @@ private:
 };
 
 // Bound Method Adapter
-template <typename R, typename T[[]]
-$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+template <class R, class T[[]]
+$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
 class TRunnableAdapter<R(T::*)($for ARG , [[A$(ARG)]])>
 {
 public:
@@ -182,8 +182,8 @@ private:
 };
 
 // Const Bound Method Adapter
-template <typename R, typename T[[]]
-$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+template <class R, class T[[]]
+$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
 class TRunnableAdapter<R(T::*)($for ARG , [[A$(ARG)]]) const>
 {
 public:
@@ -214,15 +214,15 @@ private:
 // #TFunctionTraits<>s
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename Signature>
+template <class Signature>
 struct TFunctionTraits;
 
 $for ARITY [[
 $range ARG 1..ARITY
 
 // === Arity $(ARITY).
-template <typename R[[]]
-$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+template <class R[[]]
+$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
 struct TFunctionTraits<R($for ARG , [[A$(ARG)]])>
 {
     typedef R ReturnType;
@@ -238,15 +238,16 @@ $for ARG [[
 ////////////////////////////////////////////////////////////////////////////////
 // #TForceVoidReturn<>
 ////////////////////////////////////////////////////////////////////////////////
-template <typename Signature>
+
+template <class Signature>
 struct TForceVoidReturn;
 
 $for ARITY [[
 $range ARG 1..ARITY
 
 // === Arity $(ARITY).
-template <typename R[[]]
-$if ARITY > 0[[, ]] $for ARG , [[typename A$(ARG)]]>
+template <class R[[]]
+$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
 struct TForceVoidReturn<R($for ARG , [[A$(ARG)]])>
 {
     typedef void(Signature)($for ARG , [[A$(ARG)]]);
@@ -258,14 +259,14 @@ struct TForceVoidReturn<R($for ARG , [[A$(ARG)]])>
 // #TFunctorTraits<>
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename Functor>
+template <class Functor>
 struct TFunctorTraits
 {
     typedef TRunnableAdapter<Functor> TRunnableType;
     typedef typename TRunnableType::Signature Signature;
 };
 
-template <typename Functor>
+template <class Functor>
 struct TFunctorTraits< TIgnoreResultWrapper<Functor> >
 {
     typedef typename TFunctorTraits<Functor>::TRunnableType TRunnableType;
@@ -274,7 +275,7 @@ struct TFunctorTraits< TIgnoreResultWrapper<Functor> >
     >::Signature Signature;
 };
 
-template <typename T>
+template <class T>
 struct TFunctorTraits< TCallback<T> >
 {
     typedef TCallback<T> TRunnableType;
@@ -285,21 +286,21 @@ struct TFunctorTraits< TCallback<T> >
 // #MakeRunnable()
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
+template <class T>
 typename TFunctorTraits<T>::TRunnableType
 MakeRunnable(const T& x)
 {
     return TRunnableAdapter<T>(x);
 }
 
-template <typename T>
+template <class T>
 typename TFunctorTraits<T>::TRunnableType
 MakeRunnable(const TIgnoreResultWrapper<T>& wrapper)
 {
     return MakeRunnable(wrapper.Functor);
 }
 
-template <typename T>
+template <class T>
 const typename TFunctorTraits< TCallback<T> >::TRunnableType&
 MakeRunnable(const TCallback<T>& x)
 {
@@ -327,7 +328,7 @@ MakeRunnable(const TCallback<T>& x)
 // argument to check if they should no-op themselves.
 //
 
-template <bool IsWeakMethod, typename Runnable, typename ReturnType, typename ArgsType>
+template <bool IsWeakMethod, class Runnable, class ReturnType, class ArgsType>
 struct TInvokeHelper;
 
 $for ARITY [[
@@ -335,8 +336,8 @@ $range ARG 1..ARITY
 
 // === Arity $(ARITY).
 
-template <typename Runnable, typename R[[]]
-$if ARITY > 0 [[, ]] $for ARG , [[typename A$(ARG)]]>
+template <class Runnable, class R[[]]
+$if ARITY > 0 [[, ]] $for ARG , [[class A$(ARG)]]>
 struct TInvokeHelper<false, Runnable, R,
     void($for ARG , [[A$(ARG)]])>
 {
@@ -348,8 +349,8 @@ $for ARG , [[A$(ARG)&& a$(ARG)]])
     }
 };
 
-template <typename Runnable[[]]
-$if ARITY > 0 [[, ]] $for ARG , [[typename A$(ARG)]]>
+template <class Runnable[[]]
+$if ARITY > 0 [[, ]] $for ARG , [[class A$(ARG)]]>
 struct TInvokeHelper<false, Runnable, void,
     void($for ARG , [[A$(ARG)]])>
 {
@@ -363,7 +364,7 @@ $for ARG , [[A$(ARG)&& a$(ARG)]])
 
 $if ARITY > 0 [[
 
-template <typename Runnable[[]], $for ARG , [[typename A$(ARG)]]>
+template <class Runnable[[]], $for ARG , [[class A$(ARG)]]>
 struct TInvokeHelper<true, Runnable, void,
     void($for ARG , [[A$(ARG)]])>
 {
@@ -383,7 +384,7 @@ $for ARG , [[A$(ARG)&& a$(ARG)]])
 
 ]] $$ for ARITY
 
-template <typename Runnable, typename R, typename ArgsType>
+template <class Runnable, class R, class ArgsType>
 struct TInvokeHelper<true, Runnable, R, ArgsType>
 {
     // Weak calls are only supported for functions with a void return type.
@@ -396,7 +397,8 @@ struct TInvokeHelper<true, Runnable, R, ArgsType>
 ////////////////////////////////////////////////////////////////////////////////
 // #TInvoker<>
 ////////////////////////////////////////////////////////////////////////////////
-template <int BoundArguments, typename BindStateType, typename Signature>
+
+template <int BoundArguments, class BindStateType, class Signature>
 struct TInvoker;
 
 $for ARITY [[
@@ -411,9 +413,9 @@ $range BOUND_ARG 1..BOUND
 $range UNBOUND_ARG (ARITY - UNBOUND + 1)..ARITY
 
 // === Arity $(ARITY) -> $(UNBOUND) unbound.
-template <typename BindStateType, typename R[[]]
+template <class BindStateType, class R[[]]
 $if ARITY > 0 [[, ]][[]]
-$for ARG , [[typename A$(ARG)]]>
+$for ARG , [[class A$(ARG)]]>
 struct TInvoker<$(BOUND), BindStateType, R($for ARG , [[A$(ARG)]])>
 {
     typedef R(RunSignature)(TBindStateBase*[[]]
@@ -506,15 +508,17 @@ ForwardRV<A$(UNBOUND_ARG)>(a$(UNBOUND_ARG))
 //
 // BoundArgsType contains the storage type for all the bound arguments by
 // (ab)using a function type.
-template <typename Runnable, typename Signature, typename BoundArgsType>
+//
+
+template <class Runnable, class Signature, class BoundArgsType>
 struct TBindState;
 
 $for ARITY [[
 $range ARG 1..ARITY
 
-template <typename Runnable, typename Signature[[]]
+template <class Runnable, class Signature[[]]
 $if ARITY > 0 [[, ]]
-$for ARG , [[typename S$(ARG)]]
+$for ARG , [[class S$(ARG)]]
 >
 struct TBindState<Runnable, Signature, void($for ARG , [[S$(ARG)]])>
     : public TBindStateBase
@@ -545,7 +549,7 @@ $for ARG [[
 ]] $$ if ARITY > 0
 
 $if ARITY > 0 [[
-    template<$for ARG , [[typename P$(ARG)]]>
+    template<$for ARG , [[class P$(ARG)]]>
 
 ]]
 $$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
@@ -571,7 +575,7 @@ $if ARITY == 0 [[
     {
 
 $if ARITY > 0 [[
-        TMaybeRefCountHelper<IsMethod::Value, S1>::UnRef(S1_);
+        TMaybeRefCountHelper<IsMethod::Value, S1>::Unref(S1_);
 ]] $$ if ARITY > 0
 
     }
