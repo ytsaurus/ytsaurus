@@ -38,7 +38,7 @@ class TProfilingManager::TBucket
 {
 public:
 	TBucket()
-		: TYPathServiceBase("Profiling"/*Logger.GetCategory()*/)
+		: TYPathServiceBase(Logger.GetCategory())
 	{ }
 
 	void Store(const TStoredSample& sample)
@@ -143,7 +143,6 @@ public:
 		: TActionQueueBase("Profiling", true)
 		, Invoker(New<TQueueInvoker>(this, true))
 		, Root(GetEphemeralNodeFactory()->CreateMap())
-		, Service(Root->Via(~Invoker))
 	{
 		Start();
 	}
@@ -164,14 +163,14 @@ public:
 		return ~Invoker; 
 	}
 
-	IYPathService* GetService() const
+	IMapNode* GetRoot() const
 	{
-		return ~Service;
+		return ~Root;
 	}
 
 private:
 	TQueueInvokerPtr Invoker;
-	INodePtr Root;
+	IMapNodePtr Root;
 	IYPathServicePtr Service;
 	TLockFreeQueue<TQueuedSample> SampleQueue;
 	yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
@@ -274,9 +273,9 @@ IInvoker* TProfilingManager::GetInvoker() const
 	return Impl->GetInvoker();
 }
 
-NYTree::IYPathService* TProfilingManager::GetService() const
+NYTree::IMapNode* TProfilingManager::GetRoot() const
 {
-	return Impl->GetService();
+	return Impl->GetRoot();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -39,30 +39,5 @@ void TProfiler::StopTiming(const NYTree::TYPath& path, TCpuClock start)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TScopedProfiler::TScopedProfiler(const TYPath& pathPrefix)
-    : TProfiler(pathPrefix)
-{ }
-
-void TScopedProfiler::StartScopedTiming(const TYPath& path)
-{
-    auto start = StartTiming();
-    // Failure here means that another measurement for the same
-    // path is already in progress.
-    YVERIFY(Starts.insert(MakePair(path, start)).second);
-}
-
-void TScopedProfiler::StopScopedTiming(const NYTree::TYPath& path)
-{
-    auto it = Starts.find(path);
-    // Failure here means that there is no active measurement for the
-    // given path.
-    YASSERT(it != Starts.end()); 
-    auto start = it->second;
-    Starts.erase(it);
-	StopTiming(path, start);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NProfiling
 } // namespace NYT

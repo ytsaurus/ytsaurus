@@ -9,6 +9,7 @@ namespace NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents a sample that is enqueued to a bucket.
 struct TQueuedSample
 {
     TQueuedSample()
@@ -25,17 +26,34 @@ struct TQueuedSample
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A singleton that controls all profiling activities.
+/*!
+ *  Processing happens in the background thread that maintains
+ *  a queue of all incoming (queued) samples and distributes them into buckets.
+ *  
+ *  This thread also provides a invoker for executing various callbacks.
+ */
 class TProfilingManager
 {
 public:
     TProfilingManager();
 
+	//! Returns the singleton instance.
     static TProfilingManager* Get();
 
+	//! Enqueues a new sample for processing.
     void Enqueue(const TQueuedSample& sample);
 
+	//! Returns the invoker associated with the profiler thread.
 	IInvoker* GetInvoker() const;
-	NYTree::IYPathService* GetService() const;
+
+	//! Returns the root of the YTree with the buckets.
+	/*!
+	 *  \note
+	 *  The latter tree must only be accessed from the invoker returned
+	 *  by #GetInvoker.
+	 */
+	NYTree::IMapNode* GetRoot() const;
 
 private:
 	class TClockConverter;

@@ -185,11 +185,13 @@ void TCellMasterBootstrap::Run()
     SyncYPathSetNode(
         ~orchidRoot,
         "profiling",
-        ~CreateVirtualNode(TProfilingManager::Get()->GetService()));
+        ~CreateVirtualNode(
+			~TProfilingManager::Get()->GetRoot()
+			->Via(TProfilingManager::Get()->GetInvoker())));
 	SyncYPathSetNode(
 		~orchidRoot,
 		"config",
-		~CreateVirtualNode(~CreateYsonFileProvider(ConfigFileName)));
+		~CreateVirtualNode(~CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,

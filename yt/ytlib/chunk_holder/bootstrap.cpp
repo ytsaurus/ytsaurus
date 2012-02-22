@@ -142,10 +142,12 @@ void TBootstrap::Run()
         ~orchidRoot,
         "monitoring",
         ~NYTree::CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
-	SyncYPathSetNode(
-		~orchidRoot,
-		"profiling",
-		~CreateVirtualNode(TProfilingManager::Get()->GetService()));
+    SyncYPathSetNode(
+        ~orchidRoot,
+        "profiling",
+        ~CreateVirtualNode(
+			~TProfilingManager::Get()->GetRoot()
+			->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
         ~orchidRoot,
         "config",

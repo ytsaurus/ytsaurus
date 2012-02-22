@@ -78,7 +78,7 @@ void TSchedulerBootstrap::Run()
     SyncYPathSetNode(
         ~orchidRoot,
         "config",
-        ~CreateVirtualNode(~CreateYsonFileProvider(ConfigFileName)));
+        ~CreateVirtualNode(~CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
