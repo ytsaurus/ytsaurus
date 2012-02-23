@@ -28,7 +28,7 @@ public:
 private:
 	struct TItem
 	{
-		NProfiling::TCpuClock EnqueueTime;
+		NProfiling::TTimer Timer;
 		IAction::TPtr Action;
 	};
 
@@ -90,7 +90,7 @@ public:
     TActionQueue(const Stroka& threadName = "<ActionQueue>", bool enableLogging = true);
     virtual ~TActionQueue();
 
-    IInvoker::TPtr GetInvoker();
+    IInvoker* GetInvoker();
 
     static IFunc<TPtr>::TPtr CreateFactory(const Stroka& threadName);
     
@@ -113,7 +113,7 @@ public:
     TPrioritizedActionQueue(int priorityCount, const Stroka& threadName = "<PrActionQueue>");
     virtual ~TPrioritizedActionQueue();
 
-    IInvoker::TPtr GetInvoker(int priority);
+    IInvoker* GetInvoker(int priority);
 
 protected:
     virtual bool DequeueAndExecute();
