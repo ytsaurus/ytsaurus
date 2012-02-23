@@ -10,7 +10,7 @@ namespace NYT {
 //! Manages the internal state of async input and output streams, e.g.
 //! #TRemoteChunkWriter, #TSequentialChunkReader and many #NTableClient classes.
 class TAsyncStreamState
-    : public TNonCopyable
+    : private TNonCopyable
 {
 public:
     TAsyncStreamState();
