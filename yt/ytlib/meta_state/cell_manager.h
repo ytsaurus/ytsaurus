@@ -22,6 +22,7 @@ public:
     TCellManager(TConfig* config);
 
     TPeerId GetSelfId() const;
+	Stroka GetSelfAddress() const;
     i32 GetPeerCount() const;
     i32 GetQuorum() const;
     Stroka GetPeerAddress(TPeerId id) const;
