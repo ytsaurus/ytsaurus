@@ -119,7 +119,7 @@ void TCellMasterBootstrap::Run()
 
     auto metaStateManager = CreateAndRegisterPersistentStateManager(
         ~Config->MetaState,
-        ~controlQueue->GetInvoker(),
+        controlQueue->GetInvoker(),
         ~metaState,
         ~rpcServer);
 
@@ -194,7 +194,7 @@ void TCellMasterBootstrap::Run()
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
     rpcServer->RegisterService(~orchidRpcService);
 
     auto schedulerRedirectorService = New<NScheduler::TRedirectorService>(~cypressManager);
@@ -241,7 +241,7 @@ void TCellMasterBootstrap::Run()
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~controlQueue->GetInvoker())));
+        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
     httpServer->Register(
         "/cypress",
         ~NMonitoring::GetYPathHttpHandler(cypressManager->GetRootServiceProducer()));

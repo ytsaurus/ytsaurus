@@ -85,7 +85,7 @@ void TBootstrap::Run()
     auto peerUpdater = New<TPeerBlockUpdater>(
         ~Config,
         ~blockStore,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
     peerUpdater->Start();
 
     ChunkStore = New<TChunkStore>(
@@ -104,19 +104,19 @@ void TBootstrap::Run()
         ~Config,
         ~blockStore,
         ~ChunkStore,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
 
     JobExecutor = New<TJobExecutor>(
         ~Config,
         ~ChunkStore,
         ~blockStore,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
 
     auto masterConnector = New<TMasterConnector>(this);
 
     auto chunkHolderService = New<TChunkHolderService>(
         ~Config,
-        ~controlQueue->GetInvoker(),
+        controlQueue->GetInvoker(),
         ~busServer,
         ~ChunkStore,
         ~ChunkCache,
@@ -162,13 +162,13 @@ void TBootstrap::Run()
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
     rpcServer->RegisterService(~orchidService);
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~controlQueue->GetInvoker())));
+        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
