@@ -34,7 +34,6 @@ struct IDriverStreamProvider
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDriver
-    : private TNonCopyable
 {
 public:
     struct TConfig
