@@ -2,6 +2,8 @@
 #include "profiler.h"
 #include "profiling_manager.h"
 
+#include <ytlib/ytree/ypath_client.h>
+
 #include <util/system/datetime.h>
 
 namespace NYT {
@@ -19,22 +21,66 @@ void TProfiler::Enqueue(const TYPath& path, TValue value)
 {
 	TQueuedSample sample;
 	sample.Time = GetCycleCount();
-	sample.PathPrefix = PathPrefix;
-	sample.Path = path;
+	sample.Path = CombineYPaths(PathPrefix, path);
 	sample.Value = value;
 	TProfilingManager::Get()->Enqueue(sample);
 }
 
-TCpuClock TProfiler::StartTiming()
+TTimer TProfiler::TimingStart(const TYPath& path, ETimerMode mode)
 {
-    return GetCycleCount();
+	return TTimer(path, GetCycleCount(), mode);
 }
 
-void TProfiler::StopTiming(const NYTree::TYPath& path, TCpuClock start)
+void TProfiler::TimingStop(const TTimer& timer)
 {
-    TCpuClock end = GetCycleCount();
-    YASSERT(end >= start);
-    Enqueue(path, CyclesToDuration(end - start).MicroSeconds());
+    auto now = GetCycleCount();
+	auto duration = CyclesToDuration(now - timer.Start).MicroSeconds();
+	YASSERT(duration >= 0);
+
+	switch (timer.Mode) {
+		case ETimerMode::Simple:
+			Enqueue(timer.Path, duration);
+			break;
+
+		case ETimerMode::Sequential:
+		case ETimerMode::Parallel:
+			Enqueue(CombineYPaths(timer.Path, "total"), duration);
+			break;
+
+		default:
+			YUNREACHABLE();
+	}
+}
+
+void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
+{
+	auto now = GetCycleCount();
+	// Simple can be automatically switched to Sequential upon
+	// receiving the first checkpoint.
+	if (timer.Mode == ETimerMode::Simple) {
+		timer.Mode = ETimerMode::Sequential;
+		timer.LastCheckpoint = timer.Start;
+	}
+	auto path = CombineYPaths(timer.Path, pathSuffix);
+	switch (timer.Mode) {
+		case ETimerMode::Sequential: {
+			auto duration = CyclesToDuration(now - timer.LastCheckpoint).MicroSeconds();
+			YASSERT(duration >= 0);
+			Enqueue(path, duration);
+			break;
+		}
+
+		case ETimerMode::Parallel: {
+			auto duration = CyclesToDuration(now - timer.Start).MicroSeconds();
+			YASSERT(duration >= 0);
+			Enqueue(path, duration);
+			break;
+		}
+
+		default:
+			YUNREACHABLE();
+	}
+	timer.LastCheckpoint = now;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
