@@ -81,14 +81,14 @@ void TSchedulerBootstrap::Run()
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
 
     rpcServer->RegisterService(~orchidService);
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
 	httpServer->Register(
 		"/orchid",
-		~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~controlQueue->GetInvoker())));
+		~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

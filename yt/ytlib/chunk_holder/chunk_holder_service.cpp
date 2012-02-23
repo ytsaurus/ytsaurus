@@ -244,7 +244,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
     response->Attachments().resize(blockCount);
 
     // NB: All callbacks should be handled in the service thread.
-    auto awaiter = New<TParallelAwaiter>(ServiceInvoker);
+    auto awaiter = New<TParallelAwaiter>(~ServiceInvoker);
 
     for (int index = 0; index < blockCount; ++index) {
         i32 blockIndex = request->block_indexes(index);
