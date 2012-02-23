@@ -31,13 +31,14 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
     }
 
 	TItem item;
-	item.EnqueueTime = PROFILE_TIMING_START();
+	item.Timer = Profiler.TimingStart("time");
 	item.Action = action;
     Queue.Enqueue(item);
+
 	LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
 
     auto size = AtomicIncrement(QueueSize);
-    PROFILE_VALUE("size", size);
+    Profiler.Enqueue("size", size);
 
     Owner->Signal();
 }
@@ -53,17 +54,18 @@ bool TQueueInvoker::OnDequeueAndExecute()
     if (!Queue.Dequeue(&item))
         return false;
     
-    auto size = AtomicDecrement(QueueSize);
-	PROFILE_VALUE("size", size);
+	Profiler.TimingCheckpoint(item.Timer, "wait");
 
-	PROFILE_TIMING_STOP("wait_time", item.EnqueueTime);
+    auto size = AtomicDecrement(QueueSize);
+	Profiler.Enqueue("size", size);
 
 	auto action = item.Action;
     LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", ~action);
-	PROFILE_TIMING("exec_time") {
-		action->Do();
-	}
+	action->Do();
     LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", ~action);
+	Profiler.TimingCheckpoint(item.Timer, "exec");
+
+	Profiler.TimingStop(item.Timer);
 
     return true;
 }
@@ -153,9 +155,9 @@ bool TActionQueue::DequeueAndExecute()
     return QueueInvoker->OnDequeueAndExecute();
 }
 
-IInvoker::TPtr TActionQueue::GetInvoker()
+IInvoker* TActionQueue::GetInvoker()
 {
-    return QueueInvoker;
+    return ~QueueInvoker;
 }
 
 IFunc<TActionQueue::TPtr>::TPtr TActionQueue::CreateFactory(const Stroka& threadName)
@@ -186,10 +188,10 @@ TPrioritizedActionQueue::~TPrioritizedActionQueue()
     }
 }
 
-IInvoker::TPtr TPrioritizedActionQueue::GetInvoker(int priority)
+IInvoker* TPrioritizedActionQueue::GetInvoker(int priority)
 {
     YASSERT(0 <= priority && priority < static_cast<int>(QueueInvokers.size()));
-    return QueueInvokers[priority];
+    return ~QueueInvokers[priority];
 }
 
 bool TPrioritizedActionQueue::DequeueAndExecute()
