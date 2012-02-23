@@ -7,6 +7,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to cpp, leave GetSyncInvoker in h
 class TSyncInvoker
     : public IInvoker
 {
@@ -18,7 +19,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
+// TODO(babenko): move to cpp, leave CreateCancelableInvoker in h
 class TCancelableInvoker
     : public IInvoker
 {
