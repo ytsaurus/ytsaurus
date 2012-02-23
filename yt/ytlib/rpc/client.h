@@ -30,7 +30,6 @@ class TOneWayClientResponse;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyBase
-    : public TNonCopyable
 {
 protected:
     //! Service error type.
