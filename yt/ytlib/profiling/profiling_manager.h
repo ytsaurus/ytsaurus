@@ -17,9 +17,7 @@ struct TQueuedSample
 		, Value(-1)
 	{ }
 
-    TCpuClock Time;
-	// Full path is computed in the profiler thread.
-	NYTree::TYPath PathPrefix;
+    ui64 Time;
 	NYTree::TYPath Path;
     TValue Value;
 };
@@ -64,7 +62,9 @@ private:
 
 	struct TStoredSample;
 
-	THolder<TImpl> Impl;
+	// Cannot use THolder here since TImpl inherits from TActionQueueBase
+	// and is thus ref-counted.
+	TIntrusivePtr<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

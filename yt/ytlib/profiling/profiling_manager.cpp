@@ -101,7 +101,7 @@ public:
 		Calibrate();
 	}
 
-	TInstant ToInstant(TCpuClock clock)
+	TInstant ToInstant(ui64 clock)
 	{
 		CalibrateIfNeeded();
 		return CalibrationInstant + CyclesToDuration(clock - CalibrationClock);
@@ -126,8 +126,8 @@ private:
 	}
 
 	TInstant CalibrationInstant;
-	TCpuClock CalibrationClock;
-	TCpuClock NextCalibrationClock;
+	ui64 CalibrationClock;
+	ui64 NextCalibrationClock;
 
 };
 
@@ -234,9 +234,7 @@ private:
 
 	void ProcessSample(TQueuedSample& queuedSample)
 	{
-		auto path = CombineYPaths(queuedSample.PathPrefix, queuedSample.Path);
-
-		auto bucket = LookupBucket(path);
+		auto bucket = LookupBucket(queuedSample.Path);
 
 		TStoredSample storedSample;
 		storedSample.Id = IdGenerator.Next();
@@ -255,7 +253,7 @@ const TDuration TProfilingManager::TImpl::MaxKeepInterval = TDuration::Seconds(6
 ////////////////////////////////////////////////////////////////////////////////
 
 TProfilingManager::TProfilingManager()
-	: Impl(new TImpl())
+	: Impl(New<TImpl>())
 { }
 
 TProfilingManager* TProfilingManager::Get()

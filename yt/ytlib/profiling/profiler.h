@@ -3,9 +3,38 @@
 #include "public.h"
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/misc/enum.h>
 
 namespace NYT {
 namespace NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(ETimerMode,
+	(Simple)
+	(Sequential)
+	(Parallel)
+);
+
+struct TTimer
+{
+	TTimer()
+		: Start(0)
+		, LastCheckpoint(0)
+	{ }
+
+	TTimer(const NYTree::TYPath& path, ui64 start, ETimerMode mode)
+		: Path(path)
+		, Start(start)
+		, LastCheckpoint(0)
+		, Mode(mode)
+	{ }
+
+	NYTree::TYPath Path;
+	ui64 Start;
+	ui64 LastCheckpoint;
+	ETimerMode Mode;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,10 +51,14 @@ public:
 
 	//! Starts measuring a time interval.
 	//! Returns the CPU clock of the start point.
-    TCpuClock StartTiming();
+    TTimer TimingStart(
+		const NYTree::TYPath& path,
+		ETimerMode mode = ETimerMode::Simple);
+
+	void TimingCheckpoint(TTimer& timer, const NYTree::TYPath& pathSuffix);
 
 	//! Stops measuring the time interval and enqueues the sample.
-    void StopTiming(const NYTree::TYPath& path, TCpuClock start);
+    void TimingStop(const TTimer& timer);
 
 private:
     NYTree::TYPath PathPrefix;
@@ -33,6 +66,7 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 //! A helper guard for measuring time intervals.
 /*!
@@ -44,8 +78,7 @@ class TTimingGuard
 public:
     explicit TTimingGuard(TProfiler* profiler, const NYTree::TYPath& path)
 		: Profiler(profiler)
-		, Path(path)
-		, Start(profiler->StartTiming())
+		, Timer(profiler->TimingStart(path))
 	{
 		YASSERT(profiler);
 	}
@@ -54,8 +87,13 @@ public:
 	{
 		// Don't measure anything if an exception was raised.
 		if (!std::uncaught_exception()) {
-			Profiler->StopTiming(Path, Start);
+			Profiler->TimingStop(Timer);
 		}
+	}
+
+	void Checkpoint(const NYTree::TYPath& pathSuffix)
+	{
+		Profiler->TimingCheckpoint(Timer, pathSuffix);
 	}
 
     operator bool() const
@@ -65,33 +103,21 @@ public:
 
 private:
     TProfiler* Profiler;
-    NYTree::TYPath Path;
-    TCpuClock Start;
+    TTimer Timer;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Enqueues a new sample.
-#define PROFILE_VALUE(path, value) \
-    Profiler.Enqueue(path, value)
-
 //! Enqueues the execution duration of the statement
 //! that immediately follows this macro.
 #define PROFILE_TIMING(path) \
-    if (auto timingGuard_##__LINE__ = \
-        NYT::NProfiling::TTimingGuard(&Profiler, path)) \
+    if (auto PROFILE_TIMING__Guard = NYT::NProfiling::TTimingGuard(&Profiler, path)) \
     { } \
     else
 
-//! Starts measuring a time interval.
-//! Returns the CPU clock of the start point.
-#define PROFILE_TIMING_START() \
-	Profiler.StartTiming()
-
-//! Stops measuring the time interval and enqueues the sample.
-#define PROFILE_TIMING_STOP(path, start) \
-	Profiler.StopTiming(path, start)
+#define PROFILE_TIMING_CHECKPOINT(pathSuffix) \
+	PROFILE_TIMING__Guard.Checkpoint(pathSuffix)
 
 ////////////////////////////////////////////////////////////////////////////////
 
