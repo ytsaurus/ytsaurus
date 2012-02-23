@@ -61,7 +61,10 @@ public:
 		TActiveRequest activeRequest;
         activeRequest.ClientRequest = request;
         activeRequest.ResponseHandler = responseHandler;
-		activeRequest.StartClock = PROFILE_TIMING_START();
+		activeRequest.Timer = Profiler.TimingStart(CombineYPaths(
+			request->GetPath(),
+			request->GetVerb(),
+			"time"));
 
         if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
@@ -120,7 +123,7 @@ private:
 		IClientRequest::TPtr ClientRequest;
         TIntrusivePtr<IClientResponseHandler> ResponseHandler;
         TDelayedInvoker::TCookie TimeoutCookie;
-		NProfiling::TCpuClock StartClock;
+		NProfiling::TTimer Timer;
     };
 
     typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
@@ -150,6 +153,8 @@ private:
         // NB: Make copies, the instance will die soon.
         auto& activeRequest = it->second;
         auto responseHandler = activeRequest.ResponseHandler;
+
+		Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
 
         if (sendResult == ESendResult::Failed) {
             CompleteRequest(it);
@@ -194,7 +199,9 @@ private:
                 return;
             }
 
-            responseHandler = it->second.ResponseHandler;
+			auto& activeRequest = it->second;
+			Profiler.TimingCheckpoint(activeRequest.Timer, "reply");
+            responseHandler = activeRequest.ResponseHandler;
 
             CompleteRequest(it);
         }
@@ -225,7 +232,9 @@ private:
                 return;
             }
 
-            responseHandler = it->second.ResponseHandler;
+			auto& activeRequest = it->second;
+			Profiler.TimingCheckpoint(activeRequest.Timer, "timeout");
+            responseHandler = activeRequest.ResponseHandler;
 
             CompleteRequest(it);
         }
@@ -245,10 +254,7 @@ private:
             TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
         }
 
-		const auto& clientRequest = activeRequest.ClientRequest;
-		PROFILE_TIMING_STOP(
-			CombineYPaths(clientRequest->GetPath(), clientRequest->GetVerb(), "serve_time"),
-			activeRequest.StartClock);
+		Profiler.TimingStop(activeRequest.Timer);
 
         ActiveRequests.erase(it);
     }

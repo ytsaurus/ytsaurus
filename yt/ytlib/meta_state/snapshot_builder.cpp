@@ -4,6 +4,7 @@
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/actions/action_util.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <util/system/fs.h>
 
@@ -20,7 +21,8 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static NLog::TLogger Logger("MetaState");
+static NProfiling::TProfiler Profiler("meta_state/snapshot_builder");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,12 +33,15 @@ public:
     typedef TIntrusivePtr<TSession> TPtr;
 
     TSession(
-        TSnapshotBuilder::TPtr creator,
+        TSnapshotBuilder::TPtr owner,
         TMetaVersion version)
-        : Creator(creator)
+        : Owner(owner)
         , Version(version)
-        , Awaiter(New<TParallelAwaiter>(Creator->ServiceInvoker))
-        , Checksums(Creator->CellManager->GetPeerCount())
+        , Awaiter(New<TParallelAwaiter>(
+			~Owner->ServiceInvoker,
+			&Profiler,
+			"build_time"))
+        , Checksums(Owner->CellManager->GetPeerCount())
     { }
 
     void Run()
@@ -44,28 +49,31 @@ public:
         LOG_INFO("Creating a distributed snapshot (Version: %s)",
             ~Version.ToString());
 
-        auto& config = Creator->Config;
-        for (TPeerId followerId = 0; followerId < Creator->CellManager->GetPeerCount(); ++followerId) {
-            if (followerId == Creator->CellManager->GetSelfId()) continue;
-            LOG_DEBUG("Requesting follower %d to create a snapshot", followerId);
+        auto& config = Owner->Config;
+		auto cellManager = Owner->CellManager;
+        for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
+            if (id == Owner->CellManager->GetSelfId()) continue;
 
-            auto proxy = Creator->CellManager->GetMasterProxy<TProxy>(followerId);
+            LOG_DEBUG("Requesting follower %d to create a snapshot", id);
+
+            auto proxy = Owner->CellManager->GetMasterProxy<TProxy>(id);
             auto request = proxy->AdvanceSegment()->SetTimeout(config->RemoteTimeout);
             request->set_segment_id(Version.SegmentId);
             request->set_record_count(Version.RecordCount);
-            request->set_epoch(Creator->Epoch.ToProto());
+            request->set_epoch(Owner->Epoch.ToProto());
             request->set_create_snapshot(true);
 
             Awaiter->Await(
                 request->Invoke(),
+				cellManager->GetPeerAddress(id),
                 FromMethod(
                     &TSession::OnRemote,
                     TPtr(this),
-                    followerId));
+                    id));
         }
         
         Awaiter->Await(
-            Creator->CreateLocal(Version),
+            Owner->CreateLocal(Version),
             FromMethod(&TSession::OnLocal, TPtr(this)));
 
         Awaiter->Complete(FromMethod(&TSession::OnComplete, TPtr(this)));
@@ -108,7 +116,7 @@ private:
             return;
         }
 
-        Checksums[Creator->CellManager->GetSelfId()] = MakeNullable(result.Checksum);
+        Checksums[Owner->CellManager->GetSelfId()] = MakeNullable(result.Checksum);
     }
 
     void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
@@ -129,7 +137,7 @@ private:
         Checksums[followerId] = checksum;
     }
 
-    TSnapshotBuilder::TPtr Creator;
+    TSnapshotBuilder::TPtr Owner;
     TMetaVersion Version;
     TParallelAwaiter::TPtr Awaiter;
     yvector< TNullable<TChecksum> > Checksums;
