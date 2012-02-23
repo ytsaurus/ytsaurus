@@ -51,7 +51,7 @@ public:
         }
 
         RecordsToAppend.push_back(data);
-		PROFILE_VALUE("append_queue_size", RecordsToAppend.size());
+		Profiler.Enqueue("queue_size", RecordsToAppend.size());
 
         return Result;
     }
@@ -169,7 +169,7 @@ public:
 			}
 		}
 
-		PROFILE_VALUE("read_record_count", result->size());
+		Profiler.Enqueue("read_record_count", result->size());
     }
 
 private:
