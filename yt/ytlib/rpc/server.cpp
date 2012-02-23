@@ -6,9 +6,7 @@
 #include <ytlib/logging/log.h>
 #include <ytlib/bus/server.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/rpc/message.h>
-#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NRpc {
@@ -20,7 +18,6 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("RPC");
-static NProfiling::TProfiler Profiler("rpc/server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +37,6 @@ public:
         , ReplyBus(replyBus)
         , Service(service)
         , Logger(loggingCategory)
-		, StartClock(PROFILE_TIMING_START())
     {
         YASSERT(replyBus);
         YASSERT(service);
@@ -50,7 +46,6 @@ private:
     IBus::TPtr ReplyBus;
     IService::TPtr Service;
     NLog::TLogger Logger;
-	NProfiling::TCpuClock StartClock;
 
     virtual void DoReply(const TError& error, IMessage* responseMessage)
     {
@@ -58,8 +53,6 @@ private:
 
         ReplyBus->Send(responseMessage);
         Service->OnEndRequest(this);
-
-		PROFILE_TIMING_STOP(CombineYPaths(Path, Verb, "serve_time"), StartClock);
     }
 
     virtual void LogRequest()
