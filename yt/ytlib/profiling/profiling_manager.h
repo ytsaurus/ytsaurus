@@ -39,6 +39,12 @@ public:
 	//! Returns the singleton instance.
     static TProfilingManager* Get();
 
+    //! Shuts the profiling subsystem down.
+    /*!
+     *  After this call #Enqueue has no effect.
+     */
+    void Shutdown();
+
 	//! Enqueues a new sample for processing.
     void Enqueue(const TQueuedSample& sample);
 
