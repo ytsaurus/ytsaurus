@@ -58,7 +58,8 @@ void TProfiler::TimingStop(TTimer& timer)
 
 void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
 {
-	YASSERT(timer.Start != 0);
+	//YASSERT(timer.Start != 0);
+	if (timer.Start == 0) return;
 
 	auto now = GetCycleCount();
 	// Upon receiving the first checkpoint
