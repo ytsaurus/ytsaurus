@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "object_manager.h"
 
+#include <ytlib/cell_master/load_context.h>
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
 #include <ytlib/ytree/serialize.h>
@@ -14,6 +15,7 @@
 namespace NYT {
 namespace NObjectServer {
 
+using namespace NCellMaster;
 using namespace NYTree;
 using namespace NMetaState;
 using namespace NRpc;
@@ -248,12 +250,14 @@ TObjectManager::TObjectManager(
     , TypeToCounter(MaxObjectType)
     , RootService(New<TRootService>(this))
 {
+    TLoadContext context(NULL); // TODO(roizner): use real bootstrap here
+
     metaState->RegisterLoader(
         "ObjectManager.Keys.1",
         FromMethod(&TObjectManager::LoadKeys, TPtr(this)));
     metaState->RegisterLoader(
         "ObjectManager.Values.1",
-        FromMethod(&TObjectManager::LoadValues, TPtr(this)));
+        FromMethod(&TObjectManager::LoadValues, TPtr(this), context));
     metaState->RegisterSaver(
         "ObjectManager.Keys.1",
         FromMethod(&TObjectManager::SaveKeys, TPtr(this)),
@@ -417,13 +421,12 @@ void TObjectManager::LoadKeys(TInputStream* input)
     Attributes.LoadKeys(input);
 }
 
-void TObjectManager::LoadValues(TInputStream* input)
+void TObjectManager::LoadValues(TInputStream* input, TLoadContext context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     ::Load(input, TypeToCounter);
 
-    TVoid context;
     Attributes.LoadValues(input, context);
 }
 

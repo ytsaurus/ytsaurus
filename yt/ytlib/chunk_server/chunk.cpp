@@ -2,6 +2,9 @@
 #include "chunk.h"
 
 namespace NYT {
+
+using namespace NCellMaster;
+
 namespace NChunkServer {
 
 using namespace NObjectServer;
@@ -27,8 +30,9 @@ void TChunk::Save(TOutputStream* output) const
     SaveNullableSet(output, CachedLocations_);
 }
 
-void TChunk::Load(TInputStream* input, TVoid)
+void TChunk::Load(TInputStream* input, const TLoadContext& context)
 {
+    UNUSED(context);
     TObjectWithIdBase::Load(input);
     ::Load(input, Size_);
     ::Load(input, Attributes_);

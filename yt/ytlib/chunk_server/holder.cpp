@@ -5,6 +5,9 @@
 #include <ytlib/misc/serialize.h>
 
 namespace NYT {
+
+using namespace NCellMaster;
+
 namespace NChunkServer {
 
 using namespace NProto;
@@ -40,8 +43,9 @@ void THolder::Save(TOutputStream* output) const
     ::Save(output, JobIds_);
 }
 
-void THolder::Load(TInputStream* input, TVoid)
+void THolder::Load(TInputStream* input, const TLoadContext& context)
 {
+    UNUSED(context);
     ::Load(input, Address_);
     ::Load(input, IncarnationId_);
     ::Load(input, State_);

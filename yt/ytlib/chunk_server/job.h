@@ -2,6 +2,8 @@
 
 #include "id.h"
 
+#include <ytlib/cell_master/public.h>
+
 #include <ytlib/misc/property.h>
 
 namespace NYT {
@@ -23,7 +25,7 @@ struct TJob
     TJob(const TJobId& jobId);
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, TVoid /* context */);
+    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);

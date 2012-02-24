@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/cypress/node_detail.h>
@@ -25,7 +26,7 @@ public:
 
     virtual void Save(TOutputStream* output) const;
     
-    virtual void Load(TInputStream* input, TVoid context);
+    virtual void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

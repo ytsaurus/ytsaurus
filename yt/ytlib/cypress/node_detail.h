@@ -200,7 +200,7 @@ public:
     virtual i32 GetObjectRefCounter() const;
 
     virtual void Save(TOutputStream* output) const;
-    virtual void Load(TInputStream* input, TVoid context);
+    virtual void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 
 protected:
     TVersionedNodeId Id;
@@ -264,7 +264,7 @@ public:
         ::Save(output, Value_);
     }
     
-    virtual void Load(TInputStream* input, TVoid context)
+    virtual void Load(TInputStream* input, const NCellMaster::TLoadContext& context)
     {
         TCypressNodeBase::Load(input, context);
         ::Load(input, Value_);
@@ -329,7 +329,7 @@ public:
     TMapNode(const TVersionedNodeId& id, const TMapNode& other);
 
     virtual void Save(TOutputStream* output) const;
-    virtual void Load(TInputStream* input, TVoid);
+    virtual void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -377,7 +377,7 @@ public:
     TListNode(const TVersionedNodeId& id, const TListNode& other);
 
     virtual void Save(TOutputStream* output) const;
-    virtual void Load(TInputStream* input, TVoid);
+    virtual void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 
 };
 

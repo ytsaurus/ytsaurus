@@ -4,6 +4,9 @@
 #include <util/ysaveload.h>
 
 namespace NYT {
+
+using namespace NCellMaster;
+
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +27,7 @@ void TTransaction::Save(TOutputStream* output) const
     ::Save(output, CreatedNodeIds_);
 }
 
-void TTransaction::Load(TInputStream* input, TVoid)
+void TTransaction::Load(TInputStream* input, const TLoadContext& context)
 {
     TObjectWithIdBase::Load(input);
     ::Load(input, State_);

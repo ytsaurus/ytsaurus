@@ -1,18 +1,21 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
+#include "public.h"
+
+#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellMasterConfig;
-typedef TIntrusivePtr<TCellMasterConfig> TCellMasterConfigPtr;
+class TLoadContext
+{
+public:
+    TLoadContext(TBootstrap* bootstrap);
 
-class TBootstrap;
-
-class TLoadContext;
+    DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
             

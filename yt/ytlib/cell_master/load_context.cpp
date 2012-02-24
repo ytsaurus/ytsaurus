@@ -1,18 +1,14 @@
-#pragma once
-
-#include <ytlib/misc/common.h>
+#include "stdafx.h"
+#include "load_context.h"
 
 namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellMasterConfig;
-typedef TIntrusivePtr<TCellMasterConfig> TCellMasterConfigPtr;
-
-class TBootstrap;
-
-class TLoadContext;
+TLoadContext::TLoadContext(TBootstrap *bootstrap)
+    : Bootstrap_(bootstrap)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
             

@@ -138,7 +138,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ex.what());
         }
 
-        TBootstrap cellMasterBootstrap(configFileName, ~config);
+        NCellMaster::TBootstrap cellMasterBootstrap(configFileName, ~config);
         cellMasterBootstrap.Run();
     }
 

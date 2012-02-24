@@ -2,6 +2,9 @@
 #include "chunk_list.h"
 
 namespace NYT {
+
+using namespace NCellMaster;
+
 namespace NChunkServer {
 
 using namespace NObjectServer;
@@ -20,8 +23,9 @@ void TChunkList::Save(TOutputStream* output) const
     ::Save(output, Statistics_);
 }
 
-void TChunkList::Load(TInputStream* input, TVoid)
+void TChunkList::Load(TInputStream* input, const TLoadContext& context)
 {
+    UNUSED(context);
     TObjectWithIdBase::Load(input);
     ::Load(input, ChildrenIds_);
     ::Load(input, ParentIds_);

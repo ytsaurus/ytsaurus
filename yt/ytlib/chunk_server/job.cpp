@@ -2,6 +2,9 @@
 #include "job.h"
 
 namespace NYT {
+
+using namespace NCellMaster;
+
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,8 +37,9 @@ void TJob::Save(TOutputStream* output) const
     ::Save(output, StartTime_);
 }
 
-void TJob::Load(TInputStream* input, TVoid)
+void TJob::Load(TInputStream* input, const TLoadContext& context)
 {
+    UNUSED(context);
     ::Load(input, Type_);
     ::Load(input, ChunkId_);
     ::Load(input, RunnerAddress_);

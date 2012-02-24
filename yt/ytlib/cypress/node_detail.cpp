@@ -9,6 +9,7 @@ namespace NCypress {
 
 using namespace NYTree;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,8 +87,9 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     ::Save(output, LockMode_);
 }
 
-void TCypressNodeBase::Load(TInputStream* input, TVoid)
+void TCypressNodeBase::Load(TInputStream* input, const TLoadContext& context)
 {
+    UNUSED(context);
     TObjectBase::Load(input);
     LoadSet(input, LockIds_);
     LoadSet(input, SubtreeLockIds_);
@@ -114,7 +116,7 @@ void TMapNode::Save(TOutputStream* output) const
     SaveMap(output, KeyToChild());
 }
 
-void TMapNode::Load(TInputStream* input, TVoid context)
+void TMapNode::Load(TInputStream* input, const TLoadContext& context)
 {
     TCypressNodeBase::Load(input, context);
     ::Load(input, ChildCountDelta_);
@@ -235,7 +237,7 @@ void TListNode::Save(TOutputStream* output) const
     ::Save(output, IndexToChild());
 }
 
-void TListNode::Load(TInputStream* input, TVoid context)
+void TListNode::Load(TInputStream* input, const TLoadContext& context)
 {
     TCypressNodeBase::Load(input, context);
     ::Load(input, IndexToChild());

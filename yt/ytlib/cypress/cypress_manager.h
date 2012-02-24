@@ -6,6 +6,7 @@
 #include "node_proxy.h"
 #include "lock.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/transaction_server/transaction.h>
 #include <ytlib/transaction_server/transaction_manager.h>
@@ -129,7 +130,7 @@ private:
     void SaveKeys(TOutputStream* output); // TODO(roizner): make const once new actions are ready
     void SaveValues(TOutputStream* output); // TODO(roizner): make const once new actions are ready
     void LoadKeys(TInputStream* input);
-    void LoadValues(TInputStream* input);
+    void LoadValues(TInputStream* input, NCellMaster::TLoadContext context);
     virtual void Clear();
 
     virtual void OnLeaderRecoveryComplete();

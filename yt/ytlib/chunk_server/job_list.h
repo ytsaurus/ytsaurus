@@ -2,6 +2,7 @@
 
 #include "id.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 
 namespace NYT {
@@ -25,7 +26,7 @@ struct TJobList
         ::Save(output, JobIds_);
     }
 
-    void Load(TInputStream* input, TVoid /* context */)
+    void Load(TInputStream* input, const NCellMaster::TLoadContext& context)
     {
         ::Load(input, JobIds_);
     }

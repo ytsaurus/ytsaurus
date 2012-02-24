@@ -5,6 +5,7 @@
 #include "type_handler.h"
 #include "object_manager.pb.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/meta_state/composite_meta_state.h>
@@ -140,7 +141,7 @@ private:
     void SaveKeys(TOutputStream* output);
     void SaveValues(TOutputStream* output);
     void LoadKeys(TInputStream* input);
-    void LoadValues(TInputStream* input);
+    void LoadValues(TInputStream* input, NCellMaster::TLoadContext context);
     virtual void Clear();
 
     TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);
