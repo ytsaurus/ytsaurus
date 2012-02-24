@@ -48,27 +48,27 @@ protected:
 
     Stroka ReadNumeric();
 
-    void ParseAny();
+    void ParseAny(int depth);
 
-    bool HasAttributes();
-    void ParseAttributesItem();
-    void ParseAttributes();
+    virtual bool HasAttributes(int depth);
+    void ParseAttributesItem(int depth);
+    void ParseAttributes(int depth);
 
-    void ParseListItem();
-    void ParseList();
+    void ParseListItem(int depth);
+    void ParseList(int depth);
 
-    void ParseMapItem();
-    void ParseMap();
+    void ParseMapItem(int depth);
+    void ParseMap(int depth);
 
-    void ParseEntity();
+    void ParseEntity(int depth);
 
-    void ParseString();
+    void ParseString(int depth);
 
-    void ParseBinaryInt64();
-    void ParseBinaryDouble();
+    void ParseBinaryInt64(int depth);
+    void ParseBinaryDouble(int depth);
 
     static bool SeemsInteger(const Stroka& str);
-    void ParseNumeric();
+    void ParseNumeric(int depth);
 
 };
 
@@ -97,6 +97,9 @@ public:
 
     bool HasNext();
     void ReadNext();
+
+protected:
+    virtual bool HasAttributes(int depth);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

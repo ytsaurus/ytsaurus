@@ -232,33 +232,33 @@ Stroka TYsonReaderBase::ReadNumeric()
     return result;
 }
 
-void TYsonReaderBase::ParseAny()
+void TYsonReaderBase::ParseAny(int depth)
 {
     SkipWhitespaces();
     int ch = PeekChar();
     switch (ch) {
         case BeginListSymbol:
-            ParseList();
+            ParseList(depth);
             break;
 
         case BeginMapSymbol:
-            ParseMap();
+            ParseMap(depth);
             break;
 
         case BeginAttributesSymbol:
-            ParseEntity();
+            ParseEntity(depth);
             break;
 
         case StringMarker:
-            ParseString();
+            ParseString(depth);
             break;
 
         case Int64Marker:
-            ParseBinaryInt64();
+            ParseBinaryInt64(depth);
             break;
 
         case DoubleMarker:
-            ParseBinaryDouble();
+            ParseBinaryDouble(depth);
             break;
 
         case Eos:
@@ -270,12 +270,12 @@ void TYsonReaderBase::ParseAny()
                 ch == '+' ||
                 ch == '-')
             {
-                ParseNumeric();
+                ParseNumeric(depth);
             } else if (IsLetter(ch) ||
                        ch == '_' ||
                        ch == '"')
             {
-                ParseString();
+                ParseString(depth);
             } else {
                 ythrow yexception() << Sprintf("Unexpected character %s in YSON %s",
                     ~Stroka(static_cast<char>(ch)).Quote(),
@@ -285,13 +285,14 @@ void TYsonReaderBase::ParseAny()
     }
 }
 
-bool TYsonReaderBase::HasAttributes()
+bool TYsonReaderBase::HasAttributes(int depth)
 {
+    UNUSED(depth);
     SkipWhitespaces();
     return PeekChar() == BeginAttributesSymbol;
 }
 
-void TYsonReaderBase::ParseAttributesItem()
+void TYsonReaderBase::ParseAttributesItem(int depth)
 {
     SkipWhitespaces();
     Stroka name = ReadString();
@@ -302,10 +303,10 @@ void TYsonReaderBase::ParseAttributesItem()
     SkipWhitespaces();
     ExpectChar(KeyValueSeparator);
     Consumer->OnAttributesItem(name);
-    ParseAny();
+    ParseAny(depth + 1);
 }
 
-void TYsonReaderBase::ParseAttributes()
+void TYsonReaderBase::ParseAttributes(int depth)
 {
     SkipWhitespaces();
     if (PeekChar() != BeginAttributesSymbol)
@@ -316,7 +317,7 @@ void TYsonReaderBase::ParseAttributes()
         SkipWhitespaces();
         if (PeekChar() == EndAttributesSymbol)
             break;
-        ParseAttributesItem();
+        ParseAttributesItem(depth);
         SkipWhitespaces();
         if (PeekChar() == EndAttributesSymbol)
             break;
@@ -326,13 +327,13 @@ void TYsonReaderBase::ParseAttributes()
     Consumer->OnEndAttributes();
 }
 
-void TYsonReaderBase::ParseListItem()
+void TYsonReaderBase::ParseListItem(int depth)
 {
     Consumer->OnListItem();
-    ParseAny();
+    ParseAny(depth + 1);
 }
 
-void TYsonReaderBase::ParseList()
+void TYsonReaderBase::ParseList(int depth)
 {
     YVERIFY(ReadChar() == BeginListSymbol);
     Consumer->OnBeginList();
@@ -340,7 +341,7 @@ void TYsonReaderBase::ParseList()
         SkipWhitespaces();
         if (PeekChar() == EndListSymbol)
             break;
-        ParseListItem();
+        ParseListItem(depth);
         SkipWhitespaces();
         if (PeekChar() == EndListSymbol)
             break;
@@ -348,15 +349,15 @@ void TYsonReaderBase::ParseList()
     }
     YVERIFY(ReadChar() == EndListSymbol);
 
-    if (HasAttributes()) {
+    if (HasAttributes(depth)) {
         Consumer->OnEndList(true);
-        ParseAttributes();
+        ParseAttributes(depth);
     } else {
         Consumer->OnEndList(false);
     }
 }
 
-void TYsonReaderBase::ParseMapItem()
+void TYsonReaderBase::ParseMapItem(int depth)
 {
     SkipWhitespaces();
     Stroka name = ReadString();
@@ -367,10 +368,10 @@ void TYsonReaderBase::ParseMapItem()
     SkipWhitespaces();
     ExpectChar(KeyValueSeparator);
     Consumer->OnMapItem(name);
-    ParseAny();
+    ParseAny(depth + 1);
 }
 
-void TYsonReaderBase::ParseMap()
+void TYsonReaderBase::ParseMap(int depth)
 {
     YVERIFY(ReadChar() == BeginMapSymbol);
     Consumer->OnBeginMap();
@@ -378,7 +379,7 @@ void TYsonReaderBase::ParseMap()
         SkipWhitespaces();
         if (PeekChar() == EndMapSymbol)
             break;
-        ParseMapItem();
+        ParseMapItem(depth);
         SkipWhitespaces();
         if (PeekChar() == EndMapSymbol)
             break;
@@ -386,26 +387,26 @@ void TYsonReaderBase::ParseMap()
     }
     YVERIFY(ReadChar() == EndMapSymbol);
 
-    if (HasAttributes()) {
+    if (HasAttributes(depth)) {
         Consumer->OnEndMap(true);
-        ParseAttributes();
+        ParseAttributes(depth);
     } else {
         Consumer->OnEndMap(false);
     }
 }
 
-void TYsonReaderBase::ParseEntity()
+void TYsonReaderBase::ParseEntity(int depth)
 {
     Consumer->OnEntity(true);
-    ParseAttributes();
+    ParseAttributes(depth);
 }
 
-void TYsonReaderBase::ParseString()
+void TYsonReaderBase::ParseString(int depth)
 {
     Stroka value = ReadString();
-    if (HasAttributes()) {
+    if (HasAttributes(depth)) {
         Consumer->OnStringScalar(value, true);
-        ParseAttributes();
+        ParseAttributes(depth);
     } else {
         Consumer->OnStringScalar(value, false);
     }
@@ -421,7 +422,7 @@ bool TYsonReaderBase::SeemsInteger(const Stroka& str)
     return true;
 }
 
-void TYsonReaderBase::ParseNumeric()
+void TYsonReaderBase::ParseNumeric(int depth)
 {
     Stroka str = ReadNumeric();
     if (SeemsInteger(str)) {
@@ -434,9 +435,9 @@ void TYsonReaderBase::ParseNumeric()
                 ~GetPositionInfo());
         }
 
-        if (HasAttributes()) {
+        if (HasAttributes(depth)) {
             Consumer->OnInt64Scalar(value, true);
-            ParseAttributes();
+            ParseAttributes(depth);
         } else {
             Consumer->OnInt64Scalar(value, false);
         }
@@ -450,16 +451,16 @@ void TYsonReaderBase::ParseNumeric()
                 ~GetPositionInfo());
         }
 
-        if (HasAttributes()) {
+        if (HasAttributes(depth)) {
             Consumer->OnDoubleScalar(value, true);
-            ParseAttributes();
+            ParseAttributes(depth);
         } else {
             Consumer->OnDoubleScalar(value, false);
         }
     }
 }
 
-void TYsonReaderBase::ParseBinaryInt64()
+void TYsonReaderBase::ParseBinaryInt64(int depth)
 {
     ExpectChar(Int64Marker);
     YASSERT(Lookahead == NoLookahead);
@@ -469,15 +470,15 @@ void TYsonReaderBase::ParseBinaryInt64()
     Position += bytesRead;
     Offset += bytesRead;
 
-    if (HasAttributes()) {
+    if (HasAttributes(depth)) {
         Consumer->OnInt64Scalar(value, true);
-        ParseAttributes();
+        ParseAttributes(depth);
     } else {
         Consumer->OnInt64Scalar(value, false);
     }
 }
 
-void TYsonReaderBase::ParseBinaryDouble()
+void TYsonReaderBase::ParseBinaryDouble(int depth)
 {
     ExpectChar(DoubleMarker);
     YASSERT(Lookahead == NoLookahead);
@@ -488,9 +489,9 @@ void TYsonReaderBase::ParseBinaryDouble()
     Position += bytesToRead;
     Offset += bytesToRead;
 
-    if (HasAttributes()) {
+    if (HasAttributes(depth)) {
         Consumer->OnDoubleScalar(value, true);
-        ParseAttributes();
+        ParseAttributes(depth);
     } else {
         Consumer->OnDoubleScalar(value, false);
     }
@@ -500,7 +501,7 @@ void TYsonReaderBase::ParseBinaryDouble()
 
 void TYsonReader::Read()
 {
-    ParseAny();
+    ParseAny(0);
     int ch = ReadChar();
     if (ch != Eos) {
         ythrow yexception() << Sprintf("Unexpected symbol %s while expecting end-of-file in YSON %s",
@@ -519,7 +520,15 @@ bool TYsonFragmentReader::HasNext()
 
 void TYsonFragmentReader::ReadNext()
 {
-    ParseAny();
+    ParseAny(0);
+}
+
+bool TYsonFragmentReader::HasAttributes(int depth)
+{
+    if (depth == 0) {
+        return false;
+    }
+    return TYsonReaderBase::HasAttributes(depth);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
