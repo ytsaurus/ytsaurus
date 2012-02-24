@@ -31,8 +31,10 @@ TTimer TProfiler::TimingStart(const TYPath& path, ETimerMode mode)
 	return TTimer(path, GetCycleCount(), mode);
 }
 
-void TProfiler::TimingStop(const TTimer& timer)
+void TProfiler::TimingStop(TTimer& timer)
 {
+	YASSERT(timer.Start != 0);
+
     auto now = GetCycleCount();
 	auto duration = CyclesToDuration(now - timer.Start).MicroSeconds();
 	YASSERT(duration >= 0);
@@ -50,23 +52,31 @@ void TProfiler::TimingStop(const TTimer& timer)
 		default:
 			YUNREACHABLE();
 	}
+
+	timer.Start = 0;
 }
 
 void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
 {
+	YASSERT(timer.Start != 0);
+
 	auto now = GetCycleCount();
-	// Simple can be automatically switched to Sequential upon
-	// receiving the first checkpoint.
+	// Upon receiving the first checkpoint
+	// Simple timer is automatically switched into Sequential.
 	if (timer.Mode == ETimerMode::Simple) {
 		timer.Mode = ETimerMode::Sequential;
-		timer.LastCheckpoint = timer.Start;
 	}
 	auto path = CombineYPaths(timer.Path, pathSuffix);
 	switch (timer.Mode) {
 		case ETimerMode::Sequential: {
-			auto duration = CyclesToDuration(now - timer.LastCheckpoint).MicroSeconds();
+			auto lastCheckpoint =
+				timer.LastCheckpoint == 0
+				? timer.Start
+				: timer.LastCheckpoint;
+			auto duration = CyclesToDuration(now - lastCheckpoint).MicroSeconds();
 			YASSERT(duration >= 0);
 			Enqueue(path, duration);
+			timer.LastCheckpoint = now;
 			break;
 		}
 
@@ -80,7 +90,6 @@ void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
 		default:
 			YUNREACHABLE();
 	}
-	timer.LastCheckpoint = now;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

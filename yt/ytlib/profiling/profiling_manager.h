@@ -24,8 +24,10 @@ struct TQueuedSample
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A singleton that controls all profiling activities.
+//! A backend that controls all profiling activities.
 /*!
+ *  This class is a singleton, call #Get to obtain an instance.
+ *  
  *  Processing happens in the background thread that maintains
  *  a queue of all incoming (queued) samples and distributes them into buckets.
  *  
@@ -48,8 +50,7 @@ public:
 	//! Returns the root of the YTree with the buckets.
 	/*!
 	 *  \note
-	 *  The latter tree must only be accessed from the invoker returned
-	 *  by #GetInvoker.
+	 *  The latter must only be accessed from the invoker returned by #GetInvoker.
 	 */
 	NYTree::IMapNode* GetRoot() const;
 

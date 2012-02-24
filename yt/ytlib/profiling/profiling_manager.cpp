@@ -123,7 +123,6 @@ private:
 		CalibrationClock = GetCycleCount();
 		CalibrationInstant = TInstant::Now();
 		NextCalibrationClock = CalibrationClock + DurationToCycles(CalibrationInterval);
-		LOG_DEBUG("Clock converter calibrated");
 	}
 
 	TInstant CalibrationInstant;
