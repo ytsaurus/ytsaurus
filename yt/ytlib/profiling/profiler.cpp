@@ -33,7 +33,8 @@ TTimer TProfiler::TimingStart(const TYPath& path, ETimerMode mode)
 
 void TProfiler::TimingStop(TTimer& timer)
 {
-	YASSERT(timer.Start != 0);
+	//YASSERT(timer.Start != 0);
+	if (timer.Start == 0) return;
 
     auto now = GetCycleCount();
 	auto duration = CyclesToDuration(now - timer.Start).MicroSeconds();
