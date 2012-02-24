@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "cell_master_bootstrap.h"
+#include "bootstrap.h"
 
 #include <ytlib/misc/ref_counted_tracker.h>
 
@@ -45,6 +45,7 @@
 #include <ytlib/bus/nl_server.h>
 
 namespace NYT {
+namespace NCellMaster {
 
 static NLog::TLogger Logger("Server");
 
@@ -92,14 +93,14 @@ using NTableServer::CreateTableTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellMasterBootstrap::TCellMasterBootstrap(
+TBootstrap::TBootstrap(
     const Stroka& configFileName,
     TConfig* config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
 
-void TCellMasterBootstrap::Run()
+void TBootstrap::Run()
 {
     // TODO: extract method
     Stroka address = Config->MetaState->Cell->Addresses.at(Config->MetaState->Cell->Id);
@@ -278,4 +279,5 @@ void TCellMasterBootstrap::Run()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NCellMaster
 } // namespace NYT

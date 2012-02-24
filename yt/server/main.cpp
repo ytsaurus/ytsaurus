@@ -1,7 +1,7 @@
 #include "stdafx.h"
-#include "cell_master_bootstrap.h"
 #include "scheduler_bootstrap.h"
 
+#include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
 #include <ytlib/rpc/rpc_manager.h>
@@ -14,6 +14,7 @@ namespace NYT {
 using namespace NLastGetopt;
 using namespace NYTree;
 using namespace NElection;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,7 +122,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isCellMaster) {
-        auto config = New<TCellMasterBootstrap::TConfig>();
+        auto config = New<TBootstrap::TConfig>();
         try {
             config->Load(~configNode);
             
@@ -136,7 +137,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ex.what());
         }
 
-        TCellMasterBootstrap cellMasterBootstrap(configFileName, ~config);
+        TBootstrap cellMasterBootstrap(configFileName, ~config);
         cellMasterBootstrap.Run();
     }
 

@@ -5,10 +5,11 @@
 #include <yt/ytlib/transaction_server/transaction_manager.h>
 
 namespace NYT {
+namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellMasterBootstrap
+class TBootstrap
 {
 public:
     //! Describes a configuration of TCellMaster.
@@ -45,7 +46,7 @@ public:
         }
     };
 
-    TCellMasterBootstrap(
+    TBootstrap(
         const Stroka& configFileName,
         TConfig* config);
 
@@ -59,4 +60,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NCellMaster
 } // namespace NYT

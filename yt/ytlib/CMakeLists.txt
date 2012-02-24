@@ -1,6 +1,7 @@
 set( DIRS
   actions
   election
+  cell_master
   chunk_holder
   chunk_client
   chunk_server
