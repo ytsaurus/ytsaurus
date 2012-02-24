@@ -36,3 +36,8 @@ if (YT_BUILD_WITH_STLPORT)
     set_target_properties( ytext-quality-netliba_v6 PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
   endif()
 endif()
+
+install(
+  TARGETS ytext-quality-netliba_v6
+  LIBRARY DESTINATION lib
+)

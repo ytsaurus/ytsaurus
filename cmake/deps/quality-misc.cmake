@@ -42,3 +42,8 @@ if (YT_BUILD_WITH_STLPORT)
     set_target_properties( ytext-quality-misc PROPERTIES LINK_FLAGS "-nodefaultlibs" )
   endif()
 endif()
+
+install(
+  TARGETS ytext-quality-misc
+  LIBRARY DESTINATION lib
+)
