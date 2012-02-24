@@ -168,7 +168,7 @@ void TMapNodeMixin::SetRecursive(
 ////////////////////////////////////////////////////////////////////////////////
 
 IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
-    const TYPath& path,
+        const TYPath& path,
     const Stroka& verb)
 {
     Stroka token;
