@@ -275,7 +275,7 @@ const ICypressNode& TCypressManager::GetVersionedNode(
     return *node;
 }
 
-ICypressNode* TCypressManager::FindVersionedNode(
+ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     ELockMode requestedMode)
@@ -328,14 +328,14 @@ ICypressNode* TCypressManager::FindVersionedNode(
     }
 }
 
-ICypressNode& TCypressManager::GetVersionedNode(
+ICypressNode& TCypressManager::GetVersionedNodeForUpdate(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     ELockMode requestedMode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* node = FindVersionedNode(nodeId, transactionId, requestedMode);
+    auto* node = FindVersionedNodeForUpdate(nodeId, transactionId, requestedMode);
     YASSERT(node);
     return *node;
 }

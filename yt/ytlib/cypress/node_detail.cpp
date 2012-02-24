@@ -183,7 +183,8 @@ void TMapNodeTypeHandler::DoMerge(
                 FOREACH (const auto& transactionId, transactionIds) {
                     if (transactionId == id.TransactionId) continue;
                     const auto& node = CypressManager->GetVersionedNode(
-                        id.ObjectId, transactionId);
+                        id.ObjectId,
+                        transactionId);
                     const auto& map = static_cast<const TMapNode&>(node).KeyToChild();
                     auto innerIt = map.find(pair.first);
                     if (innerIt != map.end()) {
