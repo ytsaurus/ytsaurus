@@ -17,9 +17,7 @@ class TSnapshotReader
 public:
     typedef TIntrusivePtr<TSnapshotReader> TPtr;
 
-    TSnapshotReader(
-        Stroka fileName,
-        i32 segmentId);
+    TSnapshotReader(const Stroka& fileName, i32 segmentId);
 
     void Open();
     TInputStream& GetStream() const;

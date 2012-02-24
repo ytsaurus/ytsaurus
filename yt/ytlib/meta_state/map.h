@@ -15,45 +15,11 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: DECLARE_ENUM cannot be used in a template class.
-class TMetaStateMapBase
-    : private TNonCopyable
-{
-protected:
-    /*!
-     * Transitions
-     * - Normal -> LoadingSnapshot,
-     * - LoadingSnapshot -> Normal,
-     * - Normal -> SavingSnapshot,
-     * - HasPendingChanges -> Normal
-     * are performed from the user thread.
-     *
-     * Transition
-     * - SavingSnapshot -> HasPendingChanges
-     * is performed from the snapshot invoker.
-     */
-    DECLARE_ENUM(EState,
-        (Normal)
-        (LoadingSnapshot)
-        (SavingSnapshot)
-        (HasPendingChanges)
-    );
-
-    EState State;
-};
-
 //! Default traits for cloning, saving and loading values.
 template <class TKey, class TValue>
 struct TDefaultMetaMapTraits
 {
-    //! Clones the value
-    TAutoPtr<TValue> Clone(TValue* value) const;
-
-    //! Saves the value to the output
-    void Save(TValue* value, TOutputStream* output) const;
-
-    //! Loads a value from the input using the key
-    TAutoPtr<TValue> Load(const TKey& key, TInputStream* input) const;
+    TAutoPtr<TValue> Create(const TKey& key) const;
 };
 
 //! Snapshottable map used to store various meta-state tables.
@@ -79,7 +45,6 @@ template <
     class THash = ::THash<TKey>
 >
 class TMetaStateMap
-    : protected TMetaStateMapBase
 {
 public:
     typedef TMetaStateMap<TKey, TValue, TTraits, THash> TThis;
@@ -114,7 +79,7 @@ public:
      * \param key A key.
      * \return A pointer to the value if found, NULL otherwise.
      */
-    TValue* FindForUpdate(const TKey& key);
+    TValue* Find(const TKey& key);
 
     //! Returns a read-only value corresponding to the key.
     /*!
@@ -130,7 +95,7 @@ public:
      *  \param key A key.
      *  \returns A reference to the value.
      */
-    TValue& GetForUpdate(const TKey& key);
+    TValue& Get(const TKey& key);
 
     //! Removes the key from the map and deletes the corresponding value.
     /*!
@@ -139,6 +104,8 @@ public:
      *  \note Fails if the key is not in the map.
      */
     void Remove(const TKey& key);
+
+    TValue* Release(const TKey& key);
 
     //! Checks whether the key exists in the map.
     /*!
@@ -193,13 +160,18 @@ public:
      *  \param output Output stream.
      *  \return An asynchronous result indicating that the snapshot is saved.
      */
-    TFuture<TVoid>::TPtr Save(IInvoker::TPtr invoker, TOutputStream* output);
+    void SaveKeys(TOutputStream* output) const;
+
+    void SaveValues(TOutputStream* output) const;
 
     //! Synchronously loads the map from the stream.
     /*!
      * \param input Input stream.
      */
-    void Load(TInputStream* input);
+    void LoadKeys(TInputStream* input);
+
+    template <class TContext>
+    void LoadValues(TInputStream* input, const TContext& context);
     
 private:
     //! Slot for the thread in which all the public methods are called.
@@ -210,10 +182,7 @@ private:
      * When a snapshot is being created this map is kept read-only and
      * #PatchMap is used to store the changes.
      */
-    TMap PrimaryMap;
-
-    //! "(key, NULL)" indicates that the key should be deleted.
-    TMap PatchMap;
+    TMap Map;
 
     //! Traits for cloning, saving and loading values.
     TTraits Traits;
@@ -222,16 +191,6 @@ private:
     int Size;
     
     typedef TPair<TKey, TValue*> TItem;
-
-    //! Save snapshot of the map in the thread of the invoker passed to #Save.
-    TVoid DoSave(TOutputStream* output);
-    
-    /*!
-     * When in #HasPendingChanges state, merges all the pending changes from
-     * #PatchMap into #PrimaryMap. Must be called only in #HasPendingChanges or
-     * #Normal states.
-     */
-    void MergeTempTablesIfNeeded();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,9 +223,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
 
 #define DECLARE_METAMAP_ACCESSORS(entityName, entityType, idType) \
     const entityType* Find ## entityName(const idType& id) const; \
-    entityType* Find ## entityName ## ForUpdate(const idType& id); \
+    entityType* Find ## entityName(const idType& id); \
     const entityType& Get ## entityName(const idType& id) const; \
-    entityType& Get ## entityName ## ForUpdate(const idType& id); \
+    entityType& Get ## entityName(const idType& id); \
     yvector<idType> Get ## entityName ## Ids(size_t sizeLimit = Max<size_t>()); \
     int Get ## entityName ## Count() const;
 
@@ -276,9 +235,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (map).Find(id); \
     } \
     \
-    entityType* declaringType::Find ## entityName ## ForUpdate(const idType& id) \
+    entityType* declaringType::Find ## entityName(const idType& id) \
     { \
-        return (map).FindForUpdate(id); \
+        return (map).Find(id); \
     } \
     \
     const entityType& declaringType::Get ## entityName(const idType& id) const \
@@ -286,9 +245,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (map).Get(id); \
     } \
     \
-    entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
+    entityType& declaringType::Get ## entityName(const idType& id) \
     { \
-        return (map).GetForUpdate(id); \
+        return (map).Get(id); \
     } \
     \
     yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
@@ -307,9 +266,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (delegateTo).Find ## entityName(id); \
     } \
     \
-    entityType* declaringType::Find ## entityName ## ForUpdate(const idType& id) \
+    entityType* declaringType::Find ## entityName(const idType& id) \
     { \
-        return (delegateTo).Find ## entityName ## ForUpdate(id); \
+        return (delegateTo).Find ## entityName(id); \
     } \
     \
     const entityType& declaringType::Get ## entityName(const idType& id) const \
@@ -317,9 +276,9 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (delegateTo).Get ## entityName(id); \
     } \
     \
-    entityType& declaringType::Get ## entityName ## ForUpdate(const idType& id) \
+    entityType& declaringType::Get ## entityName(const idType& id) \
     { \
-        return (delegateTo).Get ## entityName ## ForUpdate(id); \
+        return (delegateTo).Get ## entityName(id); \
     } \
     \
     yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \

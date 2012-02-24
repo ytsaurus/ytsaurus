@@ -21,13 +21,11 @@ public:
     explicit TFileNode(const NCypress::TVersionedNodeId& id);
     TFileNode(const NCypress::TVersionedNodeId& id, const TFileNode& other);
 
-    virtual TAutoPtr<ICypressNode> Clone() const;
-
     virtual NCypress::EObjectType GetObjectType() const;
 
     virtual void Save(TOutputStream* output) const;
     
-    virtual void Load(TInputStream* input);
+    virtual void Load(TInputStream* input, TVoid context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

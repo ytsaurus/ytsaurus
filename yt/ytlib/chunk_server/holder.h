@@ -41,12 +41,10 @@ public:
         EHolderState state,
         const NProto::THolderStatistics& statistics);
 
-    THolder(const THolder& other);
-
-    TAutoPtr<THolder> Clone() const;
+    THolder(THolderId id);
 
     void Save(TOutputStream* output) const;
-    static TAutoPtr<THolder> Load(THolderId id, TInputStream* input);
+    void Load(TInputStream* input, TVoid /* context */);
 
     void AddChunk(const TChunkId& chunkId, bool cached);
     void RemoveChunk(const TChunkId& chunkId, bool cached);

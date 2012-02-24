@@ -87,7 +87,7 @@ void LoadSet(TInputStream* input, TSet& set)
 }
 
 template <class TSet>
-void SaveNullableSet(TOutputStream* output, const TAutoPtr<TSet>& set)
+void SaveNullableSet(TOutputStream* output, const THolder<TSet>& set)
 {
     if (!set) {
         ::SaveSize(output, 0);
@@ -97,7 +97,7 @@ void SaveNullableSet(TOutputStream* output, const TAutoPtr<TSet>& set)
 }
 
 template <class TSet>
-void LoadNullableSet(TInputStream* input, TAutoPtr<TSet>& set)
+void LoadNullableSet(TInputStream* input, THolder<TSet>& set)
 {
     typedef typename TSet::key_type TKey;
     size_t size = ::LoadSize(input);
@@ -106,7 +106,7 @@ void LoadNullableSet(TInputStream* input, TAutoPtr<TSet>& set)
         return;
     }
     
-    set = new TSet();
+    set.Reset(new TSet());
     for (size_t index = 0; index < size; ++index) {
         TKey key;
         ::Load(input, key);

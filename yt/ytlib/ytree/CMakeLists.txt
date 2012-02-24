@@ -20,9 +20,9 @@ set( SRCS
   ${BASE}/yson_writer.cpp
 )
 set( HDRS
-  ${BASE}/attributes.h
-  ${BASE}/attributes-inl.h
   ${BASE}/attribute_provider.h
+  ${BASE}/attributes-inl.h
+  ${BASE}/attributes.h
   ${BASE}/common.h
   ${BASE}/ephemeral.h
   ${BASE}/fluent.h
@@ -31,8 +31,8 @@ set( HDRS
   ${BASE}/node_detail.h
   ${BASE}/null_yson_consumer.h
   ${BASE}/public.h
-  ${BASE}/serialize.h
   ${BASE}/serialize-inl.h
+  ${BASE}/serialize.h
   ${BASE}/tree_builder.h
   ${BASE}/tree_visitor.h
   ${BASE}/virtual.h

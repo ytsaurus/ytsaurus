@@ -214,6 +214,18 @@ TEST_F(TYPathTest, InvalidCases)
     // remove the root
     EXPECT_ANY_THROW(Remove(""));
 
+    // get non-existent path
+    EXPECT_ANY_THROW(Get("b"));
+
+    // get non-existent attribute from non-existent node
+    EXPECT_ANY_THROW(Get("b@some"));
+
+    // get non-existent attribute from existent node
+    EXPECT_ANY_THROW({
+       Set("c", "{}");
+       Get("c@some");
+   });
+
     // remove non-existing child
     EXPECT_ANY_THROW(Remove("a"));
 

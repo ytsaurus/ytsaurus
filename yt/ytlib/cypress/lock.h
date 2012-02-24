@@ -18,20 +18,16 @@ class TLock
     DEFINE_BYVAL_RO_PROPERTY(ELockMode, Mode);
 
 public:
+    TLock(const TLockId& id);
+    
     TLock(
         const TLockId& id,
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         ELockMode mode);
 
-    TAutoPtr<TLock> Clone() const;
-
     void Save(TOutputStream* output) const;
-    static TAutoPtr<TLock> Load(const TLockId& id, TInputStream* input);
-
-private:
-    TLock(const TLock& other);
-
+    void Load(TInputStream* input, TVoid /* context */);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

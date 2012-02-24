@@ -33,13 +33,13 @@ public:
 
     virtual i32 RefObject(const TObjectId& id)
     {
-        auto& obj = Map->GetForUpdate(id);
+        auto& obj = Map->Get(id);
         return obj.RefObject();
     }
 
     virtual i32 UnrefObject(const TObjectId& id)
     {
-        auto& obj = Map->GetForUpdate(id);
+        auto& obj = Map->Get(id);
         i32 result = obj.UnrefObject();
         if (result == 0) {
             OnObjectDestroyed(obj);

@@ -86,7 +86,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     ::Save(output, LockMode_);
 }
 
-void TCypressNodeBase::Load(TInputStream* input)
+void TCypressNodeBase::Load(TInputStream* input, TVoid)
 {
     TObjectBase::Load(input);
     LoadSet(input, LockIds_);
@@ -107,11 +107,6 @@ TMapNode::TMapNode(const TVersionedNodeId& id, const TMapNode& other)
     , ChildCountDelta_(0) // Branched node has 0 delta
 { }
 
-TAutoPtr<ICypressNode> TMapNode::Clone() const
-{
-    return new TMapNode(*this);
-}
-
 void TMapNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
@@ -119,9 +114,9 @@ void TMapNode::Save(TOutputStream* output) const
     SaveMap(output, KeyToChild());
 }
 
-void TMapNode::Load(TInputStream* input)
+void TMapNode::Load(TInputStream* input, TVoid context)
 {
-    TCypressNodeBase::Load(input);
+    TCypressNodeBase::Load(input, context);
     ::Load(input, ChildCountDelta_);
     LoadMap(input, KeyToChild());
     FOREACH(const auto& pair, KeyToChild()) {
@@ -211,6 +206,15 @@ void TMapNodeTypeHandler::DoMerge(
     originatingNode.ChildCountDelta() += branchedNode.ChildCountDelta();
 }
 
+ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
+{
+    return New<TMapNodeProxy>(
+        this,
+        ~CypressManager,
+        id.TransactionId,
+        id.ObjectId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNode::TListNode(const TVersionedNodeId& id)
@@ -224,29 +228,15 @@ TListNode::TListNode(const TVersionedNodeId& id, const TListNode& other)
     ChildToIndex_ = other.ChildToIndex_;
 }
 
-TAutoPtr<ICypressNode> TListNode::Clone() const
-{
-    return new TListNode(*this);
-}
-
-ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
-{
-    return New<TMapNodeProxy>(
-        this,
-        ~CypressManager,
-        id.TransactionId,
-        id.ObjectId);
-}
-
 void TListNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
     ::Save(output, IndexToChild());
 }
 
-void TListNode::Load(TInputStream* input)
+void TListNode::Load(TInputStream* input, TVoid context)
 {
-    TCypressNodeBase::Load(input);
+    TCypressNodeBase::Load(input, context);
     ::Load(input, IndexToChild());
     for (int i = 0; i < IndexToChild().ysize(); ++i) {
         ChildToIndex()[IndexToChild()[i]] = i;

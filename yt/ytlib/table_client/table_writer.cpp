@@ -65,7 +65,7 @@ void TTableWriter::Open()
     LOG_INFO("Requesting table info");
     auto getInfoReq = Proxy.ExecuteBatch();
 
-    auto getChunkListIdReq = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, TransactionId));
+    auto getChunkListIdReq = TTableYPathProxy::GetChunkList(WithTransaction(Path, TransactionId));
     getInfoReq->AddRequest(~getChunkListIdReq);
 
     auto getSchemaReq = TCypressYPathProxy::Get(CombineYPaths(
@@ -79,7 +79,7 @@ void TTableWriter::Open()
             ~getInfoRsp->GetError().ToString());
     }
 
-    auto getChunkListIdRsp = getInfoRsp->GetResponse<TTableYPathProxy::TRspGetChunkListForUpdate>(0);
+    auto getChunkListIdRsp = getInfoRsp->GetResponse<TTableYPathProxy::TRspGetChunkList>(0);
     if (!getChunkListIdRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
             ~getChunkListIdRsp->GetError().ToString());
