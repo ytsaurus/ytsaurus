@@ -37,18 +37,18 @@ add_library( ytlib STATIC
 )
 
 target_link_libraries ( ytlib
-  arcadia-utils
+  ytext-arcadia-util
 
-  qmisc
-  netliba_v6
-  json
+  ytext-quality-misc
+  ytext-quality-netliba_v6
+  ytext-json
 
   # TODO(sandello): arcadia-utils should depend on these targets.
-  snappy
-  lz4
-  fastlz
-  minilzo
-  arczlib
+  ytext-snappy
+  ytext-lz4
+  ytext-fastlz
+  ytext-minilzo
+  ytext-zlib
   protobuf
 )
 

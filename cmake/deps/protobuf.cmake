@@ -79,11 +79,11 @@ set( SRCS_PROTOC
 )
 
 add_library( protobuf STATIC
-  ${SRCS}
+  ${SRCS_PROTOBUF}
 )
 
 target_link_libraries( protobuf
-  ytext-arcadia-utils
+  ytext-arcadia-util
 )
 
 add_executable( protoc
