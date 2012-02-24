@@ -3,14 +3,14 @@
 
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/cell_master/load_context.h>
 
 namespace NYT {
-
-using namespace NCellMaster;
 
 namespace NChunkServer {
 
 using namespace NProto;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,11 +1,12 @@
 #include "stdafx.h"
 #include "job.h"
 
+#include <ytlib/cell_master/load_context.h>
+
 namespace NYT {
+namespace NChunkServer {
 
 using namespace NCellMaster;
-
-namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 

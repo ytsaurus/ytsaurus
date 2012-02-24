@@ -1,13 +1,14 @@
 #include "stdafx.h"
 #include "transaction.h"
 
+#include <ytlib/cell_master/bootstrap.h>
+
 #include <util/ysaveload.h>
 
 namespace NYT {
+namespace NTransactionServer {
 
 using namespace NCellMaster;
-
-namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 

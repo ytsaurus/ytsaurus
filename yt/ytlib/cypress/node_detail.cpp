@@ -3,6 +3,7 @@
 #include "node_proxy_detail.h"
 
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/cell_master/load_context.h>
 
 namespace NYT {
 namespace NCypress {
