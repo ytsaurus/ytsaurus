@@ -2,6 +2,7 @@
 #include "scheduler_bootstrap.h"
 
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/config.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
 #include <ytlib/rpc/rpc_manager.h>
@@ -122,7 +123,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isCellMaster) {
-        auto config = New<TBootstrap::TConfig>();
+        auto config = New<TCellMasterConfig>();
         try {
             config->Load(~configNode);
             

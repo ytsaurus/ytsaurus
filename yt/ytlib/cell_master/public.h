@@ -1,27 +1,16 @@
 #pragma once
 
-#include "public.h"
+#include <ytlib/misc/common.h>
 
 namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap
-{
-public:
-    TBootstrap(
-        const Stroka& configFileName,
-        TCellMasterConfig* config);
-
-    void Run();
-
-private:
-    Stroka ConfigFileName;
-    TCellMasterConfigPtr Config;
-};
+class TCellMasterConfig;
+typedef TIntrusivePtr<TCellMasterConfig> TCellMasterConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
-
+            
 } // namespace NCellMaster
 } // namespace NYT

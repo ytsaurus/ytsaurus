@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "bootstrap.h"
 
+#include "config.h"
+
 #include <ytlib/misc/ref_counted_tracker.h>
 
 #include <ytlib/ytree/tree_builder.h>
@@ -95,7 +97,7 @@ using NTableServer::CreateTableTypeHandler;
 
 TBootstrap::TBootstrap(
     const Stroka& configFileName,
-    TConfig* config)
+    TCellMasterConfig* config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
