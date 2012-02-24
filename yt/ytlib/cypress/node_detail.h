@@ -258,11 +258,6 @@ public:
         , Value_(other.Value_)
     { }
 
-    virtual TAutoPtr<ICypressNode> Clone() const
-    {
-        return new TThis(*this);
-    }
-
     virtual void Save(TOutputStream* output) const
     {
         TCypressNodeBase::Save(output);
