@@ -88,13 +88,22 @@ struct IMetaStateManager
      *  
      *  \param changeData A blob describing the change to be send to followers.
      *  \param changeAction An optional action that is called to perform the changes at the leader,
-     *  if NULL then #IMetaState::ApplyChange with #changeData is invoked.
+     *  if NULL then #IMetaState::ApplyChange is invoked with #changeData.
      *
      *  \note Thread affinity: StateThread
      */
     virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
         IAction* changeAction = NULL) = 0;
+
+	//! Returns True if #CommitChange is currently in progress.
+	/*!
+	 *  This is typically used to prevent recursive commits and only log "top-level"
+	 *  changes that trigger the whole transformation chain.
+	 *  
+	 *  \note Thread affinity: StateThread
+	 */
+	virtual bool IsInCommit() const = 0;
 
     //! Toggles read-only mode.
     /*!

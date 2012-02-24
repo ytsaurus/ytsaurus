@@ -99,7 +99,7 @@ public:
         , LeaderId(NElection::InvalidPeerId)
         , ControlInvoker(controlInvoker)
         , ReadOnly(false)
-        , CommitInProgress(false)
+        , InCommit(false)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
@@ -141,7 +141,7 @@ public:
         server->RegisterService(~ElectionManager);
     }
 
-    void Start()
+    virtual void Start()
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(ControlStatus == EPeerStatus::Stopped);
@@ -155,34 +155,34 @@ public:
         ElectionManager->Start();
     }
 
-    void Stop()
+    virtual void Stop()
     {
         //TODO: implement this
         YUNIMPLEMENTED();
     }
 
-    EPeerStatus GetControlStatus() const
+    virtual EPeerStatus GetControlStatus() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return ControlStatus;
     }
 
-    EPeerStatus GetStateStatus() const
+    virtual EPeerStatus GetStateStatus() const
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
         return StateStatus;
     }
 
-    IInvoker::TPtr GetStateInvoker() const
+    virtual IInvoker::TPtr GetStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return MetaState->GetStateInvoker();
     }
 
-    bool HasActiveQuorum() const
+    virtual bool HasActiveQuorum() const
     {
         auto tracker = FollowerTracker;
         if (!tracker) {
@@ -191,21 +191,21 @@ public:
         return tracker->HasActiveQuorum();
     }
 
-    IInvoker::TPtr GetEpochStateInvoker() const
+    virtual IInvoker::TPtr GetEpochStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
         return ~EpochStateInvoker;
     }
 
-    void SetReadOnly(bool readOnly)
+    virtual void SetReadOnly(bool readOnly)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         ReadOnly = readOnly;
     }
 
-    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
+    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     {
         auto tracker = FollowerTracker;
 
@@ -236,12 +236,12 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnFollowerRecoveryComplete);
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnStopFollowing);
 
-    TAsyncCommitResult::TPtr CommitChange(
+    virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
         IAction* changeAction)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        YASSERT(!CommitInProgress);
+        YASSERT(!InCommit);
 
         if (GetStateStatus() != EPeerStatus::Leading) {
             return New<TAsyncCommitResult>(ECommitResult::InvalidStatus);
@@ -257,22 +257,27 @@ public:
             return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
         }
 
-        CommitInProgress = true;
+        InCommit = true;
 
-        auto changeAction_ =
-            !changeAction
-            ? FromMethod(&IMetaState::ApplyChange, MetaState->GetState(), changeData)
-            : changeAction;
+        auto actualChangeAction =
+            changeAction
+			? changeAction
+			: FromMethod(&IMetaState::ApplyChange, MetaState->GetState(), changeData);
 
         auto result =
             LeaderCommitter
-            ->Commit(changeAction, changeData)
+            ->Commit(actualChangeAction, changeData)
             ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
 
-        CommitInProgress = false;
+        InCommit = false;
 
         return result;
     }
+
+	virtual bool IsInCommit() const
+	{
+		return InCommit;
+	}
 
  private:
     typedef TPersistentStateManager TThis;
@@ -286,7 +291,7 @@ public:
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     bool ReadOnly;
-    bool CommitInProgress;
+    bool InCommit;
 
     NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
@@ -310,7 +315,7 @@ public:
     TFollowerTracker::TPtr FollowerTracker;
     TFollowerPinger::TPtr FollowerPinger;
 
-    // RPC methods.
+    // RPC methods
     DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, GetSnapshotInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -683,7 +688,7 @@ public:
                 YUNREACHABLE();
         }
     }
-    // End of RPC methods.
+    // End of RPC methods
 
     void OnLeaderRecoveryFinished(TRecovery::EResult result)
     {
@@ -1226,7 +1231,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMetaStateManager::TPtr CreateAndRegisterPersistentStateManager(
+IMetaStateManager::TPtr CreatePersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IMetaState* metaState,
