@@ -578,6 +578,8 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
 {
     TGuard<TMutex> guard(Mutex);
 
+	YASSERT(State == EState::Open);
+
     LOG_DEBUG("Truncating changelog (RecordId: %d)", atRecordId);
 
     i64 lowerBound, upperBound;
