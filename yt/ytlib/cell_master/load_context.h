@@ -12,7 +12,7 @@ namespace NCellMaster {
 class TLoadContext
 {
 public:
-    TLoadContext(TBootstrap* bootstrap);
+    explicit TLoadContext(TBootstrap* bootstrap);
 
     DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
 };
