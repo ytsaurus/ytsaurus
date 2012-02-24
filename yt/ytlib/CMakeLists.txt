@@ -20,6 +20,7 @@ set( DIRS
   table_server
   table_client
   monitoring
+  profiling
   driver
   object_server
   scheduler

@@ -4,6 +4,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/log.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NElection {
@@ -11,10 +12,8 @@ namespace NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ElectionLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-NRpc::TChannelCache TLeaderLookup::ChannelCache;
+static NProfiling::TProfiler Profiler("election/leader_lookup");
+static NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,21 +26,24 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto asyncResult = New<TFuture<TResult> >();
-    auto awaiter = New<TParallelAwaiter>();
+    auto awaiter = New<TParallelAwaiter>(&Profiler, "time");
 
     FOREACH(Stroka address, Config->Addresses) {
-        LOG_DEBUG("Requesting leader from peer (Address: %s)", ~address);
+        LOG_DEBUG("Requesting leader from peer %s", ~address);
 
         TProxy proxy(~ChannelCache.GetChannel(address));
         proxy.SetDefaultTimeout(Config->RpcTimeout);
 
         auto request = proxy.GetStatus();
-        awaiter->Await(request->Invoke(), FromMethod(
-            &TLeaderLookup::OnResponse,
-            TPtr(this),
-            awaiter,
-            asyncResult,
-            address));
+        awaiter->Await(
+			request->Invoke(),
+			address,
+			FromMethod(
+				&TLeaderLookup::OnResponse,
+				TPtr(this),
+				awaiter,
+				asyncResult,
+				address));
     }
     
     awaiter->Complete(FromMethod(
@@ -61,7 +63,7 @@ void TLeaderLookup::OnResponse(
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error requesting leader from peer (Address: %s)\n%s",
+        LOG_WARNING("Error requesting leader from peer %s\n%s",
             ~address,
             ~response->GetError().ToString());
         return;
@@ -70,7 +72,7 @@ void TLeaderLookup::OnResponse(
     auto voteId = response->vote_id();
     auto epoch = TEpoch::FromProto(response->vote_epoch());
 
-    LOG_DEBUG("Received status from peer (Address: %s, PeerId: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
+    LOG_DEBUG("Received status from peer %s (PeerId: %d, State: %s, VoteId: %d, Priority: %" PRIx64 ", Epoch: %s)",
         ~address,
         response->self_id(),
         ~TProxy::EState(response->state()).ToString(),

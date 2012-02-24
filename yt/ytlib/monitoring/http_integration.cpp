@@ -5,8 +5,7 @@
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ypath_detail.h>
-
-#include "stat.h"
+#include <ytlib/ytree/virtual.h>
 
 namespace NYT {
 namespace NMonitoring {
@@ -25,7 +24,7 @@ Stroka OnResponse(TValueOrError<TYson> response)
         return FormatInternalServerErrorResponse(response.ToString().Quote());
     }
 
-    // TODO(sandello): Use Serialize.h
+    // TODO(babenko): maybe extract method
     TStringStream output;
     TJsonAdapter adapter(&output);
     TStringInput input(response.Value());
@@ -36,52 +35,23 @@ Stroka OnResponse(TValueOrError<TYson> response)
     return FormatOKResponse(output.Str());
 }
 
-TFuture<Stroka>::TPtr HandleRequest(TYPathServiceProvider::TPtr provider, const TYPath& path)
-{
-    auto service = provider->Do();
-    if (!service) {
-        return MakeFuture(FormatServiceUnavailableResponse());
-    }
-    return AsyncYPathGet(~service, path)->Apply(FromMethod(&OnResponse));
-}
-
 } // namespace <anonymous>
 
 TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
-    TYPathServiceProvider* provider,
-    IInvoker* invoker)
+    IYPathService* service)
 {
-    TYPathServiceProvider::TPtr provider_ = provider;
-    IInvoker::TPtr invoker_ = invoker;
+	// TODO(babenko): use AsStrong
+	IYPathServicePtr service_ = service;
     return FromFunctor([=] (Stroka path) -> TFuture<Stroka>::TPtr
         {
-            return
-                FromMethod(
-                    &HandleRequest,
-                    provider_,
-                    path)
-                ->AsyncVia(invoker_)
-                ->Do();
+			return AsyncYPathGet(~service_, path)->Apply(FromMethod(&OnResponse));
         });
 }
 
-TServer::TSyncHandler::TPtr GetProfilingHttpHandler()
+TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
+	TYPathServiceProducer producer)
 {
-    return FromFunctor([] (Stroka path) -> Stroka
-        {
-            if (path == "") {
-                return FormatOKResponse(
-                    NSTAT::GetDump(NSTAT::PLAINTEXT_LATEST));
-            } else if (path == "full") {
-                return FormatOKResponse(
-                    NSTAT::GetDump(NSTAT::PLAINTEXT_FULL));
-            } else if (path == "fullw") {
-                return FormatOKResponse(
-                    NSTAT::GetDump(NSTAT::PLAINTEXT_FULL_WITH_TIMES));
-            } else {
-                return FormatNotFoundResponse();
-            }        
-        });
+	return GetYPathHttpHandler(~IYPathService::FromProducer(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

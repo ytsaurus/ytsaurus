@@ -320,6 +320,18 @@ ExecuteVerb(
     return asyncResponseMessage;
 }
 
+void ExecuteVerb(IYPathService* service, IServiceContext* context)
+{
+	// TOOD(babenko): use AsStrong
+	auto context_ = IServiceContext::TPtr(context);
+	auto requestMessage = context->GetRequestMessage();
+	ExecuteVerb(service, ~requestMessage)
+	->Subscribe(FromFunctor([=] (NBus::IMessage::TPtr responseMessage)
+		{
+			context_->Reply(~responseMessage);
+		}));
+}
+
 TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, const TYPath& path)
 {
     auto request = TYPathProxy::Get(path);

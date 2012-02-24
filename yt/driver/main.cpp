@@ -194,6 +194,8 @@ public:
 
     int Main(int argc, const char* argv[])
     {
+		NYT::SetupErrorHandler();
+
         try {
             using namespace NLastGetopt;
 
@@ -308,7 +310,6 @@ private:
 
 int main(int argc, const char* argv[])
 {
-    NYT::SetupErrorHandler();
     NYT::TDriverProgram program;
     return program.Main(argc, argv);
 }
