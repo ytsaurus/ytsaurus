@@ -5,6 +5,7 @@
 #include "transaction_ypath_proxy.h"
 #include "transaction_ypath.pb.h"
 
+#include <ytlib/cell_master/load_context.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ephemeral.h>
@@ -17,6 +18,7 @@
 namespace NYT {
 namespace NTransactionServer {
 
+using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NYTree;
@@ -259,12 +261,14 @@ TTransactionManager::TTransactionManager(
     YASSERT(metaState);
     YASSERT(objectManager);
 
+    TLoadContext context(NULL); // TODO(roizner): use real bootstrap
+
     metaState->RegisterLoader(
         "TransactionManager.Keys.1",
         FromMethod(&TTransactionManager::LoadKeys, TPtr(this)));
     metaState->RegisterLoader(
         "TransactionManager.Values.1",
-        FromMethod(&TTransactionManager::LoadValues, TPtr(this)));
+        FromMethod(&TTransactionManager::LoadValues, TPtr(this), context));
     metaState->RegisterSaver(
         "TransactionManager.Keys.1",
         FromMethod(&TTransactionManager::SaveKeys, TPtr(this)),
@@ -412,11 +416,10 @@ void TTransactionManager::LoadKeys(TInputStream* input)
     TransactionMap.LoadKeys(input);
 }
 
-void TTransactionManager::LoadValues(TInputStream* input)
+void TTransactionManager::LoadValues(TInputStream* input, TLoadContext context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TVoid context;
     TransactionMap.LoadValues(input, context);
 }
 

@@ -6,6 +6,7 @@
 namespace NYT {
 namespace NFileServer {
 
+using namespace NCellMaster;
 using namespace NYTree;
 using namespace NCypress;
 using namespace NChunkServer;
@@ -37,7 +38,7 @@ void TFileNode::Save(TOutputStream* output) const
     ::Save(output, ChunkListId_);
 }
 
-void TFileNode::Load(TInputStream* input, TVoid context)
+void TFileNode::Load(TInputStream* input, const TLoadContext& context)
 {
     TCypressNodeBase::Load(input, context);
     ::Load(input, ChunkListId_);

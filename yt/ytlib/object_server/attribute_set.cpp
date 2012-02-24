@@ -4,6 +4,9 @@
 #include <ytlib/misc/serialize.h>
 
 namespace NYT {
+
+using namespace NCellMaster;
+
 namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +22,7 @@ void TAttributeSet::Save(TOutputStream* output) const
     SaveMap(output, Attributes_);
 }
 
-void TAttributeSet::Load(TInputStream* input, TVoid)
+void TAttributeSet::Load(TInputStream* input, const TLoadContext& context)
 {
     LoadMap(input, Attributes_);
 }

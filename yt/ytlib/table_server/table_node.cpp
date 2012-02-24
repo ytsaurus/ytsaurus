@@ -5,6 +5,7 @@
 namespace NYT {
 namespace NTableServer {
 
+using namespace NCellMaster;
 using namespace NCypress;
 using namespace NYTree;
 using namespace NChunkServer;
@@ -31,7 +32,7 @@ void TTableNode::Save(TOutputStream* output) const
     ::Save(output, ChunkListId_);
 }
 
-void TTableNode::Load(TInputStream* input, TVoid context)
+void TTableNode::Load(TInputStream* input, const TLoadContext& context)
 {
     TCypressNodeBase::Load(input, context);
     ::Load(input, ChunkListId_);

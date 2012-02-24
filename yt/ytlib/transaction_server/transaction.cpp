@@ -1,10 +1,14 @@
 #include "stdafx.h"
 #include "transaction.h"
 
+#include <ytlib/cell_master/bootstrap.h>
+
 #include <util/ysaveload.h>
 
 namespace NYT {
 namespace NTransactionServer {
+
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +28,7 @@ void TTransaction::Save(TOutputStream* output) const
     ::Save(output, CreatedNodeIds_);
 }
 
-void TTransaction::Load(TInputStream* input, TVoid)
+void TTransaction::Load(TInputStream* input, const TLoadContext& context)
 {
     TObjectWithIdBase::Load(input);
     ::Load(input, State_);

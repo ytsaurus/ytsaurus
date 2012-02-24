@@ -10,6 +10,7 @@
 #include "file_chunk_meta.pb.h"
 #include "table_chunk_meta.pb.h"
 
+#include <ytlib/cell_master/load_context.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/guid.h>
@@ -31,6 +32,7 @@ using namespace NMetaState;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NYTree;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,12 +123,14 @@ public:
         RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::CreateChunks);
 
+        TLoadContext context(NULL); // TODO(roizner): use real bootstrap
+
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
             FromMethod(&TChunkManager::TImpl::LoadKeys, TPtr(this)));
         metaState->RegisterLoader(
             "ChunkManager.Values.1",
-            FromMethod(&TChunkManager::TImpl::LoadValues, TPtr(this)));
+            FromMethod(&TChunkManager::TImpl::LoadValues, TPtr(this), context));
         metaState->RegisterSaver(
             "ChunkManager.Keys.1",
             FromMethod(&TChunkManager::TImpl::SaveKeys, TPtr(this)),
@@ -648,11 +652,9 @@ private:
         JobListMap.LoadKeys(input);
     }
 
-    void LoadValues(TInputStream* input)
+    void LoadValues(TInputStream* input, TLoadContext context)
     {
         ::Load(input, HolderIdGenerator);
-
-        TVoid context; // TODO(roizner): use real context
 
         ChunkMap.LoadValues(input, context);
         ChunkListMap.LoadValues(input, context);

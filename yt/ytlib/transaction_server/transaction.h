@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/cypress/id.h>
 #include <ytlib/chunk_server/id.h>
@@ -37,7 +38,7 @@ public:
     TTransaction(const TTransactionId& id);
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, TVoid);
+    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

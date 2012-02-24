@@ -1,9 +1,12 @@
 #include "stdafx.h"
 #include "chunk.h"
 
+#include <ytlib/cell_master/load_context.h>
+
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NChunkHolder::NProto;
 
@@ -27,8 +30,9 @@ void TChunk::Save(TOutputStream* output) const
     SaveNullableSet(output, CachedLocations_);
 }
 
-void TChunk::Load(TInputStream* input, TVoid)
+void TChunk::Load(TInputStream* input, const TLoadContext& context)
 {
+    UNUSED(context);
     TObjectWithIdBase::Load(input);
     ::Load(input, Size_);
     ::Load(input, Attributes_);

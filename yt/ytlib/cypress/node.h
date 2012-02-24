@@ -2,6 +2,7 @@
 
 #include "id.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/actions/action.h>
 
 namespace NYT {
@@ -22,7 +23,7 @@ struct ICypressNode
     virtual void Save(TOutputStream* output) const = 0;
     
     //! Loads the node from the snapshot stream.
-    virtual void Load(TInputStream* input, TVoid /* context */) = 0;
+    virtual void Load(TInputStream* input, const NCellMaster::TLoadContext& context) = 0;
 
     //! Returns the id of the node (which is the key in the respective meta-map).
     virtual TVersionedObjectId GetId() const = 0;

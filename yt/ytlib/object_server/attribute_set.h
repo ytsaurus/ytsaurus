@@ -4,6 +4,8 @@
 #include "id.h"
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/cell_master/public.h>
+
 #include <ytlib/misc/property.h>
 
 namespace NYT {
@@ -21,7 +23,7 @@ public:
     TAttributeSet(const TVersionedObjectId&); // Just for meta map
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, TVoid context);
+    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

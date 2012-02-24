@@ -73,7 +73,8 @@ struct TPersistentStateManagerConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMetaStateManager::TPtr CreateAndRegisterPersistentStateManager(
+//! Creates the manager and also registers its RPC service at #server.
+IMetaStateManager::TPtr CreatePersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IMetaState* metaState,

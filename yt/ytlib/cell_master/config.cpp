@@ -1,16 +1,12 @@
-#pragma once
-
-#include "common.h"
-#include "meta_state_manager.h"
+#include "stdafx.h"
+#include "config.h"
 
 namespace NYT {
-namespace NMetaState {
+namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMetaStateManager::TPtr CreateTransientStateManager(IMetaState* metaState);
-
 ////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NMetaState
+            
+} // namespace NCellMaster
 } // namespace NYT

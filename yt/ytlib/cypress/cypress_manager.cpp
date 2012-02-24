@@ -6,6 +6,7 @@
 #include "cypress_ypath_proxy.h"
 #include "cypress_ypath.pb.h"
 
+#include <ytlib/cell_master/load_context.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
@@ -15,6 +16,7 @@
 namespace NYT {
 namespace NCypress {
 
+using namespace NCellMaster;
 using namespace NBus;
 using namespace NRpc;
 using namespace NYTree;
@@ -139,12 +141,14 @@ TCypressManager::TCypressManager(
     RegisterHandler(~New<TMapNodeTypeHandler>(this));
     RegisterHandler(~New<TListNodeTypeHandler>(this));
 
+    TLoadContext context(NULL); // TODO(roizner): use real bootstrap here
+
     metaState->RegisterLoader(
         "Cypress.Keys.1",
         FromMethod(&TCypressManager::LoadKeys, TPtr(this)));
     metaState->RegisterLoader(
         "Cypress.Values.1",
-        FromMethod(&TCypressManager::LoadValues, TPtr(this)));
+        FromMethod(&TCypressManager::LoadValues, TPtr(this), context));
     metaState->RegisterSaver(
         "Cypress.Keys.1",
         FromMethod(&TCypressManager::SaveKeys, TPtr(this)),
@@ -687,11 +691,9 @@ void TCypressManager::LoadKeys(TInputStream* input)
     LockMap.LoadKeys(input);
 }
 
-void TCypressManager::LoadValues(TInputStream* input)
+void TCypressManager::LoadValues(TInputStream* input, TLoadContext context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    TVoid context; // TODO(roizner): use real context
 
     NodeMap.LoadValues(input, context);
     LockMap.LoadValues(input, context);

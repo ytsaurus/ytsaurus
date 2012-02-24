@@ -20,7 +20,6 @@ set( SRCS
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/snapshot_store.cpp
-  ${BASE}/transient_state_manager.cpp
 )
 set( HDRS
   ${BASE}/async_change_log.h
@@ -54,7 +53,6 @@ set( HDRS
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
   ${BASE}/snapshot_store.h
-  ${BASE}/transient_state_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES

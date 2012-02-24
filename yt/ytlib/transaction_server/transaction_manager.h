@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/lease_manager.h>
@@ -97,7 +98,7 @@ private:
     void SaveKeys(TOutputStream* output);
     void SaveValues(TOutputStream* output);
     void LoadKeys(TInputStream* input);
-    void LoadValues(TInputStream* input);
+    void LoadValues(TInputStream* input, NCellMaster::TLoadContext context);
     virtual void Clear();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

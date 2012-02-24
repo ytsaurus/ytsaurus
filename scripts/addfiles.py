@@ -2,6 +2,7 @@
 ################################################################################
 
 import os;
+import sys;
 
 UNITTEST_PREFIX = 'unittest'
 MISC_PROJECT = 'misc'
@@ -101,7 +102,7 @@ def get_header_data(project_name):
 def get_source_data(project_name, file_name):
     return '''#include "stdafx.h"
 #include "{0}"
-'''.fomat(file_name + INLINE_EXTENSION) + get_common_data(project_name)
+'''.format(file_name + HEADER_EXTENSION) + get_common_data(project_name)
 
 
 def get_inline_data(project_name, file_name):
@@ -109,7 +110,7 @@ def get_inline_data(project_name, file_name):
 #error "Direct inclusion of this file is not allowed, include {1}"
 #endif
 #undef {0}
-'''.format(get_inl_define(file_name), file_name + HEADER_EXTENSION) +
+'''.format(get_inl_define(file_name), file_name + HEADER_EXTENSION) + \
         get_common_data()
 
 
@@ -142,6 +143,7 @@ def get_file_data(extension, project_name, file_name):
     raise RuntimeError("Unknown extension {0}".format(extension))
 
 def add_files(project_name, file_name, extensions):
+    print '=' * 80
     for extension in extensions:
         if extension == UNITTEST_EXTENSION:
             dir_name = get_unittests_path()
@@ -153,8 +155,10 @@ def add_files(project_name, file_name, extensions):
         if extension == HEADER_EXTENSION and INLINE_EXTENSION in extensions:
             append_to_header_file(file_path, file_name)
 
+    print '=' * 80
     os.system(get_cmake_omm_path() + ' --update')
-
+    print '=' * 80
+    
 
 def normalize(project_name, file_name, extensions):
     for extension in EXTENSIONS:
