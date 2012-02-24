@@ -2,18 +2,8 @@
 
 #include "common.h"
 
-//#include <ytlib/misc/thread_affinity.h>
-//#include <ytlib/misc/codec.h>
-//#include <ytlib/misc/configurable.h>
-//#include <ytlib/rpc/channel.h>
-//#include <ytlib/transaction_client/transaction.h>
-//#include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/file_client/file_reader_base.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
-//#include <ytlib/chunk_client/sequential_reader.h>
-//#include <ytlib/chunk_client/block_cache.h>
-//#include <ytlib/chunk_client/remote_reader.h>
-//#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -53,15 +43,7 @@ public:
 
 private:
     NTransactionClient::ITransaction::TPtr Transaction;
-    // NTransactionClient::TTransactionId TransactionId;
-    // NChunkClient::IBlockCache::TPtr BlockCache;
     NYTree::TYPath Path;
-
-    // NChunkClient::TSequentialReader::TPtr SequentialReader;
-    // i64 Size;
-    // ICodec* Codec;
-    Stroka FileName;
-    bool Executable;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 
