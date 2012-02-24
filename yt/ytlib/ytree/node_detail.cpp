@@ -126,28 +126,42 @@ void TMapNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
 {
-    IMapNodePtr currentNode = this;
+    // Split path into tokens.
+    // Check that no attribute markers are present.
+    std::vector<Stroka> tokens;
     TYPath currentPath = path;
+    while (!currentPath.empty()) {
+        if (IsAttributeYPath(currentPath)) {
+            ythrow yexception() << Sprintf("Cannot set an attribute of a non-existing node");
+        }
 
-    while (true) {
         Stroka token;
         TYPath suffixPath;
         ChopYPathToken(currentPath, &token, &suffixPath);
 
-        if (suffixPath.empty()) {
-            if (!currentNode->AddChild(value, token)) {
-                ythrow yexception() << Sprintf("Key %s already exists", ~token.Quote());
-            }
-            break;
-        }
-
-        auto intermediateNode = factory->CreateMap();
-        if (!currentNode->AddChild(~intermediateNode, token)) {
-            ythrow yexception() << Sprintf("Key %s already exists", ~token.Quote());
-        }
-
-        currentNode = intermediateNode;
+        tokens.push_back(token);
         currentPath = suffixPath;
+    }
+
+    // Check that the first token gives a unique key.
+    auto firstToken = tokens.front();
+    if (FindChild(firstToken)) {
+        ythrow yexception() << Sprintf("Key %s already exists", ~firstToken.Quote());
+    }
+
+    // Make the actual changes.
+    IMapNodePtr currentNode = this;
+    for (auto it = tokens.begin(); it != tokens.end(); ++it) {
+        auto token = *it;
+        if (it == tokens.end() - 1) {
+            // Final step: append the given value.
+            YVERIFY(currentNode->AddChild(value, token));
+        } else {
+            // Intermediate step: create and append a map.
+            auto intermediateNode = factory->CreateMap();
+            YVERIFY(currentNode->AddChild(~intermediateNode, token));
+            currentNode = intermediateNode;
+        }
     }
 }
 
