@@ -83,7 +83,7 @@ public:
 
         IsSent = true;
 
-        LOG_DEBUG("Sending %d batched changes", BatchedChanges.size());
+        LOG_DEBUG("Sending %d batched changes", static_cast<int>(BatchedChanges.size()));
 		Profiler.Enqueue("batch_size", BatchedChanges.size());
 
 		YASSERT(LogResult);
