@@ -28,23 +28,8 @@ namespace NObjectServer {
 
 //! Provides high-level management and tracking of objects and their attributes.
 /*!
- *  This class provides the following types of operations:
- *  
- *  - #RegisterHandler and #GetHandler are used to register object type handlers
- *  and query for them.
- *  
- *  - #GenerateId creates a new object id, which is guaranteed to be globally
- *  unique.
- *  
- *  - #RefObject and #UnrefObject add and remove references between objects, respectively.
- *  Note that "fromId" argument is used mostly for diagnostics.
- *  Additional overloads without this argument are also provided.
- *  
- *  - #GetObjectRefCounter queries the current reference counter.
- *  
  *  \note
  *  Thread affinity: single-threaded
- *
  */
 class TObjectManager
     : public NMetaState::TMetaStatePart
@@ -60,11 +45,11 @@ public:
 
     ~TObjectManager();
 
-    // TODO: killme
+    // TODO(babenko): killme
     void SetCypressManager(NCypress::TCypressManager* cypressManager);
     void SetTransactionManager(NTransactionServer::TTransactionManager* transactionmanager);
 
-    //! Registers a type handler.
+    //! Registers a new type handler.
     /*!
      *  It asserts than no handler of this type is already registered.
      */
@@ -100,10 +85,13 @@ public:
     //! Returns a proxy for the object with the given versioned id or NULL. Fails if there's no such object.
     IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
 
+	//! Creates a new empty attribute set.
     TAttributeSet* CreateAttributes(const TVersionedObjectId& id);
+
+	//! Removes an existing attribute set.
     void RemoveAttributes(const TVersionedObjectId& id);
 
-    //! Called on a versioned object is branched.
+    //! Called when a versioned object is branched.
     void BranchAttributes(
         const TVersionedObjectId& originatingId,
         const TVersionedObjectId& branchedId);
@@ -113,8 +101,24 @@ public:
         const TVersionedObjectId& originatingId,
         const TVersionedObjectId& branchedId);
 
+	//! Returns a YPath service that handles all requests.
+	/*!
+	 *  This service supports some special prefix syntax for YPaths:
+	 */
     NYTree::IYPathService* GetRootService();
     
+	//! Executes a YPath verb, logging the change if neccessary.
+	/*!
+	 *  \param id The id of the object that handles the verb.
+	 *  If the change is logged, this id is written to the changelog and
+	 *  used afterwards to replay the change.
+	 *  \param isWrite True if the verb modifies the state and thus must be logged.
+	 *  \param context The request context.
+	 *  \param action An action to call that executes the actual verb logic.
+	 *  
+	 *  Note that #action takes a context as a parameter. This is because the original #context
+	 *  gets wrapped to intercept replies and #action gets the wrapped instance.
+	 */
     void ExecuteVerb(
         const TVersionedObjectId& id,
         bool isWrite,
