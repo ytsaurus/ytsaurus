@@ -161,6 +161,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 int Main(int argc, const char* argv[])
 {
+	NYT::SetupErrorHandler();
+
     int exitCode;
     try {
         exitCode = GuardedMain(argc, argv);
@@ -184,6 +186,5 @@ int Main(int argc, const char* argv[])
 
 int main(int argc, const char* argv[])
 {
-    NYT::SetupErrorHandler();
     return NYT::Main(argc, argv);
 }

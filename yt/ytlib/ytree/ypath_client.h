@@ -171,9 +171,12 @@ void ResolveYPath(
     IYPathServicePtr* suffixService,
     TYPath* suffixPath);
 
-//! Asynchronously executes an untyped YPath verb against a given service.
+//! Asynchronously executes an untyped YPath verb against the given service.
 TFuture<NBus::IMessage::TPtr>::TPtr
 ExecuteVerb(IYPathService* service, NBus::IMessage* requestMessage);
+
+//! Asynchronously executes a request against the given service.
+void ExecuteVerb(IYPathService* service, NRpc::IServiceContext* context);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>

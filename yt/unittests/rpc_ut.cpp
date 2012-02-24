@@ -186,7 +186,7 @@ public:
 
         Queue = New<TActionQueue>();
 
-        RpcServer->RegisterService(~New<TMyService>(~Queue->GetInvoker(), &ReadyEvent));
+        RpcServer->RegisterService(~New<TMyService>(Queue->GetInvoker(), &ReadyEvent));
         RpcServer->Start();
     }
 

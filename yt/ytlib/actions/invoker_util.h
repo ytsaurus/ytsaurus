@@ -7,18 +7,19 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to cpp, leave GetSyncInvoker in h
 class TSyncInvoker
     : public IInvoker
 {
 public:
     virtual void Invoke(TIntrusivePtr<IAction> action);
 
-    static IInvoker::TPtr Get();
+    static IInvoker* Get();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
+// TODO(babenko): move to cpp, leave CreateCancelableInvoker in h
 class TCancelableInvoker
     : public IInvoker
 {

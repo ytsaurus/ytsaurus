@@ -24,9 +24,9 @@
 #include <ytlib/monitoring/ytree_integration.h>
 #include <ytlib/monitoring/http_server.h>
 #include <ytlib/monitoring/http_integration.h>
-#include <ytlib/monitoring/statlog.h>
 #include <ytlib/ytree/yson_file_service.h>
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/profiling/profiling_manager.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -37,6 +37,7 @@ using namespace NYTree;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NChunkServer;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +64,6 @@ void TBootstrap::Run()
 
     LOG_INFO("Starting chunk holder (IncarnationId: %s)", ~IncarnationId.ToString());
 
-    // TODO: fixme
-    //NSTAT::EnableStatlog(true);
-
     auto controlQueue = New<TActionQueue>("Control");
     ServiceInvoker = controlQueue->GetInvoker();
 
@@ -87,7 +85,7 @@ void TBootstrap::Run()
     auto peerUpdater = New<TPeerBlockUpdater>(
         ~Config,
         ~blockStore,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
     peerUpdater->Start();
 
     ChunkStore = New<TChunkStore>(
@@ -106,19 +104,19 @@ void TBootstrap::Run()
         ~Config,
         ~blockStore,
         ~ChunkStore,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
 
     JobExecutor = New<TJobExecutor>(
         ~Config,
         ~ChunkStore,
         ~blockStore,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
 
     auto masterConnector = New<TMasterConnector>(this);
 
     auto chunkHolderService = New<TChunkHolderService>(
         ~Config,
-        ~controlQueue->GetInvoker(),
+        controlQueue->GetInvoker(),
         ~busServer,
         ~ChunkStore,
         ~ChunkCache,
@@ -135,9 +133,6 @@ void TBootstrap::Run()
     monitoringManager->Register(
         "bus_server",
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
-    monitoringManager->Register(
-        "rpc_server",
-        FromMethod(&IServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
@@ -145,11 +140,17 @@ void TBootstrap::Run()
     SyncYPathSetNode(
         ~orchidRoot,
         "monitoring",
-        ~NYTree::CreateVirtualNode(~CreateMonitoringProvider(~monitoringManager)));
+        ~NYTree::CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
+    SyncYPathSetNode(
+        ~orchidRoot,
+        "profiling",
+        ~CreateVirtualNode(
+			~TProfilingManager::Get()->GetRoot()
+			->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
         ~orchidRoot,
         "config",
-        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProvider(ConfigFileName)));
+        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProducer(ConfigFileName)));
     SyncYPathSetNode(
         ~orchidRoot,
         "stored_chunks",
@@ -161,21 +162,13 @@ void TBootstrap::Run()
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
-        ~controlQueue->GetInvoker());
+        controlQueue->GetInvoker());
     rpcServer->RegisterService(~orchidService);
 
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
-        "/statistics",
-        ~NMonitoring::GetProfilingHttpHandler());
-    httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(
-            ~FromFunctor([=] () -> IYPathServicePtr
-                {
-                    return orchidRoot;
-                }),
-            ~controlQueue->GetInvoker()));
+        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

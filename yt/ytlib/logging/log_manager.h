@@ -41,8 +41,10 @@ private:
 } // namespace NYT
 
 template <>
-struct TSingletonTraits<NYT::NLog::TLogManager> {
-    enum {
+struct TSingletonTraits<NYT::NLog::TLogManager>
+{
+    enum
+	{
         Priority = 2048
     };
 };

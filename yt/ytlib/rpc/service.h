@@ -7,6 +7,7 @@
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/logging/log.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <util/generic/yexception.h>
 
@@ -408,7 +409,7 @@ protected:
 
     //! Initializes the instance.
     /*!
-     *  \param defaultServiceInvoker
+     *  \param defaultInvoker
      *  An invoker that will be used for serving method invocations unless
      *  configured otherwise (see #RegisterMethod).
      *  
@@ -420,9 +421,11 @@ protected:
      *  regarding service activity.
      */
     TServiceBase(
-        IInvoker* defaultServiceInvoker,
+        IInvoker* defaultInvoker,
         const Stroka& serviceName,
         const Stroka& loggingCategory);
+
+	~TServiceBase();
 
     //! Registers a method.
     void RegisterMethod(const TMethodDescriptor& descriptor);
@@ -431,47 +434,14 @@ protected:
     void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker* invoker);
 
 private:
-    struct TRuntimeMethodInfo
-    {
-        TRuntimeMethodInfo(const TMethodDescriptor& info, IInvoker* invoker)
-            : Descriptor(info)
-            , Invoker(invoker)
-            // TODO: configure properly
-            , ExecutionTime(0, 1000, 10)
-        { }
+	class TImpl;
+	THolder<TImpl> Impl;
 
-        TMethodDescriptor Descriptor;
-        IInvoker::TPtr Invoker;
-        TMetric ExecutionTime;
-    };
+	virtual Stroka GetServiceName() const;
+	virtual Stroka GetLoggingCategory() const;
 
-    struct TActiveRequest
-    {
-        TActiveRequest(
-            TRuntimeMethodInfo* runtimeInfo,
-            const TInstant& startTime)
-            : RuntimeInfo(runtimeInfo)
-            , StartTime(startTime)
-        { }
-
-        TRuntimeMethodInfo* RuntimeInfo;
-        TInstant StartTime;
-    };
-    
-    IInvoker::TPtr DefaultServiceInvoker;
-    Stroka ServiceName;
-    NLog::TLogger ServiceLogger;
-
-    //! Protects #RuntimeMethodInfos and #ActiveRequests.
-    TSpinLock SpinLock;
-    yhash_map<Stroka, TRuntimeMethodInfo> RuntimeMethodInfos;
-    yhash_map<IServiceContext::TPtr, TActiveRequest> ActiveRequests;
-
-    virtual void OnBeginRequest(IServiceContext* context);
-    virtual void OnEndRequest(IServiceContext* context);
-
-    virtual Stroka GetLoggingCategory() const;
-    virtual Stroka GetServiceName() const;
+	virtual void OnBeginRequest(IServiceContext* context);
+	virtual void OnEndRequest(IServiceContext* context);
 
 };
 

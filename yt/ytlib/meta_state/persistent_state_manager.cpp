@@ -175,6 +175,13 @@ public:
         return StateStatus;
     }
 
+	virtual EPeerStatus SafeGetStateStatus() const
+	{
+		VERIFY_THREAD_AFFINITY_ANY();
+
+		return StateStatus;
+	}
+
     virtual IInvoker::TPtr GetStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -212,9 +219,8 @@ public:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("state").Scalar(ControlStatus.ToString())
-                // TODO: fixme, thread affinity
-                //.Item("version").Scalar(MetaState->GetVersion().ToString())
-                .Item("reachable_version").Scalar(MetaState->GetReachableVersion().ToString())
+                .Item("version").Scalar(MetaState->SafeGetVersion().ToString())
+                .Item("reachable_version").Scalar(MetaState->SafeGetReachableVersion().ToString())
                 .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent)
                     {
@@ -1145,7 +1151,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto version = MetaState->GetReachableVersion();
+        auto version = MetaState->SafeGetReachableVersion();
         return ((TPeerPriority) version.SegmentId << 32) | version.RecordCount;
     }
 

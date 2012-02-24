@@ -21,8 +21,6 @@ struct IServer
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
-    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;
-
 };
 
 IServer::TPtr CreateRpcServer(NBus::IBusServer* busServer);

@@ -3,11 +3,12 @@
 
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/thread.h>
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/actions/action_util.h>
-#include <ytlib/monitoring/stat.h>
 
 namespace NYT {
+
+using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -16,8 +17,9 @@ static NLog::TLogger Logger("ActionQueue");
 ///////////////////////////////////////////////////////////////////////////////
 
 TQueueInvoker::TQueueInvoker(TActionQueueBase* owner, bool enableLogging)
-    : EnableLogging(enableLogging)
-    , Owner(owner)
+    : Owner(owner)
+	, EnableLogging(enableLogging)
+	, Profiler(CombineYPaths("action_queues", owner->ThreadName))
     , QueueSize(0)
 { }
 
@@ -25,18 +27,25 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
 {
     if (!Owner) {
         LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
-    } else {
-        LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
-        Queue.Enqueue(MakePair(action, GetCycleCount()));
-        auto size = AtomicIncrement(QueueSize);
-        DATA_POINT("actionqueue.size", "smv", size);
-        Owner->WakeupEvent.Signal();
+		return;
     }
+
+	TItem item;
+	item.Timer = Profiler.TimingStart("time");
+	item.Action = action;
+    Queue.Enqueue(item);
+
+	LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
+
+    auto size = AtomicIncrement(QueueSize);
+    Profiler.Enqueue("size", size);
+
+    Owner->Signal();
 }
 
 void TQueueInvoker::OnShutdown()
 {
-    Owner = 0;
+    Owner = NULL;
 }
 
 bool TQueueInvoker::OnDequeueAndExecute()
@@ -45,19 +54,18 @@ bool TQueueInvoker::OnDequeueAndExecute()
     if (!Queue.Dequeue(&item))
         return false;
     
+	Profiler.TimingCheckpoint(item.Timer, "wait");
+
     auto size = AtomicDecrement(QueueSize);
-    DATA_POINT("actionqueue.size", "smv", size);
+	Profiler.Enqueue("size", size);
 
-    auto startTime = item.second;
-    DATA_POINT("actionqueue.waitingtime", "tv", GetCycleCount() - startTime);
-
-    IAction::TPtr action = item.first;
-    
+	auto action = item.Action;
     LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", ~action);
-    TIMEIT("actionqueue.executiontime", "tv",
-        action->Do();
-    )
+	action->Do();
     LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", ~action);
+	Profiler.TimingCheckpoint(item.Timer, "exec");
+
+	Profiler.TimingStop(item.Timer);
 
     return true;
 }
@@ -98,9 +106,7 @@ void TActionQueueBase::ThreadMain()
             if (!DequeueAndExecute()) {
                 WakeupEvent.Reset();
                 if (!DequeueAndExecute()) {
-                    TIMEIT("actionqueue.idletime", "tv",
-                        OnIdle();
-                    )
+                    OnIdle();
                     if (Running) {
                         WakeupEvent.Wait();
                     }
@@ -122,6 +128,14 @@ void TActionQueueBase::Shutdown()
     Thread.Join();
 }
 
+void TActionQueueBase::OnIdle()
+{ }
+
+void TActionQueueBase::Signal()
+{
+	WakeupEvent.Signal();
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
@@ -141,12 +155,9 @@ bool TActionQueue::DequeueAndExecute()
     return QueueInvoker->OnDequeueAndExecute();
 }
 
-void TActionQueue::OnIdle()
-{ }
-
-IInvoker::TPtr TActionQueue::GetInvoker()
+IInvoker* TActionQueue::GetInvoker()
 {
-    return QueueInvoker;
+    return ~QueueInvoker;
 }
 
 IFunc<TActionQueue::TPtr>::TPtr TActionQueue::CreateFactory(const Stroka& threadName)
@@ -177,10 +188,10 @@ TPrioritizedActionQueue::~TPrioritizedActionQueue()
     }
 }
 
-IInvoker::TPtr TPrioritizedActionQueue::GetInvoker(int priority)
+IInvoker* TPrioritizedActionQueue::GetInvoker(int priority)
 {
     YASSERT(0 <= priority && priority < static_cast<int>(QueueInvokers.size()));
-    return QueueInvokers[priority];
+    return ~QueueInvokers[priority];
 }
 
 bool TPrioritizedActionQueue::DequeueAndExecute()
@@ -193,9 +204,6 @@ bool TPrioritizedActionQueue::DequeueAndExecute()
     return false;
 }
 
-void TPrioritizedActionQueue::OnIdle()
-{ }
-
 ///////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT

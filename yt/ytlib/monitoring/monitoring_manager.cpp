@@ -6,8 +6,7 @@
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/actions/action_util.h>
-
-#include "stat.h"
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NMonitoring {
@@ -17,6 +16,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Monitoring");
+static NProfiling::TProfiler Profiler("monitoring");
 const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,37 +68,33 @@ void TMonitoringManager::Stop()
 
 void TMonitoringManager::Update()
 {
-    try {
-        TIMEIT("stateman.updatetime", "tv",
+	PROFILE_TIMING("update_time") {
+		try {
+			auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
-        auto newRoot = GetEphemeralNodeFactory()->CreateMap();
+			FOREACH(const auto& pair, MonitoringMap) {
+				TStringStream output;
+				TYsonWriter writer(&output, EYsonFormat::Binary);
+				pair.second->Do(&writer);
 
-        FOREACH(const auto& pair, MonitoringMap) {
-            TStringStream output;
-            TYsonWriter writer(&output, EYsonFormat::Binary);
-            pair.second->Do(&writer);
+				SyncYPathSet(~newRoot, pair.first, output.Str());
+			}
 
-            SyncYPathSet(~newRoot, pair.first, output.Str());
-        }
-
-        if (IsStarted) {
-            Root = newRoot;
-        }
-
-        )
-
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Error collecting monitoring data\n%s",
-            ex.what());
-    }
+			if (IsStarted) {
+				Root = newRoot;
+			}
+		} catch (const std::exception& ex) {
+			LOG_FATAL("Error collecting monitoring data\n%s",
+				ex.what());
+		}
+	}
 }
 
 void TMonitoringManager::Visit(IYsonConsumer* consumer)
 {
-    TIMEIT("stateman.visittime", "tv",
-
-    VisitTree(~GetRoot(), consumer);
-    )
+	PROFILE_TIMING("visit_time") {
+		VisitTree(~GetRoot(), consumer);
+	}
 }
 
 TYsonProducer TMonitoringManager::GetProducer()

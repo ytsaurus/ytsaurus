@@ -7,6 +7,7 @@
 #include "cypress_ypath.pb.h"
 
 #include <ytlib/cell_master/load_context.h>
+#include <ytlib/misc/singleton.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
@@ -222,6 +223,68 @@ TNodeId TCypressManager::GetRootNodeId()
         EObjectType::MapNode,
         ObjectManager->GetCellId(),
         0xffffffffffffffff);
+}
+
+namespace {
+
+class TNotALeaderRootService
+	: public TYPathServiceBase
+{
+public:
+	virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+	{
+		UNUSED(path);
+		UNUSED(verb);
+		ythrow yexception() << "Not a leader";
+	}
+};
+
+class TLeaderRootService
+	: public TYPathServiceBase
+{
+public:
+	TLeaderRootService(TCypressManager* cypressManager)
+		: CypressManager(cypressManager)
+	{ }
+
+	virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+	{
+		UNUSED(verb);
+
+		// Make a rigorous coarse check at the right thread.
+		if (CypressManager->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading) {
+			ythrow yexception() << "Not a leader";
+		}
+
+		auto service = CypressManager->GetVersionedNodeProxy(
+			CypressManager->GetRootNodeId(),
+			NObjectServer::NullTransactionId);
+		return TResolveResult::There(~service, path);
+	}
+
+private:
+	TCypressManager::TPtr CypressManager;
+
+};
+
+} // namespace <anonymous>
+
+TYPathServiceProducer TCypressManager::GetRootServiceProducer()
+{
+	auto stateInvoker = MetaStateManager->GetStateInvoker();
+	// TODO(babenko): use AsStrong
+	TCypressManager::TPtr this_ = this;
+	return FromFunctor([=] () -> IYPathServicePtr
+		{
+			// Make a coarse check at this (wrong) thread first.
+			auto status = this_->MetaStateManager->SafeGetStateStatus();
+			if (status == EPeerStatus::Leading) {
+				return New<TLeaderRootService>(~this_)->Via(~stateInvoker);
+			} else {
+				return RefCountedSingleton<TNotALeaderRootService>();
+			}
+		});
+
 }
 
 TObjectManager* TCypressManager::GetObjectManager() const
