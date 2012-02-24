@@ -123,7 +123,7 @@ void TBootstrap::Run()
 
     auto rpcServer = CreateRpcServer(~busServer);
 
-    auto metaStateManager = CreateAndRegisterPersistentStateManager(
+    auto metaStateManager = CreatePersistentStateManager(
         ~Config->MetaState,
         ~controlQueue->GetInvoker(),
         ~metaState,
