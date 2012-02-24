@@ -188,10 +188,10 @@ public:
         reader.Read();
     }
 
-    // simplified version for unconditional success (yes, its empty output)
+    // Simplified version for unconditional success (yes, its empty output).
     virtual void ReplySuccess()
-    {
-    }
+    { }
+
 
     virtual TYsonProducer CreateInputProducer(const Stroka& spec)
     {
