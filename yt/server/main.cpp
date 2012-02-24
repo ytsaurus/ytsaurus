@@ -3,6 +3,7 @@
 #include "scheduler_bootstrap.h"
 
 #include <ytlib/misc/enum.h>
+#include <ytlib/misc/errortrace.h>
 #include <ytlib/rpc/rpc_manager.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/ytree/serialize.h>
@@ -181,5 +182,6 @@ int Main(int argc, const char* argv[])
 
 int main(int argc, const char* argv[])
 {
+    NYT::SetupErrorHandler();
     return NYT::Main(argc, argv);
 }

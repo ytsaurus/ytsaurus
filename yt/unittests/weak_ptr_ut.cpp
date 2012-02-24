@@ -14,126 +14,126 @@ using ::testing::MockFunction;
 using ::testing::StrictMock;
 
 namespace NYT {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+// Auxiliary types and functions.
+////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-    // TODO: hide these into class details.
-    static int ConstructorShadowState = 0;
-    static int DestructorShadowState = 0;
+static int ConstructorShadowState = 0;
+static int DestructorShadowState = 0;
 
-    THolder<Event> DeathEvent;
+THolder<Event> DeathEvent;
 
-    void ResetShadowState()
+void ResetShadowState()
+{
+    ConstructorShadowState = 0;
+    DestructorShadowState = 0;
+
+    DeathEvent.Reset(new Event());
+}
+
+class TIntricateObject
+    : public TExtrinsicRefCounted
+{
+public:
+    typedef TIntrusivePtr<TIntricateObject> TPtr;
+    typedef TWeakPtr<TIntricateObject> TWkPtr;
+
+    TIntricateObject()
     {
-        ConstructorShadowState = 0;
-        DestructorShadowState = 0;
-
-        DeathEvent.Reset(new Event());
+        ++ConstructorShadowState;            
     }
 
-    class TIntricateObject
-        : public TExtrinsicRefCounted
+    virtual ~TIntricateObject()
     {
-    public:
-        typedef TIntrusivePtr<TIntricateObject> TPtr;
-        typedef TWeakPtr<TIntricateObject> TWkPtr;
-
-        TIntricateObject()
-        {
-            ++ConstructorShadowState;            
-        }
-
-        virtual ~TIntricateObject()
-        {
-            ++DestructorShadowState;
-        }
-
-        // Prevent the counter from destruction by holding an additional
-        // reference to the counter.
-        void LockCounter()
-        {
-            GetRefCounter()->WeakRef();
-        }
-
-        // Release an additional reference to the reference counter acquired by
-        // #LockCounter().
-        void UnlockCounter()
-        {
-            GetRefCounter()->WeakUnref();
-        }
-
-    private:
-        // Explicitly non-copyable.
-        TIntricateObject(const TIntricateObject&);
-        TIntricateObject(TIntricateObject&&);
-        TIntricateObject& operator=(const TIntricateObject&);
-        TIntricateObject& operator=(TIntricateObject&&);
-    };
-
-    class TDerivedIntricateObject
-        : public TIntricateObject
-    {
-    public:
-        typedef TIntrusivePtr<TDerivedIntricateObject> TPtr;
-        typedef TWeakPtr<TDerivedIntricateObject> TWkPtr;
-
-    private:
-        // Payload.
-        char Payload[32];
-    };
-
-    MATCHER_P2(HasRefCounts, strongRefs, weakRefs,
-        "The object has "
-            + ::testing::PrintToString(strongRefs) + " strong and "
-            + ::testing::PrintToString(weakRefs) + " weak references")
-    {
-        UNUSED(result_listener);
-        return
-            arg.GetRefCounter()->GetRefCount() == strongRefs &&
-            arg.GetRefCounter()->GetWeakRefCount() == weakRefs;
+        ++DestructorShadowState;
     }
 
-    class TSlowlyDyingObject
-        : public TExtrinsicRefCounted
+    // Prevent the counter from destruction by holding an additional
+    // reference to the counter.
+    void LockCounter()
     {
-    public:
-        typedef TIntrusivePtr<TSlowlyDyingObject> TPtr;
-        typedef TWeakPtr<TSlowlyDyingObject> TWkPtr;
-
-        TSlowlyDyingObject()
-        {
-            ++ConstructorShadowState;
-        }
-
-        virtual ~TSlowlyDyingObject()
-        {
-            ++DestructorShadowState;
-            DeathEvent->Wait();
-            ++DestructorShadowState;
-        }
-    };
-
-    template <class T>
-    void PrintExtrinsicRefCounted(const T& arg, ::std::ostream* os)
-    {
-        Stroka repr = Sprintf(
-            "%d strong and %d weak references",
-            arg.GetRefCounter()->GetRefCount(),
-            arg.GetRefCounter()->GetWeakRefCount());
-        *os << repr.c_str();
+        GetRefCounter()->WeakRef();
     }
 
-    void PrintTo(const TIntricateObject& arg, ::std::ostream* os)
+    // Release an additional reference to the reference counter acquired by
+    // #LockCounter().
+    void UnlockCounter()
     {
-        PrintExtrinsicRefCounted(arg, os);
+        GetRefCounter()->WeakUnref();
     }
 
-    void PrintTo(const TSlowlyDyingObject& arg, ::std::ostream* os)
+private:
+    // Explicitly non-copyable.
+    TIntricateObject(const TIntricateObject&);
+    TIntricateObject(TIntricateObject&&);
+    TIntricateObject& operator=(const TIntricateObject&);
+    TIntricateObject& operator=(TIntricateObject&&);
+};
+
+class TDerivedIntricateObject
+    : public TIntricateObject
+{
+public:
+    typedef TIntrusivePtr<TDerivedIntricateObject> TPtr;
+    typedef TWeakPtr<TDerivedIntricateObject> TWkPtr;
+
+private:
+    // Payload.
+    char Payload[32];
+};
+
+MATCHER_P2(HasRefCounts, strongRefs, weakRefs,
+    "The object has "
+        + ::testing::PrintToString(strongRefs) + " strong and "
+        + ::testing::PrintToString(weakRefs) + " weak references")
+{
+    UNUSED(result_listener);
+    return
+        arg.GetRefCounter()->GetRefCount() == strongRefs &&
+        arg.GetRefCounter()->GetWeakRefCount() == weakRefs;
+}
+
+class TSlowlyDyingObject
+    : public TExtrinsicRefCounted
+{
+public:
+    typedef TIntrusivePtr<TSlowlyDyingObject> TPtr;
+    typedef TWeakPtr<TSlowlyDyingObject> TWkPtr;
+
+    TSlowlyDyingObject()
     {
-        PrintExtrinsicRefCounted(arg, os);
+        ++ConstructorShadowState;
     }
-} // namespace <anonymous>
+
+    virtual ~TSlowlyDyingObject()
+    {
+        ++DestructorShadowState;
+        DeathEvent->Wait();
+        ++DestructorShadowState;
+    }
+};
+
+template <class T>
+void PrintExtrinsicRefCounted(const T& arg, ::std::ostream* os)
+{
+    Stroka repr = Sprintf(
+        "%d strong and %d weak references",
+        arg.GetRefCounter()->GetRefCount(),
+        arg.GetRefCounter()->GetWeakRefCount());
+    *os << repr.c_str();
+}
+
+void PrintTo(const TIntricateObject& arg, ::std::ostream* os)
+{
+    PrintExtrinsicRefCounted(arg, os);
+}
+
+void PrintTo(const TSlowlyDyingObject& arg, ::std::ostream* os)
+{
+    PrintExtrinsicRefCounted(arg, os);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -387,4 +387,5 @@ TEST_F(TWeakPtrTest, AcquisionOfSlowlyDyingObject)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace <anonymous>
 } // namespace NYT

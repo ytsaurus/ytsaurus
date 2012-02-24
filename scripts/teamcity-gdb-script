@@ -1,0 +1,21 @@
+set print array on
+set print pretty on
+set print demangle on
+set print object on
+set print vtbl on
+
+printf "=== Running...\n"
+run
+printf "=== Trying to obtain a backtrace...\n"
+backtrace
+printf "=== Trying to obtain a list of threads...\n"
+info threads
+printf "=== Trying to obtain more verbose frame information...\n"
+while (1)
+    printf "\n    FRAME INFORMATION\n\n"
+    info frame
+    printf "\n    LOCAL VARIABLES\n\n"
+    info locals
+    up-silently
+end
+

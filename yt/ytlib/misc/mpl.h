@@ -103,7 +103,9 @@ template <class T> struct TIsPointer
 
 template <class T> struct TIsReference : TFalseType {};
 template <class T> struct TIsReference<T&> : TTrueType {};
+#ifndef _win_ // Somewhat broken for MSVC
 template <class T> struct TIsReference<T&&> : TTrueType {};
+#endif
 
 template <class T> struct TIsLvalueReference : TFalseType {};
 template <class T> struct TIsLvalueReference<T&> : TTrueType {};
@@ -187,12 +189,14 @@ struct TIsConvertibleImpl
 template <class T>
 struct TIsClassImpl
 {
-    static TYesType Test(void (T::*)(void));
+    template <class U>
+    static TYesType Test(void (U::*)(void));
+    template <class U>
     static TNoType  Test(...);
 
     enum
     {
-        Value = (sizeof(Test(0)) == sizeof(TYesType))
+        Value = (sizeof(Test<T>(0)) == sizeof(TYesType))
     };
 };
 

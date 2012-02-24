@@ -154,7 +154,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     , ServiceInvoker(serviceInvoker)
     , LocalResult(MakeFuture(TLocalResult()))
 #if defined(_unix_)
-    , WatchdogQueue(New<TActionQueue>("SnapshotWatchdog"))
+    , WatchdogQueue(New<TActionQueue>("SnapshotWDog"))
 #endif
 {
     YASSERT(cellManager);
