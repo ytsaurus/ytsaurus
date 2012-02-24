@@ -146,7 +146,9 @@ i64 GetAvailableSpace(const Stroka& path)
     if (result == 0) {
 #endif
         ythrow yexception() <<
-            Sprintf("Failed to get available disk space at %s.", ~path.Quote());
+            Sprintf("Failed to get available disk space at %s (error code: %d)", 
+                ~path.Quote(),
+                result);
     }
     return availableSpace;
 }
