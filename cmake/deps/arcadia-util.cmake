@@ -1,6 +1,6 @@
-SET( BASE ${CMAKE_SOURCE_DIR}/util/string )
+set( BASE ${CMAKE_SOURCE_DIR}/util/string )
 
-SET( SRCS
+set( SRCS
   ${BASE}/base64.cpp
   ${BASE}/cast.cpp
   ${BASE}/encodexml.cpp
@@ -25,9 +25,9 @@ SET( SRCS
   ${BASE}/traits.h
 )
 
-SET( G_BASE ${CMAKE_SOURCE_DIR}/util/generic )
+set( G_BASE ${CMAKE_SOURCE_DIR}/util/generic )
 
-SET( G_SRCS
+set( G_SRCS
   ${G_BASE}/buffer.cpp
   ${G_BASE}/ptr.cpp
   ${G_BASE}/stroka.cpp
@@ -71,9 +71,9 @@ SET( G_SRCS
   ${G_BASE}/ylimits.h
 )
 
-SET( D_BASE ${CMAKE_SOURCE_DIR}/util/digest )
+set( D_BASE ${CMAKE_SOURCE_DIR}/util/digest )
 
-SET( D_SRCS
+set( D_SRCS
   ${D_BASE}/crc.cpp
   ${D_BASE}/city.cpp
   ${D_BASE}/md5.cpp
@@ -85,9 +85,9 @@ SET( D_SRCS
   ${D_BASE}/sfh.h
 )
 
-SET( S_BASE ${CMAKE_SOURCE_DIR}/util/system )
+set( S_BASE ${CMAKE_SOURCE_DIR}/util/system )
 
-SET( S_SRCS
+set( S_SRCS
   ${S_BASE}/align.h
   ${S_BASE}/atexit.cpp
   ${S_BASE}/atomic.h
@@ -138,16 +138,16 @@ SET( S_SRCS
 )
 
 if (LINUX)
-  SET( S_SRCS "${S_SRCS} ${S_BASE}/valgrind.h" )
+  set( S_SRCS "${S_SRCS} ${S_BASE}/valgrind.h" )
 endif()
 
 if (LINUX OR SUN OR CYGWIN OR WIN32)
-  SET( S_SRCS ${S_SRCS} ${S_BASE}/freeBSD_mktemp.cpp )
+  set( S_SRCS ${S_SRCS} ${S_BASE}/freeBSD_mktemp.cpp )
 endif()
 
-SET( M_BASE ${CMAKE_SOURCE_DIR}/util/memory )
+set( M_BASE ${CMAKE_SOURCE_DIR}/util/memory )
 
-SET( M_SRCS
+set( M_SRCS
   ${M_BASE}/profile.cpp
   ${M_BASE}/tempbuf.cpp
   ${M_BASE}/blob.cpp
@@ -162,9 +162,9 @@ SET( M_SRCS
   ${M_BASE}/smallobj.h
 )
 
-SET( ST_BASE ${CMAKE_SOURCE_DIR}/util/stream )
+set( ST_BASE ${CMAKE_SOURCE_DIR}/util/stream )
 
-SET( ST_SRCS
+set( ST_SRCS
   ${ST_BASE}/buffer.cpp
   ${ST_BASE}/buffered.cpp
   ${ST_BASE}/chunk.cpp
@@ -196,10 +196,10 @@ SET( ST_SRCS
   ${ST_BASE}/walk.h
 )
 
-SET( CS_BASE ${CMAKE_SOURCE_DIR}/util/charset )
-SET( IC_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/libiconv )
+set( CS_BASE ${CMAKE_SOURCE_DIR}/util/charset )
+set( IC_BASE ${CMAKE_SOURCE_DIR}/contrib/libs/libiconv )
 
-SET( CS_SRCS
+set( CS_SRCS
   ${CS_BASE}/codepage.cpp
   ${CS_BASE}/cp_encrec.cpp
   ${CS_BASE}/doccodes.cpp
@@ -230,9 +230,9 @@ SET( CS_SRCS
   #${IC_BASE}/relocatable.c
 )
 
-SET( CF_BASE ${CMAKE_SOURCE_DIR}/util/config )
+set( CF_BASE ${CMAKE_SOURCE_DIR}/util/config )
 
-SET( CF_SRCS
+set( CF_SRCS
   ${CF_BASE}/last_getopt.cpp
   ${CF_BASE}/last_getopt_support.h
   ${CF_BASE}/opt.cpp
@@ -242,9 +242,9 @@ SET( CF_SRCS
   ${CF_BASE}/ygetopt.cpp
 )
 
-SET( NW_BASE ${CMAKE_SOURCE_DIR}/util/network )
+set( NW_BASE ${CMAKE_SOURCE_DIR}/util/network )
 
-SET( NW_SRCS
+set( NW_SRCS
   ${NW_BASE}/hostip.cpp
   ${NW_BASE}/init.cpp
   ${NW_BASE}/poller.cpp
@@ -257,9 +257,9 @@ SET( NW_SRCS
   ${NW_BASE}/sock.h
 )
 
-SET( FR_BASE ${CMAKE_SOURCE_DIR}/util/folder )
+set( FR_BASE ${CMAKE_SOURCE_DIR}/util/folder )
 
-SET( FR_SRCS
+set( FR_SRCS
   ${FR_BASE}/iterator.h
   ${FR_BASE}/fts.cpp
   ${FR_BASE}/filelist.cpp
@@ -267,15 +267,15 @@ SET( FR_SRCS
 )
 
 if (WIN32)
-  SET( FR_SRCS ${FR_SRCS}
+  set( FR_SRCS ${FR_SRCS}
        ${FR_BASE}/lstat_win.c
        ${FR_BASE}/dirent_win.c
   )
 endif()
 
-SET( DT_BASE ${CMAKE_SOURCE_DIR}/util/datetime )
+set( DT_BASE ${CMAKE_SOURCE_DIR}/util/datetime )
 
-SET( DT_SRCS
+set( DT_SRCS
   ${DT_BASE}/base.cpp
   ${DT_BASE}/constants.h
   ${DT_BASE}/cputimer.cpp
@@ -283,14 +283,14 @@ SET( DT_SRCS
 )
 
 if (WIN32)
-  SET( DT_SRCS ${DT_SRCS}
+  set( DT_SRCS ${DT_SRCS}
     ${DT_BASE}/strptime.cpp
   )
 endif()
 
-SET( TR_BASE ${CMAKE_SOURCE_DIR}/util/thread )
+set( TR_BASE ${CMAKE_SOURCE_DIR}/util/thread )
 
-SET( TR_SRCS
+set( TR_SRCS
   ${TR_BASE}/lfqueue.h
   ${TR_BASE}/lfstack.h
   ${TR_BASE}/pool.cpp
@@ -299,9 +299,9 @@ SET( TR_SRCS
   ${TR_BASE}/threadable.h
 )
 
-SET( SR_BASE ${CMAKE_SOURCE_DIR}/util/sorter )
+set( SR_BASE ${CMAKE_SOURCE_DIR}/util/sorter )
 
-SET( SR_SRCS
+set( SR_SRCS
   ${SR_BASE}/buffile.h
   ${SR_BASE}/filesort.h
   ${SR_BASE}/filesortst.h
@@ -309,15 +309,15 @@ SET( SR_SRCS
   ${SR_BASE}/sorttree.h
 )
 
-SET( GR_BASE ${CMAKE_SOURCE_DIR}/util/green )
+set( GR_BASE ${CMAKE_SOURCE_DIR}/util/green )
 
-SET( GR_SRCS
+set( GR_SRCS
   ${GR_BASE}/impl.cpp
 )
 
-SET( RN_BASE ${CMAKE_SOURCE_DIR}/util/random )
+set( RN_BASE ${CMAKE_SOURCE_DIR}/util/random )
 
-SET( RN_SRCS
+set( RN_SRCS
   ${RN_BASE}/randcpp.cpp
   ${RN_BASE}/random.cpp
   ${RN_BASE}/entropy.cpp
@@ -329,18 +329,18 @@ SET( RN_SRCS
   ${RN_BASE}/shuffle.h
 )
 
-SET( SV_BASE ${CMAKE_SOURCE_DIR}/util/server )
+set( SV_BASE ${CMAKE_SOURCE_DIR}/util/server )
 
-SET( SV_SRCS
+set( SV_SRCS
   ${SV_BASE}/http.cpp
   ${SV_BASE}/static.cpp
   ${SV_BASE}/listen.cpp
   ${SV_BASE}/options.cpp
 )
 
-SET( UT_BASE ${CMAKE_SOURCE_DIR}/util )
+set( UT_BASE ${CMAKE_SOURCE_DIR}/util )
 
-SET( UT_SRCS
+set( UT_SRCS
   ${UT_BASE}/fileptr.cpp
   ${UT_BASE}/str_hash.cpp
   ${UT_BASE}/mbitmap.cpp
@@ -366,12 +366,12 @@ SET( UT_SRCS
 
 if (UNIX)
   # not important for Win, may be useful only for Unixes
-  SET( LFA_SRC ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64.cpp )
+  set( LFA_SRC ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64.cpp )
 else()
-  SET( LFA_SRC )
+  set( LFA_SRC )
 endif()
 
-add_library( arcadia-utils STATIC
+add_library( ytext-arcadia-util STATIC
   ${SRCS}
   ${G_SRCS}
   ${D_SRCS}
@@ -395,22 +395,22 @@ add_library( arcadia-utils STATIC
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
-  target_link_libraries ( arcadia-utils
+  target_link_libraries ( ytext-arcadia-util
     -ldl
   )
 endif()
 
 if (YT_BUILD_WITH_STLPORT)
-  target_link_libraries( arcadia-utils stlport )
+  target_link_libraries( ytext-arcadia-util stlport )
   if (CMAKE_COMPILER_IS_GNUCXX)
-    set_target_properties( arcadia-utils PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
+    set_target_properties( ytext-arcadia-util PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
   endif()
 endif()
 
 include_directories( ${CMAKE_SOURCE_DIR} )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
-  set_target_properties( arcadia-utils PROPERTIES COMPILE_FLAGS "-fPIC" )
+  set_target_properties( ytext-arcadia-util PROPERTIES COMPILE_FLAGS "-fPIC" )
 endif()
 
 if (APPLE)
