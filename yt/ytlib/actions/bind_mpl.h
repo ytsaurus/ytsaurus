@@ -195,7 +195,11 @@ struct TIsWeakMethodHelper<true, TConstRefWrapper< TWeakPtr<T> > >
 //
 // XXX(sandello): The code is a little bit messy, but works fine.
 //
- 
+
+#ifdef _win_
+#pragma warning(disable:4413)
+#endif
+
 template <bool IsMethod, class T>
 struct TMaybeLockHelper
 {
@@ -288,6 +292,10 @@ struct TMaybeLockHelper< true, const TWeakPtr<U>& >
         return T_.Lock();
     }
 };
+
+#ifdef _win_
+#pragma warning(default:4413)
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //

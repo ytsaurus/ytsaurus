@@ -2,11 +2,10 @@ import sys
 import os
 
 sys.path.append(os.path.abspath('.'))
-from yt_shell_test import ShellTest
+from yt_shell_test import ShellFile
 
 import pytest
 
 def pytest_collect_file(path, parent):
     if path.ext == ".sh" and path.basename.startswith("test"):
-        name = path.basename[:-3] # remove extension
-        return ShellTest(path, name, parent)
+        return ShellFile(path, parent)

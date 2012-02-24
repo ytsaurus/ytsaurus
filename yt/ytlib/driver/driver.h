@@ -68,7 +68,7 @@ public:
         IDriverStreamProvider* streamProvider);
     ~TDriver();
 
-    TError Execute(const NYTree::TYson& request);
+    TError Execute(NYTree::INodePtr command);
 
 private:
     class TImpl;
