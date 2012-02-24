@@ -129,17 +129,25 @@ public:
 		auto wrappedHandler = context->Wrap(~handler->Bind(context));
 
 		runtimeInfo->Invoker->Invoke(FromFunctor([=] ()
-		{
-			auto& timer = activeRequest->Timer;
-			Profiler.TimingCheckpoint(timer, "wait");
+		    {
+			    auto& timer = activeRequest->Timer;
+			    Profiler.TimingCheckpoint(timer, "wait");
 
-			wrappedHandler->Do();
-			Profiler.TimingCheckpoint(timer, "sync");
+                // No need for a lock here.
+                activeRequest->Running = true;
 
-			if (runtimeInfo->Descriptor.OneWay) {
-				Profiler.TimingStop(timer);
-			}
-		}));
+			    wrappedHandler->Do();
+			    Profiler.TimingCheckpoint(timer, "sync");
+
+                {
+                    TGuard<TSpinLock> guard(activeRequest->SpinLock);
+                    YASSERT(activeRequest->Running);
+                    activeRequest->Running = false;
+                    if (activeRequest->Completed || runtimeInfo->Descriptor.OneWay) {
+                        Profiler.TimingStop(timer);
+                    }
+                }
+		    }));
 	}
 
 	virtual void OnEndRequest(IServiceContext* context)
@@ -154,9 +162,18 @@ public:
 			return;
 
 		auto& activeRequest = it->second;
+
 		auto& timer = activeRequest->Timer;
 		Profiler.TimingCheckpoint(timer, "async");
-		Profiler.TimingStop(timer);
+
+        {
+            TGuard<TSpinLock> guard(activeRequest->SpinLock);
+            YASSERT(!activeRequest->Completed);
+            activeRequest->Completed = true;
+            if (!activeRequest->Running) {
+                Profiler.TimingStop(timer);
+            }
+        }
 
 		ActiveRequests.erase(it);
 	}
@@ -199,10 +216,19 @@ private:
 			const NProfiling::TTimer& timer)
 			: RuntimeInfo(runtimeInfo)
 			, Timer(timer)
+            , Running(false)
+            , Completed(false)
 		{ }
 
 		TRuntimeMethodInfoPtr RuntimeInfo;
 		NProfiling::TTimer Timer;
+
+        //! Guards #Running and #Replied.
+        TSpinLock SpinLock;
+        //! True if the service method is currently running.
+        bool Running;
+        //! True if #OnEndRequest is already called.
+        bool Completed;
 	};
 
 	typedef TIntrusivePtr<TActiveRequest> TActiveRequestPtr;
