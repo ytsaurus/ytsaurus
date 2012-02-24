@@ -275,7 +275,7 @@ const ICypressNode& TCypressManager::GetVersionedNode(
     return *node;
 }
 
-ICypressNode* TCypressManager::FindVersionedNode(
+ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     ELockMode requestedMode)
@@ -290,7 +290,6 @@ ICypressNode* TCypressManager::FindVersionedNode(
     if (isMandatory) {
         if (transactionId == NullTransactionId) {
             ythrow yexception() << Sprintf("The requested operation requires %s lock but no current transaction is given",
-
                 ~FormatEnum(requestedMode).Quote());
         }
         AcquireLock(nodeId, transactionId, requestedMode);
@@ -329,14 +328,14 @@ ICypressNode* TCypressManager::FindVersionedNode(
     }
 }
 
-ICypressNode& TCypressManager::GetVersionedNode(
+ICypressNode& TCypressManager::GetVersionedNodeForUpdate(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     ELockMode requestedMode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* node = FindVersionedNode(nodeId, transactionId, requestedMode);
+    auto* node = FindVersionedNodeForUpdate(nodeId, transactionId, requestedMode);
     YASSERT(node);
     return *node;
 }
@@ -437,7 +436,7 @@ void TCypressManager::ValidateLock(
                 }
                 // Check for upward conflict.
                 if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
-                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s an upward lock at node %s taken by transaction %s",
+                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s upward lock at node %s taken by transaction %s",
                         ~FormatEnum(requestedMode).Quote(),
                         ~nodeId.ToString(),
                         ~FormatEnum(lock.GetMode()).Quote(),

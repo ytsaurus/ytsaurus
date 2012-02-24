@@ -164,7 +164,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkList)
 {
     UNUSED(request);
 
-    auto& impl = GetTypedImpl(ELockMode::Shared);
+    auto& impl = GetTypedImplForUpdate(ELockMode::Shared);
 
     response->set_chunk_list_id(impl.GetChunkListId().ToProto());
 
