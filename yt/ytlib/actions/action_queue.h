@@ -52,16 +52,17 @@ public:
 
     virtual ~TActionQueueBase();
 
-    void Shutdown();
-
 protected:
     TActionQueueBase(const Stroka& threadName, bool enableLogging);
 
     void Start();
+	void Shutdown();
 	void Signal();
 
     virtual bool DequeueAndExecute() = 0;
     virtual void OnIdle();
+
+	bool IsRunning() const;
 
 private:
     friend class TQueueInvoker;
@@ -90,6 +91,8 @@ public:
     TActionQueue(const Stroka& threadName = "<ActionQueue>", bool enableLogging = true);
     virtual ~TActionQueue();
 
+	void Shutdown();
+
     IInvoker* GetInvoker();
 
     static IFunc<TPtr>::TPtr CreateFactory(const Stroka& threadName);
@@ -112,6 +115,8 @@ public:
 
     TPrioritizedActionQueue(int priorityCount, const Stroka& threadName = "<PrActionQueue>");
     virtual ~TPrioritizedActionQueue();
+
+	void Shutdown();
 
     IInvoker* GetInvoker(int priority);
 

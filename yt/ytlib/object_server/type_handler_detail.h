@@ -42,8 +42,9 @@ public:
         auto& obj = Map->Get(id);
         i32 result = obj.UnrefObject();
         if (result == 0) {
+			// Remove the object from the map but keep it alive for a while.
+			TAutoPtr<TObject> objHolder(Map->Release(id));
             OnObjectDestroyed(obj);
-            Map->Remove(id);
         }
         return result;
     }

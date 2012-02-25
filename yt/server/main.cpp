@@ -7,6 +7,7 @@
 #include <ytlib/misc/errortrace.h>
 #include <ytlib/rpc/rpc_manager.h>
 #include <ytlib/logging/log_manager.h>
+#include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_holder/bootstrap.h>
 
@@ -162,6 +163,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 int Main(int argc, const char* argv[])
 {
 	NYT::SetupErrorHandler();
+	NProfiling::TProfilingManager::Get()->Start();
 
     int exitCode;
     try {
@@ -174,6 +176,7 @@ int Main(int argc, const char* argv[])
 
     // TODO: refactor system shutdown
     NLog::TLogManager::Get()->Shutdown();
+	NProfiling::TProfilingManager::Get()->Shutdown();
     NRpc::TRpcManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 
