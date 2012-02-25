@@ -71,8 +71,10 @@ public:
             Register("rpc_timeout", RpcTimeout)
                 .GreaterThan(TDuration())
                 .Default(TDuration::Seconds(3));
-            Register("max_batch_delay", MaxBatchDelay).Default(TDuration::MilliSeconds(10));
-            Register("max_batch_size", MaxBatchSize).Default(100);
+            Register("max_batch_delay", MaxBatchDelay)
+				.Default(TDuration::MilliSeconds(10));
+            Register("max_batch_size", MaxBatchSize)
+				.Default(10000);
         }
     };
 
