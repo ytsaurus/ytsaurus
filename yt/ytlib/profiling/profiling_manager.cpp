@@ -172,7 +172,7 @@ private:
 		if (NextCalibrationClock != 0) {
 			auto expected = (CalibrationInstant + ClockToDuration(nowClock - CalibrationClock)).MicroSeconds();
 			auto actual = nowInstant.MicroSeconds();
-			LOG_INFO("Clock recalibrated (Diff: %" PRId64 "µs)", expected - actual);
+			LOG_INFO("Clock recalibrated (Diff: %" PRId64 ")", expected - actual);
 		}
 		CalibrationClock = nowClock;
 		CalibrationInstant = nowInstant;
