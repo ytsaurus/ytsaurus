@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "tree_builder.h"
-#include "ypath_client.h"
-#include "serialize.h"
+#include "attributes.h"
 #include "forwarding_yson_consumer.h"
 
 #include <ytlib/actions/action_util.h>
