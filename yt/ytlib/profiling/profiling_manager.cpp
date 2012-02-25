@@ -12,8 +12,12 @@
 
 #include <util/datetime/cputimer.h>
 
+// TODO(babenko): get rid of this dependency on NHPTimer
+#include <quality/Misc/HPTimer.h>
+
 namespace NYT {
 namespace NProfiling  {
+
 
 using namespace NYTree;
 
@@ -97,18 +101,23 @@ class TProfilingManager::TClockConverter
 {
 public:
 	TClockConverter()
-	{
-		Calibrate();
-	}
+		: NextCalibrationClock(0)
+	{ }
 
 	TInstant ToInstant(ui64 clock)
 	{
 		CalibrateIfNeeded();
-		return CalibrationInstant + CyclesToDuration(clock - CalibrationClock);
+		return CalibrationInstant + ClockToDuration(clock - CalibrationClock);
 	}
 
 private:
 	static const TDuration CalibrationInterval;
+
+	// TODO(babenko): get rid of this dependency on NHPTimer
+	static TDuration ClockToDuration(i64 cycles)
+	{
+		return TDuration::Seconds((double) cycles / NHPTimer::GetClockRate());
+	}
 
 	void CalibrateIfNeeded()
 	{
@@ -120,9 +129,16 @@ private:
 
 	void Calibrate()
 	{
-		CalibrationClock = GetCycleCount();
-		CalibrationInstant = TInstant::Now();
-		NextCalibrationClock = CalibrationClock + DurationToCycles(CalibrationInterval);
+		auto nowClock = GetCycleCount();
+		auto nowInstant = TInstant::Now();
+		if (NextCalibrationClock != 0) {
+			auto expected = (CalibrationInstant + ClockToDuration(nowClock - CalibrationClock)).MicroSeconds();
+			auto actual = nowInstant.MicroSeconds();
+			LOG_INFO("Clock recalibrated (Diff: %" PRId64 "µs)", expected - actual);
+		}
+		CalibrationClock = nowClock;
+		CalibrationInstant = nowInstant;
+		NextCalibrationClock = nowClock + DurationToCycles(CalibrationInterval);
 	}
 
 	TInstant CalibrationInstant;
@@ -131,7 +147,7 @@ private:
 
 };
 
-const TDuration TProfilingManager::TClockConverter::CalibrationInterval = TDuration::Seconds(5);
+const TDuration TProfilingManager::TClockConverter::CalibrationInterval = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
