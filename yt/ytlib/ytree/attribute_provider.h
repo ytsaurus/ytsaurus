@@ -14,6 +14,7 @@ struct IAttributeProvider
     { }
 
     virtual IAttributeDictionary& Attributes() = 0;
+	virtual const IAttributeDictionary& Attributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

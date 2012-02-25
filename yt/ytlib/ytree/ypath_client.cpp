@@ -33,6 +33,9 @@ IMessage::TPtr TYPathRequest::Serialize()
     TRequestHeader header;
     header.set_path(Path_);
     header.set_verb(Verb_);
+	if (HasAttributes()) {
+		ToProto(header.mutable_attributes(), Attributes());
+	}
 
     return CreateRequestMessage(
         header,
@@ -48,6 +51,9 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
 
     auto header = GetResponseHeader(message);
     Error_ = GetResponseError(header);
+	if (header.has_attributes()) {
+		SetAttributes(FromProto(header.attributes()));
+	}
 
     if (Error_.IsOK()) {
         // Deserialize body.

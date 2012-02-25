@@ -41,11 +41,16 @@ class TProfilingManager::TBucket
 	, public TSupportsGet
 {
 public:
+	typedef std::deque<TStoredSample> TSamples;
+	typedef TSamples::iterator TSamplesIterator;
+	typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
+
 	TBucket()
 		: TYPathServiceBase("Profiling")
 	{ }
 
-	void Store(const TStoredSample& sample)
+	//! Adds a new sample to the bucket inserting in at an appropriate position.
+	void AddSample(const TStoredSample& sample)
 	{
 		// Samples are ordered by time.
 		// Search for an appropriate insertion point starting from the the back,
@@ -57,7 +62,8 @@ public:
 		Samples.insert(Samples.begin() + index, sample);
 	}
 
-	void Trim(TDuration maxKeepInterval)
+	//! Removes the oldest samples keeping [minTime,maxTime] interval no larger than #maxKeepInterval.
+	void TrimSamples(TDuration maxKeepInterval)
 	{
 		if (Samples.size() <= 1)
 			return;
@@ -66,6 +72,26 @@ public:
 		while (Samples.front().Time < deadline) {
 			Samples.pop_front();
 		}
+	}
+
+	//! Gets samples with timestamp larger than #lastTime.
+	//! If #lastTime is #Null then all samples are returned.
+	TSamplesRange GetSamples(TNullable<TInstant> lastTime = Null)
+	{
+		if (!lastTime) {
+			return make_pair(Samples.begin(), Samples.end());
+		}
+
+		// Run binary search to find the proper position.
+		TStoredSample lastSample;
+		lastSample.Time = lastTime.Get();
+		auto it = std::upper_bound(
+			Samples.begin(),
+			Samples.end(),
+			lastSample,
+			[=] (const TStoredSample& lhs, const TStoredSample& rhs) { return lhs.Time < rhs.Time; });
+
+		return std::make_pair(it, Samples.end());
 	}
 
 private:
@@ -77,11 +103,19 @@ private:
 		TYPathServiceBase::DoInvoke(context);
 	}
 
+	static TNullable<TInstant> ParseInstant(TNullable<i64> value)
+	{
+		return value ? MakeNullable(TInstant::MicroSeconds(value.Get())) : Null;
+	}
+
 	void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 	{
+		auto lastTime = ParseInstant(request->Attributes().Find<i64>("last_time"));
+		auto range = GetSamples(lastTime);
 		TYson yson = BuildYsonFluently()
-			.DoListFor(Samples, [] (TFluentList fluent, const TStoredSample& sample)
+			.DoListFor(range.first, range.second, [] (TFluentList fluent, const TSamplesIterator& it)
 				{
+					const auto& sample = *it;
 					fluent
 						.Item().BeginMap()
 							.Item("id").Scalar(sample.Id)
@@ -261,8 +295,8 @@ private:
 		storedSample.Time = ClockConverter.ToInstant(queuedSample.Time);
 		storedSample.Value = queuedSample.Value;
 
-		bucket->Store(storedSample);
-		bucket->Trim(MaxKeepInterval);
+		bucket->AddSample(storedSample);
+		bucket->TrimSamples(MaxKeepInterval);
 	}
 
 };

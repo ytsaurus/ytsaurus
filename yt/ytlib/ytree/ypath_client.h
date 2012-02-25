@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "ypath_service.h"
+#include "attribute_provider_detail.h"
 
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/property.h>
@@ -16,6 +17,7 @@ namespace NYTree {
 
 class TYPathRequest
     : public TRefCounted
+	, public TEphemeralAttributeProvider
 {
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
     DEFINE_BYVAL_RW_PROPERTY(TYPath, Path);
@@ -64,9 +66,10 @@ protected:
 
 class TYPathResponse
     : public TRefCounted
+	, public TEphemeralAttributeProvider
 {
+	DEFINE_BYVAL_RW_PROPERTY(TError, Error);
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DEFINE_BYVAL_RW_PROPERTY(TError, Error);
 
 public:
     typedef TIntrusivePtr<TYPathResponse> TPtr;
