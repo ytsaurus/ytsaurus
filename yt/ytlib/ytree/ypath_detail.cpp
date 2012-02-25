@@ -590,10 +590,7 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
 {
     YASSERT(requestMessage);
 
-    TRequestHeader header;
-    header.set_path(path);
-    header.set_verb(verb);
-
+	auto header = GetRequestHeader(requestMessage);
     return New<TServiceContext>(
         header,
         requestMessage,
