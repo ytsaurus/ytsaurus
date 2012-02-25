@@ -375,7 +375,6 @@ class TClientDispatcher
             ~header->SessionId.ToString(),
             ~requestId.ToString(),
 			sequenceId,
-			sequenceId,
             dataSize);
 
         auto& bus = busIt->second;
