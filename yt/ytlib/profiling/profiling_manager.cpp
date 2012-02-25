@@ -197,17 +197,28 @@ public:
 		: TActionQueueBase("Profiling", true)
 		, Invoker(New<TQueueInvoker>(this, true))
 		, Root(GetEphemeralNodeFactory()->CreateMap())
-	{
-		Start();
-	}
+	{ }
 
 	~TImpl()
 	{
 		Invoker->OnShutdown();
 	}
 
+	void Start()
+	{
+		TActionQueueBase::Start();
+	}
+	
+	void Shutdown()
+	{
+		TActionQueueBase::Shutdown();
+	}
+
 	void Enqueue(const TQueuedSample& sample)
 	{
+		if (!IsRunning())
+			return;
+
 		SampleQueue.Enqueue(sample);
 		Signal();
 	}
@@ -225,7 +236,6 @@ public:
 private:
 	TQueueInvokerPtr Invoker;
 	IMapNodePtr Root;
-	IYPathServicePtr Service;
 	TLockFreeQueue<TQueuedSample> SampleQueue;
 	yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
 	TIdGenerator<i64> IdGenerator;
@@ -313,6 +323,16 @@ TProfilingManager::TProfilingManager()
 TProfilingManager* TProfilingManager::Get()
 {
     return Singleton<TProfilingManager>();
+}
+
+void TProfilingManager::Start()
+{
+	Impl->Start();
+}
+
+void TProfilingManager::Shutdown()
+{
+	Impl->Shutdown();
 }
 
 void TProfilingManager::Enqueue(const TQueuedSample& sample)
