@@ -145,8 +145,8 @@ protected:
 
     Stroka AttributeKey;
     TYson AttributeValue;
-    TAutoPtr<TStringOutput> AttributeStream;
-    TAutoPtr<TYsonWriter> AttributeWriter;
+    TStringOutput AttributeStream;
+    TYsonWriter AttributeWriter;
 
     void OnForwardingFinished();
 

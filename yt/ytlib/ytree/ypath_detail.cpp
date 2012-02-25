@@ -447,6 +447,8 @@ TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node(node)
     , TreeBuilder(builder)
     , NodeFactory(node->CreateFactory())
+	, AttributeStream(AttributeValue)
+	, AttributeWriter(&AttributeStream)
 { }
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
@@ -500,19 +502,15 @@ void TNodeSetterBase::OnMyBeginAttributes()
 
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
 {
-    YASSERT(!AttributeWriter);
     AttributeKey = key;
-    AttributeStream = new TStringOutput(AttributeValue);
-    AttributeWriter = new TYsonWriter(AttributeStream.Get());
-    ForwardNode(~AttributeWriter, ~FromMethod(&TThis::OnForwardingFinished, this));
+    ForwardNode(&AttributeWriter, ~FromMethod(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()
 {
     SyncYPathSet(~Node, AttributeMarker + AttributeKey, AttributeValue);
-    AttributeWriter.Destroy();
-    AttributeStream.Destroy();
     AttributeKey.clear();
+	AttributeValue.clear();
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
