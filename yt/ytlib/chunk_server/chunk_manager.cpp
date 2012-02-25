@@ -24,7 +24,6 @@
 #include <ytlib/object_server/type_handler_detail.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/logging/log.h>
-#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -39,7 +38,6 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkServer");
-static NProfiling::TProfiler Profiler("chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,7 +247,6 @@ public:
         auto id = ObjectManager->GenerateId(EObjectType::Chunk);
         auto* chunk = new TChunk(id);
         ChunkMap.Insert(id, chunk);
-		ProfileChunkCount();
         return *chunk;
     }
 
@@ -391,8 +388,6 @@ private:
             chunkIds.push_back(chunkId);
         }
 
-		ProfileChunkCount();
-
         LOG_INFO_IF(!IsRecovery(), "Chunks allocated (ChunkIds: [%s], TransactionId: %s)",
             ~JoinToString(chunkIds),
             ~transactionId.ToString());
@@ -500,8 +495,6 @@ private:
                 DoRemoveChunkFromLocation(holderId, chunk, true);
             }
         }
-
-		ProfileChunkCount();
     }
 
     void OnChunkListDestroyed(TChunkList& chunkList)
@@ -545,7 +538,6 @@ private:
 
         HolderMap.Insert(holderId, newHolder);
         HolderAddressMap.insert(MakePair(address, holderId)).second;
-		ProfileAliveHolderCount();
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder);
@@ -564,11 +556,6 @@ private:
 
         return TVoid();
     }
-
-	void ProfileAliveHolderCount()
-	{
-		Profiler.Enqueue("alive_holder_count", HolderMap.GetSize());
-	}
 
 
     TVoid HeartbeatRequest(const TMsgHeartbeatRequest& message)
@@ -686,16 +673,13 @@ private:
 			ChunkReplicaCount += holder.StoredChunkIds().size();
 			ChunkReplicaCount += holder.CachedChunkIds().size();
 		}
-		ProfileChunkCount();
-		ProfileChunkReplicaCount();
 
-        // Reconstruct HolderAddressMap.
+		// Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
         FOREACH (const auto& pair, HolderMap) {
             const auto* holder = pair.second;
             YVERIFY(HolderAddressMap.insert(MakePair(holder->GetAddress(), holder->GetId())).second);
         }
-		ProfileAliveHolderCount();
 
         // Reconstruct ReplicationSinkMap.
         ReplicationSinkMap.clear();
@@ -709,8 +693,6 @@ private:
         HolderIdGenerator.Reset();
         ChunkMap.Clear();
 		ChunkReplicaCount = 0;
-		ProfileChunkCount();
-		ProfileChunkReplicaCount();
         ChunkListMap.Clear();
         HolderMap.Clear();
         JobMap.Clear();
@@ -799,7 +781,6 @@ private:
 
         YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
         HolderMap.Remove(holderId);
-		ProfileAliveHolderCount();
     }
 
 
@@ -819,7 +800,6 @@ private:
 
         holder.AddChunk(chunkId, cached);
         chunk.AddLocation(holderId, cached);
-		ProfileChunkReplicaCount();
 
         LOG_DEBUG_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
@@ -860,7 +840,6 @@ private:
 
         holder.RemoveChunk(chunk.GetId(), cached);
         chunk.RemoveLocation(holder.GetId(), cached);
-		ProfileChunkReplicaCount();
 
         LOG_DEBUG_IF(!IsRecovery(), "Chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
              ~chunkId.ToString(),
@@ -880,7 +859,6 @@ private:
 
          holder.RemoveUnapprovedChunk(chunk.GetId());
          chunk.RemoveLocation(holder.GetId(), false);
-		 ProfileChunkReplicaCount();
 
         LOG_DEBUG_IF(!IsRecovery(), "Unapproved chunk replica removed (ChunkId: %s, Address: %s, HolderId: %d)",
              ~chunkId.ToString(),
@@ -895,7 +873,6 @@ private:
     void DoRemoveChunkReplicaAtDeadHolder(const THolder& holder, TChunk& chunk, bool cached)
     {
         chunk.RemoveLocation(holder.GetId(), cached);
-		ProfileChunkReplicaCount();
 
         LOG_DEBUG_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
              ~chunk.GetId().ToString(),
@@ -907,11 +884,6 @@ private:
             ChunkReplication->OnReplicaRemoved(holder, chunk);
         }
     }
-
-	void ProfileChunkReplicaCount()
-	{
-		Profiler.Enqueue("chunk_replica_count", ChunkReplicaCount);
-	}
 
 
     void DoAddJob(THolder& holder, const TRspHolderHeartbeat::TJobStartInfo& jobInfo)
@@ -1054,11 +1026,6 @@ private:
 
         DoRemoveChunkReplica(holder, *chunk, cached);
     }
-
-	void ProfileChunkCount()
-	{
-		Profiler.Enqueue("chunk_count", ChunkMap.GetSize());
-	}
 
 
     TJobList& GetOrCreateJobList(const TChunkId& id)
