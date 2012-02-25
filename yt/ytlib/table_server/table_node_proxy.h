@@ -49,7 +49,7 @@ private:
         const NYTree::TYPath& path,
         NTableClient::TChannel* channel);
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkList);
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListForUpdate);
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);
 
 };
