@@ -370,10 +370,12 @@ class TClientDispatcher
         if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId))
             return;
 
-        LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, PacketSize: %d)",
+        LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
             (int) isRequest,
             ~header->SessionId.ToString(),
             ~requestId.ToString(),
+			sequenceId,
+			sequenceId,
             dataSize);
 
         auto& bus = busIt->second;
@@ -519,7 +521,7 @@ public:
         RequestQueue.Enqueue(request);
         GetEvent().Signal();
 
-        LOG_DEBUG("Request enqueued (SessionId: %s, Request: %p, PacketSize: %d)",
+        LOG_DEBUG("Request enqueued (SessionId: %s, Request: %p, SequenceId: PacketSize: %d)",
             ~bus->SessionId.ToString(),
             ~request,
             dataSize);
@@ -600,14 +602,12 @@ TNLBusClient::TBus::TBus(TNLBusClient* client, IMessageHandler* handler)
     , Handler(handler)
     , Terminated(false)
     , SequenceId(0)
+	, SessionId(TSessionId::Create())
     , MessageRearranger(New<TMessageRearranger>(
+		SessionId,
         ~FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
         MessageRearrangeTimeout))
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    SessionId = TSessionId::Create();
-}
+{ }
 
 IBus::TSendResult::TPtr TNLBusClient::TBus::Send(IMessage::TPtr message)
 {

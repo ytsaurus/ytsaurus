@@ -139,6 +139,7 @@ public:
         , Terminated(false)
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
+			SessionId,
             ~FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
             server->Config->MessageRearrangeTimeout))
     { }
@@ -150,9 +151,12 @@ public:
         Server.Reset();
     }
 
-    void ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
+    void ProcessIncomingMessage(
+		IMessage* message,
+		const TGuid& requestId,
+		TSequenceId sequenceId)
     {
-        MessageRearranger->EnqueueMessage(message, sequenceId);
+        MessageRearranger->EnqueueMessage(message, requestId, sequenceId);
     }
 
     TSessionId GetSessionId() const
@@ -539,7 +543,7 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
         sequenceId,
         dataSize);
 
-    session->ProcessIncomingMessage(~message, sequenceId);
+    session->ProcessIncomingMessage(~message, requestId, sequenceId);
 
     return session;
 }

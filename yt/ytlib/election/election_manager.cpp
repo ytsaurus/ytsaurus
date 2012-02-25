@@ -692,6 +692,9 @@ void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 
 void TElectionManager::UpdateState(TProxy::EState newState)
 {
+	if (newState == State)
+		return;
+
 	// This generic message logged to simplify tracking state changes.
 	LOG_INFO("State changed from %s to %s",
 		~State.ToString(),
