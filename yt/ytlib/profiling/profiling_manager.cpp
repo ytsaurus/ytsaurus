@@ -107,7 +107,11 @@ public:
 	TInstant ToInstant(ui64 clock)
 	{
 		CalibrateIfNeeded();
-		return CalibrationInstant + ClockToDuration(clock - CalibrationClock);
+		// TDuration is unsigned and thus does not support negative values.
+		return
+			clock >= CalibrationClock
+			? CalibrationInstant + ClockToDuration(clock - CalibrationClock)
+			: CalibrationInstant - ClockToDuration(CalibrationClock - clock);
 	}
 
 private:
