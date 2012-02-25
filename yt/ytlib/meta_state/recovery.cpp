@@ -550,7 +550,7 @@ TRecovery::EResult TFollowerRecovery::PostponeChanges(
         LOG_WARNING("Late changes received during recovery, ignored: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
-        return EResult::Failed;
+        return EResult::OK;
     }
 
     if (PostponedVersion != version) {

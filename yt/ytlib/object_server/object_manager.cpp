@@ -599,7 +599,7 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
         ~requestMessage,
         path,
         verb,
-        Logger.GetCategory(),
+        "",
         NULL);
 
     auto proxy = GetProxy(id);

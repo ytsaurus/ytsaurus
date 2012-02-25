@@ -471,6 +471,8 @@ void TElectionManager::Restart()
 {
 	VERIFY_THREAD_AFFINITY_ANY();
 
+	LOG_INFO("Restart forced");
+
 	Stop();
 	Start();
 }
