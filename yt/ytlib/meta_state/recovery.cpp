@@ -221,7 +221,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             // Check if the current state contains some changes that are not present in the remote changelog.
             // If so, clear the state and restart recovery.
             if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
-                LOG_INFO("Current version is %s while only %s changes are expected, performing clear restart",
+                LOG_INFO("Current version is %s while only %d changes are expected, performing clear restart",
 					~currentVersion.ToString(),
 					remoteRecordCount);
                 MetaState->Clear();
