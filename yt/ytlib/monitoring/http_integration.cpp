@@ -65,32 +65,37 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
 	}
 }
 
-} // namespace <anonymous>
-
-TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
-    IYPathService* service)
+// TOOD(babenko): use const&
+TFuture<Stroka>::TPtr HandleRequest(Stroka url, IYPathServicePtr service)
 {
-	// TODO(babenko): use AsStrong
-	IYPathServicePtr service_ = service;
-    return FromFunctor([=] (Stroka url) -> TFuture<Stroka>::TPtr
-        {
-			// TODO(babenko): rewrite using some standard URL parser
-			auto queryIndex = url.find_first_of('?');
-			auto req = TYPathProxy::Get();
-			TYPath path;
-			if (queryIndex == Stroka::npos) {
-				path = url;
-			} else {
-				path = url.substr(0, queryIndex);
-				ParseQuery(&req->Attributes(), url.substr(queryIndex + 1));
-			}
-			req->SetPath(path);
-			return ExecuteVerb(~service_, ~req)->Apply(FromMethod(&OnResponse));
-        });
+	try {
+		// TODO(babenko): rewrite using some standard URL parser
+		auto queryIndex = url.find_first_of('?');
+		auto req = TYPathProxy::Get();
+		TYPath path;
+		if (queryIndex == Stroka::npos) {
+			path = url;
+		} else {
+			path = url.substr(0, queryIndex);
+			ParseQuery(&req->Attributes(), url.substr(queryIndex + 1));
+		}
+		req->SetPath(path);
+		return ExecuteVerb(~service, ~req)->Apply(FromMethod(&OnResponse));
+	} catch (const std::exception& ex) {
+		// TODO(sandello): Proper JSON escaping here.
+		return MakeFuture(FormatInternalServerErrorResponse(Stroka(ex.what()).Quote()));
+	}
 }
 
-TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
-	TYPathServiceProducer producer)
+} // namespace <anonymous>
+
+TServer::TAsyncHandler::TPtr GetYPathHttpHandler(IYPathService* service)
+{
+	// TODO(babenko): use AsStrong
+    return FromMethod(&HandleRequest, IYPathServicePtr(service));
+}
+
+TServer::TAsyncHandler::TPtr GetYPathHttpHandler(TYPathServiceProducer producer)
 {
 	return GetYPathHttpHandler(~IYPathService::FromProducer(producer));
 }
