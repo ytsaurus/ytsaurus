@@ -2,6 +2,7 @@
 #include "ephemeral.h"
 #include "node_detail.h"
 #include "ypath_detail.h"
+#include "attribute_provider_detail.h"
 
 #include <ytlib/misc/hash.h>
 #include <ytlib/misc/singleton.h>
@@ -16,6 +17,7 @@ namespace NYTree {
 class TEphemeralNodeBase
     : public TNodeBase
     , public TSupportsAttributes
+	, public TEphemeralAttributeProvider
 {
 public:
     TEphemeralNodeBase()
@@ -38,21 +40,11 @@ public:
         Parent = parent;
     }
 
-
-    virtual IAttributeDictionary& Attributes()
-    {
-        return *GetUserAttributes();
-    }
-
 protected:
     // TSupportsAttributes members
-
     virtual IAttributeDictionary* GetUserAttributes()
     {
-        if (!Attributes_) {
-            Attributes_ = CreateEphemeralAttributes();
-        }
-        return Attributes_.Get();
+		return &Attributes();
     }
 
     virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
