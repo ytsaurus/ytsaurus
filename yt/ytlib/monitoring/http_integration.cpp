@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "http_integration.h"
 
+#include <ytlib/misc/foreach.h>
 #include <ytlib/ytree/json_adapter.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/virtual.h>
+#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NMonitoring {
@@ -17,22 +19,50 @@ using namespace NHttp;
 
 namespace {
 
-Stroka OnResponse(TValueOrError<TYson> response)
+Stroka OnResponse(TYPathProxy::TRspGet::TPtr rsp)
 {
-    if (!response.IsOK()) {
+    if (!rsp->IsOK()) {
         // TODO(sandello): Proper JSON escaping here.
-        return FormatInternalServerErrorResponse(response.ToString().Quote());
+        return FormatInternalServerErrorResponse(rsp->GetError().GetMessage().Quote());
     }
 
     // TODO(babenko): maybe extract method
     TStringStream output;
     TJsonAdapter adapter(&output);
-    TStringInput input(response.Value());
+    TStringInput input(rsp->value());
     TYsonReader reader(&adapter, &input);
     reader.Read();
     adapter.Flush();
 
     return FormatOKResponse(output.Str());
+}
+
+void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
+{
+	yvector<Stroka> params;
+	Split(query, "&", params);
+	FOREACH (const auto& param, params) {
+		auto eqIndex = param.find_first_of('=');
+		if (eqIndex == Stroka::npos) {
+			ythrow yexception() << "Malformed query";
+		}
+		if (eqIndex == 0) {
+			ythrow yexception() << "Empty query parameter name";
+			Stroka key = param.substr(0, eqIndex - 1);
+			TYson value = param.substr(eqIndex + 1);
+
+			// Just a check, IAttributeDictionary takes raw YSON anyway.
+			try {
+				ValidateYson(value);
+			} catch (const std::exception& ex) {
+				ythrow yexception() << Sprintf("Error parsing value of query parameter %s\n%s",
+					~key,
+					ex.what());
+			}
+
+			attributes->SetYson(key, value);
+		}
+	}
 }
 
 } // namespace <anonymous>
@@ -42,9 +72,20 @@ TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
 {
 	// TODO(babenko): use AsStrong
 	IYPathServicePtr service_ = service;
-    return FromFunctor([=] (Stroka path) -> TFuture<Stroka>::TPtr
+    return FromFunctor([=] (Stroka url) -> TFuture<Stroka>::TPtr
         {
-			return AsyncYPathGet(~service_, path)->Apply(FromMethod(&OnResponse));
+			// TODO(babenko): rewrite using some standard URL parser
+			auto queryIndex = url.find_first_of('?');
+			auto req = TYPathProxy::Get();
+			TYPath path;
+			if (queryIndex == Stroka::npos) {
+				path = url;
+			} else {
+				path = url.substr(0, queryIndex);
+				ParseQuery(&req->Attributes(), url.substr(queryIndex + 1));
+			}
+			req->SetPath(path);
+			return ExecuteVerb(~service_, ~req)->Apply(FromMethod(&OnResponse));
         });
 }
 
