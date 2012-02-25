@@ -1,8 +1,11 @@
 #include "stdafx.h"
 #include "null_yson_consumer.h"
+#include "yson_consumer.h"
 
 namespace NYT {
 namespace NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TNullYsonConsumer
     : public IYsonConsumer
@@ -70,6 +73,8 @@ IYsonConsumer* GetNullYsonConsumer()
 {
     return Singleton<TNullYsonConsumer>();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT
