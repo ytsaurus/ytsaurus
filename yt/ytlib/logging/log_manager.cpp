@@ -287,8 +287,8 @@ public:
             auto queue = Queue;
             Queue.Reset();
 
-            // This is actually a Flush(). We cannot use Flush() directly since
-            // we have to drop #Queue pointer.
+            // This is actually #Flush. We cannot use #Flush directly since
+            // we have to drop #Queue.
             FromMethod(&TLogConfig::FlushWriters, Config)
                 ->AsyncVia(queue->GetInvoker())
                 ->Do()
