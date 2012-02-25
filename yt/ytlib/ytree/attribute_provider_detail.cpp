@@ -8,7 +8,7 @@ namespace NYTree {
 
 IAttributeDictionary& TEphemeralAttributeProvider::Attributes()
 {
-	if (!Attributes_.Get()) {
+	if (!HasAttributes()) {
 		Attributes_ = CreateEphemeralAttributes();
 	}
 	return *Attributes_;
@@ -16,11 +16,21 @@ IAttributeDictionary& TEphemeralAttributeProvider::Attributes()
 
 const IAttributeDictionary& TEphemeralAttributeProvider::Attributes() const
 {
-	if (Attributes_.Get()) {
+	if (HasAttributes()) {
 		return *Attributes_;
 	} else {
 		return EmptyAttributes();
 	}
+}
+
+bool TEphemeralAttributeProvider::HasAttributes() const
+{
+	return Attributes_.Get();
+}
+
+void TEphemeralAttributeProvider::SetAttributes(TAutoPtr<IAttributeDictionary> attributes)
+{
+	Attributes_ = attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
