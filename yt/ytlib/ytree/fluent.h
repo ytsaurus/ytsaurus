@@ -128,7 +128,7 @@ public:
         {
             this->Consumer->OnBeginList();
             for (auto current = begin; current != end; ++current) {
-                func(TListCore(this->Consumer), current);
+                func(TListCore(this->Consumer), *current);
             }
             this->Consumer->OnEndList();
             return this->Parent;
