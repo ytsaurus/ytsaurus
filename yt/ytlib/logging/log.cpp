@@ -35,7 +35,7 @@ bool TLogger::IsEnabled(ELogLevel level) const
         const_cast<TLogger*>(this)->UpdateConfig();
     }
 
-    return level >= MinLevel;
+    return level >= MinLevel && !Category.empty();
 }
 
 void TLogger::UpdateConfig()
