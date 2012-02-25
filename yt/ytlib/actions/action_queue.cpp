@@ -136,6 +136,11 @@ void TActionQueueBase::Signal()
 	WakeupEvent.Signal();
 }
 
+bool TActionQueueBase::IsRunning() const
+{
+	return Running;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
@@ -166,6 +171,11 @@ IFunc<TActionQueue::TPtr>::TPtr TActionQueue::CreateFactory(const Stroka& thread
         {
             return NYT::New<NYT::TActionQueue>(threadName);
         });
+}
+
+void TActionQueue::Shutdown()
+{
+	TActionQueueBase::Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -202,6 +212,11 @@ bool TPrioritizedActionQueue::DequeueAndExecute()
         }
     }
     return false;
+}
+
+void TPrioritizedActionQueue::Shutdown()
+{
+	TActionQueueBase::Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
