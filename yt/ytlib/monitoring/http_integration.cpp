@@ -48,20 +48,21 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
 		}
 		if (eqIndex == 0) {
 			ythrow yexception() << "Empty query parameter name";
-			Stroka key = param.substr(0, eqIndex - 1);
-			TYson value = param.substr(eqIndex + 1);
-
-			// Just a check, IAttributeDictionary takes raw YSON anyway.
-			try {
-				ValidateYson(value);
-			} catch (const std::exception& ex) {
-				ythrow yexception() << Sprintf("Error parsing value of query parameter %s\n%s",
-					~key,
-					ex.what());
-			}
-
-			attributes->SetYson(key, value);
 		}
+
+		Stroka key = param.substr(0, eqIndex);
+		TYson value = param.substr(eqIndex + 1);
+
+		// Just a check, IAttributeDictionary takes raw YSON anyway.
+		try {
+			ValidateYson(value);
+		} catch (const std::exception& ex) {
+			ythrow yexception() << Sprintf("Error parsing value of query parameter %s\n%s",
+				~key,
+				ex.what());
+		}
+
+		attributes->SetYson(key, value);
 	}
 }
 
