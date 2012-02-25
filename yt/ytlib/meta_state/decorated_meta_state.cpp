@@ -15,9 +15,9 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDecoratedMetaState::TDecoratedMetaState(
-    IMetaState::TPtr state,
-    TSnapshotStore::TPtr snapshotStore,
-    TChangeLogCache::TPtr changeLogCache)
+    IMetaState* state,
+    TSnapshotStore* snapshotStore,
+    TChangeLogCache* changeLogCache)
     : State(state)
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
