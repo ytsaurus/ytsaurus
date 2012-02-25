@@ -4,6 +4,7 @@
 #include "message.h"
 
 #include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
 namespace NBus {
@@ -17,24 +18,43 @@ public:
     typedef TIntrusivePtr<TMessageRearranger> TPtr;
 
     TMessageRearranger(
+		const TSessionId& sessionId,
         IParamAction<IMessage*>* onDequeuedMessage,
         TDuration timeout);
 
-    void EnqueueMessage(IMessage* message, TSequenceId sequenceId);
+    void EnqueueMessage(
+		IMessage* message,
+		const TGuid& requestId,
+		TSequenceId sequenceId);
 
 private:
-    typedef ymap<TSequenceId, IMessage::TPtr> TMessageMap;
+	struct TPostponedMessage
+	{
+		TPostponedMessage(const TGuid& requestId, IMessage* message)
+			: RequestId(requestId)
+			, Message(message)
+		{ }
 
-    TSpinLock SpinLock;
+		TGuid RequestId;
+		IMessage::TPtr Message;
+	};
+
+    typedef ymap<TSequenceId, TPostponedMessage> TPostponedMessages;
+
+	TSessionId SessionId;
     IParamAction<IMessage*>::TPtr OnMessageDequeued;
     TDuration Timeout;
+
+	NLog::TTaggedLogger Logger;
+	TSpinLock SpinLock;
     TDelayedInvoker::TCookie TimeoutCookie;
     TSequenceId ExpectedSequenceId;
-    TMessageMap MessageMap;
+    TPostponedMessages PostponedMessages;
 
     void RescheduleTimeout();
     void OnTimeout();
-    void FlushRearrangedMessages();
+    void TryFlush();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
