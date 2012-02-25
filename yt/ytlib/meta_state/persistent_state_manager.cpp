@@ -959,7 +959,7 @@ public:
 
         LOG_INFO("Starting leader recovery");
 
-        GetControlStatus() = EPeerStatus::LeaderRecovery;
+        ControlStatus = EPeerStatus::LeaderRecovery;
         LeaderId = CellManager->GetSelfId();
 
         StartControlEpoch(epoch);
