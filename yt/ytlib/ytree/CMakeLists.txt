@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree )
 set( SRCS
   ${BASE}/attributes.cpp
+  ${BASE}/attribute_provider_detail.cpp
   ${BASE}/common.cpp
   ${BASE}/ephemeral.cpp
   ${BASE}/forwarding_yson_consumer.cpp
@@ -21,6 +22,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/attribute_provider.h
+  ${BASE}/attribute_provider_detail.h
   ${BASE}/attributes-inl.h
   ${BASE}/attributes.h
   ${BASE}/common.h
