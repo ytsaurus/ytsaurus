@@ -110,8 +110,8 @@ private:
 
 	void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 	{
-		auto lastTime = ParseInstant(request->Attributes().Find<i64>("last_time"));
-		auto range = GetSamples(lastTime);
+		auto fromTime = ParseInstant(request->Attributes().Find<i64>("from_time"));
+		auto range = GetSamples(fromTime);
 		TYson yson = BuildYsonFluently()
 			.DoListFor(range.first, range.second, [] (TFluentList fluent, const TSamplesIterator& it)
 				{
