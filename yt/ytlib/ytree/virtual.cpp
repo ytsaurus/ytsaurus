@@ -5,6 +5,7 @@
 #include "yson_writer.h"
 #include "ypath_detail.h"
 #include "ypath_client.h"
+#include "attribute_provider_detail.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -224,6 +225,7 @@ class TVirtualEntityNode
     : public TNodeBase
     , public TSupportsAttributes
     , public IEntityNode
+	, public TEphemeralAttributeProvider
 {
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
@@ -271,10 +273,7 @@ private:
 
     virtual IAttributeDictionary* GetUserAttributes()
     {
-        if (!Attributes_) {
-            Attributes_ = CreateEphemeralAttributes();
-        }
-        return Attributes_.Get();
+		return &Attributes();
     }
 
     virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
