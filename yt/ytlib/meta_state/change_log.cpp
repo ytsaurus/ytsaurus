@@ -390,12 +390,15 @@ void TChangeLog::TImpl::Create(i32 prevRecordCount)
 
     State = EState::Open;
 
-    //LOG_DEBUG("Changelog created");
+    LOG_DEBUG("Changelog created");
 }
 
 void TChangeLog::TImpl::Finalize()
 {
     TGuard<TMutex> guard(Mutex);
+
+	if (State == EState::Finalized)
+		return;
 
     YASSERT(State == EState::Open);
 
