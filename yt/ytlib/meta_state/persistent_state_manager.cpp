@@ -86,7 +86,6 @@ public:
         }
     };
 
-
     TPersistentStateManager(
         TConfig* config,
         IInvoker* controlInvoker,
@@ -119,8 +118,8 @@ public:
 
         MetaState = New<TDecoratedMetaState>(
             metaState,
-            SnapshotStore,
-            ChangeLogCache);
+            ~SnapshotStore,
+            ~ChangeLogCache);
 
         IOQueue = New<TActionQueue>("MetaStateIO");
 
@@ -552,7 +551,7 @@ public:
 
         i32 segmentId = request->segment_id();
         i32 recordCount = request->record_count();
-        TMetaVersion version(segmentId, recordCount);
+        auto version = TMetaVersion(segmentId, recordCount);
         auto epoch = TEpoch::FromProto(request->epoch());
         i32 maxSnapshotId = request->max_snapshot_id();
 
@@ -585,6 +584,11 @@ public:
 
             case EPeerStatus::FollowerRecovery:
                 if (!FollowerRecovery) {
+					LOG_INFO("Received sync ping from leader (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
+						~version.ToString(),
+						~epoch.ToString(),
+						maxSnapshotId);
+
                     FollowerRecovery = New<TFollowerRecovery>(
                         ~Config,
                         CellManager,
@@ -700,7 +704,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YASSERT(result == TRecovery::EResult::OK ||
+        YASSERT(
+			result == TRecovery::EResult::OK ||
             result == TRecovery::EResult::Failed);
 
         YASSERT(LeaderRecovery);
@@ -977,13 +982,12 @@ public:
         YASSERT(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
             ~New<TFollowerPinger::TConfig>(), // Change to Config->LeaderPinger
-            MetaState,
-            CellManager,
-            FollowerTracker,
-            SnapshotStore,
+            ~MetaState,
+            ~CellManager,
+            ~FollowerTracker,
+            ~SnapshotStore,
             Epoch,
-            ControlInvoker);
-
+            ~ControlInvoker);
 
         YASSERT(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(

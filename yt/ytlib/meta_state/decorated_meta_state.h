@@ -20,9 +20,9 @@ public:
     typedef TIntrusivePtr<TDecoratedMetaState> TPtr;
 
     TDecoratedMetaState(
-        IMetaState::TPtr state,
-        TSnapshotStore::TPtr snapshotStore,
-        TChangeLogCache::TPtr changeLogCache);
+        IMetaState* state,
+        TSnapshotStore* snapshotStore,
+        TChangeLogCache* changeLogCache);
 
     //! Returns the invoker used for updating the state.
     /*!

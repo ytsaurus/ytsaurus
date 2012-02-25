@@ -15,12 +15,12 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 TFollowerPinger::TFollowerPinger(
     TConfig* config,
-    TDecoratedMetaState::TPtr metaState,
-    TCellManager::TPtr cellManager,
-    TFollowerTracker::TPtr followerTracker,
-    TSnapshotStore::TPtr snapshotStore,
+    TDecoratedMetaState* metaState,
+    TCellManager* cellManager,
+    TFollowerTracker* followerTracker,
+    TSnapshotStore* snapshotStore,
     const TEpoch& epoch,
-    IInvoker::TPtr controlInvoker)
+    IInvoker* controlInvoker)
     : Config(config)
     , MetaState(metaState)
     , CellManager(cellManager)
@@ -55,7 +55,8 @@ void TFollowerPinger::SendPing()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto version = MetaState->SafeGetReachableVersion();
+	auto version = MetaState->SafeGetReachableVersion();
+
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
         if (peerId == CellManager->GetSelfId()) continue;
 
@@ -72,7 +73,7 @@ void TFollowerPinger::SendPing()
             FromMethod(&TFollowerPinger::OnPingReply, TPtr(this), peerId)
             ->Via(ControlInvoker));
         
-        LOG_DEBUG("Follower ping sent (FollowerId: %d, Version: %s, Epoch: %s, MaxSnapshotId: %d)",
+        LOG_DEBUG("Sent ping to follower %d (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
             peerId,
             ~version.ToString(),
             ~Epoch.ToString(),
