@@ -105,6 +105,7 @@ public:
      */
     void Remove(const TKey& key);
 
+	//! Similar to #Remove but does not delete the object and returns the pointer to it instead.
     TValue* Release(const TKey& key);
 
     //! Checks whether the key exists in the map.
