@@ -268,7 +268,9 @@ public:
             queue->Read(firstRecordId, recordCount, result);
             AtomicDecrement(queue->UseCount);
         } else {
-            changeLog->Read(firstRecordId, recordCount, result);
+            PROFILE_TIMING ("read_io_time") {
+                changeLog->Read(firstRecordId, recordCount, result);
+            }
         }
     }
 
