@@ -603,9 +603,10 @@ public:
         RequestQueue.Enqueue(request);
         GetEvent().Signal();
 
-        LOG_DEBUG("Request enqueued (SessionId: %s, Request: %p, SequenceId: PacketSize: %d)",
+        LOG_DEBUG("Request enqueued (SessionId: %s, Request: %p, SequenceId: %" PRId64 ", PacketSize: %d)",
             ~sessionId.ToString(),
             ~request,
+            sequenceId,
             dataSize);
 
         return request->Result;
@@ -620,7 +621,7 @@ public:
 
         LOG_DEBUG("Bus registration enqueued (SessionId: %s, Bus: %p)",
             ~sessionId.ToString(),
-            bus);
+            ~bus);
     }
 
     void EnqueueBusUnregister(const TNLBusClient::TBus::TPtr& bus)
@@ -632,7 +633,7 @@ public:
 
         LOG_DEBUG("Bus unregistration enqueued (SessionId: %s, Bus: %p)",
             ~sessionId.ToString(),
-            bus);
+            ~bus);
     }
 
     Stroka GetDebugInfo()
