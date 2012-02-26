@@ -534,7 +534,7 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
             if (sequenceId == 0) {
                 session = RegisterSession(header->SessionId, address);
             } else {
-                LOG_DEBUG("Request message for unknown session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
+                LOG_DEBUG("Request message for broken session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
                     ~header->SessionId.ToString(),
                     ~requestId.ToString(),
                     sequenceId,

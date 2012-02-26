@@ -408,11 +408,10 @@ class TClientDispatcher
         auto& request = requestIt->second;
 
         request->Result->Set(ESendResult::Failed);
-
-        BusMap.erase(busIt);
         bus->RestartSession();
         const auto& newSessionId = bus->GetSessionId();
         YVERIFY(BusMap.insert(MakePair(newSessionId, bus)).second);
+        BusMap.erase(busIt);
         RequestMap.erase(requestIt);
 
         LOG_DEBUG("Broken session reply received, session restarted (SessionId: %s, RequestId: %s, NewSessionId: %s)",
