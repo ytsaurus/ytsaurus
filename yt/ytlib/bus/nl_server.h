@@ -25,11 +25,11 @@ struct TNLBusServerConfig
     {
         Register("port", Port);
         Register("max_nl_calls_per_iteration", MaxNLCallsPerIteration)
-			.Default(10);
+            .Default(10);
         Register("sleep_quantum", SleepQuantum)
-			.Default(TDuration::MilliSeconds(10));
+            .Default(TDuration::MilliSeconds(10));
         Register("message_rearrange_timeout", MessageRearrangeTimeout)
-			.Default(TDuration::MilliSeconds(100));
+            .Default(TDuration::MilliSeconds(100));
     }
 };
 

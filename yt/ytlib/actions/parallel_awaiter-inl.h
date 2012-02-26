@@ -8,43 +8,43 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TParallelAwaiter::TParallelAwaiter(
-	IInvoker* invoker,
-	NProfiling::TProfiler* profiler,
-	const NYTree::TYPath& timerPath)
+    IInvoker* invoker,
+    NProfiling::TProfiler* profiler,
+    const NYTree::TYPath& timerPath)
 {
-	Init(invoker, profiler, timerPath);
+    Init(invoker, profiler, timerPath);
 }
 
 inline TParallelAwaiter::TParallelAwaiter(
-	NProfiling::TProfiler* profiler,
-	const NYTree::TYPath& timerPath)
+    NProfiling::TProfiler* profiler,
+    const NYTree::TYPath& timerPath)
 {
-	Init(TSyncInvoker::Get(), profiler, timerPath);
+    Init(TSyncInvoker::Get(), profiler, timerPath);
 }
 
 inline void TParallelAwaiter::Init(
-	IInvoker* invoker,
-	NProfiling::TProfiler* profiler,
-	const NYTree::TYPath& timerPath)
+    IInvoker* invoker,
+    NProfiling::TProfiler* profiler,
+    const NYTree::TYPath& timerPath)
 {
-	YASSERT(invoker);
+    YASSERT(invoker);
 
-	Canceled = false;
-	Completed = false;
-	Terminated = false;
-	RequestCount = 0;
-	ResponseCount = 0;
-	CancelableInvoker = New<TCancelableInvoker>(invoker);
-	Profiler = profiler;
-	if (Profiler) {
-		Timer = Profiler->TimingStart(timerPath, NProfiling::ETimerMode::Parallel);
-	}
+    Canceled = false;
+    Completed = false;
+    Terminated = false;
+    RequestCount = 0;
+    ResponseCount = 0;
+    CancelableInvoker = New<TCancelableInvoker>(invoker);
+    Profiler = profiler;
+    if (Profiler) {
+        Timer = Profiler->TimingStart(timerPath, NProfiling::ETimerMode::Parallel);
+    }
 }
 
 template <class T>
 void TParallelAwaiter::Await(
     TIntrusivePtr< TFuture<T> > result,
-	const NYTree::TYPath& timerPathSuffix,
+    const NYTree::TYPath& timerPathSuffix,
     TIntrusivePtr< IParamAction<T> > onResult)
 {
     YASSERT(result);
@@ -67,28 +67,28 @@ void TParallelAwaiter::Await(
     result->Subscribe(FromMethod(
         &TParallelAwaiter::OnResult<T>,
         TPtr(this),
-		timerPathSuffix,
+        timerPathSuffix,
         wrappedOnResult));
 }
 
 template <class T>
 void TParallelAwaiter::Await(
-	TIntrusivePtr< TFuture<T> > result,
-	TIntrusivePtr< IParamAction<T> > onResult)
+    TIntrusivePtr< TFuture<T> > result,
+    TIntrusivePtr< IParamAction<T> > onResult)
 {
-	Await(result, "", onResult);
+    Await(result, "", onResult);
 }
 
 template <class T>
 void TParallelAwaiter::OnResult(
-	T result,
-	const NYTree::TYPath& timerPathSuffix,
-	typename IParamAction<T>::TPtr onResult)
+    T result,
+    const NYTree::TYPath& timerPathSuffix,
+    typename IParamAction<T>::TPtr onResult)
 {
-	if (!timerPathSuffix.empty()) {
-		YASSERT(Profiler);
-		Profiler->TimingCheckpoint(Timer, timerPathSuffix);
-	}
+    if (!timerPathSuffix.empty()) {
+        YASSERT(Profiler);
+        Profiler->TimingCheckpoint(Timer, timerPathSuffix);
+    }
 
     if (onResult) {
         onResult->Do(result);
@@ -112,7 +112,7 @@ void TParallelAwaiter::OnResult(
     }
 
     if (invokeOnComplete && onComplete) {
-		onComplete->Do();
+        onComplete->Do();
     }
 }
 
@@ -164,9 +164,9 @@ inline void TParallelAwaiter::Terminate()
 {
     OnComplete.Reset();
     Terminated = true;
-	if (Profiler) {
-		Profiler->TimingStop(Timer);
-	}
+    if (Profiler) {
+        Profiler->TimingStop(Timer);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

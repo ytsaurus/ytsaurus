@@ -374,7 +374,7 @@ class TClientDispatcher
             (int) isRequest,
             ~header->SessionId.ToString(),
             ~requestId.ToString(),
-			sequenceId,
+            sequenceId,
             dataSize);
 
         auto& bus = busIt->second;
@@ -601,9 +601,9 @@ TNLBusClient::TBus::TBus(TNLBusClient* client, IMessageHandler* handler)
     , Handler(handler)
     , Terminated(false)
     , SequenceId(0)
-	, SessionId(TSessionId::Create())
+    , SessionId(TSessionId::Create())
     , MessageRearranger(New<TMessageRearranger>(
-		SessionId,
+        SessionId,
         ~FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
         MessageRearrangeTimeout))
 { }

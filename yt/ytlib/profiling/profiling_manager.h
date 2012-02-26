@@ -13,12 +13,12 @@ namespace NProfiling {
 struct TQueuedSample
 {
     TQueuedSample()
-		: Time(-1)
-		, Value(-1)
-	{ }
+        : Time(-1)
+        , Value(-1)
+    { }
 
     ui64 Time;
-	NYTree::TYPath Path;
+    NYTree::TYPath Path;
     TValue Value;
 };
 
@@ -38,40 +38,40 @@ class TProfilingManager
 public:
     TProfilingManager();
 
-	//! Returns the singleton instance.
+    //! Returns the singleton instance.
     static TProfilingManager* Get();
 
-	//! Starts profiling.
-	void Start();
+    //! Starts profiling.
+    void Start();
 
-	//! Shuts down the profiling system.
-	void Shutdown();
+    //! Shuts down the profiling system.
+    void Shutdown();
 
-	//! Enqueues a new sample for processing.
+    //! Enqueues a new sample for processing.
     void Enqueue(const TQueuedSample& sample);
 
-	//! Returns the invoker associated with the profiler thread.
-	IInvoker* GetInvoker() const;
+    //! Returns the invoker associated with the profiler thread.
+    IInvoker* GetInvoker() const;
 
-	//! Returns the root of the YTree with the buckets.
-	/*!
-	 *  \note
-	 *  The latter must only be accessed from the invoker returned by #GetInvoker.
-	 */
-	NYTree::IMapNode* GetRoot() const;
+    //! Returns the root of the YTree with the buckets.
+    /*!
+     *  \note
+     *  The latter must only be accessed from the invoker returned by #GetInvoker.
+     */
+    NYTree::IMapNode* GetRoot() const;
 
 private:
-	class TClockConverter;
-	class TImpl;
+    class TClockConverter;
+    class TImpl;
 
-	class TBucket;
-	typedef TIntrusivePtr<TBucket> TBucketPtr;
+    class TBucket;
+    typedef TIntrusivePtr<TBucket> TBucketPtr;
 
-	struct TStoredSample;
+    struct TStoredSample;
 
-	// Cannot use THolder here since TImpl inherits from TActionQueueBase
-	// and is thus ref-counted.
-	TIntrusivePtr<TImpl> Impl;
+    // Cannot use THolder here since TImpl inherits from TActionQueueBase
+    // and is thus ref-counted.
+    TIntrusivePtr<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,8 +82,8 @@ private:
 template <>
 struct TSingletonTraits<NYT::NProfiling::TProfilingManager>
 {
-	enum
-	{
-		Priority = 2048
-	};
+    enum
+    {
+        Priority = 2048
+    };
 };

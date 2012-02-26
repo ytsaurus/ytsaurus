@@ -294,7 +294,7 @@ void TLeaderCommitter::FlushCurrentBatch()
     CurrentBatch->SendChanges();
     TDelayedInvoker::Cancel(BatchTimeoutCookie);
     CurrentBatch.Reset();
-    BatchTimeoutCookie = TDelayedInvoker::NullCookie;
+    BatchTimeoutCookie = NULL;
 }
 
 TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(

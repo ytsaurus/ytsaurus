@@ -145,8 +145,8 @@ void TBootstrap::Run()
         ~orchidRoot,
         "profiling",
         ~CreateVirtualNode(
-			~TProfilingManager::Get()->GetRoot()
-			->Via(TProfilingManager::Get()->GetInvoker())));
+            ~TProfilingManager::Get()->GetRoot()
+            ->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
         ~orchidRoot,
         "config",

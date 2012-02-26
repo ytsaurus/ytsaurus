@@ -188,12 +188,12 @@ void TBootstrap::Run()
         ~orchidRoot,
         "profiling",
         ~CreateVirtualNode(
-			~TProfilingManager::Get()->GetRoot()
-			->Via(TProfilingManager::Get()->GetInvoker())));
-	SyncYPathSetNode(
-		~orchidRoot,
-		"config",
-		~CreateVirtualNode(~CreateYsonFileProducer(ConfigFileName)));
+            ~TProfilingManager::Get()->GetRoot()
+            ->Via(TProfilingManager::Get()->GetInvoker())));
+    SyncYPathSetNode(
+        ~orchidRoot,
+        "config",
+        ~CreateVirtualNode(~CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,

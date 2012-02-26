@@ -24,32 +24,32 @@ namespace NProfiling {
  *  This timer creates a bucket per each checkpoint plus "total" bucket.
  */
 DECLARE_ENUM(ETimerMode,
-	(Simple)
-	(Sequential)
-	(Parallel)
+    (Simple)
+    (Sequential)
+    (Parallel)
 );
 
 //! Timing state.
 struct TTimer
 {
-	TTimer()
-		: Start(0)
-		, LastCheckpoint(0)
-	{ }
+    TTimer()
+        : Start(0)
+        , LastCheckpoint(0)
+    { }
 
-	TTimer(const NYTree::TYPath& path, ui64 start, ETimerMode mode)
-		: Path(path)
-		, Start(start)
-		, LastCheckpoint(0)
-		, Mode(mode)
-	{ }
+    TTimer(const NYTree::TYPath& path, ui64 start, ETimerMode mode)
+        : Path(path)
+        , Start(start)
+        , LastCheckpoint(0)
+        , Mode(mode)
+    { }
 
-	NYTree::TYPath Path;
-	//! Start time.
-	ui64 Start;
-	//! Last checkpoint time (0 if no checkpoint has occurred yet).
-	ui64 LastCheckpoint;
-	ETimerMode Mode;
+    NYTree::TYPath Path;
+    //! Start time.
+    ui64 Start;
+    //! Last checkpoint time (0 if no checkpoint has occurred yet).
+    ui64 LastCheckpoint;
+    ETimerMode Mode;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,25 +62,25 @@ struct TTimer
 class TProfiler
 {
 public:
-	//! Constructs a new profiler for a given prefix.
+    //! Constructs a new profiler for a given prefix.
     explicit TProfiler(const NYTree::TYPath& pathPrefix);
 
-	//! Enqueues a new sample.
+    //! Enqueues a new sample.
     void Enqueue(const NYTree::TYPath& path, TValue value);
 
-	//! Starts time measurement.
+    //! Starts time measurement.
     TTimer TimingStart(
-		const NYTree::TYPath& path,
-		ETimerMode mode = ETimerMode::Simple);
+        const NYTree::TYPath& path,
+        ETimerMode mode = ETimerMode::Simple);
 
-	//! Marks a checkpoint and enqueues the corresponding sample.
-	/*!
-	 *  If #timer is in Simple mode then it is automatically
-	 *  switched to Sequential mode.
-	 */
-	void TimingCheckpoint(TTimer& timer, const NYTree::TYPath& pathSuffix);
+    //! Marks a checkpoint and enqueues the corresponding sample.
+    /*!
+     *  If #timer is in Simple mode then it is automatically
+     *  switched to Sequential mode.
+     */
+    void TimingCheckpoint(TTimer& timer, const NYTree::TYPath& pathSuffix);
 
-	//! Stops time measurement and enqueues the "total" sample.
+    //! Stops time measurement and enqueues the "total" sample.
     void TimingStop(TTimer& timer);
 
 private:
@@ -99,24 +99,24 @@ class TTimingGuard
 {
 public:
     explicit TTimingGuard(TProfiler* profiler, const NYTree::TYPath& path)
-		: Profiler(profiler)
-		, Timer(profiler->TimingStart(path))
-	{
-		YASSERT(profiler);
-	}
+        : Profiler(profiler)
+        , Timer(profiler->TimingStart(path))
+    {
+        YASSERT(profiler);
+    }
 
     ~TTimingGuard()
-	{
-		// Don't measure anything if an exception was raised.
-		if (!std::uncaught_exception()) {
-			Profiler->TimingStop(Timer);
-		}
-	}
+    {
+        // Don't measure anything if an exception was raised.
+        if (!std::uncaught_exception()) {
+            Profiler->TimingStop(Timer);
+        }
+    }
 
-	void Checkpoint(const NYTree::TYPath& pathSuffix)
-	{
-		Profiler->TimingCheckpoint(Timer, pathSuffix);
-	}
+    void Checkpoint(const NYTree::TYPath& pathSuffix)
+    {
+        Profiler->TimingCheckpoint(Timer, pathSuffix);
+    }
 
     operator bool() const
     {
@@ -139,7 +139,7 @@ private:
 
 //! Must be used inside #PROFILE_TIMING block to mark a checkpoint.
 #define PROFILE_TIMING_CHECKPOINT(pathSuffix) \
-	PROFILE_TIMING__Guard.Checkpoint(pathSuffix)
+    PROFILE_TIMING__Guard.Checkpoint(pathSuffix)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -86,11 +86,11 @@ IAttributeDictionary& TObjectProxyBase::Attributes()
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
-	if (UserAttributes.Get()) {
-		return *UserAttributes;
-	} else {
-		return EmptyAttributes();
-	}
+    if (UserAttributes.Get()) {
+        return *UserAttributes;
+    } else {
+        return EmptyAttributes();
+    }
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)

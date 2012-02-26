@@ -174,12 +174,12 @@ public:
         return StateStatus;
     }
 
-	virtual EPeerStatus SafeGetStateStatus() const
-	{
-		VERIFY_THREAD_AFFINITY_ANY();
+    virtual EPeerStatus SafeGetStateStatus() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
 
-		return StateStatus;
-	}
+        return StateStatus;
+    }
 
     virtual IInvoker::TPtr GetStateInvoker() const
     {
@@ -266,8 +266,8 @@ public:
 
         auto actualChangeAction =
             changeAction
-			? changeAction
-			: FromMethod(&IMetaState::ApplyChange, MetaState->GetState(), changeData);
+            ? changeAction
+            : FromMethod(&IMetaState::ApplyChange, MetaState->GetState(), changeData);
 
         auto result =
             LeaderCommitter
@@ -279,10 +279,10 @@ public:
         return result;
     }
 
-	virtual bool IsInCommit() const
-	{
-		return InCommit;
-	}
+    virtual bool IsInCommit() const
+    {
+        return InCommit;
+    }
 
  private:
     typedef TPersistentStateManager TThis;
@@ -584,10 +584,10 @@ public:
 
             case EPeerStatus::FollowerRecovery:
                 if (!FollowerRecovery) {
-					LOG_INFO("Received sync ping from leader (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
-						~version.ToString(),
-						~epoch.ToString(),
-						maxSnapshotId);
+                    LOG_INFO("Received sync ping from leader (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
+                        ~version.ToString(),
+                        ~epoch.ToString(),
+                        maxSnapshotId);
 
                     FollowerRecovery = New<TFollowerRecovery>(
                         ~Config,
@@ -705,7 +705,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YASSERT(
-			result == TRecovery::EResult::OK ||
+            result == TRecovery::EResult::OK ||
             result == TRecovery::EResult::Failed);
 
         YASSERT(LeaderRecovery);
