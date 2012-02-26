@@ -541,7 +541,7 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
                     dataSize);
 
                 TBlob errorData;
-                CreatePacket(header->SessionId, TPacketHeader::EType::NoSuchSession, &errorData);
+                CreatePacket(header->SessionId, TPacketHeader::EType::BrokenSession, &errorData);
                 Requester->SendResponse(requestId, &errorData);
                 return NULL;
             }

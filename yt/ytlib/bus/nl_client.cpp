@@ -301,8 +301,8 @@ class TClientDispatcher
                 ProcessMessage(header, nlResponse);
                 break;
 
-            case TPacketHeader::EType::NoSuchSession:
-                ProcessNoSuchSession(header, nlResponse);
+            case TPacketHeader::EType::BrokenSession:
+                ProcessBrokenSession(header, nlResponse);
                 break;
 
             default:
@@ -391,14 +391,14 @@ class TClientDispatcher
         RequestMap.erase(requestIt);
     }
 
-    void ProcessNoSuchSession(TPacketHeader* header, TUdpHttpResponse* nlResponse)
+    void ProcessBrokenSession(TPacketHeader* header, TUdpHttpResponse* nlResponse)
     {
         const auto& sessionId = header->SessionId;
         TGuid requestId = nlResponse->ReqId;
         auto requestIt = RequestMap.find(requestId);
         auto busIt = BusMap.find(sessionId);
         if (requestIt == RequestMap.end() || busIt == BusMap.end()) {
-            LOG_DEBUG("No such session for obsolete request received (SessionId: %s, RequestId: %s)",
+            LOG_DEBUG("Broken session reply for obsolete request received (SessionId: %s, RequestId: %s)",
                 ~sessionId.ToString(),
                 ~requestId.ToString());
             return;
@@ -415,7 +415,7 @@ class TClientDispatcher
         YVERIFY(BusMap.insert(MakePair(newSessionId, bus)).second);
         RequestMap.erase(requestIt);
 
-        LOG_DEBUG("No such session received, session restarted (SessionId: %s, RequestId: %s, NewSessionId: %s)",
+        LOG_DEBUG("Broken session reply received, session restarted (SessionId: %s, RequestId: %s, NewSessionId: %s)",
             ~sessionId.ToString(),
             ~requestId.ToString(),
             ~newSessionId.ToString());

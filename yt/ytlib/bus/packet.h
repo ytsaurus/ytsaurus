@@ -18,7 +18,7 @@ struct TPacketHeader
         (Message)
         (Ping)
         (Ack)
-        (NoSuchSession)
+        (BrokenSession)
     );
 
     ui32 Signature;
