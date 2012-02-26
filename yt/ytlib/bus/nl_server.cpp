@@ -469,6 +469,8 @@ void TNLBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlRespons
 void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
 {
     TGuid requestId = nlRequest->ReqId;
+    auto sessionId = header->SessionId;
+
     auto session = DoProcessMessage(
         header,
         requestId,
@@ -476,6 +478,17 @@ void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequ
         MoveRV(nlRequest->Data),
         true);
 
+    if (session) {
+        TBlob ackData;
+        CreatePacket(sessionId, TPacketHeader::EType::Ack, &ackData);
+        Requester->SendResponse(requestId, &ackData);
+
+        LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
+            ~header->SessionId.ToString(),
+            ~requestId.ToString());
+    }
+
+    // TODO(babenko): this is "request-via-reply", which is currently switched off
     //auto response = session->DequeueResponse();
     //if (response) {
     //    Requester->SendResponse(nlRequest->ReqId, &response->Data);
@@ -485,14 +498,6 @@ void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequ
     //        ~requestId.ToString(),
     //        ~response);
     //} else {
-        TBlob ackData;
-        CreatePacket(session->GetSessionId(), TPacketHeader::EType::Ack, &ackData);
-
-        Requester->SendResponse(nlRequest->ReqId, &ackData);
-
-        LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
-            ~session->GetSessionId().ToString(),
-            ~requestId.ToString());
     //}
 }
 
@@ -513,28 +518,44 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
     TBlob&& data,
     bool isRequest)
 {
+    // Save the size, data will be swapped out soon.
     int dataSize = data.ysize();
+
+    IMessage::TPtr message;
+    TSequenceId sequenceId;;
+    if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId))
+        return NULL;
 
     TSession::TPtr session;
     auto sessionIt = SessionMap.find(header->SessionId);
     if (sessionIt == SessionMap.end()) {
         if (isRequest) {
-            session = RegisterSession(header->SessionId, address);
+            // Check if a new session is initiated.
+            if (sequenceId == 0) {
+                session = RegisterSession(header->SessionId, address);
+            } else {
+                LOG_DEBUG("Request message for unknown session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
+                    ~header->SessionId.ToString(),
+                    ~requestId.ToString(),
+                    sequenceId,
+                    dataSize);
+
+                TBlob errorData;
+                CreatePacket(header->SessionId, TPacketHeader::EType::BrokenSession, &errorData);
+                Requester->SendResponse(requestId, &errorData);
+                return NULL;
+            }
         } else {
-            LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, PacketSize: %d)",
+            LOG_DEBUG("Response message for unknown session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
                 ~header->SessionId.ToString(),
                 ~requestId.ToString(),
+                sequenceId,
                 dataSize);
             return NULL;
         }
     } else {
         session = sessionIt->second;
     }
-
-    IMessage::TPtr message;
-    TSequenceId sequenceId;;
-    if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId))
-        return session;
 
     LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64", PacketSize: %d)",
         (int) isRequest,
