@@ -139,7 +139,7 @@ public:
         , Terminated(false)
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
-			SessionId,
+            SessionId,
             ~FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
             server->Config->MessageRearrangeTimeout))
     { }
@@ -152,9 +152,9 @@ public:
     }
 
     void ProcessIncomingMessage(
-		IMessage* message,
-		const TGuid& requestId,
-		TSequenceId sequenceId)
+        IMessage* message,
+        const TGuid& requestId,
+        TSequenceId sequenceId)
     {
         MessageRearranger->EnqueueMessage(message, requestId, sequenceId);
     }

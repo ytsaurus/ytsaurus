@@ -18,35 +18,35 @@ public:
     typedef TIntrusivePtr<TMessageRearranger> TPtr;
 
     TMessageRearranger(
-		const TSessionId& sessionId,
+        const TSessionId& sessionId,
         IParamAction<IMessage*>* onDequeuedMessage,
         TDuration timeout);
 
     void EnqueueMessage(
-		IMessage* message,
-		const TGuid& requestId,
-		TSequenceId sequenceId);
+        IMessage* message,
+        const TGuid& requestId,
+        TSequenceId sequenceId);
 
 private:
-	struct TPostponedMessage
-	{
-		TPostponedMessage(const TGuid& requestId, IMessage* message)
-			: RequestId(requestId)
-			, Message(message)
-		{ }
+    struct TPostponedMessage
+    {
+        TPostponedMessage(const TGuid& requestId, IMessage* message)
+            : RequestId(requestId)
+            , Message(message)
+        { }
 
-		TGuid RequestId;
-		IMessage::TPtr Message;
-	};
+        TGuid RequestId;
+        IMessage::TPtr Message;
+    };
 
     typedef ymap<TSequenceId, TPostponedMessage> TPostponedMessages;
 
-	TSessionId SessionId;
+    TSessionId SessionId;
     IParamAction<IMessage*>::TPtr OnMessageDequeued;
     TDuration Timeout;
 
-	NLog::TTaggedLogger Logger;
-	TSpinLock SpinLock;
+    NLog::TTaggedLogger Logger;
+    TSpinLock SpinLock;
     TDelayedInvoker::TCookie TimeoutCookie;
     TSequenceId ExpectedSequenceId;
     TPostponedMessages PostponedMessages;

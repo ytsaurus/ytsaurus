@@ -17,22 +17,22 @@ public:
     typedef TIntrusivePtr<TParallelAwaiter> TPtr;
 
     explicit TParallelAwaiter(
-		IInvoker* invoker,
-		NProfiling::TProfiler* profiler = NULL,
-		const NYTree::TYPath& timerPath = "");
-	explicit TParallelAwaiter(
-		NProfiling::TProfiler* profiler = NULL,
-		const NYTree::TYPath& timerPath = "");
+        IInvoker* invoker,
+        NProfiling::TProfiler* profiler = NULL,
+        const NYTree::TYPath& timerPath = "");
+    explicit TParallelAwaiter(
+        NProfiling::TProfiler* profiler = NULL,
+        const NYTree::TYPath& timerPath = "");
 
     template <class T>
     void Await(
         TIntrusivePtr< TFuture<T> > result,
         TIntrusivePtr< IParamAction<T> > onResult = NULL);
-	template <class T>
-	void Await(
-		TIntrusivePtr< TFuture<T> > result,
-		const NYTree::TYPath& timerPathSuffix,
-		TIntrusivePtr< IParamAction<T> > onResult = NULL);
+    template <class T>
+    void Await(
+        TIntrusivePtr< TFuture<T> > result,
+        const NYTree::TYPath& timerPathSuffix,
+        TIntrusivePtr< IParamAction<T> > onResult = NULL);
 
     void Complete(IAction::TPtr onComplete = NULL);
     void Cancel();
@@ -47,19 +47,19 @@ private:
     i32 ResponseCount;
     IAction::TPtr OnComplete;
     TCancelableInvoker::TPtr CancelableInvoker;
-	NProfiling::TProfiler* Profiler;
-	NProfiling::TTimer Timer;
+    NProfiling::TProfiler* Profiler;
+    NProfiling::TTimer Timer;
 
-	void Init(
-		IInvoker* invoker,
-		NProfiling::TProfiler* profiler,
-		const NYTree::TYPath& timerPath);
+    void Init(
+        IInvoker* invoker,
+        NProfiling::TProfiler* profiler,
+        const NYTree::TYPath& timerPath);
     void Terminate();
 
     template <class T>
     void OnResult(
         T result,
-		const NYTree::TYPath& timerPathSuffix,
+        const NYTree::TYPath& timerPathSuffix,
         typename IParamAction<T>::TPtr onResult);
 };
 

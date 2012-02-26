@@ -18,8 +18,8 @@ static NLog::TLogger Logger("ActionQueue");
 
 TQueueInvoker::TQueueInvoker(TActionQueueBase* owner, bool enableLogging)
     : Owner(owner)
-	, EnableLogging(enableLogging)
-	, Profiler(CombineYPaths("action_queues", owner->ThreadName))
+    , EnableLogging(enableLogging)
+    , Profiler(CombineYPaths("action_queues", owner->ThreadName))
     , QueueSize(0)
 { }
 
@@ -27,15 +27,15 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
 {
     if (!Owner) {
         LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
-		return;
+        return;
     }
 
-	TItem item;
-	item.Timer = Profiler.TimingStart("time");
-	item.Action = action;
+    TItem item;
+    item.Timer = Profiler.TimingStart("time");
+    item.Action = action;
     Queue.Enqueue(item);
 
-	LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
+    LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
 
     auto size = AtomicIncrement(QueueSize);
     Profiler.Enqueue("size", size);
@@ -54,18 +54,18 @@ bool TQueueInvoker::OnDequeueAndExecute()
     if (!Queue.Dequeue(&item))
         return false;
     
-	Profiler.TimingCheckpoint(item.Timer, "wait");
+    Profiler.TimingCheckpoint(item.Timer, "wait");
 
     auto size = AtomicDecrement(QueueSize);
-	Profiler.Enqueue("size", size);
+    Profiler.Enqueue("size", size);
 
-	auto action = item.Action;
+    auto action = item.Action;
     LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", ~action);
-	action->Do();
+    action->Do();
     LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", ~action);
-	Profiler.TimingCheckpoint(item.Timer, "exec");
+    Profiler.TimingCheckpoint(item.Timer, "exec");
 
-	Profiler.TimingStop(item.Timer);
+    Profiler.TimingStop(item.Timer);
 
     return true;
 }
@@ -133,12 +133,12 @@ void TActionQueueBase::OnIdle()
 
 void TActionQueueBase::Signal()
 {
-	WakeupEvent.Signal();
+    WakeupEvent.Signal();
 }
 
 bool TActionQueueBase::IsRunning() const
 {
-	return Running;
+    return Running;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -175,7 +175,7 @@ IFunc<TActionQueue::TPtr>::TPtr TActionQueue::CreateFactory(const Stroka& thread
 
 void TActionQueue::Shutdown()
 {
-	TActionQueueBase::Shutdown();
+    TActionQueueBase::Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -216,7 +216,7 @@ bool TPrioritizedActionQueue::DequeueAndExecute()
 
 void TPrioritizedActionQueue::Shutdown()
 {
-	TActionQueueBase::Shutdown();
+    TActionQueueBase::Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

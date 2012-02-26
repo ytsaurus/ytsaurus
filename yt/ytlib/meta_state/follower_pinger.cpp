@@ -55,7 +55,7 @@ void TFollowerPinger::SendPing()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-	auto version = MetaState->SafeGetReachableVersion();
+    auto version = MetaState->SafeGetReachableVersion();
 
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
         if (peerId == CellManager->GetSelfId()) continue;

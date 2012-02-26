@@ -39,8 +39,8 @@ public:
         auto& cellManager = ElectionManager->CellManager;
         for (TPeerId i = 0; i < cellManager->GetPeerCount(); ++i) {
             if (i != cellManager->GetSelfId()) {
-				SendPing(i);
-			}
+                SendPing(i);
+            }
         }
     }
 
@@ -426,62 +426,62 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TElectionManager::TElectionManager(
-	TConfig* config,
-	NMetaState::TCellManager* cellManager,
-	IInvoker* controlInvoker,
-	IElectionCallbacks* electionCallbacks)
-	: TServiceBase(
-	controlInvoker,
-	TProxy::GetServiceName(),
-	Logger.GetCategory())
-	, State(TProxy::EState::Stopped)
-	, VoteId(InvalidPeerId)
-	, Config(config)
-	, CellManager(cellManager)
-	, ControlInvoker(controlInvoker)
-	, ElectionCallbacks(electionCallbacks)
+    TConfig* config,
+    NMetaState::TCellManager* cellManager,
+    IInvoker* controlInvoker,
+    IElectionCallbacks* electionCallbacks)
+    : TServiceBase(
+    controlInvoker,
+    TProxy::GetServiceName(),
+    Logger.GetCategory())
+    , State(TProxy::EState::Stopped)
+    , VoteId(InvalidPeerId)
+    , Config(config)
+    , CellManager(cellManager)
+    , ControlInvoker(controlInvoker)
+    , ElectionCallbacks(electionCallbacks)
 {
-	YASSERT(cellManager);
-	YASSERT(controlInvoker);
-	YASSERT(electionCallbacks);
+    YASSERT(cellManager);
+    YASSERT(controlInvoker);
+    YASSERT(electionCallbacks);
 
-	VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
-	Reset();
+    Reset();
 
-	RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
-	RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 }
 
 void TElectionManager::Start()
 {
-	VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY_ANY();
 
-	ControlInvoker->Invoke(FromMethod(&TElectionManager::DoStart, this));
+    ControlInvoker->Invoke(FromMethod(&TElectionManager::DoStart, this));
 }
 
 void TElectionManager::Stop()
 {
-	VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY_ANY();
 
-	ControlInvoker->Invoke(FromMethod(&TElectionManager::DoStop, this));
+    ControlInvoker->Invoke(FromMethod(&TElectionManager::DoStop, this));
 }
 
 void TElectionManager::Restart()
 {
-	VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY_ANY();
 
-	LOG_INFO("Restart forced");
+    LOG_INFO("Restart forced");
 
-	Stop();
-	Start();
+    Stop();
+    Start();
 }
 
 void TElectionManager::Reset()
 {
     // May be called from ControlThread and also from ctor.
 
-	UpdateState(TProxy::EState::Stopped);
+    UpdateState(TProxy::EState::Stopped);
     VoteId = InvalidPeerId;
     LeaderId = InvalidPeerId;
     VoteEpoch = TGuid();
@@ -580,7 +580,7 @@ void TElectionManager::StartFollowing(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-	UpdateState(TProxy::EState::Following);
+    UpdateState(TProxy::EState::Following);
     VoteId = leaderId;
     VoteEpoch = epoch;
 
@@ -602,7 +602,7 @@ void TElectionManager::StartLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-	UpdateState(TProxy::EState::Leading);
+    UpdateState(TProxy::EState::Leading);
     YASSERT(VoteId == CellManager->GetSelfId());
 
     // Initialize followers state.
@@ -694,85 +694,85 @@ void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
 
 void TElectionManager::UpdateState(TProxy::EState newState)
 {
-	if (newState == State)
-		return;
+    if (newState == State)
+        return;
 
-	// This generic message logged to simplify tracking state changes.
-	LOG_INFO("State changed from %s to %s",
-		~State.ToString(),
-		~newState.ToString());
-	State = newState;
+    // This generic message logged to simplify tracking state changes.
+    LOG_INFO("State changed from %s to %s",
+        ~State.ToString(),
+        ~newState.ToString());
+    State = newState;
 }
 
 DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
 {
-	UNUSED(response);
-	VERIFY_THREAD_AFFINITY(ControlThread);
+    UNUSED(response);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-	auto epoch = TEpoch::FromProto(request->epoch());
-	auto leaderId = request->leader_id();
+    auto epoch = TEpoch::FromProto(request->epoch());
+    auto leaderId = request->leader_id();
 
-	context->SetRequestInfo("Epoch: %s, LeaderId: %d",
-		~epoch.ToString(),
-		leaderId);
+    context->SetRequestInfo("Epoch: %s, LeaderId: %d",
+        ~epoch.ToString(),
+        leaderId);
 
-	if (State != TProxy::EState::Following) {
-		ythrow TServiceException(EErrorCode::InvalidState) <<
-			Sprintf("Ping from leader %d while in an invalid state (Epoch: %s, State: %s)",
-			leaderId,
-			~epoch.ToString(),
-			~State.ToString());
-	}
+    if (State != TProxy::EState::Following) {
+        ythrow TServiceException(EErrorCode::InvalidState) <<
+            Sprintf("Ping from leader %d while in an invalid state (Epoch: %s, State: %s)",
+            leaderId,
+            ~epoch.ToString(),
+            ~State.ToString());
+    }
 
-	if (leaderId != LeaderId) {
-		ythrow TServiceException(EErrorCode::InvalidLeader) <<
-			Sprintf("Ping from an invalid leader: expected: %d, received: %d",
-			LeaderId,
-			leaderId);
-	}
+    if (leaderId != LeaderId) {
+        ythrow TServiceException(EErrorCode::InvalidLeader) <<
+            Sprintf("Ping from an invalid leader: expected: %d, received: %d",
+            LeaderId,
+            leaderId);
+    }
 
-	if (epoch != Epoch) {
-		ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-			Sprintf("Ping with invalid epoch from leader: expected: %s, received: %s",
-			~Epoch.ToString(),
-			~epoch.ToString());
-	}
+    if (epoch != Epoch) {
+        ythrow TServiceException(EErrorCode::InvalidEpoch) <<
+            Sprintf("Ping with invalid epoch from leader: expected: %s, received: %s",
+            ~Epoch.ToString(),
+            ~epoch.ToString());
+    }
 
-	TDelayedInvoker::Cancel(PingTimeoutCookie);
+    TDelayedInvoker::Cancel(PingTimeoutCookie);
 
-	PingTimeoutCookie = TDelayedInvoker::Submit(
-		~FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
-		->Via(~ControlEpochInvoker),
-		Config->FollowerPingTimeout);
+    PingTimeoutCookie = TDelayedInvoker::Submit(
+        ~FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
+        ->Via(~ControlEpochInvoker),
+        Config->FollowerPingTimeout);
 
-	context->Reply();
+    context->Reply();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetStatus)
 {
-	UNUSED(request);
-	VERIFY_THREAD_AFFINITY(ControlThread);
+    UNUSED(request);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
-	context->SetRequestInfo("");
+    context->SetRequestInfo("");
 
-	auto priority = ElectionCallbacks->GetPriority();
+    auto priority = ElectionCallbacks->GetPriority();
 
-	response->set_state(State);
-	response->set_vote_id(VoteId);
-	response->set_priority(priority);
-	response->set_vote_epoch(VoteEpoch.ToProto());
-	response->set_self_id(CellManager->GetSelfId());
-	for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-		response->add_peer_addresses(CellManager->GetPeerAddress(id));
-	}
+    response->set_state(State);
+    response->set_vote_id(VoteId);
+    response->set_priority(priority);
+    response->set_vote_epoch(VoteEpoch.ToProto());
+    response->set_self_id(CellManager->GetSelfId());
+    for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+        response->add_peer_addresses(CellManager->GetPeerAddress(id));
+    }
 
-	context->SetResponseInfo("State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s",
-		~State.ToString(),
-		VoteId,
-		~ElectionCallbacks->FormatPriority(priority),
-		~VoteEpoch.ToString());
+    context->SetResponseInfo("State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s",
+        ~State.ToString(),
+        VoteId,
+        ~ElectionCallbacks->FormatPriority(priority),
+        ~VoteEpoch.ToString());
 
-	context->Reply();
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

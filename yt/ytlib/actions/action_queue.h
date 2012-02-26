@@ -26,15 +26,15 @@ public:
     bool OnDequeueAndExecute();
 
 private:
-	struct TItem
-	{
-		NProfiling::TTimer Timer;
-		IAction::TPtr Action;
-	};
+    struct TItem
+    {
+        NProfiling::TTimer Timer;
+        IAction::TPtr Action;
+    };
 
-	TActionQueueBase* Owner;
+    TActionQueueBase* Owner;
     bool EnableLogging;
-	NProfiling::TProfiler Profiler;
+    NProfiling::TProfiler Profiler;
 
     TLockFreeQueue<TItem> Queue;
     TAtomic QueueSize;
@@ -56,13 +56,13 @@ protected:
     TActionQueueBase(const Stroka& threadName, bool enableLogging);
 
     void Start();
-	void Shutdown();
-	void Signal();
+    void Shutdown();
+    void Signal();
 
     virtual bool DequeueAndExecute() = 0;
     virtual void OnIdle();
 
-	bool IsRunning() const;
+    bool IsRunning() const;
 
 private:
     friend class TQueueInvoker;
@@ -91,7 +91,7 @@ public:
     TActionQueue(const Stroka& threadName = "<ActionQueue>", bool enableLogging = true);
     virtual ~TActionQueue();
 
-	void Shutdown();
+    void Shutdown();
 
     IInvoker* GetInvoker();
 
@@ -116,7 +116,7 @@ public:
     TPrioritizedActionQueue(int priorityCount, const Stroka& threadName = "<PrActionQueue>");
     virtual ~TPrioritizedActionQueue();
 
-	void Shutdown();
+    void Shutdown();
 
     IInvoker* GetInvoker(int priority);
 

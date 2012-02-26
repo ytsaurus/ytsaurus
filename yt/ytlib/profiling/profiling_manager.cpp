@@ -29,103 +29,103 @@ static NLog::TLogger Logger("Profiling");
 
 struct TProfilingManager::TStoredSample
 {
-	i64 Id;
-	TInstant Time;
-	TValue Value;
+    i64 Id;
+    TInstant Time;
+    TValue Value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProfilingManager::TBucket
-	: public TYPathServiceBase
-	, public TSupportsGet
+    : public TYPathServiceBase
+    , public TSupportsGet
 {
 public:
-	typedef std::deque<TStoredSample> TSamples;
-	typedef TSamples::iterator TSamplesIterator;
-	typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
+    typedef std::deque<TStoredSample> TSamples;
+    typedef TSamples::iterator TSamplesIterator;
+    typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
-	TBucket()
-		: TYPathServiceBase("Profiling")
-	{ }
+    TBucket()
+        : TYPathServiceBase("Profiling")
+    { }
 
-	//! Adds a new sample to the bucket inserting in at an appropriate position.
-	void AddSample(const TStoredSample& sample)
-	{
-		// Samples are ordered by time.
-		// Search for an appropriate insertion point starting from the the back,
-		// this should usually be fast.
-		int index = static_cast<int>(Samples.size());
-		while (index > 0 && Samples[index - 1].Time > sample.Time) {
-			--index;
-		}
-		Samples.insert(Samples.begin() + index, sample);
-	}
+    //! Adds a new sample to the bucket inserting in at an appropriate position.
+    void AddSample(const TStoredSample& sample)
+    {
+        // Samples are ordered by time.
+        // Search for an appropriate insertion point starting from the the back,
+        // this should usually be fast.
+        int index = static_cast<int>(Samples.size());
+        while (index > 0 && Samples[index - 1].Time > sample.Time) {
+            --index;
+        }
+        Samples.insert(Samples.begin() + index, sample);
+    }
 
-	//! Removes the oldest samples keeping [minTime,maxTime] interval no larger than #maxKeepInterval.
-	void TrimSamples(TDuration maxKeepInterval)
-	{
-		if (Samples.size() <= 1)
-			return;
+    //! Removes the oldest samples keeping [minTime,maxTime] interval no larger than #maxKeepInterval.
+    void TrimSamples(TDuration maxKeepInterval)
+    {
+        if (Samples.size() <= 1)
+            return;
 
-		auto deadline = Samples.back().Time - maxKeepInterval;
-		while (Samples.front().Time < deadline) {
-			Samples.pop_front();
-		}
-	}
+        auto deadline = Samples.back().Time - maxKeepInterval;
+        while (Samples.front().Time < deadline) {
+            Samples.pop_front();
+        }
+    }
 
-	//! Gets samples with timestamp larger than #lastTime.
-	//! If #lastTime is #Null then all samples are returned.
-	TSamplesRange GetSamples(TNullable<TInstant> lastTime = Null)
-	{
-		if (!lastTime) {
-			return make_pair(Samples.begin(), Samples.end());
-		}
+    //! Gets samples with timestamp larger than #lastTime.
+    //! If #lastTime is #Null then all samples are returned.
+    TSamplesRange GetSamples(TNullable<TInstant> lastTime = Null)
+    {
+        if (!lastTime) {
+            return make_pair(Samples.begin(), Samples.end());
+        }
 
-		// Run binary search to find the proper position.
-		TStoredSample lastSample;
-		lastSample.Time = lastTime.Get();
-		auto it = std::upper_bound(
-			Samples.begin(),
-			Samples.end(),
-			lastSample,
-			[=] (const TStoredSample& lhs, const TStoredSample& rhs) { return lhs.Time < rhs.Time; });
+        // Run binary search to find the proper position.
+        TStoredSample lastSample;
+        lastSample.Time = lastTime.Get();
+        auto it = std::upper_bound(
+            Samples.begin(),
+            Samples.end(),
+            lastSample,
+            [=] (const TStoredSample& lhs, const TStoredSample& rhs) { return lhs.Time < rhs.Time; });
 
-		return std::make_pair(it, Samples.end());
-	}
+        return std::make_pair(it, Samples.end());
+    }
 
 private:
-	std::deque<TStoredSample> Samples;
+    std::deque<TStoredSample> Samples;
 
-	void DoInvoke(NRpc::IServiceContext* context)
-	{
-		DISPATCH_YPATH_SERVICE_METHOD(Get);
-		TYPathServiceBase::DoInvoke(context);
-	}
+    void DoInvoke(NRpc::IServiceContext* context)
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(Get);
+        TYPathServiceBase::DoInvoke(context);
+    }
 
-	static TNullable<TInstant> ParseInstant(TNullable<i64> value)
-	{
-		return value ? MakeNullable(TInstant::MicroSeconds(value.Get())) : Null;
-	}
+    static TNullable<TInstant> ParseInstant(TNullable<i64> value)
+    {
+        return value ? MakeNullable(TInstant::MicroSeconds(value.Get())) : Null;
+    }
 
-	void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
-	{
-		auto fromTime = ParseInstant(request->Attributes().Find<i64>("from_time"));
-		auto range = GetSamples(fromTime);
-		TYson yson = BuildYsonFluently()
-			.DoListFor(range.first, range.second, [] (TFluentList fluent, const TSamplesIterator& it)
-				{
-					const auto& sample = *it;
-					fluent
-						.Item().BeginMap()
-							.Item("id").Scalar(sample.Id)
-							.Item("time").Scalar(static_cast<i64>(sample.Time.MicroSeconds()))
-							.Item("value").Scalar(sample.Value)
-						.EndMap();
-				});
-		response->set_value(yson);
-		context->Reply();
-	}
+    void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
+    {
+        auto fromTime = ParseInstant(request->Attributes().Find<i64>("from_time"));
+        auto range = GetSamples(fromTime);
+        TYson yson = BuildYsonFluently()
+            .DoListFor(range.first, range.second, [] (TFluentList fluent, const TSamplesIterator& it)
+                {
+                    const auto& sample = *it;
+                    fluent
+                        .Item().BeginMap()
+                            .Item("id").Scalar(sample.Id)
+                            .Item("time").Scalar(static_cast<i64>(sample.Time.MicroSeconds()))
+                            .Item("value").Scalar(sample.Value)
+                        .EndMap();
+                });
+        response->set_value(yson);
+        context->Reply();
+    }
 
 };
 
@@ -134,54 +134,54 @@ private:
 class TProfilingManager::TClockConverter
 {
 public:
-	TClockConverter()
-		: NextCalibrationClock(0)
-	{ }
+    TClockConverter()
+        : NextCalibrationClock(0)
+    { }
 
-	TInstant ToInstant(ui64 clock)
-	{
-		CalibrateIfNeeded();
-		// TDuration is unsigned and thus does not support negative values.
-		return
-			clock >= CalibrationClock
-			? CalibrationInstant + ClockToDuration(clock - CalibrationClock)
-			: CalibrationInstant - ClockToDuration(CalibrationClock - clock);
-	}
+    TInstant ToInstant(ui64 clock)
+    {
+        CalibrateIfNeeded();
+        // TDuration is unsigned and thus does not support negative values.
+        return
+            clock >= CalibrationClock
+            ? CalibrationInstant + ClockToDuration(clock - CalibrationClock)
+            : CalibrationInstant - ClockToDuration(CalibrationClock - clock);
+    }
 
 private:
-	static const TDuration CalibrationInterval;
+    static const TDuration CalibrationInterval;
 
-	// TODO(babenko): get rid of this dependency on NHPTimer
-	static TDuration ClockToDuration(i64 cycles)
-	{
-		return TDuration::Seconds((double) cycles / NHPTimer::GetClockRate());
-	}
+    // TODO(babenko): get rid of this dependency on NHPTimer
+    static TDuration ClockToDuration(i64 cycles)
+    {
+        return TDuration::Seconds((double) cycles / NHPTimer::GetClockRate());
+    }
 
-	void CalibrateIfNeeded()
-	{
-		auto nowClock = GetCycleCount();
-		if (nowClock > NextCalibrationClock) {
-			Calibrate();
-		}
-	}
+    void CalibrateIfNeeded()
+    {
+        auto nowClock = GetCycleCount();
+        if (nowClock > NextCalibrationClock) {
+            Calibrate();
+        }
+    }
 
-	void Calibrate()
-	{
-		auto nowClock = GetCycleCount();
-		auto nowInstant = TInstant::Now();
-		if (NextCalibrationClock != 0) {
-			auto expected = (CalibrationInstant + ClockToDuration(nowClock - CalibrationClock)).MicroSeconds();
-			auto actual = nowInstant.MicroSeconds();
-			LOG_INFO("Clock recalibrated (Diff: %" PRId64 ")", expected - actual);
-		}
-		CalibrationClock = nowClock;
-		CalibrationInstant = nowInstant;
-		NextCalibrationClock = nowClock + DurationToCycles(CalibrationInterval);
-	}
+    void Calibrate()
+    {
+        auto nowClock = GetCycleCount();
+        auto nowInstant = TInstant::Now();
+        if (NextCalibrationClock != 0) {
+            auto expected = (CalibrationInstant + ClockToDuration(nowClock - CalibrationClock)).MicroSeconds();
+            auto actual = nowInstant.MicroSeconds();
+            LOG_INFO("Clock recalibrated (Diff: %" PRId64 ")", expected - actual);
+        }
+        CalibrationClock = nowClock;
+        CalibrationInstant = nowInstant;
+        NextCalibrationClock = nowClock + DurationToCycles(CalibrationInterval);
+    }
 
-	TInstant CalibrationInstant;
-	ui64 CalibrationClock;
-	ui64 NextCalibrationClock;
+    TInstant CalibrationInstant;
+    ui64 CalibrationClock;
+    ui64 NextCalibrationClock;
 
 };
 
@@ -190,124 +190,124 @@ const TDuration TProfilingManager::TClockConverter::CalibrationInterval = TDurat
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProfilingManager::TImpl
-	: public TActionQueueBase
+    : public TActionQueueBase
 {
 public:
-	TImpl()
-		: TActionQueueBase("Profiling", true)
-		, Invoker(New<TQueueInvoker>(this, true))
-		, Root(GetEphemeralNodeFactory()->CreateMap())
-	{ }
+    TImpl()
+        : TActionQueueBase("Profiling", true)
+        , Invoker(New<TQueueInvoker>(this, true))
+        , Root(GetEphemeralNodeFactory()->CreateMap())
+    { }
 
-	~TImpl()
-	{
-		Invoker->OnShutdown();
-	}
+    ~TImpl()
+    {
+        Invoker->OnShutdown();
+    }
 
-	void Start()
-	{
-		TActionQueueBase::Start();
-	}
-	
-	void Shutdown()
-	{
-		TActionQueueBase::Shutdown();
-	}
+    void Start()
+    {
+        TActionQueueBase::Start();
+    }
+    
+    void Shutdown()
+    {
+        TActionQueueBase::Shutdown();
+    }
 
-	void Enqueue(const TQueuedSample& sample)
-	{
-		if (!IsRunning())
-			return;
+    void Enqueue(const TQueuedSample& sample)
+    {
+        if (!IsRunning())
+            return;
 
-		SampleQueue.Enqueue(sample);
-		Signal();
-	}
+        SampleQueue.Enqueue(sample);
+        Signal();
+    }
 
-	IInvoker* GetInvoker() const
-	{
-		return ~Invoker; 
-	}
+    IInvoker* GetInvoker() const
+    {
+        return ~Invoker; 
+    }
 
-	IMapNode* GetRoot() const
-	{
-		return ~Root;
-	}
+    IMapNode* GetRoot() const
+    {
+        return ~Root;
+    }
 
 private:
-	TQueueInvokerPtr Invoker;
-	IMapNodePtr Root;
-	TLockFreeQueue<TQueuedSample> SampleQueue;
-	yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
-	TIdGenerator<i64> IdGenerator;
-	TClockConverter ClockConverter;
+    TQueueInvokerPtr Invoker;
+    IMapNodePtr Root;
+    TLockFreeQueue<TQueuedSample> SampleQueue;
+    yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
+    TIdGenerator<i64> IdGenerator;
+    TClockConverter ClockConverter;
 
-	static const TDuration MaxKeepInterval;
+    static const TDuration MaxKeepInterval;
 
-	bool DequeueAndExecute()
-	{
-		// Handle pending callbacks first.
-		if (Invoker->OnDequeueAndExecute()) {
-			return true;
-		}
+    bool DequeueAndExecute()
+    {
+        // Handle pending callbacks first.
+        if (Invoker->OnDequeueAndExecute()) {
+            return true;
+        }
 
-		// Process all pending samples in a row.
-		bool samplesProcessed = false;
-		TQueuedSample sample;
-		while (SampleQueue.Dequeue(&sample)) {
-			ProcessSample(sample);
-			samplesProcessed = true;
-		}
+        // Process all pending samples in a row.
+        bool samplesProcessed = false;
+        TQueuedSample sample;
+        while (SampleQueue.Dequeue(&sample)) {
+            ProcessSample(sample);
+            samplesProcessed = true;
+        }
 
-		return samplesProcessed;
-	}
+        return samplesProcessed;
+    }
 
-	TBucketPtr LookupBucket(const TYPath& path)
-	{
-		auto it = PathToBucket.find(path);
-		if (it != PathToBucket.end()) {
-			auto bucket = it->second.Lock();
-			if (bucket) {
-				return bucket;
-			}
-		}
+    TBucketPtr LookupBucket(const TYPath& path)
+    {
+        auto it = PathToBucket.find(path);
+        if (it != PathToBucket.end()) {
+            auto bucket = it->second.Lock();
+            if (bucket) {
+                return bucket;
+            }
+        }
 
-		LOG_INFO("Creating new bucket %s", ~path.Quote());
-		auto bucket = New<TBucket>();
-		PathToBucket[path] = bucket;
+        LOG_INFO("Creating new bucket %s", ~path.Quote());
+        auto bucket = New<TBucket>();
+        PathToBucket[path] = bucket;
 
-		auto node = CreateVirtualNode(~bucket);
-		SyncYPathSetNode(~Root, path, ~node);
+        auto node = CreateVirtualNode(~bucket);
+        SyncYPathSetNode(~Root, path, ~node);
 
-		return bucket;
-	}
+        return bucket;
+    }
 
-	// TODO(babenko): currently not used
-	void SweepBucketCache()
-	{
-		auto it = PathToBucket.begin();
-		while (it != PathToBucket.end()) {
-			auto jt = it;
-			++jt;
-			auto node = it->second.Lock();
-			if (!node) {
-				PathToBucket.erase(it);
-			}
-			it = jt;
-		}
-	}
+    // TODO(babenko): currently not used
+    void SweepBucketCache()
+    {
+        auto it = PathToBucket.begin();
+        while (it != PathToBucket.end()) {
+            auto jt = it;
+            ++jt;
+            auto node = it->second.Lock();
+            if (!node) {
+                PathToBucket.erase(it);
+            }
+            it = jt;
+        }
+    }
 
-	void ProcessSample(TQueuedSample& queuedSample)
-	{
-		auto bucket = LookupBucket(queuedSample.Path);
+    void ProcessSample(TQueuedSample& queuedSample)
+    {
+        auto bucket = LookupBucket(queuedSample.Path);
 
-		TStoredSample storedSample;
-		storedSample.Id = IdGenerator.Next();
-		storedSample.Time = ClockConverter.ToInstant(queuedSample.Time);
-		storedSample.Value = queuedSample.Value;
+        TStoredSample storedSample;
+        storedSample.Id = IdGenerator.Next();
+        storedSample.Time = ClockConverter.ToInstant(queuedSample.Time);
+        storedSample.Value = queuedSample.Value;
 
-		bucket->AddSample(storedSample);
-		bucket->TrimSamples(MaxKeepInterval);
-	}
+        bucket->AddSample(storedSample);
+        bucket->TrimSamples(MaxKeepInterval);
+    }
 
 };
 
@@ -317,7 +317,7 @@ const TDuration TProfilingManager::TImpl::MaxKeepInterval = TDuration::Seconds(6
 ////////////////////////////////////////////////////////////////////////////////
 
 TProfilingManager::TProfilingManager()
-	: Impl(New<TImpl>())
+    : Impl(New<TImpl>())
 { }
 
 TProfilingManager* TProfilingManager::Get()
@@ -327,27 +327,27 @@ TProfilingManager* TProfilingManager::Get()
 
 void TProfilingManager::Start()
 {
-	Impl->Start();
+    Impl->Start();
 }
 
 void TProfilingManager::Shutdown()
 {
-	Impl->Shutdown();
+    Impl->Shutdown();
 }
 
 void TProfilingManager::Enqueue(const TQueuedSample& sample)
 {
-	Impl->Enqueue(sample);
+    Impl->Enqueue(sample);
 }
 
 IInvoker* TProfilingManager::GetInvoker() const
 {
-	return Impl->GetInvoker();
+    return Impl->GetInvoker();
 }
 
 NYTree::IMapNode* TProfilingManager::GetRoot() const
 {
-	return Impl->GetRoot();
+    return Impl->GetRoot();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
