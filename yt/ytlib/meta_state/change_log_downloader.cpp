@@ -123,7 +123,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                         break;
                 }
             } else {
-                LOG_WARNING("Error reading snapshot from peer %d\n%s",
+                LOG_WARNING("Error reading changelog from peer %d\n%s",
                     sourceId,
                     ~error.ToString());
                 return EResult::RemoteError;
