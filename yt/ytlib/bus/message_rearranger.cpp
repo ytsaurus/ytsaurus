@@ -58,25 +58,11 @@ void TMessageRearranger::EnqueueMessage(
         YVERIFY(PostponedMessages.insert(MakePair(
             sequenceId,
             TPostponedMessage(requestId, message))).second);
-        RescheduleTimeout();
+
+        if (PostponedMessages.size() == 1) {
+            RescheduleTimeout();
+        }
     }
-}
-
-void TMessageRearranger::OnTimeout()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TGuard<TSpinLock> guard(SpinLock);
-    
-    if (PostponedMessages.empty())
-        return;
-
-    ExpectedSequenceId = PostponedMessages.begin()->first;
-
-    LOG_DEBUG("Message rearrange timeout (ExpectedSequenceId: %" PRId64 ")", ExpectedSequenceId);
-
-    TryFlush();
-    RescheduleTimeout();
 }
 
 void TMessageRearranger::TryFlush()
@@ -99,21 +85,36 @@ void TMessageRearranger::TryFlush()
         PostponedMessages.erase(it);
         ++ExpectedSequenceId;
     }
+
+    if (!PostponedMessages.empty()) {
+        RescheduleTimeout();
+    }
 }
 
 void TMessageRearranger::RescheduleTimeout()
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock);
 
-    if (TimeoutCookie != TDelayedInvoker::NullCookie) {
-        TDelayedInvoker::CancelAndClear(TimeoutCookie);
-    }
+    TDelayedInvoker::CancelAndClear(TimeoutCookie);
+    TimeoutCookie = TDelayedInvoker::Submit(
+        ~FromMethod(&TMessageRearranger::OnTimeout, TPtr(this)),
+        Timeout);
+}
 
-    if (!PostponedMessages.empty()) {
-        TimeoutCookie = TDelayedInvoker::Submit(
-            ~FromMethod(&TMessageRearranger::OnTimeout, TPtr(this)),
-            Timeout);
-    }
+void TMessageRearranger::OnTimeout()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(SpinLock);
+
+    if (PostponedMessages.empty())
+        return;
+
+    ExpectedSequenceId = PostponedMessages.begin()->first;
+
+    LOG_DEBUG("Message rearrange timeout (ExpectedSequenceId: %" PRId64 ")", ExpectedSequenceId);
+
+    TryFlush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
