@@ -531,7 +531,7 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
     if (sessionIt == SessionMap.end()) {
         if (isRequest) {
             // Check if a new session is initiated.
-            if (sequenceId == 0) {
+            if (true/*sequenceId == 0*/) {
                 session = RegisterSession(header->SessionId, address);
             } else {
                 LOG_DEBUG("Request message for broken session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
