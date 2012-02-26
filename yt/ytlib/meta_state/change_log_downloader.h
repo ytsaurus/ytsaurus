@@ -35,7 +35,7 @@ public:
                 .Default(TDuration::Seconds(5));
             Register("read_timeout", ReadTimeout)
                 .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(5));
+                .Default(TDuration::Seconds(10));
             Register("records_per_request", RecordsPerRequest)
                 .GreaterThan(0)
                 .Default(1024 * 1024);

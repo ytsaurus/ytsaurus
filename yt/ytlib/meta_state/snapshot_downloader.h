@@ -33,7 +33,7 @@ public:
                 .Default(TDuration::Seconds(2));
             Register("read_timeout", ReadTimeout)
                 .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(5));
+                .Default(TDuration::Seconds(10));
             Register("block_size", BlockSize)
                 .GreaterThan(0)
                 .Default(32 * 1024 * 1024);
