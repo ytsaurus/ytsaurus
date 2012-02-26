@@ -249,13 +249,8 @@ private:
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
 
         auto& activeRequest = it->second;
-
-        if (activeRequest.TimeoutCookie != TDelayedInvoker::NullCookie) {
-            TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
-        }
-
+        TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
 		Profiler.TimingStop(activeRequest.Timer);
-
         ActiveRequests.erase(it);
     }
 

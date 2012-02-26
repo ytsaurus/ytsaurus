@@ -29,9 +29,6 @@ public:
     //! Encapsulates a delayed execution token.
     typedef TEntry::TPtr TCookie;
 
-    //! An invalid cookie.
-    static TCookie NullCookie;
-
     //! Submits an action for execution after a given delay.
     static TCookie Submit(IAction* action, TDuration delay);
 
