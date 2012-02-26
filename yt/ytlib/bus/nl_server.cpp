@@ -95,7 +95,7 @@ private:
 
     TIntrusivePtr<TSession> RegisterSession(
         const TSessionId& sessionId,
-        const TUdpAddress& clientAddress);
+        const TUdpAddress& address);
     void UnregisterSession(TSession* session);
 };
 
@@ -130,11 +130,11 @@ public:
     TSession(
         TNLBusServer* server,
         const TSessionId& sessionId,
-        const TUdpAddress& clientAddress,
+        const TUdpAddress& address,
         const TGuid& pingId)
         : Server(server)
         , SessionId(sessionId)
-        , ClientAddress(clientAddress)
+        , Address(address)
         , PingId(pingId)
         , Terminated(false)
         , SequenceId(0)
@@ -169,9 +169,9 @@ public:
         return PingId;
     }
 
-    TUdpAddress GetClientAddress() const
+    TUdpAddress GetAddress() const
     {
-        return ClientAddress;
+        return Address;
     }
 
     // IBus implementation.
@@ -224,7 +224,7 @@ private:
 
     TNLBusServer::TPtr Server;
     TSessionId SessionId;
-    TUdpAddress ClientAddress;
+    TUdpAddress Address;
     TGuid PingId;
     bool Terminated;
     TAtomic SequenceId;
@@ -440,7 +440,7 @@ bool TNLBusServer::ProcessOutcomingResponses()
 void TNLBusServer::ProcessOutcomingResponse(TSession* session, TOutcomingResponse* response)
 {
     TGuid requestId = Requester->SendRequest(
-        session->GetClientAddress(),
+        session->GetAddress(),
         "",
         &response->Data);
     LOG_DEBUG("Message sent (IsRequest: 1, SessionId: %s, RequestId: %s, Response: %p)",
@@ -484,7 +484,7 @@ void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequ
         Requester->SendResponse(requestId, &ackData);
 
         LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
-            ~header->SessionId.ToString(),
+            ~sessionId.ToString(),
             ~requestId.ToString());
     }
 
@@ -523,8 +523,10 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
 
     IMessage::TPtr message;
     TSequenceId sequenceId;;
-    if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId))
+    if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId)) {
+        LOG_WARNING("Error parsing message packet (RequestId: %s)", ~requestId.ToString());
         return NULL;
+    }
 
     TSession::TPtr session;
     auto sessionIt = SessionMap.find(header->SessionId);
@@ -578,24 +580,24 @@ void TNLBusServer::EnqueueOutcomingResponse(TSession* session, TOutcomingRespons
 
 TIntrusivePtr<TNLBusServer::TSession> TNLBusServer::RegisterSession(
     const TSessionId& sessionId,
-    const TUdpAddress& clientAddress)
+    const TUdpAddress& address)
 {
     TBlob data;
     CreatePacket(sessionId, TPacketHeader::EType::Ping, &data);
-    TGuid pingId = Requester->SendRequest(clientAddress, "", &data);
+    TGuid pingId = Requester->SendRequest(address, "", &data);
 
     auto session = New<TSession>(
         this,
         sessionId,
-        clientAddress,
+        address,
         pingId);
 
     PingMap.insert(MakePair(pingId, session));
     SessionMap.insert(MakePair(sessionId, session));
 
-    LOG_DEBUG("Session registered (SessionId: %s, ClientAddress: %s, PingId: %s)",
+    LOG_DEBUG("Session registered (SessionId: %s, Address: %s, PingId: %s)",
         ~sessionId.ToString(),
-        ~GetAddressAsString(clientAddress),
+        ~GetAddressAsString(address),
         ~pingId.ToString());
 
     return session;
