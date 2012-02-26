@@ -79,6 +79,9 @@ public:
     //! Returns the current reference counter.
     i32 GetObjectRefCounter(const TObjectId& id);
 
+    //! Returns True if an object with the given #id exists.
+    bool ObjectExists(const TObjectId& id);
+
     //! Returns a proxy for the object with the given versioned id or NULL if there's no such object.
     IObjectProxy::TPtr FindProxy(const TVersionedObjectId& id);
 
