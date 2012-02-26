@@ -71,7 +71,7 @@ public:
     typedef TIntrusivePtr<TBus> TPtr;
     typedef yhash_set<TGuid> TRequestIdSet;
 
-    TBus(TUdpAddress address, IMessageHandler* handler)
+    TBus(const TUdpAddress& address, IMessageHandler* handler)
         : Address(address)
         , Handler(handler)
         , Terminated(false)
@@ -235,9 +235,10 @@ class TClientDispatcher
     {
         const auto& sessionId = bus->GetSessionId();
         BusMap.insert(MakePair(sessionId, bus));
-        LOG_DEBUG("Bus is registered (SessionId: %s, Bus: %p)",
+        LOG_DEBUG("Bus is registered (SessionId: %s, Bus: %p, Address: %s)",
             ~sessionId.ToString(),
-            bus);
+            bus,
+            ~GetAddressAsString(bus->GetAddress()));
     }
 
     void UnregisterBus(TNLBusClient::TBus* bus)
@@ -446,8 +447,10 @@ class TClientDispatcher
 
         IMessage::TPtr message;
         TSequenceId sequenceId;;
-        if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId))
+        if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId)) {
+            LOG_WARNING("Error parsing message packet (RequestId: %s)", ~requestId.ToString());
             return;
+        }
 
         LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
             (int) isRequest,
@@ -608,7 +611,7 @@ public:
         return request->Result;
     }
 
-    void EnqueueBusRegister(TNLBusClient::TBus* bus)
+    void EnqueueBusRegister(const TNLBusClient::TBus::TPtr& bus)
     {
         const auto& sessionId = bus->GetSessionId();
 
@@ -620,13 +623,15 @@ public:
             bus);
     }
 
-    void EnqueueBusUnregister(TNLBusClient::TBus* bus)
+    void EnqueueBusUnregister(const TNLBusClient::TBus::TPtr& bus)
     {
+        const auto& sessionId = bus->GetSessionId();
+
         BusUnregisterQueue.Enqueue(bus);
         GetEvent().Signal();
 
         LOG_DEBUG("Bus unregistration enqueued (SessionId: %s, Bus: %p)",
-            ~bus->GetSessionId().ToString(),
+            ~sessionId.ToString(),
             bus);
     }
 
@@ -672,7 +677,7 @@ IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
     YASSERT(handler);
 
     auto bus = New<TBus>(ServerAddress, handler);
-    TClientDispatcher::Get()->EnqueueBusRegister(~bus);
+    TClientDispatcher::Get()->EnqueueBusRegister(bus);
     return bus;
 }
 
