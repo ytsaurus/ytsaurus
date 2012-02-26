@@ -1382,6 +1382,16 @@ private:
 
         context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
 
+        FOREACH (const auto& childId, childrenIds) {
+            auto type = TypeFromId(childId);
+            if (type != EObjectType::Chunk && type != EObjectType::ChunkList) {
+                ythrow yexception() << Sprintf("Invalid child type (ObjectId: %s)", ~childId.ToString());
+            }
+            if (!ObjectManager->ObjectExists(childId)) {
+                ythrow yexception() << Sprintf("Child does not exist (ObjectId: %s)", ~childId.ToString());
+            }
+        }
+
         auto& chunkList = GetTypedImpl();
         Owner->AttachToChunkList(chunkList, childrenIds);
 

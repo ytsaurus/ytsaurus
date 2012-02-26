@@ -439,6 +439,11 @@ void TObjectManager::Clear()
     }
 }
 
+bool TObjectManager::ObjectExists(const TObjectId& id)
+{
+    return GetHandler(id)->Exists(id);
+}
+
 IObjectProxy::TPtr TObjectManager::FindProxy(const TVersionedObjectId& id)
 {
     // (NullObjectId, NullTransactionId) means the root transaction.
