@@ -123,9 +123,9 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                         break;
                 }
             } else {
-                LOG_WARNING("Error %s reading snapshot from peer %d",
-                    ~error.ToString(),
-                    sourceId);
+                LOG_WARNING("Error reading snapshot from peer %d\n%s",
+                    sourceId,
+                    ~error.ToString());
                 return EResult::RemoteError;
             }
         }
