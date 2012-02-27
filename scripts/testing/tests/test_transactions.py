@@ -66,24 +66,35 @@ class TestTransactions2(YTEnvSetup):
     NUM_HOLDERS = 5
     SETUP_TIMEOUT = 7
 
+
     def test_merge_tables(self):
+        #raw_input('press any key')
+
         yt1 = launch_yt()
         yt2 = launch_yt()
 
-        raw_input('press any key')
+
+        # raw_input('press any key')
 
         execute_cmd('{do=start_transaction}', yt1)
 
         execute_cmd('{do=create; path = "/table"; type = table}', yt1)
 
-        execute_cmd('{do=write; path = "/table"; value = [{a=111; b = 222}]}', yt1)
+        write('{do=write; path = "/table"; value = [{a=111; b = 222}]}', yt1)
+
+        #yt2 = launch_yt()
         # execute_cmd(yt2, '{do=start_transaction}')
+        # yt1.stdin.write('{do=write; path = "/table"; value = [{a=111; b = 222}]}\n')
+        # print yt1.communicate('{do=commit_transaction}\n')[0]
 
         # execute_cmd(yt2, '{do=create; path = "/table"; type = table}')
-        execute_cmd('{do=write; path = "/table"; value = [{x=333; y = 444}]}', yt1)
+        #execute_cmd('{do=write; path = "/table"; value = [{x=333; y = 444}]}', yt1)
 
-        yt1.stdin.write('{do=read; path = "/table"; stream ="> tmpfile.txt"}\n')
-        execute_cmd('{do=commit_transaction}', yt1)
+        #yt1.stdin.write('{do=read; path = "/table"; stream ="> tmpfile.txt"}\n')
+        #write('{do=commit_transaction}', yt1)
+
+        output =  yt1.communicate('{do=get; path = "/"}')
+        print 'output get', output
         # execute_cmd(yt1, '{do=commit_transaction}')
 
 
