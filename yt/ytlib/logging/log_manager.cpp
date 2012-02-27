@@ -235,12 +235,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogManager::TImpl
+    : public TActionQueueBase
 {
 public:
     TImpl()
-        : ConfigVersion(0)
+        : TActionQueueBase("Logging", false)
+        , ConfigVersion(0)
         , Config(TLogConfig::CreateDefault())
-        , Queue(New<TActionQueue>("Logging", false))
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
     }
@@ -253,12 +254,8 @@ public:
     void Configure(INode* node, const TYPath& path = "")
     {
         auto config = TLogConfig::CreateFromNode(node, path);
-
-        if (Queue) {
-            Queue->GetInvoker()->Invoke(FromMethod(
-                &TImpl::DoUpdateConfig,
-                this,
-                config));
+        if (IsRunning()) {
+            ConfigsToUpdate.Enqueue(config);
         }
     }
 
@@ -275,30 +272,9 @@ public:
         }
     }
 
-    void Flush()
-    {
-        if (Queue) {
-            FromMethod(&TLogConfig::FlushWriters, Config)
-                ->AsyncVia(Queue->GetInvoker())
-                ->Do()
-                ->Get();
-        }
-    }
-
     void Shutdown()
     {
-        if (Queue) {
-            auto queue = Queue;
-            Queue.Reset();
-
-            // This is actually #Flush. We cannot use #Flush directly since
-            // we have to drop #Queue.
-            FromMethod(&TLogConfig::FlushWriters, Config)
-                ->AsyncVia(queue->GetInvoker())
-                ->Do()
-                ->Get();
-            queue->Shutdown();
-        }
+        TActionQueueBase::Shutdown();
     }
 
     /*! 
@@ -322,17 +298,38 @@ public:
 
     void Write(const TLogEvent& event)
     {
-        if (Queue) {
-            Queue->GetInvoker()->Invoke(FromMethod(
-                &TImpl::DoWrite,
-                this,
-                event));
+        if (IsRunning()) {
+            LogEventQueue.Enqueue(event);
 
             if (event.Level == ELogLevel::Fatal) {
-                Flush();
+                Shutdown();
                 ::std::terminate();
             }
         }
+    }
+
+    virtual bool DequeueAndExecute()
+    {
+        bool result = false;
+
+        TLogConfig::TPtr config;
+        while (ConfigsToUpdate.Dequeue(&config)) {
+            DoUpdateConfig(config);
+            result = true;
+        }
+
+        TLogEvent event;
+        while (LogEventQueue.Dequeue(&event)) {
+            // To avoid starvation of config update
+            while (ConfigsToUpdate.Dequeue(&config)) {
+                DoUpdateConfig(config);
+            }
+
+            DoWrite(event);
+            result = true;
+        }
+
+        return result;
     }
 
 private:
@@ -367,7 +364,8 @@ private:
     TAtomic ConfigVersion;
     TSpinLock SpinLock;
 
-    TActionQueue::TPtr Queue;
+    TLockFreeQueue<TLogConfig::TPtr> ConfigsToUpdate;
+    TLockFreeQueue<TLogEvent> LogEventQueue;
 
     TWriters SystemWriters;
 };
@@ -393,10 +391,10 @@ void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
     Impl->Configure(fileName, path);
 }
 
-void TLogManager::Flush()
-{
-    Impl->Flush();
-}
+//void TLogManager::Flush()
+//{
+//    Impl->Flush();
+//}
 
 void TLogManager::Shutdown()
 {
