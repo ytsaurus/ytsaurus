@@ -32,7 +32,7 @@ public:
 
 private:
     class TImpl;
-    THolder<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
