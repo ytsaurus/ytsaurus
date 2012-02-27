@@ -275,6 +275,7 @@ public:
 
     void Shutdown()
     {
+        WakeupEvent.Signal();
         TActionQueueBase::Shutdown();
     }
 
