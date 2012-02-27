@@ -30,6 +30,7 @@ struct ILogWriter
         (File)
         (StdOut)
         (StdErr)
+        (Raw)
     );
 
     struct TConfig
@@ -129,8 +130,30 @@ private:
     bool Initialized;
     THolder<TFile> File;
     THolder<TBufferedFileOutput> FileOutput;
-    TFileLogWriter::TPtr LogWriter;
+    TStreamLogWriter::TPtr LogWriter;
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRawFileLogWriter
+    : public ILogWriter
+{
+public:
+    TRawFileLogWriter(const Stroka& fileName);
+
+    virtual void Write(const TLogEvent& event);
+    virtual void Flush();
+
+private:
+    static const size_t BufferSize = 1 << 16;
+
+    void EnsureInitialized();
+
+    Stroka FileName;
+    bool Initialized;
+    THolder<TFile> File;
+    THolder<TBufferedFileOutput> FileOutput;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

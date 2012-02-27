@@ -216,6 +216,10 @@ private:
                         Writers.insert(MakePair(
                             name, New<TStdErrLogWriter>(pattern))).second);
                     break;
+                case ILogWriter::EType::Raw:
+                    YVERIFY(
+                        Writers.insert(MakePair(
+                            name, New<TRawFileLogWriter>(config->FileName))).second);
                 default:
                     YUNREACHABLE();
             }
