@@ -244,6 +244,7 @@ public:
         , Config(TLogConfig::CreateDefault())
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
+        Start();
     }
 
     ~TImpl()
