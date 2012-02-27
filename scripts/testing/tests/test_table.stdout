@@ -1,0 +1,17 @@
+{"object_id"="0-1-191-269b57e6"}
+<>
+0
+write one value
+1
+{"b"="hello"}
+write many values
+3
+{"b"="hello"}
+{"a"="1";"b"="2"}
+{"a"="30";"x"="10";"y"="20"}
+write from stream
+4
+{"b"="hello"}
+{"a"="1";"b"="2"}
+{"a"="30";"x"="10";"y"="20"}
+{"row"="some"}
