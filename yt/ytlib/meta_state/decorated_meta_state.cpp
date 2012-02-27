@@ -161,14 +161,12 @@ TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
 
 void TDecoratedMetaState::AdvanceSegment()
 {
-    // Do not use logging here. This method is used in forked process.
-
     VERIFY_THREAD_AFFINITY(StateThread);
 
     CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(Version.SegmentId + 1, 0));
    
-    //LOG_INFO("Switched to a new segment %d", Version.SegmentId);
+    LOG_INFO("Switched to a new segment %d", Version.SegmentId);
 }
 
 void TDecoratedMetaState::RotateChangeLog()
