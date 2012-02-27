@@ -149,7 +149,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
 
 TOutputStream& TSnapshotWriter::GetStream() const
 {
-    YASSERT(~ChecksummableOutput);©≠ош
+    YASSERT(~ChecksummableOutput);
     return *ChecksummableOutput;
 }
 
