@@ -57,10 +57,10 @@ struct ILogWriter
 
         virtual void DoValidate() const
         {
-            if (Type == EType::File && FileName.empty()) {
+            if ((Type == EType::File || Type == EType::Raw) && FileName.empty()) {
                 ythrow yexception() <<
                     Sprintf("FileName is empty while type is File");
-            } else if (Type != EType::File && !FileName.empty()) {
+            } else if (Type != EType::File && Type != EType::Raw && !FileName.empty()) {
                 ythrow yexception() <<
                     Sprintf("FileName is not empty while type is not File");
             }
