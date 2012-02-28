@@ -59,7 +59,7 @@ void TFileLogWriter::EnsureInitialized()
     try {
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
-        FileOutput->SetFlushPropagateMode(true);
+        //FileOutput->SetFlushPropagateMode(true);
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
@@ -110,7 +110,7 @@ void TRawFileLogWriter::EnsureInitialized()
     try {
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
-        FileOutput->SetFlushPropagateMode(true);
+        //FileOutput->SetFlushPropagateMode(true);
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {

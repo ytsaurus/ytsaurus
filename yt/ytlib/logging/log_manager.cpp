@@ -220,6 +220,7 @@ private:
                     YVERIFY(
                         Writers.insert(MakePair(
                             name, New<TRawFileLogWriter>(config->FileName))).second);
+                    break;
                 default:
                     YUNREACHABLE();
             }
