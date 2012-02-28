@@ -45,7 +45,7 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
     auto writer = New<TFileWriter>(
         ~config,
         DriverImpl->GetMasterChannel(),
-        ~transaction = DriverImpl->GetTransaction(request),
+        ~DriverImpl->GetTransaction(request),
         DriverImpl->GetTransactionManager(),
         request->Path);
     writer->Open();
