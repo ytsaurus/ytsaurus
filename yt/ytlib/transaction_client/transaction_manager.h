@@ -59,6 +59,8 @@ public:
         NYTree::INode* manifest = NULL,
         const TTransactionId& parentId = NullTransactionId);
 
+    ITransaction::TPtr Attach(const TTransactionId& id);
+
 private:
     void PingTransaction(const TTransactionId& transactionId);
     void OnPingResponse(

@@ -11,7 +11,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetRequest
-    : public TRequestBase
+    : public TTransactedRequest
 {
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;
@@ -40,7 +40,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSetRequest
-    : public TRequestBase
+    : public TTransactedRequest
 {
     NYTree::TYPath Path;
     NYTree::INodePtr Value;
@@ -82,7 +82,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoveRequest
-    : public TRequestBase
+    : public TTransactedRequest
 {
     NYTree::TYPath Path;
 
@@ -107,7 +107,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TListRequest
-    : public TRequestBase
+    : public TTransactedRequest
 {
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;
@@ -136,7 +136,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCreateRequest
-    : public TRequestBase
+    : public TTransactedRequest
 {
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;
@@ -170,7 +170,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLockRequest
-    : public TRequestBase
+    : public TTransactedRequest
 {
     NYTree::TYPath Path;
     NCypress::ELockMode Mode;

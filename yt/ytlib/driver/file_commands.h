@@ -8,7 +8,7 @@ namespace NDriver {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDownloadRequest
-    : public TRequestBase
+    : public TTransactedRequest
 {
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;
@@ -37,7 +37,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TUploadRequest
-    : public TRequestBase
+    : public TTransactedRequest
 {
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;

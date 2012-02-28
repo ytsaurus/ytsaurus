@@ -23,7 +23,7 @@ void TReadCommand::DoExecute(TReadRequest* request)
     auto reader = New<TTableReader>(
         ~DriverImpl->GetConfig()->TableReader,
         DriverImpl->GetMasterChannel(),
-        DriverImpl->GetCurrentTransaction(),
+        ~DriverImpl->GetTransaction(request),
         DriverImpl->GetBlockCache(),
         request->Path);
     reader->Open();
@@ -169,7 +169,7 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
     auto writer = New<TTableWriter>(
         ~DriverImpl->GetConfig()->TableWriter,
         DriverImpl->GetMasterChannel(),
-        DriverImpl->GetCurrentTransaction(false),
+        ~DriverImpl->GetTransaction(request),
         DriverImpl->GetTransactionManager(),
         request->Path);
 
