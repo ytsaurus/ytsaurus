@@ -42,12 +42,10 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
 {
     auto config = DriverImpl->GetConfig()->FileWriter;
 
-    NTransactionClient::ITransaction::TPtr transaction = DriverImpl->GetTransaction(request);
-
     auto writer = New<TFileWriter>(
         ~config,
         DriverImpl->GetMasterChannel(),
-        ~transaction,
+        ~transaction = DriverImpl->GetTransaction(request),
         DriverImpl->GetTransactionManager(),
         request->Path);
     writer->Open();
