@@ -42,12 +42,12 @@ public:
 
     TFollowerPinger(
         TConfig* config,
-        TDecoratedMetaState::TPtr metaState,
-        TCellManager::TPtr cellManager,
-        TFollowerTracker::TPtr followerTracker,
-        TSnapshotStore::TPtr snapshotStore,
+        TDecoratedMetaState* metaState,
+        TCellManager* cellManager,
+        TFollowerTracker* followerTracker,
+        TSnapshotStore* snapshotStore,
         const TEpoch& epoch,
-        IInvoker::TPtr controlInvoker);
+        IInvoker* controlInvoker);
 
     void Stop();
 

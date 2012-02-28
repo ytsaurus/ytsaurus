@@ -13,10 +13,11 @@ namespace NRpc {
 
 using namespace NBus;
 using namespace NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = RpcLogger;
+static NLog::TLogger Logger("Rpc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +39,6 @@ public:
         , Logger(loggingCategory)
     {
         YASSERT(replyBus);
-        YASSERT(service);
         YASSERT(service);
     }
 
@@ -102,8 +102,7 @@ public:
     TRpcServer(IBusServer* busServer)
         : BusServer(busServer)
         , Started(false)
-    {
-    }
+	{ }
 
     virtual void RegisterService(IService* service)
     {
@@ -135,18 +134,11 @@ public:
         LOG_INFO("RPC server stopped");
     }
 
-    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
-    {
-        // TODO: more
-        BuildYsonFluently(consumer)
-            .BeginMap()
-            .EndMap();
-    }
-
 private:
     IBusServer::TPtr BusServer;
-    yhash_map<Stroka, IService::TPtr> Services;
     volatile bool Started;
+
+	yhash_map<Stroka, IService::TPtr> Services;
 
     IService::TPtr GetService(const Stroka& serviceName)
     {
@@ -194,9 +186,9 @@ private:
 
         auto service = GetService(serviceName);
         if (!service) {
-            Stroka message = Sprintf("Unknown service name (RequestId: %s, ServiceName: %s)",
-                ~requestId.ToString(),
-                ~serviceName);
+            Stroka message = Sprintf("Unknown service name %s (RequestId: %s)",
+                ~serviceName.Quote(),
+				~requestId.ToString());
 
             if (!oneWay) {
                 auto response = CreateErrorResponseMessage(

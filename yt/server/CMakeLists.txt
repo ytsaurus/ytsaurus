@@ -1,6 +1,5 @@
 set( SRCS
   main.cpp
-  cell_master_bootstrap.cpp
   scheduler_bootstrap.cpp
 )
 

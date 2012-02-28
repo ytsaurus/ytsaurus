@@ -72,7 +72,6 @@ private:
     typedef TElectionManagerProxy TProxy;
 
     TConfig::TPtr Config;
-    static NRpc::TChannelCache ChannelCache;
 
     //! Protects from simultaneously reporting conflicting results.
     /*! 

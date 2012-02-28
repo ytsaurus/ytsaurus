@@ -95,7 +95,7 @@ private:
 
     TIntrusivePtr<TSession> RegisterSession(
         const TSessionId& sessionId,
-        const TUdpAddress& clientAddress);
+        const TUdpAddress& address);
     void UnregisterSession(TSession* session);
 };
 
@@ -130,15 +130,16 @@ public:
     TSession(
         TNLBusServer* server,
         const TSessionId& sessionId,
-        const TUdpAddress& clientAddress,
+        const TUdpAddress& address,
         const TGuid& pingId)
         : Server(server)
         , SessionId(sessionId)
-        , ClientAddress(clientAddress)
+        , Address(address)
         , PingId(pingId)
         , Terminated(false)
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
+            SessionId,
             ~FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
             server->Config->MessageRearrangeTimeout))
     { }
@@ -150,9 +151,12 @@ public:
         Server.Reset();
     }
 
-    void ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
+    void ProcessIncomingMessage(
+        IMessage* message,
+        const TGuid& requestId,
+        TSequenceId sequenceId)
     {
-        MessageRearranger->EnqueueMessage(message, sequenceId);
+        MessageRearranger->EnqueueMessage(message, requestId, sequenceId);
     }
 
     TSessionId GetSessionId() const
@@ -165,9 +169,9 @@ public:
         return PingId;
     }
 
-    TUdpAddress GetClientAddress() const
+    TUdpAddress GetAddress() const
     {
-        return ClientAddress;
+        return Address;
     }
 
     // IBus implementation.
@@ -220,7 +224,7 @@ private:
 
     TNLBusServer::TPtr Server;
     TSessionId SessionId;
-    TUdpAddress ClientAddress;
+    TUdpAddress Address;
     TGuid PingId;
     bool Terminated;
     TAtomic SequenceId;
@@ -436,7 +440,7 @@ bool TNLBusServer::ProcessOutcomingResponses()
 void TNLBusServer::ProcessOutcomingResponse(TSession* session, TOutcomingResponse* response)
 {
     TGuid requestId = Requester->SendRequest(
-        session->GetClientAddress(),
+        session->GetAddress(),
         "",
         &response->Data);
     LOG_DEBUG("Message sent (IsRequest: 1, SessionId: %s, RequestId: %s, Response: %p)",
@@ -465,6 +469,8 @@ void TNLBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlRespons
 void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
 {
     TGuid requestId = nlRequest->ReqId;
+    auto sessionId = header->SessionId;
+
     auto session = DoProcessMessage(
         header,
         requestId,
@@ -472,6 +478,17 @@ void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequ
         MoveRV(nlRequest->Data),
         true);
 
+    if (session) {
+        TBlob ackData;
+        CreatePacket(sessionId, TPacketHeader::EType::Ack, &ackData);
+        Requester->SendResponse(requestId, &ackData);
+
+        LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
+            ~sessionId.ToString(),
+            ~requestId.ToString());
+    }
+
+    // TODO(babenko): this is "request-via-reply", which is currently switched off
     //auto response = session->DequeueResponse();
     //if (response) {
     //    Requester->SendResponse(nlRequest->ReqId, &response->Data);
@@ -481,14 +498,6 @@ void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequ
     //        ~requestId.ToString(),
     //        ~response);
     //} else {
-        TBlob ackData;
-        CreatePacket(session->GetSessionId(), TPacketHeader::EType::Ack, &ackData);
-
-        Requester->SendResponse(nlRequest->ReqId, &ackData);
-
-        LOG_DEBUG("Ack sent (SessionId: %s, RequestId: %s)",
-            ~session->GetSessionId().ToString(),
-            ~requestId.ToString());
     //}
 }
 
@@ -509,28 +518,46 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
     TBlob&& data,
     bool isRequest)
 {
+    // Save the size, data will be swapped out soon.
     int dataSize = data.ysize();
+
+    IMessage::TPtr message;
+    TSequenceId sequenceId;;
+    if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId)) {
+        LOG_WARNING("Error parsing message packet (RequestId: %s)", ~requestId.ToString());
+        return NULL;
+    }
 
     TSession::TPtr session;
     auto sessionIt = SessionMap.find(header->SessionId);
     if (sessionIt == SessionMap.end()) {
         if (isRequest) {
-            session = RegisterSession(header->SessionId, address);
+            // Check if a new session is initiated.
+            if (sequenceId == 0) {
+                session = RegisterSession(header->SessionId, address);
+            } else {
+                LOG_DEBUG("Request message for broken session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
+                    ~header->SessionId.ToString(),
+                    ~requestId.ToString(),
+                    sequenceId,
+                    dataSize);
+
+                TBlob errorData;
+                CreatePacket(header->SessionId, TPacketHeader::EType::BrokenSession, &errorData);
+                Requester->SendResponse(requestId, &errorData);
+                return NULL;
+            }
         } else {
-            LOG_DEBUG("Message for an obsolete session is dropped (SessionId: %s, RequestId: %s, PacketSize: %d)",
+            LOG_DEBUG("Response message for unknown session received (SessionId: %s, RequestId: %s, SequenceId: %" PRId64 ", PacketSize: %d)",
                 ~header->SessionId.ToString(),
                 ~requestId.ToString(),
+                sequenceId,
                 dataSize);
             return NULL;
         }
     } else {
         session = sessionIt->second;
     }
-
-    IMessage::TPtr message;
-    TSequenceId sequenceId;;
-    if (!DecodeMessagePacket(MoveRV(data), &message, &sequenceId))
-        return session;
 
     LOG_DEBUG("Message received (IsRequest: %d, SessionId: %s, RequestId: %s, SequenceId: %" PRId64", PacketSize: %d)",
         (int) isRequest,
@@ -539,7 +566,7 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
         sequenceId,
         dataSize);
 
-    session->ProcessIncomingMessage(~message, sequenceId);
+    session->ProcessIncomingMessage(~message, requestId, sequenceId);
 
     return session;
 }
@@ -553,24 +580,24 @@ void TNLBusServer::EnqueueOutcomingResponse(TSession* session, TOutcomingRespons
 
 TIntrusivePtr<TNLBusServer::TSession> TNLBusServer::RegisterSession(
     const TSessionId& sessionId,
-    const TUdpAddress& clientAddress)
+    const TUdpAddress& address)
 {
     TBlob data;
     CreatePacket(sessionId, TPacketHeader::EType::Ping, &data);
-    TGuid pingId = Requester->SendRequest(clientAddress, "", &data);
+    TGuid pingId = Requester->SendRequest(address, "", &data);
 
     auto session = New<TSession>(
         this,
         sessionId,
-        clientAddress,
+        address,
         pingId);
 
     PingMap.insert(MakePair(pingId, session));
     SessionMap.insert(MakePair(sessionId, session));
 
-    LOG_DEBUG("Session registered (SessionId: %s, ClientAddress: %s, PingId: %s)",
+    LOG_DEBUG("Session registered (SessionId: %s, Address: %s, PingId: %s)",
         ~sessionId.ToString(),
-        ~GetAddressAsString(clientAddress),
+        ~GetAddressAsString(address),
         ~pingId.ToString());
 
     return session;

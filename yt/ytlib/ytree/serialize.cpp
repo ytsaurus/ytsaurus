@@ -3,6 +3,7 @@
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "serialize.h"
+#include "null_yson_consumer.h"
 
 #include "../misc/configurable.h"
 
@@ -36,6 +37,19 @@ TYsonProducer ProducerFromNode(INode* node)
         {
             VisitTree(node, consumer);
         });
+}
+
+void ValidateYson(TInputStream* input)
+{
+	TYsonReader reader(GetNullYsonConsumer(), input);
+	reader.Read();
+}
+
+void ValidateYson(const TYson& yson)
+{
+	TStringInput input(yson);
+	TYsonReader reader(GetNullYsonConsumer(), &input);
+	reader.Read();
 }
 
 INodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)

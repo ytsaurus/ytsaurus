@@ -94,6 +94,39 @@ TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes()
     return new TEphemeralAttributeDictionary();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TEmptyAttributeDictionary
+	: public IAttributeDictionary
+{
+	virtual yhash_set<Stroka> List() const
+	{
+		return yhash_set<Stroka>();
+	}
+
+	virtual TNullable<TYson> FindYson(const Stroka& key) const
+	{
+		return Null;
+	}
+
+	virtual void SetYson(const Stroka& key, const TYson& value)
+	{
+		YUNREACHABLE();
+	}
+
+	virtual bool Remove(const Stroka& key)
+	{
+		return false;
+	}
+};
+
+const IAttributeDictionary& EmptyAttributes()
+{
+	return *Singleton<TEmptyAttributeDictionary>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes)
 {
     FOREACH (const auto& key, attributes.List()) {

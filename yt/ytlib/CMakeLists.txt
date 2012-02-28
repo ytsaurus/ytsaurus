@@ -1,6 +1,7 @@
 set( DIRS
   actions
   election
+  cell_master
   chunk_holder
   chunk_client
   chunk_server
@@ -19,6 +20,7 @@ set( DIRS
   table_server
   table_client
   monitoring
+  profiling
   driver
   object_server
   scheduler

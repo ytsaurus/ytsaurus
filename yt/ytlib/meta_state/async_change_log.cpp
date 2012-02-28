@@ -6,6 +6,7 @@
 #include <ytlib/misc/singleton.h>
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <util/system/thread.h>
 
@@ -14,7 +15,8 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static NLog::TLogger Logger("MetaState");
+static NProfiling::TProfiler Profiler("meta_state/async_changelog");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +51,7 @@ public:
         }
 
         RecordsToAppend.push_back(data);
+		Profiler.Enqueue("queue_size", RecordsToAppend.size());
 
         return Result;
     }
@@ -58,7 +61,8 @@ public:
         VERIFY_THREAD_AFFINITY(Flush);
 
         TAppendResult::TPtr result;
-        {
+
+		PROFILE_TIMING("flush_append_time") {
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(RecordsToFlush.empty());
@@ -75,7 +79,10 @@ public:
             Result = New<TAppendResult>();
         }
 
-        ChangeLog->Flush();
+		PROFILE_TIMING("flush_io_time") {
+			ChangeLog->Flush();
+		}
+
         result->Set(TVoid());
 
         {
@@ -89,15 +96,17 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TAppendResult::TPtr result;
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (RecordsToFlush.empty() && RecordsToAppend.empty()) {
-                return;
-            }
-            result = Result;
-        }
-        result->Get();
+		PROFILE_TIMING("flush_wait_time") {
+			TAppendResult::TPtr result;
+			{
+				TGuard<TSpinLock> guard(SpinLock);
+				if (RecordsToFlush.empty() && RecordsToAppend.empty()) {
+					return;
+				}
+				result = Result;
+			}
+			result->Get();
+		}
     }
 
     int GetRecordCount()
@@ -123,7 +132,7 @@ public:
 
         i32 flushedRecordCount;
 
-        {
+		PROFILE_TIMING ("read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
             flushedRecordCount = FlushedRecordCount;            
             
@@ -142,20 +151,25 @@ public:
                 result);
         }
 
-        if (firstRecordId < flushedRecordCount) {
-            yvector<TSharedRef> buffer;
-            i32 neededRecordCount =
-                Min(recordCount, flushedRecordCount - firstRecordId);
-            ChangeLog->Read(firstRecordId, neededRecordCount, &buffer);
-            YASSERT(buffer.ysize() == neededRecordCount);
+		PROFILE_TIMING ("read_io_time") {
+			if (firstRecordId < flushedRecordCount) {
+				yvector<TSharedRef> buffer;
+				i32 neededRecordCount = Min(
+					recordCount,
+					flushedRecordCount - firstRecordId);
+				ChangeLog->Read(firstRecordId, neededRecordCount, &buffer);
+				YASSERT(buffer.ysize() == neededRecordCount);
 
-            buffer.insert(
-                buffer.end(),
-                result->begin(),
-                result->end());
+				buffer.insert(
+					buffer.end(),
+					result->begin(),
+					result->end());
 
-            result->swap(buffer);
-        }
+				result->swap(buffer);
+			}
+		}
+
+		Profiler.Enqueue("read_record_count", result->size());
     }
 
 private:
@@ -254,7 +268,9 @@ public:
             queue->Read(firstRecordId, recordCount, result);
             AtomicDecrement(queue->UseCount);
         } else {
-            changeLog->Read(firstRecordId, recordCount, result);
+            PROFILE_TIMING ("read_io_time") {
+                changeLog->Read(firstRecordId, recordCount, result);
+            }
         }
     }
 
@@ -265,7 +281,10 @@ public:
             queue->WaitFlush();
             AtomicDecrement(queue->UseCount);
         }
-        changeLog->Flush();
+
+		PROFILE_TIMING("flush_io_time") {
+			changeLog->Flush();
+		}
     }
 
     i32 GetRecordCount(TChangeLog::TPtr changeLog)
@@ -284,7 +303,10 @@ public:
     {
         Flush(changeLog);
 
-        changeLog->Finalize();
+		PROFILE_TIMING("finalize_time") {
+			changeLog->Finalize();
+		}
+
         LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
     }
 
@@ -294,7 +316,9 @@ public:
         // getting rid of explicit synchronization.
         Flush(changeLog);
 
-        return changeLog->Truncate(atRecordId);
+		PROFILE_TIMING ("truncate_time") {
+			changeLog->Truncate(atRecordId);
+		}
     }
 
     void Shutdown()
@@ -417,6 +441,7 @@ private:
     TThread Thread;
     Event WakeupEvent;
     volatile bool Finished;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

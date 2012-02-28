@@ -3,7 +3,7 @@
 #include "common.h"
 #include "action.h"
 
-#include <ytlib/misc/common.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <util/system/thread.h>
 #include <util/system/event.h>
@@ -19,8 +19,6 @@ class TQueueInvoker
     : public IInvoker
 {
 public:
-    typedef TIntrusivePtr<TQueueInvoker> TPtr;
-
     TQueueInvoker(TActionQueueBase* owner, bool enableLogging);
 
     void Invoke(IAction::TPtr action);
@@ -28,13 +26,21 @@ public:
     bool OnDequeueAndExecute();
 
 private:
-    typedef TPair<IAction::TPtr, ui64> TItem;
+    struct TItem
+    {
+        NProfiling::TTimer Timer;
+        IAction::TPtr Action;
+    };
 
-    bool EnableLogging;
     TActionQueueBase* Owner;
+    bool EnableLogging;
+    NProfiling::TProfiler Profiler;
+
     TLockFreeQueue<TItem> Queue;
     TAtomic QueueSize;
 };
+
+typedef TIntrusivePtr<TQueueInvoker> TQueueInvokerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,15 +52,17 @@ public:
 
     virtual ~TActionQueueBase();
 
-    void Shutdown();
-
 protected:
     TActionQueueBase(const Stroka& threadName, bool enableLogging);
 
     void Start();
+    void Shutdown();
+    void Signal();
 
     virtual bool DequeueAndExecute() = 0;
-    virtual void OnIdle() = 0;
+    virtual void OnIdle();
+
+    bool IsRunning() const;
 
 private:
     friend class TQueueInvoker;
@@ -83,16 +91,17 @@ public:
     TActionQueue(const Stroka& threadName = "<ActionQueue>", bool enableLogging = true);
     virtual ~TActionQueue();
 
-    IInvoker::TPtr GetInvoker();
+    void Shutdown();
+
+    IInvoker* GetInvoker();
 
     static IFunc<TPtr>::TPtr CreateFactory(const Stroka& threadName);
     
 protected:
     virtual bool DequeueAndExecute();
-    virtual void OnIdle();
 
 private:
-    TIntrusivePtr<TQueueInvoker> QueueInvoker;
+    TQueueInvokerPtr QueueInvoker;
 
 };
 
@@ -107,18 +116,19 @@ public:
     TPrioritizedActionQueue(int priorityCount, const Stroka& threadName = "<PrActionQueue>");
     virtual ~TPrioritizedActionQueue();
 
-    IInvoker::TPtr GetInvoker(int priority);
+    void Shutdown();
+
+    IInvoker* GetInvoker(int priority);
 
 protected:
     virtual bool DequeueAndExecute();
-    virtual void OnIdle();
 
 private:
-    autoarray< TIntrusivePtr<TQueueInvoker> > QueueInvokers;
+    autoarray<TQueueInvokerPtr> QueueInvokers;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT
 

@@ -369,8 +369,6 @@ void TChangeLog::TImpl::Open()
 
 void TChangeLog::TImpl::Create(i32 prevRecordCount)
 {
-    // Do not use logging here. This method is used in forked process.
-
     YASSERT(State == EState::Closed);
 
     PrevRecordCount = prevRecordCount;
@@ -390,12 +388,15 @@ void TChangeLog::TImpl::Create(i32 prevRecordCount)
 
     State = EState::Open;
 
-    //LOG_DEBUG("Changelog created");
+    LOG_DEBUG("Changelog created");
 }
 
 void TChangeLog::TImpl::Finalize()
 {
     TGuard<TMutex> guard(Mutex);
+
+	if (State == EState::Finalized)
+		return;
 
     YASSERT(State == EState::Open);
 
@@ -577,6 +578,8 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
 void TChangeLog::TImpl::Truncate(i32 atRecordId)
 {
     TGuard<TMutex> guard(Mutex);
+
+	YASSERT(State == EState::Open);
 
     LOG_DEBUG("Truncating changelog (RecordId: %d)", atRecordId);
 

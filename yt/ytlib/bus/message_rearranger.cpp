@@ -8,21 +8,25 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = BusLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TMessageRearranger::TMessageRearranger(
+    const TSessionId& sessionId,
     IParamAction<IMessage*>* onMessage,
     TDuration timeout)
-    : OnMessageDequeued(onMessage)
+    : SessionId(sessionId)
+    , OnMessageDequeued(onMessage)
     , Timeout(timeout)
     , ExpectedSequenceId(0)
+    , Logger(BusLogger)
 {
     YASSERT(onMessage);
+
+    Logger.AddTag(Sprintf("SessionId: %s", ~sessionId.ToString()));
 }
 
-void TMessageRearranger::EnqueueMessage(IMessage* message, TSequenceId sequenceId)
+void TMessageRearranger::EnqueueMessage(
+    IMessage* message,
+    const TGuid& requestId,
+    TSequenceId sequenceId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(message);
@@ -30,33 +34,71 @@ void TMessageRearranger::EnqueueMessage(IMessage* message, TSequenceId sequenceI
     TGuard<TSpinLock> guard(SpinLock);
 
     if (sequenceId == ExpectedSequenceId) {
-        LOG_DEBUG("Pass-through message (Message: %p, SequenceId: %" PRId64 ")",
-            message,
+        LOG_DEBUG("Pass-through message (RequestId: %s, SequenceId: %" PRId64 ")",
+            ~requestId.ToString(),
             sequenceId);
 
-        RescheduleTimeout();
-        ExpectedSequenceId = sequenceId + 1;
-
         OnMessageDequeued->Do(message);
-        return;
-    }
-
-    if (sequenceId < ExpectedSequenceId) {
-        LOG_DEBUG("Message is late (Message: %p, SequenceId: %" PRId64 ", ExpectedSequenceId: %" PRId64 ")",
-            message,
+        ExpectedSequenceId = sequenceId + 1;
+        TryFlush();
+        RescheduleTimeout();
+    } else if (sequenceId < ExpectedSequenceId) {
+        LOG_DEBUG("Message is late, discarded (RequestId: %s, SequenceId: %" PRId64 ", ExpectedSequenceId: %" PRId64 ")",
+            ~requestId.ToString(),
             sequenceId,
             ExpectedSequenceId);
-        // Just drop the message.
-        return;
-    }
-    
-    LOG_DEBUG("Message postponed (Message: %p, SequenceId: %" PRId64 ", ExpectedSequenceId: %" PRId64 ")",
-        message,
-        sequenceId,
-        ExpectedSequenceId);
 
-    YVERIFY(MessageMap.insert(MakePair(sequenceId, message)).second);
-    RescheduleTimeout();
+        // Do nothing.
+    } else {
+        LOG_DEBUG("Message postponed (RequestId: %s, SequenceId: %" PRId64 ", ExpectedSequenceId: %" PRId64 ")",
+            ~requestId.ToString(),
+            sequenceId,
+            ExpectedSequenceId);
+
+        YVERIFY(PostponedMessages.insert(MakePair(
+            sequenceId,
+            TPostponedMessage(requestId, message))).second);
+
+        if (PostponedMessages.size() == 1) {
+            RescheduleTimeout();
+        }
+    }
+}
+
+void TMessageRearranger::TryFlush()
+{
+    VERIFY_SPINLOCK_AFFINITY(SpinLock);
+
+    while (true) {
+        auto it = PostponedMessages.begin();
+        auto sequenceId = it->first;
+        if (sequenceId != ExpectedSequenceId)
+            break;
+
+        auto message = it->second;
+
+        LOG_DEBUG("Message flushed (RequestId: %s, SequenceId: %" PRId64 ")",
+            ~message.RequestId.ToString(),
+            sequenceId);
+
+        OnMessageDequeued->Do(~message.Message);
+        PostponedMessages.erase(it);
+        ++ExpectedSequenceId;
+    }
+
+    if (!PostponedMessages.empty()) {
+        RescheduleTimeout();
+    }
+}
+
+void TMessageRearranger::RescheduleTimeout()
+{
+    VERIFY_SPINLOCK_AFFINITY(SpinLock);
+
+    TDelayedInvoker::CancelAndClear(TimeoutCookie);
+    TimeoutCookie = TDelayedInvoker::Submit(
+        ~FromMethod(&TMessageRearranger::OnTimeout, TPtr(this)),
+        Timeout);
 }
 
 void TMessageRearranger::OnTimeout()
@@ -64,50 +106,15 @@ void TMessageRearranger::OnTimeout()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(SpinLock);
-    
-    if (MessageMap.empty())
+
+    if (PostponedMessages.empty())
         return;
 
-    ExpectedSequenceId = MessageMap.begin()->first;
+    ExpectedSequenceId = PostponedMessages.begin()->first;
 
-    LOG_DEBUG("Message rearrange timeout (ExpectedSequenceId: %" PRId64 ")",
-        ExpectedSequenceId);
+    LOG_DEBUG("Message rearrange timeout (ExpectedSequenceId: %" PRId64 ")", ExpectedSequenceId);
 
-    while (true) {
-        auto it = MessageMap.begin();
-        auto sequenceId = it->first;
-        if (sequenceId != ExpectedSequenceId)
-            break;
-
-        auto message = it->second;
-        
-        LOG_DEBUG("Message flushed (Message: %p, SequenceId: %" PRId64 ")",
-            ~message,
-            sequenceId);
-
-        OnMessageDequeued->Do(~message);
-
-        MessageMap.erase(it);
-
-        ++ExpectedSequenceId;
-    }
-   
-    RescheduleTimeout();
-}
-
-void TMessageRearranger::RescheduleTimeout()
-{
-    VERIFY_SPINLOCK_AFFINITY(SpinLock);
-
-    if (TimeoutCookie != TDelayedInvoker::NullCookie) {
-        TDelayedInvoker::CancelAndClear(TimeoutCookie);
-    }
-
-    if (!MessageMap.empty()) {
-        TimeoutCookie = TDelayedInvoker::Submit(
-            ~FromMethod(&TMessageRearranger::OnTimeout, TPtr(this)),
-            Timeout);
-    }
+    TryFlush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

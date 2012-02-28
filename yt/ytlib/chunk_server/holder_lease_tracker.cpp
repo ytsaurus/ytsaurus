@@ -21,14 +21,13 @@ THolderLeaseTracker::THolderLeaseTracker(
     , ChunkManager(chunkManager)
     , Invoker(invoker)
 {
+	YASSERT(config);
     YASSERT(chunkManager);
     YASSERT(invoker);
 }
 
 void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
 {
-    YASSERT(Invoker);
-
     auto pair = HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo()));
     YASSERT(pair.second);
 
@@ -52,7 +51,6 @@ void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
 
 void THolderLeaseTracker::RenewHolderLease(const THolder& holder)
 {
-    YASSERT(Invoker);
     auto& holderInfo = GetHolderInfo(holder.GetId());
     TLeaseManager::RenewLease(holderInfo.Lease);
 }

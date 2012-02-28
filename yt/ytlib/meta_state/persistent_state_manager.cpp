@@ -86,7 +86,6 @@ public:
         }
     };
 
-
     TPersistentStateManager(
         TConfig* config,
         IInvoker* controlInvoker,
@@ -99,7 +98,7 @@ public:
         , LeaderId(NElection::InvalidPeerId)
         , ControlInvoker(controlInvoker)
         , ReadOnly(false)
-        , CommitInProgress(false)
+        , InCommit(false)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
@@ -119,8 +118,8 @@ public:
 
         MetaState = New<TDecoratedMetaState>(
             metaState,
-            SnapshotStore,
-            ChangeLogCache);
+            ~SnapshotStore,
+            ~ChangeLogCache);
 
         IOQueue = New<TActionQueue>("MetaStateIO");
 
@@ -141,7 +140,7 @@ public:
         server->RegisterService(~ElectionManager);
     }
 
-    void Start()
+    virtual void Start()
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(ControlStatus == EPeerStatus::Stopped);
@@ -155,34 +154,41 @@ public:
         ElectionManager->Start();
     }
 
-    void Stop()
+    virtual void Stop()
     {
         //TODO: implement this
         YUNIMPLEMENTED();
     }
 
-    EPeerStatus GetControlStatus() const
+    virtual EPeerStatus GetControlStatus() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return ControlStatus;
     }
 
-    EPeerStatus GetStateStatus() const
+    virtual EPeerStatus GetStateStatus() const
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
         return StateStatus;
     }
 
-    IInvoker::TPtr GetStateInvoker() const
+    virtual EPeerStatus SafeGetStateStatus() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return StateStatus;
+    }
+
+    virtual IInvoker::TPtr GetStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return MetaState->GetStateInvoker();
     }
 
-    bool HasActiveQuorum() const
+    virtual bool HasActiveQuorum() const
     {
         auto tracker = FollowerTracker;
         if (!tracker) {
@@ -191,30 +197,29 @@ public:
         return tracker->HasActiveQuorum();
     }
 
-    IInvoker::TPtr GetEpochStateInvoker() const
+    virtual IInvoker::TPtr GetEpochStateInvoker() const
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
         return ~EpochStateInvoker;
     }
 
-    void SetReadOnly(bool readOnly)
+    virtual void SetReadOnly(bool readOnly)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         ReadOnly = readOnly;
     }
 
-    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
+    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
     {
         auto tracker = FollowerTracker;
 
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("state").Scalar(ControlStatus.ToString())
-                // TODO: fixme, thread affinity
-                //.Item("version").Scalar(MetaState->GetVersion().ToString())
-                .Item("reachable_version").Scalar(MetaState->GetReachableVersion().ToString())
+                .Item("version").Scalar(MetaState->SafeGetVersion().ToString())
+                .Item("reachable_version").Scalar(MetaState->SafeGetReachableVersion().ToString())
                 .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent)
                     {
@@ -236,12 +241,12 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnFollowerRecoveryComplete);
     DEFINE_BYREF_RW_PROPERTY(TSignal, OnStopFollowing);
 
-    TAsyncCommitResult::TPtr CommitChange(
+    virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
         IAction* changeAction)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        YASSERT(!CommitInProgress);
+        YASSERT(!InCommit);
 
         if (GetStateStatus() != EPeerStatus::Leading) {
             return New<TAsyncCommitResult>(ECommitResult::InvalidStatus);
@@ -257,21 +262,26 @@ public:
             return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
         }
 
-        CommitInProgress = true;
+        InCommit = true;
 
-        auto changeAction_ =
-            !changeAction
-            ? FromMethod(&IMetaState::ApplyChange, MetaState->GetState(), changeData)
-            : changeAction;
+        auto actualChangeAction =
+            changeAction
+            ? changeAction
+            : FromMethod(&IMetaState::ApplyChange, MetaState->GetState(), changeData);
 
         auto result =
             LeaderCommitter
-            ->Commit(changeAction, changeData)
+            ->Commit(actualChangeAction, changeData)
             ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
 
-        CommitInProgress = false;
+        InCommit = false;
 
         return result;
+    }
+
+    virtual bool IsInCommit() const
+    {
+        return InCommit;
     }
 
  private:
@@ -286,7 +296,7 @@ public:
     TCellManager::TPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     bool ReadOnly;
-    bool CommitInProgress;
+    bool InCommit;
 
     NElection::TElectionManager::TPtr ElectionManager;
     TChangeLogCache::TPtr ChangeLogCache;
@@ -310,7 +320,7 @@ public:
     TFollowerTracker::TPtr FollowerTracker;
     TFollowerPinger::TPtr FollowerPinger;
 
-    // RPC methods.
+    // RPC methods
     DECLARE_RPC_SERVICE_METHOD(NMetaState::NProto, GetSnapshotInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -541,7 +551,7 @@ public:
 
         i32 segmentId = request->segment_id();
         i32 recordCount = request->record_count();
-        TMetaVersion version(segmentId, recordCount);
+        auto version = TMetaVersion(segmentId, recordCount);
         auto epoch = TEpoch::FromProto(request->epoch());
         i32 maxSnapshotId = request->max_snapshot_id();
 
@@ -574,6 +584,11 @@ public:
 
             case EPeerStatus::FollowerRecovery:
                 if (!FollowerRecovery) {
+                    LOG_INFO("Received sync ping from leader (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
+                        ~version.ToString(),
+                        ~epoch.ToString(),
+                        maxSnapshotId);
+
                     FollowerRecovery = New<TFollowerRecovery>(
                         ~Config,
                         CellManager,
@@ -683,13 +698,14 @@ public:
                 YUNREACHABLE();
         }
     }
-    // End of RPC methods.
+    // End of RPC methods
 
     void OnLeaderRecoveryFinished(TRecovery::EResult result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YASSERT(result == TRecovery::EResult::OK ||
+        YASSERT(
+            result == TRecovery::EResult::OK ||
             result == TRecovery::EResult::Failed);
 
         YASSERT(LeaderRecovery);
@@ -948,7 +964,7 @@ public:
 
         LOG_INFO("Starting leader recovery");
 
-        GetControlStatus() = EPeerStatus::LeaderRecovery;
+        ControlStatus = EPeerStatus::LeaderRecovery;
         LeaderId = CellManager->GetSelfId();
 
         StartControlEpoch(epoch);
@@ -966,13 +982,12 @@ public:
         YASSERT(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
             ~New<TFollowerPinger::TConfig>(), // Change to Config->LeaderPinger
-            MetaState,
-            CellManager,
-            FollowerTracker,
-            SnapshotStore,
+            ~MetaState,
+            ~CellManager,
+            ~FollowerTracker,
+            ~SnapshotStore,
             Epoch,
-            ControlInvoker);
-
+            ~ControlInvoker);
 
         YASSERT(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(
@@ -1140,7 +1155,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto version = MetaState->GetReachableVersion();
+        auto version = MetaState->SafeGetReachableVersion();
         return ((TPeerPriority) version.SegmentId << 32) | version.RecordCount;
     }
 
@@ -1226,7 +1241,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMetaStateManager::TPtr CreateAndRegisterPersistentStateManager(
+IMetaStateManager::TPtr CreatePersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IMetaState* metaState,

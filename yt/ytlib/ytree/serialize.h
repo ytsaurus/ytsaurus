@@ -26,6 +26,12 @@ TYsonProducer ProducerFromYson(const TYson& data);
 
 TYsonProducer ProducerFromNode(INode* node);
 
+//! Checks YSON stream for correctness, throws exception on error.
+void ValidateYson(TInputStream* input);
+
+//! Checks YSON string for correctness, throws exception on error.
+void ValidateYson(const TYson& yson);
+
 INodePtr DeserializeFromYson(
     TInputStream* input,
     INodeFactory* factory = GetEphemeralNodeFactory());

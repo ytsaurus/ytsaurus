@@ -15,9 +15,9 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDecoratedMetaState::TDecoratedMetaState(
-    IMetaState::TPtr state,
-    TSnapshotStore::TPtr snapshotStore,
-    TChangeLogCache::TPtr changeLogCache)
+    IMetaState* state,
+    TSnapshotStore* snapshotStore,
+    TChangeLogCache* changeLogCache)
     : State(state)
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
@@ -161,14 +161,12 @@ TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
 
 void TDecoratedMetaState::AdvanceSegment()
 {
-    // Do not use logging here. This method is used in forked process.
-
     VERIFY_THREAD_AFFINITY(StateThread);
 
     CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(Version.SegmentId + 1, 0));
    
-    //LOG_INFO("Switched to a new segment %d", Version.SegmentId);
+    LOG_INFO("Switched to a new segment %d", Version.SegmentId);
 }
 
 void TDecoratedMetaState::RotateChangeLog()
@@ -228,7 +226,15 @@ TMetaVersion TDecoratedMetaState::GetVersion() const
     return Version;
 }
 
-TMetaVersion TDecoratedMetaState::GetReachableVersion() const
+TMetaVersion TDecoratedMetaState::SafeGetVersion() const
+{
+	VERIFY_THREAD_AFFINITY_ANY();
+
+	TGuard<TSpinLock> guard(VersionSpinLock);
+	return Version;
+}
+
+TMetaVersion TDecoratedMetaState::SafeGetReachableVersion() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

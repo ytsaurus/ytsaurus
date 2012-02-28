@@ -2,12 +2,15 @@
 #include "change_log_downloader.h"
 #include "async_change_log.h"
 
+#include <ytlib/profiling/profiler.h>
+
 namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static NLog::TLogger Logger("MetaState");
+static NProfiling::TProfiler Profiler("meta_state/changelog_downloader");
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +50,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
 TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
     auto asyncResult = New< TFuture<TPeerId> >();
-    auto awaiter = New<TParallelAwaiter>();
+    auto awaiter = New<TParallelAwaiter>(&Profiler, "source_lookup_time");
 
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         LOG_INFO("Requesting changelog info from peer %d", id);
@@ -57,17 +60,18 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
             ->GetChangeLogInfo()
             ->SetTimeout(Config->LookupTimeout);
         request->set_change_log_id(version.SegmentId);
-        awaiter->Await(request->Invoke(), FromMethod(
-            &TChangeLogDownloader::OnResponse,
-            awaiter,
-            asyncResult,
-            id,
-            version));
+        awaiter->Await(
+			request->Invoke(),
+			CellManager->GetPeerAddress(id),
+			FromMethod(
+				&TChangeLogDownloader::OnResponse,
+				awaiter,
+				asyncResult,
+				id,
+				version));
     }
 
-    awaiter->Complete(FromMethod(
-        &TChangeLogDownloader::OnComplete,
-        asyncResult));
+    awaiter->Complete(FromMethod(&TChangeLogDownloader::OnComplete, asyncResult));
 
     return asyncResult->Get();
 }
@@ -119,9 +123,9 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                         break;
                 }
             } else {
-                LOG_WARNING("Error %s reading snapshot from peer %d",
-                    ~error.ToString(),
-                    sourceId);
+                LOG_WARNING("Error reading changelog from peer %d\n%s",
+                    sourceId,
+                    ~error.ToString());
                 return EResult::RemoteError;
             }
         }

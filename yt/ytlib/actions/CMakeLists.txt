@@ -12,6 +12,13 @@ set( HDRS
   ${BASE}/action_queue.h
   ${BASE}/action_util-gen.h
   ${BASE}/action_util.h
+  ${BASE}/bind.h
+  ${BASE}/bind_helpers.h
+  ${BASE}/bind_internal.h
+  ${BASE}/bind_mpl.h
+  ${BASE}/callback.h
+  ${BASE}/callback_forward.h
+  ${BASE}/callback_internal.h
   ${BASE}/common.h
   ${BASE}/future-inl.h
   ${BASE}/future.h

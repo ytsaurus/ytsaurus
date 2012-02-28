@@ -2,6 +2,9 @@
 #include "lock.h"
 
 namespace NYT {
+
+using namespace NCellMaster;
+
 namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +32,7 @@ void TLock::Save(TOutputStream* output) const
     ::Save(output, Mode_);
 }
 
-void TLock::Load(TInputStream* input, TVoid)
+void TLock::Load(TInputStream* input, const TLoadContext& context)
 {
     ::Load(input, NodeId_);
     ::Load(input, TransactionId_);

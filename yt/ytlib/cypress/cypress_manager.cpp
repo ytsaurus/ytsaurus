@@ -6,6 +6,8 @@
 #include "cypress_ypath_proxy.h"
 #include "cypress_ypath.pb.h"
 
+#include <ytlib/cell_master/load_context.h>
+#include <ytlib/misc/singleton.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
@@ -15,6 +17,7 @@
 namespace NYT {
 namespace NCypress {
 
+using namespace NCellMaster;
 using namespace NBus;
 using namespace NRpc;
 using namespace NYTree;
@@ -139,12 +142,14 @@ TCypressManager::TCypressManager(
     RegisterHandler(~New<TMapNodeTypeHandler>(this));
     RegisterHandler(~New<TListNodeTypeHandler>(this));
 
+    TLoadContext context(NULL); // TODO(roizner): use real bootstrap here
+
     metaState->RegisterLoader(
         "Cypress.Keys.1",
         FromMethod(&TCypressManager::LoadKeys, TPtr(this)));
     metaState->RegisterLoader(
         "Cypress.Values.1",
-        FromMethod(&TCypressManager::LoadValues, TPtr(this)));
+        FromMethod(&TCypressManager::LoadValues, TPtr(this), context));
     metaState->RegisterSaver(
         "Cypress.Keys.1",
         FromMethod(&TCypressManager::SaveKeys, TPtr(this)),
@@ -220,6 +225,68 @@ TNodeId TCypressManager::GetRootNodeId()
         0xffffffffffffffff);
 }
 
+namespace {
+
+class TNotALeaderRootService
+	: public TYPathServiceBase
+{
+public:
+	virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+	{
+		UNUSED(path);
+		UNUSED(verb);
+		ythrow yexception() << "Not a leader";
+	}
+};
+
+class TLeaderRootService
+	: public TYPathServiceBase
+{
+public:
+	TLeaderRootService(TCypressManager* cypressManager)
+		: CypressManager(cypressManager)
+	{ }
+
+	virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+	{
+		UNUSED(verb);
+
+		// Make a rigorous coarse check at the right thread.
+		if (CypressManager->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading) {
+			ythrow yexception() << "Not a leader";
+		}
+
+		auto service = CypressManager->GetVersionedNodeProxy(
+			CypressManager->GetRootNodeId(),
+			NObjectServer::NullTransactionId);
+		return TResolveResult::There(~service, path);
+	}
+
+private:
+	TCypressManager::TPtr CypressManager;
+
+};
+
+} // namespace <anonymous>
+
+TYPathServiceProducer TCypressManager::GetRootServiceProducer()
+{
+	auto stateInvoker = MetaStateManager->GetStateInvoker();
+	// TODO(babenko): use AsStrong
+	TCypressManager::TPtr this_ = this;
+	return FromFunctor([=] () -> IYPathServicePtr
+		{
+			// Make a coarse check at this (wrong) thread first.
+			auto status = this_->MetaStateManager->SafeGetStateStatus();
+			if (status == EPeerStatus::Leading) {
+				return New<TLeaderRootService>(~this_)->Via(~stateInvoker);
+			} else {
+				return RefCountedSingleton<TNotALeaderRootService>();
+			}
+		});
+
+}
+
 TObjectManager* TCypressManager::GetObjectManager() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -275,7 +342,7 @@ const ICypressNode& TCypressManager::GetVersionedNode(
     return *node;
 }
 
-ICypressNode* TCypressManager::FindVersionedNode(
+ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     ELockMode requestedMode)
@@ -290,7 +357,6 @@ ICypressNode* TCypressManager::FindVersionedNode(
     if (isMandatory) {
         if (transactionId == NullTransactionId) {
             ythrow yexception() << Sprintf("The requested operation requires %s lock but no current transaction is given",
-
                 ~FormatEnum(requestedMode).Quote());
         }
         AcquireLock(nodeId, transactionId, requestedMode);
@@ -329,14 +395,14 @@ ICypressNode* TCypressManager::FindVersionedNode(
     }
 }
 
-ICypressNode& TCypressManager::GetVersionedNode(
+ICypressNode& TCypressManager::GetVersionedNodeForUpdate(
     const TNodeId& nodeId,
     const TTransactionId& transactionId,
     ELockMode requestedMode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto* node = FindVersionedNode(nodeId, transactionId, requestedMode);
+    auto* node = FindVersionedNodeForUpdate(nodeId, transactionId, requestedMode);
     YASSERT(node);
     return *node;
 }
@@ -437,7 +503,7 @@ void TCypressManager::ValidateLock(
                 }
                 // Check for upward conflict.
                 if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
-                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s an upward lock at node %s taken by transaction %s",
+                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s upward lock at node %s taken by transaction %s",
                         ~FormatEnum(requestedMode).Quote(),
                         ~nodeId.ToString(),
                         ~FormatEnum(lock.GetMode()).Quote(),
@@ -688,11 +754,9 @@ void TCypressManager::LoadKeys(TInputStream* input)
     LockMap.LoadKeys(input);
 }
 
-void TCypressManager::LoadValues(TInputStream* input)
+void TCypressManager::LoadValues(TInputStream* input, TLoadContext context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    TVoid context; // TODO(roizner): use real context
 
     NodeMap.LoadValues(input, context);
     LockMap.LoadValues(input, context);

@@ -57,6 +57,7 @@ struct IAttributeDictionary
 };
 
 TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();
+const IAttributeDictionary& EmptyAttributes();
 
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
 TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);

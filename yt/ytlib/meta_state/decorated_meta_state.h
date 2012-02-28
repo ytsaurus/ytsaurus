@@ -20,9 +20,9 @@ public:
     typedef TIntrusivePtr<TDecoratedMetaState> TPtr;
 
     TDecoratedMetaState(
-        IMetaState::TPtr state,
-        TSnapshotStore::TPtr snapshotStore,
-        TChangeLogCache::TPtr changeLogCache);
+        IMetaState* state,
+        TSnapshotStore* snapshotStore,
+        TChangeLogCache* changeLogCache);
 
     //! Returns the invoker used for updating the state.
     /*!
@@ -42,6 +42,12 @@ public:
      */
     TMetaVersion GetVersion() const;
 
+    //! Same as #GetVersion but can be called from an arbitrary thread.
+    /*!
+     * \note Thread affinity: any
+     */
+    TMetaVersion SafeGetVersion() const;
+
     //! Returns the maximum reachable version of the state that
     //! can be obtained by reading the local snapshots, changelogs.
     /*!
@@ -51,7 +57,7 @@ public:
      *
      * \note Thread affinity: any
      */
-    TMetaVersion GetReachableVersion() const;
+    TMetaVersion SafeGetReachableVersion() const;
 
     //! Returns the underlying state.
     /*!

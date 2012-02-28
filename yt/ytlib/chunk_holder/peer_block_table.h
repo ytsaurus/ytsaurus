@@ -31,7 +31,7 @@ struct TPeerInfo
 //! This class maintains an auto-expiring map for this purpose.
 /*!
  *  \note
- *  Thread affinity: single.
+ *  Thread affinity: single-threaded
  */
 class TPeerBlockTable
     : public TRefCounted

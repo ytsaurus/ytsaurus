@@ -455,7 +455,7 @@ TFuture<TChunk::TPtr>::TPtr TSessionManager::FinishSession(
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
     return session->Finish(attributes)->Apply(FromMethod(
-		&TSessionManager::OnSessionFinished,
+        &TSessionManager::OnSessionFinished,
         TPtr(this),
         session));
 }

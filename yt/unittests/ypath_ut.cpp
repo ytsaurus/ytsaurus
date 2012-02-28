@@ -185,10 +185,14 @@ TEST_F(TYPathTest, Attributes)
     Check("root@", "{\"attr\"=100;\"mode\"=\"rw\"}");
     Check("root@attr", "100");
 
+    Set("root/value", "500<>");
+    Check("root/value", "500");
+
     Remove("root@");
     Check("root@", "{}");
 
     Remove("root/nodes");
+    Remove("root/value");
     Check("", "{\"root\"={}}");
 
     Set("root/2", "<author=\"ignat\">");
@@ -196,10 +200,11 @@ TEST_F(TYPathTest, Attributes)
     Check("root/2@", "{\"author\"=\"ignat\"}");
     Check("root/2@author", "\"ignat\"");
 
+    // note: empty attributes are shown when nested
     Set("root/3", "<dir=<file=-100<>>>");
-    Check("root/3@", "{\"dir\"=<\"file\"=-100>}");
-    Check("root/3@dir@", "{\"file\"=-100}");
-    Check("root/3@dir@file", "-100");
+    Check("root/3@", "{\"dir\"=<\"file\"=-100<>>}");
+    Check("root/3@dir@", "{\"file\"=-100<>}");
+    Check("root/3@dir@file", "-100<>");
     Check("root/3@dir@file@", "{}");
 }
 

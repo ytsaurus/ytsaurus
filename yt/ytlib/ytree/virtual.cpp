@@ -5,6 +5,7 @@
 #include "yson_writer.h"
 #include "ypath_detail.h"
 #include "ypath_client.h"
+#include "attribute_provider_detail.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -139,6 +140,8 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
     return TResolveResult::There(~service, suffixPath);
 }
 
+// TODO: pass "max_size" in RPC request attributes
+
 struct TGetConfig
     : public TConfigurable
 {
@@ -222,12 +225,13 @@ class TVirtualEntityNode
     : public TNodeBase
     , public TSupportsAttributes
     , public IEntityNode
+	, public TEphemeralAttributeProvider
 {
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
-    TVirtualEntityNode(TYPathServiceProvider* builder)
-        : Provider(builder)
+    TVirtualEntityNode(IYPathService* underlyingService)
+        : UnderlyingService(underlyingService)
     { }
 
     virtual INodeFactoryPtr CreateFactory() const
@@ -251,8 +255,7 @@ public:
         if (IsLocalYPath(path)) {
             return TNodeBase::Resolve(path, verb);
         } else {
-            auto service = Provider->Do();
-            return TResolveResult::There(~service, path);
+            return TResolveResult::There(~UnderlyingService, path);
         }
     }
 
@@ -261,41 +264,32 @@ public:
         return *GetUserAttributes();
     }
 
-protected:
+private:
+	IYPathServicePtr UnderlyingService;
+	ICompositeNode* Parent;
+	TAutoPtr<IAttributeDictionary> Attributes_;
+
     // TSupportsAttributes members
 
     virtual IAttributeDictionary* GetUserAttributes()
     {
-        if (!Attributes_) {
-            Attributes_ = CreateEphemeralAttributes();
-        }
-        return Attributes_.Get();
+		return &Attributes();
     }
 
     virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
     {
         return NULL;
     }
-
-private:
-    TYPathServiceProvider::TPtr Provider;
-    ICompositeNode* Parent;
-    TAutoPtr<IAttributeDictionary> Attributes_;
-
 };
-
-INodePtr CreateVirtualNode(TYPathServiceProvider* provider)
-{
-    return New<TVirtualEntityNode>(provider);
-}
 
 INodePtr CreateVirtualNode(IYPathService* service)
 {
-    IYPathServicePtr service_ = service;
-    return CreateVirtualNode(~FromFunctor([=] () -> NYTree::IYPathServicePtr
-        {
-            return service_;
-        }));
+	return New<TVirtualEntityNode>(service);
+}
+
+NYT::NYTree::INodePtr CreateVirtualNode(TYPathServiceProducer producer)
+{
+	return CreateVirtualNode(~IYPathService::FromProducer(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

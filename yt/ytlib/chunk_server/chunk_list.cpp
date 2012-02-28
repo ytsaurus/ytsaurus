@@ -1,10 +1,13 @@
 #include "stdafx.h"
 #include "chunk_list.h"
 
+#include <ytlib/cell_master/load_context.h>
+
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,8 +23,9 @@ void TChunkList::Save(TOutputStream* output) const
     ::Save(output, Statistics_);
 }
 
-void TChunkList::Load(TInputStream* input, TVoid)
+void TChunkList::Load(TInputStream* input, const TLoadContext& context)
 {
+    UNUSED(context);
     TObjectWithIdBase::Load(input);
     ::Load(input, ChildrenIds_);
     ::Load(input, ParentIds_);

@@ -36,7 +36,7 @@ TTableNodeProxy::TTableNodeProxy(
 
 void TTableNodeProxy::DoInvoke(IServiceContext* context)
 {
-    DISPATCH_YPATH_SERVICE_METHOD(GetChunkList);
+    DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
     DISPATCH_YPATH_SERVICE_METHOD(Fetch);
     TBase::DoInvoke(context);
 }
@@ -52,7 +52,7 @@ IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const NYTree::TY
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
 {
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(GetChunkList);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(GetChunkListForUpdate);
     return TBase::IsWriteRequest(context);
 }
 
@@ -160,11 +160,11 @@ void TTableNodeProxy::ParseYPath(
     // TODO(babenko): check for trailing garbage.
 }
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkList)
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 {
     UNUSED(request);
 
-    auto& impl = GetTypedImpl(ELockMode::Shared);
+    auto& impl = GetTypedImplForUpdate(ELockMode::Shared);
 
     response->set_chunk_list_id(impl.GetChunkListId().ToProto());
 

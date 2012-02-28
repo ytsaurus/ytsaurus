@@ -19,7 +19,7 @@ public:
     void Configure(NYTree::INode* node);
     void Configure(const Stroka& fileName, const NYTree::TYPath& path);
 
-    void Flush();
+    //void Flush();
     void Shutdown();
 
     int GetConfigVersion();
@@ -32,7 +32,7 @@ public:
 
 private:
     class TImpl;
-    THolder<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,8 +41,10 @@ private:
 } // namespace NYT
 
 template <>
-struct TSingletonTraits<NYT::NLog::TLogManager> {
-    enum {
+struct TSingletonTraits<NYT::NLog::TLogManager>
+{
+    enum
+	{
         Priority = 2048
     };
 };

@@ -1,0 +1,16 @@
+#include "stdafx.h"
+#include "load_context.h"
+
+namespace NYT {
+namespace NCellMaster {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLoadContext::TLoadContext(TBootstrap *bootstrap)
+    : Bootstrap_(bootstrap)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+            
+} // namespace NCellMaster
+} // namespace NYT

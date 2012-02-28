@@ -3,6 +3,8 @@
 #include "common.h"
 #include "ypath_detail.h"
 
+#include <ytlib/actions/invoker_util.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -49,8 +51,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodePtr CreateVirtualNode(TYPathServiceProvider* provider);
 INodePtr CreateVirtualNode(IYPathService* service);
+INodePtr CreateVirtualNode(TYPathServiceProducer producer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

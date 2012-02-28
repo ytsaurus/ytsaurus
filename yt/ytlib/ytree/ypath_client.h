@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "ypath_service.h"
+#include "attribute_provider_detail.h"
 
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/property.h>
@@ -16,6 +17,7 @@ namespace NYTree {
 
 class TYPathRequest
     : public TRefCounted
+	, public TEphemeralAttributeProvider
 {
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Verb);
     DEFINE_BYVAL_RW_PROPERTY(TYPath, Path);
@@ -64,9 +66,10 @@ protected:
 
 class TYPathResponse
     : public TRefCounted
+	, public TEphemeralAttributeProvider
 {
+	DEFINE_BYVAL_RW_PROPERTY(TError, Error);
     DEFINE_BYREF_RW_PROPERTY(yvector<TSharedRef>, Attachments);
-    DEFINE_BYVAL_RW_PROPERTY(TError, Error);
 
 public:
     typedef TIntrusivePtr<TYPathResponse> TPtr;
@@ -171,9 +174,12 @@ void ResolveYPath(
     IYPathServicePtr* suffixService,
     TYPath* suffixPath);
 
-//! Asynchronously executes an untyped YPath verb against a given service.
+//! Asynchronously executes an untyped YPath verb against the given service.
 TFuture<NBus::IMessage::TPtr>::TPtr
 ExecuteVerb(IYPathService* service, NBus::IMessage* requestMessage);
+
+//! Asynchronously executes a request against the given service.
+void ExecuteVerb(IYPathService* service, NRpc::IServiceContext* context);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>

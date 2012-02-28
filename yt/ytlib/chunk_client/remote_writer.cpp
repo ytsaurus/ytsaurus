@@ -813,11 +813,7 @@ void TRemoteWriter::SchedulePing(THolderPtr holder)
         return;
     }
 
-    auto cookie = holder->Cookie;
-    if (cookie != TDelayedInvoker::NullCookie) {
-        TDelayedInvoker::Cancel(cookie);
-    }
-
+    TDelayedInvoker::CancelAndClear(holder->Cookie);
     holder->Cookie = TDelayedInvoker::Submit(
         ~FromMethod(
             &TRemoteWriter::PingSession,
@@ -831,10 +827,7 @@ void TRemoteWriter::CancelPing(THolderPtr holder)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    auto& cookie = holder->Cookie;
-    if (cookie != TDelayedInvoker::NullCookie) {
-        TDelayedInvoker::CancelAndClear(cookie);
-    }
+    TDelayedInvoker::CancelAndClear(holder->Cookie);
 }
 
 void TRemoteWriter::CancelAllPings()

@@ -18,10 +18,6 @@ static const TDuration SleepQuantum = TDuration::MilliSeconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDelayedInvoker::TCookie TDelayedInvoker::NullCookie = TDelayedInvoker::TCookie();
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDelayedInvoker::TImpl
     : private TNonCopyable
 {
@@ -77,6 +73,8 @@ public:
 
     bool CancelAndClear(TCookie& cookie)
     {
+        if (!cookie)
+            return false;
         auto cookie_ = cookie;
         cookie.Reset();
         return Cancel(cookie_);

@@ -6,6 +6,7 @@
 #include "node_proxy.h"
 #include "lock.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/transaction_server/transaction.h>
 #include <ytlib/transaction_server/transaction_manager.h>
@@ -41,7 +42,20 @@ public:
     void RegisterHandler(INodeTypeHandler* handler);
     INodeTypeHandler* GetHandler(EObjectType type);
 
+	//! Returns the id of the root node.
+	/*!
+	 *  \note
+	 *  This id depends on cell id.
+	 */
     TNodeId GetRootNodeId();
+
+	//! Returns a service producer that is absolutely safe to use from any thread.
+	/*!
+	 *  The producer first makes a coarse check to ensure that the peer is leading.
+	 *  If it passes, then the request is forwarded to the state thread and
+	 *  another (rigorous) check is made.
+	 */
+	NYTree::TYPathServiceProducer GetRootServiceProducer();
 
     // TODO: killme
     NObjectServer::TObjectManager* GetObjectManager() const;
@@ -56,12 +70,12 @@ public:
         const TNodeId& nodeId,
         const TTransactionId& transactionId) const;
 
-    ICypressNode* FindVersionedNode(
+    ICypressNode* FindVersionedNodeForUpdate(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         ELockMode requestedMode = ELockMode::Exclusive);
 
-    ICypressNode& GetVersionedNode(
+    ICypressNode& GetVersionedNodeForUpdate(
         const TNodeId& nodeId,
         const TTransactionId& transactionId,
         ELockMode requestedMode = ELockMode::Exclusive);
@@ -129,7 +143,7 @@ private:
     void SaveKeys(TOutputStream* output); // TODO(roizner): make const once new actions are ready
     void SaveValues(TOutputStream* output); // TODO(roizner): make const once new actions are ready
     void LoadKeys(TInputStream* input);
-    void LoadValues(TInputStream* input);
+    void LoadValues(TInputStream* input, NCellMaster::TLoadContext context);
     virtual void Clear();
 
     virtual void OnLeaderRecoveryComplete();

@@ -4,13 +4,15 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/logging/tagged_logger.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static NLog::TLogger Logger("MetaState");
+static NProfiling::TProfiler Profiler("meta_state/change_committer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,14 +48,13 @@ public:
         const TMetaVersion& version)
         : Committer(committer)
         , Result(New<TResult>())
-        , Awaiter(New<TParallelAwaiter>(~committer->CancelableControlInvoker))
         , StartVersion(version)
-        // Count the local commit.
+        // The local commit is also counted.
         , CommitCount(0)
         , IsSent(false)
         , Logger(MetaStateLogger)
     {
-        Logger.AddTag(Sprintf("Version: %s", ~StartVersion.ToString()));
+        Logger.AddTag(Sprintf("StartVersion: %s", ~StartVersion.ToString()));
     }
 
     TResult::TPtr AddChange(const TSharedRef& changeData)
@@ -66,7 +67,7 @@ public:
             StartVersion.RecordCount + BatchedChanges.ysize());
         BatchedChanges.push_back(changeData);
 
-        LOG_DEBUG("Change is added to batch (Current version: %s)", ~currentVersion.ToString());
+        LOG_DEBUG("Change is added to batch (Version: %s)", ~currentVersion.ToString());
 
         return Result;
     }
@@ -82,15 +83,22 @@ public:
 
         IsSent = true;
 
-        LOG_DEBUG("Sending batched changes (ChangeCount: %d)",
-            BatchedChanges.ysize());
+        LOG_DEBUG("Sending %d batched changes", static_cast<int>(BatchedChanges.size()));
+		Profiler.Enqueue("batch_size", BatchedChanges.size());
 
-        YASSERT(LogResult);
-        Awaiter->Await(
+		YASSERT(LogResult);
+		auto cellManager = Committer->CellManager;
+        
+		Awaiter = New<TParallelAwaiter>(
+			~Committer->CancelableControlInvoker,
+			&Profiler,
+			"batch_commit_time");
+
+		Awaiter->Await(
             LogResult,
+			cellManager->GetSelfAddress(),
             FromMethod(&TBatch::OnLocalCommit, TPtr(this)));
 
-        auto cellManager = Committer->CellManager;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfId()) continue;
 
@@ -107,8 +115,10 @@ public:
 
             Awaiter->Await(
                 request->Invoke(),
+				cellManager->GetPeerAddress(id),
                 FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
-            LOG_DEBUG("Batched changes sent (FollowerId: %d)", id);
+
+            LOG_DEBUG("Changes are sent to follower %d", id);
         }
 
         Awaiter->Complete(FromMethod(&TBatch::OnCompleted, TPtr(this)));
@@ -122,7 +132,6 @@ public:
         return BatchedChanges.ysize();
     }
 
-
 private:
     bool CheckCommitQuorum()
     {
@@ -134,8 +143,7 @@ private:
         Result->Set(EResult::Committed);
         Awaiter->Cancel();
         
-        LOG_DEBUG("Changes are committed by quorum (ChangeCount: %d)",
-            BatchedChanges.ysize());
+        LOG_DEBUG("Changes are committed by quorum");
 
         return true;
     }
@@ -145,24 +153,19 @@ private:
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
         if (!response->IsOK()) {
-            LOG_WARNING("Error committing changes by follower (ChangeCount: %d, FollowerId: %d)\n%s",
-                BatchedChanges.ysize(),
-                peerId,
+            LOG_WARNING("Error committing changes by follower %d\n%s",
+				peerId,
                 ~response->GetError().ToString());
             return;
         }
 
         if (response->committed()) {
-            LOG_DEBUG("Changes are committed by follower (ChangeCount: %d, FollowerId: %d)",
-                BatchedChanges.ysize(),
-                peerId);
+            LOG_DEBUG("Changes are committed by follower %d", peerId);
 
             ++CommitCount;
             CheckCommitQuorum();
         } else {
-            LOG_DEBUG("Changes are acknowledged by follower (ChangeCount: %d, FollowerId: %d)",
-                BatchedChanges.ysize(),
-                peerId);
+            LOG_DEBUG("Changes are acknowledged by follower %d", peerId);
         }
     }
     
@@ -291,7 +294,7 @@ void TLeaderCommitter::FlushCurrentBatch()
     CurrentBatch->SendChanges();
     TDelayedInvoker::Cancel(BatchTimeoutCookie);
     CurrentBatch.Reset();
-    BatchTimeoutCookie = TDelayedInvoker::NullCookie;
+    BatchTimeoutCookie = NULL;
 }
 
 TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(

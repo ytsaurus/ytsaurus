@@ -109,7 +109,7 @@ TEST(TThreadAffinityTest, SingleThreadedAccess)
     SUCCEED();
 }
 
-TEST(TThreadAffinityTest, UntangledThreadAccess)
+TEST(TThreadAffinityTest, DISABLED_UntangledThreadAccess)
 {
     TMyObject object;
     UntangledThreadAccess(&object);

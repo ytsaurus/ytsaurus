@@ -3,7 +3,7 @@
 #include "id.h"
 #include "chunk_service.pb.h"
 
-#include "chunk_service.pb.h"
+#include <ytlib/cell_master/public.h>
 
 #include <ytlib/misc/property.h>
 
@@ -44,7 +44,7 @@ public:
     THolder(THolderId id);
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, TVoid /* context */);
+    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 
     void AddChunk(const TChunkId& chunkId, bool cached);
     void RemoveChunk(const TChunkId& chunkId, bool cached);

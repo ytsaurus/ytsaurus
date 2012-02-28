@@ -1,8 +1,12 @@
 #include "stdafx.h"
 #include "job.h"
 
+#include <ytlib/cell_master/load_context.h>
+
 namespace NYT {
 namespace NChunkServer {
+
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,8 +38,9 @@ void TJob::Save(TOutputStream* output) const
     ::Save(output, StartTime_);
 }
 
-void TJob::Load(TInputStream* input, TVoid)
+void TJob::Load(TInputStream* input, const TLoadContext& context)
 {
+    UNUSED(context);
     ::Load(input, Type_);
     ::Load(input, ChunkId_);
     ::Load(input, RunnerAddress_);

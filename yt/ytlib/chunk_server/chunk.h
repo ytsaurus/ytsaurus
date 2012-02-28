@@ -4,6 +4,7 @@
 #include "id.h"
 #include "chunk.pb.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/object_server/object_detail.h>
 
@@ -28,7 +29,7 @@ public:
     TChunk(const TChunkId& id);
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, TVoid /* context */);
+    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 
     void AddLocation(THolderId holderId, bool cached);
     void RemoveLocation(THolderId holderId, bool cached);

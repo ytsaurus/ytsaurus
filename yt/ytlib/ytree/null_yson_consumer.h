@@ -1,11 +1,16 @@
 #pragma once
 
-#include "yson_consumer.h"
+#include "public.h"
 
 namespace NYT {
 namespace NYTree {
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the consumer that does nothing.
 IYsonConsumer* GetNullYsonConsumer();
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree
 } // namespace NYT

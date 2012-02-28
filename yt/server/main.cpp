@@ -1,11 +1,13 @@
 #include "stdafx.h"
-#include "cell_master_bootstrap.h"
 #include "scheduler_bootstrap.h"
 
+#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/config.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
 #include <ytlib/rpc/rpc_manager.h>
 #include <ytlib/logging/log_manager.h>
+#include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_holder/bootstrap.h>
 
@@ -14,6 +16,7 @@ namespace NYT {
 using namespace NLastGetopt;
 using namespace NYTree;
 using namespace NElection;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,7 +124,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isCellMaster) {
-        auto config = New<TCellMasterBootstrap::TConfig>();
+        auto config = New<TCellMasterConfig>();
         try {
             config->Load(~configNode);
             
@@ -136,7 +139,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ex.what());
         }
 
-        TCellMasterBootstrap cellMasterBootstrap(configFileName, ~config);
+        NCellMaster::TBootstrap cellMasterBootstrap(configFileName, ~config);
         cellMasterBootstrap.Run();
     }
 
@@ -159,6 +162,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 int Main(int argc, const char* argv[])
 {
+	NYT::SetupErrorHandler();
+	NProfiling::TProfilingManager::Get()->Start();
+
     int exitCode;
     try {
         exitCode = GuardedMain(argc, argv);
@@ -170,6 +176,7 @@ int Main(int argc, const char* argv[])
 
     // TODO: refactor system shutdown
     NLog::TLogManager::Get()->Shutdown();
+	NProfiling::TProfilingManager::Get()->Shutdown();
     NRpc::TRpcManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 
@@ -182,6 +189,5 @@ int Main(int argc, const char* argv[])
 
 int main(int argc, const char* argv[])
 {
-    NYT::SetupErrorHandler();
     return NYT::Main(argc, argv);
 }

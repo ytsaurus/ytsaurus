@@ -163,7 +163,7 @@ class YTEnv:
             holder_config['chunk_store_locations'] = store_location
             holder_config['logging']['writers']['file']['file_name'] = logging_file_name
 
-            self.modify_holder_config(config)
+            self.modify_holder_config(holder_config)
             deepupdate(holder_config, self.DELTA_HOLDER_CONFIG)
 
             config_path = os.path.join(current, 'holder_config.yson')

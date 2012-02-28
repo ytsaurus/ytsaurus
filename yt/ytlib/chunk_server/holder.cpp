@@ -3,11 +3,14 @@
 
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/cell_master/load_context.h>
 
 namespace NYT {
+
 namespace NChunkServer {
 
 using namespace NProto;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,8 +43,9 @@ void THolder::Save(TOutputStream* output) const
     ::Save(output, JobIds_);
 }
 
-void THolder::Load(TInputStream* input, TVoid)
+void THolder::Load(TInputStream* input, const TLoadContext& context)
 {
+    UNUSED(context);
     ::Load(input, Address_);
     ::Load(input, IncarnationId_);
     ::Load(input, State_);

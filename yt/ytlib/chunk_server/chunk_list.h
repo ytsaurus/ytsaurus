@@ -4,6 +4,7 @@
 #include "id.h"
 #include "chunk_statistics.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/object_server/object_detail.h>
 
@@ -23,7 +24,7 @@ public:
     TChunkList(const TChunkListId& id);
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, TVoid /* context */);
+    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

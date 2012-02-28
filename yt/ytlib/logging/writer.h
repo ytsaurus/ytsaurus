@@ -30,6 +30,7 @@ struct ILogWriter
         (File)
         (StdOut)
         (StdErr)
+        (Raw)
     );
 
     struct TConfig
@@ -56,10 +57,10 @@ struct ILogWriter
 
         virtual void DoValidate() const
         {
-            if (Type == EType::File && FileName.empty()) {
+            if ((Type == EType::File || Type == EType::Raw) && FileName.empty()) {
                 ythrow yexception() <<
                     Sprintf("FileName is empty while type is File");
-            } else if (Type != EType::File && !FileName.empty()) {
+            } else if (Type != EType::File && Type != EType::Raw && !FileName.empty()) {
                 ythrow yexception() <<
                     Sprintf("FileName is not empty while type is not File");
             }
@@ -129,8 +130,30 @@ private:
     bool Initialized;
     THolder<TFile> File;
     THolder<TBufferedFileOutput> FileOutput;
-    TFileLogWriter::TPtr LogWriter;
+    TStreamLogWriter::TPtr LogWriter;
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRawFileLogWriter
+    : public ILogWriter
+{
+public:
+    TRawFileLogWriter(const Stroka& fileName);
+
+    virtual void Write(const TLogEvent& event);
+    virtual void Flush();
+
+private:
+    static const size_t BufferSize = 1 << 16;
+
+    void EnsureInitialized();
+
+    Stroka FileName;
+    bool Initialized;
+    THolder<TFile> File;
+    THolder<TBufferedFileOutput> FileOutput;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,6 +27,7 @@ set( SRCS
   ${BASE}/thread.cpp
 )
 set( HDRS
+  ${BASE}/arcadia_helper.h
   ${BASE}/assert.h
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h

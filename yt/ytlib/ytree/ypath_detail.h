@@ -77,6 +77,7 @@ class TSupportsAttributes
 protected:
     // TODO(roizner,babenko): support NULL user attribute dictionary to
     // allow TVirtualMapBase to use this mix-in.
+	// Can be NULL.
     virtual IAttributeDictionary* GetUserAttributes() = 0;
 
     // Can be NULL.
@@ -144,8 +145,8 @@ protected:
 
     Stroka AttributeKey;
     TYson AttributeValue;
-    TAutoPtr<TStringOutput> AttributeStream;
-    TAutoPtr<TYsonWriter> AttributeWriter;
+    TStringOutput AttributeStream;
+    TYsonWriter AttributeWriter;
 
     void OnForwardingFinished();
 

@@ -84,6 +84,15 @@ IAttributeDictionary& TObjectProxyBase::Attributes()
     return *GetUserAttributes();
 }
 
+const IAttributeDictionary& TObjectProxyBase::Attributes() const
+{
+    if (UserAttributes.Get()) {
+        return *UserAttributes;
+    } else {
+        return EmptyAttributes();
+    }
+}
+
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
     UNUSED(request);
@@ -120,7 +129,7 @@ bool TObjectProxyBase::IsWriteRequest(NRpc::IServiceContext* context) const
 
 IAttributeDictionary* TObjectProxyBase::GetUserAttributes()
 {
-    if (!UserAttributes) {
+    if (!UserAttributes.Get()) {
         UserAttributes = DoCreateUserAttributes();
     }
     return UserAttributes.Get();

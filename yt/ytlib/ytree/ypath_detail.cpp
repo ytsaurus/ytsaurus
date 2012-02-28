@@ -166,9 +166,14 @@ static TYson DoGetAttribute(
         }
     }
 
+	if (!userAttributes) {
+		ythrow yexception() << "User attributes are not supported";
+	}
+
     if (isSystem) {
         *isSystem = false;
     }
+
     return userAttributes->GetYson(key);
 }
 
@@ -185,6 +190,9 @@ static void DoSetAttribute(
             ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
         }
     } else {
+		if (!userAttributes) {
+			ythrow yexception() << "User attributes are not supported";
+		}
         userAttributes->SetYson(key, SerializeToYson(value));
     }
 }
@@ -263,13 +271,15 @@ void TSupportsAttributes::GetAttribute(
             }
         }
 
-        const auto& userAttributeSet = userAttributes->List();
-        std::vector<Stroka> userAttributeList(userAttributeSet.begin(), userAttributeSet.end());
-        std::sort(userAttributeList.begin(), userAttributeList.end());
-        FOREACH (const auto& key, userAttributeList) {
-            writer.OnMapItem(key);
-            writer.OnRaw(userAttributes->GetYson(key));
-        }
+		if (userAttributes) {
+			const auto& userAttributeSet = userAttributes->List();
+			std::vector<Stroka> userAttributeList(userAttributeSet.begin(), userAttributeSet.end());
+			std::sort(userAttributeList.begin(), userAttributeList.end());
+			FOREACH (const auto& key, userAttributeList) {
+				writer.OnMapItem(key);
+				writer.OnRaw(userAttributes->GetYson(key));
+			}
+		}
         
         writer.OnEndMap();
 
@@ -315,10 +325,10 @@ void TSupportsAttributes::ListAttribute(
             }
         }
         
-        const auto& userKeys = userAttributes->List();
-        // If we used vector instead of yvector, we could start with user
-        // attributes instead of copying them.
-        keys.insert(keys.end(), userKeys.begin(), userKeys.end());
+		if (userAttributes) {
+			const auto& userKeys = userAttributes->List();
+			keys.insert(keys.end(), userKeys.begin(), userKeys.end());
+		}
     } else {
         Stroka token;
         TYPath suffixPath;
@@ -349,10 +359,12 @@ void TSupportsAttributes::SetAttribute(
             ythrow yexception() << "Map value expected";
         }
 
-        const auto& userKeys = userAttributes->List();
-        FOREACH (const auto& key, userKeys) {
-            YVERIFY(userAttributes->Remove(key));
-        }
+		if (userAttributes) {
+			const auto& userKeys = userAttributes->List();
+			FOREACH (const auto& key, userKeys) {
+				YVERIFY(userAttributes->Remove(key));
+			}
+		}
 
         auto mapValue = value->AsMap();
         FOREACH (const auto& pair, mapValue->GetChildren()) {
@@ -407,6 +419,9 @@ void TSupportsAttributes::RemoveAttribute(
         ChopYPathToken(path, &token, &suffixPath);
 
         if (IsFinalYPath(suffixPath)) {
+			if (!userAttributes) {
+				ythrow yexception() << "User attributes are not supported";
+			}
             if (!userAttributes->Remove(token)) {
                 ythrow yexception() << Sprintf("User attribute %s is not found", ~token.Quote());
             }
@@ -432,6 +447,8 @@ TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)
     : Node(node)
     , TreeBuilder(builder)
     , NodeFactory(node->CreateFactory())
+	, AttributeStream(AttributeValue)
+	, AttributeWriter(&AttributeStream)
 { }
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
@@ -485,19 +502,15 @@ void TNodeSetterBase::OnMyBeginAttributes()
 
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
 {
-    YASSERT(!AttributeWriter);
     AttributeKey = key;
-    AttributeStream = new TStringOutput(AttributeValue);
-    AttributeWriter = new TYsonWriter(AttributeStream.Get());
-    ForwardNode(~AttributeWriter, ~FromMethod(&TThis::OnForwardingFinished, this));
+    ForwardNode(&AttributeWriter, ~FromMethod(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()
 {
     SyncYPathSet(~Node, AttributeMarker + AttributeKey, AttributeValue);
-    AttributeWriter.Destroy();
-    AttributeStream.Destroy();
     AttributeKey.clear();
+	AttributeValue.clear();
 }
 
 void TNodeSetterBase::OnMyEndAttributes()
@@ -575,10 +588,7 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
 {
     YASSERT(requestMessage);
 
-    TRequestHeader header;
-    header.set_path(path);
-    header.set_verb(verb);
-
+	auto header = GetRequestHeader(requestMessage);
     return New<TServiceContext>(
         header,
         requestMessage,

@@ -10,6 +10,7 @@
 #include "file_chunk_meta.pb.h"
 #include "table_chunk_meta.pb.h"
 
+#include <ytlib/cell_master/load_context.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/guid.h>
@@ -22,6 +23,7 @@
 #include <ytlib/meta_state/map.h>
 #include <ytlib/object_server/type_handler_detail.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -31,10 +33,11 @@ using namespace NMetaState;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NYTree;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
+static NLog::TLogger Logger("ChunkServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,6 +112,7 @@ public:
         , TransactionManager(transactionManager)
         , HolderAuthority(holderAuthority)
         , ObjectManager(objectManager)
+		, ChunkReplicaCount(0)
     {
         YASSERT(owner);
         YASSERT(transactionManager);
@@ -121,12 +125,14 @@ public:
         RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::CreateChunks);
 
+        TLoadContext context(NULL); // TODO(roizner): use real bootstrap
+
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
             FromMethod(&TChunkManager::TImpl::LoadKeys, TPtr(this)));
         metaState->RegisterLoader(
             "ChunkManager.Values.1",
-            FromMethod(&TChunkManager::TImpl::LoadValues, TPtr(this)));
+            FromMethod(&TChunkManager::TImpl::LoadValues, TPtr(this), context));
         metaState->RegisterSaver(
             "ChunkManager.Keys.1",
             FromMethod(&TChunkManager::TImpl::SaveKeys, TPtr(this)),
@@ -351,10 +357,14 @@ private:
 
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
+	i32 ChunkReplicaCount;
+
     TMetaStateMap<THolderId, THolder> HolderMap;
     yhash_map<Stroka, THolderId> HolderAddressMap;
+
     TMetaStateMap<TChunkId, TJobList> JobListMap;
     TMetaStateMap<TJobId, TJob> JobMap;
+
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
 
@@ -477,11 +487,9 @@ private:
         auto chunkId = chunk.GetId();
 
         // Unregister chunk replicas from all known locations.
-
         FOREACH (auto holderId, chunk.StoredLocations()) {
             DoRemoveChunkFromLocation(holderId, chunk, false);
         }
-
         if (~chunk.CachedLocations()) {
             FOREACH (auto holderId, *chunk.CachedLocations()) {
                 DoRemoveChunkFromLocation(holderId, chunk, true);
@@ -648,11 +656,9 @@ private:
         JobListMap.LoadKeys(input);
     }
 
-    void LoadValues(TInputStream* input)
+    void LoadValues(TInputStream* input, TLoadContext context)
     {
         ::Load(input, HolderIdGenerator);
-
-        TVoid context; // TODO(roizner): use real context
 
         ChunkMap.LoadValues(input, context);
         ChunkListMap.LoadValues(input, context);
@@ -660,7 +666,15 @@ private:
         JobMap.LoadValues(input, context);
         JobListMap.LoadValues(input, context);
 
-        // Reconstruct HolderAddressMap.
+		// Compute chunk replica count.
+		ChunkReplicaCount = 0;
+		FOREACH (const auto& pair, HolderMap) {
+			const auto& holder = *pair.second;
+			ChunkReplicaCount += holder.StoredChunkIds().size();
+			ChunkReplicaCount += holder.CachedChunkIds().size();
+		}
+
+		// Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
         FOREACH (const auto& pair, HolderMap) {
             const auto* holder = pair.second;
@@ -678,6 +692,7 @@ private:
     {
         HolderIdGenerator.Reset();
         ChunkMap.Clear();
+		ChunkReplicaCount = 0;
         ChunkListMap.Clear();
         HolderMap.Clear();
         JobMap.Clear();
@@ -724,7 +739,7 @@ private:
         ChunkPlacement->OnHolderRegistered(holder);
         ChunkReplication->OnHolderRegistered(holder);
 
-        HolderRegistered_.Fire(holder); 
+        HolderRegistered_.Fire(holder);
     }
 
     void StopHolderTracking(const THolder& holder)
@@ -791,6 +806,7 @@ private:
             ~::ToString(cached),
             ~holder.GetAddress(),
             holderId);
+
 
         if (!cached && IsLeader()) {
             ChunkReplication->OnReplicaAdded(holder, chunk);
@@ -1365,6 +1381,16 @@ private:
         auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
 
         context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
+
+        FOREACH (const auto& childId, childrenIds) {
+            auto type = TypeFromId(childId);
+            if (type != EObjectType::Chunk && type != EObjectType::ChunkList) {
+                ythrow yexception() << Sprintf("Invalid child type (ObjectId: %s)", ~childId.ToString());
+            }
+            if (!ObjectManager->ObjectExists(childId)) {
+                ythrow yexception() << Sprintf("Child does not exist (ObjectId: %s)", ~childId.ToString());
+            }
+        }
 
         auto& chunkList = GetTypedImpl();
         Owner->AttachToChunkList(chunkList, childrenIds);

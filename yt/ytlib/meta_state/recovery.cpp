@@ -72,8 +72,6 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
         ~currentVersion.ToString(),
         ~targetVersion.ToString());
 
-    YASSERT(MetaState->GetVersion() <= targetVersion);
-
     // Check if loading a snapshot is preferable.
     // Currently this is done by comparing segmentIds and is subject to further optimization.
     if (snapshotId != NonexistingSnapshotId && currentVersion.SegmentId < snapshotId)
@@ -196,7 +194,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             i32 localRecordCount = changeLog->GetRecordCount();
             i32 remoteRecordCount = response->record_count();
 
-            LOG_INFO("Changelog %d has %d local records, %d remote records",
+            LOG_INFO("Changelog %d has %d local and %d remote records",
                 segmentId,
                 localRecordCount,
                 remoteRecordCount);
@@ -204,26 +202,28 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             if (segmentId == targetVersion.SegmentId &&
                 remoteRecordCount < targetVersion.RecordCount)
             {
-                LOG_FATAL("Remote changelog %d has insufficient records to reach the requested state",
+                LOG_FATAL("Remote changelog %d has insufficient records",
                     segmentId);
             }
 
             if (localRecordCount > remoteRecordCount) {
                 changeLog->Truncate(remoteRecordCount);
                 changeLog->Finalize();
-                LOG_INFO("Local changelog %d is longer than expected, truncated to %d records",
+                LOG_INFO("Local changelog %d has %d records, truncated to %d records",
                     segmentId,
+					localRecordCount,
                     remoteRecordCount);
             }
 
             auto currentVersion = MetaState->GetVersion();
             YASSERT(currentVersion.SegmentId <= segmentId);
 
-            // Check if the current state contains some changes that are not present in remote changelog.
+            // Check if the current state contains some changes that are not present in the remote changelog.
             // If so, clear the state and restart recovery.
             if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
-                LOG_INFO("Current state contains uncommitted changes, restarting with a clear one");
-
+                LOG_INFO("Current version is %s while only %d changes are expected, performing clear restart",
+					~currentVersion.ToString(),
+					remoteRecordCount);
                 MetaState->Clear();
                 return FromMethod(&TRecovery::Run, TPtr(this))
                         ->AsyncVia(~CancelableControlInvoker)
@@ -245,7 +245,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
                     *changeLog);
 
                 if (changeLogResult != TChangeLogDownloader::EResult::OK) {
-                    LOG_ERROR("Error downloading changelog (ChangeLogId: %d, Result: %s)",
+                    LOG_ERROR("Error downloading changelog %d\n%s",
                         segmentId,
                         ~changeLogResult.ToString());
                     return New<TAsyncResult>(EResult::Failed);
@@ -305,7 +305,6 @@ void TRecovery::ApplyChangeLog(
             startRecordId);
     }
 
-    // TODO: timing
     LOG_INFO("Applying changes to meta state");
 
     FOREACH (const auto& changeData, records)  {
@@ -355,7 +354,7 @@ TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto version = MetaState->GetReachableVersion();
+    auto version = MetaState->SafeGetReachableVersion();
     i32 maxAvailableSnapshotId = SnapshotStore->GetMaxSnapshotId();
     YASSERT(maxAvailableSnapshotId <= version.SegmentId);
 
@@ -550,7 +549,7 @@ TRecovery::EResult TFollowerRecovery::PostponeChanges(
         LOG_WARNING("Late changes received during recovery, ignored: expected %s but received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
-        return EResult::Failed;
+        return EResult::OK;
     }
 
     if (PostponedVersion != version) {
