@@ -275,7 +275,6 @@ public:
 
     void Shutdown()
     {
-        WakeupEvent.Signal();
         TActionQueueBase::Shutdown();
     }
 
@@ -302,6 +301,7 @@ public:
     {
         if (IsRunning()) {
             LogEventQueue.Enqueue(event);
+            Signal();
 
             if (event.Level == ELogLevel::Fatal) {
                 Shutdown();

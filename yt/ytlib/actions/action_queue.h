@@ -64,7 +64,7 @@ protected:
 
     bool IsRunning() const;
 
-protected:
+private:
     friend class TQueueInvoker;
 
     static void* ThreadFunc(void* param);
