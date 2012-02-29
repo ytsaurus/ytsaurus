@@ -14,11 +14,11 @@ EXTENSIONS = [HEADER_EXTENSION, SOURCE_EXTENSION, INLINE_EXTENSION, UNITTEST_EXT
 
 
 def get_cmake_omm_path():
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), 'cmake-omm.py'))
+    return os.path.join(os.path.dirname(__file__), 'cmake-omm.py')
 
 
 def get_ytlib_path():
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), '../yt/ytlib'))
+    return os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../yt/ytlib'))
 
 
 def get_project_path(project_name):
@@ -34,8 +34,10 @@ def add_file(file_path, file_data):
         with open(file_path, 'w') as file:
             file.write(file_data)
     
+    current_directory = os.getcwd()
     os.chdir(os.path.dirname(file_path))
     os.system('git add ' + os.path.basename(file_path))
+    os.chdir(current_directory)
 
     print file_path, 'added.'
 
@@ -156,6 +158,7 @@ def add_files(project_name, file_name, extensions):
             append_to_header_file(file_path, file_name)
 
     print '=' * 80
+
     os.system(get_cmake_omm_path() + ' --update')
     print '=' * 80
     
