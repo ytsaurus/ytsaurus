@@ -1,0 +1,24 @@
+{
+    masters = {
+        addresses = [
+            "localhost:9000";
+        ];
+    };
+
+    logging = {
+        rules = [
+            {
+                min_level = debug;
+                writers = [ file ];
+                categories  = [ "*" ];
+            };
+        ];
+        writers = {
+            file = {
+                type = File;
+                file_name = "scheduler-0.log";
+                pattern = "$(datetime)\t$(level)\t$(category)\t$(message)";
+            };
+        };
+    };
+}
