@@ -1265,8 +1265,10 @@ private:
                 continue;
             }
 
-            Owner->DoAddChunkReplica(*holder, chunk, false);
-            holder->AddUnapprovedChunk(chunk.GetId());
+            if (!holder->HasChunk(chunk.GetId(), false)) {
+                holder->AddUnapprovedChunk(chunk.GetId());
+                Owner->DoAddChunkReplica(*holder, chunk, false);
+            }
         }
 
         TBlob blob;
