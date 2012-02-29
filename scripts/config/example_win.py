@@ -7,8 +7,13 @@ build_dir = r'c:\Users\Max\Work\Yandex\YT\build'
 
 
 Logging = {
-    'writers' : { 
-        'file':
+    'writers' : {
+        'raw' :
+            {
+                'type' : 'raw',
+                'file_name' : "%(log_path)s.debug"
+            }, 
+        'file' :
             {
                 'type' : "file",
                 'file_name' : "%(log_path)s",
@@ -24,12 +29,12 @@ Logging = {
         {
             'categories' : [ "*" ],
             'min_level' : "debug",
-            'writers' : [ "file" ]
+            'writers' : [ "raw" ]
         },
         {
             'categories' : [ "*" ],
             'min_level' : "info",
-            'writers' : [ "std_err" ]
+            'writers' : [ "std_err", "file" ]
         }
     ]
 }
