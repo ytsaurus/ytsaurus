@@ -42,6 +42,7 @@ class YTEnv:
     NUM_SCHEDULERS = 0
     INIT_TIMEOUT = 1
     SETUP_TIMEOUT = 8
+    TEARDOWN_TIMEOUT = 0
 
     DELTA_MASTER_CONFIG = {}
     DELTA_HOLDER_CONFIG = {}
@@ -73,7 +74,13 @@ class YTEnv:
         self._wait_for_ready_holders()
 
     def tearDown(self):
+        time.sleep(self.TEARDOWN_TIMEOUT)
         for p in self.process_to_kill:
+            p.poll()
+            if p.returncode is not None:
+                print p.returncode
+                #import pdb
+                #pdb.set_trace()
             p.kill()
 
     def _set_path(self, path_to_run):
@@ -190,19 +197,14 @@ class YTEnv:
     def _init_sys(self):
         if self.NUM_MASTERS == 0:
             return
-        os.system('cd {path_to_run} && cat {init_file} | ytdriver'.format(
-            init_file=os.path.join(CONFIGS_ROOTDIR, 'default_init.yt'),
-            path_to_run=self.path_to_run,
-            ))
+        cmd = 'cat %s | ytdriver' % (os.path.join(CONFIGS_ROOTDIR, 'default_init.yt'))
+        subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
         for i in xrange(self.NUM_MASTERS):
             port = 8001 + i
             orchid_yson = '{do=create;path="/sys/masters/localhost:%d/orchid";type=orchid;manifest={remote_address="localhost:%d"}}' %(port, port)
-            print orchid_yson
-            os.system("cd {path_to_run} && echo '{orchid_yson}'| ytdriver ".format(
-                path_to_run=self.path_to_run,
-                orchid_yson=orchid_yson
-                ))
-        
+            #print orchid_yson
+            cmd  = "ytdriver '%s'" % (orchid_yson)
+            subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
 
     def _clean_run_path(self):
         os.system('rm -rf ' + self.path_to_run)
@@ -303,5 +305,4 @@ class YTEnv:
         config_path = os.path.join(self.path_to_run, 'driver_config.yson')
         write_config(self.driver_config, config_path)
         os.environ['YT_CONFIG'] = config_path
-
 
