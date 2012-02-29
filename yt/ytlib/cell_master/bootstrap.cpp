@@ -103,6 +103,15 @@ TBootstrap::TBootstrap(
     , Config(config)
 { }
 
+TBootstrap::~TBootstrap()
+{ } // Neither remove it or move it to header
+
+
+TTransactionManager* TBootstrap::GetTransactionManager() const
+{
+    return ~TransactionManager;
+}
+
 void TBootstrap::Run()
 {
     // TODO: extract method
@@ -131,17 +140,17 @@ void TBootstrap::Run()
         ~metaState,
         Config->CellId);
 
-    auto transactionManager = New<TTransactionManager>(
+    TransactionManager = New<TTransactionManager>(
         ~Config->TransactionManager,
         ~metaStateManager,
         ~metaState,
         ~objectManager);
-    objectManager->SetTransactionManager(~transactionManager);
+    objectManager->SetTransactionManager(~TransactionManager);
 
     auto cypressManager = New<TCypressManager>(
         ~metaStateManager,
         ~metaState,
-        ~transactionManager,
+        ~TransactionManager,
         ~objectManager);
     objectManager->SetCypressManager(~cypressManager);
 
@@ -156,14 +165,14 @@ void TBootstrap::Run()
         ~New<TChunkManagerConfig>(),
         ~metaStateManager,
         ~metaState,
-        ~transactionManager,
+        ~TransactionManager,
         ~holderRegistry,
         ~objectManager);
 
     auto chunkService = New<TChunkService>(
         ~metaStateManager,
         ~chunkManager,
-        ~transactionManager);
+        ~TransactionManager);
     rpcServer->RegisterService(~chunkService);
 
     auto monitoringManager = New<TMonitoringManager>();
@@ -220,7 +229,7 @@ void TBootstrap::Run()
         ~chunkManager));
     cypressManager->RegisterHandler(~CreateTransactionMapTypeHandler(
         ~cypressManager,
-        ~transactionManager));
+        ~TransactionManager));
     cypressManager->RegisterHandler(~CreateNodeMapTypeHandler(
         ~cypressManager));
     cypressManager->RegisterHandler(~CreateLockMapTypeHandler(

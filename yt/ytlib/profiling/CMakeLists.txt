@@ -5,9 +5,9 @@ set( SRCS
   ${BASE}/profiling_manager.cpp
 )
 set( HDRS
-  ${BASE}/public.h
   ${BASE}/profiler.h
   ${BASE}/profiling_manager.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
