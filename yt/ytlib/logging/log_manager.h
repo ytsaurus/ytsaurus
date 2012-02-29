@@ -19,7 +19,6 @@ public:
     void Configure(NYTree::INode* node);
     void Configure(const Stroka& fileName, const NYTree::TYPath& path);
 
-    //void Flush();
     void Shutdown();
 
     int GetConfigVersion();

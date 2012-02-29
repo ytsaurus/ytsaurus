@@ -397,11 +397,6 @@ void TLogManager::Configure(const Stroka& fileName, const TYPath& path)
     Impl->Configure(fileName, path);
 }
 
-//void TLogManager::Flush()
-//{
-//    Impl->Flush();
-//}
-
 void TLogManager::Shutdown()
 {
     Impl->Shutdown();
