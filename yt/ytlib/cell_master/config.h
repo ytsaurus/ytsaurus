@@ -32,7 +32,8 @@ struct TCellMasterConfig
     {
         Register("cell_id", CellId)
             .Default(0);
-        Register("meta_state", MetaState);
+        Register("meta_state", MetaState)
+            .DefaultNew();
         Register("transaction_manager", TransactionManager)
             .DefaultNew();
         Register("rpc_port", RpcPort)

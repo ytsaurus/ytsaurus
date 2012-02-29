@@ -149,14 +149,16 @@ struct TChunkHolderConfig
             .Default(500 * 1024 * 1024);
         Register("chunk_store_locations", ChunkStorageLocations)
             .NonEmpty();
-        Register("chunk_cache_location", ChunkCacheLocation);
+        Register("chunk_cache_location", ChunkCacheLocation)
+            .DefaultNew();
         Register("cache_remote_reader", CacheRemoteReader)
             .DefaultNew();
         Register("cache_sequential_reader", CacheSequentialReader)
             .DefaultNew();
         Register("peer_block_table", PeerBlockTable)
             .DefaultNew();
-        Register("masters", Masters);
+        Register("masters", Masters)
+            .DefaultNew();
         Register("replication_remote_writer", ReplicationRemoteWriter)
             .DefaultNew();
     }

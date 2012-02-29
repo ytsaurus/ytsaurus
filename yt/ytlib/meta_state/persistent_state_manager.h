@@ -63,7 +63,8 @@ struct TPersistentStateManagerConfig
             .Default(TDuration::MilliSeconds(5000));
         Register("rpc_timeout", RpcTimeout)
             .Default(TDuration::MilliSeconds(3000));
-        Register("cell", Cell);
+        Register("cell", Cell)
+            .DefaultNew();
         Register("change_log_downloader", ChangeLogDownloader)
             .DefaultNew();
         Register("snapshot_downloader", SnapshotDownloader)
