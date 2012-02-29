@@ -19,7 +19,7 @@ void TGetCommand::DoExecute(TGetRequest* request)
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
         request->Path,
-        DriverImpl->GetCurrentTransactionId()));
+        DriverImpl->GetTransactionId(request)));
     auto optionsNode = request->GetOptions();
     ypathRequest->set_options(SerializeToYson(~optionsNode));
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
@@ -37,9 +37,10 @@ void TGetCommand::DoExecute(TGetRequest* request)
 void TSetCommand::DoExecute(TSetRequest* request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+
     auto ypathRequest = TYPathProxy::Set(WithTransaction(
         request->Path,
-        DriverImpl->GetCurrentTransactionId()));
+        DriverImpl->GetTransactionId(request)));
 
     TYson value;
     if (request->Value) {
@@ -66,7 +67,7 @@ void TRemoveCommand::DoExecute(TRemoveRequest* request)
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
         request->Path,
-        DriverImpl->GetCurrentTransactionId()));
+        DriverImpl->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
 
@@ -84,7 +85,7 @@ void TListCommand::DoExecute(TListRequest* request)
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
         request->Path,
-        DriverImpl->GetCurrentTransactionId()));
+        DriverImpl->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
 
@@ -107,7 +108,7 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
         request->Path,
-        DriverImpl->GetCurrentTransactionId()));
+        DriverImpl->GetTransactionId(request)));
 
     ypathRequest->set_type(request->Type);
 
@@ -137,7 +138,7 @@ void TLockCommand::DoExecute(TLockRequest* request)
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
         request->Path,
-        DriverImpl->GetCurrentTransactionId()));
+        DriverImpl->GetTransactionId(request)));
     ypathRequest->set_mode(request->Mode);
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();

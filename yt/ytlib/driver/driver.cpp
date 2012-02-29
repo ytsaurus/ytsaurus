@@ -221,7 +221,6 @@ public:
         return new TOwningBufferedOutput(stream);
     }
 
-
     virtual IBlockCache* GetBlockCache()
     {
         return ~BlockCache;
@@ -235,6 +234,20 @@ public:
     virtual TTransactionId GetCurrentTransactionId()
     {
         return !Transaction ? NullTransactionId : Transaction->GetId();
+    }
+
+    virtual TTransactionId GetTransactionId(TTransactedRequest* request)
+    {
+        return request->TxId != NullTransactionId ? request->TxId : GetCurrentTransactionId();
+    }
+
+    virtual ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required)
+    {
+        if (request->TxId == NullTransactionId) {
+            return GetCurrentTransaction(required);
+        } else {
+            return TransactionManager->Attach(request->TxId);
+        }
     }
 
     virtual ITransaction* GetCurrentTransaction(bool required)

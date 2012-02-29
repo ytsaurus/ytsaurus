@@ -42,6 +42,20 @@ public:
         YASSERT(owner);
     }
 
+    TTransaction(
+        NRpc::IChannel* cellChannel,
+        TTransactionManager* owner,
+        const TTransactionId& id)
+        : Owner(owner)
+        , Proxy(cellChannel)
+        , State(EState::Active)
+        , Id(id)
+        , ParentId(NullTransactionId)
+    {
+        YASSERT(cellChannel);
+        YASSERT(owner);
+    }
+
     void Start()
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
@@ -80,15 +94,6 @@ public:
     ~TTransaction()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (State == EState::Active) {
-                FireAbort();
-                State = EState::Aborted;
-            }
-        }
-
         Owner->UnregisterTransaction(Id);
     }
 
@@ -139,7 +144,9 @@ public:
             return;
         }
 
-        PingInvoker->Stop();
+        if (PingInvoker) {
+            PingInvoker->Stop();
+        }
 
         LOG_INFO("Transaction committed (TransactionId: %s)", ~Id.ToString());
     }
@@ -234,7 +241,9 @@ private:
 
     void DoAbort()
     {
-        PingInvoker->Stop();
+        if (PingInvoker) {
+            PingInvoker->Stop();
+        }
         Aborted.Fire();
         Aborted.Clear();
     }
@@ -266,6 +275,21 @@ ITransaction::TPtr TTransactionManager::Start(
     transaction->Start();
     return transaction;
 }
+
+ITransaction::TPtr TTransactionManager::Attach(const TTransactionId& id)
+{
+    // Try to find it among existing
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        auto it = TransactionMap.find(id);
+        if (it != TransactionMap.end()) {
+            return it->second;
+        }
+    }
+
+    return New<TTransaction>(~Channel, this, id);
+}
+
 
 void TTransactionManager::PingTransaction(const TTransactionId& id)
 {

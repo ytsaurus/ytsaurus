@@ -241,7 +241,10 @@ class TLogManager::TImpl
 public:
     TImpl()
         : TActionQueueBase("Logging", false)
-        , ConfigVersion(0)
+        //FIXME: ConfigVersion(-1) is obscure hacky way to force
+        // this very module's Logger object to update to our own
+        // default configuration (default level etc.).
+        , ConfigVersion(-1)
         , Config(TLogConfig::CreateDefault())
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
