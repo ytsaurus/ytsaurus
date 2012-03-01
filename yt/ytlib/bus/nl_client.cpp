@@ -120,9 +120,9 @@ public:
     }
 
 
-    TRequestIdSet& RequestIds()
+    TRequestIdSet& PendingRequestIds()
     {
-        return RequestIds_;
+        return PendingRequestIds_;
     }
 
     TRequestIdSet& PingIds()
@@ -136,7 +136,7 @@ private:
     volatile bool Terminated;
     TSequenceId SequenceId;
     TSessionId SessionId;
-    TRequestIdSet RequestIds_;
+    TRequestIdSet PendingRequestIds_;
     TRequestIdSet PingIds_;
 
     // TODO: rearrangement is switched off, see YT-95
@@ -149,13 +149,11 @@ private:
 class TClientDispatcher
 {
     struct TRequest
-        : public TRefCounted
+        : public TIntrinsicRefCounted
     {
         typedef TIntrusivePtr<TRequest> TPtr;
 
-        TRequest(
-            const TSessionId& sessionId,
-            TBlob* data)
+        TRequest(const TSessionId& sessionId, TBlob* data)
             : SessionId(sessionId)
             , Result(New<IBus::TSendResult>())
         {
@@ -249,11 +247,11 @@ class TClientDispatcher
             ~sessionId.ToString(),
             bus);
 
-        FOREACH(const auto& requestId, bus->RequestIds()) {
+        FOREACH(const auto& requestId, bus->PendingRequestIds()) {
             Requester->CancelRequest((TGUID) requestId);
             RequestMap.erase(requestId);
         }
-        bus->RequestIds().clear();
+        bus->PendingRequestIds().clear();
 
         TBlob ackData;
         CreatePacket(sessionId, TPacketHeader::EType::Ack, &ackData);
@@ -376,9 +374,11 @@ class TClientDispatcher
 
     void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
     {
+        const auto& sessionId = header->SessionId;
         TGuid requestId = nlResponse->ReqId;
         auto requestIt = RequestMap.find(requestId);
-        if (requestIt == RequestMap.end()) {
+        auto busIt = BusMap.find(sessionId);
+        if (requestIt == RequestMap.end() || busIt == BusMap.end()) {
             LOG_DEBUG("Ack for obsolete request received (SessionId: %s, RequestId: %s)",
                 ~header->SessionId.ToString(),
                 ~requestId.ToString());
@@ -389,7 +389,10 @@ class TClientDispatcher
             ~header->SessionId.ToString(),
             ~requestId.ToString());
 
+        auto& bus = busIt->second; 
         auto& request = requestIt->second;
+
+        YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         request->Result->Set(ESendResult::OK);
         RequestMap.erase(requestIt);
     }
@@ -410,7 +413,11 @@ class TClientDispatcher
         auto& bus = busIt->second; 
         auto& request = requestIt->second;
 
+        //std::vector<TRequest*> pendingRequests;
+        //pendingRequests.resize(bus->RequestIds());
+
         request->Result->Set(ESendResult::Failed);
+        YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         bus->RestartSession();
         const auto& newSessionId = bus->GetSessionId();
         YVERIFY(BusMap.insert(MakePair(newSessionId, bus)).second);
@@ -538,7 +545,7 @@ class TClientDispatcher
 
         TGuid requestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
 
-        bus->RequestIds().insert(requestId);
+        bus->PendingRequestIds().insert(requestId);
         RequestMap.insert(MakePair(requestId, request));
 
         LOG_DEBUG("Request sent (SessionId: %s, RequestId: %s, Request: %p)",
