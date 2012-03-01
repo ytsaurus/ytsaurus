@@ -75,11 +75,6 @@ public:
         : Address(address)
         , Handler(handler)
         , Terminated(false)
-        // TODO: rearrangement is switched off, see YT-95
-        //, MessageRearranger(New<TMessageRearranger>(
-        //    SessionId,
-        //    ~FromMethod(&TBus::OnMessageDequeued, TPtr(this)),
-        //    MessageRearrangeTimeout))
     {
         RestartSession();
     }
@@ -93,8 +88,6 @@ public:
     void ProcessIncomingMessage(IMessage* message, TSequenceId sequenceId)
     {
         UNUSED(sequenceId);
-        // TODO: rearrangement is switched off, see YT-95
-        // MessageRearranger->EnqueueMessage(message, sequenceId);
         Handler->OnMessage(message, this);
     }
 
@@ -139,9 +132,6 @@ private:
     TRequestIdSet PendingRequestIds_;
     TRequestIdSet PingIds_;
 
-    // TODO: rearrangement is switched off, see YT-95
-    // TMessageRearranger::TPtr MessageRearranger;
-    //void OnMessageDequeued(IMessage* message);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,28 +143,35 @@ class TClientDispatcher
     {
         typedef TIntrusivePtr<TRequest> TPtr;
 
-        TRequest(const TSessionId& sessionId, TBlob* data)
+        TRequest(
+            const TSessionId& sessionId,
+            IMessage* message,
+            TBlob&& data,
+            TSequenceId sequenceId)
             : SessionId(sessionId)
+            , Message(message)
             , Result(New<IBus::TSendResult>())
+            , SequenceId(sequenceId)
         {
-            Data.swap(*data);
+            // TODO(babenko): replace with movement ctor
+            Data.swap(data);
         }
 
         TSessionId SessionId;
+        TGuid RequestId;
+        IMessage::TPtr Message;
         IBus::TSendResult::TPtr Result;
         TBlob Data;
+        TSequenceId SequenceId;
     };
-
-    typedef yhash_map<TSessionId, TNLBusClient::TBus::TPtr> TBusMap;
-    typedef yhash_map<TGuid, TRequest::TPtr> TRequestMap;
 
     TThread Thread;
     volatile bool Terminated;
     // IRequester has to be stored by Arcadia's IntrusivePtr.
     ::TIntrusivePtr<IRequester> Requester;
 
-    TBusMap BusMap;
-    TRequestMap RequestMap;
+    yhash_map<TSessionId, TNLBusClient::TBus::TPtr> BusMap;
+    yhash_map<TGuid, TRequest::TPtr> RequestMap;
 
     TLockFreeQueue<TRequest::TPtr> RequestQueue;
     TLockFreeQueue<TNLBusClient::TBus::TPtr> BusRegisterQueue;
@@ -261,7 +258,7 @@ class TClientDispatcher
         }
         bus->PingIds().clear();
 
-        BusMap.erase(sessionId);
+        YVERIFY(BusMap.erase(sessionId) == 1);
     }
 
     bool ProcessIncomingNLResponses()
@@ -325,11 +322,18 @@ class TClientDispatcher
 
         auto request = requestIt->second;
 
+        const auto& sessionId = request->SessionId;
+        auto busIt = BusMap.find(sessionId);
+        YASSERT(busIt != BusMap.end());
+        auto& bus = busIt->second;
+
         LOG_DEBUG("Request failed (SessionId: %s, RequestId: %s)",
-            ~request->SessionId.ToString(),
+            ~sessionId.ToString(),
             ~requestId.ToString());
 
         request->Result->Set(ESendResult::Failed);
+
+        YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         RequestMap.erase(requestIt);
     }
 
@@ -392,42 +396,75 @@ class TClientDispatcher
         auto& bus = busIt->second; 
         auto& request = requestIt->second;
 
-        YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         request->Result->Set(ESendResult::OK);
+
+        YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         RequestMap.erase(requestIt);
     }
 
     void ProcessBrokenSession(TPacketHeader* header, TUdpHttpResponse* nlResponse)
     {
-        const auto& sessionId = header->SessionId;
-        TGuid requestId = nlResponse->ReqId;
-        auto requestIt = RequestMap.find(requestId);
-        auto busIt = BusMap.find(sessionId);
-        if (requestIt == RequestMap.end() || busIt == BusMap.end()) {
-            LOG_DEBUG("Broken session reply for obsolete request received (SessionId: %s, RequestId: %s)",
-                ~sessionId.ToString(),
-                ~requestId.ToString());
+        const auto& oldSessionId = header->SessionId;
+        TGuid brokenRequestId = nlResponse->ReqId;
+        auto busIt = BusMap.find(oldSessionId);
+        if (busIt == BusMap.end()) {
+            LOG_DEBUG("Broken session reply for obsolete session received (SessionId: %s, RequestId: %s)",
+                ~oldSessionId.ToString(),
+                ~brokenRequestId.ToString());
             return;
         }
 
-        auto& bus = busIt->second; 
-        auto& request = requestIt->second;
-
-        //std::vector<TRequest*> pendingRequests;
-        //pendingRequests.resize(bus->RequestIds());
-
-        request->Result->Set(ESendResult::Failed);
-        YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
+        auto bus = busIt->second; 
         bus->RestartSession();
         const auto& newSessionId = bus->GetSessionId();
         YVERIFY(BusMap.insert(MakePair(newSessionId, bus)).second);
         BusMap.erase(busIt);
-        RequestMap.erase(requestIt);
-
-        LOG_DEBUG("Broken session reply received, session restarted (SessionId: %s, RequestId: %s, NewSessionId: %s)",
-            ~sessionId.ToString(),
-            ~requestId.ToString(),
+         
+        LOG_DEBUG("Broken session reply received, resending %d requests (SessionId: %s, RequestId: %s, NewSessionId: %s)",
+            bus->PendingRequestIds().size(),
+            ~oldSessionId.ToString(),
+            ~brokenRequestId.ToString(),
             ~newSessionId.ToString());
+
+        std::vector<TRequest*> pendingRequests;
+        pendingRequests.reserve(bus->PendingRequestIds().size());
+        FOREACH (const auto& requestId, bus->PendingRequestIds()) {
+            auto pendingRequestIt = RequestMap.find(requestId);
+            YASSERT(pendingRequestIt != RequestMap.end());
+            pendingRequests.push_back(~pendingRequestIt->second);
+        }
+
+        std::sort(
+            pendingRequests.begin(),
+            pendingRequests.end(),
+            [] (TRequest* lhs, TRequest* rhs) { return lhs->SequenceId < rhs->SequenceId; });
+
+        bus->PendingRequestIds().clear();
+
+        for (int index = 0; index < static_cast<int>(pendingRequests.size()); ++index) {
+            auto request = pendingRequests[index];
+
+            auto oldSequenceId = request->SequenceId;
+            auto oldRequestId = request->RequestId;
+
+            TSequenceId newSequenceId = TSequenceId(index);
+            YVERIFY(EncodeMessagePacket(~request->Message, newSessionId, newSequenceId, &request->Data));
+            TGuid newRequestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
+
+            request->SequenceId = newSequenceId;
+            request->RequestId = newRequestId;
+
+            YVERIFY(RequestMap.insert(MakePair(newRequestId, request)).second);
+            YVERIFY(RequestMap.erase(oldRequestId) == 1);
+            YVERIFY(bus->PendingRequestIds().insert(newRequestId).second);
+
+            LOG_DEBUG("Request resent (SessionId: %s, OldRequestId: %s, OldSequenceId: %" PRId64 ", NewRequestId: %s, NewSequenceId: %" PRId64 ")",
+                ~request->SessionId.ToString(),
+                ~oldRequestId.ToString(),
+                oldSequenceId,
+                ~newRequestId.ToString(),
+                newSequenceId);        
+        }
     }
 
     void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
@@ -472,6 +509,7 @@ class TClientDispatcher
         bus->ProcessIncomingMessage(~message, sequenceId);
 
         if (!isRequest) {
+            YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
             RequestMap.erase(requestId);
         } else {
             TBlob ackData;
@@ -544,7 +582,7 @@ class TClientDispatcher
         auto& bus = busIt->second;
 
         TGuid requestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
-
+        request->RequestId = requestId;
         bus->PendingRequestIds().insert(requestId);
         RequestMap.insert(MakePair(requestId, request));
 
@@ -608,7 +646,7 @@ public:
             ythrow yexception() << "Failed to encode a message";
 
         int dataSize = data.ysize();
-        auto request = New<TRequest>(sessionId, &data);
+        auto request = New<TRequest>(sessionId, message, MoveRV(data), sequenceId);
         RequestQueue.Enqueue(request);
         GetEvent().Signal();
 
@@ -710,8 +748,6 @@ void TNLBusClient::TBus::Terminate()
 
     Terminated = true;
 
-    // TODO: rearrangement is switched off, see YT-95
-    //MessageRearranger.Reset();
     TClientDispatcher::Get()->EnqueueBusUnregister(this);
 }
 

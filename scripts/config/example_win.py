@@ -11,7 +11,7 @@ Logging = {
         'raw' :
             {
                 'type' : 'raw',
-                'file_name' : "%(log_path)s.debug"
+                'file_name' : "%(debug_log_path)s"
             }, 
         'file' :
             {
@@ -70,6 +70,7 @@ class Master(WinNode, Server):
                 
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
+                print >>fd, 'del %s' % cls.debug_log_path
                 print >>fd, r'del /Q %s\*' % cls.config['meta_state']['snapshot_path']
                 print >>fd, r'del /Q %s\*' % cls.config['meta_state']['log_path']
         
@@ -96,6 +97,7 @@ class Holder(WinNode, Server):
         
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
+                print >>fd, 'del %s' % cls.debug_log_path
                 for location in cls.config['chunk_store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
                 print >>fd, 'rmdir /S /Q   %s' % cls.config['chunk_cache_location']['path']
@@ -129,6 +131,7 @@ class Client(WinNode, Base):
 
     def clean(cls, fd):
         print >>fd, 'del %s' % cls.log_path
+        print >>fd, 'del %s' % cls.debug_log_path
 
 def client_config(d):
     d.update(Client.config_base)

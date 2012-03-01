@@ -80,10 +80,10 @@ void TFollowerTracker::ChangeFollowerStatus(int followerId, EPeerStatus status)
             ~status.ToString());
 
         bool oldHasQuorum = HasActiveQuorum();
-        followerState.Status = status;
         if (followerState.Status == EPeerStatus::Following) {
             --ActiveFollowerCount;
         }
+        followerState.Status = status;
         if (status == EPeerStatus::Following) {
             ++ActiveFollowerCount;
         }

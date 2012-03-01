@@ -99,6 +99,9 @@ class RemoteNode(Node):
                     raise 'Zadnica'
                 print >>fd, wrap_cmd(cmd) 
 
+        _, bin_name = os.path.split(cls.bin_path)
+        print >>fd, 'ln -s %s/%s ~/%s' % (cls.remote_dir, bin_name, bin_name)
+
     run_tmpl = Template(cmd_run)
     def do_run(cls, fd):
         print >>fd, shebang
