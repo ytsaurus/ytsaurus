@@ -187,14 +187,17 @@ class YTEnv:
             slot_location = os.path.join(current, 'slots')
             logging_file_name = os.path.join(current, 'holder-' + str(i) + '.log')
 
-            holder_config['chunk_holder']['chunk_cache_location']['path'] = chunk_cache
+            #holder_config['chunk_holder']['chunk_cache_location']['path'] = chunk_cache
+            holder_config['chunk_cache_location']['path'] = chunk_cache
 
-            store_location = holder_config['chunk_holder']['chunk_store_locations']
+            #store_location = holder_config['chunk_holder']['chunk_store_locations']
+            store_location = holder_config['chunk_store_locations']
             store_location = store_location[0:1]
             store_location[0]['path'] = chunk_store
-            holder_config['chunk_holder']['chunk_store_locations'] = store_location
+            #holder_config['chunk_holder']['chunk_store_locations'] = store_location
+            holder_config['chunk_store_locations'] = store_location
 
-            holder_config['job_manager']['slot_location'] = slot_location
+            #holder_config['job_manager']['slot_location'] = slot_location
 
             holder_config['logging']['writers']['file']['file_name'] = logging_file_name
 

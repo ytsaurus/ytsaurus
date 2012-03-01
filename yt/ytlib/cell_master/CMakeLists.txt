@@ -8,6 +8,7 @@ set( SRCS
 set( HDRS
   ${BASE}/bootstrap.h
   ${BASE}/config.h
+  ${BASE}/load_context-inl.h
   ${BASE}/load_context.h
   ${BASE}/public.h
 )

@@ -33,7 +33,7 @@ void TStartTransactionCommand::DoExecute(TStartTransactionRequest* request)
 
 void TCommitTransactionCommand::DoExecute(TCommitTransactionRequest* request)
 {
-    auto transactionId = request->TxId;
+    auto transactionId = request->TransactionId;
     if (transactionId == NullTransactionId ||
         transactionId == DriverImpl->GetCurrentTransactionId())
     {
@@ -53,7 +53,7 @@ void TCommitTransactionCommand::DoExecute(TCommitTransactionRequest* request)
 
 void TAbortTransactionCommand::DoExecute(TAbortTransactionRequest* request)
 {
-    auto transactionId = request->TxId;
+    auto transactionId = request->TransactionId;
     if (transactionId == NullTransactionId ||
         transactionId == DriverImpl->GetCurrentTransactionId())
     {

@@ -40,11 +40,11 @@ Stroka ToStreamSpec(NYTree::INodePtr node);
 struct TTransactedRequest
     : public TRequestBase
 {
-    NObjectServer::TTransactionId TxId;
+    NObjectServer::TTransactionId TransactionId;
 
     TTransactedRequest()
     {
-        Register("tx_id", TxId)
+        Register("transaction_id", TransactionId)
             .Default(NObjectServer::NullTransactionId);
     }
 };

@@ -10,6 +10,8 @@ namespace NTransactionServer {
 class TTransactionManager;
 typedef TIntrusivePtr<TTransactionManager> TTransactionManagerPtr;
 
+class TTransaction;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NTransactionServer
