@@ -38,16 +38,12 @@ static Stroka FormatLevel(ELogLevel level)
     }
 }
 
-static Stroka FormatMessage(const Stroka& message)
+Stroka FormatMessage(const Stroka& message)
 {
     Stroka result;
     result.reserve(message.length() + 10);
     for (int index = 0; index < static_cast<int>(message.length()); ++index) {
         switch (message[index]) {
-            case '\t':
-                result.append("\\t");
-                break;
-
             case '\n':
                 result.append("\\n");
                 break;

@@ -33,20 +33,40 @@ void TStartTransactionCommand::DoExecute(TStartTransactionRequest* request)
 
 void TCommitTransactionCommand::DoExecute(TCommitTransactionRequest* request)
 {
-    auto transaction = DriverImpl->GetCurrentTransaction(true);
-    transaction->Commit();
-    DriverImpl->SetCurrentTransaction(NULL);
-    DriverImpl->ReplySuccess();
+    auto transactionId = request->TransactionId;
+    if (transactionId == NullTransactionId ||
+        transactionId == DriverImpl->GetCurrentTransactionId())
+    {
+        auto transaction = DriverImpl->GetCurrentTransaction(true);
+        transaction->Commit();
+        DriverImpl->SetCurrentTransaction(NULL);
+        DriverImpl->ReplySuccess();
+    } else {
+        auto transactionManager = DriverImpl->GetTransactionManager();
+        auto transaction = transactionManager->Attach(transactionId);
+        transaction->Commit();
+        DriverImpl->ReplySuccess();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TAbortTransactionCommand::DoExecute(TAbortTransactionRequest* request)
 {
-    auto transaction = DriverImpl->GetCurrentTransaction(true);
-    transaction->Abort();
-    DriverImpl->SetCurrentTransaction(NULL);
-    DriverImpl->ReplySuccess();
+    auto transactionId = request->TransactionId;
+    if (transactionId == NullTransactionId ||
+        transactionId == DriverImpl->GetCurrentTransactionId())
+    {
+        auto transaction = DriverImpl->GetCurrentTransaction(true);
+        transaction->Abort();
+        DriverImpl->SetCurrentTransaction(NULL);
+        DriverImpl->ReplySuccess();
+    } else {
+        auto transactionManager = DriverImpl->GetTransactionManager();
+        auto transaction = transactionManager->Attach(transactionId);
+        transaction->Abort();
+        DriverImpl->ReplySuccess();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

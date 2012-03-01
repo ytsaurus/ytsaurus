@@ -369,8 +369,6 @@ void TChangeLog::TImpl::Open()
 
 void TChangeLog::TImpl::Create(i32 prevRecordCount)
 {
-    // Do not use logging here. This method is used in forked process.
-
     YASSERT(State == EState::Closed);
 
     PrevRecordCount = prevRecordCount;

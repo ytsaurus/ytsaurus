@@ -65,7 +65,7 @@ struct IMetaStateManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual EPeerStatus SafeGetStateStatus() const = 0;
+    virtual EPeerStatus GetStateStatusAsync() const = 0;
 
     //! Returns an invoker used for updating the state.
     /*!

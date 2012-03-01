@@ -14,6 +14,7 @@ set( SRCS
   ${BASE}/follower_pinger.cpp
   ${BASE}/follower_tracker.cpp
   ${BASE}/meta_state_manager.cpp
+  ${BASE}/meta_state_service.cpp
   ${BASE}/persistent_state_manager.cpp
   ${BASE}/recovery.cpp
   ${BASE}/snapshot.cpp

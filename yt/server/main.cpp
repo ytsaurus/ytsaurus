@@ -64,6 +64,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
         .RequiredArgument("FILE")
         .StoreResult(&configFileName);
 
+    const auto& configTemplateOpt = opts.AddLongOption("config-template", "print configuration file template")
+        .NoArgument()
+        .Optional();
+
     TOptsParseResult results(&opts, argc, argv);
 
     // Figure out the mode: cell master or chunk holder.
@@ -104,6 +108,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
     // Start an appropriate server.
     if (isChunkHolder) {
         auto config = New<NChunkHolder::TBootstrap::TConfig>();
+        if (results.Has(&configTemplateOpt)) {
+            TYsonWriter writer(&Cout, EYsonFormat::Pretty);
+            config->Save(&writer);
+            return EExitCode::OK;
+        }
+
         try {
             config->Load(~configNode);
 
@@ -125,6 +135,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (isCellMaster) {
         auto config = New<TCellMasterConfig>();
+        if (results.Has(&configTemplateOpt)) {
+            TYsonWriter writer(&Cout, EYsonFormat::Pretty);
+            config->Save(&writer);
+            return EExitCode::OK;
+        }
+
         try {
             config->Load(~configNode);
             
@@ -145,6 +161,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (isScheduler) {
         auto config = New<TSchedulerBootstrap::TConfig>();
+        if (results.Has(&configTemplateOpt)) {
+            TYsonWriter writer(&Cout, EYsonFormat::Pretty);
+            config->Save(&writer);
+            return EExitCode::OK;
+        }
+
         try {
             config->LoadAndValidate(~configNode);
         } catch (const std::exception& ex) {

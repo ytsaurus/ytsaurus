@@ -32,7 +32,7 @@ public:
         , Owner(owner)
     { }
 
-    void Execute()
+    void Run()
     {
         auto& request = Context->Request();
 
@@ -128,10 +128,7 @@ DEFINE_RPC_SERVICE_METHOD(TCypressService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    ValidateLeader();
-
-    auto session = New<TExecuteSession>(this, ~context);
-    session->Execute();
+    New<TExecuteSession>(this, ~context)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

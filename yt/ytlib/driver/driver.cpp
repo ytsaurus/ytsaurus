@@ -188,10 +188,10 @@ public:
         reader.Read();
     }
 
-    // simplified version for unconditional success (yes, its empty output)
+    // Simplified version for unconditional success (yes, its empty output).
     virtual void ReplySuccess()
-    {
-    }
+    { }
+
 
     virtual TYsonProducer CreateInputProducer(const Stroka& spec)
     {
@@ -221,7 +221,6 @@ public:
         return new TOwningBufferedOutput(stream);
     }
 
-
     virtual IBlockCache* GetBlockCache()
     {
         return ~BlockCache;
@@ -235,6 +234,20 @@ public:
     virtual TTransactionId GetCurrentTransactionId()
     {
         return !Transaction ? NullTransactionId : Transaction->GetId();
+    }
+
+    virtual TTransactionId GetTransactionId(TTransactedRequest* request)
+    {
+        return request->TransactionId != NullTransactionId ? request->TransactionId : GetCurrentTransactionId();
+    }
+
+    virtual ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required)
+    {
+        if (request->TransactionId == NullTransactionId) {
+            return GetCurrentTransaction(required);
+        } else {
+            return TransactionManager->Attach(request->TransactionId);
+        }
     }
 
     virtual ITransaction* GetCurrentTransaction(bool required)

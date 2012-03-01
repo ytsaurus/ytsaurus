@@ -266,32 +266,32 @@ void TSnapshotBuilder::WatchdogFork(
     {
         auto snapshotBuilder = weakSnapshotBuilder.Lock();
         if (!snapshotBuilder) {
-            LOG_INFO("Snapshot builder has been deleted, exiting watchdog (SegmentId: %d)",
+            LOG_INFO("Snapshot builder has been deleted, exiting watchdog thread (SegmentId: %d)",
                 segmentId);
             return;
         }
         deadline = snapshotBuilder->Config->LocalTimeout.ToDeadLine();
         localResult = snapshotBuilder->LocalResult;
     }
+
+    LOG_DEBUG("Waiting for child process (ChildPid: %d)", childPid);
     int status;
-    LOG_DEBUG("Waiting for child process (ChildPID: %d)",
-        childPid);
     while (waitpid(childPid, &status, WNOHANG) == 0) {
         if (!weakSnapshotBuilder.IsExpired() && TInstant::Now() <= deadline) {
             sleep(1);
         } else {
             if (!weakSnapshotBuilder.IsExpired()) {
-                LOG_INFO("Snapshot builder has been deleted, killing child process (ChildPID: %d, SegmentId: %d)",
+                LOG_INFO("Snapshot builder has been deleted, killing child process (ChildPid: %d, SegmentId: %d)",
                     childPid,
                     segmentId);
             } else {
-                LOG_ERROR("Local snapshot creating timed out, killing child process (ChildPID: %d, SegmentId: %d)",
+                LOG_ERROR("Local snapshot creating timed out, killing child process (ChildPid: %d, SegmentId: %d)",
                     childPid,
                     segmentId);
             }
             auto killResult = kill(childPid, 9);
             if (killResult != 0) {
-                LOG_ERROR("Could not kill child process (ChildPID: %d, ErrorCode: %d)",
+                LOG_ERROR("Could not kill child process (ChildPid: %d, ErrorCode: %d)",
                     childPid,
                     killResult);
             }
@@ -299,31 +299,36 @@ void TSnapshotBuilder::WatchdogFork(
             return;
         }
     }
+
     if (!WIFEXITED(status)) {
-        LOG_ERROR("Local snapshot creating child process has not terminated correctly (SegmentId: %d)",
-                segmentId);
+        LOG_ERROR("Snapshot child process has terminated abnormally with status %d (SegmentId: %d)",
+            status,
+            segmentId);
         localResult->Set(TLocalResult(EResultCode::ForkError));
         return;
     }
+
     auto exitStatus = WEXITSTATUS(status);
-    LOG_INFO("Local snapshot creating child process exited with exit status %d (SegmentId: %d)",
+    LOG_INFO("Snapshot child process terminated with exit status %d (SegmentId: %d)",
         exitStatus,
         segmentId);
 
     auto snapshotBuilder = weakSnapshotBuilder.Lock();
     if (!snapshotBuilder) {
-        LOG_INFO("Snapshot builder has been deleted, exiting watchdog (SegmentId: %d)",
+        LOG_INFO("Snapshot builder has been deleted, exiting watchdog thread (SegmentId: %d)",
             segmentId);
         return;
     }
+
     auto result = snapshotBuilder->SnapshotStore->GetReader(segmentId);
     if (!result.IsOK()) {
-        LOG_ERROR("Cannot open snapshot (SnapshotId: %d)\n%s",
+        LOG_ERROR("Cannot open snapshot %d\n%s",
             segmentId,
             ~result.ToString());
         localResult->Set(TLocalResult(EResultCode::ForkError));
         return;
     }
+
     auto reader = result.Value();
     reader->Open();
     auto checksum = reader->GetChecksum();

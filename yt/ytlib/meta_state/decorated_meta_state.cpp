@@ -65,17 +65,10 @@ void TDecoratedMetaState::Clear()
 
 void TDecoratedMetaState::Save(TOutputStream* output)
 {
-    // Do not use logging here. This method is used in forked process.
-
     YASSERT(output);
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    //LOG_INFO("Started saving snapshot");
-
-    //auto started = TInstant::Now();
     State->Save(output);
-    //auto finished = TInstant::Now();
-    //LOG_INFO("Finished saving snapshot (Time: %.3f)", (finished - started).SecondsFloat());
 }
 
 void TDecoratedMetaState::Load(
@@ -161,14 +154,12 @@ TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
 
 void TDecoratedMetaState::AdvanceSegment()
 {
-    // Do not use logging here. This method is used in forked process.
-
     VERIFY_THREAD_AFFINITY(StateThread);
 
     CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(Version.SegmentId + 1, 0));
    
-    //LOG_INFO("Switched to a new segment %d", Version.SegmentId);
+    LOG_INFO("Switched to a new segment %d", Version.SegmentId);
 }
 
 void TDecoratedMetaState::RotateChangeLog()
@@ -228,7 +219,7 @@ TMetaVersion TDecoratedMetaState::GetVersion() const
     return Version;
 }
 
-TMetaVersion TDecoratedMetaState::SafeGetVersion() const
+TMetaVersion TDecoratedMetaState::GetVersionAsync() const
 {
 	VERIFY_THREAD_AFFINITY_ANY();
 
@@ -236,7 +227,14 @@ TMetaVersion TDecoratedMetaState::SafeGetVersion() const
 	return Version;
 }
 
-TMetaVersion TDecoratedMetaState::SafeGetReachableVersion() const
+TMetaVersion TDecoratedMetaState::GetReachableVersion() const
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    return ReachableVersion;
+}
+
+TMetaVersion TDecoratedMetaState::GetReachableVersionAsync() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

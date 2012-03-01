@@ -39,12 +39,16 @@ struct IAttributeDictionary
     typename TDeserializeTraits<T>::TReturnType Get(const Stroka& key) const;
 
     template <class T>
+    T Get(const Stroka& key, const T& defaultValue) const;
+    // If you need this method for ref-counted obects you should add special implementation.
+
+    template <class T>
     typename TNullableTraits<
         typename TDeserializeTraits<T>::TReturnType
     >::TNullableType Find(const Stroka& key) const;
 
     template <class T>
-    void Set(const Stroka& key, const T& value);
+    void Set(const Stroka& name, const T& value);
     
     //! Converts the instance into a map node (by copying and deserializing the values).
     IMapNodePtr ToMap() const;

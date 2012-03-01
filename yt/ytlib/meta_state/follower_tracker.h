@@ -39,6 +39,7 @@ public:
         TCellManager::TPtr cellManager,
         IInvoker::TPtr serviceInvoker);
 
+    void Start();
     void Stop();
     bool HasActiveQuorum() const;
     bool IsFollowerActive(TPeerId followerId) const;
@@ -53,13 +54,13 @@ private:
 
     void ChangeFollowerStatus(int followerId, EPeerStatus  status);
     void ResetFollowerState(int followerId);
-    void ResetFollowerStates();
     void OnLeaseExpired(TPeerId followerId);
 
     TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
     TCancelableInvoker::TPtr EpochInvoker;
     yvector<TFollowerState> FollowerStates;
+    int ActiveFollowerCount;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

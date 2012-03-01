@@ -3,9 +3,7 @@ package NYT.NYTree.NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGet
-{
-    optional bytes options = 1;
-}
+{ }
 
 message TRspGet
 {

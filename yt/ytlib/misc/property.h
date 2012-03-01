@@ -67,8 +67,7 @@ public: \
 #define DECLARE_BYVAL_RW_PROPERTY(type, name) \
 public: \
     type Get##name() const; \
-    void Set##name(const type& value); \
-    void Set##name(type&& value);
+    void Set##name(type value);
 
 //! Defines a trivial public read-write property that is passed by value.
 #define DEFINE_BYVAL_RW_PROPERTY(type, name) \
@@ -81,15 +80,10 @@ public: \
         return name##_; \
     } \
     \
-    FORCED_INLINE void Set##name(const type& value) \
+    FORCED_INLINE void Set##name(type value) \
     { \
         name##_ = value; \
     } \
-    \
-    FORCED_INLINE void Set##name(type&& value) \
-    { \
-        name##_ = MoveRV(value); \
-    }
 
 //! Forwards a trivial public read-write property that is passed by value.
 #define DELEGATE_BYVAL_RW_PROPERTY(declaringType, type, name, delegateTo) \
@@ -98,14 +92,9 @@ public: \
         return (delegateTo).Get##name(); \
     } \
     \
-    void declaringType::Set##name(const type& value) \
+    void declaringType::Set##name(type value) \
     { \
         (delegateTo).Set##name(value); \
-    } \
-    \
-    void declaringType::Set##name(type&& value) const \
-    { \
-        (delegateTo).Set##name(ForwardRV<type>(value)); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -43,12 +43,12 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
     Owner->Signal();
 }
 
-void TQueueInvoker::OnShutdown()
+void TQueueInvoker::Shutdown()
 {
     Owner = NULL;
 }
 
-bool TQueueInvoker::OnDequeueAndExecute()
+bool TQueueInvoker::DequeueAndExecute()
 {
     TItem item;
     if (!Queue.Dequeue(&item))
@@ -82,7 +82,8 @@ TActionQueueBase::TActionQueueBase(const Stroka& threadName, bool enableLogging)
 
 TActionQueueBase::~TActionQueueBase()
 {
-    Shutdown();
+    // Derived classes must call Shutdown in dtor.
+    YASSERT(!Running);
 }
 
 void TActionQueueBase::Start()
@@ -152,12 +153,13 @@ TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
 
 TActionQueue::~TActionQueue()
 {
-    QueueInvoker->OnShutdown();
+    QueueInvoker->Shutdown();
+    Shutdown();
 }
 
 bool TActionQueue::DequeueAndExecute()
 {
-    return QueueInvoker->OnDequeueAndExecute();
+    return QueueInvoker->DequeueAndExecute();
 }
 
 IInvoker* TActionQueue::GetInvoker()
@@ -194,8 +196,9 @@ TPrioritizedActionQueue::TPrioritizedActionQueue(int priorityCount, const Stroka
 TPrioritizedActionQueue::~TPrioritizedActionQueue()
 {
     for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
-        QueueInvokers[priority]->OnShutdown();
+        QueueInvokers[priority]->Shutdown();
     }
+    Shutdown();
 }
 
 IInvoker* TPrioritizedActionQueue::GetInvoker(int priority)
@@ -207,7 +210,7 @@ IInvoker* TPrioritizedActionQueue::GetInvoker(int priority)
 bool TPrioritizedActionQueue::DequeueAndExecute()
 {
     for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
-        if (QueueInvokers[priority]->OnDequeueAndExecute()) {
+        if (QueueInvokers[priority]->DequeueAndExecute()) {
             return true;
         }
     }

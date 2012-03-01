@@ -32,6 +32,12 @@ void TConfigurable::LoadAndValidate(NYTree::INode* node, const NYTree::TYPath& p
 void TConfigurable::Load(NYTree::INode* node, const NYTree::TYPath& path)
 {
     YASSERT(node);
+
+    if (node->GetType() == ENodeType::Entity) {
+        // Treat entities as absent nodes.
+        return;
+    }
+
     TIntrusivePtr<IMapNode> mapNode;
     try {
         mapNode = node->AsMap();
@@ -83,10 +89,10 @@ void TConfigurable::Save(IYsonConsumer* consumer) const
     auto sortedItems = GetSortedIterators(Parameters);
     FOREACH (const auto& pair, sortedItems) {
         const auto& parameter = pair->second;
-        if (parameter->IsPresent()) {
+        //if (parameter->IsPresent()) {
             consumer->OnMapItem(pair->first);
             pair->second->Save(consumer);
-        }
+        //}
     }
     consumer->OnEndMap();
 }

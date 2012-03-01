@@ -11,6 +11,9 @@
     "snapshot_path" = "/yt/disk1/data/control/server/master/0/snapshots";
     "max_changes_between_snapshots" = 1000000;
   };
+  transaction_manager = {
+    default_transaction_timeout = 300000;
+  };
   "logging" = {
     "rules" = [
       {

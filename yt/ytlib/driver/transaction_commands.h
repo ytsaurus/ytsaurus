@@ -34,7 +34,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCommitTransactionRequest
-    : public TRequestBase
+    : public TTransactedRequest
 { };
 
 class TCommitTransactionCommand
@@ -52,7 +52,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TAbortTransactionRequest
-    : public TRequestBase
+    : public TTransactedRequest
 { };
 
 class TAbortTransactionCommand

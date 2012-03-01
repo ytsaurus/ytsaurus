@@ -174,7 +174,7 @@ public:
         return StateStatus;
     }
 
-    virtual EPeerStatus SafeGetStateStatus() const
+    virtual EPeerStatus GetStateStatusAsync() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -218,8 +218,8 @@ public:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("state").Scalar(ControlStatus.ToString())
-                .Item("version").Scalar(MetaState->SafeGetVersion().ToString())
-                .Item("reachable_version").Scalar(MetaState->SafeGetReachableVersion().ToString())
+                .Item("version").Scalar(MetaState->GetVersionAsync().ToString())
+                .Item("reachable_version").Scalar(MetaState->GetReachableVersionAsync().ToString())
                 .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent)
                     {
@@ -725,7 +725,7 @@ public:
 
         YASSERT(!LeaderCommitter);
         LeaderCommitter = New<TLeaderCommitter>(
-            ~New<TLeaderCommitter::TConfig>(),
+            ~Config->LeaderCommitter,
             CellManager,
             MetaState,
             ChangeLogCache,
@@ -745,6 +745,8 @@ public:
             SnapshotStore,
             Epoch,
             ControlInvoker);
+
+        FollowerTracker->Start();
 
         ControlStatus = EPeerStatus::Leading;
 
@@ -975,13 +977,13 @@ public:
 
         YASSERT(!FollowerTracker);
         FollowerTracker = New<TFollowerTracker>(
-            ~New<TFollowerTracker::TConfig>(),
+            ~Config->FollowerTracker,
             CellManager,
             ControlInvoker);
 
         YASSERT(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
-            ~New<TFollowerPinger::TConfig>(), // Change to Config->LeaderPinger
+            ~Config->FollowerPinger,
             ~MetaState,
             ~CellManager,
             ~FollowerTracker,
@@ -1155,7 +1157,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto version = MetaState->SafeGetReachableVersion();
+        auto version = MetaState->GetReachableVersionAsync();
         return ((TPeerPriority) version.SegmentId << 32) | version.RecordCount;
     }
 

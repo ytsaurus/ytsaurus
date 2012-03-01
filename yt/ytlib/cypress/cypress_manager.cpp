@@ -235,7 +235,7 @@ public:
 	{
 		UNUSED(path);
 		UNUSED(verb);
-		ythrow yexception() << "Not a leader";
+		ythrow yexception() << "Not an active leader";
 	}
 };
 
@@ -277,7 +277,7 @@ TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 	return FromFunctor([=] () -> IYPathServicePtr
 		{
 			// Make a coarse check at this (wrong) thread first.
-			auto status = this_->MetaStateManager->SafeGetStateStatus();
+			auto status = this_->MetaStateManager->GetStateStatusAsync();
 			if (status == EPeerStatus::Leading) {
 				return New<TLeaderRootService>(~this_)->Via(~stateInvoker);
 			} else {
@@ -329,7 +329,7 @@ const ICypressNode* TCypressManager::FindVersionedNode(
 
         // Move to the parent transaction.
         const auto& transaction = TransactionManager->GetTransaction(transactionId);
-        currentTransactionId = transaction.GetParentId();
+        currentTransactionId = transaction.GetParent()->GetId();
     }
 }
 
@@ -391,7 +391,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
 
         // Move to the parent transaction.
         const auto& transaction = TransactionManager->GetTransaction(transactionId);
-        currentTransactionId = transaction.GetParentId();
+        currentTransactionId = transaction.GetParent()->GetId();
     }
 }
 
@@ -464,7 +464,7 @@ void TCypressManager::ValidateLock(
             }
         }
         const auto& transaction = TransactionManager->GetTransaction(currentTransactionId);
-        currentTransactionId = transaction.GetParentId();
+        currentTransactionId = transaction.GetParent()->GetId();
     }
 
     if (requestedMode != ELockMode::Snapshot) {
@@ -861,15 +861,13 @@ void TCypressManager::MergeBranchedNode(
 
     // Find the appropriate originating node.
     ICypressNode* originatingNode;
-    auto currentTransactionId = transaction.GetParentId();
+    auto* currentTransaction = transaction.GetParent();
     while (true) {
-        TVersionedNodeId currentOriginatingId(nodeId, currentTransactionId);
+        TVersionedNodeId currentOriginatingId(nodeId, currentTransaction->GetId());
         originatingNode = FindNode(currentOriginatingId);
         if (originatingNode)
             break;
-
-        const auto& transaction = TransactionManager->GetTransaction(currentTransactionId);
-        currentTransactionId = transaction.GetParentId();
+        currentTransaction = currentTransaction->GetParent();
     }
 
     GetHandler(branchedNode)->Merge(*originatingNode, branchedNode);

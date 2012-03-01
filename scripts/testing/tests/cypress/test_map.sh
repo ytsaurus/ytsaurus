@@ -27,5 +27,5 @@ echo '{do=get; path = "/map"}' | ytdriver
 echo '{do=remove; path="/map/hello"}' | ytdriver
 echo '{do=get; path = "/map"}' | ytdriver
 
-echo '{do=remove; path="/map"}' | ytdriver
+echo '{do=remove; path="/map/list"}' | ytdriver
 echo '{do=get; path = "/map"}' | ytdriver

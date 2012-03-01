@@ -1,8 +1,8 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree )
 set( SRCS
-  ${BASE}/attributes.cpp
   ${BASE}/attribute_provider_detail.cpp
+  ${BASE}/attributes.cpp
   ${BASE}/common.cpp
   ${BASE}/ephemeral.cpp
   ${BASE}/forwarding_yson_consumer.cpp

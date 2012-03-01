@@ -59,6 +59,8 @@ void TFileLogWriter::EnsureInitialized()
     try {
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
+        //FileOutput->SetFlushPropagateMode(true);
+        FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
         LOG_ERROR("Error opening log file %s\n%s",
@@ -90,6 +92,63 @@ void TFileLogWriter::Flush()
 {
     if (LogWriter) {
         LogWriter->Flush();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRawFileLogWriter::TRawFileLogWriter(const Stroka& fileName)
+    : FileName(fileName)
+    , Initialized(false)
+{ }
+
+void TRawFileLogWriter::EnsureInitialized()
+{
+    if (Initialized)
+        return;
+
+    try {
+        File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
+        FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
+        //FileOutput->SetFlushPropagateMode(true);
+        FileOutput->SetFinishPropagateMode(true);
+        *FileOutput << Endl;
+    } catch (const std::exception& ex) {
+        LOG_ERROR("Error opening log file %s\n%s",
+            ~FileName.Quote(),
+            ex.what());
+        // Still let's pretend we're initialized to avoid subsequent attempts.
+    }
+
+    Initialized = true;
+
+    Write(TLogEvent(
+        SystemLoggingCategory,
+        ELogLevel::Debug,
+        "Log file opened"));
+}
+
+
+void TRawFileLogWriter::Write(const TLogEvent& event)
+{
+    EnsureInitialized();
+    if (Initialized) {
+        *FileOutput
+            << event.DateTime << "\t"
+            << event.Level.ToString() << "\t"
+            << event.Category << "\t"
+            << event.FileName << "\t"
+            << event.Line << "\t"
+            << event.Function << "\t"
+            << event.ThreadId << "\t"
+            << FormatMessage(event.Message) << Endl;
+    }
+}
+
+void TRawFileLogWriter::Flush()
+{
+    if (Initialized) {
+        FileOutput->Flush();
     }
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "common.h"
 
 #include <ytlib/cell_master/public.h>
@@ -23,8 +24,8 @@ class TTransaction
     : public NObjectServer::TObjectWithIdBase
 {
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransactionId>, NestedTransactionIds);
-    DEFINE_BYVAL_RW_PROPERTY(TTransactionId, ParentId);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);
+    DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
 
     // Object Manager stuff
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectId>, CreatedObjectIds);

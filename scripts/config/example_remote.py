@@ -3,7 +3,12 @@ from cfglib.ytremote import *
 import cfglib.opts as opts
 
 Logging = {
-    'writers' : { 
+    'writers' : {
+        'raw' :
+        {
+            'type' : 'raw',
+            'file_name' : "%(log_path)s.debug"
+        },
         'file' :
         {
             'type' : "file",
@@ -15,6 +20,11 @@ Logging = {
         { 
             'categories' : [ "*" ],
             'min_level' : "debug",
+            'writers' : [ "raw" ]
+        },
+        {
+            'categories' : [ "*" ],
+            'min_level' : "info",
             'writers' : [ "file" ]
         }
     ]

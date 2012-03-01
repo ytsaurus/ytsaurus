@@ -10,6 +10,7 @@ set( SRCS
 set( HDRS
   ${BASE}/common.h
   ${BASE}/cypress_integration.h
+  ${BASE}/public.h
   ${BASE}/transaction.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_ypath_proxy.h

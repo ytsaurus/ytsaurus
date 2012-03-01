@@ -40,12 +40,12 @@ struct ICypressNode
      */
     virtual ELockMode GetLockMode() const = 0;
     //! Sets the lock mode.
-    virtual void SetLockMode(const ELockMode& mode) = 0;
+    virtual void SetLockMode(ELockMode mode) = 0;
 
     //! Gets the parent node id.
     virtual TNodeId GetParentId() const = 0;
     //! Sets the parent node id.
-    virtual void SetParentId(const TNodeId& value) = 0;
+    virtual void SetParentId(TNodeId value) = 0;
 
     //! Gets an immutable reference to the node's locks.
     virtual const yhash_set<TLockId>& LockIds() const = 0;

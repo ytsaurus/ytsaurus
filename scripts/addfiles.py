@@ -10,15 +10,15 @@ HEADER_EXTENSION = '.h'
 SOURCE_EXTENSION = '.cpp'
 INLINE_EXTENSION = '-inl.h'
 UNITTEST_EXTENSION = '_ut.cpp'
-EXTENSIONS = [HEADER_EXTENSION, SOURCE_EXTENSION, INLINE_EXTENSION, UNITTEST_EXTENSION]
+EXTENSIONS = [INLINE_EXTENSION, HEADER_EXTENSION, SOURCE_EXTENSION, UNITTEST_EXTENSION]
 
 
 def get_cmake_omm_path():
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), 'cmake-omm.py'))
+    return os.path.join(os.path.dirname(__file__), 'cmake-omm.py')
 
 
 def get_ytlib_path():
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), '../yt/ytlib'))
+    return os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../yt/ytlib'))
 
 
 def get_project_path(project_name):
@@ -34,8 +34,10 @@ def add_file(file_path, file_data):
         with open(file_path, 'w') as file:
             file.write(file_data)
     
+    current_directory = os.getcwd()
     os.chdir(os.path.dirname(file_path))
     os.system('git add ' + os.path.basename(file_path))
+    os.chdir(current_directory)
 
     print file_path, 'added.'
 
@@ -111,7 +113,7 @@ def get_inline_data(project_name, file_name):
 #endif
 #undef {0}
 '''.format(get_inl_define(file_name), file_name + HEADER_EXTENSION) + \
-        get_common_data()
+        get_common_data(project_name)
 
 
 def get_unittest_data(project_name, file_name):
@@ -156,6 +158,7 @@ def add_files(project_name, file_name, extensions):
             append_to_header_file(file_path, file_name)
 
     print '=' * 80
+
     os.system(get_cmake_omm_path() + ' --update')
     print '=' * 80
     

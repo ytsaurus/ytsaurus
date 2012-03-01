@@ -9,7 +9,7 @@ import yson
 import copy
 import os
 import subprocess
-import signal
+#import signal
 import time
 
 SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
@@ -38,27 +38,38 @@ def write_config(config, filename):
 class YTEnv:
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
+    NUM_SCHEDULERS = 0
+    INIT_TIMEOUT = 1
     SETUP_TIMEOUT = 8
 
     DELTA_MASTER_CONFIG = {}
     DELTA_HOLDER_CONFIG = {}
+    DELTA_SCHEDULER_CONFIG = {}
 
     # to be redefiened in successors
     def modify_master_config(self, config):
         pass
 
-    # to be redefiened in successors
+    # to be redefined in successors
     def modify_holder_config(self, config):
         pass
 
+    # to be redefined in successors
+    def modify_scheduler_config(self, config):
+        pass
+
     def setUp(self, path_to_run):
-        print 'Setting up configuration with', self.NUM_MASTERS, 'masters and', self.NUM_HOLDERS, 'holders'
+        print 'Setting up configuration with %s masters, %s holders, %s schedulers' % (
+            self.NUM_MASTERS, self.NUM_HOLDERS, self.NUM_SCHEDULERS
+            )
         self._set_path(path_to_run)
         self._clean_run_path()
         self._prepare_configs()
+        self._run_masters()
+        time.sleep(self.INIT_TIMEOUT)
+        self._init_sys()
         self._run_services()
         time.sleep(self.SETUP_TIMEOUT)
-        self._init_sys()
 
     def _set_path(self, path_to_run):
         path_to_run = os.path.abspath(path_to_run)
@@ -69,43 +80,61 @@ class YTEnv:
 
         self.master_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_master_config.yson'))
         self.holder_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_holder_config.yson'))
+        self.scheduler_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_scheduler_config.yson'))
         self.driver_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_driver_config.yson'))
 
         master_addresses = ["localhost:" + str(8001 + i) for i in xrange(self.NUM_MASTERS)]
         self.master_config['meta_state']['cell']['addresses'] = master_addresses
         self.holder_config['masters']['addresses'] = master_addresses
+        self.scheduler_config['masters']['addresses'] = master_addresses
         self.driver_config['masters']['addresses'] = master_addresses
 
         self.config_paths = {}
 
     def _run_services(self):
-        self._run_masters()
         self._run_holders()
+        self._run_schedulers()
 
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
-            port = 8001 + i
-            config_path = self.config_paths['master'][i]
-            p = subprocess.Popen('ytserver --cell-master --config {config_path}  --port {port} --id {i}'.format(**vars()).split())
+            p = subprocess.Popen('ytserver --cell-master --config {config_path}  --port {port} --id {i}'.format(
+                    port=8001 + i,
+                    config_path=self.config_paths['master'][i],
+                    i=i,
+                ).split())
             self.process_to_kill.append(p)
 
     def _run_holders(self):
         for i in xrange(self.NUM_HOLDERS):
-            port = 7001 + i
-            config_path = self.config_paths['holder'][i]
-            p = subprocess.Popen('ytserver --chunk-holder --config {config_path} --port {port}'.format(**vars()).split())
+            p = subprocess.Popen('ytserver --chunk-holder --config {config_path} --port {port}'.format(
+                    port=7001 + i,
+                    config_path=self.config_paths['holder'][i],
+                ).split())
+            self.process_to_kill.append(p)
+
+    def _run_schedulers(self):
+        for i in xrange(self.NUM_SCHEDULERS):
+            p = subprocess.Popen('ytserver --scheduler --config {config_path} --port {port}'.format(
+                    port=8101 + i,
+                    config_path=self.config_paths['scheduler'][i],
+                ).split())
             self.process_to_kill.append(p)
 
     def _init_sys(self):
-        if self.NUM_MASTERS == 0: return
-        init_file = os.path.join(CONFIGS_ROOTDIR, 'default_init.yt')
-        path_to_run = self.path_to_run
-        os.system('cd {path_to_run} && cat {init_file} | ytdriver'.format(**vars()))
+        if self.NUM_MASTERS == 0:
+            return
+        os.system('cd {path_to_run} && cat {init_file} | ytdriver'.format(
+            init_file=os.path.join(CONFIGS_ROOTDIR, 'default_init.yt'),
+            path_to_run=self.path_to_run,
+            ))
         for i in xrange(self.NUM_MASTERS):
             port = 8001 + i
             orchid_yson = '{do=create;path="/sys/masters/localhost:%d/orchid";type=orchid;manifest={remote_address="localhost:%d"}}' %(port, port)
             print orchid_yson
-            os.system("cd {path_to_run} && echo '{orchid_yson}'| ytdriver ".format(**vars()))
+            os.system("cd {path_to_run} && echo '{orchid_yson}'| ytdriver ".format(
+                path_to_run=self.path_to_run,
+                orchid_yson=orchid_yson
+                ))
         
 
     def _clean_run_path(self):
@@ -115,6 +144,7 @@ class YTEnv:
     def _prepare_configs(self):
         self._prepare_masters_config()
         self._prepare_holders_config()
+        self._prepare_schedulers_config()
         self._prepare_driver_config()
 
     def _prepare_masters_config(self):
@@ -154,21 +184,50 @@ class YTEnv:
 
             chunk_store = os.path.join(current, 'chunk_store')
             chunk_cache = os.path.join(current, 'chunk_cache')
+            slot_location = os.path.join(current, 'slots')
             logging_file_name = os.path.join(current, 'holder-' + str(i) + '.log')
 
+            #holder_config['chunk_holder']['chunk_cache_location']['path'] = chunk_cache
             holder_config['chunk_cache_location']['path'] = chunk_cache
+
+            #store_location = holder_config['chunk_holder']['chunk_store_locations']
             store_location = holder_config['chunk_store_locations']
             store_location = store_location[0:1]
             store_location[0]['path'] = chunk_store
+            #holder_config['chunk_holder']['chunk_store_locations'] = store_location
             holder_config['chunk_store_locations'] = store_location
+
+            #holder_config['job_manager']['slot_location'] = slot_location
+
             holder_config['logging']['writers']['file']['file_name'] = logging_file_name
 
-            self.modify_holder_config(config)
+            self.modify_holder_config(holder_config)
             deepupdate(holder_config, self.DELTA_HOLDER_CONFIG)
 
             config_path = os.path.join(current, 'holder_config.yson')
             write_config(holder_config, config_path)
             self.config_paths['holder'].append(config_path)
+
+    def _prepare_schedulers_config(self):
+        self.config_paths['scheduler'] = []
+
+        os.mkdir(os.path.join(self.path_to_run, 'scheduler'))
+        for i in xrange(self.NUM_SCHEDULERS):
+            config = copy.deepcopy(self.scheduler_config)
+            
+            current = os.path.join(self.path_to_run, 'scheduler', str(i))
+            os.mkdir(current)
+
+            logging_file_name = os.path.join(current, 'scheduler-%s.log' % i)
+
+            config['logging']['writers']['file']['file_name'] = logging_file_name
+
+            self.modify_scheduler_config(config)
+            deepupdate(config, self.DELTA_SCHEDULER_CONFIG)
+
+            config_path = os.path.join(current, 'scheduler_config.yson')
+            write_config(config, config_path)
+            self.config_paths['scheduler'].append(config_path)
 
     def _prepare_driver_config(self):
         config_path = os.path.join(self.path_to_run, 'driver_config.yson')

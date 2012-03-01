@@ -201,7 +201,8 @@ public:
 
     ~TImpl()
     {
-        Invoker->OnShutdown();
+        Invoker->Shutdown();
+        Shutdown();
     }
 
     void Start()
@@ -246,7 +247,7 @@ private:
     bool DequeueAndExecute()
     {
         // Handle pending callbacks first.
-        if (Invoker->OnDequeueAndExecute()) {
+        if (Invoker->DequeueAndExecute()) {
             return true;
         }
 

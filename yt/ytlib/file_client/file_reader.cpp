@@ -47,12 +47,8 @@ void TFileReader::Open()
     }
     auto chunkId = TChunkId::FromProto(fetchRsp->chunk_id());
     auto holderAddresses = FromProto<Stroka>(fetchRsp->holder_addresses());
-    FileName = fetchRsp->file_name();
-    Executable = fetchRsp->executable();
-    LOG_INFO("File info received (ChunkId: %s, FileName: %s, Executable: %s, HolderAddresses: [%s])",
+    LOG_INFO("File info received (ChunkId: %s, HolderAddresses: [%s])",
         ~chunkId.ToString(),
-        ~FileName,
-        ~ToString(Executable),
         ~JoinToString(holderAddresses));
 
     TFileReaderBase::Open(chunkId, holderAddresses);
@@ -60,22 +56,6 @@ void TFileReader::Open()
     if (Transaction) {
         ListenTransaction(~Transaction);
     }
-}
-
-Stroka TFileReader::GetFileName() const
-{
-    VERIFY_THREAD_AFFINITY(Client);
-    // YASSERT(IsOpen);
-
-    return FileName;
-}
-
-bool TFileReader::IsExecutable()
-{
-    VERIFY_THREAD_AFFINITY(Client);
-    // YASSERT(IsOpen);
-
-    return Executable;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
