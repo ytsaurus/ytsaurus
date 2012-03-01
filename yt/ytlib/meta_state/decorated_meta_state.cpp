@@ -226,7 +226,7 @@ TMetaVersion TDecoratedMetaState::GetVersion() const
     return Version;
 }
 
-TMetaVersion TDecoratedMetaState::SafeGetVersion() const
+TMetaVersion TDecoratedMetaState::GetVersionAsync() const
 {
 	VERIFY_THREAD_AFFINITY_ANY();
 
@@ -234,7 +234,7 @@ TMetaVersion TDecoratedMetaState::SafeGetVersion() const
 	return Version;
 }
 
-TMetaVersion TDecoratedMetaState::SafeGetReachableVersion() const
+TMetaVersion TDecoratedMetaState::GetReachableVersionAsync() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

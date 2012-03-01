@@ -46,7 +46,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    TMetaVersion SafeGetVersion() const;
+    TMetaVersion GetVersionAsync() const;
 
     //! Returns the maximum reachable version of the state that
     //! can be obtained by reading the local snapshots, changelogs.
@@ -57,7 +57,7 @@ public:
      *
      * \note Thread affinity: any
      */
-    TMetaVersion SafeGetReachableVersion() const;
+    TMetaVersion GetReachableVersionAsync() const;
 
     //! Returns the underlying state.
     /*!

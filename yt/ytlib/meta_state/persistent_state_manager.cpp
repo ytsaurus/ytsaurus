@@ -218,8 +218,8 @@ public:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("state").Scalar(ControlStatus.ToString())
-                .Item("version").Scalar(MetaState->SafeGetVersion().ToString())
-                .Item("reachable_version").Scalar(MetaState->SafeGetReachableVersion().ToString())
+                .Item("version").Scalar(MetaState->GetVersionAsync().ToString())
+                .Item("reachable_version").Scalar(MetaState->GetReachableVersionAsync().ToString())
                 .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent)
                     {
@@ -1155,7 +1155,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto version = MetaState->SafeGetReachableVersion();
+        auto version = MetaState->GetReachableVersionAsync();
         return ((TPeerPriority) version.SegmentId << 32) | version.RecordCount;
     }
 
