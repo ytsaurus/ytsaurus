@@ -58,6 +58,9 @@ TServiceBase::TServiceBase(
     YASSERT(defaultInvoker);
 }
 
+TServiceBase::~TServiceBase()
+{ }
+
 Stroka TServiceBase::GetServiceName() const
 {
     return ServiceName;
