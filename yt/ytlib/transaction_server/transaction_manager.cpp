@@ -73,7 +73,7 @@ private:
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
-                .Scalar(transaction.GetParent()->GetId().ToString());
+                .Scalar(transaction.GetParentId().ToString());
             return true;
         }
 
@@ -501,7 +501,7 @@ std::vector<TTransactionId> TTransactionManager::GetTransactionPath(const TTrans
     auto currentId = transactionId;
     while (currentId != NullTransactionId) {
         const auto& transaction = GetTransaction(currentId);
-        currentId = transaction.GetParent()->GetId();
+        currentId = transaction.GetParentId();
         path.push_back(currentId);
     }
     return path;

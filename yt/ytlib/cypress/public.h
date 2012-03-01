@@ -1,0 +1,16 @@
+#pragma once
+
+#include <ytlib/misc/common.h>
+
+namespace NYT {
+namespace NCypress {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressManager;
+typedef TIntrusivePtr<TCypressManager> TCypressManagerPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+            
+} // namespace NCypress
+} // namespace NYT

@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+// TODO: remove
 #include <ytlib/object_server/id.h>
 #include <ytlib/transaction_server/public.h>
 
@@ -27,6 +28,11 @@ template <>
 NTransactionServer::TTransaction* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void SaveObject(TOutputStream* output, const NObjectServer::TObjectWithIdBase* object);
+
+template <class T>
+void LoadObject(TInputStream* input, T*& object, const TLoadContext& context);
 
 template <class T>
 void SaveObjects(TOutputStream* output, const T& objects);
