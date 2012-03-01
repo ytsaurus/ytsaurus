@@ -937,6 +937,9 @@ public:
                     TProxy::EErrorCode::SnapshotAlreadyInProgress,
                     "Snapshot creation is already in progress");
                 break;
+            case TSnapshotBuilder::EResultCode::ForkError:
+                context->Reply(TError("Fork error"));
+                break;
             default:
                 YUNREACHABLE();
         }
