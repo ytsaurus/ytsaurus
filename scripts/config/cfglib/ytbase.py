@@ -73,6 +73,10 @@ class Node(AggrBase):
     def log_path(cls):
         return os.path.join(cls.work_dir, cls.__name__ + '.log')
 
+    @propmethod
+    def debug_log_path(cls):
+        return os.path.join(cls.work_dir, cls.__name__ + '.debug.log')
+
     def makeConfig(cls, fd):
         yson.dump(cls.config, fd, indent='  ')
 
