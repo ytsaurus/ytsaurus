@@ -83,7 +83,16 @@ void TFollowerTracker::ChangeFollowerStatus(int followerId, EPeerStatus status)
             followerId,
             ~followerState.Status.ToString(),
             ~status.ToString());
+
+        bool oldHasQuorum = HasActiveQuorum();
         followerState.Status = status;
+        bool newHasQuorum = HasActiveQuorum();
+
+        if (oldHasQuorum && !newHasQuorum) {
+            LOG_INFO("Active quorum lost");
+        } else if (!oldHasQuorum && newHasQuorum) {
+            LOG_INFO("Active quorum established");
+        }
     }
 }
 
