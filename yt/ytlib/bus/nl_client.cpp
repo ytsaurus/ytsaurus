@@ -421,7 +421,7 @@ class TClientDispatcher
         BusMap.erase(busIt);
          
         LOG_DEBUG("Broken session reply received, resending %d requests (SessionId: %s, RequestId: %s, NewSessionId: %s)",
-            bus->PendingRequestIds().size(),
+            static_cast<int>(bus->PendingRequestIds().size()),
             ~oldSessionId.ToString(),
             ~brokenRequestId.ToString(),
             ~newSessionId.ToString());
