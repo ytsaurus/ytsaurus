@@ -20,8 +20,7 @@ void TGetCommand::DoExecute(TGetRequest* request)
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
         request->Path,
         DriverImpl->GetTransactionId(request)));
-    auto optionsNode = request->GetOptions();
-    ypathRequest->set_options(SerializeToYson(~optionsNode));
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
@@ -41,6 +40,7 @@ void TSetCommand::DoExecute(TSetRequest* request)
     auto ypathRequest = TYPathProxy::Set(WithTransaction(
         request->Path,
         DriverImpl->GetTransactionId(request)));
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     TYson value;
     if (request->Value) {
@@ -70,6 +70,7 @@ void TRemoveCommand::DoExecute(TRemoveRequest* request)
         DriverImpl->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
         DriverImpl->ReplySuccess();
@@ -88,6 +89,7 @@ void TListCommand::DoExecute(TListRequest* request)
         DriverImpl->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
          auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
@@ -118,6 +120,7 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
     }
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
         auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
@@ -142,6 +145,7 @@ void TLockCommand::DoExecute(TLockRequest* request)
     ypathRequest->set_mode(request->Mode);
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
         auto lockId = TLockId::FromProto(ypathResponse->lock_id());

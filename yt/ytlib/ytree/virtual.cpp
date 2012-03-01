@@ -140,35 +140,15 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
     return TResolveResult::There(~service, suffixPath);
 }
 
-// TODO: pass "max_size" in RPC request attributes
-
-struct TGetConfig
-    : public TConfigurable
-{
-    int MaxSize;
-
-    TGetConfig()
-    {
-        Register("max_size", MaxSize)
-            .GreaterThanOrEqual(0)
-            .Default(100);
-    }
-};
-
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     YASSERT(IsFinalYPath(context->GetPath()));
 
-    auto config = New<TGetConfig>();
-    if (request->has_options()) {
-        auto options = DeserializeFromYson(request->options());
-        config->Load(~options);
-    }
-    config->Validate();
-    
+    int max_size = request->Attributes().Find<int>("max_size").Get(Max<int>());
+
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
-    auto keys = GetKeys(config->MaxSize);
+    auto keys = GetKeys(max_size);
     auto size = GetSize();
 
     // TODO(MRoizner): use fluent
