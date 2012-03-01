@@ -258,7 +258,7 @@ class TClientDispatcher
         CreatePacket(sessionId, TPacketHeader::EType::Ack, &ackData);
 
         FOREACH(const auto& requestId, bus->PingIds()) {
-            Requester->SendResponse((TGUID) requestId, &ackData);
+            Requester->SendResponse(requestId, &ackData);
         }
 
         BusMap.erase(sessionId);
