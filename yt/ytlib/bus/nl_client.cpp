@@ -165,16 +165,13 @@ class TClientDispatcher
         TSequenceId SequenceId;
     };
 
-    typedef yhash_map<TSessionId, TNLBusClient::TBus::TPtr> TBusMap;
-    typedef yhash_map<TGuid, TRequest::TPtr> TRequestMap;
-
     TThread Thread;
     volatile bool Terminated;
     // IRequester has to be stored by Arcadia's IntrusivePtr.
     ::TIntrusivePtr<IRequester> Requester;
 
-    TBusMap BusMap;
-    TRequestMap RequestMap;
+    yhash_map<TSessionId, TNLBusClient::TBus::TPtr> BusMap;
+    yhash_map<TGuid, TRequest::TPtr> RequestMap;
 
     TLockFreeQueue<TRequest::TPtr> RequestQueue;
     TLockFreeQueue<TNLBusClient::TBus::TPtr> BusRegisterQueue;
@@ -261,7 +258,7 @@ class TClientDispatcher
         }
         bus->PingIds().clear();
 
-        BusMap.erase(sessionId);
+        YVERIFY(BusMap.erase(sessionId) == 1);
     }
 
     bool ProcessIncomingNLResponses()
@@ -325,11 +322,18 @@ class TClientDispatcher
 
         auto request = requestIt->second;
 
+        const auto& sessionId = request->SessionId;
+        auto busIt = BusMap.find(sessionId);
+        YASSERT(busIt != BusMap.end());
+        auto& bus = busIt->second;
+
         LOG_DEBUG("Request failed (SessionId: %s, RequestId: %s)",
-            ~request->SessionId.ToString(),
+            ~sessionId.ToString(),
             ~requestId.ToString());
 
         request->Result->Set(ESendResult::Failed);
+
+        YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         RequestMap.erase(requestIt);
     }
 
@@ -392,8 +396,9 @@ class TClientDispatcher
         auto& bus = busIt->second; 
         auto& request = requestIt->second;
 
-        YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         request->Result->Set(ESendResult::OK);
+
+        YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         RequestMap.erase(requestIt);
     }
 
@@ -422,9 +427,9 @@ class TClientDispatcher
             ~newSessionId.ToString());
 
         std::vector<TRequest*> pendingRequests;
-        pendingRequests.resize(bus->PendingRequestIds().size());
-        FOREACH (const auto& brokenRequestId, bus->PendingRequestIds()) {
-            auto pendingRequestIt = RequestMap.find(brokenRequestId);
+        pendingRequests.reserve(bus->PendingRequestIds().size());
+        FOREACH (const auto& requestId, bus->PendingRequestIds()) {
+            auto pendingRequestIt = RequestMap.find(requestId);
             YASSERT(pendingRequestIt != RequestMap.end());
             pendingRequests.push_back(~pendingRequestIt->second);
         }
@@ -433,6 +438,8 @@ class TClientDispatcher
             pendingRequests.begin(),
             pendingRequests.end(),
             [] (TRequest* lhs, TRequest* rhs) { return lhs->SequenceId < rhs->SequenceId; });
+
+        bus->PendingRequestIds().clear();
 
         for (int index = 0; index < static_cast<int>(pendingRequests.size()); ++index) {
             auto request = pendingRequests[index];
@@ -446,6 +453,10 @@ class TClientDispatcher
 
             request->SequenceId = newSequenceId;
             request->RequestId = newRequestId;
+
+            YVERIFY(RequestMap.insert(MakePair(newRequestId, request)).second);
+            YVERIFY(RequestMap.erase(oldRequestId) == 1);
+            YVERIFY(bus->PendingRequestIds().insert(newRequestId).second);
 
             LOG_DEBUG("Request resent (SessionId: %s, OldRequestId: %s, OldSequenceId: %" PRId64 ", NewRequestId: %s, NewSequenceId: %" PRId64 ")",
                 ~request->SessionId.ToString(),
@@ -498,6 +509,7 @@ class TClientDispatcher
         bus->ProcessIncomingMessage(~message, sequenceId);
 
         if (!isRequest) {
+            YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
             RequestMap.erase(requestId);
         } else {
             TBlob ackData;
