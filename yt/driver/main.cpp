@@ -1,5 +1,7 @@
 #include <ytlib/logging/log_manager.h>
 
+#include <ytlib/profiling/profiling_manager.h>
+
 #include <ytlib/misc/delayed_invoker.h>
 
 #include <ytlib/driver/driver.h>
@@ -275,6 +277,7 @@ public:
         // TODO: refactor system shutdown
         NLog::TLogManager::Get()->Shutdown();
         NRpc::TRpcManager::Get()->Shutdown();
+        NProfiling::TProfilingManager::Get()->Shutdown();
         TDelayedInvoker::Shutdown();
 
         return ExitCode;
@@ -290,7 +293,7 @@ private:
     {
         auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
         TYsonFragmentReader parser(~builder, &input);
-        while(parser.HasNext()) {
+        while (parser.HasNext()) {
             builder->BeginTree();
             parser.ReadNext();
             auto commandNode = builder->EndTree();
