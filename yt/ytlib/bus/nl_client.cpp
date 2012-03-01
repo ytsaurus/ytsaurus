@@ -253,6 +253,7 @@ class TClientDispatcher
             Requester->CancelRequest((TGUID) requestId);
             RequestMap.erase(requestId);
         }
+        bus->RequestIds().clear();
 
         TBlob ackData;
         CreatePacket(sessionId, TPacketHeader::EType::Ack, &ackData);
@@ -260,6 +261,7 @@ class TClientDispatcher
         FOREACH(const auto& requestId, bus->PingIds()) {
             Requester->SendResponse(requestId, &ackData);
         }
+        bus->PingIds().clear();
 
         BusMap.erase(sessionId);
     }
