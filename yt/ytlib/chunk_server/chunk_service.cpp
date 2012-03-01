@@ -102,8 +102,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
         ~incarnationId.ToString(),
         ~ToString(statistics));
 
-    ValidateLeader();
-
     TMsgRegisterHolder message;
     message.set_address(address);
     message.set_incarnation_id(incarnationId.ToProto());
@@ -126,7 +124,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
 
     context->SetRequestInfo("HolderId: %d", holderId);
 
-    ValidateLeader();
     ValidateHolderId(holderId);
 
     const auto& holder = ChunkManager->GetHolder(holderId);
@@ -197,7 +194,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
         chunkCount,
         uploadReplicaCount);
 
-    ValidateLeader();
     ValidateTransactionId(transactionId);
 
     for (int index = 0; index < chunkCount; ++index) {

@@ -235,7 +235,7 @@ public:
 	{
 		UNUSED(path);
 		UNUSED(verb);
-		ythrow yexception() << "Not a leader";
+		ythrow yexception() << "Not an active leader";
 	}
 };
 
@@ -276,8 +276,9 @@ TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 	TCypressManager::TPtr this_ = this;
 	return FromFunctor([=] () -> IYPathServicePtr
 		{
+            VERIFY_THREAD_AFFINITY(StateThread);
 			// Make a coarse check at this (wrong) thread first.
-			auto status = this_->MetaStateManager->SafeGetStateStatus();
+			auto status = this_->MetaStateManager->GetStateStatus();
 			if (status == EPeerStatus::Leading) {
 				return New<TLeaderRootService>(~this_)->Via(~stateInvoker);
 			} else {

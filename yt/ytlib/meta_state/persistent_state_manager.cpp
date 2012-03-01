@@ -174,7 +174,7 @@ public:
         return StateStatus;
     }
 
-    virtual EPeerStatus SafeGetStateStatus() const
+    virtual EPeerStatus GetStateStatusAsync() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

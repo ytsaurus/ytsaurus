@@ -407,6 +407,52 @@ protected:
         bool OneWay;
     };
 
+    //! Describes a service method.
+    struct TRuntimeMethodInfo
+        : public TIntrinsicRefCounted
+    {
+        TRuntimeMethodInfo(const TMethodDescriptor& info, IInvoker* invoker)
+            : Descriptor(info)
+            , Invoker(invoker)
+        { }
+
+        TMethodDescriptor Descriptor;
+        IInvoker::TPtr Invoker;
+    };
+
+    typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
+
+    //! A request that is currently being served.
+    struct TActiveRequest
+        : public TIntrinsicRefCounted
+    {
+        TActiveRequest(
+            TRuntimeMethodInfoPtr runtimeInfo,
+            const NProfiling::TTimer& timer)
+            : RuntimeInfo(runtimeInfo)
+            , Timer(timer)
+            , Running(false)
+            , Completed(false)
+        { }
+
+        //! Method that is being served.
+        TRuntimeMethodInfoPtr RuntimeInfo;
+
+        //! Guards the rest.
+        TSpinLock SpinLock;
+
+        //! True if the service method is currently running.
+        bool Running;
+
+        //! True if #OnEndRequest is already called.
+        bool Completed;
+
+        //! Measures various execution statistics.
+        NProfiling::TTimer Timer;
+    };
+
+    typedef TIntrusivePtr<TActiveRequest> TActiveRequestPtr;
+
     //! Initializes the instance.
     /*!
      *  \param defaultInvoker
@@ -434,8 +480,14 @@ protected:
     void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker* invoker);
 
 private:
-	class TImpl;
-	THolder<TImpl> Impl;
+    IInvoker::TPtr DefaultInvoker;
+    Stroka ServiceName;
+    NLog::TLogger ServiceLogger;
+
+    //! Protects #RuntimeMethodInfos and #ActiveRequests.
+    TSpinLock SpinLock;
+    yhash_map<Stroka, TRuntimeMethodInfoPtr> RuntimeMethodInfos;
+    yhash_map<IServiceContext::TPtr, TActiveRequestPtr> ActiveRequests;
 
 	virtual Stroka GetServiceName() const;
 	virtual Stroka GetLoggingCategory() const;
@@ -443,6 +495,10 @@ private:
 	virtual void OnBeginRequest(IServiceContext* context);
 	virtual void OnEndRequest(IServiceContext* context);
 
+    void TServiceBase::InvokeHandler(
+        TRuntimeMethodInfo* runtimeInfo,
+        IAction::TPtr handler,
+        IServiceContext* context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
