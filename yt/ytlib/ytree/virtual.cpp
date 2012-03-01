@@ -144,7 +144,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 {
     YASSERT(IsFinalYPath(context->GetPath()));
 
-    int max_size = request->Attributes().Find<int>("max_size").Get(Max<int>());
+    int max_size = request->Attributes().Get<int>("max_size", Max<int>());
 
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
