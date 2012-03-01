@@ -73,15 +73,15 @@ private:
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
-                .Scalar(transaction.GetParentId().ToString());
+                .Scalar(transaction.GetParent()->GetId().ToString());
             return true;
         }
 
         if (name == "nested_transaction_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.NestedTransactionIds(), [=] (TFluentList fluent, TTransactionId id)
+                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* transaction)
                     {
-                        fluent.Item().Scalar(id.ToString());
+                        fluent.Item().Scalar(transaction->GetId().ToString());
                     });
             return true;
         }
@@ -299,8 +299,8 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManif
     ObjectManager->RefObject(id);
     
     if (parent) {
-        transaction->SetParentId(parent->GetId());
-        YVERIFY(parent->NestedTransactionIds().insert(id).second);
+        transaction->SetParent(parent);
+        YVERIFY(parent->NestedTransactions().insert(transaction).second);
         ObjectManager->RefObject(id);
     }
 
@@ -325,7 +325,7 @@ void TTransactionManager::Commit(TTransaction& transaction)
 
     auto id = transaction.GetId();
 
-    if (!transaction.NestedTransactionIds().empty()) {
+    if (!transaction.NestedTransactions().empty()) {
         ythrow yexception() << "Cannot commit since the transaction has nested transactions in progress";
     }
 
@@ -349,11 +349,11 @@ void TTransactionManager::Abort(TTransaction& transaction)
     auto id = transaction.GetId();
 
     // Make a copy, the set will be modified.
-    auto nestedIds = transaction.NestedTransactionIds();
-    FOREACH (const auto& nestedId, nestedIds) {
-        Abort(GetTransaction(nestedId));
+    auto nestedTransactions = transaction.NestedTransactions();
+    FOREACH (auto* transaction, nestedTransactions) {
+        Abort(*transaction);
     }
-    YASSERT(transaction.NestedTransactionIds().empty());
+    YASSERT(transaction.NestedTransactions().empty());
 
     if (IsLeader()) {
         CloseLease(transaction);
@@ -372,9 +372,9 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
 {
     auto transactionId = transaction.GetId();
 
-    if (transaction.GetParentId() != NullTransactionId) {
-        auto& parent = GetTransaction(transaction.GetParentId());
-        YVERIFY(parent.NestedTransactionIds().erase(transactionId) == 1);
+    if (transaction.GetParent()) {
+        auto* parent = transaction.GetParent();
+        YVERIFY(parent->NestedTransactions().erase(&transaction) == 1);
         ObjectManager->UnrefObject(transactionId);
     }
 
@@ -501,7 +501,7 @@ std::vector<TTransactionId> TTransactionManager::GetTransactionPath(const TTrans
     auto currentId = transactionId;
     while (currentId != NullTransactionId) {
         const auto& transaction = GetTransaction(currentId);
-        currentId = transaction.GetParentId();
+        currentId = transaction.GetParent()->GetId();
         path.push_back(currentId);
     }
     return path;

@@ -2,6 +2,7 @@
 #include "transaction.h"
 
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/load_context.h>
 
 #include <util/ysaveload.h>
 
@@ -14,14 +15,15 @@ using namespace NCellMaster;
 
 TTransaction::TTransaction(const TTransactionId& id)
     : TObjectWithIdBase(id)
+    , Parent_(NULL)
 { }
 
 void TTransaction::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
     ::Save(output, State_);
-    SaveSet(output, NestedTransactionIds_);
-    ::Save(output, ParentId_);
+    SaveObjects(output, NestedTransactions_);
+    ::Save(output, Parent_->GetId());
     SaveSet(output, CreatedObjectIds_);
     ::Save(output, LockIds_);
     ::Save(output, BranchedNodeIds_);
@@ -32,8 +34,10 @@ void TTransaction::Load(TInputStream* input, const TLoadContext& context)
 {
     TObjectWithIdBase::Load(input);
     ::Load(input, State_);
-    LoadSet(input, NestedTransactionIds_);
-    ::Load(input, ParentId_);
+    LoadObjects(input, NestedTransactions_, context);
+    TTransactionId parentId;
+    ::Load(input, parentId);
+    Parent_ = context.Get<TTransaction>(parentId);
     LoadSet(input, CreatedObjectIds_);
     ::Load(input, LockIds_);
     ::Load(input, BranchedNodeIds_);
