@@ -20,7 +20,7 @@ struct TCellMasterConfig
     //! Meta state configuration.
     NMetaState::TPersistentStateManagerConfig::TPtr MetaState;
 
-    NTransactionServer::TTransactionManager::TConfig::TPtr TransactionManager;
+    NTransactionServer::TTransactionManager::TConfig::TPtr Transactions;
 
     //! RPC interface port number.
     int RpcPort;
@@ -34,7 +34,7 @@ struct TCellMasterConfig
             .Default(0);
         Register("meta_state", MetaState)
             .DefaultNew();
-        Register("transaction_manager", TransactionManager)
+        Register("transactions", Transactions)
             .DefaultNew();
         Register("rpc_port", RpcPort)
             .Default(9000);

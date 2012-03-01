@@ -141,7 +141,7 @@ void TBootstrap::Run()
         Config->CellId);
 
     TransactionManager = New<TTransactionManager>(
-        ~Config->TransactionManager,
+        ~Config->Transactions,
         ~metaStateManager,
         ~metaState,
         ~objectManager);
