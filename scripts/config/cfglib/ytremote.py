@@ -8,11 +8,10 @@ DoClean = FileDescr('do_clean', ('remote', 'exec'))
 DoTest = FileDescr('do_test', ('remote', 'exec'))
 Test = FileDescr('test', ('aggregate', 'exec'))
 
-DoUpdateConfig = FileDescr('do_update_config', ('remote', 'exec'))
 UpdateConfig = FileDescr('update_config', ('aggregate', 'exec'))
 
 Files = [Config, Prepare, DoRun, Run, DoStop, Stop, Clean, DoClean, 
-Test, DoTest, UpdateConfig, DoUpdateConfig]
+Test, DoTest, UpdateConfig]
 
 ################################################################
 
@@ -123,7 +122,7 @@ class RemoteNode(Node):
         print >>fd, shebang
         print >>fd, wrap_cmd(cls.stop_tmpl, True, timeout=0)
 
-    def do_update_config(cls, fd):
+    def update_config(cls, fd):
         print >>fd, shebang
         cmd = cmd_rsync % (os.path.join(cls.local_path(Config.filename)), 
                         cls.host, cls.remote_dir)
