@@ -65,17 +65,10 @@ void TDecoratedMetaState::Clear()
 
 void TDecoratedMetaState::Save(TOutputStream* output)
 {
-    // Do not use logging here. This method is used in forked process.
-
     YASSERT(output);
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    //LOG_INFO("Started saving snapshot");
-
-    //auto started = TInstant::Now();
     State->Save(output);
-    //auto finished = TInstant::Now();
-    //LOG_INFO("Finished saving snapshot (Time: %.3f)", (finished - started).SecondsFloat());
 }
 
 void TDecoratedMetaState::Load(

@@ -129,12 +129,9 @@ TSnapshotWriter::TSnapshotWriter(Stroka fileName, i32 segmentId)
 
 void TSnapshotWriter::Open(i32 prevRecordCount)
 {
-    // Do not use logging here. This method is used in forked process.
-
     PrevRecordCount = prevRecordCount;
     Close();
 
-    //LOG_DEBUG("Opening snapshot %s for writing", ~TempFileName.Quote());
     File.Reset(new TFile(TempFileName, RdWr | CreateAlways));
     FileOutput.Reset(new TBufferedFileOutput(*File));
 
@@ -155,12 +152,8 @@ TOutputStream& TSnapshotWriter::GetStream() const
 
 void TSnapshotWriter::Close()
 {
-    // Do not use logging here. This method is used in forked process.
-
     if (!FileOutput)
         return;
-
-    //LOG_DEBUG("Closing snapshot %s", ~TempFileName.Quote());
 
     if (~ChecksummableOutput) {
         Checksum = ChecksummableOutput->GetChecksum();
@@ -186,7 +179,6 @@ void TSnapshotWriter::Close()
         if (!NFS::Remove(~FileName)) {
             ythrow yexception() << Sprintf("Error removing %s", ~FileName.Quote());
         }
-        //LOG_WARNING("File %s already existed and was deleted", ~FileName.Quote());
     }
 
     if (!NFS::Rename(~TempFileName, ~FileName)) {
