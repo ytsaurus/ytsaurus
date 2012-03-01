@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 
 #include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/object_server/object_detail.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -24,6 +25,13 @@ TTransaction* TLoadContext::Get(const TObjectId& id) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
+void SaveObject(TOutputStream* output, const TObjectWithIdBase* object)
+{
+    ::Save(output, object ? object->GetId() : NullObjectId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NCellMaster
 } // namespace NYT

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "id.h"
 #include "object_proxy.h"
 #include "object_manager.h"

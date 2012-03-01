@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "common.h"
 #include "node.h"
 #include "type_handler.h"

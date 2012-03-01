@@ -1,11 +1,14 @@
 #pragma once
 
+#include "public.h"
 #include "common.h"
 #include "attribute_set.h"
 #include "type_handler.h"
 #include "object_manager.pb.h"
 
 #include <ytlib/cell_master/public.h>
+#include <ytlib/transaction_server/public.h>
+
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/meta_state/composite_meta_state.h>
@@ -16,10 +19,6 @@ namespace NYT {
 // TODO(babenko): killme
 namespace NCypress {
     class TCypressManager;
-}
-
-namespace NTransactionServer {
-    class TTransactionManager;
 }
 
 namespace NObjectServer {

@@ -9,6 +9,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NObjectServer::TTransactionId;
+using NObjectServer::NullTransactionId;
 
 extern NLog::TLogger TransactionServerLogger;
 
