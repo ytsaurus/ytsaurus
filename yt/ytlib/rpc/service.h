@@ -471,7 +471,7 @@ protected:
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
-	~TServiceBase();
+    ~TServiceBase();
 
     //! Registers a method.
     void RegisterMethod(const TMethodDescriptor& descriptor);
@@ -489,13 +489,13 @@ private:
     yhash_map<Stroka, TRuntimeMethodInfoPtr> RuntimeMethodInfos;
     yhash_map<IServiceContext::TPtr, TActiveRequestPtr> ActiveRequests;
 
-	virtual Stroka GetServiceName() const;
-	virtual Stroka GetLoggingCategory() const;
+    virtual Stroka GetServiceName() const;
+    virtual Stroka GetLoggingCategory() const;
 
-	virtual void OnBeginRequest(IServiceContext* context);
-	virtual void OnEndRequest(IServiceContext* context);
+    virtual void OnBeginRequest(IServiceContext* context);
+    virtual void OnEndRequest(IServiceContext* context);
 
-    void TServiceBase::InvokeHandler(
+    void InvokeHandler(
         TRuntimeMethodInfo* runtimeInfo,
         IAction::TPtr handler,
         IServiceContext* context);

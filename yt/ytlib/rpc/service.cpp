@@ -48,91 +48,91 @@ void IServiceContext::Reply(NBus::IMessage* message)
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TServiceBase(
-	IInvoker* defaultInvoker,
-	const Stroka& serviceName,
-	const Stroka& loggingCategory)
-	: DefaultInvoker(defaultInvoker)
-	, ServiceName(serviceName)
-	, ServiceLogger(loggingCategory)
+    IInvoker* defaultInvoker,
+    const Stroka& serviceName,
+    const Stroka& loggingCategory)
+    : DefaultInvoker(defaultInvoker)
+    , ServiceName(serviceName)
+    , ServiceLogger(loggingCategory)
 {
-	YASSERT(defaultInvoker);
+    YASSERT(defaultInvoker);
 }
 
 Stroka TServiceBase::GetServiceName() const
 {
-	return ServiceName;
+    return ServiceName;
 }
 
 Stroka TServiceBase::GetLoggingCategory() const
 {
-	return ServiceLogger.GetCategory();
+    return ServiceLogger.GetCategory();
 }
 
 void TServiceBase::OnBeginRequest(IServiceContext* context)
 {
-	YASSERT(context);
+    YASSERT(context);
 
-	Stroka verb = context->GetVerb();
+    Stroka verb = context->GetVerb();
 
-	TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(SpinLock);
 
-	auto methodIt = RuntimeMethodInfos.find(verb);
-	if (methodIt == RuntimeMethodInfos.end()) {
-		guard.Release();
+    auto methodIt = RuntimeMethodInfos.find(verb);
+    if (methodIt == RuntimeMethodInfos.end()) {
+        guard.Release();
 
-		Stroka message = Sprintf("Unknown verb (ServiceName: %s, Verb: %s)",
-			~ServiceName,
-			~verb);
-		LOG_WARNING("%s", ~message);
-		if (!context->IsOneWay()) {
-			context->Reply(TError(EErrorCode::NoSuchVerb, message));
-		}
+        Stroka message = Sprintf("Unknown verb (ServiceName: %s, Verb: %s)",
+            ~ServiceName,
+            ~verb);
+        LOG_WARNING("%s", ~message);
+        if (!context->IsOneWay()) {
+            context->Reply(TError(EErrorCode::NoSuchVerb, message));
+        }
 
-		return;
-	}
+        return;
+    }
 
-	auto runtimeInfo = methodIt->second;
-	if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
-		guard.Release();
+    auto runtimeInfo = methodIt->second;
+    if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
+        guard.Release();
 
-		Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
-			~ToString(runtimeInfo->Descriptor.OneWay),
-			~ToString(context->IsOneWay()),
-			~ServiceName,
-			~verb);
-		LOG_WARNING("%s", ~message);
-		if (!context->IsOneWay()) {
-			context->Reply(TError(EErrorCode::NoSuchVerb, message));
-		}
+        Stroka message = Sprintf("One-way flag mismatch (Expected: %s, Actual: %s, ServiceName: %s, Verb: %s)",
+            ~ToString(runtimeInfo->Descriptor.OneWay),
+            ~ToString(context->IsOneWay()),
+            ~ServiceName,
+            ~verb);
+        LOG_WARNING("%s", ~message);
+        if (!context->IsOneWay()) {
+            context->Reply(TError(EErrorCode::NoSuchVerb, message));
+        }
 
-		return;
-	}
+        return;
+    }
 
-	auto timer = Profiler.TimingStart(CombineYPaths(
-		context->GetPath(),
-		context->GetVerb(),
-		"time"));
+    auto timer = Profiler.TimingStart(CombineYPaths(
+        context->GetPath(),
+        context->GetVerb(),
+        "time"));
 
-	auto activeRequest = New<TActiveRequest>(runtimeInfo, timer);
+    auto activeRequest = New<TActiveRequest>(runtimeInfo, timer);
 
-	if (!context->IsOneWay()) {
-		YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).second);
-	}
+    if (!context->IsOneWay()) {
+        YVERIFY(ActiveRequests.insert(MakePair(context, activeRequest)).second);
+    }
 
-	guard.Release();
+    guard.Release();
 
-	auto handler = runtimeInfo->Descriptor.Handler;
-	auto guardedHandler = context->Wrap(~handler->Bind(context));
+    auto handler = runtimeInfo->Descriptor.Handler;
+    auto guardedHandler = context->Wrap(~handler->Bind(context));
     auto wrappedHandler = FromFunctor([=] ()
-		{
-			auto& timer = activeRequest->Timer;
-			Profiler.TimingCheckpoint(timer, "wait");
+        {
+            auto& timer = activeRequest->Timer;
+            Profiler.TimingCheckpoint(timer, "wait");
 
             // No need for a lock here.
             activeRequest->Running = true;
 
-			guardedHandler->Do();
-			Profiler.TimingCheckpoint(timer, "sync");
+            guardedHandler->Do();
+            Profiler.TimingCheckpoint(timer, "sync");
 
             {
                 TGuard<TSpinLock> guard(activeRequest->SpinLock);
@@ -142,26 +142,26 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
                     Profiler.TimingStop(timer);
                 }
             }
-		});
+        });
 
     InvokeHandler(~runtimeInfo, wrappedHandler, context);
 }
 
 void TServiceBase::OnEndRequest(IServiceContext* context)
 {
-	YASSERT(context);
-	YASSERT(!context->IsOneWay());
+    YASSERT(context);
+    YASSERT(!context->IsOneWay());
 
-	TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(SpinLock);
 
-	auto it = ActiveRequests.find(context);
-	if (it == ActiveRequests.end())
-		return;
+    auto it = ActiveRequests.find(context);
+    if (it == ActiveRequests.end())
+        return;
 
-	auto& activeRequest = it->second;
+    auto& activeRequest = it->second;
 
-	auto& timer = activeRequest->Timer;
-	Profiler.TimingCheckpoint(timer, "async");
+    auto& timer = activeRequest->Timer;
+    Profiler.TimingCheckpoint(timer, "async");
 
     {
         TGuard<TSpinLock> guard(activeRequest->SpinLock);
@@ -172,22 +172,22 @@ void TServiceBase::OnEndRequest(IServiceContext* context)
         }
     }
 
-	ActiveRequests.erase(it);
+    ActiveRequests.erase(it);
 }
 
 void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
-	RegisterMethod(descriptor, ~DefaultInvoker);
+    RegisterMethod(descriptor, ~DefaultInvoker);
 }
 
 void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker* invoker)
 {
-	YASSERT(invoker);
+    YASSERT(invoker);
 
-	TGuard<TSpinLock> guard(SpinLock);
-	auto info = New<TRuntimeMethodInfo>(descriptor,invoker);
-	// Failure here means that such verb is already registered.
-	YVERIFY(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
+    TGuard<TSpinLock> guard(SpinLock);
+    auto info = New<TRuntimeMethodInfo>(descriptor,invoker);
+    // Failure here means that such verb is already registered.
+    YVERIFY(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
 }
 
 void TServiceBase::InvokeHandler(
