@@ -4,6 +4,8 @@
 #include "meta_state_manager.h"
 #include "change_log_downloader.h"
 #include "snapshot_downloader.h"
+#include "follower_pinger.h"
+#include "change_committer.h"
 
 #include <ytlib/rpc/server.h>
 #include <ytlib/misc/configurable.h>
@@ -50,6 +52,12 @@ struct TPersistentStateManagerConfig
 
     TSnapshotDownloader::TConfig::TPtr SnapshotDownloader;
 
+    TFollowerPinger::TConfig::TPtr FollowerPinger;
+
+    TFollowerTracker::TConfig::TPtr FollowerTracker;
+
+    TLeaderCommitter::TConfig::TPtr LeaderCommitter;
+
     TPersistentStateManagerConfig()
     {
         Register("log_path", LogPath)
@@ -68,6 +76,12 @@ struct TPersistentStateManagerConfig
         Register("change_log_downloader", ChangeLogDownloader)
             .DefaultNew();
         Register("snapshot_downloader", SnapshotDownloader)
+            .DefaultNew();
+        Register("follower_pinger", FollowerPinger)
+            .DefaultNew();
+        Register("follower_tracker", FollowerTracker)
+            .DefaultNew();
+        Register("leader_committer", LeaderCommitter)
             .DefaultNew();
     }
 };

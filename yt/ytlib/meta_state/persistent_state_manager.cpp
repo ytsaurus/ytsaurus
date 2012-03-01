@@ -725,7 +725,7 @@ public:
 
         YASSERT(!LeaderCommitter);
         LeaderCommitter = New<TLeaderCommitter>(
-            ~New<TLeaderCommitter::TConfig>(),
+            ~Config->LeaderCommitter,
             CellManager,
             MetaState,
             ChangeLogCache,
@@ -975,13 +975,13 @@ public:
 
         YASSERT(!FollowerTracker);
         FollowerTracker = New<TFollowerTracker>(
-            ~New<TFollowerTracker::TConfig>(),
+            ~Config->FollowerTracker,
             CellManager,
             ControlInvoker);
 
         YASSERT(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
-            ~New<TFollowerPinger::TConfig>(), // Change to Config->LeaderPinger
+            ~Config->FollowerPinger,
             ~MetaState,
             ~CellManager,
             ~FollowerTracker,
