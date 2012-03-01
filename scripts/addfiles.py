@@ -10,7 +10,7 @@ HEADER_EXTENSION = '.h'
 SOURCE_EXTENSION = '.cpp'
 INLINE_EXTENSION = '-inl.h'
 UNITTEST_EXTENSION = '_ut.cpp'
-EXTENSIONS = [HEADER_EXTENSION, SOURCE_EXTENSION, INLINE_EXTENSION, UNITTEST_EXTENSION]
+EXTENSIONS = [INLINE_EXTENSION, HEADER_EXTENSION, SOURCE_EXTENSION, UNITTEST_EXTENSION]
 
 
 def get_cmake_omm_path():
@@ -113,7 +113,7 @@ def get_inline_data(project_name, file_name):
 #endif
 #undef {0}
 '''.format(get_inl_define(file_name), file_name + HEADER_EXTENSION) + \
-        get_common_data()
+        get_common_data(project_name)
 
 
 def get_unittest_data(project_name, file_name):
