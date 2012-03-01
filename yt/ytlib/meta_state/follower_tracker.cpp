@@ -28,8 +28,12 @@ TFollowerTracker::TFollowerTracker(
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         ResetFollowerState(id);
     }
+}
 
-    // Special handling is needed since no ProcessPing-s will happen.
+void TFollowerTracker::Start()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (CellManager->GetPeerCount() == 1) {
         LOG_INFO("Active quorum established");
     }

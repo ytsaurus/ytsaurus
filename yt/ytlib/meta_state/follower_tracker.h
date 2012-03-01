@@ -39,6 +39,7 @@ public:
         TCellManager::TPtr cellManager,
         IInvoker::TPtr serviceInvoker);
 
+    void Start();
     void Stop();
     bool HasActiveQuorum() const;
     bool IsFollowerActive(TPeerId followerId) const;

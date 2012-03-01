@@ -746,6 +746,8 @@ public:
             Epoch,
             ControlInvoker);
 
+        FollowerTracker->Start();
+
         ControlStatus = EPeerStatus::Leading;
 
         LOG_INFO("Leader recovery complete");
