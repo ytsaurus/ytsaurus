@@ -45,6 +45,9 @@ public:
     void Start();
 
     //! Shuts down the profiling system.
+    /*!
+     *  After this call #Enqueue has no effect.
+     */
     void Shutdown();
 
     //! Enqueues a new sample for processing.
