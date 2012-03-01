@@ -99,7 +99,7 @@ class RemoteNode(Node):
                 print >>fd, wrap_cmd(cmd) 
 
         _, bin_name = os.path.split(cls.bin_path)
-        print >>fd, 'ln -s %s/%s ~/%s' % (cls.remote_dir, bin_name, bin_name)
+        print >>fd, 'ln -s -f %s/%s ~/%s' % (cls.remote_dir, bin_name, bin_name)
 
     run_tmpl = Template(cmd_run)
     def do_run(cls, fd):
