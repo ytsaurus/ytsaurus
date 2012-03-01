@@ -68,7 +68,7 @@ TSharedRef CreateSharedRef(ui32 data)
     return TSharedRef(MoveRV(blob));
 }
 
-TEST_F(TAsyncChangeLogTest, DISABLED_ReadLastOnes)
+TEST_F(TAsyncChangeLogTest, ReadLastOnes)
 {
     ui32 recordCount = 10000;
     TFuture<TVoid>::TPtr result;

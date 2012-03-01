@@ -82,7 +82,8 @@ TActionQueueBase::TActionQueueBase(const Stroka& threadName, bool enableLogging)
 
 TActionQueueBase::~TActionQueueBase()
 {
-    Shutdown();
+    // Derived classes must call Shutdown in dtor.
+    YASSERT(!Running);
 }
 
 void TActionQueueBase::Start()
@@ -153,6 +154,7 @@ TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
 TActionQueue::~TActionQueue()
 {
     QueueInvoker->OnShutdown();
+    Shutdown();
 }
 
 bool TActionQueue::DequeueAndExecute()
@@ -196,6 +198,7 @@ TPrioritizedActionQueue::~TPrioritizedActionQueue()
     for (int priority = 0; priority < static_cast<int>(QueueInvokers.size()); ++priority) {
         QueueInvokers[priority]->OnShutdown();
     }
+    Shutdown();
 }
 
 IInvoker* TPrioritizedActionQueue::GetInvoker(int priority)

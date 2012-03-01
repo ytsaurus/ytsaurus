@@ -202,6 +202,7 @@ public:
     ~TImpl()
     {
         Invoker->OnShutdown();
+        Shutdown();
     }
 
     void Start()
