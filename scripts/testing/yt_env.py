@@ -10,6 +10,7 @@ import copy
 import os
 import subprocess
 #import signal
+import re
 import time
 
 SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
@@ -66,14 +67,18 @@ class YTEnv:
         self._clean_run_path()
         self._prepare_configs()
         self._run_masters()
-        time.sleep(self.INIT_TIMEOUT)
+        self._wait_for_ready_masters()
         self._init_sys()
         self._run_services()
-        time.sleep(self.SETUP_TIMEOUT)
+        self._wait_for_ready_holders()
+
+    def tearDown(self):
+        for p in self.process_to_kill:
+            p.kill()
 
     def _set_path(self, path_to_run):
         path_to_run = os.path.abspath(path_to_run)
-        print 'initializing at', path_to_run
+        print 'Initializing at', path_to_run
         self.process_to_kill = []
 
         self.path_to_run = path_to_run
@@ -104,6 +109,33 @@ class YTEnv:
                 ).split())
             self.process_to_kill.append(p)
 
+    # TODO(panin): think about refactoring this part
+    def _wait_for_ready_masters(self):
+        if self.NUM_MASTERS == 0: return
+        max_wait_time = 5
+        sleep_quantum = 0.5
+        current_wait_time = 0
+        print 'Waiting for masters to be ready...'
+        while current_wait_time < max_wait_time:
+            print 'Waited', current_wait_time
+            if self._all_masters_ready():
+                print 'All masters are ready'
+                return
+            time.sleep(sleep_quantum)
+            current_wait_time += sleep_quantum
+        assert False, "Masters still not ready after %s seconds" % max_wait_time
+
+    def _all_masters_ready(self):
+        good_marker = "Active quorum established"
+        bad_marker = "Active quorum lost"
+
+        if (not os.path.exists(self.leader_log)): return False
+
+        for line in reversed(open(self.leader_log).readlines()):
+            if bad_marker in line: return False
+            if good_marker in line: return True
+        return False
+
     def _run_holders(self):
         for i in xrange(self.NUM_HOLDERS):
             p = subprocess.Popen('ytserver --chunk-holder --config {config_path} --port {port}'.format(
@@ -111,6 +143,41 @@ class YTEnv:
                     config_path=self.config_paths['holder'][i],
                 ).split())
             self.process_to_kill.append(p)
+
+    def _wait_for_ready_holders(self):
+        if self.NUM_HOLDERS == 0: return
+        max_wait_time = 10
+        sleep_quantum = 1
+        current_wait_time = 0
+        print 'Waiting for holders to be ready...'
+        while current_wait_time < max_wait_time:
+            print 'Waited', current_wait_time
+            if self._all_holders_ready():
+                print 'All holders ready'
+                return
+            time.sleep(sleep_quantum)
+            current_wait_time += sleep_quantum
+        assert False, "Holders still not ready after %s seconds" % max_wait_time
+
+    def _all_holders_ready(self):
+        holders_status = {}
+
+        good_marker = re.compile(r".*Holder registered .* HolderId: (\d+).*")
+        bad_marker = re.compile(r".*Holder unregistered .* HolderId: (\d+).*")
+
+        def update_status(marker, line, status, value):
+            match = marker.match(line)
+            if match:
+                holder_id = match.group(1)
+                if holder_id not in status:
+                    status[holder_id] = value
+
+        for line in reversed(open(self.leader_log).readlines()):
+            update_status(good_marker, line, holders_status, True)
+            update_status(bad_marker, line, holders_status, False)
+        
+        if len(holders_status) != self.NUM_HOLDERS: return False
+        return all(holders_status.values())
 
     def _run_schedulers(self):
         for i in xrange(self.NUM_SCHEDULERS):
@@ -171,6 +238,9 @@ class YTEnv:
             config_path = os.path.join(current, 'master_config.yson')
             write_config(master_config, config_path)
             self.config_paths['master'].append(config_path)
+            
+            if i == 0:
+                self.leader_log = logging_file_name
 
     def _prepare_holders_config(self):
         self.config_paths['holder'] = []
@@ -234,7 +304,4 @@ class YTEnv:
         write_config(self.driver_config, config_path)
         os.environ['YT_CONFIG'] = config_path
 
-    def tearDown(self):
-        for p in self.process_to_kill:
-            p.kill()
 

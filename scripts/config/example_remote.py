@@ -7,7 +7,7 @@ Logging = {
         'raw' :
         {
             'type' : 'raw',
-            'file_name' : "%(log_path)s.debug"
+            'file_name' : "%(debug_log_path)s"
         },
         'file' :
         {
@@ -62,6 +62,7 @@ class Master(Server):
     params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
     log_path = Template("master-%(__name__)s.log")
+    debug_log_path = Template("master-%(__name__)s.debug.log")
 
     config = Template({
         'meta_state' : {
@@ -84,9 +85,10 @@ class Master(Server):
     def do_clean(cls, fd):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
+        print >>fd, 'rm -f %s' % cls.debug_log_path
         print >>fd, 'rm %s/*' % cls.config['meta_state']['snapshot_path']
         print >>fd, 'rm %s/*' % cls.config['meta_state']['log_path']
-       
+        
 
 CleanCache = FileDescr('clean_cache', ('aggregate', 'exec'))
 DoCleanCache = FileDescr('do_clean_cache', ('remote', 'exec'))
@@ -98,6 +100,7 @@ class Holder(Server):
     nodeid = Subclass(xrange(30), 1)
 
     log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
+    debug_log_path = Template("holder-%(groupid)d-%(nodeid)d.debug.log")
     
     @propmethod
     def host(cls):
@@ -131,6 +134,7 @@ class Holder(Server):
     def do_clean(cls, fd):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
+        print >>fd, 'rm -f %s' % cls.debug_log_path
         for location in cls.config['chunk_store_locations']:
             print >>fd, 'rm -rf %s' % location['path']
         print >>fd, 'rm -rf %s' % cls.config['chunk_cache_location']['path']

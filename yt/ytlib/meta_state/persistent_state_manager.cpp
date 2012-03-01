@@ -129,9 +129,8 @@ public:
 
         CellManager = New<TCellManager>(~Config->Cell);
 
-        // TODO: fill config
         ElectionManager = New<TElectionManager>(
-            ~New<NElection::TElectionManager::TConfig>(),
+            ~Config->Election,
             ~CellManager,
             controlInvoker,
             ~New<TElectionCallbacks>(this));
@@ -225,11 +224,13 @@ public:
                     {
                         fluent
                             .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
-                            .Item("followers_active").DoListFor(0, CellManager->GetPeerCount(),
+                            .Item("active_followers").DoListFor(0, CellManager->GetPeerCount(),
                                 [=] (TFluentList fluent, TPeerId id)
-                                {
-                                    fluent.Item().Scalar(tracker->IsFollowerActive(id));
-                                });
+                                    {
+                                        if (tracker->IsFollowerActive(id)) {
+                                            fluent.Item().Scalar(id);
+                                        }
+                                    });
                     })
             .EndMap();
     }
