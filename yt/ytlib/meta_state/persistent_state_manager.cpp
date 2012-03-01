@@ -129,9 +129,8 @@ public:
 
         CellManager = New<TCellManager>(~Config->Cell);
 
-        // TODO: fill config
         ElectionManager = New<TElectionManager>(
-            ~New<NElection::TElectionManager::TConfig>(),
+            ~Config->Election,
             ~CellManager,
             controlInvoker,
             ~New<TElectionCallbacks>(this));
@@ -937,6 +936,9 @@ public:
                 context->Reply(
                     TProxy::EErrorCode::SnapshotAlreadyInProgress,
                     "Snapshot creation is already in progress");
+                break;
+            case TSnapshotBuilder::EResultCode::ForkError:
+                context->Reply(TError("Fork error"));
                 break;
             default:
                 YUNREACHABLE();

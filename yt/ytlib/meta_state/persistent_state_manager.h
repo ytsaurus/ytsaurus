@@ -7,6 +7,8 @@
 #include "follower_pinger.h"
 #include "change_committer.h"
 
+#include <ytlib/election/election_manager.h>
+
 #include <ytlib/rpc/server.h>
 #include <ytlib/misc/configurable.h>
 
@@ -48,6 +50,8 @@ struct TPersistentStateManagerConfig
     // TODO: refactor
     TCellConfig::TPtr Cell;
 
+    NElection::TElectionManager::TConfig::TPtr Election;
+
     TChangeLogDownloader::TConfig::TPtr ChangeLogDownloader;
 
     TSnapshotDownloader::TConfig::TPtr SnapshotDownloader;
@@ -72,6 +76,8 @@ struct TPersistentStateManagerConfig
         Register("rpc_timeout", RpcTimeout)
             .Default(TDuration::MilliSeconds(3000));
         Register("cell", Cell)
+            .DefaultNew();
+        Register("election", Election)
             .DefaultNew();
         Register("change_log_downloader", ChangeLogDownloader)
             .DefaultNew();
