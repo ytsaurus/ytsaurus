@@ -22,8 +22,8 @@ public:
     TQueueInvoker(TActionQueueBase* owner, bool enableLogging);
 
     void Invoke(IAction::TPtr action);
-    void OnShutdown();
-    bool OnDequeueAndExecute();
+    void Shutdown();
+    bool DequeueAndExecute();
 
 private:
     struct TItem
