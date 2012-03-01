@@ -18,6 +18,12 @@ typename TDeserializeTraits<T>::TReturnType IAttributeDictionary::Get(const Stro
 }
 
 template <class T>
+T IAttributeDictionary::Get(const Stroka& name, const T& defaultValue) const
+{
+    return Find<T>(name).Get(defaultValue); // assuming that Find returns TNullable
+}
+
+template <class T>
 typename TNullableTraits<
     typename TDeserializeTraits<T>::TReturnType
 >::TNullableType IAttributeDictionary::Find(const Stroka& name) const

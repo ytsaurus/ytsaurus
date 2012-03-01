@@ -1,4 +1,4 @@
-// for some references see
+// For some references, see:
 // http://www.tlug.org.za/wiki/index.php/Obtaining_a_stack_trace_in_C_upon_SIGSEGV
 // http://google.com/codesearch/p?hl=en&sa=N&cd=1&ct=rc#HT3Jwvgod1I/glibc-2.5/debug/backtrace.c&q=file:%22backtrace.c%22%20lang:c%20package:glibc
 // http://google.com/codesearch/p?hl=en#BdqTRioUGj8/backtrace.c&q=bt_%20backtrace%20lang:c%20file:backtrace.c
@@ -11,12 +11,14 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TErrorContext * ErrContext = 0;
+static TErrorContext* ErrContext = 0;
 
-TErrorContext::TErrorContext() {
+TErrorContext::TErrorContext()
+{
     ErrContext = this;
 }
-TErrorContext::~TErrorContext() {
+TErrorContext::~TErrorContext()
+{
     ErrContext = 0;
 }
 
@@ -25,7 +27,8 @@ TErrorContext::~TErrorContext() {
 
 #if defined(_win_)
 
-int SetupErrorHandler() {
+int SetupErrorHandler()
+{
     return 1;
 }
 
@@ -111,7 +114,8 @@ static const char * print_symbol(FILE *f, int frame_index, void *const addr)
 }
 
 // analog of backtrace() but traces from specified frame address
-int glibc_backtrace(void ** bt, int size, void ** frame, void * addr) {
+int glibc_backtrace(void ** bt, int size, void ** frame, void * addr)
+{
     int i = 0;
     while (frame && addr && i < size) {
         if (frame < (void**)0x100 || addr < (void*)0x100) {
@@ -137,9 +141,9 @@ void print_backtrace_symbols(FILE *f, void *const *bt, int size)
     }
 }
 
-// collects and prints backtrace simultaneously, one step at a time,
-// to give as many information as possible in case some memory error
-// (which are quite common)
+// collects and prints backtrace simultaneously, one frame at a time,
+// to give as many information as possible in case if some memory error
+// occurs (which are quite common)
 static int print_backtrace(FILE *f, int depth, void ** frame, void * addr)
 {
     int i = 0;
@@ -184,7 +188,7 @@ static void signal_handler(int, siginfo_t * info, void * context)
         if (ErrContext != 0) {
             const int SIZE = 1000;
             char buffer[SIZE] = "\0";
-            ErrContext->SerializeToString(buffer, SIZE);
+            ErrContext->ToString(buffer, SIZE);
             fputs(buffer, stderr);
             fprintf(stderr, "\n");
             ErrContext = 0;
@@ -252,9 +256,10 @@ static void signal_handler(int, siginfo_t * info, void * context)
         
         print_backtrace(stderr, DEPTH, bp, ip);
         
-        //void* bt[DEPTH];
-        //glibc_backtrace(bt, DEPTH, bp, ip);
-        //print_backtrace_symbols(stderr, bt, DEPTH);
+        // Equivalent by less robust backtracing using glibc_backtrace:
+        // void* bt[DEPTH];
+        // glibc_backtrace(bt, DEPTH, bp, ip);
+        // print_backtrace_symbols(stderr, bt, DEPTH);
 
         fprintf(stderr, "End of stack trace\n");
     }
@@ -265,7 +270,8 @@ static void signal_handler(int, siginfo_t * info, void * context)
     raise(info->si_signo);
 }
 
-int SetupErrorHandler() {
+int SetupErrorHandler()
+{
     struct sigaction a;
     memset(&a, 0, sizeof(a));
     a.sa_sigaction = signal_handler;
