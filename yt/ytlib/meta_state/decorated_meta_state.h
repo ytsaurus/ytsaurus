@@ -52,10 +52,14 @@ public:
     //! can be obtained by reading the local snapshots, changelogs.
     /*!
      *  It is always no smaller than #GetVersion.
-     *  Since the reachable version is used to determine the current priority
-     *  during elections it can be read from an arbitrary thread.
-     *
-     * \note Thread affinity: any
+     *  
+     *  \note Thread affinity: StateThread
+     */
+    TMetaVersion GetReachableVersion() const;
+
+    //! Same as #GetReachableVersion but call be called from an arbitrary thread.
+    /*!
+     *  \note Thread affinity: any
      */
     TMetaVersion GetReachableVersionAsync() const;
 

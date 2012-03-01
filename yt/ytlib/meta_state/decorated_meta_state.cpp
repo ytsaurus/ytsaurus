@@ -234,6 +234,13 @@ TMetaVersion TDecoratedMetaState::GetVersionAsync() const
 	return Version;
 }
 
+TMetaVersion TDecoratedMetaState::GetReachableVersion() const
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    return ReachableVersion;
+}
+
 TMetaVersion TDecoratedMetaState::GetReachableVersionAsync() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
