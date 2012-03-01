@@ -314,7 +314,7 @@ TChunkCache::TChunkCache(
         LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
     }
 
-    LOG_INFO("Chunk cache scan completed, %d chunk(s) total", GetChunkCount());
+    LOG_INFO("Chunk cache scan completed, %d chunks found", GetChunkCount());
 }
 
 TCachedChunk::TPtr TChunkCache::FindChunk(const TChunkId& chunkId)

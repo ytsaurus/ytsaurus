@@ -144,7 +144,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
 {
     auto path = GetPath();
 
-    LOG_INFO("Scanning storage location");
+    LOG_INFO("Scanning storage location %s", ~path.Quote());
 
     NFS::ForcePath(path);
     NFS::CleanTempFiles(path);
@@ -192,7 +192,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
         }
     }
 
-    LOG_INFO("Done, found %d chunk(s)", result.ysize());
+    LOG_INFO("Done, %d chunks found", result.ysize());
 
     return result;
 }
