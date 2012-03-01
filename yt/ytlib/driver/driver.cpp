@@ -238,15 +238,15 @@ public:
 
     virtual TTransactionId GetTransactionId(TTransactedRequest* request)
     {
-        return request->TxId != NullTransactionId ? request->TxId : GetCurrentTransactionId();
+        return request->TransactionId != NullTransactionId ? request->TransactionId : GetCurrentTransactionId();
     }
 
     virtual ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required)
     {
-        if (request->TxId == NullTransactionId) {
+        if (request->TransactionId == NullTransactionId) {
             return GetCurrentTransaction(required);
         } else {
-            return TransactionManager->Attach(request->TxId);
+            return TransactionManager->Attach(request->TransactionId);
         }
     }
 
