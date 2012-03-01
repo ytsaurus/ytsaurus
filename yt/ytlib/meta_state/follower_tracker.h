@@ -53,13 +53,13 @@ private:
 
     void ChangeFollowerStatus(int followerId, EPeerStatus  status);
     void ResetFollowerState(int followerId);
-    void ResetFollowerStates();
     void OnLeaseExpired(TPeerId followerId);
 
     TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
     TCancelableInvoker::TPtr EpochInvoker;
     yvector<TFollowerState> FollowerStates;
+    int ActiveFollowerCount;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

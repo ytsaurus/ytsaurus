@@ -17,15 +17,22 @@ TFollowerTracker::TFollowerTracker(
     : Config(config)
     , CellManager(cellManager)
     , EpochInvoker(New<TCancelableInvoker>(serviceInvoker))
+    , FollowerStates(cellManager->GetPeerCount())
+    , ActiveFollowerCount(0)
 {
     VERIFY_INVOKER_AFFINITY(serviceInvoker, ControlThread);
 
     YASSERT(cellManager);
     YASSERT(serviceInvoker);
 
-    FollowerStates = yvector<TFollowerState>(cellManager->GetPeerCount());
+    for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+        ResetFollowerState(id);
+    }
 
-    ResetFollowerStates();
+    // Special handling is needed since no ProcessPing-s will happen.
+    if (CellManager->GetPeerCount() == 1) {
+        LOG_INFO("Active quorum established");
+    }
 }
 
 void TFollowerTracker::Stop()
@@ -46,23 +53,7 @@ bool TFollowerTracker::HasActiveQuorum() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int activeFollowerCount = 0;
-    for (int i = 0; i < CellManager->GetPeerCount(); ++i) {
-        auto& followerState = FollowerStates[i];
-        if (followerState.Status == EPeerStatus::Following) {
-            ++activeFollowerCount;
-        }
-    }
-    return activeFollowerCount + 1 >= CellManager->GetQuorum();
-}
-
-void TFollowerTracker::ResetFollowerStates()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-        ResetFollowerState(id);
-    }
+    return ActiveFollowerCount + 1 >= CellManager->GetQuorum();
 }
 
 void TFollowerTracker::ResetFollowerState(int followerId)
@@ -86,6 +77,12 @@ void TFollowerTracker::ChangeFollowerStatus(int followerId, EPeerStatus status)
 
         bool oldHasQuorum = HasActiveQuorum();
         followerState.Status = status;
+        if (followerState.Status == EPeerStatus::Following) {
+            --ActiveFollowerCount;
+        }
+        if (status == EPeerStatus::Following) {
+            ++ActiveFollowerCount;
+        }
         bool newHasQuorum = HasActiveQuorum();
 
         if (oldHasQuorum && !newHasQuorum) {
