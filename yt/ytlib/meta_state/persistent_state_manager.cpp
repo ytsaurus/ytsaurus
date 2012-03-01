@@ -129,9 +129,8 @@ public:
 
         CellManager = New<TCellManager>(~Config->Cell);
 
-        // TODO: fill config
         ElectionManager = New<TElectionManager>(
-            ~New<NElection::TElectionManager::TConfig>(),
+            ~Config->Election,
             ~CellManager,
             controlInvoker,
             ~New<TElectionCallbacks>(this));
