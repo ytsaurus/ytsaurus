@@ -23,7 +23,7 @@ void TTransaction::Save(TOutputStream* output) const
     TObjectWithIdBase::Save(output);
     ::Save(output, State_);
     SaveObjects(output, NestedTransactions_);
-    ::Save(output, Parent_->GetId());
+    SaveObject(output, Parent_);
     SaveSet(output, CreatedObjectIds_);
     ::Save(output, LockIds_);
     ::Save(output, BranchedNodeIds_);
@@ -35,13 +35,16 @@ void TTransaction::Load(TInputStream* input, const TLoadContext& context)
     TObjectWithIdBase::Load(input);
     ::Load(input, State_);
     LoadObjects(input, NestedTransactions_, context);
-    TTransactionId parentId;
-    ::Load(input, parentId);
-    Parent_ = context.Get<TTransaction>(parentId);
+    LoadObject(input, Parent_, context);
     LoadSet(input, CreatedObjectIds_);
     ::Load(input, LockIds_);
     ::Load(input, BranchedNodeIds_);
     ::Load(input, CreatedNodeIds_);
+}
+
+TTransactionId NYT::NTransactionServer::TTransaction::GetParentId() const
+{
+    return Parent_ ? Parent_->GetId() : NullTransactionId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -495,7 +495,7 @@ private:
     virtual void OnBeginRequest(IServiceContext* context);
     virtual void OnEndRequest(IServiceContext* context);
 
-    void InvokeHandler(
+    virtual void InvokeHandler(
         TRuntimeMethodInfo* runtimeInfo,
         IAction::TPtr handler,
         IServiceContext* context);

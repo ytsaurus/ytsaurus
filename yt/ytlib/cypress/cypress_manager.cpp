@@ -329,7 +329,7 @@ const ICypressNode* TCypressManager::FindVersionedNode(
 
         // Move to the parent transaction.
         const auto& transaction = TransactionManager->GetTransaction(transactionId);
-        currentTransactionId = transaction.GetParent()->GetId();
+        currentTransactionId = transaction.GetParentId();
     }
 }
 
@@ -391,7 +391,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
 
         // Move to the parent transaction.
         const auto& transaction = TransactionManager->GetTransaction(transactionId);
-        currentTransactionId = transaction.GetParent()->GetId();
+        currentTransactionId = transaction.GetParentId();
     }
 }
 
@@ -464,7 +464,7 @@ void TCypressManager::ValidateLock(
             }
         }
         const auto& transaction = TransactionManager->GetTransaction(currentTransactionId);
-        currentTransactionId = transaction.GetParent()->GetId();
+        currentTransactionId = transaction.GetParentId();
     }
 
     if (requestedMode != ELockMode::Snapshot) {

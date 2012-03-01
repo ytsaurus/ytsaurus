@@ -28,6 +28,7 @@ set( HDRS
   ${BASE}/node_detail.h
   ${BASE}/node_proxy.h
   ${BASE}/node_proxy_detail.h
+  ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
 )
