@@ -1,7 +1,8 @@
 #!/bin/bash
 #% NUM_MASTERS = 3
 #% NUM_HOLDERS = 0
-#% SETUP_TIMEOUT = 3
+#% INIT_TIMEOUT = 3
+#% SETUP_TIMEOUT = 0
 
 echo '{do = set; path = "/root"; value = {nodes=[1; 2]} <attr=100;mode=rw>}' | ytdriver
 echo '{do = get; path = "/root@"}' | ytdriver
