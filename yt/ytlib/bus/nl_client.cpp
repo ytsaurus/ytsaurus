@@ -320,8 +320,7 @@ class TClientDispatcher
             return;
         }
 
-        auto request = requestIt->second;
-
+        auto& request = requestIt->second;
         const auto& sessionId = request->SessionId;
         auto busIt = BusMap.find(sessionId);
         YASSERT(busIt != BusMap.end());
@@ -449,10 +448,12 @@ class TClientDispatcher
 
             TSequenceId newSequenceId = TSequenceId(index);
             YVERIFY(EncodeMessagePacket(~request->Message, newSessionId, newSequenceId, &request->Data));
+            Requester->CancelRequest(oldRequestId);
             TGuid newRequestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
 
             request->SequenceId = newSequenceId;
             request->RequestId = newRequestId;
+            request->SessionId = newSessionId;
 
             YVERIFY(RequestMap.insert(MakePair(newRequestId, request)).second);
             YVERIFY(RequestMap.erase(oldRequestId) == 1);

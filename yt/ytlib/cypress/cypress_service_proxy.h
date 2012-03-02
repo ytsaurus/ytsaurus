@@ -102,7 +102,7 @@ public:
 
         TFuture<TPtr>::TPtr GetAsyncResult();
 
-        //! Returns the current number of individual responses in the batch.
+        //! Returns the number of individual responses in the batch.
         int GetSize() const;
 
         //! Returns the individual response with a given index.
