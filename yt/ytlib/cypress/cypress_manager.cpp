@@ -862,9 +862,10 @@ void TCypressManager::MergeBranchedNode(
 
     // Find the appropriate originating node.
     ICypressNode* originatingNode;
-    auto* currentTransaction = transaction.GetParent();
+    const auto* currentTransaction = &transaction;
     while (true) {
-        TVersionedNodeId currentOriginatingId(nodeId, currentTransaction->GetId());
+        YASSERT(currentTransaction);
+        TVersionedNodeId currentOriginatingId(nodeId, currentTransaction->GetParentId());
         originatingNode = FindNode(currentOriginatingId);
         if (originatingNode)
             break;
