@@ -18,7 +18,7 @@ TTimer::TTimer()
     , LastCheckpoint(0)
 { }
 
-TTimer::TTimer(const NYTree::TYPath& path, ui64 start, ETimerMode mode)
+TTimer::TTimer(const TYPath& path, ui64 start, ETimerMode mode)
     : Path(path)
     , Start(start)
     , LastCheckpoint(0)
@@ -27,9 +27,7 @@ TTimer::TTimer(const NYTree::TYPath& path, ui64 start, ETimerMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRateCounter::TRateCounter(
-    const NYTree::TYPath& path,
-    TDuration interval)
+TRateCounter::TRateCounter(const TYPath& path, TDuration interval)
     : Path(path)
     , Interval(DurationToCycles(interval))
     , Value(0)
@@ -60,8 +58,8 @@ TTimer TProfiler::TimingStart(const TYPath& path, ETimerMode mode)
 
 void TProfiler::TimingStop(TTimer& timer)
 {
-    //YASSERT(timer.Start != 0);
-    if (timer.Start == 0) return;
+    // Failure here means that the timer was not started.
+    YASSERT(timer.Start != 0);
 
     auto now = GetCycleCount();
     auto duration = CyclesToDuration(now - timer.Start).MicroSeconds();
@@ -86,15 +84,17 @@ void TProfiler::TimingStop(TTimer& timer)
 
 void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
 {
-    //YASSERT(timer.Start != 0);
-    if (timer.Start == 0) return;
+    // Failure here means that the timer was not started.
+    YASSERT(timer.Start != 0);
 
     auto now = GetCycleCount();
-    // Upon receiving the first checkpoint
-    // Simple timer is automatically switched into Sequential.
+
+    // Upon receiving the first checkpoint Simple timer
+    // is automatically switched into Sequential.
     if (timer.Mode == ETimerMode::Simple) {
         timer.Mode = ETimerMode::Sequential;
     }
+
     auto path = CombineYPaths(timer.Path, pathSuffix);
     switch (timer.Mode) {
         case ETimerMode::Sequential: {
