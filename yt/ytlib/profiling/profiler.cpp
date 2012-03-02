@@ -58,7 +58,7 @@ TTimer TProfiler::TimingStart(const TYPath& path, ETimerMode mode)
 
 void TProfiler::TimingStop(TTimer& timer)
 {
-    // Failure here means that the timer was not started.
+    // Failure here means that the timer was not started or already stopped.
     YASSERT(timer.Start != 0);
 
     auto now = GetCycleCount();
@@ -84,7 +84,7 @@ void TProfiler::TimingStop(TTimer& timer)
 
 void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
 {
-    // Failure here means that the timer was not started.
+    // Failure here means that the timer was not started or already stopped.
     YASSERT(timer.Start != 0);
 
     auto now = GetCycleCount();
