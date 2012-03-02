@@ -11,15 +11,15 @@ class YTEnvSetup(YTEnv):
 
     @classmethod
     def setup_class(cls):
-        print 'setting up', cls
+        #print 'setting up', cls
         path_to_run = _working_dir(test_name=cls.__name__)
         cls.Env = cls()
         cls.Env.setUp(path_to_run)
-        print '=' * 70
+        #print '=' * 70
 
     @classmethod
     def teardown_class(cls):
-        print 'tearingdown', cls
+        #print 'tearingdown', cls
         cls.Env.tearDown()
 
 # decorator form
@@ -27,7 +27,9 @@ ATTRS = [
     'NUM_MASTERS',
     'NUM_HOLDERS',
     'NUM_SCHEDULERS',
+    'INIT_TIMEOUT',
     'SETUP_TIMEOUT',
+    'TEARDOWN_TIMEOUT',
     'DELTA_MASTER_CONFIG',
     'DELTA_HOLDER_CONFIG',
     'DELTA_SCHEDULER_CONFIG',

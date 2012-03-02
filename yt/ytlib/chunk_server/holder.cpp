@@ -96,10 +96,9 @@ bool THolder::HasChunk(const TChunkId& chunkId, bool cached) const
     }
 }
 
-void THolder::AddUnapprovedChunk(const TChunkId& chunkId)
+void THolder::MarkChunkUnapproved(const TChunkId& chunkId)
 {
-    YASSERT(!HasChunk(chunkId, false));
-    AddChunk(chunkId, false);
+    YASSERT(HasChunk(chunkId, false));
     YVERIFY(UnapprovedChunkIds_.insert(chunkId).second);
 }
 
@@ -116,8 +115,8 @@ bool THolder::HasUnapprovedChunk(const TChunkId& chunkId) const
 
 void THolder::ApproveChunk(const TChunkId& chunkId)
 {
-    YVERIFY(UnapprovedChunkIds_.erase(chunkId) == 1);
     YASSERT(HasChunk(chunkId, false));
+    YVERIFY(UnapprovedChunkIds_.erase(chunkId) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
