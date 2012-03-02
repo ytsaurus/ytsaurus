@@ -121,7 +121,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    TSignal& OnApplyChange();
+    TActionList& OnApplyChange();
 
 private:
     class TBatch;
@@ -141,7 +141,7 @@ private:
     TFollowerTracker::TPtr FollowerTracker;
     TEpoch Epoch;
 
-    TSignal OnApplyChange_;
+    TActionList OnApplyChange_;
 
     //! Protects #CurrentBatch and #TimeoutCookie.
     TSpinLock BatchSpinLock;

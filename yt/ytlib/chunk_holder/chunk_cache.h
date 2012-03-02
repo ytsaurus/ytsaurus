@@ -59,10 +59,10 @@ public:
         const yvector<Stroka>& seedAddresses = yvector<Stroka>());
 
     //! Raised when a chunk is added to the cache.
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
+    DECLARE_BYREF_RW_PROPERTY(TParamActionList<TChunk*>, ChunkAdded);
 
     //! Raised when a chunk is removed from the cache.
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
+    DECLARE_BYREF_RW_PROPERTY(TParamActionList<TChunk*>, ChunkRemoved);
 
 private:
     class TImpl;

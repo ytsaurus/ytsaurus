@@ -235,12 +235,12 @@ public:
             .EndMap();
     }
 
-    DEFINE_BYREF_RW_PROPERTY(TSignal, OnStartLeading);
-    DEFINE_BYREF_RW_PROPERTY(TSignal, OnLeaderRecoveryComplete);
-    DEFINE_BYREF_RW_PROPERTY(TSignal, OnStopLeading);
-    DEFINE_BYREF_RW_PROPERTY(TSignal, OnStartFollowing);
-    DEFINE_BYREF_RW_PROPERTY(TSignal, OnFollowerRecoveryComplete);
-    DEFINE_BYREF_RW_PROPERTY(TSignal, OnStopFollowing);
+    DEFINE_BYREF_RW_PROPERTY(TActionList, OnStartLeading);
+    DEFINE_BYREF_RW_PROPERTY(TActionList, OnLeaderRecoveryComplete);
+    DEFINE_BYREF_RW_PROPERTY(TActionList, OnStopLeading);
+    DEFINE_BYREF_RW_PROPERTY(TActionList, OnStartFollowing);
+    DEFINE_BYREF_RW_PROPERTY(TActionList, OnFollowerRecoveryComplete);
+    DEFINE_BYREF_RW_PROPERTY(TActionList, OnStopFollowing);
 
     virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,

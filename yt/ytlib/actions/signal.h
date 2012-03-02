@@ -9,17 +9,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 /*!
- *  A signal represents a list of actions (either taking parameters or not).
- *  A client may subscribe to a signal (adding a new handler to the list),
- *  unsubscribe from a signal (removing an earlier added handler),
- *  and fire a signal thus invoking the actions added so far.
+ *  A client may subscribe to the list (adding a new handler to it),
+ *  unsubscribe from it (removing an earlier added handler),
+ *  and fire it thus invoking the actions added so far.
  *
- *  Signals are thread-safe.
+ *  Lists are thread-safe.
  */
 template <class T>
-class TSignalBase
+class TActionListBase
 {
 public:
     //! Adds a new handler to the list.
@@ -66,12 +64,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A signal whose handlers are of type #IAction. \see #TSignalBase<T>.
-class TSignal
-    : public TSignalBase<IAction>
+//! A list whose handlers are of type #IAction. \see #TActionListBase<T>.
+class TActionList
+    : public TActionListBase<IAction>
 {
 public:
-
     //! Calls #IAction::Do for all actions in the list.
     void Fire()
     {
@@ -90,10 +87,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A signal whose handlers are of type #IParamAction<T>. \see #TSignalBase<T>
+// TODO(babenko): remove once new callback system is in place
+//! A list whose handlers are of type #IParamAction<T>. \see #TActionListBase<T>
 template <class TParam>
-class TParamSignal
-    : public TSignalBase< IParamAction<TParam> >
+class TParamActionList
+    : public TActionListBase< IParamAction<TParam> >
 {
 public:
     //! Calls #IParamAction::Do passing the given #arg to all actions in the list.
@@ -113,6 +111,31 @@ public:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): currently type is just ignored
+#define DEFINE_SIGNAL(type, name) \
+protected: \
+    ::NYT::TActionList name##_; \
+public: \
+    void Subscribe##name(IAction::TPtr action) \
+    { \
+        name##_.Subscribe(action); \
+    } \
+    \
+    void Unsubscribe##name(IAction::TPtr action) \
+    { \
+        name##_.Subscribe(action); \
+    }
+
+#define DECLARE_SIGNAL(type, name) \
+    void Subscribe##name(IAction::TPtr action); \
+    void Unsubscribe##name(IAction::TPtr action);
+
+#define DECLARE_SIGNAL_INTERFACE(type, name) \
+    virtual void Subscribe##name(IAction::TPtr action) = 0; \
+    virtual void Unsubscribe##name(IAction::TPtr action) = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 

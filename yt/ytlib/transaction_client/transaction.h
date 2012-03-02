@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/signal.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -50,8 +50,12 @@ struct ITransaction
      */
     virtual TTransactionId GetParentId() const = 0;
 
-    virtual void SubscribeAborted(IAction::TPtr onAborted) = 0;
-    virtual void UnsubscribeAborted(IAction::TPtr onAborted) = 0;
+    //! Raised when the transaction is aborted.
+    /*!
+     *  \note
+     *  Thread affinity: any.
+     */
+    DECLARE_SIGNAL_INTERFACE(IAction, Aborted);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

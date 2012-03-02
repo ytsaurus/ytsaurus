@@ -68,13 +68,13 @@ public:
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
+    DECLARE_BYREF_RW_PROPERTY(TParamActionList<const THolder&>, HolderRegistered);
     //! Fired when a holder gets unregistered.
     /*!
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
+    DECLARE_BYREF_RW_PROPERTY(TParamActionList<const THolder&>, HolderUnregistered);
 
     const THolder* FindHolder(const Stroka& address) const;
     THolder* FindHolder(const Stroka& address);

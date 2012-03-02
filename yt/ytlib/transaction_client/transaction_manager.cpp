@@ -97,13 +97,13 @@ public:
         Owner->UnregisterTransaction(Id);
     }
 
-    TTransactionId GetId() const
+    virtual TTransactionId GetId() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Id;
     }
 
-    void Commit() 
+    virtual void Commit() 
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -151,7 +151,7 @@ public:
         LOG_INFO("Transaction committed (TransactionId: %s)", ~Id.ToString());
     }
 
-    void Abort()
+    virtual void Abort()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -161,19 +161,19 @@ public:
         HandleAbort();
     }
 
-    void SubscribeAborted(IAction::TPtr onAborted)
+    virtual void SubscribeAborted(IAction::TPtr handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         
         TGuard<TSpinLock> guard(SpinLock);
         switch (State) {
             case EState::Active:
-                Aborted.Subscribe(onAborted);
+                Aborted.Subscribe(handler);
                 break;
 
             case EState::Aborted:
                 guard.Release();
-                onAborted->Do();
+                handler->Do();
                 break;
 
             default:
@@ -181,10 +181,10 @@ public:
         }
     }
 
-    void UnsubscribeAborted(IAction::TPtr onAborted)
+    virtual void UnsubscribeAborted(IAction::TPtr handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        Aborted.Unsubscribe(onAborted);
+        Aborted.Unsubscribe(handler);
     }
 
     void HandleAbort()
@@ -228,7 +228,7 @@ private:
     INodePtr Manifest;
     TTransactionId ParentId;
 
-    TSignal Aborted;
+    TActionList Aborted;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 

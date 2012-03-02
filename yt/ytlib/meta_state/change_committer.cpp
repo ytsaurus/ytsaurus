@@ -331,7 +331,7 @@ void TLeaderCommitter::DelayedFlush(TBatch::TPtr batch)
     FlushCurrentBatch();
 }
 
-TSignal& TLeaderCommitter::OnApplyChange()
+TActionList& TLeaderCommitter::OnApplyChange()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

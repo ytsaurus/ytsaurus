@@ -59,10 +59,10 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 
     //! Raised when a chunk is added.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
+    DEFINE_BYREF_RW_PROPERTY(TParamActionList<TChunk*>, ChunkAdded);
 
     //! Raised when a chunk is removed.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
+    DEFINE_BYREF_RW_PROPERTY(TParamActionList<TChunk*>, ChunkRemoved);
 
 private:
     TChunkHolderConfig::TPtr Config;
