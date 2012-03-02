@@ -96,8 +96,8 @@ private:
     IChannel::TPtr MasterChannel;
     TWeakPtr<TChunkCache> ChunkCache;
 
-    DEFINE_BYREF_RW_PROPERTY(TParamActionList<TChunk*>, ChunkAdded);
-    DEFINE_BYREF_RW_PROPERTY(TParamActionList<TChunk*>, ChunkRemoved);
+    DEFINE_SIGNAL(void(TChunk*), ChunkAdded);
+    DEFINE_SIGNAL(void(TChunk*), ChunkRemoved);
 
     virtual i64 GetWeight(TCachedChunk* chunk) const
     {
@@ -343,8 +343,8 @@ TChunkCache::TAsyncDownloadResult::TPtr TChunkCache::DownloadChunk(
     return Impl->Download(chunkId, seedAddresses);
 }
 
-DELEGATE_BYREF_RW_PROPERTY(TChunkCache, TParamActionList<TChunk*>, ChunkAdded, *Impl);
-DELEGATE_BYREF_RW_PROPERTY(TChunkCache, TParamActionList<TChunk*>, ChunkRemoved, *Impl);
+DELEGATE_SIGNAL(TChunkCache, void(TChunk*), ChunkAdded, *Impl);
+DELEGATE_SIGNAL(TChunkCache, void(TChunk*), ChunkRemoved, *Impl);
 
 ////////////////////////////////////////////////////////////////////////////////
 

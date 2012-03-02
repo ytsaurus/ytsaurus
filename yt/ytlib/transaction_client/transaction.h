@@ -55,7 +55,7 @@ struct ITransaction
      *  \note
      *  Thread affinity: any.
      */
-    DECLARE_SIGNAL_INTERFACE(IAction, Aborted);
+    DECLARE_INTERFACE_SIGNAL(void(), Aborted);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

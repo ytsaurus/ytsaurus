@@ -3,6 +3,7 @@
 #include "public.h"
 #include "common.h"
 
+#include <ytlib/actions/signal.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/id_generator.h>
@@ -26,12 +27,13 @@ class TTransactionManifest;
 class TTransactionManager
     : public NMetaState::TMetaStatePart
 {
-    //! Called when a new transaction is started.
-    DEFINE_BYREF_RW_PROPERTY(TParamActionList<TTransaction&>, OnTransactionStarted);
-    //! Called during transaction commit.
-    DEFINE_BYREF_RW_PROPERTY(TParamActionList<TTransaction&>, OnTransactionCommitted);
-    //! Called during transaction abort.
-    DEFINE_BYREF_RW_PROPERTY(TParamActionList<TTransaction&>, OnTransactionAborted);
+    // TODO(babenko): clarify what "during" means
+    //! Raised when a new transaction is started.
+    DEFINE_SIGNAL(void(TTransaction&), TransactionStarted);
+    //! Raised during transaction commit.
+    DEFINE_SIGNAL(void(TTransaction&), TransactionCommitted);
+    //! Raised during transaction abort.
+    DEFINE_SIGNAL(void(TTransaction&), TransactionAborted);
 
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;

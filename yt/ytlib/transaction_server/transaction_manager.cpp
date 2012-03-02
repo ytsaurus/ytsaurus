@@ -310,7 +310,7 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManif
 
     transaction->SetState(ETransactionState::Active);
 
-    OnTransactionStarted_.Fire(*transaction);
+    TransactionStarted_.Fire(*transaction);
 
     LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s, ParentId: %s)",
         ~id.ToString(),
@@ -335,7 +335,7 @@ void TTransactionManager::Commit(TTransaction& transaction)
 
     transaction.SetState(ETransactionState::Committed);
 
-    OnTransactionCommitted_.Fire(transaction);
+    TransactionCommitted_.Fire(transaction);
 
     FinishTransaction(transaction);
 
@@ -361,7 +361,7 @@ void TTransactionManager::Abort(TTransaction& transaction)
 
     transaction.SetState(ETransactionState::Aborted);
 
-    OnTransactionAborted_.Fire(transaction);
+    TransactionAborted_.Fire(transaction);
 
     FinishTransaction(transaction);
 

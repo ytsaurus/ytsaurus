@@ -5,6 +5,7 @@
 #include "session_manager.h"
 #include "job_executor.h"
 
+#include <ytlib/actions/bind.h>
 #include <ytlib/rpc/client.h>
 #include <ytlib/election/leader_channel.h>
 #include <ytlib/misc/delayed_invoker.h>
@@ -41,16 +42,16 @@ TMasterConnector::TMasterConnector(TBootstrap* bootstrap)
     Proxy.Reset(new TProxy(~channel));
 
     // TODO(babenko): use AsWeak
-    bootstrap->GetChunkStore()->ChunkAdded().Subscribe(FromMethod(
+    bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
         TWeakPtr<TMasterConnector>(this)));
-    bootstrap->GetChunkStore()->ChunkRemoved().Subscribe(FromMethod(
+    bootstrap->GetChunkStore()->SubscribeChunkRemoved(Bind(
         &TMasterConnector::OnChunkRemoved,
         TWeakPtr<TMasterConnector>(this)));
-    bootstrap->GetChunkCache()->ChunkAdded().Subscribe(FromMethod(
+    bootstrap->GetChunkCache()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
         TWeakPtr<TMasterConnector>(this)));
-    bootstrap->GetChunkCache()->ChunkRemoved().Subscribe(FromMethod(
+    bootstrap->GetChunkCache()->SubscribeChunkRemoved(Bind(
         &TMasterConnector::OnChunkRemoved,
         TWeakPtr<TMasterConnector>(this)));
 

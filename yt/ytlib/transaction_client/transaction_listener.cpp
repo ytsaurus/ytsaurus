@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "transaction_listener.h"
 
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -15,7 +15,7 @@ TTransactionListener::TTransactionListener()
 void TTransactionListener::ListenTransaction(ITransaction* transaction)
 {
     YASSERT(transaction);
-    transaction->SubscribeAborted(FromMethod(
+    transaction->SubscribeAborted(Bind(
         &TTransactionListener::OnAborted,
         // TODO(babenko): use AsWeak
         TWeakPtr<TTransactionListener>(this)));

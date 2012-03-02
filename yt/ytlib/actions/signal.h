@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "action.h"
+#include "callback.h"
 
 #include <ytlib/misc/foreach.h>
 
@@ -16,126 +15,137 @@ namespace NYT {
  *
  *  Lists are thread-safe.
  */
-template <class T>
-class TActionListBase
+template <class Signature>
+class TCallbackList;
+
+template <class Signature>
+class TCallbackListBase
 {
 public:
+    typedef NYT::TCallback<Signature> TCallback;
+
     //! Adds a new handler to the list.
     /*!
-     * \param action Handler to be added.
+     * \param callback Handler to be added.
      */
-    void Subscribe(typename T::TPtr action)
+    void Subscribe(const TCallback& callback)
     {
-        YASSERT(action);
-
         TGuard<TSpinLock> guard(SpinLock);
-        Actions.push_back(action);
+        Callbacks.push_back(callback);
     }
 
     //! Removes a handler from the list.
     /*!
-     * \param action Handler to be removed.
-     * \return True if #action was in the list of handlers.
+     * \param callback Handler to be removed.
+     * \return True if #callback was in the list of handlers.
      */
-    bool Unsubscribe(typename T::TPtr action)
+    bool Unsubscribe(const TCallback& callback)
     {
-        YASSERT(action);
-
         TGuard<TSpinLock> guard(SpinLock);
-        auto it = std::find(Actions.begin(), Actions.end(), action);
-        if (it == Actions.end())
-            return false;
-        Actions.erase(it);
-        return true;
+        for (auto it = Callbacks.begin(); it != Callbacks.end(); ++it) {
+            if (it->Equals(callback)) {
+                Callbacks.erase(it);
+                return true;
+            }
+        }
+        return false;
     }
 
     //! Clears the list of handlers.
     void Clear()
     {
         TGuard<TSpinLock> guard(SpinLock);
-        Actions.clear();
+        Callbacks.clear();
     }
 
 protected:
-    yvector<typename T::TPtr> Actions;
-    TSpinLock SpinLock;
+    mutable TSpinLock SpinLock;
+    std::vector<TCallback> Callbacks;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A list whose handlers are of type #IAction. \see #TActionListBase<T>.
-class TActionList
-    : public TActionListBase<IAction>
+// TODO(babenko): generate with pump
+
+template <>
+class TCallbackList<void()>
+    : public TCallbackListBase<void()>
 {
 public:
-    //! Calls #IAction::Do for all actions in the list.
-    void Fire()
+    //! Calls Run for all callbacks in the list.
+    void Fire() const
     {
         TGuard<TSpinLock> guard(this->SpinLock);
-        if (this->Actions.empty())
+        
+        if (this->Callbacks.empty())
             return;
-        yvector<IAction::TPtr> actions(this->Actions);
+
+        std::vector<TCallback> callbacks(this->Callbacks);
         guard.Release();
 
-        FOREACH (const auto& action, actions) {
-            action->Do();
-        }
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): remove once new callback system is in place
-//! A list whose handlers are of type #IParamAction<T>. \see #TActionListBase<T>
-template <class TParam>
-class TParamActionList
-    : public TActionListBase< IParamAction<TParam> >
-{
-public:
-    //! Calls #IParamAction::Do passing the given #arg to all actions in the list.
-    /*!
-     * \param arg Argument to be passed to the handlers.
-     */
-    void Fire(const TParam& arg)
-    {
-        TGuard<TSpinLock> guard(this->SpinLock);
-        if (this->Actions.empty())
-            return;
-        yvector< typename IParamAction<TParam>::TPtr > actions(this->Actions);
-        guard.Release();
-
-        FOREACH (const auto& action, actions) {
-            action->Do(arg);
+        FOREACH (const auto& callback, callbacks) {
+            callback.Run();
         }
     }
 };
 
+template <class A1>
+class TCallbackList<void(A1)>
+    : public TCallbackListBase<void(A1)>
+{
+public:
+    //! Calls Run for all callbacks in the list.
+    void Fire(const A1& a1) const
+    {
+        TGuard<TSpinLock> guard(this->SpinLock);
+
+        if (this->Callbacks.empty())
+            return;
+
+        std::vector<TCallback> callbacks(this->Callbacks);
+        guard.Release();
+
+        FOREACH (const auto& callback, callbacks) {
+            callback.Run(a1);
+        }
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): currently type is just ignored
-#define DEFINE_SIGNAL(type, name) \
+#define DEFINE_SIGNAL(signature, name) \
 protected: \
-    ::NYT::TActionList name##_; \
+    ::NYT::TCallbackList<signature> name##_; \
 public: \
-    void Subscribe##name(IAction::TPtr action) \
+    void Subscribe##name(const ::NYT::TCallback<signature>& callback) \
     { \
-        name##_.Subscribe(action); \
+        name##_.Subscribe(callback); \
     } \
     \
-    void Unsubscribe##name(IAction::TPtr action) \
+    void Unsubscribe##name(const ::NYT::TCallback<signature>& callback) \
     { \
-        name##_.Subscribe(action); \
+        name##_.Subscribe(callback); \
     }
 
-#define DECLARE_SIGNAL(type, name) \
-    void Subscribe##name(IAction::TPtr action); \
-    void Unsubscribe##name(IAction::TPtr action);
+#define DECLARE_SIGNAL(signature, name) \
+    void Subscribe##name(const ::NYT::TCallback<signature>& callback); \
+    void Unsubscribe##name(const ::NYT::TCallback<signature>& callback);
 
-#define DECLARE_SIGNAL_INTERFACE(type, name) \
-    virtual void Subscribe##name(IAction::TPtr action) = 0; \
-    virtual void Unsubscribe##name(IAction::TPtr action) = 0;
+#define DECLARE_INTERFACE_SIGNAL(signature, name) \
+    virtual void Subscribe##name(const ::NYT::TCallback<signature>& callback) = 0; \
+    virtual void Unsubscribe##name(const ::NYT::TCallback<signature>& callback) = 0;
+
+#define DELEGATE_SIGNAL(declaringType, signature, name, delegateTo) \
+    void declaringType::Subscribe##name(const ::NYT::TCallback<signature>& callback) \
+    { \
+        (delegateTo).Subscribe##name(callback); \
+    } \
+    \
+    void declaringType::Unsubscribe##name(const ::NYT::TCallback<signature>& callback) \
+    { \
+        (delegateTo).Unsubscribe##name(callback); \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

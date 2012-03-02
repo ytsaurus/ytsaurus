@@ -14,7 +14,7 @@
 
 #include <ytlib/election/election_manager.h>
 #include <ytlib/rpc/service.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/actions/invoker.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/serialize.h>
@@ -235,12 +235,12 @@ public:
             .EndMap();
     }
 
-    DEFINE_BYREF_RW_PROPERTY(TActionList, OnStartLeading);
-    DEFINE_BYREF_RW_PROPERTY(TActionList, OnLeaderRecoveryComplete);
-    DEFINE_BYREF_RW_PROPERTY(TActionList, OnStopLeading);
-    DEFINE_BYREF_RW_PROPERTY(TActionList, OnStartFollowing);
-    DEFINE_BYREF_RW_PROPERTY(TActionList, OnFollowerRecoveryComplete);
-    DEFINE_BYREF_RW_PROPERTY(TActionList, OnStopFollowing);
+    DEFINE_SIGNAL(void(), StartLeading);
+    DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
+    DEFINE_SIGNAL(void(), StopLeading);
+    DEFINE_SIGNAL(void(), StartFollowing);
+    DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
+    DEFINE_SIGNAL(void(), StopFollowing);
 
     virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
@@ -733,9 +733,8 @@ public:
             FollowerTracker,
             ControlInvoker,
             Epoch);
-        LeaderCommitter->OnApplyChange().Subscribe(FromMethod(
-            &TThis::OnApplyChange,
-            TPtr(this)));
+        // TODO(babenko): use AsWeak
+        LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnApplyChange, TPtr(this)));
 
         YASSERT(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(
@@ -829,7 +828,7 @@ public:
             MetaState->RotateChangeLog();
         }
 
-        OnLeaderRecoveryComplete_.Fire();
+        LeaderRecoveryComplete_.Fire();
     }
 
     void OnRemoteAdvanceSegment(
@@ -1190,7 +1189,7 @@ public:
 
         StartStateEpoch();
 
-        OnStartLeading_.Fire();
+        StartLeading_.Fire();
     }
 
     void DoStopLeading()
@@ -1202,7 +1201,7 @@ public:
 
         StopStateEpoch();
 
-        OnStopLeading_.Fire();
+        StopLeading_.Fire();
     }
 
 
@@ -1215,7 +1214,7 @@ public:
 
         StartStateEpoch();
 
-        OnStartFollowing_.Fire();
+        StartFollowing_.Fire();
     }
 
     void DoFollowerRecoveryComplete()
@@ -1225,7 +1224,7 @@ public:
         YASSERT(StateStatus == EPeerStatus::FollowerRecovery);
         StateStatus = EPeerStatus::Following;
 
-        OnFollowerRecoveryComplete_.Fire();
+        FollowerRecoveryComplete_.Fire();
     }
 
     void DoStopFollowing()
@@ -1237,7 +1236,7 @@ public:
 
         StopStateEpoch();
 
-        OnStopFollowing_.Fire();
+        StopFollowing_.Fire();
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

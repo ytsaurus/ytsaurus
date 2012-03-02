@@ -161,7 +161,7 @@ public:
         HandleAbort();
     }
 
-    virtual void SubscribeAborted(IAction::TPtr handler)
+    virtual void SubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         
@@ -173,7 +173,7 @@ public:
 
             case EState::Aborted:
                 guard.Release();
-                handler->Do();
+                handler.Run();
                 break;
 
             default:
@@ -181,7 +181,7 @@ public:
         }
     }
 
-    virtual void UnsubscribeAborted(IAction::TPtr handler)
+    virtual void UnsubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         Aborted.Unsubscribe(handler);
@@ -228,7 +228,7 @@ private:
     INodePtr Manifest;
     TTransactionId ParentId;
 
-    TActionList Aborted;
+    TCallbackList<void()> Aborted;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
