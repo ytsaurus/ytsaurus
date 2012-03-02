@@ -6,6 +6,7 @@
 #include "cypress_ypath_proxy.h"
 #include "cypress_ypath.pb.h"
 
+#include <ytlib/actions/bind.h>
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/misc/singleton.h>
 #include <ytlib/ytree/yson_reader.h>
@@ -127,10 +128,10 @@ TCypressManager::TCypressManager(
 
     VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
 
-    transactionManager->OnTransactionCommitted().Subscribe(FromMethod(
+    transactionManager->SubscribeTransactionCommitted(Bind(
         &TThis::OnTransactionCommitted,
         TPtr(this)));
-    transactionManager->OnTransactionAborted().Subscribe(FromMethod(
+    transactionManager->SubscribeTransactionAborted(Bind(
         &TThis::OnTransactionAborted,
         TPtr(this)));
 

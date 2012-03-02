@@ -117,11 +117,8 @@ public:
      */
     void Flush();
 
-    //! A signal that gets raised in the state thread after each commit.
-    /*!
-     * \note Thread affinity: any
-     */
-    TSignal& OnApplyChange();
+    //! Raised in the state thread each time a change is applied locally.
+    DEFINE_SIGNAL(void(), ChangeApplied);
 
 private:
     class TBatch;
@@ -140,8 +137,6 @@ private:
     TChangeLogCache::TPtr ChangeLogCache;
     TFollowerTracker::TPtr FollowerTracker;
     TEpoch Epoch;
-
-    TSignal OnApplyChange_;
 
     //! Protects #CurrentBatch and #TimeoutCookie.
     TSpinLock BatchSpinLock;

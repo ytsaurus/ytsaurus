@@ -12,6 +12,7 @@
 #include "chunk_manager.pb.h"
 #include "holder_statistics.h"
 
+#include <ytlib/actions/signal.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>
 #include <ytlib/transaction_server/transaction_manager.h>
@@ -68,13 +69,13 @@ public:
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
+    DECLARE_SIGNAL(void(const THolder&), HolderRegistered);
     //! Fired when a holder gets unregistered.
     /*!
      *  \note
      *  Only fired for leaders, not fired during recovery.
      */
-    DECLARE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
+    DECLARE_SIGNAL(void(const THolder&), HolderUnregistered);
 
     const THolder* FindHolder(const Stroka& address) const;
     THolder* FindHolder(const Stroka& address);

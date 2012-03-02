@@ -3,7 +3,7 @@
 #include "composite_meta_state_detail.h"
 
 #include <ytlib/misc/foreach.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -25,13 +25,14 @@ TMetaStatePart::TMetaStatePart(
     YASSERT(metaStateManager);
     YASSERT(metaState);
 
-    metaStateManager->OnStartLeading().Subscribe(FromMethod(
+    // TODO(babenko): use AsWeak
+    metaStateManager->SubscribeStartLeading(Bind(
         &TThis::OnStartLeading,
         TPtr(this)));
-    metaStateManager->OnLeaderRecoveryComplete().Subscribe(FromMethod(
+    metaStateManager->SubscribeLeaderRecoveryComplete(Bind(
         &TThis::OnLeaderRecoveryComplete,
         TPtr(this)));
-    metaStateManager->OnStopLeading().Subscribe(FromMethod(
+    metaStateManager->SubscribeStopLeading(Bind(
         &TThis::OnStopLeading,
         TPtr(this)));
 }

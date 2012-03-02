@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
 
+#include <ytlib/actions/bind.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
@@ -373,43 +374,52 @@ public:
         TCypressManager* cypressManager,
         TChunkManager* chunkManager)
         : TBase(nodeId, cypressManager)
+        , MetaStateManager(metaStateManager)
         , ChunkManager(chunkManager)
     {
-        ChunkManager->HolderRegistered().Subscribe(
-            // TODO(babenko): use AsWeak
-            FromMethod(&TThis::OnRegistered, TWeakPtr<THolderMapBehavior>(this))
-            ->Via(metaStateManager->GetEpochStateInvoker()));
+        // TODO(babenko): use AsWeak
+        ChunkManager->SubscribeHolderRegistered(Bind(
+            &TThis::OnRegistered,
+            TWeakPtr<THolderMapBehavior>(this)));
     }
 
 private:
+    IMetaStateManager::TPtr MetaStateManager;
     TChunkManager::TPtr ChunkManager;
     
     void OnRegistered(const THolder& holder)
     {
         Stroka address = holder.GetAddress();
-
         auto node = GetProxy();
-        if (node->FindChild(address))
-            return;
+        auto cypressManager = CypressManager;
 
-        auto service = CypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
+        // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
+        // Doing otherwise will turn holder registration and Cypress update into a single
+        // logged change, which is undesirable.
+        MetaStateManager->GetEpochStateInvoker()->Invoke(FromFunctor([=] ()
+            {
+                if (node->FindChild(address))
+                    return;
 
-        // TODO(babenko): make a single transaction
+                auto service = cypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
 
-        {
-            auto req = TCypressYPathProxy::Create(address);
-            req->set_type(EObjectType::Holder);
-            ExecuteVerb(~service, ~req);
-        }
+                // TODO(babenko): make a single transaction
 
-        {
-            auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
-            req->set_type(EObjectType::Orchid);     
-            auto manifest = New<TOrchidManifest>();
-            manifest->RemoteAddress = address;
-            req->set_manifest(SerializeToYson(~manifest));
-            ExecuteVerb(~service, ~req);
-        }
+                {
+                    auto req = TCypressYPathProxy::Create(address);
+                    req->set_type(EObjectType::Holder);
+                    ExecuteVerb(~service, ~req);
+                }
+
+                {
+                    auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
+                    req->set_type(EObjectType::Orchid);     
+                    auto manifest = New<TOrchidManifest>();
+                    manifest->RemoteAddress = address;
+                    req->set_manifest(SerializeToYson(~manifest));
+                    ExecuteVerb(~service, ~req);
+                }
+            }));
     }
 
 };

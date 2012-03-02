@@ -209,8 +209,8 @@ public:
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
     DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderRegistered);
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<const THolder&>, HolderUnregistered);
+    DEFINE_SIGNAL(void(const THolder&), HolderRegistered);
+    DEFINE_SIGNAL(void(const THolder&), HolderUnregistered);
 
 
     const THolder* FindHolder(const Stroka& address) const
@@ -1266,8 +1266,8 @@ private:
             }
 
             if (!holder->HasChunk(chunk.GetId(), false)) {
-                holder->AddUnapprovedChunk(chunk.GetId());
                 Owner->DoAddChunkReplica(*holder, chunk, false);
+                holder->MarkChunkUnapproved(chunk.GetId());
             }
         }
 
@@ -1572,8 +1572,8 @@ DELEGATE_METAMAP_ACCESSORS(TChunkManager, Holder, THolder, THolderId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, JobList, TJobList, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Job, TJob, TJobId, *Impl)
 
-DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderRegistered, *Impl);
-DELEGATE_BYREF_RW_PROPERTY(TChunkManager, TParamSignal<const THolder&>, HolderUnregistered, *Impl);
+DELEGATE_SIGNAL(TChunkManager, void(const THolder&), HolderRegistered, *Impl);
+DELEGATE_SIGNAL(TChunkManager, void(const THolder&), HolderUnregistered, *Impl);
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, LostChunkIds, *Impl);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, OverreplicatedChunkIds, *Impl);

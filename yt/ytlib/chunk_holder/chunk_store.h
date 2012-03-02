@@ -58,11 +58,11 @@ public:
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 
-    //! Raised when a chunk is added.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkAdded);
+    //! Raised when a chunk is added to the store.
+    DEFINE_SIGNAL(void(TChunk*), ChunkAdded);
 
-    //! Raised when a chunk is removed.
-    DEFINE_BYREF_RW_PROPERTY(TParamSignal<TChunk*>, ChunkRemoved);
+    //! Raised when a chunk is removed from the store.
+    DEFINE_SIGNAL(void(TChunk*), ChunkRemoved);
 
 private:
     TChunkHolderConfig::TPtr Config;

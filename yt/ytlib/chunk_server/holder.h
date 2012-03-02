@@ -50,7 +50,7 @@ public:
     void RemoveChunk(const TChunkId& chunkId, bool cached);
     bool HasChunk(const TChunkId& chunkId, bool cached) const;
 
-    void AddUnapprovedChunk(const TChunkId& chunkId);
+    void MarkChunkUnapproved(const TChunkId& chunkId);
     void RemoveUnapprovedChunk(const TChunkId& chunkId);
     bool HasUnapprovedChunk(const TChunkId& chunkId) const;
     void ApproveChunk(const TChunkId& chunkId);

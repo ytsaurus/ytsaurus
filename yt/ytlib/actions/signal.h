@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "action.h"
+#include "callback.h"
 
 #include <ytlib/misc/foreach.h>
 
@@ -9,110 +8,144 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 /*!
- *  A signal represents a list of actions (either taking parameters or not).
- *  A client may subscribe to a signal (adding a new handler to the list),
- *  unsubscribe from a signal (removing an earlier added handler),
- *  and fire a signal thus invoking the actions added so far.
+ *  A client may subscribe to the list (adding a new handler to it),
+ *  unsubscribe from it (removing an earlier added handler),
+ *  and fire it thus invoking the actions added so far.
  *
- *  Signals are thread-safe.
+ *  Lists are thread-safe.
  */
-template <class T>
-class TSignalBase
+template <class Signature>
+class TCallbackList;
+
+template <class Signature>
+class TCallbackListBase
 {
 public:
+    typedef NYT::TCallback<Signature> TCallback;
+
     //! Adds a new handler to the list.
     /*!
-     * \param action Handler to be added.
+     * \param callback Handler to be added.
      */
-    void Subscribe(typename T::TPtr action)
+    void Subscribe(const TCallback& callback)
     {
-        YASSERT(action);
-
         TGuard<TSpinLock> guard(SpinLock);
-        Actions.push_back(action);
+        Callbacks.push_back(callback);
     }
 
     //! Removes a handler from the list.
     /*!
-     * \param action Handler to be removed.
-     * \return True if #action was in the list of handlers.
+     * \param callback Handler to be removed.
+     * \return True if #callback was in the list of handlers.
      */
-    bool Unsubscribe(typename T::TPtr action)
+    bool Unsubscribe(const TCallback& callback)
     {
-        YASSERT(action);
-
         TGuard<TSpinLock> guard(SpinLock);
-        auto it = std::find(Actions.begin(), Actions.end(), action);
-        if (it == Actions.end())
-            return false;
-        Actions.erase(it);
-        return true;
+        for (auto it = Callbacks.begin(); it != Callbacks.end(); ++it) {
+            if (it->Equals(callback)) {
+                Callbacks.erase(it);
+                return true;
+            }
+        }
+        return false;
     }
 
     //! Clears the list of handlers.
     void Clear()
     {
         TGuard<TSpinLock> guard(SpinLock);
-        Actions.clear();
+        Callbacks.clear();
     }
 
 protected:
-    yvector<typename T::TPtr> Actions;
-    TSpinLock SpinLock;
+    mutable TSpinLock SpinLock;
+    std::vector<TCallback> Callbacks;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A signal whose handlers are of type #IAction. \see #TSignalBase<T>.
-class TSignal
-    : public TSignalBase<IAction>
+// TODO(babenko): generate with pump
+
+template <>
+class TCallbackList<void()>
+    : public TCallbackListBase<void()>
 {
 public:
-
-    //! Calls #IAction::Do for all actions in the list.
-    void Fire()
+    //! Calls Run for all callbacks in the list.
+    void Fire() const
     {
         TGuard<TSpinLock> guard(this->SpinLock);
-        if (this->Actions.empty())
+        
+        if (this->Callbacks.empty())
             return;
-        yvector<IAction::TPtr> actions(this->Actions);
+
+        std::vector<TCallback> callbacks(this->Callbacks);
         guard.Release();
 
-        FOREACH (const auto& action, actions) {
-            action->Do();
+        FOREACH (const auto& callback, callbacks) {
+            callback.Run();
         }
     }
+};
 
+template <class A1>
+class TCallbackList<void(A1)>
+    : public TCallbackListBase<void(A1)>
+{
+public:
+    //! Calls Run for all callbacks in the list.
+    void Fire(const A1& a1) const
+    {
+        TGuard<TSpinLock> guard(this->SpinLock);
+
+        if (this->Callbacks.empty())
+            return;
+
+        std::vector<TCallback> callbacks(this->Callbacks);
+        guard.Release();
+
+        FOREACH (const auto& callback, callbacks) {
+            callback.Run(a1);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A signal whose handlers are of type #IParamAction<T>. \see #TSignalBase<T>
-template <class TParam>
-class TParamSignal
-    : public TSignalBase< IParamAction<TParam> >
-{
-public:
-    //! Calls #IParamAction::Do passing the given #arg to all actions in the list.
-    /*!
-     * \param arg Argument to be passed to the handlers.
-     */
-    void Fire(const TParam& arg)
-    {
-        TGuard<TSpinLock> guard(this->SpinLock);
-        if (this->Actions.empty())
-            return;
-        yvector< typename IParamAction<TParam>::TPtr > actions(this->Actions);
-        guard.Release();
-
-        FOREACH (const auto& action, actions) {
-            action->Do(arg);
-        }
+#define DEFINE_SIGNAL(signature, name) \
+protected: \
+    ::NYT::TCallbackList<signature> name##_; \
+public: \
+    void Subscribe##name(const ::NYT::TCallback<signature>& callback) \
+    { \
+        name##_.Subscribe(callback); \
+    } \
+    \
+    void Unsubscribe##name(const ::NYT::TCallback<signature>& callback) \
+    { \
+        name##_.Subscribe(callback); \
     }
-};
+
+#define DECLARE_SIGNAL(signature, name) \
+    void Subscribe##name(const ::NYT::TCallback<signature>& callback); \
+    void Unsubscribe##name(const ::NYT::TCallback<signature>& callback);
+
+#define DECLARE_INTERFACE_SIGNAL(signature, name) \
+    virtual void Subscribe##name(const ::NYT::TCallback<signature>& callback) = 0; \
+    virtual void Unsubscribe##name(const ::NYT::TCallback<signature>& callback) = 0;
+
+#define DELEGATE_SIGNAL(declaringType, signature, name, delegateTo) \
+    void declaringType::Subscribe##name(const ::NYT::TCallback<signature>& callback) \
+    { \
+        (delegateTo).Subscribe##name(callback); \
+    } \
+    \
+    void declaringType::Unsubscribe##name(const ::NYT::TCallback<signature>& callback) \
+    { \
+        (delegateTo).Unsubscribe##name(callback); \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

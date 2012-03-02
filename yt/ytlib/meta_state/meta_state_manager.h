@@ -125,19 +125,19 @@ struct IMetaStateManager
 
     //! Raised within the state thread when the state has started leading
     //! and now enters recovery.
-    virtual TSignal& OnStartLeading() = 0;
+    DECLARE_INTERFACE_SIGNAL(void(), StartLeading);
     //! Raised within the state thread when the leader recovery is complete.
-    virtual TSignal& OnLeaderRecoveryComplete() = 0;
+    DECLARE_INTERFACE_SIGNAL(void(), LeaderRecoveryComplete);
     //! Raised within the state thread when the state has stopped leading.
-    virtual TSignal& OnStopLeading() = 0;
+    DECLARE_INTERFACE_SIGNAL(void(), StopLeading);
 
     //! Raised within the state thread when the state has started following
     //! and now enters recovery.
-    virtual TSignal& OnStartFollowing() = 0;
+    DECLARE_INTERFACE_SIGNAL(void(), StartFollowing);
     //! Raised within the state thread when the follower recovery is complete.
-    virtual TSignal& OnFollowerRecoveryComplete() = 0;
+    DECLARE_INTERFACE_SIGNAL(void(), FollowerRecoveryComplete);
     //! Raised within the   state thread when the state has started leading.
-    virtual TSignal& OnStopFollowing() = 0;
+    DECLARE_INTERFACE_SIGNAL(void(), StopFollowing);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

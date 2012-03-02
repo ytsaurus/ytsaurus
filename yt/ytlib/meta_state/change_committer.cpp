@@ -235,7 +235,7 @@ void TLeaderCommitter::Stop()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     TCommitterBase::Stop();
-    OnApplyChange().Clear();
+    ChangeApplied_.Clear();
 }
 
 void TLeaderCommitter::Flush()
@@ -265,7 +265,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
 
     LOG_DEBUG("Change is applied locally (Version: %s)", ~version.ToString());
 
-    OnApplyChange_.Fire();
+    ChangeApplied_.Fire();
 
     return batchResult;
 }
@@ -329,13 +329,6 @@ void TLeaderCommitter::DelayedFlush(TBatch::TPtr batch)
     LOG_DEBUG("Flushing batched changes");
 
     FlushCurrentBatch();
-}
-
-TSignal& TLeaderCommitter::OnApplyChange()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return OnApplyChange_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
