@@ -98,8 +98,10 @@ class RemoteNode(Node):
                     raise 'Zadnica'
                 print >>fd, wrap_cmd(cmd) 
 
+        #make symlink on binary in the home dir
         _, bin_name = os.path.split(cls.bin_path)
-        print >>fd, 'ln -s -f %s/%s ~/%s' % (cls.remote_dir, bin_name, bin_name)
+        cmd = 'ln -s -f %s/%s ~/%s' % (cls.remote_dir, bin_name, bin_name)
+        print >>fd, wrap_cmd(cmd_ssh % (cls.host, cmd))
 
     run_tmpl = Template(cmd_run)
     def do_run(cls, fd):
