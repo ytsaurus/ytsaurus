@@ -22,13 +22,13 @@ template <class Signature>
 class TCallbackListBase
 {
 public:
-    typedef NYT::TCallback<Signature> TCallback;
+    typedef NYT::TCallback<Signature> TItem;
 
     //! Adds a new handler to the list.
     /*!
      * \param callback Handler to be added.
      */
-    void Subscribe(const TCallback& callback)
+    void Subscribe(const TItem& callback)
     {
         TGuard<TSpinLock> guard(SpinLock);
         Callbacks.push_back(callback);
@@ -39,7 +39,7 @@ public:
      * \param callback Handler to be removed.
      * \return True if #callback was in the list of handlers.
      */
-    bool Unsubscribe(const TCallback& callback)
+    bool Unsubscribe(const TItem& callback)
     {
         TGuard<TSpinLock> guard(SpinLock);
         for (auto it = Callbacks.begin(); it != Callbacks.end(); ++it) {
@@ -60,7 +60,7 @@ public:
 
 protected:
     mutable TSpinLock SpinLock;
-    std::vector<TCallback> Callbacks;
+    std::vector<TItem> Callbacks;
 
 };
 
@@ -81,7 +81,7 @@ public:
         if (this->Callbacks.empty())
             return;
 
-        std::vector<TCallback> callbacks(this->Callbacks);
+        std::vector<TItem> callbacks(this->Callbacks);
         guard.Release();
 
         FOREACH (const auto& callback, callbacks) {
@@ -103,7 +103,7 @@ public:
         if (this->Callbacks.empty())
             return;
 
-        std::vector<TCallback> callbacks(this->Callbacks);
+        std::vector<TItem> callbacks(this->Callbacks);
         guard.Release();
 
         FOREACH (const auto& callback, callbacks) {
