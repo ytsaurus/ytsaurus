@@ -161,11 +161,17 @@ inline bool TParallelAwaiter::IsCanceled() const
 
 inline void TParallelAwaiter::Terminate()
 {
+    VERIFY_SPINLOCK_AFFINITY(SpinLock);
+
+    if (Terminated)
+        return;
+
     OnComplete.Reset();
-    Terminated = true;
     if (Profiler) {
         Profiler->TimingStop(Timer);
     }
+
+    Terminated = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
