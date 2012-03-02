@@ -3,6 +3,8 @@
 #endif
 #undef PARALLEL_AWAITER_INL_H_
 
+#include <ytlib/misc/thread_affinity.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
