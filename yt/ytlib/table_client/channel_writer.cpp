@@ -8,34 +8,57 @@ namespace NTableClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChannelWriter::TChannelWriter(const TChannel& channel)
+TChannelWriter::TChannelWriter(
+    const TChannel& channel,
+    const yhash_map<TColumn, int>& chunkColumnIndexes)
     : Channel(channel)
     , FixedColumns(Channel.GetColumns().size())
     , IsColumnUsed(Channel.GetColumns().size())
     , CurrentRowCount(0)
 {
-    for (int columnIndex = 0; columnIndex < Channel.GetColumns().ysize(); ++columnIndex) {
-        auto& column = Channel.GetColumns()[columnIndex];
-        ColumnIndexes[column] = columnIndex;
+    ColumnIndexMapping.resize(chunkColumnIndexes.size(), UnknownIndex);
+
+    for (int i = 0; i < Channel.GetColumns().ysize(); ++i) {
+        auto& column = Channel.GetColumns()[i];
+        auto it = chunkColumnIndexes.find(column);
+        YASSERT(chunkColumnIndexes.end() != it);
+
+        ColumnIndexMapping[it->second] = i;
     }
+
+    FOREACH(auto& item, chunkColumnIndexes) {
+        if ((ColumnIndexMapping[item.Second()] < 0) &&
+            Channel.ContainsInRanges(item.First()))
+        {
+            ColumnIndexMapping[item.Second()] = RangeIndex;
+        }
+    }
+
     CurrentSize = GetEmptySize();
 }
 
-void TChannelWriter::Write(const TColumn& column, TValue value)
+void TChannelWriter::Write(
+    int chunkColumnIndex, 
+    const TColumn& column, 
+    TValue value)
 {
-    if (!Channel.Contains(column)) {
-        return;
-    }
+    if (chunkColumnIndex > UnknownIndex) {
+        int columnIndex = ColumnIndexMapping[chunkColumnIndex];
+        if (columnIndex == UnknownIndex)
+            return;
 
-    auto it = ColumnIndexes.find(column);
-    if (it == ColumnIndexes.end()) {
+        if (columnIndex == RangeIndex) {
+            CurrentSize += TValue(column).Save(&RangeColumns);
+            CurrentSize += value.Save(&RangeColumns);
+        } else {
+            YASSERT(columnIndex > UnknownIndex);
+            auto& columnOutput = FixedColumns[columnIndex];
+            CurrentSize += value.Save(&columnOutput);
+            IsColumnUsed[columnIndex] = true;
+        }
+    } else if (Channel.ContainsInRanges(column)) {
         CurrentSize += TValue(column).Save(&RangeColumns);
         CurrentSize += value.Save(&RangeColumns);
-    } else {
-        int columnIndex = it->second;
-        auto& columnOutput = FixedColumns[columnIndex];
-        CurrentSize += value.Save(&columnOutput);
-        IsColumnUsed[columnIndex] = true;
     }
 }
 
@@ -97,6 +120,9 @@ int TChannelWriter::GetCurrentRowCount() const
 {
     return CurrentRowCount;
 }
+
+const int TChannelWriter::UnknownIndex = -1;
+const int TChannelWriter::RangeIndex = -2;
 
 ///////////////////////////////////////////////////////////////////////////////
 

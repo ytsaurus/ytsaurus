@@ -3,62 +3,37 @@
 #include "common.h"
 #include "value.h"
 #include "schema.h"
+#include "channel_writer.h"
+#include "table_chunk_meta.pb.h"
 
 #include <ytlib/misc/ref_counted.h>
-#include <ytlib/misc/async_stream_state.h>
-#include <ytlib/misc/sync.h>
+#include <ytlib/misc/nullable.h>
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef std::vector< TNullable<Stroka> > TKey;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IAsyncWriter
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IAsyncWriter> Ptr;
+    typedef TIntrusivePtr<IAsyncWriter> TPtr;
 
-    virtual TAsyncError::TPtr AsyncOpen() = 0;
+    virtual TAsyncError::TPtr AsyncOpen(
+        const NProto::TTableChunkAttributes& attributes) = 0;
 
-    virtual void Write(const TColumn& column, TValue value) = 0;
+    virtual TAsyncError::TPtr AsyncEndRow(
+        TKey& key,
+        std::vector<TChannelWriter::TPtr>& channels) = 0;
 
-    virtual TAsyncError::TPtr AsyncEndRow() = 0;
-    virtual TAsyncError::TPtr AsyncClose() = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct ISyncWriter
-    : public virtual TRefCounted
-{
-    typedef TIntrusivePtr<ISyncWriter> TPtr;
-
-    virtual void Open() = 0;
-    virtual void Write(const TColumn& column, TValue value) = 0;
-    virtual void EndRow() = 0;
-    virtual void Close() = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IWriter
-    : public IAsyncWriter
-    , public ISyncWriter
-{
-    void Open()
-    {
-        Sync<IAsyncWriter>(this, &IAsyncWriter::AsyncOpen);
-    }
-
-    void EndRow()
-    {
-        Sync<IAsyncWriter>(this, &IAsyncWriter::AsyncEndRow);
-    }
-
-    void Close()
-    {
-        Sync<IAsyncWriter>(this, &IAsyncWriter::AsyncClose);
-    }
+    virtual TAsyncError::TPtr AsyncClose(
+        TKey& lastKey,
+        std::vector<TChannelWriter::TPtr>& channels) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

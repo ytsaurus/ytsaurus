@@ -20,10 +20,8 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Given a schema and input data creates a sequence of blocks 
-//! and feeds them to NChunkClient::IAsyncWriter.
 class  TChunkWriter
-    : public IWriter
+    : public IAsyncWriter
 {
 public:
     typedef TIntrusivePtr<TChunkWriter> TPtr;
@@ -34,6 +32,7 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
         
         i64 BlockSize;
+        i64 SamplingSize;
         int CodecId;
 
         TConfig()
@@ -42,6 +41,9 @@ public:
             Register("block_size", BlockSize)
                 .GreaterThan(1024)
                 .Default(1024 * 1024);
+            Register("sampling_size", SamplingSize)
+                .GreaterThanOrEqual(1024)
+                .Default(1024);
             Register("codec_id", CodecId)
                 .Default(ECodecId::None);
         }
@@ -49,50 +51,45 @@ public:
 
     TChunkWriter(
         TConfig* config, 
-        NChunkClient::IAsyncWriter* chunkWriter, 
-        const TSchema& schema);
+        NChunkClient::IAsyncWriter* chunkWriter);
+
     ~TChunkWriter();
 
-    TAsyncError::TPtr AsyncOpen();
-    void Write(const TColumn& column, TValue value);
+    TAsyncError::TPtr AsyncOpen(
+        const NProto::TTableChunkAttributes& attributes);
 
-    TAsyncError::TPtr AsyncEndRow();
+    TAsyncError::TPtr AsyncEndRow(
+        TKey& key,
+        std::vector<TChannelWriter::TPtr>& channels);
 
-    TAsyncError::TPtr AsyncClose();
+    TAsyncError::TPtr AsyncClose(
+        TKey& lastKey,
+        std::vector<TChannelWriter::TPtr>& channels);
 
     i64 GetCurrentSize() const;
-
     NChunkServer::TChunkId GetChunkId() const;
-
     NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest();
 
 private:
-    TSharedRef PrepareBlock(int channelIndex);
-    void ContinueEndRow(
-        TError error,
-        int nextChannel);
+    TSharedRef PrepareBlock(
+        TChannelWriter::TPtr channel, 
+        int channelIndex);
 
-    void ContinueClose(
-        TError error, 
-        int startChannelIndex = 0);
-    void OnClosed(TError error);
+    void AddKeySample(const TKey& key);
 
 private:
     TConfig::TPtr Config;
-    const TSchema Schema;
 
     ICodec* Codec;
 
     NChunkClient::IAsyncWriter::TPtr ChunkWriter;
 
-    TAsyncStreamState State;
-
-    yvector<TChannelWriter::TPtr> ChannelWriters;
-
-    //! Columns already set in current row.
-    yhash_set<TColumn> UsedColumns;
+    bool IsOpen;
+    bool IsClosed;
 
     int CurrentBlockIndex;
+
+    i64 LastSampleSize;
 
     //! Sum size of completed and sent blocks.
     i64 SentSize;
@@ -104,7 +101,6 @@ private:
     i64 UncompressedSize;
 
     NProto::TTableChunkAttributes Attributes;
-
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
 

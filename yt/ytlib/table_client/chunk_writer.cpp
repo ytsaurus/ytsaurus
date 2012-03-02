@@ -9,6 +9,7 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace std;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkHolder::NProto;
@@ -21,93 +22,75 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 TChunkWriter::TChunkWriter(
     TConfig* config, 
-    NChunkClient::IAsyncWriter* chunkWriter,
-    const TSchema& schema)
+    NChunkClient::IAsyncWriter* chunkWriter)
     : Config(config)
-    , Schema(schema)
     , ChunkWriter(chunkWriter)
+    , IsOpen(false)
+    , IsClosed(false)
     , CurrentBlockIndex(0)
     , SentSize(0)
     , CurrentSize(0)
     , UncompressedSize(0)
 {
     YASSERT(chunkWriter);
-    
-    Attributes.set_codec_id(Config->CodecId);
-    Attributes.set_row_count(0);
-
-    // Fill protobuf chunk meta.
-    FOREACH(auto channel, Schema.GetChannels()) {
-        *Attributes.add_chunk_channels()->mutable_channel() = channel.ToProto();
-        ChannelWriters.push_back(New<TChannelWriter>(channel));
-    }
-
     Codec = GetCodec(ECodecId(Config->CodecId));
 }
 
-void TChunkWriter::Write(const TColumn& column, TValue value)
+TAsyncError::TPtr TChunkWriter::AsyncOpen(
+    const NProto::TTableChunkAttributes& attributes)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(!State.HasRunningOperation());
-    YASSERT(!State.IsClosed());
+    YASSERT(!IsOpen);
+    YASSERT(!IsClosed);
 
-    YASSERT(!UsedColumns.has(column));
+    IsOpen = true;
 
-    UsedColumns.insert(column);
-    FOREACH(auto& channelWriter, ChannelWriters) {
-        channelWriter->Write(column, value);
-    }
+    Attributes = attributes;
+    Attributes.set_codec_id(Config->CodecId);
+    Attributes.set_row_count(0);
+
+    return New<TAsyncError>();
 }
 
-void TChunkWriter::ContinueEndRow(
-    TError error,
-    int channelIndex)
-{
-    if (error.IsOK()) {
-        while (channelIndex < ChannelWriters.ysize()) {
-            auto channel = ChannelWriters[channelIndex];
-            channel->EndRow();
-            CurrentSize += channel->GetCurrentSize();
-
-            if (channel->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
-                auto block = PrepareBlock(channelIndex);
-                ChunkWriter->AsyncWriteBlock(block)->Subscribe(
-                    FromMethod(
-                        &TChunkWriter::ContinueEndRow,
-                        TWeakPtr<TChunkWriter>(this),
-                        channelIndex + 1)
-                    ->Via(WriterThread->GetInvoker()));
-                return;
-            } 
-            ++channelIndex;
-        }
-    }
-
-    State.FinishOperation(error);
-}
-
-TAsyncError::TPtr TChunkWriter::AsyncEndRow()
+TAsyncError::TPtr TChunkWriter::AsyncEndRow(
+    TKey& key,
+    std::vector<TChannelWriter::TPtr>& channels)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(!State.HasRunningOperation());
-    YASSERT(!State.IsClosed());
+    YASSERT(IsOpen);
+    YASSERT(!IsClosed);
 
     CurrentSize = SentSize;
-    UsedColumns.clear();
-    
+
     Attributes.set_row_count(Attributes.row_count() + 1);
 
-    State.StartOperation();
-    ContinueEndRow(State.GetCurrentError(), 0);
+    std::vector<TSharedRef> completedBlocks;
+    for (int channelIndex = 0; channelIndex < channels.size(); ++channelIndex) {
+        auto& channel = channels[channelIndex];
+        CurrentSize += channel->GetCurrentSize();
 
-    return State.GetOperationError();
+        if (channel->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
+            auto block = PrepareBlock(channel, channelIndex);
+            completedBlocks.push_back(block);
+        } 
+    }
+
+    // Keys sampling
+    if (LastSampleSize == 0 || 
+        (CurrentSize - LastSampleSize > Config->SamplingSize))
+    {
+        LastSampleSize = CurrentSize;
+        AddKeySample(key);
+    }
+
+    return ChunkWriter->AsyncWriteBlocks(MoveRV(completedBlocks));
 }
 
-TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
+TSharedRef TChunkWriter::PrepareBlock(
+    TChannelWriter::TPtr channel, 
+    int channelIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    auto channel = ChannelWriters[channelIndex];
 
     NProto::TBlockInfo* blockInfo = Attributes.mutable_chunk_channels(channelIndex)->add_blocks();
     blockInfo->set_block_index(CurrentBlockIndex);
@@ -133,70 +116,38 @@ i64 TChunkWriter::GetCurrentSize() const
     return CurrentSize;
 }
 
-void TChunkWriter::OnClosed(TError error)
+TAsyncError::TPtr TChunkWriter::AsyncClose(
+    TKey& lastKey,
+    std::vector<TChannelWriter::TPtr>& channels)
 {
-    State.Finish(error);
-}
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(IsOpen);
+    YASSERT(!IsClosed);
 
-void TChunkWriter::ContinueClose(
-    TError error,
-    int startChannelIndex /* = 0 */)
-{
-    // ToDo: consider separate thread for this background blocks 
-    // processing. As far as this function is usually driven by 
-    // window of RemoteChunkWriter using it for table processing 
-    // slows window shifts.
-    VERIFY_THREAD_AFFINITY_ANY();
+    IsClosed = true;
 
-    if (!error.IsOK()) {
-        State.FinishOperation(error);
-        return;
-    }
+    std::vector<TSharedRef> completedBlocks;
+    for (int channelIndex = 0; channelIndex < channels.size(); ++channelIndex) {
+        auto& channel = channels[channelIndex];
+        CurrentSize += channel->GetCurrentSize();
 
-    // Flush trailing blocks.
-    int channelIndex = startChannelIndex;
-    while (channelIndex < ChannelWriters.ysize()) {
-        auto channel = ChannelWriters[channelIndex];
         if (channel->HasUnflushedData()) {
-            break;
-        }
-        ++channelIndex;
+            auto block = PrepareBlock(channel, channelIndex);
+            completedBlocks.push_back(block);
+        } 
     }
 
-    if (channelIndex < ChannelWriters.ysize()) {
-        auto data = PrepareBlock(channelIndex);
-        ChunkWriter->AsyncWriteBlock(data)->Subscribe(FromMethod(
-            &TChunkWriter::ContinueClose,
-            TWeakPtr<TChunkWriter>(this),
-            channelIndex + 1));
-        return;
+    // Sample last key (if it is not already sampled by coincidence).
+    if (CurrentSize > LastSampleSize) {
+        AddKeySample(lastKey);
     }
 
-    // Write attribute
     Attributes.set_uncompressed_size(UncompressedSize);
-
     TChunkAttributes attributes;
     attributes.set_type(EChunkType::Table);
     *attributes.MutableExtension(NProto::TTableChunkAttributes::table_attributes) = Attributes;
-    
-    ChunkWriter->AsyncClose(attributes)->Subscribe(FromMethod(
-        &TChunkWriter::OnClosed,
-        TWeakPtr<TChunkWriter>(this)));
-}
 
-TAsyncError::TPtr TChunkWriter::AsyncClose()
-{
-    VERIFY_THREAD_AFFINITY(ClientThread);
-
-    YASSERT(UsedColumns.empty());
-    YASSERT(!State.HasRunningOperation());
-    YASSERT(!State.IsClosed());
-
-    State.StartOperation();
-
-    ContinueClose(State.GetCurrentError(), 0);
-
-    return State.GetOperationError();
+    return ChunkWriter->AsyncClose(MoveRV(completedBlocks), attributes);
 }
 
 TChunkId TChunkWriter::GetChunkId() const
@@ -204,16 +155,20 @@ TChunkId TChunkWriter::GetChunkId() const
     return ChunkWriter->GetChunkId();
 }
 
-TAsyncError::TPtr TChunkWriter::AsyncOpen()
+void TChunkWriter::AddKeySample(const TKey& key)
 {
-    // Stub to implement IWriter interface.
-    VERIFY_THREAD_AFFINITY(ClientThread);
-    return State.GetOperationError();
+    auto* keySample = Attributes.add_key_samples();
+    FOREACH (auto& keyPart, key) {
+        *keySample->add_key() = TValue::ToProto(keyPart);
+    }
+
+    keySample->set_row_index(Attributes.row_count());
 }
 
 NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr 
 TChunkWriter::GetConfirmRequest()
 {
+    YASSERT(IsClosed);
     return ChunkWriter->GetConfirmRequest();
 }
 

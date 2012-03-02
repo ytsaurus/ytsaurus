@@ -17,27 +17,27 @@ namespace NYT {
 class TAsyncSemaphore
 {
 public:
-    explicit TAsyncSemaphore(int maxFreeSlots);
+    explicit TAsyncSemaphore(i64 maxFreeSlots);
 
     //! Increases the counter.
     /*!
      *  Returns 'true' if the semaphore counter has increased.
      */
-    void Release(int slots = 1);
+    void Release(i64 slots = 1);
 
     /*!
      *  Must be called from single thread.
      *  The client must not call AsyncAquire again, until returned
      *  future is set.
      */
-    TFuture<TVoid>::TPtr AsyncAcquire(int slots = 1);
+    TFuture<TVoid>::TPtr AsyncAcquire(i64 slots = 1);
 
 private:
     TSpinLock SpinLock;
 
-    const int MaxFreeSlots;
-    int FreeSlotCount;
-    int RequestedSlots;
+    const i64 MaxFreeSlots;
+    i64 FreeSlotCount;
+    i64 RequestedSlots;
 
     TFuture<TVoid>::TPtr AcquireEvent;
     TFuture<TVoid>::TPtr StaticResult;

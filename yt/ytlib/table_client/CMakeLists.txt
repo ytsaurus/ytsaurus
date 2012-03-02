@@ -12,6 +12,8 @@ set( SRCS
   ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
   ${BASE}/value.cpp
+  ${BASE}/validating_writer.cpp
+  ${BASE}/sorted_validating_writer.cpp
 )
 set( HDRS
   ${BASE}/channel_reader.h
@@ -26,6 +28,8 @@ set( HDRS
   ${BASE}/table_reader.h
   ${BASE}/table_writer.h
   ${BASE}/value.h
+  ${BASE}/validating_writer.h
+  ${BASE}/sorted_validating_writer.h
   ${BASE}/writer.h
 )
 

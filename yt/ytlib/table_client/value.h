@@ -1,7 +1,10 @@
 ﻿#pragma once
 
+#include "table_chunk_meta.pb.h"
+
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/ref.h>
+#include <ytlib/misc/nullable.h>
 
 #include <util/stream/mem.h>
 
@@ -30,9 +33,11 @@ public:
     int Save(TOutputStream* out);
     static TValue Load(TMemoryInput* in);
 
-    // ToDo: do we really need it?
-    Stroka ToString() const;
+    TNullable<Stroka> ToString() const;
     TBlob ToBlob() const;
+
+    NProto::TValue ToProto() const;
+    static NProto::TValue ToProto(TNullable<Stroka> strValue);
 
 private:
     TRef Data;

@@ -99,6 +99,8 @@ void TTableWriter::Open()
         }
     }
 
+    // ToDo(psushin): get keys from server!
+
     LOG_INFO("Table info received (ChunkListId: %s, ChannelCount: %d)",
         ~chunkListId.ToString(),
         static_cast<int>(schema.GetChannels().size()));
@@ -108,7 +110,8 @@ void TTableWriter::Open()
         ~MasterChannel,
         UploadTransaction->GetId(),
         chunkListId,
-        schema);
+        schema,
+        std::vector<Stroka>());
 
     Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
 

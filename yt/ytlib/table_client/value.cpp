@@ -50,14 +50,36 @@ bool TValue::IsNull() const
     return !Data.Begin();
 }
 
-Stroka TValue::ToString() const
+TNullable<Stroka> TValue::ToString() const
 {
-    return Stroka(Data.Begin(), Data.End());
+    if (IsNull())
+        return TNullable<Stroka>(Null);
+
+    return TNullable<Stroka>(Data.Begin(), Data.End());
 }
 
 TBlob TValue::ToBlob() const
 {
     return Data.ToBlob();
+}
+
+NProto::TValue TValue::ToProto() const
+{
+    NProto::TValue res;
+
+    res.set_is_null(IsNull());
+    res.set_data(Data.Begin(), Data.Size());
+
+    return res;
+}
+
+NProto::TValue TValue::ToProto(TNullable<Stroka> strValue)
+{
+    res.set_is_null(strValue.IsInitialized());
+    if (strValue.IsInitialized())
+        res.set_data(strValue->begin(), strValue->size());
+    else
+        res.set_data(NULL, 0);
 }
 
 int TValue::Save(TOutputStream* out)
