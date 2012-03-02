@@ -85,11 +85,6 @@ void TParallelAwaiter::OnResult(
     const NYTree::TYPath& timerPathSuffix,
     typename IParamAction<T>::TPtr onResult)
 {
-    if (!timerPathSuffix.empty()) {
-        YASSERT(Profiler);
-        Profiler->TimingCheckpoint(Timer, timerPathSuffix);
-    }
-
     if (onResult) {
         onResult->Do(result);
     }
@@ -101,6 +96,10 @@ void TParallelAwaiter::OnResult(
 
         if (Canceled || Terminated)
             return;
+
+        if (Profiler && !timerPathSuffix.empty()) {
+            Profiler->TimingCheckpoint(Timer, timerPathSuffix);
+        }
 
         ++ResponseCount;
         
