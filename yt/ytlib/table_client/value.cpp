@@ -173,5 +173,55 @@ bool operator>=(const TValue& lhs, const TValue& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool operator==(const TKey& lhs, const TKey& rhs)
+{
+    YASSERT(lhs.size() == rhs.size());
+    for(int i = 0; i < lhs.size(); ++i) {
+        if (lhs[i] != rhs[i])
+            return false;
+    }
+    return true;
+}
+
+bool operator!=(const TKey& lhs, const TKey& rhs)
+{
+    return !(lhs == rhs);
+}
+
+inline bool Less(const TKey& lhs, const TKey& rhs, bool allowEqual)
+{
+    YASSERT(lhs.size() == rhs.size());
+    for(int i = 0; i < lhs.size(); ++i) {
+        if (lhs[i] < rhs[i])
+            return true;
+
+        if (lhs[i] > rhs[i])
+            return false;
+    }
+    return allowEqual;
+}
+
+bool operator< (const TKey& lhs, const TKey& rhs)
+{
+    return Less(lhs, rhs, false);
+}
+
+bool operator<=(const TKey& lhs, const TKey& rhs)
+{
+    return Less(lhs, rhs, true);
+}
+
+bool operator> (const TKey& lhs, const TKey& rhs)
+{
+    return !Less(lhs, rhs, true);
+}
+
+bool operator>=(const TKey& lhs, const TKey& rhs)
+{
+    return !Less(lhs, rhs, false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTableClient
 } // namespace NYT

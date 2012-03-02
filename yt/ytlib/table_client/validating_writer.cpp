@@ -46,6 +46,7 @@ TValidatingWriter::TValidatingWriter(
         *Attributes.add_chunk_channels()->mutable_channel() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel, ColumnIndexes));
     }
+    Attributes.set_is_sorted(false);
 }
 
 TAsyncError::TPtr TValidatingWriter::AsyncOpen()
@@ -113,6 +114,8 @@ TAsyncError::TPtr TValidatingWriter::AsyncEndRow()
 TAsyncError::TPtr TValidatingWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(RowStart);
+
     return Writer->AsyncClose(CurrentKey, ChannelWriters);
 }
 
