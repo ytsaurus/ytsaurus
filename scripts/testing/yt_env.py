@@ -75,12 +75,13 @@ class YTEnv:
 
     def tearDown(self):
         time.sleep(self.TEARDOWN_TIMEOUT)
-        for p in self.process_to_kill:
+        for p, name in self.process_to_kill:
             p.poll()
             if p.returncode is not None:
-                print p.returncode
+                print '%s, pid %d, is already terminated with exit status %d' % (name, p.pid, p.returncode)
                 #import pdb
                 #pdb.set_trace()
+                continue
             p.kill()
 
     def _set_path(self, path_to_run):
@@ -114,7 +115,7 @@ class YTEnv:
                     config_path=self.config_paths['master'][i],
                     i=i,
                 ).split())
-            self.process_to_kill.append(p)
+            self.process_to_kill.append((p, "master-%d" % (i)))
 
     # TODO(panin): think about refactoring this part
     def _wait_for_ready_masters(self):
@@ -149,7 +150,7 @@ class YTEnv:
                     port=7001 + i,
                     config_path=self.config_paths['holder'][i],
                 ).split())
-            self.process_to_kill.append(p)
+            self.process_to_kill.append((p, "holder-%d" % (i)))
 
     def _wait_for_ready_holders(self):
         if self.NUM_HOLDERS == 0: return
@@ -192,7 +193,7 @@ class YTEnv:
                     port=8101 + i,
                     config_path=self.config_paths['scheduler'][i],
                 ).split())
-            self.process_to_kill.append(p)
+            self.process_to_kill.append((p, "scheduler-%d" % (i)))
 
     def _init_sys(self):
         if self.NUM_MASTERS == 0:
@@ -305,4 +306,3 @@ class YTEnv:
         config_path = os.path.join(self.path_to_run, 'driver_config.yson')
         write_config(self.driver_config, config_path)
         os.environ['YT_CONFIG'] = config_path
-
