@@ -226,6 +226,7 @@ public:
         : Thread(ThreadFunc, static_cast<void*>(this))
         , WakeupEvent(Event::rManual)
         , Finished(false)
+        , ThroughputCounter("throughput")
     {
         Thread.Start();    
     }
@@ -247,6 +248,7 @@ public:
         auto result = queue->Append(recordId, data);
         AtomicDecrement(queue->UseCount);
         WakeupEvent.Signal();
+        Profiler.Increment(ThroughputCounter, data.Size());
         return result;
     }
 
@@ -441,6 +443,7 @@ private:
     TThread Thread;
     Event WakeupEvent;
     volatile bool Finished;
+    NProfiling::TRateCounter ThroughputCounter;
 
 };
 

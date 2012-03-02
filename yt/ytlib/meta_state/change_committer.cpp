@@ -195,16 +195,17 @@ private:
         Result->Set(EResult::MaybeCommitted);
     }
 
-    TFuture<TVoid>::TPtr LogResult;
     TLeaderCommitter::TPtr Committer;
     TResult::TPtr Result;
-    TParallelAwaiter::TPtr Awaiter;
     TMetaVersion StartVersion;
     i32 CommitCount;
     volatile bool IsSent;
+    NLog::TTaggedLogger Logger;
+
+    TParallelAwaiter::TPtr Awaiter;
+    TFuture<TVoid>::TPtr LogResult;
     std::vector<TSharedRef> BatchedChanges;
 
-    NLog::TTaggedLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
