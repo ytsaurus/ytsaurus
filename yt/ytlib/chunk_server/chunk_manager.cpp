@@ -1266,8 +1266,8 @@ private:
             }
 
             if (!holder->HasChunk(chunk.GetId(), false)) {
-                holder->AddUnapprovedChunk(chunk.GetId());
                 Owner->DoAddChunkReplica(*holder, chunk, false);
+                holder->MarkChunkUnapproved(chunk.GetId());
             }
         }
 
