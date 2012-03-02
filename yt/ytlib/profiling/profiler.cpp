@@ -13,6 +13,33 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTimer::TTimer()
+    : Start(0)
+    , LastCheckpoint(0)
+{ }
+
+TTimer::TTimer(const NYTree::TYPath& path, ui64 start, ETimerMode mode)
+    : Path(path)
+    , Start(start)
+    , LastCheckpoint(0)
+    , Mode(mode)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRateCounter::TRateCounter(
+    const NYTree::TYPath& path,
+    TDuration interval)
+    : Path(path)
+    , Interval(DurationToCycles(interval))
+    , Value(0)
+    , LastValue(0)
+    , LastTime(0)
+    , Deadline(0)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TProfiler::TProfiler(const TYPath& pathPrefix)
     : PathPrefix(pathPrefix)
 { }
@@ -91,6 +118,24 @@ void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
 
         default:
             YUNREACHABLE();
+    }
+}
+
+void TProfiler::Increment(TRateCounter& counter, i64 delta /*= 1*/)
+{
+    YASSERT(delta >= 0);
+    counter.Value += delta;
+    auto now = GetCycleCount();
+    if (now > counter.Deadline) {
+        if (counter.LastTime != 0) {
+            auto counterDelta = counter.Value - counter.LastValue;
+            auto timeDelta = now - counter.LastTime;
+            auto sampleValue = counterDelta * counter.Interval / timeDelta;
+            Enqueue(counter.Path, sampleValue);
+        }
+        counter.LastTime = now;
+        counter.LastValue = counter.Value;
+        counter.Deadline = now + counter.Interval;
     }
 }
 
