@@ -144,12 +144,12 @@ $range ARG 1..ARITY
 $if ARITY == 0 [[
 template <class R>
 class TCallback<R(void)>
-    : public NDetail::TCallbackBase
+    : public NYT::NDetail::TCallbackBase
 {
 ]] $else [[
 template <class R, $for ARG , [[class A$(ARG)]]>
 class TCallback<R($for ARG , [[A$(ARG)]])>
-    : public NDetail::TCallbackBase
+    : public NYT::NDetail::TCallbackBase
 {
 ]]
 
@@ -157,7 +157,7 @@ public:
     typedef R(Signature)($for ARG , [[A$(ARG)]]);
 
     TCallback()
-        : TCallbackBase(TIntrusivePtr< NDetail::TBindStateBase >())
+        : TCallbackBase(TIntrusivePtr< NYT::NDetail::TBindStateBase >())
     { }
 
     explicit TCallback(TCallback&& other)
@@ -166,7 +166,7 @@ public:
 
     template <class Runnable, class Signature, class BoundArgsType>
     explicit TCallback(TIntrusivePtr<
-            NDetail::TBindState<Runnable, Signature, BoundArgsType>
+            NYT::NDetail::TBindState<Runnable, Signature, BoundArgsType>
         >&& bindState)
         : TCallbackBase(MoveRV(bindState))
     {
@@ -174,7 +174,7 @@ public:
         // so the compiler will typecheck that the passed in Run() method has
         // the correct type.
         TTypedInvokeFunction invokeFunction =
-            &NDetail::TBindState<Runnable, Signature, BoundArgsType>
+            &NYT::NDetail::TBindState<Runnable, Signature, BoundArgsType>
             ::TInvokerType::Run;
         UntypedInvoke =
             reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
@@ -197,7 +197,7 @@ $for ARG ,
 
 private:
     typedef R(*TTypedInvokeFunction)(
-        NDetail::TBindStateBase*[[]]
+        NYT::NDetail::TBindStateBase*[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG)&&]]);
 
