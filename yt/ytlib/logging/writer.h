@@ -46,6 +46,7 @@ struct ILogWriter
         {
             Register("type", Type);
             Register("pattern", Pattern)
+                .Default()
                 .CheckThat(~FromFunctor([] (const Stroka& pattern)
                 {
                     Stroka errorMessage;
@@ -63,6 +64,10 @@ struct ILogWriter
             } else if (Type != EType::File && Type != EType::Raw && !FileName.empty()) {
                 ythrow yexception() <<
                     Sprintf("FileName is not empty while type is not File");
+            }
+            if (Type != EType::Raw && Pattern.empty()) {
+                ythrow yexception() <<
+                    Sprintf("Pattern is empty while type is not Raw");
             }
         }
     };
