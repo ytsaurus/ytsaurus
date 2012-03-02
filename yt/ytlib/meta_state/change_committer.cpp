@@ -4,7 +4,6 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -21,6 +20,8 @@ TCommitterBase::TCommitterBase(
     IInvoker::TPtr controlInvoker)
     : MetaState(metaState)
     , CancelableControlInvoker(New<TCancelableInvoker>(controlInvoker))
+    , CommitCounter("commit_rate")
+    , BatchCommitCounter("batch_commit_rate")
 {
     YASSERT(metaState);
     YASSERT(controlInvoker);
@@ -64,7 +65,7 @@ public:
 
         TMetaVersion currentVersion(
             StartVersion.SegmentId,
-            StartVersion.RecordCount + BatchedChanges.ysize());
+            StartVersion.RecordCount + BatchedChanges.size());
         BatchedChanges.push_back(changeData);
 
         LOG_DEBUG("Change is added to batch (Version: %s)", ~currentVersion.ToString());
@@ -129,7 +130,7 @@ public:
         VERIFY_THREAD_AFFINITY(Committer->StateThread);
         YASSERT(!IsSent);
 
-        return BatchedChanges.ysize();
+        return static_cast<int>(BatchedChanges.size());
     }
 
 private:
@@ -174,7 +175,7 @@ private:
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
         LOG_DEBUG("Changes are committed locally (ChangeCount: %d)",
-            BatchedChanges.ysize());
+            static_cast<int>(BatchedChanges.size()));
         ++CommitCount;
         CheckCommitQuorum();
     }
@@ -188,7 +189,7 @@ private:
             return;
 
         LOG_WARNING("Changes are uncertain (ChangeCount: %d, CommitCount: %d)",
-            BatchedChanges.ysize(),
+            static_cast<int>(BatchedChanges.size()),
             CommitCount);
 
         Result->Set(EResult::MaybeCommitted);
@@ -201,7 +202,7 @@ private:
     TMetaVersion StartVersion;
     i32 CommitCount;
     volatile bool IsSent;
-    yvector<TSharedRef> BatchedChanges;
+    std::vector<TSharedRef> BatchedChanges;
 
     NLog::TTaggedLogger Logger;
 };
@@ -267,9 +268,10 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
 
     ChangeApplied_.Fire();
 
+    Profiler.Increment(CommitCounter);
+
     return batchResult;
 }
-
 
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
     const TMetaVersion& version,
@@ -295,6 +297,7 @@ void TLeaderCommitter::FlushCurrentBatch()
     TDelayedInvoker::Cancel(BatchTimeoutCookie);
     CurrentBatch.Reset();
     BatchTimeoutCookie = NULL;
+    Profiler.Increment(BatchCommitCounter);
 }
 
 TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
@@ -344,10 +347,13 @@ TFollowerCommitter::TFollowerCommitter(
 
 TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(
     const TMetaVersion& expectedVersion,
-    const yvector<TSharedRef>& changes)
+    const std::vector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(!changes.empty());
+
+    Profiler.Increment(CommitCounter, changes.size());
+    Profiler.Increment(BatchCommitCounter);
 
     return
         FromMethod(
@@ -361,7 +367,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(
 
 TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
     const TMetaVersion& expectedVersion,
-    const yvector<TSharedRef>& changes)
+    const std::vector<TSharedRef>& changes)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -382,7 +388,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
 
     LOG_DEBUG("Applying changes at follower (Version: %s, ChangeCount: %d)",
         ~currentVersion.ToString(),
-        changes.ysize());
+        static_cast<int>(changes.size()));
 
     TAsyncChangeLog::TAppendResult::TPtr result;
     FOREACH (const auto& change, changes) {

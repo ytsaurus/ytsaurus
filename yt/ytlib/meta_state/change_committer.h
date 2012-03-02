@@ -9,6 +9,7 @@
 #include <ytlib/election/election_manager.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/signal.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -46,6 +47,9 @@ protected:
 
     TDecoratedMetaState::TPtr MetaState;
     TCancelableInvoker::TPtr CancelableControlInvoker;
+    NProfiling::TRateCounter CommitCounter;
+    NProfiling::TRateCounter BatchCommitCounter;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,12 +175,12 @@ public:
      */
     TResult::TPtr Commit(
         const TMetaVersion& expectedVersion,
-        const yvector<TSharedRef>& changes);
+        const std::vector<TSharedRef>& changes);
 
 private:
     TResult::TPtr DoCommit(
         const TMetaVersion& expectedVersion,
-        const yvector<TSharedRef>& changes);
+        const std::vector<TSharedRef>& changes);
 
 };
 

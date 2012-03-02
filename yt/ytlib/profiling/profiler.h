@@ -15,11 +15,11 @@ namespace NProfiling {
  *  - Simple: Measures the interval between start and stop.
  *  This timer creates a single bucket that stores the above interval.
  *  
- *  - Sequential: Measure the intervals between checkpoints
+ *  - Sequential: Measures intervals between checkpoints
  *  (start being the first checkpoint) and also the total time (between start and stop).
  *  This timer creates a bucket per each checkpoint plus "total" bucket.
  *  
- *  - Parallel: Measures the intervals between start and checkpoints
+ *  - Parallel: Measures intervals between start and checkpoints
  *  and also the total time (between start and stop).
  *  This timer creates a bucket per each checkpoint plus "total" bucket.
  */
@@ -32,17 +32,8 @@ DECLARE_ENUM(ETimerMode,
 //! Timing state.
 struct TTimer
 {
-    TTimer()
-        : Start(0)
-        , LastCheckpoint(0)
-    { }
-
-    TTimer(const NYTree::TYPath& path, ui64 start, ETimerMode mode)
-        : Path(path)
-        , Start(start)
-        , LastCheckpoint(0)
-        , Mode(mode)
-    { }
+    TTimer();
+    TTimer(const NYTree::TYPath& path, ui64 start, ETimerMode mode);
 
     NYTree::TYPath Path;
     //! Start time.
@@ -50,6 +41,22 @@ struct TTimer
     //! Last checkpoint time (0 if no checkpoint has occurred yet).
     ui64 LastCheckpoint;
     ETimerMode Mode;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRateCounter
+{
+    TRateCounter(
+        const NYTree::TYPath& path,
+        TDuration interval = TDuration::Seconds(1));
+
+    NYTree::TYPath Path;
+    i64 Interval;
+    i64 Value;
+    i64 LastValue;
+    ui64 LastTime;
+    ui64 Deadline;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,6 +89,8 @@ public:
 
     //! Stops time measurement and enqueues the "total" sample.
     void TimingStop(TTimer& timer);
+
+    void Increment(TRateCounter& counter, i64 delta = 1);
 
 private:
     NYTree::TYPath PathPrefix;
