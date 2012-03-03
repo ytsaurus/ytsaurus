@@ -98,6 +98,7 @@ struct TPersistentStateManagerConfig
 IMetaStateManager::TPtr CreatePersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
+    IInvoker* stateInvoker,
     IMetaState* metaState,
     NRpc::IServer* server);
 

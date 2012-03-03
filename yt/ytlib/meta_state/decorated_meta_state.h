@@ -20,6 +20,7 @@ public:
 
     TDecoratedMetaState(
         IMetaState* state,
+        IInvoker* stateInvoker,
         TSnapshotStore* snapshotStore,
         TChangeLogCache* changeLogCache);
 
@@ -27,13 +28,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    IInvoker::TPtr GetStateInvoker() const;
-
-    //! Returns the invoker used for creating snapshots.
-    /*!
-     * \note Thread affinity: any
-     */
-    IInvoker::TPtr GetSnapshotInvoker() const;
+    IInvoker* GetStateInvoker() const;
 
     //! Returns the current version of the state.
     /*!
@@ -66,7 +61,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    IMetaState::TPtr GetState() const;
+    IMetaState* GetState() const;
 
     //! Delegates the call to IMetaState::Clear.
     /*!
@@ -125,12 +120,10 @@ private:
     TCachedAsyncChangeLog::TPtr GetCurrentChangeLog();
 
     IMetaState::TPtr State;
+    IInvoker::TPtr StateInvoker;
     TSnapshotStore::TPtr SnapshotStore;
     TChangeLogCache::TPtr ChangeLogCache;
     TCachedAsyncChangeLog::TPtr CurrentChangeLog;
-
-    TActionQueue::TPtr StateQueue;
-    TActionQueue::TPtr SnapshotQueue;
 
     TSpinLock VersionSpinLock;
     TMetaVersion Version;

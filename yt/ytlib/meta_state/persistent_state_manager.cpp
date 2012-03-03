@@ -89,6 +89,7 @@ public:
     TPersistentStateManager(
         TConfig* config,
         IInvoker* controlInvoker,
+        IInvoker* stateInvoker,
         IMetaState* metaState,
         NRpc::IServer* server)
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
@@ -118,6 +119,7 @@ public:
 
         MetaState = New<TDecoratedMetaState>(
             metaState,
+            stateInvoker,
             ~SnapshotStore,
             ~ChangeLogCache);
 
@@ -1249,6 +1251,7 @@ public:
 IMetaStateManager::TPtr CreatePersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
+    IInvoker* stateInvoker,
     IMetaState* metaState,
     NRpc::IServer* server)
 {
@@ -1259,6 +1262,7 @@ IMetaStateManager::TPtr CreatePersistentStateManager(
     return New<TPersistentStateManager>(
         config,
         controlInvoker,
+        stateInvoker,
         metaState,
         server);
 }

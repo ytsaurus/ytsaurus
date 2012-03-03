@@ -18,42 +18,36 @@ static NProfiling::TProfiler Profiler("meta_state");
 
 TDecoratedMetaState::TDecoratedMetaState(
     IMetaState* state,
+    IInvoker* stateInvoker,
     TSnapshotStore* snapshotStore,
     TChangeLogCache* changeLogCache)
     : State(state)
+    , StateInvoker(stateInvoker)
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
-    , StateQueue(New<TActionQueue>("MetaState"))
-    , SnapshotQueue(New<TActionQueue>("Snapshot"))
 {
     YASSERT(state);
+    YASSERT(stateInvoker);
     YASSERT(snapshotStore);
     YASSERT(changeLogCache);
 
-    VERIFY_INVOKER_AFFINITY(StateQueue->GetInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
 
     ComputeReachableVersion();
 }
 
-IInvoker::TPtr TDecoratedMetaState::GetStateInvoker() const
+IInvoker* TDecoratedMetaState::GetStateInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return StateQueue->GetInvoker();
+    return ~StateInvoker;
 }
 
-IInvoker::TPtr TDecoratedMetaState::GetSnapshotInvoker() const
+IMetaState* TDecoratedMetaState::GetState() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return SnapshotQueue->GetInvoker();
-}
-
-IMetaState::TPtr TDecoratedMetaState::GetState() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return State;
+    return ~State;
 }
 
 void TDecoratedMetaState::Clear()
