@@ -495,6 +495,18 @@ private:
                 DoRemoveChunkFromLocation(holderId, chunk, true);
             }
         }
+
+        // Remove all associated jobs.
+        auto* jobList = FindJobList(chunk.GetId());
+        if (jobList) {
+            FOREACH (const auto& jobId, jobList->JobIds()) {
+                auto& job = GetJob(jobId);
+                auto* holder = FindHolder(job.GetRunnerAddress());
+                if (holder) {
+                    DoRemoveJob(*holder, job, false);
+                }
+            }
+        }
     }
 
     void OnChunkListDestroyed(TChunkList& chunkList)
@@ -515,7 +527,7 @@ private:
     
         THolderId holderId = HolderIdGenerator.Next();
     
-        const auto* existingHolder = FindHolder(address);
+        auto* existingHolder = FindHolder(address);
         if (existingHolder) {
             LOG_INFO_IF(!IsRecovery(), "Holder kicked out due to address conflict (Address: %s, HolderId: %d)",
                 ~address,
@@ -550,8 +562,7 @@ private:
     { 
         auto holderId = message.holder_id();
 
-        const auto& holder = GetHolder(holderId);
-
+        auto& holder = GetHolder(holderId);
         DoUnregisterHolder(holder);
 
         return TVoid();
@@ -614,7 +625,7 @@ private:
         FOREACH(auto protoJobId, message.stopped_jobs()) {
             const auto* job = FindJob(TJobId::FromProto(protoJobId));
             if (job) {
-                DoRemoveJob(holder, *job);
+                DoRemoveJob(holder, *job, false);
             }
         }
 
@@ -753,7 +764,7 @@ private:
     }
 
 
-    void DoUnregisterHolder(const THolder& holder)
+    void DoUnregisterHolder(THolder& holder)
     { 
         auto holderId = holder.GetId();
 
@@ -776,8 +787,9 @@ private:
         }
 
         FOREACH (const auto& jobId, holder.JobIds()) {
-            const auto& job = GetJob(jobId);
-            DoRemoveJobAtDeadHolder(holder, job);
+            auto& job = GetJob(jobId);
+            // Pass true to suppress removal of job ids from holder.
+            DoRemoveJob(holder, job, true);
         }
 
         YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
@@ -810,7 +822,7 @@ private:
 
 
         if (!cached && IsLeader()) {
-            ChunkReplication->OnReplicaAdded(holder, chunk);
+            ChunkReplication->ScheduleChunkRefresh(chunk.GetId());
         }
     }
 
@@ -849,7 +861,7 @@ private:
              holderId);
 
         if (!cached && IsLeader()) {
-            ChunkReplication->OnReplicaRemoved(holder, chunk);
+            ChunkReplication->ScheduleChunkRefresh(chunk.GetId());
         }
     }
 
@@ -867,7 +879,7 @@ private:
              holderId);
 
         if (IsLeader()) {
-            ChunkReplication->OnReplicaRemoved(holder, chunk);
+            ChunkReplication->ScheduleChunkRefresh(chunk.GetId());
         }
     }
 
@@ -882,7 +894,7 @@ private:
              holder.GetId());
 
         if (!cached && IsLeader()) {
-            ChunkReplication->OnReplicaRemoved(holder, chunk);
+            ChunkReplication->ScheduleChunkRefresh(chunk.GetId());
         }
     }
 
@@ -919,39 +931,25 @@ private:
             ~chunkId.ToString());
     }
 
-    void DoRemoveJob(THolder& holder, const TJob& job)
+    void DoRemoveJob(THolder& holder, const TJob& job, bool holderDied)
     {
         auto jobId = job.GetJobId();
 
         auto& list = GetJobList(job.GetChunkId());
         list.RemoveJob(jobId);
-        MaybeDropJobList(list);
+        DropJobListIfEmpty(list);
 
-        holder.RemoveJob(jobId);
+        if (!holderDied) {
+            holder.RemoveJob(jobId);
+        }
+
+        ChunkReplication->ScheduleChunkRefresh(job.GetChunkId());
 
         UnregisterReplicationSinks(job);
 
         JobMap.Remove(job.GetJobId());
 
         LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s, HolderId: %d)",
-            ~jobId.ToString(),
-            ~holder.GetAddress(),
-            holder.GetId());
-    }
-
-    void DoRemoveJobAtDeadHolder(const THolder& holder, const TJob& job)
-    {
-        auto jobId = job.GetJobId();
-
-        auto& list = GetJobList(job.GetChunkId());
-        list.RemoveJob(jobId);
-        MaybeDropJobList(list);
-
-        UnregisterReplicationSinks(job);
-
-        JobMap.Remove(job.GetJobId());
-
-        LOG_INFO_IF(!IsRecovery(), "Job removed since holder is dead (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
             ~holder.GetAddress(),
             holder.GetId());
@@ -1039,7 +1037,7 @@ private:
         return GetJobList(id);
     }
 
-    void MaybeDropJobList(const TJobList& list)
+    void DropJobListIfEmpty(const TJobList& list)
     {
         if (list.JobIds().empty()) {
             JobListMap.Remove(list.GetChunkId());
