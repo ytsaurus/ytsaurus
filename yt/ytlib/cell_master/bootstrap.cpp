@@ -105,6 +105,11 @@ IMetaStateManager* TBootstrap::GetMetaStateManager() const
     return ~MetaStateManager;
 }
 
+TObjectManager* TBootstrap::GetObjectManager() const
+{
+    return ~ObjectManager;
+}
+
 IInvoker* TBootstrap::GetControlInvoker()
 {
     return ControlQueue->GetInvoker();
@@ -140,7 +145,7 @@ void TBootstrap::Run()
         ~metaState,
         ~rpcServer);
 
-    auto objectManager = New<TObjectManager>(
+    ObjectManager = New<TObjectManager>(
         ~MetaStateManager,
         ~metaState,
         Config->CellId);
@@ -149,19 +154,19 @@ void TBootstrap::Run()
         ~Config->Transactions,
         ~MetaStateManager,
         ~metaState,
-        ~objectManager);
-    objectManager->SetTransactionManager(~TransactionManager);
+        ~ObjectManager);
+    ObjectManager->SetTransactionManager(~TransactionManager);
 
     CypressManager = New<TCypressManager>(
         ~MetaStateManager,
         ~metaState,
         ~TransactionManager,
-        ~objectManager);
-    objectManager->SetCypressManager(~CypressManager);
+        ~ObjectManager);
+    ObjectManager->SetCypressManager(~CypressManager);
 
     auto cypressService = New<TCypressService>(
         ~MetaStateManager,
-        ~objectManager);
+        ~ObjectManager);
     rpcServer->RegisterService(~cypressService);
 
     auto holderRegistry = CreateHolderAuthority(~CypressManager);
@@ -172,7 +177,7 @@ void TBootstrap::Run()
         ~metaState,
         ~TransactionManager,
         ~holderRegistry,
-        ~objectManager);
+        ~ObjectManager);
 
     auto chunkService = New<TChunkService>(
         ~MetaStateManager,

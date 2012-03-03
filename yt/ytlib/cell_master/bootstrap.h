@@ -9,6 +9,8 @@
 #include <ytlib/cypress/public.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/meta_state/meta_state_manager.h>
+// TODO(babenko): replace with public.h
+#include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -38,6 +40,7 @@ public:
     NCypress::TCypressManager* GetCypressManager() const;
     NCypress::TWorldInitializer* GetWorldInitializer() const;
     NMetaState::IMetaStateManager* GetMetaStateManager() const;
+    NObjectServer::TObjectManager* GetObjectManager() const;
 
     IInvoker* GetControlInvoker();
     IInvoker* GetStateInvoker(EStateThreadPriority priority = EStateThreadPriority::Default);
@@ -52,6 +55,7 @@ private:
     NCypress::TCypressManagerPtr CypressManager;
     NCypress::TWorldInitializerPtr WorldInitializer;
     NMetaState::IMetaStateManager::TPtr MetaStateManager;
+    NObjectServer::TObjectManager::TPtr ObjectManager;
 
     TActionQueue::TPtr ControlQueue;
     TPrioritizedActionQueue::TPtr StateQueue;
