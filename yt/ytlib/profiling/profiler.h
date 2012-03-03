@@ -10,7 +10,6 @@ namespace NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes timer mode.
 /*!
  *  - Simple: Measures the interval between start and stop.
  *  This timer creates a single bucket that stores the above interval.
@@ -30,6 +29,11 @@ DECLARE_ENUM(ETimerMode,
 );
 
 //! Timing state.
+/*!
+ *  Keeps the timing start time and the last checkpoint time.
+ *
+ *  Thread safety: single
+ */
 struct TTimer
 {
     TTimer();
@@ -45,6 +49,16 @@ struct TTimer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Measures event rate.
+/*!
+ *  Used to measure rates of high-frequency events. For these events we cannot
+ *  afford to use sample-per-instance strategy. Instead we maintain a counter indicating
+ *  the total number of events occurred so far and track its increase over
+ *  certain fixed intervals of time. E.g. if the interval is 1 second then
+ *  this counter will actually be sampling RPS.
+ *  
+ *  Thread safety: single
+ */
 struct TRateCounter
 {
     TRateCounter(
@@ -52,10 +66,15 @@ struct TRateCounter
         TDuration interval = TDuration::Seconds(1));
 
     NYTree::TYPath Path;
+    //! Interval between samples.
     i64 Interval;
+    //! The current counter's value.
     i64 Value;
+    //! The counter's value at the moment of the last sampling.
     i64 LastValue;
+    //! The time the last sample was queued.
     ui64 LastTime;
+    //! The moment of time when the next sample must be queued.
     ui64 Deadline;
 };
 
@@ -90,6 +109,12 @@ public:
     //! Stops time measurement and enqueues the "total" sample.
     void TimingStop(TTimer& timer);
 
+    //! Increments the counter and possibly enqueues a rate sample.
+    /*!
+     *  The default increment is 1, i.e. the counter measures individual events.
+     *  Other (positive) values also make sense. E.g. one can set increment to the
+     *  number of bytes to be written and thus obtain a throughput counter.
+     */
     void Increment(TRateCounter& counter, i64 delta = 1);
 
 private:
@@ -116,7 +141,7 @@ public:
 
     ~TTimingGuard()
     {
-        // Don't measure anything if an exception was raised.
+        // Don't measure anything during exception unwinding.
         if (!std::uncaught_exception()) {
             Profiler->TimingStop(Timer);
         }
