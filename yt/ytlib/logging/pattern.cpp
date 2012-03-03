@@ -9,7 +9,7 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static Stroka FormatDateTime(TInstant dateTime)
+Stroka FormatDateTime(TInstant dateTime)
 {
     timeval time1 = dateTime.TimeVal();
     tm time2;
@@ -24,7 +24,7 @@ static Stroka FormatDateTime(TInstant dateTime)
                    (int) time1.tv_usec / 1000);
 }
 
-static Stroka FormatLevel(ELogLevel level)
+Stroka FormatLevel(ELogLevel level)
 {
     switch (level)
     {
