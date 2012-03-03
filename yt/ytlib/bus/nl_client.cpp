@@ -446,7 +446,7 @@ class TClientDispatcher
             auto oldSequenceId = request->SequenceId;
             auto oldRequestId = request->RequestId;
 
-            TSequenceId newSequenceId = TSequenceId(index);
+            auto newSequenceId = bus->GenerateSequenceId();
             YVERIFY(EncodeMessagePacket(~request->Message, newSessionId, newSequenceId, &request->Data));
             Requester->CancelRequest(oldRequestId);
             TGuid newRequestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
