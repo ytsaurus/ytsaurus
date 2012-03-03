@@ -226,7 +226,8 @@ public:
         : Thread(ThreadFunc, static_cast<void*>(this))
         , WakeupEvent(Event::rManual)
         , Finished(false)
-        , ThroughputCounter("throughput")
+        , RecordCounter("record_rate")
+        , SizeCounter("record_throughput")
     {
         Thread.Start();    
     }
@@ -244,11 +245,14 @@ public:
         LOG_TRACE("Async changelog record is enqueued (Version: %s)",
             ~TMetaVersion(changeLog->GetId(), recordId).ToString());
 
-        auto queue = FindOrCreateQueue(changeLog);
+        auto queue = GetQueueAndLock(changeLog);
         auto result = queue->Append(recordId, data);
         AtomicDecrement(queue->UseCount);
         WakeupEvent.Signal();
-        Profiler.Increment(ThroughputCounter, data.Size());
+
+        Profiler.Increment(RecordCounter);
+        Profiler.Increment(SizeCounter, data.Size());
+
         return result;
     }
 
@@ -343,7 +347,7 @@ private:
         return queue;
     }
 
-    TChangeLogQueue::TPtr FindOrCreateQueue(TChangeLog::TPtr changeLog)
+    TChangeLogQueue::TPtr GetQueueAndLock(TChangeLog::TPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
         TChangeLogQueue::TPtr queue;
@@ -443,7 +447,8 @@ private:
     TThread Thread;
     Event WakeupEvent;
     volatile bool Finished;
-    NProfiling::TRateCounter ThroughputCounter;
+    NProfiling::TRateCounter RecordCounter;
+    NProfiling::TRateCounter SizeCounter;
 
 };
 
