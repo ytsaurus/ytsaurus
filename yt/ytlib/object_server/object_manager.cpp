@@ -210,7 +210,7 @@ public:
 
     virtual Stroka GetLoggingCategory() const
     {
-        YUNREACHABLE();
+        return Logger.GetCategory();
     }
 
     virtual bool IsWriteRequest(IServiceContext* context) const
