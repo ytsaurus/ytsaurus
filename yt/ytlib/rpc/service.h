@@ -388,8 +388,12 @@ protected:
         //! Initializes the instance.
         TMethodDescriptor(
             const Stroka& verb,
-            THandler* handler,
-            bool oneWay = false);
+            THandler::TPtr handler,
+            bool oneWay = false)
+            : Verb(verb)
+            , Handler(handler)
+            , OneWay(oneWay)
+        { }
 
         //! Service method name.
         Stroka Verb;
@@ -528,7 +532,10 @@ private:
         TCtx##method::TPtr context)
 
 #define RPC_SERVICE_METHOD_DESC(method) \
-    TMethodDescriptor(#method, ~FromMethod(&TThis::method##Thunk, this), false)
+    ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
+        #method, \
+        FromMethod(&TThis::method##Thunk, this), \
+        false)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -555,7 +562,10 @@ private:
         TCtx##method::TPtr context)
 
 #define ONE_WAY_RPC_SERVICE_METHOD_DESC(method) \
-    TMethodDescriptor(#method, ~FromMethod(&TThis::method##Thunk, this), true)
+    TMethodDescriptor( \
+        #method, \
+        FromMethod(&TThis::method##Thunk, this), \
+        true)
 
 ////////////////////////////////////////////////////////////////////////////////
 

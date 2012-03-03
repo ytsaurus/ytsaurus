@@ -25,6 +25,16 @@ ExecuteVerb(IYPathService* service, TTypedRequest* request)
             }));
 }
 
+
+template <class TTypedRequest>
+TIntrusivePtr<typename TTypedRequest::TTypedResponse>
+SyncExecuteVerb(IYPathService* service, TTypedRequest* request)
+{
+    auto response = ExecuteVerb(service, request)->Get();
+    response->ThrowIfError();
+    return response;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

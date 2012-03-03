@@ -38,7 +38,7 @@ public:
     //! Stops invocations.
     void Stop();
 
-    //! Returns if the invoker is active.
+    //! Returns True iff the invoker is active.
     bool IsActive() const;
 
 private:

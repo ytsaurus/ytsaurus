@@ -10,17 +10,6 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NYTree::TYPath ObjectIdMarker;
-extern const NYTree::TYPath TransactionIdMarker;
-
-//! Creates the YPath pointing to an object with a given id.
-NYTree::TYPath FromObjectId(const TObjectId& id);
-
-//! Prepends a given YPath with transaction id marker.
-NYTree::TYPath WithTransaction(const NYTree::TYPath& path, const TTransactionId& id);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCypressServiceProxy
     : public NRpc::TProxyBase
 {

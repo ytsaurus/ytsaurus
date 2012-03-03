@@ -62,7 +62,8 @@ public:
 
         LOG_INFO("Starting transaction");
 
-        TYPath transactionPath = (ParentId == NullTransactionId)
+        auto transactionPath =
+            ParentId == NullTransactionId
             ? RootTransactionPath
             : FromObjectId(ParentId);
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);

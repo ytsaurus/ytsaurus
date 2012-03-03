@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/cypress_manager.cpp
   ${BASE}/cypress_service.cpp
   ${BASE}/cypress_service_proxy.cpp
+  ${BASE}/cypress_ypath_proxy.cpp
   ${BASE}/id.cpp
   ${BASE}/lock.cpp
   ${BASE}/node.cpp
@@ -13,6 +14,7 @@ set( SRCS
   ${BASE}/node_proxy.cpp
   ${BASE}/node_proxy_detail.cpp
   ${BASE}/virtual.cpp
+  ${BASE}/world_initializer.cpp
 )
 set( HDRS
   ${BASE}/common.h
@@ -31,6 +33,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
+  ${BASE}/world_initializer.h
 )
 
 list(APPEND YT_SOURCE_FILES
