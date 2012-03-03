@@ -34,8 +34,7 @@ public:
     void OnHolderRegistered(const THolder& holder);
     void OnHolderUnregistered(const THolder& holder);
 
-    void OnReplicaAdded(const THolder& holder, const TChunk& chunk);
-    void OnReplicaRemoved(const THolder& holder, const TChunk& chunk);
+    void ScheduleChunkRefresh(const TChunkId& chunkId);
 
     void ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId);
 
@@ -108,7 +107,6 @@ private:
         int maxRemovalJobsToStart,
         yvector<TJobStartInfo>* jobsToStart);
 
-    void ScheduleRefresh(const TChunkId& chunkId);
     void Refresh(const TChunk& chunk);
     int GetDesiredReplicaCount(const TChunk& chunk);
     void GetReplicaStatistics(

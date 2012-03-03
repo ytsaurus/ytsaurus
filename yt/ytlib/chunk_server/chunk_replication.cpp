@@ -63,7 +63,7 @@ void TChunkReplication::OnHolderRegistered(const THolder& holder)
     YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).second);
 
     FOREACH(const auto& chunk, holder.StoredChunkIds()) {
-        ScheduleRefresh(chunk);
+        ScheduleChunkRefresh(chunk);
     }
 }
 
@@ -72,22 +72,6 @@ void TChunkReplication::OnHolderUnregistered(const THolder& holder)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YVERIFY(HolderInfoMap.erase(holder.GetId()) == 1);
-}
-
-void TChunkReplication::OnReplicaAdded(const THolder& holder, const TChunk& chunk)
-{
-    UNUSED(holder);
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    ScheduleRefresh(chunk.GetId());
-}
-
-void TChunkReplication::OnReplicaRemoved(const THolder& holder, const TChunk& chunk)
-{
-    UNUSED(holder);
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    ScheduleRefresh(chunk.GetId());
 }
 
 void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId)
@@ -142,20 +126,20 @@ void TChunkReplication::ProcessExistingJobs(
                     ~jobId.ToString(),
                     holder.GetId());
 
-                if (TInstant::Now() - job->GetStartTime() > Config->MaxJobDuration) {
+                if (TInstant::Now() - job->GetStartTime() > Config->JobTimeout) {
                     jobsToStop->push_back(jobId);
 
                     LOG_INFO("Job duration limit exceeded (JobId: %s, HolderId: %d, Duration: %d ms, MaxDuration: %d ms)",
                         ~jobId.ToString(),
                         holder.GetId(),
                         static_cast<i32>((TInstant::Now() - job->GetStartTime()).MilliSeconds()),
-                        static_cast<i32>(Config->MaxJobDuration.MilliSeconds()));
+                        static_cast<i32>(Config->JobTimeout.MilliSeconds()));
                 }
                 break;
 
             case EJobState::Completed:
                 jobsToStop->push_back(jobId);
-                ScheduleRefresh(job->GetChunkId());
+                ScheduleChunkRefresh(job->GetChunkId());
                 LOG_INFO("Job completed (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
@@ -163,7 +147,7 @@ void TChunkReplication::ProcessExistingJobs(
 
             case EJobState::Failed:
                 jobsToStop->push_back(jobId);
-                ScheduleRefresh(job->GetChunkId());
+                ScheduleChunkRefresh(job->GetChunkId());
                 LOG_WARNING("Job failed (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
@@ -584,7 +568,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
     }
  }
 
-void TChunkReplication::ScheduleRefresh(const TChunkId& chunkId)
+void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
 {
     if (RefreshSet.find(chunkId) != RefreshSet.end())
         return;
