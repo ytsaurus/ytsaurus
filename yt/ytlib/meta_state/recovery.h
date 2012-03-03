@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "meta_state.h"
 #include "persistent_state_manager.h"
 #include "decorated_meta_state.h"
@@ -110,7 +109,7 @@ protected:
      *  
      * \note Thread affinity: StateThread.
      */
-    void ApplyChangeLog(
+    void ReplayChangeLog(
         TAsyncChangeLog& changeLog,
         i32 targetRecordCount);
 

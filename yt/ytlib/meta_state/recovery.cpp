@@ -14,7 +14,8 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static NLog::TLogger Logger("MetaState");
+static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,7 +263,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             YASSERT(changeLog->GetRecordCount() == targetVersion.RecordCount);
         }
 
-        ApplyChangeLog(*changeLog, changeLog->GetRecordCount());
+        ReplayChangeLog(*changeLog, changeLog->GetRecordCount());
 
         if (!isFinal) {
             MetaState->AdvanceSegment();
@@ -276,7 +277,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
     return New<TAsyncResult>(EResult::OK);
 }
 
-void TRecovery::ApplyChangeLog(
+void TRecovery::ReplayChangeLog(
     TAsyncChangeLog& changeLog,
     i32 targetRecordCount)
 {
@@ -307,14 +308,18 @@ void TRecovery::ApplyChangeLog(
 
     LOG_INFO("Applying changes to meta state");
 
-    FOREACH (const auto& changeData, records)  {
-        auto version = MetaState->GetVersion();
-        try {
-            MetaState->ApplyChange(changeData);
-        } catch (const std::exception& ex) {
-            LOG_DEBUG("Failed to apply the change during recovery at version %s\n%s",
-                ~version.ToString(),
-                ex.what());
+    Profiler.Enqueue("replay_change_count", records.size());
+
+    PROFILE_TIMING ("replay_time") {
+        FOREACH (const auto& changeData, records)  {
+            auto version = MetaState->GetVersion();
+            try {
+                MetaState->ApplyChange(changeData);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG("Failed to apply the change during recovery (Version: %s)\n%s",
+                    ~version.ToString(),
+                    ex.what());
+            }
         }
     }
 
