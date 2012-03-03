@@ -292,15 +292,7 @@ double TChunkPlacement::GetFillCoeff(const THolder& holder) const
 
 bool TChunkPlacement::IsFull(const THolder& holder) const
 {
-    if (GetFillCoeff(holder) > Config->MaxHolderFillCoeff) {
-        return true;
-    }
-
-    const auto& statistics = holder.Statistics();
-    if (statistics.available_space() - statistics.used_space() < Config->MinHolderFreeSpace)
-        return true;
-
-    return false;
+    return holder.Statistics().full();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
