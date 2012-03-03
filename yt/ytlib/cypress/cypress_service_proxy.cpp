@@ -12,28 +12,6 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = CypressLogger;
-
-const TYPath ObjectIdMarker = "#";
-const TYPath TransactionIdMarker = "!";
-
-////////////////////////////////////////////////////////////////////////////////
-
-TYPath FromObjectId(const TObjectId& id)
-{
-    return ObjectIdMarker + id.ToString();
-}
-
-TYPath WithTransaction(const TYPath& path, const TTransactionId& id)
-{
-    return
-        id == NullTransactionId
-        ? path
-        : TransactionIdMarker + id.ToString() + path;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCypressServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     IChannel* channel,
     const Stroka& path,
@@ -71,9 +49,7 @@ int TCypressServiceProxy::TReqExecuteBatch::GetSize() const
 TBlob TCypressServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
     TBlob blob;
-    if (!SerializeProtobuf(&Body, &blob)) {
-        LOG_FATAL("Error serializing request body");
-    }
+    YVERIFY(SerializeProtobuf(&Body, &blob));
     return blob;
 }
 
@@ -98,9 +74,7 @@ void TCypressServiceProxy::TRspExecuteBatch::FireCompleted()
 
 void TCypressServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
-    if (!DeserializeProtobuf(&Body, data)) {
-        LOG_FATAL("Error deserializing response body");
-    }
+    YVERIFY(DeserializeProtobuf(&Body, data));
 
     int currentIndex = 0;
     BeginPartIndexes.reserve(Body.part_counts_size());
