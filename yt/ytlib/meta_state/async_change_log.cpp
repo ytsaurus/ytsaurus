@@ -16,7 +16,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("meta_state/async_changelog");
+static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +51,7 @@ public:
         }
 
         RecordsToAppend.push_back(data);
-		Profiler.Enqueue("queue_size", RecordsToAppend.size());
+		Profiler.Enqueue("changelog_queue_size", RecordsToAppend.size());
 
         return Result;
     }
@@ -62,7 +62,7 @@ public:
 
         TAppendResult::TPtr result;
 
-		PROFILE_TIMING("flush_append_time") {
+		PROFILE_TIMING("changelog_flush_append_time") {
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(RecordsToFlush.empty());
@@ -79,7 +79,7 @@ public:
             Result = New<TAppendResult>();
         }
 
-		PROFILE_TIMING("flush_io_time") {
+		PROFILE_TIMING("changelog_flush_io_time") {
 			ChangeLog->Flush();
 		}
 
@@ -96,7 +96,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-		PROFILE_TIMING("flush_wait_time") {
+		PROFILE_TIMING("changelog_flush_wait_time") {
 			TAppendResult::TPtr result;
 			{
 				TGuard<TSpinLock> guard(SpinLock);
@@ -132,7 +132,7 @@ public:
 
         i32 flushedRecordCount;
 
-		PROFILE_TIMING ("read_copy_time") {
+		PROFILE_TIMING ("changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
             flushedRecordCount = FlushedRecordCount;            
             
@@ -151,7 +151,7 @@ public:
                 result);
         }
 
-		PROFILE_TIMING ("read_io_time") {
+		PROFILE_TIMING ("changelog_read_io_time") {
 			if (firstRecordId < flushedRecordCount) {
 				yvector<TSharedRef> buffer;
 				i32 neededRecordCount = Min(
@@ -169,7 +169,7 @@ public:
 			}
 		}
 
-		Profiler.Enqueue("read_record_count", result->size());
+		Profiler.Enqueue("changelog_read_record_count", result->size());
     }
 
 private:
@@ -274,7 +274,7 @@ public:
             queue->Read(firstRecordId, recordCount, result);
             AtomicDecrement(queue->UseCount);
         } else {
-            PROFILE_TIMING ("read_io_time") {
+            PROFILE_TIMING ("changelog_read_io_time") {
                 changeLog->Read(firstRecordId, recordCount, result);
             }
         }
@@ -288,7 +288,7 @@ public:
             AtomicDecrement(queue->UseCount);
         }
 
-		PROFILE_TIMING("flush_io_time") {
+		PROFILE_TIMING("changelog_flush_io_time") {
 			changeLog->Flush();
 		}
     }
@@ -309,7 +309,7 @@ public:
     {
         Flush(changeLog);
 
-		PROFILE_TIMING("finalize_time") {
+		PROFILE_TIMING("changelog_finalize_time") {
 			changeLog->Finalize();
 		}
 
@@ -322,7 +322,7 @@ public:
         // getting rid of explicit synchronization.
         Flush(changeLog);
 
-		PROFILE_TIMING ("truncate_time") {
+		PROFILE_TIMING ("changelog_truncate_time") {
 			changeLog->Truncate(atRecordId);
 		}
     }

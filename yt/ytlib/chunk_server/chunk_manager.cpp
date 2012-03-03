@@ -604,7 +604,7 @@ private:
         }
 
         FOREACH (const auto& chunkInfo, message.removed_chunks()) {
-            YASSERT(!message.incremental());
+            YASSERT(message.incremental());
             ProcessRemovedChunk(holder, chunkInfo);
         }
 
