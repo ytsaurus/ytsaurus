@@ -389,13 +389,7 @@ protected:
         TMethodDescriptor(
             const Stroka& verb,
             THandler* handler,
-            bool oneWay = false)
-            : Verb(verb)
-            , Handler(handler)
-            , OneWay(oneWay)
-        {
-            YASSERT(handler);
-        }
+            bool oneWay = false);
 
         //! Service method name.
         Stroka Verb;
@@ -407,17 +401,20 @@ protected:
         bool OneWay;
     };
 
-    //! Describes a service method.
+    //! Describes a service method and its runtime statistics.
     struct TRuntimeMethodInfo
         : public TIntrinsicRefCounted
     {
-        TRuntimeMethodInfo(const TMethodDescriptor& info, IInvoker* invoker)
-            : Descriptor(info)
-            , Invoker(invoker)
-        { }
+        TRuntimeMethodInfo(
+            const TMethodDescriptor& info,
+            IInvoker* invoker,
+            const NYTree::TYPath& path);
 
         TMethodDescriptor Descriptor;
+        //! Invoker that is used to handle all requests for this method.
         IInvoker::TPtr Invoker;
+        //! Increments with each method call.
+        NProfiling::TRateCounter RequestCounter;
     };
 
     typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
@@ -483,6 +480,7 @@ private:
     IInvoker::TPtr DefaultInvoker;
     Stroka ServiceName;
     NLog::TLogger ServiceLogger;
+    NProfiling::TRateCounter RequestCounter;
 
     //! Protects #RuntimeMethodInfos and #ActiveRequests.
     TSpinLock SpinLock;

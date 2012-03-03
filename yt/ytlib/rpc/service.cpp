@@ -47,6 +47,26 @@ void IServiceContext::Reply(NBus::IMessage* message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TServiceBase::TMethodDescriptor::TMethodDescriptor(
+    const Stroka& verb,
+    THandler* handler,
+    bool oneWay /*= false*/ )
+    : Verb(verb)
+    , Handler(handler)
+    , OneWay(oneWay)
+{ }
+
+TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
+    const TMethodDescriptor& info,
+    IInvoker* invoker,
+    const NYTree::TYPath& path)
+    : Descriptor(info)
+    , Invoker(invoker)
+    , RequestCounter(CombineYPaths(path, "request_rate"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TServiceBase::TServiceBase(
     IInvoker* defaultInvoker,
     const Stroka& serviceName,
@@ -54,6 +74,7 @@ TServiceBase::TServiceBase(
     : DefaultInvoker(defaultInvoker)
     , ServiceName(serviceName)
     , ServiceLogger(loggingCategory)
+    , RequestCounter(CombineYPaths(ServiceName, "request_rate"))
 {
     YASSERT(defaultInvoker);
 }
@@ -75,6 +96,8 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
 {
     YASSERT(context);
 
+    Profiler.Increment(RequestCounter);
+
     Stroka verb = context->GetVerb();
 
     TGuard<TSpinLock> guard(SpinLock);
@@ -83,9 +106,9 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
     if (methodIt == RuntimeMethodInfos.end()) {
         guard.Release();
 
-        Stroka message = Sprintf("Unknown verb (ServiceName: %s, Verb: %s)",
-            ~ServiceName,
-            ~verb);
+        Stroka message = Sprintf("Verb %s is not registered (ServiceName: %s)",
+            ~verb.Quote(),
+            ~ServiceName);
         LOG_WARNING("%s", ~message);
         if (!context->IsOneWay()) {
             context->Reply(TError(EErrorCode::NoSuchVerb, message));
@@ -111,8 +134,10 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
         return;
     }
 
+    Profiler.Increment(runtimeInfo->RequestCounter);
     auto timer = Profiler.TimingStart(CombineYPaths(
-        context->GetPath(),
+        ServiceName,
+        "methods",
         context->GetVerb(),
         "time"));
 
@@ -188,7 +213,10 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker*
     YASSERT(invoker);
 
     TGuard<TSpinLock> guard(SpinLock);
-    auto info = New<TRuntimeMethodInfo>(descriptor,invoker);
+    auto info = New<TRuntimeMethodInfo>(
+        descriptor,
+        invoker,
+        CombineYPaths(ServiceName, "methods", descriptor.Verb));
     // Failure here means that such verb is already registered.
     YVERIFY(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
 }
