@@ -1,7 +1,6 @@
 #pragma once
 
 #include <ytlib/cell_master/bootstrap.h>
-#include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
 namespace NCypress {
@@ -22,13 +21,9 @@ public:
     bool IsInitialized() const;
 
 private:
-    NCellMaster::TBootstrap* Bootstrap;
-    TPeriodicInvoker::TPtr PeriodicInvoker;
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl;
 
-    void OnCheck();
-    bool CanInitialize() const;
-    void Initialize();
-    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
