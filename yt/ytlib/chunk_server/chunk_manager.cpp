@@ -580,7 +580,8 @@ private:
         }
 
         yvector<TChunkId> unapprovedChunkIds(
-            holder.UnapprovedChunkIds().begin(), holder.UnapprovedChunkIds().end());
+            holder.UnapprovedChunkIds().begin(),
+            holder.UnapprovedChunkIds().end());
         FOREACH (const auto& chunkId, unapprovedChunkIds) {
             DoRemoveUnapprovedChunkReplica(holder, GetChunk(chunkId));
         }

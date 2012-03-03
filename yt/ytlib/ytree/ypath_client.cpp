@@ -178,6 +178,15 @@ TYPath CombineYPaths(
     return CombineYPaths(CombineYPaths(path1, path2), path3);
 }
 
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3,
+    const TYPath& path4)
+{
+    return CombineYPaths(CombineYPaths(CombineYPaths(path1, path2), path3), path4);
+}
+
 bool IsEmptyYPath(const TYPath& path)
 {
     return path.empty();

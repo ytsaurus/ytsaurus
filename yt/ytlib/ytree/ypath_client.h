@@ -149,6 +149,12 @@ TYPath CombineYPaths(
     const TYPath& path2,
     const TYPath& path3);
 
+TYPath CombineYPaths(
+    const TYPath& path1,
+    const TYPath& path2,
+    const TYPath& path3,
+    const TYPath& path4);
+
 //! Returns True if the path is empty.
 bool IsEmptyYPath(const TYPath& path);
 

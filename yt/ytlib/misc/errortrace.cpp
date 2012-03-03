@@ -79,7 +79,7 @@ inline const char* LocalTimeToStr(char *buf, size_t maxsize)
 //
 // So we have there local analog of backtrace() and backtrace_symbols_fd()
 // merged into single function (reason: stack traversing is prone to errors
-// so it better to print every step immediatedly).
+// so it better to print every step immediately).
 
 static const char * print_symbol(FILE *f, int frame_index, void *const addr)
 {
@@ -141,9 +141,9 @@ void print_backtrace_symbols(FILE *f, void *const *bt, int size)
     }
 }
 
-// collects and prints backtrace simultaneously, one frame at a time,
+// Collects and prints backtrace simultaneously, one frame at a time,
 // to give as many information as possible in case if some memory error
-// occurs (which are quite common)
+// occurs (which are quite common).
 static int print_backtrace(FILE *f, int depth, void ** frame, void * addr)
 {
     int i = 0;
@@ -288,5 +288,7 @@ int SetupErrorHandler()
 }
 
 #endif //_unix_
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
