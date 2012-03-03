@@ -136,11 +136,12 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
             << FormatDateTime(event.DateTime) << "\t"
             << FormatLevel(event.Level) << "\t"
             << event.Category << "\t"
+            << FormatMessage(event.Message) 
+            << "\t"
             << event.FileName << "\t"
             << event.Line << "\t"
             << event.Function << "\t"
-            << event.ThreadId << "\t"
-            << FormatMessage(event.Message) << Endl;
+            << event.ThreadId << Endl;
     }
 }
 
