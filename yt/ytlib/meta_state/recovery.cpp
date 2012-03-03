@@ -298,7 +298,7 @@ void TRecovery::ReplayChangeLog(
 
     yvector<TSharedRef> records;
     changeLog.Read(startRecordId, recordCount, &records);
-    if (records.ysize() < recordCount) {
+    if (records.size() != recordCount) {
         LOG_FATAL("Not enough records in changelog %d: expected %d but found %d (StartRecordId: %d)",
             changeLog.GetId(),
             recordCount,
@@ -306,7 +306,6 @@ void TRecovery::ReplayChangeLog(
             startRecordId);
     }
 
-    int recordCount = static_cast<int>(records.size());
     LOG_INFO("Applying %d changes to meta state", recordCount);
     Profiler.Enqueue("replay_change_count", recordCount);
 
