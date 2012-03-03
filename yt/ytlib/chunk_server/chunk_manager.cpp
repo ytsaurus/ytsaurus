@@ -153,6 +153,7 @@ public:
         return ~ObjectManager;
     }
 
+
     TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const TMsgRegisterHolder& message)
     {
@@ -193,7 +194,7 @@ public:
             this);
     }
 
-    TMetaChange< yvector<TChunkId> >::TPtr InitiateAllocateChunk(
+    TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
         const TMsgCreateChunks& message)
     {
         return CreateMetaChange(
@@ -202,6 +203,7 @@ public:
             &TThis::CreateChunks,
             this);
     }
+
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
@@ -488,11 +490,11 @@ private:
 
         // Unregister chunk replicas from all known locations.
         FOREACH (auto holderId, chunk.StoredLocations()) {
-            DoRemoveChunkFromLocation(holderId, chunk, false);
+            RemoveChunkFromLocation(holderId, chunk, false);
         }
         if (~chunk.CachedLocations()) {
             FOREACH (auto holderId, *chunk.CachedLocations()) {
-                DoRemoveChunkFromLocation(holderId, chunk, true);
+                RemoveChunkFromLocation(holderId, chunk, true);
             }
         }
 
@@ -503,7 +505,7 @@ private:
                 auto& job = GetJob(jobId);
                 auto* holder = FindHolder(job.GetRunnerAddress());
                 if (holder) {
-                    DoRemoveJob(*holder, job, false);
+                    RemoveJob(*holder, job, false);
                 }
             }
         }
@@ -575,6 +577,21 @@ private:
         const auto& statistics = message.statistics();
 
         auto& holder = GetHolder(holderId);
+        bool isFirstHeartbeat = holder.GetState() == EHolderState::Inactive;
+
+        LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, First: %s, Incremental: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
+            ~holder.GetAddress(),
+            holderId,
+            ~FormatBool(isFirstHeartbeat),
+            ~FormatBool(message.incremental()),
+            ~ToString(statistics),
+            static_cast<int>(message.added_chunks_size()),
+            static_cast<int>(message.removed_chunks_size()));
+
+        if (isFirstHeartbeat) {
+            holder.SetState(EHolderState::Active);
+        }
+
         holder.Statistics() = statistics;
 
         if (IsLeader()) {
@@ -583,32 +600,20 @@ private:
         }
 
         FOREACH (const auto& chunkInfo, message.added_chunks()) {
-            ProcessAddedChunk(holder, chunkInfo);
+            ProcessAddedChunk(holder, chunkInfo, message.incremental());
         }
 
         FOREACH (const auto& chunkInfo, message.removed_chunks()) {
+            YASSERT(!message.incremental());
             ProcessRemovedChunk(holder, chunkInfo);
         }
 
-        yvector<TChunkId> unapprovedChunkIds(
+        std::vector<TChunkId> unapprovedChunkIds(
             holder.UnapprovedChunkIds().begin(),
             holder.UnapprovedChunkIds().end());
         FOREACH (const auto& chunkId, unapprovedChunkIds) {
-            DoRemoveUnapprovedChunkReplica(holder, GetChunk(chunkId));
+            RemoveUnapprovedChunkReplica(holder, GetChunk(chunkId));
         }
-
-        bool isFirstHeartbeat = holder.GetState() == EHolderState::Inactive;
-        if (isFirstHeartbeat) {
-            holder.SetState(EHolderState::Active);
-        }
-        
-        LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, IsFirst: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
-            ~holder.GetAddress(),
-            holderId,
-            ~::ToString(isFirstHeartbeat),
-            ~ToString(statistics),
-            static_cast<int>(message.added_chunks_size()),
-            static_cast<int>(message.removed_chunks_size()));
 
         return TVoid();
     }
@@ -619,13 +624,13 @@ private:
         auto& holder = GetHolder(holderId);
 
         FOREACH (const auto& startInfo, message.started_jobs()) {
-            DoAddJob(holder, startInfo);
+            AddJob(holder, startInfo);
         }
 
         FOREACH(auto protoJobId, message.stopped_jobs()) {
             const auto* job = FindJob(TJobId::FromProto(protoJobId));
             if (job) {
-                DoRemoveJob(holder, *job, false);
+                RemoveJob(holder, *job, false);
             }
         }
 
@@ -778,18 +783,18 @@ private:
 
         FOREACH (const auto& chunkId, holder.StoredChunkIds()) {
             auto& chunk = GetChunk(chunkId);
-            DoRemoveChunkReplicaAtDeadHolder(holder, chunk, false);
+            RemoveChunkReplicaAtDeadHolder(holder, chunk, false);
         }
 
         FOREACH (const auto& chunkId, holder.CachedChunkIds()) {
             auto& chunk = GetChunk(chunkId);
-            DoRemoveChunkReplicaAtDeadHolder(holder, chunk, true);
+            RemoveChunkReplicaAtDeadHolder(holder, chunk, true);
         }
 
         FOREACH (const auto& jobId, holder.JobIds()) {
             auto& job = GetJob(jobId);
             // Pass true to suppress removal of job ids from holder.
-            DoRemoveJob(holder, job, true);
+            RemoveJob(holder, job, true);
         }
 
         YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
@@ -797,7 +802,7 @@ private:
     }
 
 
-    void DoAddChunkReplica(THolder& holder, TChunk& chunk, bool cached)
+    void AddChunkReplica(THolder& holder, TChunk& chunk, bool cached, bool incrementalHeartbeat)
     {
         auto chunkId = chunk.GetId();
         auto holderId = holder.GetId();
@@ -814,19 +819,23 @@ private:
         holder.AddChunk(chunkId, cached);
         chunk.AddLocation(holderId, cached);
 
-        LOG_DEBUG_IF(!IsRecovery(), "Chunk replica added (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
-            ~chunkId.ToString(),
-            ~::ToString(cached),
-            ~holder.GetAddress(),
-            holderId);
-
+        if (!IsRecovery()) {
+            LOG_EVENT(
+                Logger,
+                incrementalHeartbeat ? NLog::ELogLevel::Debug : NLog::ELogLevel::Trace,
+                "Chunk replica added (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+                ~chunkId.ToString(),
+                ~::ToString(cached),
+                ~holder.GetAddress(),
+                holderId);
+        }
 
         if (!cached && IsLeader()) {
             ChunkReplication->ScheduleChunkRefresh(chunk.GetId());
         }
     }
 
-    void DoRemoveChunkFromLocation(THolderId holderId, TChunk& chunk, bool cached)
+    void RemoveChunkFromLocation(THolderId holderId, TChunk& chunk, bool cached)
     {
         auto chunkId = chunk.GetId();
         auto& holder = GetHolder(holderId);
@@ -837,7 +846,7 @@ private:
         }
     }
 
-    void DoRemoveChunkReplica(THolder& holder, TChunk& chunk, bool cached)
+    void RemoveChunkReplica(THolder& holder, TChunk& chunk, bool cached)
     {
         auto chunkId = chunk.GetId();
         auto holderId = holder.GetId();
@@ -865,7 +874,7 @@ private:
         }
     }
 
-    void DoRemoveUnapprovedChunkReplica(THolder& holder, TChunk& chunk)
+    void RemoveUnapprovedChunkReplica(THolder& holder, TChunk& chunk)
     {
          auto chunkId = chunk.GetId();
          auto holderId = holder.GetId();
@@ -883,7 +892,7 @@ private:
         }
     }
 
-    void DoRemoveChunkReplicaAtDeadHolder(const THolder& holder, TChunk& chunk, bool cached)
+    void RemoveChunkReplicaAtDeadHolder(const THolder& holder, TChunk& chunk, bool cached)
     {
         chunk.RemoveLocation(holder.GetId(), cached);
 
@@ -899,7 +908,7 @@ private:
     }
 
 
-    void DoAddJob(THolder& holder, const TRspHolderHeartbeat::TJobStartInfo& jobInfo)
+    void AddJob(THolder& holder, const TRspHolderHeartbeat::TJobStartInfo& jobInfo)
     {
         auto chunkId = TChunkId::FromProto(jobInfo.chunk_id());
         auto jobId = TJobId::FromProto(jobInfo.job_id());
@@ -931,7 +940,7 @@ private:
             ~chunkId.ToString());
     }
 
-    void DoRemoveJob(THolder& holder, const TJob& job, bool holderDied)
+    void RemoveJob(THolder& holder, const TJob& job, bool holderDied)
     {
         auto jobId = job.GetJobId();
 
@@ -960,7 +969,8 @@ private:
 
     void ProcessAddedChunk(
         THolder& holder,
-        const TReqHolderHeartbeat::TChunkAddInfo& chunkInfo)
+        const TReqHolderHeartbeat::TChunkAddInfo& chunkInfo,
+        bool incrementalHeartbeat)
     {
         auto holderId = holder.GetId();
         auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
@@ -968,6 +978,11 @@ private:
         bool cached = chunkInfo.cached();
 
         if (!cached && holder.HasUnapprovedChunk(chunkId)) {
+            LOG_DEBUG_IF(!IsRecovery(), "Chunk approved (Address: %s, HolderId: %d, ChunkId: %s)",
+                ~holder.GetAddress(),
+                holderId,
+                ~chunkId.ToString());
+
             holder.ApproveChunk(chunkId);
             return;
         }
@@ -986,9 +1001,11 @@ private:
                 ~chunkId.ToString(),
                 ~::ToString(cached),
                 size);
+
             if (IsLeader()) {
                 ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
             }
+
             return;
         }
 
@@ -1004,7 +1021,7 @@ private:
         }
         chunk->SetSize(size);
 
-        DoAddChunkReplica(holder, *chunk, cached);
+        AddChunkReplica(holder, *chunk, cached, incrementalHeartbeat);
     }
 
     void ProcessRemovedChunk(
@@ -1025,7 +1042,7 @@ private:
             return;
         }
 
-        DoRemoveChunkReplica(holder, *chunk, cached);
+        RemoveChunkReplica(holder, *chunk, cached);
     }
 
 
@@ -1268,7 +1285,7 @@ private:
             }
 
             if (!holder->HasChunk(chunk.GetId(), false)) {
-                Owner->DoAddChunkReplica(*holder, chunk, false);
+                Owner->AddChunkReplica(*holder, chunk, false, false);
                 holder->MarkChunkUnapproved(chunk.GetId());
             }
         }
@@ -1520,7 +1537,7 @@ TMetaChange<TVoid>::TPtr TChunkManager::InitiateHeartbeatResponse(
 TMetaChange< yvector<TChunkId> >::TPtr TChunkManager::InitiateCreateChunks(
     const TMsgCreateChunks& message)
 {
-    return Impl->InitiateAllocateChunk(message);
+    return Impl->InitiateCreateChunks(message);
 }
 
 TChunk& TChunkManager::CreateChunk()

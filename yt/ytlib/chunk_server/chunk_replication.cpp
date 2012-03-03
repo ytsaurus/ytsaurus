@@ -122,18 +122,17 @@ void TChunkReplication::ProcessExistingJobs(
                     default:
                         YUNREACHABLE();
                 }
-                LOG_INFO("Job running (JobId: %s, HolderId: %d)",
+                LOG_INFO("Job is running (JobId: %s, HolderId: %d)",
                     ~jobId.ToString(),
                     holder.GetId());
 
                 if (TInstant::Now() - job->GetStartTime() > Config->JobTimeout) {
                     jobsToStop->push_back(jobId);
 
-                    LOG_INFO("Job duration limit exceeded (JobId: %s, HolderId: %d, Duration: %d ms, MaxDuration: %d ms)",
+                    LOG_WARNING("Job timed out (JobId: %s, HolderId: %d, Duration: %d ms)",
                         ~jobId.ToString(),
                         holder.GetId(),
-                        static_cast<i32>((TInstant::Now() - job->GetStartTime()).MilliSeconds()),
-                        static_cast<i32>(Config->JobTimeout.MilliSeconds()));
+                        static_cast<i32>((TInstant::Now() - job->GetStartTime()).MilliSeconds()));
                 }
                 break;
 
@@ -503,11 +502,12 @@ void TChunkReplication::Refresh(const TChunk& chunk)
     UnderreplicatedChunkIds_.erase(chunkId);
 
     if (storedCount == 0) {
-        LOG_DEBUG("Chunk is lost (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+        LostChunkIds_.insert(chunkId);
+
+        LOG_TRACE("Chunk is lost (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
             desiredCount);
-        LostChunkIds_.insert(chunkId);
     } else if (storedCount - minusCount > desiredCount) {
         OverreplicatedChunkIds_.insert(chunkId);
 
@@ -561,7 +561,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
             ~replicaCountStr,
             desiredCount);
     } else {
-        LOG_DEBUG("Chunk is OK (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+        LOG_TRACE("Chunk is OK (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
             desiredCount);

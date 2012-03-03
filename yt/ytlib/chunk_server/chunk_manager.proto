@@ -24,10 +24,11 @@ message TMsgCreateChunks
 
 message TMsgHeartbeatRequest
 {
-    required int32 holder_id = 1;
-    required THolderStatistics statistics = 2;
-    repeated TReqHolderHeartbeat.TChunkAddInfo added_chunks = 3;
-    repeated TReqHolderHeartbeat.TChunkRemoveInfo removed_chunks = 4;
+    required bool incremental = 1;
+    required int32 holder_id = 2;
+    required THolderStatistics statistics = 3;
+    repeated TReqHolderHeartbeat.TChunkAddInfo added_chunks = 4;
+    repeated TReqHolderHeartbeat.TChunkRemoveInfo removed_chunks = 5;
 }
 
 message TMsgHeartbeatResponse
