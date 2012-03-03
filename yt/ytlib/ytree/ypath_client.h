@@ -186,6 +186,12 @@ template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteVerb(IYPathService* service, TTypedRequest* request);
 
+//! Synchronously executes a typed YPath requested against a given service.
+//! Throws if an error has occurred.
+template <class TTypedRequest>
+TIntrusivePtr<typename TTypedRequest::TTypedResponse>
+SyncExecuteVerb(IYPathService* service, TTypedRequest* request);
+
 //! Asynchronously executes "Get" verb. 
 TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, const TYPath& path);
 
