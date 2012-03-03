@@ -943,7 +943,9 @@ private:
             holder.RemoveJob(jobId);
         }
 
-        ChunkReplication->ScheduleChunkRefresh(job.GetChunkId());
+        if (IsLeader()) {
+            ChunkReplication->ScheduleChunkRefresh(job.GetChunkId());
+        }
 
         UnregisterReplicationSinks(job);
 
