@@ -11,7 +11,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("meta_state/change_committer");
+static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +21,7 @@ TCommitterBase::TCommitterBase(
     : MetaState(metaState)
     , CancelableControlInvoker(New<TCancelableInvoker>(controlInvoker))
     , CommitCounter("commit_rate")
-    , BatchCommitCounter("batch_commit_rate")
+    , BatchCommitCounter("commit_batch_rate")
 {
     YASSERT(metaState);
     YASSERT(controlInvoker);
@@ -85,7 +85,7 @@ public:
         IsSent = true;
 
         LOG_DEBUG("Sending %d batched changes", static_cast<int>(BatchedChanges.size()));
-		Profiler.Enqueue("batch_size", BatchedChanges.size());
+		Profiler.Enqueue("commit_batch_size", BatchedChanges.size());
 
 		YASSERT(LogResult);
 		auto cellManager = Committer->CellManager;
@@ -93,7 +93,7 @@ public:
 		Awaiter = New<TParallelAwaiter>(
 			~Committer->CancelableControlInvoker,
 			&Profiler,
-			"batch_commit_time");
+			"commit_batch_time");
 
 		Awaiter->Await(
             LogResult,
