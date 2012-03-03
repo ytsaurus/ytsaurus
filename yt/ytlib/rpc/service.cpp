@@ -47,15 +47,6 @@ void IServiceContext::Reply(NBus::IMessage* message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceBase::TMethodDescriptor::TMethodDescriptor(
-    const Stroka& verb,
-    THandler* handler,
-    bool oneWay /*= false*/ )
-    : Verb(verb)
-    , Handler(handler)
-    , OneWay(oneWay)
-{ }
-
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& info,
     IInvoker* invoker,
