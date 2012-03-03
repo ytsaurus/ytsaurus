@@ -59,7 +59,6 @@ void TFileLogWriter::EnsureInitialized()
     try {
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
-        //FileOutput->SetFlushPropagateMode(true);
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
@@ -134,8 +133,8 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
     EnsureInitialized();
     if (Initialized) {
         *FileOutput
-            << event.DateTime << "\t"
-            << event.Level.ToString() << "\t"
+            << FormatDateTime(event.DateTime) << "\t"
+            << FormatLevel(event.Level) << "\t"
             << event.Category << "\t"
             << event.FileName << "\t"
             << event.Line << "\t"

@@ -4,13 +4,15 @@
 #include "snapshot_store.h"
 
 #include <ytlib/actions/action_util.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static NLog::TLogger Logger("MetaState");
+static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,11 +85,11 @@ void TDecoratedMetaState::Load(
     CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(segmentId, 0));
 
-    auto started = TInstant::Now();
-    State->Load(input);
-    auto finished = TInstant::Now();
+    PROFILE_TIMING ("snapshot_load_time") {
+        State->Load(input);
+    }
 
-    LOG_INFO("Finished loading snapshot (Time: %.3f)", (finished - started).SecondsFloat());
+    LOG_INFO("Finished loading snapshot");
 }
 
 void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)

@@ -1126,7 +1126,8 @@ class TChunkManager::TChunkProxy
 {
 public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
-        : TBase(~owner->ObjectManager, id, &owner->ChunkMap, ChunkServerLogger.GetCategory())
+        : TBase(~owner->ObjectManager, id, &owner->ChunkMap)
+        , TYPathServiceBase(ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 
@@ -1322,7 +1323,8 @@ class TChunkManager::TChunkListProxy
 {
 public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
-        : TBase(~owner->ObjectManager, id, &owner->ChunkListMap, ChunkServerLogger.GetCategory())
+        : TBase(~owner->ObjectManager, id, &owner->ChunkListMap)
+        , TYPathServiceBase(ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 

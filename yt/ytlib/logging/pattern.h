@@ -11,6 +11,8 @@ namespace NLog {
 Stroka FormatMessage(const Stroka& message);
 Stroka FormatEvent(const TLogEvent& event, Stroka pattern);
 bool ValidatePattern(Stroka pattern, Stroka* errorMessage);
+Stroka FormatDateTime(TInstant dateTime);
+Stroka FormatLevel(ELogLevel level);
 
 ////////////////////////////////////////////////////////////////////////////////
 

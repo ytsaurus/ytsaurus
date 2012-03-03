@@ -67,10 +67,8 @@ TObjectWithIdBase::TObjectWithIdBase(const TObjectWithIdBase& other)
 
 TObjectProxyBase::TObjectProxyBase(
     TObjectManager* objectManager,
-    const TObjectId& id,
-    const Stroka& loggingCategory)
-    : TYPathServiceBase(loggingCategory)
-    , ObjectManager(objectManager)
+    const TObjectId& id)
+    : ObjectManager(objectManager)
     , Id(id)
 { }
 
@@ -86,11 +84,7 @@ IAttributeDictionary& TObjectProxyBase::Attributes()
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
-    if (UserAttributes.Get()) {
-        return *UserAttributes;
-    } else {
-        return EmptyAttributes();
-    }
+    return UserAttributes.Get() ? *UserAttributes : EmptyAttributes();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)

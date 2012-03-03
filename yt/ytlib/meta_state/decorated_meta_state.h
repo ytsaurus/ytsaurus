@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "meta_state.h"
 #include "meta_version.h"
 #include "snapshot_store.h"

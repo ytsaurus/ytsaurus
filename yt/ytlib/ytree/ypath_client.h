@@ -53,11 +53,8 @@ public:
 protected:
     virtual TBlob SerializeBody() const
     {
-        NLog::TLogger& Logger = YTreeLogger;
         TBlob blob;
-        if (!SerializeProtobuf(this, &blob)) {
-            LOG_FATAL("Error serializing request body");
-        }
+        YVERIFY(SerializeProtobuf(this, &blob));
         return blob;
     }
 };
@@ -99,10 +96,7 @@ public:
 protected:
     virtual void DeserializeBody(const TRef& data)
     {
-        NLog::TLogger& Logger = YTreeLogger;
-        if (!DeserializeProtobuf(this, data)) {
-            LOG_FATAL("Error deserializing response body");
-        }
+        YVERIFY(DeserializeProtobuf(this, data));
     }
 
 };
