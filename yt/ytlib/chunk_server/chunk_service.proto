@@ -50,13 +50,14 @@ message TReqHolderHeartbeat
         required int32 state = 2;
     }
 
-    required int32 holder_id = 1;
-    required THolderStatistics statistics = 2;
+    required bool incremental = 1;
+    required int32 holder_id = 2;
+    required THolderStatistics statistics = 3;
 
-    repeated TChunkAddInfo added_chunks = 3;
-    repeated TChunkRemoveInfo removed_chunks = 4;
+    repeated TChunkAddInfo added_chunks = 4;
+    repeated TChunkRemoveInfo removed_chunks = 5;
 
-    repeated TJobInfo Jobs = 5;
+    repeated TJobInfo Jobs = 6;
 }
 
 message TRspHolderHeartbeat

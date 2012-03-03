@@ -142,8 +142,8 @@ void TMasterConnector::SendHeartbeat()
     YASSERT(HolderId != InvalidHolderId);
     request->set_holder_id(HolderId);
 
+    request->set_incremental(IncrementalHeartbeat);
     *request->mutable_statistics() = ComputeStatistics();
-    const auto& statistics = *request->mutable_statistics();
 
     if (IncrementalHeartbeat) {
         ReportedAdded = AddedSinceLastSuccess;
@@ -177,7 +177,7 @@ void TMasterConnector::SendHeartbeat()
         ->Via(Bootstrap->GetServiceInvoker()));
 
     LOG_DEBUG("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
-        ~ToString(statistics),
+        ~ToString(request->statistics()),
         static_cast<int>(request->added_chunks_size()),
         static_cast<int>(request->removed_chunks_size()),
         static_cast<int>(request->jobs_size()));
