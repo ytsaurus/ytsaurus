@@ -1,8 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "yson_consumer.h"
-
+#include "public.h"
 
 namespace NYT {
 namespace NYTree {
@@ -78,9 +76,7 @@ class TYsonReader
     : public TYsonReaderBase
 {
 public:
-    TYsonReader(IYsonConsumer* consumer, TInputStream* stream)
-        : TYsonReaderBase(consumer, stream)
-    { }
+    TYsonReader(IYsonConsumer* consumer, TInputStream* stream);
 
     void Read();
 };
@@ -91,9 +87,7 @@ class TYsonFragmentReader
     : public TYsonReaderBase
 {
 public:
-    TYsonFragmentReader(IYsonConsumer* consumer, TInputStream* stream)
-        : TYsonReaderBase(consumer, stream)
-    { }
+    TYsonFragmentReader(IYsonConsumer* consumer, TInputStream* stream);
 
     bool HasNext();
     void ReadNext();

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "ypath_client.h"
 #include "ypath.pb.h"
 

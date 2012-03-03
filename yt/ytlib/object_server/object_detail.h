@@ -76,10 +76,7 @@ class TObjectProxyBase
 public:
     typedef TIntrusivePtr<TObjectProxyBase> TPtr;
 
-    TObjectProxyBase(
-        TObjectManager* objectManager,
-        const TObjectId& id,
-        const Stroka& loggingCategory = ObjectServerLogger.GetCategory());
+    TObjectProxyBase(TObjectManager* objectManager, const TObjectId& id);
 
     // IObjectProxy members
     virtual TObjectId GetId() const;
@@ -142,9 +139,8 @@ public:
     TUnversionedObjectProxyBase(
         TObjectManager* objectManager,
         const TObjectId& id,
-        TMap* map,
-        const Stroka& loggingCategory = ObjectServerLogger.GetCategory())
-        : TObjectProxyBase(objectManager, id, loggingCategory)
+        TMap* map)
+        : TObjectProxyBase(objectManager, id)
         , Map(map)
     {
         YASSERT(map);

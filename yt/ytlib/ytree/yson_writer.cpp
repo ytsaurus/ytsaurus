@@ -1,6 +1,4 @@
 #include "stdafx.h"
-#include "common.h"
-
 #include "yson_writer.h"
 #include "yson_format.h"
 

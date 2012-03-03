@@ -227,7 +227,7 @@ public:
 
     virtual Stroka GetLoggingCategory() const
     {
-        return YTreeLogger.GetCategory();
+        return "YsonFileService";
     }
 
     virtual bool IsWriteRequest(IServiceContext* context) const

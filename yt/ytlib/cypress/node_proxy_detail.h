@@ -62,10 +62,8 @@ public:
         TCypressManager* cypressManager,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
-        : NObjectServer::TObjectProxyBase(
-            cypressManager->GetObjectManager(),
-            nodeId,
-            CypressLogger.GetCategory())
+        : NObjectServer::TObjectProxyBase(cypressManager->GetObjectManager(), nodeId)
+        , NYTree::TYPathServiceBase(CypressLogger.GetCategory())
         , TypeHandler(typeHandler)
         , CypressManager(cypressManager)
         , ObjectManager(cypressManager->GetObjectManager())

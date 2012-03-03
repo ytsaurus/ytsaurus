@@ -1,6 +1,5 @@
 #include "stdafx.h"
-#include "common.h"
-
+#include "yson_consumer.h"
 #include "yson_reader.h"
 #include "yson_format.h"
 
@@ -499,6 +498,12 @@ void TYsonReaderBase::ParseBinaryDouble(int depth)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYsonReader::TYsonReader(
+    IYsonConsumer* consumer,
+    TInputStream* stream )
+    : TYsonReaderBase(consumer, stream)
+{ }
+
 void TYsonReader::Read()
 {
     ParseAny(0);
@@ -511,6 +516,12 @@ void TYsonReader::Read()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TYsonFragmentReader::TYsonFragmentReader(
+    IYsonConsumer* consumer,
+    TInputStream* stream)
+    : TYsonReaderBase(consumer, stream)
+{ }
 
 bool TYsonFragmentReader::HasNext()
 {

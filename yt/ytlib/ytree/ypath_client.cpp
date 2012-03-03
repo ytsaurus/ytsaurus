@@ -16,7 +16,6 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = YTreeLogger;
 TYPath RootMarker("/");
 TYPath AttributeMarker("@");
 
@@ -288,6 +287,8 @@ ExecuteVerb(
     IYPathService* service,
     NBus::IMessage* requestMessage)
 {
+    NLog::TLogger Logger(service->GetLoggingCategory());
+
     auto requestHeader = GetRequestHeader(requestMessage);
     TYPath path = requestHeader.path();
     Stroka verb = requestHeader.verb();

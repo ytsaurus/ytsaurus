@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "ypath_service.h"
 #include "yson_consumer.h"
 #include "tree_builder.h"
@@ -25,7 +24,7 @@ class TYPathServiceBase
 public:
     typedef TIntrusivePtr<TYPathServiceBase> TPtr;
 
-    TYPathServiceBase(const Stroka& loggingCategory = YTreeLogger.GetCategory());
+    TYPathServiceBase(const Stroka& loggingCategory = "");
 
     virtual void Invoke(NRpc::IServiceContext* context);
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb);

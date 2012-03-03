@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "ytree.h"
 #include "serialize.h"
 #include "ypath_service.h"

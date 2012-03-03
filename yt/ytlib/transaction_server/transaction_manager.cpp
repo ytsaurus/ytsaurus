@@ -34,7 +34,8 @@ class TTransactionManager::TTransactionProxy
 {
 public:
     TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
-        : TBase(~owner->ObjectManager, id, &owner->TransactionMap, TransactionServerLogger.GetCategory())
+        : TBase(~owner->ObjectManager, id, &owner->TransactionMap)
+        , TYPathServiceBase(TransactionServerLogger.GetCategory())
         , Owner(owner)
     { }
 
