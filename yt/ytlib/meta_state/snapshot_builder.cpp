@@ -22,7 +22,7 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("meta_state/snapshot_builder");
+static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +40,7 @@ public:
         , Awaiter(New<TParallelAwaiter>(
 			~Owner->ServiceInvoker,
 			&Profiler,
-			"build_time"))
+			"snapshot_build_time"))
         , Checksums(Owner->CellManager->GetPeerCount())
     { }
 
