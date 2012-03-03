@@ -7,6 +7,7 @@
 #include <ytlib/actions/action_util.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <quality/netliba_v6/udp_http.h>
 
@@ -21,7 +22,8 @@ using namespace NNetliba;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = BusLogger;
+static NLog::TLogger Logger("Bus");
+static NProfiling::TProfiler Profiler("bus/client");
 
 // TODO: make configurable
 static const int MaxNLCallsPerIteration = 10;
@@ -167,6 +169,11 @@ class TClientDispatcher
 
     TThread Thread;
     volatile bool Terminated;
+    NProfiling::TRateCounter InCounter;
+    NProfiling::TRateCounter InSizeCounter;
+    NProfiling::TRateCounter OutCounter;
+    NProfiling::TRateCounter OutSizeCounter;
+
     // IRequester has to be stored by Arcadia's IntrusivePtr.
     ::TIntrusivePtr<IRequester> Requester;
 
@@ -449,6 +456,7 @@ class TClientDispatcher
             auto newSequenceId = bus->GenerateSequenceId();
             YVERIFY(EncodeMessagePacket(~request->Message, newSessionId, newSequenceId, &request->Data));
             Requester->CancelRequest(oldRequestId);
+            ProfileOut(request->Data.size());
             TGuid newRequestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
 
             request->SequenceId = newSequenceId;
@@ -482,6 +490,8 @@ class TClientDispatcher
     {
         int dataSize = data.ysize();
         const auto& sessionId = header->SessionId;
+
+        ProfileIn(dataSize);
 
         auto busIt = BusMap.find(sessionId);
         if (busIt == BusMap.end()) {
@@ -582,6 +592,7 @@ class TClientDispatcher
 
         auto& bus = busIt->second;
 
+        ProfileOut(request->Data.size());
         TGuid requestId = Requester->SendRequest(bus->GetAddress(), "", &request->Data);
         request->RequestId = requestId;
         bus->PendingRequestIds().insert(requestId);
@@ -598,10 +609,26 @@ class TClientDispatcher
         return Requester->GetAsyncEvent();
     }
 
+    void ProfileIn(int size)
+    {
+        Profiler.Increment(InCounter);
+        Profiler.Increment(InSizeCounter, size);
+    }
+
+    void ProfileOut(int size)
+    {
+        Profiler.Increment(OutCounter);
+        Profiler.Increment(OutSizeCounter, size);
+    }
+
 public:
     TClientDispatcher()
         : Thread(ThreadFunc, (void*) this)
         , Terminated(false)
+        , InCounter("in_rate")
+        , InSizeCounter("in_throughput")
+        , OutCounter("out_rate")
+        , OutSizeCounter("out_throughput")
     {
         Requester = CreateHttpUdpRequester(0);
         if (!Requester) {

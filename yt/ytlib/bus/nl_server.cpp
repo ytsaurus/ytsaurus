@@ -8,6 +8,7 @@
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <util/generic/list.h>
 #include <util/generic/deque.h>
@@ -23,7 +24,8 @@ using namespace NNetliba;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = BusLogger;
+static NLog::TLogger Logger("Bus");
+static NProfiling::TProfiler Profiler("bus/server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,11 +54,16 @@ private:
     typedef yhash_map<TGuid, TIntrusivePtr<TSession> > TPingMap;
 
     TNLBusServerConfig::TPtr Config;
-    IMessageHandler::TPtr Handler;
     bool Started;
     volatile bool Stopped;
-    ::TIntrusivePtr<IRequester> Requester;
     TThread Thread;
+    NProfiling::TRateCounter InCounter;
+    NProfiling::TRateCounter InSizeCounter;
+    NProfiling::TRateCounter OutCounter;
+    NProfiling::TRateCounter OutSizeCounter;
+
+    IMessageHandler::TPtr Handler;
+    ::TIntrusivePtr<IRequester> Requester;
     TSessionMap SessionMap;
     TPingMap PingMap;
     TLockFreeQueue< TIntrusivePtr<TSession> > SessionsWithPendingResponses;
@@ -97,6 +104,9 @@ private:
         const TSessionId& sessionId,
         const TUdpAddress& address);
     void UnregisterSession(TSession* session);
+
+    void ProfileIn(int size);
+    void ProfileOut(int size);
 };
 
 IBusServer::TPtr CreateNLBusServer(TNLBusServerConfig* config)
@@ -249,6 +259,10 @@ TNLBusServer::TNLBusServer(TNLBusServerConfig* config)
     , Started(false)
     , Stopped(false)
     , Thread(ThreadFunc, (void*) this)
+    , InCounter("in_rate")
+    , InSizeCounter("in_throughput")
+    , OutCounter("out_rate")
+    , OutSizeCounter("out_throughput")
 {
     YASSERT(config->Port >= 0);
 }
@@ -439,6 +453,7 @@ bool TNLBusServer::ProcessOutcomingResponses()
 
 void TNLBusServer::ProcessOutcomingResponse(TSession* session, TOutcomingResponse* response)
 {
+    ProfileOut(response->Data.size());
     TGuid requestId = Requester->SendRequest(
         session->GetAddress(),
         "",
@@ -519,7 +534,9 @@ TNLBusServer::TSession::TPtr TNLBusServer::DoProcessMessage(
     bool isRequest)
 {
     // Save the size, data will be swapped out soon.
-    int dataSize = data.ysize();
+    int dataSize = static_cast<int>(data.size());
+
+    ProfileIn(dataSize);
 
     IMessage::TPtr message;
     TSequenceId sequenceId;;
@@ -667,6 +684,18 @@ TBusStatistics TNLBusServer::GetStatistics()
     }
 
     return statistics;
+}
+
+void TNLBusServer::ProfileIn(int size)
+{
+    Profiler.Increment(InCounter);
+    Profiler.Increment(InSizeCounter, size);
+}
+
+void TNLBusServer::ProfileOut(int size)
+{
+    Profiler.Increment(OutCounter);
+    Profiler.Increment(OutSizeCounter, size);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
