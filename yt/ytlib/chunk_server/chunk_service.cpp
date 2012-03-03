@@ -129,6 +129,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
     const auto& holder = ChunkManager->GetHolder(holderId);
 
     TMsgHeartbeatRequest requestMessage;
+    requestMessage.set_incremental(request->incremental());
     requestMessage.set_holder_id(holderId);
     *requestMessage.mutable_statistics() = request->statistics();
     requestMessage.mutable_added_chunks()->MergeFrom(request->added_chunks());
