@@ -83,11 +83,9 @@ void TDecoratedMetaState::Load(
     CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(segmentId, 0));
 
-    auto started = TInstant::Now();
     State->Load(input);
-    auto finished = TInstant::Now();
 
-    LOG_INFO("Finished loading snapshot (Time: %.3f)", (finished - started).SecondsFloat());
+    LOG_INFO("Finished loading snapshot");
 }
 
 void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
