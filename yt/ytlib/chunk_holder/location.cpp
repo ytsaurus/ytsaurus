@@ -31,7 +31,7 @@ TLocation::TLocation(
     , SessionCount(0)
     , Logger(ChunkHolderLogger)
 {
-    Logger.AddTag(Sprintf("LocationPath: %s", ~Config->Path.Quote()));
+    Logger.AddTag(Sprintf("Path: %s", ~Config->Path.Quote()));
 }
 
 ELocationType TLocation::GetType() const
@@ -144,7 +144,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
 {
     auto path = GetPath();
 
-    LOG_INFO("Scanning storage location %s", ~path.Quote());
+    LOG_INFO("Scanning storage location");
 
     NFS::ForcePath(path);
     NFS::CleanTempFiles(path);
