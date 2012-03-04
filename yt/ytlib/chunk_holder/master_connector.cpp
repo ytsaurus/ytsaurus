@@ -176,7 +176,7 @@ void TMasterConnector::SendHeartbeat()
         FromMethod(&TMasterConnector::OnHeartbeatResponse, TPtr(this))
         ->Via(Bootstrap->GetServiceInvoker()));
 
-    LOG_DEBUG("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
+    LOG_INFO("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
         ~ToString(request->statistics()),
         static_cast<int>(request->added_chunks_size()),
         static_cast<int>(request->removed_chunks_size()),
