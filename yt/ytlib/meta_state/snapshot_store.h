@@ -12,9 +12,6 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages local snapshots.
-/*!
- *  Thread affinity: single-threaded
- */
 class TSnapshotStore
     : public TRefCounted
 {
@@ -22,13 +19,17 @@ public:
     typedef TIntrusivePtr<TSnapshotStore> TPtr;
     typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
 
-    //! Initializes an instance.
+    //! Creates an instance.
     /*!
      *  \param location Root directory where all snapshot files reside.
      */
     TSnapshotStore(const Stroka& path);
 
+    //! Prepares the snapshot directory.
+    void Start();
+
     typedef TValueOrError<TSnapshotReader::TPtr> TGetReaderResult;
+
     //! Gets a reader for a given snapshot id.
     TGetReaderResult GetReader(int snapshotId) const;
 
@@ -45,7 +46,8 @@ public:
     //! Returns the largest id of the snapshot that is known to exist locally.
     //! or #NonexistingSnapshotId if no snapshots are present.
     /*!
-     *  For performance reasons the return value is cached.
+     *  \note
+     *  Thread affinity: any
      *  
      *  \see #UpdateMaxSnapshotId
      */
@@ -53,12 +55,16 @@ public:
 
     //! Tells the store that a new snapshot was created.
     /*!
-     *  This call updated the internally cached value.
+     *  This call updates the internally cached value.
+     *  
+     *  \note
+     *  Thread affinity: any
      */
     void UpdateMaxSnapshotId(int snapshotId);
 
 private:
     Stroka Path;
+    TSpinLock SpinLock;
     mutable int CachedMaxSnapshotId;
 
     Stroka GetSnapshotFileName(int snapshotId) const;
