@@ -15,6 +15,11 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EFollowerPingerMode,
+    (Recovery)
+    (Leading)
+);
+
 class TFollowerPinger
     : public TRefCounted
 {
@@ -41,6 +46,7 @@ public:
     };
 
     TFollowerPinger(
+        EFollowerPingerMode mode,
         TConfig* config,
         TDecoratedMetaState* metaState,
         TCellManager* cellManager,
@@ -49,6 +55,7 @@ public:
         const TEpoch& epoch,
         IInvoker* controlInvoker);
 
+    void Start();
     void Stop();
 
 private:
@@ -57,6 +64,7 @@ private:
     void SendPing();
     void OnPingReply(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
 
+    EFollowerPingerMode Mode;
     TConfig::TPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;
     TDecoratedMetaState::TPtr MetaState;
@@ -65,6 +73,8 @@ private:
     TSnapshotStore::TPtr SnapshotStore;
     TEpoch Epoch;
     TCancelableInvoker::TPtr ControlInvoker;
+    TCancelableInvoker::TPtr StateInvoker;
+    TMetaVersion ReachableVersion;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

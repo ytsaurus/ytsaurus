@@ -3,6 +3,7 @@
 #include "snapshot_store.h"
 
 #include <ytlib/misc/fs.h>
+#include <ytlib/misc/thread_affinity.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -21,61 +22,13 @@ TSnapshotStore::TSnapshotStore(const Stroka& path)
     , CachedMaxSnapshotId(NonexistingSnapshotId)
 { }
 
-Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
+void TSnapshotStore::Start()
 {
-    return CombinePaths(Path, Sprintf("%09d.%s", snapshotId, SnapshotExtension));
-}
+    LOG_DEBUG("Preparing snapshot directory %s", ~Path.Quote());
 
-TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
-{
-    YASSERT(snapshotId > 0);
-    Stroka fileName = GetSnapshotFileName(snapshotId);
-    if (!isexist(~fileName)) {
-        return TError(
-            EErrorCode::NoSuchSnapshot,
-            Sprintf("No such snapshot (SnapshotId: %d)", snapshotId));
-    }
-    return New<TSnapshotReader>(fileName, snapshotId);
-}
+    NFS::ForcePath(Path);
+    NFS::CleanTempFiles(Path);
 
-TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 snapshotId) const
-{
-    YASSERT(snapshotId > 0);
-    Stroka fileName = GetSnapshotFileName(snapshotId);
-    return New<TSnapshotWriter>(fileName, snapshotId);
-}
-
-TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(int snapshotId) const
-{
-    YASSERT(snapshotId > 0);
-    Stroka fileName = GetSnapshotFileName(snapshotId);
-    if (!isexist(~fileName)) {
-        return TError(
-            EErrorCode::NoSuchSnapshot,
-            Sprintf("No such snapshot (SnapshotId: %d)", snapshotId));
-    }
-    return TSharedPtr<TFile>(new TFile(fileName, OpenExisting | RdOnly));
-}
-
-TSharedPtr<TFile> TSnapshotStore::GetRawWriter(int snapshotId) const
-{
-    YASSERT(snapshotId > 0);
-    Stroka fileName = GetSnapshotFileName(snapshotId);
-    return new TFile(fileName, CreateAlways | WrOnly | Seq);
-}
-
-i32 TSnapshotStore::GetMaxSnapshotId() const
-{
-    // Check for a cached value first.
-    if (CachedMaxSnapshotId != NonexistingSnapshotId &&
-        isexist(~GetSnapshotFileName(CachedMaxSnapshotId)))
-    {
-        LOG_DEBUG("Cached maximum snapshot id is %d", CachedMaxSnapshotId);
-        return CachedMaxSnapshotId;
-    }
-
-    // Look for snapshots.
-    CachedMaxSnapshotId = NonexistingSnapshotId;
     LOG_DEBUG("Looking for snapshots in %s", ~Path.Quote());
 
     TFileList fileList;
@@ -97,18 +50,81 @@ i32 TSnapshotStore::GetMaxSnapshotId() const
         }
     }
 
-    if (maxSnapshotId < 0) {
+    if (maxSnapshotId == NonexistingSnapshotId) {
         LOG_DEBUG("No snapshots found");
     } else {
         LOG_DEBUG("Maximum snapshot id is %d", maxSnapshotId);
     }
 
     CachedMaxSnapshotId = maxSnapshotId;
-    return maxSnapshotId;
+}
+
+Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return CombinePaths(Path, Sprintf("%09d.%s", snapshotId, SnapshotExtension));
+}
+
+TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(snapshotId > 0);
+
+    Stroka fileName = GetSnapshotFileName(snapshotId);
+    if (!isexist(~fileName)) {
+        return TError(
+            EErrorCode::NoSuchSnapshot,
+            Sprintf("No such snapshot (SnapshotId: %d)", snapshotId));
+    }
+    return New<TSnapshotReader>(fileName, snapshotId);
+}
+
+TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 snapshotId) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(snapshotId > 0);
+
+    Stroka fileName = GetSnapshotFileName(snapshotId);
+    return New<TSnapshotWriter>(fileName, snapshotId);
+}
+
+TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(int snapshotId) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(snapshotId > 0);
+
+    Stroka fileName = GetSnapshotFileName(snapshotId);
+    if (!isexist(~fileName)) {
+        return TError(
+            EErrorCode::NoSuchSnapshot,
+            Sprintf("No such snapshot (SnapshotId: %d)", snapshotId));
+    }
+    return TSharedPtr<TFile>(new TFile(fileName, OpenExisting | RdOnly));
+}
+
+TSharedPtr<TFile> TSnapshotStore::GetRawWriter(int snapshotId) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(snapshotId > 0);
+
+    Stroka fileName = GetSnapshotFileName(snapshotId);
+    return new TFile(fileName, CreateAlways | WrOnly | Seq);
+}
+
+i32 TSnapshotStore::GetMaxSnapshotId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(SpinLock);
+    return CachedMaxSnapshotId;
 }
 
 void TSnapshotStore::UpdateMaxSnapshotId(int snapshotId)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard<TSpinLock> guard(SpinLock);
     CachedMaxSnapshotId = Max(CachedMaxSnapshotId, snapshotId);
 }
 

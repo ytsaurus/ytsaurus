@@ -24,6 +24,14 @@ TChangeLogCache::TChangeLogCache(const Stroka& path)
     , Path(path)
 { }
 
+void TChangeLogCache::Start()
+{
+    LOG_DEBUG("Preparing changelog directory %s", ~Path.Quote());
+
+    NFS::ForcePath(Path);
+    NFS::CleanTempFiles(Path);
+}
+
 Stroka TChangeLogCache::GetChangeLogFileName(i32 changeLogId)
 {
     return CombinePaths(Path, Sprintf("%09d.%s", changeLogId, LogExtension));

@@ -197,7 +197,6 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
 
     LOG_INFO("Creating a local snapshot (Version: %s)", ~version.ToString());
 
-    // TODO: handle IO errors
     if (MetaState->GetVersion() != version) {
         LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, received %s",
             ~version.ToString(),
@@ -208,7 +207,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     i32 segmentId = version.SegmentId + 1;
 
 #if defined(_unix_)
-    LOG_TRACE("Going to fork...");
+    LOG_INFO("Going to fork");
     pid_t childPid = fork();
     if (childPid == -1) {
         LOG_ERROR("Could not fork while creating local snapshot %d", segmentId);
@@ -217,13 +216,12 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
         DoCreateLocal(version);
         _exit(0);
     } else {
-        LOG_TRACE("Forked successfully. Starting watchdog thread...");
-        WatchdogQueue->GetInvoker()->Invoke(
-            FromMethod(
-                &TSnapshotBuilder::WatchdogFork,
-                TWeakPtr<TSnapshotBuilder>(this),
-                segmentId,
-                childPid));
+        LOG_INFO("Forked successfully, starting watchdog");
+        WatchdogQueue->GetInvoker()->Invoke(FromMethod(
+            &TSnapshotBuilder::WatchdogFork,
+            TWeakPtr<TSnapshotBuilder>(this),
+            segmentId,
+            childPid));
     }
 #else
     auto checksum = DoCreateLocal(version);
@@ -266,7 +264,7 @@ void TSnapshotBuilder::WatchdogFork(
     {
         auto snapshotBuilder = weakSnapshotBuilder.Lock();
         if (!snapshotBuilder) {
-            LOG_INFO("Snapshot builder has been deleted, exiting watchdog thread (SegmentId: %d)",
+            LOG_INFO("Snapshot builder has been deleted, exiting watchdog (SegmentId: %d)",
                 segmentId);
             return;
         }
@@ -315,7 +313,7 @@ void TSnapshotBuilder::WatchdogFork(
 
     auto snapshotBuilder = weakSnapshotBuilder.Lock();
     if (!snapshotBuilder) {
-        LOG_INFO("Snapshot builder has been deleted, exiting watchdog thread (SegmentId: %d)",
+        LOG_INFO("Snapshot builder has been deleted, exiting watchdog (SegmentId: %d)",
             segmentId);
         return;
     }
