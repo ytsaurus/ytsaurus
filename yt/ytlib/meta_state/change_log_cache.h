@@ -34,6 +34,8 @@ public:
 
     TChangeLogCache(const Stroka& path);
 
+    void Start();
+
     typedef TValueOrError<TCachedAsyncChangeLog::TPtr> TGetResult;
     TGetResult Get(i32 changeLogId);
 
