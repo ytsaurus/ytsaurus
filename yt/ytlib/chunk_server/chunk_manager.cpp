@@ -896,7 +896,7 @@ private:
     {
         chunk.RemoveLocation(holder.GetId(), cached);
 
-        LOG_DEBUG_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
+        LOG_TRACE_IF(!IsRecovery(), "Chunk replica removed since holder is dead (ChunkId: %s, Cached: %s, Address: %s, HolderId: %d)",
              ~chunk.GetId().ToString(),
              ~::ToString(cached),
              ~holder.GetAddress(),
