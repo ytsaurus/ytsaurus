@@ -102,12 +102,6 @@ void THolder::MarkChunkUnapproved(const TChunkId& chunkId)
     YVERIFY(UnapprovedChunkIds_.insert(chunkId).second);
 }
 
-void THolder::RemoveUnapprovedChunk(const TChunkId& chunkId)
-{
-    YVERIFY(UnapprovedChunkIds_.erase(chunkId) == 1);
-    RemoveChunk(chunkId, false);
-}
-
 bool THolder::HasUnapprovedChunk(const TChunkId& chunkId) const
 {
     return UnapprovedChunkIds_.find(chunkId) != UnapprovedChunkIds_.end();
