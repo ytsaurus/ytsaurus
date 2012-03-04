@@ -88,8 +88,8 @@ struct IMetaStateManager
 
     //! Commits the change.
     /*!
-     *  If this is not a leader then #ECommitResult::InvalidStatus is returned.
-     *  If this is a leader but without and active quorum, then #ECommitResult::NotCommitted is returned.
+     *  If the peer is not the leader then #ECommitResult::InvalidStatus is returned.
+     *  If the peer is the leader but has no active quorum, then #ECommitResult::NotCommitted is returned.
      *  If the state is read-only, then #ECommitResult::ReadOnly is returned.
      *  
      *  \param changeData A blob describing the change to be send to followers.
