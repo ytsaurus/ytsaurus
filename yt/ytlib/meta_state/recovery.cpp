@@ -455,7 +455,6 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // TODO: use threshold?
     if (PostponedChanges.empty()) {
         LOG_INFO("No postponed changes left");
         return New<TAsyncResult>(EResult::OK);
