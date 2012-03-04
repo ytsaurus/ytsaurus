@@ -24,6 +24,7 @@
 #include <ytlib/object_server/type_handler_detail.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/logging/log.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -38,6 +39,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkServer");
+static NProfiling::TProfiler Profiler("chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -573,86 +575,88 @@ private:
 
     TVoid HeartbeatRequest(const TMsgHeartbeatRequest& message)
     {
-        auto holderId = message.holder_id();
-        const auto& statistics = message.statistics();
+        PROFILE_TIMING (message.incremental() ? "incremental_heartbeat_request" : "full_heartbeat_request") {
+            auto holderId = message.holder_id();
+            const auto& statistics = message.statistics();
 
-        auto& holder = GetHolder(holderId);
-        bool isFirstHeartbeat = holder.GetState() == EHolderState::Inactive;
+            auto& holder = GetHolder(holderId);
+            bool isFirstHeartbeat = holder.GetState() == EHolderState::Inactive;
 
-        LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, First: %s, Incremental: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
-            ~holder.GetAddress(),
-            holderId,
-            ~FormatBool(isFirstHeartbeat),
-            ~FormatBool(message.incremental()),
-            ~ToString(statistics),
-            static_cast<int>(message.added_chunks_size()),
-            static_cast<int>(message.removed_chunks_size()));
+            LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, First: %s, Incremental: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
+                ~holder.GetAddress(),
+                holderId,
+                ~FormatBool(isFirstHeartbeat),
+                ~FormatBool(message.incremental()),
+                ~ToString(statistics),
+                static_cast<int>(message.added_chunks_size()),
+                static_cast<int>(message.removed_chunks_size()));
 
-        if (isFirstHeartbeat) {
-            holder.SetState(EHolderState::Active);
-        }
-
-        holder.Statistics() = statistics;
-
-        if (IsLeader()) {
-            HolderLeaseTracking->RenewHolderLease(holder);
-            ChunkPlacement->OnHolderUpdated(holder);
-        }
-
-        if (!message.incremental()) {
-            std::vector<TChunkId> storedChunkIds(holder.StoredChunkIds().begin(), holder.StoredChunkIds().end());
-            FOREACH (const auto& chunkId, storedChunkIds) {
-                RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Reset);
+            if (isFirstHeartbeat) {
+                holder.SetState(EHolderState::Active);
             }
-            holder.StoredChunkIds().clear();
 
-            std::vector<TChunkId> cachedChunkIds(holder.CachedChunkIds().begin(), holder.CachedChunkIds().end());
-            FOREACH (const auto& chunkId, cachedChunkIds) {
-                RemoveChunkReplica(holder, GetChunk(chunkId), true, ERemoveReplicaReason::Reset);
+            holder.Statistics() = statistics;
+
+            if (IsLeader()) {
+                HolderLeaseTracking->RenewHolderLease(holder);
+                ChunkPlacement->OnHolderUpdated(holder);
             }
-            holder.CachedChunkIds().clear();
-        }
 
-        FOREACH (const auto& chunkInfo, message.added_chunks()) {
-            ProcessAddedChunk(holder, chunkInfo, message.incremental());
-        }
+            if (!message.incremental()) {
+                std::vector<TChunkId> storedChunkIds(holder.StoredChunkIds().begin(), holder.StoredChunkIds().end());
+                FOREACH (const auto& chunkId, storedChunkIds) {
+                    RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Reset);
+                }
+                holder.StoredChunkIds().clear();
 
-        FOREACH (const auto& chunkInfo, message.removed_chunks()) {
-            YASSERT(message.incremental());
-            ProcessRemovedChunk(holder, chunkInfo, message.incremental());
-        }
+                std::vector<TChunkId> cachedChunkIds(holder.CachedChunkIds().begin(), holder.CachedChunkIds().end());
+                FOREACH (const auto& chunkId, cachedChunkIds) {
+                    RemoveChunkReplica(holder, GetChunk(chunkId), true, ERemoveReplicaReason::Reset);
+                }
+                holder.CachedChunkIds().clear();
+            }
 
-        std::vector<TChunkId> unapprovedChunkIds(holder.UnapprovedChunkIds().begin(), holder.UnapprovedChunkIds().end());
-        FOREACH (const auto& chunkId, unapprovedChunkIds) {
-            RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Unapproved);
-        }
-        holder.UnapprovedChunkIds().clear();
+            FOREACH (const auto& chunkInfo, message.added_chunks()) {
+                ProcessAddedChunk(holder, chunkInfo, message.incremental());
+            }
 
+            FOREACH (const auto& chunkInfo, message.removed_chunks()) {
+                YASSERT(message.incremental());
+                ProcessRemovedChunk(holder, chunkInfo, message.incremental());
+            }
+
+            std::vector<TChunkId> unapprovedChunkIds(holder.UnapprovedChunkIds().begin(), holder.UnapprovedChunkIds().end());
+            FOREACH (const auto& chunkId, unapprovedChunkIds) {
+                RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Unapproved);
+            }
+            holder.UnapprovedChunkIds().clear();
+        }
         return TVoid();
     }
 
     TVoid HeartbeatResponse(const TMsgHeartbeatResponse& message)
     {
-        auto holderId = message.holder_id();
-        auto& holder = GetHolder(holderId);
+        PROFILE_TIMING ("heartbeat_response") {
+            auto holderId = message.holder_id();
+            auto& holder = GetHolder(holderId);
 
-        FOREACH (const auto& startInfo, message.started_jobs()) {
-            AddJob(holder, startInfo);
-        }
-
-        FOREACH(auto protoJobId, message.stopped_jobs()) {
-            const auto* job = FindJob(TJobId::FromProto(protoJobId));
-            if (job) {
-                RemoveJob(holder, *job, false);
+            FOREACH (const auto& startInfo, message.started_jobs()) {
+                AddJob(holder, startInfo);
             }
+
+            FOREACH(auto protoJobId, message.stopped_jobs()) {
+                const auto* job = FindJob(TJobId::FromProto(protoJobId));
+                if (job) {
+                    RemoveJob(holder, *job, false);
+                }
+            }
+
+            LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
+                ~holder.GetAddress(),
+                holderId,
+                static_cast<int>(message.started_jobs_size()),
+                static_cast<int>(message.stopped_jobs_size()));
         }
-
-        LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
-            ~holder.GetAddress(),
-            holderId,
-            static_cast<int>(message.started_jobs_size()),
-            static_cast<int>(message.stopped_jobs_size()));
-
         return TVoid();
     }
 
@@ -784,34 +788,36 @@ private:
 
     void DoUnregisterHolder(THolder& holder)
     { 
-        auto holderId = holder.GetId();
+        PROFILE_TIMING("holder_unregistration") {
+            auto holderId = holder.GetId();
 
-        LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
-            ~holder.GetAddress(),
-            holderId);
+            LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
+                ~holder.GetAddress(),
+                holderId);
 
-        if (IsLeader()) {
-            StopHolderTracking(holder);
+            if (IsLeader()) {
+                StopHolderTracking(holder);
+            }
+
+            FOREACH (const auto& chunkId, holder.StoredChunkIds()) {
+                auto& chunk = GetChunk(chunkId);
+                RemoveChunkReplica(holder, chunk, false, ERemoveReplicaReason::Reset);
+            }
+
+            FOREACH (const auto& chunkId, holder.CachedChunkIds()) {
+                auto& chunk = GetChunk(chunkId);
+                RemoveChunkReplica(holder, chunk, true, ERemoveReplicaReason::Reset);
+            }
+
+            FOREACH (const auto& jobId, holder.JobIds()) {
+                auto& job = GetJob(jobId);
+                // Pass true to suppress removal of job ids from holder.
+                RemoveJob(holder, job, true);
+            }
+
+            YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
+            HolderMap.Remove(holderId);
         }
-
-        FOREACH (const auto& chunkId, holder.StoredChunkIds()) {
-            auto& chunk = GetChunk(chunkId);
-            RemoveChunkReplica(holder, chunk, false, ERemoveReplicaReason::Reset);
-        }
-
-        FOREACH (const auto& chunkId, holder.CachedChunkIds()) {
-            auto& chunk = GetChunk(chunkId);
-            RemoveChunkReplica(holder, chunk, true, ERemoveReplicaReason::Reset);
-        }
-
-        FOREACH (const auto& jobId, holder.JobIds()) {
-            auto& job = GetJob(jobId);
-            // Pass true to suppress removal of job ids from holder.
-            RemoveJob(holder, job, true);
-        }
-
-        YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
-        HolderMap.Remove(holderId);
     }
 
 
@@ -946,7 +952,7 @@ private:
 
         RegisterReplicationSinks(*job);
 
-        LOG_DEBUG_IF(!IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
+        LOG_INFO_IF(!IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
             ~holder.GetAddress(),
             holder.GetId(),
