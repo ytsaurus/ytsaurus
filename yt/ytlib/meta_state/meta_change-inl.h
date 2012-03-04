@@ -18,6 +18,8 @@ TMetaChange<TResult>::TMetaChange(
     , Func(func)
     , ChangeData(changeData)
     , Started(false)
+    , Retriable(false)
+    , EpochStateInvoker(metaStateManager->GetEpochStateInvoker())
 { }
 
 template <class TResult>
@@ -27,15 +29,28 @@ typename TFuture<TResult>::TPtr TMetaChange<TResult>::Commit()
     Started = true;
 
     AsyncResult = New< TFuture<TResult> >();
+    DoCommit();
+    return AsyncResult;
+}
 
+template <class TResult>
+void TMetaChange<TResult>::DoCommit()
+{
+    YASSERT(Started);
     MetaStateManager
         ->CommitChange(
             ChangeData,
             ~FromMethod(&TThis::ChangeFuncThunk, TPtr(this)))
-         ->Subscribe(
+        ->Subscribe(
             FromMethod(&TThis::OnCommitted, TPtr(this)));
+}
 
-    return AsyncResult;
+template <class TResult>
+typename TMetaChange<TResult>::TPtr TMetaChange<TResult>::SetRetriable(TDuration backoffTime)
+{
+    Retriable = true;
+    BackoffTime = backoffTime;
+    return this;
 }
 
 template <class TResult>
@@ -72,6 +87,11 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
     } else {
         if (OnError_) {
             OnError_->Do();
+        }
+        if (Retriable) {
+            TDelayedInvoker::Submit(
+                ~FromMethod(&TThis::DoCommit, TPtr(this))->Via(EpochStateInvoker),
+                BackoffTime);
         }
     }
 

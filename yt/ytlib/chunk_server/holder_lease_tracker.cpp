@@ -68,6 +68,15 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
     message.set_holder_id(holderId);
     ChunkManager
         ->InitiateUnregisterHolder(message)
+        ->SetRetriable(Config->HolderLeaseTimeout)
+        ->OnSuccess(~FromFunctor([=] (TVoid)
+            {
+                LOG_INFO("Holder expiration commit success (HolderId: %d)", holderId);
+            }))
+        ->OnError(~FromFunctor([=] ()
+            {
+                LOG_INFO("Holder expiration commit failed (HolderId: %d)", holderId);
+            }))
         ->Commit();
 }
 
