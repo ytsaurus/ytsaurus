@@ -23,7 +23,8 @@ public:
         const TSharedRef& changeData);
 
     typename TFuture<TResult>::TPtr Commit();
-    
+
+    TPtr SetRetriable(TDuration backoffTime);
     TPtr OnSuccess(IParamAction<TResult>* onSuccess);
     TPtr OnError(IAction* onError);
 
@@ -34,14 +35,17 @@ private:
     typename TChangeFunc::TPtr Func;
     IAction::TPtr ChangeAction;
     TSharedRef ChangeData;
+    bool Started;
+    bool Retriable;
+    IInvoker::TPtr EpochStateInvoker;
 
+    TDuration BackoffTime;
     typename IParamAction<TResult>::TPtr OnSuccess_;
     IAction::TPtr OnError_;
-
-    bool Started;
     typename TFuture<TResult>::TPtr AsyncResult;
     TResult Result;
 
+    void DoCommit();
     void ChangeFuncThunk();
     void OnCommitted(ECommitResult result);
 
