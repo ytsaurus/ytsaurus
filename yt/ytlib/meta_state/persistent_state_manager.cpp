@@ -15,12 +15,7 @@
 #include <ytlib/election/election_manager.h>
 #include <ytlib/rpc/service.h>
 #include <ytlib/actions/bind.h>
-#include <ytlib/actions/invoker.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/misc/fs.h>
-#include <ytlib/misc/guid.h>
-#include <ytlib/misc/property.h>
 #include <ytlib/ytree/fluent.h>
 
 namespace NYT {
@@ -109,12 +104,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
 
-        NFS::ForcePath(config->LogPath);
-        NFS::CleanTempFiles(config->LogPath);
         ChangeLogCache = New<TChangeLogCache>(Config->LogPath);
 
-        NFS::ForcePath(config->SnapshotPath);
-        NFS::CleanTempFiles(config->SnapshotPath);
         SnapshotStore = New<TSnapshotStore>(Config->SnapshotPath);
 
         MetaState = New<TDecoratedMetaState>(
@@ -145,6 +136,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(ControlStatus == EPeerStatus::Stopped);
+
+        ChangeLogCache->Start();
+        SnapshotStore->Start();
 
         ControlStatus = EPeerStatus::Elections;
 
@@ -558,7 +552,7 @@ public:
         auto epoch = TEpoch::FromProto(request->epoch());
         i32 maxSnapshotId = request->max_snapshot_id();
 
-        context->SetRequestInfo("Version: %s,  Epoch: %s, MaxSnapshotId: %d",
+        context->SetRequestInfo("Version: %s, Epoch: %s, MaxSnapshotId: %d",
             ~version.ToString(),
             ~epoch.ToString(),
             maxSnapshotId);
@@ -652,8 +646,7 @@ public:
         switch (GetControlStatus()) {
             case EPeerStatus::Following:
                 if (createSnapshot) {
-                    LOG_DEBUG("AdvanceSegment: starting snapshot creation (Version: %s)",
-                        ~version.ToString());
+                    LOG_DEBUG("AdvanceSegment: starting snapshot creation");
 
                     FromMethod(&TSnapshotBuilder::CreateLocal, SnapshotBuilder, version)
                         ->AsyncVia(GetStateInvoker())
@@ -663,8 +656,7 @@ public:
                             TPtr(this),
                             context));
                 } else {
-                    LOG_DEBUG("AdvanceSegment: advancing segment (Version: %s)",
-                        ~version.ToString());
+                    LOG_DEBUG("AdvanceSegment: advancing segment");
 
                     GetStateInvoker()->Invoke(context->Wrap(~FromMethod(
                         &TThis::DoAdvanceSegment,
@@ -674,8 +666,9 @@ public:
                 break;
 
             case EPeerStatus::FollowerRecovery: {
-                // TODO: Logging
                 if (FollowerRecovery) {
+                    LOG_DEBUG("AdvanceSegment: postponing snapshot creation");
+
                     auto result = FollowerRecovery->PostponeSegmentAdvance(version);
                     if (result != TRecovery::EResult::OK) {
                         Restart();
@@ -750,6 +743,19 @@ public:
 
         FollowerTracker->Start();
 
+        YASSERT(FollowerPinger);
+        FollowerPinger->Stop();
+        FollowerPinger = New<TFollowerPinger>(
+            EFollowerPingerMode::Leading,
+            ~Config->FollowerPinger,
+            ~MetaState,
+            ~CellManager,
+            ~FollowerTracker,
+            ~SnapshotStore,
+            Epoch,
+            ~ControlInvoker);
+        FollowerPinger->Start();
+
         ControlStatus = EPeerStatus::Leading;
 
         LOG_INFO("Leader recovery complete");
@@ -811,7 +817,7 @@ public:
 
             for (TPeerId followerId = 0; followerId < CellManager->GetPeerCount(); ++followerId) {
                 if (followerId == CellManager->GetSelfId()) continue;
-                LOG_DEBUG("Requesting follower to advance segment (FollowerId: %d)",
+                LOG_DEBUG("Requesting follower %d to advance segment",
                     followerId);
 
                 auto proxy = CellManager->GetMasterProxy<TProxy>(followerId);
@@ -839,11 +845,11 @@ public:
         TMetaVersion version)
     {
         if (response->IsOK()) {
-            LOG_DEBUG("Follower advanced segment successfully (FollowerId: %d, Version: %s)",
+            LOG_DEBUG("Follower %d advanced segment successfully (Version: %s)",
                 followerId,
                 ~version.ToString());
         } else {
-            LOG_WARNING("Error advancing segment on follower (FollowerId: %d, Version: %s)\n%s",
+            LOG_WARNING("Error advancing segment on follower %d (Version: %s)\n%s",
                 followerId,
                 ~version.ToString(),
                 ~response->GetError().ToString());
@@ -988,6 +994,7 @@ public:
 
         YASSERT(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
+            EFollowerPingerMode::Recovery,
             ~Config->FollowerPinger,
             ~MetaState,
             ~CellManager,
@@ -995,6 +1002,7 @@ public:
             ~SnapshotStore,
             Epoch,
             ~ControlInvoker);
+        FollowerPinger->Start();
 
         YASSERT(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(
