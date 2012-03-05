@@ -32,7 +32,7 @@ ICypressNodeProxy::TPtr TNodeFactory::DoCreate(EObjectType type)
     auto id = CypressManager->CreateNode(type, TransactionId);
     CypressManager->GetObjectManager()->RefObject(id);
     CreatedNodeIds.push_back(id);
-    return CypressManager->GetVersionedNodeProxy(id, NullTransactionId);
+    return CypressManager->GetVersionedNodeProxy(id, TransactionId);
 }
 
 IStringNodePtr TNodeFactory::CreateString()
