@@ -44,12 +44,16 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
 
         TDuration DefaultTransactionTimeout;
+        TDuration TransactionAbortBackoffTime;
 
         TConfig()
         {
             Register("default_transaction_timeout", DefaultTransactionTimeout)
                 .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(10));
+                .Default(TDuration::Seconds(15));
+            Register("transaction_abort_backoff_time", TransactionAbortBackoffTime)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Seconds(15));
         }
     };
 
