@@ -12,6 +12,7 @@ CURRENT_COMMIT=$(
 )
 GENERATED_AT=$(date +"%F %T %z (%a, %d %b %Y)")
 
+(cd ${SOURCE} && git clean -fdx)
 (cd ${SOURCE} && git pull --ff-only -q)
 
 cat ${SOURCE}/scripts/doxygen/yt.cfg.template \
