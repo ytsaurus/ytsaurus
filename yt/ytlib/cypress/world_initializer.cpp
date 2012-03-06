@@ -49,6 +49,7 @@ public:
     bool IsInitialized() const
     {
         // 1 means just the root.
+        // TODO(babenko): fixme
         return Bootstrap->GetCypressManager()->GetNodeCount() > 1;
     }
 
@@ -80,7 +81,7 @@ private:
         try {
             auto service = Bootstrap->GetObjectManager()->GetRootService();
 
-            auto transactionId = NullTransactionId;//StartTransaction();
+            auto transactionId = StartTransaction();
 
             SyncYPathSet(
                 service,
@@ -147,7 +148,8 @@ private:
                 service,
                 WithTransaction("/sys/transactions", transactionId),
                 EObjectType::TransactionMap);
-//            CommitTransaction(transactionId);
+
+            CommitTransaction(transactionId);
         } catch (const std::exception& ex) {
             LOG_FATAL("World initialization failed\n%s", ex.what());
         }
