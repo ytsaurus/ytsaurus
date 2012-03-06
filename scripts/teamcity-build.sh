@@ -6,7 +6,7 @@ function shout() {
 }
 
 function tc() {
-    echo "##teamcity[$@]"
+    echo "##teamcity[$*]"
 }
 
 function usage() {
@@ -99,6 +99,15 @@ tc "blockClosed name='make'"
 
 tc "blockOpened name='Unit Tests'"
 
+if [[ $BUILD_PACKAGE = "YES" ]]; then
+    tc "blockOpened name='Building package...'"
+    tc "progressMessage 'Building package...'"
+
+    make package
+    dupload --nomail ARTIFACTS/*.changes
+    tc "blockClosed name='Building package...'"
+fi
+
 shout "Running unit tests..."
 tc "progressMessage 'Running unit tests...'"
 
@@ -130,15 +139,6 @@ tc "blockClosed name='Integration Tests'"
 
 cd $WORKING_DIRECTORY
 find . -name 'default.log' -delete
-
-if [[ $BUILD_PACKAGE = "YES" ]]; then
-    tc "blockOpened name='Building package...'"
-    tc "progressMessage 'Building package...'"
-
-    make package
-    dupload --nomail ARTIFACTS/*.changes
-    tc "blockClosed name='Building package...'"
-fi
 
 # TODO(sandello): Export final package name as build parameter.
 # TODO(sandello): Measure some statistics.
