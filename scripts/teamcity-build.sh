@@ -80,3 +80,6 @@ PATH=$WORKING_DIRECTORY/bin:$PATH \
         -rxs -v \
         --assert=plain \
         --junitxml=$WORKING_DIRECTORY/test_integration.xml
+
+cd $WORKING_DIRECTORY
+find . -name 'default.log' -delete
