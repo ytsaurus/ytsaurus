@@ -191,8 +191,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
             }
 
             if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
-                auto attributes = chunk.GetAttributes();
-                chunkInfo->mutable_attributes()->ParseFromArray(attributes.Begin(), attributes.Size());
+                const auto& attributes = chunk.GetAttributes();
+                chunkInfo->set_attributes(attributes.Begin(), attributes.Size());
             }
         }   
     }
