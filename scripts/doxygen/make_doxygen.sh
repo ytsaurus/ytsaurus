@@ -2,8 +2,14 @@
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 set -x
 
-CURRENT_BRANCH=$( ( cd ${SOURCE} && git branch --no-color --no-abbrev -v ) | awk '{print $2}' )
-CURRENT_COMMIT=$( ( cd ${SOURCE} && git branch --no-color --no-abbrev -v ) | awk '{print $3}' )
+CURRENT_BRANCH=$(
+    ( cd ${SOURCE} && git branch --no-color --no-abbrev -v ) |
+    awk '{print $2}'
+)
+CURRENT_COMMIT=$(
+    ( cd ${SOURCE} && git branch --no-color --no-abbrev -v ) |
+    awk '{print $3}'
+)
 GENERATED_AT=$(date +"%F %T %z (%a, %d %b %Y)")
 
 (cd ${SOURCE} && git pull --ff-only -q)
