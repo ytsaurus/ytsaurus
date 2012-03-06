@@ -53,7 +53,10 @@ set -x
 cd $WORKING_DIRECTORY
 
 echo "* Running CMake..." >&2
-cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DCMAKE_COLOR_MAKEFILE:BOOL=OFF $CHECKOUT_DIRECTORY
+cmake \
+    -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+    -DCMAKE_COLOR_MAKEFILE:BOOL=OFF \
+    $CHECKOUT_DIRECTORY
 
 echo "* Running make (1/2; fast)..." >&2
 make -j 8 >/dev/null 2>/dev/null || true
@@ -62,7 +65,11 @@ echo "* Running make (2/2; slow)..." >&2
 make -j 1
 
 cd $WORKING_DIRECTORY
-gdb --batch --command=$CHECKOUT_DIRECTORY/scripts/teamcity-gdb-script --args \
+gdb \
+    --batch \
+    --return-child-result \
+    --command=$CHECKOUT_DIRECTORY/scripts/teamcity-gdb-script \
+    --args \
     ./bin/unittester \
         --gtest_color=no \
         --gtest_output=xml:$WORKING_DIRECTORY/test_unit.xml
