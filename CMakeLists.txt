@@ -1,5 +1,23 @@
 cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
-project(Yt)
+project(YT)
+
+# TODO(sandello): Move this version-related stuff into a separate file.
+set(YT_VERSION_MAJOR 0)
+set(YT_VERSION_MINOR 1)
+set(YT_VERSION_PATCH 0)
+
+if(NOT YT_BUILD_TAG)
+  set(YT_BUILD_TAG "local")
+endif()
+
+if(NOT YT_BUILD_NUMBER)
+  set(YT_BUILD_NUMBER 0)
+endif()
+
+set(YT_VERSION "${YT_VERSION_MAJOR}.${YT_VERSION_MINOR}.${YT_VERSION_PATCH}")
+set(YT_VERSION "${YT_VERSION}+${YT_BUILD_TAG}")
+
+message(STATUS "Configuring YT ${YT_VERSION}")
 
 ################################################################################
 # Include various CMake modules.
@@ -20,6 +38,18 @@ include(PCH)
 ################################################################################
 # Setup targets.
 
+configure_file(
+  ${CMAKE_SOURCE_DIR}/yt/build.h.in
+  ${CMAKE_BINARY_DIR}/yt/build.h
+)
+
+# TODO(sandello): Check whether these two directories differ.
+exec_program(
+  ${CMAKE_COMMAND} ARGS -E copy_directory
+  ${CMAKE_SOURCE_DIR}/debian
+  ${CMAKE_BINARY_DIR}/debian
+)
+
 if (YT_BUILD_WITH_STLPORT)
   add_subdirectory(contrib/STLport/build/cmake)
 endif()
@@ -30,26 +60,22 @@ add_subdirectory(library/json)
 
 add_subdirectory(yt)
 
-if (YT_BUILD_DEB_PACKAGE)
-  set(CPACK_GENERATOR "DEB")
-  set(CPACK_PACKAGE_DESCRIPTION
-    "A scalable distributed storage and computation platform.")
-  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
-    "http://wiki.yandex-team.ru/YT/")
-  set(CPACK_PACKAGE_NAME "yandex-yt")
-  set(CPACK_PACKAGE_VENDOR "Yandex")
-  set(CPACK_PACKAGE_CONTACT "Ivan Pouzyrevsky <sandello@yandex-team.ru>")
-  set(CPACK_PACKAGE_VERSION "0.1.0")
-  set(CPACK_PACKAGE_VERSION_MAJOR "0")
-  set(CPACK_PACKAGE_VERSION_MINOR "1")
-  set(CPACK_PACKAGE_VERSION_PATCH "0")
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.4), libgcc1 (>= 1:4.1.1)")
-  set(CPACK_DEBIAN_PACKAGE_SECTION "unknown")
-  set(CPACK_DEBIAN_PACKAGE_PRIORITY "extra")
-  set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
-  set(CPACK_STRIP_FILES "")
-  set(CPACK_SYSTEM_NAME "amd64")
-  set(CPACK_TOPLEVEL_TAG "amd64")
-
-  include(CPack)
-endif()
+add_custom_target(package touch package-stamp
+  COMMAND dch
+    --distributor "yandex"
+    --distribution "unstable"
+    --newversion "${YT_VERSION}"
+    --urgency "low"
+    --force-distribution
+    "Package version bump\; no source changes."
+  COMMAND debuild
+    --no-tgz-check
+    --no-lintian
+    --check-dirname-level 0
+    -b -j8
+  COMMAND mv
+    ../yandex-yt_${YT_VERSION}*
+    ARTIFACTS
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  COMMENT "Packaging YT..."
+)

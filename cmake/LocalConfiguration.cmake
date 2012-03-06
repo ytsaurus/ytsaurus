@@ -1,3 +1,21 @@
+# Tunable parameters:
+#   - ENV[CC]
+#   - ENV[CXX]
+#   - ENV[CFLAGS]
+#   - ENV[CXXFLAGS]
+#   - USER_CMAKE_C_FLAGS
+#   - USER_CMAKE_CXX_FLAGS
+#   - YT_BUILD_ENABLE_EXPERIMENTS
+#   - YT_BUILD_ENABLE_TESTS
+#   - YT_BUILD_WITH_STLPORT
+
+#################################################################################
+# Specify available build options.
+
+option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
+option(YT_BUILD_ENABLE_TESTS "Build tests" TRUE)
+option(YT_BUILD_WITH_STLPORT "Build with STLport" TRUE)
+
 ################################################################################
 # Enforce developer to specify build type.
 
@@ -33,31 +51,24 @@ if (CMAKE_COMPILER_IS_GNUCXX)
 endif()
 
 ################################################################################
-# Specify available build options.
-
-option(YT_BUILD_EXPERIMENTS "Build experiments" TRUE)
-option(YT_BUILD_TESTS "Build tests" TRUE)
-option(YT_BUILD_WITH_STLPORT "Build with STLport" TRUE)
-
-################################################################################
 # Configure compilation flags.
 
 # First, provide an ability to specify custom comilation flags.
 # Initially take these flags either from environment or from special variable.
 
-set( USER_C_FLAGS
+set( CUSTOM_CMAKE_C_FLAGS
   $ENV{CFLAGS} ${USER_CMAKE_C_FLAGS}
   CACHE STRING "User-defined C compiler flags")
 
-set( USER_CXX_FLAGS
+set( CUSTOM_CMAKE_CXX_FLAGS
   $ENV{CXXFLAGS} ${USER_CMAKE_CXX_FLAGS}
   CACHE STRING "User-defined C++ compiler flags")
 
 # Now configure compiler options for g++.
 if (CMAKE_COMPILER_IS_GNUCXX)
   # These are default (basic) compilation flags.
-  set( CMAKE_C_FLAGS "${USER_C_FLAGS} -pthread" )
-  set( CMAKE_CXX_FLAGS "${USER_CXX_FLAGS} -std=gnu++0x -pthread" )
+  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread" )
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread" )
 
   # These are configuration-specific compilation flags.
   # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
@@ -75,8 +86,8 @@ endif()
 # Now configure compiler options for msvc.
 if (MSVC)
   # These are default (basic) compilation flags.
-  set( CMAKE_C_FLAGS "${USER_C_FLAGS}" )
-  set( CMAKE_CXX_FLAGS "${USER_CXX_FLAGS} /Gd /EHsc" )
+  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS}" )
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} /Gd /EHsc" )
 
   # These are configuration-specific compliation flags.
   # http://msdn.microsoft.com/en-us/library/fwkeyyhe.aspx

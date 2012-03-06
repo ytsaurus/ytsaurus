@@ -1,40 +1,59 @@
 #!/bin/bash
 ################################################################################
 
+function shout() {
+    echo '*' $@ >&2
+}
+
+function tc() {
+    echo "##teamcity[$@]"
+}
+
 function usage() {
     echo "$0: effortlessly build yt source tree on TeamCity build farm"
-    echo "$0: <checkout-directory> <working-directory>"
+    echo "$0: <checkout-directory> <working-directory> <build-type> <build-package>"
+    echo ""
+    echo "<build-type> have to be compliant with CMAKE_BUILD_TYPE"
+    echo "<build-package> have to be either YES or NO"
     echo ""
     echo "Following environment variables must be set:"
     echo "  TEAMCITY_VERSION"
     echo "  TEAMCITY_BUILDCONF_NAME"
     echo "  TEAMCITY_PROJECT_NAME"
     echo "  BUILD_NUMBER"
-    echo "  BUILD_TYPE"
 }
 
 ################################################################################
+tc "progressMessage 'Setting up...'"
 
 [[ -z "$TEAMCITY_VERSION"        ]] && usage && exit 1
 [[ -z "$TEAMCITY_BUILDCONF_NAME" ]] && usage && exit 1
 [[ -z "$TEAMCITY_PROJECT_NAME"   ]] && usage && exit 1
 
-[[ -z "$BUILD_NUMBER" || -z "$BUILD_TYPE" ]] && usage && exit 2
-[[ -z "$1" || -z "$2" ]] && usage && exit 3
+[[ -z "$BUILD_NUMBER" ]] && usage && exit 2
+
+[[ -z "$1" || -z "$2" || -z "$3" || -z "$4" ]] && usage && exit 3
 
 CHECKOUT_DIRECTORY=$1
 WORKING_DIRECTORY=$2
+BUILD_TYPE=$3
+BUILD_PACKAGE=$4
+
+if [[ $BUILD_PACKAGE != "YES" -a $BUILD_PACKAGE != "NO" ]]; then
+    shout "BUILD_PACKAGE have to be either YES or NO."
+    exit 1
+fi
 
 if [[ -z "$CC" ]]; then
-    echo "* C compiler is not specified; trying to find gcc-4.5..." >&2
+    shout "C compiler is not specified; trying to find gcc-4.5..."
     CC=$(which gcc-4.5)
-    echo "* CC=$CC" >&2
+    shout "CC=$CC"
 fi
 
 if [[ -z "$CXX" ]]; then
-    echo "* C++ compiler is not specified; trying to find g++-4.5..." >&2
+    shout "C++ compiler is not specified; trying to find g++-4.5..."
     CXX=$(which g++-4.5)
-    echo "* CXX=$CXX" >&2
+    shout "CXX=$CXX"
 fi
 
 ################################################################################
@@ -50,19 +69,38 @@ set -x
 
 ################################################################################
 
+mkdir -p $WORKING_DIRECTORY
+mkdir -p $WORKING_DIRECTORY/ARTIFACTS
+
 cd $WORKING_DIRECTORY
 
-echo "* Running CMake..." >&2
+tc "blockOpened name='CMake'"
+
+shout "Running CMake..."
+tc "progressMessage 'Running CMake...'"
 cmake \
     -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
     -DCMAKE_COLOR_MAKEFILE:BOOL=OFF \
     $CHECKOUT_DIRECTORY
 
-echo "* Running make (1/2; fast)..." >&2
+tc "blockClosed name='CMake'"
+
+tc "blockOpened name='make'"
+
+shout "Running make (1/2; fast)..."
+tc "progressMessage 'Running make (1/2; fast)...'"
 make -j 8 >/dev/null 2>/dev/null || true
 
-echo "* Running make (2/2; slow)..." >&2
+shout "Running make (2/2; slow)..."
+tc "progressMessage 'Running make (2/2; slow)...'"
 make -j 1
+
+tc "blockClosed name='make'"
+
+tc "blockOpened name='Unit Tests'"
+
+shout "Running unit tests..."
+tc "progressMessage 'Running unit tests...'"
 
 cd $WORKING_DIRECTORY
 gdb \
@@ -74,6 +112,13 @@ gdb \
         --gtest_color=no \
         --gtest_output=xml:$WORKING_DIRECTORY/test_unit.xml
 
+tc "blockClosed name='Unit Tests'"
+
+tc "blockOpened name='Integration Tests'"
+
+shout "Running integration tests..."
+tc "progressMessage 'Running integration tests...'"
+
 cd $CHECKOUT_DIRECTORY/scripts/testing
 PATH=$WORKING_DIRECTORY/bin:$PATH \
     py.test \
@@ -81,5 +126,20 @@ PATH=$WORKING_DIRECTORY/bin:$PATH \
         --assert=plain \
         --junitxml=$WORKING_DIRECTORY/test_integration.xml
 
+tc "blockClosed name='Integration Tests'"
+
 cd $WORKING_DIRECTORY
 find . -name 'default.log' -delete
+
+if [[ $BUILD_PACKAGE = "YES" ]]; then
+    tc "blockOpened name='Building package...'"
+    tc "progressMessage 'Building package...'"
+
+    make package
+    dupload --nomail ARTIFACTS/*.changes
+    tc "blockClosed name='Building package...'"
+fi
+
+# TODO(sandello): Export final package name as build parameter.
+# TODO(sandello): Measure some statistics.
+
