@@ -16,6 +16,7 @@
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
 #include <ytlib/meta_state/meta_state_manager.h>
@@ -102,24 +103,16 @@ public:
 
     TImpl(
         TConfig* config,
-        TChunkManager* owner,
-        NMetaState::IMetaStateManager* metaStateManager,
-        NMetaState::TCompositeMetaState* metaState,
-        TTransactionManager* transactionManager,
-        IHolderAuthority* holderAuthority,
-        TObjectManager* objectManager)
-        : TMetaStatePart(metaStateManager, metaState)
+        TBootstrap* bootstrap)
+        : TMetaStatePart(
+            bootstrap->GetMetaStateManager(),
+            bootstrap->GetMetaState())
         , Config(config)
-        , Owner(owner)
-        , TransactionManager(transactionManager)
-        , HolderAuthority(holderAuthority)
-        , ObjectManager(objectManager)
+        , Bootstrap(bootstrap)
 		, ChunkReplicaCount(0)
     {
-        YASSERT(owner);
-        YASSERT(transactionManager);
-        YASSERT(holderAuthority);
-        YASSERT(objectManager);
+        YASSERT(config);
+        YASSERT(bootstrap);
 
         RegisterMethod(this, &TImpl::HeartbeatRequest);
         RegisterMethod(this, &TImpl::HeartbeatResponse);
@@ -127,8 +120,9 @@ public:
         RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::CreateChunks);
 
-        TLoadContext context(NULL); // TODO(roizner): use real bootstrap
+        TLoadContext context(bootstrap);
 
+        auto metaState = bootstrap->GetMetaState();
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
             FromMethod(&TChunkManager::TImpl::LoadKeys, TPtr(this)));
@@ -146,15 +140,10 @@ public:
 
         metaState->RegisterPart(this);
 
+        auto objectManager = bootstrap->GetObjectManager();
         objectManager->RegisterHandler(~New<TChunkTypeHandler>(this));
         objectManager->RegisterHandler(~New<TChunkListTypeHandler>(this));
     }
-
-    TObjectManager* GetObjectManager() const
-    {
-        return ~ObjectManager;
-    }
-
 
     TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const TMsgRegisterHolder& message)
@@ -248,7 +237,7 @@ public:
 
     TChunk& CreateChunk()
     {
-        auto id = ObjectManager->GenerateId(EObjectType::Chunk);
+        auto id = Bootstrap->GetObjectManager()->GenerateId(EObjectType::Chunk);
         auto* chunk = new TChunk(id);
         ChunkMap.Insert(id, chunk);
         return *chunk;
@@ -256,7 +245,7 @@ public:
 
     TChunkList& CreateChunkList()
     {
-        auto id = ObjectManager->GenerateId(EObjectType::ChunkList);
+        auto id = Bootstrap->GetObjectManager()->GenerateId(EObjectType::ChunkList);
         auto* chunkList = new TChunkList(id);
         ChunkListMap.Insert(id, chunkList);
         return *chunkList;
@@ -265,15 +254,17 @@ public:
 
     void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
     {
+        auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (const auto& childId, childrenIds) {
             chunkList.ChildrenIds().push_back(childId);
             SetChunkTreeParent(chunkList, childId);
-            ObjectManager->RefObject(childId);
+            objectManager->RefObject(childId);
         }
     }
 
     void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
     {
+        auto objectManager = Bootstrap->GetObjectManager();
         yhash_set<TChunkTreeId> childrenIdsSet(childrenIds.begin(), childrenIds.end());
         auto it = chunkList.ChildrenIds().begin();
         while (it != chunkList.ChildrenIds().end()) {
@@ -283,7 +274,7 @@ public:
             if (childrenIdsSet.find(childId) != childrenIdsSet.end()) {
                 chunkList.ChildrenIds().erase(it);
                 ResetChunkTreeParent(chunkList, childId, true);
-                ObjectManager->UnrefObject(childId);
+                objectManager->UnrefObject(childId);
             }
             it = jt;
         }
@@ -348,10 +339,7 @@ private:
     friend class TChunkListProxy;
 
     TConfig::TPtr Config;
-    TWeakPtr<TChunkManager> Owner;
-    TTransactionManager::TPtr TransactionManager;
-    IHolderAuthority::TPtr HolderAuthority;
-    TObjectManager::TPtr ObjectManager;
+    TBootstrap* Bootstrap;
     
     TChunkPlacement::TPtr ChunkPlacement;
     TChunkReplication::TPtr ChunkReplication;
@@ -374,20 +362,22 @@ private:
 
     yvector<TChunkId> CreateChunks(const TMsgCreateChunks& message)
     {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto transactionManager = Bootstrap->GetTransactionManager();
         auto transactionId = TTransactionId::FromProto(message.transaction_id());
         int chunkCount = message.chunk_count();
 
         yvector<TChunkId> chunkIds;
         chunkIds.reserve(chunkCount);
         for (int index = 0; index < chunkCount; ++index) {
-            auto chunkId = ObjectManager->GenerateId(EObjectType::Chunk);
+            auto chunkId = objectManager->GenerateId(EObjectType::Chunk);
             auto* chunk = new TChunk(chunkId);
             ChunkMap.Insert(chunkId, chunk);
 
             // The newly created chunk is referenced from the transaction.
-            auto& transaction = TransactionManager->GetTransaction(transactionId);
+            auto& transaction = transactionManager->GetTransaction(transactionId);
             YVERIFY(transaction.CreatedObjectIds().insert(chunkId).second);
-            ObjectManager->RefObject(chunkId);
+            objectManager->RefObject(chunkId);
 
             chunkIds.push_back(chunkId);
         }
@@ -515,10 +505,11 @@ private:
 
     void OnChunkListDestroyed(TChunkList& chunkList)
     {
+        auto objectManager = Bootstrap->GetObjectManager();
         // Drop references to children.
         FOREACH (const auto& childId, chunkList.ChildrenIds()) {
             ResetChunkTreeParent(chunkList, childId, false);
-            ObjectManager->UnrefObject(childId);
+            objectManager->UnrefObject(childId);
         }
     }
 
@@ -739,20 +730,11 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(
-            ~Owner.Lock(),
-            ~Config);
+        ChunkPlacement = New<TChunkPlacement>(~Config, Bootstrap);
 
-        ChunkReplication = New<TChunkReplication>(
-            ~Owner.Lock(),
-            ~ChunkPlacement,
-            ~Config,
-            ~MetaStateManager->GetEpochStateInvoker());
+        ChunkReplication = New<TChunkReplication>(~Config, Bootstrap, ~ChunkPlacement);
 
-        HolderLeaseTracking = New<THolderLeaseTracker>(
-            ~Config,
-            ~Owner.Lock(),
-            ~MetaStateManager->GetEpochStateInvoker());
+        HolderLeaseTracking = New<THolderLeaseTracker>(~Config, Bootstrap);
 
         FOREACH (const auto& pair, HolderMap) {
             StartHolderTracking(*pair.second);
@@ -1172,8 +1154,8 @@ class TChunkManager::TChunkProxy
 {
 public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
-        : TBase(~owner->ObjectManager, id, &owner->ChunkMap)
-        , TYPathServiceBase(ChunkServerLogger.GetCategory())
+        : TBase(owner->Bootstrap, id, &owner->ChunkMap)
+        , TYPathServiceBase(Logger.GetCategory())
         , Owner(owner)
     { }
 
@@ -1339,7 +1321,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(~owner->ObjectManager, &owner->ChunkMap)
+    : TObjectTypeHandlerBase(owner->Bootstrap, &owner->ChunkMap)
     , Owner(owner)
 { }
 
@@ -1356,7 +1338,7 @@ TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
     UNUSED(manifest);
 
     auto id = Owner->CreateChunk().GetId();
-    auto proxy = ObjectManager->GetProxy(id);
+    auto proxy = Bootstrap->GetObjectManager()->GetProxy(id);
     proxy->Attributes().MergeFrom(manifest);
     return id;
 }
@@ -1373,8 +1355,8 @@ class TChunkManager::TChunkListProxy
 {
 public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
-        : TBase(~owner->ObjectManager, id, &owner->ChunkListMap)
-        , TYPathServiceBase(ChunkServerLogger.GetCategory())
+        : TBase(owner->Bootstrap, id, &owner->ChunkListMap)
+        , TYPathServiceBase(Logger.GetCategory())
         , Owner(owner)
     { }
 
@@ -1437,12 +1419,13 @@ private:
 
         context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
 
+        auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (const auto& childId, childrenIds) {
             auto type = TypeFromId(childId);
             if (type != EObjectType::Chunk && type != EObjectType::ChunkList) {
                 ythrow yexception() << Sprintf("Invalid child type (ObjectId: %s)", ~childId.ToString());
             }
-            if (!ObjectManager->ObjectExists(childId)) {
+            if (!objectManager->ObjectExists(childId)) {
                 ythrow yexception() << Sprintf("Child does not exist (ObjectId: %s)", ~childId.ToString());
             }
         }
@@ -1472,7 +1455,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(~owner->ObjectManager, &owner->ChunkListMap)
+    : TObjectTypeHandlerBase(owner->Bootstrap, &owner->ChunkListMap)
     , Owner(owner)
 { }
 
@@ -1489,7 +1472,7 @@ TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(
     UNUSED(manifest);
 
     auto id = Owner->CreateChunkList().GetId();
-    auto proxy = ObjectManager->GetProxy(id);
+    auto proxy = Bootstrap->GetObjectManager()->GetProxy(id);
     proxy->Attributes().MergeFrom(manifest);
     return id;
 }
@@ -1503,25 +1486,9 @@ void TChunkManager::TChunkListTypeHandler::OnObjectDestroyed(TChunkList& chunkLi
 
 TChunkManager::TChunkManager(
     TConfig* config,
-    NMetaState::IMetaStateManager* metaStateManager,
-    NMetaState::TCompositeMetaState* metaState,
-    TTransactionManager* transactionManager,
-    IHolderAuthority* holderAuthority,
-    TObjectManager* objectManager)
-    : Impl(New<TImpl>(
-        config,
-        this,
-        metaStateManager,
-        metaState,
-        transactionManager,
-        holderAuthority,
-        objectManager))
+    TBootstrap* bootstrap)
+    : Impl(New<TImpl>(config, bootstrap))
 { }
-
-TObjectManager* TChunkManager::GetObjectManager() const
-{
-    return Impl->GetObjectManager();
-}
 
 const THolder* TChunkManager::FindHolder(const Stroka& address) const
 {

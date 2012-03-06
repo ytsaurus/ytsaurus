@@ -10,7 +10,13 @@
 // TODO(babenko): replace with public.h
 #include <ytlib/meta_state/meta_state_manager.h>
 // TODO(babenko): replace with public.h
+#include <ytlib/meta_state/composite_meta_state.h>
+// TODO(babenko): replace with public.h
 #include <ytlib/object_server/object_manager.h>
+// TODO(babenko): replace with public.h
+#include <ytlib/chunk_server/chunk_manager.h>
+// TODO(babenko): replace with public.h
+#include <ytlib/chunk_server/holder_authority.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -38,9 +44,12 @@ public:
 
     NTransactionServer::TTransactionManager* GetTransactionManager() const;
     NCypress::TCypressManager* GetCypressManager() const;
-    NCypress::TWorldInitializer* GetWorldInitializer() const;
+    TWorldInitializer* GetWorldInitializer() const;
     NMetaState::IMetaStateManager* GetMetaStateManager() const;
+    NMetaState::TCompositeMetaState* GetMetaState() const;
     NObjectServer::TObjectManager* GetObjectManager() const;
+    NChunkServer::TChunkManager* GetChunkManager() const;
+    NChunkServer::IHolderAuthority* GetHolderAuthority() const;
 
     IInvoker* GetControlInvoker();
     IInvoker* GetStateInvoker(EStateThreadPriority priority = EStateThreadPriority::Default);
@@ -53,9 +62,12 @@ private:
 
     NTransactionServer::TTransactionManagerPtr TransactionManager;
     NCypress::TCypressManagerPtr CypressManager;
-    NCypress::TWorldInitializerPtr WorldInitializer;
+    TWorldInitializerPtr WorldInitializer;
     NMetaState::IMetaStateManager::TPtr MetaStateManager;
+    NMetaState::TCompositeMetaState::TPtr MetaState;
     NObjectServer::TObjectManager::TPtr ObjectManager;
+    NChunkServer::TChunkManager::TPtr ChunkManager;
+    NChunkServer::IHolderAuthority::TPtr HolderAuthority;
 
     TActionQueue::TPtr ControlQueue;
     TPrioritizedActionQueue::TPtr StateQueue;

@@ -7,6 +7,7 @@
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/chunk_server/chunk_manager.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NFileServer {
@@ -21,8 +22,7 @@ public:
 
     TFileNodeProxy(
         NCypress::INodeTypeHandler* typeHandler,
-        NCypress::TCypressManager* cypressManager,
-        NChunkServer::TChunkManager* chunkManager,
+        NCellMaster::TBootstrap* bootstrap,
         const NObjectServer::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
 

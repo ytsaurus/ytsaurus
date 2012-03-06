@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "config.h"
 #include "holder.h"
 #include "chunk.h"
@@ -15,8 +14,7 @@
 #include <ytlib/actions/signal.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>
-#include <ytlib/transaction_server/transaction_manager.h>
-#include <ytlib/object_server/object_manager.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -35,13 +33,7 @@ public:
     //! Creates an instance.
     TChunkManager(
         TConfig* config,
-        NMetaState::IMetaStateManager* metaStateManager,
-        NMetaState::TCompositeMetaState* metaState,
-        NTransactionServer::TTransactionManager* transactionManager,
-        IHolderAuthority* holderAuthority,
-        NObjectServer::TObjectManager* objectManager);
-
-    NObjectServer::TObjectManager* GetObjectManager() const;
+        NCellMaster::TBootstrap* bootstrap);
 
     NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
         const NProto::TMsgCreateChunks& message);

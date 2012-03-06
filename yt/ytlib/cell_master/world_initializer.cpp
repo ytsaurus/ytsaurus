@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "world_initializer.h"
+#include "config.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -9,13 +10,11 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
-#include <ytlib/cell_master/config.h>
 #include <ytlib/logging/log.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCellMaster {
 
-using namespace NCellMaster;
 using namespace NMetaState;
 using namespace NYTree;
 using namespace NCypress;
@@ -69,9 +68,10 @@ private:
 
     bool CanInitialize() const
     {
+        auto metaStateManager = Bootstrap->GetMetaStateManager();
         return
-            Bootstrap->GetMetaStateManager()->GetStateStatus() == EPeerStatus::Leading &&
-            Bootstrap->GetMetaStateManager()->HasActiveQuorum();
+            metaStateManager->GetStateStatus() == EPeerStatus::Leading &&
+            metaStateManager->HasActiveQuorum();
     }
 
     void Initialize()
@@ -197,6 +197,6 @@ bool TWorldInitializer::IsInitialized() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCellMaster
 } // namespace NYT
 

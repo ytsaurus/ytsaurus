@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "common.h"
 
 #include <ytlib/actions/signal.h>
 #include <ytlib/cell_master/public.h>
@@ -60,12 +59,7 @@ public:
     //! Creates an instance.
     TTransactionManager(
         TConfig* config,
-        NMetaState::IMetaStateManager* metaStateManager,
-        NMetaState::TCompositeMetaState* metaState,
-        NObjectServer::TObjectManager* objectManager);
-
-    // TODO(babenko): killme
-    NObjectServer::TObjectManager* GetObjectManager() const;
+        NCellMaster::TBootstrap* bootstrap);
 
     NObjectServer::IObjectProxy::TPtr GetRootTransactionProxy();
 
@@ -87,7 +81,7 @@ private:
     friend class TTransactionProxy;
 
     TConfig::TPtr Config;
-    NObjectServer::TObjectManager::TPtr ObjectManager;
+    NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;

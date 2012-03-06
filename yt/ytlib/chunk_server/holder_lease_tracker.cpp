@@ -2,28 +2,28 @@
 #include "holder_lease_tracker.h"
 #include "chunk_manager.h"
 
+#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/config.h>
+
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NProto;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
+static NLog::TLogger Logger("ChunkServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 THolderLeaseTracker::THolderLeaseTracker(
     TConfig* config,
-    TChunkManager* chunkManager,
-    IInvoker* invoker)
+    TBootstrap* bootstrap)
     : Config(config)
-    , ChunkManager(chunkManager)
-    , Invoker(invoker)
+    , Bootstrap(bootstrap)
 {
-	YASSERT(config);
-    YASSERT(chunkManager);
-    YASSERT(invoker);
+    YASSERT(bootstrap);
 }
 
 void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
@@ -38,7 +38,7 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
             &THolderLeaseTracker::OnExpired,
             TPtr(this),
             holder.GetId())
-        ->Via(Invoker));
+        ->Via(Bootstrap->GetMetaStateManager()->GetEpochStateInvoker()));
 }
 
 void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
@@ -64,9 +64,11 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
 
     LOG_INFO("Holder expired (HolderId: %d)", holderId);
 
+
     TMsgUnregisterHolder message;
     message.set_holder_id(holderId);
-    ChunkManager
+    Bootstrap
+        ->GetChunkManager()
         ->InitiateUnregisterHolder(message)
         ->SetRetriable(Config->HolderLeaseTimeout)
         ->OnSuccess(~FromFunctor([=] (TVoid)

@@ -12,7 +12,6 @@
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/election/leader_channel.h>
-#include <ytlib/transaction_server/common.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -21,12 +20,11 @@ using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NElection;
 using namespace NRpc;
-using namespace NTransactionServer;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger Logger("ChunkHolder");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "chunk.h"
 #include "reader_cache.h"
 #include "block_store.h"

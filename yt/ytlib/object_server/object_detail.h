@@ -11,6 +11,7 @@
 #include <ytlib/meta_state/map.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -76,7 +77,7 @@ class TObjectProxyBase
 public:
     typedef TIntrusivePtr<TObjectProxyBase> TPtr;
 
-    TObjectProxyBase(TObjectManager* objectManager, const TObjectId& id);
+    TObjectProxyBase(NCellMaster::TBootstrap* bootstrap, const TObjectId& id);
 
     // IObjectProxy members
     virtual TObjectId GetId() const;
@@ -85,7 +86,7 @@ public:
     virtual void Invoke(NRpc::IServiceContext* context);
 
 protected:
-    TObjectManager::TPtr ObjectManager;
+    NCellMaster::TBootstrap* Bootstrap;
     TObjectId Id;
     TAutoPtr<NYTree::IAttributeDictionary> UserAttributes;
 
@@ -113,7 +114,7 @@ protected:
         : public NYTree::IAttributeDictionary
     {
     public:
-        TUserAttributeDictionary(const TObjectId& objectId, TObjectManager* objectManager);
+        TUserAttributeDictionary(TObjectManager* objectManager, const TObjectId& objectId);
 
         // NYTree::IAttributeDictionary members
         virtual yhash_set<Stroka> List() const;
@@ -122,8 +123,8 @@ protected:
         virtual bool Remove(const Stroka& key);
 
     protected:
-        TObjectId ObjectId;
         TObjectManager::TPtr ObjectManager;
+        TObjectId ObjectId;
     };
 };
 
@@ -137,10 +138,10 @@ public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
 
     TUnversionedObjectProxyBase(
-        TObjectManager* objectManager,
+        NCellMaster::TBootstrap* bootstrap,
         const TObjectId& id,
         TMap* map)
-        : TObjectProxyBase(objectManager, id)
+        : TObjectProxyBase(bootstrap, id)
         , Map(map)
     {
         YASSERT(map);

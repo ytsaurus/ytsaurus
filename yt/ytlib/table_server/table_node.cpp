@@ -2,6 +2,8 @@
 #include "table_node.h"
 #include "table_node_proxy.h"
 
+#include <ytlib/cell_master/bootstrap.h>
+
 namespace NYT {
 namespace NTableServer {
 
@@ -46,11 +48,8 @@ class TTableNodeTypeHandler
 public:
     typedef TCypressNodeTypeHandlerBase<TTableNode> TBase;
 
-    TTableNodeTypeHandler(
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager)
-        : TBase(cypressManager)
-        , ChunkManager(chunkManager)
+    TTableNodeTypeHandler(TBootstrap* bootstrap)
+        : TBase(bootstrap)
     { }
 
     EObjectType GetObjectType()
@@ -82,10 +81,10 @@ public:
         auto& chunkList = ChunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
-        CypressManager->GetObjectManager()->RefObject(chunkListId);
-        CypressManager->RegisterNode(transactionId, node.Release());
+        Bootstrap->GetObjectManager()->RefObject(chunkListId);
+        Bootstrap->GetCypressManager()->RegisterNode(transactionId, node.Release());
 
-        auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
+        auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, NullTransactionId);
         proxy->Attributes().MergeFrom(manifest);
     }
 
@@ -93,8 +92,7 @@ public:
     {
         return New<TTableNodeProxy>(
             this,
-            ~CypressManager,
-            ~ChunkManager,
+            Bootstrap,
             id.TransactionId,
             id.ObjectId);
     }
@@ -102,7 +100,7 @@ public:
 protected:
     virtual void DoDestroy(TTableNode& node)
     {
-        CypressManager->GetObjectManager()->UnrefObject(node.GetChunkListId());
+        Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkListId());
     }
 
     virtual void DoBranch(
@@ -112,15 +110,15 @@ protected:
         // branchedNode is a copy of originatingNode.
         
         // Create composite chunk list and place it in the root of branchedNode.
-        auto& branchedChunkList = ChunkManager->CreateChunkList();
+        auto& branchedChunkList = Bootstrap->GetChunkManager()->CreateChunkList();
         auto branchedChunkListId = branchedChunkList.GetId();
         branchedNode.SetChunkListId(branchedChunkListId);
-        CypressManager->GetObjectManager()->RefObject(branchedChunkListId);
+        Bootstrap->GetObjectManager()->RefObject(branchedChunkListId);
 
         // Make the original chunk list a child of the composite one.
         yvector<TChunkTreeId> childrenIds;
         childrenIds.push_back(originatingNode.GetChunkListId());
-        ChunkManager->AttachToChunkList(branchedChunkList, childrenIds);
+        Bootstrap->GetChunkManager()->AttachToChunkList(branchedChunkList, childrenIds);
     }
 
     virtual void DoMerge(
@@ -131,7 +129,7 @@ protected:
 
         // Obtain the chunk list of branchedNode.
         auto branchedChunkListId = branchedNode.GetChunkListId();
-        auto& branchedChunkList = ChunkManager->GetChunkList(branchedChunkListId);
+        auto& branchedChunkList = Bootstrap->GetChunkManager()->GetChunkList(branchedChunkListId);
         YASSERT(branchedChunkList.GetObjectRefCounter() == 1);
 
         // Replace the first child of the branched chunk list with the current chunk list of originatingNode.
@@ -139,12 +137,12 @@ protected:
         auto oldFirstChildId = branchedChunkList.ChildrenIds()[0];
         auto newFirstChildId = originatingNode.GetChunkListId();
         branchedChunkList.ChildrenIds()[0] = newFirstChildId;
-        CypressManager->GetObjectManager()->RefObject(newFirstChildId);
-        CypressManager->GetObjectManager()->UnrefObject(oldFirstChildId);
+        Bootstrap->GetObjectManager()->RefObject(newFirstChildId);
+        Bootstrap->GetObjectManager()->UnrefObject(oldFirstChildId);
 
         // Replace the chunk list of originatingNode.
         originatingNode.SetChunkListId(branchedChunkListId);
-        CypressManager->GetObjectManager()->UnrefObject(newFirstChildId);
+        Bootstrap->GetObjectManager()->UnrefObject(newFirstChildId);
     }
 
 private:
@@ -152,13 +150,9 @@ private:
 
 };
 
-INodeTypeHandler::TPtr CreateTableTypeHandler(
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
+INodeTypeHandler::TPtr CreateTableTypeHandler(TBootstrap* bootstrap)
 {
-    return New<TTableNodeTypeHandler>(
-        cypressManager,
-        chunkManager);
+    return New<TTableNodeTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

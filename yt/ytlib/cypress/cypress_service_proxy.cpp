@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include "common.h"
 #include "cypress_service_proxy.h"
 
 #include <ytlib/misc/rvalue.h>

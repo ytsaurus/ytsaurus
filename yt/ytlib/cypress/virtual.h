@@ -1,11 +1,9 @@
 #pragma once
 
-#include "common.h"
-#include "cypress_manager.h"
-#include "node.h"
-#include "node_proxy.h"
+#include "type_handler.h"
 
 #include <ytlib/ytree/ypath_service.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NCypress {
@@ -20,12 +18,12 @@ typedef
     TYPathServiceProducer;
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
-    TCypressManager* cypressManager,
+    NCellMaster::TBootstrap* bootstrap,
     EObjectType objectType,
     TYPathServiceProducer* producer);
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
-    TCypressManager* cypressManager,
+    NCellMaster::TBootstrap* bootstrap,
     EObjectType objectType,
     NYTree::IYPathService* service);
 

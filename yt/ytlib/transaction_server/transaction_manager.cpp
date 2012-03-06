@@ -1,11 +1,12 @@
 #include "stdafx.h"
 #include "transaction_manager.h"
-#include "common.h"
 #include "transaction.h"
 #include "transaction_ypath_proxy.h"
 #include "transaction_ypath.pb.h"
 
 #include <ytlib/cell_master/load_context.h>
+#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/config.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ephemeral.h>
@@ -25,7 +26,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = TransactionServerLogger;
+static NLog::TLogger Logger("TransactionServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,8 +35,8 @@ class TTransactionManager::TTransactionProxy
 {
 public:
     TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
-        : TBase(~owner->ObjectManager, id, &owner->TransactionMap)
-        , TYPathServiceBase(TransactionServerLogger.GetCategory())
+        : TBase(owner->Bootstrap, id, &owner->TransactionMap)
+        , TYPathServiceBase(Logger.GetCategory())
         , Owner(owner)
     { }
 
@@ -144,7 +145,8 @@ private:
             ~GetId().ToString(),
             ~type.ToString());
 
-        auto handler = Owner->ObjectManager->FindHandler(type);
+        auto objectManager = Owner->Bootstrap->GetObjectManager();
+        auto handler = objectManager->FindHandler(type);
         if (!handler) {
             ythrow yexception() << "Unknown object type";
         }
@@ -170,7 +172,7 @@ private:
         if (GetId() != NullTransactionId) {
             auto& transaction = GetTypedImpl();
             YVERIFY(transaction.CreatedObjectIds().insert(objectId).second);
-            Owner->ObjectManager->RefObject(objectId);
+            objectManager->RefObject(objectId);
         }
 
         response->set_object_id(objectId.ToProto());
@@ -193,7 +195,8 @@ private:
             ythrow yexception() << Sprintf("Transaction does not own the object (ObjectId: %s)", ~objectId.ToString());
         }
 
-        Owner->ObjectManager->UnrefObject(objectId);
+        auto objectManager = Owner->Bootstrap->GetObjectManager();
+        objectManager->UnrefObject(objectId);
 
         context->Reply();
     }
@@ -206,7 +209,7 @@ class TTransactionManager::TTransactionTypeHandler
 {
 public:
     TTransactionTypeHandler(TTransactionManager* owner)
-        : TObjectTypeHandlerBase(~owner->ObjectManager, &owner->TransactionMap)
+        : TObjectTypeHandlerBase(owner->Bootstrap, &owner->TransactionMap)
         , Owner(owner)
     { }
 
@@ -228,7 +231,7 @@ public:
             : &Owner->GetTransaction(transactionId);
 
         auto id = Owner->Start(parent, ~manifest).GetId();
-        auto proxy = ObjectManager->GetProxy(id);
+        auto proxy = Bootstrap->GetObjectManager()->GetProxy(id);
         proxy->Attributes().MergeFrom(manifestNode);
         return id;
     }
@@ -249,21 +252,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionManager::TTransactionManager(
+TTransactionManager::TTransactionManager(\
     TConfig* config,
-    IMetaStateManager* metaStateManager,
-    TCompositeMetaState* metaState,
-    TObjectManager* objectManager)
-    : TMetaStatePart(metaStateManager, metaState)
+    TBootstrap* bootstrap)
+    : TMetaStatePart(
+        bootstrap->GetMetaStateManager(),
+        bootstrap->GetMetaState())
     , Config(config)
-    , ObjectManager(objectManager)
+    , Bootstrap(bootstrap)
 {
-    YASSERT(metaStateManager);
-    YASSERT(metaState);
-    YASSERT(objectManager);
+    YASSERT(config);
+    YASSERT(bootstrap);
 
-    TLoadContext context(NULL); // TODO(roizner): use real bootstrap
+    TLoadContext context(bootstrap);
 
+    auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "TransactionManager.Keys.1",
         FromMethod(&TTransactionManager::LoadKeys, TPtr(this)));
@@ -281,9 +284,10 @@ TTransactionManager::TTransactionManager(
 
     metaState->RegisterPart(this);
 
+    auto objectManager = bootstrap->GetObjectManager();
     objectManager->RegisterHandler(~New<TTransactionTypeHandler>(this));
 
-    VERIFY_INVOKER_AFFINITY(metaStateManager->GetStateInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetStateInvoker(), StateThread);
 }
 
 TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManifest* manifest)
@@ -291,18 +295,19 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManif
     VERIFY_THREAD_AFFINITY(StateThread);
     YASSERT(manifest);
 
-    auto id = ObjectManager->GenerateId(EObjectType::Transaction);
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto id = objectManager->GenerateId(EObjectType::Transaction);
 
     auto* transaction = new TTransaction(id);
     TransactionMap.Insert(id, transaction);
 
     // Every active transaction has a fake reference to it.
-    ObjectManager->RefObject(id);
+    objectManager->RefObject(id);
     
     if (parent) {
         transaction->SetParent(parent);
         YVERIFY(parent->NestedTransactions().insert(transaction).second);
-        ObjectManager->RefObject(id);
+        objectManager->RefObject(id);
     }
 
     if (IsLeader()) {
@@ -371,20 +376,21 @@ void TTransactionManager::Abort(TTransaction& transaction)
 
 void TTransactionManager::FinishTransaction(TTransaction& transaction)
 {
+    auto objectManager = Bootstrap->GetObjectManager();
     auto transactionId = transaction.GetId();
 
     if (transaction.GetParent()) {
         auto* parent = transaction.GetParent();
         YVERIFY(parent->NestedTransactions().erase(&transaction) == 1);
-        ObjectManager->UnrefObject(transactionId);
+        objectManager->UnrefObject(transactionId);
     }
 
     FOREACH (const auto& createdId, transaction.CreatedObjectIds()) {
-        ObjectManager->UnrefObject(createdId);
+        objectManager->UnrefObject(createdId);
     }
 
     // Kill the fake reference.
-    ObjectManager->UnrefObject(transactionId);
+    objectManager->UnrefObject(transactionId);
 }
 
 void TTransactionManager::RenewLease(const TTransactionId& id)
@@ -433,10 +439,11 @@ void TTransactionManager::Clear()
 
 void TTransactionManager::OnLeaderRecoveryComplete()
 {
+    auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& pair, TransactionMap) {
         const auto& id = pair.first;
         const auto& transaction = *pair.second;
-        auto proxy = ObjectManager->GetProxy(id);
+        auto proxy = objectManager->GetProxy(id);
         auto manifestNode = proxy->Attributes().ToMap();
         auto manifest = New<TTransactionManifest>();
         manifest->LoadAndValidate(~manifestNode);
@@ -454,7 +461,7 @@ void TTransactionManager::OnStopLeading()
 
 void TTransactionManager::CreateLease(const TTransaction& transaction, TTransactionManifest* manifest)
 {
-    auto timeout = manifest->Timeout ? manifest->Timeout.Get() : Config->DefaultTransactionTimeout;
+    auto timeout = manifest->Timeout.Get(Config->DefaultTransactionTimeout);
     auto lease = TLeaseManager::CreateLease(
         timeout,
         ~FromMethod(&TThis::OnTransactionExpired, TPtr(this), transaction.GetId())
@@ -474,18 +481,15 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto proxy = ObjectManager->FindProxy(id);
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto proxy = objectManager->FindProxy(id);
     if (!proxy)
         return;
+
     LOG_INFO("Transaction expired (TransactionId: %s)", ~id.ToString());
 
     auto req = TTransactionYPathProxy::Abort();
     ExecuteVerb(~proxy, ~req);
-}
-
-TObjectManager* TTransactionManager::GetObjectManager() const
-{
-    return ~ObjectManager;
 }
 
 IObjectProxy::TPtr TTransactionManager::GetRootTransactionProxy()

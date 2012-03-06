@@ -2,26 +2,30 @@
 #include "chunk_placement.h"
 
 #include <ytlib/misc/foreach.h>
+#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/config.h>
 
 #include <util/random/random.h>
 
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NCellMaster;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
+static NLog::TLogger Logger("ChunkServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkPlacement::TChunkPlacement(
-    TChunkManager* chunkManager,
-    TChunkManager::TConfig* config)
-    : ChunkManager(chunkManager)
-    , Config(config)
+    TConfig* config,
+    TBootstrap* bootstrap)
+    : Config(config)
+    , Bootstrap(bootstrap)
 {
-    YASSERT(chunkManager);
     YASSERT(config);
+    YASSERT(bootstrap);
 }
 
 void TChunkPlacement::OnHolderRegistered(const THolder& holder)
@@ -64,8 +68,9 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
     yvector<const THolder*> holders;
     holders.reserve(LoadFactorMap.size());
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH(const auto& pair, LoadFactorMap) {
-        const auto& holder = ChunkManager->GetHolder(pair.second);
+        const auto& holder = chunkManager->GetHolder(pair.second);
         if (IsValidUploadTarget(holder) &&
             forbiddenAddresses.find(holder.GetAddress()) == forbiddenAddresses.end()) {
             holders.push_back(&holder);
@@ -112,15 +117,16 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
 {
     yhash_set<Stroka> forbiddenAddresses;
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH(auto holderId, chunk.StoredLocations()) {
-        const auto& holder = ChunkManager->GetHolder(holderId);
+        const auto& holder = chunkManager->GetHolder(holderId);
         forbiddenAddresses.insert(holder.GetAddress());
     }
 
-    const auto* jobList = ChunkManager->FindJobList(chunk.GetId());
+    const auto* jobList = chunkManager->FindJobList(chunk.GetId());
     if (jobList) {
         FOREACH(const auto& jobId, jobList->JobIds()) {
-            const auto& job = ChunkManager->GetJob(jobId);
+            const auto& job = chunkManager->GetJob(jobId);
             if (job.GetType() == EJobType::Replicate && job.GetChunkId() == chunk.GetId()) {
                 forbiddenAddresses.insert(job.TargetAddresses().begin(), job.TargetAddresses().end());
             }
@@ -143,9 +149,10 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     // Construct a list of (holderId, loadFactor) pairs.
     typedef TPair<THolderId, double> TCandidatePair;
     yvector<TCandidatePair> candidates;
+    auto chunkManager = Bootstrap->GetChunkManager();
     candidates.reserve(chunk.StoredLocations().ysize());
     FOREACH(auto holderId, chunk.StoredLocations()) {
-        const auto& holder = ChunkManager->GetHolder(holderId);
+        const auto& holder = chunkManager->GetHolder(holderId);
         double loadFactor = GetLoadFactor(holder);
         candidates.push_back(MakePair(holderId, loadFactor));
     }
@@ -161,8 +168,9 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     yvector<THolderId> result;
     result.reserve(count);
     FOREACH(auto pair, candidates) {
-        if (result.ysize() >= count)
+        if (result.ysize() >= count) {
             break;
+        }
         result.push_back(pair.first);
     }
     return result;
@@ -170,8 +178,9 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
 
 THolderId TChunkPlacement::GetBalancingTarget(const TChunk& chunk, double maxFillCoeff)
 {
+    auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& pair, LoadFactorMap) {
-        const auto& holder = ChunkManager->GetHolder(pair.second);
+        const auto& holder = chunkManager->GetHolder(pair.second);
         if (GetFillCoeff(holder) > maxFillCoeff) {
             break;
         }
@@ -210,15 +219,16 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
         return false;
     }
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& jobId, targetHolder.JobIds()) {
-        const auto& job = ChunkManager->GetJob(jobId);
+        const auto& job = chunkManager->GetJob(jobId);
         if (job.GetChunkId() == chunk.GetId()) {
             // Do not balance to a holder already having a job associated with this chunk.
             return false;
         }
     }
 
-    auto* sink = ChunkManager->FindReplicationSink(targetHolder.GetAddress());
+    auto* sink = chunkManager->FindReplicationSink(targetHolder.GetAddress());
     if (sink) {
         if (static_cast<int>(sink->JobIds().size()) >= Config->MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.
@@ -226,7 +236,7 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
         }
 
         FOREACH (const auto& jobId, sink->JobIds()) {
-            const auto& job = ChunkManager->GetJob(jobId);
+            const auto& job = chunkManager->GetJob(jobId);
             if (job.GetChunkId() == chunk.GetId()) {
                 // Do not balance to a holder that is a replication target for the very same chunk.
                 return false;
@@ -242,8 +252,9 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int
 {
     // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
+    auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& jobId, holder.JobIds()) {
-        const auto& job = ChunkManager->GetJob(jobId);
+        const auto& job = chunkManager->GetJob(jobId);
         forbiddenChunkIds.insert(job.GetChunkId());
     }
 

@@ -1,26 +1,18 @@
 #pragma once
 
 #include "public.h"
-#include "common.h"
 #include "attribute_set.h"
 #include "type_handler.h"
 #include "object_manager.pb.h"
-
-#include <ytlib/cell_master/public.h>
-#include <ytlib/transaction_server/public.h>
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
+#include <ytlib/cell_master/public.h>
+#include <ytlib/transaction_server/public.h>
 
 namespace NYT {
-
-// TODO(babenko): killme
-namespace NCypress {
-    class TCypressManager;
-}
-
 namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,17 +28,12 @@ class TObjectManager
 public:
     typedef TIntrusivePtr<TObjectManager> TPtr;
 
+    // TODO(babenko): move to config.h
+
     //! Initializes a new instance.
     TObjectManager(
-        NMetaState::IMetaStateManager* metaStateManager,
-        NMetaState::TCompositeMetaState* metaState,
-        TCellId cellId);
-
-    ~TObjectManager();
-
-    // TODO(babenko): killme
-    void SetCypressManager(NCypress::TCypressManager* cypressManager);
-    void SetTransactionManager(NTransactionServer::TTransactionManager* transactionmanager);
+        TObjectManagerConfig* config,
+        NCellMaster::TBootstrap* bootstrap);
 
     //! Registers a new type handler.
     /*!
@@ -133,13 +120,11 @@ private:
     class TServiceContextWrapper;
     class TRootService;
 
-    TCellId CellId;
+    TObjectManagerConfigPtr Config;
+    NCellMaster::TBootstrap* Bootstrap;
     yvector< TIdGenerator<ui64> > TypeToCounter;
     yvector<IObjectTypeHandler::TPtr> TypeToHandler;
     TIntrusivePtr<TRootService> RootService;
-
-    TIntrusivePtr<NCypress::TCypressManager> CypressManager;
-    TIntrusivePtr<NTransactionServer::TTransactionManager> TransactionManager;
 
     // Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;

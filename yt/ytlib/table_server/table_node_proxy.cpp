@@ -7,6 +7,7 @@
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -17,21 +18,20 @@ using namespace NYTree;
 using namespace NRpc;
 using namespace NObjectServer;
 using namespace NTableClient;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandler* typeHandler,
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager,
+    TBootstrap* bootstrap,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
     : TCypressNodeProxyBase<IEntityNode, TTableNode>(
         typeHandler,
-        cypressManager,
+        bootstrap,
         transactionId,
         nodeId)
-    , ChunkManager(chunkManager)
 { }
 
 void TTableNodeProxy::DoInvoke(IServiceContext* context)
@@ -41,7 +41,7 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
     TBase::DoInvoke(context);
 }
 
-IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     // Resolve to self to handle channels and ranges.
     if (verb == "Fetch") {
@@ -89,7 +89,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     TBase::GetSystemAttributes(attributes);
 }
 
-bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
 {
     const auto& tableNode = GetTypedImpl();
     const auto& chunkList = ChunkManager->GetChunkList(tableNode.GetChunkListId());
@@ -133,7 +133,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsum
 }
 
 void TTableNodeProxy::ParseYPath(
-    const NYTree::TYPath& path,
+    const TYPath& path,
     NTableClient::TChannel* channel)
 {
     // Set defaults.

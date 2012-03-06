@@ -1,13 +1,12 @@
 #pragma once
 
-#include "common.h"
 #include "table_node.h"
 #include "table_ypath.pb.h"
 
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/cypress/node_proxy_detail.h>
-#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/table_client/schema.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -22,8 +21,7 @@ public:
 
     TTableNodeProxy(
         NCypress::INodeTypeHandler* typeHandler,
-        NCypress::TCypressManager* cypressManager,
-        NChunkServer::TChunkManager* chunkManager,
+        NCellMaster::TBootstrap* bootstrap,
         const NObjectServer::TTransactionId& transactionId,
         const NCypress::TNodeId& nodeId);
 

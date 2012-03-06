@@ -14,21 +14,20 @@ using namespace NYTree;
 using namespace NRpc;
 using namespace NFileClient::NProto;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileNodeProxy::TFileNodeProxy(
     INodeTypeHandler* typeHandler,
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager,
+    TBootstrap* bootstrap,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
     : TCypressNodeProxyBase<IEntityNode, TFileNode>(
         typeHandler,
-        cypressManager,
+        bootstrap,
         transactionId,
         nodeId)
-    , ChunkManager(chunkManager)
 { }
 
 void TFileNodeProxy::DoInvoke(IServiceContext* context)

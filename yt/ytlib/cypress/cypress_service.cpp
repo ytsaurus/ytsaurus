@@ -14,10 +14,11 @@ using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = CypressLogger;
+static NLog::TLogger Logger("Cypress");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,16 +110,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressService::TCypressService(
-    NMetaState::IMetaStateManager* metaStateManager,
-    TObjectManager* objectManager)
+TCypressService::TCypressService(TBootstrap* bootstrap)
     : TMetaStateServiceBase(
-        metaStateManager,
+        bootstrap,
         TCypressServiceProxy::GetServiceName(),
-        CypressLogger.GetCategory())
-    , ObjectManager(objectManager)
+        Logger.GetCategory())
 {
-    YASSERT(objectManager);
+    YASSERT(bootstrap);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 }

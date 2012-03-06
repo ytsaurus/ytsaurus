@@ -2,37 +2,42 @@
 #include "node_proxy_detail.h"
 #include "cypress_ypath_proxy.h"
 
+#include <ytlib/cell_master/bootstrap.h>
+
 namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
 using namespace NRpc;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeFactory::TNodeFactory(
-    TCypressManager* cypressManager,
+    NCellMaster::TBootstrap* bootstrap,
     const TTransactionId& transactionId)
-    : CypressManager(cypressManager)
-    , TransactionId(transactionId)
+    : Bootstrap(bootstrap)
 {
-    YASSERT(cypressManager);
+    YASSERT(bootstrap);
 }
 
 TNodeFactory::~TNodeFactory()
 {
+    auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& nodeId, CreatedNodeIds) {
-        CypressManager->GetObjectManager()->UnrefObject(nodeId);
+        objectManager->UnrefObject(nodeId);
     }
 }
 
 ICypressNodeProxy::TPtr TNodeFactory::DoCreate(EObjectType type)
 {
-    auto id = CypressManager->CreateNode(type, TransactionId);
-    CypressManager->GetObjectManager()->RefObject(id);
+    auto cypressManager = Bootstrap->GetCypressManager();
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto id = cypressManager->CreateNode(type, TransactionId);
+    objectManager->RefObject(id);
     CreatedNodeIds.push_back(id);
-    return CypressManager->GetVersionedNodeProxy(id, TransactionId);
+    return cypressManager->GetVersionedNodeProxy(id, TransactionId);
 }
 
 IStringNodePtr TNodeFactory::CreateString()
@@ -69,15 +74,14 @@ IEntityNodePtr TNodeFactory::CreateEntity()
 
 TMapNodeProxy::TMapNodeProxy(
     INodeTypeHandler* typeHandler,
-    TCypressManager* cypressManager,
+    TBootstrap* bootstrap,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
     : TBase(
         typeHandler,
-        cypressManager,
+        bootstrap,
         transactionId,
         nodeId)
-    , TransactionManager(cypressManager->GetTransactionManager())
 { }
 
 void TMapNodeProxy::Clear()
@@ -243,9 +247,10 @@ Stroka TMapNodeProxy::GetChildKey(const INode* child)
 {
     auto* childProxy = ToProxy(child);
 
-    auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
+    auto transactionIds = Bootstrap->GetTransactionManager()->GetTransactionPath(TransactionId);
+    auto cypressManager = Bootstrap->GetCypressManager();
     FOREACH (const auto& transactionId, transactionIds) {
-        const auto& node = CypressManager->GetVersionedNode(NodeId, transactionId);
+        const auto& node = cypressManager->GetVersionedNode(NodeId, transactionId);
         const auto& map = static_cast<const TMapNode&>(node).ChildToKey();
         auto it = map.find(childProxy->GetId());
         if (it != map.end()) {
@@ -259,10 +264,11 @@ Stroka TMapNodeProxy::GetChildKey(const INode* child)
 yhash_map<Stroka, INodePtr> TMapNodeProxy::DoGetChildren() const
 {
     yhash_map<Stroka, INodePtr> result;
-    auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
+    auto transactionIds = Bootstrap->GetTransactionManager()->GetTransactionPath(TransactionId);
+    auto cypressManager = Bootstrap->GetCypressManager();
     for (auto it = transactionIds.rbegin(); it != transactionIds.rend(); ++it) {
         const auto& transactionId = *it;
-        const auto& node = CypressManager->GetVersionedNode(NodeId, transactionId);
+        const auto& node = cypressManager->GetVersionedNode(NodeId, transactionId);
         const auto& map = static_cast<const TMapNode&>(node).KeyToChild();
         FOREACH (const auto& pair, map) {
             if (pair.second == NullTransactionId) {
@@ -277,12 +283,13 @@ yhash_map<Stroka, INodePtr> TMapNodeProxy::DoGetChildren() const
 
 INodePtr TMapNodeProxy::DoFindChild(const Stroka& key, bool skipCurrentTransaction) const
 {
-    auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
+    auto transactionIds = Bootstrap->GetTransactionManager()->GetTransactionPath(TransactionId);
+    auto cypressManager = Bootstrap->GetCypressManager();
     FOREACH (const auto& transactionId, transactionIds) {
         if (skipCurrentTransaction && transactionId == TransactionId) {
             continue;
         }
-        const auto& node = CypressManager->GetVersionedNode(NodeId, transactionId);
+        const auto& node = cypressManager->GetVersionedNode(NodeId, transactionId);
         const auto& map = static_cast<const TMapNode&>(node).KeyToChild();
         auto it = map.find(key);
         if (it != map.end()) {
@@ -347,12 +354,12 @@ void TMapNodeProxy::SetNodeRecursive(
 
 TListNodeProxy::TListNodeProxy(
     INodeTypeHandler* typeHandler,
-    TCypressManager* cypressManager,
+    TBootstrap* bootstrap,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
     : TBase(
         typeHandler,
-        cypressManager,
+        bootstrap,
         transactionId,
         nodeId)
 { }
