@@ -39,7 +39,7 @@ WORKING_DIRECTORY=$2
 BUILD_TYPE=$3
 BUILD_PACKAGE=$4
 
-if [[ $BUILD_PACKAGE != "YES" -a $BUILD_PACKAGE != "NO" ]]; then
+if [[ ( $BUILD_PACKAGE != "YES" ) && ( $BUILD_PACKAGE != "NO" ) ]]; then
     shout "BUILD_PACKAGE have to be either YES or NO."
     exit 1
 fi
