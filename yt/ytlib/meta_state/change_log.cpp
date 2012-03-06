@@ -15,13 +15,8 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Auxiliary constants and functions.
-namespace {
-
 static NLog::TLogger& Logger = MetaStateLogger;
 static const char* const IndexSuffix = ".index";
-
-} // namespace <anonymous>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,9 +27,9 @@ class TChangeLog::TImpl
 {
 public:
     TImpl(
-        Stroka fileName,
+        const Stroka& fileName,
         i32 id,
-        i32 indexBlockSize);
+        i64 indexBlockSize);
 
     void Open();
     void Create(i32 previousRecordCount);
@@ -166,8 +161,15 @@ private:
 
     struct TLogIndexRecord
     {
+        i64 Offset;
         i32 RecordId;
-        i32 Offset;
+        i32 Padding;
+
+        TLogIndexRecord()
+            : Offset(-1)
+            , RecordId(-1)
+            , Padding(0)
+        { }
 
         bool operator<(const TLogIndexRecord& other) const
         {
@@ -175,7 +177,7 @@ private:
         }
     };
 
-    static_assert(sizeof(TLogIndexRecord) == 8, "Binary size of TLogIndexRecord has changed.");
+    static_assert(sizeof(TLogIndexRecord) == 16, "Binary size of TLogIndexRecord has changed.");
 
     #pragma pack(pop)
 
@@ -200,12 +202,12 @@ private:
     Stroka FileName;
     Stroka IndexFileName;
     i32 Id;
-    i32 IndexBlockSize;
+    i64 IndexBlockSize;
 
-    i32 PrevRecordCount;
-    i32 CurrentBlockSize;
-    i64 CurrentFilePosition;
     i32 RecordCount;
+    i32 PrevRecordCount;
+    i64 CurrentBlockSize;
+    i64 CurrentFilePosition;
 
     TMutex Mutex;
     TIndex Index;
@@ -221,9 +223,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TChangeLog::TImpl::TImpl(
-    Stroka fileName,
+    const Stroka& fileName,
     i32 id,
-    i32 indexBlockSize)
+    i64 indexBlockSize)
     : State(EState::Closed)
     , FileName(fileName)
     , IndexFileName(fileName + IndexSuffix)
@@ -526,7 +528,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, yvector<TShared
     
     TSharedRef sharedBlob(MoveRV(blob));
 
-        // TODO(sandello): Read this out and refactor with util/memory/*.
+    // TODO(sandello): Read this out and refactor with util/memory/*.
     i32 currentRecordId = firstRecordId;
     size_t position = 0;
     while (position < length) {
@@ -678,7 +680,6 @@ void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
     }
 
     CurrentFilePosition += recordSize;
-    YASSERT(CurrentFilePosition <= Max<i32>());
 }
 
 // TODO: What are exact semantics of these two methods?
@@ -744,7 +745,10 @@ bool TChangeLog::TImpl::IsFinalized() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChangeLog::TChangeLog(Stroka fileName, i32 id, i32 indexBlockSize)
+TChangeLog::TChangeLog(
+    const Stroka& fileName,
+    i32 id,
+    i64 indexBlockSize)
     : Impl(new TImpl(fileName, id, indexBlockSize))
 { }
 
