@@ -260,6 +260,7 @@ public:
         auto config = TLogConfig::CreateFromNode(node, path);
         if (IsRunning()) {
             ConfigsToUpdate.Enqueue(config);
+            Signal();
         }
     }
 
@@ -279,6 +280,7 @@ public:
     void Shutdown()
     {
         TActionQueueBase::Shutdown();
+        YASSERT(!DequeueAndExecute());
     }
 
     /*! 
