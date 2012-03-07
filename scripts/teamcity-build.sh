@@ -70,7 +70,6 @@ set -x
 ################################################################################
 
 mkdir -p $WORKING_DIRECTORY
-mkdir -p $WORKING_DIRECTORY/ARTIFACTS
 
 cd $WORKING_DIRECTORY
 
@@ -100,12 +99,20 @@ tc "blockClosed name='make'"
 tc "blockOpened name='Unit Tests'"
 
 if [[ $BUILD_PACKAGE = "YES" ]]; then
-    tc "blockOpened name='Building package...'"
+    tc "blockOpened name='Package'"
     tc "progressMessage 'Building package...'"
 
-    make package
-    dupload --nomail ARTIFACTS/*.changes
-    tc "blockClosed name='Building package...'"
+    cmake \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_COLOR_MAKEFILE:BOOL=OFF \
+        -DYT_BUILD_ENABLE_EXPERIMENTS:BOOL=OFF \
+        -DYT_BUILD_ENABLE_TESTS:BOOL=OFF \
+        .
+
+    make package && dupload --to common --nomail ARTIFACTS/*.changes
+
+    tc "blockClosed name='Package'"
 fi
 
 shout "Running unit tests..."

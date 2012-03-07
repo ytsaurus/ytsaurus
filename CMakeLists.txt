@@ -61,6 +61,8 @@ add_subdirectory(library/json)
 add_subdirectory(yt)
 
 add_custom_target(package touch package-stamp
+  COMMAND mkdir -p
+    ARTIFACTS
   COMMAND dch
     --distributor "yandex"
     --distribution "unstable"
@@ -79,3 +81,4 @@ add_custom_target(package touch package-stamp
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Packaging YT..."
 )
+
