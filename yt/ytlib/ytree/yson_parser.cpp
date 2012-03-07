@@ -4,6 +4,8 @@
 #include "yson_format.h"
 #include "yson_consumer.h"
 
+#include <ytlib/misc/zigzag.h>
+
 #include <util/string/escape.h>
 
 namespace NYT {
@@ -268,16 +270,22 @@ private:
     }
 
     void ReadBinaryInt64(char ch) {
+        ui8 byte = static_cast<ui8>(ch);
+
         if (7 * BytesRead > 8 * sizeof(ui64) ) {
             ythrow yexception() << Sprintf("The data is too long to read Int64");
         }
-        Int64Value |= (static_cast<ui64> (ch & 0x7F)) << (7 * BytesRead);
+
+        ui64 ui64Value = static_cast<ui64>(Int64Value);
+        ui64Value |= (static_cast<ui64> (byte & 0x7F)) << (7 * BytesRead);
         ++BytesRead;
 
-        if (ch & 0x80 == 0) {
-            Int64Value = (static_cast<ui64>(Int64Value) >> 1) ^ -static_cast<i64>(Int64Value & 1);
+        if ((byte & 0x80) == 0) {
+            Int64Value = ZigZagDecode64(static_cast<ui64>(ui64Value));
             State_ = EState::Int64;
             BytesRead = 0;
+        } else {
+            Int64Value = static_cast<i64>(ui64Value);
         }
     }
 
@@ -332,8 +340,10 @@ private:
 
     void ReadBinaryDouble(char ch)
     {
-        // If that doesn't work replace (BytesToRead - 1) with (8 - BytesToRead)
-        *(reinterpret_cast<ui64*>(&DoubleValue)) |= static_cast<ui64>(ch) << (8 * (BytesToRead - 1));
+        ui8 byte = static_cast<ui8>(ch);
+
+        *(reinterpret_cast<ui64*>(&DoubleValue)) |=
+                static_cast<ui64>(byte) << (8 * (8 - BytesToRead));
         --BytesToRead;
 
         if (BytesToRead == 0) {
@@ -389,17 +399,14 @@ class TYsonParser::TImpl
         (StringEnd)             // "..." @
         (Int64End)              // 123...9 @
         (DoubleEnd)             // 1.23...9 @
-        (ListStart)             // [ @
         (ListBeforeItem)        // [...; @
         (ListAfterItem)         // [... @
         (ListEnd)               // [...] @
-        (MapStart)              // { @
         (MapBeforeKey)          // {...; @
         (MapAfterKey)           // {...; "..." @
         (MapBeforeValue)        // {...; "..." = @
         (MapAfterValue)         // {...; "..." = ... @
         (MapEnd)                // {...} @
-        (AttributesStart)       // < @
         (AttributesBeforeKey)   // <...; @
         (AttributesAfterKey)    // <...; "..." @
         (AttributesBeforeValue) // <...; "..." = @
@@ -537,14 +544,12 @@ private:
                     consumed = ConsumeEnd();
                     break;
 
-                case EState::ListStart:
                 case EState::ListBeforeItem:
                 case EState::ListAfterItem:
                     ConsumeList();
                     consumed = true;
                     break;
 
-                case EState::MapStart:
                 case EState::MapBeforeKey:
                 case EState::MapAfterKey:
                 case EState::MapBeforeValue:
@@ -553,7 +558,6 @@ private:
                     consumed = true;
                     break;
 
-                case EState::AttributesStart:
                 case EState::AttributesBeforeKey:
                 case EState::AttributesAfterKey:
                 case EState::AttributesBeforeValue:
@@ -582,24 +586,24 @@ private:
                 break;
 
             case ELexerState::Double:
-                CachedInt64Value = Lexer.GetDoubleValue();
+                CachedDoubleValue = Lexer.GetDoubleValue();
                 StateStack.push(EState::DoubleEnd);
                 break;
 
             case ELexerState::ListStart:
                 Consumer->OnBeginList();
-                StateStack.push(EState::ListStart);
+                StateStack.push(EState::ListBeforeItem);
                 break;
 
             case ELexerState::MapStart:
                 Consumer->OnBeginMap();
-                StateStack.push(EState::MapStart);
+                StateStack.push(EState::MapBeforeKey);
                 break;
 
             case ELexerState::AttributesStart:
                 Consumer->OnEntity(true);
                 Consumer->OnBeginAttributes();
-                StateStack.push(EState::AttributesStart);
+                StateStack.push(EState::AttributesBeforeKey);
                 break;
 
             default:
@@ -613,9 +617,8 @@ private:
     {
         auto lexerState = Lexer.GetState();
         switch (CurrentState()) {
-            case EState::ListStart:
             case EState::ListBeforeItem:
-                if (lexerState == ELexerState::ListEnd && CurrentState() == EState::ListStart) {
+                if (lexerState == ELexerState::ListEnd) {
                     StateStack.top() = EState::ListEnd;
                 } else {
                     Consumer->OnListItem();
@@ -644,9 +647,8 @@ private:
     {
         auto lexerState = Lexer.GetState();
         switch (CurrentState()) {
-            case EState::MapStart:
             case EState::MapBeforeKey:
-                if (lexerState == ELexerState::MapEnd && CurrentState() == EState::MapStart) {
+                if (lexerState == ELexerState::MapEnd) {
                     StateStack.top() = EState::MapEnd;
                 } else if (lexerState == ELexerState::String) {
                     Consumer->OnMapItem(Lexer.GetStringValue());
@@ -695,7 +697,7 @@ private:
         auto currentState = CurrentState();
 
         if (lexerState == ELexerState::AttributesEnd &&
-            (currentState == EState::AttributesStart || currentState == EState::AttributesAfterValue))
+            (currentState == EState::AttributesBeforeKey || currentState == EState::AttributesAfterValue))
         {
             Consumer->OnEndAttributes();
             OnItemConsumed();
@@ -703,7 +705,6 @@ private:
         }
 
         switch (CurrentState()) {
-            case EState::AttributesStart:
             case EState::AttributesBeforeKey:
                 if (lexerState == ELexerState::String) {
                     Consumer->OnAttributesItem(Lexer.GetStringValue());
@@ -777,7 +778,7 @@ private:
 
         if (attributes) {
             Consumer->OnBeginAttributes();
-            StateStack.top() = EState::AttributesStart;
+            StateStack.top() = EState::AttributesBeforeKey;
             return true;
         } else {
             OnItemConsumed();
@@ -832,6 +833,10 @@ TYsonParser::TYsonParser(IYsonConsumer *consumer)
     : Impl(new TImpl(consumer))
 { }
 
+
+TYsonParser::~TYsonParser()
+{ }
+
 void TYsonParser::Consume(char ch)
 {
     Impl->Consume(ch);
@@ -858,6 +863,7 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer)
     }
     parser.Finish();
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

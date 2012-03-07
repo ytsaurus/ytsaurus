@@ -3,6 +3,8 @@
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/yson_consumer-mock.h>
 
+#include <ytlib/ytree/yson_parser.h>
+
 #include <util/stream/mem.h>
 
 #include <contrib/testing/framework.h>
@@ -23,9 +25,15 @@ public:
 
     void Run()
     {
-        TMemoryInput inputStream(Input.c_str(), Input.length());
-        TYsonReader reader(&Mock, &inputStream);
-        reader.Read();
+        TYsonParser parser(&Mock);
+        FOREACH (char c, Input) {
+            parser.Consume(c);
+        }
+        parser.Finish();
+
+//        TMemoryInput inputStream(Input.c_str(), Input.length());
+//        TYsonReader reader(&Mock, &inputStream);
+//        reader.Read();
     }
 };
 

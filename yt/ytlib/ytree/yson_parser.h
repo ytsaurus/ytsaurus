@@ -15,6 +15,7 @@ class TYsonParser
 {
 public:
     TYsonParser(IYsonConsumer* consumer);
+    ~TYsonParser();
 
     void Consume(char ch);
     void Finish();
