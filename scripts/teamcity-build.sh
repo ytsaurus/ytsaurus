@@ -86,21 +86,9 @@ cmake \
     -DYT_BUILD_TAG=$(echo $BUILD_VCS_NUMBER | cut -c 1-7) \
     $CHECKOUT_DIRECTORY
 
+trap '(cd $WORKING_DIRECTORY) && make clean ; find . -name "default.log" -delete)' 0
+
 tc "blockClosed name='CMake'"
-
-tc "blockOpened name='make'"
-
-shout "Running make (1/2; fast)..."
-tc "progressMessage 'Running make (1/2; fast)...'"
-make -j 8 >/dev/null 2>/dev/null || true
-
-shout "Running make (2/2; slow)..."
-tc "progressMessage 'Running make (2/2; slow)...'"
-make -j 1
-
-tc "blockClosed name='make'"
-
-tc "blockOpened name='Unit Tests'"
 
 if [[ $BUILD_PACKAGE = "YES" ]]; then
     tc "blockOpened name='Package'"
@@ -118,6 +106,20 @@ if [[ $BUILD_PACKAGE = "YES" ]]; then
 
     tc "blockClosed name='Package'"
 fi
+
+tc "blockOpened name='make'"
+
+shout "Running make (1/2; fast)..."
+tc "progressMessage 'Running make (1/2; fast)...'"
+make -j 8 >/dev/null 2>/dev/null || true
+
+shout "Running make (2/2; slow)..."
+tc "progressMessage 'Running make (2/2; slow)...'"
+make -j 1
+
+tc "blockClosed name='make'"
+
+tc "blockOpened name='Unit Tests'"
 
 shout "Running unit tests..."
 tc "progressMessage 'Running unit tests...'"
@@ -149,7 +151,6 @@ PATH=$WORKING_DIRECTORY/bin:$PATH \
 tc "blockClosed name='Integration Tests'"
 
 cd $WORKING_DIRECTORY
-find . -name 'default.log' -delete
 
 # TODO(sandello): Export final package name as build parameter.
 # TODO(sandello): Measure some statistics.
