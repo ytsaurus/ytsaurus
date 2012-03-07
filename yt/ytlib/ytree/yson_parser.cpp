@@ -411,6 +411,7 @@ class TYsonParser::TImpl
         (AttributesAfterKey)    // <...; "..." @
         (AttributesBeforeValue) // <...; "..." = @
         (AttributesAfterValue)  // <...; "..." = ... @
+        (Parsed)                // ...<...> @
     );
 
     typedef TYsonLexer::EState ELexerState;
@@ -445,7 +446,7 @@ public:
             return true;
 
         if (StateStack.empty())
-            return false;
+            return true;
 
         if (!ignoreAttributes)
             return true;
@@ -455,6 +456,7 @@ public:
 
         // StateStack.size() == 1
         switch (StateStack.top()) {
+            case EState::Parsed:
             case EState::StringEnd:
             case EState::Int64End:
             case EState::DoubleEnd:
@@ -502,8 +504,8 @@ public:
             Lexer.Reset();
         }
         YASSERT(Lexer.GetState() == ELexerState::Start);
-        
-        while (!StateStack.empty()) {
+
+        while (StateStack.empty() || StateStack.top() != EState::Parsed) {
             switch (CurrentState()) {
                 case EState::StringEnd:
                 case EState::Int64End:
@@ -512,6 +514,10 @@ public:
                 case EState::MapEnd:
                     YVERIFY(!ConsumeEnd());
                     break;
+
+                case EState::None:
+                    ythrow yexception() << Sprintf("Error parsing YSON: Cannot finish parsing, nothing was parsed (%s)",
+                        ~GetPositionInfo());
 
                 default:
                     ythrow yexception() << Sprintf("Error parsing YSON: Cannot finish parsing in state %s (%s)",
@@ -565,6 +571,11 @@ private:
                     ConsumeAttributes();
                     consumed = true;
                     break;
+
+                case EState::Parsed:
+                    ythrow yexception() << Sprintf("Error parsing YSON: Fragment is already parsed, unexpected lexeme of type %s (%s)",
+                        ~Lexer.GetState().ToString(),
+                        ~GetPositionInfo());
 
                 default:
                     YUNREACHABLE();
@@ -791,6 +802,7 @@ private:
         StateStack.pop();
         switch (CurrentState()) {
             case EState::None:
+                StateStack.push(EState::Parsed);
                 break;
 
             case EState::ListBeforeItem:
