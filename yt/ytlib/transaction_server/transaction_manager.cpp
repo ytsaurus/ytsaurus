@@ -26,17 +26,13 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("TransactionServer");
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionManager::TTransactionProxy
     : public NObjectServer::TUnversionedObjectProxyBase<TTransaction>
 {
 public:
     TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
         : TBase(owner->Bootstrap, id, &owner->TransactionMap)
-        , TYPathServiceBase(Logger.GetCategory())
+        , TYPathServiceBase("TransactionServer")
         , Owner(owner)
     { }
 
@@ -252,7 +248,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionManager::TTransactionManager(\
+TTransactionManager::TTransactionManager(
     TConfig* config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
@@ -462,10 +458,14 @@ void TTransactionManager::OnStopLeading()
 void TTransactionManager::CreateLease(const TTransaction& transaction, TTransactionManifest* manifest)
 {
     auto timeout = manifest->Timeout.Get(Config->DefaultTransactionTimeout);
+    auto epochStateInvoker = Bootstrap
+        ->GetMetaStateManager()
+        ->GetEpochContext()
+        ->CreateInvoker(Bootstrap->GetStateInvoker());
     auto lease = TLeaseManager::CreateLease(
         timeout,
         ~FromMethod(&TThis::OnTransactionExpired, TPtr(this), transaction.GetId())
-        ->Via(MetaStateManager->GetEpochStateInvoker()));
+        ->Via(epochStateInvoker));
     YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).second);
 }
 

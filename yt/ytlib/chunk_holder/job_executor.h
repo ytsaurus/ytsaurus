@@ -58,7 +58,8 @@ private:
     NProto::TChunkInfo ChunkInfo;
     yvector<Stroka> TargetAddresses;
     NChunkClient::IAsyncWriter::TPtr Writer;
-    TCancelableInvoker::TPtr CancelableInvoker;
+    TCancelableContextPtr CancelableContext;
+    IInvoker::TPtr CancelableInvoker;
     
     NLog::TTaggedLogger Logger;
 

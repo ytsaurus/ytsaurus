@@ -36,7 +36,8 @@ inline void TParallelAwaiter::Init(
     Terminated = false;
     RequestCount = 0;
     ResponseCount = 0;
-    CancelableInvoker = New<TCancelableInvoker>(invoker);
+    CancelableContext = New<TCancelableContext>();
+    CancelableInvoker = CancelableContext->CreateInvoker(invoker);
     Profiler = profiler;
     if (Profiler) {
         Timer = Profiler->TimingStart(timerPath, NProfiling::ETimerMode::Parallel);
@@ -151,7 +152,7 @@ inline void TParallelAwaiter::Cancel()
     if (Canceled)
         return;
 
-    CancelableInvoker->Cancel();
+    CancelableContext->Cancel();
     Canceled = true;
     Terminate();
 }

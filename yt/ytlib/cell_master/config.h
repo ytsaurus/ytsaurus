@@ -38,7 +38,7 @@ struct TCellMasterConfig
             .DefaultNew();
         Register("transactions", Transactions)
             .DefaultNew();
-        Register("chunks", Transactions)
+        Register("chunks", Chunks)
             .DefaultNew();
         Register("objects", Objects)
             .DefaultNew();

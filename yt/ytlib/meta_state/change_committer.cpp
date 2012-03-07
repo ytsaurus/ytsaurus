@@ -16,24 +16,20 @@ static NProfiling::TProfiler Profiler("meta_state");
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommitterBase::TCommitterBase(
-    TDecoratedMetaState::TPtr metaState,
-    IInvoker::TPtr controlInvoker)
+    TDecoratedMetaState* metaState,
+    IInvoker* epochControlInvoker,
+    IInvoker* epochStateInvoker)
     : MetaState(metaState)
-    , CancelableControlInvoker(New<TCancelableInvoker>(controlInvoker))
+    , EpochControlInvoker(epochControlInvoker)
+    , EpochStateInvoker(epochStateInvoker)
     , CommitCounter("commit_rate")
     , BatchCommitCounter("commit_batch_rate")
 {
     YASSERT(metaState);
-    YASSERT(controlInvoker);
-    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
-    VERIFY_INVOKER_AFFINITY(metaState->GetStateInvoker(), StateThread);
-}
-
-void TCommitterBase::Stop()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    CancelableControlInvoker->Cancel();
+    YASSERT(epochControlInvoker);
+    YASSERT(epochStateInvoker);
+    VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(epochStateInvoker, StateThread);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +87,7 @@ public:
 		auto cellManager = Committer->CellManager;
         
 		Awaiter = New<TParallelAwaiter>(
-			~Committer->CancelableControlInvoker,
+			~Committer->EpochControlInvoker,
 			&Profiler,
 			"commit_batch_time");
 
@@ -212,32 +208,24 @@ private:
 
 TLeaderCommitter::TLeaderCommitter(
     TConfig* config,
-    TCellManager::TPtr cellManager,
-    TDecoratedMetaState::TPtr metaState,
-    TChangeLogCache::TPtr changeLogCache,
-    TFollowerTracker::TPtr followerTracker,
-    IInvoker::TPtr controlInvoker,
-    const TEpoch& epoch)
-    : TCommitterBase(metaState, controlInvoker)
+    TCellManager* cellManager,
+    TDecoratedMetaState* metaState,
+    TChangeLogCache* changeLogCache,
+    TFollowerTracker* followerTracker,
+    const TEpoch& epoch,
+    IInvoker* epochControlInvoker,
+    IInvoker* epochStateInvoker)
+    : TCommitterBase(metaState, epochControlInvoker, epochStateInvoker)
     , Config(config)
     , CellManager(cellManager)
     , ChangeLogCache(changeLogCache)
     , FollowerTracker(followerTracker)
     , Epoch(epoch)
 {
+    YASSERT(config);
     YASSERT(cellManager);
-    YASSERT(metaState);
     YASSERT(changeLogCache);
     YASSERT(followerTracker);
-    YASSERT(controlInvoker);
-}
-
-void TLeaderCommitter::Stop()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    TCommitterBase::Stop();
-    ChangeApplied_.Clear();
 }
 
 void TLeaderCommitter::Flush()
@@ -315,7 +303,7 @@ TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
                 &TLeaderCommitter::DelayedFlush,
                 TPtr(this),
                 CurrentBatch)
-            ->Via(~CancelableControlInvoker),
+            ->Via(~EpochControlInvoker),
             Config->MaxBatchDelay);
     }
 
@@ -338,13 +326,11 @@ void TLeaderCommitter::DelayedFlush(TBatch::TPtr batch)
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerCommitter::TFollowerCommitter(
-    TDecoratedMetaState::TPtr metaState,
-    IInvoker::TPtr controlInvoker)
-    : TCommitterBase(metaState, controlInvoker)
-{
-    YASSERT(metaState);
-    YASSERT(controlInvoker);
-}
+    TDecoratedMetaState* metaState,
+    IInvoker* epochControlInvoker,
+    IInvoker* epochStateInvoker)
+    : TCommitterBase(metaState, epochControlInvoker, epochStateInvoker)
+{ }
 
 TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(
     const TMetaVersion& expectedVersion,
@@ -362,7 +348,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(
             TPtr(this),
             expectedVersion,
             changes)
-        ->AsyncVia(MetaState->GetStateInvoker())
+        ->AsyncVia(EpochStateInvoker)
         ->Do();
 }
 

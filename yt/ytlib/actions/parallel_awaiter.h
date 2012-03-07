@@ -46,7 +46,8 @@ private:
     i32 RequestCount;
     i32 ResponseCount;
     IAction::TPtr OnComplete;
-    TCancelableInvoker::TPtr CancelableInvoker;
+    TCancelableContextPtr CancelableContext;
+    IInvoker::TPtr CancelableInvoker;
     NProfiling::TProfiler* Profiler;
     NProfiling::TTimer Timer;
 

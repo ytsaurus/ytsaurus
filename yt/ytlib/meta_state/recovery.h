@@ -41,18 +41,14 @@ public:
      */
     TRecovery(
         TPersistentStateManagerConfig* config,
-        TCellManager::TPtr cellManager,
-        TDecoratedMetaState::TPtr decoratedState,
-        TChangeLogCache::TPtr changeLogCache,
-        TSnapshotStore::TPtr snapshotStore,
-        TEpoch epoch,
+        TCellManager* cellManager,
+        TDecoratedMetaState* decoratedState,
+        TChangeLogCache* changeLogCache,
+        TSnapshotStore* snapshotStore,
+        const TEpoch& epoch,
         TPeerId leaderId,
-        IInvoker::TPtr controlInvoker);
-
-    /*!
-     * \note Thread affinity: Any.
-     */
-    void Stop();
+        IInvoker* epochControlInvoker,
+        IInvoker* epochStateInvoker);
 
     virtual TAsyncResult::TPtr Run() = 0;
 
@@ -116,13 +112,13 @@ protected:
     // Any thread.
     TPersistentStateManagerConfig::TPtr Config;
     TCellManager::TPtr CellManager;
-    TDecoratedMetaState::TPtr MetaState;
+    TDecoratedMetaState::TPtr DecoratedState;
     TChangeLogCache::TPtr ChangeLogCache;
     TSnapshotStore::TPtr SnapshotStore;
     TEpoch Epoch;
     TPeerId LeaderId;
-    TCancelableInvoker::TPtr CancelableControlInvoker;
-    TCancelableInvoker::TPtr CancelableStateInvoker;
+    IInvoker::TPtr EpochControlInvoker;
+    IInvoker::TPtr EpochStateInvoker;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -143,12 +139,13 @@ public:
      */
     TLeaderRecovery(
         TPersistentStateManagerConfig* config,
-        TCellManager::TPtr cellManager,
-        TDecoratedMetaState::TPtr decoratedState,
-        TChangeLogCache::TPtr changeLogCache,
-        TSnapshotStore::TPtr snapshotStore,
-        TEpoch epoch,
-        IInvoker::TPtr controlInvoker);
+        TCellManager* cellManager,
+        TDecoratedMetaState* decoratedState,
+        TChangeLogCache* changeLogCache,
+        TSnapshotStore* snapshotStore,
+        const TEpoch& epoch,
+        IInvoker* epochControlInvoker,
+        IInvoker* epochStateInvoker);
 
     //! Performs leader recovery loading the latest snapshot and applying the changelogs.
     /*!
@@ -176,13 +173,14 @@ public:
      */
     TFollowerRecovery(
         TPersistentStateManagerConfig* config,
-        TCellManager::TPtr cellManager,
-        TDecoratedMetaState::TPtr decoratedState,
-        TChangeLogCache::TPtr changeLogCache,
-        TSnapshotStore::TPtr snapshotStore,
-        TEpoch epoch,
+        TCellManager* cellManager,
+        TDecoratedMetaState* decoratedState,
+        TChangeLogCache* changeLogCache,
+        TSnapshotStore* snapshotStore,
+        const TEpoch& epoch,
         TPeerId leaderId,
-        IInvoker::TPtr controlInvoker,
+        IInvoker* epochControlInvoker,
+        IInvoker* epochStateInvoker,
         TMetaVersion targetVersion,
         i32 maxSnapshotId);
 

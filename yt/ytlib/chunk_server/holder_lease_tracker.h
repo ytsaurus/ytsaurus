@@ -61,6 +61,7 @@ private:
      
     TConfig::TPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
+
     THolderInfoMap HolderInfoMap;
 
     THolderInfo* FindHolderInfo(THolderId holderId);

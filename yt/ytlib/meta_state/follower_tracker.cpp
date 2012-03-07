@@ -12,18 +12,19 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 TFollowerTracker::TFollowerTracker(
     TConfig* config,
-    TCellManager::TPtr cellManager,
-    IInvoker::TPtr serviceInvoker)
+    TCellManager* cellManager,
+    IInvoker* epochControlInvoker)
     : Config(config)
     , CellManager(cellManager)
-    , EpochInvoker(New<TCancelableInvoker>(serviceInvoker))
+    , EpochControlInvoker(epochControlInvoker)
     , FollowerStates(cellManager->GetPeerCount())
     , ActiveFollowerCount(0)
 {
-    VERIFY_INVOKER_AFFINITY(serviceInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
 
+    YASSERT(config);
     YASSERT(cellManager);
-    YASSERT(serviceInvoker);
+    YASSERT(epochControlInvoker);
 
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         ResetFollowerState(id);
@@ -43,7 +44,7 @@ void TFollowerTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    EpochInvoker->Cancel();
+    // Do nothing, Stop is just for symmetry.
 }
 
 bool TFollowerTracker::IsFollowerActive(TPeerId followerId) const
@@ -115,7 +116,7 @@ void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerStatus status)
         followerState.Lease = TLeaseManager::CreateLease(
             Config->PingTimeout,
             ~FromMethod(&TFollowerTracker::OnLeaseExpired, TPtr(this), followerId)
-            ->Via(~EpochInvoker));
+            ->Via(~EpochControlInvoker));
     } else {
         TLeaseManager::RenewLease(followerState.Lease);
     }

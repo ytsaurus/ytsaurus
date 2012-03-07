@@ -36,8 +36,8 @@ public:
 
     TFollowerTracker(
         TConfig* config,
-        TCellManager::TPtr cellManager,
-        IInvoker::TPtr serviceInvoker);
+        TCellManager* cellManager,
+        IInvoker* epochControlInvoker);
 
     void Start();
     void Stop();
@@ -58,7 +58,7 @@ private:
 
     TConfig::TPtr Config;
     TCellManager::TPtr CellManager;
-    TCancelableInvoker::TPtr EpochInvoker;
+    IInvoker::TPtr EpochControlInvoker;
     yvector<TFollowerState> FollowerStates;
     int ActiveFollowerCount;
 

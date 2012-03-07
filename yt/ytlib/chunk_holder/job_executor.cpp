@@ -28,7 +28,8 @@ TJob::TJob(
     , State(EJobState::Running)
     , Chunk(chunk)
     , TargetAddresses(targetAddresses)
-    , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
+    , CancelableContext(New<TCancelableContext>())
+    , CancelableInvoker(CancelableContext->CreateInvoker(serviceInvoker))
     , Logger(ChunkHolderLogger)
 {
     YASSERT(serviceInvoker);
@@ -97,7 +98,7 @@ void TJob::Start()
 
 void TJob::Stop()
 {
-    CancelableInvoker->Cancel();
+    CancelableContext->Cancel();
     Writer.Reset();
 }
 

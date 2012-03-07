@@ -115,7 +115,8 @@ private:
     TPeerId LeaderId;
     TGuid Epoch;
     TInstant EpochStart;
-    TCancelableInvoker::TPtr ControlEpochInvoker;
+    TCancelableContextPtr ControlEpochContext;
+    IInvoker::TPtr ControlEpochInvoker;
     
     typedef yhash_set<TPeerId> TPeerSet;
     TPeerSet AliveFollowers;

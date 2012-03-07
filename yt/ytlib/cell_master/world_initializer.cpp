@@ -10,6 +10,7 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
+#include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/logging/log.h>
 
 namespace NYT {

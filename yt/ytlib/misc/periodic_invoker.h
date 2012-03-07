@@ -45,7 +45,8 @@ private:
     IAction::TPtr Action;
     TDuration Period;
     TDelayedInvoker::TCookie Cookie;
-    TCancelableInvoker::TPtr CancelableInvoker;
+    TCancelableContextPtr CancelableContext;
+    IInvoker::TPtr CancelableInvoker;
 
     void RunAction();
 };

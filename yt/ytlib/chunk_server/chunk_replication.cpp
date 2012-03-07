@@ -26,7 +26,7 @@ TChunkReplication::TChunkReplication(
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
 {
-    YASSERT(Config);
+    YASSERT(config);
     YASSERT(bootstrap);
     YASSERT(chunkPlacement);
 
@@ -160,7 +160,7 @@ void TChunkReplication::ProcessExistingJobs(
     }
 
     // Checking for missing jobs
-    FOREACH(auto jobId, holder.JobIds()) {
+    FOREACH (auto jobId, holder.JobIds()) {
         if (runningJobIds.find(jobId) == runningJobIds.end()) {
             LOG_WARNING("Job is missing (JobId: %s, Address: %s, HolderId: %d)",
                 ~jobId.ToString(),
@@ -588,9 +588,13 @@ void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
 
 void TChunkReplication::ScheduleNextRefresh()
 {
+    auto epochStateInvoker = Bootstrap
+        ->GetMetaStateManager()
+        ->GetEpochContext()
+        ->CreateInvoker(Bootstrap->GetStateInvoker());
     TDelayedInvoker::Submit(
         ~FromMethod(&TChunkReplication::OnRefresh, TPtr(this))
-        ->Via(Bootstrap->GetMetaStateManager()->GetEpochStateInvoker()),
+        ->Via(epochStateInvoker),
         Config->ChunkRefreshQuantum);
 }
 

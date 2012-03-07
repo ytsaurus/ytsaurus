@@ -118,7 +118,7 @@ public:
 
         VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
         VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);
-        VERIFY_INVOKER_AFFINITY(IOQueue->GetInvoker(), ReadThread);
+        VERIFY_INVOKER_AFFINITY(IOQueue->GetInvoker(), IOThread);
 
         CellManager = New<TCellManager>(~Config->Cell);
 
@@ -192,11 +192,11 @@ public:
         return tracker->HasActiveQuorum();
     }
 
-    virtual IInvoker::TPtr GetEpochStateInvoker() const
+    virtual TCancelableContextPtr GetEpochContext() const
     {
-        VERIFY_THREAD_AFFINITY(StateThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        return ~EpochStateInvoker;
+        return EpochContext;
     }
 
     virtual void SetReadOnly(bool readOnly)
@@ -302,11 +302,12 @@ public:
 
     TActionQueue::TPtr IOQueue;
 
-    // Per epoch, control (service) thread
     TEpoch Epoch;
+    TCancelableContextPtr EpochContext;
 
-    TCancelableInvoker::TPtr EpochControlInvoker;
-    TCancelableInvoker::TPtr EpochStateInvoker;
+    IInvoker::TPtr EpochControlInvoker;
+    IInvoker::TPtr EpochStateInvoker;
+
     TSnapshotBuilder::TPtr SnapshotBuilder;
     TLeaderRecovery::TPtr LeaderRecovery;
     TFollowerRecovery::TPtr FollowerRecovery;
@@ -377,7 +378,7 @@ public:
         auto snapshotFile = result.Value();
         IOQueue->GetInvoker()->Invoke(context->Wrap(~FromFunctor([=] ()
             {
-                VERIFY_THREAD_AFFINITY(ReadThread);
+                VERIFY_THREAD_AFFINITY(IOThread);
 
                 TBlob data(length);
                 i32 bytesRead;
@@ -450,7 +451,7 @@ public:
         auto changeLog = result.Value();
         IOQueue->GetInvoker()->Invoke(~context->Wrap(~FromFunctor([=] ()
             {
-                VERIFY_THREAD_AFFINITY(ReadThread);
+                VERIFY_THREAD_AFFINITY(IOThread);
 
                 yvector<TSharedRef> recordData;
                 try {
@@ -588,13 +589,14 @@ public:
 
                     FollowerRecovery = New<TFollowerRecovery>(
                         ~Config,
-                        CellManager,
-                        MetaState,
-                        ChangeLogCache,
-                        SnapshotStore,
+                        ~CellManager,
+                        ~MetaState,
+                        ~ChangeLogCache,
+                        ~SnapshotStore,
                         Epoch,
                         LeaderId,
-                        ControlInvoker,
+                        ~EpochControlInvoker,
+                        ~EpochStateInvoker,
                         version,
                         maxSnapshotId);
 
@@ -705,7 +707,6 @@ public:
             result == TRecovery::EResult::Failed);
 
         YASSERT(LeaderRecovery);
-        LeaderRecovery->Stop();
         LeaderRecovery.Reset();
 
         if (result != TRecovery::EResult::OK) {
@@ -714,7 +715,7 @@ public:
             return;
         }
 
-        GetStateInvoker()->Invoke(FromMethod(
+        EpochStateInvoker->Invoke(FromMethod(
             &TThis::DoLeaderRecoveryComplete,
             TPtr(this),
             Epoch));
@@ -722,12 +723,13 @@ public:
         YASSERT(!LeaderCommitter);
         LeaderCommitter = New<TLeaderCommitter>(
             ~Config->LeaderCommitter,
-            CellManager,
-            MetaState,
-            ChangeLogCache,
-            FollowerTracker,
-            ControlInvoker,
-            Epoch);
+            ~CellManager,
+            ~MetaState,
+            ~ChangeLogCache,
+            ~FollowerTracker,
+            Epoch,
+            ~EpochControlInvoker,
+            ~EpochStateInvoker);
         // TODO(babenko): use AsWeak
         LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnApplyChange, TPtr(this)));
 
@@ -753,7 +755,8 @@ public:
             ~FollowerTracker,
             ~SnapshotStore,
             Epoch,
-            ~ControlInvoker);
+            ~EpochControlInvoker,
+            ~EpochStateInvoker);
         FollowerPinger->Start();
 
         ControlStatus = EPeerStatus::Leading;
@@ -768,7 +771,6 @@ public:
             result == TRecovery::EResult::Failed);
 
         YASSERT(FollowerRecovery);
-        FollowerRecovery->Stop();
         FollowerRecovery.Reset();
 
         if (result != TRecovery::EResult::OK) {
@@ -783,8 +785,9 @@ public:
 
         YASSERT(!FollowerCommitter);
         FollowerCommitter = New<TFollowerCommitter>(
-            MetaState,
-            ControlInvoker);
+            ~MetaState,
+            ~EpochControlInvoker,
+            ~EpochStateInvoker);
 
         YASSERT(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(
@@ -908,14 +911,9 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         // To prevent multiple restarts.
-        auto epochControlInvoker = EpochControlInvoker;
-        if (epochControlInvoker) {
-            epochControlInvoker->Cancel();
-        }
-
-        auto epochStateInvoker = EpochStateInvoker;
-        if (epochStateInvoker) {
-            epochStateInvoker->Cancel();
+        auto epochContext = EpochContext;
+        if (epochContext) {
+            epochContext->Cancel();
         }
 
         ElectionManager->Restart();
@@ -980,7 +978,7 @@ public:
         ControlStatus = EPeerStatus::LeaderRecovery;
         LeaderId = CellManager->GetSelfId();
 
-        StartControlEpoch(epoch);
+        StartEpoch(epoch);
 
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoStartLeading,
@@ -989,8 +987,8 @@ public:
         YASSERT(!FollowerTracker);
         FollowerTracker = New<TFollowerTracker>(
             ~Config->FollowerTracker,
-            CellManager,
-            ControlInvoker);
+            ~CellManager,
+            ~EpochControlInvoker);
 
         YASSERT(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
@@ -1001,18 +999,20 @@ public:
             ~FollowerTracker,
             ~SnapshotStore,
             Epoch,
-            ~ControlInvoker);
+            ~EpochControlInvoker,
+            ~EpochStateInvoker);
         FollowerPinger->Start();
 
         YASSERT(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(
             ~Config,
-            CellManager,
-            MetaState,
-            ChangeLogCache,
-            SnapshotStore,
+            ~CellManager,
+            ~MetaState,
+            ~ChangeLogCache,
+            ~SnapshotStore,
             Epoch,
-            ControlInvoker);
+            ~EpochControlInvoker,
+            ~EpochStateInvoker);
         LeaderRecovery->Run()->Subscribe(
             FromMethod(&TThis::OnLeaderRecoveryFinished, TPtr(this))
             ->Via(~EpochControlInvoker));
@@ -1030,17 +1030,7 @@ public:
 
         ControlStatus = EPeerStatus::Elections;
 
-        StopControlEpoch();
-
-        if (LeaderRecovery) {
-            LeaderRecovery->Stop();
-            LeaderRecovery.Reset();
-        }
-
-        if (LeaderCommitter) {
-            LeaderCommitter->Stop();
-            LeaderCommitter.Reset();
-        }
+        StopEpoch();
 
         if (FollowerPinger) {
             FollowerPinger->Stop();
@@ -1054,7 +1044,7 @@ public:
 
         if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
-                &TThis::WaitSnapshotCreation,
+                &TThis::WaitSnapshotBuilt,
                 TPtr(this),
                 SnapshotBuilder));
             SnapshotBuilder.Reset();
@@ -1070,7 +1060,7 @@ public:
         ControlStatus = EPeerStatus::FollowerRecovery;
         LeaderId = leaderId;
 
-        StartControlEpoch(epoch);
+        StartEpoch(epoch);
 
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoStartFollowing,
@@ -1091,22 +1081,11 @@ public:
 
         ControlStatus = EPeerStatus::Elections;
 
-        StopControlEpoch();
-
-        if (FollowerRecovery) {
-            // This may happen if the recovery gets interrupted.
-            FollowerRecovery->Stop();
-            FollowerRecovery.Reset();
-        }
-
-        if (FollowerCommitter) {
-            FollowerCommitter->Stop();
-            FollowerCommitter.Reset();
-        }
+        StopEpoch();
 
         if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
-                &TThis::WaitSnapshotCreation,
+                &TThis::WaitSnapshotBuilt,
                 TPtr(this),
                 SnapshotBuilder));
             SnapshotBuilder.Reset();
@@ -1114,42 +1093,29 @@ public:
     }
     // End of IElectionCallback methods.
 
-    void StartControlEpoch(const TEpoch& epoch)
+    void StartEpoch(const TEpoch& epoch)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YASSERT(!EpochControlInvoker);
-        EpochControlInvoker = New<TCancelableInvoker>(ControlInvoker);
+        YASSERT(!EpochContext);
+        EpochContext = New<TCancelableContext>();
+        EpochControlInvoker = EpochContext->CreateInvoker(~ControlInvoker);
+        EpochStateInvoker = EpochContext->CreateInvoker(~GetStateInvoker());
 
         Epoch = epoch;
     }
 
-    void StopControlEpoch()
+    void StopEpoch()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LeaderId = NElection::InvalidPeerId;
         Epoch = TEpoch();
 
-        YASSERT(EpochControlInvoker);
-        EpochControlInvoker->Cancel();
+        YASSERT(EpochContext);
+        EpochContext->Cancel();
+        EpochContext.Reset();
         EpochControlInvoker.Reset();
-    }
-
-    void StartStateEpoch()
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-        YASSERT(!EpochStateInvoker);
-        EpochStateInvoker = New<TCancelableInvoker>(GetStateInvoker());
-    }
-
-    void StopStateEpoch()
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-        YASSERT(EpochStateInvoker);
-        EpochStateInvoker->Cancel();
         EpochStateInvoker.Reset();
     }
 
@@ -1174,7 +1140,7 @@ public:
         return ((TPeerPriority) version.SegmentId << 32) | version.RecordCount;
     }
 
-    Stroka FormatPriority(TPeerPriority priority)
+    static Stroka FormatPriority(TPeerPriority priority)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1184,7 +1150,7 @@ public:
     }
 
     // Blocks state thread until snapshot creation is finished.
-    void WaitSnapshotCreation(TSnapshotBuilder::TPtr snapshotBuilder)
+    void WaitSnapshotBuilt(TSnapshotBuilder::TPtr snapshotBuilder)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         snapshotBuilder->GetLocalResult()->Get();
@@ -1197,8 +1163,6 @@ public:
         YASSERT(StateStatus == EPeerStatus::Stopped);
         StateStatus = EPeerStatus::LeaderRecovery;
 
-        StartStateEpoch();
-
         StartLeading_.Fire();
     }
 
@@ -1208,8 +1172,6 @@ public:
     
         YASSERT(StateStatus == EPeerStatus::Leading || StateStatus == EPeerStatus::LeaderRecovery);
         StateStatus = EPeerStatus::Stopped;
-
-        StopStateEpoch();
 
         StopLeading_.Fire();
     }
@@ -1221,8 +1183,6 @@ public:
     
         YASSERT(StateStatus == EPeerStatus::Stopped);
         StateStatus = EPeerStatus::FollowerRecovery;
-
-        StartStateEpoch();
 
         StartFollowing_.Fire();
     }
@@ -1244,14 +1204,12 @@ public:
         YASSERT(StateStatus == EPeerStatus::Following || StateStatus == EPeerStatus::FollowerRecovery);
         StateStatus = EPeerStatus::Stopped;
 
-        StopStateEpoch();
-
         StopFollowing_.Fire();
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
-    DECLARE_THREAD_AFFINITY_SLOT(ReadThread);
+    DECLARE_THREAD_AFFINITY_SLOT(IOThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -37,8 +37,8 @@ private:
     TSharedRef ChangeData;
     bool Started;
     bool Retriable;
-    IInvoker::TPtr EpochStateInvoker;
 
+    TCancelableContextPtr EpochContext;
     TDuration BackoffTime;
     typename IParamAction<TResult>::TPtr OnSuccess_;
     IAction::TPtr OnError_;

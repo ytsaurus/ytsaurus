@@ -362,7 +362,9 @@ private:
         // logged change, which is undesirable.
         Bootstrap
             ->GetMetaStateManager()
-            ->GetEpochStateInvoker()->Invoke(FromFunctor([=] ()
+            ->GetEpochContext()
+            ->CreateInvoker(Bootstrap->GetStateInvoker())
+            ->Invoke(FromFunctor([=] ()
                 {
                     if (node->FindChild(address))
                         return;
