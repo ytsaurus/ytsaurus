@@ -21,6 +21,7 @@ function usage() {
     echo "  TEAMCITY_BUILDCONF_NAME"
     echo "  TEAMCITY_PROJECT_NAME"
     echo "  BUILD_NUMBER"
+    echo "  BUILD_VCS_NUMBER"
 }
 
 ################################################################################
@@ -31,6 +32,7 @@ tc "progressMessage 'Setting up...'"
 [[ -z "$TEAMCITY_PROJECT_NAME"   ]] && usage && exit 1
 
 [[ -z "$BUILD_NUMBER" ]] && usage && exit 2
+[[ -z "$BUILD_VCS_NUMBER" ]] && usage && exit 2
 
 [[ -z "$1" || -z "$2" || -z "$3" || -z "$4" ]] && usage && exit 3
 
@@ -80,6 +82,8 @@ tc "progressMessage 'Running CMake...'"
 cmake \
     -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
     -DCMAKE_COLOR_MAKEFILE:BOOL=OFF \
+    -DYT_BUILD_NUMBER=$BUILD_NUMBER \
+    -DYT_BUILD_TAG=$BUILD_VCS_NUMBER \
     $CHECKOUT_DIRECTORY
 
 tc "blockClosed name='CMake'"
