@@ -414,5 +414,5 @@ if (CMAKE_COMPILER_IS_GNUCXX)
 endif()
 
 if (APPLE)
-  set_target_properties( ytext-arcadia-util PROPERTIES COMPILE_DEFINITIONS "-D_REENTRANT -D_XOPEN_SOURCE" )
+  set_target_properties( ytext-arcadia-util PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE" )
 endif()
