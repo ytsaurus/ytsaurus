@@ -438,36 +438,37 @@ public:
         , Offset(0)
         , Line(1)
         , Position(1)
+        , Phase_(EPhase::NotStarted)
     { }
 
-    bool IsAwaiting(bool ignoreAttributes) const
-    {
-        if (Lexer.IsAwaiting())
-            return true;
+//    bool IsAwaiting(bool ignoreAttributes) const
+//    {
+//        if (Lexer.IsAwaiting())
+//            return true;
 
-        if (StateStack.empty())
-            return true;
+//        if (StateStack.empty())
+//            return true;
 
-        if (!ignoreAttributes)
-            return true;
+//        if (!ignoreAttributes)
+//            return true;
 
-        if (StateStack.size() > 1)
-            return true;
+//        if (StateStack.size() > 1)
+//            return true;
 
-        // StateStack.size() == 1
-        switch (StateStack.top()) {
-            case EState::Parsed:
-            case EState::StringEnd:
-            case EState::Int64End:
-            case EState::DoubleEnd:
-            case EState::ListEnd:
-            case EState::MapEnd:
-                return false;
+//        // StateStack.size() == 1
+//        switch (StateStack.top()) {
+//            case EState::Parsed:
+//            case EState::StringEnd:
+//            case EState::Int64End:
+//            case EState::DoubleEnd:
+//            case EState::ListEnd:
+//            case EState::MapEnd:
+//                return false;
 
-            default:
-                return true;
-        }
-    }
+//            default:
+//                return true;
+//        }
+//    }
 
     void Consume(char ch)
     {
@@ -482,7 +483,13 @@ public:
                     ~CurrentExceptionMessage());
             }
 
+            if (Lexer.GetState() != ELexerState::Start) {
+                YASSERT(Phase_ != EPhase::Parsed);
+                Phase_ = EPhase::InProgress;
+            }
+
             if (Lexer.InTerminalState()) {
+                YASSERT(Phase_ != EPhase::Parsed);
                 ConsumeLexeme();
                 Lexer.Reset();
             }
@@ -529,6 +536,8 @@ public:
         YASSERT(CachedStringValue.empty());
         YASSERT(CachedInt64Value == 0);
         YASSERT(CachedDoubleValue == 0.0);
+        YASSERT(Phase_ == EPhase::Parsed);
+        Phase_ = EPhase::NotStarted;
     }
 
 private:
@@ -589,16 +598,19 @@ private:
             case ELexerState::String:
                 CachedStringValue = Lexer.GetStringValue();
                 StateStack.push(EState::StringEnd);
+                CheckPhase();
                 break;
 
             case ELexerState::Int64:
                 CachedInt64Value = Lexer.GetInt64Value();
                 StateStack.push(EState::Int64End);
+                CheckPhase();
                 break;
 
             case ELexerState::Double:
                 CachedDoubleValue = Lexer.GetDoubleValue();
                 StateStack.push(EState::DoubleEnd);
+                CheckPhase();
                 break;
 
             case ELexerState::ListStart:
@@ -631,6 +643,7 @@ private:
             case EState::ListBeforeItem:
                 if (lexerState == ELexerState::ListEnd) {
                     StateStack.top() = EState::ListEnd;
+                    CheckPhase();
                 } else {
                     Consumer->OnListItem();
                     ConsumeAny();
@@ -640,6 +653,7 @@ private:
             case EState::ListAfterItem:
                 if (lexerState == ELexerState::ListEnd) {
                     StateStack.top() = EState::ListEnd;
+                    CheckPhase();
                 } else if (lexerState == ELexerState::ItemSeparator) {
                     StateStack.top() = EState::ListBeforeItem;
                 } else {
@@ -661,6 +675,7 @@ private:
             case EState::MapBeforeKey:
                 if (lexerState == ELexerState::MapEnd) {
                     StateStack.top() = EState::MapEnd;
+                    CheckPhase();
                 } else if (lexerState == ELexerState::String) {
                     Consumer->OnMapItem(Lexer.GetStringValue());
                     StateStack.top() = EState::MapAfterKey;  
@@ -688,6 +703,7 @@ private:
             case EState::MapAfterValue:
                 if (lexerState == ELexerState::MapEnd) {
                     StateStack.top() = EState::MapEnd;
+                    CheckPhase();
                 } else if (lexerState == ELexerState::ItemSeparator) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
@@ -803,6 +819,7 @@ private:
         switch (CurrentState()) {
             case EState::None:
                 StateStack.push(EState::Parsed);
+                Phase_ = EPhase::Parsed;
                 break;
 
             case EState::ListBeforeItem:
@@ -822,6 +839,26 @@ private:
         }
     }
 
+    DEFINE_BYVAL_RO_PROPERTY(EPhase, Phase);
+
+    void CheckPhase()
+    {
+        if (StateStack.size() == 1) {
+            switch (CurrentState()) {
+                case EState::StringEnd:
+                case EState::Int64End:
+                case EState::DoubleEnd:
+                case EState::ListEnd:
+                case EState::MapEnd:
+                    YASSERT(Phase_ == EPhase::InProgress);
+                    Phase_ = EPhase::AwaitingAttributes;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
 
     EState CurrentState() const
     {
@@ -859,9 +896,9 @@ void TYsonParser::Finish()
     Impl->Finish();
 }
 
-bool TYsonParser::IsAwaiting(bool ignoreAttributes) const
+TYsonParser::EPhase TYsonParser::GetPhase() const
 {
-    return Impl->IsAwaiting(ignoreAttributes);
+    return Impl->GetPhase();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -876,6 +913,34 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer)
     parser.Finish();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TYsonFragmentParser::TYsonFragmentParser(IYsonConsumer *consumer, TInputStream *input)
+    : Parser(consumer)
+    , Input(input)
+{ }
+
+bool TYsonFragmentParser::HasNext()
+{
+    char ch;
+    while (Parser.GetPhase() == TYsonParser::EPhase::NotStarted && Input->ReadChar(ch))
+    {
+        Parser.Consume(ch);
+    }
+    return Parser.GetPhase() != TYsonParser::EPhase::NotStarted;
+}
+
+void TYsonFragmentParser::ParseNext()
+{
+    char ch;
+    while ((Parser.GetPhase() == TYsonParser::EPhase::NotStarted ||
+            Parser.GetPhase() == TYsonParser::EPhase::InProgress) &&
+           Input->ReadChar(ch))
+    {
+        Parser.Consume(ch);
+    }
+    Parser.Finish();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

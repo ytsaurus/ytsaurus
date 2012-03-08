@@ -14,14 +14,20 @@ namespace NYTree {
 class TYsonParser
 {
 public:
+    DECLARE_ENUM(EPhase,
+        (NotStarted)
+        (InProgress)
+        (AwaitingAttributes)
+        (Parsed)
+    );
+
     TYsonParser(IYsonConsumer* consumer);
     ~TYsonParser();
 
     void Consume(char ch);
     void Finish();
 
-    //! Returns true iff the parser is awaiting for more chars
-    bool IsAwaiting(bool ignoreAttributes = true) const;
+    EPhase GetPhase() const;
 
 private:
     class TImpl;
@@ -34,13 +40,20 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(roizner): Rename to Reader
 class TYsonFragmentParser
 {
 public:
     TYsonFragmentParser(IYsonConsumer* consumer, TInputStream* input);
 
-    bool HasNext() const;
+    bool HasNext();
     void ParseNext();
+
+private:
+
+
+    TYsonParser Parser;
+    TInputStream* Input;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
