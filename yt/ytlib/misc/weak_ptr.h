@@ -223,7 +223,7 @@ private:
 template <class T>
 TWeakPtr<T> MakeWeak(T* p)
 {
-    return p;
+    return TWeakPtr<T>(p);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

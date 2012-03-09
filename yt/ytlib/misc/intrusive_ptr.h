@@ -181,7 +181,7 @@ private:
 template <class T>
 TIntrusivePtr<T> MakeStrong(T* p)
 {
-    return p;
+    return TIntrusivePtr<T>(p);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
