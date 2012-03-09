@@ -3,7 +3,6 @@
 #include "common.h"
 
 #include <util/stream/str.h>
-#include <util/system/atexit.h>
 
 namespace NYT {
 
@@ -13,7 +12,7 @@ typedef yvector<char> TBlob;
 
 //! A non-owning reference to a block of memory.
 /*!
- *  This is merely a (start, size) pair.
+ *  This is merely a |(start, size)| pair.
  */
 class TRef
 {
