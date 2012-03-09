@@ -176,6 +176,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates a strong pointer wrapper for a given raw pointer.
+//! Compared to |TIntrusivePtr<T>::ctor|, type inference enables omitting |T|.
+template <class T>
+TIntrusivePtr<T> MakeStrong(T* p)
+{
+    return p;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 bool operator<(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<T>& rhs)
 {

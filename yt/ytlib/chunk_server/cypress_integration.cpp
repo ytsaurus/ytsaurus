@@ -342,10 +342,9 @@ public:
     THolderMapBehavior(TBootstrap* bootstrap, const TNodeId& nodeId)
         : TBase(bootstrap, nodeId)
     {
-        // TODO(babenko): use AsWeak
         bootstrap->GetChunkManager()->SubscribeHolderRegistered(Bind(
             &TThis::OnRegistered,
-            TWeakPtr<THolderMapBehavior>(this)));
+            MakeWeak(this)));
     }
 
 private:
@@ -354,8 +353,7 @@ private:
         Stroka address = holder.GetAddress();
         auto node = GetProxy();
 
-        // TODO(babenko): use AsStrong
-        auto cypressManager = TCypressManager::TPtr(Bootstrap->GetCypressManager());
+        auto cypressManager = MakeStrong(Bootstrap->GetCypressManager());
 
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
         // Doing otherwise will turn holder registration and Cypress update into a single

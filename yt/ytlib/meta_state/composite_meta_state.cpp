@@ -25,16 +25,15 @@ TMetaStatePart::TMetaStatePart(
     YASSERT(metaStateManager);
     YASSERT(metaState);
 
-    // TODO(babenko): use AsWeak
     metaStateManager->SubscribeStartLeading(Bind(
         &TThis::OnStartLeading,
-        TPtr(this)));
+        MakeWeak(this)));
     metaStateManager->SubscribeLeaderRecoveryComplete(Bind(
         &TThis::OnLeaderRecoveryComplete,
-        TPtr(this)));
+        MakeWeak(this)));
     metaStateManager->SubscribeStopLeading(Bind(
         &TThis::OnStopLeading,
-        TPtr(this)));
+        MakeWeak(this)));
 }
 
 void TMetaStatePart::Clear()

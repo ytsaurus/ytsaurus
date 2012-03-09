@@ -218,6 +218,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates a weak pointer wrapper for a given raw pointer.
+//! Compared to |TWeakPtr<T>::ctor|, type inference enables omitting |T|.
+template <class T>
+TWeakPtr<T> MakeWeak(T* p)
+{
+    return p;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 bool operator<(const TWeakPtr<T>& lhs, const TWeakPtr<T>& rhs)
 {

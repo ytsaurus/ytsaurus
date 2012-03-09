@@ -41,19 +41,18 @@ TMasterConnector::TMasterConnector(TBootstrap* bootstrap)
     auto channel = CreateLeaderChannel(~config->Masters);
     Proxy.Reset(new TProxy(~channel));
 
-    // TODO(babenko): use AsWeak
     bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
-        TWeakPtr<TMasterConnector>(this)));
+        MakeWeak(this)));
     bootstrap->GetChunkStore()->SubscribeChunkRemoved(Bind(
         &TMasterConnector::OnChunkRemoved,
-        TWeakPtr<TMasterConnector>(this)));
+        MakeWeak(this)));
     bootstrap->GetChunkCache()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
-        TWeakPtr<TMasterConnector>(this)));
+        MakeWeak(this)));
     bootstrap->GetChunkCache()->SubscribeChunkRemoved(Bind(
         &TMasterConnector::OnChunkRemoved,
-        TWeakPtr<TMasterConnector>(this)));
+        MakeWeak(this)));
 
     LOG_INFO("Chunk holder address is %s, master addresses are [%s]",
         ~config->PeerAddress,

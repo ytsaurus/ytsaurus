@@ -15,8 +15,7 @@ using namespace NYTree;
 TYPathServiceProducer CreateMonitoringProducer(
     TMonitoringManager* monitoringManager)
 {
-	// TODO(babenko): use AsStrong
-    TMonitoringManager::TPtr monitoringManager_ = monitoringManager;
+    auto monitoringManager_ = MakeStrong(monitoringManager);
     return FromFunctor([=] () -> IYPathServicePtr
         {
             return ~monitoringManager_->GetRoot();

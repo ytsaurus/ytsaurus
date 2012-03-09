@@ -274,8 +274,7 @@ private:
 TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 {
 	auto stateInvoker = MetaStateManager->GetStateInvoker();
-	// TODO(babenko): use AsStrong
-	TCypressManager::TPtr this_ = this;
+	auto this_ = MakeStrong(this);
 	return FromFunctor([=] () -> IYPathServicePtr
 		{
 			// Make a coarse check at this (wrong) thread first.

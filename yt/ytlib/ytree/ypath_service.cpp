@@ -44,8 +44,7 @@ private:
 	{
 		Invoker->Invoke(FromMethod(
 			&TViaYPathService::ExecuteRequest,
-			// TODO(babenko): use AsStrong
-			TIntrusivePtr<TViaYPathService>(this),
+			MakeStrong(this),
 			context));
 	}
 
