@@ -3,6 +3,7 @@
 #include "holder_statistics.h"
 
 #include <ytlib/misc/string.h>
+#include <ytlib/actions/action_util.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/transaction_server/transaction_manager.h>
@@ -32,7 +33,7 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
     YASSERT(bootstrap);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat), TSyncInvoker::Get());
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunks));
 }
 
@@ -119,69 +120,86 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
 {
-    auto holderId = request->holder_id();
+    // TODO(babenko): moving this inside requestHandler causes 
+    // weird compilation errors.
+    auto successHandler = FromFunctor([=] (TVoid) {
+        context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
+            static_cast<int>(response->jobs_to_start_size()),
+            static_cast<int>(response->jobs_to_stop_size()));
+        context->Reply();
+    });
 
-    context->SetRequestInfo("HolderId: %d", holderId);
+    // Construct the request handler.
+    auto requestHandler = FromFunctor([=] () {
+        auto holderId = request->holder_id();
 
-    ValidateHolderId(holderId);
+        context->SetRequestInfo("HolderId: %d, Incremental: %s",
+            holderId,
+            FormatBool(request->incremental()));
 
-    auto chunkManager = Bootstrap->GetChunkManager();
-    const auto& holder = chunkManager->GetHolder(holderId);
+        ValidateHolderId(holderId);
 
-    TMsgHeartbeatRequest requestMessage;
-    requestMessage.set_incremental(request->incremental());
-    requestMessage.set_holder_id(holderId);
-    *requestMessage.mutable_statistics() = request->statistics();
-    requestMessage.mutable_added_chunks()->MergeFrom(request->added_chunks());
-    requestMessage.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
+        auto chunkManager = Bootstrap->GetChunkManager();
+        const auto& holder = chunkManager->GetHolder(holderId);
 
-    chunkManager
-        ->InitiateHeartbeatRequest(requestMessage)
-        ->Commit();
+        TMsgHeartbeatRequest requestMessage;
+        requestMessage.set_incremental(request->incremental());
+        requestMessage.set_holder_id(holderId);
+        *requestMessage.mutable_statistics() = request->statistics();
+        requestMessage.mutable_added_chunks()->MergeFrom(request->added_chunks());
+        requestMessage.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
 
-    yvector<TReqHolderHeartbeat::TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
+        chunkManager
+            ->InitiateHeartbeatRequest(requestMessage)
+            ->Commit();
+
+        yvector<TReqHolderHeartbeat::TJobInfo> runningJobs(
+            request->jobs().begin(),
+            request->jobs().end());
     
-    yvector<TRspHolderHeartbeat::TJobStartInfo> jobsToStart;
-    yvector<TJobId> jobsToStop;
-    chunkManager->RunJobControl(
-        holder,
-        runningJobs,
-        &jobsToStart,
-        &jobsToStop);
+        yvector<TRspHolderHeartbeat::TJobStartInfo> jobsToStart;
+        yvector<TJobId> jobsToStop;
+        chunkManager->RunJobControl(
+            holder,
+            runningJobs,
+            &jobsToStart,
+            &jobsToStop);
 
-    TMsgHeartbeatResponse responseMessage;
-    responseMessage.set_holder_id(holderId);
+        TMsgHeartbeatResponse responseMessage;
+        responseMessage.set_holder_id(holderId);
 
-    FOREACH (const auto& jobInfo, jobsToStart) {
-        *response->add_jobs_to_start() = jobInfo;
-        *responseMessage.add_started_jobs() = jobInfo;
-    }
-
-    yhash_set<TJobId> runningJobIds;
-    FOREACH (const auto& jobInfo, runningJobs) {
-        runningJobIds.insert(TJobId::FromProto(jobInfo.job_id()));
-    }
-
-    FOREACH (const auto& jobId, jobsToStop) {
-        auto protoJobId = jobId.ToProto();
-        if (runningJobIds.find(jobId) != runningJobIds.end()) {
-            response->add_jobs_to_stop(protoJobId);
+        FOREACH (const auto& jobInfo, jobsToStart) {
+            *response->add_jobs_to_start() = jobInfo;
+            *responseMessage.add_started_jobs() = jobInfo;
         }
-        responseMessage.add_stopped_jobs(protoJobId);
-    }
 
-    chunkManager
-        ->InitiateHeartbeatResponse(responseMessage)
-        ->OnSuccess(~FromFunctor([=] (TVoid)
-            {
-                context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
-                    static_cast<int>(response->jobs_to_start_size()),
-                    static_cast<int>(response->jobs_to_stop_size()));
+        yhash_set<TJobId> runningJobIds;
+        FOREACH (const auto& jobInfo, runningJobs) {
+            runningJobIds.insert(TJobId::FromProto(jobInfo.job_id()));
+        }
 
-                context->Reply();
-            }))
-        ->OnError(~CreateErrorHandler(~context))
-        ->Commit();
+        FOREACH (const auto& jobId, jobsToStop) {
+            auto protoJobId = jobId.ToProto();
+            if (runningJobIds.find(jobId) != runningJobIds.end()) {
+                response->add_jobs_to_stop(protoJobId);
+            }
+            responseMessage.add_stopped_jobs(protoJobId);
+        }
+
+        chunkManager
+            ->InitiateHeartbeatResponse(responseMessage)
+            ->OnSuccess(successHandler)
+            ->OnError(CreateErrorHandler(~context))
+            ->Commit();
+    });
+
+    // Route to the appropriate queue.
+    Bootstrap
+        ->GetStateInvoker(
+            request->incremental()
+            ? EStateThreadQueue::Default
+            : EStateThreadQueue::ChunkRefresh)
+        ->Invoke(requestHandler);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
