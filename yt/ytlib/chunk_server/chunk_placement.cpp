@@ -193,8 +193,8 @@ THolderId TChunkPlacement::GetBalancingTarget(const TChunk& chunk, double maxFil
 
 bool TChunkPlacement::IsValidUploadTarget(const THolder& targetHolder) const
 {
-    if (targetHolder.GetState() != EHolderState::FullHeartbeatReported) {
-        // Do not upload anything to inactive holders.
+    if (targetHolder.GetState() != EHolderState::Online) {
+        // Do not upload anything to holders before first heartbeat.
         return false;
     }
 

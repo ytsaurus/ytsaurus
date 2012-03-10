@@ -59,7 +59,7 @@ IFunc<TResult>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
 {
     return FromMethod(
         &TAsyncFuncTraits<TResult>::OuterThunk,
-        TPtr(this),
+        MakeStrong(this),
         invoker);
 }
 
@@ -70,7 +70,7 @@ IAction::TPtr IParamAction<TParam>::Bind(TParam param)
 {
     return FromMethod(
         &IParamAction<TParam>::Do,
-        TPtr(this),
+        MakeStrong(this),
         param);
 }
 
@@ -89,7 +89,7 @@ typename IParamAction<TParam>::TPtr IParamAction<TParam>::Via(
 {
     return FromMethod(
         &ParamActionViaThunk<TParam>,
-        TPtr(this),
+        MakeStrong(this),
         invoker);
 }
 
@@ -158,7 +158,7 @@ IParamFunc<TParam, TResult>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
 {
     return FromMethod(
         &TAsyncParamFuncTraits<TParam, TResult>::OuterThunk,
-        TPtr(this),
+        MakeStrong(this),
         invoker);
 }
 
@@ -167,7 +167,7 @@ IParamFunc<TParam, TResult>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
 template <class TParam>
 typename IParamAction<TParam>::TPtr IAction::ToParamAction()
 {
-    return FromMethod(&ParamActionViaThunk<TParam>, TPtr(this));
+    return FromMethod(&ParamActionViaThunk<TParam>, MakeStrong(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,8 +15,6 @@ class TReaderCache
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TReaderCache> TPtr;
-
     //! Constructs a new instance.
     TReaderCache(TChunkHolderConfig* config);
 

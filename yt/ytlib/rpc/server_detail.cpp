@@ -156,7 +156,7 @@ IAction::TPtr TServiceContextBase::Wrap(IAction* action)
 {
     return FromMethod(
         &TServiceContextBase::WrapThunk,
-        TPtr(this),
+        MakeStrong(this),
         action);
 }
 

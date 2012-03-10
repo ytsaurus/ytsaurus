@@ -18,7 +18,6 @@ class TChunkStore
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChunkStore> TPtr;
     typedef yvector<TStoredChunkPtr> TChunks;
     typedef yvector<TLocationPtr> TLocations;
 

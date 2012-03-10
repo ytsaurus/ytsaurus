@@ -25,8 +25,7 @@ TPeerBlockUpdater::TPeerBlockUpdater(
     , BlockStore(blockStore)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        // TODO(babenko): use AsStrong
-        FromMethod(&TPeerBlockUpdater::Update, TIntrusivePtr<TPeerBlockUpdater>(this))
+        FromMethod(&TPeerBlockUpdater::Update, MakeStrong(this))
         ->Via(invoker),
         Config->PeerUpdatePeriod);
 }

@@ -193,7 +193,7 @@ protected:
         LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
         GetSeedsResult = reader->AsyncGetSeeds();
-        GetSeedsResult->Subscribe(FromMethod(&TSessionBase::OnGetSeedsReply, TPtr(this)));
+        GetSeedsResult->Subscribe(FromMethod(&TSessionBase::OnGetSeedsReply, MakeStrong(this)));
     }
 
     void OnGetSeedsReply(TRemoteReader::TGetSeedsResult result)
@@ -438,7 +438,7 @@ private:
                     OnRetryFailed(TError("Unable to fetch all chunk blocks"));
                 } else {
                     TDelayedInvoker::Submit(
-                        ~FromMethod(&TReadSession::NewPass, TPtr(this)),
+                        ~FromMethod(&TReadSession::NewPass, MakeStrong(this)),
                         reader->Config->PassBackoffTime);
                 }
                 return;
@@ -467,7 +467,7 @@ private:
 
                 request->Invoke()->Subscribe(FromMethod(
                     &TReadSession::OnGotBlocks,
-                    TPtr(this),
+                    MakeStrong(this),
                     address,
                     request));
                 return;
@@ -624,7 +624,7 @@ private:
 
         auto request = proxy.GetChunkInfo();
         request->set_chunk_id(reader->ChunkId.ToProto());
-        request->Invoke()->Subscribe(FromMethod(&TGetInfoSession::OnGotChunkInfo, TPtr(this)));
+        request->Invoke()->Subscribe(FromMethod(&TGetInfoSession::OnGotChunkInfo, MakeStrong(this)));
     }
 
     void OnGotChunkInfo(TChunkHolderServiceProxy::TRspGetChunkInfo::TPtr response)

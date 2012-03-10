@@ -40,9 +40,9 @@ void TMetaChange<TResult>::DoCommit()
     MetaStateManager
         ->CommitChange(
             ChangeData,
-            ~FromMethod(&TThis::ChangeFuncThunk, TPtr(this)))
+            ~FromMethod(&TThis::ChangeFuncThunk, MakeStrong(this)))
         ->Subscribe(
-            FromMethod(&TThis::OnCommitted, TPtr(this)));
+            FromMethod(&TThis::OnCommitted, MakeStrong(this)));
 }
 
 template <class TResult>
@@ -90,7 +90,7 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
         }
         if (Retriable) {
             TDelayedInvoker::Submit(
-                ~FromMethod(&TThis::DoCommit, TPtr(this))
+                ~FromMethod(&TThis::DoCommit, MakeStrong(this))
                 ->Via(MetaStateManager->GetStateInvoker(), EpochContext),
                 BackoffTime);
         }

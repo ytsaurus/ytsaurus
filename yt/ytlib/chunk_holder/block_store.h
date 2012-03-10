@@ -15,8 +15,6 @@ class TCachedBlock
     : public TCacheValueBase<TBlockId, TCachedBlock>
 {
 public:
-    typedef TIntrusivePtr<TCachedBlock> TPtr;
-
     //! Constructs a new block from id and data.
     TCachedBlock(
         const TBlockId& blockId,
@@ -31,16 +29,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReaderCache;
-class TChunkRegistry;
-
 //! Manages cached blocks.
 class TBlockStore
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TBlockStore> TPtr;
-
     //! Constructs a store.
     TBlockStore(
         TChunkHolderConfig* config,

@@ -40,7 +40,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
 			address,
 			FromMethod(
 				&TLeaderLookup::OnResponse,
-				TPtr(this),
+				MakeStrong(this),
 				awaiter,
 				asyncResult,
 				address));
@@ -48,7 +48,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
     
     awaiter->Complete(FromMethod(
         &TLeaderLookup::OnComplete,
-        TPtr(this),
+        MakeStrong(this),
         asyncResult));
 
     return asyncResult;

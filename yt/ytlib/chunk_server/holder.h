@@ -13,10 +13,12 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EHolderState,
-    // The holder had just registered but have not reported any heartbeats yet.
+    // Not registered.
+    (Offline)
+    // Registered but did not report the full heartbeat yet.
     (Registered)
-    // The holder has reported the full heartbeat.
-    (FullHeartbeatReported)
+    // Registered and reported the full heartbeat.
+    (Online)
 );
 
 class THolder

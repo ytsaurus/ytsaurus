@@ -105,8 +105,7 @@ TRedirectorServiceBase::TRedirectorServiceBase(
 
 void TRedirectorServiceBase::OnBeginRequest(IServiceContext* context)
 {
-    // TODO(babenko): use AsStrong
-    auto context_= IServiceContext::TPtr(context);
+    auto context_= MakeStrong(context);
     HandleRedirect(context)->Subscribe(FromFunctor([=] (TRedirectResult result)
         {
             if (!result.IsOK()) {

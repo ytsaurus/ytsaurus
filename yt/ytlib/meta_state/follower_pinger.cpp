@@ -53,13 +53,13 @@ void TFollowerPinger::Start()
         case EFollowerPingerMode::Recovery:
             ReachableVersion = MetaState->GetReachableVersionAsync();
             PeriodicInvoker = new TPeriodicInvoker(
-                FromMethod(&TFollowerPinger::SendPing, TPtr(this))->Via(EpochControlInvoker),
+                FromMethod(&TFollowerPinger::SendPing, MakeStrong(this))->Via(EpochControlInvoker),
                 Config->PingInterval);
             break;
 
         case EFollowerPingerMode::Leading:
             PeriodicInvoker = new TPeriodicInvoker(
-                FromMethod(&TFollowerPinger::SendPing, TPtr(this))->Via(EpochStateInvoker),
+                FromMethod(&TFollowerPinger::SendPing, MakeStrong(this))->Via(EpochStateInvoker),
                 Config->PingInterval);
             break;
 
@@ -97,7 +97,7 @@ void TFollowerPinger::SendPing()
         i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
         request->set_max_snapshot_id(maxSnapshotId);
         request->Invoke()->Subscribe(
-            FromMethod(&TFollowerPinger::OnPingReply, TPtr(this), peerId)
+            FromMethod(&TFollowerPinger::OnPingReply, MakeStrong(this), peerId)
             ->Via(EpochControlInvoker));
         
         LOG_DEBUG("Sent ping to follower %d (Version: %s, Epoch: %s, MaxSnapshotId: %d)",

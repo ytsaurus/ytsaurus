@@ -9,6 +9,7 @@
 #include "block_store.h"
 #include "peer_block_table.h"
 #include "session_manager.h"
+#include "chunk_holder_service.pb.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
@@ -69,7 +70,7 @@ void TChunkHolderService::ValidateNoChunk(const TChunkId& chunkId)
     }
 }
 
-TSession::TPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
+TSessionPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
 {
     auto session = Bootstrap->GetSessionManager()->FindSession(chunkId);
     if (!session) {

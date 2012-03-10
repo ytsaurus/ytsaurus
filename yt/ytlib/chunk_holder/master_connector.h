@@ -47,8 +47,6 @@ class TMasterConnector
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TMasterConnector> TPtr;
-
     //! Creates an instance.
     TMasterConnector(TMasterConnectorConfig* config, TBootstrap* bootstrap);
 
@@ -73,9 +71,12 @@ private:
     TBootstrap* Bootstrap;
 
     DECLARE_ENUM(EState,
-        (NotRegistered)
+        // Not registered.
+        (Offline)
+        // Registered but did not report the full heartbeat yet.
         (Registered)
-        (FullHeartbeatReported)
+        // Registered and reported the full heartbeat.
+        (Online)
     );
 
     //! The current connection state.

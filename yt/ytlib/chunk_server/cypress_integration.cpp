@@ -342,10 +342,9 @@ public:
     THolderMapBehavior(TBootstrap* bootstrap, const TNodeId& nodeId)
         : TBase(bootstrap, nodeId)
     {
-        // TODO(babenko): use AsWeak
         bootstrap->GetChunkManager()->SubscribeHolderRegistered(Bind(
             &TThis::OnRegistered,
-            TWeakPtr<THolderMapBehavior>(this)));
+            MakeWeak(this)));
     }
 
 private:

@@ -269,7 +269,7 @@ public:
         auto result =
             LeaderCommitter
             ->Commit(actualChangeAction, changeData)
-            ->Apply(FromMethod(&TThis::OnChangeCommit, TPtr(this)));
+            ->Apply(FromMethod(&TThis::OnChangeCommit, MakeStrong(this)));
 
         InCommit = false;
 
@@ -510,7 +510,7 @@ public:
 
                 FollowerCommitter
                     ->Commit(version, request->Attachments())
-                    ->Subscribe(FromMethod(&TThis::OnFollowerCommit, TPtr(this), context));
+                    ->Subscribe(FromMethod(&TThis::OnFollowerCommit, MakeStrong(this), context));
                 break;
             }
 
@@ -601,7 +601,7 @@ public:
                         maxSnapshotId);
 
                     FollowerRecovery->Run()->Subscribe(
-                        FromMethod(&TThis::OnFollowerRecoveryFinished, TPtr(this))
+                        FromMethod(&TThis::OnFollowerRecoveryFinished, MakeStrong(this))
                         ->Via(~EpochControlInvoker));
                 }
                 break;
@@ -655,14 +655,14 @@ public:
                         ->Do()
                         ->Subscribe(FromMethod(
                             &TThis::OnCreateLocalSnapshot,
-                            TPtr(this),
+                            MakeStrong(this),
                             context));
                 } else {
                     LOG_DEBUG("AdvanceSegment: advancing segment");
 
                     GetStateInvoker()->Invoke(context->Wrap(~FromMethod(
                         &TThis::DoAdvanceSegment,
-                        TPtr(this),
+                        MakeStrong(this),
                         version)));
                 }
                 break;
@@ -717,7 +717,7 @@ public:
 
         EpochStateInvoker->Invoke(FromMethod(
             &TThis::DoLeaderRecoveryComplete,
-            TPtr(this),
+            MakeStrong(this),
             Epoch));
 
         YASSERT(!LeaderCommitter);
@@ -730,8 +730,7 @@ public:
             Epoch,
             ~EpochControlInvoker,
             ~EpochStateInvoker);
-        // TODO(babenko): use AsWeak
-        LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnApplyChange, TPtr(this)));
+        LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnApplyChange, MakeWeak(this)));
 
         YASSERT(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(
@@ -781,7 +780,7 @@ public:
 
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoFollowerRecoveryComplete,
-            TPtr(this)));
+            MakeStrong(this)));
 
         YASSERT(!FollowerCommitter);
         FollowerCommitter = New<TFollowerCommitter>(
@@ -831,7 +830,7 @@ public:
                 request->set_create_snapshot(false);
                 request->Invoke()->Subscribe(FromMethod(
                     &TThis::OnRemoteAdvanceSegment,
-                    TPtr(this),
+                    MakeStrong(this),
                     followerId,
                     version));
             }
@@ -982,7 +981,7 @@ public:
 
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoStartLeading,
-            TPtr(this)));
+            MakeStrong(this)));
 
         YASSERT(!FollowerTracker);
         FollowerTracker = New<TFollowerTracker>(
@@ -1014,7 +1013,7 @@ public:
             ~EpochControlInvoker,
             ~EpochStateInvoker);
         LeaderRecovery->Run()->Subscribe(
-            FromMethod(&TThis::OnLeaderRecoveryFinished, TPtr(this))
+            FromMethod(&TThis::OnLeaderRecoveryFinished, MakeStrong(this))
             ->Via(~EpochControlInvoker));
     }
 
@@ -1026,7 +1025,7 @@ public:
 
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoStopLeading,
-            TPtr(this)));
+            MakeStrong(this)));
 
         ControlStatus = EPeerStatus::Elections;
 
@@ -1045,7 +1044,7 @@ public:
         if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TThis::WaitSnapshotBuilt,
-                TPtr(this),
+                MakeStrong(this),
                 SnapshotBuilder));
             SnapshotBuilder.Reset();
         }
@@ -1064,7 +1063,7 @@ public:
 
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoStartFollowing,
-            TPtr(this)));
+            MakeStrong(this)));
 
         YASSERT(!FollowerRecovery);
     }
@@ -1077,7 +1076,7 @@ public:
 
         GetStateInvoker()->Invoke(FromMethod(
             &TThis::DoStopFollowing,
-            TPtr(this)));
+            MakeStrong(this)));
 
         ControlStatus = EPeerStatus::Elections;
 
@@ -1090,7 +1089,7 @@ public:
         if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TThis::WaitSnapshotBuilt,
-                TPtr(this),
+                MakeStrong(this),
                 SnapshotBuilder));
             SnapshotBuilder.Reset();
         }

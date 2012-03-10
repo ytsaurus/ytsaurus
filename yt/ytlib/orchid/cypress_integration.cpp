@@ -81,7 +81,7 @@ public:
         outerRequest->Invoke()->Subscribe(
             ~FromMethod(
                 &TOrchidYPathService::OnResponse,
-                TPtr(this),
+                MakeStrong(this),
                 IServiceContext::TPtr(context),
                 manifest,
                 path,

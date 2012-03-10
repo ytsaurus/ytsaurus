@@ -338,8 +338,7 @@ ExecuteVerb(
 
 void ExecuteVerb(IYPathService* service, IServiceContext* context)
 {
-	// TOOD(babenko): use AsStrong
-	auto context_ = IServiceContext::TPtr(context);
+	auto context_ = MakeStrong(context);
 	auto requestMessage = context->GetRequestMessage();
 	ExecuteVerb(service, ~requestMessage)
 	->Subscribe(FromFunctor([=] (NBus::IMessage::TPtr responseMessage)

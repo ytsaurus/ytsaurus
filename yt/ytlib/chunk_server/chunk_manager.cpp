@@ -126,17 +126,17 @@ public:
         auto metaState = bootstrap->GetMetaState();
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
-            FromMethod(&TChunkManager::TImpl::LoadKeys, TPtr(this)));
+            FromMethod(&TChunkManager::TImpl::LoadKeys, MakeStrong(this)));
         metaState->RegisterLoader(
             "ChunkManager.Values.1",
-            FromMethod(&TChunkManager::TImpl::LoadValues, TPtr(this), context));
+            FromMethod(&TChunkManager::TImpl::LoadValues, MakeStrong(this), context));
         metaState->RegisterSaver(
             "ChunkManager.Keys.1",
-            FromMethod(&TChunkManager::TImpl::SaveKeys, TPtr(this)),
+            FromMethod(&TChunkManager::TImpl::SaveKeys, MakeStrong(this)),
             ESavePhase::Keys);
         metaState->RegisterSaver(
             "ChunkManager.Values.1",
-            FromMethod(&TChunkManager::TImpl::SaveValues, TPtr(this)),
+            FromMethod(&TChunkManager::TImpl::SaveValues, MakeStrong(this)),
             ESavePhase::Values);
 
         metaState->RegisterPart(this);
@@ -591,7 +591,7 @@ private:
                 static_cast<int>(message.chunks_size()));
 
             YASSERT(holder.GetState() == EHolderState::Registered);
-            holder.SetState(EHolderState::FullHeartbeatReported);
+            holder.SetState(EHolderState::Online);
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
@@ -634,7 +634,7 @@ private:
                 static_cast<int>(message.added_chunks_size()),
                 static_cast<int>(message.removed_chunks_size()));
 
-            YASSERT(holder.GetState() == EHolderState::FullHeartbeatReported);
+            YASSERT(holder.GetState() == EHolderState::Online);
             holder.Statistics() = statistics;
 
             if (IsLeader()) {

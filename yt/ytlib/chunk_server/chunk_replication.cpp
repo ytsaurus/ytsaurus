@@ -596,7 +596,7 @@ void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
 void TChunkReplication::ScheduleNextRefresh()
 {
     TDelayedInvoker::Submit(
-        ~FromMethod(&TChunkReplication::OnRefresh, TPtr(this))
+        ~FromMethod(&TChunkReplication::OnRefresh, MakeStrong(this))
         ->Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             Bootstrap->GetMetaStateManager()->GetEpochContext()),

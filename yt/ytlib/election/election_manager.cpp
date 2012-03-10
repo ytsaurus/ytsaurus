@@ -71,7 +71,7 @@ private:
         request->set_epoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
             request->Invoke(),
-            FromMethod(&TFollowerPinger::OnResponse, TPtr(this), id)
+            FromMethod(&TFollowerPinger::OnResponse, MakeStrong(this), id)
             ->Via(EpochInvoker));
     }
 
@@ -80,7 +80,7 @@ private:
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         TDelayedInvoker::Submit(
-            ~FromMethod(&TFollowerPinger::SendPing, TPtr(this), id)
+            ~FromMethod(&TFollowerPinger::SendPing, MakeStrong(this), id)
             ->Via(EpochInvoker),
             ElectionManager->Config->FollowerPingInterval);
     }
@@ -206,10 +206,10 @@ public:
             auto request = proxy->GetStatus();
             Awaiter->Await(
                 request->Invoke(),
-                FromMethod(&TThis::OnResponse, TPtr(this), id));
+                FromMethod(&TThis::OnResponse, MakeStrong(this), id));
         }
 
-        Awaiter->Complete(FromMethod(&TThis::OnComplete, TPtr(this)));
+        Awaiter->Complete(FromMethod(&TThis::OnComplete, MakeStrong(this)));
     }
 
 private:

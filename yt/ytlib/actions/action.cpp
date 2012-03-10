@@ -25,8 +25,7 @@ IAction::TPtr IAction::Via(
     YASSERT(invoker);
     YASSERT(context);
 
-    // TODO(babenko): use AsStrong
-    auto this_ = IAction::TPtr(this);
+    auto this_ = MakeStrong(this);
     auto guardedAction = FromFunctor([=] ()
         {
             if (context->IsCanceled())

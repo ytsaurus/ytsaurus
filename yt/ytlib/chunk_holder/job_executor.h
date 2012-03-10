@@ -21,8 +21,6 @@ class TJob
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TJob> TPtr;
-
     TJob(
         TJobExecutor* owner,
         IInvoker* serviceInvoker,

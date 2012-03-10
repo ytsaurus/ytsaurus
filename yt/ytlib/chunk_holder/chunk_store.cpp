@@ -94,7 +94,7 @@ void TChunkStore::RemoveChunk(TStoredChunk* chunk)
     ChunkRemoved_.Fire(chunk);
 }
 
-TLocation::TPtr TChunkStore::GetNewChunkLocation()
+TLocationPtr TChunkStore::GetNewChunkLocation()
 {
     YASSERT(!Locations_.empty());
 

@@ -15,10 +15,7 @@ TTransactionListener::TTransactionListener()
 void TTransactionListener::ListenTransaction(ITransaction* transaction)
 {
     YASSERT(transaction);
-    transaction->SubscribeAborted(Bind(
-        &TTransactionListener::OnAborted,
-        // TODO(babenko): use AsWeak
-        TWeakPtr<TTransactionListener>(this)));
+    transaction->SubscribeAborted(Bind(&TTransactionListener::OnAborted, MakeWeak(this)));
 }
 
 void TTransactionListener::OnAborted()

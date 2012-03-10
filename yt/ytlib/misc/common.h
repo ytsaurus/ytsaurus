@@ -56,8 +56,8 @@ using std::string; // hack for guid.h to work
 #include "assert.h"
 #include "rvalue.h"
 #include "intrusive_ptr.h"
-#include "ref_counted.h"
 #include "weak_ptr.h"
+#include "ref_counted.h"
 #include "new.h"
 
 #include "arcadia_helper.h"

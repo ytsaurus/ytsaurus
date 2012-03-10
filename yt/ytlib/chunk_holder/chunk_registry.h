@@ -16,8 +16,6 @@ class TChunkRegistry
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChunkRegistry> TPtr;
-
     //! Initializes a new instance.
     TChunkRegistry(TBootstrap* bootstrap);
 

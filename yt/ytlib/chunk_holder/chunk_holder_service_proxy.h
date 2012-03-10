@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "chunk_holder_service.pb.h"
 
 #include <ytlib/rpc/service.h>
@@ -14,8 +15,6 @@ class TChunkHolderServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TChunkHolderServiceProxy> TPtr;
-
     static Stroka GetServiceName()
     {
         return "ChunkHolder";

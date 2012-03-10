@@ -38,7 +38,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 TMasterConnector::TMasterConnector(TMasterConnectorConfig* config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
-    , State(EState::NotRegistered)
+    , State(EState::Offline)
     , HolderId(InvalidHolderId)
 {
     YASSERT(config);
@@ -50,19 +50,18 @@ void TMasterConnector::Start()
     LeaderChannel = CreateLeaderChannel(~Config->Masters);
     Proxy.Reset(new TProxy(~LeaderChannel));
 
-    // TODO(babenko): use AsWeak
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
-        TWeakPtr<TMasterConnector>(this)));
+        MakeWeak(this)));
     Bootstrap->GetChunkStore()->SubscribeChunkRemoved(Bind(
         &TMasterConnector::OnChunkRemoved,
-        TWeakPtr<TMasterConnector>(this)));
+        MakeWeak(this)));
     Bootstrap->GetChunkCache()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
-        TWeakPtr<TMasterConnector>(this)));
+        MakeWeak(this)));
     Bootstrap->GetChunkCache()->SubscribeChunkRemoved(Bind(
         &TMasterConnector::OnChunkRemoved,
-        TWeakPtr<TMasterConnector>(this)));
+        MakeWeak(this)));
 
     LOG_INFO("Chunk holder address is %s, master addresses are [%s]",
         ~Config->PeerAddress,
@@ -79,7 +78,7 @@ IChannel::TPtr TMasterConnector::GetLeaderChannel() const
 void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
-        ~FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))
+        ~FromMethod(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()),
         Config->HeartbeatPeriod);
 }
@@ -87,13 +86,13 @@ void TMasterConnector::ScheduleHeartbeat()
 void TMasterConnector::OnHeartbeat()
 {
     switch (State) {
-        case EState::NotRegistered:
+        case EState::Offline:
             SendRegister();
             break;
         case EState::Registered:
             SendFullHeartbeat();
             break;
-        case EState::FullHeartbeatReported:
+        case EState::Online:
             SendIncrementalHeartbeat();
             break;
         default:
@@ -108,7 +107,7 @@ void TMasterConnector::SendRegister()
     request->set_address(Config->PeerAddress);
     request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnRegisterResponse, TPtr(this))
+        FromMethod(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Register request sent (%s)",
@@ -174,7 +173,7 @@ void TMasterConnector::SendFullHeartbeat()
     }
 
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnFullHeartbeatResponse, TPtr(this))
+        FromMethod(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Full heartbeat sent (%s, Chunks: %d)",
@@ -208,7 +207,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
     }
 
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnIncrementalHeartbeatResponse, TPtr(this))
+        FromMethod(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Incremental heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
@@ -246,7 +245,7 @@ void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeat::TPtr r
 
     LOG_INFO("Successfully reported full heartbeat to master");
     
-    State = EState::FullHeartbeatReported;
+    State = EState::Online;
 }
 
 void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeat::TPtr response)
@@ -327,7 +326,7 @@ void TMasterConnector::OnHeartbeatError(const TError& error)
 void TMasterConnector::Disconnect()
 {
     HolderId = InvalidHolderId;
-    State = EState::NotRegistered;
+    State = EState::Offline;
     ReportedAdded.clear();
     ReportedRemoved.clear();
     AddedSinceLastSuccess.clear();
@@ -341,7 +340,7 @@ void TMasterConnector::OnChunkAdded(TChunk* chunk)
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));
 
-    if (State != EState::FullHeartbeatReported)
+    if (State != EState::Online)
         return;
 
     if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end()) {
@@ -367,7 +366,7 @@ void TMasterConnector::OnChunkRemoved(TChunk* chunk)
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));
 
-    if (State != EState::FullHeartbeatReported)
+    if (State != EState::Online)
         return;
 
     if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end()) {

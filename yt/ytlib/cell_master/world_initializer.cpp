@@ -39,8 +39,7 @@ public:
         YASSERT(bootstrap);
 
         PeriodicInvoker = New<TPeriodicInvoker>(
-            // TODO(babenko): use AsWeak
-            FromMethod(&TImpl::OnCheck, TWeakPtr<TImpl>(this))
+            FromMethod(&TImpl::OnCheck, MakeWeak(this))
             ->Via(bootstrap->GetStateInvoker()),
             CheckPeriod);
         PeriodicInvoker->Start();

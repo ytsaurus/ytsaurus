@@ -21,8 +21,6 @@ class TLocation
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TLocation> TPtr;
-
     TLocation(
         ELocationType type,
         TLocationConfig* config,

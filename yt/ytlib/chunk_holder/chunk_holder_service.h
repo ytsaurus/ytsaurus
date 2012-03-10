@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_holder_service.pb.h"
 #include "chunk_holder_service_proxy.h"
 
 #include <ytlib/rpc/service.h>
@@ -12,16 +11,10 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): get rid of this once public.h is ready
-class TSession;
-class TChunk;
-
 class TChunkHolderService
     : public NRpc::TServiceBase
 {
 public:
-    typedef TIntrusivePtr<TChunkHolderService> TPtr;
-
     //! Creates an instance.
     TChunkHolderService(TChunkHolderConfig* config, TBootstrap* bootstrap);
 

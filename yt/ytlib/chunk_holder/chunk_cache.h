@@ -24,7 +24,6 @@ class TChunkCache
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChunkCache> TPtr;
     typedef yvector<TCachedChunkPtr> TChunks;
 
     //! Constructs a new instance.

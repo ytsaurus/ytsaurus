@@ -71,8 +71,7 @@ TChunkPtr TJob::GetChunk() const
 
 void TJob::Start()
 {
-    // TODO(babenko): use AsStrong
-    auto this_ = TJobPtr(this);
+    auto this_ = MakeStrong(this);
 
     switch (JobType) {
         case EJobType::Remove: {
@@ -129,8 +128,7 @@ void TJob::Stop()
 
 void TJob::ReplicateBlock(TError error, int blockIndex)
 {
-    // TODO(babenko): use AsStrong
-    auto this_ = TJobPtr(this);
+    auto this_ = MakeStrong(this);
 
     if (!error.IsOK()) {
         LOG_WARNING("Replication failed (BlockIndex: %d)\n%s",
@@ -210,7 +208,7 @@ TJobExecutor::TJobExecutor(
     YASSERT(serviceInvoker);
 }
 
-TJob::TPtr TJobExecutor::StartJob(
+TJobPtr TJobExecutor::StartJob(
     EJobType jobType,
     const TJobId& jobId,
     TStoredChunk* chunk,
@@ -239,15 +237,15 @@ void TJobExecutor::StopJob(TJob* job)
         ~job->GetState().ToString());
 }
 
-TJob::TPtr TJobExecutor::FindJob(const TJobId& jobId)
+TJobPtr TJobExecutor::FindJob(const TJobId& jobId)
 {
     auto it = Jobs.find(jobId);
     return it == Jobs.end() ? NULL : it->second;
 }
 
-yvector<TJob::TPtr> TJobExecutor::GetAllJobs()
+yvector<TJobPtr> TJobExecutor::GetAllJobs()
 {
-    yvector<TJob::TPtr> result;
+    yvector<TJobPtr> result;
     FOREACH(const auto& pair, Jobs) {
         result.push_back(pair.second);
     }

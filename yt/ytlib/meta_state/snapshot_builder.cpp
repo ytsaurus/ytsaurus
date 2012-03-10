@@ -66,17 +66,14 @@ public:
             Awaiter->Await(
                 request->Invoke(),
 				cellManager->GetPeerAddress(id),
-                FromMethod(
-                    &TSession::OnRemote,
-                    TPtr(this),
-                    id));
+                FromMethod(&TSession::OnRemote, MakeStrong(this), id));
         }
         
         Awaiter->Await(
             Owner->CreateLocal(Version),
-            FromMethod(&TSession::OnLocal, TPtr(this)));
+            FromMethod(&TSession::OnLocal, MakeStrong(this)));
 
-        Awaiter->Complete(FromMethod(&TSession::OnComplete, TPtr(this)));
+        Awaiter->Complete(FromMethod(&TSession::OnComplete, MakeStrong(this)));
     }
 
 private:
@@ -179,7 +176,7 @@ TSnapshotBuilder::EResultCode TSnapshotBuilder::CreateDistributed()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto version = MetaState->GetVersion();
-    New<TSession>(TPtr(this), version)->Run();
+    New<TSession>(MakeStrong(this), version)->Run();
     return EResultCode::OK;
 }
 

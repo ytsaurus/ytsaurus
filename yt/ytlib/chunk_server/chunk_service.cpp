@@ -128,7 +128,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto& holder = chunkManager->GetHolder(holderId);
-    if (holder.GetState() != EHolderState::FullHeartbeatReported) {
+    if (holder.GetState() != EHolderState::Online) {
         context->Reply(TError(
             EErrorCode::InvalidState,
             Sprintf("Cannot process an incremental heartbeat in %s state", ~holder.GetState().ToString())));

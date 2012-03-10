@@ -54,7 +54,7 @@ void TSession::Start()
 {
     GetIOInvoker()->Invoke(FromMethod(
         &TSession::DoOpenFile,
-        TPtr(this)));
+        MakeStrong(this)));
 }
 
 void TSession::DoOpenFile()
@@ -179,14 +179,14 @@ void TSession::EnqueueWrites()
 
         FromMethod(
             &TSession::DoWrite,
-            TPtr(this),
+            MakeStrong(this),
             slot.Block,
             blockIndex)
         ->AsyncVia(GetIOInvoker())
         ->Do()
         ->Subscribe(FromMethod(
             &TSession::OnBlockWritten,
-            TPtr(this),
+            MakeStrong(this),
             blockIndex)
         ->Via(SessionManager->ServiceInvoker));
 
@@ -241,7 +241,7 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
     return slot.IsWritten->Apply(FromMethod(
         &TSession::OnBlockFlushed,
-        TPtr(this),
+        MakeStrong(this),
         blockIndex));
 }
 
@@ -267,7 +267,7 @@ TFuture<TChunkPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
     }
 
     return CloseFile(attributes)->Apply(
-        FromMethod(&TSession::OnFileClosed, TPtr(this))
+        FromMethod(&TSession::OnFileClosed, MakeStrong(this))
         ->AsyncVia(SessionManager->ServiceInvoker));
 }
 
@@ -275,7 +275,7 @@ void TSession::Cancel(const TError& error)
 {
     CloseLease();
     DeleteFile(error)->Apply(
-        FromMethod(&TSession::OnFileDeleted, TPtr(this))
+        FromMethod(&TSession::OnFileDeleted, MakeStrong(this))
         ->AsyncVia(SessionManager->ServiceInvoker));
 }
 
@@ -284,7 +284,7 @@ TFuture<TVoid>::TPtr TSession::DeleteFile(const TError& error)
     return
         FromMethod(
             &TSession::DoDeleteFile,
-            TPtr(this),
+            MakeStrong(this),
             error)
         ->AsyncVia(GetIOInvoker())
         ->Do();
@@ -311,7 +311,7 @@ TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
     return
         FromMethod(
             &TSession::DoCloseFile,
-            TPtr(this),
+            MakeStrong(this),
             attributes)
         ->AsyncVia(GetIOInvoker())
         ->Do();
@@ -425,7 +425,7 @@ TSessionPtr TSessionManager::StartSession(
         Config->SessionTimeout,
         ~FromMethod(
             &TSessionManager::OnLeaseExpired,
-            TPtr(this),
+            MakeStrong(this),
             session)
         ->Via(ServiceInvoker));
     session->SetLease(lease);
@@ -462,7 +462,7 @@ TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
 
     return session->Finish(attributes)->Apply(FromMethod(
         &TSessionManager::OnSessionFinished,
-        TPtr(this),
+        MakeStrong(this),
         session));
 }
 

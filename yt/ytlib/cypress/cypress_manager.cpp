@@ -128,10 +128,10 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     auto transactionManager = bootstrap->GetTransactionManager();
     transactionManager->SubscribeTransactionCommitted(Bind(
         &TThis::OnTransactionCommitted,
-        TPtr(this)));
+        MakeStrong(this)));
     transactionManager->SubscribeTransactionAborted(Bind(
         &TThis::OnTransactionAborted,
-        TPtr(this)));
+        MakeStrong(this)));
 
     auto objectManager = bootstrap->GetObjectManager();
     objectManager->RegisterHandler(~New<TLockTypeHandler>(this));
@@ -147,17 +147,17 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "Cypress.Keys.1",
-        FromMethod(&TCypressManager::LoadKeys, TPtr(this)));
+        FromMethod(&TCypressManager::LoadKeys, MakeStrong(this)));
     metaState->RegisterLoader(
         "Cypress.Values.1",
-        FromMethod(&TCypressManager::LoadValues, TPtr(this), context));
+        FromMethod(&TCypressManager::LoadValues, MakeStrong(this), context));
     metaState->RegisterSaver(
         "Cypress.Keys.1",
-        FromMethod(&TCypressManager::SaveKeys, TPtr(this)),
+        FromMethod(&TCypressManager::SaveKeys, MakeStrong(this)),
         ESavePhase::Keys);
     metaState->RegisterSaver(
         "Cypress.Values.1",
-        FromMethod(&TCypressManager::SaveValues, TPtr(this)),
+        FromMethod(&TCypressManager::SaveValues, MakeStrong(this)),
         ESavePhase::Values);
 
     metaState->RegisterPart(this);
@@ -274,8 +274,7 @@ private:
 TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 {
 	auto stateInvoker = MetaStateManager->GetStateInvoker();
-	// TODO(babenko): use AsStrong
-	TCypressManager::TPtr this_ = this;
+	auto this_ = MakeStrong(this);
 	return FromFunctor([=] () -> IYPathServicePtr
 		{
 			// Make a coarse check at this (wrong) thread first.

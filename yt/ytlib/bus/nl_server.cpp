@@ -150,7 +150,7 @@ public:
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
             SessionId,
-            ~FromMethod(&TSession::OnMessageDequeued, TPtr(this)),
+            ~FromMethod(&TSession::OnMessageDequeued, MakeStrong(this)),
             server->Config->MessageRearrangeTimeout))
     { }
 
