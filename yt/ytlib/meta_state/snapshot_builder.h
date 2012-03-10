@@ -4,6 +4,7 @@
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/misc/checksum.h>
+#include <ytlib/actions/action_queue.h>
 #include <ytlib/election/election_manager.h>
 #include <ytlib/rpc/client.h>
 
