@@ -113,5 +113,5 @@ if (MSVC)
       LINK_FLAGS "/LIBPATH:${CMAKE_BINARY_DIR}/bin"
     )
   endif()
-  target_link_libraries( protoc arczlib )
+  target_link_libraries( protoc ytext-zlib )
 endif()
