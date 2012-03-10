@@ -71,8 +71,7 @@ TChunkPtr TJob::GetChunk() const
 
 void TJob::Start()
 {
-    // TODO(babenko): use AsStrong
-    auto this_ = TJobPtr(this);
+    auto this_ = MakeStrong(this);
 
     switch (JobType) {
         case EJobType::Remove: {
@@ -129,8 +128,7 @@ void TJob::Stop()
 
 void TJob::ReplicateBlock(TError error, int blockIndex)
 {
-    // TODO(babenko): use AsStrong
-    auto this_ = TJobPtr(this);
+    auto this_ = MakeStrong(this);
 
     if (!error.IsOK()) {
         LOG_WARNING("Replication failed (BlockIndex: %d)\n%s",
