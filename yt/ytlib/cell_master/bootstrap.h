@@ -23,10 +23,11 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int StateThreadPriorityCount = 1;
+const int StateThreadQueueCount = 2;
 
-DECLARE_ENUM(EStateThreadPriority,
-    ((Default)(0))
+DECLARE_ENUM(EStateThreadQueue,
+    (Default)
+    (ChunkRefresh)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +53,7 @@ public:
     NChunkServer::IHolderAuthority* GetHolderAuthority() const;
 
     IInvoker* GetControlInvoker();
-    IInvoker* GetStateInvoker(EStateThreadPriority priority = EStateThreadPriority::Default);
+    IInvoker* GetStateInvoker(EStateThreadQueue queueIndex = EStateThreadQueue::Default);
 
     void Run();
 
@@ -70,7 +71,7 @@ private:
     NChunkServer::IHolderAuthority::TPtr HolderAuthority;
 
     TActionQueue::TPtr ControlQueue;
-    TPrioritizedActionQueue::TPtr StateQueue;
+    TMultiActionQueuePtr StateQueue;
 
 };
 

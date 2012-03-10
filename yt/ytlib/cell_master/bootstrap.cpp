@@ -78,7 +78,7 @@ TBootstrap::TBootstrap(
     , Config(config)
 { }
 
-// Neither remove it nor move it to header.
+// Neither remove it nor move it to the header.
 TBootstrap::~TBootstrap()
 { }
 
@@ -132,9 +132,9 @@ IInvoker* TBootstrap::GetControlInvoker()
     return ControlQueue->GetInvoker();
 }
 
-IInvoker* TBootstrap::GetStateInvoker(EStateThreadPriority priority)
+IInvoker* TBootstrap::GetStateInvoker(EStateThreadQueue queueIndex)
 {
-    return StateQueue->GetInvoker(priority.ToValue());
+    return StateQueue->GetInvoker(queueIndex.ToValue());
 }
 
 void TBootstrap::Run()
@@ -149,7 +149,7 @@ void TBootstrap::Run()
     MetaState = New<TCompositeMetaState>();
 
     ControlQueue = New<TActionQueue>("Control");
-    StateQueue = New<TPrioritizedActionQueue>(StateThreadPriorityCount, "MetaState");
+    StateQueue = New<TMultiActionQueue>(StateThreadQueueCount, "MetaState");
 
     auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(rpcPort));
 
