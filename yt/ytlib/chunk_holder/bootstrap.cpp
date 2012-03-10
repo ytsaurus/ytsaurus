@@ -16,6 +16,7 @@
 #include <ytlib/misc/ref_counted_tracker.h>
 #include <ytlib/bus/nl_server.h>
 #include <ytlib/rpc/channel_cache.h>
+#include <ytlib/election/leader_channel.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/virtual.h>
@@ -59,71 +60,56 @@ void TBootstrap::Run()
 {
     IncarnationId = TIncarnationId::Create();
 
-    Config->PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
-    Config->CacheRemoteReader->PeerAddress = Config->PeerAddress;
+    Config->MasterConnector->PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
+    Config->CacheRemoteReader->PeerAddress = Config->MasterConnector->PeerAddress;
 
     LOG_INFO("Starting chunk holder (IncarnationId: %s)", ~IncarnationId.ToString());
 
     auto controlQueue = New<TActionQueue>("Control");
-    ServiceInvoker = controlQueue->GetInvoker();
+    ControlInvoker = controlQueue->GetInvoker();
 
-    auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->RpcPort));
+    BusServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->RpcPort));
 
-    auto rpcServer = CreateRpcServer(~busServer);
+    auto rpcServer = CreateRpcServer(~BusServer);
 
-    auto readerCache = New<TReaderCache>(~Config);
+    ReaderCache = New<TReaderCache>(~Config);
 
-    auto chunkRegistry = New<TChunkRegistry>();
+    auto chunkRegistry = New<TChunkRegistry>(this);
 
-    auto blockStore = New<TBlockStore>(
+    BlockStore = New<TBlockStore>(
         ~Config,
         ~chunkRegistry,
-        ~readerCache);
+        ~ReaderCache);
 
-    auto blockTable = New<TPeerBlockTable>(~Config->PeerBlockTable);
+    PeerBlockTable = New<TPeerBlockTable>(~Config->PeerBlockTable);
 
     auto peerUpdater = New<TPeerBlockUpdater>(
         ~Config,
-        ~blockStore,
+        ~BlockStore,
         controlQueue->GetInvoker());
     peerUpdater->Start();
 
-    ChunkStore = New<TChunkStore>(
-        ~Config,
-        ~readerCache);
+    ChunkStore = New<TChunkStore>(~Config, this);
+    ChunkStore->Start();
 
-    ChunkCache = New<TChunkCache>(
-        ~Config,
-        ~readerCache,
-        ~blockStore);
-
-    chunkRegistry->SetChunkStore(~ChunkStore);
-    chunkRegistry->SetChunkCache(~ChunkCache);
+    ChunkCache = New<TChunkCache>(~Config, this);
+    ChunkCache->Start();
 
     SessionManager = New<TSessionManager>(
         ~Config,
-        ~blockStore,
+        ~BlockStore,
         ~ChunkStore,
         controlQueue->GetInvoker());
 
     JobExecutor = New<TJobExecutor>(
         ~Config,
         ~ChunkStore,
-        ~blockStore,
+        ~BlockStore,
         controlQueue->GetInvoker());
 
-    auto masterConnector = New<TMasterConnector>(this);
+    MasterConnector = New<TMasterConnector>(~Config->MasterConnector, this);
 
-    auto chunkHolderService = New<TChunkHolderService>(
-        ~Config,
-        controlQueue->GetInvoker(),
-        ~busServer,
-        ~ChunkStore,
-        ~ChunkCache,
-        ~readerCache,
-        ~blockStore,
-        ~blockTable,
-        ~SessionManager);
+    auto chunkHolderService = New<TChunkHolderService>(~Config, this);
     rpcServer->RegisterService(~chunkHolderService);
 
     auto monitoringManager = New<TMonitoringManager>();
@@ -132,7 +118,7 @@ void TBootstrap::Run()
         FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "bus_server",
-        FromMethod(&IBusServer::GetMonitoringInfo, busServer));
+        FromMethod(&IBusServer::GetMonitoringInfo, BusServer));
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
@@ -176,12 +162,14 @@ void TBootstrap::Run()
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     rpcServer->Start();
 
+    MasterConnector->Start();
+
     Sleep(TDuration::Max());
 }
 
-TBootstrap::TConfig* TBootstrap::GetConfig() const
+TBootstrap::TConfigPtr TBootstrap::GetConfig() const
 {
-    return ~Config;
+    return Config;
 }
 
 TIncarnationId TBootstrap::GetIncarnationId() const
@@ -189,29 +177,54 @@ TIncarnationId TBootstrap::GetIncarnationId() const
     return IncarnationId;
 }
 
-TChunkStore* TBootstrap::GetChunkStore() const
+TChunkStorePtr TBootstrap::GetChunkStore() const
 {
-    return ~ChunkStore;
+    return ChunkStore;
 }
 
-TChunkCache* TBootstrap::GetChunkCache() const
+TChunkCachePtr TBootstrap::GetChunkCache() const
 {
-    return ~ChunkCache;
+    return ChunkCache;
 }
 
-TSessionManager* TBootstrap::GetSessionManager() const
+TSessionManagerPtr TBootstrap::GetSessionManager() const
 {
-    return ~SessionManager;
+    return SessionManager;
 }
 
-TJobExecutor* TBootstrap::GetJobExecutor() const
+TJobExecutorPtr TBootstrap::GetJobExecutor() const
 {
-    return ~JobExecutor;
+    return JobExecutor;
 }
 
-IInvoker* TBootstrap::GetServiceInvoker() const
+IInvoker::TPtr TBootstrap::GetControlInvoker() const
 {
-    return ~ServiceInvoker;
+    return ControlInvoker;
+}
+
+TBlockStore::TPtr TBootstrap::GetBlockStore()
+{
+    return BlockStore;
+}
+
+IBusServer::TPtr TBootstrap::GetBusServer() const
+{
+    return BusServer;
+}
+
+TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
+{
+    return PeerBlockTable;
+}
+
+TReaderCachePtr TBootstrap::GetReaderCache() const
+{
+    return ReaderCache;
+}
+
+TMasterConnectorPtr TBootstrap::GetMasterConnector() const
+{
+    return MasterConnector;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,9 @@
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/rpc/redirector_service_base.h>
+#include <ytlib/cypress/cypress_manager.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -10,6 +13,7 @@ namespace NScheduler {
 using namespace NCypress;
 using namespace NRpc;
 using namespace NYTree;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,36 +21,53 @@ static NLog::TLogger Logger("SchedulerRedirector");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRedirectorService::TRedirectorService(TCypressManager* cypressManager)
-    // TODO(babenko): replace literal with TFooServiceProxy::GetServiceName()
-    : TRedirectorServiceBase("Scheduler", Logger.GetCategory())
-    , CypressManager(cypressManager)
-{ }
-
-TRedirectorService::TAsyncRedirectResult TRedirectorService::HandleRedirect(IServiceContext* context)
+class TRedirectorService
+    : public NRpc::TRedirectorServiceBase
 {
-    return 
-        FromMethod(&TRedirectorService::DoHandleRedirect, TPtr(this))
-        ->AsyncVia(CypressManager->GetMetaStateManager()->GetStateInvoker())
-        ->Do(context);
-}
+public:
+    typedef TIntrusivePtr<TRedirectorService> TPtr;
 
-TRedirectorService::TRedirectResult TRedirectorService::DoHandleRedirect(IServiceContext::TPtr context)
-{
-    if (CypressManager->GetMetaStateManager()->GetStateStatus() != NMetaState::EPeerStatus::Leading) {
-        return TError("Not a leader");
+    TRedirectorService(NCellMaster::TBootstrap* bootstrap)
+        // TODO(babenko): replace literal with TFooServiceProxy::GetServiceName()
+        : TRedirectorServiceBase("Scheduler", Logger.GetCategory())
+        , Bootstrap(bootstrap)
+    { }
+
+protected:
+    TBootstrap* Bootstrap;
+
+    virtual TAsyncRedirectResult HandleRedirect(NRpc::IServiceContext* context)
+    {
+        return 
+            FromMethod(&TRedirectorService::DoHandleRedirect, TPtr(this))
+            ->AsyncVia(Bootstrap->GetStateInvoker())
+            ->Do(context);
     }
 
-    auto root = CypressManager->GetVersionedNodeProxy(CypressManager->GetRootNodeId(), NullTransactionId);
+    TRedirectResult DoHandleRedirect(NRpc::IServiceContext::TPtr context)
+    {
+        if (Bootstrap->GetMetaStateManager()->GetStateStatus() != NMetaState::EPeerStatus::Leading) {
+            return TError("Not a leader");
+        }
 
-    TRedirectParams redirectParams;
-    try {
-        redirectParams.Address = DeserializeFromYson<Stroka>(SyncYPathGet(~root, "sys/scheduler@address"));
-    } catch (const std::exception& ex) {
-        return TError(Sprintf("Error reading redirection parameters\n%s", ex.what()));
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto root = cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNodeId(), NullTransactionId);
+
+        TRedirectParams redirectParams;
+        try {
+            redirectParams.Address = DeserializeFromYson<Stroka>(SyncYPathGet(~root, "sys/scheduler@address"));
+        } catch (const std::exception& ex) {
+            return TError(Sprintf("Error reading redirection parameters\n%s", ex.what()));
+        }
+
+        return redirectParams;
     }
 
-    return redirectParams;
+};
+
+IService::TPtr CreateRedirectorService(TBootstrap* bootstrap)
+{
+    return New<TRedirectorService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

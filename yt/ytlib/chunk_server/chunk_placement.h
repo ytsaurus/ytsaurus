@@ -1,6 +1,11 @@
 #pragma once
 
-#include "chunk_manager.h"
+#include "holder.h"
+#include "chunk.h"
+#include "id.h"
+#include "config.h"
+
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -12,10 +17,11 @@ class TChunkPlacement
 {
 public:
     typedef TIntrusivePtr<TChunkPlacement> TPtr;
+    typedef TChunkManagerConfig TConfig;
 
     TChunkPlacement(
-        TChunkManager* chunkManager,
-        TChunkManager::TConfig* config);
+        TConfig* config,
+        NCellMaster::TBootstrap* bootstrap);
 
     void OnHolderRegistered(const THolder& holder);
     void OnHolderUnregistered(const THolder& holder);
@@ -38,8 +44,9 @@ private:
     typedef ymultimap<double, THolderId> TLoadFactorMap;
     typedef yhash_map<THolderId, TLoadFactorMap::iterator> TIteratorMap;
 
-    TChunkManager::TPtr ChunkManager;
-    TChunkManager::TConfig::TPtr Config;
+    TConfig::TPtr Config;
+    NCellMaster::TBootstrap* Bootstrap;
+
     TLoadFactorMap LoadFactorMap;
     TIteratorMap IteratorMap;
     yhash_map<THolderId, int> HintedSessionsMap;

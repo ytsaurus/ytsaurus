@@ -10,6 +10,9 @@ namespace NObjectServer {
 class TObjectManager;
 typedef TIntrusivePtr<TObjectManager> TObjectManagerPtr;
 
+struct TObjectManagerConfig;
+typedef TIntrusivePtr<TObjectManagerConfig> TObjectManagerConfigPtr;
+
 class TObjectBase;
 class TObjectWithIdBase;
 

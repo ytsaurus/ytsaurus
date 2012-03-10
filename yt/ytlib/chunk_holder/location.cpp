@@ -1,7 +1,9 @@
 #include "stdafx.h"
 #include "location.h"
+#include "common.h"
 #include "chunk.h"
 #include "reader_cache.h"
+#include "config.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/chunk_client/format.h>
@@ -33,6 +35,9 @@ TLocation::TLocation(
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path.Quote()));
 }
+
+TLocation::~TLocation()
+{ }
 
 ELocationType TLocation::GetType() const
 {

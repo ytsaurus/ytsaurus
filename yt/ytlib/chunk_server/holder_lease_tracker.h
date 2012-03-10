@@ -4,9 +4,7 @@
 #include "holder.h"
 
 #include <ytlib/misc/lease_manager.h>
-
-// TODO(babenko): get rid
-#include "common.h"
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -42,8 +40,7 @@ public:
      */
     THolderLeaseTracker(
         TConfig* config,
-        TChunkManager* chunkManager,
-        IInvoker* invoker);
+        NCellMaster::TBootstrap* bootstrap);
 
     //! Registers the holder and assigns it an initial lease.
     void OnHolderRegistered(const THolder& holder);
@@ -63,9 +60,9 @@ private:
     typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
      
     TConfig::TPtr Config;
-    TIntrusivePtr<TChunkManager> ChunkManager;
+    NCellMaster::TBootstrap* Bootstrap;
+
     THolderInfoMap HolderInfoMap;
-    IInvoker::TPtr Invoker;
 
     THolderInfo* FindHolderInfo(THolderId holderId);
     THolderInfo& GetHolderInfo(THolderId holderId);

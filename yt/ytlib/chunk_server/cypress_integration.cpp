@@ -8,7 +8,9 @@
 #include <ytlib/cypress/virtual.h>
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
+#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/orchid/cypress_integration.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -18,6 +20,7 @@ using namespace NCypress;
 using namespace NMetaState;
 using namespace NOrchid;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,24 +35,25 @@ public:
         (Underreplicated)
     );
 
-    TVirtualChunkMap(TChunkManager* chunkManager, EChunkFilter filter)
-        : ChunkManager(chunkManager)
+    TVirtualChunkMap(TBootstrap* bootstrap, EChunkFilter filter)
+        : Bootstrap(bootstrap)
         , Filter(filter)
     { }
 
 private:
-    TChunkManager::TPtr ChunkManager;
+    TBootstrap* Bootstrap;
     EChunkFilter Filter;
 
     const yhash_set<TChunkId>& GetFilteredChunkIds() const
     {
+        auto chunkManager = Bootstrap->GetChunkManager();
         switch (Filter) {
             case EChunkFilter::Lost:
-                return ChunkManager->LostChunkIds();
+                return chunkManager->LostChunkIds();
             case EChunkFilter::Overreplicated:
-                return ChunkManager->OverreplicatedChunkIds();
+                return chunkManager->OverreplicatedChunkIds();
             case EChunkFilter::Underreplicated:
-                return ChunkManager->UnderreplicatedChunkIds();
+                return chunkManager->UnderreplicatedChunkIds();
             default:
                 YUNREACHABLE();
         }
@@ -67,7 +71,7 @@ private:
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
         if (Filter == EChunkFilter::All) {
-            const auto& chunkIds = ChunkManager->GetChunkIds(sizeLimit);
+            const auto& chunkIds = Bootstrap->GetChunkManager()->GetChunkIds(sizeLimit);
             return ConvertToStrings(chunkIds.begin(), chunkIds.end(), sizeLimit);
         } else {
             const auto& chunkIds = GetFilteredChunkIds();
@@ -78,7 +82,7 @@ private:
     virtual size_t GetSize() const
     {
         if (Filter == EChunkFilter::All) {
-            return ChunkManager->GetChunkCount();
+            return Bootstrap->GetChunkManager()->GetChunkCount();
         } else {
             return GetFilteredChunkIds().size();
         }
@@ -92,60 +96,48 @@ private:
             return NULL;
         }
 
-        return ChunkManager->GetObjectManager()->FindProxy(id);
+        return Bootstrap->GetObjectManager()->FindProxy(id);
     }
 };
 
-INodeTypeHandler::TPtr CreateChunkMapTypeHandler(
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
+INodeTypeHandler::TPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
-    YASSERT(chunkManager);
+    YASSERT(bootstrap);
 
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         EObjectType::ChunkMap,
-        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::All));
+        ~New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::All));
 }
 
-INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
+INodeTypeHandler::TPtr CreateLostChunkMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
-    YASSERT(chunkManager);
+    YASSERT(bootstrap);
 
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         EObjectType::LostChunkMap,
-        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Lost));
+        ~New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Lost));
 }
 
-INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
+INodeTypeHandler::TPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
-    YASSERT(chunkManager);
+    YASSERT(bootstrap);
 
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         EObjectType::OverreplicatedChunkMap,
-        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Overreplicated));
+        ~New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Overreplicated));
 }
 
-INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
+INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
-    YASSERT(chunkManager);
+    YASSERT(bootstrap);
 
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         EObjectType::UnderreplicatedChunkMap,
-        ~New<TVirtualChunkMap>(chunkManager, TVirtualChunkMap::EChunkFilter::Underreplicated));
+        ~New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Underreplicated));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,42 +146,39 @@ class TVirtualChunkListMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualChunkListMap(TChunkManager* chunkManager)
-        : ChunkManager(chunkManager)
+    TVirtualChunkListMap(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
     { }
 
 private:
-    TChunkManager::TPtr ChunkManager;
+    TBootstrap* Bootstrap;
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& chunkListIds = ChunkManager->GetChunkListIds(sizeLimit);
+        const auto& chunkListIds = Bootstrap->GetChunkManager()->GetChunkListIds(sizeLimit);
         return ConvertToStrings(chunkListIds.begin(), chunkListIds.end(), sizeLimit);
     }
 
     virtual size_t GetSize() const
     {
-        return ChunkManager->GetChunkListCount();
+        return Bootstrap->GetChunkManager()->GetChunkListCount();
     }
 
     virtual IYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkListId::FromString(key);
-        return ChunkManager->GetObjectManager()->GetProxy(id);
+        return Bootstrap->GetObjectManager()->GetProxy(id);
     }
 };
 
-INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
+INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
-    YASSERT(chunkManager);
+    YASSERT(bootstrap);
 
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         EObjectType::ChunkListMap,
-        ~New<TVirtualChunkListMap>(chunkManager));
+        ~New<TVirtualChunkListMap>(bootstrap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,8 +189,8 @@ class THolderAuthority
 public:
     typedef TIntrusivePtr<THolderAuthority> TPtr;
 
-    THolderAuthority(TCypressManager* cypressManager)
-        : CypressManager(cypressManager)
+    THolderAuthority(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
     { }
 
     virtual bool IsHolderAuthorized(const Stroka& address)
@@ -211,14 +200,13 @@ public:
     }
     
 private:
-    TCypressManager::TPtr CypressManager;
+    TBootstrap* Bootstrap;
 
 };
 
-IHolderAuthority::TPtr CreateHolderAuthority(
-    TCypressManager* cypressManager)
+IHolderAuthority::TPtr CreateHolderAuthority(TBootstrap* bootstrap)
 {
-    return New<THolderAuthority>(cypressManager);
+    return New<THolderAuthority>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,25 +217,21 @@ class THolderProxy
 public:
     THolderProxy(
         INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager,
+        TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TMapNodeProxy(
             typeHandler,
-            cypressManager,
+            bootstrap,
             transactionId,
             nodeId)
-        , ChunkManager(chunkManager)
     { }
 
 private:
-    TChunkManager::TPtr ChunkManager;
-
     const THolder* GetHolder() const
     {
         auto address = GetParent()->AsMap()->GetChildKey(this);
-        return ChunkManager->FindHolder(address);
+        return Bootstrap->GetChunkManager()->FindHolder(address);
     }
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
@@ -319,12 +303,8 @@ public:
     typedef THolderTypeHandler TThis;
     typedef TIntrusivePtr<TThis> TPtr;
 
-    THolderTypeHandler(
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager)
-        : TMapNodeTypeHandler(cypressManager)
-        , CypressManager(cypressManager)
-        , ChunkManager(chunkManager)
+    THolderTypeHandler(TBootstrap* bootstrap)
+        : TMapNodeTypeHandler(bootstrap)
     { }
 
     virtual EObjectType GetObjectType()
@@ -336,26 +316,17 @@ public:
     {
         return New<THolderProxy>(
             this,
-            ~CypressManager,
-            ~ChunkManager,
+            Bootstrap,
             id.TransactionId,
             id.ObjectId);
     }
-
-private:
-    TCypressManager::TPtr CypressManager;
-    TChunkManager::TPtr ChunkManager;
-
 };
 
-INodeTypeHandler::TPtr CreateHolderTypeHandler(
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
+INodeTypeHandler::TPtr CreateHolderTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
-    YASSERT(chunkManager);
+    YASSERT(bootstrap);
 
-    return New<THolderTypeHandler>(cypressManager, chunkManager);
+    return New<THolderTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -368,58 +339,54 @@ public:
     typedef THolderMapBehavior TThis;
     typedef TIntrusivePtr<TThis> TPtr;
 
-    THolderMapBehavior(
-        const TNodeId& nodeId,
-        IMetaStateManager* metaStateManager,
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager)
-        : TBase(nodeId, cypressManager)
-        , MetaStateManager(metaStateManager)
-        , ChunkManager(chunkManager)
+    THolderMapBehavior(TBootstrap* bootstrap, const TNodeId& nodeId)
+        : TBase(bootstrap, nodeId)
     {
         // TODO(babenko): use AsWeak
-        ChunkManager->SubscribeHolderRegistered(Bind(
+        bootstrap->GetChunkManager()->SubscribeHolderRegistered(Bind(
             &TThis::OnRegistered,
             TWeakPtr<THolderMapBehavior>(this)));
     }
 
 private:
-    IMetaStateManager::TPtr MetaStateManager;
-    TChunkManager::TPtr ChunkManager;
-    
     void OnRegistered(const THolder& holder)
     {
         Stroka address = holder.GetAddress();
         auto node = GetProxy();
-        auto cypressManager = CypressManager;
+
+        auto cypressManager = Bootstrap->GetCypressManager();
 
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
         // Doing otherwise will turn holder registration and Cypress update into a single
         // logged change, which is undesirable.
-        MetaStateManager->GetEpochStateInvoker()->Invoke(FromFunctor([=] ()
-            {
-                if (node->FindChild(address))
-                    return;
-
-                auto service = cypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
-
-                // TODO(babenko): make a single transaction
-
+        Bootstrap
+            ->GetMetaStateManager()
+            ->GetEpochContext()
+            ->CreateInvoker(~Bootstrap->GetStateInvoker())
+            ->Invoke(FromFunctor([=] ()
                 {
-                    auto req = TCypressYPathProxy::Create(address);
-                    req->set_type(EObjectType::Holder);
-                    ExecuteVerb(~service, ~req);
-                }
+                    if (node->FindChild(address))
+                        return;
 
-                {
-                    auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
-                    req->set_type(EObjectType::Orchid);     
-                    auto manifest = New<TOrchidManifest>();
-                    manifest->RemoteAddress = address;
-                    req->set_manifest(SerializeToYson(~manifest));
-                    ExecuteVerb(~service, ~req);
-                }
-            }));
+                    auto service = cypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
+
+                    // TODO(babenko): make a single transaction
+
+                    {
+                        auto req = TCypressYPathProxy::Create(address);
+                        req->set_type(EObjectType::Holder);
+                        ExecuteVerb(~service, ~req);
+                    }
+
+                    {
+                        auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
+                        req->set_type(EObjectType::Orchid);     
+                        auto manifest = New<TOrchidManifest>();
+                        manifest->RemoteAddress = address;
+                        req->set_manifest(SerializeToYson(~manifest));
+                        ExecuteVerb(~service, ~req);
+                    }
+                }));
     }
 
 };
@@ -430,21 +397,17 @@ class THolderMapProxy
 public:
     THolderMapProxy(
         INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager,
+        TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TMapNodeProxy(
-        typeHandler,
-        cypressManager,
-        transactionId,
-        nodeId)
-        , ChunkManager(chunkManager)
+            typeHandler,
+            bootstrap,
+            transactionId,
+            nodeId)
     { }
 
 private:
-    TChunkManager::TPtr ChunkManager;
-
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("alive");
@@ -459,11 +422,13 @@ private:
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
+        auto chunkManager = Bootstrap->GetChunkManager();
+
         if (name == "alive") {
             BuildYsonFluently(consumer)
-                .DoListFor(ChunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id)
+                .DoListFor(chunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id)
                     {
-                        const auto& holder = ChunkManager->GetHolder(id);
+                        const auto& holder = chunkManager->GetHolder(id);
                         fluent.Item().Scalar(holder.GetAddress());
                     });
             return true;
@@ -473,14 +438,14 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address)
                     {
-                        if (!ChunkManager->FindHolder(address)) {
+                        if (!chunkManager->FindHolder(address)) {
                             fluent.Item().Scalar(address);
                         }
                     });
             return true;
         }
 
-        auto statistics = ChunkManager->GetTotalHolderStatistics();
+        auto statistics = chunkManager->GetTotalHolderStatistics();
         if (name == "available_space") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.AvailbaleSpace);
@@ -522,14 +487,8 @@ public:
     typedef THolderMapTypeHandler TThis;
     typedef TIntrusivePtr<TThis> TPtr;
 
-    THolderMapTypeHandler(
-        IMetaStateManager* metaStateManager,
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager)
-        : TMapNodeTypeHandler(cypressManager)
-        , MetaStateManager(metaStateManager)
-        , CypressManager(cypressManager)
-        , ChunkManager(chunkManager)
+    THolderMapTypeHandler(TBootstrap* bootstrap)
+        : TMapNodeTypeHandler(bootstrap)
     { }
 
     virtual EObjectType GetObjectType()
@@ -541,40 +500,22 @@ public:
     {
         return New<THolderMapProxy>(
             this,
-            ~CypressManager,
-            ~ChunkManager,
+            Bootstrap,
             id.TransactionId,
             id.ObjectId);
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& nodeId)
     {
-        return New<THolderMapBehavior>(
-            nodeId,
-            ~MetaStateManager,
-            ~CypressManager,
-            ~ChunkManager);
+        return New<THolderMapBehavior>(Bootstrap, nodeId);
     }
-
-private:
-    IMetaStateManager::TPtr MetaStateManager;
-    TCypressManager::TPtr CypressManager;
-    TChunkManager::TPtr ChunkManager;
-
 };
 
-INodeTypeHandler::TPtr CreateHolderMapTypeHandler(
-    IMetaStateManager* metaStateManager,
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
+INodeTypeHandler::TPtr CreateHolderMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
-    YASSERT(chunkManager);
+    YASSERT(bootstrap);
 
-    return New<THolderMapTypeHandler>(
-        metaStateManager,
-        cypressManager,
-        chunkManager);
+    return New<THolderMapTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

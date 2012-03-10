@@ -5,6 +5,8 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/rpc/message.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/object_server/object_manager.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NCypress {
@@ -14,10 +16,11 @@ using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = CypressLogger;
+static NLog::TLogger Logger("Cypress");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,10 +63,13 @@ public:
                 ~path,
                 ~verb);
 
-            auto service = Owner->ObjectManager->GetRootService();
+            auto rootService = Owner
+                ->Bootstrap
+                ->GetObjectManager()
+                ->GetRootService();
 
             awaiter->Await(
-                ExecuteVerb(service, ~requestMessage),
+                ExecuteVerb(rootService, ~requestMessage),
                 FromMethod(&TExecuteSession::OnResponse, TPtr(this), requestIndex));
 
             requestPartIndex += partCount;
@@ -109,16 +115,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressService::TCypressService(
-    NMetaState::IMetaStateManager* metaStateManager,
-    TObjectManager* objectManager)
+TCypressService::TCypressService(TBootstrap* bootstrap)
     : TMetaStateServiceBase(
-        metaStateManager,
+        bootstrap,
         TCypressServiceProxy::GetServiceName(),
-        CypressLogger.GetCategory())
-    , ObjectManager(objectManager)
+        Logger.GetCategory())
 {
-    YASSERT(objectManager);
+    YASSERT(bootstrap);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 }

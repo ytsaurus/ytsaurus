@@ -39,3 +39,8 @@ if (YT_BUILD_WITH_STLPORT)
     set_target_properties( ytserver PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
   endif()
 endif()
+
+install(
+  TARGETS ytserver
+  RUNTIME DESTINATION bin
+)

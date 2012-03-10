@@ -27,7 +27,7 @@ message TRspFetch
     {
         required bytes chunk_id = 1;
         repeated string holder_addresses = 2;
-        optional NYT.NChunkHolder.NProto.TChunkAttributes attributes = 3;
+        optional bytes attributes = 3;
     }
 
     repeated TChunkInfo chunks = 1;

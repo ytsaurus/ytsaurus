@@ -16,26 +16,33 @@ message TMsgUnregisterHolder
     required int32 holder_id = 1;
 }
 
+// TODO(babenko): deprecate
 message TMsgCreateChunks
 {
     required bytes transaction_id = 1;
     required int32 chunk_count = 2;
 }
 
-message TMsgHeartbeatRequest
-{
-    required bool incremental = 1;
-    required int32 holder_id = 2;
-    required THolderStatistics statistics = 3;
-    repeated TReqHolderHeartbeat.TChunkAddInfo added_chunks = 4;
-    repeated TReqHolderHeartbeat.TChunkRemoveInfo removed_chunks = 5;
-}
-
-message TMsgHeartbeatResponse
+message TMsgFullHeartbeat
 {
     required int32 holder_id = 1;
-    repeated TRspHolderHeartbeat.TJobStartInfo started_jobs = 2;
-    repeated bytes stopped_jobs = 3;
+    required THolderStatistics statistics = 2;
+    repeated TChunkAddInfo chunks = 3;
+}
+
+message TMsgIncrementalHeartbeat
+{
+    required int32 holder_id = 1;
+    required THolderStatistics statistics = 2;
+    repeated TChunkAddInfo added_chunks = 3;
+    repeated TChunkRemoveInfo removed_chunks = 4;
+}
+
+message TMsgUpdateJobs
+{
+    required int32 holder_id = 1;
+    repeated TJobStartInfo started_jobs = 2;
+    repeated TJobStopInfo stopped_jobs = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

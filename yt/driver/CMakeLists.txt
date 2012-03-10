@@ -32,3 +32,8 @@ if (YT_BUILD_WITH_STLPORT)
     set_target_properties( ytdriver PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
   endif()
 endif()
+
+install(
+  TARGETS ytdriver
+  RUNTIME DESTINATION bin
+)

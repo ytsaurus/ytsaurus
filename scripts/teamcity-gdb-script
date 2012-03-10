@@ -4,17 +4,17 @@ set print demangle on
 set print object on
 set print vtbl on
 
-printf "=== Running...\n"
+printf "===\n=== Running...\n===\n"
 run
-printf "=== Trying to obtain a backtrace...\n"
+printf "===\n=== Trying to obtain a backtrace...\n===\n"
 backtrace
-printf "=== Trying to obtain a list of threads...\n"
+printf "===\n=== Trying to obtain a list of threads...\n===\n"
 info threads
-printf "=== Trying to obtain more verbose frame information...\n"
+printf "===\n=== Trying to obtain more verbose frame information...\n===\n"
 while (1)
-    printf "\n    FRAME INFORMATION\n\n"
+    printf "*\n*    FRAME INFORMATION\n*\n*\n"
     info frame
-    printf "\n    LOCAL VARIABLES\n\n"
+    printf "*\n*    LOCAL VARIABLES\n*\n*\n"
     info locals
     up-silently
 end

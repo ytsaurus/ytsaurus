@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "ytree_integration.h"
+#include "chunk_store.h"
+#include "chunk_cache.h"
+#include "chunk.h"
+#include "location.h"
 
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
@@ -8,7 +12,6 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NYTree;
-using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

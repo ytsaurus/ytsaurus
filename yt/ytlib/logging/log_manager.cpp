@@ -260,6 +260,7 @@ public:
         auto config = TLogConfig::CreateFromNode(node, path);
         if (IsRunning()) {
             ConfigsToUpdate.Enqueue(config);
+            Signal();
         }
     }
 
@@ -282,7 +283,7 @@ public:
     }
 
     /*! 
-     * In some cases (when Config is being updated at the same time),
+     * In some cases (when configuration is being updated at the same time),
      * the actual version is greater than the version returned by this method.
      */
     int GetConfigVersion()
@@ -302,14 +303,17 @@ public:
 
     void Write(const TLogEvent& event)
     {
-        if (IsRunning()) {
-            LogEventQueue.Enqueue(event);
-            Signal();
+        if (!IsRunning()) {
+            return;
+        }
 
-            if (event.Level == ELogLevel::Fatal) {
-                Shutdown();
-                ::std::terminate();
-            }
+        LogEventQueue.Enqueue(event);
+        Signal();
+
+        if (event.Level == ELogLevel::Fatal) {
+            // Flush everything and die.
+            Shutdown();
+            std::terminate();
         }
     }
 

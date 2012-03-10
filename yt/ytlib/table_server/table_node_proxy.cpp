@@ -7,6 +7,7 @@
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -17,21 +18,20 @@ using namespace NYTree;
 using namespace NRpc;
 using namespace NObjectServer;
 using namespace NTableClient;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandler* typeHandler,
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager,
+    TBootstrap* bootstrap,
     const TTransactionId& transactionId,
     const TNodeId& nodeId)
     : TCypressNodeProxyBase<IEntityNode, TTableNode>(
         typeHandler,
-        cypressManager,
+        bootstrap,
         transactionId,
         nodeId)
-    , ChunkManager(chunkManager)
 { }
 
 void TTableNodeProxy::DoInvoke(IServiceContext* context)
@@ -41,7 +41,7 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
     TBase::DoInvoke(context);
 }
 
-IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     // Resolve to self to handle channels and ranges.
     if (verb == "Fetch") {
@@ -67,7 +67,8 @@ void TTableNodeProxy::TraverseChunkTree(
         }
 
         case EObjectType::ChunkList: {
-            const auto& chunkList = ChunkManager->GetChunkList(treeId);
+            auto chunkManager = Bootstrap->GetChunkManager();
+            const auto& chunkList = chunkManager->GetChunkList(treeId);
             FOREACH (const auto& childId, chunkList.ChildrenIds()) {
                 TraverseChunkTree(chunkIds, childId);
             }
@@ -89,10 +90,11 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     TBase::GetSystemAttributes(attributes);
 }
 
-bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
 {
     const auto& tableNode = GetTypedImpl();
-    const auto& chunkList = ChunkManager->GetChunkList(tableNode.GetChunkListId());
+    auto chunkManager = Bootstrap->GetChunkManager();
+    const auto& chunkList = chunkManager->GetChunkList(tableNode.GetChunkListId());
 
     if (name == "chunk_list_id") {
         BuildYsonFluently(consumer)
@@ -133,7 +135,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsum
 }
 
 void TTableNodeProxy::ParseYPath(
-    const NYTree::TYPath& path,
+    const TYPath& path,
     NTableClient::TChannel* channel)
 {
     // Set defaults.
@@ -180,19 +182,20 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     yvector<TChunkId> chunkIds;
     TraverseChunkTree(&chunkIds, impl.GetChunkListId());
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& chunkId, chunkIds) {
         auto* chunkInfo = response->add_chunks();
         chunkInfo->set_chunk_id(chunkId.ToProto());
 
-        const auto& chunk = ChunkManager->GetChunk(chunkId);
+        const auto& chunk = chunkManager->GetChunk(chunkId);
         if (chunk.IsConfirmed()) {
             if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
-                ChunkManager->FillHolderAddresses(chunkInfo->mutable_holder_addresses(), chunk);
+                chunkManager->FillHolderAddresses(chunkInfo->mutable_holder_addresses(), chunk);
             }
 
             if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
-                auto attributes = chunk.GetAttributes();
-                chunkInfo->mutable_attributes()->ParseFromArray(attributes.Begin(), attributes.Size());
+                const auto& attributes = chunk.GetAttributes();
+                chunkInfo->set_attributes(attributes.Begin(), attributes.Size());
             }
         }   
     }

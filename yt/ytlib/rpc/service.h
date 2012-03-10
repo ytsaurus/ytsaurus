@@ -483,7 +483,7 @@ protected:
 private:
     IInvoker::TPtr DefaultInvoker;
     Stroka ServiceName;
-    NLog::TLogger ServiceLogger;
+    Stroka LoggingCategory;
     NProfiling::TRateCounter RequestCounter;
 
     //! Protects #RuntimeMethodInfos and #ActiveRequests.

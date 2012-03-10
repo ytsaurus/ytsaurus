@@ -4,6 +4,7 @@
 #include "meta_state.h"
 
 #include <ytlib/actions/signal.h>
+#include <ytlib/actions/invoker_util.h>
 #include <ytlib/ytree/public.h>
 
 namespace NYT {
@@ -79,12 +80,11 @@ struct IMetaStateManager
      */
     virtual bool HasActiveQuorum() const = 0;
 
-    //! Returns a cancelable invoker that corresponds to the state thread and is only valid
-    //! for the duration of the current epoch.
+    //! Returns a cancelable context representing the current epoch.
     /*!
-     *  \note Thread affinity: StateThread
+     *  \note Thread affinity: any
      */
-    virtual IInvoker::TPtr GetEpochStateInvoker() const = 0;
+    virtual TCancelableContextPtr GetEpochContext() const = 0;
 
     //! Commits the change.
     /*!

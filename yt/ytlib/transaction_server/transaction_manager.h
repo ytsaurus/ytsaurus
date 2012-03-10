@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "common.h"
 
 #include <ytlib/actions/signal.h>
 #include <ytlib/cell_master/public.h>
@@ -44,24 +43,23 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
 
         TDuration DefaultTransactionTimeout;
+        TDuration TransactionAbortBackoffTime;
 
         TConfig()
         {
             Register("default_transaction_timeout", DefaultTransactionTimeout)
                 .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(10));
+                .Default(TDuration::Seconds(15));
+            Register("transaction_abort_backoff_time", TransactionAbortBackoffTime)
+                .GreaterThan(TDuration())
+                .Default(TDuration::Seconds(15));
         }
     };
 
     //! Creates an instance.
     TTransactionManager(
         TConfig* config,
-        NMetaState::IMetaStateManager* metaStateManager,
-        NMetaState::TCompositeMetaState* metaState,
-        NObjectServer::TObjectManager* objectManager);
-
-    // TODO(babenko): killme
-    NObjectServer::TObjectManager* GetObjectManager() const;
+        NCellMaster::TBootstrap* bootstrap);
 
     NObjectServer::IObjectProxy::TPtr GetRootTransactionProxy();
 
@@ -83,7 +81,7 @@ private:
     friend class TTransactionProxy;
 
     TConfig::TPtr Config;
-    NObjectServer::TObjectManager::TPtr ObjectManager;
+    NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;

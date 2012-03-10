@@ -1,7 +1,6 @@
 #pragma once
 
-#include "block_store.h"
-#include "chunk_store.h"
+#include "public.h"
 #include "chunk_holder_service_proxy.h"
 
 #include <ytlib/chunk_client/file_writer.h>
@@ -12,8 +11,6 @@ namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TSessionManager;
 
 //! Represents a chunk upload in progress.
 class TSession
@@ -36,7 +33,7 @@ public:
     TChunkId GetChunkId() const;
 
     //! Returns target chunk location.
-    TLocation::TPtr GetLocation() const;
+    TLocationPtr GetLocation() const;
 
     //! Returns the total data size received so far.
     i64 GetSize() const;
@@ -45,7 +42,7 @@ public:
     NProto::TChunkInfo GetChunkInfo() const;
 
     //! Returns a cached block that is still in the session window.
-    TCachedBlock::TPtr GetBlock(i32 blockIndex);
+    TCachedBlockPtr GetBlock(i32 blockIndex);
 
     //! Puts a block into the window.
     void PutBlock(i32 blockIndex, const TSharedRef& data);
@@ -83,15 +80,15 @@ private:
         { }
 
         ESlotState State;
-        TCachedBlock::TPtr Block;
+        TCachedBlockPtr Block;
         TFuture<TVoid>::TPtr IsWritten;
     };
 
     typedef yvector<TSlot> TWindow;
 
-    TIntrusivePtr<TSessionManager> SessionManager;
+    TSessionManagerPtr SessionManager;
     TChunkId ChunkId;
-    TLocation::TPtr Location;
+    TLocationPtr Location;
     
     TWindow Window;
     i32 WindowStart;
@@ -105,7 +102,7 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    TFuture<TChunk::TPtr>::TPtr Finish(const TChunkAttributes& attributes);
+    TFuture<TChunkPtr>::TPtr Finish(const TChunkAttributes& attributes);
     void Cancel(const TError& error);
 
     void SetLease(TLeaseManager::TLease lease);
@@ -127,10 +124,10 @@ private:
 
     TFuture<TVoid>::TPtr CloseFile(const TChunkAttributes& attributes);
     TVoid DoCloseFile(const TChunkAttributes& attributes);
-    TChunk::TPtr OnFileClosed(TVoid);
+    TChunkPtr OnFileClosed(TVoid);
 
     void EnqueueWrites();
-    TVoid DoWrite(TCachedBlock::TPtr block, i32 blockIndex);
+    TVoid DoWrite(TCachedBlockPtr block, i32 blockIndex);
     void OnBlockWritten(TVoid, i32 blockIndex);
 
     TVoid OnBlockFlushed(TVoid, i32 blockIndex);
@@ -146,7 +143,7 @@ class TSessionManager
 {
 public:
     typedef TIntrusivePtr<TSessionManager> TPtr;
-    typedef yvector<TSession::TPtr> TSessions;
+    typedef yvector<TSessionPtr> TSessions;
 
     //! Constructs a manager.
     TSessionManager(
@@ -156,14 +153,13 @@ public:
         IInvoker* serviceInvoker);
 
     //! Starts a new chunk upload session.
-    TSession::TPtr StartSession(
-        const TChunkId& chunkId);
+    TSessionPtr StartSession(const TChunkId& chunkId);
 
     //! Completes an earlier opened upload session.
     /*!
      * The call returns a result that gets set when the session is finished.
      */
-    TFuture<TChunk::TPtr>::TPtr FinishSession(
+    TFuture<TChunkPtr>::TPtr FinishSession(
         TSession* session,
         const NChunkHolder::NProto::TChunkAttributes& attributes);
 
@@ -174,7 +170,7 @@ public:
     void CancelSession(TSession* session, const TError& error);
 
     //! Finds a session by TChunkId. Returns NULL when no session is found.
-    TSession::TPtr FindSession(const TChunkId& chunkId) const;
+    TSessionPtr FindSession(const TChunkId& chunkId) const;
 
     //! Returns the number of currently active session.
     int GetSessionCount() const;
@@ -185,16 +181,16 @@ public:
 private:
     friend class TSession;
 
-    TChunkHolderConfig::TPtr Config;
-    TBlockStore::TPtr BlockStore;
-    TChunkStore::TPtr ChunkStore;
+    TChunkHolderConfigPtr Config;
+    TBlockStorePtr BlockStore;
+    TChunkStorePtr ChunkStore;
     IInvoker::TPtr ServiceInvoker;
 
     typedef yhash_map<TChunkId, TSession::TPtr> TSessionMap;
     TSessionMap SessionMap;
 
-    void OnLeaseExpired(TSession::TPtr session);
-    TChunk::TPtr OnSessionFinished(TChunk::TPtr chunk, TSession::TPtr session);
+    void OnLeaseExpired(TSessionPtr session);
+    TChunkPtr OnSessionFinished(TChunkPtr chunk, TSessionPtr session);
 
 };
 

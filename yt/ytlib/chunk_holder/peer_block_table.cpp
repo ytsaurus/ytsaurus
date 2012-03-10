@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "common.h"
 #include "peer_block_table.h"
 
 namespace NYT {
@@ -10,7 +11,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeerBlockTable::TPeerBlockTable(TConfig* config)
+TPeerBlockTable::TPeerBlockTable(TPeerBlockTableConfig* config)
     : Config(config)
 { }
 

@@ -1,9 +1,10 @@
 #include "stdafx.h"
 #include "peer_block_updater.h"
+#include "common.h"
 #include "block_store.h"
 #include "chunk_holder_service_proxy.h"
+#include "config.h"
 
-#include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/rpc/channel_cache.h>
 
 namespace NYT {
@@ -24,7 +25,8 @@ TPeerBlockUpdater::TPeerBlockUpdater(
     , BlockStore(blockStore)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        FromMethod(&TPeerBlockUpdater::Update, TPtr(this))
+        // TODO(babenko): use AsStrong
+        FromMethod(&TPeerBlockUpdater::Update, TIntrusivePtr<TPeerBlockUpdater>(this))
         ->Via(invoker),
         Config->PeerUpdatePeriod);
 }
@@ -58,7 +60,7 @@ void TPeerBlockUpdater::Update()
             } else {
                 TProxy proxy(~ChannelCache.GetChannel(source));
                 request = proxy.UpdatePeer();
-                request->set_peer_address(Config->PeerAddress);
+                request->set_peer_address(Config->MasterConnector->PeerAddress);
                 request->set_peer_expiration_time(expirationTime.GetValue());
                 requests.insert(MakePair(source, request));
             }

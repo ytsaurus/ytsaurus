@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "chunk_holder_service.h"
+#include "common.h"
+#include "chunk.h"
+#include "location.h"
+#include "bootstrap.h"
 #include "chunk_store.h"
 #include "chunk_cache.h"
 #include "block_store.h"
@@ -25,36 +29,17 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkHolderService::TChunkHolderService(
-    TConfig* config,
-    IInvoker* serviceInvoker,
-    NBus::IBusServer* server,
-    TChunkStore* chunkStore,
-    TChunkCache* chunkCache,
-    TReaderCache* readerCache,
-    TBlockStore* blockStore,
-    TPeerBlockTable* blockTable,
-    TSessionManager* sessionManager)
+    TChunkHolderConfig* config,
+    TBootstrap* bootstrap)
     : NRpc::TServiceBase(
-        serviceInvoker,
+        ~bootstrap->GetControlInvoker(),
         TProxy::GetServiceName(),
-        Logger.GetCategory())
+        ChunkHolderLogger.GetCategory())
     , Config(config)
-    , ServiceInvoker(serviceInvoker)
-    , BusServer(server)
-    , ChunkStore(chunkStore)
-    , ChunkCache(chunkCache)
-    , ReaderCache(readerCache)
-    , BlockStore(blockStore)
-    , BlockTable(blockTable)
-    , SessionManager(sessionManager)
+    , Bootstrap(bootstrap)
 {
-    YASSERT(server);
-    YASSERT(chunkStore);
-    YASSERT(chunkCache);
-    YASSERT(readerCache);
-    YASSERT(blockStore);
-    YASSERT(blockTable);
-    YASSERT(sessionManager);
+    YASSERT(config);
+    YASSERT(bootstrap);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk));
@@ -68,14 +53,9 @@ TChunkHolderService::TChunkHolderService(
     RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(UpdatePeer));
 }
 
-// Do not remove this!
-// Required for TInstusivePtr with an incomplete type.
-TChunkHolderService::~TChunkHolderService() 
-{ }
-
 void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
 {
-    if (SessionManager->FindSession(chunkId)) {
+    if (Bootstrap->GetSessionManager()->FindSession(chunkId)) {
         ythrow TServiceException(EErrorCode::SessionAlreadyExists) <<
             Sprintf("Session %s already exists", ~chunkId.ToString());
     }
@@ -83,7 +63,7 @@ void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
 
 void TChunkHolderService::ValidateNoChunk(const TChunkId& chunkId)
 {
-    if (ChunkStore->FindChunk(chunkId)) {
+    if (Bootstrap->GetChunkStore()->FindChunk(chunkId)) {
         ythrow TServiceException(EErrorCode::ChunkAlreadyExists) <<
             Sprintf("Chunk %s already exists", ~chunkId.ToString());
     }
@@ -91,7 +71,7 @@ void TChunkHolderService::ValidateNoChunk(const TChunkId& chunkId)
 
 TSession::TPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
 {
-    auto session = SessionManager->FindSession(chunkId);
+    auto session = Bootstrap->GetSessionManager()->FindSession(chunkId);
     if (!session) {
         ythrow TServiceException(EErrorCode::NoSuchSession) <<
             Sprintf("Session is invalid or expired (ChunkId: %s)", ~chunkId.ToString());
@@ -99,9 +79,9 @@ TSession::TPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
     return session;
 }
 
-TChunk::TPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
+TChunkPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
 {
-    auto chunk = ChunkStore->FindChunk(chunkId);
+    auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
     if (!chunk) {
         ythrow TServiceException(EErrorCode::NoSuchChunk) <<
             Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
@@ -111,11 +91,11 @@ TChunk::TPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
 
 bool TChunkHolderService::CheckThrottling() const
 {
-    i64 responseDataSize = BusServer->GetStatistics().ResponseDataSize;
-    i64 pendingReadSize = BlockStore->GetPendingReadSize();
+    i64 responseDataSize = Bootstrap->GetBusServer()->GetStatistics().ResponseDataSize;
+    i64 pendingReadSize = Bootstrap->GetBlockStore()->GetPendingReadSize();
     i64 pendingSize = responseDataSize + pendingReadSize;
     if (pendingSize > Config->ResponseThrottlingSize) {
-        LOG_DEBUG("Throttling is active (PendingSize: %" PRId64 ")", pendingSize);
+        LOG_DEBUG("Throttling activated (PendingSize: %" PRId64 ")", pendingSize);
         return true;
     } else {
         return false;
@@ -135,7 +115,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
     ValidateNoSession(chunkId);
     ValidateNoChunk(chunkId);
 
-    SessionManager->StartSession(chunkId);
+    Bootstrap->GetSessionManager()->StartSession(chunkId);
 
     context->Reply();
 }
@@ -151,13 +131,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
 
     auto session = GetSession(chunkId);
 
-    SessionManager
+    Bootstrap
+        ->GetSessionManager()
         ->FinishSession(~session, attributes)
-        ->Subscribe(FromFunctor([=] (TChunk::TPtr chunk)
-            {
-                response->set_size(chunk->GetSize());
-                context->Reply();
-            }));
+        ->Subscribe(FromFunctor([=] (TChunkPtr chunk) {
+            response->set_size(chunk->GetSize());
+            context->Reply();
+        }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
@@ -215,19 +195,18 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
         putRequest->Attachments().push_back(block->GetData());
     }
 
-    putRequest->Invoke()->Subscribe(FromFunctor([=] (TProxy::TRspPutBlocks::TPtr putResponse)
-        {
-            if (putResponse->IsOK()) {
-                context->Reply();
-            } else {
-                Stroka message = Sprintf("SendBlocks: Cannot put blocks on the remote chunk holder (Address: %s)\n%s",
-                    ~address,
-                    ~putResponse->GetError().ToString());
+    putRequest->Invoke()->Subscribe(FromFunctor([=] (TProxy::TRspPutBlocks::TPtr putResponse) {
+        if (putResponse->IsOK()) {
+            context->Reply();
+        } else {
+            Stroka message = Sprintf("SendBlocks: Cannot put blocks on the remote chunk holder (Address: %s)\n%s",
+                ~address,
+                ~putResponse->GetError().ToString());
 
-                LOG_WARNING("%s", ~message);
-                context->Reply(TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed, message);
-            }
-        }));
+            LOG_WARNING("%s", ~message);
+            context->Reply(TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed, message);
+        }
+    }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
@@ -243,9 +222,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
 
     response->Attachments().resize(blockCount);
 
-    // NB: All callbacks should be handled in the service thread.
-    auto awaiter = New<TParallelAwaiter>(~ServiceInvoker);
+    // NB: All callbacks should be handled in the control thread.
+    auto awaiter = New<TParallelAwaiter>(~Bootstrap->GetControlInvoker());
 
+    auto peerBlockTable = Bootstrap->GetPeerBlockTable();
     for (int index = 0; index < blockCount; ++index) {
         i32 blockIndex = request->block_indexes(index);
         TBlockId blockId(chunkId, blockIndex);
@@ -256,7 +236,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
             // Cannot send the actual data to the client due to throttling.
             // But let's try to provide a hint a least.
             blockInfo->set_data_attached(false);
-            const auto& peers = BlockTable->GetPeers(blockId);
+            const auto& peers = peerBlockTable->GetPeers(blockId);
             if (!peers.empty()) {
                 FOREACH (const auto& peer, peers) {
                     blockInfo->add_peer_addresses(peer.Address);
@@ -269,60 +249,58 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
             // Fetch the actual data (either from cache or from disk).
             LOG_DEBUG("GetBlocks: Fetching block (BlockIndex: %d)", blockIndex);
             awaiter->Await(
-                BlockStore->GetBlock(blockId),
-                FromFunctor([=] (TBlockStore::TGetBlockResult result)
-                    {
-                        if (result.IsOK()) {
-                            // Attach the real data.
-                            blockInfo->set_data_attached(true);
-                            auto block = result.Value();
-                            response->Attachments()[index] = block->GetData();
-                            LOG_DEBUG("GetBlocks: Block fetched (BlockIndex: %d)", blockIndex);
-                        } else if (result.GetCode() == TChunkHolderServiceProxy::EErrorCode::NoSuchChunk) {
-                            // This is really sad. We neither have the full chunk nor this particular block.
-                            blockInfo->set_data_attached(false);
-                            LOG_DEBUG("GetBlocks: Chunk is missing, block is not cached (BlockIndex: %d)", blockIndex);
-                        } else {
-                            // Something went wrong while fetching the block.
-                            // The most probable cause is that a non-existing block was requested for a chunk
-                            // that is registered at the holder.
-                            awaiter->Cancel();
-                            context->Reply(result);
-                        }
-                    }));
+                Bootstrap->GetBlockStore()->GetBlock(blockId),
+                FromFunctor([=] (TBlockStore::TGetBlockResult result) {
+                    if (result.IsOK()) {
+                        // Attach the real data.
+                        blockInfo->set_data_attached(true);
+                        auto block = result.Value();
+                        response->Attachments()[index] = block->GetData();
+                        LOG_DEBUG("GetBlocks: Block fetched (BlockIndex: %d)", blockIndex);
+                    } else if (result.GetCode() == TChunkHolderServiceProxy::EErrorCode::NoSuchChunk) {
+                        // This is really sad. We neither have the full chunk nor this particular block.
+                        blockInfo->set_data_attached(false);
+                        LOG_DEBUG("GetBlocks: Chunk is missing, block is not cached (BlockIndex: %d)", blockIndex);
+                    } else {
+                        // Something went wrong while fetching the block.
+                        // The most probable cause is that a non-existing block was requested for a chunk
+                        // that is registered at the holder.
+                        awaiter->Cancel();
+                        context->Reply(result);
+                    }
+                }));
         }
     }
 
-    awaiter->Complete(FromFunctor([=] ()
-        {
-            // Compute statistics.
-            int blocksWithData = 0;
-            int blocksWithPeers = 0;
-            FOREACH (const auto& blockInfo, response->blocks()) {
-                if (blockInfo.data_attached()) {
-                    ++blocksWithData;
-                } else if (blockInfo.peer_addresses_size() != 0) {
-                    ++blocksWithPeers;
+    awaiter->Complete(FromFunctor([=] () {
+        // Compute statistics.
+        int blocksWithData = 0;
+        int blocksWithPeers = 0;
+        FOREACH (const auto& blockInfo, response->blocks()) {
+            if (blockInfo.data_attached()) {
+                ++blocksWithData;
+            } else if (blockInfo.peer_addresses_size() != 0) {
+                ++blocksWithPeers;
+            }
+        }
+
+        context->SetResponseInfo("BlocksWithData: %d, BlocksWithPeers: %d",
+            blocksWithData,
+            blocksWithPeers);
+
+        context->Reply();
+
+        // Register the peer that we had just sent the reply to.
+        if (request->has_peer_address() && request->has_peer_expiration_time()) {
+            TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
+            for (int index = 0; index < blockCount; ++index) {
+                if (response->blocks(index).data_attached()) {
+                    i32 blockIndex = request->block_indexes(index);
+                    peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peer);
                 }
             }
-
-            context->SetResponseInfo("BlocksWithData: %d, BlocksWithPeers: %d",
-                blocksWithData,
-                blocksWithPeers);
-
-            context->Reply();
-
-            // Register the peer that we had just sent the reply to.
-            if (request->has_peer_address() && request->has_peer_expiration_time()) {
-                TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
-                for (int index = 0; index < blockCount; ++index) {
-                    if (response->blocks(index).data_attached()) {
-                        i32 blockIndex = request->block_indexes(index);
-                        BlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peer);
-                    }
-                }
-            }
-        }));
+        }
+    }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
@@ -338,10 +316,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
 
     auto session = GetSession(chunkId);
 
-    session->FlushBlock(blockIndex)->Subscribe(FromFunctor([=] (TVoid)
-        {
-            context->Reply();
-        }));
+    session->FlushBlock(blockIndex)->Subscribe(FromFunctor([=] (TVoid) {
+        context->Reply();
+    }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
@@ -362,15 +339,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
     auto chunk = GetChunk(chunkId);
-    chunk->GetInfo()->Subscribe(FromFunctor([=] (TChunk::TGetInfoResult result)
-        {
-            if (result.IsOK()) {
-                *response->mutable_chunk_info() = result.Value();
-                context->Reply();
-            } else {
-                context->Reply(result);
-            }
-        }));
+    chunk->GetInfo()->Subscribe(FromFunctor([=] (TChunk::TGetInfoResult result) {
+        if (result.IsOK()) {
+            *response->mutable_chunk_info() = result.Value();
+            context->Reply();
+        } else {
+            context->Reply(result);
+        }
+    }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
@@ -379,8 +355,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
 
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
-    ChunkCache->DownloadChunk(chunkId)->Subscribe(FromFunctor([=] (TChunkCache::TDownloadResult result)
-        {
+    Bootstrap
+        ->GetChunkCache()
+        ->DownloadChunk(chunkId)
+        ->Subscribe(FromFunctor([=] (TChunkCache::TDownloadResult result) {
             if (result.IsOK()) {
                 context->Reply();
             } else {
@@ -402,9 +380,10 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
         ~TInstant(request->peer_expiration_time()).ToString(),
         request->block_ids_size());
 
+    auto peerBlockTable = Bootstrap->GetPeerBlockTable();
     FOREACH (const auto& block_id, request->block_ids()) {
         TBlockId blockId(TGuid::FromProto(block_id.chunk_id()), block_id.block_index());
-        BlockTable->UpdatePeer(blockId, peer);
+        peerBlockTable->UpdatePeer(blockId, peer);
     }
 }
 

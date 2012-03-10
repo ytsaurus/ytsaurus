@@ -3,7 +3,10 @@
 #include "holder_statistics.h"
 
 #include <ytlib/misc/string.h>
+#include <ytlib/actions/action_util.h>
 #include <ytlib/object_server/id.h>
+#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/transaction_server/transaction_manager.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -13,77 +16,43 @@ using namespace NMetaState;
 using namespace NChunkHolder;
 using namespace NProto;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
+NLog::TLogger Logger("ChunkServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkService::TChunkService(
-    NMetaState::IMetaStateManager* metaStateManager,
-    TChunkManager* chunkManager,
-    NTransactionServer::TTransactionManager* transactionManager)
+TChunkService::TChunkService(TBootstrap* bootstrap)
     : TMetaStateServiceBase(
-        metaStateManager,
+        bootstrap,
         TChunkServiceProxy::GetServiceName(),
         ChunkServerLogger.GetCategory())
-    , ChunkManager(chunkManager)
-    , TransactionManager(transactionManager)
 {
-    YASSERT(chunkManager);
-    YASSERT(transactionManager);
+    YASSERT(bootstrap);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterHolder));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(HolderHeartbeat));
+    RegisterMethod(
+        RPC_SERVICE_METHOD_DESC(FullHeartbeat),
+        ~bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunks));
 }
 
  void TChunkService::ValidateHolderId(THolderId holderId)
 {
-    if (!ChunkManager->FindHolder(holderId)) {
+    if (!Bootstrap->GetChunkManager()->FindHolder(holderId)) {
         ythrow TServiceException(EErrorCode::NoSuchHolder) <<
             Sprintf("Invalid or expired holder id (HolderId: %d)", holderId);
     }
 }
 
-void TChunkService::ValidateChunkId(const TChunkId& chunkId)
-{
-    if (!ChunkManager->FindChunk(chunkId)) {
-        ythrow TServiceException(EErrorCode::NoSuchChunk) <<
-            Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
-    }
-}
-
-void TChunkService::ValidateChunkListId(const TChunkListId& chunkListId)
-{
-    if (!ChunkManager->FindChunkList(chunkListId)) {
-        ythrow TServiceException(EErrorCode::NoSuchChunkList) <<
-            Sprintf("No such chunk list (ChunkListId: %s)", ~chunkListId.ToString());
-    }
-}
-
 void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
 {
-    if (!TransactionManager->FindTransaction(transactionId)) {
+    if (!Bootstrap->GetTransactionManager()->FindTransaction(transactionId)) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
             Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
-    }
-}
-
-void TChunkService::ValidateChunkTreeId(const TChunkTreeId& treeId)
-{
-    auto type = TypeFromId(treeId);
-    switch (type) {
-        case EObjectType::Chunk:
-            ValidateChunkId(treeId);
-            break;
-        case EObjectType::ChunkList:
-            ValidateChunkListId(treeId);
-            break;
-        default:
-            ythrow TServiceException(EErrorCode::NoSuchChunkTree) << 
-                Sprintf("No such chunk tree (ChunkTreeId: %s)", ~treeId.ToString());
     }
 }
 
@@ -102,11 +71,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
         ~incarnationId.ToString(),
         ~ToString(statistics));
 
+    auto chunkManager = Bootstrap->GetChunkManager();
+
     TMsgRegisterHolder message;
     message.set_address(address);
     message.set_incarnation_id(incarnationId.ToProto());
     message.mutable_statistics()->MergeFrom(statistics);
-    ChunkManager
+    chunkManager
         ->InitiateRegisterHolder(message)
         ->OnSuccess(~FromFunctor([=] (THolderId id)
             {
@@ -118,7 +89,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
         ->Commit();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
+DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
     auto holderId = request->holder_id();
 
@@ -126,35 +97,69 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
 
     ValidateHolderId(holderId);
 
-    const auto& holder = ChunkManager->GetHolder(holderId);
+    auto chunkManager = Bootstrap->GetChunkManager();
+    const auto& holder = chunkManager->GetHolder(holderId);
+    if (holder.GetState() != EHolderState::Registered) {
+        context->Reply(TError(
+            EErrorCode::InvalidState,
+            Sprintf("Cannot process a full heartbeat in %s state", ~holder.GetState().ToString())));
+        return;
+    }
 
-    TMsgHeartbeatRequest requestMessage;
-    requestMessage.set_incremental(request->incremental());
-    requestMessage.set_holder_id(holderId);
-    *requestMessage.mutable_statistics() = request->statistics();
-    requestMessage.mutable_added_chunks()->MergeFrom(request->added_chunks());
-    requestMessage.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
+    TMsgFullHeartbeat heartbeatMsg;
+    heartbeatMsg.set_holder_id(holderId);
+    *heartbeatMsg.mutable_statistics() = request->statistics();
+    heartbeatMsg.mutable_chunks()->MergeFrom(request->chunks());
 
-    ChunkManager
-        ->InitiateHeartbeatRequest(requestMessage)
+    chunkManager
+        ->InitiateFullHeartbeat(heartbeatMsg)
+        ->OnSuccess(CreateSuccessHandler(~context))
+        ->OnError(CreateErrorHandler(~context))
+        ->Commit();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
+{
+    auto holderId = request->holder_id();
+
+    context->SetRequestInfo("HolderId: %d");
+
+    ValidateHolderId(holderId);
+
+    auto chunkManager = Bootstrap->GetChunkManager();
+    const auto& holder = chunkManager->GetHolder(holderId);
+    if (holder.GetState() != EHolderState::FullHeartbeatReported) {
+        context->Reply(TError(
+            EErrorCode::InvalidState,
+            Sprintf("Cannot process an incremental heartbeat in %s state", ~holder.GetState().ToString())));
+        return;
+    }
+
+    TMsgIncrementalHeartbeat heartbeatMsg;
+    heartbeatMsg.set_holder_id(holderId);
+    *heartbeatMsg.mutable_statistics() = request->statistics();
+    heartbeatMsg.mutable_added_chunks()->MergeFrom(request->added_chunks());
+    heartbeatMsg.mutable_removed_chunks()->MergeFrom(request->removed_chunks());
+
+    chunkManager
+        ->InitiateIncrementalHeartbeat(heartbeatMsg)
         ->Commit();
 
-    yvector<TReqHolderHeartbeat::TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
-    
-    yvector<TRspHolderHeartbeat::TJobStartInfo> jobsToStart;
-    yvector<TJobId> jobsToStop;
-    ChunkManager->RunJobControl(
+    yvector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
+    yvector<TJobStartInfo> jobsToStart;
+    yvector<TJobStopInfo> jobsToStop;
+    chunkManager->RunJobControl(
         holder,
         runningJobs,
         &jobsToStart,
         &jobsToStop);
 
-    TMsgHeartbeatResponse responseMessage;
-    responseMessage.set_holder_id(holderId);
+    TMsgUpdateJobs updateJobsMsg;
+    updateJobsMsg.set_holder_id(holderId);
 
     FOREACH (const auto& jobInfo, jobsToStart) {
         *response->add_jobs_to_start() = jobInfo;
-        *responseMessage.add_started_jobs() = jobInfo;
+        *updateJobsMsg.add_started_jobs() = jobInfo;
     }
 
     yhash_set<TJobId> runningJobIds;
@@ -162,25 +167,23 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, HolderHeartbeat)
         runningJobIds.insert(TJobId::FromProto(jobInfo.job_id()));
     }
 
-    FOREACH (const auto& jobId, jobsToStop) {
-        auto protoJobId = jobId.ToProto();
+    FOREACH (const auto& jobInfo, jobsToStop) {
+        auto jobId = TJobId::FromProto(jobInfo.job_id());
         if (runningJobIds.find(jobId) != runningJobIds.end()) {
-            response->add_jobs_to_stop(protoJobId);
+            *response->add_jobs_to_stop() = jobInfo;
         }
-        responseMessage.add_stopped_jobs(protoJobId);
+        *updateJobsMsg.add_stopped_jobs() = jobInfo;
     }
 
-    ChunkManager
-        ->InitiateHeartbeatResponse(responseMessage)
-        ->OnSuccess(~FromFunctor([=] (TVoid)
-            {
-                context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
-                    static_cast<int>(response->jobs_to_start_size()),
-                    static_cast<int>(response->jobs_to_stop_size()));
-
-                context->Reply();
-            }))
-        ->OnError(~CreateErrorHandler(~context))
+    chunkManager
+        ->InitiateUpdateJobs(updateJobsMsg)
+        ->OnSuccess(FromFunctor([=] (TVoid) {
+            context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
+                static_cast<int>(response->jobs_to_start_size()),
+                static_cast<int>(response->jobs_to_stop_size()));
+            context->Reply();
+        }))
+        ->OnError(CreateErrorHandler(~context))
         ->Commit();
 }
 
@@ -197,8 +200,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
 
     ValidateTransactionId(transactionId);
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     for (int index = 0; index < chunkCount; ++index) {
-        auto holderIds = ChunkManager->AllocateUploadTargets(uploadReplicaCount);
+        auto holderIds = chunkManager->AllocateUploadTargets(uploadReplicaCount);
         if (holderIds.ysize() < uploadReplicaCount) {
             ythrow TServiceException(EErrorCode::NotEnoughHolders) <<
                 Sprintf("Not enough holders available (ReplicaCount: %d)",
@@ -206,7 +210,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
         }
         auto* chunkInfo = response->add_chunks();
         FOREACH(auto holderId, holderIds) {
-            const THolder& holder = ChunkManager->GetHolder(holderId);
+            const THolder& holder = chunkManager->GetHolder(holderId);
             chunkInfo->add_holder_addresses(holder.GetAddress());
         }
     }
@@ -214,7 +218,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
     TMsgCreateChunks message;
     message.set_transaction_id(transactionId.ToProto());
     message.set_chunk_count(chunkCount);
-    ChunkManager
+    chunkManager
         ->InitiateCreateChunks(message)
         ->OnSuccess(~FromFunctor([=] (yvector<TChunkId> chunkIds)
             {

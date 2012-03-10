@@ -21,41 +21,64 @@ IInvoker* TSyncInvoker::Get()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCancelableInvoker::TCancelableInvoker(IInvoker::TPtr underlyingInvoker)
+class TCancelableContext::TCancelableInvoker
+    : public IInvoker
+{
+public:
+    typedef TIntrusivePtr<TCancelableInvoker> TPtr;
+
+    TCancelableInvoker(
+        TCancelableContext* context,
+        IInvoker* underlyingInvoker)
+        : Context(context)
+        , UnderlyingInvoker(underlyingInvoker)
+    {
+        YASSERT(underlyingInvoker);
+    }
+
+    virtual void Invoke(TIntrusivePtr<IAction> action)
+    {
+        YASSERT(action);
+
+        if (Context->Canceled)
+            return;
+
+        auto context = Context;
+        UnderlyingInvoker->Invoke(FromFunctor([=] {
+                if (!context->Canceled) {
+                    action->Do();
+                }
+            }));
+    }
+
+    void Cancel();
+    bool IsCanceled() const;
+
+private:
+    TCancelableContextPtr Context;
+    IInvoker::TPtr UnderlyingInvoker;
+
+    void ActionThunk(TIntrusivePtr<IAction> action);
+
+};
+
+TCancelableContext::TCancelableContext()
     : Canceled(false)
-    , UnderlyingInvoker(underlyingInvoker)
+{ }
+
+bool TCancelableContext::IsCanceled() const
 {
-    YASSERT(underlyingInvoker);
+    return Canceled;
 }
 
-void TCancelableInvoker::Invoke(IAction::TPtr action)
-{
-    YASSERT(action);
-
-    if (Canceled)
-        return;
-
-    UnderlyingInvoker->Invoke(FromMethod(
-        &TCancelableInvoker::ActionThunk,
-        TPtr(this),
-        action));
-}
-
-void TCancelableInvoker::ActionThunk(IAction::TPtr action)
-{
-    if (Canceled)
-        return;
-    action->Do();
-}
-
-void TCancelableInvoker::Cancel()
+void TCancelableContext::Cancel()
 {
     Canceled = true;
 }
 
-bool TCancelableInvoker::IsCanceled() const
+IInvoker::TPtr TCancelableContext::CreateInvoker(IInvoker* underlyingInvoker)
 {
-    return Canceled;
+    return New<TCancelableInvoker>(this, underlyingInvoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

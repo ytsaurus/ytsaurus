@@ -21,7 +21,8 @@ TFollowerPinger::TFollowerPinger(
     TFollowerTracker* followerTracker,
     TSnapshotStore* snapshotStore,
     const TEpoch& epoch,
-    IInvoker* controlInvoker)
+    IInvoker* epochControlInvoker,
+    IInvoker* epochStateInvoker)
     : Mode(mode)
     , Config(config)
     , MetaState(metaState)
@@ -29,15 +30,19 @@ TFollowerPinger::TFollowerPinger(
     , FollowerTracker(followerTracker)
     , SnapshotStore(snapshotStore)
     , Epoch(epoch)
-    , ControlInvoker(New<TCancelableInvoker>(controlInvoker))
-    , StateInvoker(New<TCancelableInvoker>(MetaState->GetStateInvoker()))
+    , EpochControlInvoker(epochControlInvoker)
+    , EpochStateInvoker(epochStateInvoker)
 {
-    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
-    VERIFY_INVOKER_AFFINITY(MetaState->GetStateInvoker(), StateThread);
-
+    YASSERT(config);
+    YASSERT(metaState);
+    YASSERT(cellManager);
     YASSERT(followerTracker);
     YASSERT(snapshotStore);
-    YASSERT(cellManager);
+    YASSERT(epochControlInvoker);
+    YASSERT(epochStateInvoker);
+    VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(epochStateInvoker, StateThread);
+
 }
 
 void TFollowerPinger::Start()
@@ -48,13 +53,13 @@ void TFollowerPinger::Start()
         case EFollowerPingerMode::Recovery:
             ReachableVersion = MetaState->GetReachableVersionAsync();
             PeriodicInvoker = new TPeriodicInvoker(
-                FromMethod(&TFollowerPinger::SendPing, TPtr(this))->Via(ControlInvoker),
+                FromMethod(&TFollowerPinger::SendPing, TPtr(this))->Via(EpochControlInvoker),
                 Config->PingInterval);
             break;
 
         case EFollowerPingerMode::Leading:
             PeriodicInvoker = new TPeriodicInvoker(
-                FromMethod(&TFollowerPinger::SendPing, TPtr(this))->Via(MetaState->GetStateInvoker()),
+                FromMethod(&TFollowerPinger::SendPing, TPtr(this))->Via(EpochStateInvoker),
                 Config->PingInterval);
             break;
 
@@ -69,8 +74,6 @@ void TFollowerPinger::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    ControlInvoker->Cancel();
-    StateInvoker->Cancel();
     PeriodicInvoker->Stop();
 }
 
@@ -95,7 +98,7 @@ void TFollowerPinger::SendPing()
         request->set_max_snapshot_id(maxSnapshotId);
         request->Invoke()->Subscribe(
             FromMethod(&TFollowerPinger::OnPingReply, TPtr(this), peerId)
-            ->Via(ControlInvoker));
+            ->Via(EpochControlInvoker));
         
         LOG_DEBUG("Sent ping to follower %d (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
             peerId,

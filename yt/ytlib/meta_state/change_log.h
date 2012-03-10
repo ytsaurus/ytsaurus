@@ -23,9 +23,9 @@ public:
 
     //! Basic constructor.
     TChangeLog(
-        Stroka fileName,
+        const Stroka& fileName,
         i32 id,
-        i32 indexBlockSize = 1024 * 1024);
+        i64 indexBlockSize = 1024 * 1024);
 
     void Open();
     void Create(i32 prevRecordCount);

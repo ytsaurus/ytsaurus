@@ -1,9 +1,9 @@
 #pragma once
 
-#include <ytlib/cell_master/bootstrap.h>
+#include "public.h"
 
 namespace NYT {
-namespace NCypress {
+namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,12 +12,9 @@ class TWorldInitializer
     : public TRefCounted
 {
 public:
-    TWorldInitializer(NCellMaster::TBootstrap* bootstrap);
+    TWorldInitializer(TBootstrap* bootstrap);
 
     //! Returns True iff the world is already initialized.
-    /*!
-     *  Used to protected the cell from access before the initialization is complete.
-     */
     bool IsInitialized() const;
 
 private:
@@ -28,6 +25,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCellMaster
 } // namespace NYT
 

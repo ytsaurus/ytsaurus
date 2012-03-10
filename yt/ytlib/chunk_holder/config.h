@@ -1,12 +1,12 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
+#include "peer_block_table.h"
+#include "master_connector.h"
 
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_client/sequential_reader.h>
-#include <ytlib/chunk_holder/peer_block_table.h>
-#include <ytlib/election/leader_lookup.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -17,13 +17,12 @@ namespace NChunkHolder {
 struct TLocationConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TLocationConfig> TPtr;
-
     //! Location root path.
     Stroka Path;
 
     //! Maximum space chunks are allowed to occupy.
     //! (0 indicates to occupy all available space on drive).
+    // TODO(babenko): use nullable
     i64 Quota;
 
     //! Consider the location to be full when left space is less than #LowWatermark
@@ -56,8 +55,6 @@ struct TLocationConfig
 struct TChunkHolderConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TChunkHolderConfig> TPtr;
-
     //! Block cache size (in bytes).
     i64 MaxCachedBlocksSize;
 
@@ -72,9 +69,6 @@ struct TChunkHolderConfig
      */
     TDuration SessionTimeout;
     
-    //! Period between consequent heartbeats.
-    TDuration HeartbeatPeriod;
-
     //! Timeout for "PutBlock" requests to other holders.
     TDuration HolderRpcTimeout;
 
@@ -90,16 +84,14 @@ struct TChunkHolderConfig
     //! Updated expiration timeout (see TPeerBlockUpdater).
     TDuration PeerUpdateExpirationTimeout;
 
-    //! Peer address to publish. Not registered.
-    Stroka PeerAddress;
-
+    //! Data block responses are throttled when the out-queue reaches this size.
     i64 ResponseThrottlingSize;
 
     //! Regular storage locations.
-    yvector<TLocationConfig::TPtr> ChunkStorageLocations;
+    yvector<TLocationConfigPtr> ChunkStoreLocations;
 
     //! Cached chunks location.
-    TLocationConfig::TPtr ChunkCacheLocation;
+    TLocationConfigPtr ChunkCacheLocation;
 
     //! Remote reader configuration used to download chunks into cache.
     NChunkClient::TRemoteReaderConfig::TPtr CacheRemoteReader;
@@ -111,11 +103,10 @@ struct TChunkHolderConfig
     NChunkClient::TRemoteWriter::TConfig::TPtr ReplicationRemoteWriter;
 
     //! Keeps chunk peering information.
-    TPeerBlockTable::TConfig::TPtr PeerBlockTable;
+    TPeerBlockTableConfigPtr PeerBlockTable;
 
-    //! Masters configuration.
-    NElection::TLeaderLookup::TConfig::TPtr Masters;
-    
+    //! Maintains connection with the master.
+    TMasterConnectorConfigPtr MasterConnector;
 
     //! Constructs a default instance.
     /*!
@@ -132,8 +123,6 @@ struct TChunkHolderConfig
             .Default(10);
         Register("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(15));
-        Register("heartbeat_period", HeartbeatPeriod)
-            .Default(TDuration::Seconds(5));
         Register("holder_rpc_timeout", HolderRpcTimeout)
             .Default(TDuration::Seconds(15));
         Register("rpc_port", RpcPort)
@@ -147,7 +136,7 @@ struct TChunkHolderConfig
         Register("response_throttling_size", ResponseThrottlingSize)
             .GreaterThan(0)
             .Default(500 * 1024 * 1024);
-        Register("chunk_store_locations", ChunkStorageLocations)
+        Register("chunk_store_locations", ChunkStoreLocations)
             .NonEmpty();
         Register("chunk_cache_location", ChunkCacheLocation)
             .DefaultNew();
@@ -157,10 +146,9 @@ struct TChunkHolderConfig
             .DefaultNew();
         Register("peer_block_table", PeerBlockTable)
             .DefaultNew();
-        Register("masters", Masters)
-            .DefaultNew();
         Register("replication_remote_writer", ReplicationRemoteWriter)
             .DefaultNew();
+        Register("master_connector", MasterConnector);
     }
 };
 

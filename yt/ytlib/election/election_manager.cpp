@@ -37,9 +37,9 @@ public:
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         auto& cellManager = ElectionManager->CellManager;
-        for (TPeerId i = 0; i < cellManager->GetPeerCount(); ++i) {
-            if (i != cellManager->GetSelfId()) {
-                SendPing(i);
+        for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
+            if (id != cellManager->GetSelfId()) {
+                SendPing(id);
             }
         }
     }
@@ -487,8 +487,9 @@ void TElectionManager::Reset()
     VoteEpoch = TGuid();
     Epoch = TGuid();
     EpochStart = TInstant();
-    if (ControlEpochInvoker) {
-        ControlEpochInvoker->Cancel();
+    if (ControlEpochContext) {
+        ControlEpochContext->Cancel();
+        ControlEpochContext.Reset();
         ControlEpochInvoker.Reset();
     }
     AliveFollowers.clear();
@@ -554,8 +555,10 @@ void TElectionManager::StartVoteForSelf()
     VoteId = CellManager->GetSelfId();
     VoteEpoch = TGuid::Create();
 
+    YASSERT(!ControlEpochContext);
     YASSERT(!ControlEpochInvoker);
-    ControlEpochInvoker = New<TCancelableInvoker>(ControlInvoker);
+    ControlEpochContext = New<TCancelableContext>();
+    ControlEpochInvoker = ControlEpochContext->CreateInvoker(~ControlInvoker);
 
     auto priority = ElectionCallbacks->GetPriority();
 

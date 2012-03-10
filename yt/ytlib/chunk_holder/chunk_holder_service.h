@@ -1,61 +1,37 @@
 #pragma once
 
-#include "common.h"
-#include "config.h"
+#include "public.h"
 #include "chunk_holder_service.pb.h"
 #include "chunk_holder_service_proxy.h"
 
-#include <ytlib/rpc/server.h>
+#include <ytlib/rpc/service.h>
+#include <ytlib/rpc/channel_cache.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore;
-class TChunkCache;
-class TReaderCache;
-class TChunk;
-class TBlockStore;
-class TPeerBlockTable;
-class TSessionManager;
+// TODO(babenko): get rid of this once public.h is ready
 class TSession;
+class TChunk;
 
 class TChunkHolderService
     : public NRpc::TServiceBase
 {
 public:
     typedef TIntrusivePtr<TChunkHolderService> TPtr;
-    typedef TChunkHolderConfig TConfig;
 
     //! Creates an instance.
-    TChunkHolderService(
-        TConfig* config,
-        IInvoker* serviceInvoker,
-        NBus::IBusServer* server,
-        TChunkStore* chunkStore,
-        TChunkCache* chunkcache,
-        TReaderCache* readerCache,
-        TBlockStore* blockStore,
-        TPeerBlockTable* blockTable,
-        TSessionManager* sessionManager);
-    ~TChunkHolderService();
+    TChunkHolderService(TChunkHolderConfig* config, TBootstrap* bootstrap);
 
 private:
     typedef TChunkHolderService TThis;
     typedef TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TConfig::TPtr Config;
-    IInvoker::TPtr ServiceInvoker;
-    TIntrusivePtr<NBus::IBusServer> BusServer;
-    TIntrusivePtr<TChunkStore> ChunkStore;
-    TIntrusivePtr<TChunkCache> ChunkCache;
-    TIntrusivePtr<TReaderCache> ReaderCache;
-    TIntrusivePtr<TBlockStore> BlockStore;
-    TIntrusivePtr<TPeerBlockTable> BlockTable;
-    TIntrusivePtr<TSessionManager> SessionManager;
-
+    TChunkHolderConfigPtr Config;
+    TBootstrap* Bootstrap;
     NRpc::TChannelCache ChannelCache;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartChunk);

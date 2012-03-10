@@ -1,5 +1,8 @@
 #include "stdafx.h"
 #include "block_store.h"
+#include "common.h"
+#include "chunk.h"
+#include "config.h"
 #include "chunk_registry.h"
 #include "reader_cache.h"
 #include "location.h"
@@ -142,7 +145,7 @@ private:
     }
 
     void DoReadBlock(
-        TChunk::TPtr chunk,
+        TChunkPtr chunk,
         const TBlockId& blockId,
         TSharedPtr<TInsertCookie> cookie)
     {

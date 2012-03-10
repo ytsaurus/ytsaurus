@@ -112,6 +112,11 @@ class Holder(Server):
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
     config = Template({ 
+		'master_connector' : {
+        	'masters' : {
+            	'addresses' : MasterAddresses
+            }
+        },
         'masters' : { 'addresses' : MasterAddresses },
         'chunk_store_locations' : [
             { 'path' : '/yt/disk1/data/chunk_store', 'quota' : storeQuota },

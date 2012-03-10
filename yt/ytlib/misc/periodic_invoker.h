@@ -1,6 +1,7 @@
 #pragma once
 
 #include "delayed_invoker.h"
+
 #include <ytlib/actions/invoker_util.h>
 
 namespace NYT {
@@ -45,7 +46,8 @@ private:
     IAction::TPtr Action;
     TDuration Period;
     TDelayedInvoker::TCookie Cookie;
-    TCancelableInvoker::TPtr CancelableInvoker;
+    TCancelableContextPtr CancelableContext;
+    IInvoker::TPtr CancelableInvoker;
 
     void RunAction();
 };

@@ -4,30 +4,32 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/Config.h>
 
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NCellMaster;
+using namespace NProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkServerLogger;
+static NLog::TLogger Logger("ChunkServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplication::TChunkReplication(
-    TChunkManager* chunkManager,
-    TChunkPlacement* chunkPlacement,
-    TChunkManager::TConfig* config,
-    IInvoker* invoker)
-    : ChunkManager(chunkManager)
+    TConfig* config,
+    TBootstrap* bootstrap,
+    TChunkPlacement* chunkPlacement)
+    : Config(config)
+    , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
-    , Config(config)
-    , Invoker(invoker)
 {
-    YASSERT(chunkManager);
-    YASSERT(chunkPlacement);
     YASSERT(config);
-    YASSERT(invoker);
+    YASSERT(bootstrap);
+    YASSERT(chunkPlacement);
 
     ScheduleNextRefresh();
 }
@@ -36,7 +38,7 @@ void TChunkReplication::RunJobControl(
     const THolder& holder,
     const yvector<TJobInfo>& runningJobs,
     yvector<TJobStartInfo>* jobsToStart,
-    yvector<TJobId>* jobsToStop)
+    yvector<TJobStopInfo>* jobsToStop)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -84,7 +86,7 @@ void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunk
 void TChunkReplication::ProcessExistingJobs(
     const THolder& holder,
     const yvector<TJobInfo>& runningJobs,
-    yvector<TJobId>* jobsToStop,
+    yvector<TJobStopInfo>* jobsToStop,
     int* replicationJobCount,
     int* removalJobCount)
 {
@@ -93,17 +95,20 @@ void TChunkReplication::ProcessExistingJobs(
 
     yhash_set<TJobId> runningJobIds;
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH(const auto& jobInfo, runningJobs) {
         auto jobId = TJobId::FromProto(jobInfo.job_id());
         runningJobIds.insert(jobId);
-        const auto* job = ChunkManager->FindJob(jobId);
+        const auto* job = chunkManager->FindJob(jobId);
 
         if (!job) {
             LOG_WARNING("Stopping unknown or obsolete job (JobId: %s, Address: %s, HolderId: %d)",
                 ~jobId.ToString(),
                 ~holder.GetAddress(),
                 holder.GetId());
-            jobsToStop->push_back(jobId);
+            TJobStopInfo stopInfo;
+            stopInfo.set_job_id(jobId.ToProto());
+            jobsToStop->push_back(stopInfo);
             continue;
         }
 
@@ -127,7 +132,9 @@ void TChunkReplication::ProcessExistingJobs(
                     holder.GetId());
 
                 if (TInstant::Now() - job->GetStartTime() > Config->JobTimeout) {
-                    jobsToStop->push_back(jobId);
+                    TJobStopInfo stopInfo;
+                    stopInfo.set_job_id(jobId.ToProto());
+                    jobsToStop->push_back(stopInfo);
 
                     LOG_WARNING("Job timed out (JobId: %s, HolderId: %d, Duration: %d ms)",
                         ~jobId.ToString(),
@@ -137,34 +144,36 @@ void TChunkReplication::ProcessExistingJobs(
                 break;
 
             case EJobState::Completed:
-                jobsToStop->push_back(jobId);
-                ScheduleChunkRefresh(job->GetChunkId());
-                LOG_INFO("Job completed (JobId: %s, HolderId: %d)",
-                    ~jobId.ToString(),
-                    holder.GetId());
-                break;
+            case EJobState::Failed: {
+                TJobStopInfo stopInfo;
+                stopInfo.set_job_id(jobId.ToProto());
+                jobsToStop->push_back(stopInfo);
 
-            case EJobState::Failed:
-                jobsToStop->push_back(jobId);
                 ScheduleChunkRefresh(job->GetChunkId());
-                LOG_WARNING("Job failed (JobId: %s, HolderId: %d)",
+
+                LOG_INFO("Job %s (JobId: %s, HolderId: %d)",
+                    jobState == EJobState::Completed ? "completed" : "failed",
                     ~jobId.ToString(),
                     holder.GetId());
                 break;
+            }
 
             default:
                 YUNREACHABLE();
         }
     }
 
-    // Checking for missing jobs
-    FOREACH(auto jobId, holder.JobIds()) {
+    // Check for missing jobs
+    FOREACH (auto jobId, holder.JobIds()) {
         if (runningJobIds.find(jobId) == runningJobIds.end()) {
+            TJobStopInfo stopInfo;
+            stopInfo.set_job_id(jobId.ToProto());
+            jobsToStop->push_back(stopInfo);
+
             LOG_WARNING("Job is missing (JobId: %s, Address: %s, HolderId: %d)",
                 ~jobId.ToString(),
                 ~holder.GetAddress(),
                 holder.GetId());
-            jobsToStop->push_back(jobId);
         }
     }
 }
@@ -179,7 +188,8 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     const TChunkId& chunkId,
     yvector<TJobStartInfo>* jobsToStart)
 {
-    const auto* chunk = ChunkManager->FindChunk(chunkId);
+    auto chunkManager = Bootstrap->GetChunkManager();
+    const auto* chunk = chunkManager->FindChunk(chunkId);
     if (!chunk) {
         LOG_DEBUG("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
@@ -228,7 +238,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 
     yvector<Stroka> targetAddresses;
     FOREACH (auto holderId, targets) {
-        const auto& holder = ChunkManager->GetHolder(holderId);
+        const auto& holder = chunkManager->GetHolder(holderId);
         targetAddresses.push_back(holder.GetAddress());
         ChunkPlacement->OnSessionHinted(holder);
     }
@@ -261,7 +271,8 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     const TChunkId& chunkId,
     yvector<TJobStartInfo>* jobsToStart)
 {
-    const auto& chunk = ChunkManager->GetChunk(chunkId);
+    auto chunkManager = Bootstrap->GetChunkManager();
+    const auto& chunk = chunkManager->GetChunk(chunkId);
 
     if (IsRefreshScheduled(chunkId)) {
         LOG_DEBUG("Postponed chunk balancing until another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -283,7 +294,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
         return EScheduleFlags::None;
     }
 
-    const auto& targetHolder = ChunkManager->GetHolder(targetHolderId);
+    const auto& targetHolder = chunkManager->GetHolder(targetHolderId);
     ChunkPlacement->OnSessionHinted(targetHolder);
     
     auto jobId = TJobId::Create();
@@ -428,16 +439,17 @@ void TChunkReplication::GetReplicaStatistics(
         return;
     }
 
-    const auto* jobList = ChunkManager->FindJobList(chunk.GetId());
+    auto chunkManager = Bootstrap->GetChunkManager();
+    const auto* jobList = chunkManager->FindJobList(chunk.GetId());
     if (jobList) {
         yhash_set<Stroka> storedAddresses(*storedCount);
         FOREACH(auto holderId, chunk.StoredLocations()) {
-            const auto& holder = ChunkManager->GetHolder(holderId);
+            const auto& holder = chunkManager->GetHolder(holderId);
             storedAddresses.insert(holder.GetAddress());
         }
 
         FOREACH(const auto& jobId, jobList->JobIds()) {
-            const auto& job = ChunkManager->GetJob(jobId);
+            const auto& job = chunkManager->GetJob(jobId);
             switch (job.GetType()) {
                 case EJobType::Replicate: {
                     FOREACH(const auto& address, job.TargetAddresses()) {
@@ -463,7 +475,7 @@ void TChunkReplication::GetReplicaStatistics(
 
 int TChunkReplication::GetDesiredReplicaCount(const TChunk& chunk)
 {
-    // TODO: make configurable
+    // TODO(babenko): make configurable
     UNUSED(chunk);
     return 3;
 }
@@ -501,6 +513,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
     OverreplicatedChunkIds_.erase(chunkId);
     UnderreplicatedChunkIds_.erase(chunkId);
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     if (storedCount == 0) {
         LostChunkIds_.insert(chunkId);
 
@@ -528,7 +541,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
 
         yvector<Stroka> holderAddresses;
         FOREACH(auto holderId, holderIds) {
-            const auto& holder = ChunkManager->GetHolder(holderId);
+            const auto& holder = chunkManager->GetHolder(holderId);
             holderAddresses.push_back(holder.GetAddress());
         }
 
@@ -551,7 +564,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
 
         auto holderId = ChunkPlacement->GetReplicationSource(chunk);
         auto& holderInfo = GetHolderInfo(holderId);
-        const auto& holder = ChunkManager->GetHolder(holderId);
+        const auto& holder = chunkManager->GetHolder(holderId);
 
         holderInfo.ChunksToReplicate.insert(chunk.GetId());
 
@@ -584,7 +597,9 @@ void TChunkReplication::ScheduleNextRefresh()
 {
     TDelayedInvoker::Submit(
         ~FromMethod(&TChunkReplication::OnRefresh, TPtr(this))
-        ->Via(Invoker),
+        ->Via(
+            Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
+            Bootstrap->GetMetaStateManager()->GetEpochContext()),
         Config->ChunkRefreshQuantum);
 }
 
@@ -592,6 +607,7 @@ void TChunkReplication::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     auto now = TInstant::Now();
     for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
         if (RefreshList.empty())
@@ -601,7 +617,7 @@ void TChunkReplication::OnRefresh()
         if (entry.When > now)
             break;
 
-        auto* chunk = ChunkManager->FindChunk(entry.ChunkId);
+        auto* chunk = chunkManager->FindChunk(entry.ChunkId);
         if (chunk) {
             Refresh(*chunk);
         }
@@ -609,6 +625,7 @@ void TChunkReplication::OnRefresh()
         YVERIFY(RefreshSet.erase(entry.ChunkId) == 1);
         RefreshList.pop_front();
     }
+
     ScheduleNextRefresh();
 }
 

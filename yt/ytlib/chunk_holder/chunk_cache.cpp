@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "chunk_cache.h"
+#include "common.h"
+#include "reader_cache.h"
 #include "location.h"
+#include "chunk.h"
+#include "block_store.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/serialize.h>
@@ -12,7 +16,7 @@
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/election/leader_channel.h>
-#include <ytlib/transaction_server/common.h>
+#include <ytlib/chunk_holder/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -21,12 +25,11 @@ using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NElection;
 using namespace NRpc;
-using namespace NTransactionServer;
 using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = ChunkHolderLogger;
+static NLog::TLogger Logger("ChunkHolder");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,18 +40,35 @@ public:
     typedef TWeightLimitedCache<TChunkId, TCachedChunk> TBase;
     typedef TIntrusivePtr<TImpl> TPtr;
 
-    TImpl(
-        TChunkHolderConfig* config,
-        TLocation* location,
-        TBlockStore* blockStore,
-        TChunkCache* chunkCache)
+    TImpl(TChunkHolderConfig* config, TBootstrap* bootstrap)
         : TBase(config->ChunkCacheLocation->Quota == 0 ? Max<i64>() : config->ChunkCacheLocation->Quota)
         , Config(config)
-        , Location(location)
-        , BlockStore(blockStore)
-        , ChunkCache(chunkCache)
+        , Bootstrap(bootstrap)
+    { }
+
+    void Start()
     {
-        MasterChannel = CreateLeaderChannel(~config->Masters);
+        LOG_INFO("Chunk cache scan started");
+
+        Location = New<TLocation>(
+            ELocationType::Cache,
+            ~Config->ChunkCacheLocation,
+            ~Bootstrap->GetReaderCache(),
+            "ChunkCache");
+
+        try {
+            FOREACH (const auto& descriptor, Location->Scan()) {
+                auto chunk = New<TCachedChunk>(
+                    ~Location,
+                    descriptor,
+                    ~Bootstrap->GetChunkCache());
+                Put(~chunk);
+            }
+        } catch (const std::exception& ex) {
+            LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
+        }
+
+        LOG_INFO("Chunk cache scan completed, %d chunks found", GetSize());
     }
 
     void Register(TCachedChunk* chunk)
@@ -90,11 +110,9 @@ public:
     }
 
 private:
-    TChunkHolderConfig::TPtr Config;
+    TChunkHolderConfigPtr Config;
+    TBootstrap* Bootstrap;
     TLocation::TPtr Location;
-    TBlockStore::TPtr BlockStore;
-    IChannel::TPtr MasterChannel;
-    TWeakPtr<TChunkCache> ChunkCache;
 
     DEFINE_SIGNAL(void(TChunk*), ChunkAdded);
     DEFINE_SIGNAL(void(TChunk*), ChunkRemoved);
@@ -151,8 +169,8 @@ private:
 
             RemoteReader = CreateRemoteReader(
                 ~Owner->Config->CacheRemoteReader,
-                Owner->BlockStore->GetBlockCache(),
-                ~Owner->MasterChannel,
+                Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
+                ~Owner->Bootstrap->GetMasterConnector()->GetLeaderChannel(),
                 ChunkId,
                 SeedAddresses);
 
@@ -257,7 +275,10 @@ private:
         void OnSuccess()
         {
             LOG_INFO("Chunk is downloaded into cache");
-            auto chunk = New<TCachedChunk>(~Owner->Location, ChunkInfo, ~Owner->ChunkCache.Lock());
+            auto chunk = New<TCachedChunk>(
+                ~Owner->Location,
+                ChunkInfo,
+                ~Owner->Bootstrap->GetChunkCache());
             Cookie->EndInsert(chunk);
             Owner->Register(~chunk);
             Cleanup();
@@ -290,34 +311,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkCache::TChunkCache(
-    TChunkHolderConfig* config,
-    TReaderCache* readerCache,
-    TBlockStore* blockStore)
+TChunkCache::TChunkCache(TChunkHolderConfig* config, TBootstrap* bootstrap)
+    : Impl(New<TImpl>(config, bootstrap))
+{ }
+
+void TChunkCache::Start()
 {
-    LOG_INFO("Chunk cache scan started");
-
-    auto location = New<TLocation>(
-        ELocationType::Cache,
-        ~config->ChunkCacheLocation,
-        readerCache,
-        "ChunkCache");
-
-    Impl = New<TImpl>(config, ~location, blockStore, this);
-
-    try {
-        FOREACH (const auto& descriptor, location->Scan()) {
-            auto chunk = New<TCachedChunk>(~location, descriptor, this);
-            Impl->Put(~chunk);
-        }
-    } catch (const std::exception& ex) {
-        LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
-    }
-
-    LOG_INFO("Chunk cache scan completed, %d chunks found", GetChunkCount());
+    Impl->Start();
 }
 
-TCachedChunk::TPtr TChunkCache::FindChunk(const TChunkId& chunkId)
+TCachedChunkPtr TChunkCache::FindChunk(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return Impl->Find(chunkId);

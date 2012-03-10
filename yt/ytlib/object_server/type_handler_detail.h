@@ -6,6 +6,7 @@
 
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/meta_state/map.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -19,8 +20,8 @@ class TObjectTypeHandlerBase
 public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
 
-    TObjectTypeHandlerBase(TObjectManager* objectManager, TMap* map)
-        : ObjectManager(objectManager)
+    TObjectTypeHandlerBase(NCellMaster::TBootstrap* bootstrap, TMap* map)
+        : Bootstrap(bootstrap)
         , Map(map)
     {
         YASSERT(map);
@@ -57,7 +58,7 @@ public:
 
     virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id)
     {
-        return New< TUnversionedObjectProxyBase<TObject> >(~ObjectManager, id.ObjectId, Map);
+        return New< TUnversionedObjectProxyBase<TObject> >(Bootstrap, id.ObjectId, Map);
     }
 
     virtual TObjectId CreateFromManifest(
@@ -76,7 +77,7 @@ public:
     }
 
 protected:
-    TIntrusivePtr<TObjectManager> ObjectManager;
+    NCellMaster::TBootstrap* Bootstrap;
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
 
