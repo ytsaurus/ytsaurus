@@ -12,7 +12,9 @@ struct TChunkManagerConfig
 {
     typedef TIntrusivePtr<TChunkManagerConfig> TPtr;
 
-    TDuration HolderLeaseTimeout;
+    TDuration OnlineHolderTimeout;
+    TDuration RegisteredHolderTimeout;
+    TDuration HolderExpirationBackoffTime;
     int MaxReplicationFanOut;
     int MaxReplicationFanIn;
     int MaxRemovalJobsPerHolder;
@@ -28,8 +30,12 @@ struct TChunkManagerConfig
 
     TChunkManagerConfig()
     {
-        Register("holder_lease_timeout", HolderLeaseTimeout)
+        Register("online_holder_timeout", OnlineHolderTimeout)
             .Default(TDuration::Seconds(10));
+        Register("registered_holder_timeout", RegisteredHolderTimeout)
+            .Default(TDuration::Seconds(60));
+        Register("holder_expiration_backoff_time", HolderExpirationBackoffTime)
+            .Default(TDuration::Seconds(5));
         Register("max_replication_fan_out", MaxReplicationFanOut)
             .Default(4);
         Register("max_replication_fan_in", MaxReplicationFanIn)

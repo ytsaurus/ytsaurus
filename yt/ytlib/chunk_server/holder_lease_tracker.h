@@ -43,13 +43,21 @@ public:
         NCellMaster::TBootstrap* bootstrap);
 
     //! Registers the holder and assigns it an initial lease.
+    /*!
+     *  Initial lease timeout for registered holders is #TChunkManagerConfig::RegisteredHolderTimeout.
+     *  For online holders it is decreased to #TChunkManagerConfig::OnlineHolderTimeout.
+     */
     void OnHolderRegistered(const THolder& holder);
-    
+
+    //! Notifies that the holder has become online and hence its lease timeout must be updated.
+    void OnHolderOnline(const THolder& holder);
+
+    //! Renews the lease.
+    void OnHolderHeartbeat(const THolder& holder);
+
     //! Unregisters the holder and stop tracking its lease.
     void OnHolderUnregistered(const THolder& holder);
 
-    //! Renews the lease.
-    void RenewHolderLease(const THolder& holder);
 
 private:
     struct THolderInfo
@@ -66,6 +74,7 @@ private:
 
     THolderInfo* FindHolderInfo(THolderId holderId);
     THolderInfo& GetHolderInfo(THolderId holderId);
+    void RecreateLease(const THolder& holder);
 
     void OnExpired(THolderId holderId);
 

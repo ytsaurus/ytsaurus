@@ -595,7 +595,7 @@ private:
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
-                HolderLeaseTracking->RenewHolderLease(holder);
+                HolderLeaseTracking->OnHolderOnline(holder);
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
@@ -638,7 +638,7 @@ private:
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
-                HolderLeaseTracking->RenewHolderLease(holder);
+                HolderLeaseTracking->OnHolderHeartbeat(holder);
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 

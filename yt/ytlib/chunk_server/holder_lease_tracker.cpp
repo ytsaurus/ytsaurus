@@ -29,19 +29,13 @@ THolderLeaseTracker::THolderLeaseTracker(
 
 void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
 {
-    auto pair = HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo()));
-    YASSERT(pair.second);
+    YASSERT(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).second);
+    RecreateLease(holder);
+}
 
-    auto& holderInfo = pair.first->second;
-    holderInfo.Lease = TLeaseManager::CreateLease(
-        Config->HolderLeaseTimeout,
-        ~FromMethod(
-            &THolderLeaseTracker::OnExpired,
-            MakeStrong(this),
-            holder.GetId())
-        ->Via(
-            Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
-            Bootstrap->GetMetaStateManager()->GetEpochContext()));
+void THolderLeaseTracker::OnHolderOnline(const THolder& holder)
+{
+    RecreateLease(holder);
 }
 
 void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
@@ -52,7 +46,7 @@ void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
     YASSERT(HolderInfoMap.erase(holderId) == 1);
 }
 
-void THolderLeaseTracker::RenewHolderLease(const THolder& holder)
+void THolderLeaseTracker::OnHolderHeartbeat(const THolder& holder)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
     TLeaseManager::RenewLease(holderInfo.Lease);
@@ -73,7 +67,7 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
     Bootstrap
         ->GetChunkManager()
         ->InitiateUnregisterHolder(message)
-        ->SetRetriable(Config->HolderLeaseTimeout)
+        ->SetRetriable(Config->HolderExpirationBackoffTime)
         ->OnSuccess(~FromFunctor([=] (TVoid)
             {
                 LOG_INFO("Holder expiration commit success (HolderId: %d)", holderId);
@@ -83,6 +77,27 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
                 LOG_INFO("Holder expiration commit failed (HolderId: %d)", holderId);
             }))
         ->Commit();
+}
+
+void THolderLeaseTracker::RecreateLease(const THolder& holder)
+{
+    auto& holderInfo = GetHolderInfo(holder.GetId());
+
+    if (holderInfo.Lease) {
+        TLeaseManager::CloseLease(holderInfo.Lease);
+    }
+
+    holderInfo.Lease = TLeaseManager::CreateLease(
+        holder.GetState() == EHolderState::Registered
+        ? Config->RegisteredHolderTimeout
+        : Config->OnlineHolderTimeout,
+        ~FromMethod(
+            &THolderLeaseTracker::OnExpired,
+            MakeStrong(this),
+            holder.GetId())
+        ->Via(
+            Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
+            Bootstrap->GetMetaStateManager()->GetEpochContext()));
 }
 
 THolderLeaseTracker::THolderInfo* THolderLeaseTracker::FindHolderInfo(THolderId holderId)
