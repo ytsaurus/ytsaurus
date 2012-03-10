@@ -670,8 +670,7 @@ void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
                 NYT::Write(*IndexFile, header);
                 IndexFile->Flush();
             } catch (const std::exception& ex) {
-                LOG_FATAL("Error appending to index\n%s",
-                    ex.what());
+                LOG_FATAL("Error appending to index\n%s", ex.what());
             }
             LOG_DEBUG("Changelog record is added to index (RecordId: %d, Offset: %" PRId64 ")",
                 record.RecordId,
