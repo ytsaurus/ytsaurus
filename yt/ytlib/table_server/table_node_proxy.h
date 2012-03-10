@@ -30,8 +30,6 @@ public:
 private:
     typedef NCypress::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
 
-    NChunkServer::TChunkManager::TPtr ChunkManager;
-
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 

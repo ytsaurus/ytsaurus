@@ -73,11 +73,12 @@ void TFileNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes
 
 bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
 {
+    auto chunkManager = Bootstrap->GetChunkManager();
     const auto& fileNode = GetTypedImpl();
-    const auto& chunkList = ChunkManager->GetChunkList(fileNode.GetChunkListId());
+    const auto& chunkList = chunkManager->GetChunkList(fileNode.GetChunkListId());
     YASSERT(chunkList.ChildrenIds().ysize() == 1);
     auto chunkId = chunkList.ChildrenIds()[0];
-    const auto& chunk = ChunkManager->GetChunk(chunkId);
+    const auto& chunk = chunkManager->GetChunk(chunkId);
     auto attributes = chunk
         .DeserializeAttributes()
         .GetExtension(TFileChunkAttributes::file_attributes);
@@ -123,16 +124,17 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
     const auto& impl = GetTypedImpl();
     
     auto chunkListId = impl.GetChunkListId();
-    const auto& chunkList = ChunkManager->GetChunkList(chunkListId);
+    auto chunkManager = Bootstrap->GetChunkManager();
+    const auto& chunkList = chunkManager->GetChunkList(chunkListId);
     YASSERT(chunkList.ChildrenIds().size() == 1);
     
     auto chunkId = chunkList.ChildrenIds()[0];
     YASSERT(TypeFromId(chunkId) == EObjectType::Chunk);
 
-    const auto& chunk = ChunkManager->GetChunk(chunkId);
+    const auto& chunk = chunkManager->GetChunk(chunkId);
 
     response->set_chunk_id(chunkId.ToProto());
-    ChunkManager->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
+    chunkManager->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
 
     response->set_executable(IsExecutable());
     response->set_file_name(GetFileName());

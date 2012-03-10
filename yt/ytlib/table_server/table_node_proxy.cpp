@@ -67,7 +67,8 @@ void TTableNodeProxy::TraverseChunkTree(
         }
 
         case EObjectType::ChunkList: {
-            const auto& chunkList = ChunkManager->GetChunkList(treeId);
+            auto chunkManager = Bootstrap->GetChunkManager();
+            const auto& chunkList = chunkManager->GetChunkList(treeId);
             FOREACH (const auto& childId, chunkList.ChildrenIds()) {
                 TraverseChunkTree(chunkIds, childId);
             }
@@ -92,7 +93,8 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
 bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
 {
     const auto& tableNode = GetTypedImpl();
-    const auto& chunkList = ChunkManager->GetChunkList(tableNode.GetChunkListId());
+    auto chunkManager = Bootstrap->GetChunkManager();
+    const auto& chunkList = chunkManager->GetChunkList(tableNode.GetChunkListId());
 
     if (name == "chunk_list_id") {
         BuildYsonFluently(consumer)
@@ -180,14 +182,15 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     yvector<TChunkId> chunkIds;
     TraverseChunkTree(&chunkIds, impl.GetChunkListId());
 
+    auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& chunkId, chunkIds) {
         auto* chunkInfo = response->add_chunks();
         chunkInfo->set_chunk_id(chunkId.ToProto());
 
-        const auto& chunk = ChunkManager->GetChunk(chunkId);
+        const auto& chunk = chunkManager->GetChunk(chunkId);
         if (chunk.IsConfirmed()) {
             if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
-                ChunkManager->FillHolderAddresses(chunkInfo->mutable_holder_addresses(), chunk);
+                chunkManager->FillHolderAddresses(chunkInfo->mutable_holder_addresses(), chunk);
             }
 
             if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
