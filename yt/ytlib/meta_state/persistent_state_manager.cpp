@@ -730,7 +730,7 @@ public:
             Epoch,
             ~EpochControlInvoker,
             ~EpochStateInvoker);
-        LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnApplyChange, MakeWeak(this)));
+        LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnChangeApplied, MakeWeak(this)));
 
         YASSERT(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(
@@ -1122,13 +1122,13 @@ public:
         EpochStateInvoker.Reset();
     }
 
-    void OnApplyChange()
+    void OnChangeApplied()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         YASSERT(StateStatus == EPeerStatus::Leading);
 
         if (Config->MaxChangesBetweenSnapshots > 0 &&
-            MetaState->GetVersion().RecordCount % (Config->MaxChangesBetweenSnapshots + 1) == 0)
+            MetaState->GetVersion().RecordCount % Config->MaxChangesBetweenSnapshots == 0)
         {
             LeaderCommitter->Flush();
             SnapshotBuilder->CreateDistributed();
