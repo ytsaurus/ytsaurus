@@ -213,7 +213,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
         DoCreateLocal(version);
         _exit(0);
     } else {
-        Profiler.TimingStop("fork_time");
+        Profiler.TimingStop(forkTimer);
         LOG_INFO("Forked successfully, starting watchdog");
         WatchdogQueue->GetInvoker()->Invoke(FromMethod(
             &TSnapshotBuilder::WatchdogFork,
