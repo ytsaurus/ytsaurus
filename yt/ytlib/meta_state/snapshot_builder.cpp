@@ -9,7 +9,6 @@
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/actions/action_util.h>
-#include <ytlib/actions/action_queue.h>
 #include <ytlib/profiling/profiler.h>
 
 #include <util/system/fs.h>
