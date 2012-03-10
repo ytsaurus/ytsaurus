@@ -66,6 +66,9 @@ class Master(Server):
 
     config = Template({
         'meta_state' : {
+	        'leader_committer' : {
+	        	'max_batch_delay': 50
+	        },
             'cell' : {
                 'addresses' : MasterAddresses
             },
