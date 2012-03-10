@@ -23,9 +23,10 @@ public:
     typedef yvector<TLocationPtr> TLocations;
 
     //! Constructs a new instance.
-    TChunkStore(
-        TChunkHolderConfig* config,
-        TReaderCache* readerCache);
+    TChunkStore(TChunkHolderConfig* config, TBootstrap* bootstrap);
+
+    //! Initializes the store.
+    void Start();
 
     //! Registers a chunk.
     void RegisterChunk(TStoredChunk* chunk);
@@ -63,7 +64,7 @@ public:
 
 private:
     TChunkHolderConfigPtr Config;
-    TReaderCachePtr ReaderCache;
+    TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
     TChunkMap ChunkMap;

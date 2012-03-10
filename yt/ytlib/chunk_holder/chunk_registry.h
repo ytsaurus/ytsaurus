@@ -6,9 +6,6 @@ namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
-   
-class TChunkStore;
-class TChunkCache;
 
 //! A facade for locating chunks that are fully uploaded to the chunk holder.
 /*!
@@ -21,16 +18,14 @@ class TChunkRegistry
 public:
     typedef TIntrusivePtr<TChunkRegistry> TPtr;
 
+    //! Initializes a new instance.
+    TChunkRegistry(TBootstrap* bootstrap);
+
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TChunkPtr FindChunk(const TChunkId& chunkId) const;
 
-    // Due to cyclic dependency these values cannot be injected via ctor.
-    void SetChunkStore(TChunkStore* chunkStore);
-    void SetChunkCache(TChunkCache* chunkCache);
-
 private:
-    TChunkStore* ChunkStore;
-    TChunkCache* ChunkCache;
+    TBootstrap* Bootstrap;
 
 };
 

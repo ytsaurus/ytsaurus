@@ -1,12 +1,12 @@
 #pragma once
 
 #include "public.h"
+#include "peer_block_table.h"
+#include "master_connector.h"
 
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_client/sequential_reader.h>
-#include <ytlib/chunk_holder/peer_block_table.h>
-#include <ytlib/election/leader_lookup.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -69,9 +69,6 @@ struct TChunkHolderConfig
      */
     TDuration SessionTimeout;
     
-    //! Period between consequent heartbeats.
-    TDuration HeartbeatPeriod;
-
     //! Timeout for "PutBlock" requests to other holders.
     TDuration HolderRpcTimeout;
 
@@ -87,9 +84,7 @@ struct TChunkHolderConfig
     //! Updated expiration timeout (see TPeerBlockUpdater).
     TDuration PeerUpdateExpirationTimeout;
 
-    //! Peer address to publish. Not registered.
-    Stroka PeerAddress;
-
+    //! Data block responses are throttled when the out-queue reaches this size.
     i64 ResponseThrottlingSize;
 
     //! Regular storage locations.
@@ -110,9 +105,8 @@ struct TChunkHolderConfig
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
 
-    //! Masters configuration.
-    NElection::TLeaderLookup::TConfig::TPtr Masters;
-    
+    //! Maintains connection with the master.
+    TMasterConnectorConfigPtr MasterConnector;
 
     //! Constructs a default instance.
     /*!
@@ -129,8 +123,6 @@ struct TChunkHolderConfig
             .Default(10);
         Register("session_timeout", SessionTimeout)
             .Default(TDuration::Seconds(15));
-        Register("heartbeat_period", HeartbeatPeriod)
-            .Default(TDuration::Seconds(5));
         Register("holder_rpc_timeout", HolderRpcTimeout)
             .Default(TDuration::Seconds(15));
         Register("rpc_port", RpcPort)
@@ -154,10 +146,9 @@ struct TChunkHolderConfig
             .DefaultNew();
         Register("peer_block_table", PeerBlockTable)
             .DefaultNew();
-        Register("masters", Masters)
-            .DefaultNew();
         Register("replication_remote_writer", ReplicationRemoteWriter)
             .DefaultNew();
+        Register("master_connector", MasterConnector);
     }
 };
 

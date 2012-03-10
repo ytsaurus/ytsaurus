@@ -28,10 +28,10 @@ public:
     typedef yvector<TCachedChunkPtr> TChunks;
 
     //! Constructs a new instance.
-    TChunkCache(
-        TChunkHolderConfig* config,
-        TReaderCache* readerCache,
-        TBlockStore* blockStore);
+    TChunkCache(TChunkHolderConfig* config, TBootstrap* bootstrap);
+
+    //! Initializes the cache.
+    void Start();
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TCachedChunkPtr FindChunk(const TChunkId& chunkId);

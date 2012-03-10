@@ -5,6 +5,8 @@
 #include "chunk.h"
 #include "reader_cache.h"
 #include "chunk_store.h"
+#include "reader_cache.h"
+#include "bootstrap.h"
 #include "chunk_holder_service_proxy.h"
 
 #include <ytlib/misc/foreach.h>
@@ -25,11 +27,12 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStore::TChunkStore(
-    TChunkHolderConfig* config,
-    TReaderCache* readerCache)
+TChunkStore::TChunkStore(TChunkHolderConfig* config, TBootstrap* bootstrap)
     : Config(config)
-    , ReaderCache(readerCache)
+    , Bootstrap(bootstrap)
+{ }
+
+void TChunkStore::Start()
 {
     LOG_INFO("Chunk store scan started");
 
@@ -40,7 +43,7 @@ TChunkStore::TChunkStore(
             auto location = New<TLocation>(
                 ELocationType::Store,
                 ~locationConfig,
-                ~ReaderCache,
+                ~Bootstrap->GetReaderCache(),
                 Sprintf("ChunkStore-%d", i));
             Locations_.push_back(location);
 

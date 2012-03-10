@@ -35,6 +35,8 @@ public:
     TBlockStorePtr GetBlockStore();
     NBus::IBusServer::TPtr GetBusServer() const;
     TPeerBlockTablePtr GetPeerBlockTable() const;
+    TReaderCachePtr GetReaderCache() const;
+    TMasterConnectorPtr GetMasterConnector() const;
 
     void Run();
 
@@ -51,6 +53,8 @@ private:
     TBlockStorePtr BlockStore;
     NBus::IBusServer::TPtr BusServer;
     TPeerBlockTablePtr PeerBlockTable;
+    TReaderCachePtr ReaderCache;
+    TMasterConnectorPtr MasterConnector;
 
 };
 

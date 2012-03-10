@@ -10,8 +10,6 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunk;
-
 //! Manages cached chunk readers.
 class TReaderCache
     : public TRefCounted

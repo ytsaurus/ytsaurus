@@ -36,6 +36,9 @@ TLocation::TLocation(
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path.Quote()));
 }
 
+TLocation::~TLocation()
+{ }
+
 ELocationType TLocation::GetType() const
 {
     return Type;

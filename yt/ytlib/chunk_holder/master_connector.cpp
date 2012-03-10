@@ -13,11 +13,11 @@
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/rpc/client.h>
-#include <ytlib/election/leader_channel.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/chunk_server/holder_statistics.h>
+#include <ytlib/election/leader_channel.h>
 #include <ytlib/logging/tagged_logger.h>
 
 #include <util/system/hostname.h>
@@ -35,7 +35,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnector::TMasterConnector(TChunkHolderConfig* config, TBootstrap* bootstrap)
+TMasterConnector::TMasterConnector(TMasterConnectorConfig* config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
     , State(EState::NotRegistered)
@@ -47,8 +47,8 @@ TMasterConnector::TMasterConnector(TChunkHolderConfig* config, TBootstrap* boots
 
 void TMasterConnector::Start()
 {
-    auto channel = CreateLeaderChannel(~Config->Masters);
-    Proxy.Reset(new TProxy(~channel));
+    LeaderChannel = CreateLeaderChannel(~Config->Masters);
+    Proxy.Reset(new TProxy(~LeaderChannel));
 
     // TODO(babenko): use AsWeak
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
@@ -69,6 +69,11 @@ void TMasterConnector::Start()
         ~JoinToString(Config->Masters->Addresses));
 
     OnHeartbeat();
+}
+
+IChannel::TPtr TMasterConnector::GetLeaderChannel() const
+{
+    return LeaderChannel;
 }
 
 void TMasterConnector::ScheduleHeartbeat()

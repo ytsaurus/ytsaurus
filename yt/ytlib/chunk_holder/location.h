@@ -28,6 +28,7 @@ public:
         TLocationConfig* config,
         TReaderCache* readerCache,
         const Stroka& threadName);
+    ~TLocation();
 
     //! Returns the type.
     ELocationType GetType() const;
@@ -85,7 +86,7 @@ public:
 private:
     ELocationType Type;
     TLocationConfigPtr Config;
-    TIntrusivePtr<TReaderCache> ReaderCache;
+    TReaderCachePtr ReaderCache;
     mutable i64 AvailableSpace;
     i64 UsedSpace;
     TActionQueue::TPtr ActionQueue;

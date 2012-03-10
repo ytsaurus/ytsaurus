@@ -1,17 +1,36 @@
 #pragma once
 
 #include "public.h"
-//#include "bootstrap.h"
-//#include "chunk.h"
-//#include "chunk_service.pb.h"
 
+#include <ytlib/misc/configurable.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
+#include <ytlib/election/leader_lookup.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TMasterConnectorConfig
+    : public TConfigurable
+{
+    //! Peer address to publish. Not registered.
+    Stroka PeerAddress;
+
+    //! Masters configuration.
+    NElection::TLeaderLookup::TConfig::TPtr Masters;
+
+    //! Period between consequent heartbeats.
+    TDuration HeartbeatPeriod;
+
+    TMasterConnectorConfig()
+    {
+        Register("masters", Masters);
+        Register("heartbeat_period", HeartbeatPeriod)
+            .Default(TDuration::Seconds(5));
+    }
+};
 
 //! Mediates connection between the holder and its master.
 /*!
@@ -26,10 +45,13 @@ public:
     typedef TIntrusivePtr<TMasterConnector> TPtr;
 
     //! Creates an instance.
-    TMasterConnector(TChunkHolderConfig* config, TBootstrap* bootstrap);
+    TMasterConnector(TMasterConnectorConfig* config, TBootstrap* bootstrap);
 
     //! Starts interaction with master.
     void Start();
+
+    //! Returns the channel for communicating with the leader.
+    NRpc::IChannel::TPtr GetLeaderChannel() const;
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -40,7 +62,7 @@ private:
     static const int InvalidHolderId = -1;
 
     //! Connector configuration.
-    TChunkHolderConfigPtr Config;
+    TMasterConnectorConfigPtr Config;
 
     //! The bootstrap that owns us.
     TBootstrap* Bootstrap;
@@ -56,6 +78,9 @@ private:
     
     //! Current id assigned by the master, #InvalidHolderId if not registered.
     int HolderId;
+
+    //! Channel to the leader.
+    NRpc::IChannel::TPtr LeaderChannel;
 
     //! Proxy for the master.
     THolder<TProxy> Proxy;

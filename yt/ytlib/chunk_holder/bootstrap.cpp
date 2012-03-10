@@ -16,6 +16,7 @@
 #include <ytlib/misc/ref_counted_tracker.h>
 #include <ytlib/bus/nl_server.h>
 #include <ytlib/rpc/channel_cache.h>
+#include <ytlib/election/leader_channel.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/virtual.h>
@@ -59,8 +60,8 @@ void TBootstrap::Run()
 {
     IncarnationId = TIncarnationId::Create();
 
-    Config->PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
-    Config->CacheRemoteReader->PeerAddress = Config->PeerAddress;
+    Config->MasterConnector->PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
+    Config->CacheRemoteReader->PeerAddress = Config->MasterConnector->PeerAddress;
 
     LOG_INFO("Starting chunk holder (IncarnationId: %s)", ~IncarnationId.ToString());
 
@@ -71,14 +72,14 @@ void TBootstrap::Run()
 
     auto rpcServer = CreateRpcServer(~BusServer);
 
-    auto readerCache = New<TReaderCache>(~Config);
+    ReaderCache = New<TReaderCache>(~Config);
 
-    auto chunkRegistry = New<TChunkRegistry>();
+    auto chunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(
         ~Config,
         ~chunkRegistry,
-        ~readerCache);
+        ~ReaderCache);
 
     PeerBlockTable = New<TPeerBlockTable>(~Config->PeerBlockTable);
 
@@ -88,17 +89,11 @@ void TBootstrap::Run()
         controlQueue->GetInvoker());
     peerUpdater->Start();
 
-    ChunkStore = New<TChunkStore>(
-        ~Config,
-        ~readerCache);
+    ChunkStore = New<TChunkStore>(~Config, this);
+    ChunkStore->Start();
 
-    ChunkCache = New<TChunkCache>(
-        ~Config,
-        ~readerCache,
-        ~BlockStore);
-
-    chunkRegistry->SetChunkStore(~ChunkStore);
-    chunkRegistry->SetChunkCache(~ChunkCache);
+    ChunkCache = New<TChunkCache>(~Config, this);
+    ChunkCache->Start();
 
     SessionManager = New<TSessionManager>(
         ~Config,
@@ -112,7 +107,7 @@ void TBootstrap::Run()
         ~BlockStore,
         controlQueue->GetInvoker());
 
-    auto masterConnector = New<TMasterConnector>(~Config, this);
+    MasterConnector = New<TMasterConnector>(~Config->MasterConnector, this);
 
     auto chunkHolderService = New<TChunkHolderService>(~Config, this);
     rpcServer->RegisterService(~chunkHolderService);
@@ -167,7 +162,7 @@ void TBootstrap::Run()
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     rpcServer->Start();
 
-    masterConnector->Start();
+    MasterConnector->Start();
 
     Sleep(TDuration::Max());
 }
@@ -220,6 +215,16 @@ IBusServer::TPtr TBootstrap::GetBusServer() const
 TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
 {
     return PeerBlockTable;
+}
+
+TReaderCachePtr TBootstrap::GetReaderCache() const
+{
+    return ReaderCache;
+}
+
+TMasterConnectorPtr TBootstrap::GetMasterConnector() const
+{
+    return MasterConnector;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
