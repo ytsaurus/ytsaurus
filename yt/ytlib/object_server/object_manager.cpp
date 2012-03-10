@@ -551,9 +551,8 @@ void TObjectManager::ExecuteVerb(
         message.add_request_parts(part.Begin(), part.Size());
     }
 
-    // TODO(babenko): use AsStrong
-    IServiceContext::TPtr context_ = context;
-    IParamAction<IServiceContext*>::TPtr action_ = action;
+    auto context_ = MakeStrong(context);
+    auto action_ = MakeStrong(action);
 
     auto wrappedContext = New<TServiceContextWrapper>(context);
 

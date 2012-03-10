@@ -730,8 +730,7 @@ public:
             Epoch,
             ~EpochControlInvoker,
             ~EpochStateInvoker);
-        // TODO(babenko): use AsWeak
-        LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnApplyChange, TPtr(this)));
+        LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnApplyChange, MakeWeak(this)));
 
         YASSERT(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(

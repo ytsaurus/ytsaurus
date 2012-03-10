@@ -92,8 +92,7 @@ TFuture<Stroka>::TPtr HandleRequest(Stroka url, IYPathServicePtr service)
 
 TServer::TAsyncHandler::TPtr GetYPathHttpHandler(IYPathService* service)
 {
-	// TODO(babenko): use AsStrong
-    return FromMethod(&HandleRequest, IYPathServicePtr(service));
+    return FromMethod(&HandleRequest, MakeStrong(service));
 }
 
 TServer::TAsyncHandler::TPtr GetYPathHttpHandler(TYPathServiceProducer producer)
