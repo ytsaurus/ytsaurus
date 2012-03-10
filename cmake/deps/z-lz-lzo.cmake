@@ -99,4 +99,5 @@ install(
   ytext-snappy
   ytext-zlib
   LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
 )

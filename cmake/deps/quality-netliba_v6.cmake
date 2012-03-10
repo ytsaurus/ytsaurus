@@ -40,4 +40,5 @@ endif()
 install(
   TARGETS ytext-quality-netliba_v6
   LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
 )
