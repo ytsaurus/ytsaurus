@@ -5,7 +5,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/cell_master/bootstrap.h>
-#include <ytlib/cell_master/Config.h>
+#include <ytlib/cell_master/config.h>
 
 namespace NYT {
 namespace NChunkServer {
