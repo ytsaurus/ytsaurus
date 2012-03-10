@@ -47,8 +47,6 @@ class TMasterConnector
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TMasterConnector> TPtr;
-
     //! Creates an instance.
     TMasterConnector(TMasterConnectorConfig* config, TBootstrap* bootstrap);
 

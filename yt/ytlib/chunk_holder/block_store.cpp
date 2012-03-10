@@ -40,8 +40,6 @@ class TBlockStore::TStoreImpl
     : public TWeightLimitedCache<TBlockId, TCachedBlock>
 {
 public:
-    typedef TIntrusivePtr<TStoreImpl> TPtr;
-
     DEFINE_BYVAL_RO_PROPERTY(TAtomic, PendingReadSize);
 
     TStoreImpl(
@@ -54,7 +52,7 @@ public:
         , PendingReadSize_(0)
     { }
 
-    TCachedBlock::TPtr Put(const TBlockId& blockId, const TSharedRef& data, const Stroka& source)
+    TCachedBlockPtr Put(const TBlockId& blockId, const TSharedRef& data, const Stroka& source)
     {
         while (true) {
             TInsertCookie cookie(blockId);
@@ -122,7 +120,7 @@ public:
         return cookie->GetAsyncResult();
     }
 
-    TCachedBlock::TPtr Find(const TBlockId& blockId)
+    TCachedBlockPtr Find(const TBlockId& blockId)
     {
         auto asyncResult = Lookup(blockId);
         TGetBlockResult result;
@@ -136,8 +134,8 @@ public:
     }
 
 private:
-    TChunkRegistry::TPtr ChunkRegistry;
-    TReaderCache::TPtr ReaderCache;
+    TChunkRegistryPtr ChunkRegistry;
+    TReaderCachePtr ReaderCache;
 
     virtual i64 GetWeight(TCachedBlock* block) const
     {
@@ -219,7 +217,7 @@ public:
     }
 
 private:
-    TStoreImpl::TPtr StoreImpl;
+    TIntrusivePtr<TStoreImpl> StoreImpl;
 
 };
 
@@ -241,12 +239,12 @@ TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& bl
     return StoreImpl->Get(blockId);
 }
 
-TCachedBlock::TPtr TBlockStore::FindBlock(const TBlockId& blockId)
+TCachedBlockPtr TBlockStore::FindBlock(const TBlockId& blockId)
 {
     return StoreImpl->Find(blockId);
 }
 
-TCachedBlock::TPtr TBlockStore::PutBlock(
+TCachedBlockPtr TBlockStore::PutBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
     const Stroka& source)
@@ -264,7 +262,7 @@ IBlockCache* TBlockStore::GetBlockCache()
     return ~CacheImpl;
 }
 
-yvector<TCachedBlock::TPtr> TBlockStore::GetAllBlocks() const
+yvector<TCachedBlockPtr> TBlockStore::GetAllBlocks() const
 {
     return StoreImpl->GetAll();
 }

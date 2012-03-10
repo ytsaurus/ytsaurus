@@ -17,8 +17,6 @@ class TSession
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSession> TPtr;
-
     TSession(
         TSessionManager* sessionManager,
         const TChunkId& chunkId,
@@ -142,7 +140,6 @@ class TSessionManager
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSessionManager> TPtr;
     typedef yvector<TSessionPtr> TSessions;
 
     //! Constructs a manager.
@@ -186,7 +183,7 @@ private:
     TChunkStorePtr ChunkStore;
     IInvoker::TPtr ServiceInvoker;
 
-    typedef yhash_map<TChunkId, TSession::TPtr> TSessionMap;
+    typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
     TSessionMap SessionMap;
 
     void OnLeaseExpired(TSessionPtr session);

@@ -202,7 +202,7 @@ IInvoker::TPtr TBootstrap::GetControlInvoker() const
     return ControlInvoker;
 }
 
-TBlockStore::TPtr TBootstrap::GetBlockStore()
+TBlockStorePtr TBootstrap::GetBlockStore()
 {
     return BlockStore;
 }

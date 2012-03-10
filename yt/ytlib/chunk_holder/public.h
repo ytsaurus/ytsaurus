@@ -69,6 +69,14 @@ typedef TIntrusivePtr<TCachedBlock> TCachedBlockPtr;
 class TPeerBlockTable;
 typedef TIntrusivePtr<TPeerBlockTable> TPeerBlockTablePtr;
 
+class TChunkRegistry;
+typedef TIntrusivePtr<TChunkRegistry> TChunkRegistryPtr;
+
+class TChunkHolderServiceProxy;
+
+class TChunkHolderService;
+typedef TIntrusivePtr<TChunkHolderService> TChunkHolderServicePtr;
+
 using NChunkServer::TChunkId;
 using NChunkServer::TJobId;
 using NChunkServer::EJobType;

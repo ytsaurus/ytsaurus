@@ -23,8 +23,6 @@ class TReaderCache::TCachedReader
     , public TChunkFileReader
 {
 public:
-    typedef TIntrusivePtr<TCachedReader> TPtr;
-
     TCachedReader(const TChunkId& chunkId, const Stroka& fileName)
         : TCacheValueBase<TChunkId, TCachedReader>(chunkId)
         , TChunkFileReader(fileName)
@@ -38,8 +36,6 @@ class TReaderCache::TImpl
     : public TSizeLimitedCache<TChunkId, TCachedReader>
 {
 public:
-    typedef TIntrusivePtr<TReaderCache> TPtr;
-
     TImpl(TChunkHolderConfig* config)
         : TSizeLimitedCache<TChunkId, TCachedReader>(config->MaxCachedReaders)
     { }

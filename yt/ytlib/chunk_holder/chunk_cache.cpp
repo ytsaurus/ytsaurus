@@ -38,7 +38,6 @@ class TChunkCache::TImpl
 {
 public:
     typedef TWeightLimitedCache<TChunkId, TCachedChunk> TBase;
-    typedef TIntrusivePtr<TImpl> TPtr;
 
     TImpl(TChunkHolderConfig* config, TBootstrap* bootstrap)
         : TBase(config->ChunkCacheLocation->Quota == 0 ? Max<i64>() : config->ChunkCacheLocation->Quota)
@@ -112,7 +111,7 @@ public:
 private:
     TChunkHolderConfigPtr Config;
     TBootstrap* Bootstrap;
-    TLocation::TPtr Location;
+    TLocationPtr Location;
 
     DEFINE_SIGNAL(void(TChunk*), ChunkAdded);
     DEFINE_SIGNAL(void(TChunk*), ChunkRemoved);
@@ -139,7 +138,6 @@ private:
     {
     public:
         typedef TDownloadSession TThis;
-        typedef TIntrusivePtr<TThis> TPtr;
 
         TDownloadSession(
             TImpl* owner,
@@ -181,7 +179,7 @@ private:
         }
 
     private:
-        TImpl::TPtr Owner;
+        TIntrusivePtr<TImpl> Owner;
         TChunkId ChunkId;
         yvector<Stroka> SeedAddresses;
         TSharedPtr<TInsertCookie> Cookie;
