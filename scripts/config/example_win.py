@@ -82,7 +82,11 @@ class Holder(WinNode, Server):
         params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
         
         config = Template({ 
-                'masters' : { 'addresses' : MasterAddresses },
+        		'master_connector' : {
+                	'masters' : {
+                		'addresses' : MasterAddresses
+                	}
+        		},
                 'chunk_store_locations' : [
                     { 'path' : r'%(work_dir)s\chunk_store.0' }
                 ],
