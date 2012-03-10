@@ -39,15 +39,14 @@ class Base(AggrBase):
     base_dir = '/yt/disk1/data'
     libs = [
         '/home/yt/build/lib/libstlport.so.5.2',
-        '/home/yt/build/lib/libsnappy.so.1.0',
+        '/home/yt/build/lib/libytext-snappy.so.1.0',
         '/home/yt/build/lib/libyajl.so.2',
-        '/home/yt/build/lib/libminilzo.so.2.0',
-        '/home/yt/build/lib/liblz4.so.0.1',
-        '/home/yt/build/lib/libfastlz.so.0.1',
-        '/home/yt/build/lib/libjson.so',
-        '/home/yt/build/lib/libarczlib.so.1.2.3',
-        '/home/yt/build/lib/libqmisc.so',
-        '/home/yt/build/lib/libnetliba_v6.so'
+        '/home/yt/build/lib/libytext-minilzo.so.2.0',
+        '/home/yt/build/lib/libytext-lz4.so.0.1',
+        '/home/yt/build/lib/libytext-fastlz.so.0.1',
+        '/home/yt/build/lib/libytext-json.so',
+        '/home/yt/build/lib/libytext-quality-misc.so',
+        '/home/yt/build/lib/libytext-quality-netliba_v6.so'
     ]
     
     def get_log(cls, fd):
