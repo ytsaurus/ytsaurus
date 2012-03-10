@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/actions/invoker_util.h>
+
 namespace NYT {
 namespace NMetaState {
 

@@ -2,8 +2,6 @@
 #error "Direct inclusion of this file is not allowed, include meta_change.h"
 #endif
 
-#include <ytlib/actions/invoker_util.h>
-
 #include "composite_meta_state_detail.h"
 #include "meta_state_manager.h"
 
