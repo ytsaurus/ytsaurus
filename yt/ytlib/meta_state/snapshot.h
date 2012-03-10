@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <ytlib/misc/checksum.h>
 
@@ -15,8 +15,6 @@ class TSnapshotReader
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSnapshotReader> TPtr;
-
     TSnapshotReader(const Stroka& fileName, i32 segmentId);
 
     void Open();
@@ -44,10 +42,8 @@ class TSnapshotWriter
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSnapshotWriter> TPtr;
-
     TSnapshotWriter(
-        Stroka fileName,
+        const Stroka& fileName,
         i32 segmentId);
 
     void Open(i32 prevRecordCount);

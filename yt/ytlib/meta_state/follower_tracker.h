@@ -1,12 +1,11 @@
 #pragma once
 
-#include "common.h"
-#include "cell_manager.h"
+#include "public.h"
 #include "meta_state_manager.h"
 
-#include <ytlib/actions/invoker_util.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/lease_manager.h>
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -57,7 +56,7 @@ private:
     void OnLeaseExpired(TPeerId followerId);
 
     TConfig::TPtr Config;
-    TCellManager::TPtr CellManager;
+    TCellManagerPtr CellManager;
     IInvoker::TPtr EpochControlInvoker;
     yvector<TFollowerState> FollowerStates;
     int ActiveFollowerCount;

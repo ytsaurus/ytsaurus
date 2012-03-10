@@ -1,10 +1,7 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "meta_state_manager_proxy.h"
-#include "decorated_meta_state.h"
-#include "change_log_cache.h"
-#include "follower_tracker.h"
 
 #include <ytlib/election/election_manager.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -17,11 +14,11 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A common base for TFollowerCommitter and TLeaderCommitter.
-class TCommitterBase
+class TCommitter
     : public TRefCounted
 {
 public:
-    TCommitterBase(
+    TCommitter(
         TDecoratedMetaState* metaState,
         IInvoker* epochControlInvoker,
         IInvoker* epochStateInvoker);
@@ -40,7 +37,7 @@ protected:
     // Corresponds to MetaState->GetInvoker().
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
-    TDecoratedMetaState::TPtr MetaState;
+    TDecoratedMetaStatePtr MetaState;
     IInvoker::TPtr EpochControlInvoker;
     IInvoker::TPtr EpochStateInvoker;
     NProfiling::TRateCounter CommitCounter;
@@ -52,7 +49,7 @@ protected:
 
 //! Manages commits carried out by a leader.
 class TLeaderCommitter
-    : public TCommitterBase
+    : public TCommitter
 {
 public:
     typedef TIntrusivePtr<TLeaderCommitter> TPtr;
@@ -128,9 +125,9 @@ private:
     void FlushCurrentBatch();
 
     TConfig::TPtr Config;
-    TCellManager::TPtr CellManager;
-    TChangeLogCache::TPtr ChangeLogCache;
-    TFollowerTracker::TPtr FollowerTracker;
+    TCellManagerPtr CellManager;
+    TChangeLogCachePtr ChangeLogCache;
+    TFollowerTrackerPtr FollowerTracker;
     TEpoch Epoch;
 
     //! Protects #CurrentBatch and #TimeoutCookie.
@@ -143,7 +140,7 @@ private:
 
 //! Manages commits carried out by a follower.
 class TFollowerCommitter
-    : public TCommitterBase
+    : public TCommitter
 {
 public:
     typedef TIntrusivePtr<TFollowerCommitter> TPtr;

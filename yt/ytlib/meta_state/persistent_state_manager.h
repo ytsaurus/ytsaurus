@@ -1,6 +1,7 @@
 #pragma once
 
-#include "config.h"
+#include "public.h"
+// TODO(babenko): refactor below
 #include "meta_state_manager.h"
 #include "change_log_downloader.h"
 #include "snapshot_downloader.h"
@@ -8,7 +9,6 @@
 #include "change_committer.h"
 
 #include <ytlib/election/election_manager.h>
-
 #include <ytlib/rpc/server.h>
 #include <ytlib/misc/configurable.h>
 
@@ -21,8 +21,6 @@ namespace NMetaState {
 struct TPersistentStateManagerConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TPersistentStateManagerConfig> TPtr;
-
     //! A path where changelogs are stored.
     Stroka LogPath;
 
@@ -47,8 +45,7 @@ struct TPersistentStateManagerConfig
     //! Default timeout for RPC requests.
     TDuration RpcTimeout;
 
-    // TODO: refactor
-    TCellConfig::TPtr Cell;
+    TCellConfigPtr Cell;
 
     NElection::TElectionManager::TConfig::TPtr Election;
 
@@ -95,7 +92,7 @@ struct TPersistentStateManagerConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates the manager and also registers its RPC service at #server.
-IMetaStateManager::TPtr CreatePersistentStateManager(
+IMetaStateManagerPtr CreatePersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IInvoker* stateInvoker,

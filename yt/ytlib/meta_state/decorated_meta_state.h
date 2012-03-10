@@ -1,11 +1,15 @@
 #pragma once
 
-#include "meta_state.h"
+#include "public.h"
 #include "meta_version.h"
-#include "snapshot_store.h"
-#include "change_log_cache.h"
+
+// TODO(babenko): get rid of this
+#include "async_change_log.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/ref.h>
+#include <ytlib/actions/action.h>
+#include <ytlib/actions/invoker.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -16,8 +20,6 @@ class TDecoratedMetaState
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TDecoratedMetaState> TPtr;
-
     TDecoratedMetaState(
         IMetaState* state,
         IInvoker* stateInvoker,
@@ -117,13 +119,13 @@ private:
     void IncrementRecordCount();
     void ComputeReachableVersion();
     void UpdateVersion(const TMetaVersion& newVersion);
-    TCachedAsyncChangeLog::TPtr GetCurrentChangeLog();
+    TCachedAsyncChangeLogPtr GetCurrentChangeLog();
 
-    IMetaState::TPtr State;
+    IMetaStatePtr State;
     IInvoker::TPtr StateInvoker;
-    TSnapshotStore::TPtr SnapshotStore;
-    TChangeLogCache::TPtr ChangeLogCache;
-    TCachedAsyncChangeLog::TPtr CurrentChangeLog;
+    TSnapshotStorePtr SnapshotStore;
+    TChangeLogCachePtr ChangeLogCache;
+    TCachedAsyncChangeLogPtr CurrentChangeLog;
 
     TSpinLock VersionSpinLock;
     TMetaVersion Version;

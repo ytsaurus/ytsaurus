@@ -2,11 +2,6 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/logging/log.h>
-#include <ytlib/election/common.h>
-
-#include <util/stream/input.h>
-#include <util/stream/output.h>
-#include <util/stream/file.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -14,12 +9,6 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern NLog::TLogger MetaStateLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-using NElection::TPeerId;
-using NElection::TPeerPriority;
-using NElection::TEpoch;
 
 ////////////////////////////////////////////////////////////////////////////////
 

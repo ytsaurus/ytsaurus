@@ -68,10 +68,10 @@ private:
     EFollowerPingerMode Mode;
     TConfig::TPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;
-    TDecoratedMetaState::TPtr MetaState;
-    TCellManager::TPtr CellManager;
-    TFollowerTracker::TPtr FollowerTracker;
-    TSnapshotStore::TPtr SnapshotStore;
+    TDecoratedMetaStatePtr MetaState;
+    TCellManagerPtr CellManager;
+    TFollowerTrackerPtr FollowerTracker;
+    TSnapshotStorePtr SnapshotStore;
     TEpoch Epoch;
     IInvoker::TPtr EpochControlInvoker;
     IInvoker::TPtr EpochStateInvoker;

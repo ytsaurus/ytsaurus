@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "snapshot.h"
+#include "common.h"
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/fs.h>
@@ -119,7 +120,7 @@ i32 TSnapshotReader::GetPrevRecordCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotWriter::TSnapshotWriter(Stroka fileName, i32 segmentId)
+TSnapshotWriter::TSnapshotWriter(const Stroka& fileName, i32 segmentId)
     : FileName(fileName)
     , TempFileName(fileName + NFS::TempFileSuffix)
     , SegmentId(segmentId)

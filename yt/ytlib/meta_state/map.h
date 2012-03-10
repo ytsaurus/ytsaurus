@@ -1,14 +1,10 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <ytlib/misc/enum.h>
-#include <ytlib/misc/foreach.h>
-#include <ytlib/misc/serialize.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/future.h>
-
-#include <util/ysaveload.h>
 
 namespace NYT {
 namespace NMetaState {

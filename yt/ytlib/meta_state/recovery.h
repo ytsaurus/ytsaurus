@@ -1,15 +1,8 @@
 #pragma once
 
-#include "meta_state.h"
-#include "persistent_state_manager.h"
-#include "decorated_meta_state.h"
+#include "public.h"
 #include "meta_state_manager_proxy.h"
-#include "snapshot_downloader.h"
-#include "change_log_downloader.h"
-#include "change_log_cache.h"
-#include "snapshot.h"
-#include "snapshot_store.h"
-#include "cell_manager.h"
+#include "meta_version.h"
 
 #include <ytlib/election/election_manager.h>
 
@@ -18,16 +11,11 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLeaderRecovery;
-class TFollowerRecovery;
-
 //! Base class for both leader and follower recovery models.
 class TRecovery
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TRecovery> TPtr;
-
     DECLARE_ENUM(EResult,
         (OK)
         (Failed)
@@ -110,11 +98,11 @@ protected:
         i32 targetRecordCount);
 
     // Any thread.
-    TPersistentStateManagerConfig::TPtr Config;
-    TCellManager::TPtr CellManager;
-    TDecoratedMetaState::TPtr DecoratedState;
-    TChangeLogCache::TPtr ChangeLogCache;
-    TSnapshotStore::TPtr SnapshotStore;
+    TPersistentStateManagerConfigPtr Config;
+    TCellManagerPtr CellManager;
+    TDecoratedMetaStatePtr DecoratedState;
+    TChangeLogCachePtr ChangeLogCache;
+    TSnapshotStorePtr SnapshotStore;
     TEpoch Epoch;
     TPeerId LeaderId;
     IInvoker::TPtr EpochControlInvoker;
@@ -131,8 +119,6 @@ class TLeaderRecovery
     : public TRecovery
 {
 public:
-    typedef TIntrusivePtr<TLeaderRecovery> TPtr;
-
     //! Constructs an instance.
     /*!
      * \note Thread affinity: ControlThread.
@@ -165,8 +151,6 @@ class TFollowerRecovery
     : public TRecovery
 {
 public:
-    typedef TIntrusivePtr<TFollowerRecovery> TPtr;
-
     //! Constructs an instance.
     /*!
      * \note Thread affinity: ControlThread.

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "change_log.h"
+#include "common.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/checksum.h>

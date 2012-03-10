@@ -1,10 +1,10 @@
 #pragma once
 
-#include "common.h"
-#include "meta_state.h"
+#include "public.h"
 
 #include <ytlib/actions/signal.h>
 #include <ytlib/actions/invoker_util.h>
+#include <ytlib/misc/ref.h>
 #include <ytlib/ytree/public.h>
 
 namespace NYT {
@@ -12,32 +12,9 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EPeerStatus,
-    (Stopped)
-    (Elections)
-    (FollowerRecovery)
-    (Following)
-    (LeaderRecovery)
-    (Leading)
-);
-
-DECLARE_ENUM(ECommitResult,
-    (Committed)
-    (MaybeCommitted)
-    (NotCommitted)
-    (InvalidStatus)
-    (ReadOnly)
-);
-
-typedef TFuture<ECommitResult> TAsyncCommitResult;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IMetaStateManager
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IMetaStateManager> TPtr;
-
     //! Boots up the manager.
     /*!
      *  \note Thread affinity: any

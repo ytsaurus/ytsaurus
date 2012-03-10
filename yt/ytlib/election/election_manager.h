@@ -126,7 +126,7 @@ private:
     TIntrusivePtr<TFollowerPinger> FollowerPinger;
 
     TConfig::TPtr Config;
-    NMetaState::TCellManager::TPtr CellManager;
+    NMetaState::TCellManagerPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     IElectionCallbacks::TPtr ElectionCallbacks;
 

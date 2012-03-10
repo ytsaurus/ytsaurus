@@ -16,10 +16,7 @@ class TCellManager
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TCellManager> TPtr;
-    typedef TCellConfig TConfig;
-
-    TCellManager(TConfig* config);
+    TCellManager(TCellConfig* config);
 
     TPeerId GetSelfId() const;
 	Stroka GetSelfAddress() const;
@@ -31,7 +28,7 @@ public:
     TAutoPtr<TProxy> GetMasterProxy(TPeerId id) const;
 
 private:
-    TConfig::TPtr Config;
+    TCellConfigPtr Config;
     static NRpc::TChannelCache ChannelCache;
 
 };

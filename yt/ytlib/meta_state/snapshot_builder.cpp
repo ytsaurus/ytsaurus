@@ -1,6 +1,11 @@
 #include "stdafx.h"
 #include "snapshot_builder.h"
 #include "meta_state_manager_proxy.h"
+#include "meta_version.h"
+#include "decorated_meta_state.h"
+#include "snapshot_store.h"
+#include "snapshot.h"
+#include "change_log_cache.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/actions/action_util.h>
@@ -30,10 +35,8 @@ class TSnapshotBuilder::TSession
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSession> TPtr;
-
     TSession(
-        TSnapshotBuilder::TPtr owner,
+        TSnapshotBuilderPtr owner,
         TMetaVersion version)
         : Owner(owner)
         , Version(version)
@@ -46,7 +49,7 @@ public:
 
     void Run()
     {
-        LOG_INFO("Creating a distributed snapshot (Version: %s)",
+        LOG_INFO("Creating a distributed snapshot at version: %s",
             ~Version.ToString());
 
         auto& config = Owner->Config;
@@ -79,11 +82,11 @@ public:
 private:
     void OnComplete()
     {
-        int count = 0;
+        int successCount = 0;
         for (TPeerId id1 = 0; id1 < Checksums.ysize(); ++id1) {
             const auto& checksum1 = Checksums[id1];
             if (checksum1) {
-                ++count;
+                ++successCount;
             }
             for (TPeerId id2 = id1 + 1; id2 < Checksums.ysize(); ++id2) {
                 const auto& checksum2 = Checksums[id2];
@@ -99,17 +102,13 @@ private:
             }
         }
 
-        LOG_INFO("Distributed snapshot is created (Successful: %d, SegmentId: %d)",
-            count,
-            Version.SegmentId + 1);
-
+        LOG_INFO("Distributed snapshot is created (SuccessCount: %d)", successCount);
     }
 
     void OnLocal(TLocalResult result)
     {
         if (result.ResultCode != EResultCode::OK) {
-            LOG_ERROR("Failed to create snapshot locally (Result: %s)",
-                ~result.ResultCode.ToString());
+            LOG_ERROR("Failed to create a local snapshot\n%s", ~result.ResultCode.ToString());
             return;
         }
 
@@ -134,7 +133,7 @@ private:
         Checksums[followerId] = checksum;
     }
 
-    TSnapshotBuilder::TPtr Owner;
+    TSnapshotBuilderPtr Owner;
     TMetaVersion Version;
     TParallelAwaiter::TPtr Awaiter;
     yvector< TNullable<TChecksum> > Checksums;
@@ -144,10 +143,10 @@ private:
 
 TSnapshotBuilder::TSnapshotBuilder(
     TConfig* config,
-    TCellManager::TPtr cellManager,
-    TDecoratedMetaState::TPtr metaState,
-    TChangeLogCache::TPtr changeLogCache,
-    TSnapshotStore::TPtr snapshotStore,
+    TCellManagerPtr cellManager,
+    TDecoratedMetaStatePtr metaState,
+    TChangeLogCachePtr changeLogCache,
+    TSnapshotStorePtr snapshotStore,
     TEpoch epoch,
     IInvoker::TPtr serviceInvoker)
     : Config(config)
@@ -186,13 +185,13 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     if (IsInProgress()) {
-        LOG_ERROR("Unable to create a local snapshot, snapshot creation is already in progress (Version: %s)",
+        LOG_ERROR("Unable to create a local snapshot at version %s, snapshot creation is already in progress",
             ~version.ToString());
         return MakeFuture(TLocalResult(EResultCode::AlreadyInProgress));
     }
     LocalResult = New<TAsyncLocalResult>();
 
-    LOG_INFO("Creating a local snapshot (Version: %s)", ~version.ToString());
+    LOG_INFO("Creating a local snapshot at version: %s", ~version.ToString());
 
     if (MetaState->GetVersion() != version) {
         LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, received %s",
@@ -205,6 +204,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
 
 #if defined(_unix_)
     LOG_INFO("Going to fork");
+    auto forkTimer = Profiler.TimingStart("fork_time");
     pid_t childPid = fork();
     if (childPid == -1) {
         LOG_ERROR("Could not fork while creating local snapshot %d", segmentId);
@@ -213,6 +213,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
         DoCreateLocal(version);
         _exit(0);
     } else {
+        Profiler.TimingStop("fork_time");
         LOG_INFO("Forked successfully, starting watchdog");
         WatchdogQueue->GetInvoker()->Invoke(FromMethod(
             &TSnapshotBuilder::WatchdogFork,

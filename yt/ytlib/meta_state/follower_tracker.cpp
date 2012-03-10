@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "follower_tracker.h"
+#include "common.h"
+#include "cell_manager.h"
 
 namespace NYT {
 namespace NMetaState {

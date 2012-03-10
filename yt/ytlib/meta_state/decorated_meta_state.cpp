@@ -1,7 +1,10 @@
 #include "stdafx.h"
 #include "decorated_meta_state.h"
+#include "common.h"
 #include "change_log_cache.h"
 #include "snapshot_store.h"
+#include "meta_state.h"
+#include "snapshot.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/profiling/profiler.h>
@@ -122,7 +125,7 @@ void TDecoratedMetaState::IncrementRecordCount()
     UpdateVersion(TMetaVersion(Version.SegmentId, Version.RecordCount + 1));
 }
 
-TCachedAsyncChangeLog::TPtr TDecoratedMetaState::GetCurrentChangeLog()
+TCachedAsyncChangeLogPtr TDecoratedMetaState::GetCurrentChangeLog()
 {
     if (CurrentChangeLog) {
         return CurrentChangeLog;

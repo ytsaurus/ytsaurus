@@ -583,7 +583,7 @@ private:
 
             auto& holder = GetHolder(holderId);
 
-            LOG_DEBUG_IF(!IsRecovery(), "Full Heartbeat received (Address: %s, HolderId: %d, State: %s, %s, Chunks: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Full heartbeat received (Address: %s, HolderId: %d, State: %s, %s, Chunks: %d)",
                 ~holder.GetAddress(),
                 holderId,
                 ~holder.GetState().ToString(),

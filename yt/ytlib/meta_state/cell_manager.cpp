@@ -10,7 +10,7 @@ NRpc::TChannelCache TCellManager::ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellManager::TCellManager(TConfig* config)
+TCellManager::TCellManager(TCellConfig* config)
     : Config(config)
 { }
 

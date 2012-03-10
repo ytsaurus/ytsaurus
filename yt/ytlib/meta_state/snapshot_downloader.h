@@ -1,9 +1,7 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "meta_state_manager_proxy.h"
-#include "snapshot.h"
-#include "cell_manager.h"
 
 #include <ytlib/rpc/client.h>
 #include <ytlib/actions/parallel_awaiter.h>
@@ -49,7 +47,7 @@ public:
 
     TSnapshotDownloader(
         TConfig* config,
-        TCellManager::TPtr cellManager);
+        TCellManagerPtr cellManager);
 
     EResult GetSnapshot(i32 segmentId, TFile* snapshotFile);
 
@@ -71,7 +69,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TConfig ::TPtr Config;
-    TCellManager::TPtr CellManager;
+    TCellManagerPtr CellManager;
 
     TSnapshotInfo GetSnapshotInfo(i32 segmentId); // also finds snapshot source
     static void OnResponse(

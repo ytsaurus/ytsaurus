@@ -1,8 +1,6 @@
 #pragma once
 
-#include "meta_state_manager.h"
-
-#include <ytlib/actions/action.h>
+#include "public.h"
 
 namespace NYT {
 namespace NMetaState {
@@ -31,7 +29,7 @@ public:
 private:
     typedef TMetaChange<TResult> TThis;
 
-    IMetaStateManager::TPtr MetaStateManager;
+    IMetaStateManagerPtr MetaStateManager;
     typename TChangeFunc::TPtr Func;
     IAction::TPtr ChangeAction;
     TSharedRef ChangeData;

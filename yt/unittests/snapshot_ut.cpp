@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/meta_state/snapshot.h>
+#include <ytlib/meta_state/common.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
@@ -33,14 +34,14 @@ TEST_F(TSnapshotTest, EmptySnapshot)
 {
     // TODO: Add checksums.
     ASSERT_NO_THROW({
-        TSnapshotWriter::TPtr writer = New<TSnapshotWriter>(
+        TSnapshotWriterPtr writer = New<TSnapshotWriter>(
             TemporaryFile->Name(), 0);
         writer->Open(NonexistingPrevRecordCount);
         writer->Close();
     });
 
     ASSERT_NO_THROW({
-        TSnapshotReader::TPtr reader = New<TSnapshotReader>(
+        TSnapshotReaderPtr reader = New<TSnapshotReader>(
             TemporaryFile->Name(), 0);
         reader->Open();
     });
@@ -51,7 +52,7 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
     // TODO: Add checksums.
     const i32 recordCount = 1024;
 
-    TSnapshotWriter::TPtr writer = New<TSnapshotWriter>(
+    TSnapshotWriterPtr writer = New<TSnapshotWriter>(
         TemporaryFile->Name(), 0);
     writer->Open(NonexistingPrevRecordCount);
     TOutputStream& outputStream = writer->GetStream();
@@ -63,7 +64,7 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
     writer->Close();
     writer.Reset();
 
-    TSnapshotReader::TPtr reader = New<TSnapshotReader>(
+    TSnapshotReaderPtr reader = New<TSnapshotReader>(
         TemporaryFile->Name(), 0);
     reader->Open();
     TInputStream& inputStream = reader->GetStream();

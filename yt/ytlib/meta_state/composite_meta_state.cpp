@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "composite_meta_state.h"
+#include "common.h"
+#include "meta_state_manager.h"
 #include "composite_meta_state_detail.h"
 
 #include <ytlib/misc/foreach.h>
@@ -68,7 +70,7 @@ void TMetaStatePart::OnStopLeading()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompositeMetaState::RegisterPart(TMetaStatePart::TPtr part)
+void TCompositeMetaState::RegisterPart(TMetaStatePartPtr part)
 {
     YASSERT(part);
 

@@ -46,8 +46,8 @@ public:
     NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
     NCypress::TCypressManagerPtr GetCypressManager() const;
     TWorldInitializerPtr GetWorldInitializer() const;
-    NMetaState::IMetaStateManager::TPtr GetMetaStateManager() const;
-    NMetaState::TCompositeMetaState::TPtr GetMetaState() const;
+    NMetaState::IMetaStateManagerPtr GetMetaStateManager() const;
+    NMetaState::TCompositeMetaStatePtr GetMetaState() const;
     NObjectServer::TObjectManager::TPtr GetObjectManager() const;
     NChunkServer::TChunkManager::TPtr GetChunkManager() const;
     NChunkServer::IHolderAuthority::TPtr GetHolderAuthority() const;
@@ -64,8 +64,8 @@ private:
     NTransactionServer::TTransactionManagerPtr TransactionManager;
     NCypress::TCypressManagerPtr CypressManager;
     TWorldInitializerPtr WorldInitializer;
-    NMetaState::IMetaStateManager::TPtr MetaStateManager;
-    NMetaState::TCompositeMetaState::TPtr MetaState;
+    NMetaState::IMetaStateManagerPtr MetaStateManager;
+    NMetaState::TCompositeMetaStatePtr MetaState;
     NObjectServer::TObjectManager::TPtr ObjectManager;
     NChunkServer::TChunkManager::TPtr ChunkManager;
     NChunkServer::IHolderAuthority::TPtr HolderAuthority;

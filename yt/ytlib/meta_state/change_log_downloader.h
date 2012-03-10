@@ -1,11 +1,7 @@
 #pragma once
 
-#include "common.h"
-#include "meta_state.h"
-#include "decorated_meta_state.h"
+#include "public.h"
 #include "meta_state_manager_proxy.h"
-#include "cell_manager.h"
-#include "async_change_log.h"
 
 #include <ytlib/rpc/client.h>
 #include <ytlib/actions/parallel_awaiter.h>
@@ -51,7 +47,7 @@ public:
 
     TChangeLogDownloader(
         TConfig* config,
-        TCellManager::TPtr cellManager);
+        TCellManager* cellManager);
 
     EResult Download(TMetaVersion version, TAsyncChangeLog& changeLog);
 
@@ -60,7 +56,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TConfig::TPtr Config;
-    TCellManager::TPtr CellManager;
+    TCellManagerPtr CellManager;
 
     TPeerId GetChangeLogSource(TMetaVersion version);
 
