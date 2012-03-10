@@ -1083,6 +1083,10 @@ public:
 
         StopEpoch();
 
+        FollowerRecovery.Reset();
+
+        FollowerCommitter.Reset();
+
         if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TThis::WaitSnapshotBuilt,
