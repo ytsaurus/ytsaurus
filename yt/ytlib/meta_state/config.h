@@ -1,9 +1,8 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <ytlib/misc/configurable.h>
-
 
 namespace NYT {
 namespace NMetaState {
@@ -13,8 +12,6 @@ namespace NMetaState {
 struct TCellConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TCellConfig> TPtr;
-
     //! Master server addresses.
     yvector<Stroka> Addresses;
 
@@ -23,8 +20,10 @@ struct TCellConfig
 
     TCellConfig()
     {
-        Register("id", Id).Default(NElection::InvalidPeerId);
-        Register("addresses", Addresses).NonEmpty();
+        Register("id", Id)
+        	.Default(NElection::InvalidPeerId);
+        Register("addresses", Addresses)
+        	.NonEmpty();
     }
 
     virtual void DoValidate() const

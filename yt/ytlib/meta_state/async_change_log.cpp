@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "async_change_log.h"
 #include "meta_version.h"
+#include "change_log.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/singleton.h>
@@ -20,17 +21,16 @@ static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChangeLogQueue
+class TAsyncChangeLog::TChangeLogQueue
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChangeLogQueue> TPtr;
     typedef TAsyncChangeLog::TAppendResult TAppendResult;
 
     // Guarded by TImpl::SpinLock
     TAtomic UseCount;
 
-    TChangeLogQueue(TChangeLog::TPtr changeLog)
+    TChangeLogQueue(TChangeLogPtr changeLog)
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
@@ -199,7 +199,7 @@ private:
         }
     }
     
-    TChangeLog::TPtr ChangeLog;
+    TChangeLogPtr ChangeLog;
     
     TSpinLock SpinLock;
     i32 FlushedRecordCount;
@@ -238,7 +238,7 @@ public:
     }
 
     TAppendResult::TPtr Append(
-        TChangeLog::TPtr changeLog,
+        TChangeLogPtr changeLog,
         i32 recordId,
         const TSharedRef& data)
     {
@@ -257,7 +257,7 @@ public:
     }
 
     void Read(
-        TChangeLog::TPtr changeLog,
+        TChangeLogPtr changeLog,
         i32 firstRecordId,
         i32 recordCount,
         yvector<TSharedRef>* result)
@@ -280,7 +280,7 @@ public:
         }
     }
 
-    void Flush(TChangeLog::TPtr changeLog)
+    void Flush(TChangeLogPtr changeLog)
     {
         auto queue = FindQueue(changeLog);
         if (queue) {
@@ -293,7 +293,7 @@ public:
 		}
     }
 
-    i32 GetRecordCount(TChangeLog::TPtr changeLog)
+    i32 GetRecordCount(TChangeLogPtr changeLog)
     {
         auto queue = FindQueue(changeLog);
         if (queue) {
@@ -305,7 +305,7 @@ public:
         }
     }
 
-    void Finalize(TChangeLog::TPtr changeLog)
+    void Finalize(TChangeLogPtr changeLog)
     {
         Flush(changeLog);
 
@@ -316,7 +316,7 @@ public:
         LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
     }
 
-    void Truncate(TChangeLog::TPtr changeLog, i32 atRecordId)
+    void Truncate(TChangeLogPtr changeLog, i32 atRecordId)
     {
         // TODO: Later on this can be improved to asynchronous behavior by
         // getting rid of explicit synchronization.
@@ -335,7 +335,7 @@ public:
     }
 
 private:
-    TChangeLogQueue::TPtr FindQueue(TChangeLog::TPtr changeLog) const
+    TChangeLogQueuePtr FindQueue(TChangeLogPtr changeLog) const
     {
         TGuard<TSpinLock> guard(SpinLock);
         auto it = ChangeLogQueues.find(changeLog);
@@ -347,10 +347,10 @@ private:
         return queue;
     }
 
-    TChangeLogQueue::TPtr GetQueueAndLock(TChangeLog::TPtr changeLog)
+    TChangeLogQueuePtr GetQueueAndLock(TChangeLogPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        TChangeLogQueue::TPtr queue;
+        TChangeLogQueuePtr queue;
 
         auto it = ChangeLogQueues.find(changeLog);
         if (it != ChangeLogQueues.end()) {
@@ -367,7 +367,7 @@ private:
     void FlushQueues()
     {
         // Take a snapshot.
-        yvector<TChangeLogQueue::TPtr> queues;
+        yvector<TChangeLogQueuePtr> queues;
         {
             TGuard<TSpinLock> guard(SpinLock);
             
@@ -440,7 +440,7 @@ private:
         }
     }
 
-    typedef yhash_map<TChangeLog::TPtr, TChangeLogQueue::TPtr> TChangeLogQueueMap;
+    typedef yhash_map<TChangeLogPtr, TChangeLogQueuePtr> TChangeLogQueueMap;
 
     TChangeLogQueueMap ChangeLogQueues;
     TSpinLock SpinLock;
@@ -454,7 +454,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncChangeLog::TAsyncChangeLog(TChangeLog::TPtr changeLog)
+TAsyncChangeLog::TAsyncChangeLog(TChangeLogPtr changeLog)
     : ChangeLog(changeLog)
 {
     YASSERT(changeLog);

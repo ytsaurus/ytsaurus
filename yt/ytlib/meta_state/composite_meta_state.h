@@ -1,29 +1,24 @@
 #pragma once
 
-#include "meta_state_manager.h"
-
-#include <ytlib/actions/action.h>
+#include "public.h"
+#include "meta_state.h"
 
 namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
     
-class TCompositeMetaState;
-
 class TMetaStatePart
     : public virtual TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TMetaStatePart> TPtr;
-
     TMetaStatePart(
         IMetaStateManager* metaStateManager,
         TCompositeMetaState* metaState);
 
 protected:
-    IMetaStateManager::TPtr MetaStateManager;
-    TIntrusivePtr<TCompositeMetaState> MetaState;
+    IMetaStateManagerPtr MetaStateManager;
+    TCompositeMetaStatePtr MetaState;
 
     template <class TMessage, class TResult>
     void RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod);
@@ -71,12 +66,10 @@ class TCompositeMetaState
     : public IMetaState 
 {
 public:
-    typedef TIntrusivePtr<TCompositeMetaState> TPtr;
-
     typedef IParamAction<TOutputStream*> TSaver;
     typedef IParamAction<TInputStream*> TLoader;
 
-    void RegisterPart(TMetaStatePart::TPtr part);
+    void RegisterPart(TMetaStatePartPtr part);
     void RegisterLoader(const Stroka& name, TLoader::TPtr loader);
     void RegisterSaver(const Stroka& name, TSaver::TPtr saver, ESavePhase phase);
 
@@ -86,7 +79,7 @@ private:
     typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;
     TMethodMap Methods;
 
-    yvector<TMetaStatePart::TPtr> Parts;
+    yvector<TMetaStatePartPtr> Parts;
 
     typedef yhash_map<Stroka, TLoader::TPtr> TLoaderMap;
     typedef yhash_map<Stroka, TPair<TSaver::TPtr, ESavePhase> > TSaverMap;

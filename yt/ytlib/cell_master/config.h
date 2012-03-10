@@ -18,7 +18,7 @@ struct TCellMasterConfig
     : public TConfigurable
 {
     //! Meta state configuration.
-    NMetaState::TPersistentStateManagerConfig::TPtr MetaState;
+    NMetaState::TPersistentStateManagerConfigPtr MetaState;
 
     NTransactionServer::TTransactionManager::TConfig::TPtr Transactions;
 

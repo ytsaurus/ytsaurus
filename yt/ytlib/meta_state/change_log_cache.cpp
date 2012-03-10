@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "change_log_cache.h"
+#include "common.h"
 #include "meta_state_manager.h"
+#include "change_log.h"
 
 #include <ytlib/misc/fs.h>
 
@@ -15,6 +17,13 @@ using namespace NFS;
 
 static NLog::TLogger& Logger = MetaStateLogger;
 static const char* LogExtension = "log";
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCachedAsyncChangeLog::TCachedAsyncChangeLog(TChangeLog* changeLog)
+    : TCacheValueBase<i32, TCachedAsyncChangeLog>(changeLog->GetId())
+    , TAsyncChangeLog(changeLog)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +70,7 @@ TChangeLogCache::TGetResult TChangeLogCache::Get(i32 changeLogId)
     return cookie.GetAsyncResult()->Get();
 }
 
-TCachedAsyncChangeLog::TPtr TChangeLogCache::Create(
+TCachedAsyncChangeLogPtr TChangeLogCache::Create(
     i32 changeLogId,
     i32 prevRecordCount)
 {

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "change_log.h"
+#include "public.h"
 #include "async_change_log.h"
 #include "meta_state_manager_proxy.h"
 
@@ -17,10 +16,8 @@ class TCachedAsyncChangeLog
     , public TAsyncChangeLog
 {
 public:
-    TCachedAsyncChangeLog(TChangeLog* changeLog)
-        : TCacheValueBase<i32, TCachedAsyncChangeLog>(changeLog->GetId())
-        , TAsyncChangeLog(changeLog)
-    { }
+    TCachedAsyncChangeLog(TChangeLog* changeLog);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,10 +33,10 @@ public:
 
     void Start();
 
-    typedef TValueOrError<TCachedAsyncChangeLog::TPtr> TGetResult;
+    typedef TValueOrError<TCachedAsyncChangeLogPtr> TGetResult;
     TGetResult Get(i32 changeLogId);
 
-    TCachedAsyncChangeLog::TPtr Create(i32 changeLogId, i32 prevRecordCount);
+    TCachedAsyncChangeLogPtr Create(i32 changeLogId, i32 prevRecordCount);
 
 private:
     Stroka Path;

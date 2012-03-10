@@ -11,6 +11,7 @@
 #include "change_committer.h"
 #include "follower_tracker.h"
 #include "follower_pinger.h"
+#include "meta_state.h"
 
 #include <ytlib/election/election_manager.h>
 #include <ytlib/rpc/service.h>
@@ -288,17 +289,17 @@ public:
 
     EPeerStatus ControlStatus;
     EPeerStatus StateStatus;
-    TConfig::TPtr Config;
+    TPersistentStateManagerConfigPtr Config;
     TPeerId LeaderId;
-    TCellManager::TPtr CellManager;
+    TCellManagerPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     bool ReadOnly;
     bool InCommit;
 
     NElection::TElectionManager::TPtr ElectionManager;
-    TChangeLogCache::TPtr ChangeLogCache;
-    TSnapshotStore::TPtr SnapshotStore;
-    TDecoratedMetaState::TPtr MetaState;
+    TChangeLogCachePtr ChangeLogCache;
+    TSnapshotStorePtr SnapshotStore;
+    TDecoratedMetaStatePtr MetaState;
 
     TActionQueue::TPtr IOQueue;
 
@@ -308,14 +309,14 @@ public:
     IInvoker::TPtr EpochControlInvoker;
     IInvoker::TPtr EpochStateInvoker;
 
-    TSnapshotBuilder::TPtr SnapshotBuilder;
-    TLeaderRecovery::TPtr LeaderRecovery;
-    TFollowerRecovery::TPtr FollowerRecovery;
+    TSnapshotBuilderPtr SnapshotBuilder;
+    TLeaderRecoveryPtr LeaderRecovery;
+    TFollowerRecoveryPtr FollowerRecovery;
 
-    TLeaderCommitter::TPtr LeaderCommitter;
-    TFollowerCommitter::TPtr FollowerCommitter;
+    TLeaderCommitterPtr LeaderCommitter;
+    TFollowerCommitterPtr FollowerCommitter;
 
-    TFollowerTracker::TPtr FollowerTracker;
+    TFollowerTrackerPtr FollowerTracker;
     TFollowerPinger::TPtr FollowerPinger;
 
     // RPC methods
@@ -882,18 +883,18 @@ public:
         auto& response = context->Response();
 
         switch (result) {
-            case TCommitterBase::EResult::Committed:
+            case TCommitter::EResult::Committed:
                 response.set_committed(true);
                 context->Reply();
                 break;
 
-            case TCommitterBase::EResult::LateChanges:
+            case TCommitter::EResult::LateChanges:
                 context->Reply(
                     TProxy::EErrorCode::InvalidVersion,
                     "Changes are late");
                 break;
 
-            case TCommitterBase::EResult::OutOfOrderChanges:
+            case TCommitter::EResult::OutOfOrderChanges:
                 context->Reply(
                     TProxy::EErrorCode::InvalidVersion,
                     "Changes are out of order");
@@ -1153,7 +1154,7 @@ public:
     }
 
     // Blocks state thread until snapshot creation is finished.
-    void WaitSnapshotBuilt(TSnapshotBuilder::TPtr snapshotBuilder)
+    void WaitSnapshotBuilt(TSnapshotBuilderPtr snapshotBuilder)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         snapshotBuilder->GetLocalResult()->Get();
@@ -1217,7 +1218,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMetaStateManager::TPtr CreatePersistentStateManager(
+IMetaStateManagerPtr CreatePersistentStateManager(
     TPersistentStateManagerConfig* config,
     IInvoker* controlInvoker,
     IInvoker* stateInvoker,

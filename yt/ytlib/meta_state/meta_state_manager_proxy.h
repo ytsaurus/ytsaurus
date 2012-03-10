@@ -1,9 +1,8 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "meta_state_manager.pb.h"
 
-#include <ytlib/rpc/service.h>
 #include <ytlib/rpc/client.h>
 
 namespace NYT {
@@ -19,6 +18,7 @@ public:
 
     static Stroka GetServiceName()
     {
+    	// TODO(babenko): rename
         return "MetaStateManager";
     }
 

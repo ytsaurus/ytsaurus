@@ -1,13 +1,9 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "meta_state_manager_proxy.h"
-#include "snapshot_store.h"
-#include "meta_state.h"
-#include "decorated_meta_state.h"
-#include "cell_manager.h"
-#include "change_log_cache.h"
 
+#include <ytlib/misc/checksum.h>
 #include <ytlib/election/election_manager.h>
 #include <ytlib/rpc/client.h>
 
@@ -20,8 +16,6 @@ class TSnapshotBuilder
     : public TExtrinsicRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSnapshotBuilder> TPtr;
-
     struct TConfig
         : public TConfigurable
     {
@@ -67,10 +61,10 @@ public:
 
     TSnapshotBuilder(
         TConfig* config,
-        TCellManager::TPtr cellManager,
-        TDecoratedMetaState::TPtr metaState,
-        TChangeLogCache::TPtr changeLogCache,
-        TSnapshotStore::TPtr snapshotStore,
+        TCellManagerPtr cellManager,
+        TDecoratedMetaStatePtr metaState,
+        TChangeLogCachePtr changeLogCache,
+        TSnapshotStorePtr snapshotStore,
         TEpoch epoch,
         IInvoker::TPtr serviceInvoker);
 
@@ -112,6 +106,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     class TSession;
+    typedef TIntrusivePtr<TSession> TSessionPtr;
 
     typedef TMetaStateManagerProxy TProxy;
 
@@ -119,10 +114,10 @@ private:
     void OnLocalCreated(i32 segmentId, const TChecksum& checksum);
 
     TConfig::TPtr Config;
-    TCellManager::TPtr CellManager;
-    TDecoratedMetaState::TPtr MetaState;
-    TSnapshotStore::TPtr SnapshotStore;
-    TChangeLogCache::TPtr ChangeLogCache;
+    TCellManagerPtr CellManager;
+    TDecoratedMetaStatePtr MetaState;
+    TSnapshotStorePtr SnapshotStore;
+    TChangeLogCachePtr ChangeLogCache;
     TEpoch Epoch;
     IInvoker::TPtr ServiceInvoker;
     IInvoker::TPtr StateInvoker;

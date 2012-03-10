@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "snapshot.h"
+#include "public.h"
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/misc/error.h>
@@ -16,7 +15,6 @@ class TSnapshotStore
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSnapshotStore> TPtr;
     typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
 
     //! Creates an instance.
@@ -28,13 +26,13 @@ public:
     //! Prepares the snapshot directory.
     void Start();
 
-    typedef TValueOrError<TSnapshotReader::TPtr> TGetReaderResult;
+    typedef TValueOrError<TSnapshotReaderPtr> TGetReaderResult;
 
     //! Gets a reader for a given snapshot id.
     TGetReaderResult GetReader(int snapshotId) const;
 
     //! Gets a writer for a given snapshot id.
-    TSnapshotWriter::TPtr GetWriter(int snapshotId) const;
+    TSnapshotWriterPtr GetWriter(int snapshotId) const;
 
     typedef TValueOrError< TSharedPtr<TFile> > TGetRawReaderResult;
     //! Gets a raw reader for a given snapshot id.

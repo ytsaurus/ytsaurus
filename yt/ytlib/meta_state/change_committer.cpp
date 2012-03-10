@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "change_committer.h"
+#include "meta_version.h"
+#include "decorated_meta_state.h"
+#include "change_log_cache.h"
+#include "follower_tracker.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/foreach.h>
@@ -15,7 +19,7 @@ static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommitterBase::TCommitterBase(
+TCommitter::TCommitter(
     TDecoratedMetaState* metaState,
     IInvoker* epochControlInvoker,
     IInvoker* epochStateInvoker)
@@ -41,7 +45,7 @@ public:
     typedef TIntrusivePtr<TBatch> TPtr;
 
     TBatch(
-        TLeaderCommitter::TPtr committer,
+        TLeaderCommitterPtr committer,
         const TMetaVersion& version)
         : Committer(committer)
         , Result(New<TResult>())
@@ -191,7 +195,7 @@ private:
         Result->Set(EResult::MaybeCommitted);
     }
 
-    TLeaderCommitter::TPtr Committer;
+    TLeaderCommitterPtr Committer;
     TResult::TPtr Result;
     TMetaVersion StartVersion;
     i32 CommitCount;
@@ -215,7 +219,7 @@ TLeaderCommitter::TLeaderCommitter(
     const TEpoch& epoch,
     IInvoker* epochControlInvoker,
     IInvoker* epochStateInvoker)
-    : TCommitterBase(metaState, epochControlInvoker, epochStateInvoker)
+    : TCommitter(metaState, epochControlInvoker, epochStateInvoker)
     , Config(config)
     , CellManager(cellManager)
     , ChangeLogCache(changeLogCache)
@@ -329,10 +333,10 @@ TFollowerCommitter::TFollowerCommitter(
     TDecoratedMetaState* metaState,
     IInvoker* epochControlInvoker,
     IInvoker* epochStateInvoker)
-    : TCommitterBase(metaState, epochControlInvoker, epochStateInvoker)
+    : TCommitter(metaState, epochControlInvoker, epochStateInvoker)
 { }
 
-TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(
+TCommitter::TResult::TPtr TFollowerCommitter::Commit(
     const TMetaVersion& expectedVersion,
     const std::vector<TSharedRef>& changes)
 {
@@ -352,7 +356,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(
         ->Do();
 }
 
-TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
+TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
     const TMetaVersion& expectedVersion,
     const std::vector<TSharedRef>& changes)
 {
@@ -384,10 +388,9 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::DoCommit(
         ++currentVersion.RecordCount;
     }
 
-    return result->Apply(FromFunctor([] (TVoid) -> TCommitterBase::EResult
-        {
-            return TCommitterBase::EResult::Committed;
-        }));
+    return result->Apply(FromFunctor([] (TVoid) -> TCommitter::EResult {
+        return TCommitter::EResult::Committed;
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

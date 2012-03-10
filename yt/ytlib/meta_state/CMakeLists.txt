@@ -22,6 +22,7 @@ set( SRCS
   ${BASE}/snapshot_store.cpp
 )
 set( HDRS
+  ${BASE}/public.h
   ${BASE}/async_change_log.h
   ${BASE}/cell_manager-inl.h
   ${BASE}/cell_manager.h

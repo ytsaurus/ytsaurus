@@ -40,7 +40,7 @@ protected:
 
     template <class T>
     static void CheckRead(
-        TChangeLog::TPtr changeLog,
+        TChangeLogPtr changeLog,
         i32 firstRecordId,
         i32 recordCount,
         i32 logRecordCount)
@@ -59,7 +59,7 @@ protected:
     }
 
     template <class T>
-    static void CheckReads(TChangeLog::TPtr changeLog, i32 logRecordCount)
+    static void CheckReads(TChangeLogPtr changeLog, i32 logRecordCount)
     {
         for (i32 start = 0; start <= logRecordCount; ++start) {
             for (i32 end = start; end <= 2 * logRecordCount + 1; ++end) {
@@ -72,12 +72,12 @@ protected:
 TEST_F(TChangeLogTest, EmptyChangeLog)
 {
     ASSERT_NO_THROW({
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
     });
 
     ASSERT_NO_THROW({
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
     });
 }
@@ -88,7 +88,7 @@ TEST_F(TChangeLogTest, Finalized)
     const int logRecordCount = 256;
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
         yvector<TSharedRef> records(logRecordCount);
@@ -107,7 +107,7 @@ TEST_F(TChangeLogTest, Finalized)
     }
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
         EXPECT_EQ(changeLog->IsFinalized(), true);
@@ -120,7 +120,7 @@ TEST_F(TChangeLogTest, ReadWrite)
     const int logRecordCount = 16;
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
         yvector<TSharedRef> records(logRecordCount);
@@ -138,7 +138,7 @@ TEST_F(TChangeLogTest, ReadWrite)
     }
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
@@ -151,7 +151,7 @@ TEST_F(TChangeLogTest, TestCorrupted)
     const int logRecordCount = 1024;
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
         yvector<TSharedRef> records(logRecordCount);
@@ -172,7 +172,7 @@ TEST_F(TChangeLogTest, TestCorrupted)
     }
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount - 1);
@@ -190,7 +190,7 @@ TEST_F(TChangeLogTest, TestCorrupted)
     }
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
         EXPECT_EQ(changeLog->GetRecordCount(), logRecordCount);
@@ -203,7 +203,7 @@ TEST_F(TChangeLogTest, Truncate)
     const int logRecordCount = 256;
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
         yvector<TSharedRef> records(logRecordCount);
@@ -222,12 +222,12 @@ TEST_F(TChangeLogTest, Truncate)
 
     for (int recordId = logRecordCount; recordId >= 0; --recordId) {
         {
-            TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+            TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
             changeLog->Open();
             changeLog->Truncate(recordId);
         }
         {
-            TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+            TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
             changeLog->Open();
 
             EXPECT_EQ(changeLog->GetRecordCount(), recordId);
@@ -241,7 +241,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
     const int logRecordCount = 256;
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
         yvector<TSharedRef> records(logRecordCount);
@@ -261,7 +261,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
     int truncatedRecordId = logRecordCount / 2;
     {
         // Truncate
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
         changeLog->Truncate(truncatedRecordId);
 
@@ -269,7 +269,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
     }
     {
         // Append
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
         yvector<TSharedRef> records;
@@ -282,7 +282,7 @@ TEST_F(TChangeLogTest, TruncateAppend)
     }
     {
         // Check
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
         CheckRead<ui32>(changeLog, 0, logRecordCount, logRecordCount);
@@ -294,7 +294,7 @@ TEST_F(TChangeLogTest, UnalighnedChecksum)
     const int logRecordCount = 256;
 
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Create(0);
 
         yvector<TSharedRef> records(logRecordCount);
@@ -306,7 +306,7 @@ TEST_F(TChangeLogTest, UnalighnedChecksum)
         changeLog->Append(0, records);
     }
     {
-        TChangeLog::TPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
+        TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, 64);
         changeLog->Open();
 
         CheckRead<ui8>(changeLog, 0, logRecordCount, logRecordCount);

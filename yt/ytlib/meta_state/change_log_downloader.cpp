@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "change_log_downloader.h"
 #include "async_change_log.h"
+#include "meta_version.h"
+#include "cell_manager.h"
 
 #include <ytlib/profiling/profiler.h>
 
@@ -16,7 +18,7 @@ static NProfiling::TProfiler Profiler("meta_state/changelog_downloader");
 
 TChangeLogDownloader::TChangeLogDownloader(
     TConfig* config,
-    TCellManager::TPtr cellManager)
+    TCellManager* cellManager)
     : Config(config)
     , CellManager(cellManager)
 {

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "common.h"
 #include "snapshot_store.h"
+#include "snapshot.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -80,7 +81,7 @@ TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
     return New<TSnapshotReader>(fileName, snapshotId);
 }
 
-TSnapshotWriter::TPtr TSnapshotStore::GetWriter(i32 snapshotId) const
+TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(snapshotId > 0);

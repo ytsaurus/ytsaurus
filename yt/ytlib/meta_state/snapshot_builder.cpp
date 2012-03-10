@@ -1,6 +1,11 @@
 #include "stdafx.h"
 #include "snapshot_builder.h"
 #include "meta_state_manager_proxy.h"
+#include "meta_version.h"
+#include "decorated_meta_state.h"
+#include "snapshot_store.h"
+#include "snapshot.h"
+#include "change_log_cache.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/actions/action_util.h>
@@ -30,10 +35,8 @@ class TSnapshotBuilder::TSession
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TSession> TPtr;
-
     TSession(
-        TSnapshotBuilder::TPtr owner,
+        TSnapshotBuilderPtr owner,
         TMetaVersion version)
         : Owner(owner)
         , Version(version)
@@ -130,7 +133,7 @@ private:
         Checksums[followerId] = checksum;
     }
 
-    TSnapshotBuilder::TPtr Owner;
+    TSnapshotBuilderPtr Owner;
     TMetaVersion Version;
     TParallelAwaiter::TPtr Awaiter;
     yvector< TNullable<TChecksum> > Checksums;
@@ -140,10 +143,10 @@ private:
 
 TSnapshotBuilder::TSnapshotBuilder(
     TConfig* config,
-    TCellManager::TPtr cellManager,
-    TDecoratedMetaState::TPtr metaState,
-    TChangeLogCache::TPtr changeLogCache,
-    TSnapshotStore::TPtr snapshotStore,
+    TCellManagerPtr cellManager,
+    TDecoratedMetaStatePtr metaState,
+    TChangeLogCachePtr changeLogCache,
+    TSnapshotStorePtr snapshotStore,
     TEpoch epoch,
     IInvoker::TPtr serviceInvoker)
     : Config(config)

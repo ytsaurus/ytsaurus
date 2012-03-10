@@ -1,7 +1,9 @@
 #include "stdafx.h"
 #include "snapshot_downloader.h"
+#include "common.h"
 #include "snapshot.h"
 #include "meta_state_manager_proxy.h"
+#include "cell_manager.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/actions/future.h>
@@ -19,7 +21,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 TSnapshotDownloader::TSnapshotDownloader(
     TConfig* config,
-    TCellManager::TPtr cellManager)
+    TCellManagerPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
 {

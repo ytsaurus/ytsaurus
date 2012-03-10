@@ -102,12 +102,12 @@ TWorldInitializerPtr TBootstrap::GetWorldInitializer() const
     return WorldInitializer;
 }
 
-IMetaStateManager::TPtr TBootstrap::GetMetaStateManager() const
+IMetaStateManagerPtr TBootstrap::GetMetaStateManager() const
 {
     return MetaStateManager;
 }
 
-TCompositeMetaState::TPtr TBootstrap::GetMetaState() const
+TCompositeMetaStatePtr TBootstrap::GetMetaState() const
 {
     return MetaState;
 }

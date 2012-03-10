@@ -2,6 +2,12 @@
 #include "recovery.h"
 #include "snapshot_downloader.h"
 #include "change_log_downloader.h"
+#include "meta_state.h"
+#include "decorated_meta_state.h"
+#include "snapshot_store.h"
+#include "snapshot.h"
+#include "persistent_state_manager.h"
+#include "change_log_cache.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/serialize.h>
@@ -137,7 +143,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
         bool isFinal = segmentId == targetVersion.SegmentId;
         bool mayBeMissing = isFinal && targetVersion.RecordCount == 0 || !IsLeader();
 
-        TCachedAsyncChangeLog::TPtr changeLog;
+        TCachedAsyncChangeLogPtr changeLog;
         auto changeLogResult = ChangeLogCache->Get(segmentId);
         if (!changeLogResult.IsOK()) {
             if (!mayBeMissing) {
@@ -230,7 +236,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
             if (localRecordCount < desiredRecordCount) {
                 TChangeLogDownloader changeLogDownloader(
                     ~Config->ChangeLogDownloader,
-                    CellManager);
+                    ~CellManager);
                 auto changeLogResult = changeLogDownloader.Download(
                     TMetaVersion(segmentId, desiredRecordCount),
                     *changeLog);

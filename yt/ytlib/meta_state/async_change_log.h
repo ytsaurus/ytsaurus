@@ -1,9 +1,9 @@
 #pragma once
 
-#include "change_log.h"
+#include "public.h"
 
 #include <ytlib/misc/hash.h>
-#include <ytlib/misc/common.h>
+#include <ytlib/misc/ref.h>
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/actions/future.h>
 
@@ -27,7 +27,7 @@ class TAsyncChangeLog
     : private TNonCopyable
 {
 public:
-    TAsyncChangeLog(TChangeLog::TPtr changeLog);
+    TAsyncChangeLog(TChangeLogPtr changeLog);
     ~TAsyncChangeLog();
 
     typedef TFuture<TVoid> TAppendResult;
@@ -76,9 +76,12 @@ public:
     static void Shutdown();
 
 private:
+    class TChangeLogQueue;
+    typedef TIntrusivePtr<TChangeLogQueue> TChangeLogQueuePtr;
+
     class TImpl;
 
-    TChangeLog::TPtr ChangeLog;
+    TChangeLogPtr ChangeLog;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

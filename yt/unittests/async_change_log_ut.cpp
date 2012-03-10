@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/meta_state/async_change_log.h>
+#include <ytlib/meta_state/change_log.h>
 #include <ytlib/actions/action_util.h>
 
 #include <util/random/random.h>
@@ -20,7 +21,7 @@ protected:
     THolder<TTempFile> TemporaryFile;
     THolder<TTempFile> TemporaryIndexFile;
 
-    TChangeLog::TPtr ChangeLog;
+    TChangeLogPtr ChangeLog;
     THolder<TAsyncChangeLog> AsyncChangeLog;
 
     TActionQueue::TPtr ActionQueue;
