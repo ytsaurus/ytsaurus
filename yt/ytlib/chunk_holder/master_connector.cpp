@@ -157,7 +157,9 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr respo
 
 void TMasterConnector::SendFullHeartbeat()
 {
-    auto request = Proxy->FullHeartbeat();
+    auto request = Proxy
+        ->FullHeartbeat()
+        ->SetTimeout(Config->FullHeartbeatTimeout);
 
     YASSERT(HolderId != InvalidHolderId);
     request->set_holder_id(HolderId);

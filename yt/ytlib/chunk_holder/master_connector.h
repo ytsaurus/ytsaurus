@@ -24,11 +24,16 @@ struct TMasterConnectorConfig
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
+    //! Timeout for FullHeartbeat requests.
+    TDuration FullHeartbeatTimeout;
+
     TMasterConnectorConfig()
     {
         Register("masters", Masters);
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+        Register("full_heartbeat_timeout", FullHeartbeatTimeout)
+            .Default(TDuration::Seconds(60));
     }
 };
 
