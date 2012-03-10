@@ -571,21 +571,17 @@ private:
             const auto& statistics = message.statistics();
 
             auto& holder = GetHolder(holderId);
-            bool isFirstHeartbeat = holder.GetState() == EHolderState::Inactive;
 
-            LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, First: %s, Incremental: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, State: %s, Incremental: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
                 ~holder.GetAddress(),
                 holderId,
-                ~FormatBool(isFirstHeartbeat),
+                ~holder.GetState().ToString(),
                 ~FormatBool(message.incremental()),
                 ~ToString(statistics),
                 static_cast<int>(message.added_chunks_size()),
                 static_cast<int>(message.removed_chunks_size()));
 
-            if (isFirstHeartbeat) {
-                holder.SetState(EHolderState::Active);
-            }
-
+            holder.SetState(EHolderState::Active);
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
