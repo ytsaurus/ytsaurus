@@ -25,8 +25,8 @@ public:
     typename TFuture<TResult>::TPtr Commit();
 
     TPtr SetRetriable(TDuration backoffTime);
-    TPtr OnSuccess(IParamAction<TResult>* onSuccess);
-    TPtr OnError(IAction* onError);
+    TPtr OnSuccess(TIntrusivePtr< IParamAction<TResult> > onSuccess);
+    TPtr OnError(TIntrusivePtr<IAction> onError);
 
 private:
     typedef TMetaChange<TResult> TThis;
