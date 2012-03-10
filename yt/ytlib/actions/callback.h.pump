@@ -97,12 +97,13 @@ $var MAX_ARITY = 7
 // that are passed by value, and wrap a pointer to an argument.
 // See the file-level comment in "bind_helpers.h" for more information.
 //
-// These types are passed to the Unwrap() functions, and the #TMaybeRefCountHelper()
-// functions respectively to modify the behavior of #Bind(). The Unwrap()
+// These types are passed to #Unwrap() functions, and #TMaybeRefCountHelper()
+// functions respectively to modify the behavior of #Bind(). #Unwrap()
 // and #TMaybeRefCountHelper() functions change behavior by doing partial
 // specialization based on whether or not a parameter is a wrapper type.
 //
-// #ConstRef() is similar to #tr1::cref(). #Unretained() is specific.
+// #ConstRef() is similar to #tr1::cref().
+// #Unretained() is specific.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
