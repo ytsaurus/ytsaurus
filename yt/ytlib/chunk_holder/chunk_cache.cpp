@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "chunk_cache.h"
+#include "common.h"
 #include "location.h"
 #include "chunk.h"
 #include "block_store.h"

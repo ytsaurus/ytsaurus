@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/remote_writer.h>

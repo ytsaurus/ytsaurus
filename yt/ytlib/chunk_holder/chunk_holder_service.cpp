@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "chunk_holder_service.h"
+#include "common.h"
 #include "chunk.h"
 #include "location.h"
 #include "bootstrap.h"
