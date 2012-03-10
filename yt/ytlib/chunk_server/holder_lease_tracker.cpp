@@ -32,11 +32,6 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
     auto pair = HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo()));
     YASSERT(pair.second);
 
-    auto epochStateInvoker = Bootstrap
-        ->GetMetaStateManager()
-        ->GetEpochContext()
-        ->CreateInvoker(Bootstrap->GetStateInvoker());
-
     auto& holderInfo = pair.first->second;
     holderInfo.Lease = TLeaseManager::CreateLease(
         Config->HolderLeaseTimeout,
@@ -44,7 +39,9 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
             &THolderLeaseTracker::OnExpired,
             TPtr(this),
             holder.GetId())
-        ->Via(epochStateInvoker));
+        ->Via(
+            Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
+            Bootstrap->GetMetaStateManager()->GetEpochContext()));
 }
 
 void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
