@@ -69,7 +69,7 @@ void TParallelAwaiter::Await(
 
     result->Subscribe(FromMethod(
         &TParallelAwaiter::OnResult<T>,
-        TPtr(this),
+        MakeStrong(this),
         timerPathSuffix,
         wrappedOnResult));
 }

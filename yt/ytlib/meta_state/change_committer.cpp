@@ -94,7 +94,7 @@ public:
 		Awaiter->Await(
             LogResult,
 			cellManager->GetSelfAddress(),
-            FromMethod(&TBatch::OnLocalCommit, TPtr(this)));
+            FromMethod(&TBatch::OnLocalCommit, MakeStrong(this)));
 
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
             if (id == cellManager->GetSelfId()) continue;
@@ -113,12 +113,12 @@ public:
             Awaiter->Await(
                 request->Invoke(),
 				cellManager->GetPeerAddress(id),
-                FromMethod(&TBatch::OnRemoteCommit, TPtr(this), id));
+                FromMethod(&TBatch::OnRemoteCommit, MakeStrong(this), id));
 
             LOG_DEBUG("Changes are sent to follower %d", id);
         }
 
-        Awaiter->Complete(FromMethod(&TBatch::OnCompleted, TPtr(this)));
+        Awaiter->Complete(FromMethod(&TBatch::OnCompleted, MakeStrong(this)));
     }
 
     int GetChangeCount() const
@@ -297,11 +297,11 @@ TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
 
     if (!CurrentBatch) {
         YASSERT(!BatchTimeoutCookie);
-        CurrentBatch = New<TBatch>(TPtr(this), version);
+        CurrentBatch = New<TBatch>(MakeStrong(this), version);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
             ~FromMethod(
                 &TLeaderCommitter::DelayedFlush,
-                TPtr(this),
+                MakeStrong(this),
                 CurrentBatch)
             ->Via(~EpochControlInvoker),
             Config->MaxBatchDelay);
@@ -345,7 +345,7 @@ TCommitterBase::TResult::TPtr TFollowerCommitter::Commit(
     return
         FromMethod(
             &TFollowerCommitter::DoCommit,
-            TPtr(this),
+            MakeStrong(this),
             expectedVersion,
             changes)
         ->AsyncVia(EpochStateInvoker)

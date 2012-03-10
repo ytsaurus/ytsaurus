@@ -309,7 +309,7 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
         .Execute(~req)
         ->Subscribe(FromMethod(
             &TTransactionManager::OnPingResponse,
-            TPtr(this), 
+            MakeStrong(this), 
             id));
 }
 

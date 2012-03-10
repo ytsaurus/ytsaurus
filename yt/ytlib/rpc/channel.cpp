@@ -70,7 +70,7 @@ public:
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
                 ~FromMethod(
                     &TChannel::OnTimeout,
-                    TPtr(this),
+                    MakeStrong(this),
                     requestId),
                 timeout.Get());
         }
@@ -88,7 +88,7 @@ public:
 
         bus->Send(requestMessage)->Subscribe(FromMethod(
             &TChannel::OnAcknowledgement,
-            TPtr(this),
+            MakeStrong(this),
             requestId));
     
         LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s)",

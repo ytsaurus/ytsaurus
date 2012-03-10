@@ -37,7 +37,7 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
         Config->HolderLeaseTimeout,
         ~FromMethod(
             &THolderLeaseTracker::OnExpired,
-            TPtr(this),
+            MakeStrong(this),
             holder.GetId())
         ->Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),

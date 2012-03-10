@@ -166,7 +166,7 @@ public:
             UnderlyingService->IsWriteRequest(context)
             ? New<TReplyInterceptorContext>(
                 context,
-                ~FromMethod(&TWriteBackService::SaveFile, TPtr(this)))
+                ~FromMethod(&TWriteBackService::SaveFile, MakeStrong(this)))
             : IServiceContext::TPtr(context);
         UnderlyingService->Invoke(~wrappedContext);
     }

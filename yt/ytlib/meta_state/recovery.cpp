@@ -216,7 +216,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromChangeLog(
 					~currentVersion.ToString(),
 					remoteRecordCount);
                 DecoratedState->Clear();
-                return FromMethod(&TRecovery::Run, TPtr(this))
+                return FromMethod(&TRecovery::Run, MakeStrong(this))
                         ->AsyncVia(~EpochControlInvoker)
                         ->Do();
             }
@@ -348,7 +348,7 @@ TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
 
     return FromMethod(
                &TRecovery::RecoverFromSnapshotAndChangeLog,
-               TPtr(this),
+               MakeStrong(this),
                version,
                maxAvailableSnapshotId)
            ->AsyncVia(~EpochStateInvoker)
@@ -400,13 +400,13 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
 
     FromMethod(
         &TRecovery::RecoverFromSnapshotAndChangeLog,
-        TPtr(this),
+        MakeStrong(this),
         TargetVersion,
         MaxSnapshotId)
     ->AsyncVia(~EpochStateInvoker)
     ->Do()->Apply(FromMethod(
         &TFollowerRecovery::OnSyncReached,
-        TPtr(this)))
+        MakeStrong(this)))
     ->Subscribe(FromMethod(
         &TAsyncResult::Set,
         Result));
@@ -424,7 +424,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
 
     LOG_INFO("Sync reached");
 
-    return FromMethod(&TFollowerRecovery::CapturePostponedChanges, TPtr(this))
+    return FromMethod(&TFollowerRecovery::CapturePostponedChanges, MakeStrong(this))
            ->AsyncVia(~EpochControlInvoker)
            ->Do();
 }
@@ -445,7 +445,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
 
     return FromMethod(
                &TFollowerRecovery::ApplyPostponedChanges,
-               TPtr(this),
+               MakeStrong(this),
                changes)
            ->AsyncVia(~EpochStateInvoker)
            ->Do();
@@ -486,7 +486,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
 
     return FromMethod(
                &TFollowerRecovery::CapturePostponedChanges,
-               TPtr(this))
+               MakeStrong(this))
            ->AsyncVia(~EpochControlInvoker)
            ->Do();
 }

@@ -81,7 +81,7 @@ public:
 
         GetChannel()->Subscribe(FromMethod(
             &TLeaderChannel::OnGotChannel,
-            TPtr(this),
+            MakeStrong(this),
             request,
             responseHandler,
             timeout));
@@ -128,7 +128,7 @@ private:
         } else {
             auto responseHandlerWrapper = New<TResponseHandlerWrapper>(
                 ~responseHandler,
-                ~FromMethod(&TLeaderChannel::OnChannelFailed, TPtr(this)));
+                ~FromMethod(&TLeaderChannel::OnChannelFailed, MakeStrong(this)));
             channel->Send(~request, ~responseHandlerWrapper, timeout);
         }
     }
@@ -166,7 +166,7 @@ private:
 
                 return lookupResult->Apply(FromMethod(
                     &TLeaderChannel::OnFirstLookupResult,
-                    TPtr(this)));
+                    MakeStrong(this)));
             }
 
             case EState::Connected:
@@ -182,7 +182,7 @@ private:
 
                 return lookupResult->Apply(FromMethod(
                     &TLeaderChannel::OnSecondLookupResult,
-                    TPtr(this)));
+                    MakeStrong(this)));
             }
 
             case EState::Terminated:

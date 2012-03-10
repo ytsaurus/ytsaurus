@@ -30,7 +30,7 @@ TSequentialReader::TSequentialReader(
     for (int i = 0; i < fetchCount; ++i) {
         ReaderThread->GetInvoker()->Invoke(FromMethod(
             &TSequentialReader::FetchNextGroup,
-            TPtr(this)));
+            MakeStrong(this)));
     }
 }
 
@@ -103,7 +103,7 @@ void TSequentialReader::ShiftWindow()
 
     ReaderThread->GetInvoker()->Invoke(FromMethod(
         &TSequentialReader::DoShiftWindow, 
-        TPtr(this)));
+        MakeStrong(this)));
 }
 
 void TSequentialReader::DoShiftWindow()
@@ -138,7 +138,7 @@ void TSequentialReader::FetchNextGroup()
     yvector<int> groupIndexes(groupBegin, groupEnd);
     ChunkReader->AsyncReadBlocks(groupIndexes)->Subscribe(FromMethod(
         &TSequentialReader::OnGotBlocks, 
-        TPtr(this),
+        MakeStrong(this),
         FirstUnfetchedIndex)
             ->Via(ReaderThread->GetInvoker()));
 

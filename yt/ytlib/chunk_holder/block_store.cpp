@@ -114,7 +114,7 @@ public:
         auto invoker = chunk->GetLocation()->GetInvoker();
         invoker->Invoke(FromMethod(
             &TStoreImpl::DoReadBlock,
-            TPtr(this),
+            MakeStrong(this),
             chunk,
             blockId,
             cookie));

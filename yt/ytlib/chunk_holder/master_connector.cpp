@@ -78,7 +78,7 @@ IChannel::TPtr TMasterConnector::GetLeaderChannel() const
 void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
-        ~FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))
+        ~FromMethod(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()),
         Config->HeartbeatPeriod);
 }
@@ -107,7 +107,7 @@ void TMasterConnector::SendRegister()
     request->set_address(Config->PeerAddress);
     request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnRegisterResponse, TPtr(this))
+        FromMethod(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Register request sent (%s)",
@@ -173,7 +173,7 @@ void TMasterConnector::SendFullHeartbeat()
     }
 
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnFullHeartbeatResponse, TPtr(this))
+        FromMethod(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Full heartbeat sent (%s, Chunks: %d)",
@@ -207,7 +207,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
     }
 
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnIncrementalHeartbeatResponse, TPtr(this))
+        FromMethod(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Incremental heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",

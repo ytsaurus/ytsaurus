@@ -265,17 +265,17 @@ TObjectManager::TObjectManager(
     auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "ObjectManager.Keys.1",
-        FromMethod(&TObjectManager::LoadKeys, TPtr(this)));
+        FromMethod(&TObjectManager::LoadKeys, MakeStrong(this)));
     metaState->RegisterLoader(
         "ObjectManager.Values.1",
-        FromMethod(&TObjectManager::LoadValues, TPtr(this), context));
+        FromMethod(&TObjectManager::LoadValues, MakeStrong(this), context));
     metaState->RegisterSaver(
         "ObjectManager.Keys.1",
-        FromMethod(&TObjectManager::SaveKeys, TPtr(this)),
+        FromMethod(&TObjectManager::SaveKeys, MakeStrong(this)),
         ESavePhase::Keys);
     metaState->RegisterSaver(
         "ObjectManager.Values.1",
-        FromMethod(&TObjectManager::SaveValues, TPtr(this)),
+        FromMethod(&TObjectManager::SaveValues, MakeStrong(this)),
         ESavePhase::Values);
 
     metaState->RegisterPart(this);

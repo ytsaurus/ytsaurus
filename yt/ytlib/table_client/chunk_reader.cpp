@@ -68,7 +68,7 @@ public:
     {
         AsyncReader->AsyncGetChunkInfo()->Subscribe(FromMethod(
             &TInitializer::OnGotMeta, 
-            TPtr(this))->Via(ReaderThread->GetInvoker()));
+            MakeStrong(this))->Via(ReaderThread->GetInvoker()));
     }
 
 private:
@@ -101,7 +101,7 @@ private:
 
         chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
             &TInitializer::OnFirstBlock,
-            TPtr(this),
+            MakeStrong(this),
             0)->Via(ReaderThread->GetInvoker()));
     }
 
@@ -268,7 +268,7 @@ private:
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.ysize()) {
             chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(
-                FromMethod(&TInitializer::OnFirstBlock, TPtr(this), selectedChannelIndex)
+                FromMethod(&TInitializer::OnFirstBlock, MakeStrong(this), selectedChannelIndex)
                     ->Via(ReaderThread->GetInvoker()));
         } else {
             // Initialization complete.

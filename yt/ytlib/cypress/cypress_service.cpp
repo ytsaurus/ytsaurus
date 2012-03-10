@@ -70,12 +70,12 @@ public:
 
             awaiter->Await(
                 ExecuteVerb(rootService, ~requestMessage),
-                FromMethod(&TExecuteSession::OnResponse, TPtr(this), requestIndex));
+                FromMethod(&TExecuteSession::OnResponse, MakeStrong(this), requestIndex));
 
             requestPartIndex += partCount;
         }
 
-        awaiter->Complete(FromMethod(&TExecuteSession::OnComplete, TPtr(this)));
+        awaiter->Complete(FromMethod(&TExecuteSession::OnComplete, MakeStrong(this)));
     }
 
 private:

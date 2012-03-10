@@ -269,17 +269,17 @@ TTransactionManager::TTransactionManager(
     auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "TransactionManager.Keys.1",
-        FromMethod(&TTransactionManager::LoadKeys, TPtr(this)));
+        FromMethod(&TTransactionManager::LoadKeys, MakeStrong(this)));
     metaState->RegisterLoader(
         "TransactionManager.Values.1",
-        FromMethod(&TTransactionManager::LoadValues, TPtr(this), context));
+        FromMethod(&TTransactionManager::LoadValues, MakeStrong(this), context));
     metaState->RegisterSaver(
         "TransactionManager.Keys.1",
-        FromMethod(&TTransactionManager::SaveKeys, TPtr(this)),
+        FromMethod(&TTransactionManager::SaveKeys, MakeStrong(this)),
         ESavePhase::Keys);
     metaState->RegisterSaver(
         "TransactionManager.Values.1",
-        FromMethod(&TTransactionManager::SaveValues, TPtr(this)),
+        FromMethod(&TTransactionManager::SaveValues, MakeStrong(this)),
         ESavePhase::Values);
 
     metaState->RegisterPart(this);
@@ -468,7 +468,7 @@ void TTransactionManager::CreateLease(const TTransaction& transaction, TTransact
         ->CreateInvoker(~Bootstrap->GetStateInvoker());
     auto lease = TLeaseManager::CreateLease(
         timeout,
-        ~FromMethod(&TThis::OnTransactionExpired, TPtr(this), transaction.GetId())
+        ~FromMethod(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
         ->Via(epochStateInvoker));
     YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).second);
 }
