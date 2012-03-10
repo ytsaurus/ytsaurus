@@ -46,4 +46,5 @@ endif()
 install(
   TARGETS ytext-quality-misc
   LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
 )
