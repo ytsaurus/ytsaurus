@@ -41,19 +41,19 @@ public:
 
     ~TBootstrap();
 
-    TCellMasterConfig* GetConfig() const;
+    TCellMasterConfigPtr GetConfig() const;
 
-    NTransactionServer::TTransactionManager* GetTransactionManager() const;
-    NCypress::TCypressManager* GetCypressManager() const;
-    TWorldInitializer* GetWorldInitializer() const;
-    NMetaState::IMetaStateManager* GetMetaStateManager() const;
-    NMetaState::TCompositeMetaState* GetMetaState() const;
-    NObjectServer::TObjectManager* GetObjectManager() const;
-    NChunkServer::TChunkManager* GetChunkManager() const;
-    NChunkServer::IHolderAuthority* GetHolderAuthority() const;
+    NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
+    NCypress::TCypressManagerPtr GetCypressManager() const;
+    TWorldInitializerPtr GetWorldInitializer() const;
+    NMetaState::IMetaStateManager::TPtr GetMetaStateManager() const;
+    NMetaState::TCompositeMetaState::TPtr GetMetaState() const;
+    NObjectServer::TObjectManager::TPtr GetObjectManager() const;
+    NChunkServer::TChunkManager::TPtr GetChunkManager() const;
+    NChunkServer::IHolderAuthority::TPtr GetHolderAuthority() const;
 
-    IInvoker* GetControlInvoker();
-    IInvoker* GetStateInvoker(EStateThreadQueue queueIndex = EStateThreadQueue::Default);
+    IInvoker::TPtr GetControlInvoker();
+    IInvoker::TPtr GetStateInvoker(EStateThreadQueue queueIndex = EStateThreadQueue::Default);
 
     void Run();
 

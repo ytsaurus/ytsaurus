@@ -82,57 +82,57 @@ TBootstrap::TBootstrap(
 TBootstrap::~TBootstrap()
 { }
 
-TCellMasterConfig* TBootstrap::GetConfig() const
+TCellMasterConfigPtr TBootstrap::GetConfig() const
 {
-    return ~Config;
+    return Config;
 }
 
-TTransactionManager* TBootstrap::GetTransactionManager() const
+TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 {
-    return ~TransactionManager;
+    return TransactionManager;
 }
 
-TCypressManager* TBootstrap::GetCypressManager() const
+TCypressManagerPtr TBootstrap::GetCypressManager() const
 {
-    return ~CypressManager;
+    return CypressManager;
 }
 
-TWorldInitializer* TBootstrap::GetWorldInitializer() const
+TWorldInitializerPtr TBootstrap::GetWorldInitializer() const
 {
-    return ~WorldInitializer;
+    return WorldInitializer;
 }
 
-IMetaStateManager* TBootstrap::GetMetaStateManager() const
+IMetaStateManager::TPtr TBootstrap::GetMetaStateManager() const
 {
-    return ~MetaStateManager;
+    return MetaStateManager;
 }
 
-TCompositeMetaState* TBootstrap::GetMetaState() const
+TCompositeMetaState::TPtr TBootstrap::GetMetaState() const
 {
-    return ~MetaState;
+    return MetaState;
 }
 
-TObjectManager* TBootstrap::GetObjectManager() const
+TObjectManager::TPtr TBootstrap::GetObjectManager() const
 {
-    return ~ObjectManager;
+    return ObjectManager;
 }
 
-TChunkManager* TBootstrap::GetChunkManager() const
+TChunkManager::TPtr TBootstrap::GetChunkManager() const
 {
-    return ~ChunkManager;
+    return ChunkManager;
 }
 
-IHolderAuthority* TBootstrap::GetHolderAuthority() const
+IHolderAuthority::TPtr TBootstrap::GetHolderAuthority() const
 {
-    return ~HolderAuthority;
+    return HolderAuthority;
 }
 
-IInvoker* TBootstrap::GetControlInvoker()
+IInvoker::TPtr TBootstrap::GetControlInvoker()
 {
     return ControlQueue->GetInvoker();
 }
 
-IInvoker* TBootstrap::GetStateInvoker(EStateThreadQueue queueIndex)
+IInvoker::TPtr TBootstrap::GetStateInvoker(EStateThreadQueue queueIndex)
 {
     return StateQueue->GetInvoker(queueIndex.ToValue());
 }
@@ -157,8 +157,8 @@ void TBootstrap::Run()
 
     MetaStateManager = CreatePersistentStateManager(
         ~Config->MetaState,
-        GetControlInvoker(),
-        GetStateInvoker(),
+        ~GetControlInvoker(),
+        ~GetStateInvoker(),
         ~MetaState,
         ~rpcServer);
 
@@ -209,7 +209,7 @@ void TBootstrap::Run()
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
-        GetControlInvoker());
+        ~GetControlInvoker());
     rpcServer->RegisterService(~orchidRpcService);
 
     auto schedulerRedirectorService = CreateRedirectorService(this);
@@ -232,7 +232,7 @@ void TBootstrap::Run()
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(GetControlInvoker())));
+        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~GetControlInvoker())));
     httpServer->Register(
         "/cypress",
         ~NMonitoring::GetYPathHttpHandler(CypressManager->GetRootServiceProducer()));

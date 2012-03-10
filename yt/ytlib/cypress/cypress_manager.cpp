@@ -115,8 +115,8 @@ private:
 
 TCypressManager::TCypressManager(TBootstrap* bootstrap)
     : TMetaStatePart(
-        bootstrap->GetMetaStateManager(),
-        bootstrap->GetMetaState())
+        ~bootstrap->GetMetaStateManager(),
+        ~bootstrap->GetMetaState())
     , Bootstrap(bootstrap)
     , NodeMap(TNodeMapTraits(this))
     , TypeToHandler(MaxObjectType)

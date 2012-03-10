@@ -307,7 +307,7 @@ protected:
             TTransactionId transactionId,
             NCellMaster::TBootstrap* bootstrap)
             : TUserAttributeDictionary(
-                bootstrap->GetObjectManager(),
+                ~bootstrap->GetObjectManager(),
                 objectId)
             , TransactionId(transactionId)
             , Bootstrap(bootstrap)

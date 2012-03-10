@@ -138,7 +138,9 @@ ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
 
 TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
 {
-    return new TUserAttributeDictionary(Bootstrap->GetObjectManager(), Id);
+    return new TUserAttributeDictionary(
+        ~Bootstrap->GetObjectManager(),
+        Id);
 }
 
 void TObjectProxyBase::GetSystemAttributes(std::vector<TAttributeInfo>* names)

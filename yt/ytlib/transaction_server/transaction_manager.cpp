@@ -256,8 +256,8 @@ TTransactionManager::TTransactionManager(
     TConfig* config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
-        bootstrap->GetMetaStateManager(),
-        bootstrap->GetMetaState())
+        ~bootstrap->GetMetaStateManager(),
+        ~bootstrap->GetMetaState())
     , Config(config)
     , Bootstrap(bootstrap)
 {
@@ -465,7 +465,7 @@ void TTransactionManager::CreateLease(const TTransaction& transaction, TTransact
     auto epochStateInvoker = Bootstrap
         ->GetMetaStateManager()
         ->GetEpochContext()
-        ->CreateInvoker(Bootstrap->GetStateInvoker());
+        ->CreateInvoker(~Bootstrap->GetStateInvoker());
     auto lease = TLeaseManager::CreateLease(
         timeout,
         ~FromMethod(&TThis::OnTransactionExpired, TPtr(this), transaction.GetId())

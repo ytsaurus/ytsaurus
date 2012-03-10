@@ -249,8 +249,8 @@ TObjectManager::TObjectManager(
     TObjectManagerConfig* config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
-        bootstrap->GetMetaStateManager(),
-        bootstrap->GetMetaState())
+        ~bootstrap->GetMetaStateManager(),
+        ~bootstrap->GetMetaState())
     , Config(config)
     , Bootstrap(bootstrap)
     , TypeToHandler(MaxObjectType)

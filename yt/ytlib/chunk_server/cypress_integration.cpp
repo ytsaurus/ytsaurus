@@ -354,8 +354,7 @@ private:
         Stroka address = holder.GetAddress();
         auto node = GetProxy();
 
-        // TODO(babenko): use AsStrong
-        auto cypressManager = TCypressManager::TPtr(Bootstrap->GetCypressManager());
+        auto cypressManager = Bootstrap->GetCypressManager();
 
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
         // Doing otherwise will turn holder registration and Cypress update into a single
@@ -363,7 +362,7 @@ private:
         Bootstrap
             ->GetMetaStateManager()
             ->GetEpochContext()
-            ->CreateInvoker(Bootstrap->GetStateInvoker())
+            ->CreateInvoker(~Bootstrap->GetStateInvoker())
             ->Invoke(FromFunctor([=] ()
                 {
                     if (node->FindChild(address))

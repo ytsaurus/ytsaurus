@@ -105,8 +105,8 @@ public:
         TConfig* config,
         TBootstrap* bootstrap)
         : TMetaStatePart(
-            bootstrap->GetMetaStateManager(),
-            bootstrap->GetMetaState())
+            ~bootstrap->GetMetaStateManager(),
+            ~bootstrap->GetMetaState())
         , Config(config)
         , Bootstrap(bootstrap)
 		, ChunkReplicaCount(0)
