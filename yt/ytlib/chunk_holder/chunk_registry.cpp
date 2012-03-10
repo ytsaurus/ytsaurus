@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "chunk_registry.h"
+#include "chunk.h"
+#include "location.h"
 #include "chunk_store.h"
 #include "chunk_cache.h"
 
@@ -10,7 +12,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunk::TPtr TChunkRegistry::FindChunk(const TChunkId& chunkId) const
+TChunkPtr TChunkRegistry::FindChunk(const TChunkId& chunkId) const
 {
     // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
     if (ChunkStore) {

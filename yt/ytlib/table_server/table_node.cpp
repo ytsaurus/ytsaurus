@@ -75,16 +75,20 @@ public:
         const TTransactionId& transactionId,
         IMapNode* manifest)
     {
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto objectManager = Bootstrap->GetObjectManager();
+
         TAutoPtr<TTableNode> node(new TTableNode(nodeId));
 
         // Create an empty chunk list and reference it from the node.
-        auto& chunkList = ChunkManager->CreateChunkList();
+        auto& chunkList = chunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
-        Bootstrap->GetObjectManager()->RefObject(chunkListId);
-        Bootstrap->GetCypressManager()->RegisterNode(transactionId, node.Release());
+        objectManager->RefObject(chunkListId);
+        cypressManager->RegisterNode(transactionId, node.Release());
 
-        auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, NullTransactionId);
+        auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
         proxy->Attributes().MergeFrom(manifest);
     }
 
@@ -103,33 +107,34 @@ protected:
         Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkListId());
     }
 
-    virtual void DoBranch(
-        const TTableNode& originatingNode,
-        TTableNode& branchedNode)
+    virtual void DoBranch(const TTableNode& originatingNode, TTableNode& branchedNode)
     {
         // branchedNode is a copy of originatingNode.
         
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto objectManager = Bootstrap->GetObjectManager();
+
         // Create composite chunk list and place it in the root of branchedNode.
-        auto& branchedChunkList = Bootstrap->GetChunkManager()->CreateChunkList();
+        auto& branchedChunkList = chunkManager->CreateChunkList();
         auto branchedChunkListId = branchedChunkList.GetId();
         branchedNode.SetChunkListId(branchedChunkListId);
-        Bootstrap->GetObjectManager()->RefObject(branchedChunkListId);
+        objectManager->RefObject(branchedChunkListId);
 
         // Make the original chunk list a child of the composite one.
         yvector<TChunkTreeId> childrenIds;
         childrenIds.push_back(originatingNode.GetChunkListId());
-        Bootstrap->GetChunkManager()->AttachToChunkList(branchedChunkList, childrenIds);
+        chunkManager->AttachToChunkList(branchedChunkList, childrenIds);
     }
 
-    virtual void DoMerge(
-        TTableNode& originatingNode,
-        TTableNode& branchedNode)
+    // TODO(babenko): this needs much improvement
+    virtual void DoMerge(TTableNode& originatingNode, TTableNode& branchedNode)
     {
-        // TODO(babenko): this needs much improvement
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto objectManager = Bootstrap->GetObjectManager();
 
         // Obtain the chunk list of branchedNode.
         auto branchedChunkListId = branchedNode.GetChunkListId();
-        auto& branchedChunkList = Bootstrap->GetChunkManager()->GetChunkList(branchedChunkListId);
+        auto& branchedChunkList = chunkManager->GetChunkList(branchedChunkListId);
         YASSERT(branchedChunkList.GetObjectRefCounter() == 1);
 
         // Replace the first child of the branched chunk list with the current chunk list of originatingNode.
@@ -137,16 +142,13 @@ protected:
         auto oldFirstChildId = branchedChunkList.ChildrenIds()[0];
         auto newFirstChildId = originatingNode.GetChunkListId();
         branchedChunkList.ChildrenIds()[0] = newFirstChildId;
-        Bootstrap->GetObjectManager()->RefObject(newFirstChildId);
-        Bootstrap->GetObjectManager()->UnrefObject(oldFirstChildId);
+        objectManager->RefObject(newFirstChildId);
+        objectManager->UnrefObject(oldFirstChildId);
 
         // Replace the chunk list of originatingNode.
         originatingNode.SetChunkListId(branchedChunkListId);
-        Bootstrap->GetObjectManager()->UnrefObject(newFirstChildId);
+        objectManager->UnrefObject(newFirstChildId);
     }
-
-private:
-    NChunkServer::TChunkManager::TPtr ChunkManager;
 
 };
 

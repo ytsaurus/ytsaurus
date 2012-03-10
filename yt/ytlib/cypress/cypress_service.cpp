@@ -5,6 +5,8 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/rpc/message.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/object_server/object_manager.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NCypress {
@@ -61,10 +63,13 @@ public:
                 ~path,
                 ~verb);
 
-            auto service = Owner->ObjectManager->GetRootService();
+            auto rootService = Owner
+                ->Bootstrap
+                ->GetObjectManager()
+                ->GetRootService();
 
             awaiter->Await(
-                ExecuteVerb(service, ~requestMessage),
+                ExecuteVerb(rootService, ~requestMessage),
                 FromMethod(&TExecuteSession::OnResponse, TPtr(this), requestIndex));
 
             requestPartIndex += partCount;

@@ -89,7 +89,7 @@ public:
 
     // TActionQueue is used internally by the logging infrastructure,
     // which passes enableLogging = false to prevent infinite recursion.
-    TActionQueue(const Stroka& threadName, bool enableLogging = true);
+    TActionQueue(const Stroka& threadName = "<ActionQueue>", bool enableLogging = true);
     virtual ~TActionQueue();
 
     void Shutdown();

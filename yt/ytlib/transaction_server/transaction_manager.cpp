@@ -26,13 +26,17 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger Logger("TransactionServer");
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransactionManager::TTransactionProxy
     : public NObjectServer::TUnversionedObjectProxyBase<TTransaction>
 {
 public:
     TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
         : TBase(owner->Bootstrap, id, &owner->TransactionMap)
-        , TYPathServiceBase("TransactionServer")
+        , TYPathServiceBase(NTransactionServer::Logger.GetCategory())
         , Owner(owner)
     { }
 

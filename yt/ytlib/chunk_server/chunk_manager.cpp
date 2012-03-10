@@ -114,8 +114,9 @@ public:
         YASSERT(config);
         YASSERT(bootstrap);
 
-        RegisterMethod(this, &TImpl::HeartbeatRequest);
-        RegisterMethod(this, &TImpl::HeartbeatResponse);
+        RegisterMethod(this, &TImpl::FullHeartbeat);
+        RegisterMethod(this, &TImpl::IncrementalHeartbeat);
+        RegisterMethod(this, &TImpl::UpdateJobs);
         RegisterMethod(this, &TImpl::RegisterHolder);
         RegisterMethod(this, &TImpl::UnregisterHolder);
         RegisterMethod(this, &TImpl::CreateChunks);
@@ -165,23 +166,33 @@ public:
             this);
     }
 
-    TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(
-        const TMsgHeartbeatRequest& message)
+    TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(
+        const TMsgFullHeartbeat& message)
     {
         return CreateMetaChange(
             ~MetaStateManager,
             message,
-            &TThis::HeartbeatRequest,
+            &TThis::FullHeartbeat,
             this);
     }
 
-    TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(
-        const TMsgHeartbeatResponse& message)
+    TMetaChange<TVoid>::TPtr InitiateIncrementalHeartbeat(
+        const TMsgIncrementalHeartbeat& message)
     {
         return CreateMetaChange(
             ~MetaStateManager,
             message,
-            &TThis::HeartbeatResponse,
+            &TThis::IncrementalHeartbeat,
+            this);
+    }
+
+    TMetaChange<TVoid>::TPtr InitiateUpdateJobs(
+        const TMsgUpdateJobs& message)
+    {
+        return CreateMetaChange(
+            ~MetaStateManager,
+            message,
+            &TThis::UpdateJobs,
             this);
     }
 
@@ -285,7 +296,7 @@ public:
         const THolder& holder,
         const yvector<TJobInfo>& runningJobs,
         yvector<TJobStartInfo>* jobsToStart,
-        yvector<TJobId>* jobsToStop)
+        yvector<TJobStopInfo>* jobsToStop)
     {
         ChunkReplication->RunJobControl(
             holder,
@@ -540,7 +551,7 @@ private:
             holderId,
             address,
             incarnationId,
-            EHolderState::Inactive,
+            EHolderState::Registered,
             statistics);
 
         HolderMap.Insert(holderId, newHolder);
@@ -564,24 +575,23 @@ private:
     }
 
 
-    TVoid HeartbeatRequest(const TMsgHeartbeatRequest& message)
+    TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
     {
-        PROFILE_TIMING (message.incremental() ? "incremental_heartbeat_request" : "full_heartbeat_request") {
+        PROFILE_TIMING ("full_heartbeat") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
 
             auto& holder = GetHolder(holderId);
 
-            LOG_DEBUG_IF(!IsRecovery(), "Heartbeat request (Address: %s, HolderId: %d, State: %s, Incremental: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Full Heartbeat received (Address: %s, HolderId: %d, State: %s, %s, Chunks: %d)",
                 ~holder.GetAddress(),
                 holderId,
                 ~holder.GetState().ToString(),
-                ~FormatBool(message.incremental()),
                 ~ToString(statistics),
-                static_cast<int>(message.added_chunks_size()),
-                static_cast<int>(message.removed_chunks_size()));
+                static_cast<int>(message.chunks_size()));
 
-            holder.SetState(EHolderState::Active);
+            YASSERT(holder.GetState() == EHolderState::Registered);
+            holder.SetState(EHolderState::FullHeartbeatReported);
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
@@ -589,27 +599,55 @@ private:
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
-            if (!message.incremental()) {
-                std::vector<TChunkId> storedChunkIds(holder.StoredChunkIds().begin(), holder.StoredChunkIds().end());
-                FOREACH (const auto& chunkId, storedChunkIds) {
-                    RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Reset);
-                }
-                holder.StoredChunkIds().clear();
+            std::vector<TChunkId> storedChunkIds(holder.StoredChunkIds().begin(), holder.StoredChunkIds().end());
+            FOREACH (const auto& chunkId, storedChunkIds) {
+                RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Reset);
+            }
+            holder.StoredChunkIds().clear();
 
-                std::vector<TChunkId> cachedChunkIds(holder.CachedChunkIds().begin(), holder.CachedChunkIds().end());
-                FOREACH (const auto& chunkId, cachedChunkIds) {
-                    RemoveChunkReplica(holder, GetChunk(chunkId), true, ERemoveReplicaReason::Reset);
-                }
-                holder.CachedChunkIds().clear();
+            std::vector<TChunkId> cachedChunkIds(holder.CachedChunkIds().begin(), holder.CachedChunkIds().end());
+            FOREACH (const auto& chunkId, cachedChunkIds) {
+                RemoveChunkReplica(holder, GetChunk(chunkId), true, ERemoveReplicaReason::Reset);
+            }
+            holder.CachedChunkIds().clear();
+
+            FOREACH (const auto& chunkInfo, message.chunks()) {
+                ProcessAddedChunk(holder, chunkInfo, false);
+            }
+        }
+        return TVoid();
+    }
+
+    TVoid IncrementalHeartbeat(const TMsgIncrementalHeartbeat& message)
+    {
+        PROFILE_TIMING ("incremental_heartbeat") {
+            auto holderId = message.holder_id();
+            const auto& statistics = message.statistics();
+
+            auto& holder = GetHolder(holderId);
+
+            LOG_DEBUG_IF(!IsRecovery(), "Incremental heartbeat received (Address: %s, HolderId: %d, State: %s, %s, ChunksAdded: %d, ChunksRemoved: %d)",
+                ~holder.GetAddress(),
+                holderId,
+                ~holder.GetState().ToString(),
+                ~ToString(statistics),
+                static_cast<int>(message.added_chunks_size()),
+                static_cast<int>(message.removed_chunks_size()));
+
+            YASSERT(holder.GetState() == EHolderState::FullHeartbeatReported);
+            holder.Statistics() = statistics;
+
+            if (IsLeader()) {
+                HolderLeaseTracking->RenewHolderLease(holder);
+                ChunkPlacement->OnHolderUpdated(holder);
             }
 
             FOREACH (const auto& chunkInfo, message.added_chunks()) {
-                ProcessAddedChunk(holder, chunkInfo, message.incremental());
+                ProcessAddedChunk(holder, chunkInfo, true);
             }
 
             FOREACH (const auto& chunkInfo, message.removed_chunks()) {
-                YASSERT(message.incremental());
-                ProcessRemovedChunk(holder, chunkInfo, message.incremental());
+                ProcessRemovedChunk(holder, chunkInfo);
             }
 
             std::vector<TChunkId> unapprovedChunkIds(holder.UnapprovedChunkIds().begin(), holder.UnapprovedChunkIds().end());
@@ -621,9 +659,9 @@ private:
         return TVoid();
     }
 
-    TVoid HeartbeatResponse(const TMsgHeartbeatResponse& message)
+    TVoid UpdateJobs(const TMsgUpdateJobs& message)
     {
-        PROFILE_TIMING ("heartbeat_response") {
+        PROFILE_TIMING ("update_jobs") {
             auto holderId = message.holder_id();
             auto& holder = GetHolder(holderId);
 
@@ -631,14 +669,15 @@ private:
                 AddJob(holder, startInfo);
             }
 
-            FOREACH(auto protoJobId, message.stopped_jobs()) {
-                const auto* job = FindJob(TJobId::FromProto(protoJobId));
+            FOREACH (const auto& stopInfo, message.stopped_jobs()) {
+                auto jobId = TJobId::FromProto(stopInfo.job_id());
+                const auto* job = FindJob(jobId);
                 if (job) {
                     RemoveJob(holder, *job, false);
                 }
             }
 
-            LOG_DEBUG_IF(!IsRecovery(), "Heartbeat response (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Holder jobs updated (Address: %s, HolderId: %d, JobsStarted: %d, JobsStopped: %d)",
                 ~holder.GetAddress(),
                 holderId,
                 static_cast<int>(message.started_jobs_size()),
@@ -852,7 +891,6 @@ private:
 
     DECLARE_ENUM(ERemoveReplicaReason,
         (IncrementalHeartbeat)
-        (FullHeartbeat)
         (Unapproved)
         (Reset)
     );
@@ -873,7 +911,6 @@ private:
         }
 
         switch (reason) {
-            case ERemoveReplicaReason::FullHeartbeat:
             case ERemoveReplicaReason::IncrementalHeartbeat:
             case ERemoveReplicaReason::Unapproved:
                 holder.RemoveChunk(chunk.GetId(), cached);
@@ -889,9 +926,7 @@ private:
         if (!IsRecovery()) {
             LOG_EVENT(
                 Logger,
-                reason == ERemoveReplicaReason::FullHeartbeat ||
-                reason == ERemoveReplicaReason::Reset
-                ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
+                reason == ERemoveReplicaReason::Reset ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
                 "Chunk replica removed (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
@@ -906,7 +941,7 @@ private:
     }
 
 
-    void AddJob(THolder& holder, const TRspHolderHeartbeat::TJobStartInfo& jobInfo)
+    void AddJob(THolder& holder, const TJobStartInfo& jobInfo)
     {
         auto chunkId = TChunkId::FromProto(jobInfo.chunk_id());
         auto jobId = TJobId::FromProto(jobInfo.job_id());
@@ -967,7 +1002,7 @@ private:
 
     void ProcessAddedChunk(
         THolder& holder,
-        const TReqHolderHeartbeat::TChunkAddInfo& chunkInfo,
+        const TChunkAddInfo& chunkInfo,
         bool incremental)
     {
         auto holderId = holder.GetId();
@@ -1028,8 +1063,7 @@ private:
 
     void ProcessRemovedChunk(
         THolder& holder,
-        const TReqHolderHeartbeat::TChunkRemoveInfo& chunkInfo,
-        bool incremental)
+        const TChunkRemoveInfo& chunkInfo)
     {
         auto holderId = holder.GetId();
         auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
@@ -1049,7 +1083,7 @@ private:
             holder,
             *chunk,
             cached,
-            incremental ? ERemoveReplicaReason::IncrementalHeartbeat : ERemoveReplicaReason::FullHeartbeat);
+            ERemoveReplicaReason::IncrementalHeartbeat);
     }
 
 
@@ -1151,7 +1185,7 @@ class TChunkManager::TChunkProxy
 public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
         : TBase(owner->Bootstrap, id, &owner->ChunkMap)
-        , TYPathServiceBase(Logger.GetCategory())
+        , TYPathServiceBase(ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 
@@ -1352,7 +1386,7 @@ class TChunkManager::TChunkListProxy
 public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
         : TBase(owner->Bootstrap, id, &owner->ChunkListMap)
-        , TYPathServiceBase(Logger.GetCategory())
+        , TYPathServiceBase(ChunkServerLogger.GetCategory())
         , Owner(owner)
     { }
 
@@ -1518,16 +1552,22 @@ TMetaChange<TVoid>::TPtr TChunkManager::InitiateUnregisterHolder(
     return Impl->InitiateUnregisterHolder(message);
 }
 
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateHeartbeatRequest(
-    const TMsgHeartbeatRequest& message)
+TMetaChange<TVoid>::TPtr TChunkManager::InitiateFullHeartbeat(
+    const TMsgFullHeartbeat& message)
 {
-    return Impl->InitiateHeartbeatRequest(message);
+    return Impl->InitiateFullHeartbeat(message);
 }
 
-TMetaChange<TVoid>::TPtr TChunkManager::InitiateHeartbeatResponse(
-    const TMsgHeartbeatResponse& message)
+TMetaChange<TVoid>::TPtr TChunkManager::InitiateIncrementalHeartbeat(
+    const TMsgIncrementalHeartbeat& message)
 {
-    return Impl->InitiateHeartbeatResponse(message);
+    return Impl->InitiateIncrementalHeartbeat(message);
+}
+
+TMetaChange<TVoid>::TPtr TChunkManager::InitiateUpdateJobs(
+    const TMsgUpdateJobs& message)
+{
+    return Impl->InitiateUpdateJobs(message);
 }
 
 TMetaChange< yvector<TChunkId> >::TPtr TChunkManager::InitiateCreateChunks(
@@ -1560,7 +1600,7 @@ void TChunkManager::RunJobControl(
     const THolder& holder,
     const yvector<TJobInfo>& runningJobs,
     yvector<TJobStartInfo>* jobsToStart,
-    yvector<TJobId>* jobsToStop)
+    yvector<TJobStopInfo>* jobsToStop)
 {
     Impl->RunJobControl(
         holder,

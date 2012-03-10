@@ -307,7 +307,7 @@ protected:
             TTransactionId transactionId,
             NCellMaster::TBootstrap* bootstrap)
             : TUserAttributeDictionary(
-                Bootstrap->GetObjectManager(),
+                bootstrap->GetObjectManager(),
                 objectId)
             , TransactionId(transactionId)
             , Bootstrap(bootstrap)
@@ -366,16 +366,21 @@ protected:
 
         virtual void SetYson(const Stroka& name, const NYTree::TYson& value)
         {
-            // This also takes the lock.
-            auto id = Bootstrap->GetCypressManager()->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
+            // This takes the lock.
+            Bootstrap
+                ->GetCypressManager()
+                ->GetVersionedNodeForUpdate(ObjectId, TransactionId);
 
             TUserAttributeDictionary::SetYson(name, value);
         }
 
         virtual bool Remove(const Stroka& name)
         {
-            // This also takes the lock.
-            auto id = Bootstrap->GetCypressManager()->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
+            // This takes the lock.
+            auto id = Bootstrap
+                ->GetCypressManager()
+                ->GetVersionedNodeForUpdate(ObjectId, TransactionId)
+                .GetId();
 
             if (TransactionId == NullTransactionId) {
                 return TUserAttributeDictionary::Remove(name);

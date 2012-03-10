@@ -18,8 +18,6 @@ class TChunkReplication
 {
 public:
     typedef TIntrusivePtr<TChunkReplication> TPtr;
-    typedef NProto::TReqHolderHeartbeat::TJobInfo TJobInfo;
-    typedef NProto::TRspHolderHeartbeat::TJobStartInfo TJobStartInfo;
     typedef TChunkManagerConfig TConfig;
     
     TChunkReplication(
@@ -40,9 +38,9 @@ public:
 
     void RunJobControl(
         const THolder& holder,
-        const yvector<TJobInfo>& runningJobs,
-        yvector<TJobStartInfo>* jobsToStart,
-        yvector<TJobId>* jobsToStop);
+        const yvector<NProto::TJobInfo>& runningJobs,
+        yvector<NProto::TJobStartInfo>* jobsToStart,
+        yvector<NProto::TJobStopInfo>* jobsToStop);
 
 private:
     TConfig::TPtr Config;
@@ -75,8 +73,8 @@ private:
 
     void ProcessExistingJobs(
         const THolder& holder,
-        const yvector<TJobInfo>& runningJobs,
-        yvector<TJobId>* jobsToStop,
+        const yvector<NProto::TJobInfo>& runningJobs,
+        yvector<NProto::TJobStopInfo>* jobsToStop,
         int* replicationJobCount,
         int* removalJobCount);
 
@@ -91,20 +89,20 @@ private:
     EScheduleFlags ScheduleReplicationJob(
         const THolder& sourceHolder,
         const TChunkId& chunkId,
-        yvector<TJobStartInfo>* jobsToStart);
+        yvector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         const THolder& sourceHolder,
         const TChunkId& chunkId,
-        yvector<TJobStartInfo>* jobsToStart);
+        yvector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
         const THolder& holder,
         const TChunkId& chunkId,
-        yvector<TJobStartInfo>* jobsToStart);
+        yvector<NProto::TJobStartInfo>* jobsToStart);
     void ScheduleJobs(
         const THolder& holder,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
-        yvector<TJobStartInfo>* jobsToStart);
+        yvector<NProto::TJobStartInfo>* jobsToStart);
 
     void Refresh(const TChunk& chunk);
     int GetDesiredReplicaCount(const TChunk& chunk);

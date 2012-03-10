@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "chunk.pb.h"
 
 #include <ytlib/misc/property.h>
@@ -12,8 +12,6 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
    
-class TLocation;
-
 //! Chunk properties that can be obtained by the filesystem scan.
 struct TChunkDescriptor
 {
@@ -33,8 +31,6 @@ class TChunk
     DEFINE_BYVAL_RO_PROPERTY(i64, Size);
 
 public:
-    typedef TIntrusivePtr<TChunk> TPtr;
-
     //! Constructs a chunk for which its info is already known.
     TChunk(
         TLocation* location,
@@ -71,8 +67,6 @@ class TStoredChunk
     : public TChunk
 {
 public:
-    typedef TIntrusivePtr<TStoredChunk> TPtr;
-
     TStoredChunk(
         TLocation* location,
         const NProto::TChunkInfo& info);
@@ -92,8 +86,6 @@ class TCachedChunk
     , public TCacheValueBase<TChunkId, TCachedChunk>
 {
 public:
-    typedef TIntrusivePtr<TCachedChunk> TPtr;
-
     TCachedChunk(
         TLocation* location,
         const NProto::TChunkInfo& info,

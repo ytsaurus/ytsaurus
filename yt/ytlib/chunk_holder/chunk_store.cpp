@@ -1,4 +1,9 @@
 #include "stdafx.h"
+#include "common.h"
+#include "config.h"
+#include "location.h"
+#include "chunk.h"
+#include "reader_cache.h"
 #include "chunk_store.h"
 #include "chunk_holder_service_proxy.h"
 
@@ -26,15 +31,15 @@ TChunkStore::TChunkStore(
     : Config(config)
     , ReaderCache(readerCache)
 {
-    LOG_INFO("Chunk storage scan started");
+    LOG_INFO("Chunk store scan started");
 
     try {
-        for (int i = 0; i < Config->ChunkStorageLocations.ysize(); ++i) {
-            auto& storageLocation = Config->ChunkStorageLocations[i];
+        for (int i = 0; i < Config->ChunkStoreLocations.ysize(); ++i) {
+            auto& locationConfig = Config->ChunkStoreLocations[i];
 
             auto location = New<TLocation>(
                 ELocationType::Store,
-                ~storageLocation,
+                ~locationConfig,
                 ~ReaderCache,
                 Sprintf("ChunkStore-%d", i));
             Locations_.push_back(location);
@@ -48,7 +53,7 @@ TChunkStore::TChunkStore(
         LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
     }
 
-    LOG_INFO("Chunk storage scan completed, %d chunks found", ChunkMap.ysize());
+    LOG_INFO("Chunk store scan completed, %d chunks found", ChunkMap.ysize());
 }
 
 void TChunkStore::RegisterChunk(TStoredChunk* chunk)
@@ -63,7 +68,7 @@ void TChunkStore::RegisterChunk(TStoredChunk* chunk)
     ChunkAdded_.Fire(chunk);
 }
 
-TStoredChunk::TPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
+TStoredChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 {
     auto it = ChunkMap.find(chunkId);
     return it == ChunkMap.end() ? NULL : it->second;
@@ -72,7 +77,7 @@ TStoredChunk::TPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 void TChunkStore::RemoveChunk(TStoredChunk* chunk)
 {
     // Hold the chunk during removal.
-    TStoredChunk::TPtr chunk_ = chunk;
+    TStoredChunkPtr chunk_ = chunk;
     auto chunkId = chunk->GetId();
 
     YVERIFY(ChunkMap.erase(chunkId) == 1);

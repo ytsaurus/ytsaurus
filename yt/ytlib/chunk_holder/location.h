@@ -1,8 +1,8 @@
 #pragma once
 
-#include "common.h"
-#include "config.h"
+#include "public.h"
 
+#include <ytlib/actions/action_queue.h>
 #include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
@@ -10,9 +10,6 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunk;
-class TReaderCache;
-struct TChunkDescriptor;
 
 DECLARE_ENUM(ELocationType,
     (Store)
@@ -87,7 +84,7 @@ public:
 
 private:
     ELocationType Type;
-    TLocationConfig::TPtr Config;
+    TLocationConfigPtr Config;
     TIntrusivePtr<TReaderCache> ReaderCache;
     mutable i64 AvailableSpace;
     i64 UsedSpace;

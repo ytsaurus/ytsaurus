@@ -2,6 +2,7 @@
 #include "location.h"
 #include "chunk.h"
 #include "reader_cache.h"
+#include "config.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/chunk_client/format.h>

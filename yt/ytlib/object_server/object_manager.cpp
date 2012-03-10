@@ -215,7 +215,7 @@ public:
 
     virtual Stroka GetLoggingCategory() const
     {
-        return Logger.GetCategory();
+        return NObjectServer::Logger.GetCategory();
     }
 
     virtual bool IsWriteRequest(IServiceContext* context) const

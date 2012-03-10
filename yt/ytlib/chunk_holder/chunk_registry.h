@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "chunk.h"
+#include "public.h"
 
 namespace NYT {
 namespace NChunkHolder {
@@ -23,7 +22,7 @@ public:
     typedef TIntrusivePtr<TChunkRegistry> TPtr;
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TChunk::TPtr FindChunk(const TChunkId& chunkId) const;
+    TChunkPtr FindChunk(const TChunkId& chunkId) const;
 
     // Due to cyclic dependency these values cannot be injected via ctor.
     void SetChunkStore(TChunkStore* chunkStore);

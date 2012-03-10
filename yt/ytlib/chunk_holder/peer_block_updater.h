@@ -1,27 +1,22 @@
 #pragma once
 
-#include "config.h"
+#include "public.h"
+
+// TODO(babenko): replace with public.h
+#include <ytlib/actions/invoker.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPeriodicInvoker;
-struct IInvoker;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NChunkHolder {
 
-class TBlockStore;
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkHolderServiceProxy;
 
 class TPeerBlockUpdater
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TPeerBlockUpdater> TPtr;
-
     TPeerBlockUpdater(
         TChunkHolderConfig* config,
         TBlockStore* blockStore,
@@ -35,9 +30,9 @@ private:
     
     typedef TChunkHolderServiceProxy TProxy;
 
-    TChunkHolderConfig::TPtr Config;
-    TIntrusivePtr<TBlockStore> BlockStore;
-    TIntrusivePtr<TPeriodicInvoker> PeriodicInvoker;
+    TChunkHolderConfigPtr Config;
+    TBlockStorePtr BlockStore;
+    TPeriodicInvoker::TPtr PeriodicInvoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

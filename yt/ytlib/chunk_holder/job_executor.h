@@ -1,11 +1,10 @@
 #pragma once
 
-#include "common.h"
-#include "chunk_store.h"
-#include "block_store.h"
+#include "public.h"
 
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/async_stream_state.h>
+#include <ytlib/actions/invoker_util.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/logging/tagged_logger.h>
@@ -45,7 +44,7 @@ public:
     yvector<Stroka> GetTargetAddresses() const;
 
     //! Returns the chunk that is being replicated.
-    TChunk::TPtr GetChunk() const;
+    TChunkPtr GetChunk() const;
 
 private:
     friend class TJobExecutor;
@@ -54,7 +53,7 @@ private:
     EJobType JobType;
     TJobId JobId;
     EJobState State;
-    TStoredChunk::TPtr Chunk;
+    TStoredChunkPtr Chunk;
     NProto::TChunkInfo ChunkInfo;
     yvector<Stroka> TargetAddresses;
     NChunkClient::IAsyncWriter::TPtr Writer;
@@ -65,11 +64,7 @@ private:
 
     void Start();
     void Stop();
-
     void ReplicateBlock(TError error, int blockIndex);
-    void OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result);
-    void OnBlockLoaded(TBlockStore::TGetBlockResult result, int blockIndex);
-    void OnWriterClosed(TError error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,19 +94,15 @@ class TJobExecutor
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TJobExecutor> TPtr;
-
-    typedef TChunkHolderConfig TConfig;
-
     //! Constructs a new instance.
     TJobExecutor(
-        TConfig* config,
+        TChunkHolderConfig* config,
         TChunkStore* chunkStore,
         TBlockStore* blockStore,
         IInvoker* serviceInvoker);
     
     //! Starts a new job with the given parameters.
-    TJob::TPtr StartJob(
+    TJobPtr StartJob(
         EJobType jobType,
         const TJobId& jobId,
         TStoredChunk* chunk,
@@ -125,19 +116,19 @@ public:
     void StopAllJobs();
 
     //! Finds job by its id. Returns NULL if no job is found.
-    TJob::TPtr FindJob(const TJobId& jobId);
+    TJobPtr FindJob(const TJobId& jobId);
 
     //! Gets all active jobs.
-    yvector<TJob::TPtr> GetAllJobs();
+    yvector<TJobPtr> GetAllJobs();
 
 private:
     friend class TJob;
-    typedef yhash_map<TJobId, TJob::TPtr> TJobMap;
+    typedef yhash_map<TJobId, TJobPtr> TJobMap;
 
-    TConfig::TPtr Config;
+    TChunkHolderConfigPtr Config;
 
-    TChunkStore::TPtr ChunkStore;
-    TBlockStore::TPtr BlockStore;
+    TChunkStorePtr ChunkStore;
+    TBlockStorePtr BlockStore;
     IInvoker::TPtr ServiceInvoker;
 
     TJobMap Jobs;

@@ -19,16 +19,14 @@ public:
 
     static Stroka GetServiceName()
     {
-        return "ChunkManager";
+        return "ChunkService";
     }
 
     DECLARE_ENUM(EErrorCode,
         ((NoSuchTransaction)(1))
         ((NoSuchHolder)(2))
-        ((NoSuchChunk)(3))
-        ((NoSuchChunkList)(4))
-        ((NoSuchChunkTree)(5))
-        ((NotEnoughHolders)(6))
+        ((NotEnoughHolders)(3))
+        ((InvalidState)(4))
     );
 
     TChunkServiceProxy(NRpc::IChannel* channel)
@@ -36,7 +34,8 @@ public:
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterHolder);
-    DEFINE_RPC_PROXY_METHOD(NProto, HolderHeartbeat);
+    DEFINE_RPC_PROXY_METHOD(NProto, FullHeartbeat);
+    DEFINE_RPC_PROXY_METHOD(NProto, IncrementalHeartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, CreateChunks);
 
 };

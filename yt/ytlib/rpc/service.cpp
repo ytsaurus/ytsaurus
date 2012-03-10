@@ -64,7 +64,7 @@ TServiceBase::TServiceBase(
     const Stroka& loggingCategory)
     : DefaultInvoker(defaultInvoker)
     , ServiceName(serviceName)
-    , ServiceLogger(loggingCategory)
+    , LoggingCategory(loggingCategory)
     , RequestCounter(CombineYPaths(ServiceName, "request_rate"))
 {
     YASSERT(defaultInvoker);
@@ -80,7 +80,7 @@ Stroka TServiceBase::GetServiceName() const
 
 Stroka TServiceBase::GetLoggingCategory() const
 {
-    return ServiceLogger.GetCategory();
+    return LoggingCategory;
 }
 
 void TServiceBase::OnBeginRequest(IServiceContext* context)

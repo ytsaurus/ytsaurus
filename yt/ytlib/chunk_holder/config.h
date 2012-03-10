@@ -17,13 +17,12 @@ namespace NChunkHolder {
 struct TLocationConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TLocationConfig> TPtr;
-
     //! Location root path.
     Stroka Path;
 
     //! Maximum space chunks are allowed to occupy.
     //! (0 indicates to occupy all available space on drive).
+    // TODO(babenko): use nullable
     i64 Quota;
 
     //! Consider the location to be full when left space is less than #LowWatermark
@@ -56,8 +55,6 @@ struct TLocationConfig
 struct TChunkHolderConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TChunkHolderConfig> TPtr;
-
     //! Block cache size (in bytes).
     i64 MaxCachedBlocksSize;
 
@@ -96,10 +93,10 @@ struct TChunkHolderConfig
     i64 ResponseThrottlingSize;
 
     //! Regular storage locations.
-    yvector<TLocationConfig::TPtr> ChunkStorageLocations;
+    yvector<TLocationConfigPtr> ChunkStoreLocations;
 
     //! Cached chunks location.
-    TLocationConfig::TPtr ChunkCacheLocation;
+    TLocationConfigPtr ChunkCacheLocation;
 
     //! Remote reader configuration used to download chunks into cache.
     NChunkClient::TRemoteReaderConfig::TPtr CacheRemoteReader;
@@ -111,7 +108,7 @@ struct TChunkHolderConfig
     NChunkClient::TRemoteWriter::TConfig::TPtr ReplicationRemoteWriter;
 
     //! Keeps chunk peering information.
-    TPeerBlockTable::TConfig::TPtr PeerBlockTable;
+    TPeerBlockTableConfigPtr PeerBlockTable;
 
     //! Masters configuration.
     NElection::TLeaderLookup::TConfig::TPtr Masters;
@@ -147,7 +144,7 @@ struct TChunkHolderConfig
         Register("response_throttling_size", ResponseThrottlingSize)
             .GreaterThan(0)
             .Default(500 * 1024 * 1024);
-        Register("chunk_store_locations", ChunkStorageLocations)
+        Register("chunk_store_locations", ChunkStoreLocations)
             .NonEmpty();
         Register("chunk_cache_location", ChunkCacheLocation)
             .DefaultNew();

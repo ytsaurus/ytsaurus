@@ -1,5 +1,11 @@
 #include "stdafx.h"
 #include "session_manager.h"
+#include "common.h"
+#include "config.h"
+#include "location.h"
+#include "block_store.h"
+#include "chunk.h"
+#include "chunk_store.h"
 #include "chunk.pb.h"
 
 #include <ytlib/misc/fs.h>
@@ -89,7 +95,7 @@ TChunkId TSession::GetChunkId() const
     return ChunkId;
 }
 
-TLocation::TPtr TSession::GetLocation() const
+TLocationPtr TSession::GetLocation() const
 {
     return Location;
 }
@@ -104,7 +110,7 @@ TChunkInfo TSession::GetChunkInfo() const
     return Writer->GetChunkInfo();
 }
 
-TCachedBlock::TPtr TSession::GetBlock(i32 blockIndex)
+TCachedBlockPtr TSession::GetBlock(i32 blockIndex)
 {
     VerifyInWindow(blockIndex);
 
@@ -188,7 +194,7 @@ void TSession::EnqueueWrites()
     }
 }
 
-TVoid TSession::DoWrite(TCachedBlock::TPtr block, i32 blockIndex)
+TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
 {
     LOG_DEBUG("Start writing chunk block (BlockIndex: %d)",
         blockIndex);
@@ -245,7 +251,7 @@ TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
     return TVoid();
 }
 
-TFuture<TChunk::TPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
+TFuture<TChunkPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
 {
     CloseLease();
 
@@ -325,7 +331,7 @@ TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
     return TVoid();
 }
 
-TChunk::TPtr TSession::OnFileClosed(TVoid)
+TChunkPtr TSession::OnFileClosed(TVoid)
 {
     ReleaseSpaceOccupiedByBlocks();
     auto chunk = New<TStoredChunk>(~Location, GetChunkInfo());
@@ -396,7 +402,7 @@ TSessionManager::TSessionManager(
     YASSERT(serviceInvoker);
 }
 
-TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId) const
+TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
 {
     auto it = SessionMap.find(chunkId);
     if (it == SessionMap.end())
@@ -407,7 +413,7 @@ TSession::TPtr TSessionManager::FindSession(const TChunkId& chunkId) const
     return session;
 }
 
-TSession::TPtr TSessionManager::StartSession(
+TSessionPtr TSessionManager::StartSession(
     const TChunkId& chunkId)
 {
     auto location = ChunkStore->GetNewChunkLocation();
@@ -446,7 +452,7 @@ void TSessionManager::CancelSession(TSession* session, const TError& error)
         ~error.ToString());
 }
 
-TFuture<TChunk::TPtr>::TPtr TSessionManager::FinishSession(
+TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
     TSession* session, 
     const TChunkAttributes& attributes)
 {
@@ -460,13 +466,13 @@ TFuture<TChunk::TPtr>::TPtr TSessionManager::FinishSession(
         session));
 }
 
-TChunk::TPtr TSessionManager::OnSessionFinished(TChunk::TPtr chunk, TSession::TPtr session)
+TChunkPtr TSessionManager::OnSessionFinished(TChunkPtr chunk, TSessionPtr session)
 {
     LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
     return chunk;
 }
 
-void TSessionManager::OnLeaseExpired(TSession::TPtr session)
+void TSessionManager::OnLeaseExpired(TSessionPtr session)
 {
     if (SessionMap.find(session->GetChunkId()) != SessionMap.end()) {
         LOG_INFO("Session lease expired (ChunkId: %s)", ~session->GetChunkId().ToString());

@@ -77,8 +77,12 @@ public:
         manifest->SetKeepOptions(true);
         manifest->LoadAndValidate(manifestNode);
 
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto objectManager = Bootstrap->GetObjectManager();
+
         auto chunkId = manifest->ChunkId;
-        auto* chunk = ChunkManager->FindChunk(chunkId);
+        auto* chunk = chunkManager->FindChunk(chunkId);
         if (!chunk) {
             ythrow yexception() << Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
         }
@@ -88,18 +92,18 @@ public:
         }
 
         TAutoPtr<TFileNode> node = new TFileNode(nodeId);
-        auto& chunkList = ChunkManager->CreateChunkList();
+        auto& chunkList = chunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
-        Bootstrap->GetObjectManager()->RefObject(chunkListId);
-        Bootstrap->GetCypressManager()->RegisterNode(transactionId, node.Release());
+        objectManager->RefObject(chunkListId);
+        cypressManager->RegisterNode(transactionId, node.Release());
 
-        auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, NullTransactionId);
+        auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
         proxy->Attributes().MergeFrom(~manifest->GetOptions());
         
         yvector<TChunkTreeId> childrenIds;
         childrenIds.push_back(chunkId);
-        Bootstrap->GetChunkManager()->AttachToChunkList(chunkList, childrenIds);
+        chunkManager->AttachToChunkList(chunkList, childrenIds);
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
@@ -117,9 +121,7 @@ protected:
         Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkListId());
     }
 
-    virtual void DoBranch(
-        const TFileNode& originatingNode,
-        TFileNode& branchedNode)
+    virtual void DoBranch(const TFileNode& originatingNode, TFileNode& branchedNode)
     {
         UNUSED(originatingNode);
 
@@ -128,20 +130,13 @@ protected:
         Bootstrap->GetObjectManager()->RefObject(branchedNode.GetChunkListId());
     }
 
-    virtual void DoMerge(
-        TFileNode& originatingNode,
-        TFileNode& branchedNode)
+    virtual void DoMerge(TFileNode& originatingNode, TFileNode& branchedNode)
     {
         UNUSED(originatingNode);
 
         // Drop the reference from branchedNode.
         Bootstrap->GetObjectManager()->UnrefObject(branchedNode.GetChunkListId());
     }
-
-private:
-    typedef TFileNodeTypeHandler TThis;
-
-    TIntrusivePtr<TChunkManager> ChunkManager;
 
 };
 

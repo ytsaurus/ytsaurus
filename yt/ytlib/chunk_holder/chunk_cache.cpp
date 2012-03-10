@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "chunk_cache.h"
 #include "location.h"
+#include "chunk.h"
+#include "block_store.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/serialize.h>
@@ -12,6 +14,7 @@
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/election/leader_channel.h>
+#include <ytlib/chunk_holder/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -88,9 +91,9 @@ public:
     }
 
 private:
-    TChunkHolderConfig::TPtr Config;
+    TChunkHolderConfigPtr Config;
     TLocation::TPtr Location;
-    TBlockStore::TPtr BlockStore;
+    TBlockStorePtr BlockStore;
     IChannel::TPtr MasterChannel;
     TWeakPtr<TChunkCache> ChunkCache;
 
@@ -315,7 +318,7 @@ TChunkCache::TChunkCache(
     LOG_INFO("Chunk cache scan completed, %d chunks found", GetChunkCount());
 }
 
-TCachedChunk::TPtr TChunkCache::FindChunk(const TChunkId& chunkId)
+TCachedChunkPtr TChunkCache::FindChunk(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return Impl->Find(chunkId);

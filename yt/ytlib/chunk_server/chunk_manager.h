@@ -27,8 +27,6 @@ class TChunkManager
 public:
     typedef TIntrusivePtr<TChunkManager> TPtr;
     typedef TChunkManagerConfig TConfig;
-    typedef NProto::TReqHolderHeartbeat::TJobInfo TJobInfo;
-    typedef NProto::TRspHolderHeartbeat::TJobStartInfo TJobStartInfo;
 
     //! Creates an instance.
     TChunkManager(
@@ -44,11 +42,14 @@ public:
     NMetaState::TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(
         const NProto::TMsgUnregisterHolder& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(
-        const NProto::TMsgHeartbeatRequest& message);
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(
+        const NProto::TMsgFullHeartbeat & message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(
-        const NProto::TMsgHeartbeatResponse& message);
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateIncrementalHeartbeat(
+        const NProto::TMsgIncrementalHeartbeat& message);
+
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateUpdateJobs(
+        const NProto::TMsgUpdateJobs& message);
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
@@ -83,9 +84,9 @@ public:
 
     void RunJobControl(
         const THolder& holder,
-        const yvector<TJobInfo>& runningJobs,
-        yvector<TJobStartInfo>* jobsToStart,
-        yvector<TJobId>* jobsToStop);
+        const yvector<NProto::TJobInfo>& runningJobs,
+        yvector<NProto::TJobStartInfo>* jobsToStart,
+        yvector<NProto::TJobStopInfo>* jobsToStop);
 
     //! Fills a given protobuf structure with the list of holder addresses.
     /*!

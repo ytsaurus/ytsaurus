@@ -11,6 +11,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NCellMaster;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +38,7 @@ void TChunkReplication::RunJobControl(
     const THolder& holder,
     const yvector<TJobInfo>& runningJobs,
     yvector<TJobStartInfo>* jobsToStart,
-    yvector<TJobId>* jobsToStop)
+    yvector<TJobStopInfo>* jobsToStop)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -85,7 +86,7 @@ void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunk
 void TChunkReplication::ProcessExistingJobs(
     const THolder& holder,
     const yvector<TJobInfo>& runningJobs,
-    yvector<TJobId>* jobsToStop,
+    yvector<TJobStopInfo>* jobsToStop,
     int* replicationJobCount,
     int* removalJobCount)
 {
@@ -105,7 +106,9 @@ void TChunkReplication::ProcessExistingJobs(
                 ~jobId.ToString(),
                 ~holder.GetAddress(),
                 holder.GetId());
-            jobsToStop->push_back(jobId);
+            TJobStopInfo stopInfo;
+            stopInfo.set_job_id(jobId.ToProto());
+            jobsToStop->push_back(stopInfo);
             continue;
         }
 
@@ -129,7 +132,9 @@ void TChunkReplication::ProcessExistingJobs(
                     holder.GetId());
 
                 if (TInstant::Now() - job->GetStartTime() > Config->JobTimeout) {
-                    jobsToStop->push_back(jobId);
+                    TJobStopInfo stopInfo;
+                    stopInfo.set_job_id(jobId.ToProto());
+                    jobsToStop->push_back(stopInfo);
 
                     LOG_WARNING("Job timed out (JobId: %s, HolderId: %d, Duration: %d ms)",
                         ~jobId.ToString(),
@@ -139,20 +144,19 @@ void TChunkReplication::ProcessExistingJobs(
                 break;
 
             case EJobState::Completed:
-                jobsToStop->push_back(jobId);
-                ScheduleChunkRefresh(job->GetChunkId());
-                LOG_INFO("Job completed (JobId: %s, HolderId: %d)",
-                    ~jobId.ToString(),
-                    holder.GetId());
-                break;
+            case EJobState::Failed: {
+                TJobStopInfo stopInfo;
+                stopInfo.set_job_id(jobId.ToProto());
+                jobsToStop->push_back(stopInfo);
 
-            case EJobState::Failed:
-                jobsToStop->push_back(jobId);
                 ScheduleChunkRefresh(job->GetChunkId());
-                LOG_WARNING("Job failed (JobId: %s, HolderId: %d)",
+
+                LOG_INFO("Job %s (JobId: %s, HolderId: %d)",
+                    jobState == EJobState::Completed ? "completed" : "failed",
                     ~jobId.ToString(),
                     holder.GetId());
                 break;
+            }
 
             default:
                 YUNREACHABLE();
@@ -162,11 +166,14 @@ void TChunkReplication::ProcessExistingJobs(
     // Check for missing jobs
     FOREACH (auto jobId, holder.JobIds()) {
         if (runningJobIds.find(jobId) == runningJobIds.end()) {
+            TJobStopInfo stopInfo;
+            stopInfo.set_job_id(jobId.ToProto());
+            jobsToStop->push_back(stopInfo);
+
             LOG_WARNING("Job is missing (JobId: %s, Address: %s, HolderId: %d)",
                 ~jobId.ToString(),
                 ~holder.GetAddress(),
                 holder.GetId());
-            jobsToStop->push_back(jobId);
         }
     }
 }

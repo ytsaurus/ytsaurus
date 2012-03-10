@@ -1,9 +1,6 @@
 #pragma once
 
-#include "chunk.h"
-#include "reader_cache.h"
-#include "block_store.h"
-#include "location.h"
+#include "public.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
@@ -28,7 +25,7 @@ class TChunkCache
 {
 public:
     typedef TIntrusivePtr<TChunkCache> TPtr;
-    typedef yvector<TCachedChunk::TPtr> TChunks;
+    typedef yvector<TCachedChunkPtr> TChunks;
 
     //! Constructs a new instance.
     TChunkCache(
@@ -37,7 +34,7 @@ public:
         TBlockStore* blockStore);
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TCachedChunk::TPtr FindChunk(const TChunkId& chunkId);
+    TCachedChunkPtr FindChunk(const TChunkId& chunkId);
 
     //! Returns the list of all registered chunks.
     TChunks GetChunks();
@@ -45,7 +42,7 @@ public:
     //! Returns the number of registered chunks.
     int GetChunkCount();
 
-    typedef TValueOrError<TCachedChunk::TPtr> TDownloadResult;
+    typedef TValueOrError<TCachedChunkPtr> TDownloadResult;
     typedef TFuture<TDownloadResult> TAsyncDownloadResult;
 
     //! Downloads a chunk into the cache.

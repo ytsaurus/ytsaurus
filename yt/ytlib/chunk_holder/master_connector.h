@@ -1,9 +1,9 @@
 #pragma once
 
-#include "common.h"
-#include "bootstrap.h"
-#include "chunk.h"
-#include "chunk_service.pb.h"
+#include "public.h"
+//#include "bootstrap.h"
+//#include "chunk.h"
+//#include "chunk_service.pb.h"
 
 #include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
@@ -24,33 +24,36 @@ class TMasterConnector
 {
 public:
     typedef TIntrusivePtr<TMasterConnector> TPtr;
-    typedef TChunkHolderConfig TConfig;
 
     //! Creates an instance.
-    TMasterConnector(TBootstrap* bootstrap);
+    TMasterConnector(TChunkHolderConfig* config, TBootstrap* bootstrap);
+
+    //! Starts interaction with master.
+    void Start();
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef yhash_set<TChunk::TPtr> TChunks;
+    typedef yhash_set<TChunkPtr> TChunks;
 
     //! Special id value indicating that the holder is not registered.
     static const int InvalidHolderId = -1;
 
+    //! Connector configuration.
+    TChunkHolderConfigPtr Config;
+
     //! The bootstrap that owns us.
     TBootstrap* Bootstrap;
 
-    //! Indicates if the holder is currently registered at the master.
-    bool Registered;
-    
-    //! Indicates if the holder must send the delta of its chunk set during the next heartbeat.
-    /*! 
-     *  When the holder is just registered, this flag is false.
-     *  It becomes true upon a first successful heartbeat.
-     *  The delta is stored in #AddedChunks and #RemovedChunks.
-     */
-    bool IncrementalHeartbeat;
+    DECLARE_ENUM(EState,
+        (NotRegistered)
+        (Registered)
+        (FullHeartbeatReported)
+    );
 
+    //! The current connection state.
+    EState State;
+    
     //! Current id assigned by the master, #InvalidHolderId if not registered.
     int HolderId;
 
@@ -84,20 +87,29 @@ private:
     //! Handles registration response.
     void OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response);
 
-    //! Sends out a heartbeat.
-    void SendHeartbeat();
+    //! Sends out a full heartbeat.
+    void SendFullHeartbeat();
+
+    //! Sends out an incremental heartbeat.
+    void SendIncrementalHeartbeat();
 
     //! Constructs a protobuf info for an added chunk.
-    static NChunkServer::NProto::TReqHolderHeartbeat::TChunkAddInfo GetAddInfo(const TChunk* chunk);
+    static NChunkServer::NProto::TChunkAddInfo GetAddInfo(const TChunk* chunk);
 
     //! Constructs a protobuf info for a removed chunk.
-    static NChunkServer::NProto::TReqHolderHeartbeat::TChunkRemoveInfo GetRemoveInfo(const TChunk* chunk);
+    static NChunkServer::NProto::TChunkRemoveInfo GetRemoveInfo(const TChunk* chunk);
 
-    //! Handles heartbeat response.
-    void OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr response);
+    //! Handles full heartbeat response.
+    void OnFullHeartbeatResponse(TProxy::TRspFullHeartbeat::TPtr response);
+
+    //! Handles incremental heartbeat response.
+    void OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeat::TPtr response);
+
+    //! Handles errors occurring during heartbeats.
+    void OnHeartbeatError(const TError& error);
 
     //! Handles error during a registration or a heartbeat.
-    void OnDisconnected();
+    void Disconnect();
 
     //! Handles registration of new chunks.
     /*!

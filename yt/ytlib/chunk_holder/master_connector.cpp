@@ -1,5 +1,11 @@
 #include "stdafx.h"
 #include "master_connector.h"
+#include "common.h"
+#include "config.h"
+#include "bootstrap.h"
+#include "location.h"
+#include "block_store.h"
+#include "chunk.h"
 #include "chunk_store.h"
 #include "chunk_cache.h"
 #include "session_manager.h"
@@ -29,35 +35,38 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnector::TMasterConnector(TBootstrap* bootstrap)
-    : Bootstrap(bootstrap)
-    , Registered(false)
-    , IncrementalHeartbeat(false)
+TMasterConnector::TMasterConnector(TChunkHolderConfig* config, TBootstrap* bootstrap)
+    : Config(config)
+    , Bootstrap(bootstrap)
+    , State(EState::NotRegistered)
     , HolderId(InvalidHolderId)
 {
+    YASSERT(config);
     YASSERT(bootstrap);
+}
 
-    auto config = bootstrap->GetConfig();
-    auto channel = CreateLeaderChannel(~config->Masters);
+void TMasterConnector::Start()
+{
+    auto channel = CreateLeaderChannel(~Config->Masters);
     Proxy.Reset(new TProxy(~channel));
 
     // TODO(babenko): use AsWeak
-    bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
+    Bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
         TWeakPtr<TMasterConnector>(this)));
-    bootstrap->GetChunkStore()->SubscribeChunkRemoved(Bind(
+    Bootstrap->GetChunkStore()->SubscribeChunkRemoved(Bind(
         &TMasterConnector::OnChunkRemoved,
         TWeakPtr<TMasterConnector>(this)));
-    bootstrap->GetChunkCache()->SubscribeChunkAdded(Bind(
+    Bootstrap->GetChunkCache()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
         TWeakPtr<TMasterConnector>(this)));
-    bootstrap->GetChunkCache()->SubscribeChunkRemoved(Bind(
+    Bootstrap->GetChunkCache()->SubscribeChunkRemoved(Bind(
         &TMasterConnector::OnChunkRemoved,
         TWeakPtr<TMasterConnector>(this)));
 
     LOG_INFO("Chunk holder address is %s, master addresses are [%s]",
-        ~config->PeerAddress,
-        ~JoinToString(config->Masters->Addresses));
+        ~Config->PeerAddress,
+        ~JoinToString(Config->Masters->Addresses));
 
     OnHeartbeat();
 }
@@ -66,16 +75,24 @@ void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
         ~FromMethod(&TMasterConnector::OnHeartbeat, TPtr(this))
-        ->Via(Bootstrap->GetServiceInvoker()),
-        Bootstrap->GetConfig()->HeartbeatPeriod);
+        ->Via(Bootstrap->GetControlInvoker()),
+        Config->HeartbeatPeriod);
 }
 
 void TMasterConnector::OnHeartbeat()
 {
-    if (Registered) {
-        SendHeartbeat();
-    } else {
-        SendRegister();
+    switch (State) {
+        case EState::NotRegistered:
+            SendRegister();
+            break;
+        case EState::Registered:
+            SendFullHeartbeat();
+            break;
+        case EState::FullHeartbeatReported:
+            SendIncrementalHeartbeat();
+            break;
+        default:
+            YUNREACHABLE();
     }
 }
 
@@ -83,11 +100,11 @@ void TMasterConnector::SendRegister()
 {
     auto request = Proxy->RegisterHolder();
     *request->mutable_statistics() = ComputeStatistics();
-    request->set_address(Bootstrap->GetConfig()->PeerAddress);
+    request->set_address(Config->PeerAddress);
     request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
     request->Invoke()->Subscribe(
         FromMethod(&TMasterConnector::OnRegisterResponse, TPtr(this))
-        ->Via(Bootstrap->GetServiceInvoker()));
+        ->Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Register request sent (%s)",
         ~ToString(*request->mutable_statistics()));
@@ -121,49 +138,60 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr respo
     ScheduleHeartbeat();
 
     if (!response->IsOK()) {
-        OnDisconnected();
+        Disconnect();
 
         LOG_WARNING("Error registering at master\n%s", ~response->GetError().ToString());
         return;
     }
 
     HolderId = response->holder_id();
-    Registered = true;
-    IncrementalHeartbeat = false;
+    State = EState::Registered;
 
-    LOG_INFO("Successfully registered at master (HolderId: %d)",
-        HolderId);
+    LOG_INFO("Successfully registered at master (HolderId: %d)", HolderId);
 }
 
-void TMasterConnector::SendHeartbeat()
+void TMasterConnector::SendFullHeartbeat()
 {
-    auto request = Proxy->HolderHeartbeat();
+    auto request = Proxy->FullHeartbeat();
 
     YASSERT(HolderId != InvalidHolderId);
     request->set_holder_id(HolderId);
-
-    request->set_incremental(IncrementalHeartbeat);
     *request->mutable_statistics() = ComputeStatistics();
 
-    if (IncrementalHeartbeat) {
-        ReportedAdded = AddedSinceLastSuccess;
-        ReportedRemoved = RemovedSinceLastSuccess;
+    FOREACH (const auto& chunk, Bootstrap->GetChunkStore()->GetChunks()) {
+        *request->add_chunks() = GetAddInfo(~chunk);
+    }
 
-        FOREACH (auto chunk, ReportedAdded) {
-            *request->add_added_chunks() = GetAddInfo(~chunk);
-        }
+    FOREACH (const auto& chunk, Bootstrap->GetChunkCache()->GetChunks()) {
+        *request->add_chunks() = GetAddInfo(~chunk);
+    }
 
-        FOREACH (auto chunk, ReportedRemoved) {
-            *request->add_removed_chunks() = GetRemoveInfo(~chunk);
-        }
-    } else {
-        FOREACH (const auto& chunk, Bootstrap->GetChunkStore()->GetChunks()) {
-            *request->add_added_chunks() = GetAddInfo(~chunk);
-        }
+    request->Invoke()->Subscribe(
+        FromMethod(&TMasterConnector::OnFullHeartbeatResponse, TPtr(this))
+        ->Via(Bootstrap->GetControlInvoker()));
 
-        FOREACH (const auto& chunk, Bootstrap->GetChunkCache()->GetChunks()) {
-            *request->add_added_chunks() = GetAddInfo(~chunk);
-        }
+    LOG_INFO("Full heartbeat sent (%s, Chunks: %d)",
+        ~ToString(request->statistics()),
+        static_cast<int>(request->chunks_size()));
+}
+
+void TMasterConnector::SendIncrementalHeartbeat()
+{
+    auto request = Proxy->IncrementalHeartbeat();
+
+    YASSERT(HolderId != InvalidHolderId);
+    request->set_holder_id(HolderId);
+    *request->mutable_statistics() = ComputeStatistics();
+
+    ReportedAdded = AddedSinceLastSuccess;
+    ReportedRemoved = RemovedSinceLastSuccess;
+
+    FOREACH (auto chunk, ReportedAdded) {
+        *request->add_added_chunks() = GetAddInfo(~chunk);
+    }
+
+    FOREACH (auto chunk, ReportedRemoved) {
+        *request->add_removed_chunks() = GetRemoveInfo(~chunk);
     }
 
     FOREACH (const auto& job, Bootstrap->GetJobExecutor()->GetAllJobs()) {
@@ -173,78 +201,76 @@ void TMasterConnector::SendHeartbeat()
     }
 
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnHeartbeatResponse, TPtr(this))
-        ->Via(Bootstrap->GetServiceInvoker()));
+        FromMethod(&TMasterConnector::OnIncrementalHeartbeatResponse, TPtr(this))
+        ->Via(Bootstrap->GetControlInvoker()));
 
-    LOG_INFO("Heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
+    LOG_INFO("Incremental heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
         ~ToString(request->statistics()),
         static_cast<int>(request->added_chunks_size()),
         static_cast<int>(request->removed_chunks_size()),
         static_cast<int>(request->jobs_size()));
 }
 
-TReqHolderHeartbeat::TChunkAddInfo TMasterConnector::GetAddInfo(const TChunk* chunk)
+TChunkAddInfo TMasterConnector::GetAddInfo(const TChunk* chunk)
 {
-    TReqHolderHeartbeat::TChunkAddInfo info;
+    TChunkAddInfo info;
     info.set_chunk_id(chunk->GetId().ToProto());
     info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     info.set_size(chunk->GetSize());
     return info;
 }
 
-TReqHolderHeartbeat::TChunkRemoveInfo TMasterConnector::GetRemoveInfo(const TChunk* chunk)
+TChunkRemoveInfo TMasterConnector::GetRemoveInfo(const TChunk* chunk)
 {
-    TReqHolderHeartbeat::TChunkRemoveInfo info;
+    TChunkRemoveInfo info;
     info.set_chunk_id(chunk->GetId().ToProto());
     info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     return info;
 }
 
-void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr response)
+void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeat::TPtr response)
 {
     ScheduleHeartbeat();
     
-    auto errorCode = response->GetErrorCode();
-    if (errorCode != NYT::TError::OK) {
-        LOG_WARNING("Error sending heartbeat to master\n%s", ~response->GetError().ToString());
-
-        // Don't panic upon getting Timeout, TransportError or Unavailable.
-        if (errorCode != NRpc::EErrorCode::Timeout && 
-            errorCode != NRpc::EErrorCode::TransportError && 
-            errorCode != NRpc::EErrorCode::Unavailable)
-        {
-            OnDisconnected();
-        }
-
+    if (!response->IsOK()) {
+        OnHeartbeatError(response->GetError());
         return;
     }
 
-    LOG_INFO("Successfully reported heartbeat to master");
+    LOG_INFO("Successfully reported full heartbeat to master");
+    
+    State = EState::FullHeartbeatReported;
+}
 
-    if (IncrementalHeartbeat) {
-        TChunks newAddedSinceLastSuccess;
-        TChunks newRemovedSinceLastSuccess;
+void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeat::TPtr response)
+{
+    ScheduleHeartbeat();
 
-        FOREACH (const auto& id, AddedSinceLastSuccess) {
-            if (ReportedAdded.find(id) == ReportedAdded.end()) {
-                newAddedSinceLastSuccess.insert(id);
-            }
-        }
-
-        FOREACH (const auto& id, RemovedSinceLastSuccess) {
-            if (ReportedRemoved.find(id) == ReportedRemoved.end()) {
-                newRemovedSinceLastSuccess.insert(id);
-            }
-        }
-
-        AddedSinceLastSuccess.swap(newAddedSinceLastSuccess);
-        RemovedSinceLastSuccess.swap(newRemovedSinceLastSuccess);
-    } else {
-        IncrementalHeartbeat = true;
+    if (!response->IsOK()) {
+        OnHeartbeatError(response->GetError());
+        return;
     }
 
-    FOREACH (const auto& jobProtoId, response->jobs_to_stop()) {
-        auto jobId = TJobId::FromProto(jobProtoId);
+    LOG_INFO("Successfully reported incremental heartbeat to master");
+
+    TChunks newAddedSinceLastSuccess;
+    FOREACH (const auto& id, AddedSinceLastSuccess) {
+        if (ReportedAdded.find(id) == ReportedAdded.end()) {
+            newAddedSinceLastSuccess.insert(id);
+        }
+    }
+    AddedSinceLastSuccess.swap(newAddedSinceLastSuccess);
+
+    TChunks newRemovedSinceLastSuccess;
+    FOREACH (const auto& id, RemovedSinceLastSuccess) {
+        if (ReportedRemoved.find(id) == ReportedRemoved.end()) {
+            newRemovedSinceLastSuccess.insert(id);
+        }
+    }
+    RemovedSinceLastSuccess.swap(newRemovedSinceLastSuccess);
+
+    FOREACH (const auto& jobInfo, response->jobs_to_stop()) {
+        auto jobId = TJobId::FromProto(jobInfo.job_id());
         auto job = Bootstrap->GetJobExecutor()->FindJob(jobId);
         if (!job) {
             LOG_WARNING("Request to stop a non-existing job (JobId: %s)",
@@ -259,7 +285,7 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
         auto chunkId = TChunkId::FromProto(startInfo.chunk_id());
         auto jobId = TJobId::FromProto(startInfo.job_id());
         auto jobType = EJobType(startInfo.type());
-        
+
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
         if (!chunk) {
             LOG_WARNING("Job request for non-existing chunk is ignored (ChunkId: %s, JobId: %s, JobType: %s)",
@@ -277,11 +303,24 @@ void TMasterConnector::OnHeartbeatResponse(TProxy::TRspHolderHeartbeat::TPtr res
     }
 }
 
-void TMasterConnector::OnDisconnected()
+void TMasterConnector::OnHeartbeatError(const TError& error)
+{
+    LOG_WARNING("Error sending heartbeat to master\n%s", ~error.ToString());
+
+    // Don't panic upon getting Timeout, TransportError or Unavailable.
+    auto errorCode = error.GetCode();
+    if (errorCode != NRpc::EErrorCode::Timeout && 
+        errorCode != NRpc::EErrorCode::TransportError && 
+        errorCode != NRpc::EErrorCode::Unavailable)
+    {
+        Disconnect();
+    }
+}
+
+void TMasterConnector::Disconnect()
 {
     HolderId = InvalidHolderId;
-    Registered = false;
-    IncrementalHeartbeat = false;
+    State = EState::NotRegistered;
     ReportedAdded.clear();
     ReportedRemoved.clear();
     AddedSinceLastSuccess.clear();
@@ -295,7 +334,7 @@ void TMasterConnector::OnChunkAdded(TChunk* chunk)
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));
 
-    if (!IncrementalHeartbeat)
+    if (State != EState::FullHeartbeatReported)
         return;
 
     if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end()) {
@@ -321,7 +360,7 @@ void TMasterConnector::OnChunkRemoved(TChunk* chunk)
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));
 
-    if (!IncrementalHeartbeat)
+    if (State != EState::FullHeartbeatReported)
         return;
 
     if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end()) {

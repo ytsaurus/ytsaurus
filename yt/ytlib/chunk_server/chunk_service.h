@@ -27,12 +27,10 @@ private:
 
     void ValidateHolderId(THolderId holderId);
     void ValidateTransactionId(const TTransactionId& transactionId);
-    void ValidateChunkId(const TChunkId& chunkId);
-    void ValidateChunkListId(const TChunkListId& chunkListId);
-    void ValidateChunkTreeId(const TChunkTreeId& treeId);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RegisterHolder);
-    DECLARE_RPC_SERVICE_METHOD(NProto, HolderHeartbeat);
+    DECLARE_RPC_SERVICE_METHOD(NProto, FullHeartbeat);
+    DECLARE_RPC_SERVICE_METHOD(NProto, IncrementalHeartbeat);
     DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunks);
 
 };

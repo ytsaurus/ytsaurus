@@ -1,9 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "chunk.h"
-#include "location.h"
-#include "reader_cache.h"
+#include "public.h"
 
 #include <ytlib/misc/cache.h>
 #include <ytlib/misc/property.h>
@@ -22,8 +19,8 @@ class TChunkStore
 {
 public:
     typedef TIntrusivePtr<TChunkStore> TPtr;
-    typedef yvector<TStoredChunk::TPtr> TChunks;
-    typedef yvector<TLocation::TPtr> TLocations;
+    typedef yvector<TStoredChunkPtr> TChunks;
+    typedef yvector<TLocationPtr> TLocations;
 
     //! Constructs a new instance.
     TChunkStore(
@@ -34,7 +31,7 @@ public:
     void RegisterChunk(TStoredChunk* chunk);
     
     //! Finds chunk by id. Returns NULL if no chunk exists.
-    TStoredChunk::TPtr FindChunk(const TChunkId& chunkId) const;
+    TStoredChunkPtr FindChunk(const TChunkId& chunkId) const;
 
     //! Physically removes the chunk.
     /*!
@@ -47,7 +44,7 @@ public:
      *  Among not full locations returns a random location having the minimum number
      *  of active sessions. Throws exception of all locations are full
      */
-    TLocation::TPtr GetNewChunkLocation();
+    TLocationPtr GetNewChunkLocation();
 
     //! Returns the list of all registered chunks.
     TChunks GetChunks() const;
@@ -65,10 +62,10 @@ public:
     DEFINE_SIGNAL(void(TChunk*), ChunkRemoved);
 
 private:
-    TChunkHolderConfig::TPtr Config;
-    TReaderCache::TPtr ReaderCache;
+    TChunkHolderConfigPtr Config;
+    TReaderCachePtr ReaderCache;
 
-    typedef yhash_map<TChunkId, TStoredChunk::TPtr> TChunkMap;
+    typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
     TChunkMap ChunkMap;
 
 };

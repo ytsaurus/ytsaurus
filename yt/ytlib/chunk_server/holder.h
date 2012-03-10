@@ -14,10 +14,9 @@ namespace NChunkServer {
 
 DECLARE_ENUM(EHolderState,
     // The holder had just registered but have not reported any heartbeats yet.
-    (Inactive)
-    // The holder is reporting heartbeats.
-    // We have a proper knowledge of its chunk set.
-    (Active)
+    (Registered)
+    // The holder has reported the full heartbeat.
+    (FullHeartbeatReported)
 );
 
 class THolder
@@ -30,7 +29,6 @@ class THolder
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, StoredChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, CachedChunkIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkId>, UnapprovedChunkIds);
-    // TODO(babenko): consider using hashset
     DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 
 public:
