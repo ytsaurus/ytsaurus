@@ -10,17 +10,24 @@
 // TODO(babenko): replace with public.h
 #include <ytlib/meta_state/meta_state_manager.h>
 // TODO(babenko): replace with public.h
+#include <ytlib/meta_state/composite_meta_state.h>
+// TODO(babenko): replace with public.h
 #include <ytlib/object_server/object_manager.h>
+// TODO(babenko): replace with public.h
+#include <ytlib/chunk_server/chunk_manager.h>
+// TODO(babenko): replace with public.h
+#include <ytlib/chunk_server/holder_authority.h>
 
 namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int StateThreadPriorityCount = 1;
+const int StateThreadQueueCount = 2;
 
-DECLARE_ENUM(EStateThreadPriority,
-    ((Default)(0))
+DECLARE_ENUM(EStateThreadQueue,
+    (Default)
+    (ChunkRefresh)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,16 +41,19 @@ public:
 
     ~TBootstrap();
 
-    TCellMasterConfig* GetConfig() const;
+    TCellMasterConfigPtr GetConfig() const;
 
-    NTransactionServer::TTransactionManager* GetTransactionManager() const;
-    NCypress::TCypressManager* GetCypressManager() const;
-    NCypress::TWorldInitializer* GetWorldInitializer() const;
-    NMetaState::IMetaStateManager* GetMetaStateManager() const;
-    NObjectServer::TObjectManager* GetObjectManager() const;
+    NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
+    NCypress::TCypressManagerPtr GetCypressManager() const;
+    TWorldInitializerPtr GetWorldInitializer() const;
+    NMetaState::IMetaStateManager::TPtr GetMetaStateManager() const;
+    NMetaState::TCompositeMetaState::TPtr GetMetaState() const;
+    NObjectServer::TObjectManager::TPtr GetObjectManager() const;
+    NChunkServer::TChunkManager::TPtr GetChunkManager() const;
+    NChunkServer::IHolderAuthority::TPtr GetHolderAuthority() const;
 
-    IInvoker* GetControlInvoker();
-    IInvoker* GetStateInvoker(EStateThreadPriority priority = EStateThreadPriority::Default);
+    IInvoker::TPtr GetControlInvoker();
+    IInvoker::TPtr GetStateInvoker(EStateThreadQueue queueIndex = EStateThreadQueue::Default);
 
     void Run();
 
@@ -53,12 +63,15 @@ private:
 
     NTransactionServer::TTransactionManagerPtr TransactionManager;
     NCypress::TCypressManagerPtr CypressManager;
-    NCypress::TWorldInitializerPtr WorldInitializer;
+    TWorldInitializerPtr WorldInitializer;
     NMetaState::IMetaStateManager::TPtr MetaStateManager;
+    NMetaState::TCompositeMetaState::TPtr MetaState;
     NObjectServer::TObjectManager::TPtr ObjectManager;
+    NChunkServer::TChunkManager::TPtr ChunkManager;
+    NChunkServer::IHolderAuthority::TPtr HolderAuthority;
 
     TActionQueue::TPtr ControlQueue;
-    TPrioritizedActionQueue::TPtr StateQueue;
+    TMultiActionQueuePtr StateQueue;
 
 };
 

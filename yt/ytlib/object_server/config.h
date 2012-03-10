@@ -1,20 +1,24 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectManager;
-typedef TIntrusivePtr<TObjectManager> TObjectManagerPtr;
+struct TObjectManagerConfig
+    : public TConfigurable
+{
+    //! A number identifying the cell in the whole world.
+    ui16 CellId;
 
-struct TObjectManagerConfig;
-typedef TIntrusivePtr<TObjectManagerConfig> TObjectManagerConfigPtr;
-
-class TObjectBase;
-class TObjectWithIdBase;
+    TObjectManagerConfig()
+    {
+        Register("cell_id", CellId)
+            .Default(0);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
             

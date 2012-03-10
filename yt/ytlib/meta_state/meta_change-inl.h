@@ -19,7 +19,6 @@ TMetaChange<TResult>::TMetaChange(
     , ChangeData(changeData)
     , Started(false)
     , Retriable(false)
-    , EpochStateInvoker(metaStateManager->GetEpochStateInvoker())
 { }
 
 template <class TResult>
@@ -29,6 +28,7 @@ typename TFuture<TResult>::TPtr TMetaChange<TResult>::Commit()
     Started = true;
 
     AsyncResult = New< TFuture<TResult> >();
+    EpochContext = MetaStateManager->GetEpochContext();
     DoCommit();
     return AsyncResult;
 }
@@ -55,7 +55,7 @@ typename TMetaChange<TResult>::TPtr TMetaChange<TResult>::SetRetriable(TDuration
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnSuccess(IParamAction<TResult>* onSuccess)
+TMetaChange<TResult>::OnSuccess(TIntrusivePtr< IParamAction<TResult> > onSuccess)
 {
     YASSERT(!OnSuccess_);
     OnSuccess_ = onSuccess;
@@ -64,7 +64,7 @@ TMetaChange<TResult>::OnSuccess(IParamAction<TResult>* onSuccess)
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnError(IAction* onError)
+TMetaChange<TResult>::OnError(TIntrusivePtr<IAction> onError)
 {
     YASSERT(!OnError_);
     OnError_ = onError;
@@ -90,7 +90,8 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
         }
         if (Retriable) {
             TDelayedInvoker::Submit(
-                ~FromMethod(&TThis::DoCommit, TPtr(this))->Via(EpochStateInvoker),
+                ~FromMethod(&TThis::DoCommit, TPtr(this))
+                ->Via(MetaStateManager->GetStateInvoker(), EpochContext),
                 BackoffTime);
         }
     }

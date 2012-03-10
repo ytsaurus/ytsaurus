@@ -1,14 +1,15 @@
 #include "stdafx.h"
 #include "object_manager.h"
+#include "config.h"
 
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/rpc/message.h>
-// TODO(babenko): killme
 #include <ytlib/cypress/cypress_manager.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 #include <util/digest/murmur.h>
 
@@ -26,7 +27,7 @@ using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger(ObjectServerLogger);
+static NLog::TLogger Logger("ObjectServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,8 +157,8 @@ class TObjectManager::TRootService
     : public IYPathService
 {
 public:
-    TRootService(TObjectManager* owner)
-        : Owner(owner)
+    TRootService(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
     { }
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
@@ -168,7 +169,10 @@ public:
 
         auto currentPath = path;
         auto transactionId = NullTransactionId;
-        auto objectId = Owner->CypressManager->GetRootNodeId();
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto objectId = cypressManager->GetRootNodeId();
 
         if (!currentPath.empty() && currentPath.has_prefix(TransactionIdMarker)) {
             Stroka token;
@@ -176,14 +180,15 @@ public:
             if (!TObjectId::FromString(token.substr(TransactionIdMarker.length()), &transactionId)) {
                 ythrow yexception() << Sprintf("Error parsing transaction id (Value: %s)", ~token);
             }
-            if (transactionId != NullTransactionId && !Owner->TransactionManager->FindTransaction(transactionId)) {
+
+            if (transactionId != NullTransactionId && transactionManager->FindTransaction(transactionId)) {
                 ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
             }
         }
 
         if (currentPath.has_prefix(RootMarker)) {
             currentPath = currentPath.substr(RootMarker.length());
-            objectId = Owner->CypressManager->GetRootNodeId();
+            objectId = cypressManager->GetRootNodeId();
         } else if (currentPath.has_prefix(ObjectIdMarker)) {
             Stroka token;
             ChopYPathToken(currentPath, &token, &currentPath);
@@ -194,7 +199,7 @@ public:
             ythrow yexception() << Sprintf("Invalid YPath syntax (Path: %s)", ~path);
         }
 
-        auto proxy = Owner->FindProxy(TVersionedObjectId(objectId, transactionId));
+        auto proxy = objectManager->FindProxy(TVersionedObjectId(objectId, transactionId));
         if (!proxy) {
             ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~objectId.ToString());
         }
@@ -210,7 +215,7 @@ public:
 
     virtual Stroka GetLoggingCategory() const
     {
-        return Logger.GetCategory();
+        return NObjectServer::Logger.GetCategory();
     }
 
     virtual bool IsWriteRequest(IServiceContext* context) const
@@ -220,7 +225,7 @@ public:
     }
 
 private:
-    TObjectManager* Owner;
+    TBootstrap* Bootstrap;
 
     static void ChopTransactionIdToken(
         const TYPath& path,
@@ -241,17 +246,23 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectManager::TObjectManager(
-    IMetaStateManager* metaStateManager,
-    TCompositeMetaState* metaState,
-    TCellId cellId)
-    : TMetaStatePart(metaStateManager, metaState)
-    , CellId(cellId)
+    TObjectManagerConfig* config,
+    TBootstrap* bootstrap)
+    : TMetaStatePart(
+        ~bootstrap->GetMetaStateManager(),
+        ~bootstrap->GetMetaState())
+    , Config(config)
+    , Bootstrap(bootstrap)
     , TypeToHandler(MaxObjectType)
     , TypeToCounter(MaxObjectType)
-    , RootService(New<TRootService>(this))
+    , RootService(New<TRootService>(bootstrap))
 {
-    TLoadContext context(NULL); // TODO(roizner): use real bootstrap here
+    YASSERT(config);
+    YASSERT(bootstrap);
 
+    TLoadContext context(bootstrap);
+
+    auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "ObjectManager.Keys.1",
         FromMethod(&TObjectManager::LoadKeys, TPtr(this)));
@@ -272,20 +283,7 @@ TObjectManager::TObjectManager(
     RegisterMethod(this, &TObjectManager::ReplayVerb);
 
     LOG_INFO("Object Manager initialized (CellId: %d)",
-        static_cast<int>(cellId));
-}
-
-TObjectManager::~TObjectManager()
-{ }
-
-void TObjectManager::SetCypressManager(TCypressManager* cypressManager)
-{
-    CypressManager = cypressManager;
-}
-
-void TObjectManager::SetTransactionManager(TTransactionManager* transactionManager)
-{
-    TransactionManager = transactionManager;
+        static_cast<int>(config->CellId));
 }
 
 IYPathService* TObjectManager::GetRootService()
@@ -335,7 +333,7 @@ TCellId TObjectManager::GetCellId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CellId;
+    return Config->CellId;
 }
 
 TObjectId TObjectManager::GenerateId(EObjectType type)
@@ -346,16 +344,17 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
 
     ui64 counter = TypeToCounter[typeValue].Next();
+    auto cellId = GetCellId();
 
     char data[12];
     *reinterpret_cast<ui64*>(&data[ 0]) = counter;
     *reinterpret_cast<ui16*>(&data[ 8]) = typeValue;
-    *reinterpret_cast<ui16*>(&data[10]) = CellId;
+    *reinterpret_cast<ui16*>(&data[10]) = cellId;
     ui32 hash = MurmurHash<ui32>(&data, sizeof (data), 0);
 
     TObjectId id(
         hash,
-        (CellId << 16) + type.ToValue(),
+        (cellId << 16) + type.ToValue(),
         counter & 0xffffffff,
         counter >> 32);
 
@@ -448,7 +447,7 @@ IObjectProxy::TPtr TObjectManager::FindProxy(const TVersionedObjectId& id)
 {
     // (NullObjectId, NullTransactionId) means the root transaction.
     if (id.ObjectId == NullObjectId && id.TransactionId == NullTransactionId) {
-        return TransactionManager->GetRootTransactionProxy();
+        return Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
     }
 
     auto type = TypeFromId(id.ObjectId);

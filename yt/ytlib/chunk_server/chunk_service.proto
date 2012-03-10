@@ -13,6 +13,39 @@ message THolderStatistics
     required bool full = 5;
 }
 
+message TChunkAddInfo
+{
+    required bytes chunk_id = 1;
+    required bool cached = 2;
+    required int64 size = 3;
+}
+
+message TChunkRemoveInfo
+{
+    required bytes chunk_id = 1;
+    required bool cached = 2;
+}
+
+message TJobInfo
+{
+    required bytes job_id = 1;
+    required int32 state = 2;
+}
+
+message TJobStartInfo
+{
+    required int32 type = 1;
+    required bytes job_id = 2;
+    required bytes chunk_id = 3;
+    repeated bytes target_addresses = 4;
+    required uint64 start_time = 5;
+}
+
+message TJobStopInfo
+{
+    required bytes job_id = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqRegisterHolder
@@ -29,55 +62,37 @@ message TRspRegisterHolder
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqHolderHeartbeat
+message TReqFullHeartbeat
 {
-    message TChunkAddInfo
-    {
-        required bytes chunk_id = 1;
-        required bool cached = 2;
-        required int64 size = 3;
-    }
-
-    message TChunkRemoveInfo
-    {
-        required bytes chunk_id = 1;
-        required bool cached = 2;
-    }
-
-    message TJobInfo
-    {
-        required bytes job_id = 1;
-        required int32 state = 2;
-    }
-
-    required bool incremental = 1;
-    required int32 holder_id = 2;
-    required THolderStatistics statistics = 3;
-
-    repeated TChunkAddInfo added_chunks = 4;
-    repeated TChunkRemoveInfo removed_chunks = 5;
-
-    repeated TJobInfo Jobs = 6;
+    required int32 holder_id = 1;
+    required THolderStatistics statistics = 2;
+    repeated TChunkAddInfo chunks = 3;
 }
 
-message TRspHolderHeartbeat
-{
-    message TJobStartInfo
-    {
-        required int32 type = 1;
-        required bytes job_id = 2;
-        required bytes chunk_id = 3;
-        repeated bytes target_addresses = 4;
-        required uint64 start_time = 5;
-    }
+message TRspFullHeartbeat
+{ }
 
-    repeated bytes chunks_to_remove = 1;
-    repeated TJobStartInfo jobs_to_start = 2;
-    repeated bytes jobs_to_stop = 3;
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqIncrementalHeartbeat
+{
+    required int32 holder_id = 1;
+    required THolderStatistics statistics = 2;
+    repeated TChunkAddInfo added_chunks = 3;
+    repeated TChunkRemoveInfo removed_chunks = 4;
+    repeated TJobInfo jobs = 5;
+}
+
+message TRspIncrementalHeartbeat
+{
+
+    repeated TJobStartInfo jobs_to_start = 1;
+    repeated TJobStopInfo jobs_to_stop = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): deprecate
 message TReqCreateChunks
 {
     required bytes transaction_id = 1;

@@ -22,6 +22,7 @@ public:
     TQueueInvoker(TActionQueueBase* owner, bool enableLogging);
 
     void Invoke(IAction::TPtr action);
+    bool IsEmpty() const;
     void Shutdown();
     bool DequeueAndExecute();
 
@@ -107,26 +108,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPrioritizedActionQueue
-    : public TActionQueueBase
+class TMultiActionQueue
+    : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TPrioritizedActionQueue> TPtr;
-
-    TPrioritizedActionQueue(int priorityCount, const Stroka& threadName = "<PrActionQueue>");
-    virtual ~TPrioritizedActionQueue();
+    TMultiActionQueue(int queueCount, const Stroka& threadName);
 
     void Shutdown();
 
-    IInvoker* GetInvoker(int priority);
-
-protected:
-    virtual bool DequeueAndExecute();
+    IInvoker* GetInvoker(int queueIndex);
 
 private:
-    autoarray<TQueueInvokerPtr> QueueInvokers;
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl;
 
 };
+
+typedef TIntrusivePtr<TMultiActionQueue> TMultiActionQueuePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

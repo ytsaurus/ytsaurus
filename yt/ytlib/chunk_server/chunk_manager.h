@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "config.h"
 #include "holder.h"
 #include "chunk.h"
@@ -15,8 +14,7 @@
 #include <ytlib/actions/signal.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>
-#include <ytlib/transaction_server/transaction_manager.h>
-#include <ytlib/object_server/object_manager.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -29,19 +27,11 @@ class TChunkManager
 public:
     typedef TIntrusivePtr<TChunkManager> TPtr;
     typedef TChunkManagerConfig TConfig;
-    typedef NProto::TReqHolderHeartbeat::TJobInfo TJobInfo;
-    typedef NProto::TRspHolderHeartbeat::TJobStartInfo TJobStartInfo;
 
     //! Creates an instance.
     TChunkManager(
         TConfig* config,
-        NMetaState::IMetaStateManager* metaStateManager,
-        NMetaState::TCompositeMetaState* metaState,
-        NTransactionServer::TTransactionManager* transactionManager,
-        IHolderAuthority* holderAuthority,
-        NObjectServer::TObjectManager* objectManager);
-
-    NObjectServer::TObjectManager* GetObjectManager() const;
+        NCellMaster::TBootstrap* bootstrap);
 
     NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
         const NProto::TMsgCreateChunks& message);
@@ -52,11 +42,14 @@ public:
     NMetaState::TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(
         const NProto::TMsgUnregisterHolder& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatRequest(
-        const NProto::TMsgHeartbeatRequest& message);
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(
+        const NProto::TMsgFullHeartbeat & message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr InitiateHeartbeatResponse(
-        const NProto::TMsgHeartbeatResponse& message);
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateIncrementalHeartbeat(
+        const NProto::TMsgIncrementalHeartbeat& message);
+
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateUpdateJobs(
+        const NProto::TMsgUpdateJobs& message);
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
@@ -91,9 +84,9 @@ public:
 
     void RunJobControl(
         const THolder& holder,
-        const yvector<TJobInfo>& runningJobs,
-        yvector<TJobStartInfo>* jobsToStart,
-        yvector<TJobId>* jobsToStop);
+        const yvector<NProto::TJobInfo>& runningJobs,
+        yvector<NProto::TJobStartInfo>* jobsToStart,
+        yvector<NProto::TJobStopInfo>* jobsToStop);
 
     //! Fills a given protobuf structure with the list of holder addresses.
     /*!

@@ -53,7 +53,8 @@ public:
         TFollowerTracker* followerTracker,
         TSnapshotStore* snapshotStore,
         const TEpoch& epoch,
-        IInvoker* controlInvoker);
+        IInvoker* epochControlInvoker,
+        IInvoker* epochStateInvoker);
 
     void Start();
     void Stop();
@@ -72,8 +73,8 @@ private:
     TFollowerTracker::TPtr FollowerTracker;
     TSnapshotStore::TPtr SnapshotStore;
     TEpoch Epoch;
-    TCancelableInvoker::TPtr ControlInvoker;
-    TCancelableInvoker::TPtr StateInvoker;
+    IInvoker::TPtr EpochControlInvoker;
+    IInvoker::TPtr EpochStateInvoker;
     TMetaVersion ReachableVersion;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

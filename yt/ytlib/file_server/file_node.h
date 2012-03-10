@@ -1,12 +1,8 @@
 #pragma once
 
-#include "common.h"
-
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
-#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/cypress/node_detail.h>
-#include <ytlib/object_server/object_manager.h>
 
 namespace NYT {
 namespace NFileServer {
@@ -31,9 +27,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandler::TPtr CreateFileTypeHandler(
-    NCypress::TCypressManager* cypressManager,
-    NChunkServer::TChunkManager* chunkManager);
+NCypress::INodeTypeHandler::TPtr CreateFileTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "node.h"
 
 #include <ytlib/ytree/public.h>

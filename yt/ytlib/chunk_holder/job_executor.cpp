@@ -1,5 +1,11 @@
 #include "stdafx.h"
+#include "common.h"
 #include "job_executor.h"
+#include "block_store.h"
+#include "chunk_store.h"
+#include "chunk.h"
+#include "config.h"
+#include "location.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/chunk_client/remote_writer.h>
@@ -28,7 +34,8 @@ TJob::TJob(
     , State(EJobState::Running)
     , Chunk(chunk)
     , TargetAddresses(targetAddresses)
-    , CancelableInvoker(New<TCancelableInvoker>(serviceInvoker))
+    , CancelableContext(New<TCancelableContext>())
+    , CancelableInvoker(CancelableContext->CreateInvoker(serviceInvoker))
     , Logger(ChunkHolderLogger)
 {
     YASSERT(serviceInvoker);
@@ -47,7 +54,7 @@ TJobId TJob::GetJobId() const
     return JobId;
 }
 
-NYT::NChunkHolder::EJobState TJob::GetState() const
+EJobState TJob::GetState() const
 {
     return State;
 }
@@ -57,13 +64,16 @@ yvector<Stroka> TJob::GetTargetAddresses() const
     return TargetAddresses;
 }
 
-TChunk::TPtr TJob::GetChunk() const
+TChunkPtr TJob::GetChunk() const
 {
     return Chunk;
 }
 
 void TJob::Start()
 {
+    // TODO(babenko): use AsStrong
+    auto this_ = TJobPtr(this);
+
     switch (JobType) {
         case EJobType::Remove: {
             LOG_INFO("Removal job started (ChunkId: %s)",
@@ -82,10 +92,26 @@ void TJob::Start()
                 ~JoinToString(TargetAddresses),
                 ~Chunk->GetId().ToString());
 
-            Chunk->GetInfo()->Subscribe(
-                FromMethod(
-                    &TJob::OnChunkInfoLoaded,
-                    TPtr(this))
+            Chunk
+                ->GetInfo()
+                ->Subscribe(FromFunctor([=] (IAsyncReader::TGetInfoResult result) {
+                    if (!result.IsOK()) {
+                        LOG_WARNING("Error getting chunk info\n%s", ~result.ToString());
+
+                        this_->State = EJobState::Failed;
+                        return;
+                    }
+
+                    this_->ChunkInfo = result.Value();
+
+                    this_->Writer = New<TRemoteWriter>(
+                        ~this_->Owner->Config->ReplicationRemoteWriter,
+                        this_->Chunk->GetId(),
+                        this_->TargetAddresses);
+                    this_->Writer->Open();
+
+                    ReplicateBlock(TError(), 0);
+                })
                 ->Via(CancelableInvoker));
             break;
         }
@@ -97,33 +123,15 @@ void TJob::Start()
 
 void TJob::Stop()
 {
-    CancelableInvoker->Cancel();
+    CancelableContext->Cancel();
     Writer.Reset();
-}
-
-void TJob::OnChunkInfoLoaded(NChunkClient::IAsyncReader::TGetInfoResult result)
-{
-    if (!result.IsOK()) {
-        LOG_WARNING("Error getting chunk info\n%s",
-            ~result.ToString());
-
-        State = EJobState::Failed;
-        return;
-    }
-
-    ChunkInfo = result.Value();
-
-    Writer = New<TRemoteWriter>(
-        ~Owner->Config->ReplicationRemoteWriter,
-        Chunk->GetId(),
-        TargetAddresses);
-    Writer->Open();
-
-    ReplicateBlock(TError(), 0);
 }
 
 void TJob::ReplicateBlock(TError error, int blockIndex)
 {
+    // TODO(babenko): use AsStrong
+    auto this_ = TJobPtr(this);
+
     if (!error.IsOK()) {
         LOG_WARNING("Replication failed (BlockIndex: %d)\n%s",
             blockIndex,
@@ -136,10 +144,21 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
     if (blockIndex >= static_cast<int>(ChunkInfo.blocks_size())) {
         LOG_DEBUG("All blocks are enqueued for replication");
 
-        Writer->AsyncClose(ChunkInfo.attributes())->Subscribe(
-            FromMethod(
-                &TJob::OnWriterClosed,
-                TPtr(this))
+        Writer
+            ->AsyncClose(ChunkInfo.attributes())
+            ->Subscribe(FromFunctor([=] (TError error) {
+                if (error.IsOK()) {
+                    LOG_DEBUG("Replication job completed");
+
+                    this_->Writer.Reset();
+                    this_->State = EJobState::Completed;
+                } else {
+                    LOG_WARNING("Replication job failed\n%s", ~error.ToString());
+
+                    this_->Writer.Reset();
+                    this_->State = EJobState::Failed;
+                }
+            })
             ->Via(CancelableInvoker));
         return;
     }
@@ -149,54 +168,35 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
     LOG_DEBUG("Retrieving block for replication (BlockIndex: %d)",
         blockIndex);
 
-    Owner->BlockStore->GetBlock(blockId)->Subscribe(
-        FromMethod(
-            &TJob::OnBlockLoaded,
-            TPtr(this),
-            blockIndex)
-        ->Via(CancelableInvoker));
-}
+    Owner
+        ->BlockStore
+        ->GetBlock(blockId)
+        ->Subscribe(
+            FromFunctor([=] (TBlockStore::TGetBlockResult result) {
+                if (!result.IsOK()) {
+                    LOG_WARNING("Error getting block for replication (BlockIndex: %d)\n%s",
+                        blockIndex,
+                        ~result.ToString());
 
-void TJob::OnBlockLoaded(TBlockStore::TGetBlockResult result, int blockIndex)
-{
-    if (!result.IsOK()) {
-        LOG_WARNING("Error getting block for replication (BlockIndex: %d)\n%s",
-            blockIndex,
-            ~result.ToString());
+                    this_->State = EJobState::Failed;
+                    return;
+                } 
 
-        State = EJobState::Failed;
-        return;
-    } 
-
-    auto block = result.Value();
-    Writer->AsyncWriteBlock(block->GetData())->Subscribe(
-        FromMethod(
-            &TJob::ReplicateBlock,
-            TPtr(this),
-            blockIndex + 1)
-        ->Via(CancelableInvoker));
-}
-
-void TJob::OnWriterClosed(TError error)
-{
-    if (error.IsOK()) {
-        LOG_DEBUG("Replication job completed");
-
-        Writer.Reset();
-        State = EJobState::Completed;
-    } else {
-        LOG_WARNING("Replication job failed\n%s",
-            ~error.ToString());
-
-        Writer.Reset();
-        State = EJobState::Failed;
-    }
+                auto block = result.Value();
+                this_->Writer->AsyncWriteBlock(block->GetData())->Subscribe(
+                    FromMethod(
+                        &TJob::ReplicateBlock,
+                        this_,
+                        blockIndex + 1)
+                    ->Via(CancelableInvoker));
+            })
+            ->Via(CancelableInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobExecutor::TJobExecutor(
-    TConfig* config,
+    TChunkHolderConfig* config,
     TChunkStore* chunkStore,
     TBlockStore* blockStore,
     IInvoker* serviceInvoker)

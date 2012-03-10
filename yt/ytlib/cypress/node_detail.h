@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common.h"
 #include "node.h"
 #include "cypress_manager.h"
 #include "ypath.pb.h"
@@ -11,6 +10,7 @@
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/object_server/object_detail.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NCypress {
@@ -23,9 +23,9 @@ class TNodeBehaviorBase
 {
 public:
     TNodeBehaviorBase(
-        const TNodeId& nodeId,
-        TCypressManager* cypressManager)
-        : CypressManager(cypressManager)
+        NCellMaster::TBootstrap* bootstrap,
+        const TNodeId& nodeId)
+        : Bootstrap(bootstrap)
         , NodeId(nodeId)
     { }
 
@@ -33,17 +33,17 @@ public:
     { }
 
 protected:
-    TCypressManager::TPtr CypressManager;
+    NCellMaster::TBootstrap* Bootstrap;
     TNodeId NodeId;
 
     TImpl& GetImpl()
     {
-        return CypressManager->GetNode(NodeId);
+        return Bootstrap->GetCypressManager()->GetNode(NodeId);
     }
 
     TIntrusivePtr<TProxy> GetProxy()
     {
-        auto proxy = CypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
+        auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(NodeId, NullTransactionId);
         auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
         YASSERT(typedProxy);
         return typedProxy;
@@ -58,10 +58,8 @@ class TCypressNodeTypeHandlerBase
     : public INodeTypeHandler
 {
 public:
-    // TODO(babenko): consider passing just objectManager
-    explicit TCypressNodeTypeHandlerBase(TCypressManager* cypressManager)
-        : CypressManager(cypressManager)
-        , ObjectManager(cypressManager->GetObjectManager())
+    explicit TCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
     { }
 
     virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id)
@@ -76,16 +74,18 @@ public:
     {
         UNUSED(manifest);
         auto node = Create(nodeId);
-        CypressManager->RegisterNode(transactionId, node);
-        auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, transactionId);
+        auto cypressManager = Bootstrap->GetCypressManager();
+        cypressManager->RegisterNode(transactionId, node);
+        auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, transactionId);
         proxy->Attributes().MergeFrom(manifest);
     }
 
     virtual void Destroy(ICypressNode& node)
     {
         auto id = node.GetId();
-        if (ObjectManager->FindAttributes(id)) {
-            ObjectManager->RemoveAttributes(id);
+        auto objectManager = Bootstrap->GetObjectManager();
+        if (objectManager->FindAttributes(id)) {
+            objectManager->RemoveAttributes(id);
         }
 
         DoDestroy(dynamic_cast<TImpl&>(node));
@@ -113,7 +113,7 @@ public:
         branchedNode->SetLockMode(mode);
 
         // Branch user attributes.
-        ObjectManager->BranchAttributes(originatingId, branchedId);
+        Bootstrap->GetObjectManager()->BranchAttributes(originatingId, branchedId);
         
         // Run custom branching.
         DoBranch(typedOriginatingNode, *branchedNode);
@@ -130,7 +130,7 @@ public:
         YASSERT(branchedId.IsBranched());
 
         // Merge user attributes.
-        ObjectManager->MergeAttributes(originatingId, branchedId);
+        Bootstrap->GetObjectManager()->MergeAttributes(originatingId, branchedId);
 
         // Merge parent id.
         originatingNode.SetParentId(branchedNode.GetParentId());
@@ -146,6 +146,8 @@ public:
     }
 
 protected:
+    NCellMaster::TBootstrap* Bootstrap;
+
     virtual void DoDestroy(TImpl& node)
     {
         UNUSED(node);
@@ -166,9 +168,6 @@ protected:
         UNUSED(originatingNode);
         UNUSED(branchedNode);
     }
-
-    TCypressManager::TPtr CypressManager;
-    NObjectServer::TObjectManager::TPtr ObjectManager;
 
 private:
     typedef TCypressNodeTypeHandlerBase<TImpl> TThis;
@@ -282,8 +281,8 @@ class TScalarNodeTypeHandler
     : public TCypressNodeTypeHandlerBase< TScalarNode<TValue> >
 {
 public:
-    TScalarNodeTypeHandler(TCypressManager* cypressManager)
-        : TCypressNodeTypeHandlerBase< TScalarNode<TValue> >(cypressManager)
+    TScalarNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
+        : TCypressNodeTypeHandlerBase< TScalarNode<TValue> >(bootstrap)
     { }
 
     virtual EObjectType GetObjectType()
@@ -338,7 +337,7 @@ class TMapNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TMapNode>
 {
 public:
-    explicit TMapNodeTypeHandler(TCypressManager* cypressManager);
+    explicit TMapNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
@@ -357,8 +356,6 @@ private:
     virtual void DoMerge(
         TMapNode& originatingNode,
         TMapNode& branchedNode);
-
-    NTransactionServer::TTransactionManager::TPtr TransactionManager;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -387,7 +384,7 @@ class TListNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TListNode>
 {
 public:
-    TListNodeTypeHandler(TCypressManager* cypressManager);
+    TListNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();

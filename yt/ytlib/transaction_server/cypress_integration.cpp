@@ -5,12 +5,15 @@
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/transaction_server/transaction_manager.h>
 
 namespace NYT {
 namespace NTransactionServer {
 
 using namespace NYTree;
 using namespace NCypress;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,42 +21,39 @@ class TVirtualTransactionMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualTransactionMap(TTransactionManager* transactionManager)
-        : TransactionManager(transactionManager)
+    TVirtualTransactionMap(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
     { }
 
 private:
-    TTransactionManager::TPtr TransactionManager;
+    TBootstrap* Bootstrap;
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& ids = TransactionManager->GetTransactionIds(sizeLimit);
+        const auto& ids = Bootstrap->GetTransactionManager()->GetTransactionIds(sizeLimit);
         return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
     }
 
     virtual size_t GetSize() const
     {
-        return TransactionManager->GetTransactionCount();
+        return Bootstrap->GetTransactionManager()->GetTransactionCount();
     }
 
     virtual IYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TTransactionId::FromString(key);
-        return TransactionManager->GetObjectManager()->FindProxy(id);
+        return Bootstrap->GetObjectManager()->FindProxy(id);
     }
 };
 
-NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(
-    NCypress::TCypressManager* cypressManager,
-    TTransactionManager* transactionManager)
+NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
-    YASSERT(transactionManager);
+    YASSERT(bootstrap);
 
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         EObjectType::TransactionMap,
-        ~New<TVirtualTransactionMap>(transactionManager));
+        ~New<TVirtualTransactionMap>(bootstrap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

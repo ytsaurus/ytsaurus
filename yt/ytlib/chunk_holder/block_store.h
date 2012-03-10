@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "config.h"
+#include "public.h"
 
 #include <ytlib/misc/cache.h>
 #include <ytlib/chunk_client/block_cache.h>
@@ -48,7 +47,7 @@ public:
         TChunkRegistry* chunkRegistry,
         TReaderCache* readerCache);
 
-    typedef TValueOrError<TCachedBlock::TPtr> TGetBlockResult;
+    typedef TValueOrError<TCachedBlockPtr> TGetBlockResult;
     typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
 
     //! Gets (asynchronously) a block from the store.
@@ -65,20 +64,20 @@ public:
      *  If the block is not available immediately, it returns NULL.
      *  No IO is queued.
      */
-    TCachedBlock::TPtr FindBlock(const TBlockId& blockId);
+    TCachedBlockPtr FindBlock(const TBlockId& blockId);
 
     //! Puts a block into the store.
     /*!
      *  The store may already have another copy of the same block.
      *  In this case the block content is checked for identity.
      */
-    TCachedBlock::TPtr PutBlock(
+    TCachedBlockPtr PutBlock(
         const TBlockId& blockId,
         const TSharedRef& data,
         const Stroka& source);
 
     //! Gets a vector of all blocks stored in the cache. Thread-safe.
-    yvector<TCachedBlock::TPtr> GetAllBlocks() const;
+    yvector<TCachedBlockPtr> GetAllBlocks() const;
 
     //! Returns the number of bytes that are scheduled for disk read IO.
     i64 GetPendingReadSize() const;

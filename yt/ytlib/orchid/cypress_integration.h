@@ -1,10 +1,8 @@
 #pragma once
 
-#include "common.h"
-
 #include <ytlib/misc/configurable.h>
-#include <ytlib/cypress/node.h>
-#include <ytlib/cypress/cypress_manager.h>
+#include <ytlib/cypress/type_handler.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NOrchid {
@@ -23,15 +21,16 @@ struct TOrchidManifest
     TOrchidManifest()
     {
         Register("remote_address", RemoteAddress);
-        Register("remote_root", RemoteRoot).Default("/");
-        Register("timeout", Timeout).Default(TDuration::MilliSeconds(3000));
+        Register("remote_root", RemoteRoot)
+            .Default("/");
+        Register("timeout", Timeout)
+            .Default(TDuration::MilliSeconds(3000));
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandler::TPtr CreateOrchidTypeHandler(
-    NCypress::TCypressManager* cypressManager);
+NCypress::INodeTypeHandler::TPtr CreateOrchidTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

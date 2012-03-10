@@ -13,6 +13,7 @@
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/object_server/object_detail.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NCypress {
@@ -24,7 +25,7 @@ class TNodeFactory
 {
 public:
     TNodeFactory(
-        TCypressManager* cypressManager,
+        NCellMaster::TBootstrap* bootstrap,
         const TTransactionId& transactionId);
     ~TNodeFactory();
 
@@ -36,8 +37,8 @@ public:
     virtual NYTree::IEntityNodePtr CreateEntity();
 
 private:
-    const TCypressManager::TPtr CypressManager;
-    const TTransactionId TransactionId;
+    NCellMaster::TBootstrap* Bootstrap;
+    TTransactionId TransactionId;
     yvector<TNodeId> CreatedNodeIds;
 
     ICypressNodeProxy::TPtr DoCreate(EObjectType type);
@@ -59,24 +60,23 @@ public:
     // TODO(babenko): pass TVersionedNodeId
     TCypressNodeProxyBase(
         INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
+        NCellMaster::TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
-        : NObjectServer::TObjectProxyBase(cypressManager->GetObjectManager(), nodeId)
-        , NYTree::TYPathServiceBase(CypressLogger.GetCategory())
+        : NObjectServer::TObjectProxyBase(bootstrap, nodeId)
+        , NYTree::TYPathServiceBase("Cypress")
         , TypeHandler(typeHandler)
-        , CypressManager(cypressManager)
-        , ObjectManager(cypressManager->GetObjectManager())
+        , Bootstrap(bootstrap)
         , TransactionId(transactionId)
         , NodeId(nodeId)
     {
         YASSERT(typeHandler);
-        YASSERT(cypressManager);
+        YASSERT(bootstrap);
     }
 
     NYTree::INodeFactoryPtr CreateFactory() const
     {
-        return New<TNodeFactory>(~CypressManager, TransactionId);
+        return New<TNodeFactory>(Bootstrap, TransactionId);
     }
 
     virtual TTransactionId GetTransactionId() const
@@ -135,11 +135,10 @@ public:
     }
 
 protected:
-    const INodeTypeHandler::TPtr TypeHandler;
-    const TCypressManager::TPtr CypressManager;
-    const NObjectServer::TObjectManager::TPtr ObjectManager;
-    const TTransactionId TransactionId;
-    const TNodeId NodeId;
+    INodeTypeHandler::TPtr TypeHandler;
+    NCellMaster::TBootstrap* Bootstrap;
+    TTransactionId TransactionId;
+    TNodeId NodeId;
 
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const
@@ -161,7 +160,7 @@ protected:
     {
         const auto& node = GetImpl();
         // NB: LockIds and SubtreeLockIds are only valid for originating nodes.
-        const auto& origniatingNode = CypressManager->GetNode(Id);
+        const auto& origniatingNode = Bootstrap->GetCypressManager()->GetNode(Id);
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
@@ -216,7 +215,7 @@ protected:
             ythrow yexception() << Sprintf("Invalid lock mode (Mode: %s)", ~mode.ToString());
         }
 
-        auto lockId = CypressManager->LockVersionedNode(NodeId, TransactionId, mode);
+        auto lockId = Bootstrap->GetCypressManager()->LockVersionedNode(NodeId, TransactionId, mode);
 
         response->set_lock_id(lockId.ToProto());
 
@@ -240,12 +239,12 @@ protected:
 
     const ICypressNode& GetImpl(const TNodeId& nodeId) const
     {
-        return CypressManager->GetVersionedNode(nodeId, TransactionId);
+        return Bootstrap->GetCypressManager()->GetVersionedNode(nodeId, TransactionId);
     }
 
     ICypressNode& GetImplForUpdate(const TNodeId& nodeId, ELockMode requestedMode = ELockMode::Exclusive)
     {
-        return CypressManager->GetVersionedNodeForUpdate(nodeId, TransactionId, requestedMode);
+        return Bootstrap->GetCypressManager()->GetVersionedNodeForUpdate(nodeId, TransactionId, requestedMode);
     }
 
 
@@ -263,7 +262,7 @@ protected:
     ICypressNodeProxy::TPtr GetProxy(const TNodeId& nodeId) const
     {
         YASSERT(nodeId != NullObjectId);
-        return CypressManager->GetVersionedNodeProxy(nodeId, TransactionId);
+        return Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, TransactionId);
     }
 
     static ICypressNodeProxy* ToProxy(INode* node)
@@ -282,18 +281,21 @@ protected:
     void AttachChild(ICypressNode& child)
     {
         child.SetParentId(NodeId);
-        ObjectManager->RefObject(child.GetId().ObjectId);
+        Bootstrap->GetObjectManager()->RefObject(child.GetId().ObjectId);
     }
 
     void DetachChild(ICypressNode& child)
     {
         child.SetParentId(NullObjectId);
-        ObjectManager->UnrefObject(child.GetId().ObjectId);
+        Bootstrap->GetObjectManager()->UnrefObject(child.GetId().ObjectId);
     }
 
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes()
     {
-        return new TVersionedUserAttributeDictionary(NodeId, TransactionId, ~CypressManager);
+        return new TVersionedUserAttributeDictionary(
+            NodeId,
+            TransactionId,
+            Bootstrap);
     }
 
     class TVersionedUserAttributeDictionary
@@ -303,13 +305,12 @@ protected:
         TVersionedUserAttributeDictionary(
             TObjectId objectId,
             TTransactionId transactionId,
-            TCypressManager* cypressManager)
+            NCellMaster::TBootstrap* bootstrap)
             : TUserAttributeDictionary(
-                objectId,
-                cypressManager->GetObjectManager())
+                ~bootstrap->GetObjectManager(),
+                objectId)
             , TransactionId(transactionId)
-            , CypressManager(cypressManager)
-            , TransactionManager(cypressManager->GetTransactionManager())
+            , Bootstrap(bootstrap)
         { }
            
         
@@ -320,10 +321,11 @@ protected:
             }
 
             yhash_set<Stroka> attributes;
-            auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
+            auto transactionIds = Bootstrap->GetTransactionManager()->GetTransactionPath(TransactionId);
+            auto objectManager = Bootstrap->GetObjectManager();
             for (auto it = transactionIds.rbegin(); it != transactionIds.rend(); ++it) {
                 TVersionedObjectId parentId(ObjectId, *it);
-                const auto* userAttributes = ObjectManager->FindAttributes(parentId);
+                const auto* userAttributes = objectManager->FindAttributes(parentId);
                 if (userAttributes) {
                     FOREACH (const auto& pair, userAttributes->Attributes()) {
                         if (pair.second.empty()) {
@@ -343,10 +345,11 @@ protected:
                 return TUserAttributeDictionary::FindYson(name);
             }
 
-            auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
+            auto transactionIds = Bootstrap->GetTransactionManager()->GetTransactionPath(TransactionId);
+            auto objectManager = Bootstrap->GetObjectManager();
             FOREACH (const auto& transactionId, transactionIds) {
                 TVersionedObjectId parentId(ObjectId, transactionId);
-                const auto* userAttributes = ObjectManager->FindAttributes(parentId);
+                const auto* userAttributes = objectManager->FindAttributes(parentId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
                     if (it != userAttributes->Attributes().end()) {
@@ -363,26 +366,32 @@ protected:
 
         virtual void SetYson(const Stroka& name, const NYTree::TYson& value)
         {
-            // This also takes the lock.
-            auto id = CypressManager->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
+            // This takes the lock.
+            Bootstrap
+                ->GetCypressManager()
+                ->GetVersionedNodeForUpdate(ObjectId, TransactionId);
 
             TUserAttributeDictionary::SetYson(name, value);
         }
 
         virtual bool Remove(const Stroka& name)
         {
-            // This also takes the lock.
-            auto id = CypressManager->GetVersionedNodeForUpdate(ObjectId, TransactionId).GetId();
+            // This takes the lock.
+            auto id = Bootstrap
+                ->GetCypressManager()
+                ->GetVersionedNodeForUpdate(ObjectId, TransactionId)
+                .GetId();
 
             if (TransactionId == NullTransactionId) {
                 return TUserAttributeDictionary::Remove(name);
             }
 
             bool contains = false;
-            auto transactionIds = TransactionManager->GetTransactionPath(TransactionId);
+            auto transactionIds = Bootstrap->GetTransactionManager()->GetTransactionPath(TransactionId);
+            auto objectManager = Bootstrap->GetObjectManager();
             for (auto it = transactionIds.rbegin() + 1; it != transactionIds.rend(); ++it) {
                 TVersionedObjectId parentId(ObjectId, *it);
-                const auto* userAttributes = ObjectManager->FindAttributes(parentId);
+                const auto* userAttributes = objectManager->FindAttributes(parentId);
                 if (userAttributes) {
                     auto it = userAttributes->Attributes().find(name);
                     if (it != userAttributes->Attributes().end()) {
@@ -394,10 +403,10 @@ protected:
                 }
             }
 
-            auto* userAttributes = ObjectManager->FindAttributes(id);
+            auto* userAttributes = objectManager->FindAttributes(id);
             if (contains) {
                 if (!userAttributes) {
-                    userAttributes = ObjectManager->CreateAttributes(id);
+                    userAttributes = objectManager->CreateAttributes(id);
                 }
                 userAttributes->Attributes()[name] = "";
                 return true;
@@ -410,8 +419,7 @@ protected:
         }
     protected:
         TTransactionId TransactionId;
-        TCypressManager::TPtr CypressManager;
-        NTransactionServer::TTransactionManager::TPtr TransactionManager;
+        NCellMaster::TBootstrap* Bootstrap;
     };
 
 };
@@ -425,12 +433,12 @@ class TScalarNodeProxy
 public:
     TScalarNodeProxy(
         INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
+        NCellMaster::TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TCypressNodeProxyBase<IBase, TImpl>(
             typeHandler,
-            cypressManager,
+            bootstrap,
             transactionId,
             nodeId)
     { }
@@ -457,12 +465,12 @@ public:
     public: \
         T##key##NodeProxy( \
             INodeTypeHandler* typeHandler, \
-            TCypressManager* cypressManager, \
+            NCellMaster::TBootstrap* bootstrap, \
             const TTransactionId& transactionId, \
             const TNodeId& id) \
             : TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node>( \
                 typeHandler, \
-                cypressManager, \
+                bootstrap, \
                 transactionId, \
                 id) \
         { } \
@@ -473,7 +481,7 @@ public:
     { \
         return New<T##key##NodeProxy>( \
             this, \
-            ~CypressManager, \
+            Bootstrap, \
             id.TransactionId, \
             id.ObjectId); \
     }
@@ -506,12 +514,12 @@ protected:
 
     TCompositeNodeProxyBase(
         INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
+        NCellMaster::TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId)
         : TBase(
             typeHandler,
-            cypressManager,
+            bootstrap,
             transactionId,
             nodeId)
     { }
@@ -571,17 +579,19 @@ protected:
             ythrow yexception() << "Manifest must be a map";
         }
 
-        auto handler = this->CypressManager->GetObjectManager()->FindHandler(type);
+        auto objectManager = this->Bootstrap->GetObjectManager();
+        auto cypressManager = this->Bootstrap->GetCypressManager();
+        auto handler = objectManager->FindHandler(type);
         if (!handler) {
             ythrow yexception() << "Unknown object type";
         }
 
-        auto nodeId = this->CypressManager->CreateDynamicNode(
+        auto nodeId = cypressManager->CreateDynamicNode(
             this->TransactionId,
             EObjectType(request->type()),
             ~manifestNode->AsMap());
 
-        auto proxy = this->CypressManager->GetVersionedNodeProxy(nodeId, this->TransactionId);
+        auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, this->TransactionId);
 
         CreateRecursive(context->GetPath(), ~proxy);
 
@@ -603,7 +613,7 @@ class TMapNodeProxy
 public:
     TMapNodeProxy(
         INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
+        NCellMaster::TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId);
 
@@ -629,8 +639,6 @@ protected:
 
     yhash_map<Stroka, NYTree::INodePtr> DoGetChildren() const;
     NYTree::INodePtr DoFindChild(const Stroka& key, bool skipCurrentTransaction) const;
-
-    NTransactionServer::TTransactionManager::TPtr TransactionManager;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -644,7 +652,7 @@ class TListNodeProxy
 public:
     TListNodeProxy(
         INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
+        NCellMaster::TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId);
 

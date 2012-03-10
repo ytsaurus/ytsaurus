@@ -28,6 +28,8 @@ struct IParamFunc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCancelableContext;
+
 struct IAction
     : public virtual TIntrinsicRefCounted
 {
@@ -36,6 +38,7 @@ struct IAction
     virtual void Do() = 0;
 
     TPtr Via(TIntrusivePtr<IInvoker> invoker);
+    TPtr Via(TIntrusivePtr<IInvoker> invoker, TIntrusivePtr<TCancelableContext> context);
 
     template <class TParam>
     typename IParamAction<TParam>::TPtr ToParamAction();

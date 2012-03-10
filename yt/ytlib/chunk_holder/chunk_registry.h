@@ -1,15 +1,11 @@
 #pragma once
 
-#include "common.h"
-#include "chunk.h"
+#include "public.h"
 
 namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
-   
-class TChunkStore;
-class TChunkCache;
 
 //! A facade for locating chunks that are fully uploaded to the chunk holder.
 /*!
@@ -22,16 +18,14 @@ class TChunkRegistry
 public:
     typedef TIntrusivePtr<TChunkRegistry> TPtr;
 
-    //! Finds chunk by id. Returns NULL if no chunk exists.
-    TChunk::TPtr FindChunk(const TChunkId& chunkId) const;
+    //! Initializes a new instance.
+    TChunkRegistry(TBootstrap* bootstrap);
 
-    // Due to cyclic dependency these values cannot be injected via ctor.
-    void SetChunkStore(TChunkStore* chunkStore);
-    void SetChunkCache(TChunkCache* chunkCache);
+    //! Finds chunk by id. Returns NULL if no chunk exists.
+    TChunkPtr FindChunk(const TChunkId& chunkId) const;
 
 private:
-    TChunkStore* ChunkStore;
-    TChunkCache* ChunkCache;
+    TBootstrap* Bootstrap;
 
 };
 

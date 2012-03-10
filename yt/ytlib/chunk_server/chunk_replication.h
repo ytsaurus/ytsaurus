@@ -1,9 +1,9 @@
 #pragma once
 
-#include "common.h"
-#include "chunk_manager.h"
+#include "config.h"
 #include "chunk_placement.h"
 
+#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
 
 #include <util/generic/deque.h>
@@ -18,14 +18,12 @@ class TChunkReplication
 {
 public:
     typedef TIntrusivePtr<TChunkReplication> TPtr;
-    typedef NProto::TReqHolderHeartbeat::TJobInfo TJobInfo;
-    typedef NProto::TRspHolderHeartbeat::TJobStartInfo TJobStartInfo;
+    typedef TChunkManagerConfig TConfig;
     
     TChunkReplication(
-        TChunkManager* chunkManager,
-        TChunkPlacement* chunkPlacement,
-        TChunkManager::TConfig* config,
-        IInvoker* invoker);
+        TConfig* config,
+        NCellMaster::TBootstrap* bootstrap,
+        TChunkPlacement* chunkPlacement);
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
@@ -40,13 +38,13 @@ public:
 
     void RunJobControl(
         const THolder& holder,
-        const yvector<TJobInfo>& runningJobs,
-        yvector<TJobStartInfo>* jobsToStart,
-        yvector<TJobId>* jobsToStop);
+        const yvector<NProto::TJobInfo>& runningJobs,
+        yvector<NProto::TJobStartInfo>* jobsToStart,
+        yvector<NProto::TJobStopInfo>* jobsToStop);
 
 private:
-    TChunkManager::TPtr ChunkManager;
-    TChunkManager::TConfig::TPtr Config;
+    TConfig::TPtr Config;
+    NCellMaster::TBootstrap* Bootstrap;
     TChunkPlacement::TPtr ChunkPlacement;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
@@ -57,7 +55,6 @@ private:
         TInstant When;
     };
 
-    IInvoker::TPtr Invoker;
     yhash_set<TChunkId> RefreshSet;
     ydeque<TRefreshEntry> RefreshList;
 
@@ -76,8 +73,8 @@ private:
 
     void ProcessExistingJobs(
         const THolder& holder,
-        const yvector<TJobInfo>& runningJobs,
-        yvector<TJobId>* jobsToStop,
+        const yvector<NProto::TJobInfo>& runningJobs,
+        yvector<NProto::TJobStopInfo>* jobsToStop,
         int* replicationJobCount,
         int* removalJobCount);
 
@@ -92,20 +89,20 @@ private:
     EScheduleFlags ScheduleReplicationJob(
         const THolder& sourceHolder,
         const TChunkId& chunkId,
-        yvector<TJobStartInfo>* jobsToStart);
+        yvector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         const THolder& sourceHolder,
         const TChunkId& chunkId,
-        yvector<TJobStartInfo>* jobsToStart);
+        yvector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
         const THolder& holder,
         const TChunkId& chunkId,
-        yvector<TJobStartInfo>* jobsToStart);
+        yvector<NProto::TJobStartInfo>* jobsToStart);
     void ScheduleJobs(
         const THolder& holder,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
-        yvector<TJobStartInfo>* jobsToStart);
+        yvector<NProto::TJobStartInfo>* jobsToStart);
 
     void Refresh(const TChunk& chunk);
     int GetDesiredReplicaCount(const TChunk& chunk);

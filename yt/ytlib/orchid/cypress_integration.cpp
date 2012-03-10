@@ -12,6 +12,7 @@
 #include <ytlib/rpc/message.h>
 #include <ytlib/rpc/channel_cache.h>
 #include <ytlib/bus/message.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NOrchid {
@@ -22,6 +23,7 @@ using namespace NYTree;
 using namespace NCypress;
 using namespace NProto;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,10 +40,9 @@ public:
     typedef TIntrusivePtr<TOrchidYPathService> TPtr;
 
     explicit TOrchidYPathService(
-        TCypressManager* cypressManager,
+        TBootstrap* bootstrap,
         const TVersionedObjectId& id)
-        : ObjectManager(cypressManager->GetObjectManager())
-        , CypressManager(cypressManager)
+        : Bootstrap(bootstrap)
         , Id(id)
     { }
 
@@ -100,14 +101,13 @@ public:
     }
 
 private:
+    TBootstrap* Bootstrap;
     TVersionedObjectId Id;
-    TObjectManager::TPtr ObjectManager;
-    TCypressManager::TPtr CypressManager;
 
     TOrchidManifest::TPtr LoadManifest()
     {
         auto manifest = New<TOrchidManifest>();
-        auto manifestNode = ObjectManager->GetProxy(Id)->Attributes().ToMap();
+        auto manifestNode = Bootstrap->GetObjectManager()->GetProxy(Id)->Attributes().ToMap();
         try {
             manifest->LoadAndValidate(~manifestNode);
         } catch (const std::exception& ex) {
@@ -147,15 +147,14 @@ private:
     }
 };
 
-INodeTypeHandler::TPtr CreateOrchidTypeHandler(TCypressManager* cypressManager)
+INodeTypeHandler::TPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
 {
-    TObjectManager::TPtr objectManager = cypressManager->GetObjectManager();
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         EObjectType::Orchid,
         ~FromFunctor([=] (const TVersionedObjectId& id) -> IYPathServicePtr
             {
-                return New<TOrchidYPathService>(cypressManager, id);
+                return New<TOrchidYPathService>(bootstrap, id);
             }));
 }
 

@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress )
 set( SRCS
-  ${BASE}/common.cpp
   ${BASE}/cypress_integration.cpp
   ${BASE}/cypress_manager.cpp
   ${BASE}/cypress_service.cpp
@@ -14,10 +13,8 @@ set( SRCS
   ${BASE}/node_proxy.cpp
   ${BASE}/node_proxy_detail.cpp
   ${BASE}/virtual.cpp
-  ${BASE}/world_initializer.cpp
 )
 set( HDRS
-  ${BASE}/common.h
   ${BASE}/cypress_integration.h
   ${BASE}/cypress_manager.h
   ${BASE}/cypress_service.h
@@ -33,7 +30,6 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
-  ${BASE}/world_initializer.h
 )
 
 list(APPEND YT_SOURCE_FILES

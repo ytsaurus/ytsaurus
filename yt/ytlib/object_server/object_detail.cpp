@@ -6,12 +6,14 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NObjectServer {
 
 using namespace NRpc;
 using namespace NYTree;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,9 +68,9 @@ TObjectWithIdBase::TObjectWithIdBase(const TObjectWithIdBase& other)
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectProxyBase::TObjectProxyBase(
-    TObjectManager* objectManager,
+    TBootstrap* bootstrap,
     const TObjectId& id)
-    : ObjectManager(objectManager)
+    : Bootstrap(bootstrap)
     , Id(id)
 { }
 
@@ -97,7 +99,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 
 void TObjectProxyBase::Invoke(IServiceContext* context)
 {
-    ObjectManager->ExecuteVerb(
+    Bootstrap->GetObjectManager()->ExecuteVerb(
         GetVersionedId(),
         IsWriteRequest(context),
         context,
@@ -136,7 +138,9 @@ ISystemAttributeProvider* TObjectProxyBase::GetSystemAttributeProvider()
 
 TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
 {
-    return new TUserAttributeDictionary(Id, ~ObjectManager);
+    return new TUserAttributeDictionary(
+        ~Bootstrap->GetObjectManager(),
+        Id);
 }
 
 void TObjectProxyBase::GetSystemAttributes(std::vector<TAttributeInfo>* names)
@@ -162,7 +166,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
 
     if (key == "ref_counter") {
         BuildYsonFluently(consumer)
-            .Scalar(ObjectManager->GetObjectRefCounter(Id));
+            .Scalar(Bootstrap->GetObjectManager()->GetObjectRefCounter(Id));
         return true;
     }
 
@@ -184,10 +188,10 @@ TVersionedObjectId TObjectProxyBase::GetVersionedId() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectProxyBase::TUserAttributeDictionary::TUserAttributeDictionary(
-    const TObjectId& objectId,
-    TObjectManager* objectManager)
-    : ObjectId(objectId)
-    , ObjectManager(objectManager)
+    TObjectManager* objectManager,
+    const TObjectId& objectId)
+    : ObjectManager(objectManager)
+    , ObjectId(objectId)
 { }
 
 yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List() const

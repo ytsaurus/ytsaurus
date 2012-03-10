@@ -1,11 +1,13 @@
 #pragma once
 
+#include "public.h"
+
 #include <ytlib/actions/action.h>
 #include <ytlib/rpc/service.h>
 #include <ytlib/meta_state/meta_state_manager.h>
 
 namespace NYT {
-namespace NMetaState {
+namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,19 +21,19 @@ namespace NMetaState {
  *  to see if it returns #EPeerStatus::Leading.
  *  
  *  If so, the action is propagated into the state thread. The second check involves calling 
- *  #IMetaStateManager::GetStateStatus and #IMetaStateManager::HasActiveQuorum
+ *  #IMetaStateManager::GetStateStatus,
+ *  #IMetaStateManager::HasActiveQuorum, and
+ *  #TWorldInitializer::IsInitialized
  *  right before executing the action.
  */
 class TMetaStateServiceBase
     : public NRpc::TServiceBase
 {
 protected:
-    typedef TIntrusivePtr<TMetaStateServiceBase> TPtr;
-
-    IMetaStateManager::TPtr MetaStateManager;
+    TBootstrap* Bootstrap;
 
     TMetaStateServiceBase(
-        IMetaStateManager* metaStateManager,
+        TBootstrap* bootstrap,
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
@@ -63,12 +65,12 @@ private:
         IAction::TPtr handler,
         NRpc::IServiceContext* context);
 
-    void CheckStatus(EPeerStatus status);
+    void CheckStatus(NMetaState::EPeerStatus status);
     void CheckQuorum();
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMetaState
+} // namespace NCellMaster
 } // namespace NYT

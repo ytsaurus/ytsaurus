@@ -1,19 +1,14 @@
 #pragma once
 
-#include "common.h"
-#include "transaction_manager.h"
-
-#include <ytlib/cypress/cypress_manager.h>
-#include <ytlib/cypress/node.h>
+#include <ytlib/cypress/type_handler.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(
-    NCypress::TCypressManager* cypressManager,
-    TTransactionManager* transactionManager);
+NCypress::INodeTypeHandler::TPtr CreateTransactionMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

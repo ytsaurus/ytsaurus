@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "common.h"
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>

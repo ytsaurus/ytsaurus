@@ -1,11 +1,8 @@
 #pragma once
 
-#include "common.h"
-
-#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
-#include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/cypress/node_detail.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -30,9 +27,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypress::INodeTypeHandler::TPtr CreateTableTypeHandler(
-    NCypress::TCypressManager* cypressManager,
-    NChunkServer::TChunkManager* chunkManager);
+NCypress::INodeTypeHandler::TPtr CreateTableTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

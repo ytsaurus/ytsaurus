@@ -1,11 +1,8 @@
 #pragma once
 
-#include "common.h"
-#include "chunk_store.h"
-#include "chunk_cache.h"
-#include "session_manager.h"
+#include "public.h"
 
-#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NChunkHolder {

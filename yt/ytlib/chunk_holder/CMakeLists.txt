@@ -19,6 +19,7 @@ set( SRCS
   ${BASE}/ytree_integration.cpp
 )
 set( HDRS
+  ${BASE}/public.h
   ${BASE}/block_store.h
   ${BASE}/bootstrap.h
   ${BASE}/chunk.h

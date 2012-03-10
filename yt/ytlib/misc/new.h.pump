@@ -1,6 +1,6 @@
 $$ Please, use Pump to convert this source file to valid C++ header.
 $$ Note that lines in this file could be longer than 80 symbols.
-$var n = 10 $$ The maximum arity.
+$var n = 20 $$ The maximum arity.
 // vim:set ft=cpp:
 #pragma once
 

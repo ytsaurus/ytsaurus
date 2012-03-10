@@ -3,11 +3,13 @@
 
 #include <ytlib/cypress/node_detail.h>
 #include <ytlib/cypress/node_proxy_detail.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,13 +41,13 @@ public:
 
     TVirtualNodeProxy(
         INodeTypeHandler* typeHandler,
-        TCypressManager* cypressManager,
+        TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId,
         IYPathService* service)
         : TBase(
             typeHandler,
-            cypressManager,
+            bootstrap,
             transactionId,
             nodeId)
         , Service(service)
@@ -74,10 +76,10 @@ public:
     typedef TVirtualNodeTypeHandler TThis;
 
     TVirtualNodeTypeHandler(
-        TCypressManager* cypressManager,
+        TBootstrap* bootstrap,
         TYPathServiceProducer* producer,
         EObjectType objectType)
-        : TCypressNodeTypeHandlerBase<TVirtualNode>(cypressManager)
+        : TCypressNodeTypeHandlerBase<TVirtualNode>(bootstrap)
         , Producer(producer)
         , ObjectType(objectType)
     { }
@@ -87,7 +89,7 @@ public:
         auto service = Producer->Do(id);
         return New<TVirtualNodeProxy>(
             this,
-            ~CypressManager,
+            Bootstrap,
             id.TransactionId,
             id.ObjectId,
             ~service);
@@ -115,24 +117,24 @@ private:
 };
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
-    TCypressManager* cypressManager,
+    TBootstrap* bootstrap,
     EObjectType objectType,
     TYPathServiceProducer* producer)
 {
     return New<TVirtualNodeTypeHandler>(
-        cypressManager,
+        bootstrap,
         producer,
         objectType);
 }
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
-    TCypressManager* cypressManager,
+    TBootstrap* bootstrap,
     EObjectType objectType,
     IYPathService* service)
 {
     IYPathServicePtr service_ = service;
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         objectType,
         ~FromFunctor([=] (const TVersionedNodeId& id) -> IYPathServicePtr
             {

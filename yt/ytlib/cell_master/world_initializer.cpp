@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "world_initializer.h"
+#include "config.h"
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -9,13 +10,12 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
-#include <ytlib/cell_master/config.h>
+#include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/logging/log.h>
 
 namespace NYT {
-namespace NCypress {
+namespace NCellMaster {
 
-using namespace NCellMaster;
 using namespace NMetaState;
 using namespace NYTree;
 using namespace NCypress;
@@ -69,9 +69,10 @@ private:
 
     bool CanInitialize() const
     {
+        auto metaStateManager = Bootstrap->GetMetaStateManager();
         return
-            Bootstrap->GetMetaStateManager()->GetStateStatus() == EPeerStatus::Leading &&
-            Bootstrap->GetMetaStateManager()->HasActiveQuorum();
+            metaStateManager->GetStateStatus() == EPeerStatus::Leading &&
+            metaStateManager->HasActiveQuorum();
     }
 
     void Initialize()
@@ -81,7 +82,7 @@ private:
         try {
             auto service = Bootstrap->GetObjectManager()->GetRootService();
 
-            auto transactionId = StartTransaction();
+            auto transactionId = NullTransactionId; //StartTransaction();
 
             SyncYPathSet(
                 service,
@@ -149,7 +150,7 @@ private:
                 WithTransaction("/sys/transactions", transactionId),
                 EObjectType::TransactionMap);
 
-            CommitTransaction(transactionId);
+            //CommitTransaction(transactionId);
         } catch (const std::exception& ex) {
             LOG_FATAL("World initialization failed\n%s", ex.what());
         }
@@ -197,6 +198,6 @@ bool TWorldInitializer::IsInitialized() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCypress
+} // namespace NCellMaster
 } // namespace NYT
 

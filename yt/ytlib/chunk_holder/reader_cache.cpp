@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "reader_cache.h"
+#include "common.h"
+#include "config.h"
 #include "chunk.h"
 #include "location.h"
 

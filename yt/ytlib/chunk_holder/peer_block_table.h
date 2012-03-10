@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -26,6 +26,22 @@ struct TPeerInfo
 
 //////////////////////////////////////////////////////////////////////////////// 
 
+struct TPeerBlockTableConfig
+    : public TConfigurable
+{
+    int MaxPeersPerBlock;
+    TDuration SweepPeriod;
+
+    TPeerBlockTableConfig()
+    {
+        Register("max_peers_per_block", MaxPeersPerBlock)
+            .GreaterThan(0)
+            .Default(64);
+        Register("sweep_period", SweepPeriod)
+            .Default(TDuration::Minutes(10));
+    }
+};
+
 //! When Chunk Holder sends a block to a certain client
 //! its address is remembered to facilitate peer-to-peer transfers.
 //! This class maintains an auto-expiring map for this purpose.
@@ -37,25 +53,7 @@ class TPeerBlockTable
     : public TRefCounted
 {
 public:
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        int MaxPeersPerBlock;
-        TDuration SweepPeriod;
-
-        TConfig()
-        {
-            Register("max_peers_per_block", MaxPeersPerBlock)
-                .GreaterThan(0)
-                .Default(64);
-            Register("sweep_period", SweepPeriod)
-                .Default(TDuration::Minutes(10));
-        }
-    };
-
-    TPeerBlockTable(TConfig* config);
+    TPeerBlockTable(TPeerBlockTableConfig* config);
     
     //! Gets peers where a particular block was sent to.
     /*!
@@ -77,7 +75,7 @@ private:
     void SweepAllExpiredPeers();
     yvector<TPeerInfo>& GetMutablePeers(const TBlockId& blockId);
 
-    TConfig::TPtr Config;
+    TPeerBlockTableConfigPtr Config;
 
     //! Each vector is sorted by decreasing expiration time.
     TTable Table;

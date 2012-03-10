@@ -4,6 +4,7 @@
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/cell_master/load_context.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NCypress {
@@ -131,9 +132,8 @@ void TMapNode::Load(TInputStream* input, const TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNodeTypeHandler::TMapNodeTypeHandler(TCypressManager* cypressManager)
-    : TCypressNodeTypeHandlerBase<TMapNode>(cypressManager)
-    , TransactionManager(cypressManager->GetTransactionManager())
+TMapNodeTypeHandler::TMapNodeTypeHandler(TBootstrap* bootstrap)
+    : TCypressNodeTypeHandlerBase<TMapNode>(bootstrap)
 { }
 
 EObjectType TMapNodeTypeHandler::GetObjectType()
@@ -149,9 +149,10 @@ ENodeType TMapNodeTypeHandler::GetNodeType()
 void TMapNodeTypeHandler::DoDestroy(TMapNode& node)
 {
     // Drop references to the children.
+    auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& pair, node.KeyToChild()) {
         if (pair.second != NullObjectId) {
-            ObjectManager->UnrefObject(pair.second);
+            objectManager->UnrefObject(pair.second);
         }
     }
 }
@@ -167,6 +168,9 @@ void TMapNodeTypeHandler::DoMerge(
     TMapNode& originatingNode,
     TMapNode& branchedNode)
 {
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto transactionManager = Bootstrap->GetTransactionManager();
+    auto cypressManager = Bootstrap->GetCypressManager();
     const auto& id = originatingNode.GetId();
     FOREACH (const auto& pair, branchedNode.KeyToChild()) {
         auto it = originatingNode.KeyToChild().find(pair.first);
@@ -174,18 +178,17 @@ void TMapNodeTypeHandler::DoMerge(
             YVERIFY(originatingNode.KeyToChild().insert(pair).second);
         } else {
             if (it->second != NullObjectId) {
-                ObjectManager->UnrefObject(it->second);
+                objectManager->UnrefObject(it->second);
                 YVERIFY(originatingNode.ChildToKey().erase(it->second) > 0);
             }
             it->second = pair.second;
             
             if (pair.second == NullObjectId) {
-                const auto& transactionIds = TransactionManager->GetTransactionPath(
-                    id.TransactionId);
+                const auto& transactionIds = transactionManager->GetTransactionPath(id.TransactionId);
                 bool contains = false;
                 FOREACH (const auto& transactionId, transactionIds) {
                     if (transactionId == id.TransactionId) continue;
-                    const auto& node = CypressManager->GetVersionedNode(
+                    const auto& node = cypressManager->GetVersionedNode(
                         id.ObjectId,
                         transactionId);
                     const auto& map = static_cast<const TMapNode&>(node).KeyToChild();
@@ -214,7 +217,7 @@ ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(const TVersionedNodeId& id
 {
     return New<TMapNodeProxy>(
         this,
-        ~CypressManager,
+        Bootstrap,
         id.TransactionId,
         id.ObjectId);
 }
@@ -249,8 +252,8 @@ void TListNode::Load(TInputStream* input, const TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListNodeTypeHandler::TListNodeTypeHandler(TCypressManager* cypressManager)
-    : TCypressNodeTypeHandlerBase<TListNode>(cypressManager)
+TListNodeTypeHandler::TListNodeTypeHandler(TBootstrap* bootstrap)
+    : TCypressNodeTypeHandlerBase<TListNode>(bootstrap)
 { }
 
 EObjectType TListNodeTypeHandler::GetObjectType()
@@ -267,7 +270,7 @@ ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(const TVersionedNodeId& i
 {
     return New<TListNodeProxy>(
         this,
-        ~CypressManager,
+        Bootstrap,
         id.TransactionId,
         id.ObjectId);
 }
@@ -275,8 +278,9 @@ ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(const TVersionedNodeId& i
 void TListNodeTypeHandler::DoDestroy(TListNode& node)
 {
     // Drop references to the children.
+    auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (auto& nodeId, node.IndexToChild()) {
-        CypressManager->GetObjectManager()->UnrefObject(nodeId);
+        objectManager->UnrefObject(nodeId);
     }
 }
 
@@ -287,8 +291,9 @@ void TListNodeTypeHandler::DoBranch(
     UNUSED(branchedNode);
 
     // Reference all children.
+    auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& nodeId, originatingNode.IndexToChild()) {
-        CypressManager->GetObjectManager()->RefObject(nodeId);
+        objectManager->RefObject(nodeId);
     }
 }
 
@@ -297,8 +302,9 @@ void TListNodeTypeHandler::DoMerge(
     TListNode& branchedNode)
 {
     // Drop all references held by the originator.
+    auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& nodeId, originatingNode.IndexToChild()) {
-        CypressManager->GetObjectManager()->UnrefObject(nodeId);
+        objectManager->UnrefObject(nodeId);
     }
 
     // Replace the child list with the branched copy.

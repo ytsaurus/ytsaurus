@@ -22,8 +22,9 @@ class TCommitterBase
 {
 public:
     TCommitterBase(
-        TDecoratedMetaState::TPtr metaState,
-        IInvoker::TPtr controlInvoker);
+        TDecoratedMetaState* metaState,
+        IInvoker* epochControlInvoker,
+        IInvoker* epochStateInvoker);
 
     DECLARE_ENUM(EResult,
         (Committed)
@@ -33,12 +34,6 @@ public:
     );
     typedef TFuture<EResult> TResult;
 
-    //! Releases all resources.
-    /*!
-     *  \note Thread affinity: ControlThread
-     */
-    void Stop();
-
 protected:
     // Corresponds to ControlThread.
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -46,7 +41,8 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     TDecoratedMetaState::TPtr MetaState;
-    TCancelableInvoker::TPtr CancelableControlInvoker;
+    IInvoker::TPtr EpochControlInvoker;
+    IInvoker::TPtr EpochStateInvoker;
     NProfiling::TRateCounter CommitCounter;
     NProfiling::TRateCounter BatchCommitCounter;
 
@@ -85,18 +81,13 @@ public:
     //! Creates an instance.
     TLeaderCommitter(
         TConfig* config,
-        TCellManager::TPtr cellManager,
-        TDecoratedMetaState::TPtr metaState,
-        TChangeLogCache::TPtr changeLogCache,
-        TFollowerTracker::TPtr followerTracker,
-        IInvoker::TPtr controlInvoker,
-        const TEpoch& epoch);
-
-    //! Releases all resources.
-    /*!
-     *  \note Thread affinity: ControlThread
-     */
-    void Stop();
+        TCellManager* cellManager,
+        TDecoratedMetaState* metaState,
+        TChangeLogCache* changeLogCache,
+        TFollowerTracker* followerTracker,
+        const TEpoch& epoch,
+        IInvoker* epochControlInvoker,
+        IInvoker* epochStateInvoker);
 
     //! Initiates a new distributed commit.
     /*!
@@ -159,8 +150,9 @@ public:
 
     //! Creates an instance.
     TFollowerCommitter(
-        TDecoratedMetaState::TPtr metaState,
-        IInvoker::TPtr controlInvoker);
+        TDecoratedMetaState* metaState,
+        IInvoker* epochControlInvoker,
+        IInvoker* epochStateInvoker);
 
     //! Commits a bunch of changes at a follower.
     /*!

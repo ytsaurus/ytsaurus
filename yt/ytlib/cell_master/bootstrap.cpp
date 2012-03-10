@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "bootstrap.h"
-
+#include "world_initializer.h"
 #include "config.h"
 
 #include <ytlib/misc/ref_counted_tracker.h>
@@ -20,7 +20,6 @@
 #include <ytlib/cypress/cypress_manager.h>
 #include <ytlib/cypress/cypress_service.h>
 #include <ytlib/cypress/cypress_integration.h>
-#include <ytlib/cypress/world_initializer.h>
 
 #include <ytlib/chunk_server/chunk_manager.h>
 #include <ytlib/chunk_server/chunk_service.h>
@@ -51,8 +50,6 @@
 namespace NYT {
 namespace NCellMaster {
 
-static NLog::TLogger Logger("Server");
-
 using namespace NBus;
 using namespace NRpc;
 using namespace NYTree;
@@ -65,7 +62,12 @@ using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NFileServer;
 using namespace NTableServer;
+using namespace NScheduler;
 using namespace NProfiling;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger Logger("Server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,48 +78,63 @@ TBootstrap::TBootstrap(
     , Config(config)
 { }
 
-// Neither remove it nor move it to header.
+// Neither remove it nor move it to the header.
 TBootstrap::~TBootstrap()
 { }
 
-TCellMasterConfig* TBootstrap::GetConfig() const
+TCellMasterConfigPtr TBootstrap::GetConfig() const
 {
-    return ~Config;
+    return Config;
 }
 
-TTransactionManager* TBootstrap::GetTransactionManager() const
+TTransactionManagerPtr TBootstrap::GetTransactionManager() const
 {
-    return ~TransactionManager;
+    return TransactionManager;
 }
 
-TCypressManager* TBootstrap::GetCypressManager() const
+TCypressManagerPtr TBootstrap::GetCypressManager() const
 {
-    return ~CypressManager;
+    return CypressManager;
 }
 
-TWorldInitializer* TBootstrap::GetWorldInitializer() const
+TWorldInitializerPtr TBootstrap::GetWorldInitializer() const
 {
-    return ~WorldInitializer;
+    return WorldInitializer;
 }
 
-IMetaStateManager* TBootstrap::GetMetaStateManager() const
+IMetaStateManager::TPtr TBootstrap::GetMetaStateManager() const
 {
-    return ~MetaStateManager;
+    return MetaStateManager;
 }
 
-TObjectManager* TBootstrap::GetObjectManager() const
+TCompositeMetaState::TPtr TBootstrap::GetMetaState() const
 {
-    return ~ObjectManager;
+    return MetaState;
 }
 
-IInvoker* TBootstrap::GetControlInvoker()
+TObjectManager::TPtr TBootstrap::GetObjectManager() const
+{
+    return ObjectManager;
+}
+
+TChunkManager::TPtr TBootstrap::GetChunkManager() const
+{
+    return ChunkManager;
+}
+
+IHolderAuthority::TPtr TBootstrap::GetHolderAuthority() const
+{
+    return HolderAuthority;
+}
+
+IInvoker::TPtr TBootstrap::GetControlInvoker()
 {
     return ControlQueue->GetInvoker();
 }
 
-IInvoker* TBootstrap::GetStateInvoker(EStateThreadPriority priority)
+IInvoker::TPtr TBootstrap::GetStateInvoker(EStateThreadQueue queueIndex)
 {
-    return StateQueue->GetInvoker(priority.ToValue());
+    return StateQueue->GetInvoker(queueIndex.ToValue());
 }
 
 void TBootstrap::Run()
@@ -129,10 +146,10 @@ void TBootstrap::Run()
 
     LOG_INFO("Starting cell master");
 
-    auto metaState = New<TCompositeMetaState>();
+    MetaState = New<TCompositeMetaState>();
 
     ControlQueue = New<TActionQueue>("Control");
-    StateQueue = New<TPrioritizedActionQueue>(StateThreadPriorityCount, "MetaState");
+    StateQueue = New<TMultiActionQueue>(StateThreadQueueCount, "MetaState");
 
     auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(rpcPort));
 
@@ -140,49 +157,25 @@ void TBootstrap::Run()
 
     MetaStateManager = CreatePersistentStateManager(
         ~Config->MetaState,
-        GetControlInvoker(),
-        GetStateInvoker(),
-        ~metaState,
+        ~GetControlInvoker(),
+        ~GetStateInvoker(),
+        ~MetaState,
         ~rpcServer);
 
-    ObjectManager = New<TObjectManager>(
-        ~MetaStateManager,
-        ~metaState,
-        Config->CellId);
+    ObjectManager = New<TObjectManager>(~Config->Objects, this);
 
-    TransactionManager = New<TTransactionManager>(
-        ~Config->Transactions,
-        ~MetaStateManager,
-        ~metaState,
-        ~ObjectManager);
-    ObjectManager->SetTransactionManager(~TransactionManager);
+    TransactionManager = New<TTransactionManager>(~Config->Transactions, this);
 
-    CypressManager = New<TCypressManager>(
-        ~MetaStateManager,
-        ~metaState,
-        ~TransactionManager,
-        ~ObjectManager);
-    ObjectManager->SetCypressManager(~CypressManager);
+    CypressManager = New<TCypressManager>(this);
 
-    auto cypressService = New<TCypressService>(
-        ~MetaStateManager,
-        ~ObjectManager);
+    auto cypressService = New<TCypressService>(this);
     rpcServer->RegisterService(~cypressService);
 
-    auto holderRegistry = CreateHolderAuthority(~CypressManager);
+    HolderAuthority = CreateHolderAuthority(this);
 
-    auto chunkManager = New<TChunkManager>(
-        ~New<TChunkManagerConfig>(),
-        ~MetaStateManager,
-        ~metaState,
-        ~TransactionManager,
-        ~holderRegistry,
-        ~ObjectManager);
+    ChunkManager = New<TChunkManager>(~Config->Chunks, this);
 
-    auto chunkService = New<TChunkService>(
-        ~MetaStateManager,
-        ~chunkManager,
-        ~TransactionManager);
+    auto chunkService = New<TChunkService>(this);
     rpcServer->RegisterService(~chunkService);
 
     auto monitoringManager = New<TMonitoringManager>();
@@ -216,54 +209,30 @@ void TBootstrap::Run()
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
-        GetControlInvoker());
+        ~GetControlInvoker());
     rpcServer->RegisterService(~orchidRpcService);
 
-    auto schedulerRedirectorService = New<NScheduler::TRedirectorService>(~CypressManager);
+    auto schedulerRedirectorService = CreateRedirectorService(this);
     rpcServer->RegisterService(~schedulerRedirectorService);
 
-    CypressManager->RegisterHandler(~CreateChunkMapTypeHandler(
-        ~CypressManager,
-        ~chunkManager));
-    CypressManager->RegisterHandler(~CreateLostChunkMapTypeHandler(
-        ~CypressManager,
-        ~chunkManager));
-    CypressManager->RegisterHandler(~CreateOverreplicatedChunkMapTypeHandler(
-        ~CypressManager,
-        ~chunkManager));
-    CypressManager->RegisterHandler(~CreateUnderreplicatedChunkMapTypeHandler(
-        ~CypressManager,
-        ~chunkManager));
-    CypressManager->RegisterHandler(~CreateChunkListMapTypeHandler(
-        ~CypressManager,
-        ~chunkManager));
-    CypressManager->RegisterHandler(~CreateTransactionMapTypeHandler(
-        ~CypressManager,
-        ~TransactionManager));
-    CypressManager->RegisterHandler(~CreateNodeMapTypeHandler(
-        ~CypressManager));
-    CypressManager->RegisterHandler(~CreateLockMapTypeHandler(
-        ~CypressManager));
-    CypressManager->RegisterHandler(~CreateOrchidTypeHandler(
-        ~CypressManager));
-    CypressManager->RegisterHandler(~CreateHolderTypeHandler(
-        ~CypressManager,
-        ~chunkManager));
-    CypressManager->RegisterHandler(~CreateHolderMapTypeHandler(
-        ~MetaStateManager,
-        ~CypressManager,
-        ~chunkManager));
-    CypressManager->RegisterHandler(~CreateFileTypeHandler(
-        ~CypressManager,
-        ~chunkManager));
-    CypressManager->RegisterHandler(~CreateTableTypeHandler(
-        ~CypressManager,
-        ~chunkManager));
+    CypressManager->RegisterHandler(~CreateChunkMapTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateLostChunkMapTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateOverreplicatedChunkMapTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateUnderreplicatedChunkMapTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateChunkListMapTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateTransactionMapTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateNodeMapTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateLockMapTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateOrchidTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateHolderTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateHolderMapTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateFileTypeHandler(this));
+    CypressManager->RegisterHandler(~CreateTableTypeHandler(this));
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(GetControlInvoker())));
+        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~GetControlInvoker())));
     httpServer->Register(
         "/cypress",
         ~NMonitoring::GetYPathHttpHandler(CypressManager->GetRootServiceProducer()));

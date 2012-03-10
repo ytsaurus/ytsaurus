@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "common.h"
 #include "node.h"
 #include "type_handler.h"
 #include "node_proxy.h"
@@ -34,11 +33,7 @@ public:
     typedef TCypressManager TThis;
     typedef TIntrusivePtr<TThis> TPtr;
 
-    TCypressManager(
-        NMetaState::IMetaStateManager* metaStateManager,
-        NMetaState::TCompositeMetaState* metaState,
-        NTransactionServer::TTransactionManager* transactionManager,
-        NObjectServer::TObjectManager* objectManager);
+    TCypressManager(NCellMaster::TBootstrap* bootstrap);
 
     void RegisterHandler(INodeTypeHandler* handler);
     INodeTypeHandler* GetHandler(EObjectType type);
@@ -57,11 +52,6 @@ public:
 	 *  another (rigorous) check is made.
 	 */
 	NYTree::TYPathServiceProducer GetRootServiceProducer();
-
-    // TODO: killme
-    NObjectServer::TObjectManager* GetObjectManager() const;
-    NTransactionServer::TTransactionManager* GetTransactionManager() const;
-    NMetaState::IMetaStateManager* GetMetaStateManager() const;
 
     const ICypressNode* FindVersionedNode(
         const TNodeId& nodeId,
@@ -127,8 +117,7 @@ private:
         TCypressManager::TPtr CypressManager;
     };
     
-    NTransactionServer::TTransactionManager::TPtr TransactionManager;
-    NObjectServer::TObjectManager::TPtr ObjectManager;
+    NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TVersionedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
     NMetaState::TMetaStateMap<TLockId, TLock> LockMap;

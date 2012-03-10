@@ -3,6 +3,8 @@
 #include "file_node_proxy.h"
 #include "file_ypath_proxy.h"
 
+#include <ytlib/cell_master/bootstrap.h>
+
 namespace NYT {
 namespace NFileServer {
 
@@ -52,11 +54,8 @@ class TFileNodeTypeHandler
 public:
     typedef TCypressNodeTypeHandlerBase<TFileNode> TBase;
 
-    TFileNodeTypeHandler(
-        TCypressManager* cypressManager,
-        TChunkManager* chunkManager)
-        : TBase(cypressManager)
-        , ChunkManager(chunkManager)
+    TFileNodeTypeHandler(TBootstrap* bootstrap)
+        : TBase(bootstrap)
     { }
 
     EObjectType GetObjectType()
@@ -78,8 +77,12 @@ public:
         manifest->SetKeepOptions(true);
         manifest->LoadAndValidate(manifestNode);
 
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto objectManager = Bootstrap->GetObjectManager();
+
         auto chunkId = manifest->ChunkId;
-        auto* chunk = ChunkManager->FindChunk(chunkId);
+        auto* chunk = chunkManager->FindChunk(chunkId);
         if (!chunk) {
             ythrow yexception() << Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
         }
@@ -89,26 +92,25 @@ public:
         }
 
         TAutoPtr<TFileNode> node = new TFileNode(nodeId);
-        auto& chunkList = ChunkManager->CreateChunkList();
+        auto& chunkList = chunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
-        CypressManager->GetObjectManager()->RefObject(chunkListId);
-        CypressManager->RegisterNode(transactionId, node.Release());
+        objectManager->RefObject(chunkListId);
+        cypressManager->RegisterNode(transactionId, node.Release());
 
-        auto proxy = CypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
+        auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
         proxy->Attributes().MergeFrom(~manifest->GetOptions());
         
         yvector<TChunkTreeId> childrenIds;
         childrenIds.push_back(chunkId);
-        ChunkManager->AttachToChunkList(chunkList, childrenIds);
+        chunkManager->AttachToChunkList(chunkList, childrenIds);
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
         return New<TFileNodeProxy>(
             this,
-            ~CypressManager,
-            ~ChunkManager,
+            Bootstrap,
             id.TransactionId,
             id.ObjectId);
     }
@@ -116,44 +118,31 @@ public:
 protected:
     virtual void DoDestroy(TFileNode& node)
     {
-        CypressManager->GetObjectManager()->UnrefObject(node.GetChunkListId());
+        Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkListId());
     }
 
-    virtual void DoBranch(
-        const TFileNode& originatingNode,
-        TFileNode& branchedNode)
+    virtual void DoBranch(const TFileNode& originatingNode, TFileNode& branchedNode)
     {
         UNUSED(originatingNode);
 
         // branchedNode is a copy of originatingNode.
         // Reference the list chunk from branchedNode.
-        CypressManager->GetObjectManager()->RefObject(branchedNode.GetChunkListId());
+        Bootstrap->GetObjectManager()->RefObject(branchedNode.GetChunkListId());
     }
 
-    virtual void DoMerge(
-        TFileNode& originatingNode,
-        TFileNode& branchedNode)
+    virtual void DoMerge(TFileNode& originatingNode, TFileNode& branchedNode)
     {
         UNUSED(originatingNode);
 
         // Drop the reference from branchedNode.
-        CypressManager->GetObjectManager()->UnrefObject(branchedNode.GetChunkListId());
+        Bootstrap->GetObjectManager()->UnrefObject(branchedNode.GetChunkListId());
     }
-
-private:
-    typedef TFileNodeTypeHandler TThis;
-
-    TIntrusivePtr<TChunkManager> ChunkManager;
 
 };
 
-INodeTypeHandler::TPtr CreateFileTypeHandler(
-    TCypressManager* cypressManager,
-    TChunkManager* chunkManager)
+INodeTypeHandler::TPtr CreateFileTypeHandler(NCellMaster::TBootstrap* bootstrap)
 {
-    return New<TFileNodeTypeHandler>(
-        cypressManager,
-        chunkManager);
+    return New<TFileNodeTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

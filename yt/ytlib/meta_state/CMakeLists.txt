@@ -14,7 +14,6 @@ set( SRCS
   ${BASE}/follower_pinger.cpp
   ${BASE}/follower_tracker.cpp
   ${BASE}/meta_state_manager.cpp
-  ${BASE}/meta_state_service.cpp
   ${BASE}/persistent_state_manager.cpp
   ${BASE}/recovery.cpp
   ${BASE}/snapshot.cpp
@@ -46,7 +45,6 @@ set( HDRS
   ${BASE}/meta_state.h
   ${BASE}/meta_state_manager.h
   ${BASE}/meta_state_manager_proxy.h
-  ${BASE}/meta_state_service.h
   ${BASE}/meta_version.h
   ${BASE}/persistent_state_manager.h
   ${BASE}/recovery.h

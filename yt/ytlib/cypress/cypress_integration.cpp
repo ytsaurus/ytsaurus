@@ -2,14 +2,17 @@
 #include "cypress_integration.h"
 
 #include <ytlib/cypress/virtual.h>
+#include <ytlib/cypress/cypress_manager.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NCypress {
 
 using namespace NYTree;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,40 +20,39 @@ class TVirtualNodeMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualNodeMap(TCypressManager* cypressManager)
-        : CypressManager(cypressManager)
+    TVirtualNodeMap(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
     { }
 
 private:
-    TCypressManager::TPtr CypressManager;
+    TBootstrap* Bootstrap;
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& ids = CypressManager->GetNodeIds(sizeLimit);
+        const auto& ids = Bootstrap->GetCypressManager()->GetNodeIds(sizeLimit);
         return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
     }
 
     virtual size_t GetSize() const
     {
-        return CypressManager->GetNodeCount();
+        return Bootstrap->GetCypressManager()->GetNodeCount();
     }
 
     virtual IYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TVersionedNodeId::FromString(key);
-        return CypressManager->FindVersionedNodeProxy(id.ObjectId, id.TransactionId);
+        return Bootstrap->GetCypressManager()->FindVersionedNodeProxy(id.ObjectId, id.TransactionId);
     }
 };
 
-INodeTypeHandler::TPtr CreateNodeMapTypeHandler(
-    TCypressManager* cypressManager)
+INodeTypeHandler::TPtr CreateNodeMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
+    YASSERT(bootstrap);
 
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         EObjectType::NodeMap,
-        ~New<TVirtualNodeMap>(cypressManager));
+        ~New<TVirtualNodeMap>(bootstrap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,28 +61,28 @@ class TVirtualLockMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualLockMap(TCypressManager* cypressManager)
-        : CypressManager(cypressManager)
+    TVirtualLockMap(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
     { }
 
 private:
-    TCypressManager::TPtr CypressManager;
+    TBootstrap* Bootstrap;
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& ids = CypressManager->GetLockIds(sizeLimit);
+        const auto& ids = Bootstrap->GetCypressManager()->GetLockIds(sizeLimit);
         return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
     }
 
     virtual size_t GetSize() const
     {
-        return CypressManager->GetLockCount();
+        return Bootstrap->GetCypressManager()->GetLockCount();
     }
 
     virtual IYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TLockId::FromString(key);
-        auto* lock = CypressManager->FindLock(id);
+        auto* lock = Bootstrap->GetCypressManager()->FindLock(id);
         if (!lock) {
             return NULL;
         }
@@ -97,15 +99,14 @@ private:
     }
 };
 
-INodeTypeHandler::TPtr CreateLockMapTypeHandler(
-    TCypressManager* cypressManager)
+INodeTypeHandler::TPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(cypressManager);
+    YASSERT(bootstrap);
 
     return CreateVirtualTypeHandler(
-        cypressManager,
+        bootstrap,
         EObjectType::LockMap,
-        ~New<TVirtualLockMap>(cypressManager));
+        ~New<TVirtualLockMap>(bootstrap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
