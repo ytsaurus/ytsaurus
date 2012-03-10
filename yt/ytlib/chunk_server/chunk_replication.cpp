@@ -159,7 +159,7 @@ void TChunkReplication::ProcessExistingJobs(
         }
     }
 
-    // Checking for missing jobs
+    // Check for missing jobs
     FOREACH (auto jobId, holder.JobIds()) {
         if (runningJobIds.find(jobId) == runningJobIds.end()) {
             LOG_WARNING("Job is missing (JobId: %s, Address: %s, HolderId: %d)",
@@ -468,7 +468,7 @@ void TChunkReplication::GetReplicaStatistics(
 
 int TChunkReplication::GetDesiredReplicaCount(const TChunk& chunk)
 {
-    // TODO: make Configurable
+    // TODO(babenko): make configurable
     UNUSED(chunk);
     return 3;
 }
@@ -588,13 +588,11 @@ void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
 
 void TChunkReplication::ScheduleNextRefresh()
 {
-    auto epochStateInvoker = Bootstrap
-        ->GetMetaStateManager()
-        ->GetEpochContext()
-        ->CreateInvoker(Bootstrap->GetStateInvoker());
     TDelayedInvoker::Submit(
         ~FromMethod(&TChunkReplication::OnRefresh, TPtr(this))
-        ->Via(epochStateInvoker),
+        ->Via(
+            Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
+            Bootstrap->GetMetaStateManager()->GetEpochContext()),
         Config->ChunkRefreshQuantum);
 }
 
