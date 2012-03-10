@@ -43,7 +43,7 @@ public:
     TImpl(TChunkHolderConfig* config, TBootstrap* bootstrap)
         : TBase(config->ChunkCacheLocation->Quota == 0 ? Max<i64>() : config->ChunkCacheLocation->Quota)
         , Config(config)
-        , Bootstrap(Bootstrap)
+        , Bootstrap(bootstrap)
     { }
 
     void Start()
