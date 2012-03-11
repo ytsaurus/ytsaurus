@@ -446,7 +446,7 @@ void TFollowerRecovery::OnLookupSnapshotResponse(
 
     i32 snapshotId = response->snapshot_id();
     if (snapshotId == NonexistingSnapshotId) {
-        LOG_INFO("Peer %d has no suitable snapshot");
+        LOG_INFO("Peer %d has no suitable snapshot", peerId);
     } else {
         LOG_INFO("Peer %d reported snapshot %d",
             peerId,
