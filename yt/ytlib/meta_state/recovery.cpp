@@ -58,7 +58,7 @@ TRecovery::TRecovery(
 }
 
 TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
-    TMetaVersion targetVersion,
+    const TMetaVersion& targetVersion,
     i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -71,8 +71,9 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
 
     // Check if loading a snapshot is preferable.
     // Currently this is done by comparing segmentIds and is subject to further optimization.
-    if (snapshotId != NonexistingSnapshotId && currentVersion.SegmentId < snapshotId)
-    {
+    if (snapshotId != NonexistingSnapshotId && currentVersion.SegmentId < snapshotId) {
+        YASSERT(targetVersion.SegmentId >= snapshotId);
+
         // Load the snapshot.
         LOG_DEBUG("Using snapshot %d for recovery", snapshotId);
 
@@ -100,7 +101,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverFromSnapshotAndChangeLog(
                 return New<TAsyncResult>(EResult::Failed);
             }
 
-            SnapshotStore->UpdateMaxSnapshotId(snapshotId);
+            SnapshotStore->OnSnapshotAdded(snapshotId);
 
             readerResult = SnapshotStore->GetReader(snapshotId);
             if (!readerResult.IsOK()) {
@@ -349,14 +350,14 @@ TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto version = DecoratedState->GetReachableVersionAsync();
-    i32 maxAvailableSnapshotId = SnapshotStore->GetMaxSnapshotId();
-    YASSERT(maxAvailableSnapshotId <= version.SegmentId);
+    i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
+    YASSERT(maxSnapshotId <= version.SegmentId);
 
     return FromMethod(
                &TRecovery::RecoverFromSnapshotAndChangeLog,
                MakeStrong(this),
                version,
-               maxAvailableSnapshotId)
+               maxSnapshotId)
            ->AsyncVia(~EpochStateInvoker)
            ->Do();
 }
@@ -380,8 +381,7 @@ TFollowerRecovery::TFollowerRecovery(
     TPeerId leaderId,
     IInvoker* epochControlInvoker,
     IInvoker* epochStateInvoker,
-    TMetaVersion targetVersion,
-    i32 maxSnapshotId)
+    const TMetaVersion& targetVersion)
     : TRecovery(
         config,
         cellManager,
@@ -394,7 +394,7 @@ TFollowerRecovery::TFollowerRecovery(
         epochStateInvoker)
     , Result(New<TAsyncResult>())
     , TargetVersion(targetVersion)
-    , MaxSnapshotId(maxSnapshotId)
+    , MaxLookupSnapshotId(NonexistingSnapshotId)
 { }
 
 TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
@@ -404,20 +404,80 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
     PostponedVersion = TargetVersion;
     YASSERT(PostponedChanges.empty());
 
+    auto awaiter = New<TParallelAwaiter>(~EpochControlInvoker);
+
+    LOG_DEBUG("Looking up for the latest snapshots <= %d", TargetVersion.SegmentId);
+    for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
+        LOG_INFO("Requesting snapshot from peer %d", peerId);
+
+        auto request =
+            CellManager->GetMasterProxy<TProxy>(peerId)
+            ->LookupSnapshot()
+            ->SetTimeout(Config->RpcTimeout);
+        request->set_max_snapshot_id(TargetVersion.SegmentId);
+        awaiter->Await(
+            request->Invoke(),
+            FromMethod(
+            &TFollowerRecovery::OnLookupSnapshotResponse,
+            MakeStrong(this),
+            peerId));
+    }
+    LOG_INFO("Snapshot lookup requests sent");
+
+    awaiter->Complete(FromMethod(
+        &TFollowerRecovery::OnLookupSnapshotComplete,
+        MakeStrong(this)));
+
+    return Result;
+}
+
+void TFollowerRecovery::OnLookupSnapshotResponse(
+    TProxy::TRspLookupSnapshot::TPtr response,
+    TPeerId peerId)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!response->IsOK()) {
+        LOG_WARNING("Error looking up snapshots at peer %d\n%s",
+            peerId,
+            ~response->GetError().ToString());
+        return;
+    }
+
+    i32 snapshotId = response->snapshot_id();
+    if (snapshotId == NonexistingSnapshotId) {
+        LOG_INFO("Peer %d has no suitable snapshot");
+    } else {
+        LOG_INFO("Peer %d reported snapshot %d",
+            peerId,
+            snapshotId);
+        MaxLookupSnapshotId = std::max(MaxLookupSnapshotId, snapshotId);
+    }
+}
+
+void TFollowerRecovery::OnLookupSnapshotComplete()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (MaxLookupSnapshotId == NonexistingSnapshotId) {
+        LOG_INFO("Snapshot lookup complete, no suitable snapshot is found");
+    } else {
+        LOG_INFO("Snapshot lookup complete, the latest snapshot is %d", MaxLookupSnapshotId);
+    }
+
     FromMethod(
         &TRecovery::RecoverFromSnapshotAndChangeLog,
         MakeStrong(this),
         TargetVersion,
-        MaxSnapshotId)
+        MaxLookupSnapshotId)
     ->AsyncVia(~EpochStateInvoker)
-    ->Do()->Apply(FromMethod(
+    ->Do()
+    ->Apply(FromMethod(
         &TFollowerRecovery::OnSyncReached,
         MakeStrong(this)))
     ->Subscribe(FromMethod(
         &TAsyncResult::Set,
         Result));
-
-    return Result;
 }
 
 TRecovery::TAsyncResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)

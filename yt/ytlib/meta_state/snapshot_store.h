@@ -11,11 +11,15 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages local snapshots.
+/*!
+ *  \note Thread affinity: any
+ */
 class TSnapshotStore
     : public TRefCounted
 {
 public:
     typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
+    typedef TValueOrError<TSnapshotReaderPtr> TGetReaderResult;
 
     //! Creates an instance.
     /*!
@@ -26,46 +30,36 @@ public:
     //! Prepares the snapshot directory.
     void Start();
 
-    typedef TValueOrError<TSnapshotReaderPtr> TGetReaderResult;
-
     //! Gets a reader for a given snapshot id.
-    TGetReaderResult GetReader(int snapshotId) const;
+    TGetReaderResult GetReader(i32 snapshotId) const;
 
     //! Gets a writer for a given snapshot id.
-    TSnapshotWriterPtr GetWriter(int snapshotId) const;
+    TSnapshotWriterPtr GetWriter(i32 snapshotId) const;
 
     typedef TValueOrError< TSharedPtr<TFile> > TGetRawReaderResult;
     //! Gets a raw reader for a given snapshot id.
-    TGetRawReaderResult GetRawReader(int snapshotId) const;
+    TGetRawReaderResult GetRawReader(i32 snapshotId) const;
 
     //! Gets a writer for a given snapshot id.
-    TSharedPtr<TFile> GetRawWriter(int snapshotId) const;
+    TSharedPtr<TFile> GetRawWriter(i32 snapshotId) const;
 
-    //! Returns the largest id of the snapshot that is known to exist locally.
-    //! or #NonexistingSnapshotId if no snapshots are present.
+    //! Returns the largest snapshot id not exceeding #maxSnapshotId that is known to exist locally
+    //! or #NonexistingSnapshotId if no such snapshot is present.
     /*!
-     *  \note
-     *  Thread affinity: any
-     *  
-     *  \see #UpdateMaxSnapshotId
+     *  \see #OnSnapshotAdded
      */
-    int GetMaxSnapshotId() const;
+    i32 LookupLatestSnapshot(i32 maxSnapshotId = std::numeric_limits<i32>::max());
 
-    //! Tells the store that a new snapshot was created.
-    /*!
-     *  This call updates the internally cached value.
-     *  
-     *  \note
-     *  Thread affinity: any
-     */
-    void UpdateMaxSnapshotId(int snapshotId);
+    //! Informs the store that a new snapshot was created.
+    void OnSnapshotAdded(i32 snapshotId);
 
 private:
     Stroka Path;
-    TSpinLock SpinLock;
-    mutable int CachedMaxSnapshotId;
 
-    Stroka GetSnapshotFileName(int snapshotId) const;
+    TSpinLock SpinLock;
+    std::set<i32> SnapshotIds;
+
+    Stroka GetSnapshotFileName(i32 snapshotId) const;
 
 };
 

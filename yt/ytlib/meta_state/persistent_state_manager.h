@@ -6,6 +6,7 @@
 #include "change_log_downloader.h"
 #include "snapshot_downloader.h"
 #include "follower_pinger.h"
+#include "follower_tracker.h"
 #include "change_committer.h"
 
 #include <ytlib/election/election_manager.h>

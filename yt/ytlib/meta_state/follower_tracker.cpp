@@ -77,7 +77,7 @@ void TFollowerTracker::ChangeFollowerStatus(int followerId, EPeerStatus status)
 
     auto& followerState = FollowerStates[followerId];
     if (followerState.Status != status) {
-        LOG_INFO("Follower state changed (FollowerId: %d, OldStatus: %s, NewStatus: %s)",
+        LOG_INFO("Follower %d status changed %s->%s",
             followerId,
             ~followerState.Status.ToString(),
             ~status.ToString());

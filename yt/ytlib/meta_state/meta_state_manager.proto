@@ -69,7 +69,6 @@ message TReqPingFollower
     required int32 segment_id = 1;
     required int32 record_count = 2;
     required bytes epoch = 3;
-    required int32 max_snapshot_id = 4;
 }
 
 message TRspPingFollower
@@ -107,4 +106,16 @@ message TRspAdvanceSegment
     optional uint64 checksum = 1;
 }
                                                                               
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLookupSnapshot
+{
+	required int32 max_snapshot_id = 1;
+}
+
+message TRspLookupSnapshot
+{
+	required int32 snapshot_id = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

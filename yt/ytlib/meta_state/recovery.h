@@ -62,7 +62,7 @@ protected:
      *  \note Thread affinity: StateThread.
      */
     TAsyncResult::TPtr RecoverFromSnapshotAndChangeLog(
-        TMetaVersion targetVersion,
+        const TMetaVersion& targetVersion,
         i32 snapshotId);
 
     //! Recovers to a desired state by applying changelogs.
@@ -165,8 +165,7 @@ public:
         TPeerId leaderId,
         IInvoker* epochControlInvoker,
         IInvoker* epochStateInvoker,
-        TMetaVersion targetVersion,
-        i32 maxSnapshotId);
+        const TMetaVersion& targetVersion);
 
     //! Performs follower recovery brining the follower up-to-date and synchronized with the leader.
     /*!
@@ -228,16 +227,20 @@ private:
     // Any thread.
     TAsyncResult::TPtr Result;
     TMetaVersion TargetVersion;
-    i32 MaxSnapshotId;
 
     // Control thread
+    i32 MaxLookupSnapshotId;
     TPostponedChanges PostponedChanges;
     TMetaVersion PostponedVersion;
     
     TAsyncResult::TPtr OnSyncReached(EResult result);
-
     TAsyncResult::TPtr CapturePostponedChanges();
     TAsyncResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
+
+    void OnLookupSnapshotResponse(
+        TProxy::TRspLookupSnapshot::TPtr response,
+        TPeerId peerId);
+    void OnLookupSnapshotComplete();
 
     virtual bool IsLeader() const;
 

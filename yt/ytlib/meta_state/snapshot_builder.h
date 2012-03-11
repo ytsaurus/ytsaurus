@@ -4,6 +4,7 @@
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/misc/checksum.h>
+#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/election/election_manager.h>
 #include <ytlib/rpc/client.h>
@@ -63,47 +64,43 @@ public:
     TSnapshotBuilder(
         TConfig* config,
         TCellManagerPtr cellManager,
-        TDecoratedMetaStatePtr metaState,
+        TDecoratedMetaStatePtr decoratedState,
         TChangeLogCachePtr changeLogCache,
         TSnapshotStorePtr snapshotStore,
         TEpoch epoch,
-        IInvoker::TPtr serviceInvoker);
+        IInvoker::TPtr epochControlInvoker,
+        IInvoker::TPtr epochStateInvoker);
 
     /*!
-     * \returns OK if distributed session is started,
-     *          AlreadyInProgress if the previous session is not completed yet.
+     *  \returns OK if distributed session is started,
+     *  AlreadyInProgress if the previous session is not completed yet.
      *
-     * \note Thread affinity: StateThread
+     *  \note Thread affinity: StateThread
      */
-    EResultCode CreateDistributed();
+    void CreateDistributedSnapshot();
 
     /*!
-     * \note Thread affinity: StateThread
+     *  \note Thread affinity: StateThread
      */
-    TAsyncLocalResult::TPtr CreateLocal(TMetaVersion version);
+    void RotateChangeLog();
 
     /*!
-     * \note Thread affinity: StateThread
+     *  \note Thread affinity: StateThread
      */
-    TAsyncLocalResult::TPtr GetLocalResult() const
-    {
-         VERIFY_THREAD_AFFINITY(StateThread);
-        
-         return LocalResult;
-    }
+    TAsyncLocalResult::TPtr CreateLocalSnapshot(const TMetaVersion& version);
 
     /*!
-     * \note Thread affinity: StateThread
+     *  \note Thread affinity: StateThread
      */
-    bool IsInProgress() const
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-    
-        TLocalResult fake;
-        return !LocalResult->TryGet(&fake);
-    }
+    void WaitUntilFinished();
+
+    /*!
+     *  \note Thread affinity: StateThread
+     */
+    bool IsInProgress() const;
 
 private:
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     class TSession;
@@ -111,17 +108,17 @@ private:
 
     typedef TMetaStateManagerProxy TProxy;
 
-    TChecksum DoCreateLocal(TMetaVersion version);
-    void OnLocalCreated(i32 segmentId, const TChecksum& checksum);
+    TChecksum DoCreateLocalSnapshot(TMetaVersion version);
+    void OnLocalSnapshotCreated(i32 snapshotId, const TChecksum& checksum);
 
     TConfig::TPtr Config;
     TCellManagerPtr CellManager;
-    TDecoratedMetaStatePtr MetaState;
+    TDecoratedMetaStatePtr DecoratedState;
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;
     TEpoch Epoch;
-    IInvoker::TPtr ServiceInvoker;
-    IInvoker::TPtr StateInvoker;
+    IInvoker::TPtr EpochControlInvoker;
+    IInvoker::TPtr EpochStateInvoker;
 
     TAsyncLocalResult::TPtr LocalResult;
 

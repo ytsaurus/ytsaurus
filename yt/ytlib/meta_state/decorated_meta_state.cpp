@@ -175,7 +175,7 @@ void TDecoratedMetaState::RotateChangeLog()
 
 void TDecoratedMetaState::ComputeReachableVersion()
 {
-    i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
+    i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
     if (maxSnapshotId == NonexistingSnapshotId) {
         LOG_INFO("No snapshots found");
         // Let's pretend we have snapshot 0.
@@ -201,7 +201,7 @@ void TDecoratedMetaState::ComputeReachableVersion()
             segmentId,
             changeLog->GetRecordCount(),
             changeLog->GetPrevRecordCount(),
-            ~ToString(isFinal));
+            ~FormatBool(isFinal));
 
         currentVersion = TMetaVersion(segmentId, changeLog->GetRecordCount());
     }

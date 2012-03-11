@@ -14,12 +14,9 @@ class TMetaStateManagerProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TMetaStateManagerProxy> TPtr;
-
     static Stroka GetServiceName()
     {
-    	// TODO(babenko): rename
-        return "MetaStateManager";
+        return "MetaState";
     }
 
     DECLARE_ENUM(EErrorCode,
@@ -35,13 +32,14 @@ public:
         : TProxyBase(channel, GetServiceName())
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, ReadSnapshot);
-    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, ReadChangeLog);
-    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, GetSnapshotInfo);
-    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, GetChangeLogInfo);
-    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, ApplyChanges);
-    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, AdvanceSegment);
-    DEFINE_RPC_PROXY_METHOD(NMetaState::NProto, PingFollower);
+    DEFINE_RPC_PROXY_METHOD(NProto, ReadSnapshot);
+    DEFINE_RPC_PROXY_METHOD(NProto, ReadChangeLog);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetSnapshotInfo);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetChangeLogInfo);
+    DEFINE_RPC_PROXY_METHOD(NProto, ApplyChanges);
+    DEFINE_RPC_PROXY_METHOD(NProto, AdvanceSegment);
+    DEFINE_RPC_PROXY_METHOD(NProto, PingFollower);
+    DEFINE_RPC_PROXY_METHOD(NProto, LookupSnapshot);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

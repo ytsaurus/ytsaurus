@@ -37,49 +37,90 @@ class TSnapshotBuilder::TSession
 public:
     TSession(
         TSnapshotBuilderPtr owner,
-        TMetaVersion version)
+        const TMetaVersion& version,
+        bool createSnapshot)
         : Owner(owner)
         , Version(version)
-        , Awaiter(New<TParallelAwaiter>(
-			~Owner->ServiceInvoker,
-			&Profiler,
-			"snapshot_build_time"))
-        , Checksums(Owner->CellManager->GetPeerCount())
     { }
 
     void Run()
     {
-        LOG_INFO("Creating a distributed snapshot at version: %s",
-            ~Version.ToString());
+        VERIFY_THREAD_AFFINITY(Owner->StateThread);
 
-        auto& config = Owner->Config;
-		auto cellManager = Owner->CellManager;
-        for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id == Owner->CellManager->GetSelfId()) continue;
+        if (CreateSnapshot) {
+            LOG_INFO("Creating a snapshot at version %s", ~Version.ToString());
 
-            LOG_DEBUG("Requesting follower %d to create a snapshot", id);
+            Checksums.resize(Owner->CellManager->GetPeerCount());
+            Awaiter = New<TParallelAwaiter>(
+                ~Owner->EpochControlInvoker,
+                &Profiler,
+                "snapshot_build_time");
+        } else {
+            LOG_INFO("Rotating changelog at version %s", ~Version.ToString());
 
-            auto proxy = Owner->CellManager->GetMasterProxy<TProxy>(id);
-            auto request = proxy->AdvanceSegment()->SetTimeout(config->RemoteTimeout);
-            request->set_segment_id(Version.SegmentId);
-            request->set_record_count(Version.RecordCount);
-            request->set_epoch(Owner->Epoch.ToProto());
-            request->set_create_snapshot(true);
+            Awaiter = New<TParallelAwaiter>(~Owner->EpochControlInvoker);
+        }
 
-            Awaiter->Await(
-                request->Invoke(),
-				cellManager->GetPeerAddress(id),
-                FromMethod(&TSession::OnRemote, MakeStrong(this), id));
+        for (TPeerId id = 0; id < Owner->CellManager->GetPeerCount(); ++id) {
+            if (id != Owner->CellManager->GetSelfId()) {
+                // We're currently in the state thread but the request must
+                // be sent from the control thread to ensure proper version order.
+                Owner->EpochControlInvoker->Invoke(FromMethod(
+                    &TSession::DoSendRequest,
+                    MakeStrong(this),
+                    id));
+            }
         }
         
+        if (CreateSnapshot) {
+            Awaiter->Await(
+                Owner->CreateLocalSnapshot(Version),
+                FromMethod(&TSession::OnLocalSnapshotCreated, MakeStrong(this)));
+
+            // The awaiter must be completed from the control thread.
+            Owner->EpochControlInvoker->Invoke(FromMethod(
+                &TSession::DoCompleteSession,
+                MakeStrong(this)));
+        } else {
+            Owner->DecoratedState->RotateChangeLog();
+
+            // No need to complete the awaiter.
+        }
+    }
+
+private:
+    void DoSendRequest(TPeerId id)
+    {
+        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+
+        if (CreateSnapshot) {
+            LOG_DEBUG("Requesting follower %d to create a snapshot", id);
+        } else {
+            LOG_DEBUG("Requesting follower %d to rotate the changelog", id);
+        }
+
+        auto proxy = Owner->CellManager->GetMasterProxy<TProxy>(id);
+        auto request = proxy
+            ->AdvanceSegment()
+            ->SetTimeout(Owner->Config->RemoteTimeout);
+        request->set_segment_id(Version.SegmentId);
+        request->set_record_count(Version.RecordCount);
+        request->set_epoch(Owner->Epoch.ToProto());
+        request->set_create_snapshot(CreateSnapshot);
+
         Awaiter->Await(
-            Owner->CreateLocal(Version),
-            FromMethod(&TSession::OnLocal, MakeStrong(this)));
+            request->Invoke(),
+            Owner->CellManager->GetPeerAddress(id),
+            FromMethod(&TSession::OnRemoteSegmentAdvanced, MakeStrong(this), id));
+    }
+
+    void DoCompleteSession()
+    {
+        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
         Awaiter->Complete(FromMethod(&TSession::OnComplete, MakeStrong(this)));
     }
 
-private:
     void OnComplete()
     {
         int successCount = 0;
@@ -102,25 +143,24 @@ private:
             }
         }
 
-        LOG_INFO("Distributed snapshot is created (SuccessCount: %d)", successCount);
+        LOG_INFO("Distributed snapshot creation finished (SuccessCount: %d)", successCount);
     }
 
-    void OnLocal(TLocalResult result)
+    void OnLocalSnapshotCreated(TLocalResult result)
     {
         if (result.ResultCode != EResultCode::OK) {
             LOG_ERROR("Failed to create a local snapshot\n%s", ~result.ResultCode.ToString());
             return;
         }
 
-        Checksums[Owner->CellManager->GetSelfId()] = MakeNullable(result.Checksum);
+        Checksums[Owner->CellManager->GetSelfId()] = result.Checksum;
     }
 
-    void OnRemote(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
+    void OnRemoteSegmentAdvanced(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error creating a snapshot at follower %d (Version: %s)\n%s",
+            LOG_WARNING("Error creating a snapshot at follower %d\n%s",
                 followerId,
-                ~Version.ToString(),
                 ~response->GetError().ToString());
             return;
         }
@@ -135,6 +175,8 @@ private:
 
     TSnapshotBuilderPtr Owner;
     TMetaVersion Version;
+    bool CreateSnapshot;
+
     TParallelAwaiter::TPtr Awaiter;
     yvector< TNullable<TChecksum> > Checksums;
 };
@@ -144,43 +186,53 @@ private:
 TSnapshotBuilder::TSnapshotBuilder(
     TConfig* config,
     TCellManagerPtr cellManager,
-    TDecoratedMetaStatePtr metaState,
+    TDecoratedMetaStatePtr decoratedState,
     TChangeLogCachePtr changeLogCache,
     TSnapshotStorePtr snapshotStore,
     TEpoch epoch,
-    IInvoker::TPtr serviceInvoker)
+    IInvoker::TPtr epochControlInvoker,
+    IInvoker::TPtr epochStateInvoker)
     : Config(config)
     , CellManager(cellManager)
-    , MetaState(metaState)
+    , DecoratedState(decoratedState)
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
     , Epoch(epoch)
-    , ServiceInvoker(serviceInvoker)
+    , EpochControlInvoker(epochControlInvoker)
+    , EpochStateInvoker(epochStateInvoker)
     , LocalResult(MakeFuture(TLocalResult()))
 #if defined(_unix_)
     , WatchdogQueue(New<TActionQueue>("SnapshotWDog"))
 #endif
 {
     YASSERT(cellManager);
-    YASSERT(metaState);
+    YASSERT(decoratedState);
     YASSERT(changeLogCache);
     YASSERT(snapshotStore);
-    YASSERT(serviceInvoker);
+    YASSERT(epochControlInvoker);
+    YASSERT(epochStateInvoker);
 
-    StateInvoker = metaState->GetStateInvoker();
+    VERIFY_INVOKER_AFFINITY(EpochControlInvoker, ControlThread);
+    VERIFY_INVOKER_AFFINITY(EpochStateInvoker, StateThread);
 }
 
-TSnapshotBuilder::EResultCode TSnapshotBuilder::CreateDistributed()
+void TSnapshotBuilder::CreateDistributedSnapshot()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto version = MetaState->GetVersion();
-    New<TSession>(MakeStrong(this), version)->Run();
-    return EResultCode::OK;
+    auto version = DecoratedState->GetVersion();
+    New<TSession>(MakeStrong(this), version, true)->Run();
 }
 
-TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
-    TMetaVersion version)
+void TSnapshotBuilder::RotateChangeLog()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    auto version = DecoratedState->GetVersion();
+    New<TSession>(MakeStrong(this), version, false)->Run();
+}
+
+TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(const TMetaVersion& version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -193,10 +245,10 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
 
     LOG_INFO("Creating a local snapshot at version: %s", ~version.ToString());
 
-    if (MetaState->GetVersion() != version) {
+    if (DecoratedState->GetVersion() != version) {
         LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, received %s",
             ~version.ToString(),
-            ~MetaState->GetVersion().ToString());
+            ~DecoratedState->GetVersion().ToString());
         return MakeFuture(TLocalResult(EResultCode::InvalidVersion));
     }
 
@@ -210,7 +262,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
         LOG_ERROR("Could not fork while creating local snapshot %d", segmentId);
         LocalResult->Set(TLocalResult(EResultCode::ForkError));
     } else if (childPid == 0) {
-        DoCreateLocal(version);
+        DoCreateLocalSnapshot(version);
         _exit(0);
     } else {
         Profiler.TimingStop(forkTimer);
@@ -222,30 +274,30 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocal(
             childPid));
     }
 #else
-    auto checksum = DoCreateLocal(version);
-    OnLocalCreated(segmentId, checksum);
+    auto checksum = DoCreateLocalSnapshot(version);
+    OnLocalSnapshotCreated(segmentId, checksum);
 #endif
         
-    MetaState->RotateChangeLog();
+    DecoratedState->RotateChangeLog();
     return LocalResult;
 }
 
-TChecksum TSnapshotBuilder::DoCreateLocal(TMetaVersion version)
+TChecksum TSnapshotBuilder::DoCreateLocalSnapshot(TMetaVersion version)
 {
     auto writer = SnapshotStore->GetWriter(version.SegmentId + 1);
     writer->Open(version.RecordCount);
     auto* stream = &writer->GetStream();
-    MetaState->Save(stream);
+    DecoratedState->Save(stream);
     writer->Close();
     return writer->GetChecksum();
 }
 
-void TSnapshotBuilder::OnLocalCreated(i32 segmentId, const TChecksum& checksum)
+void TSnapshotBuilder::OnLocalSnapshotCreated(i32 snapshotId, const TChecksum& checksum)
 {
-    SnapshotStore->UpdateMaxSnapshotId(segmentId);
+    SnapshotStore->OnSnapshotAdded(snapshotId);
 
     LOG_INFO("Local snapshot %d is created (Checksum: %" PRIx64 ")",
-        segmentId,
+        snapshotId,
         checksum);
 
     LocalResult->Set(TLocalResult(EResultCode::OK, checksum));
@@ -328,9 +380,24 @@ void TSnapshotBuilder::WatchdogFork(
     auto reader = result.Value();
     reader->Open();
     auto checksum = reader->GetChecksum();
-    snapshotBuilder->OnLocalCreated(segmentId, checksum);
+    snapshotBuilder->OnLocalSnapshotCreated(segmentId, checksum);
 }
 #endif
+
+
+void TSnapshotBuilder::WaitUntilFinished()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    LocalResult->Get();
+}
+
+bool TSnapshotBuilder::IsInProgress() const
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    return !LocalResult->IsSet();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

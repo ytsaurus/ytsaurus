@@ -20,7 +20,6 @@ static const char* const SnapshotExtension = "snapshot";
 
 TSnapshotStore::TSnapshotStore(const Stroka& path)
     : Path(path)
-    , CachedMaxSnapshotId(NonexistingSnapshotId)
 { }
 
 void TSnapshotStore::Start()
@@ -38,26 +37,20 @@ void TSnapshotStore::Start()
     i32 maxSnapshotId = NonexistingSnapshotId;
     Stroka fileName;
     while ((fileName = fileList.Next()) != NULL) {
-        Stroka extension = NFS::GetFileExtension(fileName);
+        auto extension = NFS::GetFileExtension(fileName);
         if (extension == SnapshotExtension) {
-            Stroka name = NFS::GetFileNameWithoutExtension(fileName);
+            auto name = NFS::GetFileNameWithoutExtension(fileName);
             try {
-                i32 segmentId = FromString<i32>(name);
-                LOG_DEBUG("Found snapshot %d", segmentId);
-                maxSnapshotId = Max(maxSnapshotId, segmentId);
+                i32 snapshotId = FromString<i32>(name);
+                SnapshotIds.insert(snapshotId);
+                LOG_DEBUG("Found snapshot %d", snapshotId);
             } catch (const yexception&) {
                 LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
             }
         }
     }
 
-    if (maxSnapshotId == NonexistingSnapshotId) {
-        LOG_DEBUG("No snapshots found");
-    } else {
-        LOG_DEBUG("Maximum snapshot id is %d", maxSnapshotId);
-    }
-
-    CachedMaxSnapshotId = maxSnapshotId;
+    LOG_DEBUG("Snapshot scan complete");
 }
 
 Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
@@ -72,11 +65,11 @@ TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(snapshotId > 0);
 
-    Stroka fileName = GetSnapshotFileName(snapshotId);
+    auto fileName = GetSnapshotFileName(snapshotId);
     if (!isexist(~fileName)) {
         return TError(
             EErrorCode::NoSuchSnapshot,
-            Sprintf("No such snapshot (SnapshotId: %d)", snapshotId));
+            Sprintf("No such snapshot %d", snapshotId));
     }
     return New<TSnapshotReader>(fileName, snapshotId);
 }
@@ -86,47 +79,70 @@ TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(snapshotId > 0);
 
-    Stroka fileName = GetSnapshotFileName(snapshotId);
+    auto fileName = GetSnapshotFileName(snapshotId);
     return New<TSnapshotWriter>(fileName, snapshotId);
 }
 
-TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(int snapshotId) const
+TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(snapshotId > 0);
 
-    Stroka fileName = GetSnapshotFileName(snapshotId);
+    auto fileName = GetSnapshotFileName(snapshotId);
     if (!isexist(~fileName)) {
         return TError(
             EErrorCode::NoSuchSnapshot,
-            Sprintf("No such snapshot (SnapshotId: %d)", snapshotId));
+            Sprintf("No such snapshot %d", snapshotId));
     }
     return TSharedPtr<TFile>(new TFile(fileName, OpenExisting | RdOnly));
 }
 
-TSharedPtr<TFile> TSnapshotStore::GetRawWriter(int snapshotId) const
+TSharedPtr<TFile> TSnapshotStore::GetRawWriter(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(snapshotId > 0);
 
-    Stroka fileName = GetSnapshotFileName(snapshotId);
+    auto fileName = GetSnapshotFileName(snapshotId);
     return new TFile(fileName, CreateAlways | WrOnly | Seq);
 }
 
-i32 TSnapshotStore::GetMaxSnapshotId() const
+i32 TSnapshotStore::LookupLatestSnapshot(i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(SpinLock);
-    return CachedMaxSnapshotId;
+    while (true) {
+        i32 snapshotId;
+
+        // Fetch the most appropriate id from the set.
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            auto it = SnapshotIds.upper_bound(snapshotId - 1);
+            if (it  == SnapshotIds.end()) {
+                return NonexistingSnapshotId;
+            }
+            snapshotId = *it;
+        }
+
+        // Check that the file really exists.
+        auto fileName = GetSnapshotFileName(snapshotId);
+        if (isexist(~fileName)) {
+            return snapshotId;
+        }
+
+        // Remove the orphaned id from the set and retry.
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            SnapshotIds.erase(snapshotId);
+        }
+    }
 }
 
-void TSnapshotStore::UpdateMaxSnapshotId(int snapshotId)
+void TSnapshotStore::OnSnapshotAdded(i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(SpinLock);
-    CachedMaxSnapshotId = Max(CachedMaxSnapshotId, snapshotId);
+    SnapshotIds.insert(snapshotId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
