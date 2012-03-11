@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/actions/signal.h>
-#include <ytlib/actions/invoker_util.h>
+#include <ytlib/actions/cancelable_context.h>
 #include <ytlib/misc/ref.h>
 #include <ytlib/ytree/public.h>
 

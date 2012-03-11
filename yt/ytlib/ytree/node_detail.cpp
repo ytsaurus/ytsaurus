@@ -50,7 +50,7 @@ void TNodeBase::GetNodeSelf(TReqGetNode* request, TRspGetNode* response, TCtxGet
 {
     UNUSED(request);
 
-    response->set_value(reinterpret_cast<i64>(static_cast<INode*>(this)));
+    response->set_value_ptr(reinterpret_cast<i64>(static_cast<INode*>(this)));
     context->Reply();
 }
 
@@ -63,7 +63,7 @@ void TNodeBase::SetNodeSelf(TReqSetNode* request, TRspSetNode* response, TCtxSet
         ythrow yexception() << "Cannot replace the root";
     }
 
-    auto value = reinterpret_cast<INode*>(request->value());
+    auto value = reinterpret_cast<INode*>(request->value_ptr());
     parent->ReplaceChild(this, value);
     context->Reply();
 }

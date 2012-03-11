@@ -223,7 +223,7 @@ public:
         IMapNode* manifestNode)
     {
         auto manifest = New<TTransactionManifest>();
-        manifest->LoadAndValidate(manifestNode);
+        manifest->Load(manifestNode);
 
         auto* parent =
             transactionId == NullTransactionId
@@ -446,7 +446,7 @@ void TTransactionManager::OnLeaderRecoveryComplete()
         auto proxy = objectManager->GetProxy(id);
         auto manifestNode = proxy->Attributes().ToMap();
         auto manifest = New<TTransactionManifest>();
-        manifest->LoadAndValidate(~manifestNode);
+        manifest->Load(~manifestNode);
         CreateLease(transaction, ~manifest);
     }
 }

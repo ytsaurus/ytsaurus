@@ -15,29 +15,6 @@ class TSnapshotDownloader
     : private TNonCopyable
 {
 public:
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration LookupTimeout;
-        TDuration ReadTimeout;
-        i32 BlockSize;
-
-        TConfig()
-        {
-            Register("lookup_timeout", LookupTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(2));
-            Register("read_timeout", ReadTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(10));
-            Register("block_size", BlockSize)
-                .GreaterThan(0)
-                .Default(32 * 1024 * 1024);
-        }
-    };
-
     DECLARE_ENUM(EResult,
         (OK)
         (SnapshotNotFound)
@@ -46,7 +23,7 @@ public:
     );
 
     TSnapshotDownloader(
-        TConfig* config,
+        TSnapshotDownloaderConfig* config,
         TCellManagerPtr cellManager);
 
     EResult GetSnapshot(i32 segmentId, TFile* snapshotFile);
@@ -68,7 +45,7 @@ private:
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TConfig ::TPtr Config;
+    TSnapshotDownloaderConfigPtr Config;
     TCellManagerPtr CellManager;
 
     TSnapshotInfo GetSnapshotInfo(i32 segmentId); // also finds snapshot source

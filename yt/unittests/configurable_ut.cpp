@@ -134,7 +134,7 @@ TEST(TConfigTest, Complete)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->LoadAndValidate(~configNode->AsMap());
+    config->Load(~configNode->AsMap());
     
     EXPECT_EQ("TestString", config->MyString);
     TestCompleteSubconfig(~config->Subconfig);
@@ -164,7 +164,7 @@ TEST(TConfigTest, MissingParameter)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->LoadAndValidate(~configNode->AsMap());
+    config->Load(~configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(100, config->Subconfig->MyInt);
@@ -186,7 +186,7 @@ TEST(TConfigTest, MissingSubconfig)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->LoadAndValidate(~configNode->AsMap());
+    config->Load(~configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
     EXPECT_EQ(100, config->Subconfig->MyInt);
@@ -210,7 +210,7 @@ TEST(TConfigTest, Options)
 
     auto config = New<TTestConfig>();
     config->SetKeepOptions(true);
-    config->LoadAndValidate(~configNode->AsMap());
+    config->Load(~configNode->AsMap());
 
     auto optionsNode = config->GetOptions();
     EXPECT_EQ(1, optionsNode->GetChildCount());

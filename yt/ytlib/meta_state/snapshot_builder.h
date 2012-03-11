@@ -18,25 +18,6 @@ class TSnapshotBuilder
     : public TExtrinsicRefCounted
 {
 public:
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration RemoteTimeout;
-        TDuration LocalTimeout;
-
-        TConfig()
-        {
-            Register("remote_timeout", RemoteTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Minutes(1));
-            Register("local_timeout", LocalTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Minutes(1));
-        }
-    };
-
     DECLARE_ENUM(EResultCode,
         (OK)
         (InvalidVersion)
@@ -62,7 +43,7 @@ public:
     typedef TFuture<TLocalResult> TAsyncLocalResult;
 
     TSnapshotBuilder(
-        TConfig* config,
+        TSnapshotBuilderConfig* config,
         TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr decoratedState,
         TChangeLogCachePtr changeLogCache,
@@ -111,7 +92,7 @@ private:
     TChecksum DoCreateLocalSnapshot(TMetaVersion version);
     void OnLocalSnapshotCreated(i32 snapshotId, const TChecksum& checksum);
 
-    TConfig::TPtr Config;
+    TSnapshotBuilderConfigPtr Config;
     TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
     TSnapshotStorePtr SnapshotStore;

@@ -75,8 +75,7 @@ public:
 
     TConfigurable();
 
-    void LoadAndValidate(NYTree::INode* node, const NYTree::TYPath& path = "");
-    virtual void Load(NYTree::INode* node, const NYTree::TYPath& path = "");
+    virtual void Load(NYTree::INode* node, bool validate = true, const NYTree::TYPath& path = "");
     void Validate(const NYTree::TYPath& path = "") const;
 
     void Save(NYTree::IYsonConsumer* consumer) const;

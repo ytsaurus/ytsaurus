@@ -2,8 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/meta_state/persistent_state_manager.h>
-// TODO(babenko): replace with config.h
+#include <ytlib/meta_state/config.h>
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/chunk_server/config.h>
 #include <ytlib/object_server/config.h>

@@ -225,7 +225,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderCommitter::TLeaderCommitter(
-    TConfig* config,
+    TLeaderCommitterConfig* config,
     TCellManager* cellManager,
     TDecoratedMetaState* metaState,
     TChangeLogCache* changeLogCache,

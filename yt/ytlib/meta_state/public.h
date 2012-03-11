@@ -15,9 +15,6 @@ typedef TIntrusivePtr<IMetaState> IMetaStatePtr;
 struct IMetaStateManager;
 typedef TIntrusivePtr<IMetaStateManager> IMetaStateManagerPtr;
 
-struct TCellConfig;
-typedef TIntrusivePtr<TCellConfig> TCellConfigPtr;
-
 class TCellManager;
 typedef TIntrusivePtr<TCellManager> TCellManagerPtr;
 
@@ -45,6 +42,28 @@ template <class TResult>
 class TMetaChange;
 
 struct TMetaVersion;
+
+
+struct TCellConfig;
+typedef TIntrusivePtr<TCellConfig> TCellConfigPtr;
+
+struct TChangeLogDownloaderConfig;
+typedef TIntrusivePtr<TChangeLogDownloaderConfig> TChangeLogDownloaderConfigPtr;
+
+struct TSnapshotDownloaderConfig;
+typedef TIntrusivePtr<TSnapshotDownloaderConfig> TSnapshotDownloaderConfigPtr;
+
+struct TFollowerPingerConfig;
+typedef TIntrusivePtr<TFollowerPingerConfig> TFollowerPingerConfigPtr;
+
+struct TFollowerTrackerConfig;
+typedef TIntrusivePtr<TFollowerTrackerConfig> TFollowerTrackerConfigPtr;
+
+struct TLeaderCommitterConfig;
+typedef TIntrusivePtr<TLeaderCommitterConfig> TLeaderCommitterConfigPtr;
+
+struct TSnapshotBuilderConfig;
+typedef TIntrusivePtr<TSnapshotBuilderConfig> TSnapshotBuilderConfigPtr;
 
 struct TPersistentStateManagerConfig;
 typedef TIntrusivePtr<TPersistentStateManagerConfig> TPersistentStateManagerConfigPtr;

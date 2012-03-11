@@ -15,29 +15,6 @@ class TChangeLogDownloader
     : private TNonCopyable
 {
 public:
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration LookupTimeout;
-        TDuration ReadTimeout;
-        i32 RecordsPerRequest;
-
-        TConfig()
-        {
-            Register("lookup_timeout", LookupTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(5));
-            Register("read_timeout", ReadTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(10));
-            Register("records_per_request", RecordsPerRequest)
-                .GreaterThan(0)
-                .Default(1024 * 1024);
-        }
-    };
-
     DECLARE_ENUM(EResult,
         (OK)
         (ChangeLogNotFound)
@@ -46,7 +23,7 @@ public:
     );
 
     TChangeLogDownloader(
-        TConfig* config,
+        TChangeLogDownloaderConfig* config,
         TCellManager* cellManager);
 
     EResult Download(TMetaVersion version, TAsyncChangeLog& changeLog);
@@ -55,7 +32,7 @@ private:
     typedef TMetaStateManagerProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TConfig::TPtr Config;
+    TChangeLogDownloaderConfigPtr Config;
     TCellManagerPtr CellManager;
 
     TPeerId GetChangeLogSource(TMetaVersion version);

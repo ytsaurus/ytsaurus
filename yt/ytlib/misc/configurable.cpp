@@ -23,13 +23,7 @@ NYTree::IMapNodePtr TConfigurable::GetOptions() const
     return Options;
 }
 
-void TConfigurable::LoadAndValidate(NYTree::INode* node, const NYTree::TYPath& path)
-{
-    Load(node, path);
-    Validate(path);
-}
-
-void TConfigurable::Load(NYTree::INode* node, const NYTree::TYPath& path)
+void TConfigurable::Load(NYTree::INode* node, bool validate, const NYTree::TYPath& path)
 {
     YASSERT(node);
 
@@ -63,6 +57,10 @@ void TConfigurable::Load(NYTree::INode* node, const NYTree::TYPath& path)
                 Options->AddChild(~CloneNode(~child), key);
             }
         }
+    }
+
+    if (validate) {
+        Validate(path);
     }
 }
 

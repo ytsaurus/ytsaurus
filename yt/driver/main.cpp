@@ -246,7 +246,7 @@ public:
             }
 
             try {
-                config->LoadAndValidate(~configNode);
+                config->Load(~configNode);
             } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
             }

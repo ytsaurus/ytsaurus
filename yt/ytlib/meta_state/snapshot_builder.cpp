@@ -184,7 +184,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotBuilder::TSnapshotBuilder(
-    TConfig* config,
+    TSnapshotBuilderConfig *config,
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
     TChangeLogCachePtr changeLogCache,
