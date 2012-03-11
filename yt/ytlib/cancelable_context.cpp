@@ -1,22 +1,12 @@
 #include "stdafx.h"
-#include "invoker_util.h"
-
-#include <ytlib/misc/singleton.h>
+#include "cancelable_context.h"
 
 namespace NYT {
+namespace N. {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSyncInvoker::Invoke(IAction::TPtr action)
-{
-    action->Do();
-}
-
-IInvoker* TSyncInvoker::Get()
-{
-    return ~RefCountedSingleton<TSyncInvoker>();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
-
+            
+} // namespace N.
 } // namespace NYT

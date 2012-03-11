@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "periodic_invoker.h"
 
+#include <ytlib/actions/invoker_util.h>
 #include <ytlib/actions/action_util.h>
 
 namespace NYT {

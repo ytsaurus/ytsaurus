@@ -8,9 +8,9 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/attribute_set.h
+  ${BASE}/config.h
   ${BASE}/id.h
   ${BASE}/object_detail.h
-  ${BASE}/config.h
   ${BASE}/object_manager.h
   ${BASE}/object_proxy.h
   ${BASE}/object_ypath_proxy.h
