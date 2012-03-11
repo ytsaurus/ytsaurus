@@ -266,7 +266,7 @@ private:
         UNUSED(response);
 
         auto factory = CreateFactory();
-        auto value = reinterpret_cast<INode*>(request->value());
+        auto value = reinterpret_cast<INode*>(request->value_ptr());
         TMapNodeMixin::SetRecursive(~factory, path, value);
         context->Reply();
     }
@@ -402,7 +402,7 @@ private:
         UNUSED(response);
 
         auto factory = CreateFactory();
-        auto value = reinterpret_cast<INode*>(request->value());
+        auto value = reinterpret_cast<INode*>(request->value_ptr());
         TListNodeMixin::SetRecursive(~factory, path, value);
         context->Reply();
     }

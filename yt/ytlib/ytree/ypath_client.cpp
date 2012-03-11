@@ -375,7 +375,7 @@ INodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path)
     auto request = TYPathProxy::GetNode(path);
     auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
-    return reinterpret_cast<INode*>(response->value());
+    return reinterpret_cast<INode*>(response->value_ptr());
 }
 
 void SyncYPathSet(IYPathService* service, const TYPath& path, const TYson& value)
@@ -389,7 +389,7 @@ void SyncYPathSet(IYPathService* service, const TYPath& path, const TYson& value
 void SyncYPathSetNode(IYPathService* service, const TYPath& path, INode* value)
 {
     auto request = TYPathProxy::SetNode(path);
-    request->set_value(reinterpret_cast<i64>(value));
+    request->set_value_ptr(reinterpret_cast<i64>(value));
     auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
 }

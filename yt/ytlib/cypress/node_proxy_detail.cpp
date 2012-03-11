@@ -345,7 +345,7 @@ void TMapNodeProxy::SetNodeRecursive(
     UNUSED(response);
 
     auto factory = CreateFactory();
-    auto value = reinterpret_cast<INode*>(request->value());
+    auto value = reinterpret_cast<INode*>(request->value_ptr());
     TMapNodeMixin::SetRecursive(~factory, path, value);
     context->Reply();
 }
@@ -527,7 +527,7 @@ void TListNodeProxy::SetNodeRecursive(
     UNUSED(response);
 
     auto factory = CreateFactory();
-    auto value = reinterpret_cast<INode*>(request->value());
+    auto value = reinterpret_cast<INode*>(request->value_ptr());
     TListNodeMixin::SetRecursive(~factory, path, value);
     context->Reply();
 }
