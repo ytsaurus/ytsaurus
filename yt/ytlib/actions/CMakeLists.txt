@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/action.cpp
   ${BASE}/action_queue.cpp
   ${BASE}/callback_internal.cpp
+  ${BASE}/cancelable_context.cpp
   ${BASE}/invoker_util.cpp
 )
 set( HDRS
@@ -19,6 +20,7 @@ set( HDRS
   ${BASE}/callback.h
   ${BASE}/callback_forward.h
   ${BASE}/callback_internal.h
+  ${BASE}/cancelable_context.h
   ${BASE}/common.h
   ${BASE}/future-inl.h
   ${BASE}/future.h

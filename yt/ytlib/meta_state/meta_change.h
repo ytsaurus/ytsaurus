@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/actions/invoker_util.h>
+#include <ytlib/actions/cancelable_context.h>
 
 namespace NYT {
 namespace NMetaState {

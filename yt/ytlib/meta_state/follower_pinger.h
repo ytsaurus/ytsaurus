@@ -1,60 +1,28 @@
 #pragma once
 
-#include "common.h"
-#include "meta_state_manager.h"
+#include "public.h"
 #include "meta_state_manager_proxy.h"
-#include "cell_manager.h"
-#include "follower_tracker.h"
-#include "snapshot_store.h"
-#include "decorated_meta_state.h"
 
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/misc/configurable.h>
+#include <ytlib/misc/thread_affinity.h>
 
 namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EFollowerPingerMode,
-    (Recovery)
-    (Leading)
-);
-
 class TFollowerPinger
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TFollowerPinger> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration PingInterval;
-        TDuration RpcTimeout;
-
-        TConfig()
-        {
-            Register("ping_interval", PingInterval)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(1000));
-            Register("rpc_timeout", RpcTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(1000));
-        }
-    };
-
     TFollowerPinger(
-        EFollowerPingerMode mode,
-        TConfig* config,
-        TDecoratedMetaState* metaState,
+        TFollowerPingerConfig* config,
         TCellManager* cellManager,
+        TLeaderCommitter* committer,
         TFollowerTracker* followerTracker,
-        TSnapshotStore* snapshotStore,
         const TEpoch& epoch,
-        IInvoker* epochControlInvoker,
-        IInvoker* epochStateInvoker);
+        IInvoker* epochControlInvoker);
 
     void Start();
     void Stop();
@@ -62,23 +30,20 @@ public:
 private:
     typedef TMetaStateManagerProxy TProxy;
 
-    void SendPing();
-    void OnPingReply(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
+    void SendPing(TPeerId followerId);
+    void SchedulePing(TPeerId followerId);
+    void OnPingResponse(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
 
-    EFollowerPingerMode Mode;
-    TConfig::TPtr Config;
+    TFollowerPingerConfigPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;
-    TDecoratedMetaStatePtr MetaState;
     TCellManagerPtr CellManager;
+    TLeaderCommitterPtr Committer;
     TFollowerTrackerPtr FollowerTracker;
     TSnapshotStorePtr SnapshotStore;
     TEpoch Epoch;
     IInvoker::TPtr EpochControlInvoker;
-    IInvoker::TPtr EpochStateInvoker;
-    TMetaVersion ReachableVersion;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -75,7 +75,7 @@ public:
     {
         auto manifest = New<TFileManifest>();
         manifest->SetKeepOptions(true);
-        manifest->LoadAndValidate(manifestNode);
+        manifest->Load(manifestNode);
 
         auto chunkManager = Bootstrap->GetChunkManager();
         auto cypressManager = Bootstrap->GetCypressManager();

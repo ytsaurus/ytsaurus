@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "config.h"
 #include "leader_lookup.h"
 #include "election_manager_proxy.h"
 
@@ -39,39 +40,8 @@ class TElectionManager
 public:
     typedef TIntrusivePtr<TElectionManager> TPtr;
 
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration RpcTimeout;
-        TDuration FollowerPingInterval;
-        TDuration FollowerPingTimeout;
-        TDuration ReadyToFollowTimeout;
-        TDuration PotentialFollowerTimeout;
-        
-        TConfig()
-        {
-            Register("rpc_timeout", RpcTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(1000));
-            Register("follower_ping_interval", FollowerPingInterval)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(1000));
-            Register("follower_ping_timeout", FollowerPingTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(5000));
-            Register("ready_to_follow_timeout", ReadyToFollowTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(5000));
-            Register("potential_follower_timeout", PotentialFollowerTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(5000));
-        }
-    };
-
     TElectionManager(
-        TConfig* config,
+        TElectionManagerConfig* config,
         NMetaState::TCellManager* cellManager,
         IInvoker* controlInvoker,
         IElectionCallbacks* electionCallbacks);
@@ -125,7 +95,7 @@ private:
     TDelayedInvoker::TCookie PingTimeoutCookie;
     TIntrusivePtr<TFollowerPinger> FollowerPinger;
 
-    TConfig::TPtr Config;
+    TElectionManagerConfigPtr Config;
     NMetaState::TCellManagerPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     IElectionCallbacks::TPtr ElectionCallbacks;

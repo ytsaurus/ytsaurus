@@ -1,5 +1,10 @@
 #include "stdafx.h"
 #include "follower_pinger.h"
+#include "common.h"
+#include "change_committer.h"
+#include "snapshot_store.h"
+#include "follower_tracker.h"
+#include "decorated_meta_state.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/bus/message.h>
@@ -14,103 +19,82 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerPinger::TFollowerPinger(
-    EFollowerPingerMode mode,
-    TConfig* config,
-    TDecoratedMetaState* metaState,
+    TFollowerPingerConfig* config,
     TCellManager* cellManager,
+    TLeaderCommitter* committer,
     TFollowerTracker* followerTracker,
-    TSnapshotStore* snapshotStore,
     const TEpoch& epoch,
-    IInvoker* epochControlInvoker,
-    IInvoker* epochStateInvoker)
-    : Mode(mode)
-    , Config(config)
-    , MetaState(metaState)
+    IInvoker* epochControlInvoker)
+    : Config(config)
     , CellManager(cellManager)
+    , Committer(committer)
     , FollowerTracker(followerTracker)
-    , SnapshotStore(snapshotStore)
     , Epoch(epoch)
     , EpochControlInvoker(epochControlInvoker)
-    , EpochStateInvoker(epochStateInvoker)
 {
     YASSERT(config);
-    YASSERT(metaState);
     YASSERT(cellManager);
     YASSERT(followerTracker);
-    YASSERT(snapshotStore);
     YASSERT(epochControlInvoker);
-    YASSERT(epochStateInvoker);
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
-    VERIFY_INVOKER_AFFINITY(epochStateInvoker, StateThread);
-
 }
 
 void TFollowerPinger::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    switch (Mode) {
-        case EFollowerPingerMode::Recovery:
-            ReachableVersion = MetaState->GetReachableVersionAsync();
-            PeriodicInvoker = new TPeriodicInvoker(
-                FromMethod(&TFollowerPinger::SendPing, MakeStrong(this))->Via(EpochControlInvoker),
-                Config->PingInterval);
-            break;
-
-        case EFollowerPingerMode::Leading:
-            PeriodicInvoker = new TPeriodicInvoker(
-                FromMethod(&TFollowerPinger::SendPing, MakeStrong(this))->Via(EpochStateInvoker),
-                Config->PingInterval);
-            break;
-
-        default:
-            YUNREACHABLE();
+    for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+        if (id != CellManager->GetSelfId()) {
+            SendPing(id);
+        }
     }
-
-    PeriodicInvoker->Start();
 }
 
 void TFollowerPinger::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    PeriodicInvoker->Stop();
+    // Do nothing.
 }
 
-void TFollowerPinger::SendPing()
-{
-    auto version =
-        Mode == EFollowerPingerMode::Recovery
-        ? ReachableVersion
-        : MetaState->GetReachableVersion();
-
-    for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
-        if (peerId == CellManager->GetSelfId()) continue;
-
-        auto request = CellManager
-            ->GetMasterProxy<TProxy>(peerId)
-            ->PingFollower()
-            ->SetTimeout(Config->RpcTimeout);
-        request->set_segment_id(version.SegmentId);
-        request->set_record_count(version.RecordCount);
-        request->set_epoch(Epoch.ToProto());
-        i32 maxSnapshotId = SnapshotStore->GetMaxSnapshotId();
-        request->set_max_snapshot_id(maxSnapshotId);
-        request->Invoke()->Subscribe(
-            FromMethod(&TFollowerPinger::OnPingReply, MakeStrong(this), peerId)
-            ->Via(EpochControlInvoker));
-        
-        LOG_DEBUG("Sent ping to follower %d (Version: %s, Epoch: %s, MaxSnapshotId: %d)",
-            peerId,
-            ~version.ToString(),
-            ~Epoch.ToString(),
-            maxSnapshotId);
-    }
-}
-
-void TFollowerPinger::OnPingReply(TProxy::TRspPingFollower::TPtr response, TPeerId followerId)
+void TFollowerPinger::SendPing(TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+    
+    auto version = Committer->GetFollowerPingVersion();
+
+    LOG_DEBUG("Sending ping to follower %d (Version: %s, Epoch: %s)",
+        followerId,
+        ~version.ToString(),
+        ~Epoch.ToString());
+
+    auto request = CellManager
+        ->GetMasterProxy<TProxy>(followerId)
+        ->PingFollower()
+        ->SetTimeout(Config->RpcTimeout);
+    request->set_segment_id(version.SegmentId);
+    request->set_record_count(version.RecordCount);
+    request->set_epoch(Epoch.ToProto());
+    request->Invoke()->Subscribe(
+        FromMethod(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
+        ->Via(EpochControlInvoker));       
+}
+
+void TFollowerPinger::SchedulePing(TPeerId followerId)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    TDelayedInvoker::Submit(
+        ~FromMethod(&TFollowerPinger::SendPing, MakeStrong(this), followerId)
+        ->Via(EpochControlInvoker),
+        Config->PingInterval);
+}
+
+void TFollowerPinger::OnPingResponse(TProxy::TRspPingFollower::TPtr response, TPeerId followerId)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    SchedulePing(followerId);
 
     if (!response->IsOK()) {
         LOG_WARNING("Error pinging follower %d\n%s",
@@ -119,8 +103,8 @@ void TFollowerPinger::OnPingReply(TProxy::TRspPingFollower::TPtr response, TPeer
         return;
     }
 
-    EPeerStatus status(response->status());
-    LOG_DEBUG("Ping reply received from Follower %d (Status: %s)",
+    auto status = EPeerStatus(response->status());
+    LOG_DEBUG("Ping reply received from follower %d (Status: %s)",
         followerId,
         ~status.ToString());
     FollowerTracker->ProcessPing(followerId, status);

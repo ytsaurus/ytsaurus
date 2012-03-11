@@ -58,9 +58,9 @@ struct TRule
         Register("writers", Writers).NonEmpty();
     }
 
-    virtual void Load(INode* node, const TYPath& path)
+    virtual void Load(INode* node, bool validate, const TYPath& path)
     {
-        TConfigurable::Load(node, path);
+        TConfigurable::Load(node, validate, path);
 
         if (Categories.size() == 1 && *Categories.begin() == AllCategoriesName) {
             AllCategories = true;
@@ -176,7 +176,7 @@ public:
     static TPtr CreateFromNode(INode* node, const TYPath& path = "")
     {
         auto config = New<TLogConfig>();
-        config->LoadAndValidate(node, path);
+        config->Load(node, true, path);
         config->CreateWriters();
         return config;
     }

@@ -42,14 +42,12 @@ class TLeaderCommitter::TBatch
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TBatch> TPtr;
-
     TBatch(
         TLeaderCommitterPtr committer,
-        const TMetaVersion& version)
+        const TMetaVersion& startVersion)
         : Committer(committer)
         , Result(New<TResult>())
-        , StartVersion(version)
+        , StartVersion(startVersion)
         // The local commit is also counted.
         , CommitCount(0)
         , IsSent(false)
@@ -78,51 +76,13 @@ public:
         LogResult = result;
     }
 
-    void SendChanges()
+    void FlushChanges(bool rotateChangeLog)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        IsSent = true;
-
-        LOG_DEBUG("Sending %d batched changes", static_cast<int>(BatchedChanges.size()));
-		Profiler.Enqueue("commit_batch_size", BatchedChanges.size());
-
-		YASSERT(LogResult);
-		auto cellManager = Committer->CellManager;
-        
-		Awaiter = New<TParallelAwaiter>(
-			~Committer->EpochControlInvoker,
-			&Profiler,
-			"commit_batch_time");
-
-		Awaiter->Await(
-            LogResult,
-			cellManager->GetSelfAddress(),
-            FromMethod(&TBatch::OnLocalCommit, MakeStrong(this)));
-
-        for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id == cellManager->GetSelfId()) continue;
-
-            auto request =
-                cellManager->GetMasterProxy<TProxy>(id)
-                ->ApplyChanges()
-                ->SetTimeout(Committer->Config->RpcTimeout);
-            request->set_segment_id(StartVersion.SegmentId);
-            request->set_record_count(StartVersion.RecordCount);
-            request->set_epoch(Committer->Epoch.ToProto());
-            FOREACH(const auto& change, BatchedChanges) {
-                request->Attachments().push_back(change);
-            }
-
-            Awaiter->Await(
-                request->Invoke(),
-				cellManager->GetPeerAddress(id),
-                FromMethod(&TBatch::OnRemoteCommit, MakeStrong(this), id));
-
-            LOG_DEBUG("Changes are sent to follower %d", id);
-        }
-
-        Awaiter->Complete(FromMethod(&TBatch::OnCompleted, MakeStrong(this)));
+        Logger.AddTag(Sprintf("ChangeCount: %d", static_cast<int>(BatchedChanges.size())));
+        Committer->EpochControlInvoker->Invoke(FromMethod(
+            &TBatch::DoFlushChanges,
+            MakeStrong(this),
+            rotateChangeLog));
     }
 
     int GetChangeCount() const
@@ -134,6 +94,64 @@ public:
     }
 
 private:
+    void DoFlushChanges(bool rotateChangeLog)
+    {
+        VERIFY_THREAD_AFFINITY(Committer->ControlThread);
+
+        IsSent = true;
+
+        if (!BatchedChanges.empty()) {
+            Profiler.Enqueue("commit_batch_size", BatchedChanges.size());
+
+
+            YASSERT(LogResult);
+            auto cellManager = Committer->CellManager;
+
+            Awaiter = New<TParallelAwaiter>(
+                ~Committer->EpochControlInvoker,
+                &Profiler,
+                "commit_batch_time");
+
+            Awaiter->Await(
+                LogResult,
+                cellManager->GetSelfAddress(),
+                FromMethod(&TBatch::OnLocalCommit, MakeStrong(this)));
+
+            LOG_DEBUG("Sending batched changes to followers");
+            for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
+                if (id == cellManager->GetSelfId()) continue;
+
+                LOG_DEBUG("Sending changes to follower %d", id);
+
+                auto request =
+                    cellManager->GetMasterProxy<TProxy>(id)
+                    ->ApplyChanges()
+                    ->SetTimeout(Committer->Config->RpcTimeout);
+                request->set_segment_id(StartVersion.SegmentId);
+                request->set_record_count(StartVersion.RecordCount);
+                request->set_epoch(Committer->Epoch.ToProto());
+                request->Attachments().insert(
+                    BatchedChanges.begin(),
+                    BatchedChanges.end(),
+                    request->Attachments().end());
+                Awaiter->Await(
+                    request->Invoke(),
+                    cellManager->GetPeerAddress(id),
+                    FromMethod(&TBatch::OnRemoteCommit, MakeStrong(this), id));
+            }
+            LOG_DEBUG("Batched changes sent");
+
+            Awaiter->Complete(FromMethod(&TBatch::OnCompleted, MakeStrong(this)));
+
+        }
+        
+        // This is the version the next batch will have.
+        Committer->FollowerPingVersion =
+            rotateChangeLog
+            ? TMetaVersion(StartVersion.SegmentId + 1, 0)
+            : TMetaVersion(StartVersion.SegmentId, StartVersion.RecordCount + BatchedChanges.size());
+    }
+
     bool CheckCommitQuorum()
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
@@ -170,17 +188,15 @@ private:
         }
     }
     
-    void OnLocalCommit(TVoid /* fake */)
+    void OnLocalCommit(TVoid)
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
-        LOG_DEBUG("Changes are committed locally (ChangeCount: %d)",
-            static_cast<int>(BatchedChanges.size()));
+        LOG_DEBUG("Changes are committed locally");
         ++CommitCount;
         CheckCommitQuorum();
     }
 
-    // Service invoker
     void OnCompleted()
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
@@ -188,9 +204,7 @@ private:
         if (CheckCommitQuorum())
             return;
 
-        LOG_WARNING("Changes are uncertain (ChangeCount: %d, CommitCount: %d)",
-            static_cast<int>(BatchedChanges.size()),
-            CommitCount);
+        LOG_WARNING("Changes are uncertain (CommitCount: %d)", CommitCount);
 
         Result->Set(EResult::MaybeCommitted);
     }
@@ -198,7 +212,7 @@ private:
     TLeaderCommitterPtr Committer;
     TResult::TPtr Result;
     TMetaVersion StartVersion;
-    i32 CommitCount;
+    int CommitCount;
     volatile bool IsSent;
     NLog::TTaggedLogger Logger;
 
@@ -211,7 +225,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderCommitter::TLeaderCommitter(
-    TConfig* config,
+    TLeaderCommitterConfig* config,
     TCellManager* cellManager,
     TDecoratedMetaState* metaState,
     TChangeLogCache* changeLogCache,
@@ -230,16 +244,49 @@ TLeaderCommitter::TLeaderCommitter(
     YASSERT(cellManager);
     YASSERT(changeLogCache);
     YASSERT(followerTracker);
+
+    // Save the reachable version and report it to followers during recovery.
+    FollowerPingVersion = MetaState->GetReachableVersionAsync();
 }
 
-void TLeaderCommitter::Flush()
+void TLeaderCommitter::Start()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    // Do nothing.
+}
+
+void TLeaderCommitter::Stop()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    // Kill the cyclic reference.
+    TGuard<TSpinLock> guard(BatchSpinLock);
+    CurrentBatch.Reset();
+    TDelayedInvoker::CancelAndClear(BatchTimeoutCookie);
+}
+
+void TLeaderCommitter::Flush(bool rotateChangeLog)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
 
     TGuard<TSpinLock> guard(BatchSpinLock);
-    if (CurrentBatch) {
-        FlushCurrentBatch();
+    // If no current batch exists but the changelog is about to be rotated
+    // we have to create a dummy batch and flush it to update ping version.
+    if (rotateChangeLog && !CurrentBatch) {
+        auto version = MetaState->GetVersion();
+        GetOrCreateBatch(version);
     }
+    if (CurrentBatch) {
+        FlushCurrentBatch(rotateChangeLog);
+    }
+}
+
+TMetaVersion TLeaderCommitter::GetFollowerPingVersion() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return FollowerPingVersion;
 }
 
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
@@ -250,14 +297,14 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     YASSERT(changeAction);
 
     auto version = MetaState->GetVersion();
-    LOG_DEBUG("Starting commit (Version: %s)", ~version.ToString());
+    LOG_DEBUG("Starting commit at version %s", ~version.ToString());
 
     auto logResult = MetaState->LogChange(version, changeData);
     auto batchResult = BatchChange(version, changeData, logResult);
 
     MetaState->ApplyChange(changeAction);
 
-    LOG_DEBUG("Change is applied locally (Version: %s)", ~version.ToString());
+    LOG_DEBUG("Change is applied locally at version %s", ~version.ToString());
 
     ChangeApplied_.Fire();
 
@@ -276,24 +323,23 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
     auto result = batch->AddChange(changeData);
     batch->SetLastChangeLogResult(changeLogResult);
     if (batch->GetChangeCount() >= Config->MaxBatchSize) {
-        FlushCurrentBatch();
+        FlushCurrentBatch(false);
     }
     return result;
 }
 
-void TLeaderCommitter::FlushCurrentBatch()
+void TLeaderCommitter::FlushCurrentBatch(bool rotateChangeLog)
 {
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
     YASSERT(CurrentBatch);
 
-    CurrentBatch->SendChanges();
-    TDelayedInvoker::Cancel(BatchTimeoutCookie);
+    CurrentBatch->FlushChanges(rotateChangeLog);
+    TDelayedInvoker::CancelAndClear(BatchTimeoutCookie);
     CurrentBatch.Reset();
-    BatchTimeoutCookie = NULL;
     Profiler.Increment(BatchCommitCounter);
 }
 
-TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
+TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
     const TMetaVersion& version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -304,7 +350,7 @@ TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
         CurrentBatch = New<TBatch>(MakeStrong(this), version);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
             ~FromMethod(
-                &TLeaderCommitter::DelayedFlush,
+                &TLeaderCommitter::OnBatchTimeout,
                 MakeStrong(this),
                 CurrentBatch)
             ->Via(~EpochControlInvoker),
@@ -314,7 +360,7 @@ TLeaderCommitter::TBatch::TPtr TLeaderCommitter::GetOrCreateBatch(
     return CurrentBatch;
 }
 
-void TLeaderCommitter::DelayedFlush(TBatch::TPtr batch)
+void TLeaderCommitter::OnBatchTimeout(TBatchPtr batch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -324,7 +370,7 @@ void TLeaderCommitter::DelayedFlush(TBatch::TPtr batch)
 
     LOG_DEBUG("Flushing batched changes");
 
-    FlushCurrentBatch();
+    FlushCurrentBatch(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -364,22 +410,22 @@ TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
 
     auto currentVersion = MetaState->GetVersion();
     if (currentVersion > expectedVersion) {
-        LOG_WARNING("Late changes received by follower, ignored (ExpectedVersion: %s, ReceivedVersion: %s)",
-            ~expectedVersion.ToString(),
-            ~currentVersion.ToString());
+        LOG_WARNING("Late changes received by follower, ignored: expected %s but got %s",
+            ~currentVersion.ToString(),
+            ~expectedVersion.ToString());
         return New<TResult>(EResult::LateChanges);
     }
 
     if (currentVersion != expectedVersion) {
-        LOG_WARNING("Out-of-order changes received by follower, restarting (ExpectedVersion: %s, ReceivedVersion: %s)",
-            ~expectedVersion.ToString(),
-            ~currentVersion.ToString());
+        LOG_WARNING("Out-of-order changes received by follower, restarting: expected %s but got %s",
+            ~currentVersion.ToString(),
+            ~expectedVersion.ToString());
         return New<TResult>(EResult::OutOfOrderChanges);
     }
 
-    LOG_DEBUG("Applying changes at follower (Version: %s, ChangeCount: %d)",
-        ~currentVersion.ToString(),
-        static_cast<int>(changes.size()));
+    LOG_DEBUG("Applying %d changes at version %s",
+        static_cast<int>(changes.size()),
+        ~currentVersion.ToString());
 
     TAsyncChangeLog::TAppendResult::TPtr result;
     FOREACH (const auto& change, changes) {

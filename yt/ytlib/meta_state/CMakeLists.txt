@@ -22,7 +22,6 @@ set( SRCS
   ${BASE}/snapshot_store.cpp
 )
 set( HDRS
-  ${BASE}/public.h
   ${BASE}/async_change_log.h
   ${BASE}/cell_manager-inl.h
   ${BASE}/cell_manager.h
@@ -48,6 +47,7 @@ set( HDRS
   ${BASE}/meta_state_manager_proxy.h
   ${BASE}/meta_version.h
   ${BASE}/persistent_state_manager.h
+  ${BASE}/public.h
   ${BASE}/recovery.h
   ${BASE}/snapshot.h
   ${BASE}/snapshot_builder.h

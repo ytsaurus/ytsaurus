@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "meta_version.h"
 #include "meta_state_manager_proxy.h"
 
 #include <ytlib/election/election_manager.h>
@@ -32,9 +33,7 @@ public:
     typedef TFuture<EResult> TResult;
 
 protected:
-    // Corresponds to ControlThread.
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    // Corresponds to MetaState->GetInvoker().
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     TDecoratedMetaStatePtr MetaState;
@@ -52,32 +51,9 @@ class TLeaderCommitter
     : public TCommitter
 {
 public:
-    typedef TIntrusivePtr<TLeaderCommitter> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration RpcTimeout;
-        TDuration MaxBatchDelay;
-        int MaxBatchSize;
-
-        TConfig()
-        {
-            Register("rpc_timeout", RpcTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(3));
-            Register("max_batch_delay", MaxBatchDelay)
-				.Default(TDuration::MilliSeconds(10));
-            Register("max_batch_size", MaxBatchSize)
-				.Default(10000);
-        }
-    };
-
     //! Creates an instance.
     TLeaderCommitter(
-        TConfig* config,
+        TLeaderCommitterConfig* config,
         TCellManager* cellManager,
         TDecoratedMetaState* metaState,
         TChangeLogCache* changeLogCache,
@@ -85,6 +61,28 @@ public:
         const TEpoch& epoch,
         IInvoker* epochControlInvoker,
         IInvoker* epochStateInvoker);
+
+    //! Initializes the instance.
+    /*!
+     *  \note Thread affinity: ControlThread
+     */
+    void Start();
+
+    //! Releases all resources.
+    /*!
+     *  \note Thread affinity: ControlThread
+     */
+    void Stop();
+
+    //! Returns the version to be sent to followers in a ping.
+    /*!
+     *  During recovery this is equal to the reachable version.
+     *  After recovery this is equal to the version resulting from applying all
+     *  changes in the latest batch.
+     *  
+     *  \note Thread affinity: ControlThread
+     */
+    TMetaVersion GetFollowerPingVersion() const;
 
     //! Initiates a new distributed commit.
     /*!
@@ -105,34 +103,39 @@ public:
 
     //! Force to send all pending changes.
     /*!
-     * \note Thread affinity: any
+     *  \param rotateChangeLog True iff the changelog will be rotated immediately.
+     *  \note Thread affinity: StateThread
      */
-    void Flush();
+    void Flush(bool rotateChangeLog);
 
     //! Raised in the state thread each time a change is applied locally.
     DEFINE_SIGNAL(void(), ChangeApplied);
 
 private:
     class TBatch;
+    typedef TIntrusivePtr<TBatch> TBatchPtr;
+
     typedef TMetaStateManagerProxy TProxy;
 
-    void DelayedFlush(TIntrusivePtr<TBatch> batch);
+    void OnBatchTimeout(TBatchPtr batch);
     TIntrusivePtr<TBatch> GetOrCreateBatch(const TMetaVersion& version);
     TResult::TPtr BatchChange(
         const TMetaVersion& version,
         const TSharedRef& changeData,
         TFuture<TVoid>::TPtr changeLogResult);
-    void FlushCurrentBatch();
+    void FlushCurrentBatch(bool rotateChangeLog);
 
-    TConfig::TPtr Config;
+    TLeaderCommitterConfigPtr Config;
     TCellManagerPtr CellManager;
     TChangeLogCachePtr ChangeLogCache;
     TFollowerTrackerPtr FollowerTracker;
     TEpoch Epoch;
 
-    //! Protects #CurrentBatch and #TimeoutCookie.
+    TMetaVersion FollowerPingVersion;
+
+    //! Protects the rest.
     TSpinLock BatchSpinLock;
-    TIntrusivePtr<TBatch> CurrentBatch;
+    TBatchPtr CurrentBatch;
     TDelayedInvoker::TCookie BatchTimeoutCookie;
 };
 
@@ -143,8 +146,6 @@ class TFollowerCommitter
     : public TCommitter
 {
 public:
-    typedef TIntrusivePtr<TFollowerCommitter> TPtr;
-
     //! Creates an instance.
     TFollowerCommitter(
         TDecoratedMetaState* metaState,

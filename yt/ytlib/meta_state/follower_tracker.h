@@ -16,25 +16,8 @@ class TFollowerTracker
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TFollowerTracker> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration PingTimeout;
-
-        TConfig()
-        {
-            Register("ping_timeout", PingTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(3000));
-        }
-    };
-
     TFollowerTracker(
-        TConfig* config,
+        TFollowerTrackerConfig* config,
         TCellManager* cellManager,
         IInvoker* epochControlInvoker);
 
@@ -55,7 +38,7 @@ private:
     void ResetFollowerState(int followerId);
     void OnLeaseExpired(TPeerId followerId);
 
-    TConfig::TPtr Config;
+    TFollowerTrackerConfigPtr Config;
     TCellManagerPtr CellManager;
     IInvoker::TPtr EpochControlInvoker;
     yvector<TFollowerState> FollowerStates;

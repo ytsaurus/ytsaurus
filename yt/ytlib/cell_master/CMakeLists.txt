@@ -7,12 +7,12 @@ set( SRCS
   ${BASE}/world_initializer.cpp
 )
 set( HDRS
-  ${BASE}/public.h
   ${BASE}/bootstrap.h
   ${BASE}/config.h
   ${BASE}/load_context-inl.h
   ${BASE}/load_context.h
   ${BASE}/meta_state_service.h
+  ${BASE}/public.h
   ${BASE}/world_initializer.h
 )
 

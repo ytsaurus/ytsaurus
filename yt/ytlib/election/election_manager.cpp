@@ -47,6 +47,8 @@ public:
     void Stop()
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
+
+        // Do nothing.
     }
 
 private:
@@ -63,15 +65,17 @@ private:
 
         LOG_DEBUG("Sending ping to follower %d", id);
 
-        auto proxy = ElectionManager->CellManager->GetMasterProxy<TProxy>(id);
-        proxy->SetDefaultTimeout(ElectionManager->Config->RpcTimeout);
-
-        auto request = proxy->PingFollower();
+        auto proxy = ElectionManager
+            ->CellManager
+            ->GetMasterProxy<TProxy>(id);
+        auto request = proxy
+            ->PingFollower()
+            ->SetTimeout(ElectionManager->Config->RpcTimeout);
         request->set_leader_id(ElectionManager->CellManager->GetSelfId());
         request->set_epoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
             request->Invoke(),
-            FromMethod(&TFollowerPinger::OnResponse, MakeStrong(this), id)
+            FromMethod(&TFollowerPinger::OnPingResponse, MakeStrong(this), id)
             ->Via(EpochInvoker));
     }
 
@@ -85,7 +89,7 @@ private:
             ElectionManager->Config->FollowerPingInterval);
     }
 
-    void OnResponse(TProxy::TRspPingFollower::TPtr response, TPeerId id)
+    void OnPingResponse(TProxy::TRspPingFollower::TPtr response, TPeerId id)
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
         YASSERT(ElectionManager->State == TProxy::EState::Leading);
@@ -426,7 +430,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TElectionManager::TElectionManager(
-    TConfig* config,
+    TElectionManagerConfig *config,
     NMetaState::TCellManager* cellManager,
     IInvoker* controlInvoker,
     IElectionCallbacks* electionCallbacks)
