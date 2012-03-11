@@ -774,6 +774,8 @@ private:
         FOREACH (const auto& pair, HolderMap) {
             StartHolderTracking(*pair.second);
         }
+
+        ChunkReplication->RefreshAllChunks();
     }
 
     virtual void OnStopLeading()

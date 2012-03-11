@@ -142,7 +142,7 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLi
     yvector<TKey> keys;
     keys.reserve(Min(static_cast<size_t>(Size), sizeLimit));
 
-    FOREACH(const auto& pair, Map) {
+    FOREACH (const auto& pair, Map) {
         keys.push_back(pair.first);
         if (keys.size() == sizeLimit) {
             break;
@@ -151,7 +151,27 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLi
 
     YASSERT(keys.ysize() == Min(static_cast<size_t>(Size), sizeLimit));
 
-    return MoveRV(keys);
+    return keys;
+}
+
+template <class TKey, class TValue, class TTraits, class THash>
+yvector<TValue*> TMetaStateMap<TKey, TValue, TTraits, THash>::GetValues(size_t sizeLimit) const
+{
+    VERIFY_THREAD_AFFINITY(UserThread);
+
+    yvector<TValue*> values;
+    values.reserve(Min(static_cast<size_t>(Size), sizeLimit));
+
+    FOREACH (auto& pair, Map) {
+        values.push_back(pair.second);
+        if (values.size() == sizeLimit) {
+            break;
+        }
+    }
+
+    YASSERT(values.ysize() == Min(static_cast<size_t>(Size), sizeLimit));
+
+    return values;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
