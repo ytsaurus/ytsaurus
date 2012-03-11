@@ -109,7 +109,7 @@ private:
         auto manifest = New<TOrchidManifest>();
         auto manifestNode = Bootstrap->GetObjectManager()->GetProxy(Id)->Attributes().ToMap();
         try {
-            manifest->LoadAndValidate(~manifestNode);
+            manifest->Load(~manifestNode);
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing an Orchid manifest\n%s",
                 ex.what());

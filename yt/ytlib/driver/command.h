@@ -102,7 +102,7 @@ public:
         auto typedRequest = New<TRequest>();
         typedRequest->SetKeepOptions(true);
         try {
-            typedRequest->LoadAndValidate(request);
+            typedRequest->Load(request);
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing request\n%s", ex.what());
         }

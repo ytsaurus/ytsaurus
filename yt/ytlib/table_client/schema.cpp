@@ -429,7 +429,7 @@ TSchema TSchema::FromNode(INode* node)
     TSchema schema;
 
     auto config = New<TConfig>();
-    config->LoadAndValidate(node);
+    config->Load(node);
 
     FOREACH (const auto& channelNode, config->Channels) {
         auto channel = TChannel::FromNode(~channelNode);

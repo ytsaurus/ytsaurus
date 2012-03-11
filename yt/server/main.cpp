@@ -168,7 +168,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->LoadAndValidate(~configNode);
+            config->Load(~configNode);
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
                 ex.what());
