@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include "common.h"
-#include "writer.h"
+#include "async_writer.h"
 
 #include <ytlib/misc/thread_affinity.h>
 
@@ -14,7 +14,7 @@ class TValidatingWriter
 public:
     TValidatingWriter(
         const TSchema& schema, 
-        const std::vector<TColumn>& keyColumns,
+        std::vector<TColumn>&& keyColumns,
         IAsyncWriter* writer);
 
     virtual TAsyncError::TPtr AsyncOpen();
@@ -27,15 +27,16 @@ protected:
     IAsyncWriter::TPtr Writer;
     const TSchema Schema;
 
+    std::vector<TColumn> KeyColumns;
+
     // Stores mapping from all key columns and channel non-range columns to indexes.
     yhash_map<TColumn, int> ColumnIndexes;
-    const int KeyColumnsCount;
 
     // Used to remember set columns in current row.
     std::vector<bool> IsColumnUsed; // for columns with indexes.
     yhash_set<TColumn> UsedRangeColumns; // for columns without indexes.
 
-    std::vector< TNullable<Stroka> > CurrentKey;
+    TKey CurrentKey;
     bool RowStart;
 
     std::vector<TChannelWriter::TPtr> ChannelWriters;

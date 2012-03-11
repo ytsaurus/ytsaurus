@@ -30,7 +30,7 @@ set( HDRS
   ${BASE}/value.h
   ${BASE}/validating_writer.h
   ${BASE}/sorted_validating_writer.h
-  ${BASE}/writer.h
+  ${BASE}/async_writer.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -40,3 +40,4 @@ list(APPEND YT_SOURCE_FILES
 
 protoc( ${BASE}/table_chunk_meta.proto YT_SOURCE_FILES )
 protoc( ${BASE}/schema.proto YT_SOURCE_FILES )
+protoc( ${BASE}/table_reader.proto YT_SOURCE_FILES )

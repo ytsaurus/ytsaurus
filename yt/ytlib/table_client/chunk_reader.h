@@ -6,6 +6,7 @@
 #include "reader.h"
 #include "channel_reader.h"
 #include "table_chunk_meta.pb.h"
+#include "table_reader.pb.h"
 
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
@@ -20,7 +21,7 @@ namespace NTableClient {
 
 //! Reads single table chunk row-after-row using given #NChunkClient::IAsyncReader.
 class TChunkReader
-    : public IAsyncReader
+    : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TChunkReader> TPtr;
@@ -34,8 +35,8 @@ public:
         NChunkClient::TSequentialReader::TConfig* config,
         const TChannel& channel,
         NChunkClient::IAsyncReader* chunkReader,
-        int startRow,
-        int endRow);
+        NProto::TReadLimit&& startLimit,
+        NProto::TReadLimit&& endLimit);
 
     TAsyncError::TPtr AsyncOpen();
 
@@ -45,44 +46,15 @@ public:
      */
     TAsyncError::TPtr AsyncNextRow();
 
-    bool HasNextRow() const;
+    bool IsValid() const;
 
-    //! Switches the reader to the next column in the current row.
-    /*!
-     *  This call cannot block.
-     *  This call does not throw.
-     *  
-     *  \return True iff a new column is fetched, False is the row has finished.
-     */
-    bool NextColumn();
+    typedef std::vector< std::pair<TColumn, TValue> > TRow;
+    const TRow& GetCurrentRow() const;
 
-    //! Returns the name of the current column.
-    TColumn GetColumn() const;
-
-    //! Returns the value of the current column.
-    /*!
-     *  This call returns a pointer to the actual data, which is held
-     *  by the reader as long as the current row does not change. The client
-     *  must make an explicit copy of it if needed.
-     */
-    TValue GetValue() const;
-
-    void Cancel(const TError& error);
-
+    struct IValidator;
 private:
-    void OnGotMeta(
-        NChunkClient::IAsyncReader::TReadResult readResult,
-        NChunkClient::TSequentialReader::TConfig* config,
-        NChunkClient::IAsyncReader::TPtr chunkReader);
-
-    yvector<int> SelectChannels(const yvector<TChannel>& channels);
-    int SelectSingleChannel(const yvector<TChannel>& channels, const NProto::TTableChunkAttributes& attributes);
-
-    yvector<int> GetBlockReadingOrder(
-        const yvector<int>& selectedChannels, 
-        const NProto::TTableChunkAttributes& attributes);
-
     void ContinueNextRow(TError error, int channelIndex);
+    void MakeCurrentRow();
 
     class TInitializer;
     TIntrusivePtr<TInitializer> Initializer;
@@ -93,19 +65,33 @@ private:
     TAsyncStreamState State;
     TChannel Channel;
 
-    yhash_set<TColumn> UsedColumns;
-    TColumn CurrentColumn;
+    TRow CurrentRow;
 
-    bool IsColumnValid;
-    bool IsRowValid;
+    // ToDo(psushin): may be use vector TValue's here.
+    TKey CurrentKey;
 
-    int CurrentRow;
+    struct TColumnInfo
+    {
+        int KeyIndex;
+        bool InChannel;
+        bool Used;
 
-    int StartRow;
-    int EndRow;
+        TColumnInfo()
+        : KeyIndex(-1)
+        , InChannel(false)
+        , Used(false)
+        { }
+    };
 
-    int CurrentChannel;
-    yvector<TChannelReader> ChannelReaders;
+    yhash_map<TColumn, TColumnInfo> FixedColumns;
+    yhash_set<TColumn> UsedRangeColumns;
+
+    i64 CurrentRowIndex;
+    i64 EndRowIndex;
+
+    THolder<IValidator> EndValidator;
+
+    std::vector<TChannelReader> ChannelReaders;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);

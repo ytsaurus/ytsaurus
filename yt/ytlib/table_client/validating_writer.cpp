@@ -9,11 +9,11 @@ namespace NTableClient {
 
 TValidatingWriter::TValidatingWriter(
     const TSchema& schema, 
-    const std::vector<TColumn>& keyColumns,
+    std::vector<TColumn>&& keyColumns,
     IAsyncWriter* writer)
     : Writer(writer)
     , Schema(schema)
-    , KeyColumnsCount(keyColumns.size())
+    , KeyColumns(keyColumns)
     , RowStart(true)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
@@ -39,7 +39,7 @@ TValidatingWriter::TValidatingWriter(
         IsColumnUsed.resize(columnIndex, false);
     }
 
-    CurrentKey.resize(KeyColumnsCount);
+    CurrentKey.resize(KeyColumns.size());
 
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
@@ -61,7 +61,7 @@ void TValidatingWriter::Write(const TColumn& column, TValue value)
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     if (RowStart) {
-        CurrentKey.assign(KeyColumnsCount, TNullable<Stroka>());
+        CurrentKey.assign(KeyColumns.size(), Stroka());
         RowStart = false;
     }
 
@@ -85,7 +85,7 @@ void TValidatingWriter::Write(const TColumn& column, TValue value)
             IsColumnUsed[columnIndex] = true;
         }
 
-        if (columnIndex < KeyColumnsCount) {
+        if (columnIndex < KeyColumns.size()) {
             CurrentKey[columnIndex] = value.ToString();
         }
     }
@@ -98,6 +98,18 @@ void TValidatingWriter::Write(const TColumn& column, TValue value)
 TAsyncError::TPtr TValidatingWriter::AsyncEndRow()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
+
+    if (RowStart) {
+        CurrentKey.assign(KeyColumns.size(), Stroka());
+    }
+
+    for (int columnIndex = 0; columnIndex < KeyColumns.size(); ++columnIndex) {
+        if (!IsColumnUsed[columnIndex]) {
+            FOREACH(auto& channelWriter, ChannelWriters) {
+                channelWriter->Write(columnIndex, KeyColumns[columnIndex], Stroka());
+            }
+        }
+    }
 
     FOREACH(auto& channelWriter, ChannelWriters) {
         channelWriter->EndRow();

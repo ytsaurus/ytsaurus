@@ -50,36 +50,15 @@ bool TValue::IsNull() const
     return !Data.Begin();
 }
 
-TNullable<Stroka> TValue::ToString() const
+Stroka TValue::ToString() const
 {
-    if (IsNull())
-        return TNullable<Stroka>(Null);
-
-    return TNullable<Stroka>(Data.Begin(), Data.End());
+    YASSERT(!IsNull());
+    return Stroka(Data.Begin(), Data.End());
 }
 
 TBlob TValue::ToBlob() const
 {
     return Data.ToBlob();
-}
-
-NProto::TValue TValue::ToProto() const
-{
-    NProto::TValue res;
-
-    res.set_is_null(IsNull());
-    res.set_data(Data.Begin(), Data.Size());
-
-    return res;
-}
-
-NProto::TValue TValue::ToProto(TNullable<Stroka> strValue)
-{
-    res.set_is_null(strValue.IsInitialized());
-    if (strValue.IsInitialized())
-        res.set_data(strValue->begin(), strValue->size());
-    else
-        res.set_data(NULL, 0);
 }
 
 int TValue::Save(TOutputStream* out)
@@ -148,7 +127,7 @@ bool operator==(const TValue& lhs, const TValue& rhs)
 
 bool operator!=(const TValue& lhs, const TValue& rhs)
 {
-    return CompareValues(lhs, rhs) == 0;
+    return CompareValues(lhs, rhs) != 0;
 }
 
 bool operator<(const TValue& lhs, const TValue& rhs)
@@ -173,52 +152,53 @@ bool operator>=(const TValue& lhs, const TValue& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int CompareKeys(const TKey& lhs, const TKey& rhs)
+{
+    int len = std::min(lhs.size(), rhs.size());
+
+    for(int i = 0; i < len; ++i) {
+        int result = strcmp(~lhs[i], ~rhs[i]);
+        if (result != 0)
+            return result;
+    }
+
+    if (lhs.size() > len)
+        return 1;
+
+    if (rhs.size() > len)
+        return -1;
+
+    return 0;
+}
+
 bool operator==(const TKey& lhs, const TKey& rhs)
 {
-    YASSERT(lhs.size() == rhs.size());
-    for(int i = 0; i < lhs.size(); ++i) {
-        if (lhs[i] != rhs[i])
-            return false;
-    }
-    return true;
+    return CompareKeys(lhs, rhs) == 0;
 }
 
 bool operator!=(const TKey& lhs, const TKey& rhs)
 {
-    return !(lhs == rhs);
-}
-
-inline bool Less(const TKey& lhs, const TKey& rhs, bool allowEqual)
-{
-    YASSERT(lhs.size() == rhs.size());
-    for(int i = 0; i < lhs.size(); ++i) {
-        if (lhs[i] < rhs[i])
-            return true;
-
-        if (lhs[i] > rhs[i])
-            return false;
-    }
-    return allowEqual;
+    return CompareKeys(lhs, rhs) != 0;
 }
 
 bool operator< (const TKey& lhs, const TKey& rhs)
 {
-    return Less(lhs, rhs, false);
+    return CompareKeys(lhs, rhs) < 0;
 }
 
 bool operator<=(const TKey& lhs, const TKey& rhs)
 {
-    return Less(lhs, rhs, true);
+    return CompareKeys(lhs, rhs) <= 0;
 }
 
 bool operator> (const TKey& lhs, const TKey& rhs)
 {
-    return !Less(lhs, rhs, true);
+    return return CompareKeys(lhs, rhs) > 0;
 }
 
 bool operator>=(const TKey& lhs, const TKey& rhs)
 {
-    return !Less(lhs, rhs, false);
+    return return CompareKeys(lhs, rhs) >= 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

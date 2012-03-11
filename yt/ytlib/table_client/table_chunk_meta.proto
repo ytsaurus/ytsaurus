@@ -17,15 +17,9 @@ message TChunkChannel
     repeated TBlockInfo blocks = 2;
 }
 
-message TValue
-{
-    required bool is_null = 1;
-    required bytes data = 2;
-}
-
 message TKeySample
 {
-    repeated TValue key = 1;
+    required TKey key = 1;
     required int64 row_index = 2;
 }
 

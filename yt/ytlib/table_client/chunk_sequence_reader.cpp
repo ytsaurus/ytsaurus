@@ -16,16 +16,12 @@ TChunkSequenceReader::TChunkSequenceReader(
     const NObjectServer::TTransactionId& transactionId,
     NRpc::IChannel* masterChannel,
     NChunkClient::IBlockCache* blockCache,
-    const yvector<TChunkId>& chunkIds,
-    int startRow,
-    int endRow)
+    const yvector<NProto::TChunkSlice>& chunkSlices)
     : Config(config)
     , Channel(channel)
     , BlockCache(blockCache)
     , TransactionId(transactionId)
-    , ChunkIds(chunkIds)
-    , StartRow(startRow)
-    , EndRow(endRow)
+    , ChunkSlices(chunkSlices)
     , MasterChannel(masterChannel)
     , NextChunkIndex(-1)
     , NextReader(New< TFuture<TChunkReader::TPtr> >())
@@ -36,35 +32,27 @@ TChunkSequenceReader::TChunkSequenceReader(
 void TChunkSequenceReader::PrepareNextChunk()
 {
     YASSERT(!NextReader->IsSet());
-    YASSERT(NextChunkIndex < ChunkIds.ysize());
+    YASSERT(NextChunkIndex < ChunkSlices.ysize());
 
     ++NextChunkIndex;
-    if (NextChunkIndex == ChunkIds.ysize()) {
+    if (NextChunkIndex == ChunkSlices.ysize()) {
         NextReader->Set(NULL);
         return;
     }
 
+    auto& chunkSlice = ChunkSlices[NextChunkIndex];
     auto remoteReader = CreateRemoteReader(
         ~Config->RemoteReader,
         ~BlockCache,
         ~MasterChannel,
-        ChunkIds[NextChunkIndex]);
-
-    int startRow =
-        NextChunkIndex == 0
-        ? StartRow
-        : 0;
-    int endRow =
-        NextChunkIndex == ChunkIds.ysize() - 1
-        ?  EndRow
-        : std::numeric_limits<int>::max();
+        TChunkId::FromProto(chunkSlice.chunk_id()));
 
     auto chunkReader = New<TChunkReader>(
         ~Config->SequentialReader,
         Channel,
         ~remoteReader,
-        startRow,
-        endRow);
+        chunkSlice.start_row(),
+        chunkSlice.end_row());
 
     chunkReader->AsyncOpen()->Subscribe(FromMethod(
         &TChunkSequenceReader::OnNextReaderOpened,
@@ -92,7 +80,7 @@ TAsyncError::TPtr TChunkSequenceReader::AsyncOpen()
     YASSERT(NextChunkIndex == 0);
     YASSERT(!State.HasRunningOperation());
 
-    if (ChunkIds.ysize() != 0) {
+    if (ChunkSlices.ysize() != 0) {
         State.StartOperation();
         NextReader->Subscribe(FromMethod(
             &TChunkSequenceReader::SetCurrentChunk,
@@ -137,9 +125,14 @@ void TChunkSequenceReader::OnNextRow(TError error)
 
 bool TChunkSequenceReader::HasNextRow() const
 {
+
     YASSERT(!State.HasRunningOperation());
+
+    if (NextChunkIndex == 0)
+        return false;
+
     YASSERT(NextChunkIndex > 0);
-    return NextChunkIndex < ChunkIds.ysize() || CurrentReader->HasNextRow();
+    return NextChunkIndex < ChunkSlices.ysize() || CurrentReader->HasNextRow();
 }
 
 TAsyncError::TPtr TChunkSequenceReader::AsyncNextRow()

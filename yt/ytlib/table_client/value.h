@@ -33,11 +33,8 @@ public:
     int Save(TOutputStream* out);
     static TValue Load(TMemoryInput* in);
 
-    TNullable<Stroka> ToString() const;
+    Stroka ToString() const;
     TBlob ToBlob() const;
-
-    NProto::TValue ToProto() const;
-    static NProto::TValue ToProto(TNullable<Stroka> strValue);
 
 private:
     TRef Data;
@@ -52,7 +49,7 @@ bool operator>=(const TValue& lhs, const TValue& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector< TNullable<Stroka> > TKey;
+typedef std::vector<Stroka> TKey;
 
 bool operator==(const TKey& lhs, const TKey& rhs);
 bool operator!=(const TKey& lhs, const TKey& rhs);

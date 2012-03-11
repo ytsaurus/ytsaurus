@@ -42,10 +42,7 @@ public:
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache,
         // ToDo: use rvalue reference.
-        const yvector<NChunkServer::TChunkId>& chunkIds,
-        // TODO(babenko): fixme, make i64
-        int startRow,
-        int endRow);
+        const yvector<NProto::TChunkSlice>& chunkSlices);
 
     TAsyncError::TPtr AsyncOpen();
 
@@ -74,9 +71,7 @@ private:
     TChannel Channel;
     NChunkClient::IBlockCache::TPtr BlockCache;
     NObjectServer::TTransactionId TransactionId;
-    yvector<NChunkServer::TChunkId> ChunkIds;
-    int StartRow;
-    int EndRow;
+    yvector<NProto::TChunkSlice> ChunkSlices;
 
     NRpc::IChannel::TPtr MasterChannel;
 
