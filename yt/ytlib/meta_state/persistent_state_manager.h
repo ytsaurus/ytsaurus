@@ -7,6 +7,7 @@
 #include "snapshot_downloader.h"
 #include "follower_pinger.h"
 #include "change_committer.h"
+#include "snapshot_builder.h"
 
 #include <ytlib/election/election_manager.h>
 #include <ytlib/rpc/server.h>
