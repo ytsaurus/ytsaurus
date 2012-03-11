@@ -55,6 +55,7 @@ target_link_libraries ( ytlib
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/yt
+  ${CMAKE_SOURCE_DIR}/contrib/tclap
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
   .
