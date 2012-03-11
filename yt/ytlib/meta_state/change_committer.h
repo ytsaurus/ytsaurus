@@ -51,8 +51,6 @@ class TLeaderCommitter
     : public TCommitter
 {
 public:
-    typedef TIntrusivePtr<TLeaderCommitter> TPtr;
-
     //! Creates an instance.
     TLeaderCommitter(
         TLeaderCommitterConfig* config,
@@ -148,8 +146,6 @@ class TFollowerCommitter
     : public TCommitter
 {
 public:
-    typedef TIntrusivePtr<TFollowerCommitter> TPtr;
-
     //! Creates an instance.
     TFollowerCommitter(
         TDecoratedMetaState* metaState,

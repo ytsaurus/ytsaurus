@@ -16,10 +16,8 @@ class TFollowerPinger
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TFollowerPinger> TPtr;
-
     TFollowerPinger(
-        TConfig* config,
+        TFollowerPingerConfig* config,
         TCellManager* cellManager,
         TLeaderCommitter* committer,
         TFollowerTracker* followerTracker,
@@ -36,7 +34,7 @@ private:
     void SchedulePing(TPeerId followerId);
     void OnPingResponse(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
 
-    TConfig::TPtr Config;
+    TFollowerPingerConfigPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;
     TCellManagerPtr CellManager;
     TLeaderCommitterPtr Committer;

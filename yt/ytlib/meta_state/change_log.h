@@ -19,8 +19,6 @@ class TChangeLog
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChangeLog> TPtr;
-
     //! Basic constructor.
     TChangeLog(
         const Stroka& fileName,

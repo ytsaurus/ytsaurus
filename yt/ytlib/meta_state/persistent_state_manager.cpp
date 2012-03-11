@@ -34,12 +34,14 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPersistentStateManager;
+typedef TIntrusivePtr<TPersistentStateManager> TPersistentStateManagerPtr;
+
 class TPersistentStateManager
     : public TServiceBase
     , public IMetaStateManager
 {
 public:
-    typedef TIntrusivePtr<TPersistentStateManager> TPtr;
     typedef TPersistentStateManagerConfig TConfig;
 
     class TElectionCallbacks
@@ -51,7 +53,7 @@ public:
         { }
 
     private:
-        TPersistentStateManager::TPtr Owner;
+        TPersistentStateManagerPtr Owner;
 
         void OnStartLeading(const TEpoch& epoch)
         {
@@ -320,7 +322,7 @@ public:
     TFollowerCommitterPtr FollowerCommitter;
 
     TFollowerTrackerPtr FollowerTracker;
-    TFollowerPinger::TPtr FollowerPinger;
+    TFollowerPingerPtr FollowerPinger;
 
     // RPC methods
     DECLARE_RPC_SERVICE_METHOD(NProto, GetSnapshotInfo)

@@ -106,7 +106,7 @@ TSharedPtr<TFile> TSnapshotStore::GetRawWriter(i32 snapshotId) const
     return new TFile(fileName, CreateAlways | WrOnly | Seq);
 }
 
-i32 TSnapshotStore::LookupLatestSnapshot(i32 snapshotId)
+i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -116,7 +116,7 @@ i32 TSnapshotStore::LookupLatestSnapshot(i32 snapshotId)
         // Fetch the most appropriate id from the set.
         {
             TGuard<TSpinLock> guard(SpinLock);
-            auto it = SnapshotIds.upper_bound(snapshotId - 1);
+            auto it = SnapshotIds.upper_bound(maxSnapshotId - 1);
             if (it  == SnapshotIds.end()) {
                 return NonexistingSnapshotId;
             }

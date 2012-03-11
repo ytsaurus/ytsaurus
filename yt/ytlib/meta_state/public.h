@@ -38,11 +38,13 @@ typedef TIntrusivePtr<TDecoratedMetaState> TDecoratedMetaStatePtr;
 class TFollowerTracker;
 typedef TIntrusivePtr<TFollowerTracker> TFollowerTrackerPtr;
 
+class TFollowerPinger;
+typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
+
 template <class TResult>
 class TMetaChange;
 
 struct TMetaVersion;
-
 
 struct TCellConfig;
 typedef TIntrusivePtr<TCellConfig> TCellConfigPtr;

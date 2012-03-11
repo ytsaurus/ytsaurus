@@ -26,7 +26,6 @@ class TChangeLogCache
     : public TSizeLimitedCache<i32, TCachedAsyncChangeLog>
 {
 public:
-    typedef TIntrusivePtr<TChangeLogCache> TPtr;
     typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
 
     TChangeLogCache(const Stroka& path);

@@ -19,7 +19,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerPinger::TFollowerPinger(
-    TConfig* config,
+    TFollowerPingerConfig* config,
     TCellManager* cellManager,
     TLeaderCommitter* committer,
     TFollowerTracker* followerTracker,

@@ -16,8 +16,6 @@ class TFollowerTracker
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TFollowerTracker> TPtr;
-
     TFollowerTracker(
         TFollowerTrackerConfig* config,
         TCellManager* cellManager,
