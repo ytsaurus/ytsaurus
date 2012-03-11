@@ -1,8 +1,12 @@
 #pragma once
 
 #include <algorithm>
-
 #include <string>
+#include <map>
+#include <set>
+#include <vector>
+#include <list>
+
 // TODO: try to get rid of this
 using std::string; // hack for guid.h to work
 
@@ -35,7 +39,6 @@ using std::string; // hack for guid.h to work
 #include <util/generic/typehelpers.h>
 #include <util/generic/yexception.h>
 #include <util/generic/pair.h>
-#include <algorithm>
 
 #include <util/datetime/base.h>
 #include <util/datetime/cputimer.h>
@@ -80,4 +83,3 @@ using std::string; // hack for guid.h to work
     // C4125: decimal digit terminates octal escape sequence
     #pragma warning (disable : 4125)
 #endif
-
