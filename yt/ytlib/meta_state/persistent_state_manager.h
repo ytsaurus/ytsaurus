@@ -59,6 +59,8 @@ struct TPersistentStateManagerConfig
 
     TLeaderCommitter::TConfig::TPtr LeaderCommitter;
 
+    TSnapshotBuilder::TConfig::TPtr SnapshotBuilder;
+
     TPersistentStateManagerConfig()
     {
         Register("log_path", LogPath)
@@ -85,6 +87,8 @@ struct TPersistentStateManagerConfig
         Register("follower_tracker", FollowerTracker)
             .DefaultNew();
         Register("leader_committer", LeaderCommitter)
+            .DefaultNew();
+        Register("snapshot_builder", SnapshotBuilder)
             .DefaultNew();
     }
 };

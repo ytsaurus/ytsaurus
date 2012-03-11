@@ -735,7 +735,7 @@ public:
 
         YASSERT(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(
-            ~New<TSnapshotBuilder::TConfig>(),
+            ~Config->SnapshotBuilder,
             CellManager,
             MetaState,
             ChangeLogCache,
@@ -791,7 +791,7 @@ public:
 
         YASSERT(!SnapshotBuilder);
         SnapshotBuilder = New<TSnapshotBuilder>(
-            ~New<TSnapshotBuilder::TConfig>(),
+            ~Config->SnapshotBuilder,
             CellManager,
             MetaState,
             ChangeLogCache,
