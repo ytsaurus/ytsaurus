@@ -26,28 +26,9 @@ class TFollowerPinger
 public:
     typedef TIntrusivePtr<TFollowerPinger> TPtr;
 
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration PingInterval;
-        TDuration RpcTimeout;
-
-        TConfig()
-        {
-            Register("ping_interval", PingInterval)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(1000));
-            Register("rpc_timeout", RpcTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::MilliSeconds(1000));
-        }
-    };
-
     TFollowerPinger(
         EFollowerPingerMode mode,
-        TConfig* config,
+        TFollowerPingerConfig* config,
         TDecoratedMetaState* metaState,
         TCellManager* cellManager,
         TFollowerTracker* followerTracker,
@@ -66,7 +47,7 @@ private:
     void OnPingReply(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
 
     EFollowerPingerMode Mode;
-    TConfig::TPtr Config;
+    TFollowerPingerConfigPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;
     TDecoratedMetaStatePtr MetaState;
     TCellManagerPtr CellManager;

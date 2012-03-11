@@ -8,6 +8,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/common.h
+  ${BASE}/config.h
   ${BASE}/election_manager.h
   ${BASE}/election_manager_proxy.h
   ${BASE}/leader_channel.h

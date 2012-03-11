@@ -54,30 +54,9 @@ class TLeaderCommitter
 public:
     typedef TIntrusivePtr<TLeaderCommitter> TPtr;
 
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TDuration RpcTimeout;
-        TDuration MaxBatchDelay;
-        int MaxBatchSize;
-
-        TConfig()
-        {
-            Register("rpc_timeout", RpcTimeout)
-                .GreaterThan(TDuration())
-                .Default(TDuration::Seconds(3));
-            Register("max_batch_delay", MaxBatchDelay)
-				.Default(TDuration::MilliSeconds(10));
-            Register("max_batch_size", MaxBatchSize)
-				.Default(10000);
-        }
-    };
-
     //! Creates an instance.
     TLeaderCommitter(
-        TConfig* config,
+        TLeaderCommitterConfig* config,
         TCellManager* cellManager,
         TDecoratedMetaState* metaState,
         TChangeLogCache* changeLogCache,
@@ -124,7 +103,7 @@ private:
         TFuture<TVoid>::TPtr changeLogResult);
     void FlushCurrentBatch();
 
-    TConfig::TPtr Config;
+    TLeaderCommitterConfigPtr Config;
     TCellManagerPtr CellManager;
     TChangeLogCachePtr ChangeLogCache;
     TFollowerTrackerPtr FollowerTracker;

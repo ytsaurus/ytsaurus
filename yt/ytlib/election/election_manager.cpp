@@ -426,7 +426,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TElectionManager::TElectionManager(
-    TConfig* config,
+    TElectionManagerConfig *config,
     NMetaState::TCellManager* cellManager,
     IInvoker* controlInvoker,
     IElectionCallbacks* electionCallbacks)

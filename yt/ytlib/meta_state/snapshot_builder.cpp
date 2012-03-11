@@ -142,7 +142,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotBuilder::TSnapshotBuilder(
-    TConfig* config,
+    TSnapshotBuilderConfig *config,
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr metaState,
     TChangeLogCachePtr changeLogCache,

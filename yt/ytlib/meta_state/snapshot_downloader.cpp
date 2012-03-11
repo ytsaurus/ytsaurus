@@ -20,7 +20,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotDownloader::TSnapshotDownloader(
-    TConfig* config,
+    TSnapshotDownloaderConfig *config,
     TCellManagerPtr cellManager)
     : Config(config)
     , CellManager(cellManager)

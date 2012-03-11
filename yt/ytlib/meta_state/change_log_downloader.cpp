@@ -17,7 +17,7 @@ static NProfiling::TProfiler Profiler("meta_state/changelog_downloader");
 //////////////////////////////////////////////////////////////////////////////////
 
 TChangeLogDownloader::TChangeLogDownloader(
-    TConfig* config,
+    TChangeLogDownloaderConfig* config,
     TCellManager* cellManager)
     : Config(config)
     , CellManager(cellManager)
