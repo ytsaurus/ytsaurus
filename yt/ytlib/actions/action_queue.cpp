@@ -108,7 +108,7 @@ void TActionQueueBase::ThreadMain()
     NThread::SetCurrentThreadName(~ThreadName);
 
     while (true) {
-        try {
+        //try {
             if (!DequeueAndExecute()) {
                 WakeupEvent.Reset();
                 if (!DequeueAndExecute()) {
@@ -119,9 +119,9 @@ void TActionQueueBase::ThreadMain()
                     WakeupEvent.Wait();
                 }
             }
-        } catch (const std::exception& ex) {
-            LOG_FATAL("Unhandled exception in the action queue\n%s", ex.what());
-        }
+        //} catch (const std::exception& ex) {
+        //    LOG_FATAL("Unhandled exception in the action queue\n%s", ex.what());
+        //}
     }
 
     YASSERT(!DequeueAndExecute());
