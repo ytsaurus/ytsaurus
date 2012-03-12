@@ -188,7 +188,6 @@ void TBootstrap::Run()
     monitoringManager->Register(
         "bus_server",
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
-    monitoringManager->Start();
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
@@ -240,6 +239,8 @@ void TBootstrap::Run()
     MetaStateManager->Start();
 
     WorldInitializer = New<TWorldInitializer>(this);
+
+    monitoringManager->Start();
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
