@@ -26,6 +26,9 @@ public:
         TSnapshotStore* snapshotStore,
         TChangeLogCache* changeLogCache);
 
+    //! Initializes the instance.
+    void Start();
+
     //! Returns the invoker used for updating the state.
     /*!
      * \note Thread affinity: any
@@ -116,20 +119,22 @@ public:
     void AdvanceSegment();
 
 private:
-    void IncrementRecordCount();
-    void ComputeReachableVersion();
-    void UpdateVersion(const TMetaVersion& newVersion);
-    TCachedAsyncChangeLogPtr GetCurrentChangeLog();
-
     IMetaStatePtr State;
     IInvoker::TPtr StateInvoker;
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;
+    bool Started;
+
     TCachedAsyncChangeLogPtr CurrentChangeLog;
 
     TSpinLock VersionSpinLock;
     TMetaVersion Version;
     TMetaVersion ReachableVersion;
+
+    void IncrementRecordCount();
+    void ComputeReachableVersion();
+    void UpdateVersion(const TMetaVersion& newVersion);
+    TCachedAsyncChangeLogPtr GetCurrentChangeLog();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };

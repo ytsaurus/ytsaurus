@@ -145,6 +145,7 @@ public:
 
         ChangeLogCache->Start();
         SnapshotStore->Start();
+        DecoratedState->Start();
 
         ControlStatus = EPeerStatus::Elections;
 

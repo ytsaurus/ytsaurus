@@ -20,10 +20,13 @@ static const char* const SnapshotExtension = "snapshot";
 
 TSnapshotStore::TSnapshotStore(const Stroka& path)
     : Path(path)
+    , Started(false)
 { }
 
 void TSnapshotStore::Start()
 {
+    YASSERT(!Started);
+
     LOG_INFO("Preparing snapshot directory %s", ~Path.Quote());
 
     NFS::ForcePath(Path);
@@ -51,6 +54,7 @@ void TSnapshotStore::Start()
     }
 
     LOG_INFO("Snapshot scan complete");
+    Started = true;
 }
 
 Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
@@ -63,6 +67,7 @@ Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
 TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
     YASSERT(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
@@ -77,6 +82,7 @@ TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
 TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
     YASSERT(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
@@ -86,6 +92,7 @@ TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
 TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
     YASSERT(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
@@ -100,6 +107,7 @@ TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(i32 snapshotId)
 TSharedPtr<TFile> TSnapshotStore::GetRawWriter(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
     YASSERT(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
@@ -109,6 +117,7 @@ TSharedPtr<TFile> TSnapshotStore::GetRawWriter(i32 snapshotId) const
 i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
 
     while (true) {
         i32 snapshotId;
@@ -141,6 +150,7 @@ i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
 void TSnapshotStore::OnSnapshotAdded(i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
 
     TGuard<TSpinLock> guard(SpinLock);
     SnapshotIds.insert(snapshotId);
