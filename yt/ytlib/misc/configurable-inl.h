@@ -52,7 +52,7 @@ struct TLoadHelper<
         if (!parameter) {
             parameter = New<T>();
         }
-        parameter->Load(node, path);
+        parameter->Load(node, false, path);
     }
 };
 
