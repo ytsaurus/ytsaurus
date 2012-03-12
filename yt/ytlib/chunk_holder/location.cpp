@@ -187,7 +187,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
             i64 chunkDataSize = NFS::GetFileSize(chunkDataFileName);
             i64 chunkMetaSize = NFS::GetFileSize(chunkMetaFileName);
             if (chunkMetaSize == 0) {
-                LOG_FATAL("Chunk %s has empty meta file", chunkMetaFileName);
+                LOG_FATAL("Chunk %s has empty meta file", ~chunkMetaFileName);
             }
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;
