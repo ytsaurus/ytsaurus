@@ -411,12 +411,13 @@ class TYsonParser::TImpl
         (AttributesAfterKey)    // <...; "..." @
         (AttributesBeforeValue) // <...; "..." = @
         (AttributesAfterValue)  // <...; "..." = ... @
-        (Parsed)                // ...<...> @
+        (FragmentParsed)        // ...<...> @
     );
 
     typedef TYsonLexer::EState ELexerState;
 
     IYsonConsumer* Consumer;
+    bool SupportFragments;
 
     TYsonLexer Lexer;
     std::stack<EState> StateStack;
@@ -429,16 +430,18 @@ class TYsonParser::TImpl
     int Offset;
     int Line;
     int Position;
+    int Fragment;
 
 public:
-    TImpl(IYsonConsumer* consumer)
+    TImpl(IYsonConsumer* consumer, bool supportFragments)
         : Consumer(consumer)
+        , SupportFragments(supportFragments)
         , CachedInt64Value(0)
         , CachedDoubleValue(0.0)
         , Offset(0)
         , Line(1)
         , Position(1)
-        , Phase_(EPhase::NotStarted)
+        , Fragment(0)
     { }
 
 //    bool IsAwaiting(bool ignoreAttributes) const
@@ -483,13 +486,7 @@ public:
                     ~CurrentExceptionMessage());
             }
 
-            if (Lexer.GetState() != ELexerState::Start) {
-                YASSERT(Phase_ != EPhase::Parsed);
-                Phase_ = EPhase::InProgress;
-            }
-
             if (Lexer.InTerminalState()) {
-                YASSERT(Phase_ != EPhase::Parsed);
                 ConsumeLexeme();
                 Lexer.Reset();
             }
@@ -512,7 +509,7 @@ public:
         }
         YASSERT(Lexer.GetState() == ELexerState::Start);
 
-        while (StateStack.empty() || StateStack.top() != EState::Parsed) {
+        while (!StateStack.empty() && StateStack.top() != EState::FragmentParsed) {
             switch (CurrentState()) {
                 case EState::StringEnd:
                 case EState::Int64End:
@@ -522,10 +519,6 @@ public:
                     YVERIFY(!ConsumeEnd());
                     break;
 
-                case EState::None:
-                    ythrow yexception() << Sprintf("Error parsing YSON: Cannot finish parsing, nothing was parsed (%s)",
-                        ~GetPositionInfo());
-
                 default:
                     ythrow yexception() << Sprintf("Error parsing YSON: Cannot finish parsing in state %s (%s)",
                         ~CurrentState().ToString(),
@@ -533,11 +526,18 @@ public:
             }
         }
 
+        if (!StateStack.empty()) {
+            YASSERT(StateStack.top() == EState::FragmentParsed);
+            StateStack.pop();
+            YASSERT(StateStack.empty());
+        } else if (!SupportFragments) {
+            ythrow yexception() << Sprintf("Error parsing YSON: Cannot finish parsing, nothing was parsed (%s)",
+                ~GetPositionInfo());
+        }
+
         YASSERT(CachedStringValue.empty());
         YASSERT(CachedInt64Value == 0);
         YASSERT(CachedDoubleValue == 0.0);
-        YASSERT(Phase_ == EPhase::Parsed);
-        Phase_ = EPhase::NotStarted;
     }
 
 private:
@@ -581,10 +581,10 @@ private:
                     consumed = true;
                     break;
 
-                case EState::Parsed:
-                    ythrow yexception() << Sprintf("Error parsing YSON: Fragment is already parsed, unexpected lexeme of type %s (%s)",
-                        ~Lexer.GetState().ToString(),
-                        ~GetPositionInfo());
+                case EState::FragmentParsed:
+                    ConsumeParsed();
+                    consumed = true;
+                    break;
 
                 default:
                     YUNREACHABLE();
@@ -598,19 +598,16 @@ private:
             case ELexerState::String:
                 CachedStringValue = Lexer.GetStringValue();
                 StateStack.push(EState::StringEnd);
-                CheckPhase();
                 break;
 
             case ELexerState::Int64:
                 CachedInt64Value = Lexer.GetInt64Value();
                 StateStack.push(EState::Int64End);
-                CheckPhase();
                 break;
 
             case ELexerState::Double:
                 CachedDoubleValue = Lexer.GetDoubleValue();
                 StateStack.push(EState::DoubleEnd);
-                CheckPhase();
                 break;
 
             case ELexerState::ListStart:
@@ -643,7 +640,6 @@ private:
             case EState::ListBeforeItem:
                 if (lexerState == ELexerState::ListEnd) {
                     StateStack.top() = EState::ListEnd;
-                    CheckPhase();
                 } else {
                     Consumer->OnListItem();
                     ConsumeAny();
@@ -653,7 +649,6 @@ private:
             case EState::ListAfterItem:
                 if (lexerState == ELexerState::ListEnd) {
                     StateStack.top() = EState::ListEnd;
-                    CheckPhase();
                 } else if (lexerState == ELexerState::ItemSeparator) {
                     StateStack.top() = EState::ListBeforeItem;
                 } else {
@@ -675,7 +670,6 @@ private:
             case EState::MapBeforeKey:
                 if (lexerState == ELexerState::MapEnd) {
                     StateStack.top() = EState::MapEnd;
-                    CheckPhase();
                 } else if (lexerState == ELexerState::String) {
                     Consumer->OnMapItem(Lexer.GetStringValue());
                     StateStack.top() = EState::MapAfterKey;  
@@ -703,7 +697,6 @@ private:
             case EState::MapAfterValue:
                 if (lexerState == ELexerState::MapEnd) {
                     StateStack.top() = EState::MapEnd;
-                    CheckPhase();
                 } else if (lexerState == ELexerState::ItemSeparator) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
@@ -772,6 +765,27 @@ private:
         }
     }
 
+    void ConsumeParsed()
+    {
+        YASSERT(StateStack.top() == EState::FragmentParsed);
+
+        auto lexerState = Lexer.GetState();
+        if (!SupportFragments) {
+            ythrow yexception() << Sprintf("Error parsing YSON: Document is already parsed, but unexpected lexeme of type %s found (%s)",
+                ~lexerState.ToString(),
+                ~GetPositionInfo());
+        }
+        if (lexerState != ELexerState::ItemSeparator) {
+            ythrow yexception() << Sprintf("Error parsing YSON: Expected ';', but lexeme of type %s found (%s)",
+                ~lexerState.ToString(),
+                ~GetPositionInfo());
+        }
+
+        StateStack.pop();
+        YASSERT(StateStack.empty());
+        ++Fragment;
+    }
+
     bool ConsumeEnd()
     {
         bool attributes = Lexer.GetState() == ELexerState::AttributesStart;
@@ -818,8 +832,7 @@ private:
         StateStack.pop();
         switch (CurrentState()) {
             case EState::None:
-                StateStack.push(EState::Parsed);
-                Phase_ = EPhase::Parsed;
+                StateStack.push(EState::FragmentParsed);
                 break;
 
             case EState::ListBeforeItem:
@@ -839,27 +852,6 @@ private:
         }
     }
 
-    DEFINE_BYVAL_RO_PROPERTY(EPhase, Phase);
-
-    void CheckPhase()
-    {
-        if (StateStack.size() == 1) {
-            switch (CurrentState()) {
-                case EState::StringEnd:
-                case EState::Int64End:
-                case EState::DoubleEnd:
-                case EState::ListEnd:
-                case EState::MapEnd:
-                    YASSERT(Phase_ == EPhase::InProgress);
-                    Phase_ = EPhase::AwaitingAttributes;
-                    break;
-
-                default:
-                    break;
-            }
-        }
-    }
-
     EState CurrentState() const
     {
         if (StateStack.empty())
@@ -869,17 +861,25 @@ private:
 
     Stroka GetPositionInfo() const
     {
-        return Sprintf("Offset: %d, Line: %d, Position: %d",
-            Offset,
-            Line,
-            Position);
+        if (SupportFragments) {
+            return Sprintf("Offset: %d, Line: %d, Position: %d, Fragment: %d",
+                Offset,
+                Line,
+                Position,
+                Fragment);
+        } else {
+            return Sprintf("Offset: %d, Line: %d, Position: %d",
+                Offset,
+                Line,
+                Position);
+        }
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonParser::TYsonParser(IYsonConsumer *consumer)
-    : Impl(new TImpl(consumer))
+TYsonParser::TYsonParser(IYsonConsumer *consumer, bool supportFragments)
+    : Impl(new TImpl(consumer, supportFragments))
 { }
 
 
@@ -896,50 +896,16 @@ void TYsonParser::Finish()
     Impl->Finish();
 }
 
-TYsonParser::EPhase TYsonParser::GetPhase() const
-{
-    return Impl->GetPhase();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYson(TInputStream* input, IYsonConsumer* consumer)
+void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool supportFragments)
 {
-    TYsonParser parser(consumer);
+    TYsonParser parser(consumer, supportFragments);
     char ch;
     while (input->ReadChar(ch)) {
         parser.Consume(ch);
     }
     parser.Finish();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TYsonFragmentParser::TYsonFragmentParser(IYsonConsumer *consumer, TInputStream *input)
-    : Parser(consumer)
-    , Input(input)
-{ }
-
-bool TYsonFragmentParser::HasNext()
-{
-    char ch;
-    while (Parser.GetPhase() == TYsonParser::EPhase::NotStarted && Input->ReadChar(ch))
-    {
-        Parser.Consume(ch);
-    }
-    return Parser.GetPhase() != TYsonParser::EPhase::NotStarted;
-}
-
-void TYsonFragmentParser::ParseNext()
-{
-    char ch;
-    while ((Parser.GetPhase() == TYsonParser::EPhase::NotStarted ||
-            Parser.GetPhase() == TYsonParser::EPhase::InProgress) &&
-           Input->ReadChar(ch))
-    {
-        Parser.Consume(ch);
-    }
-    Parser.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
