@@ -22,18 +22,16 @@ class TYsonReaderTest: public ::testing::Test
 public:
     Stroka Input;
     StrictMock<TMockYsonConsumer> Mock;
+    bool Fragmented;
+
+    TYsonReaderTest()
+        : Fragmented(false)
+    { }
 
     void Run()
     {
-        TYsonParser parser(&Mock);
-        FOREACH (char c, Input) {
-            parser.Consume(c);
-        }
-        parser.Finish();
-
-//        TMemoryInput inputStream(Input.c_str(), Input.length());
-//        TYsonReader reader(&Mock, &inputStream);
-//        reader.Read();
+        TStringInput input(Input);
+        ParseYson(&input, &Mock, Fragmented);
     }
 };
 
@@ -298,6 +296,59 @@ TEST_F(TYsonReaderTest, TrailingSlashes)
 
     Run();
 }
+
+TEST_F(TYsonReaderTest, Fragments)
+{
+    Input = "   1 ;2; 3; 4;5  ";
+    Fragmented = true;
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnInt64Scalar(1, false));
+    EXPECT_CALL(Mock, OnInt64Scalar(2, false));
+    EXPECT_CALL(Mock, OnInt64Scalar(3, false));
+    EXPECT_CALL(Mock, OnInt64Scalar(4, false));
+    EXPECT_CALL(Mock, OnInt64Scalar(5, false));
+
+    Run();
+}
+
+TEST_F(TYsonReaderTest, FragmentsWithTrailingSemicolon)
+{
+    Input = "{};[];<>;";
+    Fragmented = true;
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap(false));
+    EXPECT_CALL(Mock, OnBeginList());
+    EXPECT_CALL(Mock, OnEndList(false));
+    EXPECT_CALL(Mock, OnEntity(true));
+    EXPECT_CALL(Mock, OnBeginAttributes());
+    EXPECT_CALL(Mock, OnEndAttributes());
+
+    Run();
+}
+
+TEST_F(TYsonReaderTest, OneFragment)
+{
+    Input = "   100500  ";
+    Fragmented = true;
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnInt64Scalar(100500, false));
+
+    Run();
+}
+
+TEST_F(TYsonReaderTest, ZeroFragments)
+{
+    Input = "  ";
+    Fragmented = true;
+
+    InSequence dummy;
+    Run();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
