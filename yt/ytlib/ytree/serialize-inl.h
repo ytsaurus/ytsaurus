@@ -57,7 +57,7 @@ void Read(
     }
     // static_cast is needed because T can override method Load
     // without default value for parameter path
-    static_cast<TConfigurable*>(~parameter)->Load(node);
+    static_cast<TConfigurable*>(~parameter)->Load(node, false);
 }
 
 // TEnumBase

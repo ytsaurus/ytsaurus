@@ -123,7 +123,7 @@ public:
         IOQueue = New<TActionQueue>("MetaStateIO");
 
         VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
-        VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);
+        VERIFY_INVOKER_AFFINITY(stateInvoker, StateThread);
         VERIFY_INVOKER_AFFINITY(IOQueue->GetInvoker(), IOThread);
 
         CellManager = New<TCellManager>(~Config->Cell);
@@ -145,6 +145,7 @@ public:
 
         ChangeLogCache->Start();
         SnapshotStore->Start();
+        DecoratedState->Start();
 
         ControlStatus = EPeerStatus::Elections;
 
@@ -1006,6 +1007,10 @@ public:
             FollowerTracker.Reset();
         }
 
+        if (LeaderRecovery) {
+            LeaderRecovery.Reset();
+        }
+
         if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TSnapshotBuilder::WaitUntilFinished,
@@ -1044,9 +1049,13 @@ public:
 
         StopEpoch();
 
-        FollowerRecovery.Reset();
+        if (FollowerRecovery) {
+            FollowerRecovery.Reset();
+        }
 
-        FollowerCommitter.Reset();
+        if (FollowerCommitter) {
+            FollowerCommitter.Reset();
+        }
 
         if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(

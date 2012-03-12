@@ -188,7 +188,6 @@ void TBootstrap::Run()
     monitoringManager->Register(
         "bus_server",
         FromMethod(&IBusServer::GetMonitoringInfo, busServer));
-    monitoringManager->Start();
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
@@ -229,6 +228,12 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(~CreateFileTypeHandler(this));
     CypressManager->RegisterHandler(~CreateTableTypeHandler(this));
 
+    MetaStateManager->Start();
+
+    WorldInitializer = New<TWorldInitializer>(this);
+
+    monitoringManager->Start();
+
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
@@ -236,10 +241,6 @@ void TBootstrap::Run()
     httpServer->Register(
         "/cypress",
         ~NMonitoring::GetYPathHttpHandler(CypressManager->GetRootServiceProducer()));
-
-    MetaStateManager->Start();
-
-    WorldInitializer = New<TWorldInitializer>(this);
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

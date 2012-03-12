@@ -120,6 +120,9 @@ public:
     //! Returns all keys that are present in the map.
     yvector<TKey> GetKeys(size_t sizeLimit = Max<size_t>()) const;
 
+    //! Returns all values that are present in the map.
+    yvector<TValue*> GetValues(size_t sizeLimit = Max<size_t>()) const;
+
     //! (Unordered) begin()-iterator.
     /*!
      *  \note
@@ -224,6 +227,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     const entityType& Get ## entityName(const idType& id) const; \
     entityType& Get ## entityName(const idType& id); \
     yvector<idType> Get ## entityName ## Ids(size_t sizeLimit = Max<size_t>()); \
+    yvector<entityType*> Get ## entityName ## s(size_t sizeLimit = Max<size_t>()); \
     int Get ## entityName ## Count() const;
 
 #define DEFINE_METAMAP_ACCESSORS(declaringType, entityName, entityType, idType, map) \
@@ -250,6 +254,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
     { \
         return (map).GetKeys(sizeLimit); \
+    } \
+    \
+    yvector<entityType*> declaringType::Get ## entityName ##s(size_t sizeLimit) \
+    { \
+        return (map).GetValues(sizeLimit); \
     } \
     \
     int declaringType::Get ## entityName ## Count() const \
@@ -281,6 +290,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     yvector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
     { \
         return (delegateTo).Get ## entityName ## Ids(sizeLimit); \
+    } \
+    \
+    yvector<entityType*> declaringType::Get ## entityName ## s(size_t sizeLimit) \
+    { \
+        return (delegateTo).Get ## entityName ## s(sizeLimit); \
     } \
     \
     int declaringType::Get ## entityName ## Count() const \

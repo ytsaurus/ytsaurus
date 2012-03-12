@@ -593,6 +593,14 @@ void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
     RefreshSet.insert(chunkId);
 }
 
+void TChunkReplication::RefreshAllChunks()
+{
+    auto chunkManager = Bootstrap->GetChunkManager();
+    FOREACH (auto* chunk, chunkManager->GetChunks()) {
+        Refresh(*chunk);
+    }
+}
+
 void TChunkReplication::ScheduleNextRefresh()
 {
     TDelayedInvoker::Submit(

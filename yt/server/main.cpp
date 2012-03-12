@@ -115,7 +115,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(~configNode);
+            config->Load(~configNode, false);
 
             // Override RPC port.
             if (port >= 0) {
@@ -142,7 +142,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(~configNode);
+            config->Load(~configNode, false);
             
             // Override peer id.
             if (peerId != InvalidPeerId) {

@@ -108,19 +108,15 @@ void TActionQueueBase::ThreadMain()
     NThread::SetCurrentThreadName(~ThreadName);
 
     while (true) {
-        try {
+        if (!DequeueAndExecute()) {
+            WakeupEvent.Reset();
             if (!DequeueAndExecute()) {
-                WakeupEvent.Reset();
-                if (!DequeueAndExecute()) {
-                    if (!Running) {
-                        break;
-                    }
-                    OnIdle();
-                    WakeupEvent.Wait();
+                if (!Running) {
+                    break;
                 }
+                OnIdle();
+                WakeupEvent.Wait();
             }
-        } catch (const std::exception& ex) {
-            LOG_FATAL("Unhandled exception in the action queue\n%s", ex.what());
         }
     }
 

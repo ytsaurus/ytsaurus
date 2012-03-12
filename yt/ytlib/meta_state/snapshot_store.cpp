@@ -20,16 +20,19 @@ static const char* const SnapshotExtension = "snapshot";
 
 TSnapshotStore::TSnapshotStore(const Stroka& path)
     : Path(path)
+    , Started(false)
 { }
 
 void TSnapshotStore::Start()
 {
-    LOG_DEBUG("Preparing snapshot directory %s", ~Path.Quote());
+    YASSERT(!Started);
+
+    LOG_INFO("Preparing snapshot directory %s", ~Path.Quote());
 
     NFS::ForcePath(Path);
     NFS::CleanTempFiles(Path);
 
-    LOG_DEBUG("Looking for snapshots in %s", ~Path.Quote());
+    LOG_INFO("Looking for snapshots in %s", ~Path.Quote());
 
     TFileList fileList;
     fileList.Fill(Path);
@@ -43,14 +46,15 @@ void TSnapshotStore::Start()
             try {
                 i32 snapshotId = FromString<i32>(name);
                 SnapshotIds.insert(snapshotId);
-                LOG_DEBUG("Found snapshot %d", snapshotId);
+                LOG_INFO("Found snapshot %d", snapshotId);
             } catch (const yexception&) {
                 LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
             }
         }
     }
 
-    LOG_DEBUG("Snapshot scan complete");
+    LOG_INFO("Snapshot scan complete");
+    Started = true;
 }
 
 Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
@@ -63,6 +67,7 @@ Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
 TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
     YASSERT(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
@@ -77,6 +82,7 @@ TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
 TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
     YASSERT(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
@@ -86,6 +92,7 @@ TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
 TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
     YASSERT(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
@@ -100,6 +107,7 @@ TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(i32 snapshotId)
 TSharedPtr<TFile> TSnapshotStore::GetRawWriter(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
     YASSERT(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
@@ -109,6 +117,7 @@ TSharedPtr<TFile> TSnapshotStore::GetRawWriter(i32 snapshotId) const
 i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
 
     while (true) {
         i32 snapshotId;
@@ -116,11 +125,12 @@ i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
         // Fetch the most appropriate id from the set.
         {
             TGuard<TSpinLock> guard(SpinLock);
-            auto it = SnapshotIds.upper_bound(maxSnapshotId - 1);
-            if (it  == SnapshotIds.end()) {
+            auto it = SnapshotIds.upper_bound(maxSnapshotId);
+            if (it == SnapshotIds.begin()) {
                 return NonexistingSnapshotId;
             }
-            snapshotId = *it;
+            snapshotId = *(--it);
+            YASSERT(snapshotId <= maxSnapshotId);
         }
 
         // Check that the file really exists.
@@ -140,6 +150,7 @@ i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
 void TSnapshotStore::OnSnapshotAdded(i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
 
     TGuard<TSpinLock> guard(SpinLock);
     SnapshotIds.insert(snapshotId);

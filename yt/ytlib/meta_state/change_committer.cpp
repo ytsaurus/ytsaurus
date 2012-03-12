@@ -130,10 +130,9 @@ private:
                 request->set_segment_id(StartVersion.SegmentId);
                 request->set_record_count(StartVersion.RecordCount);
                 request->set_epoch(Committer->Epoch.ToProto());
-                request->Attachments().insert(
-                    BatchedChanges.begin(),
-                    BatchedChanges.end(),
-                    request->Attachments().end());
+                FOREACH (const auto& change, BatchedChanges) {
+                    request->Attachments().push_back(change);
+                }
                 Awaiter->Await(
                     request->Invoke(),
                     cellManager->GetPeerAddress(id),

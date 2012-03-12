@@ -288,7 +288,7 @@ TEST(TConfigTest, Validate)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->Load(~configNode);
+    config->Load(~configNode, false);
     EXPECT_THROW(config->Validate(), yexception);
 }
 
@@ -306,7 +306,7 @@ TEST(TConfigTest, ValidateSubconfig)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->Load(~configNode->AsMap());
+    config->Load(~configNode->AsMap(), false);
     EXPECT_THROW(config->Validate(), yexception);
 }
 
@@ -326,7 +326,7 @@ TEST(TConfigTest, ValidateSubconfigList)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->Load(~configNode->AsMap());
+    config->Load(~configNode->AsMap(), false);
     EXPECT_THROW(config->Validate(), yexception);
 }
 
@@ -346,7 +346,7 @@ TEST(TConfigTest, ValidateSubconfigMap)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    config->Load(~configNode->AsMap());
+    config->Load(~configNode->AsMap(), false);
     EXPECT_THROW(config->Validate(), yexception);
 }
 
