@@ -123,7 +123,7 @@ public:
         IOQueue = New<TActionQueue>("MetaStateIO");
 
         VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
-        VERIFY_INVOKER_AFFINITY(GetStateInvoker(), StateThread);
+        VERIFY_INVOKER_AFFINITY(stateInvoker, StateThread);
         VERIFY_INVOKER_AFFINITY(IOQueue->GetInvoker(), IOThread);
 
         CellManager = New<TCellManager>(~Config->Cell);
