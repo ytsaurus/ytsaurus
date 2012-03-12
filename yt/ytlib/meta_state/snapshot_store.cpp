@@ -24,12 +24,12 @@ TSnapshotStore::TSnapshotStore(const Stroka& path)
 
 void TSnapshotStore::Start()
 {
-    LOG_DEBUG("Preparing snapshot directory %s", ~Path.Quote());
+    LOG_INFO("Preparing snapshot directory %s", ~Path.Quote());
 
     NFS::ForcePath(Path);
     NFS::CleanTempFiles(Path);
 
-    LOG_DEBUG("Looking for snapshots in %s", ~Path.Quote());
+    LOG_INFO("Looking for snapshots in %s", ~Path.Quote());
 
     TFileList fileList;
     fileList.Fill(Path);
@@ -43,14 +43,14 @@ void TSnapshotStore::Start()
             try {
                 i32 snapshotId = FromString<i32>(name);
                 SnapshotIds.insert(snapshotId);
-                LOG_DEBUG("Found snapshot %d", snapshotId);
+                LOG_INFO("Found snapshot %d", snapshotId);
             } catch (const yexception&) {
                 LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
             }
         }
     }
 
-    LOG_DEBUG("Snapshot scan complete");
+    LOG_INFO("Snapshot scan complete");
 }
 
 Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
@@ -116,11 +116,12 @@ i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
         // Fetch the most appropriate id from the set.
         {
             TGuard<TSpinLock> guard(SpinLock);
-            auto it = SnapshotIds.upper_bound(maxSnapshotId - 1);
-            if (it  == SnapshotIds.end()) {
+            auto it = SnapshotIds.upper_bound(maxSnapshotId);
+            if (it == SnapshotIds.begin()) {
                 return NonexistingSnapshotId;
             }
-            snapshotId = *it;
+            snapshotId = *(--it);
+            YASSERT(snapshotId <= maxSnapshotId);
         }
 
         // Check that the file really exists.
