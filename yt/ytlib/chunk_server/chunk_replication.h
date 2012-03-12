@@ -32,6 +32,8 @@ public:
     void OnHolderRegistered(const THolder& holder);
     void OnHolderUnregistered(const THolder& holder);
 
+    void RefreshAllChunks();
+
     void ScheduleChunkRefresh(const TChunkId& chunkId);
 
     void ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId);

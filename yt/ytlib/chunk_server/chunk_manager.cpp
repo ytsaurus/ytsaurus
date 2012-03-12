@@ -774,6 +774,12 @@ private:
         FOREACH (const auto& pair, HolderMap) {
             StartHolderTracking(*pair.second);
         }
+
+        PROFILE_TIMING ("full_chunk_refresh") {
+            LOG_INFO("Starting full chunk refresh");
+            ChunkReplication->RefreshAllChunks();
+            LOG_INFO("Full chunk refresh completed");
+        }
     }
 
     virtual void OnStopLeading()
