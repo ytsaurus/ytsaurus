@@ -1007,6 +1007,10 @@ public:
             FollowerTracker.Reset();
         }
 
+        if (LeaderRecovery) {
+            LeaderRecovery.Reset();
+        }
+
         if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
                 &TSnapshotBuilder::WaitUntilFinished,
@@ -1045,9 +1049,13 @@ public:
 
         StopEpoch();
 
-        FollowerRecovery.Reset();
+        if (FollowerRecovery) {
+            FollowerRecovery.Reset();
+        }
 
-        FollowerCommitter.Reset();
+        if (FollowerCommitter) {
+            FollowerCommitter.Reset();
+        }
 
         if (SnapshotBuilder) {
             GetStateInvoker()->Invoke(FromMethod(
