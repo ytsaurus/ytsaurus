@@ -292,6 +292,11 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
         return (delegateTo).Get ## entityName ## Ids(sizeLimit); \
     } \
     \
+    yvector<entityType*> declaringType::Get ## entityName ## s(size_t sizeLimit) \
+    { \
+        return (delegateTo).Get ## entityName ## s(sizeLimit); \
+    } \
+    \
     int declaringType::Get ## entityName ## Count() const \
     { \
         return (delegateTo).Get ## entityName ## Count(); \
