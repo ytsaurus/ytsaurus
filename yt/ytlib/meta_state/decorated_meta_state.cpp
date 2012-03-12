@@ -28,20 +28,62 @@ TDecoratedMetaState::TDecoratedMetaState(
     , StateInvoker(stateInvoker)
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
+    , Started(false)
 {
     YASSERT(state);
     YASSERT(stateInvoker);
     YASSERT(snapshotStore);
     YASSERT(changeLogCache);
-
     VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
-
-    ComputeReachableVersion();
 }
+
+void TDecoratedMetaState::Start()
+{
+    YASSERT(!Started);
+    ComputeReachableVersion();
+    Started = true;
+}
+
+void TDecoratedMetaState::ComputeReachableVersion()
+{
+    i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
+    if (maxSnapshotId == NonexistingSnapshotId) {
+        LOG_INFO("No snapshots found");
+        // Let's pretend we have snapshot 0.
+        maxSnapshotId = 0;
+    } else {
+        auto snapshotReader = SnapshotStore->GetReader(maxSnapshotId);
+        LOG_INFO("Latest snapshot is %d", maxSnapshotId);
+    }
+
+    auto currentVersion = TMetaVersion(maxSnapshotId, 0);
+
+    for (i32 segmentId = maxSnapshotId; ; ++segmentId) {
+        auto result = ChangeLogCache->Get(segmentId);
+        if (!result.IsOK()) {
+            ReachableVersion = currentVersion;
+            break;
+        }
+
+        auto changeLog = result.Value();
+        bool isFinal = !ChangeLogCache->Get(segmentId + 1).IsOK();
+
+        LOG_DEBUG("Found changelog (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
+            segmentId,
+            changeLog->GetRecordCount(),
+            changeLog->GetPrevRecordCount(),
+            ~FormatBool(isFinal));
+
+        currentVersion = TMetaVersion(segmentId, changeLog->GetRecordCount());
+    }
+
+    LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
+}         
 
 IInvoker* TDecoratedMetaState::GetStateInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
 
     return ~StateInvoker;
 }
@@ -49,6 +91,7 @@ IInvoker* TDecoratedMetaState::GetStateInvoker() const
 IMetaState* TDecoratedMetaState::GetState() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YASSERT(Started);
 
     return ~State;
 }
@@ -56,6 +99,7 @@ IMetaState* TDecoratedMetaState::GetState() const
 void TDecoratedMetaState::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(Started);
 
     State->Clear();
     Version = TMetaVersion();
@@ -65,6 +109,7 @@ void TDecoratedMetaState::Clear()
 void TDecoratedMetaState::Save(TOutputStream* output)
 {
     YASSERT(output);
+    YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     State->Save(output);
@@ -75,6 +120,7 @@ void TDecoratedMetaState::Load(
     TInputStream* input)
 {
     YASSERT(input);
+    YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     LOG_INFO("Started loading snapshot %d", segmentId);
@@ -91,6 +137,7 @@ void TDecoratedMetaState::Load(
 
 void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
 {
+    YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     try {
@@ -107,6 +154,7 @@ void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
 void TDecoratedMetaState::ApplyChange(IAction::TPtr changeAction)
 {
     YASSERT(changeAction);
+    YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     try {
@@ -153,6 +201,7 @@ TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
 
 void TDecoratedMetaState::AdvanceSegment()
 {
+    YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     CurrentChangeLog.Reset();
@@ -163,6 +212,7 @@ void TDecoratedMetaState::AdvanceSegment()
 
 void TDecoratedMetaState::RotateChangeLog()
 {
+    YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto changeLog = GetCurrentChangeLog();
@@ -173,44 +223,9 @@ void TDecoratedMetaState::RotateChangeLog()
     ChangeLogCache->Create(Version.SegmentId, changeLog->GetRecordCount());
 }
 
-void TDecoratedMetaState::ComputeReachableVersion()
-{
-    i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
-    if (maxSnapshotId == NonexistingSnapshotId) {
-        LOG_INFO("No snapshots found");
-        // Let's pretend we have snapshot 0.
-        maxSnapshotId = 0;
-    } else {
-        auto snapshotReader = SnapshotStore->GetReader(maxSnapshotId);
-        LOG_INFO("Latest snapshot is %d", maxSnapshotId);
-    }
-
-    auto currentVersion = TMetaVersion(maxSnapshotId, 0);
-
-    for (i32 segmentId = maxSnapshotId; ; ++segmentId) {
-        auto result = ChangeLogCache->Get(segmentId);
-        if (!result.IsOK()) {
-            ReachableVersion = currentVersion;
-            break;
-        }
-
-        auto changeLog = result.Value();
-        bool isFinal = !ChangeLogCache->Get(segmentId + 1).IsOK();
-
-        LOG_DEBUG("Found changelog (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsFinal: %s)",
-            segmentId,
-            changeLog->GetRecordCount(),
-            changeLog->GetPrevRecordCount(),
-            ~FormatBool(isFinal));
-
-        currentVersion = TMetaVersion(segmentId, changeLog->GetRecordCount());
-    }
-
-    LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
-}         
-
 TMetaVersion TDecoratedMetaState::GetVersion() const
 {
+    YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     // NB: No need to take a spinlock here since both
@@ -220,6 +235,7 @@ TMetaVersion TDecoratedMetaState::GetVersion() const
 
 TMetaVersion TDecoratedMetaState::GetVersionAsync() const
 {
+    YASSERT(Started);
 	VERIFY_THREAD_AFFINITY_ANY();
 
 	TGuard<TSpinLock> guard(VersionSpinLock);
@@ -228,6 +244,7 @@ TMetaVersion TDecoratedMetaState::GetVersionAsync() const
 
 TMetaVersion TDecoratedMetaState::GetReachableVersion() const
 {
+    YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     return ReachableVersion;
@@ -235,6 +252,7 @@ TMetaVersion TDecoratedMetaState::GetReachableVersion() const
 
 TMetaVersion TDecoratedMetaState::GetReachableVersionAsync() const
 {
+    YASSERT(Started);
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(VersionSpinLock);

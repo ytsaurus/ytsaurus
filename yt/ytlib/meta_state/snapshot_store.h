@@ -55,6 +55,7 @@ public:
 
 private:
     Stroka Path;
+    bool Started;
 
     TSpinLock SpinLock;
     std::set<i32> SnapshotIds;
