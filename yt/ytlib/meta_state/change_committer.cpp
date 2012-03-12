@@ -131,9 +131,9 @@ private:
                 request->set_record_count(StartVersion.RecordCount);
                 request->set_epoch(Committer->Epoch.ToProto());
                 request->Attachments().insert(
+                    request->Attachments().end(),
                     BatchedChanges.begin(),
-                    BatchedChanges.end(),
-                    request->Attachments().end());
+                    BatchedChanges.end());
                 Awaiter->Await(
                     request->Invoke(),
                     cellManager->GetPeerAddress(id),
