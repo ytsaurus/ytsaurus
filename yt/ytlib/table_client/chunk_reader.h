@@ -3,7 +3,7 @@
 #include "common.h"
 #include "value.h"
 #include "schema.h"
-#include "reader.h"
+#include "async_reader.h"
 #include "channel_reader.h"
 #include "table_chunk_meta.pb.h"
 #include "table_reader.pb.h"
@@ -19,9 +19,11 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IValidator;
+
 //! Reads single table chunk row-after-row using given #NChunkClient::IAsyncReader.
 class TChunkReader
-    : public TRefCounted
+    : public IAsyncReader
 {
 public:
     typedef TIntrusivePtr<TChunkReader> TPtr;
@@ -35,8 +37,8 @@ public:
         NChunkClient::TSequentialReader::TConfig* config,
         const TChannel& channel,
         NChunkClient::IAsyncReader* chunkReader,
-        NProto::TReadLimit&& startLimit,
-        NProto::TReadLimit&& endLimit);
+        const NProto::TReadLimit& startLimit,
+        const NProto::TReadLimit& endLimit);
 
     TAsyncError::TPtr AsyncOpen();
 
@@ -47,11 +49,8 @@ public:
     TAsyncError::TPtr AsyncNextRow();
 
     bool IsValid() const;
-
-    typedef std::vector< std::pair<TColumn, TValue> > TRow;
     const TRow& GetCurrentRow() const;
 
-    struct IValidator;
 private:
     void ContinueNextRow(TError error, int channelIndex);
     void MakeCurrentRow();

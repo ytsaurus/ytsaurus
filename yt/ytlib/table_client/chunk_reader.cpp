@@ -20,7 +20,7 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkReader::IValidator
+struct IValidator
 {
     virtual bool IsValid(const TKey& key) = 0;
     virtual ~IValidator() { }
@@ -29,7 +29,7 @@ struct TChunkReader::IValidator
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNullValidator
-    : public TChunkReader::IValidator
+    : public IValidator
 {
     bool IsValid(const TKey& key)
     {
@@ -41,7 +41,7 @@ class TNullValidator
 
 template <class TComparator>
 class TGenericValidator
-    : public TChunkReader::IValidator
+    : public IValidator
 {
 public:
     TGenericValidator(const TKey& key)
@@ -113,8 +113,8 @@ public:
         TSequentialReader::TConfig* config,
         TChunkReader* chunkReader, 
         NChunkClient::IAsyncReader* asyncReader,
-        NProto::TReadLimit& startLimit,
-        NProto::TReadLimit& endLimit)
+        const NProto::TReadLimit& startLimit,
+        const NProto::TReadLimit& endLimit)
         : SequentialConfig(config)
         , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
@@ -484,8 +484,8 @@ TChunkReader::TChunkReader(
     TSequentialReader::TConfig* config,
     const TChannel& channel,
     NChunkClient::IAsyncReader* chunkReader,
-    NProto::TReadLimit&& startLimit,
-    NProto::TReadLimit&& endLimit)
+    const NProto::TReadLimit& startLimit,
+    const NProto::TReadLimit& endLimit)
     : Codec(NULL)
     , SequentialReader(NULL)
     , Channel(channel)
@@ -598,7 +598,7 @@ void TChunkReader::MakeCurrentRow()
     }
 }
 
-const TChunkReader::TRow& TChunkReader::GetCurrentRow() const
+const TRow& TChunkReader::GetCurrentRow() const
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());

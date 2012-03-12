@@ -87,11 +87,10 @@ bool TTableReader::NextRow()
 
     CheckAborted();
 
-    if (!Reader->HasNextRow()) {
+    Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
+    if (!Reader->IsValid()) {
         return false;
     }
-
-    Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
     return true;
 }
 

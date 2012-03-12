@@ -23,7 +23,7 @@ set( HDRS
   ${BASE}/chunk_sequence_writer.h
   ${BASE}/chunk_writer.h
   ${BASE}/common.h
-  ${BASE}/reader.h
+  ${BASE}/async_reader.h
   ${BASE}/schema.h
   ${BASE}/table_reader.h
   ${BASE}/table_writer.h

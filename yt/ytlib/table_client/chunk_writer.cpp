@@ -159,7 +159,7 @@ void TChunkWriter::AddKeySample(const TKey& key)
 {
     auto* keySample = Attributes.add_key_samples();
     FOREACH (auto& keyPart, key) {
-        *keySample->add_key() = TValue::ToProto(keyPart);
+        keySample->mutable_key()->add_values(keyPart);
     }
 
     keySample->set_row_index(Attributes.row_count());

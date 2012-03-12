@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "common.h"
-#include "reader.h"
+#include "async_reader.h"
 #include "chunk_reader.h"
 
 #include <ytlib/chunk_client/block_cache.h>
@@ -15,7 +15,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkSequenceReader
-    : public IAsyncReader
+    : public virtual TRefCounted
 {
 public:
     typedef TIntrusivePtr<TChunkSequenceReader> TPtr;
@@ -42,21 +42,15 @@ public:
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache,
         // ToDo: use rvalue reference.
-        const yvector<NProto::TChunkSlice>& chunkSlices);
+        std::vector<NProto::TChunkSlice>&& chunkSlices);
 
     TAsyncError::TPtr AsyncOpen();
 
-    bool HasNextRow() const;
-
     TAsyncError::TPtr AsyncNextRow();
 
-    bool NextColumn();
+    bool IsValid() const;
 
-    TValue GetValue() const;
-
-    TColumn GetColumn() const;
-
-    void Cancel(const TError& error);
+    const TRow& GetCurrentRow() const;
 
 private:
     void PrepareNextChunk();
@@ -71,7 +65,7 @@ private:
     TChannel Channel;
     NChunkClient::IBlockCache::TPtr BlockCache;
     NObjectServer::TTransactionId TransactionId;
-    yvector<NProto::TChunkSlice> ChunkSlices;
+    std::vector<NProto::TChunkSlice> ChunkSlices;
 
     NRpc::IChannel::TPtr MasterChannel;
 

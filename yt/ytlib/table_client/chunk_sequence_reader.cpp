@@ -16,7 +16,7 @@ TChunkSequenceReader::TChunkSequenceReader(
     const NObjectServer::TTransactionId& transactionId,
     NRpc::IChannel* masterChannel,
     NChunkClient::IBlockCache* blockCache,
-    const yvector<NProto::TChunkSlice>& chunkSlices)
+    std::vector<NProto::TChunkSlice>&& chunkSlices)
     : Config(config)
     , Channel(channel)
     , BlockCache(blockCache)
@@ -32,10 +32,10 @@ TChunkSequenceReader::TChunkSequenceReader(
 void TChunkSequenceReader::PrepareNextChunk()
 {
     YASSERT(!NextReader->IsSet());
-    YASSERT(NextChunkIndex < ChunkSlices.ysize());
+    YASSERT(NextChunkIndex < ChunkSlices.size());
 
     ++NextChunkIndex;
-    if (NextChunkIndex == ChunkSlices.ysize()) {
+    if (NextChunkIndex == ChunkSlices.size()) {
         NextReader->Set(NULL);
         return;
     }
@@ -51,8 +51,8 @@ void TChunkSequenceReader::PrepareNextChunk()
         ~Config->SequentialReader,
         Channel,
         ~remoteReader,
-        chunkSlice.start_row(),
-        chunkSlice.end_row());
+        chunkSlice.start_limit(),
+        chunkSlice.end_limit());
 
     chunkReader->AsyncOpen()->Subscribe(FromMethod(
         &TChunkSequenceReader::OnNextReaderOpened,
@@ -80,7 +80,7 @@ TAsyncError::TPtr TChunkSequenceReader::AsyncOpen()
     YASSERT(NextChunkIndex == 0);
     YASSERT(!State.HasRunningOperation());
 
-    if (ChunkSlices.ysize() != 0) {
+    if (ChunkSlices.size() != 0) {
         State.StartOperation();
         NextReader->Subscribe(FromMethod(
             &TChunkSequenceReader::SetCurrentChunk,
@@ -97,15 +97,12 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
         NextReader = New< TFuture<TChunkReader::TPtr> >();
         PrepareNextChunk();
 
-        if (NextChunkIndex > 1) {
-            // Current chunk is not the first one.
-            YASSERT(CurrentReader->HasNextRow());
-            CurrentReader->AsyncNextRow()->Subscribe(FromMethod(
-                &TChunkSequenceReader::OnNextRow,
+        if (!CurrentReader->IsValid()) {
+            NextReader->Subscribe(FromMethod(
+                &TChunkSequenceReader::SetCurrentChunk,
                 TWeakPtr<TChunkSequenceReader>(this)));
             return;
         }
-
     } else {
         YASSERT(!State.IsActive());
     }
@@ -118,58 +115,49 @@ void TChunkSequenceReader::OnNextRow(TError error)
 {
     if (!error.IsOK()) {
         State.Fail(error);
+        return;
+    }
+
+    if (!CurrentReader->IsValid()) {
+        NextReader->Subscribe(FromMethod(
+            &TChunkSequenceReader::SetCurrentChunk,
+            TWeakPtr<TChunkSequenceReader>(this)));
+        return;
     }
 
     State.FinishOperation();
 }
 
-bool TChunkSequenceReader::HasNextRow() const
+bool TChunkSequenceReader::IsValid() const
 {
-
     YASSERT(!State.HasRunningOperation());
-
-    if (NextChunkIndex == 0)
+    if (!CurrentReader)
         return false;
 
-    YASSERT(NextChunkIndex > 0);
-    return NextChunkIndex < ChunkSlices.ysize() || CurrentReader->HasNextRow();
+    return CurrentReader->IsValid();
+}
+
+const TRow& TChunkSequenceReader::GetCurrentRow() const
+{
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(CurrentReader);
+    YASSERT(CurrentReader->IsValid());
+
+    return CurrentReader->GetCurrentRow();
 }
 
 TAsyncError::TPtr TChunkSequenceReader::AsyncNextRow()
 {
-    YASSERT(HasNextRow());
-    if (CurrentReader->HasNextRow()) {
-        return CurrentReader->AsyncNextRow();
-    } else {
-        State.StartOperation();
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(IsValid());
 
-        NextReader->Subscribe(FromMethod(
-            &TChunkSequenceReader::SetCurrentChunk,
-            TWeakPtr<TChunkSequenceReader>(this)));
+    State.StartOperation();
+    
+    CurrentReader->AsyncNextRow()->Subscribe(FromMethod(
+        &TChunkSequenceReader::OnNextRow,
+        TWeakPtr<TChunkSequenceReader>(this)));
 
-        return State.GetOperationError();
-    }
-}
-
-bool NYT::NTableClient::TChunkSequenceReader::NextColumn()
-{
-    return CurrentReader->NextColumn();
-}
-
-TValue TChunkSequenceReader::GetValue() const
-{
-    return CurrentReader->GetValue();
-}
-
-TColumn TChunkSequenceReader::GetColumn() const
-{
-    return CurrentReader->GetColumn();
-}
-
-void TChunkSequenceReader::Cancel(const TError& error)
-{
-    State.Cancel(error);
-    CurrentReader->Cancel(error);
+    return State.GetOperationError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

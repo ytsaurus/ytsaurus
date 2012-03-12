@@ -200,7 +200,9 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
         blockIndex);
 
     try {
-        Sync(~Writer, &TChunkFileWriter::AsyncWriteBlock, block->GetData());
+        std::vector<TSharedRef> blocks;
+        blocks.push_back(block->GetData());
+        Sync(~Writer, &TChunkFileWriter::AsyncWriteBlocks, blocks);
     } catch (const std::exception& ex) {
         LOG_FATAL("Error writing chunk block (BlockIndex: %d)\n%s",
             blockIndex,
@@ -320,7 +322,11 @@ TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
 TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 {
     try {
-        Sync(~Writer, &TChunkFileWriter::AsyncClose, attributes);
+        Sync(
+            ~Writer, 
+            &TChunkFileWriter::AsyncClose, 
+            std::vector<TSharedRef>(), 
+            attributes);
     } catch (const std::exception& ex) {
         LOG_FATAL("Error closing chunk file\n%s",
             ex.what());

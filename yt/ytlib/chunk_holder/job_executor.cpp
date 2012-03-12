@@ -143,7 +143,7 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
         LOG_DEBUG("All blocks are enqueued for replication");
 
         Writer
-            ->AsyncClose(ChunkInfo.attributes())
+            ->AsyncClose(std::vector<TSharedRef>(), ChunkInfo.attributes())
             ->Subscribe(FromFunctor([=] (TError error) {
                 if (error.IsOK()) {
                     LOG_DEBUG("Replication job completed");
@@ -180,8 +180,8 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
                     return;
                 } 
 
-                auto block = result.Value();
-                this_->Writer->AsyncWriteBlock(block->GetData())->Subscribe(
+                blocks.push_back(result.Value()->GetData());
+                this_->Writer->AsyncWriteBlock(MoveRV(blocks))->Subscribe(
                     FromMethod(
                         &TJob::ReplicateBlock,
                         this_,

@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "common.h"
 #include "schema.h"
-#include "writer.h"
+#include "async_writer.h"
 #include "chunk_writer.h"
 
 #include <ytlib/misc/thread_affinity.h>

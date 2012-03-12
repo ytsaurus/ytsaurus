@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "writer.h"
+#include "async_writer.h"
 #include "value.h"
 #include "schema.h"
 #include "channel_writer.h"
