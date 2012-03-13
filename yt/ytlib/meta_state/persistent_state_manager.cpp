@@ -220,8 +220,8 @@ public:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("state").Scalar(ControlStatus.ToString())
-                //.Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
-                //.Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
+                .Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
+                .Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
                 .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent)
                     {
