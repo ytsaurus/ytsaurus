@@ -13,8 +13,7 @@
 #include <ytlib/actions/action_util.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/foreach.h>
-
-// TODO: wrap with try/catch to handle IO errors
+#include <ytlib/misc/fs.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -95,14 +94,23 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverToState(
 
             TSnapshotDownloader snapshotDownloader(Config->SnapshotDownloader, CellManager);
 
-            auto snapshotWriter = SnapshotStore->GetRawWriter(snapshotId);
+            auto fileName = SnapshotStore->GetSnapshotFileName(snapshotId);
+            auto tempFileName = fileName + NFS::TempFileSuffix;
 
-            auto downloadResult = snapshotDownloader.DownloadSnapshot(snapshotId, ~snapshotWriter);
+            auto downloadResult = snapshotDownloader.DownloadSnapshot(snapshotId, tempFileName);
             if (downloadResult != TSnapshotDownloader::EResult::OK) {
                 LOG_ERROR("Error downloading snapshot %d\n%s",
                     snapshotId,
                     ~downloadResult.ToString());
                 return New<TAsyncResult>(EResult::Failed);
+            }
+
+            try {
+                NFS::Rename(tempFileName, fileName);
+            } catch (const std::exception& ex) {
+                LOG_FATAL("Error renaming temp snapshot file %s\n%s",
+                    ~fileName,
+                    ex.what());
             }
 
             SnapshotStore->OnSnapshotAdded(snapshotId);
