@@ -31,18 +31,16 @@ TSnapshotDownloader::TSnapshotDownloader(
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
-    i32 segmentId,
-    TFile* snapshotFile)
+    i32 snapshotId,
+    const Stroka& fileName)
 {
-    YASSERT(snapshotFile);
-
-    auto snapshotInfo = GetSnapshotInfo(segmentId);
+    auto snapshotInfo = GetSnapshotInfo(snapshotId);
     auto sourceId = snapshotInfo.SourceId;
     if (sourceId == NElection::InvalidPeerId) {
         return EResult::SnapshotNotFound;
     }
-    
-    EResult result = DownloadSnapshot(segmentId, snapshotInfo, snapshotFile);
+
+    auto result = DownloadSnapshot(fileName, snapshotId, snapshotInfo);
     if (result != EResult::OK) {
         return result;
     }
@@ -106,38 +104,47 @@ void TSnapshotDownloader::OnSnapshotInfoResponse(
 }
 
 void TSnapshotDownloader::OnSnapshotInfoComplete(
-    i32 segmentId,
+    i32 snapshotId,
     TFuture<TSnapshotInfo>::TPtr asyncResult)
 {
-    LOG_INFO("Could not get snapshot %d info from peers", segmentId);
+    LOG_INFO("Could not get snapshot %d info from peers", snapshotId);
 
     asyncResult->Set(TSnapshotInfo(NElection::InvalidPeerId, -1));
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
-    i32 segmentId,
-    TSnapshotInfo snapshotInfo,
-    TFile* snapshotFile)
+    const Stroka& fileName,
+    i32 snapshotId,
+    const TSnapshotInfo& snapshotInfo)
 {
     YASSERT(snapshotInfo.Length >= 0);
     
-    TPeerId sourceId = snapshotInfo.SourceId;
+    auto sourceId = snapshotInfo.SourceId;
 
-    snapshotFile->Resize(snapshotInfo.Length);
-    TBufferedFileOutput writer(*snapshotFile);
+    TAutoPtr<TFile> file;
+    try {
+        file = new TFile(fileName, CreateAlways | WrOnly | Seq);
+        file->Resize(snapshotInfo.Length);
+    } catch (const std::exception& ex) {
+        LOG_FATAL("IO error opening snapshot %d for writing\n%s",
+            snapshotId,
+            ex.what());
+    }
+
+    TBufferedFileOutput output(*file);
     
-    auto result = WriteSnapshot(segmentId, snapshotInfo.Length, sourceId, writer);
+    auto result = WriteSnapshot(snapshotId, snapshotInfo.Length, sourceId, output);
     if (result != EResult::OK) {
         return result;
     }
 
     try {
-        writer.Flush();
-        snapshotFile->Flush();
-        snapshotFile->Close();
+        output.Flush();
+        file->Flush();
+        file->Close();
     } catch (const std::exception& ex) {
         LOG_FATAL("Error closing snapshot %d\n%s",
-            segmentId,
+            snapshotInfo,
             ex.what());
     }
 
