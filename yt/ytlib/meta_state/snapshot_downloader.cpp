@@ -144,7 +144,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
         file->Close();
     } catch (const std::exception& ex) {
         LOG_FATAL("Error closing snapshot %d\n%s",
-            snapshotInfo,
+            snapshotId,
             ex.what());
     }
 
