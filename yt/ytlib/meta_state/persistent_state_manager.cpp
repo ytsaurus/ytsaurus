@@ -816,7 +816,7 @@ public:
                 ~version.ToString());
 
             SnapshotBuilder->RotateChangeLog();
-        }
+        }   
     }
 
     void DoAdvanceSegment(TCtxAdvanceSegment::TPtr context, TMetaVersion version)
@@ -1106,8 +1106,10 @@ public:
         VERIFY_THREAD_AFFINITY(StateThread);
         YASSERT(StateStatus == EPeerStatus::Leading);
 
+        auto version = DecoratedState->GetVersion();
         if (Config->MaxChangesBetweenSnapshots > 0 &&
-            DecoratedState->GetVersion().RecordCount % Config->MaxChangesBetweenSnapshots == 0)
+            version.RecordCount > 0 &&
+            version.RecordCount % Config->MaxChangesBetweenSnapshots == 0)
         {
             LeaderCommitter->Flush(true);
             SnapshotBuilder->CreateDistributedSnapshot();
