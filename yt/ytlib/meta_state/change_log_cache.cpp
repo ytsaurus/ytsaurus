@@ -11,8 +11,6 @@
 namespace NYT {
 namespace NMetaState {
 
-using namespace NFS;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;
@@ -43,7 +41,7 @@ void TChangeLogCache::Start()
 
 Stroka TChangeLogCache::GetChangeLogFileName(i32 changeLogId)
 {
-    return CombinePaths(Path, Sprintf("%09d.%s", changeLogId, LogExtension));
+    return NFS::CombinePaths(Path, Sprintf("%09d.%s", changeLogId, LogExtension));
 }
 
 TChangeLogCache::TGetResult TChangeLogCache::Get(i32 changeLogId)
