@@ -14,7 +14,7 @@ using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNewGetCommand::DoExecute(const yvector<Stroka>& args)
+void TGetCommand::DoExecute(const yvector<Stroka>& args)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
 
@@ -121,7 +121,7 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
-        auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
+        auto consumer = DriverImpl->CreateOutputConsumer();
         auto id = TNodeId::FromProto(ypathResponse->object_id());
         BuildYsonFluently(~consumer)
             .BeginMap()
@@ -134,26 +134,26 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLockCommand::DoExecute(TLockRequest* request)
+void TLockCommand::DoExecute(const yvector<Stroka>& args)
 {
-    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
-    auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
-    ypathRequest->set_mode(request->Mode);
+//    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+//    auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
+//        request->Path,
+//        DriverImpl->GetTransactionId(request)));
+//    ypathRequest->set_mode(request->Mode);
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
+//    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+//    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
-    if (ypathResponse->IsOK()) {
-        auto lockId = TLockId::FromProto(ypathResponse->lock_id());
-        BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
-            .BeginMap()
-                .Item("lock_id").Scalar(lockId.ToString())
-            .EndMap();
-    } else {
-        DriverImpl->ReplyError(ypathResponse->GetError());
-    }
+//    if (ypathResponse->IsOK()) {
+//        auto lockId = TLockId::FromProto(ypathResponse->lock_id());
+//        BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
+//            .BeginMap()
+//                .Item("lock_id").Scalar(lockId.ToString())
+//            .EndMap();
+//    } else {
+//        DriverImpl->ReplyError(ypathResponse->GetError());
+//    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

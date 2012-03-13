@@ -16,20 +16,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <tclap/CmdLine.h>
-
-//TODO(panin): move to proper place
-namespace TCLAP {
-template<>
-struct ArgTraits<NYT::NObjectServer::TTransactionId> {
-    typedef ValueLike ValueCategory;
-};
-
-template<>
-struct ArgTraits<Stroka> {
-    typedef StringLike ValueCategory;
-};
-
-}
+#include <ytlib/misc/tclap_helpers.h>
 
 namespace NYT {
 namespace NDriver {
@@ -75,15 +62,15 @@ struct IDriverImpl
     virtual TDriver::TConfig* GetConfig() const = 0;
     virtual NRpc::IChannel* GetMasterChannel() const = 0;
 
-    virtual NYTree::TYsonProducer CreateInputProducer(const Stroka& spec = "") = 0;
-    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec = "") = 0;
+    virtual NYTree::TYsonProducer CreateInputProducer() = 0;
+    virtual TAutoPtr<TInputStream> CreateInputStream() = 0;
 
-    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec = "") = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec = "") = 0;
+    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer() = 0;
+    virtual TAutoPtr<TOutputStream> CreateOutputStream() = 0;
 
     virtual void ReplyError(const TError& error) = 0;
     virtual void ReplySuccess() = 0;
-    virtual void ReplySuccess(const NYTree::TYson& yson, const Stroka& spec = "") = 0;
+    virtual void ReplySuccess(const NYTree::TYson& yson) = 0;
 
     virtual NChunkClient::IBlockCache* GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManager* GetTransactionManager() = 0;
@@ -170,6 +157,7 @@ protected:
 
     THolder<TCLAP::CmdLine> Cmd;
 
+    //TODO(panin): support config
     THolder<TCLAP::ValueArg<std::string> > ConfigArg;
     THolder<TCLAP::MultiArg<std::string> > OptsArg;
 

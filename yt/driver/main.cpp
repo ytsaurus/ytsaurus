@@ -110,69 +110,20 @@ class TStreamProvider
     : public IDriverStreamProvider
 {
 public:
-    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec)
+    virtual TAutoPtr<TInputStream> CreateInputStream()
     {
-        if (spec.empty()) {
-            return new TSystemInput(0);
-        }
-
-        //XXX(ijon): do we really need syntactic sugar like this? I guess not
-        if (spec[0] == '&') {
-            int handle = ParseHandle(spec);
-            return new TSystemInput(handle);
-        }
-
-        //XXX(ijon): do we really need syntactic sugar like this? I guess not
-        if (spec[0] == '<') {
-            auto fileName = TrimLeadingWhitespace(spec.substr(1));
-            return new TFileInput(fileName);
-        }
-
-        return new TPipeInput(~spec);
+        return new TSystemInput(0);
     }
 
-    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec)
+    virtual TAutoPtr<TOutputStream> CreateOutputStream()
     {
-        if (spec.empty()) {
-            return new TSystemOutput(1);
-        }
-
-        //XXX(ijon): do we really need syntactic sugar like this? I guess not
-        if (spec[0] == '&') {
-            int handle = ParseHandle(spec);
-            return new TSystemOutput(handle);
-        }
-
-        //XXX(ijon): do we really need syntactic sugar like this? I guess not
-        if (spec[0] == '>') {
-            if (spec.length() >= 2 && spec[1] == '>') {
-                auto fileName = TrimLeadingWhitespace(spec.substr(2));
-                TFile file(fileName, OpenAlways | ForAppend | WrOnly | Seq);
-                return new TFileOutput(file);
-            } else {
-                auto fileName = TrimLeadingWhitespace(spec.substr(1));
-                return new TFileOutput(fileName);
-            }
-        }
-
-        return new TPipeOutput(~spec);
+        return new TSystemOutput(1);
     }
 
     virtual TAutoPtr<TOutputStream> CreateErrorStream()
     {
         return new TSystemOutput(2);
     }
-
-private:
-    int ParseHandle(const Stroka& spec)
-    {
-        try {
-            return FromString(TStringBuf(spec.begin() + 1, spec.length() - 1));
-        } catch (const TFromStringException&) {
-            ythrow yexception() << Sprintf("Invalid handle in stream specification %s", ~spec);
-        }
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,23 +262,6 @@ private:
     void RunCommand(const yvector<Stroka>& args) {
         Driver->Execute(args);
     }
-
-//    void RunBatch(TInputStream& input)
-//    {
-//        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-//        TYsonFragmentReader parser(~builder, &input);
-//        while (parser.HasNext()) {
-//            builder->BeginTree();
-//            parser.ReadNext();
-//            auto commandNode = builder->EndTree();
-
-//            auto error = Driver->Execute(commandNode);
-//            if (!error.IsOK() && HaltOnError) {
-//                ExitCode = 1;
-//                break;
-//            }
-//        }
-//    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,11 +10,11 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNewGetCommand
+class TGetCommand
     : public TTransactedCommand
 {
 public:
-    TNewGetCommand(IDriverImpl* driverImpl)
+    TGetCommand(IDriverImpl* driverImpl)
         : TTransactedCommand(driverImpl)
     {
         PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
@@ -124,31 +124,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLockRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-    NCypress::ELockMode Mode;
-
-    TLockRequest()
-    {
-        Register("path", Path);
-        Register("mode", Mode)
-            .Default(NCypress::ELockMode::Exclusive);
-    }
-};
-
 class TLockCommand
-    : public TCommandBase<TLockRequest>
+    : public TTransactedCommand
 {
 public:
     TLockCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
-    { }
+        : TTransactedCommand(driverImpl)
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        //TODO(panin): check given value
+        ModeArg.Reset(new TModeArg(
+            "", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "Snapshot, Shared, Exclusive"));
+        Cmd->add(~PathArg);
+        Cmd->add(~ModeArg);
+    }
+
+    virtual void DoExecute(const yvector<Stroka>& args);
 
 private:
-    virtual void DoExecute(TLockRequest* request);
+    THolder<TFreeStringArg> PathArg;
+
+    typedef TCLAP::ValueArg<NCypress::ELockMode> TModeArg;
+    THolder<TModeArg> ModeArg;
 };
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -25,7 +25,7 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
 
     // TODO(babenko): use FileName and Executable values
 
-    auto output = DriverImpl->CreateOutputStream(ToStreamSpec(request->Stream));
+    auto output = DriverImpl->CreateOutputStream();
 
     while (true) {
         auto block = reader->Read();
@@ -50,7 +50,7 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
         request->Path);
     writer->Open();
 
-    auto input = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));
+    auto input = DriverImpl->CreateInputStream();
     
     TBlob buffer(config->BlockSize);
     while (true) {

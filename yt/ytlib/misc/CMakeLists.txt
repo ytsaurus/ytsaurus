@@ -73,6 +73,7 @@ set( HDRS
   ${BASE}/singleton.h
   ${BASE}/string.h
   ${BASE}/sync.h
+  ${BASE}/tclap_helpers.h
   ${BASE}/thread.h
   ${BASE}/thread_affinity.h
   ${BASE}/weak_ptr.h

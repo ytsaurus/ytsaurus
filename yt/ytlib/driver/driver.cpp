@@ -120,7 +120,7 @@ public:
             ~config->TransactionManager,
             ~MasterChannel);
 
-        RegisterCommand("get", ~New<TNewGetCommand>(this));
+        RegisterCommand("get", ~New<TGetCommand>(this));
         RegisterCommand("set", ~New<TSetCommand>(this));
         RegisterCommand("remove", ~New<TRemoveCommand>(this));
         RegisterCommand("list", ~New<TListCommand>(this));
@@ -187,9 +187,9 @@ public:
         output->Write('\n');
     }
 
-    virtual void ReplySuccess(const TYson& yson, const Stroka& spec = "")
+    virtual void ReplySuccess(const TYson& yson)
     {
-        auto consumer = CreateOutputConsumer(spec);
+        auto consumer = CreateOutputConsumer();
         TStringInput input(yson);
         TYsonReader reader(~consumer, &input);
         reader.Read();
@@ -200,9 +200,9 @@ public:
     { }
 
 
-    virtual TYsonProducer CreateInputProducer(const Stroka& spec)
+    virtual TYsonProducer CreateInputProducer()
     {
-        auto stream = CreateInputStream(spec);
+        auto stream = CreateInputStream();
         return FromFunctor([=] (IYsonConsumer* consumer)
             {
                 TYsonReader reader(consumer, ~stream);
@@ -210,21 +210,21 @@ public:
             });
     }
 
-    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec)
+    virtual TAutoPtr<TInputStream> CreateInputStream()
     {
-        auto stream = StreamProvider->CreateInputStream(spec);
+        auto stream = StreamProvider->CreateInputStream();
         return new TOwningBufferedInput(stream);
     }
 
-    virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer(const Stroka& spec)
+    virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer()
     {
-        auto stream = CreateOutputStream(spec);
+        auto stream = CreateOutputStream();
         return new TOutputStreamConsumer(stream, Config->OutputFormat);
     }
 
-    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec)
+    virtual TAutoPtr<TOutputStream> CreateOutputStream()
     {
-        auto stream = StreamProvider->CreateOutputStream(spec);
+        auto stream = StreamProvider->CreateOutputStream();
         return new TOwningBufferedOutput(stream);
     }
 
