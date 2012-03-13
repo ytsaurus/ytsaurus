@@ -689,10 +689,9 @@ void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
         .BeginMap()
             .Item("state").Scalar(State.ToString())
             .Item("peers").BeginList()
-                .DoFor(0, CellManager->GetPeerCount(), [=] (TFluentList fluent, TPeerId id)
-                    {
-                        fluent.Item().Scalar(CellManager->GetPeerAddress(id));
-                    })
+                .DoFor(0, CellManager->GetPeerCount(), [=] (TFluentList fluent, TPeerId id) {
+                    fluent.Item().Scalar(CellManager->GetPeerAddress(id));
+                })
             .EndList()
             .Item("leader_id").Scalar(LeaderId)
             .Item("vote_id").Scalar(VoteId)
