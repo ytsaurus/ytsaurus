@@ -15,7 +15,7 @@ class TNewGetCommand
 {
 public:
     TNewGetCommand(IDriverImpl* driverImpl)
-        : DriverImpl(driverImpl)
+        : TTransactedCommand(driverImpl)
     {
         PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
         Cmd->add(~PathArg);
@@ -24,134 +24,68 @@ public:
     virtual void DoExecute(const yvector<Stroka>& args);
 
 private:
-    IDriverImpl* DriverImpl;
-
     THolder<TFreeStringArg> PathArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGetRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
-
-    TGetRequest()
-    {
-        Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
-    }
-};
-
-class TGetCommand
-    : public TCommandBase<TGetRequest>
-{
-public:
-    TGetCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
-    { }
-
-private:
-    virtual void DoExecute(TGetRequest* request);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSetRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-    NYTree::INodePtr Value;
-    NYTree::INodePtr Stream;
-
-    TSetRequest()
-    {
-        Register("path", Path);
-        Register("value", Value)
-            .Default();
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
-    }
-
-    virtual void DoValidate() const
-    {
-        if (!Value && !Stream) {
-            ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is given");
-        }
-        if (Value && Stream) {
-            ythrow yexception() << Sprintf("Both \"value\" and \"stream\" are given");
-        }
-    }
-};
-
 class TSetCommand
-    : public TCommandBase<TSetRequest>
+    : public TTransactedCommand
 {
 public:
     TSetCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
-    { }
+        : TTransactedCommand(driverImpl)
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        ValueArg.Reset(new TFreeStringArg("value", "value to set", true, "", "yson"));
+
+        Cmd->add(~PathArg);
+        Cmd->add(~ValueArg);
+    }
+
+    virtual void DoExecute(const yvector<Stroka>& args);
 
 private:
-    virtual void DoExecute(TSetRequest* request);
+    THolder<TFreeStringArg> PathArg;
+    THolder<TFreeStringArg> ValueArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRemoveRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-
-    TRemoveRequest()
-    {
-        Register("path", Path);
-    }
-};
-
 class TRemoveCommand
-    : public TCommandBase<TRemoveRequest>
+    : public TTransactedCommand
 {
 public:
     TRemoveCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
-    { }
+        : TTransactedCommand(driverImpl)
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        Cmd->add(~PathArg);
+    }
+
+    virtual void DoExecute(const yvector<Stroka>& args);
 
 private:
-    virtual void DoExecute(TRemoveRequest* request);
+    THolder<TFreeStringArg> PathArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TListRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
-
-    TListRequest()
-    {
-        Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
-    }
-};
-
 class TListCommand
-    : public TCommandBase<TListRequest>
+    : public TTransactedCommand
 {
 public:
     TListCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
-    { }
+        : TTransactedCommand(driverImpl)
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        Cmd->add(~PathArg);
+    }
+
+    virtual void DoExecute(const yvector<Stroka>& args);
 
 private:
-    virtual void DoExecute(TListRequest* request);
+    THolder<TFreeStringArg> PathArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -198,13 +198,13 @@ class YTEnv:
     def _init_sys(self):
         if self.NUM_MASTERS == 0:
             return
-        cmd = 'cat %s | ytdriver' % (os.path.join(CONFIGS_ROOTDIR, 'default_init.yt'))
+        cmd = 'cat %s | yt' % (os.path.join(CONFIGS_ROOTDIR, 'default_init.yt'))
         subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
         for i in xrange(self.NUM_MASTERS):
             port = 8001 + i
             orchid_yson = '{do=create;path="/sys/masters/localhost:%d/orchid";type=orchid;manifest={remote_address="localhost:%d"}}' %(port, port)
             #print orchid_yson
-            cmd  = "ytdriver '%s'" % (orchid_yson)
+            cmd  = "yt '%s'" % (orchid_yson)
             subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
 
     def _clean_run_path(self):

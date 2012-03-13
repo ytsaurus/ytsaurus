@@ -121,6 +121,11 @@ public:
             ~MasterChannel);
 
         RegisterCommand("get", ~New<TNewGetCommand>(this));
+        RegisterCommand("set", ~New<TSetCommand>(this));
+        RegisterCommand("remove", ~New<TRemoveCommand>(this));
+        RegisterCommand("list", ~New<TListCommand>(this));
+//        RegisterCommand("create", ~New<TCreateCommand>(this));
+//        RegisterCommand("lock", ~New<TLockCommand>(this));
 
 //        RegisterCommand("start_transaction", ~New<TStartTransactionCommand>(this));
 //        RegisterCommand("commit_transaction", ~New<TCommitTransactionCommand>(this));

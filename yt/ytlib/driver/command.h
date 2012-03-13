@@ -152,7 +152,8 @@ class TNewCommandBase
     : public INewCommand
 {
 public:
-    TNewCommandBase()
+    TNewCommandBase(IDriverImpl* driverImpl)
+        : DriverImpl(driverImpl)
     {
         Cmd.Reset(new TCLAP::CmdLine("Command line"));
         ConfigArg.Reset(new TCLAP::ValueArg<std::string>(
@@ -171,6 +172,8 @@ protected:
 
     THolder<TCLAP::ValueArg<std::string> > ConfigArg;
     THolder<TCLAP::MultiArg<std::string> > OptsArg;
+
+    IDriverImpl* DriverImpl;
 
     TAutoPtr<NYTree::IAttributeDictionary> GetOpts() const
     {
@@ -205,7 +208,8 @@ class TTransactedCommand
     : public TNewCommandBase
 {
 public:
-    TTransactedCommand()
+    TTransactedCommand(IDriverImpl* driverImpl)
+        : TNewCommandBase(driverImpl)
     {
         TxArg.Reset(new TTxArg(
             "", "tx", "transaction id", false, NObjectServer::NullTransactionId, "guid"));

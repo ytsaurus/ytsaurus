@@ -17,6 +17,7 @@ using namespace NCypress;
 void TNewGetCommand::DoExecute(const yvector<Stroka>& args)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
         PathArg->getValue(),
         TxArg->getValue()));
@@ -34,41 +35,18 @@ void TNewGetCommand::DoExecute(const yvector<Stroka>& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetCommand::DoExecute(TGetRequest* request)
-{
-    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
-    auto ypathRequest = TYPathProxy::Get(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
-
-    if (ypathResponse->IsOK()) {
-        TYson value = ypathResponse->value();
-        DriverImpl->ReplySuccess(value, ToStreamSpec(request->Stream));
-    } else {
-        DriverImpl->ReplyError(ypathResponse->GetError());
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TSetCommand::DoExecute(TSetRequest* request)
+void TSetCommand::DoExecute(const yvector<Stroka>& args)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
 
     auto ypathRequest = TYPathProxy::Set(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
+        PathArg->getValue(),
+        TxArg->getValue()));
+
+    ypathRequest->Attributes().MergeFrom(*~GetOpts());
 
     TYson value;
-    if (request->Value) {
-        value = SerializeToYson(~request->Value);
-    } else {
-        auto producer = DriverImpl->CreateInputProducer(ToStreamSpec(request->Stream));
-        value = SerializeToYson(producer);
-    }
+    ValidateYson(value);
     ypathRequest->set_value(value);
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
@@ -82,15 +60,15 @@ void TSetCommand::DoExecute(TSetRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveCommand::DoExecute(TRemoveRequest* request)
+void TRemoveCommand::DoExecute(const yvector<Stroka>& args)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
+        PathArg->getValue(),
+        TxArg->getValue()));
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
+    ypathRequest->Attributes().MergeFrom(*~GetOpts());
 
     if (ypathResponse->IsOK()) {
         DriverImpl->ReplySuccess();
@@ -101,18 +79,18 @@ void TRemoveCommand::DoExecute(TRemoveRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TListCommand::DoExecute(TListRequest* request)
+void TListCommand::DoExecute(const yvector<Stroka>& args)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
+        PathArg->getValue(),
+        TxArg->getValue()));
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
+    ypathRequest->Attributes().MergeFrom(*~GetOpts());
 
     if (ypathResponse->IsOK()) {
-         auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
+         auto consumer = DriverImpl->CreateOutputConsumer();
          BuildYsonFluently(~consumer)
              .DoListFor(ypathResponse->keys(), [=] (TFluentList fluent, Stroka key)
                 {
