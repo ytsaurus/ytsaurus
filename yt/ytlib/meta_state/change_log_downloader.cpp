@@ -12,7 +12,6 @@ namespace NMetaState {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("meta_state/changelog_downloader");
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +51,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
 TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
     auto asyncResult = New< TFuture<TPeerId> >();
-    auto awaiter = New<TParallelAwaiter>(&Profiler, "source_lookup_time");
+    auto awaiter = New<TParallelAwaiter>(&Profiler, "changelog_source_lookup_time");
 
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         LOG_INFO("Requesting changelog info from peer %d", id);
