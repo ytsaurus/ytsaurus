@@ -577,7 +577,7 @@ private:
 
     TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
     {
-        PROFILE_TIMING ("full_heartbeat") {
+        PROFILE_TIMING ("full_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
 
@@ -620,7 +620,7 @@ private:
 
     TVoid IncrementalHeartbeat(const TMsgIncrementalHeartbeat& message)
     {
-        PROFILE_TIMING ("incremental_heartbeat") {
+        PROFILE_TIMING ("incremental_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
 
@@ -856,7 +856,7 @@ private:
         auto holderId = holder.GetId();
 
         if (holder.HasChunk(chunkId, cached)) {
-            LOG_WARNING_IF(!IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
                 ~reason.ToString(),
@@ -907,7 +907,7 @@ private:
         auto holderId = holder.GetId();
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !holder.HasChunk(chunkId, cached)) {
-            LOG_WARNING_IF(!IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
                 ~reason.ToString(),
