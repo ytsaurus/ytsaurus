@@ -30,7 +30,7 @@ THolderLeaseTracker::THolderLeaseTracker(
 void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool confirmed)
 {
     THolderInfo holderInfo(confirmed);
-    YVERFIY(HolderInfoMap.insert(MakePair(holder.GetId(), holderInfo)).second);
+    YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), holderInfo)).second);
     RecreateLease(holder);
 }
 
