@@ -55,7 +55,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
     auto asyncResult = New< TFuture<TSnapshotInfo> >();
     auto awaiter = New<TParallelAwaiter>();
 
-    LOG_INFO("Getting snapshot %s info from peers");
+    LOG_INFO("Getting snapshot %s info from peers", snapshotId);
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
         if (peerId == CellManager->GetSelfId()) continue;
 
