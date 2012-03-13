@@ -238,6 +238,8 @@ private:
     {
         const auto* holder = GetHolder();
         attributes->push_back("alive");
+        attributes->push_back(TAttributeInfo("state"));
+        attributes->push_back(TAttributeInfo("confirmed", holder));
         attributes->push_back(TAttributeInfo("incarnation_id", holder));
         attributes->push_back(TAttributeInfo("available_space", holder));
         attributes->push_back(TAttributeInfo("used_space", holder));
@@ -257,7 +259,20 @@ private:
             return true;
         }
 
+        if (name == "state") {
+            auto state = holder ? holder->GetState() : EHolderState::Offline;
+            BuildYsonFluently(consumer)
+                .Scalar(state.ToString());
+            return true;
+        }
+
         if (holder) {
+            if (name == "confirmed") {
+                BuildYsonFluently(consumer)
+                    .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsHolderConfirmed(*holder)));
+                return true;
+            }
+
             if (name == "incarnation_id") {
                 BuildYsonFluently(consumer)
                     .Scalar(holder->GetIncarnationId().ToString());
@@ -410,6 +425,7 @@ private:
     {
         attributes->push_back("alive");
         attributes->push_back("dead");
+        attributes->push_back("confirmed");
         attributes->push_back("available_space");
         attributes->push_back("used_space");
         attributes->push_back("chunk_count");
@@ -424,22 +440,30 @@ private:
 
         if (name == "alive") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id)
-                    {
-                        const auto& holder = chunkManager->GetHolder(id);
-                        fluent.Item().Scalar(holder.GetAddress());
-                    });
+                .DoListFor(chunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id) {
+                    const auto& holder = chunkManager->GetHolder(id);
+                    fluent.Item().Scalar(holder.GetAddress());
+                });
             return true;
         }
 
         if (name == "dead") {
             BuildYsonFluently(consumer)
-                .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address)
-                    {
-                        if (!chunkManager->FindHolder(address)) {
-                            fluent.Item().Scalar(address);
-                        }
-                    });
+                .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
+                    if (!chunkManager->FindHolder(address)) {
+                        fluent.Item().Scalar(address);
+                    }
+                });
+            return true;
+        }
+
+        if (name == "confirmed") {
+            BuildYsonFluently(consumer)
+                .DoListFor(chunkManager->GetHolders(), [=] (TFluentList fluent, THolder* holder) {
+                    if (chunkManager->IsHolderConfirmed(*holder)) {
+                        fluent.Item().Scalar(holder->GetAddress());
+                    }
+                });
             return true;
         }
 

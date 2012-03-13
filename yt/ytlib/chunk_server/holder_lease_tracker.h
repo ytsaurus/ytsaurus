@@ -24,6 +24,14 @@ class TChunkManager;
  *  by calling #TChunkManager::InitiateUnregisterHolder.
  *  The latter is a logged operation during which #THolderExpiration::Unregister
  *  gets called.
+ *  
+ *  Each registered holder carries an additional "Confirmed" flag.
+ *  The flag is used to distinguish between holders that were registered during an earlier
+ *  epoch (and whose actual liveness is not yet confirmed) and
+ *  those holders that have reported a heartbeat during the current epoch.
+ *  
+ *  This flag is raised automatically in #OnHolderHeartbeat.
+ *  
  */
 class THolderLeaseTracker
     : public TRefCounted
@@ -47,7 +55,7 @@ public:
      *  Initial lease timeout for registered holders is #TChunkManagerConfig::RegisteredHolderTimeout.
      *  For online holders it is decreased to #TChunkManagerConfig::OnlineHolderTimeout.
      */
-    void OnHolderRegistered(const THolder& holder);
+    void OnHolderRegistered(const THolder& holder, bool confirmed);
 
     //! Notifies that the holder has become online and hence its lease timeout must be updated.
     void OnHolderOnline(const THolder& holder);
@@ -58,11 +66,19 @@ public:
     //! Unregisters the holder and stop tracking its lease.
     void OnHolderUnregistered(const THolder& holder);
 
+    //! Returns True iff the holder is confirmed.
+    bool IsHolderConfirmed(const THolder& holder);
+
 
 private:
     struct THolderInfo
     {
+        THolderInfo(bool confirmed)
+            : Confirmed(confirmed)
+        { }
+
         TLeaseManager::TLease Lease;
+        bool Confirmed;
     };
 
     typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;

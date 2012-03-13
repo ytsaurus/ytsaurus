@@ -326,7 +326,7 @@ public:
         }
     }
 
-    TTotalHolderStatistics GetTotalHolderStatistics() const
+    TTotalHolderStatistics GetTotalHolderStatistics()
     {
         TTotalHolderStatistics result;
         auto keys = HolderMap.GetKeys();
@@ -340,6 +340,11 @@ public:
             result.AliveHolderCount++;
         }
         return result;
+    }
+
+    bool IsHolderConfirmed(const THolder& holder)
+    {
+        return HolderLeaseTracking->IsHolderConfirmed(holder);
     }
 
 private:
@@ -558,7 +563,7 @@ private:
         HolderAddressMap.insert(MakePair(address, holderId)).second;
 
         if (IsLeader()) {
-            StartHolderTracking(*newHolder);
+            StartHolderTracking(*newHolder, true);
         }
 
         return holderId;
@@ -661,7 +666,7 @@ private:
 
     TVoid UpdateJobs(const TMsgUpdateJobs& message)
     {
-        PROFILE_TIMING ("update_jobs") {
+        PROFILE_TIMING ("update_jobs_time") {
             auto holderId = message.holder_id();
             auto& holder = GetHolder(holderId);
 
@@ -771,11 +776,13 @@ private:
 
         HolderLeaseTracking = New<THolderLeaseTracker>(~Config, Bootstrap);
 
+        // Assign initial leases to holders.
+        // NB: Holders should remain unconfirmed until the first heartbeat.
         FOREACH (const auto& pair, HolderMap) {
-            StartHolderTracking(*pair.second);
+            StartHolderTracking(*pair.second, false);
         }
 
-        PROFILE_TIMING ("full_chunk_refresh") {
+        PROFILE_TIMING ("full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
             ChunkReplication->RefreshAllChunks();
             LOG_INFO("Full chunk refresh completed");
@@ -790,9 +797,9 @@ private:
     }
 
 
-    void StartHolderTracking(const THolder& holder)
+    void StartHolderTracking(const THolder& holder, bool confirmed)
     {
-        HolderLeaseTracking->OnHolderRegistered(holder);
+        HolderLeaseTracking->OnHolderRegistered(holder, confirmed);
         ChunkPlacement->OnHolderRegistered(holder);
         ChunkReplication->OnHolderRegistered(holder);
 
@@ -1622,11 +1629,15 @@ void TChunkManager::FillHolderAddresses(
     Impl->FillHolderAddresses(addresses, chunk);
 }
 
-TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics() const
+TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics()
 {
     return Impl->GetTotalHolderStatistics();
 }
 
+bool TChunkManager::IsHolderConfirmed(const THolder& holder)
+{
+    return Impl->IsHolderConfirmed(holder);
+}
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)
