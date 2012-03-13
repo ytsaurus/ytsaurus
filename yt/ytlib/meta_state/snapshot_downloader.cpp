@@ -5,6 +5,7 @@
 #include "meta_state_manager_proxy.h"
 #include "cell_manager.h"
 
+#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/action_util.h>
 #include <ytlib/actions/future.h>
 
@@ -20,22 +21,23 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotDownloader::TSnapshotDownloader(
-    TSnapshotDownloaderConfig *config,
+    TSnapshotDownloaderConfigPtr config,
     TCellManagerPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
 {
+    YASSERT(config);
     YASSERT(cellManager);
 }
 
-TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
+TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
     i32 segmentId,
     TFile* snapshotFile)
 {
     YASSERT(snapshotFile);
 
-    TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
-    TPeerId sourceId = snapshotInfo.SourceId;
+    auto snapshotInfo = GetSnapshotInfo(segmentId);
+    auto sourceId = snapshotInfo.SourceId;
     if (sourceId == NElection::InvalidPeerId) {
         return EResult::SnapshotNotFound;
     }
@@ -53,6 +55,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
     auto asyncResult = New< TFuture<TSnapshotInfo> >();
     auto awaiter = New<TParallelAwaiter>();
 
+    LOG_INFO("Getting snapshot %s info from peers");
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
         if (peerId == CellManager->GetSelfId()) continue;
 
@@ -64,24 +67,27 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
             ->SetTimeout(Config->LookupTimeout);
         request->set_snapshot_id(snapshotId);
         awaiter->Await(request->Invoke(), FromMethod(
-            &TSnapshotDownloader::OnResponse,
+            &TSnapshotDownloader::OnSnapshotInfoResponse,
             awaiter, asyncResult, peerId));
     }
+    LOG_INFO("Snapshot info requests sent");
 
     awaiter->Complete(FromMethod(
-        &TSnapshotDownloader::OnComplete,
+        &TSnapshotDownloader::OnSnapshotInfoComplete,
         snapshotId,
         asyncResult));
 
     return asyncResult->Get();
 }
 
-void TSnapshotDownloader::OnResponse(
+void TSnapshotDownloader::OnSnapshotInfoResponse(
     TProxy::TRspGetSnapshotInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
     TFuture<TSnapshotInfo>::TPtr asyncResult,
     TPeerId peerId)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!response->IsOK()) {
         LOG_INFO("Error requesting snapshot info from peer %d\n%s",
             peerId,
@@ -99,7 +105,7 @@ void TSnapshotDownloader::OnResponse(
     awaiter->Cancel();
 }
 
-void TSnapshotDownloader::OnComplete(
+void TSnapshotDownloader::OnSnapshotInfoComplete(
     i32 segmentId,
     TFuture<TSnapshotInfo>::TPtr asyncResult)
 {
