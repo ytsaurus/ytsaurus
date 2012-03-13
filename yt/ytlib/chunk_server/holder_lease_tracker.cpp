@@ -27,9 +27,10 @@ THolderLeaseTracker::THolderLeaseTracker(
     YASSERT(bootstrap);
 }
 
-void THolderLeaseTracker::OnHolderRegistered(const THolder& holder)
+void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool confirmed)
 {
-    YASSERT(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).second);
+    THolderInfo holderInfo(confirmed);
+    YASSERT(HolderInfoMap.insert(MakePair(holder.GetId(), holderInfo)).second);
     RecreateLease(holder);
 }
 
@@ -49,7 +50,14 @@ void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
 void THolderLeaseTracker::OnHolderHeartbeat(const THolder& holder)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
+    holderInfo.Confirmed = true;
     TLeaseManager::RenewLease(holderInfo.Lease);
+}
+
+bool THolderLeaseTracker::IsHolderConfirmed(const THolder& holder)
+{
+    const auto& holderInfo = GetHolderInfo(holder.GetId());
+    return holderInfo.Confirmed;
 }
 
 void THolderLeaseTracker::OnExpired(THolderId holderId)
@@ -68,14 +76,12 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
         ->GetChunkManager()
         ->InitiateUnregisterHolder(message)
         ->SetRetriable(Config->HolderExpirationBackoffTime)
-        ->OnSuccess(~FromFunctor([=] (TVoid)
-            {
-                LOG_INFO("Holder expiration commit success (HolderId: %d)", holderId);
-            }))
-        ->OnError(~FromFunctor([=] ()
-            {
-                LOG_INFO("Holder expiration commit failed (HolderId: %d)", holderId);
-            }))
+        ->OnSuccess(~FromFunctor([=] (TVoid) {
+            LOG_INFO("Holder expiration commit success (HolderId: %d)", holderId);
+        }))
+        ->OnError(~FromFunctor([=] () {
+            LOG_INFO("Holder expiration commit failed (HolderId: %d)", holderId);
+        }))
         ->Commit();
 }
 
