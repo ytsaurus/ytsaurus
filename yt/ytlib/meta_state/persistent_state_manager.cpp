@@ -803,6 +803,8 @@ public:
             EpochControlInvoker,
             EpochStateInvoker);
 
+        LeaderRecoveryComplete_.Fire();
+
         YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
         StateStatus = EPeerStatus::Leading;
 
@@ -815,8 +817,6 @@ public:
 
             SnapshotBuilder->RotateChangeLog();
         }
-
-        LeaderRecoveryComplete_.Fire();
     }
 
     void DoAdvanceSegment(TCtxAdvanceSegment::TPtr context, TMetaVersion version)
