@@ -260,7 +260,7 @@ private:
         }
 
         if (name == "state") {
-            auto state = holder ? holder->GetState() : EHolderState::Offline;
+            auto state = holder ? holder->GetState() : EHolderState(EHolderState::Offline);
             BuildYsonFluently(consumer)
                 .Scalar(state.ToString());
             return true;
