@@ -191,7 +191,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto* chunk = chunkManager->FindChunk(chunkId);
     if (!chunk) {
-        LOG_DEBUG("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_TRACE("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -199,11 +199,11 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     }
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_DEBUG("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_TRACE("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
-        return EScheduleFlags::None;
+        return EScheduleFlags::Purged;
     }
 
     int desiredCount;
@@ -221,7 +221,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 
     int requestedCount = desiredCount - (storedCount + plusCount);
     if (requestedCount <= 0) {
-        LOG_DEBUG("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_TRACE("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -230,7 +230,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 
     auto targets = ChunkPlacement->GetReplicationTargets(*chunk, requestedCount);
     if (targets.empty()) {
-        LOG_DEBUG("No suitable target holders for replication (ChunkId: %s, HolderId: %d)",
+        LOG_TRACE("No suitable target holders for replication (ChunkId: %s, HolderId: %d)",
             ~chunkId.ToString(),
             sourceHolder.GetId());
         return EScheduleFlags::None;
