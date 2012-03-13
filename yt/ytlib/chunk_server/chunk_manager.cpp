@@ -1124,7 +1124,7 @@ private:
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds().insert(job.GetJobId()).second);
+                    YVERIFY(sink.JobIds().insert(job.GetJobId()).second);
                 }
                 break;
             }
@@ -1143,7 +1143,7 @@ private:
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds().erase(job.GetJobId()) == 1);
+                    YVERIFY(sink.JobIds().erase(job.GetJobId()) == 1);
                     DropReplicationSinkIfEmpty(sink);
                 }
                 break;
