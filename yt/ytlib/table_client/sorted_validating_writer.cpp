@@ -8,11 +8,11 @@ namespace NTableClient {
 
 TSortedValidatingWriter::TSortedValidatingWriter(
     const TSchema& schema,
-    const std::vector<TColumn>& keyColumns,
+    std::vector<TColumn>&& keyColumns,
     IAsyncWriter* writer)
-    : TValidatingWriter(schema, keyColumns, writer)
+    : TValidatingWriter(schema, MoveRV(keyColumns), writer)
 {
-    PreviousKey.assign(KeyColumnsCount, TNullable<Stroka>());
+    PreviousKey.assign(keyColumns.size(), Stroka());
     Attributes.set_is_sorted(true);
 }
 

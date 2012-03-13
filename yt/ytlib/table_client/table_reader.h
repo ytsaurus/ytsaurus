@@ -66,17 +66,7 @@ public:
      */
     bool NextRow();
 
-    //! Moves the reader to the next column (within the current row).
-    /*!
-     *  \returns False iff no more columns are left.
-     */
-    bool NextColumn();
-
-    //! Returns the current column's name.
-    TColumn GetColumn() const;
-
-    //! Returns the current column's value.
-    TValue GetValue() const;
+    const TRow& GetRow() const;
 
 private:
     TConfig::TPtr Config;

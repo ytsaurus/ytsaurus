@@ -41,8 +41,7 @@ public:
         const NObjectServer::TTransactionId& transactionId,
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache,
-        // ToDo: use rvalue reference.
-        std::vector<NProto::TChunkSlice>&& chunkSlices);
+        std::vector<NProto::TChunkSlice>& chunkSlices);
 
     TAsyncError::TPtr AsyncOpen();
 

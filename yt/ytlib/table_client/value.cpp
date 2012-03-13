@@ -193,12 +193,12 @@ bool operator<=(const TKey& lhs, const TKey& rhs)
 
 bool operator> (const TKey& lhs, const TKey& rhs)
 {
-    return return CompareKeys(lhs, rhs) > 0;
+    return CompareKeys(lhs, rhs) > 0;
 }
 
 bool operator>=(const TKey& lhs, const TKey& rhs)
 {
-    return return CompareKeys(lhs, rhs) >= 0;
+    return CompareKeys(lhs, rhs) >= 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

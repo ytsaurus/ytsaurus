@@ -180,8 +180,9 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
                     return;
                 } 
 
+                std::vector<TSharedRef> blocks;
                 blocks.push_back(result.Value()->GetData());
-                this_->Writer->AsyncWriteBlock(MoveRV(blocks))->Subscribe(
+                this_->Writer->AsyncWriteBlocks(MoveRV(blocks))->Subscribe(
                     FromMethod(
                         &TJob::ReplicateBlock,
                         this_,

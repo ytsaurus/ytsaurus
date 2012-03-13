@@ -16,7 +16,7 @@ TChunkSequenceReader::TChunkSequenceReader(
     const NObjectServer::TTransactionId& transactionId,
     NRpc::IChannel* masterChannel,
     NChunkClient::IBlockCache* blockCache,
-    std::vector<NProto::TChunkSlice>&& chunkSlices)
+    std::vector<NProto::TChunkSlice>& chunkSlices)
     : Config(config)
     , Channel(channel)
     , BlockCache(blockCache)

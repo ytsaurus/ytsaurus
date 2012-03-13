@@ -12,13 +12,13 @@ class TSortedValidatingWriter
 public:
     TSortedValidatingWriter(
         const TSchema& schema,
-        const std::vector<TColumn>& keyColumns,
+        std::vector<TColumn>&& keyColumns,
         IAsyncWriter* writer);
 
     TAsyncError::TPtr AsyncEndRow();
 
 private:
-    std::vector< TNullable<Stroka> > PreviousKey;
+    TKey PreviousKey;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "chunk_sequence_writer.h"
+#include "validating_writer.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
@@ -29,7 +30,6 @@ namespace NTableClient {
  */
 class TTableWriter
     : public NTransactionClient::TTransactionListener
-    , public ISyncWriter
 {   
 public:
     typedef TIntrusivePtr<TTableWriter> TPtr;
@@ -83,7 +83,8 @@ private:
 
     NTransactionClient::ITransaction::TPtr UploadTransaction;
     NChunkServer::TChunkListId ChunkListId;
-    TChunkSequenceWriter::TPtr Writer;
+
+    THolder<TValidatingWriter> Writer;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 
