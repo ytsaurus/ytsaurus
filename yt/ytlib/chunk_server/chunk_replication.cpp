@@ -603,11 +603,14 @@ void TChunkReplication::RefreshAllChunks()
 
 void TChunkReplication::ScheduleNextRefresh()
 {
+    auto context = Bootstrap->GetMetaStateManager()->GetEpochContext();
+    if (!context)
+        return;
     TDelayedInvoker::Submit(
         ~FromMethod(&TChunkReplication::OnRefresh, MakeStrong(this))
         ->Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
-            Bootstrap->GetMetaStateManager()->GetEpochContext()),
+            context),
         Config->ChunkRefreshQuantum);
 }
 

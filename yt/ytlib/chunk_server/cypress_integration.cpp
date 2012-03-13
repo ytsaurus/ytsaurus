@@ -358,34 +358,33 @@ private:
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
         // Doing otherwise will turn holder registration and Cypress update into a single
         // logged change, which is undesirable.
-        Bootstrap
-            ->GetMetaStateManager()
-            ->GetEpochContext()
-            ->CreateInvoker(~Bootstrap->GetStateInvoker())
-            ->Invoke(FromFunctor([=] ()
-                {
-                    if (node->FindChild(address))
-                        return;
+        FromFunctor([=] () {
+            if (node->FindChild(address))
+                return;
 
-                    auto service = cypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
+            auto service = cypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
 
-                    // TODO(babenko): make a single transaction
+            // TODO(babenko): make a single transaction
 
-                    {
-                        auto req = TCypressYPathProxy::Create(address);
-                        req->set_type(EObjectType::Holder);
-                        ExecuteVerb(~service, ~req);
-                    }
+            {
+                auto req = TCypressYPathProxy::Create(address);
+                req->set_type(EObjectType::Holder);
+                ExecuteVerb(~service, ~req);
+            }
 
-                    {
-                        auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
-                        req->set_type(EObjectType::Orchid);     
-                        auto manifest = New<TOrchidManifest>();
-                        manifest->RemoteAddress = address;
-                        req->set_manifest(SerializeToYson(~manifest));
-                        ExecuteVerb(~service, ~req);
-                    }
-                }));
+            {
+                auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
+                req->set_type(EObjectType::Orchid);     
+                auto manifest = New<TOrchidManifest>();
+                manifest->RemoteAddress = address;
+                req->set_manifest(SerializeToYson(~manifest));
+                ExecuteVerb(~service, ~req);
+            }
+        })
+        ->Via(
+            Bootstrap->GetStateInvoker(),
+            Bootstrap->GetMetaStateManager()->GetEpochContext())
+        ->Do();
     }
 
 };
