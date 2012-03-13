@@ -98,7 +98,8 @@ class TSnapshotBuilder;
 typedef TIntrusivePtr<TSnapshotBuilder> TSnapshotBuilderPtr;
 
 class TSnapshotDownloader;
-typedef TIntrusivePtr<TSnapshotDownloader> TSnapshotDownloaderPtr;
+
+class TSnapshotLookup;
 
 class TChangeLogCache;
 typedef TIntrusivePtr<TChangeLogCache> TChangeLogCachePtr;

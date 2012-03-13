@@ -19,6 +19,7 @@ set( SRCS
   ${BASE}/snapshot.cpp
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
+  ${BASE}/snapshot_lookup.cpp
   ${BASE}/snapshot_store.cpp
 )
 set( HDRS
@@ -52,6 +53,7 @@ set( HDRS
   ${BASE}/snapshot.h
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
+  ${BASE}/snapshot_lookup.h
   ${BASE}/snapshot_store.h
 )
 

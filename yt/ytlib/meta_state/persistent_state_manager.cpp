@@ -332,8 +332,7 @@ public:
 
         i32 snapshotId = request->snapshot_id();
 
-        context->SetRequestInfo("SnapshotId: %d",
-            snapshotId);
+        context->SetRequestInfo("SnapshotId: %d", snapshotId);
 
         auto result = SnapshotStore->GetReader(snapshotId);
         if (!result.IsOK()) {
@@ -345,7 +344,7 @@ public:
         reader->Open();
         
         i64 length = reader->GetLength();
-        TChecksum checksum = reader->GetChecksum();
+        auto checksum = reader->GetChecksum();
         int prevRecordCount = reader->GetPrevRecordCount();
 
         response->set_length(length);

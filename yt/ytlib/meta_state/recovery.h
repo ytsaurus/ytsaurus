@@ -52,32 +52,43 @@ protected:
      */
     virtual bool IsLeader() const = 0;
 
-    //! Recovers to a desired state by first loading a snapshot
+    //! Recovers to the desired state by first loading a snapshot
+    //! and then applying changelogs, if necessary.
+    /*!
+     *  \param targetVersion A version to reach.
+     *  \returns A future that gets set when the recovery completes.
+     *  
+     *  \note Thread affinity: StateThread.
+     */
+    TAsyncResult::TPtr RecoverToState(
+        const TMetaVersion& targetVersion);
+
+    //! Recovers to the desired state by first loading the given snapshot
     //! and then applying changelogs, if necessary.
     /*!
      *  \param targetVersion A version to reach.
      *  \param snapshotId A snapshot to start recovery with.
-     *  \returns An async result that gets when the recovery completes.
+     *  \returns A future that gets set when the recovery completes.
      *  
      *  \note Thread affinity: StateThread.
      */
-    TAsyncResult::TPtr RecoverFromSnapshotAndChangeLog(
+    TAsyncResult::TPtr RecoverToState(
         const TMetaVersion& targetVersion,
         i32 snapshotId);
 
-    //! Recovers to a desired state by applying changelogs.
+    //! Recovers to the desired state by applying changelogs.
     /*!
      *  \param targetVersion A version to reach.
      *  \param expectedPrevRecordCount The 'PrevRecordCount' value that
      *  the first changelog is expected to have.
-     *  \returns An async result that gets when the recovery completes.
+     *  \returns A future that gets set when the recovery completes.
      *  
      *  Additional unnamed parameters are due to implementation details.
      * 
      *  \note Thread affinity: StateThread.
      */
-    TAsyncResult::TPtr RecoverFromChangeLog(
-        TMetaVersion targetVersion,
+    TAsyncResult::TPtr ReplayChangeLogs(
+        const TMetaVersion& targetVersion,
         i32 expectedPrevRecordCount);
 
     //! Applies records from a given changes up to a given one.
@@ -229,18 +240,12 @@ private:
     TMetaVersion TargetVersion;
 
     // Control thread
-    i32 MaxLookupSnapshotId;
     TPostponedChanges PostponedChanges;
     TMetaVersion PostponedVersion;
     
     TAsyncResult::TPtr OnSyncReached(EResult result);
     TAsyncResult::TPtr CapturePostponedChanges();
     TAsyncResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
-
-    void OnLookupSnapshotResponse(
-        TProxy::TRspLookupSnapshot::TPtr response,
-        TPeerId peerId);
-    void OnLookupSnapshotComplete();
 
     virtual bool IsLeader() const;
 
