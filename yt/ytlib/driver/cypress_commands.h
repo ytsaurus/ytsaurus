@@ -90,36 +90,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCreateRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
-    NObjectServer::EObjectType Type;
-    NYTree::INodePtr Manifest;
-
-    TCreateRequest()
-    {
-        Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
-        Register("type", Type);
-        Register("manifest", Manifest)
-            .Default();
-    }
-};
-
 class TCreateCommand
-    : public TCommandBase<TCreateRequest>
+    : public TTransactedCommand
 {
-public:
     TCreateCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
-    { }
+        : TTransactedCommand(driverImpl)
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        TypeArg.Reset(new TTypeArg(
+            "type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type"));
+
+        Cmd->add(~PathArg);
+        Cmd->add(~TypeArg);
+
+        ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
+    }
+
+    virtual void DoExecute(const yvector<Stroka>& args);
 
 private:
-    virtual void DoExecute(TCreateRequest* request);
+    THolder<TFreeStringArg> PathArg;
+
+    typedef TCLAP::UnlabeledValueArg<NObjectServer::EObjectType> TTypeArg;
+    THolder<TTypeArg> TypeArg;
+
+    typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
+    THolder<TManifestArg> ManifestArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

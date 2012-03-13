@@ -1,6 +1,8 @@
 #pragma once
 
 #include "guid.h"
+#include "enum.h"
+
 #include <ytlib/object_server/public.h>
 #include <ytlib/cypress/public.h>
 
@@ -21,6 +23,11 @@ struct ArgTraits<NYT::NCypress::ELockMode> {
     typedef ValueLike ValueCategory;
 };
 
+template<>
+struct ArgTraits<NYT::NObjectServer::EObjectType> {
+    typedef ValueLike ValueCategory;
+};
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,11 +40,12 @@ inline std::istream& operator >> (std::istream& input, NYT::TGuid& guid)
     return input;
 }
 
-inline std::istream& operator >> (std::istream& input, NYT::NCypress::ELockMode& mode)
+template<class T>
+inline std::istream& operator >> (std::istream& input, NYT::TEnumBase<T>& mode)
 {
     std::string s;
     input >> s;
-    mode = NYT::NCypress::ELockMode::FromString(Stroka(s));
+    mode = T::FromString(Stroka(s));
     return input;
 }
 
