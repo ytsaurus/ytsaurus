@@ -49,6 +49,7 @@ set( SRCS
   weak_ptr_ut.cpp
   callback_ut.cpp
   bind_ut.cpp
+  table_client_ut.cpp
 )
 
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )

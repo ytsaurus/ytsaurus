@@ -99,9 +99,6 @@ void TTableWriter::Open()
         }
     }
 
-    // ToDo: make schema required attribute on server.
-    // ToDo: make keys required attribute on server.
-
     LOG_INFO("Table info received (ChunkListId: %s, ChannelCount: %d)",
         ~chunkListId.ToString(),
         static_cast<int>(schema.GetChannels().size()));
@@ -114,7 +111,6 @@ void TTableWriter::Open()
 
     Writer.Reset(new TValidatingWriter(
         schema, 
-        std::vector<Stroka>(), // ToDo: get keys from server.
         ~asyncWriter));
 
     Sync(~Writer, &TValidatingWriter::AsyncOpen);

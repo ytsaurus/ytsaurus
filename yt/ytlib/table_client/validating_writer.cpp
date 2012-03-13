@@ -9,11 +9,9 @@ namespace NTableClient {
 
 TValidatingWriter::TValidatingWriter(
     const TSchema& schema, 
-    std::vector<TColumn>&& keyColumns,
     IAsyncWriter* writer)
     : Writer(writer)
     , Schema(schema)
-    , KeyColumns(keyColumns)
     , RowStart(true)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
@@ -21,7 +19,7 @@ TValidatingWriter::TValidatingWriter(
     YASSERT(writer);
     {
         int columnIndex = 0;
-        FOREACH(auto& keyColumn, keyColumns) {
+        FOREACH(auto& keyColumn, Schema.KeyColumns()) {
             auto res = ColumnIndexes.insert(MakePair(keyColumn, columnIndex));
             YASSERT(res.Second());
             ++columnIndex;
@@ -39,7 +37,7 @@ TValidatingWriter::TValidatingWriter(
         IsColumnUsed.resize(columnIndex, false);
     }
 
-    CurrentKey.resize(KeyColumns.size());
+    CurrentKey.resize(Schema.KeyColumns().size());
 
     // Fill protobuf chunk meta.
     FOREACH(auto channel, Schema.GetChannels()) {
@@ -61,7 +59,7 @@ void TValidatingWriter::Write(const TColumn& column, TValue value)
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     if (RowStart) {
-        CurrentKey.assign(KeyColumns.size(), Stroka());
+        CurrentKey.assign(Schema.KeyColumns().size(), Stroka());
         RowStart = false;
     }
 
@@ -85,7 +83,7 @@ void TValidatingWriter::Write(const TColumn& column, TValue value)
             IsColumnUsed[columnIndex] = true;
         }
 
-        if (columnIndex < KeyColumns.size()) {
+        if (columnIndex < Schema.KeyColumns().size()) {
             CurrentKey[columnIndex] = value.ToString();
         }
     }
@@ -100,13 +98,13 @@ TAsyncError::TPtr TValidatingWriter::AsyncEndRow()
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     if (RowStart) {
-        CurrentKey.assign(KeyColumns.size(), Stroka());
+        CurrentKey.assign(Schema.KeyColumns().size(), Stroka());
     }
 
-    for (int columnIndex = 0; columnIndex < KeyColumns.size(); ++columnIndex) {
+    for (int columnIndex = 0; columnIndex < Schema.KeyColumns().size(); ++columnIndex) {
         if (!IsColumnUsed[columnIndex]) {
             FOREACH(auto& channelWriter, ChannelWriters) {
-                channelWriter->Write(columnIndex, KeyColumns[columnIndex], Stroka());
+                channelWriter->Write(columnIndex, Schema.KeyColumns()[columnIndex], Stroka());
             }
         }
     }

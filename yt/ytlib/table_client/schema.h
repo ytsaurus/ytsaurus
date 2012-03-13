@@ -5,6 +5,7 @@
 #include "schema.pb.h"
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -68,7 +69,7 @@ public:
     static TChannel FromYson(const NYTree::TYson& yson);
     static TChannel FromNode(NYTree::INode* node);
 
-    const yvector<TColumn>& GetColumns() const;
+    const std::vector<TColumn>& GetColumns() const;
 
     //! Returns the channel containing all possible columns.
     static TChannel Universal();
@@ -80,22 +81,22 @@ private:
 
     friend void operator -= (TChannel& lhs, const TChannel& rhs);
 
-    yvector<TColumn> Columns;
-    yvector<TRange> Ranges;
+    std::vector<TColumn> Columns;
+    std::vector<TRange> Ranges;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchema
 {
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TColumn>, KeyColumns);
+
 public:
     static TSchema Default();
 
     void AddChannel(const TChannel& channel);
-    const yvector<TChannel>& GetChannels() const;
 
-    NProto::TSchema ToProto() const;
-    static TSchema FromProto(const NProto::TSchema& protoSchema);
+    const std::vector<TChannel>& GetChannels() const;
 
     static TSchema FromYson(const NYTree::TYson& yson);
     static TSchema FromNode(NYTree::INode* node);
@@ -105,8 +106,7 @@ private:
 
     TSchema();
 
-    yvector<TChannel> Channels;
-
+    std::vector<TChannel> Channels;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

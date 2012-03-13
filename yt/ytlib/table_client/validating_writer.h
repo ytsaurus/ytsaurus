@@ -14,7 +14,6 @@ class TValidatingWriter
 public:
     TValidatingWriter(
         const TSchema& schema, 
-        std::vector<TColumn>&& keyColumns,
         IAsyncWriter* writer);
 
     virtual TAsyncError::TPtr AsyncOpen();
@@ -26,8 +25,6 @@ public:
 protected:
     IAsyncWriter::TPtr Writer;
     const TSchema Schema;
-
-    std::vector<TColumn> KeyColumns;
 
     // Stores mapping from all key columns and channel non-range columns to indexes.
     yhash_map<TColumn, int> ColumnIndexes;

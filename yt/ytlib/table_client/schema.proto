@@ -15,11 +15,6 @@ message TChannel
     repeated TRange ranges = 2;
 }
 
-message TSchema
-{
-    repeated TChannel channels = 1;
-}
-
 message TKey
 {
     repeated bytes values = 1;

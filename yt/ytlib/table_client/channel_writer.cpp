@@ -18,7 +18,7 @@ TChannelWriter::TChannelWriter(
 {
     ColumnIndexMapping.resize(chunkColumnIndexes.size(), UnknownIndex);
 
-    for (int i = 0; i < Channel.GetColumns().ysize(); ++i) {
+    for (int i = 0; i < Channel.GetColumns().size(); ++i) {
         auto& column = Channel.GetColumns()[i];
         auto it = chunkColumnIndexes.find(column);
         YASSERT(chunkColumnIndexes.end() != it);

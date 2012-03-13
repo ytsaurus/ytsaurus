@@ -12,7 +12,6 @@ class TSortedValidatingWriter
 public:
     TSortedValidatingWriter(
         const TSchema& schema,
-        std::vector<TColumn>&& keyColumns,
         IAsyncWriter* writer);
 
     TAsyncError::TPtr AsyncEndRow();
