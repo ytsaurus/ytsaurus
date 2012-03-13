@@ -219,22 +219,22 @@ public:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("state").Scalar(ControlStatus.ToString())
-                .Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
-                .Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
-                .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
-                .DoIf(tracker, [=] (TFluentMap fluent)
-                    {
-                        fluent
-                            .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
-                            .Item("active_followers").DoListFor(0, CellManager->GetPeerCount(),
-                                [=] (TFluentList fluent, TPeerId id)
-                                    {
-                                        if (tracker->IsFollowerActive(id)) {
-                                            fluent.Item().Scalar(id);
-                                        }
-                                    });
-                    })
+                //.Item("state").Scalar(ControlStatus.ToString())
+                //.Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
+                //.Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
+                //.Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
+                //.DoIf(tracker, [=] (TFluentMap fluent)
+                //    {
+                //        fluent
+                //            .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
+                //            .Item("active_followers").DoListFor(0, CellManager->GetPeerCount(),
+                //                [=] (TFluentList fluent, TPeerId id)
+                //                    {
+                //                        if (tracker->IsFollowerActive(id)) {
+                //                            fluent.Item().Scalar(id);
+                //                        }
+                //                    });
+                //    })
             .EndMap();
     }
 
@@ -465,28 +465,27 @@ public:
         }
 
         auto changeLog = result.Value();
-        IOQueue->GetInvoker()->Invoke(~context->Wrap(~FromFunctor([=] ()
-            {
-                VERIFY_THREAD_AFFINITY(IOThread);
+        IOQueue->GetInvoker()->Invoke(~context->Wrap(~FromFunctor([=] () {
+            VERIFY_THREAD_AFFINITY(IOThread);
 
-                yvector<TSharedRef> recordData;
-                try {
-                    changeLog->Read(startRecordId, recordCount, &recordData);
-                } catch (const std::exception& ex) {
-                    LOG_FATAL("IO error while reading changelog (ChangeLogId: %d)\n%s",
-                        changeLogId,
-                        ex.what());
-                }
+            yvector<TSharedRef> recordData;
+            try {
+                changeLog->Read(startRecordId, recordCount, &recordData);
+            } catch (const std::exception& ex) {
+                LOG_FATAL("IO error while reading changelog (ChangeLogId: %d)\n%s",
+                    changeLogId,
+                    ex.what());
+            }
 
-                context->Response().set_records_read(recordData.ysize());
-                context->Response().Attachments().insert(
-                    context->Response().Attachments().end(),
-                    recordData.begin(),
-                    recordData.end());
+            context->Response().set_records_read(recordData.ysize());
+            context->Response().Attachments().insert(
+                context->Response().Attachments().end(),
+                recordData.begin(),
+                recordData.end());
 
-                context->SetResponseInfo("RecordCount: %d", recordData.ysize());
-                context->Reply();
-            })));
+            context->SetResponseInfo("RecordCount: %d", recordData.ysize());
+            context->Reply();
+        })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ApplyChanges)
