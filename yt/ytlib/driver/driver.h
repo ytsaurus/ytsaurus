@@ -68,7 +68,7 @@ public:
         IDriverStreamProvider* streamProvider);
     ~TDriver();
 
-    TError Execute(NYTree::INodePtr command);
+    TError Execute(const yvector<Stroka>& args);
 
 private:
     class TImpl;

@@ -19,6 +19,8 @@
 #include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
 
+#include <tclap/CmdLine.h>
+
 #ifdef _win_
 #include <io.h>
 #else
@@ -196,50 +198,60 @@ public:
 
     int Main(int argc, const char* argv[])
     {
-		NYT::SetupErrorHandler();
+        NYT::SetupErrorHandler();
 
         try {
-            using namespace NLastGetopt;
+            using namespace TCLAP;
 
-            Stroka configFileName;;
-            TOpts opts;
-
-            opts.AddHelpOption();
-
-            const auto& configOpt = opts.AddLongOption("config", "configuration file")
-                .Optional()
-                .RequiredArgument("FILENAME")
-                .StoreResult(&configFileName);
-
-            Stroka formatStr;
-            const auto& formatOpt = opts.AddLongOption("format", "output format: Text, Pretty or Binary (default is Text)")
-                .Optional()
-                .RequiredArgument("FORMAT")
-                .StoreResult(&formatStr);
-
-            const auto& haltOnErrorOpt = opts.AddLongOption("halt-on-error", "halt batch execution upon receiving an error")
-                .Optional()
-                .NoArgument();
-
-            // accept yson text as single free command line argument
-            opts.SetFreeArgsMin(0);
-            opts.SetFreeArgsMax(1);
-            opts.SetFreeArgTitle(0, "CMD");
-
-            TOptsParseResult results(&opts, argc, argv);
-            if (!results.Has(&configOpt)) {
-                auto configFromEnv = getenv("YT_CONFIG");
-                if (configFromEnv) {
-                    configFileName = Stroka(configFromEnv);
-                } else {
-                    configFileName = NFS::CombinePaths(GetHomePath(), DefaultConfigFileName);
-                }
+            Stroka defaultConfig;
+            auto configFromEnv = getenv("YT_CONFIG");
+            if (configFromEnv) {
+                defaultConfig = Stroka(configFromEnv);
+            } else {
+                defaultConfig = NFS::CombinePaths(GetHomePath(), DefaultConfigFileName);
             }
+
+//            using namespace NLastGetopt;
+
+//            Stroka configFileName;;
+//            TOpts opts;
+
+//            opts.AddHelpOption();
+
+//            const auto& configOpt = opts.AddLongOption("config", "configuration file")
+//                .Optional()
+//                .RequiredArgument("FILENAME")
+//                .StoreResult(&configFileName);
+
+//            Stroka formatStr;
+//            const auto& formatOpt = opts.AddLongOption("format", "output format: Text, Pretty or Binary (default is Text)")
+//                .Optional()
+//                .RequiredArgument("FORMAT")
+//                .StoreResult(&formatStr);
+
+//            const auto& haltOnErrorOpt = opts.AddLongOption("halt-on-error", "halt batch execution upon receiving an error")
+//                .Optional()
+//                .NoArgument();
+
+//            // accept yson text as single free command line argument
+//            opts.SetFreeArgsMin(0);
+//            opts.SetFreeArgsMax(1);
+//            opts.SetFreeArgTitle(0, "CMD");
+
+//            TOptsParseResult results(&opts, argc, argv);
+//            if (!results.Has(&configOpt)) {
+//                auto configFromEnv = getenv("YT_CONFIG");
+//                if (configFromEnv) {
+//                    configFileName = Stroka(configFromEnv);
+//                } else {
+//                    configFileName = NFS::CombinePaths(GetHomePath(), DefaultConfigFileName);
+//                }
+//            }
 
             auto config = New<TConfig>();
             INodePtr configNode;
             try {
-                TIFStream configStream(configFileName);
+                TIFStream configStream(defaultConfig);
                 configNode = DeserializeFromYson(&configStream);
             } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
@@ -253,22 +265,29 @@ public:
 
             NLog::TLogManager::Get()->Configure(~config->Logging);
 
-            if (results.Has(&formatOpt)) {
-                config->OutputFormat = EYsonFormat::FromString(formatStr);
-            }
-
-            HaltOnError = results.Has(&haltOnErrorOpt);
-
             Driver = new TDriver(~config, &StreamProvider);
 
-            yvector<Stroka> freeArgs(results.GetFreeArgs());
-            if (freeArgs.empty()) {
-                RunBatch(Cin);
-            } else {
-                // opts was configured to accept no more then one free arg
-                TStringInput input(freeArgs[0]);
-                RunBatch(input);
+            yvector<Stroka> args;
+            for (int i = 0; i < argc; ++i) {
+                args.push_back(argv[i]);
             }
+            RunCommand(args);
+
+//            if (results.Has(&formatOpt)) {
+//                config->OutputFormat = EYsonFormat::FromString(formatStr);
+//            }
+
+//            HaltOnError = results.Has(&haltOnErrorOpt);
+
+
+//            yvector<Stroka> freeArgs(results.GetFreeArgs());
+//            if (freeArgs.empty()) {
+//                RunBatch(Cin);
+//            } else {
+//                // opts was configured to accept no more then one free arg
+//                TStringInput input(freeArgs[0]);
+//                RunBatch(input);
+//            }
         } catch (const std::exception& ex) {
             LOG_ERROR("%s", ex.what());
             ExitCode = 1;
@@ -289,22 +308,26 @@ private:
     TStreamProvider StreamProvider;
     TAutoPtr<TDriver> Driver;
 
-    void RunBatch(TInputStream& input)
-    {
-        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-        TYsonFragmentReader parser(~builder, &input);
-        while (parser.HasNext()) {
-            builder->BeginTree();
-            parser.ReadNext();
-            auto commandNode = builder->EndTree();
-
-            auto error = Driver->Execute(commandNode);
-            if (!error.IsOK() && HaltOnError) {
-                ExitCode = 1;
-                break;
-            }
-        }
+    void RunCommand(const yvector<Stroka>& args) {
+        Driver->Execute(args);
     }
+
+//    void RunBatch(TInputStream& input)
+//    {
+//        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+//        TYsonFragmentReader parser(~builder, &input);
+//        while (parser.HasNext()) {
+//            builder->BeginTree();
+//            parser.ReadNext();
+//            auto commandNode = builder->EndTree();
+
+//            auto error = Driver->Execute(commandNode);
+//            if (!error.IsOK() && HaltOnError) {
+//                ExitCode = 1;
+//                break;
+//            }
+//        }
+//    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

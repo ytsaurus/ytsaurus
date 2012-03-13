@@ -69,7 +69,7 @@ class YTEnv:
         self._prepare_configs()
         self._run_masters()
         self._wait_for_ready_masters()
-        self._init_sys()
+        #self._init_sys()
         self._run_services()
         self._wait_for_ready_holders()
 

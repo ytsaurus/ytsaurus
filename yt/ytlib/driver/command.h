@@ -15,6 +15,22 @@
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <tclap/CmdLine.h>
+
+//TODO(panin): move to proper place
+namespace TCLAP {
+template<>
+struct ArgTraits<NYT::NObjectServer::TTransactionId> {
+    typedef ValueLike ValueCategory;
+};
+
+template<>
+struct ArgTraits<Stroka> {
+    typedef StringLike ValueCategory;
+};
+
+}
+
 namespace NYT {
 namespace NDriver {
 
@@ -97,6 +113,7 @@ class TCommandBase
     : public ICommand
 {
 public:
+
     virtual void Execute(NYTree::INode* request)
     {
         auto typedRequest = New<TRequest>();
@@ -118,6 +135,87 @@ protected:
 
     virtual void DoExecute(TRequest* request) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct INewCommand
+    : public virtual TRefCounted
+{
+    typedef TIntrusivePtr<INewCommand> TPtr;
+
+    virtual void Execute(const yvector<Stroka>& args) = 0;
+};
+
+
+//TODO(panin): move to cpp
+class TNewCommandBase
+    : public INewCommand
+{
+public:
+    TNewCommandBase()
+    {
+        Cmd.Reset(new TCLAP::CmdLine("Command line"));
+        ConfigArg.Reset(new TCLAP::ValueArg<std::string>(
+            "", "config", "configuration file", false, "", "file_name"));
+        OptsArg.Reset(new TCLAP::MultiArg<std::string>(
+            "", "opts", "other options", false, "options"));
+
+        Cmd->add(~ConfigArg);
+        Cmd->add(~OptsArg);
+    }
+protected:
+    //useful typedefs
+    typedef TCLAP::UnlabeledValueArg<Stroka> TFreeStringArg;
+
+    THolder<TCLAP::CmdLine> Cmd;
+
+    THolder<TCLAP::ValueArg<std::string> > ConfigArg;
+    THolder<TCLAP::MultiArg<std::string> > OptsArg;
+
+    TAutoPtr<NYTree::IAttributeDictionary> GetOpts() const
+    {
+        auto options = NYTree::CreateEphemeralAttributes();
+        FOREACH (auto opts, OptsArg->getValue()) {
+            NYTree::TYson yson = Stroka("{") + Stroka(opts) + "}";
+            options->MergeFrom(~NYTree::DeserializeFromYson(yson)->AsMap());
+        }
+        return options;
+    }
+    virtual void DoExecute(const yvector<Stroka>& args) = 0;
+
+    void Execute(const yvector<Stroka>& args)
+    {
+        Parse(args);
+        DoExecute(args);
+    }
+
+private:
+    void Parse(const yvector<Stroka>& args)
+    {
+        std::vector<std::string> stringArgs;
+        FOREACH (auto arg, args) {
+            stringArgs.push_back(std::string(~arg));
+        }
+        Cmd->parse(stringArgs);
+    }
+
+};
+
+class TTransactedCommand
+    : public TNewCommandBase
+{
+public:
+    TTransactedCommand()
+    {
+        TxArg.Reset(new TTxArg(
+            "", "tx", "transaction id", false, NObjectServer::NullTransactionId, "guid"));
+        Cmd->add(~TxArg);
+    }
+protected:
+    typedef TCLAP::ValueArg<NObjectServer::TTransactionId> TTxArg;
+    THolder<TTxArg> TxArg;
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -120,31 +120,33 @@ public:
             ~config->TransactionManager,
             ~MasterChannel);
 
-        RegisterCommand("start_transaction", ~New<TStartTransactionCommand>(this));
-        RegisterCommand("commit_transaction", ~New<TCommitTransactionCommand>(this));
-        RegisterCommand("abort_transaction", ~New<TAbortTransactionCommand>(this));
+        RegisterCommand("get", ~New<TNewGetCommand>(this));
 
-        RegisterCommand("get", ~New<TGetCommand>(this));
-        RegisterCommand("set", ~New<TSetCommand>(this));
-        RegisterCommand("remove", ~New<TRemoveCommand>(this));
-        RegisterCommand("list", ~New<TListCommand>(this));
-        RegisterCommand("create", ~New<TCreateCommand>(this));
-        RegisterCommand("lock", ~New<TLockCommand>(this));
+//        RegisterCommand("start_transaction", ~New<TStartTransactionCommand>(this));
+//        RegisterCommand("commit_transaction", ~New<TCommitTransactionCommand>(this));
+//        RegisterCommand("abort_transaction", ~New<TAbortTransactionCommand>(this));
 
-        RegisterCommand("download", ~New<TDownloadCommand>(this));
-        RegisterCommand("upload", ~New<TUploadCommand>(this));
+//        RegisterCommand("get", ~New<TGetCommand>(this));
+//        RegisterCommand("set", ~New<TSetCommand>(this));
+//        RegisterCommand("remove", ~New<TRemoveCommand>(this));
+//        RegisterCommand("list", ~New<TListCommand>(this));
+//        RegisterCommand("create", ~New<TCreateCommand>(this));
+//        RegisterCommand("lock", ~New<TLockCommand>(this));
 
-        RegisterCommand("read", ~New<TReadCommand>(this));
-        RegisterCommand("write", ~New<TWriteCommand>(this));
+//        RegisterCommand("download", ~New<TDownloadCommand>(this));
+//        RegisterCommand("upload", ~New<TUploadCommand>(this));
 
-        RegisterCommand("map", ~New<TMapCommand>(this));
+//        RegisterCommand("read", ~New<TReadCommand>(this));
+//        RegisterCommand("write", ~New<TWriteCommand>(this));
+
+//        RegisterCommand("map", ~New<TMapCommand>(this));
     }
 
-    TError Execute(INodePtr command)
+    TError Execute(yvector<Stroka> args)
     {
         Error = TError();
         try {
-            DoExecute(command);
+            DoExecute(args);
         } catch (const std::exception& ex) {
             ReplyError(TError(ex.what()));
         }
@@ -267,35 +269,32 @@ private:
     TConfig::TPtr Config;
     IDriverStreamProvider* StreamProvider;
     TError Error;
-    yhash_map<Stroka, ICommand::TPtr> Commands;
+    yhash_map<Stroka, INewCommand::TPtr> Commands;
     IChannel::TPtr MasterChannel;
     IBlockCache::TPtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
     ITransaction::TPtr Transaction;
 
-    void RegisterCommand(const Stroka& name, ICommand* command)
+    void RegisterCommand(const Stroka& name, INewCommand* command)
     {
         YVERIFY(Commands.insert(MakePair(name, command)).second);
     }
 
-    void DoExecute(INodePtr requestNode)
+    void DoExecute(const yvector<Stroka>& args)
     {
-        auto request = New<TRequestBase>();
-        try {
-            request->Load(~requestNode);
-        }
-        catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing command from node\n%s", ex.what());
+        if (args.size() < 2) {
+            ythrow yexception() << Sprintf("Command name is not set");
         }
 
-        auto commandName = request->Do;
+        auto commandName = args[1];
         auto commandIt = Commands.find(commandName);
         if (commandIt == Commands.end()) {
             ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
         }
 
         auto command = commandIt->second;
-        command->Execute(~requestNode);
+        yvector<Stroka> remainingArgs(args.begin() + 1, args.end());
+        command->Execute(remainingArgs);
     }
     
 };
@@ -311,9 +310,9 @@ TDriver::TDriver(
 TDriver::~TDriver()
 { }
 
-TError TDriver::Execute(INodePtr command)
+TError TDriver::Execute(const yvector<Stroka>& args)
 {
-    return Impl->Execute(command);
+    return Impl->Execute(args);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

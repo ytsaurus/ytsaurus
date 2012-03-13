@@ -58,6 +58,14 @@ bool operator <  (const TGuid &a, const TGuid &b);
 
 } // namespace NYT
 
+inline std::istream& operator >> (std::istream& input, NYT::TGuid& guid)
+{
+    std::string s;
+    input >> s;
+    guid = NYT::TGuid::FromString(Stroka(s));
+    return input;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_PODTYPE(NYT::TGuid)

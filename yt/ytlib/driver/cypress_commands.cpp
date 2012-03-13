@@ -14,6 +14,26 @@ using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNewGetCommand::DoExecute(const yvector<Stroka>& args)
+{
+    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+    auto ypathRequest = TYPathProxy::Get(WithTransaction(
+        PathArg->getValue(),
+        TxArg->getValue()));
+
+    ypathRequest->Attributes().MergeFrom(*~GetOpts());
+    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+
+    if (ypathResponse->IsOK()) {
+        TYson value = ypathResponse->value();
+        DriverImpl->ReplySuccess(value);
+    } else {
+        DriverImpl->ReplyError(ypathResponse->GetError());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGetCommand::DoExecute(TGetRequest* request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());

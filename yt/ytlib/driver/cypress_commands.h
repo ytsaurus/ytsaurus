@@ -7,7 +7,28 @@
 
 namespace NYT {
 namespace NDriver {
-    
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNewGetCommand
+    : public TTransactedCommand
+{
+public:
+    TNewGetCommand(IDriverImpl* driverImpl)
+        : DriverImpl(driverImpl)
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        Cmd->add(~PathArg);
+    }
+
+    virtual void DoExecute(const yvector<Stroka>& args);
+
+private:
+    IDriverImpl* DriverImpl;
+
+    THolder<TFreeStringArg> PathArg;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetRequest
