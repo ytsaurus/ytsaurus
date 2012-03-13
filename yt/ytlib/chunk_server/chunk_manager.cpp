@@ -818,7 +818,7 @@ private:
 
     void DoUnregisterHolder(THolder& holder)
     { 
-        PROFILE_TIMING("holder_unregistration") {
+        PROFILE_TIMING("holder_unregistration_time") {
             auto holderId = holder.GetId();
 
             LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
