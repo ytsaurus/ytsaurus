@@ -6,6 +6,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -16,6 +17,7 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkServer");
+static NProfiling::TProfiler Profiler("chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -618,23 +620,25 @@ void TChunkReplication::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto now = TInstant::Now();
-    for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
-        if (RefreshList.empty())
-            break;
+    PROFILE_TIMING ("chunk_refresh_time") {
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto now = TInstant::Now();
+        for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
+            if (RefreshList.empty())
+                break;
 
-        const auto& entry = RefreshList.front();
-        if (entry.When > now)
-            break;
+            const auto& entry = RefreshList.front();
+            if (entry.When > now)
+                break;
 
-        auto* chunk = chunkManager->FindChunk(entry.ChunkId);
-        if (chunk) {
-            Refresh(*chunk);
+            auto* chunk = chunkManager->FindChunk(entry.ChunkId);
+            if (chunk) {
+                Refresh(*chunk);
+            }
+
+            YVERIFY(RefreshSet.erase(entry.ChunkId) == 1);
+            RefreshList.pop_front();
         }
-
-        YVERIFY(RefreshSet.erase(entry.ChunkId) == 1);
-        RefreshList.pop_front();
     }
 
     ScheduleNextRefresh();
