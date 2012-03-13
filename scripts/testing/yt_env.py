@@ -134,7 +134,7 @@ class YTEnv:
         assert False, "Masters still not ready after %s seconds" % max_wait_time
 
     def _all_masters_ready(self):
-        good_marker = "Active quorum established"
+        good_marker = "World initialization completed"
         bad_marker = "Active quorum lost"
 
         if (not os.path.exists(self.leader_log)): return False

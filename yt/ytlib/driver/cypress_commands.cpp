@@ -45,7 +45,7 @@ void TSetCommand::DoExecute(const yvector<Stroka>& args)
 
     ypathRequest->Attributes().MergeFrom(*~GetOpts());
 
-    TYson value;
+    TYson value = ValueArg->getValue();
     ValidateYson(value);
     ypathRequest->set_value(value);
 

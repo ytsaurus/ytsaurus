@@ -3,29 +3,29 @@
 #% NUM_HOLDERS = 0
 #% SETUP_TIMEOUT = 3
 
-echo '{do=set; path = "/map"; value={hello=world; list=[0;a;{}]; n=1}}' | ytdriver
-echo '{do=get; path = "/map"}' | ytdriver
+yt set /map '{hello=world; list=[0;a;{}]; n=1}'
+yt get /map
 
-echo '{do=set; path="/map/hello"; value=not_world}' | ytdriver
-echo '{do=get; path = "/map"}' | ytdriver
+yt set /map/hello not_world
+yt get /map
 
-echo '{do=set; path="/map/list/2/some"; value=value}' | ytdriver
-echo '{do=get; path = "/map"}' | ytdriver
+yt set /map/list/2/some value
+yt get /map
 
-echo '{do=remove; path="/map/n"}' | ytdriver
-echo '{do=get; path = "/map"}' | ytdriver
+yt remove /map/n
+yt get /map
 
-echo '{do=set; path="/map/list"; value=[]}' | ytdriver
-echo '{do=get; path = "/map"}' | ytdriver
+yt set /map/list []
+yt get /map
 
-echo '{do=set; path="/map/list/+/a"; value=1}' | ytdriver
-echo '{do=get; path = "/map"}' | ytdriver
+yt set /map/list/+/a 1
+yt get /map
 
-echo '{do=set; path="/map/list/-/b"; value=2}' | ytdriver
-echo '{do=get; path = "/map"}' | ytdriver
+yt set /map/list/-/b 2
+yt get /map
 
-echo '{do=remove; path="/map/hello"}' | ytdriver
-echo '{do=get; path = "/map"}' | ytdriver
+yt remove /map/hello
+yt get /map
 
-echo '{do=remove; path="/map/list"}' | ytdriver
-echo '{do=get; path = "/map"}' | ytdriver
+yt remove /map/list
+yt get /map
