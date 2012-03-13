@@ -219,22 +219,22 @@ public:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                //.Item("state").Scalar(ControlStatus.ToString())
+                .Item("state").Scalar(ControlStatus.ToString())
                 //.Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
                 //.Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
-                //.Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
-                //.DoIf(tracker, [=] (TFluentMap fluent)
-                //    {
-                //        fluent
-                //            .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
-                //            .Item("active_followers").DoListFor(0, CellManager->GetPeerCount(),
-                //                [=] (TFluentList fluent, TPeerId id)
-                //                    {
-                //                        if (tracker->IsFollowerActive(id)) {
-                //                            fluent.Item().Scalar(id);
-                //                        }
-                //                    });
-                //    })
+                .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
+                .DoIf(tracker, [=] (TFluentMap fluent)
+                    {
+                        fluent
+                            .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
+                            .Item("active_followers").DoListFor(0, CellManager->GetPeerCount(),
+                                [=] (TFluentList fluent, TPeerId id)
+                                    {
+                                        if (tracker->IsFollowerActive(id)) {
+                                            fluent.Item().Scalar(id);
+                                        }
+                                    });
+                    })
             .EndMap();
     }
 
