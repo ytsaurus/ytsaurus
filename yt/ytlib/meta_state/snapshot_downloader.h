@@ -26,7 +26,7 @@ public:
         TSnapshotDownloaderConfigPtr config,
         TCellManagerPtr cellManager);
 
-    EResult DownloadSnapshot(i32 snapshotId, TFile* snapshotFile);
+    EResult DownloadSnapshot(i32 snapshotId, const Stroka& fileName);
 
 private:
     struct TSnapshotInfo
@@ -49,22 +49,22 @@ private:
     TSnapshotDownloaderConfigPtr Config;
     TCellManagerPtr CellManager;
 
-    TSnapshotInfo GetSnapshotInfo(i32 segmentId); // also finds snapshot source
+    TSnapshotInfo GetSnapshotInfo(i32 snapshotId); // also finds snapshot source
     static void OnSnapshotInfoResponse(
         TProxy::TRspGetSnapshotInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
         TFuture<TSnapshotInfo>::TPtr asyncResult,
         TPeerId peerId);
     static void OnSnapshotInfoComplete(
-        i32 segmentId,
+        i32 snapshotId,
         TFuture<TSnapshotInfo>::TPtr asyncResult);
 
     EResult DownloadSnapshot(
-        i32 segmentId,
-        TSnapshotInfo snapshotInfo,
-        TFile* snapshotFile);
+        const Stroka& fileName,
+        i32 snapshotId,
+        const TSnapshotInfo& snapshotInfo);
     EResult WriteSnapshot(
-        i32 segmentId,
+        i32 snapshotId,
         i64 snapshotLength,
         i32 sourceId,
         TOutputStream &output);

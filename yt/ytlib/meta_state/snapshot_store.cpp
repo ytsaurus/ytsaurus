@@ -9,8 +9,6 @@
 namespace NYT {
 namespace NMetaState {
 
-using namespace NFS;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;
@@ -61,7 +59,7 @@ Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CombinePaths(Path, Sprintf("%09d.%s", snapshotId, SnapshotExtension));
+    return NFS::CombinePaths(Path, Sprintf("%09d.%s", snapshotId, SnapshotExtension));
 }
 
 TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
@@ -87,31 +85,6 @@ TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
 
     auto fileName = GetSnapshotFileName(snapshotId);
     return New<TSnapshotWriter>(fileName, snapshotId);
-}
-
-TSnapshotStore::TGetRawReaderResult TSnapshotStore::GetRawReader(i32 snapshotId) const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
-    YASSERT(snapshotId > 0);
-
-    auto fileName = GetSnapshotFileName(snapshotId);
-    if (!isexist(~fileName)) {
-        return TError(
-            EErrorCode::NoSuchSnapshot,
-            Sprintf("No such snapshot %d", snapshotId));
-    }
-    return TSharedPtr<TFile>(new TFile(fileName, OpenExisting | RdOnly));
-}
-
-TSharedPtr<TFile> TSnapshotStore::GetRawWriter(i32 snapshotId) const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
-    YASSERT(snapshotId > 0);
-
-    auto fileName = GetSnapshotFileName(snapshotId);
-    return new TFile(fileName, CreateAlways | WrOnly | Seq);
 }
 
 i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
