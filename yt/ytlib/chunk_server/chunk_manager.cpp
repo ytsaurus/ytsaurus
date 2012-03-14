@@ -582,13 +582,12 @@ private:
 
     TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
     {
+        Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
         PROFILE_TIMING ("full_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
 
             auto& holder = GetHolder(holderId);
-
-            PROFILE_TIMING_CHECKPOINT("1");
 
             LOG_DEBUG_IF(!IsRecovery(), "Full heartbeat received (Address: %s, HolderId: %d, State: %s, %s, Chunks: %d)",
                 ~holder.GetAddress(),
@@ -597,31 +596,38 @@ private:
                 ~ToString(statistics),
                 static_cast<int>(message.chunks_size()));
 
-            PROFILE_TIMING_CHECKPOINT("2");
             YASSERT(holder.GetState() == EHolderState::Registered);
             holder.SetState(EHolderState::Online);
             holder.Statistics() = statistics;
 
-            PROFILE_TIMING_CHECKPOINT("3");
             if (IsLeader()) {
                 HolderLeaseTracking->OnHolderOnline(holder);
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
-            PROFILE_TIMING_CHECKPOINT("4");
-            YASSERT(holder.StoredChunkIds().empty());
-            YASSERT(holder.CachedChunkIds().empty());
+            std::vector<TChunkId> storedChunkIds(holder.StoredChunkIds().begin(), holder.StoredChunkIds().end());
+            FOREACH (const auto& chunkId, storedChunkIds) {
+                RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Reset);
+            }
+            holder.StoredChunkIds().clear();
+
+            std::vector<TChunkId> cachedChunkIds(holder.CachedChunkIds().begin(), holder.CachedChunkIds().end());
+            FOREACH (const auto& chunkId, cachedChunkIds) {
+                RemoveChunkReplica(holder, GetChunk(chunkId), true, ERemoveReplicaReason::Reset);
+            }
+            holder.CachedChunkIds().clear();
 
             FOREACH (const auto& chunkInfo, message.chunks()) {
                 ProcessAddedChunk(holder, chunkInfo, false);
             }
-            PROFILE_TIMING_CHECKPOINT("5");
         }
         return TVoid();
     }
 
     TVoid IncrementalHeartbeat(const TMsgIncrementalHeartbeat& message)
     {
+        Profiler.Enqueue("incremental_heartbeat_added_chunks", message.added_chunks_size());
+        Profiler.Enqueue("incremental_heartbeat_removed_chunks", message.removed_chunks_size());
         PROFILE_TIMING ("incremental_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
