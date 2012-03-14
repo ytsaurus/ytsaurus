@@ -1,6 +1,8 @@
 ﻿#include "stdafx.h"
 #include "sorted_validating_writer.h"
 
+#include <ytlib/misc/string.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -20,8 +22,8 @@ TAsyncError::TPtr TSortedValidatingWriter::AsyncEndRow()
     if (PreviousKey > CurrentKey) {
         ythrow yexception() << Sprintf(
             "Invalid sorting. Current key %s is greater than previous %s.",
-            ~ToString(CurrentKey),
-            ~ToString(PreviousKey));
+            ~JoinToString(CurrentKey),
+            ~JoinToString(PreviousKey));
     }
     PreviousKey = CurrentKey;
 

@@ -49,7 +49,7 @@ TAsyncError::TPtr TChunkWriter::AsyncOpen(
     Attributes.set_codec_id(Config->CodecId);
     Attributes.set_row_count(0);
 
-    return New<TAsyncError>();
+    return MakeFuture(TError());
 }
 
 TAsyncError::TPtr TChunkWriter::AsyncEndRow(
@@ -157,12 +157,15 @@ TChunkId TChunkWriter::GetChunkId() const
 
 void TChunkWriter::AddKeySample(const TKey& key)
 {
-    auto* keySample = Attributes.add_key_samples();
+    auto* sample = Attributes.add_key_samples();
+
+    //ToDo: use ToProto here when std::vector will be supported.
+    auto* protoKey = sample->mutable_key();
     FOREACH (auto& keyPart, key) {
-        keySample->mutable_key()->add_values(keyPart);
+        protoKey->add_values(keyPart);
     }
 
-    keySample->set_row_index(Attributes.row_count());
+    sample->set_row_index(Attributes.row_count());
 }
 
 NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr 

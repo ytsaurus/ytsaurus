@@ -20,6 +20,8 @@ TValidatingWriter::TValidatingWriter(
     {
         int columnIndex = 0;
         FOREACH(auto& keyColumn, Schema.KeyColumns()) {
+            Attributes.add_key_columns(keyColumn);
+
             auto res = ColumnIndexes.insert(MakePair(keyColumn, columnIndex));
             YASSERT(res.Second());
             ++columnIndex;

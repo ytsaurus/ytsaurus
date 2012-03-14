@@ -119,6 +119,8 @@ public:
         , AsyncReader(asyncReader)
         , ChunkReader(chunkReader)
         , Channel(chunkReader->Channel)
+        , StartLimit(startLimit)
+        , EndLimit(endLimit)
     { }
 
     void Initialize()
@@ -242,8 +244,9 @@ private:
         }
 
         chunkReader->CurrentRowIndex = StartRowIndex;
-        if (chunkReader->EndRowIndex >= chunkReader->CurrentRowIndex) {
+        if (chunkReader->CurrentRowIndex >= chunkReader->EndRowIndex) {
             LOG_WARNING("Nothing to read from current chunk.");
+            chunkReader->Initializer.Reset();
             chunkReader->State.FinishOperation();
             return;
         }
@@ -329,10 +332,7 @@ private:
                 ++blockIndex;
                 YASSERT(blockIndex < (int)protoChannel.blocks_size());
                 const auto& protoBlock = protoChannel.blocks(blockIndex);
-                // When a new block is set in TChannelReader, reader is virtually 
-                // one row behind its real starting row. E.g. for the first row of 
-                // the channel we consider start row to be -1.
-                startRow = lastRow - 1;
+                startRow = lastRow;
                 lastRow += protoBlock.row_count();
 
                 if (lastRow > StartRowIndex) {

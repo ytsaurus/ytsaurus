@@ -46,10 +46,8 @@ bool TChannelReader::NextRow()
         return false;
     }
 
-    if (CurrentColumnIndex >= 0) {
-        while (NextColumn())
-        { }
-    }
+    while (NextColumn())
+    { }
 
     CurrentColumn = TValue();
     CurrentValue = TValue();
@@ -64,12 +62,13 @@ bool TChannelReader::NextRow()
 
 bool TChannelReader::NextColumn()
 {
+    int ColumnBuffersSize = static_cast<int>(ColumnBuffers.size());
     while (true) {
-        YASSERT(CurrentColumnIndex <= ColumnBuffers.size());
+        YASSERT(CurrentColumnIndex <= ColumnBuffersSize);
 
-        if (CurrentColumnIndex == ColumnBuffers.size()) {
+        if (CurrentColumnIndex == ColumnBuffersSize) {
             return false;
-        } else if (CurrentColumnIndex == ColumnBuffers.size() - 1) {
+        } else if (CurrentColumnIndex == ColumnBuffersSize - 1) {
             YASSERT(ColumnBuffers.back().Avail() > 0);
             // Processing range column.
             auto& RangeBuffer = ColumnBuffers[CurrentColumnIndex];
@@ -85,7 +84,7 @@ bool TChannelReader::NextColumn()
         YASSERT(ColumnBuffers.back().Avail() > 0);
         ++CurrentColumnIndex;
 
-        if (CurrentColumnIndex < ColumnBuffers.size() - 1) {
+        if (CurrentColumnIndex < ColumnBuffersSize - 1) {
             // Processing fixed column.
             CurrentValue = TValue::Load(&ColumnBuffers[CurrentColumnIndex]);
             if (!CurrentValue.IsNull()) {
@@ -98,9 +97,11 @@ bool TChannelReader::NextColumn()
 TColumn TChannelReader::GetColumn() const
 {
     YASSERT(CurrentColumnIndex >= 0);
-    YASSERT(CurrentColumnIndex < ColumnBuffers.size());
 
-    if (CurrentColumnIndex < ColumnBuffers.size() - 1) {
+    int ColumnBuffersSize = static_cast<int>(ColumnBuffers.size());
+    YASSERT(CurrentColumnIndex < ColumnBuffersSize);
+
+    if (CurrentColumnIndex < ColumnBuffersSize - 1) {
         return Channel.GetColumns()[CurrentColumnIndex];
     } else {
         return CurrentColumn.ToString();
@@ -110,7 +111,7 @@ TColumn TChannelReader::GetColumn() const
 TValue TChannelReader::GetValue() const
 {
     YASSERT(CurrentColumnIndex >= 0);
-    YASSERT(CurrentColumnIndex <= ColumnBuffers.size());
+    YASSERT(CurrentColumnIndex <= static_cast<int>(ColumnBuffers.size()));
 
     return CurrentValue;
 }
