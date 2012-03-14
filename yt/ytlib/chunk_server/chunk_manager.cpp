@@ -605,17 +605,8 @@ private:
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
-            std::vector<TChunkId> storedChunkIds(holder.StoredChunkIds().begin(), holder.StoredChunkIds().end());
-            FOREACH (const auto& chunkId, storedChunkIds) {
-                RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Reset);
-            }
-            holder.StoredChunkIds().clear();
-
-            std::vector<TChunkId> cachedChunkIds(holder.CachedChunkIds().begin(), holder.CachedChunkIds().end());
-            FOREACH (const auto& chunkId, cachedChunkIds) {
-                RemoveChunkReplica(holder, GetChunk(chunkId), true, ERemoveReplicaReason::Reset);
-            }
-            holder.CachedChunkIds().clear();
+            YASSERT(holder.StoredChunkIds().empty());
+            YASSERT(holder.CachedChunkIds().empty());
 
             FOREACH (const auto& chunkInfo, message.chunks()) {
                 ProcessAddedChunk(holder, chunkInfo, false);
