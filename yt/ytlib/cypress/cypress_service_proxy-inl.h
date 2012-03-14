@@ -44,7 +44,7 @@ std::vector< TIntrusivePtr<TTypedResponse> > TCypressServiceProxy::TRspExecuteBa
     std::vector< TIntrusivePtr<TTypedResponse> > responses;
     if (key.empty()) {
         responses.reserve(GetSize());
-        for (int index = 0; < index < GetSize(); ++index) {
+        for (int index = 0; index < GetSize(); ++index) {
             responses.push_back(GetResponse<TTypedResponse>(index));
         }
     } else {
