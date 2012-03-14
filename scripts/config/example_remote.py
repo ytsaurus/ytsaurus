@@ -7,12 +7,12 @@ Logging = {
         'raw' :
         {
             'type' : 'raw',
-            'file_name' : "%(debug_log_path)s"
+            'file_name' : "/yt/disk1/data/logs/%(debug_log_path)s"
         },
         'file' :
         {
             'type' : "file",
-            'file_name' : "%(log_path)s",
+            'file_name' : "/yt/disk1/data/logs/%(log_path)s",
             'pattern' : "$(datetime) $(level) $(category) $(message)"
         }
     },
@@ -39,7 +39,7 @@ class Base(AggrBase):
     base_dir = '/yt/disk1/data'
     libs = [
         '/home/yt/build/lib/libstlport.so.5.2',
-        '/home/yt/build/lib/libyajl.so.2.0.3',
+        '/home/yt/build/lib/libyajl.so.2',
         '/home/yt/build/lib/libytext-fastlz.so.0.1',
         '/home/yt/build/lib/libytext-json.so',
         '/home/yt/build/lib/libytext-lz4.so.0.1',
@@ -66,16 +66,22 @@ class Master(Server):
 
     config = Template({
         'meta_state' : {
-	        'leader_committer' : {
+            'leader_committer' : {
 	        	'max_batch_delay': 50
 	        },
             'cell' : {
                 'addresses' : MasterAddresses
             },
-            'snapshot_path' : '%(work_dir)s/snapshots',
-            'log_path' : '%(work_dir)s/logs',
-            'max_changes_between_snapshots' : 1000000
-        },            
+            'snapshot_path' : '/yt/disk1/data/snapshots',
+            'log_path' : '/yt/disk2/data/changelogs',
+            'max_changes_between_snapshots' : 1000000,
+            'change_log_downloader' : {
+                'records_per_request' : 10240
+            },
+        },
+        'chunks' : {
+            'registered_holder_timeout' : 180000
+        },
         'logging' : Logging
     })
     
@@ -115,10 +121,11 @@ class Holder(Server):
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
     config = Template({ 
-		'master_connector' : {
-        	'masters' : {
+        'master_connector' : {
+            'masters' : {
             	'addresses' : MasterAddresses
-            }
+            },
+            'full_heartbeat_timeout' : 180000
         },
         'masters' : { 'addresses' : MasterAddresses },
         'chunk_store_locations' : [
