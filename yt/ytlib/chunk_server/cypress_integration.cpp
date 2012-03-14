@@ -237,7 +237,6 @@ private:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         const auto* holder = GetHolder();
-        attributes->push_back("alive");
         attributes->push_back(TAttributeInfo("state"));
         attributes->push_back(TAttributeInfo("confirmed", holder));
         attributes->push_back(TAttributeInfo("incarnation_id", holder));
@@ -252,12 +251,6 @@ private:
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
         const auto* holder = GetHolder();
-
-        if (name == "alive") {
-            BuildYsonFluently(consumer)
-                .Scalar(holder != NULL);
-            return true;
-        }
 
         if (name == "state") {
             auto state = holder ? holder->GetState() : EHolderState(EHolderState::Offline);
@@ -423,14 +416,14 @@ public:
 private:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
-        attributes->push_back("alive");
-        attributes->push_back("dead");
+        attributes->push_back("online");
+        attributes->push_back("offline");
         attributes->push_back("confirmed");
         attributes->push_back("available_space");
         attributes->push_back("used_space");
         attributes->push_back("chunk_count");
         attributes->push_back("session_count");
-        attributes->push_back("alive_holder_count");
+        attributes->push_back("online_holder_count");
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -438,7 +431,7 @@ private:
     {
         auto chunkManager = Bootstrap->GetChunkManager();
 
-        if (name == "alive") {
+        if (name == "online") {
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id) {
                     const auto& holder = chunkManager->GetHolder(id);
@@ -447,7 +440,7 @@ private:
             return true;
         }
 
-        if (name == "dead") {
+        if (name == "offline") {
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
                     if (!chunkManager->FindHolder(address)) {
@@ -492,9 +485,9 @@ private:
             return true;
         }
 
-        if (name == "alive_holder_count") {
+        if (name == "online_holder_count") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics.AliveHolderCount);
+                .Scalar(statistics.OnlineHolderCount);
             return true;
         }
 
