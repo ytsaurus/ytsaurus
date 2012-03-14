@@ -41,7 +41,7 @@ TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetRespons
 template <class TTypedResponse>
 std::vector< TIntrusivePtr<TTypedResponse> > TCypressServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key)    const
 {
-    std::yvector< TIntrusivePtr<TTypedResponse> > responses;
+    std::vector< TIntrusivePtr<TTypedResponse> > responses;
     if (key.empty()) {
         responses.reserve(GetSize());
         for (int index = 0; < index < GetSize(); ++index) {
