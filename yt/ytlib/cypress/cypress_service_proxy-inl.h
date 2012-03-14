@@ -27,6 +27,35 @@ TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetRespons
     return innerResponse;
 }
 
+template <class TTypedResponse>
+TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+{
+    YASSERT(!key.empty());
+    auto range = KeyToIndexes.equal_range(key);
+    auto it = range.first;
+    int index = it->second;
+    YASSERT(++it == range.second);
+    return GetResponse(index);
+}
+
+template <class TTypedResponse>
+std::vector< TIntrusivePtr<TTypedResponse> > TCypressServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key)    const
+{
+    std::yvector< TIntrusivePtr<TTypedResponse> > responses;
+    if (key.empty()) {
+        responses.reserve(GetSize());
+        for (int index = 0; < index < GetSize(); ++index) {
+            responses.push_back(GetResponse<TTypedResponse>(index));
+        }
+    } else {
+        auto range = KeyToIndexes.equal_range(key);
+        for (auto it = range.first; it != range.second; ++it) {
+            responses.push_back(GetResponse<TTypedResponse>(it->second));
+        }
+    }
+    return responses;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedRequest>
