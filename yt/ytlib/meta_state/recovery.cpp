@@ -73,12 +73,13 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverToState(
     i32 snapshotId)
 {
     auto currentVersion = DecoratedState->GetVersion();
+    YASSERT(snapshotId <= targetVersion.SegmentId);
 
     LOG_INFO("Recovering state from %s to %s",
         ~currentVersion.ToString(),
         ~targetVersion.ToString());
 
-    if (snapshotId != NonexistingSnapshotId) {
+    if (snapshotId != NonexistingSnapshotId && snapshotId > currentVersion.SegmentId) {
         // Load the snapshot.
         LOG_DEBUG("Using snapshot %d for recovery", snapshotId);
 
@@ -363,7 +364,6 @@ TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
 
     auto version = DecoratedState->GetReachableVersionAsync();
     i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
-    YASSERT(maxSnapshotId <= version.SegmentId);
 
     return FromMethod(
                &TRecovery::RecoverToState,

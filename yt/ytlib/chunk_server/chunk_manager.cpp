@@ -588,6 +588,8 @@ private:
 
             auto& holder = GetHolder(holderId);
 
+            PROFILE_TIMING_CHECKPOINT("1");
+
             LOG_DEBUG_IF(!IsRecovery(), "Full heartbeat received (Address: %s, HolderId: %d, State: %s, %s, Chunks: %d)",
                 ~holder.GetAddress(),
                 holderId,
@@ -595,30 +597,25 @@ private:
                 ~ToString(statistics),
                 static_cast<int>(message.chunks_size()));
 
+            PROFILE_TIMING_CHECKPOINT("2");
             YASSERT(holder.GetState() == EHolderState::Registered);
             holder.SetState(EHolderState::Online);
             holder.Statistics() = statistics;
 
+            PROFILE_TIMING_CHECKPOINT("3");
             if (IsLeader()) {
                 HolderLeaseTracking->OnHolderOnline(holder);
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
-            std::vector<TChunkId> storedChunkIds(holder.StoredChunkIds().begin(), holder.StoredChunkIds().end());
-            FOREACH (const auto& chunkId, storedChunkIds) {
-                RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Reset);
-            }
-            holder.StoredChunkIds().clear();
-
-            std::vector<TChunkId> cachedChunkIds(holder.CachedChunkIds().begin(), holder.CachedChunkIds().end());
-            FOREACH (const auto& chunkId, cachedChunkIds) {
-                RemoveChunkReplica(holder, GetChunk(chunkId), true, ERemoveReplicaReason::Reset);
-            }
-            holder.CachedChunkIds().clear();
+            PROFILE_TIMING_CHECKPOINT("4");
+            YASSERT(holder.StoredChunkIds().empty());
+            YASSERT(holder.CachedChunkIds().empty());
 
             FOREACH (const auto& chunkInfo, message.chunks()) {
                 ProcessAddedChunk(holder, chunkInfo, false);
             }
+            PROFILE_TIMING_CHECKPOINT("5");
         }
         return TVoid();
     }
@@ -1124,7 +1121,7 @@ private:
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds().insert(job.GetJobId()).second);
+                    YVERIFY(sink.JobIds().insert(job.GetJobId()).second);
                 }
                 break;
             }
@@ -1143,7 +1140,7 @@ private:
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds().erase(job.GetJobId()) == 1);
+                    YVERIFY(sink.JobIds().erase(job.GetJobId()) == 1);
                     DropReplicationSinkIfEmpty(sink);
                 }
                 break;

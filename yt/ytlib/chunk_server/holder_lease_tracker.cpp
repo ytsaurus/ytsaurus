@@ -30,7 +30,7 @@ THolderLeaseTracker::THolderLeaseTracker(
 void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool confirmed)
 {
     THolderInfo holderInfo(confirmed);
-    YASSERT(HolderInfoMap.insert(MakePair(holder.GetId(), holderInfo)).second);
+    YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), holderInfo)).second);
     RecreateLease(holder);
 }
 
@@ -44,7 +44,7 @@ void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
     auto holderId = holder.GetId();
     auto& holderInfo = GetHolderInfo(holderId);
     TLeaseManager::CloseLease(holderInfo.Lease);
-    YASSERT(HolderInfoMap.erase(holderId) == 1);
+    YVERIFY(HolderInfoMap.erase(holderId) == 1);
 }
 
 void THolderLeaseTracker::OnHolderHeartbeat(const THolder& holder)
