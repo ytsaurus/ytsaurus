@@ -172,7 +172,7 @@ private:
 
         if (!response->IsOK()) {
             LOG_WARNING("Error committing changes by follower %d\n%s",
-				peerId,
+                peerId,
                 ~response->GetError().ToString());
             return;
         }

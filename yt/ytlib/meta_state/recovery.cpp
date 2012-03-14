@@ -222,7 +222,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::ReplayChangeLogs(
                 changeLog->Finalize();
                 LOG_INFO("Local changelog %d has %d records, truncated to %d records",
                     segmentId,
-					localRecordCount,
+                    localRecordCount,
                     remoteRecordCount);
             }
 
@@ -233,8 +233,8 @@ TRecovery::TAsyncResult::TPtr TRecovery::ReplayChangeLogs(
             // If so, clear the state and restart recovery.
             if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
                 LOG_INFO("Current version is %s while only %d changes are expected, performing clear restart",
-					~currentVersion.ToString(),
-					remoteRecordCount);
+                    ~currentVersion.ToString(),
+                    remoteRecordCount);
                 DecoratedState->Clear();
                 return FromMethod(&TRecovery::Run, MakeStrong(this))
                         ->AsyncVia(~EpochControlInvoker)

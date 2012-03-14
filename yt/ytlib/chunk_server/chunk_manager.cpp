@@ -109,7 +109,7 @@ public:
             ~bootstrap->GetMetaState())
         , Config(config)
         , Bootstrap(bootstrap)
-		, ChunkReplicaCount(0)
+        , ChunkReplicaCount(0)
     {
         YASSERT(config);
         YASSERT(bootstrap);
@@ -365,7 +365,7 @@ private:
 
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
-	i32 ChunkReplicaCount;
+    i32 ChunkReplicaCount;
 
     TMetaStateMap<THolderId, THolder> HolderMap;
     yhash_map<Stroka, THolderId> HolderAddressMap;
@@ -725,15 +725,15 @@ private:
         JobMap.LoadValues(input, context);
         JobListMap.LoadValues(input, context);
 
-		// Compute chunk replica count.
-		ChunkReplicaCount = 0;
-		FOREACH (const auto& pair, HolderMap) {
-			const auto& holder = *pair.second;
-			ChunkReplicaCount += holder.StoredChunkIds().size();
-			ChunkReplicaCount += holder.CachedChunkIds().size();
-		}
+        // Compute chunk replica count.
+        ChunkReplicaCount = 0;
+        FOREACH (const auto& pair, HolderMap) {
+            const auto& holder = *pair.second;
+            ChunkReplicaCount += holder.StoredChunkIds().size();
+            ChunkReplicaCount += holder.CachedChunkIds().size();
+        }
 
-		// Reconstruct HolderAddressMap.
+        // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
         FOREACH (const auto& pair, HolderMap) {
             const auto* holder = pair.second;
@@ -751,7 +751,7 @@ private:
     {
         HolderIdGenerator.Reset();
         ChunkMap.Clear();
-		ChunkReplicaCount = 0;
+        ChunkReplicaCount = 0;
         ChunkListMap.Clear();
         HolderMap.Clear();
         JobMap.Clear();

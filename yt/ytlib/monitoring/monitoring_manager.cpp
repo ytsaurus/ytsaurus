@@ -68,33 +68,33 @@ void TMonitoringManager::Stop()
 
 void TMonitoringManager::Update()
 {
-	PROFILE_TIMING("update_time") {
-		try {
-			auto newRoot = GetEphemeralNodeFactory()->CreateMap();
+    PROFILE_TIMING("update_time") {
+        try {
+            auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
-			FOREACH(const auto& pair, MonitoringMap) {
-				TStringStream output;
-				TYsonWriter writer(&output, EYsonFormat::Binary);
-				pair.second->Do(&writer);
+            FOREACH(const auto& pair, MonitoringMap) {
+                TStringStream output;
+                TYsonWriter writer(&output, EYsonFormat::Binary);
+                pair.second->Do(&writer);
 
-				SyncYPathSet(~newRoot, pair.first, output.Str());
-			}
+                SyncYPathSet(~newRoot, pair.first, output.Str());
+            }
 
-			if (IsStarted) {
-				Root = newRoot;
-			}
-		} catch (const std::exception& ex) {
-			LOG_FATAL("Error collecting monitoring data\n%s",
-				ex.what());
-		}
-	}
+            if (IsStarted) {
+                Root = newRoot;
+            }
+        } catch (const std::exception& ex) {
+            LOG_FATAL("Error collecting monitoring data\n%s",
+                ex.what());
+        }
+    }
 }
 
 void TMonitoringManager::Visit(IYsonConsumer* consumer)
 {
-	PROFILE_TIMING("visit_time") {
-		VisitTree(~GetRoot(), consumer);
-	}
+    PROFILE_TIMING("visit_time") {
+        VisitTree(~GetRoot(), consumer);
+    }
 }
 
 TYsonProducer TMonitoringManager::GetProducer()

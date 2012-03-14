@@ -102,7 +102,7 @@ public:
     TRpcServer(IBusServer* busServer)
         : BusServer(busServer)
         , Started(false)
-	{ }
+    { }
 
     virtual void RegisterService(IService* service)
     {
@@ -138,7 +138,7 @@ private:
     IBusServer::TPtr BusServer;
     volatile bool Started;
 
-	yhash_map<Stroka, IService::TPtr> Services;
+    yhash_map<Stroka, IService::TPtr> Services;
 
     IService::TPtr GetService(const Stroka& serviceName)
     {
@@ -188,7 +188,7 @@ private:
         if (!service) {
             Stroka message = Sprintf("Unknown service name %s (RequestId: %s)",
                 ~serviceName.Quote(),
-				~requestId.ToString());
+                ~requestId.ToString());
 
             if (!oneWay) {
                 auto response = CreateErrorResponseMessage(
