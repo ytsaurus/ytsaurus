@@ -60,7 +60,7 @@ public:
         //! Adds an individual request into the batch.
         /*!
          *  Each individual request may be marked with a key.
-         *  These keys can be used to retrieve responses the corresponding responses
+         *  These keys can be used to retrieve the corresponding responses
          *  (thus avoiding complicated and error-prone index calculations).
          */
         TIntrusivePtr<TReqExecuteBatch> AddRequest(
@@ -87,7 +87,7 @@ public:
      *  
      *  The length of this vector (see #GetSize) coincides to that of the requests vector.
      *  
-     *  Individual responses can be extracted by calling #Get. Since they may be of
+     *  Individual responses can be extracted by calling #GetResponse. Since they may be of
      *  different actual types, the client must supply an additional type parameter.
      *  Responses may also be retrieved by specifying a key that was used during
      *  request insertion.

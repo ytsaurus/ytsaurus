@@ -48,13 +48,14 @@ private:
     TConfig::TPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
     TChunkPlacement::TPtr ChunkPlacement;
+    i64 ChunkRefreshDelayCycles;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     struct TRefreshEntry
     {
         TChunkId ChunkId;
-        TInstant When;
+        ui64 When;
     };
 
     yhash_set<TChunkId> RefreshSet;
