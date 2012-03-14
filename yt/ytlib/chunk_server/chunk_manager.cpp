@@ -337,7 +337,7 @@ public:
             result.UsedSpace += statistics.used_space();
             result.ChunkCount += statistics.chunk_count();
             result.SessionCount += statistics.session_count();
-            result.AliveHolderCount++;
+            result.OnlineHolderCount++;
         }
         return result;
     }
