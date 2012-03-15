@@ -236,7 +236,7 @@ public:
     {
         UNUSED(path);
         UNUSED(verb);
-        ythrow yexception() << "Not an active leader";
+        ythrow NRpc::TServiceException(TError(NRpc::EErrorCode::Unavailable, "Not an active leader"));
     }
 };
 
