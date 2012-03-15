@@ -243,11 +243,6 @@ public:
         return !Transaction ? NullTransactionId : Transaction->GetId();
     }
 
-    virtual TTransactionId GetTransactionId(TTransactedRequest* request)
-    {
-        return request->TransactionId != NullTransactionId ? request->TransactionId : GetCurrentTransactionId();
-    }
-
     virtual ITransaction::TPtr GetTransaction(TTransactionId transactionId, bool required)
     {
         if (required && transactionId == NullTransactionId) {

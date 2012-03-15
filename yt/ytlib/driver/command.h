@@ -23,37 +23,6 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRequestBase
-    : public TConfigurable
-{
-    Stroka Do;
-
-    TRequestBase()
-    {
-        Register("do", Do);
-    }
-
-    static IParamAction<const NYTree::INodePtr&>::TPtr StreamSpecIsValid;
-};
-
-Stroka ToStreamSpec(NYTree::INodePtr node);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTransactedRequest
-    : public TRequestBase
-{
-    NObjectServer::TTransactionId TransactionId;
-
-    TTransactedRequest()
-    {
-        Register("transaction_id", TransactionId)
-            .Default(NObjectServer::NullTransactionId);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IDriverImpl
 {
     virtual ~IDriverImpl()
@@ -76,7 +45,6 @@ struct IDriverImpl
     virtual NTransactionClient::TTransactionManager* GetTransactionManager() = 0;
     virtual NObjectServer::TTransactionId GetCurrentTransactionId() = 0;
 
-    virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequest* request) = 0;
     virtual NTransactionClient::ITransaction::TPtr GetTransaction(
         NObjectServer::TTransactionId transactionId, bool required = false) = 0;
 
@@ -92,36 +60,6 @@ struct ICommand
     typedef TIntrusivePtr<ICommand> TPtr;
 
     virtual void Execute(NYTree::INode* request) = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TRequest>
-class TCommandBase
-    : public ICommand
-{
-public:
-
-    virtual void Execute(NYTree::INode* request)
-    {
-        auto typedRequest = New<TRequest>();
-        typedRequest->SetKeepOptions(true);
-        try {
-            typedRequest->Load(request);
-        } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing request\n%s", ex.what());
-        }
-        DoExecute(~typedRequest);
-    }
-
-protected:
-    IDriverImpl* DriverImpl;
-
-    TCommandBase(IDriverImpl* driverImpl)
-        : DriverImpl(driverImpl)
-    { }
-
-    virtual void DoExecute(TRequest* request) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
