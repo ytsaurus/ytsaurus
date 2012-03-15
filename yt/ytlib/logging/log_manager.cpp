@@ -8,7 +8,7 @@
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
-
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NLog {
@@ -33,6 +33,7 @@ static const char* const DefaultFilePattern =
 static const char* const AllCategoriesName = "*";
 
 static TLogger Logger(SystemLoggingCategory);
+static NProfiling::TProfiler Profiler("logging");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,6 +246,8 @@ public:
         // default configuration (default level etc.).
         , ConfigVersion(-1)
         , Config(TLogConfig::CreateDefault())
+        , EnqueueCounter("enqueue_rate")
+        , WriteCounter("write_rate")
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
         Start();
@@ -301,12 +304,13 @@ public:
         *configVersion = ConfigVersion;
     }
 
-    void Write(const TLogEvent& event)
+    void Enqueue(const TLogEvent& event)
     {
         if (!IsRunning()) {
             return;
         }
 
+        Profiler.Increment(EnqueueCounter);
         LogEventQueue.Enqueue(event);
         Signal();
 
@@ -334,7 +338,7 @@ public:
                 DoUpdateConfig(config);
             }
 
-            DoWrite(event);
+            Write(event);
             result = true;
         }
 
@@ -352,9 +356,10 @@ private:
         return Config->GetWriters(event);
     }
 
-    void DoWrite(const TLogEvent& event)
+    void Write(const TLogEvent& event)
     {
-        FOREACH(auto& writer, GetWriters(event)) {
+        Profiler.Increment(WriteCounter);
+        FOREACH (auto& writer, GetWriters(event)) {
             writer->Write(event);
         }
     }
@@ -369,14 +374,17 @@ private:
     }
 
     // Configuration.
-    TLogConfig::TPtr Config;
     TAtomic ConfigVersion;
+    TLogConfig::TPtr Config;
+    NProfiling::TRateCounter EnqueueCounter;
+    NProfiling::TRateCounter WriteCounter;
     TSpinLock SpinLock;
 
     TLockFreeQueue<TLogConfig::TPtr> ConfigsToUpdate;
     TLockFreeQueue<TLogEvent> LogEventQueue;
 
     TWriters SystemWriters;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,9 +426,9 @@ void TLogManager::GetLoggerConfig(
     Impl->GetLoggerConfig(category, minLevel, configVersion);
 }
 
-void TLogManager::Write(const TLogEvent& event)
+void TLogManager::Enqueue(const TLogEvent& event)
 {
-    Impl->Write(event);
+    Impl->Enqueue(event);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
