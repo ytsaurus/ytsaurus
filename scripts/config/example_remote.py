@@ -137,7 +137,7 @@ class Holder(Server):
             'cache_remote_reader' : { 
                 'publish_peer' : 'true'
             },
-            'full_heartbeat_timeout' : 180000
+            'full_heartbeat_timeout' : 180000,
             'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
             'max_cached_readers' : 256,
             'response_throttling_size' : 500 * 1024 * 1024
