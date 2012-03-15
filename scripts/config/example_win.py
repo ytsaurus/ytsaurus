@@ -50,7 +50,7 @@ class Server(Base):
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
-        params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
+        params = Template('--master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
         config = Template({
                 'meta_state' : {
@@ -79,32 +79,30 @@ class Holder(WinNode, Server):
         address = Subclass(opts.limit_iter('--holders',
                         [('localhost:%d' % p) for p in range(9000, 9100)]))
         
-        params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
+        params = Template('--node --config %(config_path)s --port %(port)d')
         
         config = Template({ 
-        		'master_connector' : {
-                	'masters' : {
-                		'addresses' : MasterAddresses
-                	}
-        		},
-                'chunk_store_locations' : [
+            'masters' : {
+              'addresses' : MasterAddresses
+            },
+            'chunk_holder' : {
+                'store_locations' : [
                     { 'path' : r'%(work_dir)s\chunk_store.0' }
                 ],
-                'chunk_cache_location' : {
+                'cache_location' : {
                     'path' : r'%(work_dir)s\chunk_cache',
                     'quota' : 10 * 1024 * 1024
                 },
-                'cache_remote_reader' : { },
-                'cache_sequential_reader' : { },
-                'logging' : Logging
+            },
+            'logging' : Logging
         })
         
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
-                for location in cls.config['chunk_store_locations']:
+                for location in cls.config['chunk_holder']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
-                print >>fd, 'rmdir /S /Q   %s' % cls.config['chunk_cache_location']['path']
+                print >>fd, 'rmdir /S /Q   %s' % cls.config['chunk_holder']['cache_location']['path']
 
 
 class Client(WinNode, Base):
