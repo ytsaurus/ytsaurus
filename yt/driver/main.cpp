@@ -260,7 +260,10 @@ private:
     TAutoPtr<TDriver> Driver;
 
     void RunCommand(const yvector<Stroka>& args) {
-        Driver->Execute(args);
+        auto error = Driver->Execute(args);
+        if (!error.IsOK()) {
+            ExitCode = 1;
+        }
     }
 };
 

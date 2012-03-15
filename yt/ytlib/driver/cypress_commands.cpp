@@ -144,8 +144,10 @@ void TLockCommand::DoExecute()
         PathArg->getValue(),
         TxArg->getValue()));
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    ypathRequest->set_mode(ModeArg->getValue());
     ypathRequest->Attributes().MergeFrom(*~GetOpts());
+
+    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         auto lockId = TLockId::FromProto(ypathResponse->lock_id());
