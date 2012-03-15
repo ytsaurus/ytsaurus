@@ -358,8 +358,8 @@ private:
 
     void Write(const TLogEvent& event)
     {
-        Profiler.Increment(WriteCounter);
         FOREACH (auto& writer, GetWriters(event)) {
+            Profiler.Increment(WriteCounter);
             writer->Write(event);
         }
     }
