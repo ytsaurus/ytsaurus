@@ -61,7 +61,7 @@ private:
             __LINE__, \
             __FUNCTION__, \
             level, \
-            Sprintf(__VA_ARGS__);); \
+            Sprintf(__VA_ARGS__)); \
     } \
 
 #define LOG_EVENT_AND_THROW(logger, level, ex, ...) \
