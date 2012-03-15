@@ -131,7 +131,7 @@ public:
     }
 
 private:
-    void OnFail(TError& error, TChunkReader::TPtr chunkReader) 
+    void OnFail(const TError& error, TChunkReader::TPtr chunkReader) 
     {
         chunkReader->Initializer.Reset();
         chunkReader->State.Fail(error);

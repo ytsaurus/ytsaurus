@@ -247,7 +247,7 @@ private:
             // NB: This is always done synchronously.
             std::vector<TSharedRef> blocks;
             blocks.push_back(SequentialReader->GetBlock());
-            auto writeResult = FileWriter->AsyncWriteBlocks(blocks)->Get();
+            auto writeResult = FileWriter->AsyncWriteBlocks(MoveRV(blocks))->Get();
             if (!writeResult.IsOK()) {
                 OnError(writeResult);
                 return;
