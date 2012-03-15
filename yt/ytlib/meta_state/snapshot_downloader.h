@@ -23,10 +23,10 @@ public:
     );
 
     TSnapshotDownloader(
-        TSnapshotDownloaderConfig* config,
+        TSnapshotDownloaderConfigPtr config,
         TCellManagerPtr cellManager);
 
-    EResult GetSnapshot(i32 segmentId, TFile* snapshotFile);
+    EResult DownloadSnapshot(i32 snapshotId, const Stroka& fileName);
 
 private:
     struct TSnapshotInfo
@@ -34,12 +34,13 @@ private:
         TPeerId SourceId;
         i64 Length;
         
-        TSnapshotInfo() {}
+        TSnapshotInfo()
+        { }
 
         TSnapshotInfo(TPeerId owner, i64 length)
             : SourceId(owner)
             , Length(length)
-        {}
+        { }
     };
 
     typedef TMetaStateManagerProxy TProxy;
@@ -48,21 +49,22 @@ private:
     TSnapshotDownloaderConfigPtr Config;
     TCellManagerPtr CellManager;
 
-    TSnapshotInfo GetSnapshotInfo(i32 segmentId); // also finds snapshot source
-    static void OnResponse(
+    TSnapshotInfo GetSnapshotInfo(i32 snapshotId); // also finds snapshot source
+    static void OnSnapshotInfoResponse(
         TProxy::TRspGetSnapshotInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
         TFuture<TSnapshotInfo>::TPtr asyncResult,
         TPeerId peerId);
-    static void OnComplete(
-        i32 segmentId,
+    static void OnSnapshotInfoComplete(
+        i32 snapshotId,
         TFuture<TSnapshotInfo>::TPtr asyncResult);
+
     EResult DownloadSnapshot(
-        i32 segmentId,
-        TSnapshotInfo snapshotInfo,
-        TFile* snapshotFile);
+        const Stroka& fileName,
+        i32 snapshotId,
+        const TSnapshotInfo& snapshotInfo);
     EResult WriteSnapshot(
-        i32 segmentId,
+        i32 snapshotId,
         i64 snapshotLength,
         i32 sourceId,
         TOutputStream &output);

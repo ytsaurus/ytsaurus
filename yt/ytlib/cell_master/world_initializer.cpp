@@ -81,7 +81,7 @@ private:
         try {
             auto service = Bootstrap->GetObjectManager()->GetRootService();
 
-            auto transactionId = NullTransactionId; //StartTransaction();
+            auto transactionId = StartTransaction();
 
             SyncYPathSet(
                 service,
@@ -149,8 +149,9 @@ private:
                 WithTransaction("/sys/transactions", transactionId),
                 EObjectType::TransactionMap);
 
-            //CommitTransaction(transactionId);
+            CommitTransaction(transactionId);
         } catch (const std::exception& ex) {
+            // TODO(babenko): this is wrong, we should retry!
             LOG_FATAL("World initialization failed\n%s", ex.what());
         }
 

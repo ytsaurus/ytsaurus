@@ -9,18 +9,18 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralAttributeProvider
-	: public virtual IAttributeProvider
+    : public virtual IAttributeProvider
 {
 public:
-	virtual IAttributeDictionary& Attributes();
-	virtual const IAttributeDictionary& Attributes() const;
+    virtual IAttributeDictionary& Attributes();
+    virtual const IAttributeDictionary& Attributes() const;
 
 protected:
-	bool HasAttributes() const;
-	void SetAttributes(TAutoPtr<IAttributeDictionary> attributes);
+    bool HasAttributes() const;
+    void SetAttributes(TAutoPtr<IAttributeDictionary> attributes);
 
 private:
-	TAutoPtr<IAttributeDictionary> Attributes_;
+    TAutoPtr<IAttributeDictionary> Attributes_;
 
 };
 

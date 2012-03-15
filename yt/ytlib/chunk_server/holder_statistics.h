@@ -15,14 +15,14 @@ struct TTotalHolderStatistics
     i64 UsedSpace;
     i32 ChunkCount;
     i32 SessionCount;
-    i32 AliveHolderCount;
+    i32 OnlineHolderCount;
 
     TTotalHolderStatistics()
         : AvailbaleSpace(0)
         , UsedSpace(0)
         , ChunkCount(0)
         , SessionCount(0)
-        , AliveHolderCount(0)
+        , OnlineHolderCount(0)
     { }
 };
 

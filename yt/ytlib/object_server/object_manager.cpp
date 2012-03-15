@@ -181,7 +181,7 @@ public:
                 ythrow yexception() << Sprintf("Error parsing transaction id (Value: %s)", ~token);
             }
 
-            if (transactionId != NullTransactionId && transactionManager->FindTransaction(transactionId)) {
+            if (transactionId != NullTransactionId && !transactionManager->FindTransaction(transactionId)) {
                 ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
             }
         }
@@ -535,9 +535,9 @@ void TObjectManager::ExecuteVerb(
         ~id.TransactionId.ToString());
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
-		!isWrite ||
-		MetaStateManager->IsInCommit())
-	{
+        !isWrite ||
+        MetaStateManager->IsInCommit())
+    {
         action->Do(context);
         return;
     }

@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "thread.h"
+#include "preprocessor.h"
 
 #include <util/system/thread.h>
 
@@ -83,7 +84,7 @@ static_assert(sizeof(TSpinLock) == sizeof(TAtomic),
 #else
 
 // Expand macros to null but take care of trailing semicolon.
-#define DECLARE_THREAD_AFFINITY_SLOT(slot)     struct TNullThreadAffinitySlot__ ## __LINE__ { }
+#define DECLARE_THREAD_AFFINITY_SLOT(slot)     struct PP_CONCAT(TNullThreadAffinitySlot__,  __LINE__) { }
 #define VERIFY_THREAD_AFFINITY(slot)           do { } while(0)
 #define VERIFY_SPINLOCK_AFFINITY(spinLock)     do { } while(0)
 #define VERIFY_INVOKER_AFFINITY(invoker, slot) do { } while(0)

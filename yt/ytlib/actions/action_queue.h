@@ -19,7 +19,10 @@ class TQueueInvoker
     : public IInvoker
 {
 public:
-    TQueueInvoker(TActionQueueBase* owner, bool enableLogging);
+    TQueueInvoker(
+        const Stroka& name,
+        TActionQueueBase* owner,
+        bool enableLogging);
 
     void Invoke(IAction::TPtr action);
     bool IsEmpty() const;

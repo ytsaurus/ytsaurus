@@ -21,13 +21,11 @@ public:
         (Parsed)
     );
 
-    TYsonParser(IYsonConsumer* consumer);
+    TYsonParser(IYsonConsumer* consumer, bool supportFragments = false);
     ~TYsonParser();
 
     void Consume(char ch);
     void Finish();
-
-    EPhase GetPhase() const;
 
 private:
     class TImpl;
@@ -36,25 +34,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
             
-void ParseYson(TInputStream* input, IYsonConsumer* consumer);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(roizner): Rename to Reader
-class TYsonFragmentParser
-{
-public:
-    TYsonFragmentParser(IYsonConsumer* consumer, TInputStream* input);
-
-    bool HasNext();
-    void ParseNext();
-
-private:
-
-
-    TYsonParser Parser;
-    TInputStream* Input;
-};
+void ParseYson(
+    TInputStream* input,
+    IYsonConsumer* consumer,
+    bool supportFragments = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

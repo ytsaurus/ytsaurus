@@ -226,6 +226,14 @@ TWeakPtr<T> MakeWeak(T* p)
     return TWeakPtr<T>(p);
 }
 
+//! Creates a weak pointer wrapper for a given intrusive pointer.
+//! Compared to |TWeakPtr<T>::ctor|, type inference enables omitting |T|.
+template <class T>
+TWeakPtr<T> MakeWeak(const TIntrusivePtr<T>& p)
+{
+    return TWeakPtr<T>(p);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>

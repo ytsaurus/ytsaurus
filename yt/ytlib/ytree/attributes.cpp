@@ -97,32 +97,32 @@ TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEmptyAttributeDictionary
-	: public IAttributeDictionary
+    : public IAttributeDictionary
 {
-	virtual yhash_set<Stroka> List() const
-	{
-		return yhash_set<Stroka>();
-	}
+    virtual yhash_set<Stroka> List() const
+    {
+        return yhash_set<Stroka>();
+    }
 
-	virtual TNullable<TYson> FindYson(const Stroka& key) const
-	{
-		return Null;
-	}
+    virtual TNullable<TYson> FindYson(const Stroka& key) const
+    {
+        return Null;
+    }
 
-	virtual void SetYson(const Stroka& key, const TYson& value)
-	{
-		YUNREACHABLE();
-	}
+    virtual void SetYson(const Stroka& key, const TYson& value)
+    {
+        YUNREACHABLE();
+    }
 
-	virtual bool Remove(const Stroka& key)
-	{
-		return false;
-	}
+    virtual bool Remove(const Stroka& key)
+    {
+        return false;
+    }
 };
 
 const IAttributeDictionary& EmptyAttributes()
 {
-	return *Singleton<TEmptyAttributeDictionary>();
+    return *Singleton<TEmptyAttributeDictionary>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

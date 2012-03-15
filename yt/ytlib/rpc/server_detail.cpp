@@ -44,10 +44,10 @@ void TServiceContextBase::Reply(const TError& error)
 
     LogResponse(error);
 
-	TResponseHeader header;
-	header.set_request_id(RequestId.ToProto());
-	SetResponseError(header, Error);
-	ToProto(header.mutable_attributes(), *ResponseAttributes_);
+    TResponseHeader header;
+    header.set_request_id(RequestId.ToProto());
+    SetResponseError(header, Error);
+    ToProto(header.mutable_attributes(), *ResponseAttributes_);
 
     IMessage::TPtr responseMessage;
     if (error.IsOK()) {

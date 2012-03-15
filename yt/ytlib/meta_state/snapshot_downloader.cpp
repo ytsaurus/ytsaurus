@@ -5,6 +5,7 @@
 #include "meta_state_manager_proxy.h"
 #include "cell_manager.h"
 
+#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/action_util.h>
 #include <ytlib/actions/future.h>
 
@@ -20,27 +21,26 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSnapshotDownloader::TSnapshotDownloader(
-    TSnapshotDownloaderConfig *config,
+    TSnapshotDownloaderConfigPtr config,
     TCellManagerPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
 {
+    YASSERT(config);
     YASSERT(cellManager);
 }
 
-TSnapshotDownloader::EResult TSnapshotDownloader::GetSnapshot(
-    i32 segmentId,
-    TFile* snapshotFile)
+TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
+    i32 snapshotId,
+    const Stroka& fileName)
 {
-    YASSERT(snapshotFile);
-
-    TSnapshotInfo snapshotInfo = GetSnapshotInfo(segmentId);
-    TPeerId sourceId = snapshotInfo.SourceId;
+    auto snapshotInfo = GetSnapshotInfo(snapshotId);
+    auto sourceId = snapshotInfo.SourceId;
     if (sourceId == NElection::InvalidPeerId) {
         return EResult::SnapshotNotFound;
     }
-    
-    EResult result = DownloadSnapshot(segmentId, snapshotInfo, snapshotFile);
+
+    auto result = DownloadSnapshot(fileName, snapshotId, snapshotInfo);
     if (result != EResult::OK) {
         return result;
     }
@@ -53,6 +53,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
     auto asyncResult = New< TFuture<TSnapshotInfo> >();
     auto awaiter = New<TParallelAwaiter>();
 
+    LOG_INFO("Getting snapshot %d info from peers", snapshotId);
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
         if (peerId == CellManager->GetSelfId()) continue;
 
@@ -64,24 +65,27 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
             ->SetTimeout(Config->LookupTimeout);
         request->set_snapshot_id(snapshotId);
         awaiter->Await(request->Invoke(), FromMethod(
-            &TSnapshotDownloader::OnResponse,
+            &TSnapshotDownloader::OnSnapshotInfoResponse,
             awaiter, asyncResult, peerId));
     }
+    LOG_INFO("Snapshot info requests sent");
 
     awaiter->Complete(FromMethod(
-        &TSnapshotDownloader::OnComplete,
+        &TSnapshotDownloader::OnSnapshotInfoComplete,
         snapshotId,
         asyncResult));
 
     return asyncResult->Get();
 }
 
-void TSnapshotDownloader::OnResponse(
+void TSnapshotDownloader::OnSnapshotInfoResponse(
     TProxy::TRspGetSnapshotInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
     TFuture<TSnapshotInfo>::TPtr asyncResult,
     TPeerId peerId)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!response->IsOK()) {
         LOG_INFO("Error requesting snapshot info from peer %d\n%s",
             peerId,
@@ -99,39 +103,48 @@ void TSnapshotDownloader::OnResponse(
     awaiter->Cancel();
 }
 
-void TSnapshotDownloader::OnComplete(
-    i32 segmentId,
+void TSnapshotDownloader::OnSnapshotInfoComplete(
+    i32 snapshotId,
     TFuture<TSnapshotInfo>::TPtr asyncResult)
 {
-    LOG_INFO("Could not get snapshot %d info from peers", segmentId);
+    LOG_INFO("Could not get snapshot %d info from peers", snapshotId);
 
     asyncResult->Set(TSnapshotInfo(NElection::InvalidPeerId, -1));
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
-    i32 segmentId,
-    TSnapshotInfo snapshotInfo,
-    TFile* snapshotFile)
+    const Stroka& fileName,
+    i32 snapshotId,
+    const TSnapshotInfo& snapshotInfo)
 {
     YASSERT(snapshotInfo.Length >= 0);
     
-    TPeerId sourceId = snapshotInfo.SourceId;
+    auto sourceId = snapshotInfo.SourceId;
 
-    snapshotFile->Resize(snapshotInfo.Length);
-    TBufferedFileOutput writer(*snapshotFile);
+    TAutoPtr<TFile> file;
+    try {
+        file = new TFile(fileName, CreateAlways | WrOnly | Seq);
+        file->Resize(snapshotInfo.Length);
+    } catch (const std::exception& ex) {
+        LOG_FATAL("IO error opening snapshot %d for writing\n%s",
+            snapshotId,
+            ex.what());
+    }
+
+    TBufferedFileOutput output(*file);
     
-    auto result = WriteSnapshot(segmentId, snapshotInfo.Length, sourceId, writer);
+    auto result = WriteSnapshot(snapshotId, snapshotInfo.Length, sourceId, output);
     if (result != EResult::OK) {
         return result;
     }
 
     try {
-        writer.Flush();
-        snapshotFile->Flush();
-        snapshotFile->Close();
+        output.Flush();
+        file->Flush();
+        file->Close();
     } catch (const std::exception& ex) {
         LOG_FATAL("Error closing snapshot %d\n%s",
-            segmentId,
+            snapshotId,
             ex.what());
     }
 

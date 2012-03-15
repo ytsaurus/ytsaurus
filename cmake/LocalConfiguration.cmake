@@ -73,14 +73,18 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   # These are configuration-specific compilation flags.
   # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
   set( CMAKE_CXX_FLAGS_DEBUG "-g -O0" )
-  set( CMAKE_CXX_FLAGS_RELEASE "-O2" )
+  set( CMAKE_CXX_FLAGS_RELEASE "-O2 -flto" )
   set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2" )
   set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os" )
 
   set( CMAKE_C_FLAGS_DEBUG "-g -O0" )
-  set( CMAKE_C_FLAGS_RELEASE "-O2" )
+  set( CMAKE_C_FLAGS_RELEASE "-O2 -flto" )
   set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2" )
   set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os" )
+
+  set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program" )
+  set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "" )
+  set( CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "" )
 endif()
 
 # Now configure compiler options for msvc.

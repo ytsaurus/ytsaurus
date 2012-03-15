@@ -21,15 +21,21 @@ TCypressServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
 TFuture<TCypressServiceProxy::TRspExecuteBatch::TPtr>::TPtr
 TCypressServiceProxy::TReqExecuteBatch::Invoke()
 {
-    auto response = New<TRspExecuteBatch>(GetRequestId());
+    auto response = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
     auto asyncResult = response->GetAsyncResult();
     DoInvoke(~response, Timeout_);
     return asyncResult;
 }
 
 TCypressServiceProxy::TReqExecuteBatch::TPtr
-TCypressServiceProxy::TReqExecuteBatch::AddRequest(TYPathRequest* innerRequest)
+TCypressServiceProxy::TReqExecuteBatch::AddRequest(
+    TYPathRequest* innerRequest,
+    const Stroka& key)
 {
+    if (!key.empty()) {
+        int index = Body.part_counts_size();
+        KeyToIndexes.insert(MakePair(key, index));
+    }
     auto innerMessage = innerRequest->Serialize();
     const auto& innerParts = innerMessage->GetParts();
     Body.add_part_counts(innerParts.ysize());
@@ -54,8 +60,11 @@ TBlob TCypressServiceProxy::TReqExecuteBatch::SerializeBody() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressServiceProxy::TRspExecuteBatch::TRspExecuteBatch(const TRequestId& requestId)
+TCypressServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
+    const TRequestId& requestId,
+    const std::multimap<Stroka, int>& keyToIndexes)
     : TClientResponse(requestId)
+    , KeyToIndexes(keyToIndexes)
     , AsyncResult(New< TFuture<TPtr> >())
 { }
 
@@ -91,6 +100,11 @@ int TCypressServiceProxy::TRspExecuteBatch::GetSize() const
 TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
     return GetResponse<TYPathResponse>(index);
+}
+
+TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+{
+    return GetResponse<TYPathResponse>(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

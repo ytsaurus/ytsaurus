@@ -124,7 +124,7 @@ private:
     void StartEpoch(TPeerId leaderId, const TEpoch& epoch);
     void StopEpoch();
 
-	void UpdateState(TProxy::EState newState);
+    void UpdateState(TProxy::EState newState);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

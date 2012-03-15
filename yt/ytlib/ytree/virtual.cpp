@@ -190,7 +190,7 @@ void TVirtualMapBase::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
 
 bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    if (key == "size") {
+    if (key == "count") {
         BuildYsonFluently(consumer)
             .Scalar(static_cast<i64>(GetSize()));
         return true;
@@ -205,7 +205,7 @@ class TVirtualEntityNode
     : public TNodeBase
     , public TSupportsAttributes
     , public IEntityNode
-	, public TEphemeralAttributeProvider
+    , public TEphemeralAttributeProvider
 {
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
@@ -245,15 +245,15 @@ public:
     }
 
 private:
-	IYPathServicePtr UnderlyingService;
-	ICompositeNode* Parent;
-	TAutoPtr<IAttributeDictionary> Attributes_;
+    IYPathServicePtr UnderlyingService;
+    ICompositeNode* Parent;
+    TAutoPtr<IAttributeDictionary> Attributes_;
 
     // TSupportsAttributes members
 
     virtual IAttributeDictionary* GetUserAttributes()
     {
-		return &Attributes();
+        return &Attributes();
     }
 
     virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
@@ -264,12 +264,12 @@ private:
 
 INodePtr CreateVirtualNode(IYPathService* service)
 {
-	return New<TVirtualEntityNode>(service);
+    return New<TVirtualEntityNode>(service);
 }
 
 NYT::NYTree::INodePtr CreateVirtualNode(TYPathServiceProducer producer)
 {
-	return CreateVirtualNode(~IYPathService::FromProducer(producer));
+    return CreateVirtualNode(~IYPathService::FromProducer(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

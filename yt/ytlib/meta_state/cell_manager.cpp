@@ -36,7 +36,7 @@ Stroka TCellManager::GetPeerAddress(TPeerId id) const
 
 Stroka TCellManager::GetSelfAddress() const
 {
-	return Config->Addresses[Config->Id];
+    return Config->Addresses[Config->Id];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

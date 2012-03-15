@@ -398,8 +398,8 @@ void TChangeLog::TImpl::Finalize()
 {
     TGuard<TMutex> guard(Mutex);
 
-	if (State == EState::Finalized)
-		return;
+    if (State == EState::Finalized)
+        return;
 
     YASSERT(State == EState::Open);
 
@@ -582,7 +582,7 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
 {
     TGuard<TMutex> guard(Mutex);
 
-	YASSERT(State == EState::Open);
+    YASSERT(State == EState::Open);
 
     LOG_DEBUG("Truncating changelog (RecordId: %d)", atRecordId);
 

@@ -32,9 +32,9 @@ IMessage::TPtr TYPathRequest::Serialize()
     TRequestHeader header;
     header.set_path(Path_);
     header.set_verb(Verb_);
-	if (HasAttributes()) {
-		ToProto(header.mutable_attributes(), Attributes());
-	}
+    if (HasAttributes()) {
+        ToProto(header.mutable_attributes(), Attributes());
+    }
 
     return CreateRequestMessage(
         header,
@@ -50,9 +50,9 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
 
     auto header = GetResponseHeader(message);
     Error_ = GetResponseError(header);
-	if (header.has_attributes()) {
-		SetAttributes(FromProto(header.attributes()));
-	}
+    if (header.has_attributes()) {
+        SetAttributes(FromProto(header.attributes()));
+    }
 
     if (Error_.IsOK()) {
         // Deserialize body.
@@ -338,13 +338,13 @@ ExecuteVerb(
 
 void ExecuteVerb(IYPathService* service, IServiceContext* context)
 {
-	auto context_ = MakeStrong(context);
-	auto requestMessage = context->GetRequestMessage();
-	ExecuteVerb(service, ~requestMessage)
-	->Subscribe(FromFunctor([=] (NBus::IMessage::TPtr responseMessage)
-		{
-			context_->Reply(~responseMessage);
-		}));
+    auto context_ = MakeStrong(context);
+    auto requestMessage = context->GetRequestMessage();
+    ExecuteVerb(service, ~requestMessage)
+    ->Subscribe(FromFunctor([=] (NBus::IMessage::TPtr responseMessage)
+        {
+            context_->Reply(~responseMessage);
+        }));
 }
 
 TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, const TYPath& path)

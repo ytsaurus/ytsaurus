@@ -36,14 +36,14 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
 
         auto request = proxy.GetStatus();
         awaiter->Await(
-			request->Invoke(),
-			address,
-			FromMethod(
-				&TLeaderLookup::OnResponse,
-				MakeStrong(this),
-				awaiter,
-				asyncResult,
-				address));
+            request->Invoke(),
+            address,
+            FromMethod(
+                &TLeaderLookup::OnResponse,
+                MakeStrong(this),
+                awaiter,
+                asyncResult,
+                address));
     }
     
     awaiter->Complete(FromMethod(

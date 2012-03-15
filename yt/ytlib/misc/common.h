@@ -41,7 +41,9 @@ using std::string; // hack for guid.h to work
 
 // This define enables thread affinity check -- a user-defined verification ensuring
 // that some functions are called from particular threads.
+#ifndef NDEBUG
 #define ENABLE_THREAD_AFFINITY_CHECK
+#endif
 
 #ifdef _MSC_VER
     // C4505: unreferenced local function has been removed
