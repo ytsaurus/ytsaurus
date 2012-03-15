@@ -543,13 +543,13 @@ protected:
 protected:
     virtual void GetSystemAttributes(std::vector<typename TBase::TAttributeInfo>* attributes)
     {
-        attributes->push_back("size");
+        attributes->push_back("count");
         TBase::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
-        if (name == "size") {
+        if (name == "count") {
             BuildYsonFluently(consumer)
                 .Scalar(this->GetChildCount());
             return true;

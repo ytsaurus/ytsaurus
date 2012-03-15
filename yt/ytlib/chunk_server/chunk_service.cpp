@@ -205,8 +205,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
         auto holderIds = chunkManager->AllocateUploadTargets(uploadReplicaCount);
         if (holderIds.ysize() < uploadReplicaCount) {
             ythrow TServiceException(EErrorCode::NotEnoughHolders) <<
-                Sprintf("Not enough holders available (ReplicaCount: %d)",
-                uploadReplicaCount);
+                "Not enough holders available";
         }
         auto* chunkInfo = response->add_chunks();
         FOREACH(auto holderId, holderIds) {
