@@ -79,14 +79,14 @@ struct IMetaStateManager
         const TSharedRef& changeData,
         IAction* changeAction = NULL) = 0;
 
-	//! Returns True if #CommitChange is currently in progress.
-	/*!
-	 *  This is typically used to prevent recursive commits and only log "top-level"
-	 *  changes that trigger the whole transformation chain.
-	 *  
-	 *  \note Thread affinity: StateThread
-	 */
-	virtual bool IsInCommit() const = 0;
+    //! Returns True if #CommitChange is currently in progress.
+    /*!
+     *  This is typically used to prevent recursive commits and only log "top-level"
+     *  changes that trigger the whole transformation chain.
+     *  
+     *  \note Thread affinity: StateThread
+     */
+    virtual bool IsInCommit() const = 0;
 
     //! Toggles read-only mode.
     /*!

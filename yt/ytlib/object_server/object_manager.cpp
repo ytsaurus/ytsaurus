@@ -535,9 +535,9 @@ void TObjectManager::ExecuteVerb(
         ~id.TransactionId.ToString());
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
-		!isWrite ||
-		MetaStateManager->IsInCommit())
-	{
+        !isWrite ||
+        MetaStateManager->IsInCommit())
+    {
         action->Do(context);
         return;
     }

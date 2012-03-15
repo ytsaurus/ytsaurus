@@ -63,14 +63,14 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
             ->SetTimeout(Config->LookupTimeout);
         request->set_change_log_id(version.SegmentId);
         awaiter->Await(
-			request->Invoke(),
-			CellManager->GetPeerAddress(id),
-			FromMethod(
-				&TChangeLogDownloader::OnResponse,
-				awaiter,
-				asyncResult,
-				id,
-				version));
+            request->Invoke(),
+            CellManager->GetPeerAddress(id),
+            FromMethod(
+                &TChangeLogDownloader::OnResponse,
+                awaiter,
+                asyncResult,
+                id,
+                version));
     }
 
     awaiter->Complete(FromMethod(&TChangeLogDownloader::OnComplete, asyncResult));

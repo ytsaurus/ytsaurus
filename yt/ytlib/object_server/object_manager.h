@@ -74,10 +74,10 @@ public:
     //! Returns a proxy for the object with the given versioned id or NULL. Fails if there's no such object.
     IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
 
-	//! Creates a new empty attribute set.
+    //! Creates a new empty attribute set.
     TAttributeSet* CreateAttributes(const TVersionedObjectId& id);
 
-	//! Removes an existing attribute set.
+    //! Removes an existing attribute set.
     void RemoveAttributes(const TVersionedObjectId& id);
 
     //! Called when a versioned object is branched.
@@ -90,24 +90,24 @@ public:
         const TVersionedObjectId& originatingId,
         const TVersionedObjectId& branchedId);
 
-	//! Returns a YPath service that handles all requests.
-	/*!
-	 *  This service supports some special prefix syntax for YPaths:
-	 */
+    //! Returns a YPath service that handles all requests.
+    /*!
+     *  This service supports some special prefix syntax for YPaths:
+     */
     NYTree::IYPathService* GetRootService();
     
-	//! Executes a YPath verb, logging the change if neccessary.
-	/*!
-	 *  \param id The id of the object that handles the verb.
-	 *  If the change is logged, this id is written to the changelog and
-	 *  used afterwards to replay the change.
-	 *  \param isWrite True if the verb modifies the state and thus must be logged.
-	 *  \param context The request context.
-	 *  \param action An action to call that executes the actual verb logic.
-	 *  
-	 *  Note that #action takes a context as a parameter. This is because the original #context
-	 *  gets wrapped to intercept replies and #action gets the wrapped instance.
-	 */
+    //! Executes a YPath verb, logging the change if neccessary.
+    /*!
+     *  \param id The id of the object that handles the verb.
+     *  If the change is logged, this id is written to the changelog and
+     *  used afterwards to replay the change.
+     *  \param isWrite True if the verb modifies the state and thus must be logged.
+     *  \param context The request context.
+     *  \param action An action to call that executes the actual verb logic.
+     *  
+     *  Note that #action takes a context as a parameter. This is because the original #context
+     *  gets wrapped to intercept replies and #action gets the wrapped instance.
+     */
     void ExecuteVerb(
         const TVersionedObjectId& id,
         bool isWrite,

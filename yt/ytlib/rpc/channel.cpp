@@ -58,13 +58,13 @@ public:
 
         auto requestId = request->GetRequestId();
 
-		TActiveRequest activeRequest;
+        TActiveRequest activeRequest;
         activeRequest.ClientRequest = request;
         activeRequest.ResponseHandler = responseHandler;
-		activeRequest.Timer = Profiler.TimingStart(CombineYPaths(
-			request->GetPath(),
-			request->GetVerb(),
-			"time"));
+        activeRequest.Timer = Profiler.TimingStart(CombineYPaths(
+            request->GetPath(),
+            request->GetVerb(),
+            "time"));
 
         if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
@@ -120,10 +120,10 @@ private:
 
     struct TActiveRequest
     {
-		IClientRequest::TPtr ClientRequest;
+        IClientRequest::TPtr ClientRequest;
         TIntrusivePtr<IClientResponseHandler> ResponseHandler;
         TDelayedInvoker::TCookie TimeoutCookie;
-		NProfiling::TTimer Timer;
+        NProfiling::TTimer Timer;
     };
 
     typedef yhash_map<TRequestId, TActiveRequest> TRequestMap;
@@ -135,7 +135,7 @@ private:
     //! Protects #ActiveRequests and #Terminated.
     TSpinLock SpinLock;
 
-	// TODO(babenko): make const&
+    // TODO(babenko): make const&
     void OnAcknowledgement(ESendResult sendResult, TRequestId requestId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -154,7 +154,7 @@ private:
         auto& activeRequest = it->second;
         auto responseHandler = activeRequest.ResponseHandler;
 
-		Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
+        Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
 
         if (sendResult == ESendResult::Failed) {
             CompleteRequest(it);
@@ -199,8 +199,8 @@ private:
                 return;
             }
 
-			auto& activeRequest = it->second;
-			Profiler.TimingCheckpoint(activeRequest.Timer, "reply");
+            auto& activeRequest = it->second;
+            Profiler.TimingCheckpoint(activeRequest.Timer, "reply");
             responseHandler = activeRequest.ResponseHandler;
 
             CompleteRequest(it);
@@ -216,7 +216,7 @@ private:
     }
 
 
-	// TODO(babenko): make const&
+    // TODO(babenko): make const&
     void OnTimeout(TRequestId requestId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -232,8 +232,8 @@ private:
                 return;
             }
 
-			auto& activeRequest = it->second;
-			Profiler.TimingCheckpoint(activeRequest.Timer, "timeout");
+            auto& activeRequest = it->second;
+            Profiler.TimingCheckpoint(activeRequest.Timer, "timeout");
             responseHandler = activeRequest.ResponseHandler;
 
             CompleteRequest(it);
@@ -250,7 +250,7 @@ private:
 
         auto& activeRequest = it->second;
         TDelayedInvoker::CancelAndClear(activeRequest.TimeoutCookie);
-		Profiler.TimingStop(activeRequest.Timer);
+        Profiler.TimingStop(activeRequest.Timer);
         ActiveRequests.erase(it);
     }
 

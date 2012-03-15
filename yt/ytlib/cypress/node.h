@@ -12,7 +12,7 @@ namespace NCypress {
 
 //! Provides a common interface for all persistent nodes.
 struct ICypressNode
-	: private TNonCopyable
+    : private TNonCopyable
 {
     virtual ~ICypressNode()
     { }
