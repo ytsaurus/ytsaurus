@@ -100,7 +100,9 @@ public:
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
-    TTotalHolderStatistics GetTotalHolderStatistics() const;
+    TTotalHolderStatistics GetTotalHolderStatistics();
+
+    bool IsHolderConfirmed(const THolder& holder);
 
 private:
     class TImpl;

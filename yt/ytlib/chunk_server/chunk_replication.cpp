@@ -6,6 +6,9 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
+#include <ytlib/profiling/profiler.h>
+
+#include <util/datetime/cputimer.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -16,6 +19,7 @@ using namespace NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkServer");
+static NProfiling::TProfiler Profiler("chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +30,7 @@ TChunkReplication::TChunkReplication(
     : Config(config)
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
+    , ChunkRefreshDelayCycles(DurationToCycles(config->ChunkRefreshDelay))
 {
     YASSERT(config);
     YASSERT(bootstrap);
@@ -191,7 +196,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto* chunk = chunkManager->FindChunk(chunkId);
     if (!chunk) {
-        LOG_DEBUG("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_TRACE("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -199,11 +204,11 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
     }
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_DEBUG("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_TRACE("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
-        return EScheduleFlags::None;
+        return EScheduleFlags::Purged;
     }
 
     int desiredCount;
@@ -221,7 +226,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 
     int requestedCount = desiredCount - (storedCount + plusCount);
     if (requestedCount <= 0) {
-        LOG_DEBUG("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_TRACE("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
             ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
@@ -230,7 +235,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
 
     auto targets = ChunkPlacement->GetReplicationTargets(*chunk, requestedCount);
     if (targets.empty()) {
-        LOG_DEBUG("No suitable target holders for replication (ChunkId: %s, HolderId: %d)",
+        LOG_TRACE("No suitable target holders for replication (ChunkId: %s, HolderId: %d)",
             ~chunkId.ToString(),
             sourceHolder.GetId());
         return EScheduleFlags::None;
@@ -588,7 +593,7 @@ void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
 
     TRefreshEntry entry;
     entry.ChunkId = chunkId;
-    entry.When = TInstant::Now() + Config->ChunkRefreshDelay;
+    entry.When = GetCycleCount() + ChunkRefreshDelayCycles;
     RefreshList.push_back(entry);
     RefreshSet.insert(chunkId);
 }
@@ -603,11 +608,14 @@ void TChunkReplication::RefreshAllChunks()
 
 void TChunkReplication::ScheduleNextRefresh()
 {
+    auto context = Bootstrap->GetMetaStateManager()->GetEpochContext();
+    if (!context)
+        return;
     TDelayedInvoker::Submit(
         ~FromMethod(&TChunkReplication::OnRefresh, MakeStrong(this))
         ->Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
-            Bootstrap->GetMetaStateManager()->GetEpochContext()),
+            context),
         Config->ChunkRefreshQuantum);
 }
 
@@ -615,23 +623,25 @@ void TChunkReplication::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto now = TInstant::Now();
-    for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
-        if (RefreshList.empty())
-            break;
+    PROFILE_TIMING ("incremental_chunk_refresh_time") {
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto now = GetCycleCount();
+        for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
+            if (RefreshList.empty())
+                break;
 
-        const auto& entry = RefreshList.front();
-        if (entry.When > now)
-            break;
+            const auto& entry = RefreshList.front();
+            if (entry.When > now)
+                break;
 
-        auto* chunk = chunkManager->FindChunk(entry.ChunkId);
-        if (chunk) {
-            Refresh(*chunk);
+            auto* chunk = chunkManager->FindChunk(entry.ChunkId);
+            if (chunk) {
+                Refresh(*chunk);
+            }
+
+            YVERIFY(RefreshSet.erase(entry.ChunkId) == 1);
+            RefreshList.pop_front();
         }
-
-        YVERIFY(RefreshSet.erase(entry.ChunkId) == 1);
-        RefreshList.pop_front();
     }
 
     ScheduleNextRefresh();

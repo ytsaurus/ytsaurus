@@ -109,7 +109,7 @@ public:
             ~bootstrap->GetMetaState())
         , Config(config)
         , Bootstrap(bootstrap)
-		, ChunkReplicaCount(0)
+        , ChunkReplicaCount(0)
     {
         YASSERT(config);
         YASSERT(bootstrap);
@@ -326,7 +326,7 @@ public:
         }
     }
 
-    TTotalHolderStatistics GetTotalHolderStatistics() const
+    TTotalHolderStatistics GetTotalHolderStatistics()
     {
         TTotalHolderStatistics result;
         auto keys = HolderMap.GetKeys();
@@ -337,9 +337,14 @@ public:
             result.UsedSpace += statistics.used_space();
             result.ChunkCount += statistics.chunk_count();
             result.SessionCount += statistics.session_count();
-            result.AliveHolderCount++;
+            result.OnlineHolderCount++;
         }
         return result;
+    }
+
+    bool IsHolderConfirmed(const THolder& holder)
+    {
+        return HolderLeaseTracking->IsHolderConfirmed(holder);
     }
 
 private:
@@ -360,7 +365,7 @@ private:
 
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
-	i32 ChunkReplicaCount;
+    i32 ChunkReplicaCount;
 
     TMetaStateMap<THolderId, THolder> HolderMap;
     yhash_map<Stroka, THolderId> HolderAddressMap;
@@ -558,7 +563,7 @@ private:
         HolderAddressMap.insert(MakePair(address, holderId)).second;
 
         if (IsLeader()) {
-            StartHolderTracking(*newHolder);
+            StartHolderTracking(*newHolder, true);
         }
 
         return holderId;
@@ -577,7 +582,8 @@ private:
 
     TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
     {
-        PROFILE_TIMING ("full_heartbeat") {
+        Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
+        PROFILE_TIMING ("full_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
 
@@ -599,17 +605,8 @@ private:
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
-            std::vector<TChunkId> storedChunkIds(holder.StoredChunkIds().begin(), holder.StoredChunkIds().end());
-            FOREACH (const auto& chunkId, storedChunkIds) {
-                RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Reset);
-            }
-            holder.StoredChunkIds().clear();
-
-            std::vector<TChunkId> cachedChunkIds(holder.CachedChunkIds().begin(), holder.CachedChunkIds().end());
-            FOREACH (const auto& chunkId, cachedChunkIds) {
-                RemoveChunkReplica(holder, GetChunk(chunkId), true, ERemoveReplicaReason::Reset);
-            }
-            holder.CachedChunkIds().clear();
+            YASSERT(holder.StoredChunkIds().empty());
+            YASSERT(holder.CachedChunkIds().empty());
 
             FOREACH (const auto& chunkInfo, message.chunks()) {
                 ProcessAddedChunk(holder, chunkInfo, false);
@@ -620,7 +617,9 @@ private:
 
     TVoid IncrementalHeartbeat(const TMsgIncrementalHeartbeat& message)
     {
-        PROFILE_TIMING ("incremental_heartbeat") {
+        Profiler.Enqueue("incremental_heartbeat_added_chunks", message.added_chunks_size());
+        Profiler.Enqueue("incremental_heartbeat_removed_chunks", message.removed_chunks_size());
+        PROFILE_TIMING ("incremental_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
 
@@ -661,7 +660,7 @@ private:
 
     TVoid UpdateJobs(const TMsgUpdateJobs& message)
     {
-        PROFILE_TIMING ("update_jobs") {
+        PROFILE_TIMING ("update_jobs_time") {
             auto holderId = message.holder_id();
             auto& holder = GetHolder(holderId);
 
@@ -726,15 +725,15 @@ private:
         JobMap.LoadValues(input, context);
         JobListMap.LoadValues(input, context);
 
-		// Compute chunk replica count.
-		ChunkReplicaCount = 0;
-		FOREACH (const auto& pair, HolderMap) {
-			const auto& holder = *pair.second;
-			ChunkReplicaCount += holder.StoredChunkIds().size();
-			ChunkReplicaCount += holder.CachedChunkIds().size();
-		}
+        // Compute chunk replica count.
+        ChunkReplicaCount = 0;
+        FOREACH (const auto& pair, HolderMap) {
+            const auto& holder = *pair.second;
+            ChunkReplicaCount += holder.StoredChunkIds().size();
+            ChunkReplicaCount += holder.CachedChunkIds().size();
+        }
 
-		// Reconstruct HolderAddressMap.
+        // Reconstruct HolderAddressMap.
         HolderAddressMap.clear();
         FOREACH (const auto& pair, HolderMap) {
             const auto* holder = pair.second;
@@ -752,7 +751,7 @@ private:
     {
         HolderIdGenerator.Reset();
         ChunkMap.Clear();
-		ChunkReplicaCount = 0;
+        ChunkReplicaCount = 0;
         ChunkListMap.Clear();
         HolderMap.Clear();
         JobMap.Clear();
@@ -771,11 +770,13 @@ private:
 
         HolderLeaseTracking = New<THolderLeaseTracker>(~Config, Bootstrap);
 
+        // Assign initial leases to holders.
+        // NB: Holders should remain unconfirmed until the first heartbeat.
         FOREACH (const auto& pair, HolderMap) {
-            StartHolderTracking(*pair.second);
+            StartHolderTracking(*pair.second, false);
         }
 
-        PROFILE_TIMING ("full_chunk_refresh") {
+        PROFILE_TIMING ("full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
             ChunkReplication->RefreshAllChunks();
             LOG_INFO("Full chunk refresh completed");
@@ -790,9 +791,9 @@ private:
     }
 
 
-    void StartHolderTracking(const THolder& holder)
+    void StartHolderTracking(const THolder& holder, bool confirmed)
     {
-        HolderLeaseTracking->OnHolderRegistered(holder);
+        HolderLeaseTracking->OnHolderRegistered(holder, confirmed);
         ChunkPlacement->OnHolderRegistered(holder);
         ChunkReplication->OnHolderRegistered(holder);
 
@@ -811,7 +812,7 @@ private:
 
     void DoUnregisterHolder(THolder& holder)
     { 
-        PROFILE_TIMING("holder_unregistration") {
+        PROFILE_TIMING("holder_unregistration_time") {
             auto holderId = holder.GetId();
 
             LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",
@@ -856,7 +857,7 @@ private:
         auto holderId = holder.GetId();
 
         if (holder.HasChunk(chunkId, cached)) {
-            LOG_WARNING_IF(!IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
                 ~reason.ToString(),
@@ -907,7 +908,7 @@ private:
         auto holderId = holder.GetId();
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !holder.HasChunk(chunkId, cached)) {
-            LOG_WARNING_IF(!IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
+            LOG_DEBUG_IF(!IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
                 ~reason.ToString(),
@@ -1117,7 +1118,7 @@ private:
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds().insert(job.GetJobId()).second);
+                    YVERIFY(sink.JobIds().insert(job.GetJobId()).second);
                 }
                 break;
             }
@@ -1136,7 +1137,7 @@ private:
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job.TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YASSERT(sink.JobIds().erase(job.GetJobId()) == 1);
+                    YVERIFY(sink.JobIds().erase(job.GetJobId()) == 1);
                     DropReplicationSinkIfEmpty(sink);
                 }
                 break;
@@ -1622,11 +1623,15 @@ void TChunkManager::FillHolderAddresses(
     Impl->FillHolderAddresses(addresses, chunk);
 }
 
-TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics() const
+TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics()
 {
     return Impl->GetTotalHolderStatistics();
 }
 
+bool TChunkManager::IsHolderConfirmed(const THolder& holder)
+{
+    return Impl->IsHolderConfirmed(holder);
+}
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl)

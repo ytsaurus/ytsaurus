@@ -50,21 +50,31 @@ public:
 
         TFuture< TIntrusivePtr<TRspExecuteBatch> >::TPtr Invoke();
 
-        // Override base method for fluent use.
+        // Overrides base method for fluent use.
         TIntrusivePtr<TReqExecuteBatch> SetTimeout(TNullable<TDuration> timeout)
         {
             TClientRequest::SetTimeout(timeout);
             return this;
         }
 
-        //! Add an individual request into the batch.
-        TIntrusivePtr<TReqExecuteBatch> AddRequest(NYTree::TYPathRequest* innerRequest);
+        //! Adds an individual request into the batch.
+        /*!
+         *  Each individual request may be marked with a key.
+         *  These keys can be used to retrieve the corresponding responses
+         *  (thus avoiding complicated and error-prone index calculations).
+         */
+        TIntrusivePtr<TReqExecuteBatch> AddRequest(
+            NYTree::TYPathRequest* innerRequest,
+            const Stroka& key = "");
 
         //! Returns the current number of individual requests in the batch.
         int GetSize() const;
 
     private:
+        typedef std::multimap<Stroka, int> TKeyToIndexes;
+
         NProto::TRspExecute Body;
+        TKeyToIndexes KeyToIndexes;
 
         virtual TBlob SerializeBody() const;
 
@@ -75,10 +85,12 @@ public:
      *  This class holds a vector of messages representing responses to individual
      *  requests that were earlier sent to Cypress.
      *  
-     *  The length of this vector (see #Size) coincides to that of the requests vector.
+     *  The length of this vector (see #GetSize) coincides to that of the requests vector.
      *  
-     *  Individual responses can be extracted by calling #Get. Since they may be of
+     *  Individual responses can be extracted by calling #GetResponse. Since they may be of
      *  different actual types, the client must supply an additional type parameter.
+     *  Responses may also be retrieved by specifying a key that was used during
+     *  request insertion.
      *  
      */
     class TRspExecuteBatch
@@ -86,8 +98,11 @@ public:
     {
     public:
         typedef TIntrusivePtr<TRspExecuteBatch> TPtr;
+        typedef std::multimap<Stroka, int> TKeyToIndexMultimap;
 
-        TRspExecuteBatch(const NRpc::TRequestId& requestId);
+        TRspExecuteBatch(
+            const NRpc::TRequestId& requestId,
+            const TKeyToIndexMultimap& keyToIndexes);
 
         TFuture<TPtr>::TPtr GetAsyncResult();
 
@@ -101,7 +116,24 @@ public:
         //! Returns the individual generic response with a given index.
         NYTree::TYPathResponse::TPtr GetResponse(int index) const;
 
+        //! Returns the individual generic response with a given key.
+        //! Such a response must be unique.
+        NYTree::TYPathResponse::TPtr GetResponse(const Stroka& key) const;
+
+        //! Returns the individual response with a given key.
+        //! Such a response must be unique.
+        template <class TTypedResponse>
+        TIntrusivePtr<TTypedResponse> GetResponse(const Stroka& key) const;
+
+        //! Returns all responses with a given key (all if no key is specified).
+        template <class TTypedResponse>
+        std::vector< TIntrusivePtr<TTypedResponse> > GetResponses(const Stroka& key = "") const;
+
+        //! Returns all responses with a given key (all if no key is specified).
+        std::vector<NYTree::TYPathResponse::TPtr> GetResponses(const Stroka& key = "") const;
+
     private:
+        TKeyToIndexMultimap KeyToIndexes;
         TFuture<TPtr>::TPtr AsyncResult;
         NProto::TRspExecute Body;
         yvector<int> BeginPartIndexes;

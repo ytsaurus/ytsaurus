@@ -71,7 +71,7 @@ struct TSnapshotHeader
 
 TSnapshotReader::TSnapshotReader(const Stroka& fileName, i32 segmentId)
     : FileName(fileName)
-    , SegmentId(segmentId)
+    , SnapshotId(segmentId)
 { }
 
 void TSnapshotReader::Open()
@@ -82,9 +82,9 @@ void TSnapshotReader::Open()
     TSnapshotHeader header;
     Read(*File, &header);
     header.Validate();
-    if (header.SegmentId != SegmentId) {
+    if (header.SegmentId != SnapshotId) {
         LOG_FATAL("Invalid snapshot id in header: expected %d, got %d",
-            SegmentId,
+            SnapshotId,
             header.SegmentId);
     }
     PrevRecordCount = header.PrevRecordCount;
@@ -123,7 +123,7 @@ i32 TSnapshotReader::GetPrevRecordCount() const
 TSnapshotWriter::TSnapshotWriter(const Stroka& fileName, i32 segmentId)
     : FileName(fileName)
     , TempFileName(fileName + NFS::TempFileSuffix)
-    , SegmentId(segmentId)
+    , SnapshotId(segmentId)
     , PrevRecordCount(0)
     , Checksum(0)
 { }
@@ -136,7 +136,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
     File.Reset(new TFile(TempFileName, RdWr | CreateAlways));
     FileOutput.Reset(new TBufferedFileOutput(*File));
 
-    TSnapshotHeader header(SegmentId, PrevRecordCount);
+    TSnapshotHeader header(SnapshotId, PrevRecordCount);
     Write(*FileOutput, header);
 
     CompressedOutput.Reset(new TCompressedOutput(~FileOutput));
@@ -166,7 +166,7 @@ void TSnapshotWriter::Close()
     FileOutput->Flush();
     FileOutput.Reset(NULL);
 
-    TSnapshotHeader header(SegmentId, PrevRecordCount);
+    TSnapshotHeader header(SnapshotId, PrevRecordCount);
     header.DataLength = File->GetLength() - sizeof(TSnapshotHeader);
     header.Checksum = Checksum;
 

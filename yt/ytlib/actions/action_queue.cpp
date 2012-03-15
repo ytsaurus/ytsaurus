@@ -16,10 +16,13 @@ static NLog::TLogger Logger("ActionQueue");
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TQueueInvoker::TQueueInvoker(TActionQueueBase* owner, bool enableLogging)
+TQueueInvoker::TQueueInvoker(
+    const Stroka& name,
+    TActionQueueBase* owner,
+    bool enableLogging)
     : Owner(owner)
     , EnableLogging(enableLogging)
-    , Profiler(CombineYPaths("action_queues", owner->ThreadName))
+    , Profiler(CombineYPaths("action_queues", name))
     , QueueSize(0)
 { }
 
@@ -151,7 +154,7 @@ bool TActionQueueBase::IsRunning() const
 TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
     : TActionQueueBase(threadName, enableLogging)
 {
-    QueueInvoker = New<TQueueInvoker>(this, enableLogging);
+    QueueInvoker = New<TQueueInvoker>(threadName, this, enableLogging);
     Start();
 }
 
@@ -194,8 +197,11 @@ public:
         : TActionQueueBase(threadName, true)
         , Queues(queueCount)
     {
-        FOREACH (auto& queue, Queues) {
-            queue.Invoker = New<TQueueInvoker>(this, true);
+        for (int index = 0; index < queueCount; ++index) {
+            Queues[index].Invoker = New<TQueueInvoker>(
+                CombineYPaths(threadName, ToString(index)),
+                this,
+                true);
         }
 
         Start();

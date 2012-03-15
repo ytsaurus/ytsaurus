@@ -15,7 +15,7 @@ class TSnapshotReader
     : public TRefCounted
 {
 public:
-    TSnapshotReader(const Stroka& fileName, i32 segmentId);
+    TSnapshotReader(const Stroka& fileName, i32 snapshotId);
 
     void Open();
     TInputStream& GetStream() const;
@@ -25,7 +25,7 @@ public:
 
 private:
     Stroka FileName;
-    i32 SegmentId;
+    i32 SnapshotId;
     TChecksum Checksum;
     i32 PrevRecordCount;
 
@@ -42,9 +42,7 @@ class TSnapshotWriter
     : public TRefCounted
 {
 public:
-    TSnapshotWriter(
-        const Stroka& fileName,
-        i32 segmentId);
+    TSnapshotWriter(const Stroka& fileName, i32 snapshotId);
 
     void Open(i32 prevRecordCount);
     
@@ -55,7 +53,7 @@ public:
 private:
     Stroka FileName;
     Stroka TempFileName;
-    i32 SegmentId;
+    i32 SnapshotId;
     i32 PrevRecordCount;
     TChecksum Checksum;
 

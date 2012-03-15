@@ -236,10 +236,10 @@ TMetaVersion TDecoratedMetaState::GetVersion() const
 TMetaVersion TDecoratedMetaState::GetVersionAsync() const
 {
     YASSERT(Started);
-	VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY_ANY();
 
-	TGuard<TSpinLock> guard(VersionSpinLock);
-	return Version;
+    TGuard<TSpinLock> guard(VersionSpinLock);
+    return Version;
 }
 
 TMetaVersion TDecoratedMetaState::GetReachableVersion() const

@@ -17,7 +17,7 @@ namespace NYTree {
 class TEphemeralNodeBase
     : public TNodeBase
     , public TSupportsAttributes
-	, public TEphemeralAttributeProvider
+    , public TEphemeralAttributeProvider
 {
 public:
     TEphemeralNodeBase()
@@ -44,7 +44,7 @@ protected:
     // TSupportsAttributes members
     virtual IAttributeDictionary* GetUserAttributes()
     {
-		return &Attributes();
+        return &Attributes();
     }
 
     virtual ISystemAttributeProvider* GetSystemAttributeProvider() 

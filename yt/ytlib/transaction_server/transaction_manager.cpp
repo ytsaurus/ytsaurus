@@ -462,14 +462,12 @@ void TTransactionManager::OnStopLeading()
 void TTransactionManager::CreateLease(const TTransaction& transaction, TTransactionManifest* manifest)
 {
     auto timeout = manifest->Timeout.Get(Config->DefaultTransactionTimeout);
-    auto epochStateInvoker = Bootstrap
-        ->GetMetaStateManager()
-        ->GetEpochContext()
-        ->CreateInvoker(~Bootstrap->GetStateInvoker());
     auto lease = TLeaseManager::CreateLease(
         timeout,
         ~FromMethod(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
-        ->Via(epochStateInvoker));
+        ->Via(
+            Bootstrap->GetStateInvoker(),
+            Bootstrap->GetMetaStateManager()->GetEpochContext()));
     YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).second);
 }
 

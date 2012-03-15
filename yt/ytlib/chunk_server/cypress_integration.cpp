@@ -237,7 +237,8 @@ private:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         const auto* holder = GetHolder();
-        attributes->push_back("alive");
+        attributes->push_back(TAttributeInfo("state"));
+        attributes->push_back(TAttributeInfo("confirmed", holder));
         attributes->push_back(TAttributeInfo("incarnation_id", holder));
         attributes->push_back(TAttributeInfo("available_space", holder));
         attributes->push_back(TAttributeInfo("used_space", holder));
@@ -251,13 +252,20 @@ private:
     {
         const auto* holder = GetHolder();
 
-        if (name == "alive") {
+        if (name == "state") {
+            auto state = holder ? holder->GetState() : EHolderState(EHolderState::Offline);
             BuildYsonFluently(consumer)
-                .Scalar(holder != NULL);
+                .Scalar(state.ToString());
             return true;
         }
 
         if (holder) {
+            if (name == "confirmed") {
+                BuildYsonFluently(consumer)
+                    .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsHolderConfirmed(*holder)));
+                return true;
+            }
+
             if (name == "incarnation_id") {
                 BuildYsonFluently(consumer)
                     .Scalar(holder->GetIncarnationId().ToString());
@@ -358,34 +366,33 @@ private:
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
         // Doing otherwise will turn holder registration and Cypress update into a single
         // logged change, which is undesirable.
-        Bootstrap
-            ->GetMetaStateManager()
-            ->GetEpochContext()
-            ->CreateInvoker(~Bootstrap->GetStateInvoker())
-            ->Invoke(FromFunctor([=] ()
-                {
-                    if (node->FindChild(address))
-                        return;
+        FromFunctor([=] () {
+            if (node->FindChild(address))
+                return;
 
-                    auto service = cypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
+            auto service = cypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
 
-                    // TODO(babenko): make a single transaction
+            // TODO(babenko): make a single transaction
 
-                    {
-                        auto req = TCypressYPathProxy::Create(address);
-                        req->set_type(EObjectType::Holder);
-                        ExecuteVerb(~service, ~req);
-                    }
+            {
+                auto req = TCypressYPathProxy::Create(address);
+                req->set_type(EObjectType::Holder);
+                ExecuteVerb(~service, ~req);
+            }
 
-                    {
-                        auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
-                        req->set_type(EObjectType::Orchid);     
-                        auto manifest = New<TOrchidManifest>();
-                        manifest->RemoteAddress = address;
-                        req->set_manifest(SerializeToYson(~manifest));
-                        ExecuteVerb(~service, ~req);
-                    }
-                }));
+            {
+                auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
+                req->set_type(EObjectType::Orchid);     
+                auto manifest = New<TOrchidManifest>();
+                manifest->RemoteAddress = address;
+                req->set_manifest(SerializeToYson(~manifest));
+                ExecuteVerb(~service, ~req);
+            }
+        })
+        ->Via(
+            Bootstrap->GetStateInvoker(),
+            Bootstrap->GetMetaStateManager()->GetEpochContext())
+        ->Do();
     }
 
 };
@@ -409,13 +416,14 @@ public:
 private:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
-        attributes->push_back("alive");
-        attributes->push_back("dead");
+        attributes->push_back("online");
+        attributes->push_back("offline");
+        attributes->push_back("confirmed");
         attributes->push_back("available_space");
         attributes->push_back("used_space");
         attributes->push_back("chunk_count");
         attributes->push_back("session_count");
-        attributes->push_back("alive_holder_count");
+        attributes->push_back("online_holder_count");
         TMapNodeProxy::GetSystemAttributes(attributes);
     }
 
@@ -423,24 +431,32 @@ private:
     {
         auto chunkManager = Bootstrap->GetChunkManager();
 
-        if (name == "alive") {
+        if (name == "online") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id)
-                    {
-                        const auto& holder = chunkManager->GetHolder(id);
-                        fluent.Item().Scalar(holder.GetAddress());
-                    });
+                .DoListFor(chunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id) {
+                    const auto& holder = chunkManager->GetHolder(id);
+                    fluent.Item().Scalar(holder.GetAddress());
+                });
             return true;
         }
 
-        if (name == "dead") {
+        if (name == "offline") {
             BuildYsonFluently(consumer)
-                .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address)
-                    {
-                        if (!chunkManager->FindHolder(address)) {
-                            fluent.Item().Scalar(address);
-                        }
-                    });
+                .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
+                    if (!chunkManager->FindHolder(address)) {
+                        fluent.Item().Scalar(address);
+                    }
+                });
+            return true;
+        }
+
+        if (name == "confirmed") {
+            BuildYsonFluently(consumer)
+                .DoListFor(chunkManager->GetHolders(), [=] (TFluentList fluent, THolder* holder) {
+                    if (chunkManager->IsHolderConfirmed(*holder)) {
+                        fluent.Item().Scalar(holder->GetAddress());
+                    }
+                });
             return true;
         }
 
@@ -469,9 +485,9 @@ private:
             return true;
         }
 
-        if (name == "alive_holder_count") {
+        if (name == "online_holder_count") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics.AliveHolderCount);
+                .Scalar(statistics.OnlineHolderCount);
             return true;
         }
 

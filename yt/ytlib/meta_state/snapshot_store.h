@@ -36,13 +36,6 @@ public:
     //! Gets a writer for a given snapshot id.
     TSnapshotWriterPtr GetWriter(i32 snapshotId) const;
 
-    typedef TValueOrError< TSharedPtr<TFile> > TGetRawReaderResult;
-    //! Gets a raw reader for a given snapshot id.
-    TGetRawReaderResult GetRawReader(i32 snapshotId) const;
-
-    //! Gets a writer for a given snapshot id.
-    TSharedPtr<TFile> GetRawWriter(i32 snapshotId) const;
-
     //! Returns the largest snapshot id not exceeding #maxSnapshotId that is known to exist locally
     //! or #NonexistingSnapshotId if no such snapshot is present.
     /*!
@@ -53,14 +46,15 @@ public:
     //! Informs the store that a new snapshot was created.
     void OnSnapshotAdded(i32 snapshotId);
 
+    //! Returns the file name of the snapshot.
+    Stroka GetSnapshotFileName(i32 snapshotId) const;
+
 private:
     Stroka Path;
     bool Started;
 
     TSpinLock SpinLock;
     std::set<i32> SnapshotIds;
-
-    Stroka GetSnapshotFileName(i32 snapshotId) const;
 
 };
 

@@ -332,8 +332,7 @@ public:
 
         i32 snapshotId = request->snapshot_id();
 
-        context->SetRequestInfo("SnapshotId: %d",
-            snapshotId);
+        context->SetRequestInfo("SnapshotId: %d", snapshotId);
 
         auto result = SnapshotStore->GetReader(snapshotId);
         if (!result.IsOK()) {
@@ -345,7 +344,7 @@ public:
         reader->Open();
         
         i64 length = reader->GetLength();
-        TChecksum checksum = reader->GetChecksum();
+        auto checksum = reader->GetChecksum();
         int prevRecordCount = reader->GetPrevRecordCount();
 
         response->set_length(length);
@@ -376,35 +375,45 @@ public:
         YASSERT(offset >= 0);
         YASSERT(length >= 0);
 
-        auto result = SnapshotStore->GetRawReader(snapshotId);
-        if (!result.IsOK()) {
-            // TODO: cannot use ythrow here
-            throw TServiceException(result);
+        auto fileName = SnapshotStore->GetSnapshotFileName(snapshotId);
+        if (!isexist(~fileName)) {
+            context->Reply(TError(
+                EErrorCode::NoSuchSnapshot,
+                Sprintf("No such snapshot %d", snapshotId)));
+            return;
         }
 
-        auto snapshotFile = result.Value();
-        IOQueue->GetInvoker()->Invoke(context->Wrap(~FromFunctor([=] ()
-            {
-                VERIFY_THREAD_AFFINITY(IOThread);
+        TSharedPtr<TFile> snapshotFile;
+        try {
+            snapshotFile = new TFile(fileName, OpenExisting | RdOnly);
+        }
+        catch (const std::exception& ex) {
+            LOG_FATAL("IO error while opening snapshot %d\n%s",
+                snapshotId,
+                ex.what());
+        }
 
-                TBlob data(length);
-                i32 bytesRead;
-                try {
-                    snapshotFile->Seek(offset, sSet);
-                    bytesRead = snapshotFile->Read(data.begin(), length);
-                } catch (const std::exception& ex) {
-                    LOG_FATAL("IO error while reading snapshot (SnapshotId: %d)\n%s",
-                        snapshotId,
-                        ex.what());
-                }
+        IOQueue->GetInvoker()->Invoke(context->Wrap(~FromFunctor([=] () {
+            VERIFY_THREAD_AFFINITY(IOThread);
 
-                data.erase(data.begin() + bytesRead, data.end());
-                context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
+            TBlob data(length);
+            i32 bytesRead;
+            try {
+                snapshotFile->Seek(offset, sSet);
+                bytesRead = snapshotFile->Read(data.begin(), length);
+            } catch (const std::exception& ex) {
+                LOG_FATAL("IO error while reading snapshot %d\n%s",
+                    snapshotId,
+                    ex.what());
+            }
 
-                context->SetResponseInfo("BytesRead: %d", bytesRead);
+            data.erase(data.begin() + bytesRead, data.end());
+            context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
 
-                context->Reply();
-            })));
+            context->SetResponseInfo("BytesRead: %d", bytesRead);
+
+            context->Reply();
+        })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChangeLogInfo)
@@ -456,28 +465,27 @@ public:
         }
 
         auto changeLog = result.Value();
-        IOQueue->GetInvoker()->Invoke(~context->Wrap(~FromFunctor([=] ()
-            {
-                VERIFY_THREAD_AFFINITY(IOThread);
+        IOQueue->GetInvoker()->Invoke(~context->Wrap(~FromFunctor([=] () {
+            VERIFY_THREAD_AFFINITY(IOThread);
 
-                yvector<TSharedRef> recordData;
-                try {
-                    changeLog->Read(startRecordId, recordCount, &recordData);
-                } catch (const std::exception& ex) {
-                    LOG_FATAL("IO error while reading changelog (ChangeLogId: %d)\n%s",
-                        changeLogId,
-                        ex.what());
-                }
+            yvector<TSharedRef> recordData;
+            try {
+                changeLog->Read(startRecordId, recordCount, &recordData);
+            } catch (const std::exception& ex) {
+                LOG_FATAL("IO error while reading changelog (ChangeLogId: %d)\n%s",
+                    changeLogId,
+                    ex.what());
+            }
 
-                context->Response().set_records_read(recordData.ysize());
-                context->Response().Attachments().insert(
-                    context->Response().Attachments().end(),
-                    recordData.begin(),
-                    recordData.end());
+            context->Response().set_records_read(recordData.ysize());
+            context->Response().Attachments().insert(
+                context->Response().Attachments().end(),
+                recordData.begin(),
+                recordData.end());
 
-                context->SetResponseInfo("RecordCount: %d", recordData.ysize());
-                context->Reply();
-            })));
+            context->SetResponseInfo("RecordCount: %d", recordData.ysize());
+            context->Reply();
+        })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ApplyChanges)
@@ -794,6 +802,8 @@ public:
             EpochControlInvoker,
             EpochStateInvoker);
 
+        LeaderRecoveryComplete_.Fire();
+
         YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
         StateStatus = EPeerStatus::Leading;
 
@@ -805,9 +815,7 @@ public:
                 ~version.ToString());
 
             SnapshotBuilder->RotateChangeLog();
-        }
-
-        LeaderRecoveryComplete_.Fire();
+        }   
     }
 
     void DoAdvanceSegment(TCtxAdvanceSegment::TPtr context, TMetaVersion version)
@@ -1097,8 +1105,10 @@ public:
         VERIFY_THREAD_AFFINITY(StateThread);
         YASSERT(StateStatus == EPeerStatus::Leading);
 
+        auto version = DecoratedState->GetVersion();
         if (Config->MaxChangesBetweenSnapshots > 0 &&
-            DecoratedState->GetVersion().RecordCount % Config->MaxChangesBetweenSnapshots == 0)
+            version.RecordCount > 0 &&
+            version.RecordCount % Config->MaxChangesBetweenSnapshots == 0)
         {
             LeaderCommitter->Flush(true);
             SnapshotBuilder->CreateDistributedSnapshot();

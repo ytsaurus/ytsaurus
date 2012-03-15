@@ -60,6 +60,10 @@ namespace NDetail {
 //
 // TYPES
 //
+// === TRunnableFunctorAdapter ===
+// Wraps functor objects into an object that adheres to the Runnable interface.
+// There are |ARITY| TRunnableAdapter types.
+//
 // === TRunnableAdapter ===
 // Wraps the various "function" pointer types into an object that adheres to the
 // Runnable interface.
@@ -103,6 +107,46 @@ namespace NDetail {
 //
 
 ////////////////////////////////////////////////////////////////////////////////
+// #TRunnableFunctorAdapter<>
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class Signature>
+class TRunnableFunctorAdapter;
+
+$for ARITY [[
+$range ARG 1..ARITY
+
+// === Arity $(ARITY).
+
+template <class R, class T[[]]
+$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
+class TRunnableFunctorAdapter<T, R(T::*)($for ARG , [[A$(ARG)]]) const>
+{
+public:
+    typedef NMpl::TTrueType IsFunctor;
+
+    typedef R (Signature)($for ARG , [[A$(ARG)]]);
+
+    explicit TRunnableFunctorAdapter(const T& functor)
+        : Functor(functor)
+    { }
+
+    explicit TRunnableFunctorAdapter(T&& functor)
+        : Functor(MoveRV(functor))
+    { }
+
+    R Run($for ARG , [[A$(ARG)&& a$(ARG)]])
+    {
+        return Functor($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+    }
+
+private:
+    T Functor;
+};
+
+]] $$ for ARITY
+
+////////////////////////////////////////////////////////////////////////////////
 // #TRunnableAdapter<>
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -126,7 +170,20 @@ namespace NDetail {
 //
 
 template <class Functor>
-class TRunnableAdapter;
+class TRunnableAdapter
+    : public TRunnableFunctorAdapter<Functor, decltype(&Functor::operator())>
+{
+    typedef TRunnableFunctorAdapter<Functor, decltype(&Functor::operator())> TBase;
+
+public:
+    explicit TRunnableAdapter(const Functor& functor)
+        : TBase(functor)
+    { }
+
+    explicit TRunnableAdapter(Functor&& functor)
+        : TBase(MoveRV(functor))
+    { }
+};
 
 $for ARITY [[
 $range ARG 1..ARITY

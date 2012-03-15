@@ -51,7 +51,7 @@ public:
         }
 
         RecordsToAppend.push_back(data);
-		Profiler.Enqueue("changelog_queue_size", RecordsToAppend.size());
+        Profiler.Enqueue("changelog_queue_size", RecordsToAppend.size());
 
         return Result;
     }
@@ -62,7 +62,7 @@ public:
 
         TAppendResult::TPtr result;
 
-		PROFILE_TIMING("changelog_flush_append_time") {
+        PROFILE_TIMING("changelog_flush_append_time") {
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(RecordsToFlush.empty());
@@ -79,9 +79,9 @@ public:
             Result = New<TAppendResult>();
         }
 
-		PROFILE_TIMING("changelog_flush_io_time") {
-			ChangeLog->Flush();
-		}
+        PROFILE_TIMING("changelog_flush_io_time") {
+            ChangeLog->Flush();
+        }
 
         result->Set(TVoid());
 
@@ -96,17 +96,17 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-		PROFILE_TIMING("changelog_flush_wait_time") {
-			TAppendResult::TPtr result;
-			{
-				TGuard<TSpinLock> guard(SpinLock);
-				if (RecordsToFlush.empty() && RecordsToAppend.empty()) {
-					return;
-				}
-				result = Result;
-			}
-			result->Get();
-		}
+        PROFILE_TIMING("changelog_flush_wait_time") {
+            TAppendResult::TPtr result;
+            {
+                TGuard<TSpinLock> guard(SpinLock);
+                if (RecordsToFlush.empty() && RecordsToAppend.empty()) {
+                    return;
+                }
+                result = Result;
+            }
+            result->Get();
+        }
     }
 
     int GetRecordCount()
@@ -132,7 +132,7 @@ public:
 
         i32 flushedRecordCount;
 
-		PROFILE_TIMING ("changelog_read_copy_time") {
+        PROFILE_TIMING ("changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
             flushedRecordCount = FlushedRecordCount;            
             
@@ -151,25 +151,25 @@ public:
                 result);
         }
 
-		PROFILE_TIMING ("changelog_read_io_time") {
-			if (firstRecordId < flushedRecordCount) {
-				yvector<TSharedRef> buffer;
-				i32 neededRecordCount = Min(
-					recordCount,
-					flushedRecordCount - firstRecordId);
-				ChangeLog->Read(firstRecordId, neededRecordCount, &buffer);
-				YASSERT(buffer.ysize() == neededRecordCount);
+        PROFILE_TIMING ("changelog_read_io_time") {
+            if (firstRecordId < flushedRecordCount) {
+                yvector<TSharedRef> buffer;
+                i32 neededRecordCount = Min(
+                    recordCount,
+                    flushedRecordCount - firstRecordId);
+                ChangeLog->Read(firstRecordId, neededRecordCount, &buffer);
+                YASSERT(buffer.ysize() == neededRecordCount);
 
-				buffer.insert(
-					buffer.end(),
-					result->begin(),
-					result->end());
+                buffer.insert(
+                    buffer.end(),
+                    result->begin(),
+                    result->end());
 
-				result->swap(buffer);
-			}
-		}
+                result->swap(buffer);
+            }
+        }
 
-		Profiler.Enqueue("changelog_read_record_count", result->size());
+        Profiler.Enqueue("changelog_read_record_count", result->size());
     }
 
 private:
@@ -288,9 +288,9 @@ public:
             AtomicDecrement(queue->UseCount);
         }
 
-		PROFILE_TIMING("changelog_flush_io_time") {
-			changeLog->Flush();
-		}
+        PROFILE_TIMING("changelog_flush_io_time") {
+            changeLog->Flush();
+        }
     }
 
     i32 GetRecordCount(TChangeLogPtr changeLog)
@@ -309,9 +309,9 @@ public:
     {
         Flush(changeLog);
 
-		PROFILE_TIMING("changelog_finalize_time") {
-			changeLog->Finalize();
-		}
+        PROFILE_TIMING("changelog_finalize_time") {
+            changeLog->Finalize();
+        }
 
         LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
     }
@@ -322,9 +322,9 @@ public:
         // getting rid of explicit synchronization.
         Flush(changeLog);
 
-		PROFILE_TIMING ("changelog_truncate_time") {
-			changeLog->Truncate(atRecordId);
-		}
+        PROFILE_TIMING ("changelog_truncate_time") {
+            changeLog->Truncate(atRecordId);
+        }
     }
 
     void Shutdown()

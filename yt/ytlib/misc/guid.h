@@ -66,13 +66,13 @@ DECLARE_PODTYPE(NYT::TGuid)
 template <>
 struct hash<NYT::TGuid>
 {
-    inline size_t operator()(const NYT::TGuid &a) const
+    inline size_t operator()(const NYT::TGuid& guid) const
     {
         ui32 p = 1000000009; // prime number
-        return a.Parts[0] +
-               a.Parts[1] * p +
-               a.Parts[2] * p * p +
-               a.Parts[3] * p * p * p;
+        return guid.Parts[0] +
+               guid.Parts[1] * p +
+               guid.Parts[2] * p * p +
+               guid.Parts[3] * p * p * p;
     }
 };
 

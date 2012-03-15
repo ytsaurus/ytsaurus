@@ -41,15 +41,15 @@ TYsonProducer ProducerFromNode(INode* node)
 
 void ValidateYson(TInputStream* input)
 {
-	TYsonReader reader(GetNullYsonConsumer(), input);
-	reader.Read();
+    TYsonReader reader(GetNullYsonConsumer(), input);
+    reader.Read();
 }
 
 void ValidateYson(const TYson& yson)
 {
-	TStringInput input(yson);
-	TYsonReader reader(GetNullYsonConsumer(), &input);
-	reader.Read();
+    TStringInput input(yson);
+    TYsonReader reader(GetNullYsonConsumer(), &input);
+    reader.Read();
 }
 
 INodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)

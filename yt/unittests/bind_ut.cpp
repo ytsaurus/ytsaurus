@@ -1261,6 +1261,33 @@ TEST_F(TBindTest, CoercibleArgumentProbing)
 //
 // TODO(ajwong): Is there actually a way to test this?
 
+// Lambda support.
+//   - Should be able to bind C++11 lambdas without any arguments.
+//   - Should be able to bind C++11 lambdas with free arguments.
+TEST_F(TBindTest, LambdaSupport)
+{
+    int n = 1;
+
+    TClosure closure = Bind([&n] () { ++n; });
+    EXPECT_EQ(1, n);
+    closure.Run();
+    EXPECT_EQ(2, n);
+    closure.Run();
+    EXPECT_EQ(3, n);
+
+    TCallback<int(void)> cb1 = Bind([  ] () -> int { return 42; });
+    EXPECT_EQ(42, cb1.Run());
+
+    TCallback<int(void)> cb2 = Bind([&n] () -> int { return ++n; });
+    EXPECT_EQ( 4, cb2.Run());
+    EXPECT_EQ( 4, n);
+    EXPECT_EQ( 5, cb2.Run());
+    EXPECT_EQ( 5, n);
+
+    TCallback<int(int)> plus5 = Bind([] (int a) -> int { return a + 5; });
+    EXPECT_EQ(10, plus5.Run(5));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 }  // namespace
