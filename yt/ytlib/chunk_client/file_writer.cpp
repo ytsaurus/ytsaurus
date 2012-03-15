@@ -38,32 +38,55 @@ void TChunkFileWriter::Open()
     IsOpen = true;
 }
 
-TAsyncError::TPtr TChunkFileWriter::AsyncWriteBlock(const TSharedRef& data)
+TAsyncError::TPtr TChunkFileWriter::AsyncWriteBlocks(std::vector<TSharedRef>&& blocks)
 {
     YASSERT(IsOpen);
+    YASSERT(!IsClosed);
 
-    auto* blockInfo = ChunkMeta.add_blocks();
-    blockInfo->set_offset(DataFile->GetPosition());
-    blockInfo->set_size(static_cast<int>(data.Size()));
-    blockInfo->set_checksum(GetChecksum(data));
+    try {
+        FOREACH(auto& data, blocks) {
+            auto* blockInfo = ChunkMeta.add_blocks();
+            blockInfo->set_offset(DataFile->GetPosition());
+            blockInfo->set_size(static_cast<int>(data.Size()));
+            blockInfo->set_checksum(GetChecksum(data));
 
-    DataFile->Write(data.Begin(), data.Size());
+            DataFile->Write(data.Begin(), data.Size());
 
-    DataSize += data.Size();
+            DataSize += data.Size();
+        }
+    } catch (yexception& e) {
+        return MakeFuture(TError(Sprintf(
+            "Failed to write block to file: %s",
+            e.what())));
+    }
 
     return MakeFuture(TError());
 }
 
-TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attributes)
+TAsyncError::TPtr TChunkFileWriter::AsyncClose(
+    std::vector<TSharedRef>&& blocks,
+    const TChunkAttributes& attributes)
 {
     if (!IsOpen)
         return MakeFuture(TError());
 
+    {
+        auto res = AsyncWriteBlocks(MoveRV(blocks));
+        if (!res->Get().IsOK())
+            return res;
+    }
+
     IsOpen = false;
     IsClosed = true;
 
-    DataFile->Close();
-    DataFile.Destroy();
+    try {
+        DataFile->Close();
+        DataFile.Destroy();
+    } catch (yexception& e) {
+        return MakeFuture(TError(Sprintf(
+            "Failed to close file: %s",
+            e.what())));
+    }
 
     // Write meta.
     *ChunkMeta.mutable_attributes() = attributes;
@@ -80,21 +103,29 @@ TAsyncError::TPtr TChunkFileWriter::AsyncClose(const TChunkAttributes& attribute
 
     Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
 
-    TFile chunkMetaFile(
-        chunkMetaFileName + NFS::TempFileSuffix,
-        CreateAlways | WrOnly | Seq);
-    Write(chunkMetaFile, header);
-    chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
-    chunkMetaFile.Close();
+    try {
+        TFile chunkMetaFile(
+            chunkMetaFileName + NFS::TempFileSuffix,
+            CreateAlways | WrOnly | Seq);
+        Write(chunkMetaFile, header);
+        chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
+        chunkMetaFile.Close();
+    } catch (yexception& e) {
+        return MakeFuture(TError(Sprintf(
+            "Failed to write chunk meta to file: %s",
+            e.what())));
+    }
 
     if (!NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName)) {
-        ythrow yexception() << Sprintf("Error renaming temp chunk meta file %s",
-            ~chunkMetaFileName.Quote());
+        return MakeFuture(TError(Sprintf(
+            "Error renaming temp chunk meta file %s",
+            ~chunkMetaFileName.Quote())));
     }
 
     if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
-        ythrow yexception() << Sprintf("Error renaming temp chunk file %s",
-            ~FileName.Quote());
+        return MakeFuture(TError(Sprintf(
+            "Error renaming temp chunk file %s",
+            ~FileName.Quote())));
     }
 
     ChunkInfo.set_id(Id.ToProto());

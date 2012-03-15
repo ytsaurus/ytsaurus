@@ -247,7 +247,9 @@ private:
 
             LOG_INFO("Writing block (BlockIndex: %d)", BlockIndex);
             // NB: This is always done synchronously.
-            auto writeResult = FileWriter->AsyncWriteBlock(SequentialReader->GetBlock())->Get();
+            std::vector<TSharedRef> blocks;
+            blocks.push_back(SequentialReader->GetBlock());
+            auto writeResult = FileWriter->AsyncWriteBlocks(MoveRV(blocks))->Get();
             if (!writeResult.IsOK()) {
                 OnError(writeResult);
                 return;
@@ -262,7 +264,10 @@ private:
         {
             LOG_INFO("Closing chunk");
             // NB: This is always done synchronously.
-            auto closeResult = FileWriter->AsyncClose(ChunkInfo.attributes())->Get();
+            auto closeResult = FileWriter->AsyncClose(
+                std::vector<TSharedRef>(),
+                ChunkInfo.attributes())->Get();
+
             if (!closeResult.IsOK()) {
                 OnError(closeResult);
                 return;

@@ -130,6 +130,7 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response)
 {
+    // ToDo: why waiting 5 sec before first heartbeat?
     ScheduleHeartbeat();
 
     if (!response->IsOK()) {

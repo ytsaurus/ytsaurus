@@ -149,7 +149,11 @@ void TFileWriterBase::Close()
     fileAttributes->set_uncompressed_size(Size);
     fileAttributes->set_codec_id(Config->CodecId);
     try {
-        Sync(~Writer, &TRemoteWriter::AsyncClose, attributes);
+        Sync(
+            ~Writer, 
+            &TRemoteWriter::AsyncClose, 
+            std::vector<TSharedRef>(), 
+            attributes);
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s", 
             ex.what());
@@ -177,8 +181,9 @@ void TFileWriterBase::FlushBlock()
 
     LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
     try {
-        auto compressedBlock = Codec->Compress(MoveRV(Buffer));
-        Sync(~Writer, &TRemoteWriter::AsyncWriteBlock, compressedBlock);
+        std::vector<TSharedRef> blocks;
+        blocks.push_back(Codec->Compress(MoveRV(Buffer)));
+        Sync(~Writer, &TRemoteWriter::AsyncWriteBlocks, blocks);
     } catch (const std::exception& ex) {
         LOG_ERROR_AND_THROW(yexception(), "Error writing file block\n%s",
             ex.what());

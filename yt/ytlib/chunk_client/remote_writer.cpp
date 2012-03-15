@@ -840,29 +840,44 @@ void TRemoteWriter::CancelAllPings()
     }
 }
 
-TAsyncError::TPtr TRemoteWriter::AsyncWriteBlock(const TSharedRef& data)
+TAsyncError::TPtr TRemoteWriter::AsyncWriteBlocks(std::vector<TSharedRef>&& blocks)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
+    i64 sumSize = 0;
+    FOREACH(auto& block, blocks) {
+        sumSize += block.Size();
+    }
+
     State.StartOperation();
-    WindowSlots.AsyncAcquire(data.Size())->Subscribe(FromMethod(
-        &TRemoteWriter::AddBlock,
+
+    WindowSlots.AsyncAcquire(sumSize)->Subscribe(FromMethod(
+        &TRemoteWriter::DoWriteBlocks,
         TWeak(this),
-        data));
+        blocks));
 
     return State.GetOperationError();
 }
 
-void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
+void TRemoteWriter::DoWriteBlocks(TVoid, std::vector<TSharedRef>& blocks)
 {
     if (State.IsActive()) {
+        AddBlocks(MoveRV(blocks));
+    }
+
+    State.FinishOperation();
+}
+
+void TRemoteWriter::AddBlocks(std::vector<TSharedRef>&& blocks)
+{
+    FOREACH(auto& block, blocks){
         LOG_DEBUG("Block added (BlockIndex: %d)",
             BlockCount);
 
-        CurrentGroup->AddBlock(data);
+        CurrentGroup->AddBlock(block);
         ++BlockCount;
 
         if (CurrentGroup->GetSize() >= Config->GroupSize) {
@@ -874,17 +889,19 @@ void TRemoteWriter::AddBlock(TVoid, const TSharedRef& data)
             CurrentGroup = New<TGroup>(Holders.ysize(), BlockCount, this);
         }
     }
-
-    State.FinishOperation();
 }
 
-TAsyncError::TPtr TRemoteWriter::AsyncClose(const TChunkAttributes& attributes)
+TAsyncError::TPtr TRemoteWriter::AsyncClose(
+    std::vector<TSharedRef>&& lastBlocks,
+    const TChunkAttributes& attributes)
 {
     YASSERT(IsOpen);
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
     State.StartOperation();
+
+    AddBlocks(MoveRV(lastBlocks));
 
     LOG_DEBUG("Requesting writer to close");
 

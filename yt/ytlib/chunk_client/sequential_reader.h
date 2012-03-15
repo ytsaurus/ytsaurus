@@ -53,7 +53,6 @@ public:
         }
      };
 
-    //! Configures an instance.
     TSequentialReader(
         TConfig* config,
         const yvector<int>& blockIndexes,

@@ -52,6 +52,7 @@ bool TValue::IsNull() const
 
 Stroka TValue::ToString() const
 {
+    YASSERT(!IsNull());
     return Stroka(Data.Begin(), Data.End());
 }
 
@@ -126,7 +127,7 @@ bool operator==(const TValue& lhs, const TValue& rhs)
 
 bool operator!=(const TValue& lhs, const TValue& rhs)
 {
-    return CompareValues(lhs, rhs) == 0;
+    return CompareValues(lhs, rhs) != 0;
 }
 
 bool operator<(const TValue& lhs, const TValue& rhs)

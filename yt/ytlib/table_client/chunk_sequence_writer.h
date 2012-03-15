@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "common.h"
 #include "schema.h"
-#include "writer.h"
+#include "async_writer.h"
 #include "chunk_writer.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -18,7 +18,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkSequenceWriter
-    : public IWriter
+    : public IAsyncWriter
 {
 public:
     typedef TIntrusivePtr<TChunkSequenceWriter> TPtr;
@@ -73,15 +73,20 @@ public:
         TConfig* config,
         NRpc::IChannel* masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkServer::TChunkListId& parentChunkList,
-        const TSchema& schema);
+        const NChunkServer::TChunkListId& parentChunkList);
 
     ~TChunkSequenceWriter();
 
-    TAsyncError::TPtr AsyncOpen();
-    void Write(const TColumn& column, TValue value);
-    TAsyncError::TPtr AsyncEndRow();
-    TAsyncError::TPtr AsyncClose();
+    TAsyncError::TPtr AsyncOpen(
+        const NProto::TTableChunkAttributes& attributes);
+
+    TAsyncError::TPtr AsyncEndRow(
+        TKey& key,
+        std::vector<TChannelWriter::TPtr>& channels);
+
+    TAsyncError::TPtr AsyncClose(
+        TKey& lastKey,
+        std::vector<TChannelWriter::TPtr>& channels);
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -92,15 +97,20 @@ private:
 
     bool IsNextChunkTime() const;
 
-    void FinishCurrentChunk();
+    void FinishCurrentChunk(
+        TKey& lastKey,
+        std::vector<TChannelWriter::TPtr>& channels);
+
     void OnChunkClosed(
         TError error,
         TChunkWriter::TPtr currentChunk,
         TAsyncError::TPtr finishResult);
+
     void OnChunkRegistered(
         NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp,
         NChunkClient::TChunkId chunkId,
         TAsyncError::TPtr finishResult);
+
     void OnChunkFinished(
         TError error,
         NChunkClient::TChunkId chunkId);
@@ -118,8 +128,6 @@ private:
     const NObjectServer::TTransactionId TransactionId;
     const NChunkServer::TChunkListId ParentChunkList;
 
-    const TSchema Schema;
-
     TAsyncStreamState State;
 
     //! Protects #CurrentChunk.
@@ -127,6 +135,7 @@ private:
     TFuture<TChunkWriter::TPtr>::TPtr NextChunk;
 
     TParallelAwaiter::TPtr CloseChunksAwaiter;
+    NProto::TTableChunkAttributes Attributes;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
