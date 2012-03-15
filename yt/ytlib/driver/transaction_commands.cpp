@@ -27,9 +27,7 @@ void TStartCommand::DoExecute()
     DriverImpl->SetCurrentTransaction(~newTransaction);
 
     BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
-        .BeginMap()
-            .Item("transaction_id").Scalar(newTransaction->GetId().ToString())
-        .EndMap();
+        .Scalar(newTransaction->GetId().ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

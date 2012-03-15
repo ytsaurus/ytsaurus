@@ -131,13 +131,6 @@ public:
         RegisterCommand("commit", ~New<TCommitCommand>(this));
         RegisterCommand("abort", ~New<TAbortCommand>(this));
 
-        RegisterCommand("get", ~New<TGetCommand>(this));
-        RegisterCommand("set", ~New<TSetCommand>(this));
-        RegisterCommand("remove", ~New<TRemoveCommand>(this));
-        RegisterCommand("list", ~New<TListCommand>(this));
-        RegisterCommand("create", ~New<TCreateCommand>(this));
-        RegisterCommand("lock", ~New<TLockCommand>(this));
-
         RegisterCommand("download", ~New<TDownloadCommand>(this));
         RegisterCommand("upload", ~New<TUploadCommand>(this));
 
