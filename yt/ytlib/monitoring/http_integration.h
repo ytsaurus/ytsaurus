@@ -14,7 +14,7 @@ NHttp::TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
     NYTree::IYPathService* service);
 
 NHttp::TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
-	NYTree::TYPathServiceProducer producer);
+    NYTree::TYPathServiceProducer producer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

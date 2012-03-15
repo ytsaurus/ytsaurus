@@ -140,7 +140,7 @@ void TSession::PutBlock(i32 blockIndex, const TSharedRef& data)
 
     if (!Location->HasEnoughSpace(data.Size())) {
         ythrow TServiceException(EErrorCode::OutOfSpace) <<
-            Sprintf("Not enough space to put block (BlockId: %s)",
+            Sprintf("No enough space left on holder (BlockId: %s)",
             ~blockId.ToString());
     }
 

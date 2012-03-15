@@ -182,7 +182,7 @@ private:
 
     void RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady);
 
-    void OnHolderDied(THolderPtr holder);
+    void OnHolderFailed(THolderPtr holder);
 
     void ShiftWindow();
 

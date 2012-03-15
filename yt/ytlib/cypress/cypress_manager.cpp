@@ -229,43 +229,43 @@ TNodeId TCypressManager::GetRootNodeId()
 namespace {
 
 class TNotALeaderRootService
-	: public TYPathServiceBase
+    : public TYPathServiceBase
 {
 public:
-	virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
-	{
-		UNUSED(path);
-		UNUSED(verb);
-		ythrow yexception() << "Not an active leader";
-	}
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    {
+        UNUSED(path);
+        UNUSED(verb);
+        ythrow NRpc::TServiceException(TError(NRpc::EErrorCode::Unavailable, "Not an active leader"));
+    }
 };
 
 class TLeaderRootService
-	: public TYPathServiceBase
+    : public TYPathServiceBase
 {
 public:
-	TLeaderRootService(TBootstrap* bootstrap)
-		: Bootstrap(bootstrap)
-	{ }
+    TLeaderRootService(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
+    { }
 
-	virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
-	{
-		UNUSED(verb);
+    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    {
+        UNUSED(verb);
 
-		// Make a rigorous coarse check at the right thread.
-		if (Bootstrap->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading) {
-			ythrow yexception() << "Not a leader";
-		}
+        // Make a rigorous coarse check at the right thread.
+        if (Bootstrap->GetMetaStateManager()->GetStateStatus() != EPeerStatus::Leading) {
+            ythrow yexception() << "Not a leader";
+        }
 
         auto cypressManager = Bootstrap->GetCypressManager();
-		auto service = cypressManager->GetVersionedNodeProxy(
-			cypressManager->GetRootNodeId(),
-			NObjectServer::NullTransactionId);
-		return TResolveResult::There(~service, path);
-	}
+        auto service = cypressManager->GetVersionedNodeProxy(
+            cypressManager->GetRootNodeId(),
+            NObjectServer::NullTransactionId);
+        return TResolveResult::There(~service, path);
+    }
 
 private:
-	TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap;
 
 };
 
@@ -273,18 +273,18 @@ private:
 
 TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 {
-	auto stateInvoker = MetaStateManager->GetStateInvoker();
-	auto this_ = MakeStrong(this);
-	return FromFunctor([=] () -> IYPathServicePtr
-		{
-			// Make a coarse check at this (wrong) thread first.
-			auto status = this_->MetaStateManager->GetStateStatusAsync();
-			if (status == EPeerStatus::Leading) {
-				return New<TLeaderRootService>(Bootstrap)->Via(~stateInvoker);
-			} else {
-				return RefCountedSingleton<TNotALeaderRootService>();
-			}
-		});
+    auto stateInvoker = MetaStateManager->GetStateInvoker();
+    auto this_ = MakeStrong(this);
+    return FromFunctor([=] () -> IYPathServicePtr
+        {
+            // Make a coarse check at this (wrong) thread first.
+            auto status = this_->MetaStateManager->GetStateStatusAsync();
+            if (status == EPeerStatus::Leading) {
+                return New<TLeaderRootService>(Bootstrap)->Via(~stateInvoker);
+            } else {
+                return RefCountedSingleton<TNotALeaderRootService>();
+            }
+        });
 
 }
 

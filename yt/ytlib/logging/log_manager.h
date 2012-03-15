@@ -27,7 +27,7 @@ public:
         ELogLevel* minLevel,
         int* configVersion);
 
-    void Write(const TLogEvent& event);
+    void Enqueue(const TLogEvent& event);
 
 private:
     class TImpl;
@@ -43,7 +43,7 @@ template <>
 struct TSingletonTraits<NYT::NLog::TLogManager>
 {
     enum
-	{
+    {
         Priority = 2048
     };
 };
