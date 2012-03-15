@@ -2,6 +2,7 @@
 
 #include "guid.h"
 #include "enum.h"
+#include "string.h"
 
 #include <ytlib/object_server/public.h>
 #include <ytlib/cypress/public.h>
@@ -45,7 +46,7 @@ inline std::istream& operator >> (std::istream& input, NYT::TEnumBase<T>& mode)
 {
     std::string s;
     input >> s;
-    mode = T::FromString(Stroka(s));
+    mode = NYT::ParseEnum<T>(Stroka(s));
     return input;
 }
 
