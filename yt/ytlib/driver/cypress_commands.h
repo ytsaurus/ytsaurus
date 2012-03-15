@@ -93,6 +93,7 @@ private:
 class TCreateCommand
     : public TTransactedCommand
 {
+public:
     TCreateCommand(IDriverImpl* driverImpl)
         : TTransactedCommand(driverImpl)
     {

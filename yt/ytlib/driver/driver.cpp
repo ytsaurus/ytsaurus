@@ -124,25 +124,25 @@ public:
         RegisterCommand("set", ~New<TSetCommand>(this));
         RegisterCommand("remove", ~New<TRemoveCommand>(this));
         RegisterCommand("list", ~New<TListCommand>(this));
-//        RegisterCommand("create", ~New<TCreateCommand>(this));
-//        RegisterCommand("lock", ~New<TLockCommand>(this));
+        RegisterCommand("create", ~New<TCreateCommand>(this));
+        RegisterCommand("lock", ~New<TLockCommand>(this));
 
-//        RegisterCommand("start_transaction", ~New<TStartTransactionCommand>(this));
-//        RegisterCommand("commit_transaction", ~New<TCommitTransactionCommand>(this));
-//        RegisterCommand("abort_transaction", ~New<TAbortTransactionCommand>(this));
+        RegisterCommand("start", ~New<TStartCommand>(this));
+        RegisterCommand("commit", ~New<TCommitCommand>(this));
+        RegisterCommand("abort", ~New<TAbortCommand>(this));
 
-//        RegisterCommand("get", ~New<TGetCommand>(this));
-//        RegisterCommand("set", ~New<TSetCommand>(this));
-//        RegisterCommand("remove", ~New<TRemoveCommand>(this));
-//        RegisterCommand("list", ~New<TListCommand>(this));
-//        RegisterCommand("create", ~New<TCreateCommand>(this));
-//        RegisterCommand("lock", ~New<TLockCommand>(this));
+        RegisterCommand("get", ~New<TGetCommand>(this));
+        RegisterCommand("set", ~New<TSetCommand>(this));
+        RegisterCommand("remove", ~New<TRemoveCommand>(this));
+        RegisterCommand("list", ~New<TListCommand>(this));
+        RegisterCommand("create", ~New<TCreateCommand>(this));
+        RegisterCommand("lock", ~New<TLockCommand>(this));
 
-//        RegisterCommand("download", ~New<TDownloadCommand>(this));
-//        RegisterCommand("upload", ~New<TUploadCommand>(this));
+        RegisterCommand("download", ~New<TDownloadCommand>(this));
+        RegisterCommand("upload", ~New<TUploadCommand>(this));
 
-//        RegisterCommand("read", ~New<TReadCommand>(this));
-//        RegisterCommand("write", ~New<TWriteCommand>(this));
+        RegisterCommand("read", ~New<TReadCommand>(this));
+        RegisterCommand("write", ~New<TWriteCommand>(this));
 
 //        RegisterCommand("map", ~New<TMapCommand>(this));
     }

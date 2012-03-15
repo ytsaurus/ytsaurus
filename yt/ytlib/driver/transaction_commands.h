@@ -30,6 +30,7 @@ private:
 class TCommitCommand
     : public TTransactedCommand
 {
+public:
     TCommitCommand(IDriverImpl* driverImpl)
         : TTransactedCommand(driverImpl)
     { }
@@ -42,6 +43,7 @@ class TCommitCommand
 class TAbortCommand
     : public TTransactedCommand
 {
+public:
     TAbortCommand(IDriverImpl* driverImpl)
         : TTransactedCommand(driverImpl)
     { }
