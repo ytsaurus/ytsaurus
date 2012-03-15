@@ -209,7 +209,7 @@ void TRemoteWriter::TGroup::PutGroup()
         holder);
     auto onResponse = FromMethod(
         &TRemoteWriter::CheckResponse<TProxy::TRspPutBlocks>,
-        MakeWeak(Writer),
+        Writer,
         holder, 
         onSuccess,
         &writer->PutBlocksTiming);
@@ -316,7 +316,7 @@ void TRemoteWriter::TGroup::CheckSendResponse(
         return;
 
     if (rsp->GetErrorCode() == EErrorCode::PutBlocksFailed) {
-        writer->OnHolderDied(dstHolder);
+        writer->OnHolderFailed(dstHolder);
         return;
     }
 
@@ -648,7 +648,9 @@ void TRemoteWriter::OnHolderFailed(THolderPtr holder)
         AliveHolderCount);
 
     if (State.IsActive() && AliveHolderCount == 0) {
-        TError error("All target holders failed (Addresses: [%s])", JoinToString(Addresses));
+        TError error(
+            TError::Fail,
+            Sprintf("All target holders failed (Addresses: [%s])", ~JoinToString(Addresses)));
         LOG_WARNING("Chunk writing failed\n%s", ~error.ToString());
         State.Fail(error);
     }
