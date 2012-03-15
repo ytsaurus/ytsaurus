@@ -55,18 +55,19 @@ private:
 
 #define LOG_EVENT(logger, level, ...) \
     if (logger.IsEnabled(level)) { \
+        auto message = Sprintf(__VA_ARGS__); \
         ::NYT::NLog::LogEventImpl( \
             logger, \
             __FILE__, \
             __LINE__, \
             __FUNCTION__, \
             level, \
-            Sprintf(__VA_ARGS__)); \
+            message); \
     } \
 
 #define LOG_EVENT_AND_THROW(logger, level, ex, ...) \
     if (logger.IsEnabled(level)) { \
-        Stroka message = Sprintf(__VA_ARGS__); \
+        auto message = Sprintf(__VA_ARGS__); \
         ::NYT::NLog::LogEventImpl( \
             logger, \
             __FILE__, \
