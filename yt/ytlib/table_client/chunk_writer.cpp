@@ -168,6 +168,8 @@ void TChunkWriter::AddKeySample(const TKey& key)
     }
 
     sample->set_row_index(Attributes.row_count() - 1);
+
+    YASSERT(Attributes.key_samples_size() <= Attributes.row_count());
 }
 
 NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr 
