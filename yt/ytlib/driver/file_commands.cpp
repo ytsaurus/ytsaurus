@@ -11,47 +11,20 @@ using namespace NFileClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDownloadCommand::DoExecute(TDownloadRequest* request)
-{
-    auto config = DriverImpl->GetConfig()->FileReader;
-
-    auto reader = New<TFileReader>(
-        ~config,
-        DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(request),
-        DriverImpl->GetBlockCache(),
-        request->Path);
-    reader->Open();
-
-    // TODO(babenko): use FileName and Executable values
-
-    auto output = DriverImpl->CreateOutputStream();
-
-    while (true) {
-        auto block = reader->Read();
-        if (!block) {
-            break;
-        }
-        output->Write(block.Begin(), block.Size());
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TUploadCommand::DoExecute(TUploadRequest* request)
+void TUploadCommand::DoExecute()
 {
     auto config = DriverImpl->GetConfig()->FileWriter;
 
     auto writer = New<TFileWriter>(
         ~config,
         DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(request),
+        ~DriverImpl->GetTransaction(TxArg->getValue()),
         DriverImpl->GetTransactionManager(),
-        request->Path);
+        PathArg->getValue());
     writer->Open();
 
     auto input = DriverImpl->CreateInputStream();
-    
+
     TBlob buffer(config->BlockSize);
     while (true) {
         size_t bytesRead = input->Read(buffer.begin(), buffer.size());
@@ -68,6 +41,33 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
         .BeginMap()
             .Item("object_id").Scalar(id.ToString())
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDownloadCommand::DoExecute()
+{
+    auto config = DriverImpl->GetConfig()->FileReader;
+
+    auto reader = New<TFileReader>(
+        ~config,
+        DriverImpl->GetMasterChannel(),
+        ~DriverImpl->GetTransaction(TxArg->getValue()),
+        DriverImpl->GetBlockCache(),
+        PathArg->getValue());
+    reader->Open();
+
+    // TODO(babenko): use FileName and Executable values
+
+    auto output = DriverImpl->CreateOutputStream();
+
+    while (true) {
+        auto block = reader->Read();
+        if (!block) {
+            break;
+        }
+        output->Write(block.Begin(), block.Size());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

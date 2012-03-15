@@ -9,73 +9,57 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReadRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
-
-    TReadRequest()
-    {
-        Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
-    }
-};
-
 class TReadCommand
-    : public TCommandBase<TReadRequest>
+    : public TTransactedCommand
 {
 public:
     TReadCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
-    { }
+        : TTransactedCommand(driverImpl)
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        Cmd->add(~PathArg);
+    }
+
+    virtual void DoExecute();
 
 private:
-    virtual void DoExecute(TReadRequest* request);
+    THolder<TFreeStringArg> PathArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TWriteRequest
-    : public TTransactedRequest
-{
-    NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
-    NYTree::INodePtr Value;
-
-    TWriteRequest()
-    {
-        Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
-        Register("value", Value)
-            .Default();
-    }
-
-    virtual void DoValidate() const
-    {
-        if (Value) {
-            auto type = Value->GetType();
-            if (type != NYTree::ENodeType::List && type != NYTree::ENodeType::Map) {
-                ythrow yexception() << "\"value\" must be a list or a map";
-            }
-        }
-    }
-};
-
 class TWriteCommand
-    : public TCommandBase<TWriteRequest>
+    : public TTransactedCommand
 {
 public:
     TWriteCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
-    { }
+        : TTransactedCommand(driverImpl)
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        Cmd->add(~PathArg);
+
+        ValueArg.Reset(new TFreeStringArg("value", "value to set", true, "", "yson"));
+        Cmd->add(~ValueArg);
+    }
+
+    // TODO(panin): validation?
+//    virtual void DoValidate() const
+//    {
+//        if (Value) {
+//            auto type = Value->GetType();
+//            if (type != NYTree::ENodeType::List && type != NYTree::ENodeType::Map) {
+//                ythrow yexception() << "\"value\" must be a list or a map";
+//            }
+//        }
+//    }
+
+    virtual void DoExecute();
 
 private:
-    virtual void DoExecute(TWriteRequest* request);
+    THolder<TFreeStringArg> PathArg;
+
+    //TODO(panin):support value from stdin
+    THolder<TFreeStringArg> ValueArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

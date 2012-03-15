@@ -104,6 +104,7 @@ class TCreateCommand
         Cmd->add(~TypeArg);
 
         ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
+        Cmd->add(~ManifestArg);
     }
 
     virtual void DoExecute();

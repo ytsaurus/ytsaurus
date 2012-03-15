@@ -7,64 +7,46 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStartTransactionRequest
-    : public TRequestBase
+class TStartCommand
+    : public TNewCommandBase
 {
-    NYTree::INodePtr Manifest;
-
-    TStartTransactionRequest()
+public:
+    TStartCommand(IDriverImpl* driverImpl)
+        : TNewCommandBase(driverImpl)
     {
-        Register("manifest", Manifest)
-            .Default();
+        ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
+        Cmd->add(~ManifestArg);
     }
-};
 
-class TStartTransactionCommand
-    : public TCommandBase<TStartTransactionRequest>
-{
-public:
-    TStartTransactionCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
-    { }
+    virtual void DoExecute();
 
 private:
-    virtual void DoExecute(TStartTransactionRequest* request);
+    typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
+    THolder<TManifestArg> ManifestArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCommitTransactionRequest
-    : public TTransactedRequest
-{ };
-
-class TCommitTransactionCommand
-    : public TCommandBase<TCommitTransactionRequest>
+class TCommitCommand
+    : public TTransactedCommand
 {
-public:
-    TCommitTransactionCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TCommitCommand(IDriverImpl* driverImpl)
+        : TTransactedCommand(driverImpl)
     { }
 
-private:
-    virtual void DoExecute(TCommitTransactionRequest* request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAbortTransactionRequest
-    : public TTransactedRequest
-{ };
-
-class TAbortTransactionCommand
-    : public TCommandBase<TAbortTransactionRequest>
+class TAbortCommand
+    : public TTransactedCommand
 {
-public:
-    TAbortTransactionCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TAbortCommand(IDriverImpl* driverImpl)
+        : TTransactedCommand(driverImpl)
     { }
 
-private:
-    virtual void DoExecute(TAbortTransactionRequest* request);
+    virtual void DoExecute();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

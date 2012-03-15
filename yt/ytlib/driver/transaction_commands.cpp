@@ -11,7 +11,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStartTransactionCommand::DoExecute(TStartTransactionRequest* request)
+void TStartCommand::DoExecute()
 {
     auto oldTransaction = DriverImpl->GetCurrentTransaction();
     if (oldTransaction) {
@@ -20,7 +20,10 @@ void TStartTransactionCommand::DoExecute(TStartTransactionRequest* request)
     }
 
     auto transactionManager = DriverImpl->GetTransactionManager();
-    auto newTransaction = transactionManager->Start(~request->Manifest);
+
+    auto yson = ManifestArg->getValue();
+    auto manifest = yson.empty() ? NULL : DeserializeFromYson(yson);
+    auto newTransaction = transactionManager->Start(~manifest);
     DriverImpl->SetCurrentTransaction(~newTransaction);
 
     BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
@@ -31,42 +34,32 @@ void TStartTransactionCommand::DoExecute(TStartTransactionRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCommitTransactionCommand::DoExecute(TCommitTransactionRequest* request)
+void TCommitCommand::DoExecute()
 {
-    auto transactionId = request->TransactionId;
-    if (transactionId == NullTransactionId ||
-        transactionId == DriverImpl->GetCurrentTransactionId())
-    {
-        auto transaction = DriverImpl->GetCurrentTransaction(true);
-        transaction->Commit();
-        DriverImpl->SetCurrentTransaction(NULL);
-        DriverImpl->ReplySuccess();
-    } else {
-        auto transactionManager = DriverImpl->GetTransactionManager();
-        auto transaction = transactionManager->Attach(transactionId);
-        transaction->Commit();
-        DriverImpl->ReplySuccess();
+    auto transactionId = TxArg->getValue();
+    if (transactionId == NullTransactionId) {
+        // TODO(panin): think about setting TxArg to required
+        ythrow yexception() << "Transaction id is required argument";
     }
+    auto transactionManager = DriverImpl->GetTransactionManager();
+    auto transaction = transactionManager->Attach(transactionId);
+    transaction->Commit();
+    DriverImpl->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortTransactionCommand::DoExecute(TAbortTransactionRequest* request)
+void TAbortCommand::DoExecute()
 {
-    auto transactionId = request->TransactionId;
-    if (transactionId == NullTransactionId ||
-        transactionId == DriverImpl->GetCurrentTransactionId())
-    {
-        auto transaction = DriverImpl->GetCurrentTransaction(true);
-        transaction->Abort();
-        DriverImpl->SetCurrentTransaction(NULL);
-        DriverImpl->ReplySuccess();
-    } else {
-        auto transactionManager = DriverImpl->GetTransactionManager();
-        auto transaction = transactionManager->Attach(transactionId);
-        transaction->Abort();
-        DriverImpl->ReplySuccess();
+    auto transactionId = TxArg->getValue();
+    if (transactionId == NullTransactionId) {
+        // TODO(panin): think about setting TxArg to required
+        ythrow yexception() << "Transaction id is required argument";
     }
+    auto transactionManager = DriverImpl->GetTransactionManager();
+    auto transaction = transactionManager->Attach(transactionId);
+    transaction->Abort();
+    DriverImpl->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -77,7 +77,8 @@ struct IDriverImpl
     virtual NObjectServer::TTransactionId GetCurrentTransactionId() = 0;
 
     virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequest* request) = 0;
-    virtual NTransactionClient::ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required = false) = 0;
+    virtual NTransactionClient::ITransaction::TPtr GetTransaction(
+        NObjectServer::TTransactionId transactionId, bool required = false) = 0;
 
     virtual NTransactionClient::ITransaction* GetCurrentTransaction(bool required = false) = 0;
     virtual void SetCurrentTransaction(NTransactionClient::ITransaction* transaction) = 0;

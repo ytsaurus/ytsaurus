@@ -248,19 +248,17 @@ public:
         return request->TransactionId != NullTransactionId ? request->TransactionId : GetCurrentTransactionId();
     }
 
-    virtual ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required)
+    virtual ITransaction::TPtr GetTransaction(TTransactionId transactionId, bool required)
     {
-        if (request->TransactionId == NullTransactionId) {
-            return GetCurrentTransaction(required);
-        } else {
-            return TransactionManager->Attach(request->TransactionId);
+        if (required && transactionId == NullTransactionId) {
+            ythrow yexception() << "Transaction wasn't given";
         }
+        return TransactionManager->Attach(transactionId);
     }
 
     virtual ITransaction* GetCurrentTransaction(bool required)
     {
         if (!Transaction && required) {
-            ythrow yexception() << "No current transaction";
         }
         return ~Transaction;
     }
