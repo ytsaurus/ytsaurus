@@ -1,17 +1,6 @@
 #include "stdafx.h"
 #include "bootstrap.h"
-#include "chunk_holder_service.h"
-#include "reader_cache.h"
-#include "session_manager.h"
-#include "block_store.h"
-#include "peer_block_table.h"
-#include "chunk_store.h"
-#include "chunk_cache.h"
-#include "chunk_registry.h"
-#include "master_connector.h"
-#include "job_executor.h"
-#include "peer_block_updater.h"
-#include "ytree_integration.h"
+#include "config.h"
 
 #include <ytlib/misc/ref_counted_tracker.h>
 #include <ytlib/bus/nl_server.h>
@@ -28,9 +17,22 @@
 #include <ytlib/ytree/yson_file_service.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/profiling/profiling_manager.h>
+#include <ytlib/chunk_holder/config.h>
+#include <ytlib/chunk_holder/chunk_holder_service.h>
+#include <ytlib/chunk_holder/reader_cache.h>
+#include <ytlib/chunk_holder/session_manager.h>
+#include <ytlib/chunk_holder/block_store.h>
+#include <ytlib/chunk_holder/peer_block_table.h>
+#include <ytlib/chunk_holder/chunk_store.h>
+#include <ytlib/chunk_holder/chunk_cache.h>
+#include <ytlib/chunk_holder/chunk_registry.h>
+#include <ytlib/chunk_holder/master_connector.h>
+#include <ytlib/chunk_holder/job_executor.h>
+#include <ytlib/chunk_holder/peer_block_updater.h>
+#include <ytlib/chunk_holder/ytree_integration.h>
 
 namespace NYT {
-namespace NChunkHolder {
+namespace NCellNode {
 
 using namespace NBus;
 using namespace NRpc;
@@ -39,6 +41,7 @@ using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NChunkServer;
 using namespace NProfiling;
+using namespace NChunkHolder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +51,7 @@ static NLog::TLogger Logger("ChunkHolder");
 
 TBootstrap::TBootstrap(
     const Stroka& configFileName,
-    TConfig* config)
+    TCellNodeConfigPtr config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
@@ -59,11 +62,14 @@ TBootstrap::~TBootstrap()
 void TBootstrap::Run()
 {
     IncarnationId = TIncarnationId::Create();
+    PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
 
-    Config->MasterConnector->PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
-    Config->CacheRemoteReader->PeerAddress = Config->MasterConnector->PeerAddress;
+    LOG_INFO("Starting chunk holder (IncarnationId: %s, PeerAddress: %s, MasterAddresses: [%s])",
+        ~IncarnationId.ToString(),
+        ~PeerAddress,
+        ~JoinToString(Config->Masters->Addresses));
 
-    LOG_INFO("Starting chunk holder (IncarnationId: %s)", ~IncarnationId.ToString());
+    LeaderChannel = CreateLeaderChannel(~Config->Masters);
 
     auto controlQueue = New<TActionQueue>("Control");
     ControlInvoker = controlQueue->GetInvoker();
@@ -72,44 +78,41 @@ void TBootstrap::Run()
 
     auto rpcServer = CreateRpcServer(~BusServer);
 
-    ReaderCache = New<TReaderCache>(~Config);
+    ReaderCache = New<TReaderCache>(Config->ChunkHolder);
 
     auto chunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(
-        ~Config,
-        ~chunkRegistry,
-        ~ReaderCache);
+        Config->ChunkHolder,
+        chunkRegistry,
+        ReaderCache);
 
-    PeerBlockTable = New<TPeerBlockTable>(~Config->PeerBlockTable);
+    PeerBlockTable = New<TPeerBlockTable>(Config->ChunkHolder->PeerBlockTable);
 
-    auto peerUpdater = New<TPeerBlockUpdater>(
-        ~Config,
-        ~BlockStore,
-        controlQueue->GetInvoker());
+    auto peerUpdater = New<TPeerBlockUpdater>(Config->ChunkHolder, this);
     peerUpdater->Start();
 
-    ChunkStore = New<TChunkStore>(~Config, this);
+    ChunkStore = New<TChunkStore>(Config->ChunkHolder, this);
     ChunkStore->Start();
 
-    ChunkCache = New<TChunkCache>(~Config, this);
+    ChunkCache = New<TChunkCache>(Config->ChunkHolder, this);
     ChunkCache->Start();
 
     SessionManager = New<TSessionManager>(
-        ~Config,
-        ~BlockStore,
-        ~ChunkStore,
+        Config->ChunkHolder,
+        BlockStore,
+        ChunkStore,
         controlQueue->GetInvoker());
 
     JobExecutor = New<TJobExecutor>(
-        ~Config,
-        ~ChunkStore,
-        ~BlockStore,
+        Config->ChunkHolder,
+        ChunkStore,
+        BlockStore,
         controlQueue->GetInvoker());
 
-    MasterConnector = New<TMasterConnector>(~Config->MasterConnector, this);
+    auto masterConnector = New<TMasterConnector>(Config->ChunkHolder, this);
 
-    auto chunkHolderService = New<TChunkHolderService>(~Config, this);
+    auto chunkHolderService = New<TChunkHolderService>(Config->ChunkHolder, this);
     rpcServer->RegisterService(~chunkHolderService);
 
     auto monitoringManager = New<TMonitoringManager>();
@@ -162,12 +165,12 @@ void TBootstrap::Run()
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     rpcServer->Start();
 
-    MasterConnector->Start();
+    masterConnector->Start();
 
     Sleep(TDuration::Max());
 }
 
-TBootstrap::TConfigPtr TBootstrap::GetConfig() const
+TCellNodeConfigPtr TBootstrap::GetConfig() const
 {
     return Config;
 }
@@ -222,12 +225,17 @@ TReaderCachePtr TBootstrap::GetReaderCache() const
     return ReaderCache;
 }
 
-TMasterConnectorPtr TBootstrap::GetMasterConnector() const
+IChannel::TPtr TBootstrap::GetLeaderChannel() const
 {
-    return MasterConnector;
+    return LeaderChannel;
+}
+
+Stroka TBootstrap::GetPeerAddress() const
+{
+    return PeerAddress;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NChunkHolder
+} // namespace NCellNode
 } // namespace NYT

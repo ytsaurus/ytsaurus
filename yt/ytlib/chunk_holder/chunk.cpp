@@ -38,7 +38,7 @@ Stroka TChunk::GetFileName() const
     return Location_->GetChunkFileName(Id_);
 }
 
-TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo() const
+TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo()
 {
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -47,26 +47,25 @@ TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo() const
         }
     }
 
-    TIntrusivePtr<const TChunk> chunk = this;
+    auto this_ = MakeStrong(this);
     auto invoker = Location_->GetInvoker();
     auto readerCache = Location_->GetReaderCache();
     return
-        FromFunctor([=] () -> TGetInfoResult
-            {
-                auto result = readerCache->GetReader(~chunk);
-                if (!result.IsOK()) {
-                    return TError(result);
-                }
+        FromFunctor([=] () -> TGetInfoResult {
+            auto result = readerCache->GetReader(this_);
+            if (!result.IsOK()) {
+                return TError(result);
+            }
 
-                auto reader = result.Value();
-                auto info = reader->GetChunkInfo();
+            auto reader = result.Value();
+            auto info = reader->GetChunkInfo();
 
-                TGuard<TSpinLock> guard(SpinLock);
-                Info = info;
-                HasInfo = true;
+            TGuard<TSpinLock> guard(SpinLock);
+            Info = info;
+            HasInfo = true;
 
-                return info;
-            })
+            return info;
+        })
         ->AsyncVia(invoker)
         ->Do();
 }

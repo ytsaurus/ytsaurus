@@ -25,9 +25,9 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
-    TSessionManager* sessionManager,
+    TSessionManagerPtr sessionManager,
     const TChunkId& chunkId,
-    TLocation* location)
+    TLocationPtr location)
     : SessionManager(sessionManager)
     , ChunkId(chunkId)
     , Location(location)
@@ -388,10 +388,10 @@ void TSession::ReleaseSpaceOccupiedByBlocks()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSessionManager::TSessionManager(
-    TChunkHolderConfig* config,
-    TBlockStore* blockStore,
-    TChunkStore* chunkStore,
-    IInvoker* serviceInvoker)
+    TChunkHolderConfigPtr config,
+    TBlockStorePtr blockStore,
+    TChunkStorePtr chunkStore,
+    IInvoker::TPtr serviceInvoker)
     : Config(config)
     , BlockStore(blockStore)
     , ChunkStore(chunkStore)
@@ -439,7 +439,7 @@ TSessionPtr TSessionManager::StartSession(
     return session;
 }
 
-void TSessionManager::CancelSession(TSession* session, const TError& error)
+void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
 {
     auto chunkId = session->GetChunkId();
 
@@ -453,7 +453,7 @@ void TSessionManager::CancelSession(TSession* session, const TError& error)
 }
 
 TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
-    TSession* session, 
+    TSessionPtr session, 
     const TChunkAttributes& attributes)
 {
     auto chunkId = session->GetChunkId();

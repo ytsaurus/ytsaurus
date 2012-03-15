@@ -22,11 +22,11 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJob::TJob(
-    TJobExecutor* owner,
-    IInvoker* serviceInvoker,
+    TJobExecutorPtr owner,
+    IInvoker::TPtr serviceInvoker,
     EJobType jobType,
     const TJobId& jobId,
-    TStoredChunk* chunk,
+    TStoredChunkPtr chunk,
     const yvector<Stroka>& targetAddresses)
     : Owner(owner)
     , JobType(jobType)
@@ -194,10 +194,10 @@ void TJob::ReplicateBlock(TError error, int blockIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobExecutor::TJobExecutor(
-    TChunkHolderConfig* config,
-    TChunkStore* chunkStore,
-    TBlockStore* blockStore,
-    IInvoker* serviceInvoker)
+    TChunkHolderConfigPtr config,
+    TChunkStorePtr chunkStore,
+    TBlockStorePtr blockStore,
+    IInvoker::TPtr serviceInvoker)
     : Config(config)
     , ChunkStore(chunkStore)
     , BlockStore(blockStore)
@@ -211,7 +211,7 @@ TJobExecutor::TJobExecutor(
 TJobPtr TJobExecutor::StartJob(
     EJobType jobType,
     const TJobId& jobId,
-    TStoredChunk* chunk,
+    TStoredChunkPtr chunk,
     const yvector<Stroka>& targetAddresses)
 {
     auto job = New<TJob>(
@@ -227,7 +227,7 @@ TJobPtr TJobExecutor::StartJob(
     return job;
 }
 
-void TJobExecutor::StopJob(TJob* job)
+void TJobExecutor::StopJob(TJobPtr job)
 {
     job->Stop();
     YVERIFY(Jobs.erase(job->GetJobId()) == 1);
