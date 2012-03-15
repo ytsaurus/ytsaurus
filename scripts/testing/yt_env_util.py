@@ -10,7 +10,7 @@ def command(name, *args, **kw):
         all_args.extend(['--' + k, v])
     print all_args
 
-    process = subprocess.Popen([YT] + all_args)
+    process = subprocess.Popen([YT] + all_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     return stdout, stderr, process.returncode
 
