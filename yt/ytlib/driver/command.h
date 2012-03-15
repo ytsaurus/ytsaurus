@@ -172,12 +172,12 @@ protected:
         }
         return options;
     }
-    virtual void DoExecute(const yvector<Stroka>& args) = 0;
+    virtual void DoExecute() = 0;
 
     void Execute(const yvector<Stroka>& args)
     {
         Parse(args);
-        DoExecute(args);
+        DoExecute();
     }
 
 private:

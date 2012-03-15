@@ -14,7 +14,7 @@ using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetCommand::DoExecute(const yvector<Stroka>& args)
+void TGetCommand::DoExecute()
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
 
@@ -35,7 +35,7 @@ void TGetCommand::DoExecute(const yvector<Stroka>& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSetCommand::DoExecute(const yvector<Stroka>& args)
+void TSetCommand::DoExecute()
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
 
@@ -60,7 +60,7 @@ void TSetCommand::DoExecute(const yvector<Stroka>& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveCommand::DoExecute(const yvector<Stroka>& args)
+void TRemoveCommand::DoExecute()
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
@@ -80,7 +80,7 @@ void TRemoveCommand::DoExecute(const yvector<Stroka>& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TListCommand::DoExecute(const yvector<Stroka>& args)
+void TListCommand::DoExecute()
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
@@ -105,7 +105,7 @@ void TListCommand::DoExecute(const yvector<Stroka>& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCreateCommand::DoExecute(const yvector<Stroka>& args)
+void TCreateCommand::DoExecute()
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
@@ -137,7 +137,7 @@ void TCreateCommand::DoExecute(const yvector<Stroka>& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLockCommand::DoExecute(const yvector<Stroka>& args)
+void TLockCommand::DoExecute()
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(

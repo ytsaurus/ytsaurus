@@ -21,7 +21,7 @@ public:
         Cmd->add(~PathArg);
     }
 
-    virtual void DoExecute(const yvector<Stroka>& args);
+    virtual void DoExecute();
 
 private:
     THolder<TFreeStringArg> PathArg;
@@ -43,7 +43,7 @@ public:
         Cmd->add(~ValueArg);
     }
 
-    virtual void DoExecute(const yvector<Stroka>& args);
+    virtual void DoExecute();
 
 private:
     THolder<TFreeStringArg> PathArg;
@@ -63,7 +63,7 @@ public:
         Cmd->add(~PathArg);
     }
 
-    virtual void DoExecute(const yvector<Stroka>& args);
+    virtual void DoExecute();
 
 private:
     THolder<TFreeStringArg> PathArg;
@@ -82,7 +82,7 @@ public:
         Cmd->add(~PathArg);
     }
 
-    virtual void DoExecute(const yvector<Stroka>& args);
+    virtual void DoExecute();
 
 private:
     THolder<TFreeStringArg> PathArg;
@@ -106,7 +106,7 @@ class TCreateCommand
         ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
     }
 
-    virtual void DoExecute(const yvector<Stroka>& args);
+    virtual void DoExecute();
 
 private:
     THolder<TFreeStringArg> PathArg;
@@ -135,7 +135,7 @@ public:
         Cmd->add(~ModeArg);
     }
 
-    virtual void DoExecute(const yvector<Stroka>& args);
+    virtual void DoExecute();
 
 private:
     THolder<TFreeStringArg> PathArg;
