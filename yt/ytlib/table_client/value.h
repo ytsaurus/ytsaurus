@@ -51,14 +51,6 @@ bool operator>=(const TValue& lhs, const TValue& rhs);
 
 typedef std::vector<Stroka> TKey;
 
-bool operator==(const TKey& lhs, const TKey& rhs);
-bool operator!=(const TKey& lhs, const TKey& rhs);
-bool operator< (const TKey& lhs, const TKey& rhs);
-bool operator> (const TKey& lhs, const TKey& rhs);
-bool operator<=(const TKey& lhs, const TKey& rhs);
-bool operator>=(const TKey& lhs, const TKey& rhs);
-
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

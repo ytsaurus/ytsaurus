@@ -152,56 +152,5 @@ bool operator>=(const TValue& lhs, const TValue& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareKeys(const TKey& lhs, const TKey& rhs)
-{
-    int len = std::min(lhs.size(), rhs.size());
-
-    for(int i = 0; i < len; ++i) {
-        int result = strcmp(~lhs[i], ~rhs[i]);
-        if (result != 0)
-            return result;
-    }
-
-    if (lhs.size() > len)
-        return 1;
-
-    if (rhs.size() > len)
-        return -1;
-
-    return 0;
-}
-
-bool operator==(const TKey& lhs, const TKey& rhs)
-{
-    return CompareKeys(lhs, rhs) == 0;
-}
-
-bool operator!=(const TKey& lhs, const TKey& rhs)
-{
-    return CompareKeys(lhs, rhs) != 0;
-}
-
-bool operator< (const TKey& lhs, const TKey& rhs)
-{
-    return CompareKeys(lhs, rhs) < 0;
-}
-
-bool operator<=(const TKey& lhs, const TKey& rhs)
-{
-    return CompareKeys(lhs, rhs) <= 0;
-}
-
-bool operator> (const TKey& lhs, const TKey& rhs)
-{
-    return CompareKeys(lhs, rhs) > 0;
-}
-
-bool operator>=(const TKey& lhs, const TKey& rhs)
-{
-    return CompareKeys(lhs, rhs) >= 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NTableClient
 } // namespace NYT

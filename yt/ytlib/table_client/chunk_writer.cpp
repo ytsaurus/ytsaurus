@@ -28,6 +28,7 @@ TChunkWriter::TChunkWriter(
     , IsOpen(false)
     , IsClosed(false)
     , CurrentBlockIndex(0)
+    , LastSampleSize(0)
     , SentSize(0)
     , CurrentSize(0)
     , UncompressedSize(0)
@@ -129,16 +130,17 @@ TAsyncError::TPtr TChunkWriter::AsyncClose(
     std::vector<TSharedRef> completedBlocks;
     for (int channelIndex = 0; channelIndex < channels.size(); ++channelIndex) {
         auto& channel = channels[channelIndex];
-        CurrentSize += channel->GetCurrentSize();
 
         if (channel->HasUnflushedData()) {
+            CurrentSize += channel->GetCurrentSize();
             auto block = PrepareBlock(channel, channelIndex);
             completedBlocks.push_back(block);
         } 
     }
 
     // Sample last key (if it is not already sampled by coincidence).
-    if (CurrentSize > LastSampleSize) {
+    auto& lastSample = *(--Attributes.key_samples().end());
+    if (Attributes.row_count() > lastSample.row_index() + 1) {
         AddKeySample(lastKey);
     }
 
@@ -165,7 +167,7 @@ void TChunkWriter::AddKeySample(const TKey& key)
         protoKey->add_values(keyPart);
     }
 
-    sample->set_row_index(Attributes.row_count());
+    sample->set_row_index(Attributes.row_count() - 1);
 }
 
 NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr 

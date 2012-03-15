@@ -89,9 +89,10 @@ private:
 
     int CurrentBlockIndex;
 
+    //! Data size written before last sample.
     i64 LastSampleSize;
 
-    //! Sum size of completed and sent blocks.
+    //! Total size of completed and sent blocks.
     i64 SentSize;
 
     //! Current size of written data.

@@ -52,7 +52,13 @@ public:
     const TRow& GetCurrentRow() const;
 
 private:
-    void ContinueNextRow(TError error, int channelIndex);
+    TAsyncError::TPtr DoNextRow();
+
+    void ContinueNextRow(
+        TError error, 
+        int channelIndex, 
+        TAsyncError::TPtr& result);
+
     void MakeCurrentRow();
 
     class TInitializer;
