@@ -61,16 +61,9 @@ public:
             Awaiter = New<TParallelAwaiter>(~Owner->EpochControlInvoker);
         }
 
-        for (TPeerId id = 0; id < Owner->CellManager->GetPeerCount(); ++id) {
-            if (id != Owner->CellManager->GetSelfId()) {
-                // We're currently in the state thread but the request must
-                // be sent from the control thread to ensure proper version order.
-                Owner->EpochControlInvoker->Invoke(FromMethod(
-                    &TSession::DoSendRequest,
-                    MakeStrong(this),
-                    id));
-            }
-        }
+        Owner->EpochControlInvoker->Invoke(FromMethod(
+            &TSession::DoSendRequests,
+            MakeStrong(this)));
         
         if (CreateSnapshot) {
             Awaiter->Await(
@@ -83,35 +76,40 @@ public:
                 MakeStrong(this)));
         } else {
             Owner->DecoratedState->RotateChangeLog();
-
             // No need to complete the awaiter.
         }
     }
 
 private:
-    void DoSendRequest(TPeerId id)
+    void DoSendRequests()
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        if (CreateSnapshot) {
-            LOG_DEBUG("Requesting follower %d to create a snapshot", id);
-        } else {
-            LOG_DEBUG("Requesting follower %d to rotate the changelog", id);
+        for (TPeerId id = 0; id < Owner->CellManager->GetPeerCount(); ++id) {
+            if (id == Owner->CellManager->GetSelfId()) continue;
+
+            if (CreateSnapshot) {
+                LOG_DEBUG("Requesting follower %d to create a snapshot", id);
+            } else {
+                LOG_DEBUG("Requesting follower %d to rotate the changelog", id);
+            }
+
+            auto proxy = Owner->CellManager->GetMasterProxy<TProxy>(id);
+            auto request = proxy
+                ->AdvanceSegment()
+                ->SetTimeout(Owner->Config->RemoteTimeout);
+            request->set_segment_id(Version.SegmentId);
+            request->set_record_count(Version.RecordCount);
+            request->set_epoch(Owner->Epoch.ToProto());
+            request->set_create_snapshot(CreateSnapshot);
+
+            Awaiter->Await(
+                request->Invoke(),
+                Owner->CellManager->GetPeerAddress(id),
+                FromMethod(&TSession::OnRemoteSegmentAdvanced, MakeStrong(this), id));
         }
 
-        auto proxy = Owner->CellManager->GetMasterProxy<TProxy>(id);
-        auto request = proxy
-            ->AdvanceSegment()
-            ->SetTimeout(Owner->Config->RemoteTimeout);
-        request->set_segment_id(Version.SegmentId);
-        request->set_record_count(Version.RecordCount);
-        request->set_epoch(Owner->Epoch.ToProto());
-        request->set_create_snapshot(CreateSnapshot);
-
-        Awaiter->Await(
-            request->Invoke(),
-            Owner->CellManager->GetPeerAddress(id),
-            FromMethod(&TSession::OnRemoteSegmentAdvanced, MakeStrong(this), id));
+        Owner->DecoratedState->SetPingVersion(TMetaVersion(Version.SegmentId + 1, 0));
     }
 
     void DoCompleteSession()
@@ -156,21 +154,22 @@ private:
         Checksums[Owner->CellManager->GetSelfId()] = result.Checksum;
     }
 
-    void OnRemoteSegmentAdvanced(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
+    void OnRemoteSegmentAdvanced(TProxy::TRspAdvanceSegment::TPtr response, TPeerId id)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error creating a snapshot at follower %d\n%s",
-                followerId,
+            LOG_WARNING("Error %s at follower %d\n%s",
+                CreateSnapshot ? "creating snapshot" : "rotating the changelog",
+                id,
                 ~response->GetError().ToString());
             return;
         }
 
         auto checksum = response->checksum();
         LOG_INFO("Remote snapshot is created at follower %d (Checksum: %" PRIx64 ")",
-            followerId,
+            id,
             checksum);
 
-        Checksums[followerId] = checksum;
+        Checksums[id] = checksum;
     }
 
     TSnapshotBuilderPtr Owner;

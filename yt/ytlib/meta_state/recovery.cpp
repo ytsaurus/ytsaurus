@@ -363,6 +363,8 @@ TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto version = DecoratedState->GetReachableVersionAsync();
+    DecoratedState->SetPingVersion(version);
+
     i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
 
     return FromMethod(

@@ -1,8 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "peer_block_table.h"
-#include "master_connector.h"
 
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/remote_writer.h>
@@ -12,6 +10,22 @@ namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TPeerBlockTableConfig
+    : public TConfigurable
+{
+    int MaxPeersPerBlock;
+    TDuration SweepPeriod;
+
+    TPeerBlockTableConfig()
+    {
+        Register("max_peers_per_block", MaxPeersPerBlock)
+            .GreaterThan(0)
+            .Default(64);
+        Register("sweep_period", SweepPeriod)
+            .Default(TDuration::Minutes(10));
+    }
+};
 
 //! Describes a chunk location.
 struct TLocationConfig
@@ -55,6 +69,15 @@ struct TLocationConfig
 struct TChunkHolderConfig
     : public TConfigurable
 {
+    //! Period between consequent heartbeats.
+    TDuration HeartbeatPeriod;
+
+    //! Timeout for FullHeartbeat requests.
+    /*!
+     *  This is usually much larger then the default RPC timeout.
+     */
+    TDuration FullHeartbeatTimeout;
+
     //! Block cache size (in bytes).
     i64 MaxCachedBlocksSize;
 
@@ -72,12 +95,6 @@ struct TChunkHolderConfig
     //! Timeout for "PutBlock" requests to other holders.
     TDuration HolderRpcTimeout;
 
-    //! RPC interface port number.
-    int RpcPort;
-
-    //! HTTP monitoring interface port number.
-    int MonitoringPort;
-
     //! Period between peer updates (see TPeerBlockUpdater).
     TDuration PeerUpdatePeriod;
 
@@ -88,10 +105,10 @@ struct TChunkHolderConfig
     i64 ResponseThrottlingSize;
 
     //! Regular storage locations.
-    yvector<TLocationConfigPtr> ChunkStoreLocations;
+    yvector<TLocationConfigPtr> StoreLocations;
 
     //! Cached chunks location.
-    TLocationConfigPtr ChunkCacheLocation;
+    TLocationConfigPtr CacheLocation;
 
     //! Remote reader configuration used to download chunks into cache.
     NChunkClient::TRemoteReaderConfig::TPtr CacheRemoteReader;
@@ -105,9 +122,6 @@ struct TChunkHolderConfig
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
 
-    //! Maintains connection with the master.
-    TMasterConnectorConfigPtr MasterConnector;
-
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -115,6 +129,10 @@ struct TChunkHolderConfig
      */
     TChunkHolderConfig()
     {
+        Register("heartbeat_period", HeartbeatPeriod)
+            .Default(TDuration::Seconds(5));
+        Register("full_heartbeat_timeout", FullHeartbeatTimeout)
+            .Default(TDuration::Seconds(60));
         Register("max_cached_blocks_size", MaxCachedBlocksSize)
             .GreaterThan(0)
             .Default(1024 * 1024);
@@ -125,10 +143,6 @@ struct TChunkHolderConfig
             .Default(TDuration::Seconds(15));
         Register("holder_rpc_timeout", HolderRpcTimeout)
             .Default(TDuration::Seconds(15));
-        Register("rpc_port", RpcPort)
-            .Default(9000);
-        Register("monitoring_port", MonitoringPort)
-            .Default(10000);
         Register("peer_update_period", PeerUpdatePeriod)
             .Default(TDuration::Seconds(30));
         Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
@@ -136,9 +150,9 @@ struct TChunkHolderConfig
         Register("response_throttling_size", ResponseThrottlingSize)
             .GreaterThan(0)
             .Default(500 * 1024 * 1024);
-        Register("chunk_store_locations", ChunkStoreLocations)
+        Register("store_locations", StoreLocations)
             .NonEmpty();
-        Register("chunk_cache_location", ChunkCacheLocation)
+        Register("cache_location", CacheLocation)
             .DefaultNew();
         Register("cache_remote_reader", CacheRemoteReader)
             .DefaultNew();
@@ -148,7 +162,6 @@ struct TChunkHolderConfig
             .DefaultNew();
         Register("replication_remote_writer", ReplicationRemoteWriter)
             .DefaultNew();
-        Register("master_connector", MasterConnector);
     }
 };
 

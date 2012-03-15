@@ -33,9 +33,10 @@ void TReadCommand::DoExecute(TReadRequest* request)
     while (reader->NextRow()) {
         TYsonWriter writer(~stream, format);
         writer.OnBeginMap();
-        while (reader->NextColumn()) {
-            writer.OnMapItem(reader->GetColumn());
-            writer.OnStringScalar(reader->GetValue().ToString());
+        auto& row = reader->GetRow();
+        FOREACH(auto& column, row) {
+            writer.OnMapItem(column.first);
+            writer.OnStringScalar(column.second.ToString());
         }
         writer.OnEndMap();
         stream->Write('\n');

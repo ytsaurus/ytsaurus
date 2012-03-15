@@ -23,8 +23,8 @@ class TLocation
 public:
     TLocation(
         ELocationType type,
-        TLocationConfig* config,
-        TReaderCache* readerCache,
+        TLocationConfigPtr config,
+        TReaderCachePtr readerCache,
         const Stroka& threadName);
     ~TLocation();
 
@@ -38,7 +38,7 @@ public:
     void UpdateUsedSpace(i64 size);
 
     //! Schedules physical removal of a chunk.
-    void RemoveChunk(TChunk* chunk);
+    void RemoveChunk(TChunkPtr chunk);
 
     //! Updates #AvailalbleSpace with a system call and returns the result.
     i64 GetAvailableSpace() const;

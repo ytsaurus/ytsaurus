@@ -5,6 +5,7 @@
 // TODO(babenko): replace with public.h
 #include <ytlib/actions/invoker.h>
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -18,9 +19,8 @@ class TPeerBlockUpdater
 {
 public:
     TPeerBlockUpdater(
-        TChunkHolderConfig* config,
-        TBlockStore* blockStore,
-        IInvoker* invoker);
+        TChunkHolderConfigPtr config,
+        NCellNode::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -31,8 +31,9 @@ private:
     typedef TChunkHolderServiceProxy TProxy;
 
     TChunkHolderConfigPtr Config;
-    TBlockStorePtr BlockStore;
+    NCellNode::TBootstrap* Bootstrap;
     TPeriodicInvoker::TPtr PeriodicInvoker;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

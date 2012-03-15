@@ -17,8 +17,15 @@ class TChannelWriter
 public:
     typedef TIntrusivePtr<TChannelWriter> TPtr;
 
-    TChannelWriter(const TChannel& channel);
-    void Write(const TColumn& column, TValue value);
+    TChannelWriter(
+        const TChannel& channel,
+        const yhash_map<TColumn, int>& columnIndexes);
+
+    void Write(
+        int chunkColumnIndex,
+        const TColumn& column,
+        TValue value);
+
     void EndRow();
 
     size_t GetCurrentSize() const;
@@ -27,20 +34,27 @@ public:
 
     TSharedRef FlushBlock();
 
+    static const int UnknownIndex;
+    static const int RangeIndex;
+
 private:
     //! Size reserved for column offsets
     size_t GetEmptySize() const;
 
     TChannel Channel;
 
+    /*! 
+     *  Mapping from chunk column indexes to channel column indexes.
+     *  UnknownIndex - channel doesn't contain column.
+     *  RangeIndex - channel contains column in ranges.
+     */
+    std::vector<int> ColumnIndexMapping;
+
     //! Current buffers for fixed columns.
     yvector<TBlobOutput> FixedColumns;
 
     //! Current buffer for range columns.
     TBlobOutput RangeColumns;
-
-    //! Mapping from fixed column names of the #Channel to their indexes in #FixedColumns.
-    yhash_map<TColumn, int> ColumnIndexes;
 
     //! Is fixed column with corresponding index already set in the current row.
     yvector<bool> IsColumnUsed;

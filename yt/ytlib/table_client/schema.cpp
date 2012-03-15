@@ -223,7 +223,7 @@ bool TChannel::Overlaps(const TChannel& channel) const
     return false;
 }
 
-const yvector<TColumn>& TChannel::GetColumns() const
+const std::vector<TColumn>& TChannel::GetColumns() const
 {
     return Columns;
 }
@@ -310,7 +310,7 @@ TChannel TChannel::FromNode(INode* node)
 
 void operator-= (TChannel& lhs, const TChannel& rhs)
 {
-    yvector<TColumn> newColumns;
+    std::vector<TColumn> newColumns;
     FOREACH(auto column, lhs.Columns) {
         if (!rhs.Contains(column)) {
             newColumns.push_back(column);
@@ -318,7 +318,7 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
     }
     lhs.Columns.swap(newColumns);
 
-    yvector<TRange> rhsRanges(rhs.Ranges);
+    std::vector<TRange> rhsRanges(rhs.Ranges);
     FOREACH(auto column, rhs.Columns) {
         // Add single columns as ranges.
         TColumn rangeEnd;
@@ -328,7 +328,7 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
         rhsRanges.push_back(TRange(column, rangeEnd));
     }
 
-    yvector<TRange> newRanges;
+    std::vector<TRange> newRanges;
     FOREACH(auto& rhsRange, rhsRanges) {
         FOREACH(auto& lhsRange, lhs.Ranges) {
             if (!lhsRange.Overlaps(rhsRange)) {
@@ -364,10 +364,13 @@ struct TSchema::TConfig
     {
         Register("channels", Channels)
             .Default();
+        Register("key_columns", KeyColumns)
+            .Default();
     }
 
+    // ToDo(psushin): yvector -> std::vector.
     yvector<INodePtr> Channels;
-    // TODO(babenko): add Keys here
+    yvector<TColumn> KeyColumns;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -395,28 +398,9 @@ void TSchema::AddChannel(const TChannel& channel)
     Channels.push_back(channel);
 }
 
-const yvector<TChannel>& TSchema::GetChannels() const
+const std::vector<TChannel>& TSchema::GetChannels() const
 {
     return Channels;
-}
-
-NProto::TSchema TSchema::ToProto() const
-{
-    NProto::TSchema protoSchema;
-    FOREACH(auto channel, Channels) {
-        *protoSchema.add_channels() = channel.ToProto();
-    }
-    return protoSchema;
-}
-
-TSchema TSchema::FromProto(const NProto::TSchema& protoSchema)
-{
-    TSchema schema;
-    for (int i = 0; i < protoSchema.channels_size(); ++i) {
-        schema.Channels.push_back(TChannel::FromProto(
-            protoSchema.channels(i)));
-    }
-    return schema;
 }
 
 TSchema TSchema::FromYson(const NYTree::TYson& yson)
@@ -435,6 +419,8 @@ TSchema TSchema::FromNode(INode* node)
         auto channel = TChannel::FromNode(~channelNode);
         schema.AddChannel(channel);
     }
+
+    schema.KeyColumns() = config->KeyColumns;
 
     return schema;
 }

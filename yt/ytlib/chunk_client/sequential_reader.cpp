@@ -8,6 +8,10 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = ChunkClientLogger;
+
+///////////////////////////////////////////////////////////////////////////////
+
 TSequentialReader::TSequentialReader(
     TConfig* config, 
     const yvector<int>& blockIndexes, 
@@ -26,11 +30,13 @@ TSequentialReader::TSequentialReader(
     YASSERT(blockIndexes.ysize() > 0);
     YASSERT(Config->GroupSize <= Config->PrefetchWindowSize);
 
+    LOG_DEBUG("Creating sequential reader (blockCount: %d)", blockIndexes.ysize());
+
     int fetchCount = FreeSlots / Config->GroupSize;
     for (int i = 0; i < fetchCount; ++i) {
         ReaderThread->GetInvoker()->Invoke(FromMethod(
             &TSequentialReader::FetchNextGroup,
-            MakeStrong(this)));
+            MakeWeak(this)));
     }
 }
 
@@ -61,12 +67,11 @@ TAsyncError::TPtr TSequentialReader::AsyncNextBlock()
 
     State.StartOperation();
 
-    Window[NextSequenceIndex].AsyncBlock
-        ->Subscribe(FromMethod(
-            &TAsyncStreamState::FinishOperation,
-            &State,
-            TError())
-        ->ToParamAction<TSharedRef>());
+    auto this_ = MakeStrong(this);
+    Window[NextSequenceIndex].AsyncBlock->Subscribe(
+        FromFunctor( [ = ] () {
+            this_->State.FinishOperation();
+        })->ToParamAction<TSharedRef>());
 
     if (NextSequenceIndex > 0) {
         ShiftWindow();
@@ -87,8 +92,14 @@ void TSequentialReader::OnGotBlocks(
 
     if (!readResult.IsOK()) {
         State.Fail(readResult);
+        LOG_WARNING("Failed to read block group starting from %d", firstSequenceIndex);
         return;
     }
+
+    LOG_DEBUG(
+        "Got block group (firtsIndex: %d, blockCount: %d)", 
+        firstSequenceIndex, 
+        readResult.Value().ysize());
 
     int sequenceIndex = firstSequenceIndex;
     FOREACH(auto& block, readResult.Value()) {
@@ -103,12 +114,14 @@ void TSequentialReader::ShiftWindow()
 
     ReaderThread->GetInvoker()->Invoke(FromMethod(
         &TSequentialReader::DoShiftWindow, 
-        MakeStrong(this)));
+        MakeWeak(this)));
 }
 
 void TSequentialReader::DoShiftWindow()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
+
+    LOG_DEBUG("Window shifted");
 
     Window.Shift();
     ++FreeSlots;
@@ -136,9 +149,14 @@ void TSequentialReader::FetchNextGroup()
     }
 
     yvector<int> groupIndexes(groupBegin, groupEnd);
+    LOG_DEBUG(
+        "Requesting block group (firstIndex: %d, blockCount: %d)", 
+        FirstUnfetchedIndex, 
+        groupIndexes.ysize());
+
     ChunkReader->AsyncReadBlocks(groupIndexes)->Subscribe(FromMethod(
         &TSequentialReader::OnGotBlocks, 
-        MakeStrong(this),
+        MakeWeak(this),
         FirstUnfetchedIndex)
             ->Via(ReaderThread->GetInvoker()));
 

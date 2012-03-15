@@ -172,7 +172,7 @@ private:
         if (NextCalibrationClock != 0) {
             auto expected = (CalibrationInstant + ClockToDuration(nowClock - CalibrationClock)).MicroSeconds();
             auto actual = nowInstant.MicroSeconds();
-            LOG_INFO("Clock recalibrated (Diff: %" PRId64 ")", expected - actual);
+            LOG_DEBUG("Clock recalibrated (Diff: %" PRId64 ")", expected - actual);
         }
         CalibrationClock = nowClock;
         CalibrationInstant = nowInstant;
@@ -272,7 +272,7 @@ private:
             }
         }
 
-        LOG_INFO("Creating new bucket %s", ~path.Quote());
+        LOG_INFO("Creating bucket %s", ~path.Quote());
         auto bucket = New<TBucket>();
         PathToBucket[path] = bucket;
 

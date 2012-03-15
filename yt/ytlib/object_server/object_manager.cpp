@@ -181,7 +181,7 @@ public:
                 ythrow yexception() << Sprintf("Error parsing transaction id (Value: %s)", ~token);
             }
 
-            if (transactionId != NullTransactionId && transactionManager->FindTransaction(transactionId)) {
+            if (transactionId != NullTransactionId && !transactionManager->FindTransaction(transactionId)) {
                 ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
             }
         }

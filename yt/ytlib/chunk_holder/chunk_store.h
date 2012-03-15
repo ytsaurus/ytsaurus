@@ -7,6 +7,7 @@
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/chunk_client/file_reader.h>
+#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -22,13 +23,13 @@ public:
     typedef yvector<TLocationPtr> TLocations;
 
     //! Constructs a new instance.
-    TChunkStore(TChunkHolderConfig* config, TBootstrap* bootstrap);
+    TChunkStore(TChunkHolderConfigPtr config, NCellNode::TBootstrap* bootstrap);
 
     //! Initializes the store.
     void Start();
 
     //! Registers a chunk.
-    void RegisterChunk(TStoredChunk* chunk);
+    void RegisterChunk(TStoredChunkPtr chunk);
     
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TStoredChunkPtr FindChunk(const TChunkId& chunkId) const;
@@ -37,7 +38,7 @@ public:
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.
      */
-    void RemoveChunk(TStoredChunk* chunk);
+    void RemoveChunk(TStoredChunkPtr chunk);
 
     //! Calculates a storage location for a new chunk.
     /*!
@@ -56,14 +57,14 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
 
     //! Raised when a chunk is added to the store.
-    DEFINE_SIGNAL(void(TChunk*), ChunkAdded);
+    DEFINE_SIGNAL(void(TChunkPtr), ChunkAdded);
 
     //! Raised when a chunk is removed from the store.
-    DEFINE_SIGNAL(void(TChunk*), ChunkRemoved);
+    DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
 
 private:
     TChunkHolderConfigPtr Config;
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
     TChunkMap ChunkMap;

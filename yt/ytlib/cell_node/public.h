@@ -1,0 +1,18 @@
+#pragma once
+
+#include <ytlib/misc/common.h>
+
+namespace NYT {
+namespace NCellNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBootstrap;
+
+struct TCellNodeConfig;
+typedef TIntrusivePtr<TCellNodeConfig> TCellNodeConfigPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+            
+} // namespace NCellNode
+} // namespace NYT

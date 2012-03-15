@@ -5,37 +5,12 @@
 #include <ytlib/misc/configurable.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
-#include <ytlib/election/leader_lookup.h>
+#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TMasterConnectorConfig
-    : public TConfigurable
-{
-    //! Peer address to publish. Not registered.
-    Stroka PeerAddress;
-
-    //! Masters configuration.
-    NElection::TLeaderLookup::TConfig::TPtr Masters;
-
-    //! Period between consequent heartbeats.
-    TDuration HeartbeatPeriod;
-
-    //! Timeout for FullHeartbeat requests.
-    TDuration FullHeartbeatTimeout;
-
-    TMasterConnectorConfig()
-    {
-        Register("masters", Masters);
-        Register("heartbeat_period", HeartbeatPeriod)
-            .Default(TDuration::Seconds(5));
-        Register("full_heartbeat_timeout", FullHeartbeatTimeout)
-            .Default(TDuration::Seconds(60));
-    }
-};
 
 //! Mediates connection between the holder and its master.
 /*!
@@ -48,13 +23,10 @@ class TMasterConnector
 {
 public:
     //! Creates an instance.
-    TMasterConnector(TMasterConnectorConfig* config, TBootstrap* bootstrap);
+    TMasterConnector(TChunkHolderConfigPtr config, NCellNode::TBootstrap* bootstrap);
 
     //! Starts interaction with master.
     void Start();
-
-    //! Returns the channel for communicating with the leader.
-    NRpc::IChannel::TPtr GetLeaderChannel() const;
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -64,11 +36,8 @@ private:
     //! Special id value indicating that the holder is not registered.
     static const int InvalidHolderId = -1;
 
-    //! Connector configuration.
-    TMasterConnectorConfigPtr Config;
-
-    //! The bootstrap that owns us.
-    TBootstrap* Bootstrap;
+    TChunkHolderConfigPtr Config;
+    NCellNode::TBootstrap* Bootstrap;
 
     DECLARE_ENUM(EState,
         // Not registered.
@@ -84,9 +53,6 @@ private:
     
     //! Current id assigned by the master, #InvalidHolderId if not registered.
     int HolderId;
-
-    //! Channel to the leader.
-    NRpc::IChannel::TPtr LeaderChannel;
 
     //! Proxy for the master.
     THolder<TProxy> Proxy;
@@ -125,10 +91,10 @@ private:
     void SendIncrementalHeartbeat();
 
     //! Constructs a protobuf info for an added chunk.
-    static NChunkServer::NProto::TChunkAddInfo GetAddInfo(const TChunk* chunk);
+    static NChunkServer::NProto::TChunkAddInfo GetAddInfo(const TChunkPtr chunk);
 
     //! Constructs a protobuf info for a removed chunk.
-    static NChunkServer::NProto::TChunkRemoveInfo GetRemoveInfo(const TChunk* chunk);
+    static NChunkServer::NProto::TChunkRemoveInfo GetRemoveInfo(const TChunkPtr chunk);
 
     //! Handles full heartbeat response.
     void OnFullHeartbeatResponse(TProxy::TRspFullHeartbeat::TPtr response);
@@ -147,14 +113,14 @@ private:
      *  Places the chunk into a list and reports its arrival
      *  to the master upon a next heartbeat.
      */
-    void OnChunkAdded(TChunk* chunk);
+    void OnChunkAdded(TChunkPtr chunk);
 
     //! Handles removal of existing chunks.
     /*!
      *  Places the chunk into a list and reports its removal
      *  to the master upon a next heartbeat.
      */
-    void OnChunkRemoved(TChunk* chunk);
+    void OnChunkRemoved(TChunkPtr chunk);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

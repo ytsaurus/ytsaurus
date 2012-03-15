@@ -43,9 +43,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TAtomic, PendingReadSize);
 
     TStoreImpl(
-        TChunkHolderConfig* config,
-        TChunkRegistry* chunkRegistry,
-        TReaderCache* readerCache)
+        TChunkHolderConfigPtr config,
+        TChunkRegistryPtr chunkRegistry,
+        TReaderCachePtr readerCache)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
         , ChunkRegistry(chunkRegistry)
         , ReaderCache(readerCache)
@@ -201,7 +201,7 @@ class TBlockStore::TCacheImpl
     : public IBlockCache
 {
 public:
-    TCacheImpl(TStoreImpl* storeImpl)
+    TCacheImpl(TIntrusivePtr<TStoreImpl> storeImpl)
         : StoreImpl(storeImpl)
     { }
 
@@ -224,9 +224,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockStore::TBlockStore(
-    TChunkHolderConfig* config,
-    TChunkRegistry* chunkRegistry,
-    TReaderCache* readerCache)
+    TChunkHolderConfigPtr config,
+    TChunkRegistryPtr chunkRegistry,
+    TReaderCachePtr readerCache)
     : StoreImpl(New<TStoreImpl>(
         config,
         chunkRegistry,
@@ -257,7 +257,7 @@ i64 TBlockStore::GetPendingReadSize() const
     return StoreImpl->GetPendingReadSize();
 }
 
-IBlockCache* TBlockStore::GetBlockCache()
+IBlockCache::TPtr TBlockStore::GetBlockCache()
 {
     return ~CacheImpl;
 }

@@ -18,6 +18,7 @@ TNodeFactory::TNodeFactory(
     NCellMaster::TBootstrap* bootstrap,
     const TTransactionId& transactionId)
     : Bootstrap(bootstrap)
+    , TransactionId(transactionId)
 {
     YASSERT(bootstrap);
 }

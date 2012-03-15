@@ -89,12 +89,14 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError::TPtr AsyncWriteBlock(const TSharedRef& data);
+    virtual TAsyncError::TPtr AsyncWriteBlocks(std::vector<TSharedRef>&& blocks);
 
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError::TPtr AsyncClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
+    virtual TAsyncError::TPtr AsyncClose(
+        std::vector<TSharedRef>&& lastBlocks,
+        const NChunkHolder::NProto::TChunkAttributes& attributes);
 
     ~TRemoteWriter();
 
@@ -182,7 +184,7 @@ private:
 
     void RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady);
 
-    void OnHolderDied(THolderPtr holder);
+    void OnHolderFailed(THolderPtr holder);
 
     void ShiftWindow();
 
@@ -218,7 +220,8 @@ private:
         typename IParamAction< TIntrusivePtr<TResponse> >::TPtr onSuccess,
         TMetric* metric);
 
-    void AddBlock(TVoid, const TSharedRef& data);
+    void AddBlocks(std::vector<TSharedRef>&& blocks);
+    void DoWriteBlocks(TVoid, std::vector<TSharedRef>& blocks);
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);

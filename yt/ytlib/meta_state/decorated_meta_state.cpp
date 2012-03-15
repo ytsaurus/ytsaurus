@@ -20,10 +20,11 @@ static NProfiling::TProfiler Profiler("meta_state");
 ////////////////////////////////////////////////////////////////////////////////
 
 TDecoratedMetaState::TDecoratedMetaState(
-    IMetaState* state,
-    IInvoker* stateInvoker,
-    TSnapshotStore* snapshotStore,
-    TChangeLogCache* changeLogCache)
+    IMetaStatePtr state,
+    IInvoker::TPtr stateInvoker,
+    IInvoker::TPtr controlInvoker,
+    TSnapshotStorePtr snapshotStore,
+    TChangeLogCachePtr changeLogCache)
     : State(state)
     , StateInvoker(stateInvoker)
     , SnapshotStore(snapshotStore)
@@ -35,6 +36,7 @@ TDecoratedMetaState::TDecoratedMetaState(
     YASSERT(snapshotStore);
     YASSERT(changeLogCache);
     VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
+    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 }
 
 void TDecoratedMetaState::Start()
@@ -80,7 +82,7 @@ void TDecoratedMetaState::ComputeReachableVersion()
     LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
 }         
 
-IInvoker* TDecoratedMetaState::GetStateInvoker() const
+IInvoker::TPtr TDecoratedMetaState::GetStateInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Started);
@@ -88,12 +90,12 @@ IInvoker* TDecoratedMetaState::GetStateInvoker() const
     return ~StateInvoker;
 }
 
-IMetaState* TDecoratedMetaState::GetState() const
+IMetaStatePtr TDecoratedMetaState::GetState() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Started);
 
-    return ~State;
+    return State;
 }
 
 void TDecoratedMetaState::Clear()
@@ -257,6 +259,21 @@ TMetaVersion TDecoratedMetaState::GetReachableVersionAsync() const
 
     TGuard<TSpinLock> guard(VersionSpinLock);
     return ReachableVersion;
+}
+
+
+TMetaVersion TDecoratedMetaState::GetPingVersion() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return PingVersion;
+}
+
+void TDecoratedMetaState::SetPingVersion(const TMetaVersion& version)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    PingVersion = version;
 }
 
 void TDecoratedMetaState::UpdateVersion(const TMetaVersion& newVersion)
