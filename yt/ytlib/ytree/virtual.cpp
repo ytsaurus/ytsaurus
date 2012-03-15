@@ -190,7 +190,7 @@ void TVirtualMapBase::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
 
 bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    if (key == "size") {
+    if (key == "count") {
         BuildYsonFluently(consumer)
             .Scalar(static_cast<i64>(GetSize()));
         return true;
