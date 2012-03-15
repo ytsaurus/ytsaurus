@@ -623,7 +623,7 @@ void TChunkReplication::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    PROFILE_TIMING ("chunk_refresh_time") {
+    PROFILE_TIMING ("incremental_chunk_refresh_time") {
         auto chunkManager = Bootstrap->GetChunkManager();
         auto now = GetCycleCount();
         for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
