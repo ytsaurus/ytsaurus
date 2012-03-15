@@ -1,10 +1,11 @@
 #include "stdafx.h"
 #include "follower_pinger.h"
 #include "common.h"
-#include "change_committer.h"
+#include "decorated_meta_state.h"
 #include "snapshot_store.h"
 #include "follower_tracker.h"
 #include "decorated_meta_state.h"
+#include "cell_manager.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/bus/message.h>
@@ -19,21 +20,22 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerPinger::TFollowerPinger(
-    TFollowerPingerConfig* config,
-    TCellManager* cellManager,
-    TLeaderCommitter* committer,
-    TFollowerTracker* followerTracker,
+    TFollowerPingerConfigPtr config,
+    TCellManagerPtr cellManager,
+    TDecoratedMetaStatePtr decoratedState,
+    TFollowerTrackerPtr followerTracker,
     const TEpoch& epoch,
-    IInvoker* epochControlInvoker)
+    IInvoker::TPtr epochControlInvoker)
     : Config(config)
     , CellManager(cellManager)
-    , Committer(committer)
+    , DecoratedState(decoratedState)
     , FollowerTracker(followerTracker)
     , Epoch(epoch)
     , EpochControlInvoker(epochControlInvoker)
 {
     YASSERT(config);
     YASSERT(cellManager);
+    YASSERT(decoratedState);
     YASSERT(followerTracker);
     YASSERT(epochControlInvoker);
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
@@ -61,7 +63,7 @@ void TFollowerPinger::SendPing(TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     
-    auto version = Committer->GetFollowerPingVersion();
+    auto version = DecoratedState->GetPingVersion();
 
     LOG_DEBUG("Sending ping to follower %d (Version: %s, Epoch: %s)",
         followerId,

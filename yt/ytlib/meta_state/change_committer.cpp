@@ -145,10 +145,10 @@ private:
         }
         
         // This is the version the next batch will have.
-        Committer->FollowerPingVersion =
+        Committer->MetaState->SetPingVersion(
             rotateChangeLog
             ? TMetaVersion(StartVersion.SegmentId + 1, 0)
-            : TMetaVersion(StartVersion.SegmentId, StartVersion.RecordCount + BatchedChanges.size());
+            : TMetaVersion(StartVersion.SegmentId, StartVersion.RecordCount + BatchedChanges.size()));
     }
 
     bool CheckCommitQuorum()
@@ -226,13 +226,13 @@ private:
 TLeaderCommitter::TLeaderCommitter(
     TLeaderCommitterConfig* config,
     TCellManager* cellManager,
-    TDecoratedMetaState* metaState,
+    TDecoratedMetaState* decoratedState,
     TChangeLogCache* changeLogCache,
     TFollowerTracker* followerTracker,
     const TEpoch& epoch,
     IInvoker* epochControlInvoker,
     IInvoker* epochStateInvoker)
-    : TCommitter(metaState, epochControlInvoker, epochStateInvoker)
+    : TCommitter(decoratedState, epochControlInvoker, epochStateInvoker)
     , Config(config)
     , CellManager(cellManager)
     , ChangeLogCache(changeLogCache)
@@ -243,9 +243,6 @@ TLeaderCommitter::TLeaderCommitter(
     YASSERT(cellManager);
     YASSERT(changeLogCache);
     YASSERT(followerTracker);
-
-    // Save the reachable version and report it to followers during recovery.
-    FollowerPingVersion = MetaState->GetReachableVersionAsync();
 }
 
 void TLeaderCommitter::Start()
@@ -279,13 +276,6 @@ void TLeaderCommitter::Flush(bool rotateChangeLog)
     if (CurrentBatch) {
         FlushCurrentBatch(rotateChangeLog);
     }
-}
-
-TMetaVersion TLeaderCommitter::GetFollowerPingVersion() const
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return FollowerPingVersion;
 }
 
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
