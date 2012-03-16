@@ -303,10 +303,15 @@ TEST_F(TYsonReaderTest, Fragments)
     Fragmented = true;
 
     InSequence dummy;
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnInt64Scalar(1, false));
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnInt64Scalar(2, false));
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnInt64Scalar(3, false));
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnInt64Scalar(4, false));
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnInt64Scalar(5, false));
 
     Run();
@@ -318,10 +323,13 @@ TEST_F(TYsonReaderTest, FragmentsWithTrailingSemicolon)
     Fragmented = true;
 
     InSequence dummy;
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap(false));
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginList());
     EXPECT_CALL(Mock, OnEndList(false));
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnEntity(true));
     EXPECT_CALL(Mock, OnBeginAttributes());
     EXPECT_CALL(Mock, OnEndAttributes());
@@ -335,6 +343,7 @@ TEST_F(TYsonReaderTest, OneFragment)
     Fragmented = true;
 
     InSequence dummy;
+    EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnInt64Scalar(100500, false));
 
     Run();
