@@ -113,7 +113,7 @@ void SetCurrentThreadName(const char* name)
 TThreadId GetCurrentThreadId()
 {
     // TODO(babenko): add support for other platforms using some well-established TLS macros
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(__APPLE__)
     static __thread TThreadId CachedThreadId = InvalidThreadId;
     if (CachedThreadId == InvalidThreadId) {
         CachedThreadId = SystemCurrentThreadIdImpl();
