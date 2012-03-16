@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "profiling_manager.h"
+#include "timing.h"
 
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/actions/action_queue.h>
@@ -9,15 +10,10 @@
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
-
-#include <util/datetime/cputimer.h>
-
-// TODO(babenko): get rid of this dependency on NHPTimer
-#include <quality/Misc/HPTimer.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NProfiling  {
-
 
 using namespace NYTree;
 
@@ -46,7 +42,7 @@ public:
     typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
     TBucket()
-        : TYPathServiceBase("Profiling")
+        : TYPathServiceBase(NProfiling::Logger.GetCategory())
     { }
 
     //! Adds a new sample to the bucket inserting in at an appropriate position.
@@ -131,64 +127,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProfilingManager::TClockConverter
-{
-public:
-    TClockConverter()
-        : NextCalibrationClock(0)
-    { }
-
-    TInstant ToInstant(ui64 clock)
-    {
-        CalibrateIfNeeded();
-        // TDuration is unsigned and thus does not support negative values.
-        return
-            clock >= CalibrationClock
-            ? CalibrationInstant + ClockToDuration(clock - CalibrationClock)
-            : CalibrationInstant - ClockToDuration(CalibrationClock - clock);
-    }
-
-private:
-    static const TDuration CalibrationInterval;
-
-    // TODO(babenko): get rid of this dependency on NHPTimer
-    static TDuration ClockToDuration(i64 cycles)
-    {
-        return TDuration::Seconds((double) cycles / NHPTimer::GetClockRate());
-    }
-
-    void CalibrateIfNeeded()
-    {
-        auto nowClock = GetCycleCount();
-        if (nowClock > NextCalibrationClock) {
-            Calibrate();
-        }
-    }
-
-    void Calibrate()
-    {
-        auto nowClock = GetCycleCount();
-        auto nowInstant = TInstant::Now();
-        if (NextCalibrationClock != 0) {
-            auto expected = (CalibrationInstant + ClockToDuration(nowClock - CalibrationClock)).MicroSeconds();
-            auto actual = nowInstant.MicroSeconds();
-            LOG_INFO("Clock recalibrated (Diff: %" PRId64 ")", expected - actual);
-        }
-        CalibrationClock = nowClock;
-        CalibrationInstant = nowInstant;
-        NextCalibrationClock = nowClock + DurationToCycles(CalibrationInterval);
-    }
-
-    TInstant CalibrationInstant;
-    ui64 CalibrationClock;
-    ui64 NextCalibrationClock;
-
-};
-
-const TDuration TProfilingManager::TClockConverter::CalibrationInterval = TDuration::Seconds(3);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TProfilingManager::TImpl
     : public TActionQueueBase
 {
@@ -240,7 +178,6 @@ private:
     TLockFreeQueue<TQueuedSample> SampleQueue;
     yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
     TIdGenerator<i64> IdGenerator;
-    TClockConverter ClockConverter;
 
     static const TDuration MaxKeepInterval;
 
@@ -303,7 +240,7 @@ private:
 
         TStoredSample storedSample;
         storedSample.Id = IdGenerator.Next();
-        storedSample.Time = ClockConverter.ToInstant(queuedSample.Time);
+        storedSample.Time = CpuInstantToInstant(queuedSample.Time);
         storedSample.Value = queuedSample.Value;
 
         bucket->AddSample(storedSample);
