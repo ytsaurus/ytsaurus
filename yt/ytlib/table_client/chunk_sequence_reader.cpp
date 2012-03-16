@@ -32,10 +32,11 @@ TChunkSequenceReader::TChunkSequenceReader(
 void TChunkSequenceReader::PrepareNextChunk()
 {
     YASSERT(!NextReader->IsSet());
-    YASSERT(NextChunkIndex < ChunkSlices.size());
+    int chunkSlicesSize = static_cast<int>(ChunkSlices.size();
+    YASSERT(NextChunkIndex < chunkSlicesSize));
 
     ++NextChunkIndex;
-    if (NextChunkIndex == ChunkSlices.size()) {
+    if (NextChunkIndex == chunkSlicesSize) {
         NextReader->Set(NULL);
         return;
     }
