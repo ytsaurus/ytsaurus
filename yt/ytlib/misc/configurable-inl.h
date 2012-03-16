@@ -17,6 +17,7 @@
 #include <util/datetime/base.h>
 
 // Avoid circular references.
+// TODO(babenko): shoudn't this be in public.h?
 namespace NYT {
 namespace NYTree {
     TYPath CombineYPaths(
