@@ -30,7 +30,7 @@ TChunkReplication::TChunkReplication(
     : Config(config)
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
-    , ChunkRefreshDelayCycles(DurationToCycles(config->ChunkRefreshDelay))
+    , ChunkRefreshDelay(DurationToCycles(config->ChunkRefreshDelay))
 {
     YASSERT(config);
     YASSERT(bootstrap);
@@ -593,7 +593,7 @@ void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
 
     TRefreshEntry entry;
     entry.ChunkId = chunkId;
-    entry.When = GetCpuInstant() + ChunkRefreshDelayCycles;
+    entry.When = GetCpuInstant() + ChunkRefreshDelay;
     RefreshList.push_back(entry);
     RefreshSet.insert(chunkId);
 }

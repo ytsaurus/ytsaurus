@@ -49,7 +49,7 @@ private:
     TConfig::TPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
     TChunkPlacement::TPtr ChunkPlacement;
-    i64 ChunkRefreshDelayCycles;
+    NProfiling::TCpuDuration ChunkRefreshDelay;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
