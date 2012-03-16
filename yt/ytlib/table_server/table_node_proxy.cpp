@@ -185,8 +185,11 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& chunkId, chunkIds) {
         auto* chunkInfo = response->add_chunks();
+        auto* slice = chunkInfo->mutable_slice();
 
-        chunkInfo->mutable_slice()->set_chunk_id(chunkId.ToProto());
+        slice->set_chunk_id(chunkId.ToProto());
+        slice->mutable_start_limit();
+        slice->mutable_end_limit();
 
         const auto& chunk = chunkManager->GetChunk(chunkId);
         if (chunk.IsConfirmed()) {
