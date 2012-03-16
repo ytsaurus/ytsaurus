@@ -347,6 +347,11 @@ public:
         return HolderLeaseTracking->IsHolderConfirmed(holder);
     }
 
+    int GetChunkReplicaCount()
+    {
+        return ChunkReplicaCount;
+    }
+
 private:
     typedef TImpl TThis;
     friend class TChunkTypeHandler;
@@ -1631,6 +1636,11 @@ TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics()
 bool TChunkManager::IsHolderConfirmed(const THolder& holder)
 {
     return Impl->IsHolderConfirmed(holder);
+}
+
+int TChunkManager::GetChunkReplicaCount()
+{
+    return Impl->GetChunkReplicaCount();
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
