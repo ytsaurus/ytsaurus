@@ -147,7 +147,7 @@ void TTableNodeProxy::ParseYPath(
     }
 
     auto currentPath = path;
-
+        
     // Parse channel.
     auto channelBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     channelBuilder->BeginTree();
@@ -185,7 +185,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& chunkId, chunkIds) {
         auto* chunkInfo = response->add_chunks();
-        chunkInfo->set_chunk_id(chunkId.ToProto());
+
+        chunkInfo->mutable_slice()->set_chunk_id(chunkId.ToProto());
 
         const auto& chunk = chunkManager->GetChunk(chunkId);
         if (chunk.IsConfirmed()) {

@@ -41,7 +41,7 @@ public:
         const NObjectServer::TTransactionId& transactionId,
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache,
-        std::vector<NProto::TChunkSlice>& chunkSlices);
+        const std::vector<NProto::TFetchedChunk>& fetchedChunks);
 
     TAsyncError::TPtr AsyncOpen();
 
@@ -59,12 +59,11 @@ private:
     void SetCurrentChunk(TChunkReader::TPtr nextReader);
     void OnNextRow(TError error);
 
-
     TConfig::TPtr Config;
     TChannel Channel;
     NChunkClient::IBlockCache::TPtr BlockCache;
     NObjectServer::TTransactionId TransactionId;
-    std::vector<NProto::TChunkSlice> ChunkSlices;
+    std::vector<NProto::TFetchedChunk> FetchedChunks;
 
     NRpc::IChannel::TPtr MasterChannel;
 

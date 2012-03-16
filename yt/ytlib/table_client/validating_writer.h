@@ -1,4 +1,5 @@
 ﻿#pragma once
+
 #include "common.h"
 #include "async_writer.h"
 
