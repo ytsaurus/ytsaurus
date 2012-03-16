@@ -124,10 +124,7 @@ void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
     auto path = CombineYPaths(timer.Path, pathSuffix);
     switch (timer.Mode) {
         case ETimerMode::Sequential: {
-            auto lastCheckpoint =
-                timer.LastCheckpoint == 0
-                ? timer.Start
-                : timer.LastCheckpoint;
+            auto lastCheckpoint = timer.LastCheckpoint == 0 ? timer.Start : timer.LastCheckpoint;
             auto duration = CpuDurationToValue(now - lastCheckpoint);
             YASSERT(duration >= 0);
             Enqueue(path, duration);
