@@ -38,7 +38,6 @@ class THolderLeaseTracker
 {
 public:
     typedef TIntrusivePtr<THolderLeaseTracker> TPtr;
-    typedef TChunkManagerConfig TConfig;
 
     //! Initializes an instance.
     /*!
@@ -47,7 +46,7 @@ public:
      *  \param invoker An invoker used for lease expiration callbacks.
      */
     THolderLeaseTracker(
-        TConfig* config,
+        TChunkManagerConfig::TPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
     //! Registers the holder and assigns it an initial lease.
@@ -73,24 +72,21 @@ public:
 private:
     struct THolderInfo
     {
-        THolderInfo(bool confirmed)
-            : Confirmed(confirmed)
-        { }
-
         TLeaseManager::TLease Lease;
         bool Confirmed;
     };
 
     typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
      
-    TConfig::TPtr Config;
+    TChunkManagerConfig::TPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     THolderInfoMap HolderInfoMap;
 
     THolderInfo* FindHolderInfo(THolderId holderId);
     THolderInfo& GetHolderInfo(THolderId holderId);
-    void RecreateLease(const THolder& holder);
+    void RenewLease(const THolder& holder, const THolderInfo& holderInfo);
+    TDuration GetTimeout(const THolder& holder, const THolderInfo& holderInfo);
 
     void OnExpired(THolderId holderId);
 
