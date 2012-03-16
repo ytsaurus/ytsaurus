@@ -5,6 +5,7 @@
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/profiling/public.h>
 
 #include <util/generic/deque.h>
 
@@ -55,7 +56,7 @@ private:
     struct TRefreshEntry
     {
         TChunkId ChunkId;
-        ui64 When;
+        NProfiling::TCpuInstant When;
     };
 
     yhash_set<TChunkId> RefreshSet;

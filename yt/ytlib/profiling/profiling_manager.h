@@ -9,7 +9,8 @@ namespace NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents a sample that is enqueued to a bucket.
+//! Represents a sample that was enqueued to the profiler but did not
+//! reach the storage yet.
 struct TQueuedSample
 {
     TQueuedSample()
@@ -17,7 +18,7 @@ struct TQueuedSample
         , Value(-1)
     { }
 
-    ui64 Time;
+    TCpuInstant Time;
     NYTree::TYPath Path;
     TValue Value;
 };
@@ -28,12 +29,13 @@ struct TQueuedSample
 /*!
  *  This class is a singleton, call #Get to obtain an instance.
  *  
- *  Processing happens in the background thread that maintains
+ *  Processing happens in a background thread that maintains
  *  a queue of all incoming (queued) samples and distributes them into buckets.
  *  
  *  This thread also provides a invoker for executing various callbacks.
  */
 class TProfilingManager
+    : private TNonCopyable
 {
 public:
     TProfilingManager();
@@ -42,6 +44,9 @@ public:
     static TProfilingManager* Get();
 
     //! Starts profiling.
+    /*!
+     *  No samples are collected before this method is called.
+     */
     void Start();
 
     //! Shuts down the profiling system.
@@ -51,17 +56,16 @@ public:
     void Shutdown();
 
     //! Enqueues a new sample for processing.
-    void Enqueue(const TQueuedSample& sample);
+    void Enqueue(const TQueuedSample& sample, bool selfProfiling);
 
     //! Returns the invoker associated with the profiler thread.
-    IInvoker* GetInvoker() const;
+    IInvoker::TPtr GetInvoker() const;
 
     //! Returns the root of the YTree with the buckets.
     /*!
-     *  \note
      *  The latter must only be accessed from the invoker returned by #GetInvoker.
      */
-    NYTree::IMapNode* GetRoot() const;
+    NYTree::IMapNodePtr GetRoot() const;
 
 private:
     class TClockConverter;

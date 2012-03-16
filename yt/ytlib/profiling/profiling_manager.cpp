@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "profiling_manager.h"
+#include "timing.h"
 
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/actions/action_queue.h>
@@ -9,21 +10,17 @@
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
-
-#include <util/datetime/cputimer.h>
-
-// TODO(babenko): get rid of this dependency on NHPTimer
-#include <quality/Misc/HPTimer.h>
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NProfiling  {
-
 
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Profiling");
+static TProfiler Profiler("self", true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +43,7 @@ public:
     typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
     TBucket()
-        : TYPathServiceBase("Profiling")
+        : TYPathServiceBase(NProfiling::Logger.GetCategory())
     { }
 
     //! Adds a new sample to the bucket inserting in at an appropriate position.
@@ -131,64 +128,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProfilingManager::TClockConverter
-{
-public:
-    TClockConverter()
-        : NextCalibrationClock(0)
-    { }
-
-    TInstant ToInstant(ui64 clock)
-    {
-        CalibrateIfNeeded();
-        // TDuration is unsigned and thus does not support negative values.
-        return
-            clock >= CalibrationClock
-            ? CalibrationInstant + ClockToDuration(clock - CalibrationClock)
-            : CalibrationInstant - ClockToDuration(CalibrationClock - clock);
-    }
-
-private:
-    static const TDuration CalibrationInterval;
-
-    // TODO(babenko): get rid of this dependency on NHPTimer
-    static TDuration ClockToDuration(i64 cycles)
-    {
-        return TDuration::Seconds((double) cycles / NHPTimer::GetClockRate());
-    }
-
-    void CalibrateIfNeeded()
-    {
-        auto nowClock = GetCycleCount();
-        if (nowClock > NextCalibrationClock) {
-            Calibrate();
-        }
-    }
-
-    void Calibrate()
-    {
-        auto nowClock = GetCycleCount();
-        auto nowInstant = TInstant::Now();
-        if (NextCalibrationClock != 0) {
-            auto expected = (CalibrationInstant + ClockToDuration(nowClock - CalibrationClock)).MicroSeconds();
-            auto actual = nowInstant.MicroSeconds();
-            LOG_DEBUG("Clock recalibrated (Diff: %" PRId64 ")", expected - actual);
-        }
-        CalibrationClock = nowClock;
-        CalibrationInstant = nowInstant;
-        NextCalibrationClock = nowClock + DurationToCycles(CalibrationInterval);
-    }
-
-    TInstant CalibrationInstant;
-    ui64 CalibrationClock;
-    ui64 NextCalibrationClock;
-
-};
-
-const TDuration TProfilingManager::TClockConverter::CalibrationInterval = TDuration::Seconds(3);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TProfilingManager::TImpl
     : public TActionQueueBase
 {
@@ -197,6 +136,8 @@ public:
         : TActionQueueBase("Profiling", true)
         , Invoker(New<TQueueInvoker>("Profiling", this, true))
         , Root(GetEphemeralNodeFactory()->CreateMap())
+        , EnqueueCounter("enqueue_rate")
+        , DequeueCounter("dequeue_rate")
     { }
 
     ~TImpl()
@@ -215,32 +156,38 @@ public:
         TActionQueueBase::Shutdown();
     }
 
-    void Enqueue(const TQueuedSample& sample)
+    void Enqueue(const TQueuedSample& sample, bool selfProfiling)
     {
         if (!IsRunning())
             return;
+
+        if (!selfProfiling) {
+            Profiler.Increment(EnqueueCounter);
+        }
 
         SampleQueue.Enqueue(sample);
         Signal();
     }
 
-    IInvoker* GetInvoker() const
+    IInvoker::TPtr GetInvoker() const
     {
-        return ~Invoker; 
+        return Invoker; 
     }
 
-    IMapNode* GetRoot() const
+    IMapNodePtr GetRoot() const
     {
-        return ~Root;
+        return Root;
     }
 
 private:
     TQueueInvokerPtr Invoker;
     IMapNodePtr Root;
+    TRateCounter EnqueueCounter;
+    TRateCounter DequeueCounter;
+
     TLockFreeQueue<TQueuedSample> SampleQueue;
     yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
     TIdGenerator<i64> IdGenerator;
-    TClockConverter ClockConverter;
 
     static const TDuration MaxKeepInterval;
 
@@ -252,14 +199,16 @@ private:
         }
 
         // Process all pending samples in a row.
-        bool samplesProcessed = false;
+        int samplesProcessed = 0;
         TQueuedSample sample;
         while (SampleQueue.Dequeue(&sample)) {
             ProcessSample(sample);
             samplesProcessed = true;
         }
 
-        return samplesProcessed;
+        Profiler.Increment(DequeueCounter, samplesProcessed);
+
+        return samplesProcessed > 0;
     }
 
     TBucketPtr LookupBucket(const TYPath& path)
@@ -303,7 +252,7 @@ private:
 
         TStoredSample storedSample;
         storedSample.Id = IdGenerator.Next();
-        storedSample.Time = ClockConverter.ToInstant(queuedSample.Time);
+        storedSample.Time = CpuInstantToInstant(queuedSample.Time);
         storedSample.Value = queuedSample.Value;
 
         bucket->AddSample(storedSample);
@@ -312,7 +261,7 @@ private:
 
 };
 
-// TODO(babenko): make configurable?
+// TODO(babenko): make configurable
 const TDuration TProfilingManager::TImpl::MaxKeepInterval = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -336,17 +285,17 @@ void TProfilingManager::Shutdown()
     Impl->Shutdown();
 }
 
-void TProfilingManager::Enqueue(const TQueuedSample& sample)
+void TProfilingManager::Enqueue(const TQueuedSample& sample, bool selfProfiling)
 {
-    Impl->Enqueue(sample);
+    Impl->Enqueue(sample, selfProfiling);
 }
 
-IInvoker* TProfilingManager::GetInvoker() const
+IInvoker::TPtr TProfilingManager::GetInvoker() const
 {
     return Impl->GetInvoker();
 }
 
-NYTree::IMapNode* TProfilingManager::GetRoot() const
+NYTree::IMapNodePtr TProfilingManager::GetRoot() const
 {
     return Impl->GetRoot();
 }
