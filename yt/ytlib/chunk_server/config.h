@@ -14,6 +14,7 @@ struct TChunkManagerConfig
 
     TDuration OnlineHolderTimeout;
     TDuration RegisteredHolderTimeout;
+    TDuration UnconfirmedHolderTimeout;
     TDuration HolderExpirationBackoffTime;
     int MaxReplicationFanOut;
     int MaxReplicationFanIn;
@@ -34,6 +35,8 @@ struct TChunkManagerConfig
             .Default(TDuration::Seconds(10));
         Register("registered_holder_timeout", RegisteredHolderTimeout)
             .Default(TDuration::Seconds(60));
+        Register("unconfirmed_holder_timeout", UnconfirmedHolderTimeout)
+            .Default(TDuration::Seconds(30));
         Register("holder_expiration_backoff_time", HolderExpirationBackoffTime)
             .Default(TDuration::Seconds(5));
         Register("max_replication_fan_out", MaxReplicationFanOut)

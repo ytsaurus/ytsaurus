@@ -51,15 +51,6 @@ void TTableReader::Open()
             ~fetchRsp->GetError().ToString());
     }
 
-    std::vector<NProto::TChunkSlice> chunkSlices;
-    chunkSlices.reserve(fetchRsp->chunks_size());
-
-    FOREACH (const auto& chunkInfo, fetchRsp->chunks()) {
-        chunkSlices.push_back();
-        auto& slice = chunkSlices.back();
-        slice.set_chunk_id(chunkInfo.chunk_id());
-    }
-
     auto channel = TChannel::FromProto(fetchRsp->channel());
 
     Reader = New<TChunkSequenceReader>(
@@ -68,7 +59,7 @@ void TTableReader::Open()
         TransactionId,
         ~MasterChannel,
         ~BlockCache,
-        chunkSlices);
+        FromProto<NProto::TFetchedChunk>(fetchRsp->chunks()));
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {

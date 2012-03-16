@@ -20,7 +20,7 @@ class TLeaseManager::TImpl
 public:
     typedef TLeaseManager::TLease TLease;
 
-    static TLease CreateLease(TDuration timeout, IAction* onExpired)
+    static TLease CreateLease(TDuration timeout, IAction::TPtr onExpired)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(onExpired);
@@ -32,7 +32,7 @@ public:
         return lease;
     }
 
-    static bool RenewLease(TLease lease)
+    static bool RenewLease(TLease lease, TNullable<TDuration> timeout)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YASSERT(lease);
@@ -42,6 +42,9 @@ public:
             return false;
 
         TDelayedInvoker::Cancel(lease->Cookie);
+        if (timeout) {
+            lease->Timeout = timeout.Get();
+        }
         lease->Cookie = TDelayedInvoker::Submit(
             ~FromMethod(&TImpl::OnLeaseExpired, lease),
             lease->Timeout);
@@ -87,14 +90,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLeaseManager::TLease TLeaseManager::CreateLease(TDuration timeout, IAction* onExpired)
+TLeaseManager::TLease TLeaseManager::CreateLease(TDuration timeout, IAction::TPtr onExpired)
 {
     return TImpl::CreateLease(timeout, onExpired);
 }
 
-bool TLeaseManager::RenewLease(TLease lease)
+bool TLeaseManager::RenewLease(TLease lease, TNullable<TDuration> timeout)
 {
-    return TImpl::RenewLease(lease);
+    return TImpl::RenewLease(lease, timeout);
 }
 
 bool TLeaseManager::CloseLease(TLease lease)

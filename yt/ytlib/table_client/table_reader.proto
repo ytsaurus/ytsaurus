@@ -17,4 +17,11 @@ message TChunkSlice
     required TReadLimit end_limit = 3;
 }
 
+message TFetchedChunk
+{
+    required TChunkSlice slice = 1;
+    repeated string holder_addresses = 2;
+    optional bytes attributes = 3;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

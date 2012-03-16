@@ -104,6 +104,9 @@ public:
 
     bool IsHolderConfirmed(const THolder& holder);
 
+    //! Returns the total number of all chunk replicas.
+    int GetChunkReplicaCount();
+
 private:
     class TImpl;
     class TChunkTypeHandler;

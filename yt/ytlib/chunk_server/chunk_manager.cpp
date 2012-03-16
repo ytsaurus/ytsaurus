@@ -347,6 +347,11 @@ public:
         return HolderLeaseTracking->IsHolderConfirmed(holder);
     }
 
+    int GetChunkReplicaCount()
+    {
+        return ChunkReplicaCount;
+    }
+
 private:
     typedef TImpl TThis;
     friend class TChunkTypeHandler;
@@ -770,16 +775,16 @@ private:
 
         HolderLeaseTracking = New<THolderLeaseTracker>(~Config, Bootstrap);
 
-        // Assign initial leases to holders.
-        // NB: Holders should remain unconfirmed until the first heartbeat.
-        FOREACH (const auto& pair, HolderMap) {
-            StartHolderTracking(*pair.second, false);
-        }
-
         PROFILE_TIMING ("full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
             ChunkReplication->RefreshAllChunks();
             LOG_INFO("Full chunk refresh completed");
+        }
+
+        // Assign initial leases to holders.
+        // NB: Holders should remain unconfirmed until the first heartbeat.
+        FOREACH (const auto& pair, HolderMap) { 
+            StartHolderTracking(*pair.second, false);
         }
     }
 
@@ -1631,6 +1636,11 @@ TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics()
 bool TChunkManager::IsHolderConfirmed(const THolder& holder)
 {
     return Impl->IsHolderConfirmed(holder);
+}
+
+int TChunkManager::GetChunkReplicaCount()
+{
+    return Impl->GetChunkReplicaCount();
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
