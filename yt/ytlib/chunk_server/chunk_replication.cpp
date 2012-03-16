@@ -7,14 +7,14 @@
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
 #include <ytlib/profiling/profiler.h>
-
-#include <util/datetime/cputimer.h>
+#include <ytlib/profiling/timing.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NCellMaster;
 using namespace NProto;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -593,7 +593,7 @@ void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
 
     TRefreshEntry entry;
     entry.ChunkId = chunkId;
-    entry.When = GetCycleCount() + ChunkRefreshDelayCycles;
+    entry.When = GetCpuInstant() + ChunkRefreshDelayCycles;
     RefreshList.push_back(entry);
     RefreshSet.insert(chunkId);
 }
@@ -625,7 +625,7 @@ void TChunkReplication::OnRefresh()
 
     PROFILE_TIMING ("chunk_refresh_time") {
         auto chunkManager = Bootstrap->GetChunkManager();
-        auto now = GetCycleCount();
+        auto now = GetCpuInstant();
         for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
             if (RefreshList.empty())
                 break;
