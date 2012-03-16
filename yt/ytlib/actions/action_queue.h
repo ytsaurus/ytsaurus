@@ -32,7 +32,7 @@ public:
 private:
     struct TItem
     {
-        NProfiling::TTimer Timer;
+        NProfiling::TCpuInstant StartInstant;
         IAction::TPtr Action;
     };
 
@@ -40,8 +40,15 @@ private:
     bool EnableLogging;
     NProfiling::TProfiler Profiler;
 
-    TLockFreeQueue<TItem> Queue;
+    NProfiling::TRateCounter EnqueueCounter;
+    NProfiling::TRateCounter DequeueCounter;
     TAtomic QueueSize;
+    NProfiling::TAggregateCounter QueueSizeCounter;
+    NProfiling::TAggregateCounter WaitTimeCounter;
+    NProfiling::TAggregateCounter ExecTimeCounter;
+    NProfiling::TAggregateCounter TotalTimeCounter;
+
+    TLockFreeQueue<TItem> Queue;
 };
 
 typedef TIntrusivePtr<TQueueInvoker> TQueueInvokerPtr;

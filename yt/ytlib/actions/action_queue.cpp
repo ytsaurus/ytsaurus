@@ -5,10 +5,12 @@
 #include <ytlib/misc/common.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/actions/action_util.h>
+#include <ytlib/profiling/timing.h>
 
 namespace NYT {
 
 using namespace NYTree;
+using namespace NProfiling;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +25,13 @@ TQueueInvoker::TQueueInvoker(
     : Owner(owner)
     , EnableLogging(enableLogging)
     , Profiler(CombineYPaths("action_queues", name))
+    , EnqueueCounter("enqueue_rate")
+    , DequeueCounter("dequeue_rate")
     , QueueSize(0)
+    , QueueSizeCounter("size")
+    , WaitTimeCounter("time/wait")
+    , ExecTimeCounter("time/exec")
+    , TotalTimeCounter("time/total")
 { }
 
 void TQueueInvoker::Invoke(IAction::TPtr action)
@@ -33,15 +41,15 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
         return;
     }
 
+    AtomicIncrement(QueueSize);
+    Profiler.Increment(EnqueueCounter);
+
     TItem item;
-    item.Timer = Profiler.TimingStart("time");
+    item.StartInstant = GetCpuInstant();
     item.Action = action;
     Queue.Enqueue(item);
 
     LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
-
-    auto size = AtomicIncrement(QueueSize);
-    Profiler.Enqueue("size", size);
 
     Owner->Signal();
 }
@@ -56,20 +64,24 @@ bool TQueueInvoker::DequeueAndExecute()
     TItem item;
     if (!Queue.Dequeue(&item))
         return false;
-    
-    Profiler.TimingCheckpoint(item.Timer, "wait");
+
+    Profiler.Increment(DequeueCounter);
+
+    auto startExecInstant = GetCpuInstant();
+    Profiler.Aggregate(WaitTimeCounter, CpuDurationToValue(startExecInstant - item.StartInstant));
 
     auto size = AtomicDecrement(QueueSize);
-    Profiler.Enqueue("size", size);
+    Profiler.Aggregate(QueueSizeCounter, size);
 
     auto action = item.Action;
     LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", ~action);
     action->Do();
     LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", ~action);
-    Profiler.TimingCheckpoint(item.Timer, "exec");
 
-    Profiler.TimingStop(item.Timer);
-
+    auto endExecInstant = GetCpuInstant();
+    Profiler.Aggregate(ExecTimeCounter, CpuDurationToValue(endExecInstant - startExecInstant));
+    Profiler.Aggregate(TotalTimeCounter, CpuDurationToValue(endExecInstant - item.StartInstant));
+        
     return true;
 }
 
@@ -235,7 +247,7 @@ private:
         { }
 
         TQueueInvokerPtr Invoker;
-        i64 ExcessTime;
+        TCpuDuration ExcessTime;
     };
 
     std::vector<TQueue> Queues;
@@ -269,9 +281,9 @@ private:
 
         // Pump the min queue and update its excess.
         auto& minQueue = Queues[minQueueIndex];
-        ui64 startTime = GetCycleCount();
+        auto startTime = GetCpuInstant();
         YVERIFY(minQueue.Invoker->DequeueAndExecute());
-        ui64 endTime = GetCycleCount();
+        auto endTime = GetCpuInstant();
         minQueue.ExcessTime += (endTime - startTime);
 
         return true;
