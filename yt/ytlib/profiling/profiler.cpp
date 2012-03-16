@@ -63,8 +63,9 @@ void TAggregateCounter::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProfiler::TProfiler(const TYPath& pathPrefix)
+TProfiler::TProfiler(const TYPath& pathPrefix, bool selfProfiling)
     : PathPrefix(pathPrefix)
+    , SelfProfiling(selfProfiling)
 { }
 
 void TProfiler::Enqueue(const TYPath& path, TValue value)
@@ -73,7 +74,7 @@ void TProfiler::Enqueue(const TYPath& path, TValue value)
     sample.Time = GetCpuInstant();
     sample.Path = CombineYPaths(PathPrefix, path);
     sample.Value = value;
-    TProfilingManager::Get()->Enqueue(sample);
+    TProfilingManager::Get()->Enqueue(sample, SelfProfiling);
 }
 
 TTimer TProfiler::TimingStart(const TYPath& path, ETimerMode mode)

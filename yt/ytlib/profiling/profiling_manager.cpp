@@ -20,6 +20,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Profiling");
+static TProfiler Profiler("self", true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,6 +136,8 @@ public:
         : TActionQueueBase("Profiling", true)
         , Invoker(New<TQueueInvoker>("Profiling", this, true))
         , Root(GetEphemeralNodeFactory()->CreateMap())
+        , EnqueueCounter("enqueue_rate")
+        , DequeueCounter("dequeue_rate")
     { }
 
     ~TImpl()
@@ -153,28 +156,35 @@ public:
         TActionQueueBase::Shutdown();
     }
 
-    void Enqueue(const TQueuedSample& sample)
+    void Enqueue(const TQueuedSample& sample, bool selfProfiling)
     {
         if (!IsRunning())
             return;
+
+        if (!selfProfiling) {
+            Profiler.Increment(EnqueueCounter);
+        }
 
         SampleQueue.Enqueue(sample);
         Signal();
     }
 
-    IInvoker* GetInvoker() const
+    IInvoker::TPtr GetInvoker() const
     {
-        return ~Invoker; 
+        return Invoker; 
     }
 
-    IMapNode* GetRoot() const
+    IMapNodePtr GetRoot() const
     {
-        return ~Root;
+        return Root;
     }
 
 private:
     TQueueInvokerPtr Invoker;
     IMapNodePtr Root;
+    TRateCounter EnqueueCounter;
+    TRateCounter DequeueCounter;
+
     TLockFreeQueue<TQueuedSample> SampleQueue;
     yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
     TIdGenerator<i64> IdGenerator;
@@ -189,14 +199,16 @@ private:
         }
 
         // Process all pending samples in a row.
-        bool samplesProcessed = false;
+        int samplesProcessed = 0;
         TQueuedSample sample;
         while (SampleQueue.Dequeue(&sample)) {
             ProcessSample(sample);
             samplesProcessed = true;
         }
 
-        return samplesProcessed;
+        Profiler.Increment(DequeueCounter, samplesProcessed);
+
+        return samplesProcessed > 0;
     }
 
     TBucketPtr LookupBucket(const TYPath& path)
@@ -249,7 +261,7 @@ private:
 
 };
 
-// TODO(babenko): make configurable?
+// TODO(babenko): make configurable
 const TDuration TProfilingManager::TImpl::MaxKeepInterval = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -273,17 +285,17 @@ void TProfilingManager::Shutdown()
     Impl->Shutdown();
 }
 
-void TProfilingManager::Enqueue(const TQueuedSample& sample)
+void TProfilingManager::Enqueue(const TQueuedSample& sample, bool selfProfiling)
 {
-    Impl->Enqueue(sample);
+    Impl->Enqueue(sample, selfProfiling);
 }
 
-IInvoker* TProfilingManager::GetInvoker() const
+IInvoker::TPtr TProfilingManager::GetInvoker() const
 {
     return Impl->GetInvoker();
 }
 
-NYTree::IMapNode* TProfilingManager::GetRoot() const
+NYTree::IMapNodePtr TProfilingManager::GetRoot() const
 {
     return Impl->GetRoot();
 }

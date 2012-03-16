@@ -144,7 +144,9 @@ class TProfiler
 {
 public:
     //! Constructs a new profiler for a given prefix.
-    explicit TProfiler(const NYTree::TYPath& pathPrefix);
+    TProfiler(
+        const NYTree::TYPath& pathPrefix,
+        bool selfProfiling = false);
 
     //! Enqueues a new sample.
     void Enqueue(const NYTree::TYPath& path, TValue value);
@@ -177,6 +179,7 @@ public:
 
 private:
     NYTree::TYPath PathPrefix;
+    bool SelfProfiling;
 
 };
 

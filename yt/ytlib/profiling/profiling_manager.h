@@ -35,6 +35,7 @@ struct TQueuedSample
  *  This thread also provides a invoker for executing various callbacks.
  */
 class TProfilingManager
+    : private TNonCopyable
 {
 public:
     TProfilingManager();
@@ -55,16 +56,16 @@ public:
     void Shutdown();
 
     //! Enqueues a new sample for processing.
-    void Enqueue(const TQueuedSample& sample);
+    void Enqueue(const TQueuedSample& sample, bool selfProfiling);
 
     //! Returns the invoker associated with the profiler thread.
-    IInvoker* GetInvoker() const;
+    IInvoker::TPtr GetInvoker() const;
 
     //! Returns the root of the YTree with the buckets.
     /*!
      *  The latter must only be accessed from the invoker returned by #GetInvoker.
      */
-    NYTree::IMapNode* GetRoot() const;
+    NYTree::IMapNodePtr GetRoot() const;
 
 private:
     class TClockConverter;
