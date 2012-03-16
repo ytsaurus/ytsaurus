@@ -21,8 +21,8 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 TLocation::TLocation(
     ELocationType type,
-    TLocationConfig* config,
-    TReaderCache* readerCache,
+    TLocationConfigPtr config,
+    TReaderCachePtr readerCache,
     const Stroka& threadName)
     : Type(type)
     , Config(config)
@@ -207,7 +207,7 @@ yvector<TChunkDescriptor> TLocation::Scan()
     return result;
 }
 
-void TLocation::RemoveChunk(TChunk* chunk)
+void TLocation::RemoveChunk(TChunkPtr chunk)
 {
     auto id = chunk->GetId();
     Stroka fileName = chunk->GetFileName();

@@ -8,16 +8,11 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap;
-
 struct TLocationConfig;
 typedef TIntrusivePtr<TLocationConfig> TLocationConfigPtr;
 
 struct TChunkHolderConfig;
 typedef TIntrusivePtr<TChunkHolderConfig> TChunkHolderConfigPtr;
-
-struct TMasterConnectorConfig;
-typedef TIntrusivePtr<TMasterConnectorConfig> TMasterConnectorConfigPtr;
 
 class TMasterConnector;
 typedef TIntrusivePtr<TMasterConnector> TMasterConnectorPtr;

@@ -7,6 +7,10 @@ include_directories(
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
   ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
+  ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_holder
+  ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_server
+  ${CMAKE_BINARY_DIR}/yt/ytlib/object_server
+  ${CMAKE_BINARY_DIR}/yt/ytlib/table_client
 )
 
 if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
@@ -42,6 +46,7 @@ set( SRCS
   configurable_ut.cpp
   bus_ut.cpp
   serialize_ut.cpp
+  schema_ut.cpp
   rpc_ut.cpp
   ypath_ut.cpp
   combine_ypaths_ut.cpp
@@ -49,6 +54,7 @@ set( SRCS
   weak_ptr_ut.cpp
   callback_ut.cpp
   bind_ut.cpp
+  table_client_ut.cpp
 )
 
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )

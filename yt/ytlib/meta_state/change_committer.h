@@ -74,16 +74,6 @@ public:
      */
     void Stop();
 
-    //! Returns the version to be sent to followers in a ping.
-    /*!
-     *  During recovery this is equal to the reachable version.
-     *  After recovery this is equal to the version resulting from applying all
-     *  changes in the latest batch.
-     *  
-     *  \note Thread affinity: ControlThread
-     */
-    TMetaVersion GetFollowerPingVersion() const;
-
     //! Initiates a new distributed commit.
     /*!
      *  \param changeAction An action that will be called in the context of
@@ -130,8 +120,6 @@ private:
     TChangeLogCachePtr ChangeLogCache;
     TFollowerTrackerPtr FollowerTracker;
     TEpoch Epoch;
-
-    TMetaVersion FollowerPingVersion;
 
     //! Protects the rest.
     TSpinLock BatchSpinLock;

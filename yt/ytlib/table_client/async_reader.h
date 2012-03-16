@@ -12,6 +12,8 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef std::vector< std::pair<TColumn, TValue> > TRow;
+
 //! Before using reader client must call #AsyncOpen and ensure that returned 
 //! future is set with OK error code.
 //! Method #AsyncNextRow switches reader to next row (and should be called 
@@ -27,14 +29,10 @@ struct IAsyncReader
 
     virtual TAsyncError::TPtr AsyncOpen() = 0;
 
-    virtual bool HasNextRow() const = 0;
     virtual TAsyncError::TPtr AsyncNextRow() = 0;
+    virtual bool IsValid() const = 0;
 
-    virtual bool NextColumn() = 0;
-    virtual TValue GetValue() const = 0;
-    virtual TColumn GetColumn() const = 0;
-
-    virtual void Cancel(const TError& error) = 0;
+    virtual const TRow& GetCurrentRow() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,10 +6,10 @@
 #include "reader_cache.h"
 #include "chunk_store.h"
 #include "reader_cache.h"
-#include "bootstrap.h"
 #include "chunk_holder_service_proxy.h"
 
 #include <ytlib/misc/foreach.h>
+#include <ytlib/cell_node/bootstrap.h>
 
 #include <utility>
 #include <limits>
@@ -18,6 +18,7 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NCellNode;
 using namespace NChunkClient;
 using namespace NRpc;
 
@@ -27,7 +28,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStore::TChunkStore(TChunkHolderConfig* config, TBootstrap* bootstrap)
+TChunkStore::TChunkStore(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
 { }
@@ -37,8 +38,8 @@ void TChunkStore::Start()
     LOG_INFO("Chunk store scan started");
 
     try {
-        for (int i = 0; i < Config->ChunkStoreLocations.ysize(); ++i) {
-            auto& locationConfig = Config->ChunkStoreLocations[i];
+        for (int i = 0; i < Config->StoreLocations.ysize(); ++i) {
+            auto& locationConfig = Config->StoreLocations[i];
 
             auto location = New<TLocation>(
                 ELocationType::Store,
@@ -59,7 +60,7 @@ void TChunkStore::Start()
     LOG_INFO("Chunk store scan completed, %d chunks found", ChunkMap.ysize());
 }
 
-void TChunkStore::RegisterChunk(TStoredChunk* chunk)
+void TChunkStore::RegisterChunk(TStoredChunkPtr chunk)
 {
     YVERIFY(ChunkMap.insert(MakePair(chunk->GetId(), chunk)).second);
     chunk->GetLocation()->UpdateUsedSpace(chunk->GetSize());
@@ -77,7 +78,7 @@ TStoredChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
     return it == ChunkMap.end() ? NULL : it->second;
 }
 
-void TChunkStore::RemoveChunk(TStoredChunk* chunk)
+void TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
 {
     // Hold the chunk during removal.
     TStoredChunkPtr chunk_ = chunk;
@@ -98,7 +99,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 {
     YASSERT(!Locations_.empty());
 
-    yvector<TLocation*> candidates;
+    yvector<TLocationPtr> candidates;
     candidates.reserve(Locations_.size());
 
     int minCount = Max<int>();

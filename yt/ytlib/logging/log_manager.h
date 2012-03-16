@@ -27,7 +27,7 @@ public:
         ELogLevel* minLevel,
         int* configVersion);
 
-    void Write(const TLogEvent& event);
+    void Enqueue(const TLogEvent& event);
 
 private:
     class TImpl;

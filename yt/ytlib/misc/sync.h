@@ -30,6 +30,22 @@ void Sync(
     }
 }
 
+template <class TTarget, class TArg1, class TArg1_, class TArg2, class TArg2_>
+void Sync(
+    TTarget* target,
+    TIntrusivePtr< TFuture<TError> > (TTarget::*method)(TArg1, TArg2),
+    TArg1_&& arg1,
+    TArg2_&& arg2)
+{
+    auto result = (target->*method)(
+        ForwardRV<TArg1>(arg1), 
+        ForwardRV<TArg2>(arg2))->Get();
+
+    if (!result.IsOK()) {
+        ythrow yexception() << result.ToString();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

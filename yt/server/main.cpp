@@ -1,22 +1,24 @@
 #include "stdafx.h"
 #include "scheduler_bootstrap.h"
 
-#include <ytlib/cell_master/bootstrap.h>
-#include <ytlib/cell_master/config.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
 #include <ytlib/rpc/rpc_manager.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/ytree/serialize.h>
-#include <ytlib/chunk_holder/bootstrap.h>
+#include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/config.h>
+#include <ytlib/cell_node/bootstrap.h>
+#include <ytlib/cell_node/config.h>
+#include <ytlib/cell_node/bootstrap.h>
+#include <ytlib/chunk_holder/config.h>
 
 namespace NYT {
 
 using namespace NLastGetopt;
 using namespace NYTree;
 using namespace NElection;
-using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,11 +37,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     opts.AddHelpOption();
 
-    const auto& chunkHolderOpt = opts.AddLongOption("chunk-holder", "start chunk holder")
+    const auto& cellNodeOpt = opts.AddLongOption("node", "start cell node")
         .NoArgument()
         .Optional();
 
-    const auto& cellMasterOpt = opts.AddLongOption("cell-master", "start cell master")
+    const auto& cellMasterOpt = opts.AddLongOption("master", "start cell master")
         .NoArgument()
         .Optional();
 
@@ -53,7 +55,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         .RequiredArgument("PORT")
         .StoreResult(&port);
 
-    TPeerId peerId = InvalidPeerId;
+    auto peerId = InvalidPeerId;
     opts.AddLongOption("id", "peer id")
         .Optional()
         .RequiredArgument("ID")
@@ -72,11 +74,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Figure out the mode: cell master or chunk holder.
     bool isCellMaster = results.Has(&cellMasterOpt);
-    bool isChunkHolder = results.Has(&chunkHolderOpt);
+    bool isCellNode = results.Has(&cellNodeOpt);
     bool isScheduler = results.Has(&schedulerOpt);
 
     int modeCount = 0;
-    if (isChunkHolder) {
+    if (isCellNode) {
         ++modeCount;
     }
     if (isCellMaster) {
@@ -106,8 +108,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     // Start an appropriate server.
-    if (isChunkHolder) {
-        auto config = New<NChunkHolder::TBootstrap::TConfig>();
+    if (isCellNode) {
+        auto config = New<NCellNode::TCellNodeConfig>();
         if (results.Has(&configTemplateOpt)) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
@@ -129,12 +131,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
 
-        NChunkHolder::TBootstrap bootstrap(configFileName, ~config);
+        NCellNode::TBootstrap bootstrap(configFileName, config);
         bootstrap.Run();
     }
 
     if (isCellMaster) {
-        auto config = New<TCellMasterConfig>();
+        auto config = New<NCellMaster::TCellMasterConfig>();
         if (results.Has(&configTemplateOpt)) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
@@ -155,8 +157,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ex.what());
         }
 
-        NCellMaster::TBootstrap cellMasterBootstrap(configFileName, ~config);
-        cellMasterBootstrap.Run();
+        NCellMaster::TBootstrap bootstrap(configFileName, ~config);
+        bootstrap.Run();
     }
 
     if (isScheduler) {
@@ -184,8 +186,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 int Main(int argc, const char* argv[])
 {
-	NYT::SetupErrorHandler();
-	NProfiling::TProfilingManager::Get()->Start();
+    NYT::SetupErrorHandler();
+    NProfiling::TProfilingManager::Get()->Start();
 
     int exitCode;
     try {
@@ -198,7 +200,7 @@ int Main(int argc, const char* argv[])
 
     // TODO: refactor system shutdown
     NLog::TLogManager::Get()->Shutdown();
-	NProfiling::TProfilingManager::Get()->Shutdown();
+    NProfiling::TProfilingManager::Get()->Shutdown();
     NRpc::TRpcManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 

@@ -17,12 +17,12 @@ class TFollowerPinger
 {
 public:
     TFollowerPinger(
-        TFollowerPingerConfig* config,
-        TCellManager* cellManager,
-        TLeaderCommitter* committer,
-        TFollowerTracker* followerTracker,
+        TFollowerPingerConfigPtr config,
+        TCellManagerPtr cellManager,
+        TDecoratedMetaStatePtr decoratedState,
+        TFollowerTrackerPtr followerTracker,
         const TEpoch& epoch,
-        IInvoker* epochControlInvoker);
+        IInvoker::TPtr epochControlInvoker);
 
     void Start();
     void Stop();
@@ -37,7 +37,7 @@ private:
     TFollowerPingerConfigPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;
     TCellManagerPtr CellManager;
-    TLeaderCommitterPtr Committer;
+    TDecoratedMetaStatePtr DecoratedState;
     TFollowerTrackerPtr FollowerTracker;
     TSnapshotStorePtr SnapshotStore;
     TEpoch Epoch;

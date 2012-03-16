@@ -26,8 +26,8 @@ private:
 
     TSharedRef CurrentBlock;
 
-    yvector<TMemoryInput> ColumnBuffers;
-    
+    std::vector<TMemoryInput> ColumnBuffers;
+
     int CurrentColumnIndex;
     TValue CurrentColumn;
     TValue CurrentValue;

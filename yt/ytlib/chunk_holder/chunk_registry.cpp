@@ -4,12 +4,14 @@
 #include "location.h"
 #include "chunk_store.h"
 #include "chunk_cache.h"
-#include "bootstrap.h"
+
+#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

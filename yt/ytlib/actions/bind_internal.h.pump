@@ -169,18 +169,18 @@ private:
 // marks that the wrapper should be considered a method wrapper.
 //
 
-template <class Functor>
+template <class T>
 class TRunnableAdapter
-    : public TRunnableFunctorAdapter<Functor, decltype(&Functor::operator())>
+    : public TRunnableFunctorAdapter<T, decltype(&T::operator())>
 {
-    typedef TRunnableFunctorAdapter<Functor, decltype(&Functor::operator())> TBase;
+    typedef TRunnableFunctorAdapter<T, decltype(&T::operator())> TBase;
 
 public:
-    explicit TRunnableAdapter(const Functor& functor)
+    explicit TRunnableAdapter(const T& functor)
         : TBase(functor)
     { }
 
-    explicit TRunnableAdapter(Functor&& functor)
+    explicit TRunnableAdapter(T&& functor)
         : TBase(MoveRV(functor))
     { }
 };
@@ -316,17 +316,17 @@ struct TForceVoidReturn<R($for ARG , [[A$(ARG)]])>
 // #TFunctorTraits<>
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class Functor>
+template <class T>
 struct TFunctorTraits
 {
-    typedef TRunnableAdapter<Functor> TRunnableType;
+    typedef TRunnableAdapter<T> TRunnableType;
     typedef typename TRunnableType::Signature Signature;
 };
 
-template <class Functor>
-struct TFunctorTraits< TIgnoreResultWrapper<Functor> >
+template <class T>
+struct TFunctorTraits< TIgnoreResultWrapper<T> >
 {
-    typedef typename TFunctorTraits<Functor>::TRunnableType TRunnableType;
+    typedef typename TFunctorTraits<T>::TRunnableType TRunnableType;
     typedef typename TForceVoidReturn<
         typename TRunnableType::Signature
     >::Signature Signature;

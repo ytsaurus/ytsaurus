@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "chunk_holder_service.h"
 #include "common.h"
+#include "config.h"
 #include "chunk.h"
 #include "location.h"
-#include "bootstrap.h"
 #include "chunk_store.h"
 #include "chunk_cache.h"
 #include "block_store.h"
@@ -15,6 +15,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/action_util.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -22,6 +23,7 @@ namespace NChunkHolder {
 using namespace NRpc;
 using namespace NChunkClient;
 using namespace NProto;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +32,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkHolderService::TChunkHolderService(
-    TChunkHolderConfig* config,
+    TChunkHolderConfigPtr config,
     TBootstrap* bootstrap)
     : NRpc::TServiceBase(
         ~bootstrap->GetControlInvoker(),

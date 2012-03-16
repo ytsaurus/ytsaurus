@@ -221,7 +221,7 @@ private:
             }
         }
 
-        LOG_INFO("Creating new bucket %s", ~path.Quote());
+        LOG_INFO("Creating bucket %s", ~path.Quote());
         auto bucket = New<TBucket>();
         PathToBucket[path] = bucket;
 

@@ -6,9 +6,12 @@
 #include "config.h"
 
 #include <ytlib/rpc/channel_cache.h>
+#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
+
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,15 +21,14 @@ static NRpc::TChannelCache ChannelCache;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPeerBlockUpdater::TPeerBlockUpdater(
-    TChunkHolderConfig* config,
-    TBlockStore* blockStore,
-    IInvoker* invoker)
+    TChunkHolderConfigPtr config,
+    TBootstrap* bootstrap)
     : Config(config)
-    , BlockStore(blockStore)
+    , Bootstrap(bootstrap)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
         FromMethod(&TPeerBlockUpdater::Update, MakeStrong(this))
-        ->Via(invoker),
+        ->Via(bootstrap->GetControlInvoker()),
         Config->PeerUpdatePeriod);
 }
 
@@ -48,7 +50,8 @@ void TPeerBlockUpdater::Update()
 
     yhash_map<Stroka, TProxy::TReqUpdatePeer::TPtr> requests;
 
-    auto blocks = BlockStore->GetAllBlocks();
+    auto blocks = Bootstrap->GetBlockStore()->GetAllBlocks();
+    auto peerAddress = Bootstrap->GetPeerAddress();
     FOREACH (auto block, blocks) {
         const auto& source = block->Source();
         if (!source.Empty()) {
@@ -59,7 +62,7 @@ void TPeerBlockUpdater::Update()
             } else {
                 TProxy proxy(~ChannelCache.GetChannel(source));
                 request = proxy.UpdatePeer();
-                request->set_peer_address(Config->MasterConnector->PeerAddress);
+                request->set_peer_address(peerAddress);
                 request->set_peer_expiration_time(expirationTime.GetValue());
                 requests.insert(MakePair(source, request));
             }

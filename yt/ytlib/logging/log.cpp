@@ -15,7 +15,7 @@ namespace NLog {
 
 TLogger::TLogger(const Stroka& category)
     : Category(category)
-    , ConfigVersion(0)
+    , ConfigVersion(-1)
     , LogManager(NULL)
 { }
 
@@ -26,7 +26,7 @@ Stroka TLogger::GetCategory() const
 
 void TLogger::Write(const TLogEvent& event)
 {
-    GetLogManager()->Write(event);
+    GetLogManager()->Enqueue(event);
 }
 
 bool TLogger::IsEnabled(ELogLevel level) const

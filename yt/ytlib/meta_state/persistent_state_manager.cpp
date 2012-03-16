@@ -117,8 +117,9 @@ public:
         DecoratedState = New<TDecoratedMetaState>(
             metaState,
             stateInvoker,
-            ~SnapshotStore,
-            ~ChangeLogCache);
+            controlInvoker,
+            SnapshotStore,
+            ChangeLogCache);
 
         IOQueue = New<TActionQueue>("MetaStateIO");
 
@@ -811,9 +812,7 @@ public:
         // This enables changelog truncation for those followers that are down and have uncommitted changes.
         auto version = DecoratedState->GetVersion();
         if (version.RecordCount > 0) {
-            LOG_INFO("Switching to a new changelog for a new epoch (Version: %s)",
-                ~version.ToString());
-
+            LOG_INFO("Switching to a new changelog for the new epoch");
             SnapshotBuilder->RotateChangeLog();
         }   
     }
@@ -963,12 +962,12 @@ public:
 
         YASSERT(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
-            ~Config->FollowerPinger,
-            ~CellManager,
-            ~LeaderCommitter,
-            ~FollowerTracker,
+            Config->FollowerPinger,
+            CellManager,
+            DecoratedState,
+            FollowerTracker,
             Epoch,
-            ~EpochControlInvoker);
+            EpochControlInvoker);
         FollowerPinger->Start();
 
         YASSERT(!LeaderRecovery);

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/cell_node/public.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -17,13 +19,13 @@ class TChunkRegistry
 {
 public:
     //! Initializes a new instance.
-    TChunkRegistry(TBootstrap* bootstrap);
+    TChunkRegistry(NCellNode::TBootstrap* bootstrap);
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TChunkPtr FindChunk(const TChunkId& chunkId) const;
 
 private:
-    TBootstrap* Bootstrap;
+    NCellNode::TBootstrap* Bootstrap;
 
 };
 

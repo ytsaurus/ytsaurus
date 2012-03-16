@@ -5,6 +5,7 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/actions/signal.h>
+#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -27,7 +28,7 @@ public:
     typedef yvector<TCachedChunkPtr> TChunks;
 
     //! Constructs a new instance.
-    TChunkCache(TChunkHolderConfig* config, TBootstrap* bootstrap);
+    TChunkCache(TChunkHolderConfigPtr config, NCellNode::TBootstrap* bootstrap);
 
     //! Initializes the cache.
     void Start();
@@ -54,10 +55,10 @@ public:
         const yvector<Stroka>& seedAddresses = yvector<Stroka>());
 
     //! Raised when a chunk is added to the cache.
-    DECLARE_SIGNAL(void(TChunk*), ChunkAdded);
+    DECLARE_SIGNAL(void(TChunkPtr), ChunkAdded);
 
     //! Raised when a chunk is removed from the cache.
-    DECLARE_SIGNAL(void(TChunk*), ChunkRemoved);
+    DECLARE_SIGNAL(void(TChunkPtr), ChunkRemoved);
 
 private:
     class TImpl;

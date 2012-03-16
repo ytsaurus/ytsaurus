@@ -15,8 +15,8 @@ public:
     typedef TIntrusivePtr<TCancelableInvoker> TPtr;
 
     TCancelableInvoker(
-        TCancelableContext* context,
-        IInvoker* underlyingInvoker)
+        TCancelableContextPtr context,
+        IInvoker::TPtr underlyingInvoker)
         : Context(context)
         , UnderlyingInvoker(underlyingInvoker)
     {
@@ -63,7 +63,7 @@ void TCancelableContext::Cancel()
     Canceled = true;
 }
 
-IInvoker::TPtr TCancelableContext::CreateInvoker(IInvoker* underlyingInvoker)
+IInvoker::TPtr TCancelableContext::CreateInvoker(IInvoker::TPtr underlyingInvoker)
 {
     return New<TCancelableInvoker>(this, underlyingInvoker);
 }
