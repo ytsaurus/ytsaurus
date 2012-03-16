@@ -21,13 +21,13 @@ TCpuDuration DurationToCpuDuration(TDuration duration);
 //! Converts a processor clock into the regular time instant.
 TInstant CpuInstantToInstant(TCpuInstant instant);
 
-//! Converts a duration to the value type for profiling.
+//! Converts a duration to TValue suitable for profiling.
 /*!
  *  The current implementation just returns microseconds.
  */
 TValue DurationToValue(TDuration duration);
 
-//! Converts a CPU duration to the value type for profiling.
+//! Converts a CPU duration into TValue suitable for profiling.
 TValue CpuDurationToValue(TCpuDuration duration);
 
 ////////////////////////////////////////////////////////////////////////////////
