@@ -53,7 +53,7 @@ private:
         }
         CalibrationCpuInstant = cpuNow;
         CalibrationInstant = nowInstant;
-        NextCalibrationCpuInstant = cpuNow + DurationToCycles(CalibrationInterval);
+        NextCalibrationCpuInstant = cpuNow + DurationToCpuDuration(CalibrationInterval);
     }
 
     TInstant CalibrationInstant;
@@ -98,7 +98,10 @@ TValue DurationToValue(TDuration duration)
 
 TValue CpuDurationToValue(TCpuDuration duration)
 {
-    return DurationToValue(CpuDurationToDuration(duration));
+    return
+        duration > 0
+        ? DurationToValue(CpuDurationToDuration(duration))
+        : -DurationToValue(CpuDurationToDuration(-duration));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
