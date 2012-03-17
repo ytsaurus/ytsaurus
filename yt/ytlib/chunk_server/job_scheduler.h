@@ -6,6 +6,7 @@
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/nullable.h>
 #include <ytlib/profiling/public.h>
 
 #include <util/generic/deque.h>
@@ -22,7 +23,8 @@ public:
     TJobScheduler(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
-        TChunkPlacementPtr chunkPlacement);
+        TChunkPlacementPtr chunkPlacement,
+        THolderLeaseTrackerPtr holderLeaseTracker);
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
@@ -49,7 +51,10 @@ private:
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
     TChunkPlacementPtr ChunkPlacement;
+    THolderLeaseTrackerPtr HolderLeaseTracker;
+
     NProfiling::TCpuDuration ChunkRefreshDelay;
+    TNullable<bool> LastEnabled;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
@@ -119,6 +124,8 @@ private:
         int* minusCount);
     void ScheduleNextRefresh();
     void OnRefresh();
+
+    bool IsEnabledImpl();
 
 };
 
