@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
+#include "holder.h"
+#include "holder_statistics.h"
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/misc/string.h>
@@ -204,7 +206,7 @@ private:
 
 };
 
-IHolderAuthority::TPtr CreateHolderAuthority(TBootstrap* bootstrap)
+IHolderAuthorityPtr CreateHolderAuthority(TBootstrap* bootstrap)
 {
     return New<THolderAuthority>(bootstrap);
 }

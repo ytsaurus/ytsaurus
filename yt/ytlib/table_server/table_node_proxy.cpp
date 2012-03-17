@@ -3,11 +3,13 @@
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/serialize.h>
-#include <ytlib/table_client/schema.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/chunk_server/chunk.h>
+#include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NTableServer {

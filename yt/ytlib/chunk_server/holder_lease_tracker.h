@@ -1,7 +1,6 @@
 #pragma once
 
-#include "config.h"
-#include "holder.h"
+#include "public.h"
 
 #include <ytlib/misc/lease_manager.h>
 #include <ytlib/cell_master/public.h>
@@ -10,8 +9,6 @@ namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TChunkManager;
 
 //! Controls holder server-side leases.
 /*!
@@ -37,8 +34,6 @@ class THolderLeaseTracker
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<THolderLeaseTracker> TPtr;
-
     //! Initializes an instance.
     /*!
      *  \param config A configuration.
@@ -46,7 +41,7 @@ public:
      *  \param invoker An invoker used for lease expiration callbacks.
      */
     THolderLeaseTracker(
-        TChunkManagerConfig::TPtr config,
+        TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
     //! Registers the holder and assigns it an initial lease.
@@ -78,7 +73,7 @@ private:
 
     typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
      
-    TChunkManagerConfig::TPtr Config;
+    TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     THolderInfoMap HolderInfoMap;

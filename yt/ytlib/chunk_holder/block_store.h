@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/cache.h>
+#include <ytlib/chunk_server/block_id.h>
 #include <ytlib/chunk_client/block_cache.h>
 
 namespace NYT {

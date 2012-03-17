@@ -1,10 +1,11 @@
 #pragma once
 
-#include "config.h"
-#include "chunk_placement.h"
+#include "public.h"
+#include "chunk_service.pb.h"
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/property.h>
 #include <ytlib/profiling/public.h>
 
 #include <util/generic/deque.h>
@@ -18,13 +19,10 @@ class TChunkReplication
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChunkReplication> TPtr;
-    typedef TChunkManagerConfig TConfig;
-    
     TChunkReplication(
-        TConfig* config,
+        TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
-        TChunkPlacement* chunkPlacement);
+        TChunkPlacementPtr chunkPlacement);
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
@@ -46,9 +44,9 @@ public:
         yvector<NProto::TJobStopInfo>* jobsToStop);
 
 private:
-    TConfig::TPtr Config;
+    TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
-    TChunkPlacement::TPtr ChunkPlacement;
+    TChunkPlacementPtr ChunkPlacement;
     NProfiling::TCpuDuration ChunkRefreshDelay;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

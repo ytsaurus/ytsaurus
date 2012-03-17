@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ytlib/logging/log.h>
-#include <ytlib/chunk_server/id.h>
+#include <ytlib/chunk_server/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -14,11 +14,6 @@ extern NLog::TLogger ChunkClientLogger;
 
 using NChunkServer::TChunkId;
 using NChunkServer::NullChunkId;
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Represents an offset inside a chunk.
-typedef i64 TBlockOffset;
 
 ////////////////////////////////////////////////////////////////////////////////
 

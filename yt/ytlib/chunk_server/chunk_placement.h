@@ -1,9 +1,6 @@
 #pragma once
 
-#include "holder.h"
-#include "chunk.h"
-#include "id.h"
-#include "config.h"
+#include "public.h"
 
 #include <ytlib/cell_master/public.h>
 
@@ -16,11 +13,8 @@ class TChunkPlacement
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChunkPlacement> TPtr;
-    typedef TChunkManagerConfig TConfig;
-
     TChunkPlacement(
-        TConfig* config,
+        TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
     void OnHolderRegistered(const THolder& holder);
@@ -44,7 +38,7 @@ private:
     typedef ymultimap<double, THolderId> TLoadFactorMap;
     typedef yhash_map<THolderId, TLoadFactorMap::iterator> TIteratorMap;
 
-    TConfig::TPtr Config;
+    TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     TLoadFactorMap LoadFactorMap;

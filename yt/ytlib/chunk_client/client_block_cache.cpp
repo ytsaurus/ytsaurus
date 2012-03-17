@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "client_block_cache.h"
 
-
-#include <ytlib/chunk_server/id.h>
+#include <ytlib/chunk_server/block_id.h>
 #include <ytlib/misc/cache.h>
 #include <ytlib/misc/property.h>
 

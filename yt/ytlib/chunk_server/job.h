@@ -1,10 +1,9 @@
 #pragma once
 
-#include "id.h"
-
-#include <ytlib/cell_master/public.h>
+#include "public.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NChunkServer {

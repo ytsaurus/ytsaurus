@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "chunk.h"
+#include "common.h"
 
 #include <ytlib/cell_master/load_context.h>
 

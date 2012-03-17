@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "holder_lease_tracker.h"
 #include "chunk_manager.h"
+#include "holder.h"
 
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
@@ -18,7 +19,7 @@ static NLog::TLogger Logger("ChunkServer");
 ////////////////////////////////////////////////////////////////////////////////
 
 THolderLeaseTracker::THolderLeaseTracker(
-    TChunkManagerConfig::TPtr config,
+    TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)

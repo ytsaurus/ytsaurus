@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "id.h"
+#include "public.h"
 
 namespace NYT {
 namespace NChunkServer {

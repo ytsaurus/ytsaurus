@@ -1,5 +1,10 @@
 #include "stdafx.h"
 #include "chunk_replication.h"
+#include "chunk_placement.h"
+#include "holder.h"
+#include "job.h"
+#include "chunk.h"
+#include "job_list.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
@@ -24,9 +29,9 @@ static NProfiling::TProfiler Profiler("chunk_server");
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplication::TChunkReplication(
-    TConfig* config,
+    TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
-    TChunkPlacement* chunkPlacement)
+    TChunkPlacementPtr chunkPlacement)
     : Config(config)
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)

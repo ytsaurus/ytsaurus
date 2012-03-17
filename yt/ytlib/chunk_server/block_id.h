@@ -1,54 +1,9 @@
 #pragma once
 
-#include "common.h"
-
-#include <ytlib/object_server/id.h>
+#include "public.h"
 
 namespace NYT {
 namespace NChunkServer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef i32 THolderId;
-const i32 InvalidHolderId = -1;
-
-typedef TGuid TIncarnationId;
-
-typedef NObjectServer::TObjectId TChunkId;
-extern TChunkId NullChunkId;
-
-typedef NObjectServer::TObjectId TChunkListId;
-extern TChunkListId NullChunkListId;
-
-typedef NObjectServer::TObjectId TChunkTreeId;
-extern TChunkTreeId NullChunkTreeId;
-
-using NObjectServer::TTransactionId;
-using NObjectServer::NullTransactionId;
-
-typedef TGuid TJobId;
-
-DECLARE_ENUM(EJobState,
-    (Running)
-    (Completed)
-    (Failed)
-);
-
-DECLARE_ENUM(EJobType,
-    (Replicate)
-    (Remove)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Represents an offset inside a chunk.
-typedef i64 TBlockOffset;
-
-DECLARE_ENUM(EChunkType,
-    ((Unknown)(0))
-    ((File)(1))
-    ((Table)(2))
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,9 +27,7 @@ struct TBlockId
     //! Formats the id into the string (for debugging and logging purposes mainly).
     Stroka ToString() const
     {
-        return Sprintf("%s:%d",
-            ~ChunkId.ToString(),
-            BlockIndex);
+        return Sprintf("%s:%d", ~ChunkId.ToString(), BlockIndex);
     }
 };
 
@@ -97,12 +50,14 @@ inline bool operator!=(const TBlockId& blockId1, const TBlockId& blockId2)
 } // namespace NYT
 
 //! A hasher for TBlockId.
-template<>
+template <>
 struct hash<NYT::NChunkServer::TBlockId>
 {
     i32 operator()(const NYT::NChunkServer::TBlockId& blockId) const
     {
-        return (i32) THash<NYT::TGuid>()(blockId.ChunkId) * 497 + (i32) blockId.BlockIndex;
+        return
+            (i32) THash<NYT::TGuid>()(blockId.ChunkId) * 497 +
+            (i32) blockId.BlockIndex;
     }
 };
 

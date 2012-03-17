@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "chunk_placement.h"
+#include "holder.h"
+#include "chunk.h"
+#include "job.h"
+#include "job_list.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -19,7 +23,7 @@ static NLog::TLogger Logger("ChunkServer");
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkPlacement::TChunkPlacement(
-    TConfig* config,
+    TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)

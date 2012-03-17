@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "id.h"
+#include "public.h"
 #include "chunk_statistics.h"
 
 #include <ytlib/cell_master/public.h>
