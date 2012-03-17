@@ -684,8 +684,9 @@ bool TJobScheduler::IsEnabled()
                 LOG_INFO("Too few online holders, job scheduler disabled: needed >= %d but got %d",
                     needOnline,
                     gotOnline);
-                return false;
+                LastEnabled = false;
             }
+            return false;
         }
     }
 
@@ -695,16 +696,21 @@ bool TJobScheduler::IsEnabled()
         double needFraction = config->MaxLostChunkFraction.Get();
         double gotFraction = (double) chunkManager->LostChunkIds().size() / chunkManager->GetChunkCount();
         if (gotFraction > needFraction) {
-            LOG_INFO("Too many lost chunks, job scheduler disabled: needed <= %lf but got %lf",
-                needFraction,
-                gotFraction);
+            if (!LastEnabled || LastEnabled.Get()) {
+                LOG_INFO("Too many lost chunks, job scheduler disabled: needed <= %lf but got %lf",
+                    needFraction,
+                    gotFraction);
+                LastEnabled = false;
+            }
             return false;
         }
     }
 
     if (!LastEnabled || !LastEnabled.Get()) {
         LOG_INFO("Job scheduler enabled");
+        LastEnabled = true;
     }
+
     return true;
 }
 
