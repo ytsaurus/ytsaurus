@@ -379,13 +379,16 @@ void TJobScheduler::ScheduleNewJobs(
         return;
 
     // Schedule replication jobs.
-    {
+    if (maxReplicationJobsToStart > 0) {
         auto& chunksToReplicate = holderInfo->ChunksToReplicate;
         auto it = chunksToReplicate.begin();
-        while (it != chunksToReplicate.end() && maxReplicationJobsToStart > 0) {
+        while (it != chunksToReplicate.end()) {
             auto jt = it;
             ++jt;
             const auto& chunkId = *it;
+            if (maxReplicationJobsToStart == 0) {
+                break;
+            }
             auto flags = ScheduleReplicationJob(holder, chunkId, jobsToStart);
             if (flags & EScheduleFlags::Scheduled) {
                 --maxReplicationJobsToStart;
@@ -409,6 +412,9 @@ void TJobScheduler::ScheduleNewJobs(
                 ~JoinToString(chunksToBalance));
 
             FOREACH (const auto& chunkId, chunksToBalance) {
+                if (maxReplicationJobsToStart == 0) {
+                    break;
+                }
                 auto flags = ScheduleBalancingJob(holder, chunkId, jobsToStart);
                 if (flags & EScheduleFlags::Scheduled) {
                     --maxReplicationJobsToStart;
@@ -418,13 +424,16 @@ void TJobScheduler::ScheduleNewJobs(
     }
 
     // Schedule removal jobs.
-    {
+    if (maxRemovalJobsToStart > 0) {
         auto& chunksToRemove = holderInfo->ChunksToRemove;
         auto it = chunksToRemove.begin();
-        while (it != chunksToRemove.end() && maxRemovalJobsToStart > 0) {
+        while (it != chunksToRemove.end()) {
             const auto& chunkId = *it;
             auto jt = it;
             ++jt;
+            if (maxRemovalJobsToStart == 0) {
+                break;
+            }
             auto flags = ScheduleRemovalJob(holder, chunkId, jobsToStart);
             if (flags & EScheduleFlags::Scheduled) {
                 --maxReplicationJobsToStart;

@@ -272,13 +272,6 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int
             result.push_back(chunkId);
         }
     }
-    FOREACH (const auto& chunkId, holder.CachedChunkIds()) {
-        if (result.ysize() >= count)
-            break;
-        if (forbiddenChunkIds.find(chunkId) == forbiddenChunkIds.end()) {
-            result.push_back(chunkId);
-        }
-    }
 
     return result;
 }
