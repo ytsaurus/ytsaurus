@@ -80,7 +80,11 @@ class Master(Server):
             },
         },
         'chunks' : {
-            'registered_holder_timeout' : 180000
+            'registered_holder_timeout' : 180000,
+            'jobs' : {
+                'min_online_holder_count' : 250,
+                'max_lost_chunk_fraction' : 0.01
+            }
         },
         'logging' : Logging
     })
@@ -105,7 +109,9 @@ DoCleanCache = FileDescr('do_clean_cache', ('remote', 'exec'))
 class Holder(Server):
     files = Server.files + [CleanCache, DoCleanCache]
 
-    groupid = Subclass(xrange(10))
+    # XXX(sandello): I have taken one group for my personal experiments
+    # for deploying YT via Chef. Hence nodes 670-699 are unused in this deployment.
+    groupid = Subclass(xrange(9))
     nodeid = Subclass(xrange(30), 1)
 
     log_path = Template("holder-%(groupid)d-%(nodeid)d.log")

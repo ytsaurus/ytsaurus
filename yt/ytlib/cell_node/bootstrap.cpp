@@ -154,7 +154,7 @@ void TBootstrap::Run()
         controlQueue->GetInvoker());
     rpcServer->RegisterService(~orchidService);
 
-    THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
+    ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
         ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));

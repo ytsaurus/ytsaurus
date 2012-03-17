@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
+#include "holder.h"
+#include "holder_statistics.h"
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/misc/string.h>
@@ -204,7 +206,7 @@ private:
 
 };
 
-IHolderAuthority::TPtr CreateHolderAuthority(TBootstrap* bootstrap)
+IHolderAuthorityPtr CreateHolderAuthority(TBootstrap* bootstrap)
 {
     return New<THolderAuthority>(bootstrap);
 }
@@ -416,8 +418,10 @@ public:
 private:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
-        attributes->push_back("online");
         attributes->push_back("offline");
+        attributes->push_back("registered");
+        attributes->push_back("online");
+        attributes->push_back("unconfirmed");
         attributes->push_back("confirmed");
         attributes->push_back("available_space");
         attributes->push_back("used_space");
@@ -431,29 +435,32 @@ private:
     {
         auto chunkManager = Bootstrap->GetChunkManager();
 
-        if (name == "online") {
-            BuildYsonFluently(consumer)
-                .DoListFor(chunkManager->GetHolderIds(), [=] (TFluentList fluent, THolderId id) {
-                    const auto& holder = chunkManager->GetHolder(id);
-                    fluent.Item().Scalar(holder.GetAddress());
-                });
-            return true;
-        }
-
         if (name == "offline") {
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
                     if (!chunkManager->FindHolder(address)) {
                         fluent.Item().Scalar(address);
                     }
+            });
+            return true;
+        }
+
+        if (name == "registered" || name == "online") {
+            auto state = name == "registered" ? EHolderState::Registered : EHolderState::Online;
+            BuildYsonFluently(consumer)
+                .DoListFor(chunkManager->GetHolders(), [=] (TFluentList fluent, THolder* holder) {
+                    if (holder->GetState() == state) {
+                        fluent.Item().Scalar(holder->GetAddress());
+                    }
                 });
             return true;
         }
 
-        if (name == "confirmed") {
+        if (name == "unconfirmed" || name == "confirmed") {
+            bool state = name == "confirmed";
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetHolders(), [=] (TFluentList fluent, THolder* holder) {
-                    if (chunkManager->IsHolderConfirmed(*holder)) {
+                    if (chunkManager->IsHolderConfirmed(*holder) == state) {
                         fluent.Item().Scalar(holder->GetAddress());
                     }
                 });

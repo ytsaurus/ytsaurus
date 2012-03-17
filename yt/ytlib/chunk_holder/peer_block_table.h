@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/configurable.h>
+#include <ytlib/chunk_server/block_id.h>
 
 namespace NYT {
 namespace NChunkHolder {

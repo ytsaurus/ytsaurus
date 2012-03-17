@@ -119,6 +119,9 @@ make -j 1
 
 tc "blockClosed name='make'"
 
+set +e
+a=0
+
 tc "blockOpened name='Unit Tests'"
 
 shout "Running unit tests..."
@@ -133,6 +136,8 @@ gdb \
     ./bin/unittester \
         --gtest_color=no \
         --gtest_output=xml:$WORKING_DIRECTORY/test_unit.xml
+b=$?
+a=$((a+b))
 
 tc "blockClosed name='Unit Tests'"
 
@@ -147,6 +152,8 @@ PATH=$WORKING_DIRECTORY/bin:$PATH \
         -rxs -v \
         --assert=plain \
         --junitxml=$WORKING_DIRECTORY/test_integration.xml
+b=$?
+a=$((a+b))
 
 tc "blockClosed name='Integration Tests'"
 
@@ -154,4 +161,5 @@ cd $WORKING_DIRECTORY
 
 # TODO(sandello): Export final package name as build parameter.
 # TODO(sandello): Measure some statistics.
+exit $a
 

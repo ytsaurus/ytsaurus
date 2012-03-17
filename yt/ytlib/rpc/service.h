@@ -432,7 +432,7 @@ protected:
             const NProfiling::TTimer& timer)
             : RuntimeInfo(runtimeInfo)
             , Timer(timer)
-            , Running(false)
+            , RunningSync(false)
             , Completed(false)
         { }
 
@@ -442,8 +442,8 @@ protected:
         //! Guards the rest.
         TSpinLock SpinLock;
 
-        //! True if the service method is currently running.
-        bool Running;
+        //! True if the service method is currently running synchronously.
+        bool RunningSync;
 
         //! True if #OnEndRequest is already called.
         bool Completed;

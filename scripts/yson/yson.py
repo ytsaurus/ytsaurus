@@ -67,7 +67,7 @@ class Dumper(object):
     def dumps(self, obj):
         self._level += 1
         result = None
-        if isinstance(obj, (int, long)):
+        if isinstance(obj, (int, long, float)):
             result = str(obj)
         elif isinstance(obj, basestring):
             result = self._dump_string(obj)

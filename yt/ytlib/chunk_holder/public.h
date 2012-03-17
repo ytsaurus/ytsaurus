@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/chunk_server/id.h>
+#include <ytlib/chunk_server/public.h>
 
 namespace NYT {
 namespace NChunkHolder {

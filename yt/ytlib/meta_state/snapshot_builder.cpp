@@ -41,6 +41,7 @@ public:
         bool createSnapshot)
         : Owner(owner)
         , Version(version)
+        , CreateSnapshot(createSnapshot)
     { }
 
     void Run()
@@ -103,10 +104,14 @@ private:
             request->set_epoch(Owner->Epoch.ToProto());
             request->set_create_snapshot(CreateSnapshot);
 
+            auto responseHandler =
+                CreateSnapshot
+                ? FromMethod(&TSession::OnSnapshotCreated, MakeStrong(this), id)
+                : FromMethod(&TSession::OnChangeLogRotated, MakeStrong(this), id);
             Awaiter->Await(
                 request->Invoke(),
                 Owner->CellManager->GetPeerAddress(id),
-                FromMethod(&TSession::OnRemoteSegmentAdvanced, MakeStrong(this), id));
+                responseHandler);
         }
 
         Owner->DecoratedState->SetPingVersion(TMetaVersion(Version.SegmentId + 1, 0));
@@ -154,11 +159,19 @@ private:
         Checksums[Owner->CellManager->GetSelfId()] = result.Checksum;
     }
 
-    void OnRemoteSegmentAdvanced(TProxy::TRspAdvanceSegment::TPtr response, TPeerId id)
+    void OnChangeLogRotated(TProxy::TRspAdvanceSegment::TPtr response, TPeerId id)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error %s at follower %d\n%s",
-                CreateSnapshot ? "creating snapshot" : "rotating the changelog",
+            LOG_WARNING("Error rotating the changelog at follower %d\n%s",
+                id,
+                ~response->GetError().ToString());
+        }
+    }
+
+    void OnSnapshotCreated(TProxy::TRspAdvanceSegment::TPtr response, TPeerId id)
+    {
+        if (!response->IsOK()) {
+            LOG_WARNING("Error creating the snapshot at follower %d\n%s",
                 id,
                 ~response->GetError().ToString());
             return;

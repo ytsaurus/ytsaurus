@@ -1,6 +1,6 @@
 #pragma once
 
-#include "holder_authority.h"
+#include "public.h"
 
 #include <ytlib/cypress/type_handler.h>
 #include <ytlib/cell_master/public.h>
@@ -20,7 +20,7 @@ NCypress::INodeTypeHandler::TPtr CreateUnderreplicatedChunkMapTypeHandler(NCellM
 
 NCypress::INodeTypeHandler::TPtr CreateChunkListMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-IHolderAuthority::TPtr CreateHolderAuthority(NCellMaster::TBootstrap* bootstrap);
+IHolderAuthorityPtr CreateHolderAuthority(NCellMaster::TBootstrap* bootstrap);
 
 NCypress::INodeTypeHandler::TPtr CreateHolderTypeHandler(NCellMaster::TBootstrap* bootstrap);
 

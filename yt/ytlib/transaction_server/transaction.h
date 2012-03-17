@@ -5,7 +5,7 @@
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/cypress/id.h>
-#include <ytlib/chunk_server/id.h>
+#include <ytlib/chunk_server/public.h>
 #include <ytlib/object_server/object_detail.h>
 
 namespace NYT {

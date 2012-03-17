@@ -2,6 +2,8 @@
 #include "table_node.h"
 #include "table_node_proxy.h"
 
+#include <ytlib/chunk_server/chunk.h>
+#include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {

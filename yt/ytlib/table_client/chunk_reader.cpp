@@ -12,9 +12,9 @@
 namespace NYT {
 namespace NTableClient {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NChunkClient;
+
+////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = TableClientLogger;
 
@@ -150,9 +150,10 @@ private:
         }
 
         // ToDo(psushin): add chunk id.
+        // TODO(babenko): use TTaggedLogger
         LOG_DEBUG("Initializer got chunk meta");
 
-        FOREACH(auto& column, Channel.GetColumns()) {
+        FOREACH (auto& column, Channel.GetColumns()) {
             auto& columnInfo = chunkReader->FixedColumns[column];
             columnInfo.InChannel = true;
         }
@@ -174,9 +175,9 @@ private:
         if (StartLimit.has_key() || EndLimit.has_key()) {
             // We expect sorted chunk here.
             if (!Attributes.is_sorted()) {
-                LOG_WARNING("Received key range read request to unsorted chunk.");
+                LOG_WARNING("Received key range read request for an unsorted chunk");
                 OnFail(
-                    TError("Received key range read request to unsorted chunk."), 
+                    TError("Received key range read request for an unsorted chunk"), 
                     chunkReader);
                 return;
             }
@@ -268,7 +269,7 @@ private:
         SelectChannels(chunkReader);
         YASSERT(SelectedChannels.size() > 0);
 
-        LOG_DEBUG("Selected %u channels.", SelectedChannels.size());
+        LOG_DEBUG("Selected %d channels", static_cast<int>(SelectedChannels.size()));
 
         yvector<int> blockIndexSequence = GetBlockReadingOrder(chunkReader);
         chunkReader->SequentialReader = New<TSequentialReader>(
@@ -276,7 +277,7 @@ private:
             blockIndexSequence,
             ~AsyncReader);
 
-        LOG_DEBUG("Defined block reading sequence: %s.", ~JoinToString(blockIndexSequence));
+        LOG_DEBUG("Defined block reading sequence (BlockIndexes: %s)", ~JoinToString(blockIndexSequence));
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
@@ -411,7 +412,7 @@ private:
     {
         auto chunkReader = ChunkReader.Lock();
         if (!chunkReader) {
-            LOG_DEBUG("Chunk reader cancelled during initialization.");
+            LOG_DEBUG("Chunk reader canceled during initialization");
             return;
         }
 
@@ -420,7 +421,7 @@ private:
         LOG_DEBUG("Fetched first block for channel %d.", channelIdx);
 
         if (!error.IsOK()) {
-            LOG_WARNING("Failed to download first block in channel (channelIndex: %d, error: %s)", 
+            LOG_WARNING("Failed to download first block in channel %d\n%s", 
                 channelIdx,
                 ~error.GetMessage());
             OnFail(error, chunkReader);
@@ -440,7 +441,7 @@ private:
             YVERIFY(channelReader.NextRow());
         }
 
-        LOG_DEBUG("Unwinded rows for channel %d", channelIdx);
+        LOG_DEBUG("Unwound rows for channel %d", channelIdx);
 
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.size()) {
@@ -465,7 +466,7 @@ private:
         if (!chunkReader)
             return;
 
-        LOG_TRACE("Validating row "PRId64".", chunkReader->CurrentRowIndex);
+        LOG_TRACE("Validating row %"PRId64, chunkReader->CurrentRowIndex);
 
         YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
         if (!StartValidator->IsValid(chunkReader->CurrentKey)) {
@@ -475,7 +476,7 @@ private:
             return;
         }
 
-        LOG_DEBUG("Reader initialization complete.");
+        LOG_DEBUG("Reader initialization complete");
 
         // Initialization complete.
         chunkReader->Initializer.Reset();
@@ -549,7 +550,7 @@ TAsyncError::TPtr TChunkReader::AsyncNextRow()
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    DoNextRow()->Subscribe(FromFunctor( [=](TError error) {
+    DoNextRow()->Subscribe(FromFunctor([=](TError error) {
         if (error.IsOK()) {
             this_->State.FinishOperation();
         } else {
@@ -572,7 +573,7 @@ TAsyncError::TPtr TChunkReader::DoNextRow()
         return successResult;
 
     UsedRangeColumns.clear();
-    FOREACH(auto& it, FixedColumns) {
+    FOREACH (auto& it, FixedColumns) {
         it.Second().Used = false;
     }
     CurrentRow.clear();
@@ -628,7 +629,7 @@ void TChunkReader::ContinueNextRow(
 
 void TChunkReader::MakeCurrentRow()
 {
-    FOREACH(auto& channel, ChannelReaders) {
+    FOREACH (auto& channel, ChannelReaders) {
         while (channel.NextColumn()) {
             auto column = channel.GetColumn();
             auto it = FixedColumns.find(column);

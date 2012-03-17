@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "holder_lease_tracker.h"
 #include "chunk_manager.h"
+#include "holder.h"
 
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
@@ -18,25 +19,39 @@ static NLog::TLogger Logger("ChunkServer");
 ////////////////////////////////////////////////////////////////////////////////
 
 THolderLeaseTracker::THolderLeaseTracker(
-    TConfig* config,
+    TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , OnlineHolderCount(0)
 {
     YASSERT(config);
     YASSERT(bootstrap);
 }
 
-void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool confirmed)
+void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool recovery)
 {
-    THolderInfo holderInfo(confirmed);
+    THolderInfo holderInfo;
+    holderInfo.Confirmed = !recovery;
+    holderInfo.Lease = TLeaseManager::CreateLease(
+        GetTimeout(holder, holderInfo),
+        ~FromMethod(
+            &THolderLeaseTracker::OnExpired,
+            MakeStrong(this),
+            holder.GetId())
+        ->Via(
+            Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
+            Bootstrap->GetMetaStateManager()->GetEpochContext()));
     YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), holderInfo)).second);
-    RecreateLease(holder);
 }
 
-void THolderLeaseTracker::OnHolderOnline(const THolder& holder)
+void THolderLeaseTracker::OnHolderOnline(const THolder& holder, bool recovery)
 {
-    RecreateLease(holder);
+    auto& holderInfo = GetHolderInfo(holder.GetId());
+    holderInfo.Confirmed = !recovery;
+    RenewLease(holder, holderInfo);
+    YASSERT(holder.GetState() == EHolderState::Online);
+    ++OnlineHolderCount;
 }
 
 void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
@@ -45,19 +60,27 @@ void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
     auto& holderInfo = GetHolderInfo(holderId);
     TLeaseManager::CloseLease(holderInfo.Lease);
     YVERIFY(HolderInfoMap.erase(holderId) == 1);
+    if (holder.GetState() == EHolderState::Online) {
+        --OnlineHolderCount;
+    }
 }
 
 void THolderLeaseTracker::OnHolderHeartbeat(const THolder& holder)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
     holderInfo.Confirmed = true;
-    TLeaseManager::RenewLease(holderInfo.Lease);
+    RenewLease(holder, holderInfo);
 }
 
 bool THolderLeaseTracker::IsHolderConfirmed(const THolder& holder)
 {
     const auto& holderInfo = GetHolderInfo(holder.GetId());
     return holderInfo.Confirmed;
+}
+
+int THolderLeaseTracker::GetOnlineHolderCount()
+{
+    return OnlineHolderCount;
 }
 
 void THolderLeaseTracker::OnExpired(THolderId holderId)
@@ -68,7 +91,6 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
         return;
 
     LOG_INFO("Holder expired (HolderId: %d)", holderId);
-
 
     TMsgUnregisterHolder message;
     message.set_holder_id(holderId);
@@ -85,25 +107,21 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
         ->Commit();
 }
 
-void THolderLeaseTracker::RecreateLease(const THolder& holder)
+TDuration THolderLeaseTracker::GetTimeout(const THolder& holder, const THolderInfo& holderInfo)
 {
-    auto& holderInfo = GetHolderInfo(holder.GetId());
-
-    if (holderInfo.Lease) {
-        TLeaseManager::CloseLease(holderInfo.Lease);
+    if (!holderInfo.Confirmed) {
+        return Config->UnconfirmedHolderTimeout;
     }
-
-    holderInfo.Lease = TLeaseManager::CreateLease(
-        holder.GetState() == EHolderState::Registered
+    return holder.GetState() == EHolderState::Registered
         ? Config->RegisteredHolderTimeout
-        : Config->OnlineHolderTimeout,
-        ~FromMethod(
-            &THolderLeaseTracker::OnExpired,
-            MakeStrong(this),
-            holder.GetId())
-        ->Via(
-            Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
-            Bootstrap->GetMetaStateManager()->GetEpochContext()));
+        : Config->OnlineHolderTimeout;
+}
+
+void THolderLeaseTracker::RenewLease(const THolder& holder, const THolderInfo& holderInfo)
+{
+    TLeaseManager::RenewLease(
+        holderInfo.Lease,
+        GetTimeout(holder, holderInfo));
 }
 
 THolderLeaseTracker::THolderInfo* THolderLeaseTracker::FindHolderInfo(THolderId holderId)

@@ -21,7 +21,7 @@ public:
         (Parsed)
     );
 
-    TYsonParser(IYsonConsumer* consumer, bool supportFragments = false);
+    TYsonParser(IYsonConsumer* consumer, bool fragmented = false);
     ~TYsonParser();
 
     void Consume(char ch);
@@ -37,7 +37,7 @@ private:
 void ParseYson(
     TInputStream* input,
     IYsonConsumer* consumer,
-    bool supportFragments = false);
+    bool fragmented = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -15,8 +15,6 @@ class TChunkServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TChunkServiceProxy> TPtr;
-
     static Stroka GetServiceName()
     {
         return "ChunkService";

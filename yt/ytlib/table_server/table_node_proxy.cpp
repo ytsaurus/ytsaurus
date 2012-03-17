@@ -3,11 +3,13 @@
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/serialize.h>
-#include <ytlib/table_client/schema.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/chunk_server/chunk.h>
+#include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -147,7 +149,7 @@ void TTableNodeProxy::ParseYPath(
     }
 
     auto currentPath = path;
-
+        
     // Parse channel.
     auto channelBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     channelBuilder->BeginTree();
@@ -185,7 +187,11 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& chunkId, chunkIds) {
         auto* chunkInfo = response->add_chunks();
-        chunkInfo->set_chunk_id(chunkId.ToProto());
+        auto* slice = chunkInfo->mutable_slice();
+
+        slice->set_chunk_id(chunkId.ToProto());
+        slice->mutable_start_limit();
+        slice->mutable_end_limit();
 
         const auto& chunk = chunkManager->GetChunk(chunkId);
         if (chunk.IsConfirmed()) {

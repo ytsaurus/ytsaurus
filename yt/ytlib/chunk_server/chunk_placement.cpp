@@ -1,5 +1,9 @@
 #include "stdafx.h"
 #include "chunk_placement.h"
+#include "holder.h"
+#include "chunk.h"
+#include "job.h"
+#include "job_list.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -19,7 +23,7 @@ static NLog::TLogger Logger("ChunkServer");
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkPlacement::TChunkPlacement(
-    TConfig* config,
+    TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
@@ -230,7 +234,7 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
 
     auto* sink = chunkManager->FindReplicationSink(targetHolder.GetAddress());
     if (sink) {
-        if (static_cast<int>(sink->JobIds().size()) >= Config->MaxReplicationFanIn) {
+        if (static_cast<int>(sink->JobIds().size()) >= Config->Jobs->MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.
             return false;
         }

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "chunk_service.h"
 #include "holder_statistics.h"
+#include "holder.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/action_util.h>
@@ -148,7 +149,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
     yvector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
     yvector<TJobStartInfo> jobsToStart;
     yvector<TJobStopInfo> jobsToStop;
-    chunkManager->RunJobControl(
+    chunkManager->ScheduleJobs(
         holder,
         runningJobs,
         &jobsToStart,

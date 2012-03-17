@@ -960,6 +960,10 @@ public:
             ~EpochStateInvoker);
         LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnChangeApplied, MakeWeak(this)));
 
+        // During recovery the leader is reporting its reachable version to followers.
+        auto version = DecoratedState->GetReachableVersionAsync();
+        DecoratedState->SetPingVersion(version);
+
         YASSERT(!FollowerPinger);
         FollowerPinger = New<TFollowerPinger>(
             Config->FollowerPinger,
