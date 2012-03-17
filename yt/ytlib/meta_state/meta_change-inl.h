@@ -5,6 +5,8 @@
 #include "composite_meta_state_detail.h"
 #include "meta_state_manager.h"
 
+#include <ytlib/misc/delayed_invoker.h>
+
 namespace NYT {
 namespace NMetaState {
 
