@@ -594,26 +594,6 @@ void TRemoteWriter::OnWindowShifted(int lastFlushedBlock)
     }
 }
 
-void TRemoteWriter::DoClose(const TChunkAttributes& attributes)
-{
-    VERIFY_THREAD_AFFINITY(WriterThread);
-    YASSERT(!IsCloseRequested);
-
-    if (!State.IsActive()) {
-        State.FinishOperation();
-        return;
-    }
-
-    LOG_DEBUG("Writer close requested");
-
-    IsCloseRequested = true;
-    Attributes.CopyFrom(attributes);
-
-    if (Window.empty() && IsInitComplete) {
-        CloseSession();
-    }
-}
-
 void TRemoteWriter::AddGroup(TGroupPtr group)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -891,6 +871,34 @@ void TRemoteWriter::AddBlocks(std::vector<TSharedRef>&& blocks)
     }
 }
 
+void TRemoteWriter::DoClose(
+    std::vector<TSharedRef>& lastBlocks,
+    const TChunkAttributes& attributes)
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+    YASSERT(!IsCloseRequested);
+
+    LOG_DEBUG("Writer close requested");
+
+    if (!State.IsActive()) {
+        State.FinishOperation();
+        return;
+    }
+    
+    AddBlocks(MoveRV(lastBlocks));
+
+    if (CurrentGroup->GetSize() > 0) {
+        AddGroup(CurrentGroup);
+    }
+
+    IsCloseRequested = true;
+    Attributes.CopyFrom(attributes);
+
+    if (Window.empty() && IsInitComplete) {
+        CloseSession();
+    }
+}
+
 TAsyncError::TPtr TRemoteWriter::AsyncClose(
     std::vector<TSharedRef>&& lastBlocks,
     const TChunkAttributes& attributes)
@@ -899,25 +907,20 @@ TAsyncError::TPtr TRemoteWriter::AsyncClose(
     YASSERT(!State.HasRunningOperation());
     YASSERT(!State.IsClosed());
 
-    State.StartOperation();
-
-    AddBlocks(MoveRV(lastBlocks));
-
-    LOG_DEBUG("Requesting writer to close");
-
-    if (CurrentGroup->GetSize() > 0) {
-        WriterThread->GetInvoker()->Invoke(FromMethod(
-            &TRemoteWriter::AddGroup,
-            TWeak(this), 
-            CurrentGroup));
+    i64 sumSize = 0;
+    FOREACH(auto& block, lastBlocks) {
+        sumSize += block.Size();
     }
 
-    // Set IsCloseRequested via queue to ensure proper serialization
-    // (i.e. the flag will be set when all appended blocks are processed).
-    WriterThread->GetInvoker()->Invoke(FromMethod(
-        &TRemoteWriter::DoClose, 
+    LOG_DEBUG("Requesting writer to close.");
+    State.StartOperation();
+
+    WindowSlots.AsyncAcquire(sumSize)->Subscribe(FromMethod(
+        &TRemoteWriter::DoClose,
         TWeak(this),
-        attributes));
+        lastBlocks,
+        attributes)->ToParamAction<TVoid>());
+
 
     return State.GetOperationError();
 }

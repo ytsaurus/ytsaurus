@@ -174,11 +174,9 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    /*!
-     * Invoked from #Close.
-     * Sets #IsCloseRequested.
-     */
-    void DoClose(const NChunkHolder::NProto::TChunkAttributes& attributes);
+    void DoClose(
+        std::vector<TSharedRef>& lastBlocks,
+        const NChunkHolder::NProto::TChunkAttributes& attributes);
 
     void AddGroup(TGroupPtr group);
 
