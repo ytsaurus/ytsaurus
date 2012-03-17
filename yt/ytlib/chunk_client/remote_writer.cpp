@@ -820,7 +820,7 @@ void TRemoteWriter::CancelAllPings()
     }
 }
 
-TAsyncError::TPtr TRemoteWriter::AsyncWriteBlocks(std::vector<TSharedRef>&& blocks)
+TAsyncError::TPtr TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -842,16 +842,16 @@ TAsyncError::TPtr TRemoteWriter::AsyncWriteBlocks(std::vector<TSharedRef>&& bloc
     return State.GetOperationError();
 }
 
-void TRemoteWriter::DoWriteBlocks(TVoid, std::vector<TSharedRef>& blocks)
+void TRemoteWriter::DoWriteBlocks(TVoid, const std::vector<TSharedRef>& blocks)
 {
     if (State.IsActive()) {
-        AddBlocks(MoveRV(blocks));
+        AddBlocks(blocks);
     }
 
     State.FinishOperation();
 }
 
-void TRemoteWriter::AddBlocks(std::vector<TSharedRef>&& blocks)
+void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
 {
     FOREACH(auto& block, blocks){
         LOG_DEBUG("Block added (BlockIndex: %d)",
@@ -872,7 +872,7 @@ void TRemoteWriter::AddBlocks(std::vector<TSharedRef>&& blocks)
 }
 
 void TRemoteWriter::DoClose(
-    std::vector<TSharedRef>& lastBlocks,
+    const std::vector<TSharedRef>& lastBlocks,
     const TChunkAttributes& attributes)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -900,7 +900,7 @@ void TRemoteWriter::DoClose(
 }
 
 TAsyncError::TPtr TRemoteWriter::AsyncClose(
-    std::vector<TSharedRef>&& lastBlocks,
+    const std::vector<TSharedRef>& lastBlocks,
     const TChunkAttributes& attributes)
 {
     YASSERT(IsOpen);

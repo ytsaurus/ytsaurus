@@ -23,10 +23,10 @@ public:
 
     virtual void Open();
 
-    virtual TAsyncError::TPtr AsyncWriteBlocks(std::vector<TSharedRef>&& blocks);
+    virtual TAsyncError::TPtr AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
 
     virtual TAsyncError::TPtr AsyncClose(
-        std::vector<TSharedRef>&& blocks,
+        const std::vector<TSharedRef>& blocks,
         const NChunkHolder::NProto::TChunkAttributes& attributes);
 
     TChunkId GetChunkId() const;
