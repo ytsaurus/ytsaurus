@@ -354,7 +354,7 @@ public:
 
     bool IsHolderConfirmed(const THolder& holder)
     {
-        return HolderLeaseTracking->IsHolderConfirmed(holder);
+        return HolderLeaseTracker->IsHolderConfirmed(holder);
     }
 
     int GetChunkReplicaCount()
@@ -378,8 +378,8 @@ private:
     TBootstrap* Bootstrap;
     
     TChunkPlacementPtr ChunkPlacement;
-    TChunkReplicationPtr JobScheduler;
-    THolderLeaseTrackerPtr HolderLeaseTracking;
+    TJobSchedulerPtr JobScheduler;
+    THolderLeaseTrackerPtr HolderLeaseTracker;
     
     TIdGenerator<THolderId> HolderIdGenerator;
 
@@ -621,7 +621,7 @@ private:
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
-                HolderLeaseTracking->OnHolderOnline(holder);
+                HolderLeaseTracker->OnHolderOnline(holder);
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
@@ -657,7 +657,7 @@ private:
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
-                HolderLeaseTracking->OnHolderHeartbeat(holder);
+                HolderLeaseTracker->OnHolderHeartbeat(holder);
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
@@ -786,9 +786,9 @@ private:
     {
         ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
 
-        JobScheduler = New<TJobScheduler>(Config, Bootstrap, ChunkPlacement);
+        HolderLeaseTracker = New<THolderLeaseTracker>(Config, Bootstrap);
 
-        HolderLeaseTracking = New<THolderLeaseTracker>(Config, Bootstrap);
+        JobScheduler = New<TJobScheduler>(Config, Bootstrap, ChunkPlacement, HolderLeaseTracker);
 
         PROFILE_TIMING ("full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
@@ -807,13 +807,13 @@ private:
     {
         ChunkPlacement.Reset();
         JobScheduler.Reset();
-        HolderLeaseTracking.Reset();
+        HolderLeaseTracker.Reset();
     }
 
 
     void StartHolderTracking(const THolder& holder, bool confirmed)
     {
-        HolderLeaseTracking->OnHolderRegistered(holder, confirmed);
+        HolderLeaseTracker->OnHolderRegistered(holder, confirmed);
         ChunkPlacement->OnHolderRegistered(holder);
         JobScheduler->OnHolderRegistered(holder);
 
@@ -822,7 +822,7 @@ private:
 
     void StopHolderTracking(const THolder& holder)
     {
-        HolderLeaseTracking->OnHolderUnregistered(holder);
+        HolderLeaseTracker->OnHolderUnregistered(holder);
         ChunkPlacement->OnHolderUnregistered(holder);
         JobScheduler->OnHolderUnregistered(holder);
 

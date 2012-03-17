@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "job_scheduler.h"
+#include "holder_lease_tracker.h"
 #include "chunk_placement.h"
 #include "holder.h"
 #include "job.h"
@@ -31,15 +32,18 @@ static NProfiling::TProfiler Profiler("chunk_server");
 TJobScheduler::TJobScheduler(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
-    TChunkPlacementPtr chunkPlacement)
+    TChunkPlacementPtr chunkPlacement,
+    THolderLeaseTrackerPtr holderLeaseTracker)
     : Config(config)
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
+    , HolderLeaseTracker(holderLeaseTracker)
     , ChunkRefreshDelay(DurationToCycles(config->ChunkRefreshDelay))
 {
     YASSERT(config);
     YASSERT(bootstrap);
     YASSERT(chunkPlacement);
+    YASSERT(holderLeaseTracker);
 
     ScheduleNextRefresh();
 }
@@ -61,11 +65,13 @@ void TJobScheduler::ScheduleJobs(
         &replicationJobCount,
         &removalJobCount);
 
-    ScheduleNewJobs(
-        holder,
-        Max(0, Config->Jobs->MaxReplicationFanOut - replicationJobCount),
-        Max(0, Config->Jobs->MaxRemovalJobsPerHolder - removalJobCount),
-        jobsToStart);
+    if (IsEnabled()) {
+        ScheduleNewJobs(
+            holder,
+            Max(0, Config->Jobs->MaxReplicationFanOut - replicationJobCount),
+            Max(0, Config->Jobs->MaxRemovalJobsPerHolder - removalJobCount),
+            jobsToStart);
+    }
 }
 
 void TJobScheduler::OnHolderRegistered(const THolder& holder)
@@ -666,6 +672,20 @@ TJobScheduler::THolderInfo& TJobScheduler::GetHolderInfo(THolderId holderId)
 }
 
 bool TJobScheduler::IsEnabled()
+{
+    bool enabled = IsEnabledImpl();
+    if (!LastEnabled || LastEnabled.Get() != enabled) {
+        if (enabled) {
+            LOG_INFO("Job scheduler is enabled");
+        } else {
+            LOG_INFO("Job scheduler is disabled");
+        }
+        LastEnabled = enabled;
+    }
+    return enabled;
+}
+
+bool TJobScheduler::IsEnabledImpl()
 {
     return true;
 }

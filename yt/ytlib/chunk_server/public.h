@@ -29,7 +29,7 @@ class THolderLeaseTracker;
 typedef TIntrusivePtr<THolderLeaseTracker> THolderLeaseTrackerPtr;
 
 class TJobScheduler;
-typedef TIntrusivePtr<TJobScheduler> TChunkReplicationPtr;
+typedef TIntrusivePtr<TJobScheduler> TJobSchedulerPtr;
 
 class TChunkPlacement;
 typedef TIntrusivePtr<TChunkPlacement> TChunkPlacementPtr;
