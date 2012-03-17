@@ -1,10 +1,20 @@
 #include "stdafx.h"
 #include "chunk_manager.h"
+#include "config.h"
+#include "holder.h"
+#include "chunk.h"
+#include "chunk_list.h"
+#include "job.h"
+#include "job_list.h"
 #include "chunk_manager.pb.h"
 #include "chunk_placement.h"
 #include "chunk_replication.h"
 #include "holder_lease_tracker.h"
 #include "holder_statistics.h"
+#include "chunk_service_proxy.h"
+#include "holder_authority.h"
+#include "holder_statistics.h"
+#include "chunk_manager.pb.h"
 #include "chunk_ypath.pb.h"
 #include "chunk_list_ypath.pb.h"
 #include "file_chunk_meta.pb.h"
@@ -102,7 +112,7 @@ public:
     typedef TIntrusivePtr<TImpl> TPtr;
 
     TImpl(
-        TConfig* config,
+        TChunkManagerConfigPtr config,
         TBootstrap* bootstrap)
         : TMetaStatePart(
             ~bootstrap->GetMetaStateManager(),
@@ -359,12 +369,12 @@ private:
     friend class TChunkListTypeHandler;
     friend class TChunkListProxy;
 
-    TConfig::TPtr Config;
+    TChunkManagerConfigPtr Config;
     TBootstrap* Bootstrap;
     
-    TChunkPlacement::TPtr ChunkPlacement;
-    TChunkReplication::TPtr ChunkReplication;
-    THolderLeaseTracker::TPtr HolderLeaseTracking;
+    TChunkPlacementPtr ChunkPlacement;
+    TChunkReplicationPtr ChunkReplication;
+    THolderLeaseTrackerPtr HolderLeaseTracking;
     
     TIdGenerator<THolderId> HolderIdGenerator;
 
@@ -769,11 +779,11 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(~Config, Bootstrap);
+        ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
 
-        ChunkReplication = New<TChunkReplication>(~Config, Bootstrap, ~ChunkPlacement);
+        ChunkReplication = New<TChunkReplication>(Config, Bootstrap, ChunkPlacement);
 
-        HolderLeaseTracking = New<THolderLeaseTracker>(~Config, Bootstrap);
+        HolderLeaseTracking = New<THolderLeaseTracker>(Config, Bootstrap);
 
         PROFILE_TIMING ("full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
@@ -1527,7 +1537,7 @@ void TChunkManager::TChunkListTypeHandler::OnObjectDestroyed(TChunkList& chunkLi
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkManager(
-    TConfig* config,
+    TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }

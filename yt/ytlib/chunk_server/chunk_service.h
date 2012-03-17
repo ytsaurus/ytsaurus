@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "chunk_manager.h"
+#include "public.h"
 #include "chunk_service_proxy.h"
 
 #include <ytlib/cell_master/meta_state_service.h>
@@ -16,8 +15,6 @@ class TChunkService
     : public NCellMaster::TMetaStateServiceBase
 {
 public:
-    typedef TIntrusivePtr<TChunkService> TPtr;
-
     //! Creates an instance.
     TChunkService(NCellMaster::TBootstrap* bootstrap);
 

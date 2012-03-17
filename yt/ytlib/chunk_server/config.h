@@ -1,6 +1,8 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
+
+#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -10,8 +12,6 @@ namespace NChunkServer {
 struct TChunkManagerConfig
     : public TConfigurable
 {
-    typedef TIntrusivePtr<TChunkManagerConfig> TPtr;
-
     TDuration OnlineHolderTimeout;
     TDuration RegisteredHolderTimeout;
     TDuration UnconfirmedHolderTimeout;

@@ -4,7 +4,7 @@
 
 #include <ytlib/actions/invoker.h>
 #include <ytlib/misc/guid.h>
-#include <ytlib/chunk_server/id.h>
+#include <ytlib/chunk_server/public.h>
 #include <ytlib/chunk_holder/public.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/bus/server.h>

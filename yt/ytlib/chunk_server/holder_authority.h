@@ -1,6 +1,6 @@
 #pragma once
 
-#include "holder.h"
+#include "public.h"
 
 namespace NYT {
 namespace NChunkServer {
@@ -11,8 +11,6 @@ namespace NChunkServer {
 struct IHolderAuthority
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IHolderAuthority> TPtr;
-
     //! Returns true iff the holder with a given address is authorized to register.
     virtual bool IsHolderAuthorized(const Stroka& address) = 0;
 };

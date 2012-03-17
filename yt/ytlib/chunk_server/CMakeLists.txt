@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server )
 set( SRCS
+  ${BASE}/public.cpp
   ${BASE}/chunk.cpp
   ${BASE}/chunk_list.cpp
   ${BASE}/chunk_manager.cpp
@@ -15,11 +16,12 @@ set( SRCS
   ${BASE}/holder_authority.cpp
   ${BASE}/holder_lease_tracker.cpp
   ${BASE}/holder_statistics.cpp
-  ${BASE}/id.cpp
+  ${BASE}/block_id.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
 )
 set( HDRS
+  ${BASE}/public.h
   ${BASE}/chunk.h
   ${BASE}/chunk_list.h
   ${BASE}/chunk_list_ypath_proxy.h
@@ -38,7 +40,7 @@ set( HDRS
   ${BASE}/holder_authority.h
   ${BASE}/holder_lease_tracker.h
   ${BASE}/holder_statistics.h
-  ${BASE}/id.h
+  ${BASE}/block_id.h
   ${BASE}/job.h
   ${BASE}/job_list.h
 )

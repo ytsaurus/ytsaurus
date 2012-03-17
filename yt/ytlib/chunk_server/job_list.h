@@ -1,15 +1,16 @@
 #pragma once
 
-#include "id.h"
+#include "public.h"
 
-#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move impl to cpp
 struct TJobList
 {
     TJobList(const TChunkId& chunkId)

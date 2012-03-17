@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "chunk_service.h"
 #include "holder_statistics.h"
+#include "holder.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/action_util.h>

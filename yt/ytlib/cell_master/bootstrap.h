@@ -49,8 +49,8 @@ public:
     NMetaState::IMetaStateManagerPtr GetMetaStateManager() const;
     NMetaState::TCompositeMetaStatePtr GetMetaState() const;
     NObjectServer::TObjectManager::TPtr GetObjectManager() const;
-    NChunkServer::TChunkManager::TPtr GetChunkManager() const;
-    NChunkServer::IHolderAuthority::TPtr GetHolderAuthority() const;
+    NChunkServer::TChunkManagerPtr GetChunkManager() const;
+    NChunkServer::IHolderAuthorityPtr GetHolderAuthority() const;
 
     IInvoker::TPtr GetControlInvoker();
     IInvoker::TPtr GetStateInvoker(EStateThreadQueue queueIndex = EStateThreadQueue::Default);
@@ -67,8 +67,8 @@ private:
     NMetaState::IMetaStateManagerPtr MetaStateManager;
     NMetaState::TCompositeMetaStatePtr MetaState;
     NObjectServer::TObjectManager::TPtr ObjectManager;
-    NChunkServer::TChunkManager::TPtr ChunkManager;
-    NChunkServer::IHolderAuthority::TPtr HolderAuthority;
+    NChunkServer::TChunkManagerPtr ChunkManager;
+    NChunkServer::IHolderAuthorityPtr HolderAuthority;
 
     TActionQueue::TPtr ControlQueue;
     TMultiActionQueuePtr StateQueue;

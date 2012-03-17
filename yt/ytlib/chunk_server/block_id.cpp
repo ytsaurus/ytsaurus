@@ -1,15 +1,13 @@
-#pragma once
-
-#include <ytlib/logging/log.h>
+#include "stdafx.h"
+#include "block_id.h"
 
 namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger ChunkServerLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
 } // namespace NYT
+
