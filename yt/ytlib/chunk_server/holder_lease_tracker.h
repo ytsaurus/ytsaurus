@@ -49,10 +49,10 @@ public:
      *  Initial lease timeout for registered holders is #TChunkManagerConfig::RegisteredHolderTimeout.
      *  For online holders it is decreased to #TChunkManagerConfig::OnlineHolderTimeout.
      */
-    void OnHolderRegistered(const THolder& holder, bool confirmed);
+    void OnHolderRegistered(const THolder& holder, bool recovery);
 
     //! Notifies that the holder has become online and hence its lease timeout must be updated.
-    void OnHolderOnline(const THolder& holder);
+    void OnHolderOnline(const THolder& holder, bool recovery);
 
     //! Renews the lease.
     void OnHolderHeartbeat(const THolder& holder);
