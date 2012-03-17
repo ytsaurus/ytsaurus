@@ -40,7 +40,8 @@ TChunkWriter::TChunkWriter(
 TAsyncError::TPtr TChunkWriter::AsyncOpen(
     const NProto::TTableChunkAttributes& attributes)
 {
-    VERIFY_THREAD_AFFINITY(ClientThread);
+    // No thread affinity check here - 
+    // TChunkSequenceWriter may call it from any thread.
     YASSERT(!IsOpen);
     YASSERT(!IsClosed);
 
