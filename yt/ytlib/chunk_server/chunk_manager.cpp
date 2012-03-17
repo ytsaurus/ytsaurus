@@ -926,7 +926,7 @@ private:
             JobScheduler->ScheduleChunkRefresh(chunk.GetId());
         }
 
-        Profiler.Increment(RemoveChunkCounter);
+        Profiler.Increment(AddChunkReplicaCounter);
     }
 
     void ScheduleChunkReplicaRemoval(THolderId holderId, TChunk& chunk, bool cached)
@@ -990,7 +990,7 @@ private:
             JobScheduler->ScheduleChunkRefresh(chunk.GetId());
         }
 
-        Profiler.Increment(RemoveChunkCounter);
+        Profiler.Increment(RemoveChunkReplicaCounter);
     }
 
 
