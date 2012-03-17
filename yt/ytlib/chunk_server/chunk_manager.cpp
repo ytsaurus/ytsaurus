@@ -120,6 +120,12 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , ChunkReplicaCount(0)
+        , AddChunkCounter("add_chunk_rate")
+        , RemoveChunkCounter("remove_chunk_rate")
+        , AddChunkReplicaCounter("add_chunk_replica_rate")
+        , RemoveChunkReplicaCounter("remove_chunk_replica_rate")
+        , StartJobCounter("start_job_rate")
+        , StopJobCounter("stop_job_rate")
     {
         YASSERT(config);
         YASSERT(bootstrap);
@@ -357,7 +363,7 @@ public:
         return HolderLeaseTracker->IsHolderConfirmed(holder);
     }
 
-    int GetChunkReplicaCount()
+    i32 GetChunkReplicaCount()
     {
         return ChunkReplicaCount;
     }
@@ -365,8 +371,8 @@ public:
     bool IsJobSchedulerEnabled()
     {
         return JobScheduler->IsEnabled();
-
     }
+
 private:
     typedef TImpl TThis;
     friend class TChunkTypeHandler;
@@ -377,6 +383,14 @@ private:
     TChunkManagerConfigPtr Config;
     TBootstrap* Bootstrap;
     
+    i32 ChunkReplicaCount;
+    NProfiling::TRateCounter AddChunkCounter;
+    NProfiling::TRateCounter RemoveChunkCounter;
+    NProfiling::TRateCounter AddChunkReplicaCounter;
+    NProfiling::TRateCounter RemoveChunkReplicaCounter;
+    NProfiling::TRateCounter StartJobCounter;
+    NProfiling::TRateCounter StopJobCounter;
+
     TChunkPlacementPtr ChunkPlacement;
     TJobSchedulerPtr JobScheduler;
     THolderLeaseTrackerPtr HolderLeaseTracker;
@@ -385,7 +399,6 @@ private:
 
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
-    i32 ChunkReplicaCount;
 
     TMetaStateMap<THolderId, THolder> HolderMap;
     yhash_map<Stroka, THolderId> HolderAddressMap;
@@ -418,7 +431,9 @@ private:
             chunkIds.push_back(chunkId);
         }
 
-        LOG_INFO_IF(!IsRecovery(), "Chunks allocated (ChunkIds: [%s], TransactionId: %s)",
+        Profiler.Increment(AddChunkCounter, chunkCount);
+
+        LOG_INFO_IF(!IsRecovery(), "Chunks created (ChunkIds: [%s], TransactionId: %s)",
             ~JoinToString(chunkIds),
             ~transactionId.ToString());
 
@@ -518,11 +533,11 @@ private:
 
         // Unregister chunk replicas from all known locations.
         FOREACH (auto holderId, chunk.StoredLocations()) {
-            RemoveChunkAtLocation(holderId, chunk, false);
+            ScheduleChunkReplicaRemoval(holderId, chunk, false);
         }
         if (~chunk.CachedLocations()) {
             FOREACH (auto holderId, *chunk.CachedLocations()) {
-                RemoveChunkAtLocation(holderId, chunk, true);
+                ScheduleChunkReplicaRemoval(holderId, chunk, true);
             }
         }
 
@@ -537,6 +552,8 @@ private:
                 }
             }
         }
+
+        Profiler.Increment(RemoveChunkCounter);
     }
 
     void OnChunkListDestroyed(TChunkList& chunkList)
@@ -908,9 +925,11 @@ private:
         if (!cached && IsLeader()) {
             JobScheduler->ScheduleChunkRefresh(chunk.GetId());
         }
+
+        Profiler.Increment(RemoveChunkCounter);
     }
 
-    void RemoveChunkAtLocation(THolderId holderId, TChunk& chunk, bool cached)
+    void ScheduleChunkReplicaRemoval(THolderId holderId, TChunk& chunk, bool cached)
     {
         auto chunkId = chunk.GetId();
         auto& holder = GetHolder(holderId);
@@ -970,6 +989,8 @@ private:
         if (!cached && IsLeader()) {
             JobScheduler->ScheduleChunkRefresh(chunk.GetId());
         }
+
+        Profiler.Increment(RemoveChunkCounter);
     }
 
 
@@ -1663,7 +1684,7 @@ bool TChunkManager::IsHolderConfirmed(const THolder& holder)
     return Impl->IsHolderConfirmed(holder);
 }
 
-int TChunkManager::GetChunkReplicaCount()
+i32 TChunkManager::GetChunkReplicaCount()
 {
     return Impl->GetChunkReplicaCount();
 }
