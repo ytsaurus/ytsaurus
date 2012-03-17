@@ -23,6 +23,7 @@ THolderLeaseTracker::THolderLeaseTracker(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , OnlineHolderCount(0)
 {
     YASSERT(config);
     YASSERT(bootstrap);
@@ -49,6 +50,8 @@ void THolderLeaseTracker::OnHolderOnline(const THolder& holder)
     auto& holderInfo = GetHolderInfo(holder.GetId());
     holderInfo.Confirmed = true;
     RenewLease(holder, holderInfo);
+    YASSERT(holder.GetState() == EHolderState::Online);
+    --OnlineHolderCount;
 }
 
 void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
@@ -57,6 +60,9 @@ void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
     auto& holderInfo = GetHolderInfo(holderId);
     TLeaseManager::CloseLease(holderInfo.Lease);
     YVERIFY(HolderInfoMap.erase(holderId) == 1);
+    if (holder.GetState() == EHolderState::Online) {
+        --OnlineHolderCount;
+    }
 }
 
 void THolderLeaseTracker::OnHolderHeartbeat(const THolder& holder)
@@ -70,6 +76,11 @@ bool THolderLeaseTracker::IsHolderConfirmed(const THolder& holder)
 {
     const auto& holderInfo = GetHolderInfo(holder.GetId());
     return holderInfo.Confirmed;
+}
+
+int THolderLeaseTracker::GetOnlineHolderCount()
+{
+    return OnlineHolderCount;
 }
 
 void THolderLeaseTracker::OnExpired(THolderId holderId)

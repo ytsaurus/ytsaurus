@@ -674,6 +674,7 @@ TJobScheduler::THolderInfo& TJobScheduler::GetHolderInfo(THolderId holderId)
 bool TJobScheduler::IsEnabled()
 {
     bool enabled = IsEnabledImpl();
+    // Log state changes.
     if (!LastEnabled || LastEnabled.Get() != enabled) {
         if (enabled) {
             LOG_INFO("Job scheduler is enabled");
@@ -687,6 +688,22 @@ bool TJobScheduler::IsEnabled()
 
 bool TJobScheduler::IsEnabledImpl()
 {
+    auto config = Config->Jobs;
+    if (config->MinOnlineHolderCount) {
+        if (HolderLeaseTracker->GetOnlineHolderCount() < config->MinOnlineHolderCount.Get()) {
+            return false;
+        }
+    }
+
+    if (config->MaxLostChunkFraction)
+    {
+        auto chunkManager = Bootstrap->GetChunkManager();
+        double fraction = (double) chunkManager->LostChunkIds().size() / chunkManager->GetChunkCount();
+        if (fraction > config->MaxLostChunkFraction.Get()) {
+            return false;
+        }
+    }
+
     return true;
 }
 
