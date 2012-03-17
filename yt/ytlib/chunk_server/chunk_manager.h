@@ -72,11 +72,13 @@ public:
     void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds);
     void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds);
 
-    void RunJobControl(
+    void ScheduleJobs(
         const THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart,
         yvector<NProto::TJobStopInfo>* jobsToStop);
+
+    bool IsJobSchedulerEnabled();
 
     //! Fills a given protobuf structure with the list of holder addresses.
     /*!

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "chunk_replication.h"
+#include "job_scheduler.h"
 #include "chunk_placement.h"
 #include "holder.h"
 #include "job.h"
@@ -28,7 +28,7 @@ static NProfiling::TProfiler Profiler("chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplication::TChunkReplication(
+TJobScheduler::TJobScheduler(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap,
     TChunkPlacementPtr chunkPlacement)
@@ -44,7 +44,7 @@ TChunkReplication::TChunkReplication(
     ScheduleNextRefresh();
 }
 
-void TChunkReplication::RunJobControl(
+void TJobScheduler::ScheduleJobs(
     const THolder& holder,
     const yvector<TJobInfo>& runningJobs,
     yvector<TJobStartInfo>* jobsToStart,
@@ -61,14 +61,14 @@ void TChunkReplication::RunJobControl(
         &replicationJobCount,
         &removalJobCount);
 
-    ScheduleJobs(
+    ScheduleNewJobs(
         holder,
-        Max(0, Config->MaxReplicationFanOut - replicationJobCount),
-        Max(0, Config->MaxRemovalJobsPerHolder - removalJobCount),
+        Max(0, Config->Jobs->MaxReplicationFanOut - replicationJobCount),
+        Max(0, Config->Jobs->MaxRemovalJobsPerHolder - removalJobCount),
         jobsToStart);
 }
 
-void TChunkReplication::OnHolderRegistered(const THolder& holder)
+void TJobScheduler::OnHolderRegistered(const THolder& holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -79,21 +79,21 @@ void TChunkReplication::OnHolderRegistered(const THolder& holder)
     }
 }
 
-void TChunkReplication::OnHolderUnregistered(const THolder& holder)
+void TJobScheduler::OnHolderUnregistered(const THolder& holder)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YVERIFY(HolderInfoMap.erase(holder.GetId()) == 1);
 }
 
-void TChunkReplication::ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId)
+void TJobScheduler::ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
     holderInfo.ChunksToReplicate.erase(chunkId);
     holderInfo.ChunksToRemove.insert(chunkId);
 }
 
-void TChunkReplication::ProcessExistingJobs(
+void TJobScheduler::ProcessExistingJobs(
     const THolder& holder,
     const yvector<TJobInfo>& runningJobs,
     yvector<TJobStopInfo>* jobsToStop,
@@ -141,7 +141,7 @@ void TChunkReplication::ProcessExistingJobs(
                     ~jobId.ToString(),
                     holder.GetId());
 
-                if (TInstant::Now() - job->GetStartTime() > Config->JobTimeout) {
+                if (TInstant::Now() - job->GetStartTime() > Config->Jobs->JobTimeout) {
                     TJobStopInfo stopInfo;
                     stopInfo.set_job_id(jobId.ToProto());
                     jobsToStop->push_back(stopInfo);
@@ -188,12 +188,12 @@ void TChunkReplication::ProcessExistingJobs(
     }
 }
 
-bool TChunkReplication::IsRefreshScheduled(const TChunkId& chunkId)
+bool TJobScheduler::IsRefreshScheduled(const TChunkId& chunkId)
 {
     return RefreshSet.find(chunkId) != RefreshSet.end();
 }
 
-TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
+TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
     const THolder& sourceHolder,
     const TChunkId& chunkId,
     yvector<TJobStartInfo>* jobsToStart)
@@ -276,7 +276,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleReplicationJob(
         : (EScheduleFlags) EScheduleFlags::Scheduled;
 }
 
-TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
+TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
     const THolder& sourceHolder,
     const TChunkId& chunkId,
     yvector<TJobStartInfo>* jobsToStart)
@@ -294,7 +294,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
 
     double maxFillCoeff =
         ChunkPlacement->GetFillCoeff(sourceHolder) -
-        Config->MinChunkBalancingFillCoeffDiff;
+        Config->Jobs->MinBalancingFillCoeffDiff;
     auto targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetHolderId == InvalidHolderId) {
         LOG_DEBUG("No suitable target holders for balancing (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -327,7 +327,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleBalancingJob(
     return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
-TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
+TJobScheduler::EScheduleFlags TJobScheduler::ScheduleRemovalJob(
     const THolder& holder,
     const TChunkId& chunkId,
     yvector<TJobStartInfo>* jobsToStart)
@@ -362,7 +362,7 @@ TChunkReplication::EScheduleFlags TChunkReplication::ScheduleRemovalJob(
     return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
-void TChunkReplication::ScheduleJobs(
+void TJobScheduler::ScheduleNewJobs(
     const THolder& holder,
     int maxReplicationJobsToStart,
     int maxRemovalJobsToStart,
@@ -393,7 +393,7 @@ void TChunkReplication::ScheduleJobs(
 
     // Schedule balancing jobs.
     if (maxReplicationJobsToStart > 0 &&
-        ChunkPlacement->GetFillCoeff(holder) > Config->MinChunkBalancingFillCoeff)
+        ChunkPlacement->GetFillCoeff(holder) > Config->Jobs->MinBalancingFillCoeff)
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
         if (!chunksToBalance.empty()) {
@@ -431,7 +431,7 @@ void TChunkReplication::ScheduleJobs(
     }
 }
 
-void TChunkReplication::GetReplicaStatistics(
+void TJobScheduler::GetReplicaStatistics(
     const TChunk& chunk,
     int* desiredCount,
     int* storedCount,
@@ -483,14 +483,14 @@ void TChunkReplication::GetReplicaStatistics(
     }
 }
 
-int TChunkReplication::GetDesiredReplicaCount(const TChunk& chunk)
+int TJobScheduler::GetDesiredReplicaCount(const TChunk& chunk)
 {
     // TODO(babenko): make configurable
     UNUSED(chunk);
     return 3;
 }
 
-void TChunkReplication::Refresh(const TChunk& chunk)
+void TJobScheduler::Refresh(const TChunk& chunk)
 {
     int desiredCount;
     int storedCount;
@@ -591,7 +591,7 @@ void TChunkReplication::Refresh(const TChunk& chunk)
     }
  }
 
-void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
+void TJobScheduler::ScheduleChunkRefresh(const TChunkId& chunkId)
 {
     if (RefreshSet.find(chunkId) != RefreshSet.end())
         return;
@@ -603,7 +603,7 @@ void TChunkReplication::ScheduleChunkRefresh(const TChunkId& chunkId)
     RefreshSet.insert(chunkId);
 }
 
-void TChunkReplication::RefreshAllChunks()
+void TJobScheduler::RefreshAllChunks()
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto* chunk, chunkManager->GetChunks()) {
@@ -611,20 +611,20 @@ void TChunkReplication::RefreshAllChunks()
     }
 }
 
-void TChunkReplication::ScheduleNextRefresh()
+void TJobScheduler::ScheduleNextRefresh()
 {
     auto context = Bootstrap->GetMetaStateManager()->GetEpochContext();
     if (!context)
         return;
     TDelayedInvoker::Submit(
-        ~FromMethod(&TChunkReplication::OnRefresh, MakeStrong(this))
+        ~FromMethod(&TJobScheduler::OnRefresh, MakeStrong(this))
         ->Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             context),
         Config->ChunkRefreshQuantum);
 }
 
-void TChunkReplication::OnRefresh()
+void TJobScheduler::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -652,17 +652,22 @@ void TChunkReplication::OnRefresh()
     ScheduleNextRefresh();
 }
 
-TChunkReplication::THolderInfo* TChunkReplication::FindHolderInfo(THolderId holderId)
+TJobScheduler::THolderInfo* TJobScheduler::FindHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
     return it == HolderInfoMap.end() ? NULL : &it->second;
 }
 
-TChunkReplication::THolderInfo& TChunkReplication::GetHolderInfo(THolderId holderId)
+TJobScheduler::THolderInfo& TJobScheduler::GetHolderInfo(THolderId holderId)
 {
     auto it = HolderInfoMap.find(holderId);
     YASSERT(it != HolderInfoMap.end());
     return it->second;
+}
+
+bool TJobScheduler::IsEnabled()
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

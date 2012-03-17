@@ -149,7 +149,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
     yvector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
     yvector<TJobStartInfo> jobsToStart;
     yvector<TJobStopInfo> jobsToStop;
-    chunkManager->RunJobControl(
+    chunkManager->ScheduleJobs(
         holder,
         runningJobs,
         &jobsToStart,

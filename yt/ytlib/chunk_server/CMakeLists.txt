@@ -6,7 +6,7 @@ set( SRCS
   ${BASE}/chunk_list.cpp
   ${BASE}/chunk_manager.cpp
   ${BASE}/chunk_placement.cpp
-  ${BASE}/chunk_replication.cpp
+  ${BASE}/job_scheduler.cpp
   ${BASE}/chunk_service.cpp
   ${BASE}/chunk_statistics.cpp
   ${BASE}/chunk_tree_ref.cpp
@@ -27,7 +27,7 @@ set( HDRS
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_manager.h
   ${BASE}/chunk_placement.h
-  ${BASE}/chunk_replication.h
+  ${BASE}/job_scheduler.h
   ${BASE}/chunk_service.h
   ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_statistics.h
