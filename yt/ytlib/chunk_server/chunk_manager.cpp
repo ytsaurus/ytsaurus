@@ -378,7 +378,7 @@ private:
     TBootstrap* Bootstrap;
     
     TChunkPlacementPtr ChunkPlacement;
-    TChunkReplicationPtr JobScheduler;
+    TJobSchedulerPtr JobScheduler;
     THolderLeaseTrackerPtr HolderLeaseTracking;
     
     TIdGenerator<THolderId> HolderIdGenerator;
