@@ -919,7 +919,7 @@ TAsyncError::TPtr TRemoteWriter::AsyncClose(
         &TRemoteWriter::DoClose,
         TWeak(this),
         lastBlocks,
-        attributes)->ToParamAction<TVoid>());
+        attributes)->ToParamAction<TVoid>()->Via(WriterThread->GetInvoker()));
 
 
     return State.GetOperationError();
