@@ -583,7 +583,7 @@ private:
         HolderAddressMap.insert(MakePair(address, holderId)).second;
 
         if (IsLeader()) {
-            StartHolderTracking(*newHolder, true);
+            StartHolderTracking(*newHolder, false);
         }
 
         return holderId;
@@ -621,7 +621,7 @@ private:
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
-                HolderLeaseTracker->OnHolderOnline(holder);
+                HolderLeaseTracker->OnHolderOnline(holder, false);
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
@@ -793,7 +793,7 @@ private:
         // Assign initial leases to holders.
         // NB: Holders will remain unconfirmed until the first heartbeat.
         FOREACH (const auto& pair, HolderMap) { 
-            StartHolderTracking(*pair.second, false);
+            StartHolderTracking(*pair.second, true);
         }
 
         PROFILE_TIMING ("full_chunk_refresh_time") {
@@ -811,10 +811,15 @@ private:
     }
 
 
-    void StartHolderTracking(const THolder& holder, bool confirmed)
+    void StartHolderTracking(const THolder& holder, bool recovery)
     {
-        HolderLeaseTracker->OnHolderRegistered(holder, confirmed);
+        HolderLeaseTracker->OnHolderRegistered(holder, recovery);
+        if (holder.GetState() == EHolderState::Online) {
+            HolderLeaseTracker->OnHolderOnline(holder, recovery);
+        }
+
         ChunkPlacement->OnHolderRegistered(holder);
+        
         JobScheduler->OnHolderRegistered(holder);
 
         HolderRegistered_.Fire(holder);

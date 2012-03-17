@@ -29,10 +29,10 @@ THolderLeaseTracker::THolderLeaseTracker(
     YASSERT(bootstrap);
 }
 
-void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool confirmed)
+void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool recovery)
 {
     THolderInfo holderInfo;
-    holderInfo.Confirmed = confirmed;
+    holderInfo.Confirmed = !recovery;
     holderInfo.Lease = TLeaseManager::CreateLease(
         GetTimeout(holder, holderInfo),
         ~FromMethod(
@@ -45,10 +45,10 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool confirm
     YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), holderInfo)).second);
 }
 
-void THolderLeaseTracker::OnHolderOnline(const THolder& holder)
+void THolderLeaseTracker::OnHolderOnline(const THolder& holder, bool recovery)
 {
     auto& holderInfo = GetHolderInfo(holder.GetId());
-    holderInfo.Confirmed = true;
+    holderInfo.Confirmed = !recovery;
     RenewLease(holder, holderInfo);
     YASSERT(holder.GetState() == EHolderState::Online);
     ++OnlineHolderCount;
