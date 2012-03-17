@@ -125,8 +125,6 @@ private:
     void ScheduleNextRefresh();
     void OnRefresh();
 
-    bool IsEnabledImpl();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
