@@ -903,6 +903,9 @@ public:
             case TSnapshotBuilder::EResultCode::ForkError:
                 context->Reply(TError("Fork error"));
                 break;
+            case TSnapshotBuilder::EResultCode::TimeoutExceeded:
+                context->Reply(TError("Snapshot creation timed out"));
+                break;
             default:
                 YUNREACHABLE();
         }
