@@ -790,16 +790,16 @@ private:
 
         JobScheduler = New<TJobScheduler>(Config, Bootstrap, ChunkPlacement, HolderLeaseTracker);
 
+        // Assign initial leases to holders.
+        // NB: Holders will remain unconfirmed until the first heartbeat.
+        FOREACH (const auto& pair, HolderMap) { 
+            StartHolderTracking(*pair.second, false);
+        }
+
         PROFILE_TIMING ("full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
             JobScheduler->RefreshAllChunks();
             LOG_INFO("Full chunk refresh completed");
-        }
-
-        // Assign initial leases to holders.
-        // NB: Holders should remain unconfirmed until the first heartbeat.
-        FOREACH (const auto& pair, HolderMap) { 
-            StartHolderTracking(*pair.second, false);
         }
     }
 
