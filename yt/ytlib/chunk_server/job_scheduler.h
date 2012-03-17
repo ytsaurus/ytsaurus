@@ -15,11 +15,11 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkReplication
+class TJobScheduler
     : public TRefCounted
 {
 public:
-    TChunkReplication(
+    TJobScheduler(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement);
@@ -37,11 +37,13 @@ public:
 
     void ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId);
 
-    void RunJobControl(
+    void ScheduleJobs(
         const THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart,
         yvector<NProto::TJobStopInfo>* jobsToStop);
+
+    bool IsEnabled();
 
 private:
     TChunkManagerConfigPtr Config;
@@ -100,7 +102,7 @@ private:
         const THolder& holder,
         const TChunkId& chunkId,
         yvector<NProto::TJobStartInfo>* jobsToStart);
-    void ScheduleJobs(
+    void ScheduleNewJobs(
         const THolder& holder,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,

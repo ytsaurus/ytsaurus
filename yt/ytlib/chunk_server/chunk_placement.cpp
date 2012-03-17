@@ -234,7 +234,7 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
 
     auto* sink = chunkManager->FindReplicationSink(targetHolder.GetAddress());
     if (sink) {
-        if (static_cast<int>(sink->JobIds().size()) >= Config->MaxReplicationFanIn) {
+        if (static_cast<int>(sink->JobIds().size()) >= Config->Jobs->MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.
             return false;
         }
