@@ -63,6 +63,8 @@ public:
     //! Returns True iff the holder is confirmed.
     bool IsHolderConfirmed(const THolder& holder);
 
+    //! Returns the number of holders that are currently online (including unconfirmed).
+    int GetOnlineHolderCount();
 
 private:
     struct THolderInfo
@@ -76,6 +78,7 @@ private:
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
+    int OnlineHolderCount;
     THolderInfoMap HolderInfoMap;
 
     THolderInfo* FindHolderInfo(THolderId holderId);
