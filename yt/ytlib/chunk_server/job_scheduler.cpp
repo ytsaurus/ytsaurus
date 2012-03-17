@@ -673,37 +673,38 @@ TJobScheduler::THolderInfo& TJobScheduler::GetHolderInfo(THolderId holderId)
 
 bool TJobScheduler::IsEnabled()
 {
-    bool enabled = IsEnabledImpl();
-    // Log state changes.
-    if (!LastEnabled || LastEnabled.Get() != enabled) {
-        if (enabled) {
-            LOG_INFO("Job scheduler is enabled");
-        } else {
-            LOG_INFO("Job scheduler is disabled");
-        }
-        LastEnabled = enabled;
-    }
-    return enabled;
-}
+    // This method also logs state changes.
 
-bool TJobScheduler::IsEnabledImpl()
-{
     auto config = Config->Jobs;
     if (config->MinOnlineHolderCount) {
-        if (HolderLeaseTracker->GetOnlineHolderCount() < config->MinOnlineHolderCount.Get()) {
-            return false;
+        int needOnline = config->MinOnlineHolderCount.Get();
+        int gotOnline = HolderLeaseTracker->GetOnlineHolderCount();
+        if (gotOnline < needOnline) {
+            if (!LastEnabled || LastEnabled.Get()) {
+                LOG_INFO("Too few online holders, job scheduler disabled: needed >= %d but got %d",
+                    needOnline,
+                    gotOnline);
+                return false;
+            }
         }
     }
 
     if (config->MaxLostChunkFraction)
     {
         auto chunkManager = Bootstrap->GetChunkManager();
-        double fraction = (double) chunkManager->LostChunkIds().size() / chunkManager->GetChunkCount();
-        if (fraction > config->MaxLostChunkFraction.Get()) {
+        double needFraction = config->MaxLostChunkFraction.Get();
+        double gotFraction = (double) chunkManager->LostChunkIds().size() / chunkManager->GetChunkCount();
+        if (gotFraction > needFraction) {
+            LOG_INFO("Too many lost chunks, job scheduler disabled: needed <= %lf but got %lf",
+                needFraction,
+                gotFraction);
             return false;
         }
     }
 
+    if (!LastEnabled || !LastEnabled.Get()) {
+        LOG_INFO("Job scheduler enabled");
+    }
     return true;
 }
 
