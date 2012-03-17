@@ -41,6 +41,7 @@ public:
         bool createSnapshot)
         : Owner(owner)
         , Version(version)
+        , CreateSnapshot(createSnapshot)
     { }
 
     void Run()
