@@ -926,7 +926,9 @@ private:
             JobScheduler->ScheduleChunkRefresh(chunk.GetId());
         }
 
-        Profiler.Increment(AddChunkReplicaCounter);
+        if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
+            Profiler.Increment(AddChunkReplicaCounter);
+        }
     }
 
     void ScheduleChunkReplicaRemoval(THolderId holderId, TChunk& chunk, bool cached)
