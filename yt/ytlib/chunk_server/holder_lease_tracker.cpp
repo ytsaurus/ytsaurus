@@ -51,7 +51,7 @@ void THolderLeaseTracker::OnHolderOnline(const THolder& holder)
     holderInfo.Confirmed = true;
     RenewLease(holder, holderInfo);
     YASSERT(holder.GetState() == EHolderState::Online);
-    --OnlineHolderCount;
+    ++OnlineHolderCount;
 }
 
 void THolderLeaseTracker::OnHolderUnregistered(const THolder& holder)
