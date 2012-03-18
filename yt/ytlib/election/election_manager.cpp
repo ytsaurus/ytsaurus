@@ -724,28 +724,27 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
 
     if (State != TProxy::EState::Following) {
         ythrow TServiceException(EErrorCode::InvalidState) <<
-            Sprintf("Ping from leader %d while in an invalid state (Epoch: %s, State: %s)",
+            Sprintf("Cannot process ping from a leader while in %s (LeaderId: %d, Epoch: %s)",
+            ~State.ToString(),
             leaderId,
-            ~epoch.ToString(),
-            ~State.ToString());
+            ~epoch.ToString());
     }
 
     if (leaderId != LeaderId) {
         ythrow TServiceException(EErrorCode::InvalidLeader) <<
-            Sprintf("Ping from an invalid leader: expected: %d, received: %d",
+            Sprintf("Ping from an invalid leader: expected %d, received %d",
             LeaderId,
             leaderId);
     }
 
     if (epoch != Epoch) {
         ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-            Sprintf("Ping with invalid epoch from leader: expected: %s, received: %s",
+            Sprintf("Ping with invalid epoch from leader: expected %s, received %s",
             ~Epoch.ToString(),
             ~epoch.ToString());
     }
 
     TDelayedInvoker::Cancel(PingTimeoutCookie);
-
     PingTimeoutCookie = TDelayedInvoker::Submit(
         ~FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
         ->Via(~ControlEpochInvoker),

@@ -504,13 +504,12 @@ public:
 
         if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
             ythrow TServiceException(EErrorCode::InvalidStatus) <<
-                Sprintf("Invalid status (Status: %s)", ~GetControlStatus().ToString());
+                Sprintf("Cannot apply changes while in %s", ~GetControlStatus().ToString());
         }
 
         if (epoch != Epoch) {
-            Restart();
             ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-                Sprintf("Invalid epoch (Expected: %s, Received: %s)",
+                Sprintf("Invalid epoch: expected %s, received %s",
                     ~Epoch.ToString(),
                     ~epoch.ToString());
         }
@@ -526,7 +525,7 @@ public:
 
                 FollowerCommitter
                     ->Commit(version, request->Attachments())
-                    ->Subscribe(FromMethod(&TThis::OnFollowerCommit, MakeStrong(this), context));
+                    ->Subscribe(FromMethod(&TThis::OnFollowerCommitted, MakeStrong(this), context));
                 break;
             }
 
@@ -559,6 +558,36 @@ public:
         }
     }
 
+    void OnFollowerCommitted(TLeaderCommitter::EResult result, TCtxApplyChanges::TPtr context)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto& response = context->Response();
+
+        switch (result) {
+        case TCommitter::EResult::Committed:
+            response.set_committed(true);
+            context->Reply();
+            break;
+
+        case TCommitter::EResult::LateChanges:
+            context->Reply(
+                TProxy::EErrorCode::InvalidVersion,
+                "Changes are late");
+            break;
+
+        case TCommitter::EResult::OutOfOrderChanges:
+            context->Reply(
+                TProxy::EErrorCode::InvalidVersion,
+                "Changes are out of order");
+            Restart();
+            break;
+
+        default:
+            YUNREACHABLE();
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NProto, PingFollower)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -576,14 +605,12 @@ public:
 
         if (status != EPeerStatus::Following && status != EPeerStatus::FollowerRecovery) {
             ythrow TServiceException(EErrorCode::InvalidStatus) <<
-                Sprintf("Invalid status %s",
-                    ~GetControlStatus().ToString());
+                Sprintf("Cannot process follower ping while in %s", ~GetControlStatus().ToString());
         }
 
         if (epoch != Epoch) {
-            Restart();
             ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-                Sprintf("Invalid epoch: expected %s but got %s",
+                Sprintf("Invalid epoch: expected %s, received %s",
                     ~Epoch.ToString(),
                     ~epoch.ToString());
         }
@@ -646,13 +673,12 @@ public:
 
         if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
             ythrow TServiceException(EErrorCode::InvalidStatus) <<
-                Sprintf("Invalid status (Status: %s)", ~GetControlStatus().ToString());
+                Sprintf("Cannot advance segment while in %s", ~GetControlStatus().ToString());
         }
 
         if (epoch != Epoch) {
-            Restart();
             ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-                Sprintf("Invalid epoch (Expected: %s, Received: %s)",
+                Sprintf("Invalid epoch: expected: %s, received %s",
                     ~Epoch.ToString(),
                     ~epoch.ToString());
         }
@@ -673,7 +699,7 @@ public:
                     LOG_DEBUG("AdvanceSegment: advancing segment");
 
                     EpochStateInvoker->Invoke(context->Wrap(~FromMethod(
-                        &TThis::DoAdvanceSegment,
+                        &TThis::DoStateAdvanceSegment,
                         MakeStrong(this),
                         version)));
                 }
@@ -709,6 +735,23 @@ public:
         }
     }
 
+    void DoStateAdvanceSegment(TCtxAdvanceSegment::TPtr context, TMetaVersion version)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        if (DecoratedState->GetVersion() != version) {
+            Restart();
+            ythrow TServiceException(EErrorCode::InvalidVersion) <<
+                Sprintf("Invalid version, segment advancement canceled (Expected: %s, Received: %s)",
+                ~version.ToString(),
+                ~DecoratedState->GetVersion().ToString());
+        }
+
+        DecoratedState->RotateChangeLog();
+
+        context->Reply();
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
     {
         i32 maxSnapshotId = request->max_snapshot_id();
@@ -727,60 +770,6 @@ public:
         VERIFY_THREAD_AFFINITY(StateThread);
 
 
-        // Switch to a new changelog unless the current one is empty.
-        // This enables changelog truncation for those followers that are down and have uncommitted changes.
-        auto version = DecoratedState->GetVersion();
-        if (version.RecordCount > 0) {
-            LOG_INFO("Switching to a new changelog for the new epoch");
-            SnapshotBuilder->RotateChangeLog();
-        }   
-    }
-
-    void DoAdvanceSegment(TCtxAdvanceSegment::TPtr context, TMetaVersion version)
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-        if (DecoratedState->GetVersion() != version) {
-            Restart();
-            ythrow TServiceException(EErrorCode::InvalidVersion) <<
-                Sprintf("Invalid version, segment advancement canceled (Expected: %s, Received: %s)",
-                    ~version.ToString(),
-                    ~DecoratedState->GetVersion().ToString());
-        }
-
-        DecoratedState->RotateChangeLog();
-
-        context->Reply();
-    }
-
-    void OnFollowerCommit(TLeaderCommitter::EResult result, TCtxApplyChanges::TPtr context)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto& response = context->Response();
-
-        switch (result) {
-            case TCommitter::EResult::Committed:
-                response.set_committed(true);
-                context->Reply();
-                break;
-
-            case TCommitter::EResult::LateChanges:
-                context->Reply(
-                    TProxy::EErrorCode::InvalidVersion,
-                    "Changes are late");
-                break;
-
-            case TCommitter::EResult::OutOfOrderChanges:
-                context->Reply(
-                    TProxy::EErrorCode::InvalidVersion,
-                    "Changes are out of order");
-                Restart();
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
     }
 
     void Restart()
@@ -859,10 +848,6 @@ public:
 
         StartEpoch(epoch);
 
-        EpochStateInvoker->Invoke(FromMethod(
-            &TThis::DoStateStartLeading,
-            MakeStrong(this)));
-
         YASSERT(!FollowerTracker);
         FollowerTracker = New<TFollowerTracker>(
             ~Config->FollowerTracker,
@@ -895,6 +880,20 @@ public:
             EpochControlInvoker);
         FollowerPinger->Start();
 
+        EpochStateInvoker->Invoke(FromMethod(
+            &TThis::DoStateStartLeading,
+            MakeStrong(this)));
+    }
+
+    void DoStateStartLeading()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        YASSERT(StateStatus == EPeerStatus::Stopped);
+        StateStatus = EPeerStatus::LeaderRecovery;
+
+        StartLeading_.Fire();
+
         YASSERT(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(
             ~Config,
@@ -908,16 +907,6 @@ public:
         LeaderRecovery->Run()->Subscribe(
             FromMethod(&TThis::OnStateLeaderRecoveryFinished, MakeStrong(this))
             ->Via(~EpochStateInvoker));
-    }
-
-    void DoStateStartLeading()
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-        YASSERT(StateStatus == EPeerStatus::Stopped);
-        StateStatus = EPeerStatus::LeaderRecovery;
-
-        StartLeading_.Fire();
     }
 
     void OnStateLeaderRecoveryFinished(TRecovery::EResult result)
@@ -943,6 +932,14 @@ public:
             Epoch,
             EpochControlInvoker,
             EpochStateInvoker);
+
+        // Switch to a new changelog unless the current one is empty.
+        // This enables changelog truncation for those followers that are down and have uncommitted changes.
+        auto version = DecoratedState->GetVersion();
+        if (version.RecordCount > 0) {
+            LOG_INFO("Switching to a new changelog %d for the new epoch", version.SegmentId + 1);
+            SnapshotBuilder->RotateChangeLog();
+        }   
 
         LeaderRecoveryComplete_.Fire();
 
@@ -1024,7 +1021,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Starting follower state recovery");
+        LOG_INFO("Starting follower recovery");
 
         ControlStatus = EPeerStatus::FollowerRecovery;
         LeaderId = leaderId;

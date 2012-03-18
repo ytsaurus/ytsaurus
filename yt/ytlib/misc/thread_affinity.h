@@ -35,7 +35,7 @@ namespace NThreadAffinity {
 // Check that the cast TThread::TId -> TAtomic is safe.
 // NB: TAtomic is volatile intptr_t.
 static_assert(sizeof(TThread::TId) == sizeof(intptr_t),
-    "Current implementation assumes that TThread::ID can be atomically swapped.");
+    "Current implementation assumes that TThread::TId can be atomically swapped.");
 
 class TSlot
 {
