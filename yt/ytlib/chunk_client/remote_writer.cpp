@@ -853,9 +853,8 @@ void TRemoteWriter::DoWriteBlocks(TVoid, const std::vector<TSharedRef>& blocks)
 
 void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
 {
-    FOREACH(auto& block, blocks){
-        LOG_DEBUG("Block added (BlockIndex: %d)",
-            BlockCount);
+    FOREACH (auto& block, blocks) {
+        LOG_DEBUG("Block added (BlockIndex: %d)", BlockCount);
 
         CurrentGroup->AddBlock(block);
         ++BlockCount;
