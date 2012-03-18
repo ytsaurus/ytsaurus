@@ -153,17 +153,32 @@ public:
         , Requester(server->Requester)
         , SessionId(sessionId)
         , Address(address)
-        , Terminated(false)
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
             SessionId,
             FromMethod(&TSession::OnMessageDequeued, MakeWeak(this)),
             server->Config->MessageRearrangeTimeout))
-        , Lease(TLeaseManager::CreateLease(
-            server->Config->SessionTimeout,
-            FromMethod(&TSession::OnLeaseExpired, MakeWeak(this))))
+    { }
+
+    void OnRegistered()
     {
+        auto server = Server.Lock();
+        YASSERT(server);
         SendPing();
+        Lease = TLeaseManager::CreateLease(
+            server->Config->SessionTimeout,
+            FromMethod(&TSession::OnLeaseExpired, MakeWeak(this)));
+    }
+
+    void OnUnregistered()
+    {
+        CancelPing();
+        if (Lease) {
+            TLeaseManager::CloseLease(Lease);
+            Lease.Reset();
+        }
+        Server.Reset();
+        Requester = NULL;
     }
 
     void EnqueueIncomingMessage(
@@ -244,7 +259,6 @@ private:
     TSessionId SessionId;
     TUdpAddress Address;
     TGuid PingId;
-    bool Terminated;
     TAtomic SequenceId;
     TMessageRearranger::TPtr MessageRearranger;
     TLeaseManager::TLease Lease;
@@ -253,6 +267,8 @@ private:
 
     void SendPing()
     {
+        YASSERT(PingId == TGuid());
+
         TBlob data;
         CreatePacket(SessionId, TPacketHeader::EType::Ping, &data);
         PingId = Requester->SendRequest(Address, "", &data);
@@ -260,8 +276,10 @@ private:
 
     void CancelPing()
     {
+        YASSERT(PingId != TGuid());
+
         Requester->CancelRequest(PingId);
-        PingId = TGUID();
+        PingId = TGuid();
     }
 
     TSequenceId GenerateSequenceId()
@@ -286,8 +304,6 @@ private:
     {
         LOG_DEBUG("Session expired (SessionId: %s)", ~SessionId.ToString());
 
-        CancelPing();
-        
         auto server = Server.Lock();
         if (server) {
             server->OnSessionExpired(this);
@@ -666,6 +682,7 @@ TIntrusivePtr<TNLBusServer::TSession> TNLBusServer::RegisterSession(
         this,
         sessionId,
         address);
+    session->OnRegistered();
 
     auto pingId = session->GetPingId();
 
@@ -684,12 +701,10 @@ void TNLBusServer::UnregisterSession(TSessionPtr session)
 {
     LOG_DEBUG("Session unregistered (SessionId: %s)", ~session->GetSessionId().ToString());
 
-    // Copy the ids since the session may die any moment now.
-    auto sessionId = session->GetSessionId();
-    auto pingId = session->GetPingId();
+    session->OnUnregistered();
 
-    YVERIFY(SessionMap.erase(sessionId) == 1);
-    YVERIFY(PingMap.erase(pingId) == 1);
+    YVERIFY(SessionMap.erase(session->GetSessionId()) == 1);
+    YVERIFY(PingMap.erase(session->GetPingId()) == 1);
 }
 
 void TNLBusServer::OnSessionExpired(TSessionPtr session)
