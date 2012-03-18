@@ -700,14 +700,14 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("port").Scalar(Config->Port)
-            .Do([=] (TFluentMap fluent)
-                {
-                    auto statistics = GetStatistics();
-                    fluent.Item("request_count").Scalar(statistics.RequestCount);
-                    fluent.Item("request_data_size").Scalar(statistics.RequestDataSize);
-                    fluent.Item("response_count").Scalar(statistics.ResponseCount);
-                    fluent.Item("response_data_size").Scalar(statistics.ResponseDataSize);
-                })
+            .Do([=] (TFluentMap fluent) {
+                auto statistics = GetStatistics();
+                fluent.Item("request_count").Scalar(statistics.RequestCount);
+                fluent.Item("request_data_size").Scalar(statistics.RequestDataSize);
+                fluent.Item("response_count").Scalar(statistics.ResponseCount);
+                fluent.Item("response_data_size").Scalar(statistics.ResponseDataSize);
+                fluent.Item("debug_info").Scalar(Requester->GetDebugInfo());
+            })
          .EndMap();
 }
 
