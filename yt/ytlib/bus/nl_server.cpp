@@ -64,6 +64,7 @@ private:
     NProfiling::TRateCounter InSizeCounter;
     NProfiling::TRateCounter OutCounter;
     NProfiling::TRateCounter OutSizeCounter;
+    TAtomic SessionCount;
 
     IMessageHandler::TPtr Handler;
     ::TIntrusivePtr<IRequester> Requester;
@@ -322,6 +323,7 @@ TNLBusServer::TNLBusServer(TNLBusServerConfig* config)
     , InSizeCounter("in_throughput")
     , OutCounter("out_rate")
     , OutSizeCounter("out_throughput")
+    , SessionCount(0)
 {
     YASSERT(config->Port >= 0);
 }
@@ -684,6 +686,8 @@ TIntrusivePtr<TNLBusServer::TSession> TNLBusServer::RegisterSession(
         address);
     session->OnRegistered();
 
+    AtomicIncrement(SessionCount);
+
     auto pingId = session->GetPingId();
 
     SessionMap.insert(MakePair(sessionId, session));
@@ -705,6 +709,8 @@ void TNLBusServer::UnregisterSession(TSessionPtr session)
     YVERIFY(PingMap.erase(session->GetPingId()) == 1);
 
     session->OnUnregistered();
+
+    AtomicDecrement(SessionCount);
 }
 
 void TNLBusServer::OnSessionExpired(TSessionPtr session)
@@ -726,11 +732,11 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
                 fluent.Item("request_data_size").Scalar(statistics.RequestDataSize);
                 fluent.Item("response_count").Scalar(statistics.ResponseCount);
                 fluent.Item("response_data_size").Scalar(statistics.ResponseDataSize);
-                auto requester = Requester;
-                if (requester.Get()) {
-                    fluent.Item("debug_info").Scalar(Requester->GetDebugInfo());
-                }
             })
+            .DoIf(Requester.Get(), [=] (TFluentMap fluent) {
+                fluent.Item("debug_info").Scalar(Requester->GetDebugInfo());
+            })
+            .Item("session_count").Scalar(SessionCount)
          .EndMap();
 }
 
