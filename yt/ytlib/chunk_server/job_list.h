@@ -11,8 +11,12 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(babenko): move impl to cpp
-struct TJobList
+class TJobList
 {
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
+    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
+public:
+
     TJobList(const TChunkId& chunkId)
         : ChunkId_(chunkId)
     { }
@@ -45,8 +49,6 @@ struct TJobList
         }
     }
     
-    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
-    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

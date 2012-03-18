@@ -79,7 +79,9 @@ static_assert(sizeof(TSpinLock) == sizeof(TAtomic),
     YASSERT(*reinterpret_cast<const TAtomic*>(&(spinLock)) != 0);
 
 #define VERIFY_INVOKER_AFFINITY(invoker, slot) \
-    invoker->Invoke(FromMethod(&::NYT::NThreadAffinity::TSlot::Check, &slot ## __Slot))
+    invoker->Invoke(FromFunctor([&] () { \
+        slot ## __Slot.Check(); \
+    }))
 
 #else
 
