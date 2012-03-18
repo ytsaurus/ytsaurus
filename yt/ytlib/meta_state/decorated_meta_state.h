@@ -53,12 +53,6 @@ public:
     /*!
      *  It is always no smaller than #GetVersion.
      *  
-     *  \note Thread affinity: StateThread
-     */
-    TMetaVersion GetReachableVersion() const;
-
-    //! Same as #GetReachableVersion but call be called from an arbitrary thread.
-    /*!
      *  \note Thread affinity: any
      */
     TMetaVersion GetReachableVersionAsync() const;

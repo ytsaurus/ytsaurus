@@ -244,14 +244,6 @@ TMetaVersion TDecoratedMetaState::GetVersionAsync() const
     return Version;
 }
 
-TMetaVersion TDecoratedMetaState::GetReachableVersion() const
-{
-    YASSERT(Started);
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    return ReachableVersion;
-}
-
 TMetaVersion TDecoratedMetaState::GetReachableVersionAsync() const
 {
     YASSERT(Started);
