@@ -84,7 +84,7 @@ private:
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         TDelayedInvoker::Submit(
-            ~FromMethod(&TFollowerPinger::SendPing, MakeStrong(this), id)
+            FromMethod(&TFollowerPinger::SendPing, MakeStrong(this), id)
             ->Via(EpochInvoker),
             ElectionManager->Config->FollowerPingInterval);
     }
@@ -594,7 +594,7 @@ void TElectionManager::StartFollowing(
     StartEpoch(leaderId, epoch);
 
     PingTimeoutCookie = TDelayedInvoker::Submit(
-        ~FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
+        FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
         ->Via(~ControlEpochInvoker),
         Config->ReadyToFollowTimeout);
 
@@ -746,7 +746,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
 
     TDelayedInvoker::Cancel(PingTimeoutCookie);
     PingTimeoutCookie = TDelayedInvoker::Submit(
-        ~FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
+        FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
         ->Via(~ControlEpochInvoker),
         Config->FollowerPingTimeout);
 

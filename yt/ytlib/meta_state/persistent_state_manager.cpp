@@ -223,7 +223,7 @@ public:
                 .Item("state").Scalar(ControlStatus.ToString())
                 .Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
                 .Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
-                .Item("elections").Do(~FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
+                .Item("elections").Do(FromMethod(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent)
                     {
                         fluent
@@ -248,7 +248,7 @@ public:
 
     virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
-        IAction* changeAction)
+        IAction::TPtr changeAction)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         YASSERT(!InCommit);
@@ -394,7 +394,7 @@ public:
                 ex.what());
         }
 
-        IOQueue->GetInvoker()->Invoke(context->Wrap(~FromFunctor([=] () {
+        IOQueue->GetInvoker()->Invoke(context->Wrap(FromFunctor([=] () {
             VERIFY_THREAD_AFFINITY(IOThread);
 
             TBlob data(length);
@@ -466,7 +466,7 @@ public:
         }
 
         auto changeLog = result.Value();
-        IOQueue->GetInvoker()->Invoke(~context->Wrap(~FromFunctor([=] () {
+        IOQueue->GetInvoker()->Invoke(~context->Wrap(FromFunctor([=] () {
             VERIFY_THREAD_AFFINITY(IOThread);
 
             yvector<TSharedRef> recordData;
@@ -698,7 +698,7 @@ public:
                 } else {
                     LOG_DEBUG("AdvanceSegment: advancing segment");
 
-                    EpochStateInvoker->Invoke(context->Wrap(~FromMethod(
+                    EpochStateInvoker->Invoke(context->Wrap(FromMethod(
                         &TThis::DoStateAdvanceSegment,
                         MakeStrong(this),
                         version)));

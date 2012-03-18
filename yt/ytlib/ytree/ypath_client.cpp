@@ -318,7 +318,7 @@ ExecuteVerb(
         suffixPath,
         verb,
         suffixService->GetLoggingCategory(),
-        ~FromMethod(
+        FromMethod(
             &OnYPathResponse,
             asyncResponseMessage,
             path,

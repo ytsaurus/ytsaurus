@@ -429,7 +429,7 @@ TSessionPtr TSessionManager::StartSession(
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,
-        ~FromMethod(
+        FromMethod(
             &TSessionManager::OnLeaseExpired,
             MakeStrong(this),
             session)

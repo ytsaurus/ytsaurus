@@ -338,7 +338,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
         YASSERT(!BatchTimeoutCookie);
         CurrentBatch = New<TBatch>(MakeStrong(this), version);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
-            ~FromMethod(
+            FromMethod(
                 &TLeaderCommitter::OnBatchTimeout,
                 MakeStrong(this),
                 CurrentBatch)

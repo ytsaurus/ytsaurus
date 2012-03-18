@@ -80,7 +80,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     message.mutable_statistics()->MergeFrom(statistics);
     chunkManager
         ->InitiateRegisterHolder(message)
-        ->OnSuccess(~FromFunctor([=] (THolderId id)
+        ->OnSuccess(FromFunctor([=] (THolderId id)
             {
                 response->set_holder_id(id);
                 context->SetResponseInfo("HolderId: %d", id);
@@ -220,7 +220,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
     message.set_chunk_count(chunkCount);
     chunkManager
         ->InitiateCreateChunks(message)
-        ->OnSuccess(~FromFunctor([=] (yvector<TChunkId> chunkIds)
+        ->OnSuccess(FromFunctor([=] (yvector<TChunkId> chunkIds)
             {
                 YASSERT(chunkIds.size() == chunkCount);
                 for (int index = 0; index < chunkCount; ++index) {

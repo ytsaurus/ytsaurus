@@ -27,7 +27,7 @@ public:
 
         auto lease = New<TEntry>(timeout, onExpired);
         lease->Cookie = TDelayedInvoker::Submit(
-            ~FromMethod(&TImpl::OnLeaseExpired, lease),
+            FromMethod(&TImpl::OnLeaseExpired, lease),
             timeout);
         return lease;
     }
@@ -46,7 +46,7 @@ public:
             lease->Timeout = timeout.Get();
         }
         lease->Cookie = TDelayedInvoker::Submit(
-            ~FromMethod(&TImpl::OnLeaseExpired, lease),
+            FromMethod(&TImpl::OnLeaseExpired, lease),
             lease->Timeout);
         return true;
     }

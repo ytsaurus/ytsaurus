@@ -499,7 +499,7 @@ void TNodeSetterBase::OnMyBeginAttributes()
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
 {
     AttributeKey = key;
-    ForwardNode(&AttributeWriter, ~FromMethod(&TThis::OnForwardingFinished, this));
+    ForwardNode(&AttributeWriter, FromMethod(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()

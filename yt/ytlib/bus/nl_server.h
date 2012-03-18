@@ -19,6 +19,7 @@ struct TNLBusServerConfig
     int MaxNLCallsPerIteration;
     TDuration SleepQuantum;
     TDuration MessageRearrangeTimeout;
+    TDuration SessionTimeout;
 
     explicit TNLBusServerConfig(int port = -1)
         : Port(port)
@@ -30,6 +31,8 @@ struct TNLBusServerConfig
             .Default(TDuration::MilliSeconds(10));
         Register("message_rearrange_timeout", MessageRearrangeTimeout)
             .Default(TDuration::MilliSeconds(100));
+        Register("session_timeout", SessionTimeout)
+            .Default(TDuration::Seconds(60));
     }
 };
 

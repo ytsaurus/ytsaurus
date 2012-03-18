@@ -13,8 +13,8 @@ class TForwardingYsonConsumer
 protected:
     TForwardingYsonConsumer();
 
-    void ForwardNode(IYsonConsumer* consumer, IAction* onForwardingFinished);
-    void ForwardAttributes(IYsonConsumer* consumer, IAction* onForwardingFinished);
+    void ForwardNode(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
+    void ForwardAttributes(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
 
     virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
     virtual void OnMyInt64Scalar(i64 value, bool hasAttributes);
@@ -55,7 +55,7 @@ private:
     virtual void OnAttributesItem(const Stroka& name);
     virtual void OnEndAttributes();
 
-    void DoForward(IYsonConsumer* consumer, IAction* onForwardingFinished, int depth);
+    void DoForward(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished, int depth);
     void UpdateDepth(int depthDelta);
 
 };

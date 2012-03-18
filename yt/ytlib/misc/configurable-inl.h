@@ -283,7 +283,7 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator* validator)
     template <class T> \
     TParameter<T>& TParameter<T>::method \
     { \
-        return CheckThat(~FromFunctor([=] (const T& parameter) \
+        return CheckThat(FromFunctor([=] (const T& parameter) \
             { \
                 if (!(condition)) { \
                     ythrow (ex); \

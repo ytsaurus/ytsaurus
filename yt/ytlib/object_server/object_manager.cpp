@@ -139,7 +139,7 @@ public:
         return UnderlyingContext->GetRequestInfo();
     }
 
-    virtual IAction::TPtr Wrap(IAction* action) 
+    virtual IAction::TPtr Wrap(IAction::TPtr action) 
     {
         return UnderlyingContext->Wrap(action);
     }
@@ -559,18 +559,18 @@ void TObjectManager::ExecuteVerb(
     auto change = CreateMetaChange(
         ~MetaStateManager,
         message,
-        ~FromFunctor([=] () -> TVoid
+        FromFunctor([=] () -> TVoid
             {
                 action_->Do(~wrappedContext);
                 return TVoid();
             }));
 
     change
-        ->OnSuccess(~FromFunctor([=] (TVoid)
+        ->OnSuccess(FromFunctor([=] (TVoid)
             {
                 wrappedContext->Flush();
             }))
-        ->OnError(~FromFunctor([=] ()
+        ->OnError(FromFunctor([=] ()
             {
                 context_->Reply(TError(
                     NRpc::EErrorCode::Unavailable,

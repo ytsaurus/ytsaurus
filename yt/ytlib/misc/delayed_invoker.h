@@ -19,7 +19,7 @@ private:
         TInstant Deadline;
         IAction::TPtr Action;
 
-        TEntry(IAction* action, TInstant deadline)
+        TEntry(IAction::TPtr action, TInstant deadline)
             : Deadline(deadline)
             , Action(action)
         { }
@@ -30,10 +30,10 @@ public:
     typedef TEntry::TPtr TCookie;
 
     //! Submits an action for execution after a given delay.
-    static TCookie Submit(IAction* action, TDuration delay);
+    static TCookie Submit(IAction::TPtr action, TDuration delay);
 
     //! Submits an action for execution at a given deadline time.
-    static TCookie Submit(IAction* action, TInstant deadline);
+    static TCookie Submit(IAction::TPtr action, TInstant deadline);
 
     //! Cancels an earlier scheduled execution.
     /*!

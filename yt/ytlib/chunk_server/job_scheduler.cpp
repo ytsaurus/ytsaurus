@@ -632,7 +632,7 @@ void TJobScheduler::ScheduleNextRefresh()
     if (!context)
         return;
     TDelayedInvoker::Submit(
-        ~FromMethod(&TJobScheduler::OnRefresh, MakeStrong(this))
+        FromMethod(&TJobScheduler::OnRefresh, MakeStrong(this))
         ->Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             context),

@@ -69,7 +69,7 @@ void TMasterConnector::Start()
 void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
-        ~FromMethod(&TMasterConnector::OnHeartbeat, MakeStrong(this))
+        FromMethod(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()),
         Config->HeartbeatPeriod);
 }

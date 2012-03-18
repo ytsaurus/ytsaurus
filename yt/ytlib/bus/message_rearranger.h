@@ -19,7 +19,7 @@ public:
 
     TMessageRearranger(
         const TSessionId& sessionId,
-        IParamAction<IMessage*>* onDequeuedMessage,
+        IParamAction<IMessage*>::TPtr onDequeuedMessage,
         TDuration timeout);
 
     void EnqueueMessage(

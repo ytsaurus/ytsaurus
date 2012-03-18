@@ -17,7 +17,7 @@ public:
 
     TResponseHandlerWrapper(
         IClientResponseHandler* underlyingHandler,
-        IAction* onFailed)
+        IAction::TPtr onFailed)
         : UnderlyingHandler(underlyingHandler)
         , OnFailed(onFailed)
     { }
@@ -128,7 +128,7 @@ private:
         } else {
             auto responseHandlerWrapper = New<TResponseHandlerWrapper>(
                 ~responseHandler,
-                ~FromMethod(&TLeaderChannel::OnChannelFailed, MakeStrong(this)));
+                FromMethod(&TLeaderChannel::OnChannelFailed, MakeStrong(this)));
             channel->Send(~request, ~responseHandlerWrapper, timeout);
         }
     }

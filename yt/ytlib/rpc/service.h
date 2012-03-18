@@ -118,7 +118,7 @@ struct IServiceContext
     virtual Stroka GetResponseInfo() = 0;
 
     //! Wraps the given action into an exception guard that logs the exception and replies.
-    virtual IAction::TPtr Wrap(IAction* action) = 0;
+    virtual IAction::TPtr Wrap(IAction::TPtr action) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,7 +254,7 @@ public:
         return Context;
     }
 
-    IAction::TPtr Wrap(IAction* action)
+    IAction::TPtr Wrap(IAction::TPtr action)
     {
         YASSERT(action);
         return Context->Wrap(action);
