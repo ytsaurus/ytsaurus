@@ -70,7 +70,7 @@ private:
     TSessionMap SessionMap;
     TPingMap PingMap;
     TLockFreeQueue<TSessionPtr> SessionsWithPendingResponses;
-    TLockFreeQueue<TSessionPtr> ExpiredSessions;
+    TLockFreeQueue<TSessionId> ExpiredSessionIds;
 
     TSpinLock StatisticsLock;
     TBusStatistics Statistics;
@@ -510,9 +510,14 @@ bool TNLBusServer::ProcessExpiredSessions()
     LOG_TRACE("Processing expired sessions");
 
     bool foundExpiredSessions = false;
-    TSessionPtr session;
-    while (ExpiredSessions.Dequeue(&session)) {
-        ProcessExpiredSession(MoveRV(session));
+    TSessionId sessionId;
+    while (ExpiredSessionIds.Dequeue(&sessionId)) {
+        auto it = SessionMap.find(sessionId);
+        if (it != SessionMap.end()) {
+            auto session = it->second;
+            ProcessExpiredSession(MoveRV(session));
+        }
+        foundExpiredSessions = true;
     }
     return foundExpiredSessions;
 }
@@ -689,7 +694,7 @@ void TNLBusServer::UnregisterSession(TSessionPtr session)
 
 void TNLBusServer::OnSessionExpired(TSessionPtr session)
 {
-    ExpiredSessions.Enqueue(MoveRV(session));
+    ExpiredSessionIds.Enqueue(session->GetSessionId());
     GetEvent().Signal();
 }
 
