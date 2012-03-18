@@ -44,7 +44,7 @@ public:
         auto entry = New<TEntry>(action, deadline);
 
         LOG_TRACE("Submitted delayed action (Action: %p, Cookie: %p, Deadline: %s)",
-            action,
+            ~action,
             ~entry,
             ~entry->Deadline.ToString());
 
