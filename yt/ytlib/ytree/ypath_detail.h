@@ -333,7 +333,7 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     const TYPath& path,
     const Stroka& verb,
     const Stroka& loggingCategory,
-    TYPathResponseHandler* responseHandler);
+    TYPathResponseHandler::TPtr responseHandler);
 
 IYPathServicePtr CreateRootService(IYPathService* underlyingService);
 
