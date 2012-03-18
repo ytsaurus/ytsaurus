@@ -10,10 +10,8 @@ TAsyncSemaphore::TAsyncSemaphore(i64 maxFreeSlots)
     , FreeSlotCount(maxFreeSlots)
     , RequestedSlots(0)
     , AcquireEvent(NULL)
-    , StaticResult(New< TFuture<TVoid> >())
-{
-    StaticResult->Set(TVoid());
-}
+    , StaticResult(MakeFuture(TVoid()))
+{ }
 
 void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 {
