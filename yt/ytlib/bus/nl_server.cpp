@@ -701,10 +701,10 @@ void TNLBusServer::UnregisterSession(TSessionPtr session)
 {
     LOG_DEBUG("Session unregistered (SessionId: %s)", ~session->GetSessionId().ToString());
 
-    session->OnUnregistered();
-
     YVERIFY(SessionMap.erase(session->GetSessionId()) == 1);
     YVERIFY(PingMap.erase(session->GetPingId()) == 1);
+
+    session->OnUnregistered();
 }
 
 void TNLBusServer::OnSessionExpired(TSessionPtr session)
