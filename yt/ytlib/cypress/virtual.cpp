@@ -111,7 +111,7 @@ public:
     }
 
 private:
-    TYPathServiceProducer::TPtr Producer;
+    TYPathServiceProducer Producer;
     EObjectType ObjectType;
 
 };
