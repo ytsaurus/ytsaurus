@@ -285,21 +285,23 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     VERIFY_THREAD_AFFINITY(StateThread);
     YASSERT(changeAction);
 
-    auto version = MetaState->GetVersion();
-    LOG_DEBUG("Starting commit at version %s", ~version.ToString());
+    PROFILE_TIMING ("leader_commit_time") {
+        auto version = MetaState->GetVersion();
+        LOG_DEBUG("Starting commit at version %s", ~version.ToString());
 
-    auto logResult = MetaState->LogChange(version, changeData);
-    auto batchResult = BatchChange(version, changeData, logResult);
+        auto logResult = MetaState->LogChange(version, changeData);
+        auto batchResult = BatchChange(version, changeData, logResult);
 
-    MetaState->ApplyChange(changeAction);
+        MetaState->ApplyChange(changeAction);
 
-    LOG_DEBUG("Change is applied locally at version %s", ~version.ToString());
+        LOG_DEBUG("Change is applied locally at version %s", ~version.ToString());
 
-    ChangeApplied_.Fire();
+        ChangeApplied_.Fire();
 
-    Profiler.Increment(CommitCounter);
+        Profiler.Increment(CommitCounter);
 
-    return batchResult;
+        return batchResult;
+    }
 }
 
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
@@ -378,17 +380,19 @@ TCommitter::TResult::TPtr TFollowerCommitter::Commit(
     VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(!changes.empty());
 
-    Profiler.Increment(CommitCounter, changes.size());
-    Profiler.Increment(BatchCommitCounter);
+    PROFILE_TIMING ("follower_commit_time") {
+        Profiler.Increment(CommitCounter, changes.size());
+        Profiler.Increment(BatchCommitCounter);
 
-    return
-        FromMethod(
-            &TFollowerCommitter::DoCommit,
-            MakeStrong(this),
-            expectedVersion,
-            changes)
-        ->AsyncVia(EpochStateInvoker)
-        ->Do();
+        return
+            FromMethod(
+                &TFollowerCommitter::DoCommit,
+                MakeStrong(this),
+                expectedVersion,
+                changes)
+            ->AsyncVia(EpochStateInvoker)
+            ->Do();
+    }
 }
 
 TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
