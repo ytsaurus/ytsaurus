@@ -79,7 +79,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     TMsgRegisterHolder message;
     message.set_address(address);
     message.set_incarnation_id(incarnationId.ToProto());
-    message.mutable_statistics()->MergeFrom(statistics);
+    *message.mutable_statistics() = statistics;
     chunkManager
         ->InitiateRegisterHolder(message)
         ->OnSuccess(FromFunctor([=] (THolderId id)
@@ -113,9 +113,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
     PROFILE_TIMING_CHECKPOINT("1");
 
     TMsgFullHeartbeat heartbeatMsg;
-    heartbeatMsg.set_holder_id(holderId);
-    *heartbeatMsg.mutable_statistics() = request->statistics();
-    heartbeatMsg.mutable_chunks()->MergeFrom(request->chunks());
+    auto requestBody = context->GetUntypedContext()->GetRequestBody();
+    heartbeatMsg.set_request_body(requestBody.Begin(), requestBody.Size());
+    //heartbeatMsg.set_holder_id(holderId);
+    //*heartbeatMsg.mutable_statistics() = request->statistics();
+    //FOREACH (const auto& info, request->chunks()) {
+    //    *heartbeatMsg.add_chunks() = info;
+    //}
 
     PROFILE_TIMING_CHECKPOINT("2");
     auto x = chunkManager
