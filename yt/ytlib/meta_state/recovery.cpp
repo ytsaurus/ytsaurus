@@ -52,7 +52,6 @@ TRecovery::TRecovery(
     YASSERT(snapshotStore);
     YASSERT(epochControlInvoker);
     YASSERT(epochStateInvoker);
-    VERIFY_THREAD_AFFINITY(ControlThread);
     VERIFY_INVOKER_AFFINITY(epochStateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
 }
