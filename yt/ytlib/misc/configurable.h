@@ -35,6 +35,7 @@ public:
      * \note Must throw exception for incorrect data
      */
     typedef IParamAction<const T&> TValidator;
+    typedef TIntrusivePtr<TValidator> TValidatorPtr;
 
     explicit TParameter(T& parameter);
 
@@ -47,7 +48,7 @@ public: // for users
     TParameter& Default(const T& defaultValue = T());
     TParameter& Default(T&& defaultValue);
     TParameter& DefaultNew();
-    TParameter& CheckThat(TValidator* validator);
+    TParameter& CheckThat(TValidatorPtr validator);
     TParameter& GreaterThan(T value);
     TParameter& GreaterThanOrEqual(T value);
     TParameter& LessThan(T value);
