@@ -617,10 +617,15 @@ private:
     }
 
 
-    TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
+    TVoid FullHeartbeat(const TMsgFullHeartbeat& message2)
     {
-        Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
         PROFILE_TIMING ("full_heartbeat_time") {
+            TReqFullHeartbeat message;
+            auto requestBody = TRef(const_cast<char*>(message2.request_body().data()), message2.request_body().length());
+            YVERIFY(DeserializeProtobuf(&message, requestBody));
+
+            Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
+
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
 

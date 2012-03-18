@@ -25,9 +25,10 @@ message TMsgCreateChunks
 
 message TMsgFullHeartbeat
 {
-    required int32 holder_id = 1;
-    required THolderStatistics statistics = 2;
-    repeated TChunkAddInfo chunks = 3;
+	required bytes request_body = 1;
+	//    required int32 holder_id = 1;
+    //required THolderStatistics statistics = 2;
+    //repeated TChunkAddInfo chunks = 3;
 }
 
 message TMsgIncrementalHeartbeat
