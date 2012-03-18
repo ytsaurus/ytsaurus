@@ -8,6 +8,7 @@
 #include <ytlib/object_server/id.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -22,6 +23,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 NLog::TLogger Logger("ChunkServer");
+NProfiling::TProfiler Profiler("chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +94,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
+    PROFILE_TIMING ("xxx") {
     auto holderId = request->holder_id();
 
     context->SetRequestInfo("HolderId: %d", holderId);
@@ -107,16 +110,22 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
         return;
     }
 
+    PROFILE_TIMING_CHECKPOINT("1");
+
     TMsgFullHeartbeat heartbeatMsg;
     heartbeatMsg.set_holder_id(holderId);
     *heartbeatMsg.mutable_statistics() = request->statistics();
     heartbeatMsg.mutable_chunks()->MergeFrom(request->chunks());
 
-    chunkManager
+    PROFILE_TIMING_CHECKPOINT("2");
+    auto x = chunkManager
         ->InitiateFullHeartbeat(heartbeatMsg)
         ->OnSuccess(CreateSuccessHandler(~context))
-        ->OnError(CreateErrorHandler(~context))
-        ->Commit();
+        ->OnError(CreateErrorHandler(~context));
+
+        PROFILE_TIMING_CHECKPOINT("3");
+        x->Commit();
+    }
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)

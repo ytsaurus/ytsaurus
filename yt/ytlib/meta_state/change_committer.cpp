@@ -28,6 +28,7 @@ TCommitter::TCommitter(
     , EpochStateInvoker(epochStateInvoker)
     , CommitCounter("commit_rate")
     , BatchCommitCounter("commit_batch_rate")
+    , CommitTimeCounter("commit_time")
 {
     YASSERT(metaState);
     YASSERT(epochControlInvoker);
@@ -285,7 +286,7 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     VERIFY_THREAD_AFFINITY(StateThread);
     YASSERT(changeAction);
 
-    PROFILE_TIMING ("leader_commit_time") {
+    PROFILE_AGGREGATED_TIMING (CommitTimeCounter) {
         auto version = MetaState->GetVersion();
         LOG_DEBUG("Starting commit at version %s", ~version.ToString());
 
@@ -380,7 +381,7 @@ TCommitter::TResult::TPtr TFollowerCommitter::Commit(
     VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(!changes.empty());
 
-    PROFILE_TIMING ("follower_commit_time") {
+    PROFILE_AGGREGATED_TIMING (CommitTimeCounter) {
         Profiler.Increment(CommitCounter, changes.size());
         Profiler.Increment(BatchCommitCounter);
 
