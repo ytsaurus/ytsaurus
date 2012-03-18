@@ -338,7 +338,7 @@ public:
 
     using TBase::Wrap;
 
-    IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
+    IAction::TPtr Wrap(typename IParamAction<TPtr>::TPtr paramAction)
     {
         YASSERT(paramAction);
         return this->Context->Wrap(~paramAction->Bind(MakeStrong(this)));
@@ -365,7 +365,7 @@ public:
 
     using TBase::Wrap;
 
-    IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
+    IAction::TPtr Wrap(typename IParamAction<TPtr>::TPtr paramAction)
     {
         YASSERT(paramAction);
         return this->Context->Wrap(~paramAction->Bind(MakeStrong(this)));
