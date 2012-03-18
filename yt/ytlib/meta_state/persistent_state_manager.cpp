@@ -898,9 +898,13 @@ public:
             Epoch,
             ~EpochControlInvoker,
             ~EpochStateInvoker);
-        LeaderRecovery->Run()->Subscribe(
-            FromMethod(&TThis::OnStateLeaderRecoveryFinished, MakeStrong(this))
-            ->Via(~EpochStateInvoker));
+
+        FromMethod(&TLeaderRecovery::Run, LeaderRecovery)
+            ->AsyncVia(EpochControlInvoker)
+            ->Do()
+            ->Subscribe(
+                FromMethod(&TThis::OnStateLeaderRecoveryFinished, MakeStrong(this))
+                ->Via(~EpochStateInvoker));
     }
 
     void OnStateLeaderRecoveryFinished(TRecovery::EResult result)

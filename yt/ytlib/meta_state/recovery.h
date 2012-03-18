@@ -25,7 +25,7 @@ public:
 
     //! Constructs an instance.
     /*!
-     * \note Thread affinity: ControlThread.
+     * \note Thread affinity: ControlThread
      */
     TRecovery(
         TPersistentStateManagerConfig* config,
@@ -58,7 +58,7 @@ protected:
      *  \param targetVersion A version to reach.
      *  \returns A future that gets set when the recovery completes.
      *  
-     *  \note Thread affinity: StateThread.
+     *  \note Thread affinity: StateThread
      */
     TAsyncResult::TPtr RecoverToState(
         const TMetaVersion& targetVersion);
@@ -70,7 +70,7 @@ protected:
      *  \param snapshotId A snapshot to start recovery with.
      *  \returns A future that gets set when the recovery completes.
      *  
-     *  \note Thread affinity: StateThread.
+     *  \note Thread affinity: StateThread
      */
     TAsyncResult::TPtr RecoverToState(
         const TMetaVersion& targetVersion,
@@ -85,7 +85,7 @@ protected:
      *  
      *  Additional unnamed parameters are due to implementation details.
      * 
-     *  \note Thread affinity: StateThread.
+     *  \note Thread affinity: StateThread
      */
     TAsyncResult::TPtr ReplayChangeLogs(
         const TMetaVersion& targetVersion,
@@ -102,7 +102,7 @@ protected:
      *  \param changeLog A changelog to apply.
      *  \param targetRecordCount The 'record count' part of the desired target version.
      *  
-     * \note Thread affinity: StateThread.
+     * \note Thread affinity: StateThread
      */
     void ReplayChangeLog(
         TAsyncChangeLog& changeLog,
@@ -132,7 +132,7 @@ class TLeaderRecovery
 public:
     //! Constructs an instance.
     /*!
-     * \note Thread affinity: ControlThread.
+     * \note Thread affinity: ControlThread
      */
     TLeaderRecovery(
         TPersistentStateManagerConfig* config,
@@ -146,7 +146,7 @@ public:
 
     //! Performs leader recovery loading the latest snapshot and applying the changelogs.
     /*!
-     * \note Thread affinity: ControlThread.
+     * \note Thread affinity: ControlThread
      */
     virtual TAsyncResult::TPtr Run();
 
@@ -164,7 +164,7 @@ class TFollowerRecovery
 public:
     //! Constructs an instance.
     /*!
-     * \note Thread affinity: ControlThread.
+     * \note Thread affinity: ControlThread
      */
     TFollowerRecovery(
         TPersistentStateManagerConfig* config,
@@ -180,7 +180,7 @@ public:
 
     //! Performs follower recovery brining the follower up-to-date and synchronized with the leader.
     /*!
-     * \note Thread affinity: ControlThread.
+     * \note Thread affinity: ControlThread
      */
     virtual TAsyncResult::TPtr Run();
 
@@ -189,7 +189,7 @@ public:
      * \param version Version at which the segment should be changed.
      * \returns True when applicable request is coherent with the postponed version.
      * 
-     * \note Thread affinity: ControlThread.
+     * \note Thread affinity: ControlThread
      */
     EResult PostponeSegmentAdvance(const TMetaVersion& version);
 
@@ -199,7 +199,7 @@ public:
      * \param version Version at which the changes should be applied.
      * \returns True when the change is coherent with the postponed version.
      * 
-     * \note Thread affinity: ControlThread.
+     * \note Thread affinity: ControlThread
      */
     EResult PostponeChanges(
         const TMetaVersion& version,
