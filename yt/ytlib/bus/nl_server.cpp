@@ -162,7 +162,9 @@ public:
         , Lease(TLeaseManager::CreateLease(
             server->Config->SessionTimeout,
             FromMethod(&TSession::OnLeaseExpired, MakeWeak(this))))
-    { }
+    {
+        SendPing();
+    }
 
     void EnqueueIncomingMessage(
         IMessage* message,
