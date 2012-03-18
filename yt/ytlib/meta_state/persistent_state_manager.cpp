@@ -277,7 +277,7 @@ public:
         auto result =
             LeaderCommitter
             ->Commit(actualChangeAction, changeData)
-            ->Apply(FromMethod(&TThis::OnChangeCommit, MakeStrong(this)));
+            ->Apply(FromMethod(&TThis::OnChangeCommitted, MakeStrong(this)));
 
         InCommit = false;
 
@@ -752,6 +752,40 @@ public:
         context->Reply();
     }
 
+    void OnCreateLocalSnapshot(
+        TSnapshotBuilder::TLocalResult result,
+        TCtxAdvanceSegment::TPtr context)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto& response = context->Response();
+
+        switch (result.ResultCode) {
+        case TSnapshotBuilder::EResultCode::OK:
+            response.set_checksum(result.Checksum);
+            context->Reply();
+            break;
+        case TSnapshotBuilder::EResultCode::InvalidVersion:
+            context->Reply(
+                TProxy::EErrorCode::InvalidVersion,
+                "Requested to create a snapshot for an invalid version");
+            break;
+        case TSnapshotBuilder::EResultCode::AlreadyInProgress:
+            context->Reply(
+                TProxy::EErrorCode::SnapshotAlreadyInProgress,
+                "Snapshot creation is already in progress");
+            break;
+        case TSnapshotBuilder::EResultCode::ForkError:
+            context->Reply(TError("Fork error"));
+            break;
+        case TSnapshotBuilder::EResultCode::TimeoutExceeded:
+            context->Reply(TError("Snapshot creation timed out"));
+            break;
+        default:
+            YUNREACHABLE();
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
     {
         i32 maxSnapshotId = request->max_snapshot_id();
@@ -765,12 +799,6 @@ public:
     }
     // End of RPC methods
 
-    void DoLeaderRecoveryComplete(const TEpoch& epoch)
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-
-    }
 
     void Restart()
     {
@@ -785,41 +813,7 @@ public:
         ElectionManager->Restart();
     }
 
-    void OnCreateLocalSnapshot(
-        TSnapshotBuilder::TLocalResult result,
-        TCtxAdvanceSegment::TPtr context)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto& response = context->Response();
-
-        switch (result.ResultCode) {
-            case TSnapshotBuilder::EResultCode::OK:
-                response.set_checksum(result.Checksum);
-                context->Reply();
-                break;
-            case TSnapshotBuilder::EResultCode::InvalidVersion:
-                context->Reply(
-                    TProxy::EErrorCode::InvalidVersion,
-                    "Requested to create a snapshot for an invalid version");
-                break;
-            case TSnapshotBuilder::EResultCode::AlreadyInProgress:
-                context->Reply(
-                    TProxy::EErrorCode::SnapshotAlreadyInProgress,
-                    "Snapshot creation is already in progress");
-                break;
-            case TSnapshotBuilder::EResultCode::ForkError:
-                context->Reply(TError("Fork error"));
-                break;
-            case TSnapshotBuilder::EResultCode::TimeoutExceeded:
-                context->Reply(TError("Snapshot creation timed out"));
-                break;
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    ECommitResult OnChangeCommit(TLeaderCommitter::EResult result)
+    ECommitResult OnChangeCommitted(TLeaderCommitter::EResult result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
