@@ -10,7 +10,7 @@ namespace NBus {
 
 TMessageRearranger::TMessageRearranger(
     const TSessionId& sessionId,
-    typename IParamAction<IMessage*>::TPtr onMessage,
+    IParamAction<IMessage*>::TPtr onMessage,
     TDuration timeout)
     : SessionId(sessionId)
     , OnMessageDequeued(onMessage)

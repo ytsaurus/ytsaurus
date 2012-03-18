@@ -552,30 +552,25 @@ void TObjectManager::ExecuteVerb(
     }
 
     auto context_ = MakeStrong(context);
-    auto action_ = MakeStrong(action);
-
     auto wrappedContext = New<TServiceContextWrapper>(context);
 
     auto change = CreateMetaChange(
         ~MetaStateManager,
         message,
-        FromFunctor([=] () -> TVoid
-            {
-                action_->Do(~wrappedContext);
-                return TVoid();
-            }));
+        FromFunctor([=] () -> TVoid {
+            action->Do(~wrappedContext);
+            return TVoid();
+        }));
 
     change
-        ->OnSuccess(FromFunctor([=] (TVoid)
-            {
-                wrappedContext->Flush();
-            }))
-        ->OnError(FromFunctor([=] ()
-            {
-                context_->Reply(TError(
-                    NRpc::EErrorCode::Unavailable,
-                    "Error committing meta state changes"));
-            }))
+        ->OnSuccess(FromFunctor([=] (TVoid) {
+            wrappedContext->Flush();
+        }))
+        ->OnError(FromFunctor([=] () {
+            context_->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Error committing meta state changes"));
+        }))
         ->Commit();
 }
 

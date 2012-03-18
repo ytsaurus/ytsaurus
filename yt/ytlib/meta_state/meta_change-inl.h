@@ -15,7 +15,7 @@ namespace NMetaState {
 template <class TResult>
 TMetaChange<TResult>::TMetaChange(
     IMetaStateManager* metaStateManager,
-    TChangeFunc* func,
+    TChangeFunc func,
     const TSharedRef& changeData)
     : MetaStateManager(metaStateManager)
     , Func(func)
@@ -132,7 +132,7 @@ template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
     IMetaStateManager* metaStateManager,
     const TMessage& message,
-    IFunc<TResult>* func)
+    TIntrusivePtr< IFunc<TResult> > func)
 {
     YASSERT(metaStateManager);
     YASSERT(func);
