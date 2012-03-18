@@ -270,7 +270,7 @@ TParameter<T>& TParameter<T>::DefaultNew()
 }
 
 template <class T>
-TParameter<T>& TParameter<T>::CheckThat(TValidator* validator)
+TParameter<T>& TParameter<T>::CheckThat(TValidatorPtr validator)
 {
     Validators.push_back(validator);
     return *this;
