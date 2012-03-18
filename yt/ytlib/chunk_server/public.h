@@ -9,12 +9,12 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunk;  
-struct TChunkList;
-struct TJob;
-struct TJobList;
-struct THolder;
-struct TReplicationSink;
+class TChunk;  
+class TChunkList;
+class TJob;
+class TJobList;
+class THolder;
+class TReplicationSink;
 
 struct TChunkStatistics;
 struct TTotalHolderStatistics;
