@@ -14,13 +14,13 @@ typedef
     IParamFunc<
         const TVersionedNodeId&,
         NYTree::IYPathServicePtr
-    >
+    >::TPtr
     TYPathServiceProducer;
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     EObjectType objectType,
-    TYPathServiceProducer* producer);
+    TYPathServiceProducer producer);
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
