@@ -707,7 +707,7 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
                 fluent.Item("response_count").Scalar(statistics.ResponseCount);
                 fluent.Item("response_data_size").Scalar(statistics.ResponseDataSize);
                 auto requester = Requester;
-                if (requester) {
+                if (requester.Get()) {
                     fluent.Item("debug_info").Scalar(Requester->GetDebugInfo());
                 }
             })
