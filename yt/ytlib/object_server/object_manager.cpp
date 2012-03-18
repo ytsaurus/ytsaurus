@@ -525,7 +525,7 @@ void TObjectManager::ExecuteVerb(
     const TVersionedObjectId& id,
     bool isWrite,
     IServiceContext* context,
-    IParamAction<NRpc::IServiceContext*>* action)
+    IParamAction<NRpc::IServiceContext*>::TPtr action)
 {
     LOG_INFO_IF(!IsRecovery(), "Executing a %s request (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
         isWrite ? "read-write" : "read-only",

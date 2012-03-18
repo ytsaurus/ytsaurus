@@ -112,7 +112,7 @@ public:
         const TVersionedObjectId& id,
         bool isWrite,
         NRpc::IServiceContext* context,
-        IParamAction<NRpc::IServiceContext*>* action);
+        IParamAction<NRpc::IServiceContext*>::TPtr action);
 
     DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
