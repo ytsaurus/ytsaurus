@@ -193,7 +193,7 @@ private:
 class TTimingGuard
 {
 public:
-    explicit TTimingGuard(TProfiler* profiler, const NYTree::TYPath& path)
+    TTimingGuard(TProfiler* profiler, const NYTree::TYPath& path)
         : Profiler(profiler)
         , Timer(profiler->TimingStart(path))
     {
@@ -226,15 +226,67 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Enables measuring the execution time of the statement that immediately follows this macro.
+//! Measures execution time of the statement that immediately follows this macro.
 #define PROFILE_TIMING(path) \
     if (auto PROFILE_TIMING__Guard = NYT::NProfiling::TTimingGuard(&Profiler, path)) \
-    { } \
+    { YUNREACHABLE(); } \
     else
 
 //! Must be used inside #PROFILE_TIMING block to mark a checkpoint.
 #define PROFILE_TIMING_CHECKPOINT(pathSuffix) \
     PROFILE_TIMING__Guard.Checkpoint(pathSuffix)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCpuInstant GetCpuInstant();
+TValue CpuDurationToValue(TCpuDuration duration);
+
+//! A helper guard for measuring aggregated time intervals.
+/*!
+ *  \note
+ *  Keep implementation in header to ensure inlining.
+ */
+class TAggregatedTimingGuard
+{
+public:
+    TAggregatedTimingGuard(TProfiler* profiler, TAggregateCounter* counter)
+        : Profiler(profiler)
+        , Counter(counter)
+        , Start(GetCpuInstant())
+    {
+        YASSERT(profiler);
+        YASSERT(counter);
+    }
+
+    ~TAggregatedTimingGuard()
+    {
+        // Don't measure anything during exception unwinding.
+        if (!std::uncaught_exception()) {
+            auto stop = GetCpuInstant();
+            auto value = CpuDurationToValue(stop - Start);
+            Profiler->Aggregate(*Counter, value);
+        }
+    }
+
+    operator bool() const
+    {
+        return false;
+    }
+
+private:
+    TProfiler* Profiler;
+    TAggregateCounter* Counter;
+    TCpuInstant Start;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Measures aggregated execution time of the statement that immediately follows this macro.
+#define PROFILE_AGGREGATED_TIMING(counter) \
+    if (auto PROFILE_TIMING__Guard = NYT::NProfiling::TAggregatedTimingGuard(&Profiler, &(counter))) \
+    { YUNREACHABLE(); } \
+    else
 
 ////////////////////////////////////////////////////////////////////////////////
 

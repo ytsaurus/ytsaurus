@@ -41,6 +41,7 @@ protected:
     IInvoker::TPtr EpochStateInvoker;
     NProfiling::TRateCounter CommitCounter;
     NProfiling::TRateCounter BatchCommitCounter;
+    NProfiling::TAggregateCounter CommitTimeCounter;
 
 };
 
