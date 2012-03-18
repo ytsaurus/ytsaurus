@@ -77,7 +77,7 @@ struct IMetaStateManager
      */
     virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
-        IAction* changeAction = NULL) = 0;
+        IAction::TPtr changeAction = NULL) = 0;
 
     //! Returns True if #CommitChange is currently in progress.
     /*!

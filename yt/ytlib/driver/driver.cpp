@@ -39,7 +39,7 @@ public:
         , BufferedOutput(~Output)
         , Writer(&BufferedOutput, format)
     {
-        ForwardNode(&Writer, ~FromFunctor([=] ()
+        ForwardNode(&Writer, FromFunctor([=] ()
             {
                 BufferedOutput.Write('\n');
             }));

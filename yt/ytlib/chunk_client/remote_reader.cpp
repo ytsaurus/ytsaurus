@@ -79,7 +79,7 @@ public:
             LOG_INFO("Fresh chunk seeds are needed");
             GetSeedsResult = New<TAsyncGetSeedsResult>();
             TDelayedInvoker::Submit(
-                ~FromMethod(&TRemoteReader::DoFindChunk, TWeakPtr<TRemoteReader>(this)),
+                FromMethod(&TRemoteReader::DoFindChunk, TWeakPtr<TRemoteReader>(this)),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
 
@@ -439,7 +439,7 @@ private:
                     OnRetryFailed(TError("Unable to fetch all chunk blocks"));
                 } else {
                     TDelayedInvoker::Submit(
-                        ~FromMethod(&TReadSession::NewPass, MakeStrong(this)),
+                        FromMethod(&TReadSession::NewPass, MakeStrong(this)),
                         reader->Config->PassBackoffTime);
                 }
                 return;

@@ -796,7 +796,7 @@ void TRemoteWriter::SchedulePing(THolderPtr holder)
 
     TDelayedInvoker::CancelAndClear(holder->Cookie);
     holder->Cookie = TDelayedInvoker::Submit(
-        ~FromMethod(
+        FromMethod(
             &TRemoteWriter::PingSession,
             TWeak(this),
             holder)

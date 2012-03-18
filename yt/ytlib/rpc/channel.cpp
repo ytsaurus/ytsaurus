@@ -68,7 +68,7 @@ public:
 
         if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
-                ~FromMethod(
+                FromMethod(
                     &TChannel::OnTimeout,
                     MakeStrong(this),
                     requestId),

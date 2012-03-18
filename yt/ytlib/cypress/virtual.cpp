@@ -136,7 +136,7 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     return CreateVirtualTypeHandler(
         bootstrap,
         objectType,
-        ~FromFunctor([=] (const TVersionedNodeId& id) -> IYPathServicePtr
+        FromFunctor([=] (const TVersionedNodeId& id) -> IYPathServicePtr
             {
                 UNUSED(id);
                 return service_;

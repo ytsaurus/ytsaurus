@@ -79,7 +79,7 @@ public:
             ~outerRequest->GetRequestId().ToString());
 
         outerRequest->Invoke()->Subscribe(
-            ~FromMethod(
+            FromMethod(
                 &TOrchidYPathService::OnResponse,
                 MakeStrong(this),
                 IServiceContext::TPtr(context),
@@ -152,7 +152,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::Orchid,
-        ~FromFunctor([=] (const TVersionedObjectId& id) -> IYPathServicePtr
+        FromFunctor([=] (const TVersionedObjectId& id) -> IYPathServicePtr
             {
                 return New<TOrchidYPathService>(bootstrap, id);
             }));

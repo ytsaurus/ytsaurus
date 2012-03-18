@@ -35,7 +35,7 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool recover
     holderInfo.Confirmed = !recovery;
     holderInfo.Lease = TLeaseManager::CreateLease(
         GetTimeout(holder, holderInfo),
-        ~FromMethod(
+        FromMethod(
             &THolderLeaseTracker::OnExpired,
             MakeStrong(this),
             holder.GetId())
@@ -98,10 +98,10 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
         ->GetChunkManager()
         ->InitiateUnregisterHolder(message)
         ->SetRetriable(Config->HolderExpirationBackoffTime)
-        ->OnSuccess(~FromFunctor([=] (TVoid) {
+        ->OnSuccess(FromFunctor([=] (TVoid) {
             LOG_INFO("Holder expiration commit success (HolderId: %d)", holderId);
         }))
-        ->OnError(~FromFunctor([=] () {
+        ->OnError(FromFunctor([=] () {
             LOG_INFO("Holder expiration commit failed (HolderId: %d)", holderId);
         }))
         ->Commit();

@@ -43,7 +43,7 @@ public:
     virtual void SetResponseInfo(const Stroka& info);
     virtual Stroka GetResponseInfo();
 
-    virtual IAction::TPtr Wrap(IAction* action);
+    virtual IAction::TPtr Wrap(IAction::TPtr action);
 
 protected:
     TServiceContextBase(

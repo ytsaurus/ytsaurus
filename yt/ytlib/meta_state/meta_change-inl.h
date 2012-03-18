@@ -43,7 +43,7 @@ void TMetaChange<TResult>::DoCommit()
     MetaStateManager
         ->CommitChange(
             ChangeData,
-            ~FromMethod(&TThis::ChangeFuncThunk, MakeStrong(this)))
+            FromMethod(&TThis::ChangeFuncThunk, MakeStrong(this)))
         ->Subscribe(
             FromMethod(&TThis::OnCommitted, MakeStrong(this)));
 }
@@ -93,7 +93,7 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
         }
         if (Retriable) {
             TDelayedInvoker::Submit(
-                ~FromMethod(&TThis::DoCommit, MakeStrong(this))
+                FromMethod(&TThis::DoCommit, MakeStrong(this))
                 ->Via(MetaStateManager->GetStateInvoker(), EpochContext),
                 BackoffTime);
         }
