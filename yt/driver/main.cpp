@@ -11,6 +11,7 @@
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/tree_builder.h>
+#include <ytlib/ytree/yson_parser.h>
 
 #include <ytlib/misc/home.h>
 #include <ytlib/misc/fs.h>
@@ -152,8 +153,10 @@ private:
     {
         consumer->OnMapItem("do");
         consumer->OnStringScalar("get");
+
         consumer->OnMapItem("path");
         consumer->OnStringScalar(PathArg->getValue());
+
         TTransactedArgs::AddItems(consumer);
     }
 };
@@ -173,6 +176,21 @@ public:
         Cmd->add(~ValueArg);
     }
 
+    virtual void AddItems(IYsonConsumer* consumer)
+    {
+        consumer->OnMapItem("do");
+        consumer->OnStringScalar("set");
+
+        consumer->OnMapItem("path");
+        consumer->OnStringScalar(PathArg->getValue());
+
+        consumer->OnMapItem("value");
+        TStringInput input(ValueArg->getValue());
+        ParseYson(&input, consumer);
+
+        TTransactedArgs::AddItems(consumer);
+    }
+
 private:
     THolder<TFreeStringArg> PathArg;
     THolder<TFreeStringArg> ValueArg;
@@ -189,6 +207,18 @@ public:
         PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
         Cmd->add(~PathArg);
     }
+
+    virtual void AddItems(IYsonConsumer* consumer)
+    {
+        consumer->OnMapItem("do");
+        consumer->OnStringScalar("remove");
+
+        consumer->OnMapItem("path");
+        consumer->OnStringScalar(PathArg->getValue());
+
+        TTransactedArgs::AddItems(consumer);
+    }
+
 
 private:
     THolder<TFreeStringArg> PathArg;
@@ -373,6 +403,7 @@ public:
     {
         RegisterParser("get", ~New<TGetArgs>());
         RegisterParser("set", ~New<TSetArgs>());
+        RegisterParser("remove", ~New<TRemoveArgs>());
     }
 
     int Main(int argc, const char* argv[])
