@@ -26,6 +26,9 @@
 #include <errno.h>
 #endif
 
+#include <tclap/CmdLine.h>
+#include <ytlib/misc/tclap_helpers.h>
+
 namespace NYT {
 
 using namespace NDriver;
@@ -33,6 +36,231 @@ using namespace NYTree;
 
 static NLog::TLogger& Logger = DriverLogger;
 static const char* DefaultConfigFileName = ".ytdriver.config.yson";
+
+////////////////////////////////////////////////////////////////////////////////
+
+//TODO(panin): move to proper place
+class TArgsBase
+    : public TRefCounted
+{
+public:
+    typedef TIntrusivePtr<TArgsBase> TPtr;
+
+    TArgsBase()
+    {
+        Cmd.Reset(new TCLAP::CmdLine("Command line"));
+        ConfigArg.Reset(new TCLAP::ValueArg<std::string>(
+            "", "config", "configuration file", false, "", "file_name"));
+        OptsArg.Reset(new TCLAP::MultiArg<std::string>(
+            "", "opts", "other options", false, "options"));
+
+        Cmd->add(~ConfigArg);
+        Cmd->add(~OptsArg);
+    }
+
+    void Parse(const std::vector<Stroka>& args)
+    {
+        std::vector<std::string> stringArgs;
+        FOREACH (auto arg, args) {
+            stringArgs.push_back(std::string(~arg));
+        }
+        Cmd->parse(stringArgs);
+    }
+
+    INodePtr GetCommand()
+    {
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        builder->BeginTree();
+        builder->OnBeginMap();
+        AddItems(~builder);
+        builder->OnEndMap();
+        return builder->EndTree();
+    }
+
+    Stroka GetConfigName()
+    {
+        return Stroka(ConfigArg->getValue());
+    }
+
+protected:
+    //useful typedefs
+    typedef TCLAP::UnlabeledValueArg<Stroka> TFreeStringArg;
+
+    THolder<TCLAP::CmdLine> Cmd;
+
+    THolder<TCLAP::ValueArg<std::string> > ConfigArg;
+    THolder<TCLAP::MultiArg<std::string> > OptsArg;
+
+    void AddOpts(IYsonConsumer* consumer)
+    {
+        FOREACH (auto opts, OptsArg->getValue()) {
+            NYTree::TYson yson = Stroka("{") + Stroka(opts) + "}";
+            auto items = NYTree::DeserializeFromYson(yson)->AsMap();
+            FOREACH (auto child, items->GetChildren()) {
+                consumer->OnMapItem(child.first);
+                consumer->OnStringScalar(child.second->AsString()->GetValue());
+            }
+        }
+    }
+
+    // TODO(panin): maybe rewrite using fluent
+    virtual void AddItems(IYsonConsumer* consumer) {
+        AddOpts(consumer);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTransactedArgs
+    : public TArgsBase
+{
+public:
+    TTransactedArgs()
+    {
+        TxArg.Reset(new TTxArg(
+            "", "tx", "transaction id", false, NObjectServer::NullTransactionId, "guid"));
+        Cmd->add(~TxArg);
+    }
+protected:
+    typedef TCLAP::ValueArg<NObjectServer::TTransactionId> TTxArg;
+    THolder<TTxArg> TxArg;
+
+    virtual void AddItems(IYsonConsumer* consumer)
+    {
+        consumer->OnMapItem("transaction_id");
+        consumer->OnStringScalar(TxArg->getValue().ToString());
+        TArgsBase::AddItems(consumer);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGetArgs
+    : public TTransactedArgs
+{
+public:
+    TGetArgs()
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        Cmd->add(~PathArg);
+    }
+
+private:
+    THolder<TFreeStringArg> PathArg;
+
+    virtual void AddItems(IYsonConsumer* consumer)
+    {
+        consumer->OnMapItem("do");
+        consumer->OnStringScalar("get");
+        consumer->OnMapItem("path");
+        consumer->OnStringScalar(PathArg->getValue());
+        TTransactedArgs::AddItems(consumer);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSetArgs
+    : public TTransactedArgs
+{
+public:
+    TSetArgs()
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        ValueArg.Reset(new TFreeStringArg("value", "value to set", true, "", "yson"));
+
+        Cmd->add(~PathArg);
+        Cmd->add(~ValueArg);
+    }
+
+private:
+    THolder<TFreeStringArg> PathArg;
+    THolder<TFreeStringArg> ValueArg;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoveArgs
+    : public TTransactedArgs
+{
+public:
+    TRemoveArgs()
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        Cmd->add(~PathArg);
+    }
+
+private:
+    THolder<TFreeStringArg> PathArg;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TListArgs
+    : public TTransactedArgs
+{
+public:
+    TListArgs()
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        Cmd->add(~PathArg);
+    }
+
+private:
+    THolder<TFreeStringArg> PathArg;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCreateArgs
+    : public TTransactedArgs
+{
+public:
+    TCreateArgs()
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        TypeArg.Reset(new TTypeArg(
+            "type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type"));
+
+        Cmd->add(~PathArg);
+        Cmd->add(~TypeArg);
+
+        ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
+        Cmd->add(~ManifestArg);
+    }
+
+private:
+    THolder<TFreeStringArg> PathArg;
+
+    typedef TCLAP::UnlabeledValueArg<NObjectServer::EObjectType> TTypeArg;
+    THolder<TTypeArg> TypeArg;
+
+    typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
+    THolder<TManifestArg> ManifestArg;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLockArgs
+    : public TTransactedArgs
+{
+public:
+    TLockArgs()
+    {
+        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        //TODO(panin): check given value
+        ModeArg.Reset(new TModeArg(
+            "", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive"));
+        Cmd->add(~PathArg);
+        Cmd->add(~ModeArg);
+    }
+
+private:
+    THolder<TFreeStringArg> PathArg;
+
+    typedef TCLAP::ValueArg<NCypress::ELockMode> TModeArg;
+    THolder<TModeArg> ModeArg;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,43 +370,30 @@ public:
 
     TDriverProgram()
         : ExitCode(0)
-        , HaltOnError(false)
-    { }
+    {
+        RegisterParser("get", ~New<TGetArgs>());
+        RegisterParser("set", ~New<TSetArgs>());
+    }
 
     int Main(int argc, const char* argv[])
     {
-		NYT::SetupErrorHandler();
+        NYT::SetupErrorHandler();
 
         try {
-            using namespace NLastGetopt;
+            if (argc < 2) {
+                ythrow yexception() << "Not enough arguments";
+            }
+            auto argsParser = GetArgsParser(Stroka(argv[1]));
 
-            Stroka configFileName;;
-            TOpts opts;
+            std::vector<Stroka> remainingArgs;
+            for (int i = 1; i < argc; ++i) {
+                remainingArgs.push_back(Stroka(argv[i]));
+            }
 
-            opts.AddHelpOption();
+            argsParser->Parse(remainingArgs);
 
-            const auto& configOpt = opts.AddLongOption("config", "configuration file")
-                .Optional()
-                .RequiredArgument("FILENAME")
-                .StoreResult(&configFileName);
-
-            Stroka formatStr;
-            const auto& formatOpt = opts.AddLongOption("format", "output format: Text, Pretty or Binary (default is Text)")
-                .Optional()
-                .RequiredArgument("FORMAT")
-                .StoreResult(&formatStr);
-
-            const auto& haltOnErrorOpt = opts.AddLongOption("halt-on-error", "halt batch execution upon receiving an error")
-                .Optional()
-                .NoArgument();
-
-            // accept yson text as single free command line argument
-            opts.SetFreeArgsMin(0);
-            opts.SetFreeArgsMax(1);
-            opts.SetFreeArgTitle(0, "CMD");
-
-            TOptsParseResult results(&opts, argc, argv);
-            if (!results.Has(&configOpt)) {
+            Stroka configFileName = argsParser->GetConfigName();
+            if (configFileName.empty()) {
                 auto configFromEnv = getenv("YT_CONFIG");
                 if (configFromEnv) {
                     configFileName = Stroka(configFromEnv);
@@ -204,22 +419,11 @@ public:
 
             NLog::TLogManager::Get()->Configure(~config->Logging);
 
-            if (results.Has(&formatOpt)) {
-                config->OutputFormat = EYsonFormat::FromString(formatStr);
-            }
-
-            HaltOnError = results.Has(&haltOnErrorOpt);
-
             Driver = new TDriver(~config, &StreamProvider);
 
-            yvector<Stroka> freeArgs(results.GetFreeArgs());
-            if (freeArgs.empty()) {
-                RunBatch(Cin);
-            } else {
-                // opts was configured to accept no more then one free arg
-                TStringInput input(freeArgs[0]);
-                RunBatch(input);
-            }
+            auto command = argsParser->GetCommand();
+            RunCommand(command);
+
         } catch (const std::exception& ex) {
             LOG_ERROR("%s", ex.what());
             ExitCode = 1;
@@ -236,29 +440,37 @@ public:
 
 private:
     int ExitCode;
-    bool HaltOnError;
+
     TStreamProvider StreamProvider;
     TAutoPtr<TDriver> Driver;
 
-    void RunBatch(TInputStream& input)
-    {
-        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-        TYsonFragmentReader parser(~builder, &input);
-        while (parser.HasNext()) {
-            builder->BeginTree();
-            parser.ReadNext();
-            auto commandNode = builder->EndTree();
+    yhash_map<Stroka, TArgsBase::TPtr> ArgsParsers;
 
-            auto error = Driver->Execute(commandNode);
-            if (!error.IsOK() && HaltOnError) {
-                ExitCode = 1;
-                break;
-            }
+    void RegisterParser(const Stroka& name, TArgsBase* command)
+    {
+        YVERIFY(ArgsParsers.insert(MakePair(name, command)).second);
+    }
+
+    TArgsBase::TPtr GetArgsParser(Stroka command) {
+        auto parserIt = ArgsParsers.find(command);
+        if (parserIt == ArgsParsers.end()) {
+            ythrow yexception() << Sprintf("Unknown command %s", ~command.Quote());
+        }
+        return parserIt->second;
+    }
+
+
+    void RunCommand(INodePtr command)
+    {
+        auto error = Driver->Execute(command);
+        if (!error.IsOK()) {
+            ExitCode = 1;
         }
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT
 
