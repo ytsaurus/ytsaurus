@@ -26,8 +26,8 @@ struct IDriverStreamProvider
     virtual ~IDriverStreamProvider()
     { }
 
-    virtual TAutoPtr<TInputStream>  CreateInputStream(const Stroka& spec = "") = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec = "") = 0;
+    virtual TAutoPtr<TInputStream>  CreateInputStream() = 0;
+    virtual TAutoPtr<TOutputStream> CreateOutputStream() = 0;
     virtual TAutoPtr<TOutputStream> CreateErrorStream() = 0;
 };
 

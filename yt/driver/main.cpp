@@ -108,7 +108,7 @@ class TStreamProvider
     : public IDriverStreamProvider
 {
 public:
-    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec)
+    virtual TAutoPtr<TInputStream> CreateInputStream()
     {
         return new TSystemInput(0);
     }
