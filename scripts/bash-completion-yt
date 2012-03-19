@@ -3,11 +3,36 @@
 _yt_create ()
 {
     opts="--type --manifest"
+
+    local object_types
+    object_types="
+    string_node
+    int64_node
+    double_node
+    map_node
+    list_node
+
+    file
+    table
+    chunk_map
+    lost_chunk_map
+    overreplicated_chunk_map
+    underreplicated_chunk_map
+    chunk_list_map
+    transaction_map
+    node_map
+    lock_map
+    holder
+    holder_map
+    orchid
+    "
+
     if [[ $prev == "--type" ]]; then
-        # TODO:
-        COMPREPLY=()
+        COMPREPLY=( $( compgen -W "${object_types}" -- ${cur}))
+        return
     fi
 }
+
 
 _yt_lock ()
 {
