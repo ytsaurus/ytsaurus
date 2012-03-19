@@ -16,9 +16,6 @@ struct TDownloadRequest
     TDownloadRequest()
     {
         Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
     }
 };
 
@@ -45,9 +42,6 @@ struct TUploadRequest
     TUploadRequest()
     {
         Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
     }
 };
 

@@ -19,9 +19,6 @@ struct TGetRequest
     TGetRequest()
     {
         Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
     }
 };
 
@@ -49,11 +46,7 @@ struct TSetRequest
     TSetRequest()
     {
         Register("path", Path);
-        Register("value", Value)
-            .Default();
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
+        Register("value", Value); //TODO(panin): Think about defaulting this value
     }
 
     virtual void DoValidate() const
@@ -115,9 +108,6 @@ struct TListRequest
     TListRequest()
     {
         Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
     }
 };
 
@@ -146,9 +136,6 @@ struct TCreateRequest
     TCreateRequest()
     {
         Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
         Register("type", Type);
         Register("manifest", Manifest)
             .Default();
