@@ -40,7 +40,6 @@ public:
         StringValue = Stroka();
         Int64Value = 0;
         DoubleValue = 0;
-        BytesToRead = 0;
         BytesRead = 0;
     }
 
@@ -126,9 +125,9 @@ public:
                     case EInnerState::InsideBinaryDouble:
                     case EInnerState::InsideBinaryString:
                     case EInnerState::InsideQuotedString:
-                        // TODO: add BytesRead/BytesToRead
-                        ythrow yexception() << Sprintf("Premature end of stream (LexerState: %s)",
-                            ~State_.ToString());
+                        ythrow yexception() << Sprintf("Premature end of stream (LexerState: %s, BytesRead: %d)",
+                            ~State_.ToString(),
+                            BytesRead);
 
                     case EInnerState::InsideUnquotedString:
                         FinishString();
@@ -197,18 +196,21 @@ private:
 
             case '\x01':
                 SetInProgressState(EInnerState::InsideBinaryString);
-                YASSERT(BytesToRead == 0);
+                YASSERT(StringValue.empty());
+                YASSERT(BytesRead == 0);
                 break;
 
             case '\x02':
                 SetInProgressState(EInnerState::InsideBinaryInt64);
                 YASSERT(Int64Value == 0);
+                YASSERT(BytesRead == 0);
                 break;
 
             case '\x03':
                 SetInProgressState(EInnerState::InsideBinaryDouble);
-                BytesToRead = static_cast<int>(sizeof(double));
                 YASSERT(DoubleValue == 0.0);
+                YASSERT(BytesRead == 0);
+                BytesRead = -static_cast<int>(sizeof(double));
                 break;
 
             case '"':
@@ -291,21 +293,24 @@ private:
 
     void ConsumeBinaryString(char ch)
     {
-        if (BytesToRead == 0) {
+        if (BytesRead < 0) {
+            StringValue.append(ch);
+            ++BytesRead;
+        } else { // We are reading length
             ConsumeBinaryInt64(ch);
+
             if (State_ == EState::Int64) {
-                BytesToRead = Int64Value;
+                BytesRead = -Int64Value;
                 Int64Value = 0;
                 State_ = EState::None; // SetInProgressState asserts it
                 SetInProgressState(EInnerState::InsideBinaryString);
+            } else {
+                YASSERT(BytesRead > 0); // So we won't FinishString
             }
-        } else {
-            StringValue.append(ch);
-            --BytesToRead;
+        }
 
-            if (BytesToRead == 0) {
-                FinishString();
-            }
+        if (BytesRead == 0) {
+            FinishString();
         }
     }
 
@@ -344,10 +349,10 @@ private:
         ui8 byte = static_cast<ui8>(ch);
 
         *(reinterpret_cast<ui64*>(&DoubleValue)) |=
-            static_cast<ui64>(byte) << (8 * (8 - BytesToRead));
-        --BytesToRead;
+            static_cast<ui64>(byte) << (8 * (8 + BytesRead));
+        ++BytesRead;
 
-        if (BytesToRead == 0) {
+        if (BytesRead == 0) {
             ProduceState(EState::Double);
         }
     }
@@ -405,7 +410,12 @@ private:
     Stroka StringValue;
     i64 Int64Value;
     double DoubleValue;
-    int BytesToRead; // For binary strings and doubles
+
+    /*
+     * BytesRead > 0 means we've read BytesRead bytes (in binary Int64)
+     * BytesRead < 0 means we are expecting -BytesRead bytes more (in binary doubles and strings)
+     * BytesRead = 0 also means we don't the number of bytes yet
+     */
     int BytesRead; // For varints
 };
 
