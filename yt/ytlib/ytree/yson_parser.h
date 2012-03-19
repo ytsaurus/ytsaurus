@@ -4,8 +4,6 @@
 
 #include <ytlib/misc/property.h>
 
-#include <stack>
-
 namespace NYT {
 namespace NYTree {
 

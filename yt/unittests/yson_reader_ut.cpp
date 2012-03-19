@@ -91,7 +91,7 @@ TEST_F(TYsonReaderTest, EntityWithEmptyAttributes)
 
 TEST_F(TYsonReaderTest, BinaryInt64)
 {
-    Input = Stroka(" \x01\x80\x80\x80\x02  ", 1 + 5 + 2); //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
+    Input = Stroka(" \x02\x80\x80\x80\x02  ", 1 + 5 + 2); //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnInt64Scalar(1ull << 21, false));
@@ -102,7 +102,7 @@ TEST_F(TYsonReaderTest, BinaryInt64)
 TEST_F(TYsonReaderTest, BinaryDouble)
 {
     double x = 2.71828;
-    Input = Stroka("\x02", 1) + Stroka((char*) &x, sizeof(double)); // DoubleMarker
+    Input = Stroka("\x03", 1) + Stroka((char*) &x, sizeof(double)); // DoubleMarker
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(2.71828), false));
@@ -112,7 +112,7 @@ TEST_F(TYsonReaderTest, BinaryDouble)
 
 TEST_F(TYsonReaderTest, BinaryString)
 {
-    Input = Stroka(" \x03\x08YSON", 1 + 6); // StringMarker + length ( = 4) + String
+    Input = Stroka(" \x01\x08YSON", 1 + 6); // StringMarker + length ( = 4) + String
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnStringScalar("YSON", false));
@@ -170,7 +170,7 @@ TEST_F(TYsonReaderTest, OneElementMap)
 
 TEST_F(TYsonReaderTest, OneElementBinaryMap)
 {
-    Input = Stroka("{\x03\x0Ahello=\x03\x0Aworld}",1 + 7 + 1 + 7 + 1);
+    Input = Stroka("{\x01\x0Ahello=\x01\x0Aworld}",1 + 7 + 1 + 7 + 1);
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginMap());
