@@ -1,11 +1,10 @@
-add_executable( yt
+add_executable( ytdriver
   main.cpp
 )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/tclap
 
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
@@ -23,18 +22,18 @@ include_directories(
   ${CMAKE_BINARY_DIR}/yt/ytlib/meta_state
 )
 
-target_link_libraries( yt
+target_link_libraries( ytdriver
   ytlib
 )
 
 if (YT_BUILD_WITH_STLPORT)
-  target_link_libraries( yt stlport )
+  target_link_libraries( ytdriver stlport )
   if (CMAKE_COMPILER_IS_GNUCXX)
-    set_target_properties( yt PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
+    set_target_properties( ytdriver PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
   endif()
 endif()
 
 install(
-  TARGETS yt
+  TARGETS ytdriver
   RUNTIME DESTINATION bin
 )

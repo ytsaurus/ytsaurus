@@ -16,16 +16,16 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadCommand::DoExecute()
+void TReadCommand::DoExecute(TReadRequest* request)
 {
-    auto stream = DriverImpl->CreateOutputStream();
+    auto stream = DriverImpl->CreateOutputStream(ToStreamSpec(request->Stream));
 
     auto reader = New<TTableReader>(
         ~DriverImpl->GetConfig()->TableReader,
         DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(TxArg->getValue()),
+        ~DriverImpl->GetTransaction(request),
         DriverImpl->GetBlockCache(),
-        PathArg->getValue());
+        request->Path);
     reader->Open();
 
     auto format = DriverImpl->GetConfig()->OutputFormat;
@@ -165,23 +165,21 @@ private:
     TColumn Column;
 };
 
-void TWriteCommand::DoExecute()
+void TWriteCommand::DoExecute(TWriteRequest* request)
 {
     auto writer = New<TTableWriter>(
         ~DriverImpl->GetConfig()->TableWriter,
         DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(TxArg->getValue()),
+        ~DriverImpl->GetTransaction(request),
         DriverImpl->GetTransactionManager(),
-        PathArg->getValue());
+        request->Path);
 
     writer->Open();
 
     TRowConsumer consumer(~writer);
 
-    TYson ysonValue = ValueArg->getValue();
-
-    if (!ysonValue.empty()) {
-        auto value = DeserializeFromYson(ysonValue);
+    if (request->Value) {
+        auto value = request->Value;
         switch (value->GetType()) {
             case ENodeType::List: {
                 FOREACH (const auto& child, value->AsList()->GetChildren()) {
@@ -199,7 +197,7 @@ void TWriteCommand::DoExecute()
                 YUNREACHABLE();
         }
     } else {
-        auto stream = DriverImpl->CreateInputStream();
+        auto stream = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));
         TYsonFragmentReader reader(&consumer, ~stream);
         while (reader.HasNext()) {
             reader.ReadNext();

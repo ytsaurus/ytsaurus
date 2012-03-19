@@ -7,40 +7,60 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUploadCommand
-    : public TTransactedCommand
+struct TDownloadRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath Path;
+    NYTree::INodePtr Stream;
+
+    TDownloadRequest()
+    {
+        Register("path", Path);
+        Register("stream", Stream)
+            .Default()
+            .CheckThat(~StreamSpecIsValid);
+    }
+};
+
+class TDownloadCommand
+    : public TCommandBase<TDownloadRequest>
 {
 public:
-    TUploadCommand(IDriverImpl* driverImpl)
-        : TTransactedCommand(driverImpl)
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
-        Cmd->add(~PathArg);
-    }
-
-    virtual void DoExecute();
+    TDownloadCommand(IDriverImpl* driverImpl)
+        : TCommandBase(driverImpl)
+    { }
 
 private:
-    THolder<TFreeStringArg> PathArg;
+    virtual void DoExecute(TDownloadRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDownloadCommand
-    : public TTransactedCommand
+struct TUploadRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath Path;
+    NYTree::INodePtr Stream;
+
+    TUploadRequest()
+    {
+        Register("path", Path);
+        Register("stream", Stream)
+            .Default()
+            .CheckThat(~StreamSpecIsValid);
+    }
+};
+
+class TUploadCommand
+    : public TCommandBase<TUploadRequest>
 {
 public:
-    TDownloadCommand(IDriverImpl* driverImpl)
-        : TTransactedCommand(driverImpl)
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
-        Cmd->add(~PathArg);
-    }
-
-    virtual void DoExecute();
+    TUploadCommand(IDriverImpl* driverImpl)
+        : TCommandBase(driverImpl)
+    { }
 
 private:
-    THolder<TFreeStringArg> PathArg;
+    virtual void DoExecute(TUploadRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

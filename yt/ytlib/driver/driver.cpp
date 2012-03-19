@@ -120,6 +120,10 @@ public:
             ~config->TransactionManager,
             ~MasterChannel);
 
+        RegisterCommand("start_transaction", ~New<TStartTransactionCommand>(this));
+        RegisterCommand("commit_transaction", ~New<TCommitTransactionCommand>(this));
+        RegisterCommand("abort_transaction", ~New<TAbortTransactionCommand>(this));
+
         RegisterCommand("get", ~New<TGetCommand>(this));
         RegisterCommand("set", ~New<TSetCommand>(this));
         RegisterCommand("remove", ~New<TRemoveCommand>(this));
@@ -127,24 +131,20 @@ public:
         RegisterCommand("create", ~New<TCreateCommand>(this));
         RegisterCommand("lock", ~New<TLockCommand>(this));
 
-        RegisterCommand("start", ~New<TStartCommand>(this));
-        RegisterCommand("commit", ~New<TCommitCommand>(this));
-        RegisterCommand("abort", ~New<TAbortCommand>(this));
-
         RegisterCommand("download", ~New<TDownloadCommand>(this));
         RegisterCommand("upload", ~New<TUploadCommand>(this));
 
         RegisterCommand("read", ~New<TReadCommand>(this));
         RegisterCommand("write", ~New<TWriteCommand>(this));
 
-//        RegisterCommand("map", ~New<TMapCommand>(this));
+        RegisterCommand("map", ~New<TMapCommand>(this));
     }
 
-    TError Execute(yvector<Stroka> args)
+    TError Execute(INodePtr command)
     {
         Error = TError();
         try {
-            DoExecute(args);
+            DoExecute(command);
         } catch (const std::exception& ex) {
             ReplyError(TError(ex.what()));
         }
@@ -180,9 +180,9 @@ public:
         output->Write('\n');
     }
 
-    virtual void ReplySuccess(const TYson& yson)
+    virtual void ReplySuccess(const TYson& yson, const Stroka& spec = "")
     {
-        auto consumer = CreateOutputConsumer();
+        auto consumer = CreateOutputConsumer(spec);
         TStringInput input(yson);
         TYsonReader reader(~consumer, &input);
         reader.Read();
@@ -193,9 +193,9 @@ public:
     { }
 
 
-    virtual TYsonProducer CreateInputProducer()
+    virtual TYsonProducer CreateInputProducer(const Stroka& spec)
     {
-        auto stream = CreateInputStream();
+        auto stream = CreateInputStream(spec);
         return FromFunctor([=] (IYsonConsumer* consumer)
             {
                 TYsonReader reader(consumer, ~stream);
@@ -203,21 +203,21 @@ public:
             });
     }
 
-    virtual TAutoPtr<TInputStream> CreateInputStream()
+    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec)
     {
-        auto stream = StreamProvider->CreateInputStream();
+        auto stream = StreamProvider->CreateInputStream(spec);
         return new TOwningBufferedInput(stream);
     }
 
-    virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer()
+    virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer(const Stroka& spec)
     {
-        auto stream = CreateOutputStream();
+        auto stream = CreateOutputStream(spec);
         return new TOutputStreamConsumer(stream, Config->OutputFormat);
     }
 
-    virtual TAutoPtr<TOutputStream> CreateOutputStream()
+    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec)
     {
-        auto stream = StreamProvider->CreateOutputStream();
+        auto stream = StreamProvider->CreateOutputStream(spec);
         return new TOwningBufferedOutput(stream);
     }
 
@@ -236,17 +236,24 @@ public:
         return !Transaction ? NullTransactionId : Transaction->GetId();
     }
 
-    virtual ITransaction::TPtr GetTransaction(TTransactionId transactionId, bool required)
+    virtual TTransactionId GetTransactionId(TTransactedRequest* request)
     {
-        if (required && transactionId == NullTransactionId) {
-            ythrow yexception() << "Transaction wasn't given";
+        return request->TransactionId != NullTransactionId ? request->TransactionId : GetCurrentTransactionId();
+    }
+
+    virtual ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required)
+    {
+        if (request->TransactionId == NullTransactionId) {
+            return GetCurrentTransaction(required);
+        } else {
+            return TransactionManager->Attach(request->TransactionId);
         }
-        return TransactionManager->Attach(transactionId);
     }
 
     virtual ITransaction* GetCurrentTransaction(bool required)
     {
         if (!Transaction && required) {
+            ythrow yexception() << "No current transaction";
         }
         return ~Transaction;
     }
@@ -260,32 +267,35 @@ private:
     TConfig::TPtr Config;
     IDriverStreamProvider* StreamProvider;
     TError Error;
-    yhash_map<Stroka, INewCommand::TPtr> Commands;
+    yhash_map<Stroka, ICommand::TPtr> Commands;
     IChannel::TPtr MasterChannel;
     IBlockCache::TPtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
     ITransaction::TPtr Transaction;
 
-    void RegisterCommand(const Stroka& name, INewCommand* command)
+    void RegisterCommand(const Stroka& name, ICommand* command)
     {
         YVERIFY(Commands.insert(MakePair(name, command)).second);
     }
 
-    void DoExecute(const yvector<Stroka>& args)
+    void DoExecute(INodePtr requestNode)
     {
-        if (args.size() < 2) {
-            ythrow yexception() << Sprintf("Command name is not set");
+        auto request = New<TRequestBase>();
+        try {
+            request->Load(~requestNode);
+        }
+        catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error parsing command from node\n%s", ex.what());
         }
 
-        auto commandName = args[1];
+        auto commandName = request->Do;
         auto commandIt = Commands.find(commandName);
         if (commandIt == Commands.end()) {
             ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
         }
 
         auto command = commandIt->second;
-        yvector<Stroka> remainingArgs(args.begin() + 1, args.end());
-        command->Execute(remainingArgs);
+        command->Execute(~requestNode);
     }
     
 };
@@ -301,9 +311,9 @@ TDriver::TDriver(
 TDriver::~TDriver()
 { }
 
-TError TDriver::Execute(const yvector<Stroka>& args)
+TError TDriver::Execute(INodePtr command)
 {
-    return Impl->Execute(args);
+    return Impl->Execute(command);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

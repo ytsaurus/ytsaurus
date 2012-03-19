@@ -14,20 +14,18 @@ using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetCommand::DoExecute()
+void TGetCommand::DoExecute(TGetRequest* request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
-
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
-        PathArg->getValue(),
-        TxArg->getValue()));
-
-    ypathRequest->Attributes().MergeFrom(*~GetOpts());
+        request->Path,
+        DriverImpl->GetTransactionId(request)));
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         TYson value = ypathResponse->value();
-        DriverImpl->ReplySuccess(value);
+        DriverImpl->ReplySuccess(value, ToStreamSpec(request->Stream));
     } else {
         DriverImpl->ReplyError(ypathResponse->GetError());
     }
@@ -35,18 +33,22 @@ void TGetCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSetCommand::DoExecute()
+void TSetCommand::DoExecute(TSetRequest* request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
 
     auto ypathRequest = TYPathProxy::Set(WithTransaction(
-        PathArg->getValue(),
-        TxArg->getValue()));
+        request->Path,
+        DriverImpl->GetTransactionId(request)));
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
-    ypathRequest->Attributes().MergeFrom(*~GetOpts());
-
-    TYson value = ValueArg->getValue();
-    ValidateYson(value);
+    TYson value;
+    if (request->Value) {
+        value = SerializeToYson(~request->Value);
+    } else {
+        auto producer = DriverImpl->CreateInputProducer(ToStreamSpec(request->Stream));
+        value = SerializeToYson(producer);
+    }
     ypathRequest->set_value(value);
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
@@ -60,16 +62,15 @@ void TSetCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveCommand::DoExecute()
+void TRemoveCommand::DoExecute(TRemoveRequest* request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
-        PathArg->getValue(),
-        TxArg->getValue()));
-
-    ypathRequest->Attributes().MergeFrom(*~GetOpts());
+        request->Path,
+        DriverImpl->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
         DriverImpl->ReplySuccess();
@@ -80,19 +81,18 @@ void TRemoveCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TListCommand::DoExecute()
+void TListCommand::DoExecute(TListRequest* request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
-        PathArg->getValue(),
-        TxArg->getValue()));
-
-    ypathRequest->Attributes().MergeFrom(*~GetOpts());
+        request->Path,
+        DriverImpl->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
-         auto consumer = DriverImpl->CreateOutputConsumer();
+         auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
          BuildYsonFluently(~consumer)
              .DoListFor(ypathResponse->keys(), [=] (TFluentList fluent, Stroka key)
                 {
@@ -105,26 +105,25 @@ void TListCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCreateCommand::DoExecute()
+void TCreateCommand::DoExecute(TCreateRequest* request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
-        PathArg->getValue(),
-        TxArg->getValue()));
+        request->Path,
+        DriverImpl->GetTransactionId(request)));
 
-    ypathRequest->set_type(TypeArg->getValue());
+    ypathRequest->set_type(request->Type);
 
-    auto manifest = ManifestArg->getValue();
-    if (!manifest.empty()) {
-        ValidateYson(manifest);
-        ypathRequest->set_manifest(manifest);
+    if (request->Manifest) {
+        auto serializedManifest = SerializeToYson(~request->Manifest, EYsonFormat::Binary);
+        ypathRequest->set_manifest(serializedManifest);
     }
 
-    ypathRequest->Attributes().MergeFrom(*~GetOpts());
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
-        auto consumer = DriverImpl->CreateOutputConsumer();
+        auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
         auto id = TNodeId::FromProto(ypathResponse->object_id());
         BuildYsonFluently(~consumer)
             .BeginMap()
@@ -137,17 +136,16 @@ void TCreateCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLockCommand::DoExecute()
+void TLockCommand::DoExecute(TLockRequest* request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
-        PathArg->getValue(),
-        TxArg->getValue()));
-
-    ypathRequest->set_mode(ModeArg->getValue());
-    ypathRequest->Attributes().MergeFrom(*~GetOpts());
+        request->Path,
+        DriverImpl->GetTransactionId(request)));
+    ypathRequest->set_mode(request->Mode);
 
     auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
         auto lockId = TLockId::FromProto(ypathResponse->lock_id());

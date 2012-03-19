@@ -7,145 +7,193 @@
 
 namespace NYT {
 namespace NDriver {
-
+    
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGetRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath Path;
+    NYTree::INodePtr Stream;
+
+    TGetRequest()
+    {
+        Register("path", Path);
+        Register("stream", Stream)
+            .Default()
+            .CheckThat(~StreamSpecIsValid);
+    }
+};
+
 class TGetCommand
-    : public TTransactedCommand
+    : public TCommandBase<TGetRequest>
 {
 public:
     TGetCommand(IDriverImpl* driverImpl)
-        : TTransactedCommand(driverImpl)
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
-        Cmd->add(~PathArg);
-    }
-
-    virtual void DoExecute();
+        : TCommandBase(driverImpl)
+    { }
 
 private:
-    THolder<TFreeStringArg> PathArg;
+    virtual void DoExecute(TGetRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSetRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath Path;
+    NYTree::INodePtr Value;
+    NYTree::INodePtr Stream;
+
+    TSetRequest()
+    {
+        Register("path", Path);
+        Register("value", Value)
+            .Default();
+        Register("stream", Stream)
+            .Default()
+            .CheckThat(~StreamSpecIsValid);
+    }
+
+    virtual void DoValidate() const
+    {
+        if (!Value && !Stream) {
+            ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is given");
+        }
+        if (Value && Stream) {
+            ythrow yexception() << Sprintf("Both \"value\" and \"stream\" are given");
+        }
+    }
+};
+
 class TSetCommand
-    : public TTransactedCommand
+    : public TCommandBase<TSetRequest>
 {
 public:
     TSetCommand(IDriverImpl* driverImpl)
-        : TTransactedCommand(driverImpl)
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
-        ValueArg.Reset(new TFreeStringArg("value", "value to set", true, "", "yson"));
-
-        Cmd->add(~PathArg);
-        Cmd->add(~ValueArg);
-    }
-
-    virtual void DoExecute();
+        : TCommandBase(driverImpl)
+    { }
 
 private:
-    THolder<TFreeStringArg> PathArg;
-    THolder<TFreeStringArg> ValueArg;
+    virtual void DoExecute(TSetRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRemoveRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath Path;
+
+    TRemoveRequest()
+    {
+        Register("path", Path);
+    }
+};
+
 class TRemoveCommand
-    : public TTransactedCommand
+    : public TCommandBase<TRemoveRequest>
 {
 public:
     TRemoveCommand(IDriverImpl* driverImpl)
-        : TTransactedCommand(driverImpl)
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
-        Cmd->add(~PathArg);
-    }
-
-    virtual void DoExecute();
+        : TCommandBase(driverImpl)
+    { }
 
 private:
-    THolder<TFreeStringArg> PathArg;
+    virtual void DoExecute(TRemoveRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TListRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath Path;
+    NYTree::INodePtr Stream;
+
+    TListRequest()
+    {
+        Register("path", Path);
+        Register("stream", Stream)
+            .Default()
+            .CheckThat(~StreamSpecIsValid);
+    }
+};
+
 class TListCommand
-    : public TTransactedCommand
+    : public TCommandBase<TListRequest>
 {
 public:
     TListCommand(IDriverImpl* driverImpl)
-        : TTransactedCommand(driverImpl)
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
-        Cmd->add(~PathArg);
-    }
-
-    virtual void DoExecute();
+        : TCommandBase(driverImpl)
+    { }
 
 private:
-    THolder<TFreeStringArg> PathArg;
+    virtual void DoExecute(TListRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCreateRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath Path;
+    NYTree::INodePtr Stream;
+    NObjectServer::EObjectType Type;
+    NYTree::INodePtr Manifest;
+
+    TCreateRequest()
+    {
+        Register("path", Path);
+        Register("stream", Stream)
+            .Default()
+            .CheckThat(~StreamSpecIsValid);
+        Register("type", Type);
+        Register("manifest", Manifest)
+            .Default();
+    }
+};
+
 class TCreateCommand
-    : public TTransactedCommand
+    : public TCommandBase<TCreateRequest>
 {
 public:
     TCreateCommand(IDriverImpl* driverImpl)
-        : TTransactedCommand(driverImpl)
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
-        TypeArg.Reset(new TTypeArg(
-            "type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type"));
-
-        Cmd->add(~PathArg);
-        Cmd->add(~TypeArg);
-
-        ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
-        Cmd->add(~ManifestArg);
-    }
-
-    virtual void DoExecute();
+        : TCommandBase(driverImpl)
+    { }
 
 private:
-    THolder<TFreeStringArg> PathArg;
-
-    typedef TCLAP::UnlabeledValueArg<NObjectServer::EObjectType> TTypeArg;
-    THolder<TTypeArg> TypeArg;
-
-    typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
-    THolder<TManifestArg> ManifestArg;
+    virtual void DoExecute(TCreateRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLockRequest
+    : public TTransactedRequest
+{
+    NYTree::TYPath Path;
+    NCypress::ELockMode Mode;
+
+    TLockRequest()
+    {
+        Register("path", Path);
+        Register("mode", Mode)
+            .Default(NCypress::ELockMode::Exclusive);
+    }
+};
+
 class TLockCommand
-    : public TTransactedCommand
+    : public TCommandBase<TLockRequest>
 {
 public:
     TLockCommand(IDriverImpl* driverImpl)
-        : TTransactedCommand(driverImpl)
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
-        //TODO(panin): check given value
-        ModeArg.Reset(new TModeArg(
-            "", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "Snapshot, Shared, Exclusive"));
-        Cmd->add(~PathArg);
-        Cmd->add(~ModeArg);
-    }
-
-    virtual void DoExecute();
+        : TCommandBase(driverImpl)
+    { }
 
 private:
-    THolder<TFreeStringArg> PathArg;
-
-    typedef TCLAP::ValueArg<NCypress::ELockMode> TModeArg;
-    THolder<TModeArg> ModeArg;
+    virtual void DoExecute(TLockRequest* request);
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
