@@ -110,7 +110,7 @@ class YTEnv:
 
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
-            p = subprocess.Popen('ytserver --cell-master --config {config_path}  --port {port} --id {i}'.format(
+            p = subprocess.Popen('ytserver --master --config {config_path}  --port {port} --id {i}'.format(
                     port=8001 + i,
                     config_path=self.config_paths['master'][i],
                     i=i,
