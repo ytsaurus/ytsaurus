@@ -499,7 +499,7 @@ void TNodeSetterBase::OnMyBeginAttributes()
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
 {
     AttributeKey = key;
-    ForwardNode(&AttributeWriter, ~FromMethod(&TThis::OnForwardingFinished, this));
+    ForwardNode(&AttributeWriter, FromMethod(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()
@@ -521,7 +521,7 @@ public:
     TServiceContext(
         const TRequestHeader& header,
         NBus::IMessage* requestMessage,
-        TYPathResponseHandler* responseHandler,
+        TYPathResponseHandler responseHandler,
         const Stroka& loggingCategory)
         : TServiceContextBase(header, requestMessage)
         , ResponseHandler(responseHandler)
@@ -529,7 +529,7 @@ public:
     { }
 
 protected:
-    TYPathResponseHandler::TPtr ResponseHandler;
+    TYPathResponseHandler ResponseHandler;
     NLog::TLogger Logger;
 
     virtual void DoReply(const TError& error, IMessage* responseMessage)
@@ -580,7 +580,7 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     const TYPath& path,
     const Stroka& verb,
     const Stroka& loggingCategory,
-    TYPathResponseHandler* responseHandler)
+    TYPathResponseHandler responseHandler)
 {
     YASSERT(requestMessage);
 

@@ -17,6 +17,7 @@
 #include <util/datetime/base.h>
 
 // Avoid circular references.
+// TODO(babenko): shoudn't this be in public.h?
 namespace NYT {
 namespace NYTree {
     TYPath CombineYPaths(
@@ -269,7 +270,7 @@ TParameter<T>& TParameter<T>::DefaultNew()
 }
 
 template <class T>
-TParameter<T>& TParameter<T>::CheckThat(TValidator* validator)
+TParameter<T>& TParameter<T>::CheckThat(TValidatorPtr validator)
 {
     Validators.push_back(validator);
     return *this;
@@ -282,7 +283,7 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator* validator)
     template <class T> \
     TParameter<T>& TParameter<T>::method \
     { \
-        return CheckThat(~FromFunctor([=] (const T& parameter) \
+        return CheckThat(FromFunctor([=] (const T& parameter) \
             { \
                 if (!(condition)) { \
                     ythrow (ex); \

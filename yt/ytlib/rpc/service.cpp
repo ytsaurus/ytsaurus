@@ -142,26 +142,32 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
 
     auto handler = runtimeInfo->Descriptor.Handler;
     auto guardedHandler = context->Wrap(~handler->Bind(context));
-    auto wrappedHandler = FromFunctor([=] ()
+    auto wrappedHandler = FromFunctor([=] () {
+        auto& timer = activeRequest->Timer;
+
         {
-            auto& timer = activeRequest->Timer;
-            Profiler.TimingCheckpoint(timer, "wait");
-
             // No need for a lock here.
-            activeRequest->Running = true;
+            activeRequest->RunningSync = true;
+            Profiler.TimingCheckpoint(timer, "wait");
+        }
 
-            guardedHandler->Do();
-            Profiler.TimingCheckpoint(timer, "sync");
+        guardedHandler->Do();
 
-            {
-                TGuard<TSpinLock> guard(activeRequest->SpinLock);
-                YASSERT(activeRequest->Running);
-                activeRequest->Running = false;
-                if (activeRequest->Completed || runtimeInfo->Descriptor.OneWay) {
-                    Profiler.TimingStop(timer);
-                }
+        {
+            TGuard<TSpinLock> guard(activeRequest->SpinLock);
+
+            YASSERT(activeRequest->RunningSync);
+            activeRequest->RunningSync = false;
+
+            if (!activeRequest->Completed) {
+                Profiler.TimingCheckpoint(timer, "sync");
             }
-        });
+
+            if (runtimeInfo->Descriptor.OneWay) {
+                Profiler.TimingStop(timer);
+            }
+        }
+    });
 
     InvokeHandler(~runtimeInfo, wrappedHandler, context);
 }
@@ -179,16 +185,19 @@ void TServiceBase::OnEndRequest(IServiceContext* context)
 
     auto& activeRequest = it->second;
 
-    auto& timer = activeRequest->Timer;
-    Profiler.TimingCheckpoint(timer, "async");
-
     {
         TGuard<TSpinLock> guard(activeRequest->SpinLock);
+
         YASSERT(!activeRequest->Completed);
         activeRequest->Completed = true;
-        if (!activeRequest->Running) {
-            Profiler.TimingStop(timer);
+
+        auto& timer = activeRequest->Timer;
+
+        if (activeRequest->RunningSync) {
+            Profiler.TimingCheckpoint(timer, "sync");
         }
+        Profiler.TimingCheckpoint(timer, "async");
+        Profiler.TimingStop(timer);
     }
 
     ActiveRequests.erase(it);

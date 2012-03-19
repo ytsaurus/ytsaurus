@@ -77,7 +77,7 @@ void TFollowerTracker::ChangeFollowerStatus(int followerId, EPeerStatus status)
 
     auto& followerState = FollowerStates[followerId];
     if (followerState.Status != status) {
-        LOG_INFO("Follower %d status changed %s->%s",
+        LOG_INFO("Follower %d status changed from %s to %s",
             followerId,
             ~followerState.Status.ToString(),
             ~status.ToString());
@@ -117,7 +117,7 @@ void TFollowerTracker::ProcessPing(TPeerId followerId, EPeerStatus status)
     if (followerState.Lease == TLeaseManager::NullLease) {
         followerState.Lease = TLeaseManager::CreateLease(
             Config->PingTimeout,
-            ~FromMethod(&TFollowerTracker::OnLeaseExpired, MakeStrong(this), followerId)
+            FromMethod(&TFollowerTracker::OnLeaseExpired, MakeStrong(this), followerId)
             ->Via(~EpochControlInvoker));
     } else {
         TLeaseManager::RenewLease(followerState.Lease);

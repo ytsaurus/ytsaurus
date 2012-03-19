@@ -1,7 +1,6 @@
 #pragma once
 
-#include "config.h"
-#include "holder.h"
+#include "public.h"
 
 #include <ytlib/misc/lease_manager.h>
 #include <ytlib/cell_master/public.h>
@@ -10,8 +9,6 @@ namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TChunkManager;
 
 //! Controls holder server-side leases.
 /*!
@@ -37,9 +34,6 @@ class THolderLeaseTracker
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<THolderLeaseTracker> TPtr;
-    typedef TChunkManagerConfig TConfig;
-
     //! Initializes an instance.
     /*!
      *  \param config A configuration.
@@ -47,7 +41,7 @@ public:
      *  \param invoker An invoker used for lease expiration callbacks.
      */
     THolderLeaseTracker(
-        TConfig* config,
+        TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
     //! Registers the holder and assigns it an initial lease.
@@ -55,10 +49,10 @@ public:
      *  Initial lease timeout for registered holders is #TChunkManagerConfig::RegisteredHolderTimeout.
      *  For online holders it is decreased to #TChunkManagerConfig::OnlineHolderTimeout.
      */
-    void OnHolderRegistered(const THolder& holder, bool confirmed);
+    void OnHolderRegistered(const THolder& holder, bool recovery);
 
     //! Notifies that the holder has become online and hence its lease timeout must be updated.
-    void OnHolderOnline(const THolder& holder);
+    void OnHolderOnline(const THolder& holder, bool recovery);
 
     //! Renews the lease.
     void OnHolderHeartbeat(const THolder& holder);
@@ -69,28 +63,28 @@ public:
     //! Returns True iff the holder is confirmed.
     bool IsHolderConfirmed(const THolder& holder);
 
+    //! Returns the number of holders that are currently online (including unconfirmed).
+    int GetOnlineHolderCount();
 
 private:
     struct THolderInfo
     {
-        THolderInfo(bool confirmed)
-            : Confirmed(confirmed)
-        { }
-
         TLeaseManager::TLease Lease;
         bool Confirmed;
     };
 
     typedef yhash_map<THolderId, THolderInfo> THolderInfoMap;
      
-    TConfig::TPtr Config;
+    TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
+    int OnlineHolderCount;
     THolderInfoMap HolderInfoMap;
 
     THolderInfo* FindHolderInfo(THolderId holderId);
     THolderInfo& GetHolderInfo(THolderId holderId);
-    void RecreateLease(const THolder& holder);
+    void RenewLease(const THolder& holder, const THolderInfo& holderInfo);
+    TDuration GetTimeout(const THolder& holder, const THolderInfo& holderInfo);
 
     void OnExpired(THolderId holderId);
 

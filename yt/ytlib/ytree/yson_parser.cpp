@@ -417,7 +417,7 @@ class TYsonParser::TImpl
     typedef TYsonLexer::EState ELexerState;
 
     IYsonConsumer* Consumer;
-    bool SupportFragments;
+    bool Fragmented;
 
     TYsonLexer Lexer;
     std::stack<EState> StateStack;
@@ -433,9 +433,9 @@ class TYsonParser::TImpl
     int Fragment;
 
 public:
-    TImpl(IYsonConsumer* consumer, bool supportFragments)
+    TImpl(IYsonConsumer* consumer, bool fragmented)
         : Consumer(consumer)
-        , SupportFragments(supportFragments)
+        , Fragmented(fragmented)
         , CachedInt64Value(0)
         , CachedDoubleValue(0.0)
         , Offset(0)
@@ -530,7 +530,7 @@ public:
             YASSERT(StateStack.top() == EState::FragmentParsed);
             StateStack.pop();
             YASSERT(StateStack.empty());
-        } else if (!SupportFragments) {
+        } else if (!Fragmented) {
             ythrow yexception() << Sprintf("Error parsing YSON: Cannot finish parsing, nothing was parsed (%s)",
                 ~GetPositionInfo());
         }
@@ -547,7 +547,7 @@ private:
         while (!consumed) {
             switch (CurrentState()) {
                 case EState::None:
-                    ConsumeAny();
+                    ConsumeNew();
                     consumed = true;
                     break;
 
@@ -590,6 +590,14 @@ private:
                     YUNREACHABLE();
             }
         }
+    }
+
+    void ConsumeNew()
+    {
+        if (Fragmented) {
+            Consumer->OnListItem();
+        }
+        ConsumeAny();
     }
 
     void ConsumeAny()
@@ -770,7 +778,7 @@ private:
         YASSERT(StateStack.top() == EState::FragmentParsed);
 
         auto lexerState = Lexer.GetState();
-        if (!SupportFragments) {
+        if (!Fragmented) {
             ythrow yexception() << Sprintf("Error parsing YSON: Document is already parsed, but unexpected lexeme of type %s found (%s)",
                 ~lexerState.ToString(),
                 ~GetPositionInfo());
@@ -861,7 +869,7 @@ private:
 
     Stroka GetPositionInfo() const
     {
-        if (SupportFragments) {
+        if (Fragmented) {
             return Sprintf("Offset: %d, Line: %d, Position: %d, Fragment: %d",
                 Offset,
                 Line,
@@ -878,8 +886,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonParser::TYsonParser(IYsonConsumer *consumer, bool supportFragments)
-    : Impl(new TImpl(consumer, supportFragments))
+TYsonParser::TYsonParser(IYsonConsumer *consumer, bool fragmented)
+    : Impl(new TImpl(consumer, fragmented))
 { }
 
 
@@ -898,9 +906,9 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool supportFragments)
+void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool fragmented)
 {
-    TYsonParser parser(consumer, supportFragments);
+    TYsonParser parser(consumer, fragmented);
     char ch;
     while (input->ReadChar(ch)) {
         parser.Consume(ch);

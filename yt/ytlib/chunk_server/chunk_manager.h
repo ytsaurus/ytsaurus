@@ -1,19 +1,12 @@
 #pragma once
 
-#include "config.h"
-#include "holder.h"
-#include "chunk.h"
-#include "chunk_list.h"
-#include "job.h"
-#include "job_list.h"
-#include "chunk_service_proxy.h"
-#include "holder_authority.h"
+#include "public.h"
 #include "chunk_manager.pb.h"
-#include "holder_statistics.h"
 
 #include <ytlib/actions/signal.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>
+#include <ytlib/meta_state/map.h>
 #include <ytlib/cell_master/public.h>
 
 namespace NYT {
@@ -25,12 +18,9 @@ class TChunkManager
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChunkManager> TPtr;
-    typedef TChunkManagerConfig TConfig;
-
     //! Creates an instance.
     TChunkManager(
-        TConfig* config,
+        TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
     NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
@@ -82,11 +72,13 @@ public:
     void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds);
     void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds);
 
-    void RunJobControl(
+    void ScheduleJobs(
         const THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart,
         yvector<NProto::TJobStopInfo>* jobsToStop);
+
+    bool IsJobSchedulerEnabled();
 
     //! Fills a given protobuf structure with the list of holder addresses.
     /*!
@@ -103,6 +95,9 @@ public:
     TTotalHolderStatistics GetTotalHolderStatistics();
 
     bool IsHolderConfirmed(const THolder& holder);
+
+    //! Returns the total number of all chunk replicas.
+    i32 GetChunkReplicaCount();
 
 private:
     class TImpl;

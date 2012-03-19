@@ -15,9 +15,9 @@ message TChannel
     repeated TRange ranges = 2;
 }
 
-message TSchema
+message TKey
 {
-    repeated TChannel channels = 1;
+    repeated bytes values = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

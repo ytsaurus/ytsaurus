@@ -1,10 +1,13 @@
 #pragma once
 
-#include "config.h"
-#include "chunk_placement.h"
+#include "public.h"
+#include "chunk_service.pb.h"
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/property.h>
+#include <ytlib/misc/nullable.h>
+#include <ytlib/profiling/public.h>
 
 #include <util/generic/deque.h>
 
@@ -13,17 +16,15 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkReplication
+class TJobScheduler
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChunkReplication> TPtr;
-    typedef TChunkManagerConfig TConfig;
-    
-    TChunkReplication(
-        TConfig* config,
+    TJobScheduler(
+        TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
-        TChunkPlacement* chunkPlacement);
+        TChunkPlacementPtr chunkPlacement,
+        THolderLeaseTrackerPtr holderLeaseTracker);
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
@@ -38,24 +39,29 @@ public:
 
     void ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId);
 
-    void RunJobControl(
+    void ScheduleJobs(
         const THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart,
         yvector<NProto::TJobStopInfo>* jobsToStop);
 
+    bool IsEnabled();
+
 private:
-    TConfig::TPtr Config;
+    TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
-    TChunkPlacement::TPtr ChunkPlacement;
-    i64 ChunkRefreshDelayCycles;
+    TChunkPlacementPtr ChunkPlacement;
+    THolderLeaseTrackerPtr HolderLeaseTracker;
+
+    NProfiling::TCpuDuration ChunkRefreshDelay;
+    TNullable<bool> LastEnabled;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     struct TRefreshEntry
     {
         TChunkId ChunkId;
-        ui64 When;
+        NProfiling::TCpuInstant When;
     };
 
     yhash_set<TChunkId> RefreshSet;
@@ -101,7 +107,7 @@ private:
         const THolder& holder,
         const TChunkId& chunkId,
         yvector<NProto::TJobStartInfo>* jobsToStart);
-    void ScheduleJobs(
+    void ScheduleNewJobs(
         const THolder& holder,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,

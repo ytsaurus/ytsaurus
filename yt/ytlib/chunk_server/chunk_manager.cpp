@@ -1,10 +1,20 @@
 #include "stdafx.h"
 #include "chunk_manager.h"
+#include "config.h"
+#include "holder.h"
+#include "chunk.h"
+#include "chunk_list.h"
+#include "job.h"
+#include "job_list.h"
 #include "chunk_manager.pb.h"
 #include "chunk_placement.h"
-#include "chunk_replication.h"
+#include "job_scheduler.h"
 #include "holder_lease_tracker.h"
 #include "holder_statistics.h"
+#include "chunk_service_proxy.h"
+#include "holder_authority.h"
+#include "holder_statistics.h"
+#include "chunk_manager.pb.h"
 #include "chunk_ypath.pb.h"
 #include "chunk_list_ypath.pb.h"
 #include "file_chunk_meta.pb.h"
@@ -102,7 +112,7 @@ public:
     typedef TIntrusivePtr<TImpl> TPtr;
 
     TImpl(
-        TConfig* config,
+        TChunkManagerConfigPtr config,
         TBootstrap* bootstrap)
         : TMetaStatePart(
             ~bootstrap->GetMetaStateManager(),
@@ -110,6 +120,12 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , ChunkReplicaCount(0)
+        , AddChunkCounter("add_chunk_rate")
+        , RemoveChunkCounter("remove_chunk_rate")
+        , AddChunkReplicaCounter("add_chunk_replica_rate")
+        , RemoveChunkReplicaCounter("remove_chunk_replica_rate")
+        , StartJobCounter("start_job_rate")
+        , StopJobCounter("stop_job_rate")
     {
         YASSERT(config);
         YASSERT(bootstrap);
@@ -292,13 +308,13 @@ public:
     }
 
 
-    void RunJobControl(
+    void ScheduleJobs(
         const THolder& holder,
         const yvector<TJobInfo>& runningJobs,
         yvector<TJobStartInfo>* jobsToStart,
         yvector<TJobStopInfo>* jobsToStop)
     {
-        ChunkReplication->RunJobControl(
+        JobScheduler->ScheduleJobs(
             holder,
             runningJobs,
             jobsToStart,
@@ -344,7 +360,17 @@ public:
 
     bool IsHolderConfirmed(const THolder& holder)
     {
-        return HolderLeaseTracking->IsHolderConfirmed(holder);
+        return HolderLeaseTracker->IsHolderConfirmed(holder);
+    }
+
+    i32 GetChunkReplicaCount()
+    {
+        return ChunkReplicaCount;
+    }
+
+    bool IsJobSchedulerEnabled()
+    {
+        return JobScheduler->IsEnabled();
     }
 
 private:
@@ -354,18 +380,25 @@ private:
     friend class TChunkListTypeHandler;
     friend class TChunkListProxy;
 
-    TConfig::TPtr Config;
+    TChunkManagerConfigPtr Config;
     TBootstrap* Bootstrap;
     
-    TChunkPlacement::TPtr ChunkPlacement;
-    TChunkReplication::TPtr ChunkReplication;
-    THolderLeaseTracker::TPtr HolderLeaseTracking;
+    i32 ChunkReplicaCount;
+    NProfiling::TRateCounter AddChunkCounter;
+    NProfiling::TRateCounter RemoveChunkCounter;
+    NProfiling::TRateCounter AddChunkReplicaCounter;
+    NProfiling::TRateCounter RemoveChunkReplicaCounter;
+    NProfiling::TRateCounter StartJobCounter;
+    NProfiling::TRateCounter StopJobCounter;
+
+    TChunkPlacementPtr ChunkPlacement;
+    TJobSchedulerPtr JobScheduler;
+    THolderLeaseTrackerPtr HolderLeaseTracker;
     
     TIdGenerator<THolderId> HolderIdGenerator;
 
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
     TMetaStateMap<TChunkListId, TChunkList> ChunkListMap;
-    i32 ChunkReplicaCount;
 
     TMetaStateMap<THolderId, THolder> HolderMap;
     yhash_map<Stroka, THolderId> HolderAddressMap;
@@ -398,7 +431,9 @@ private:
             chunkIds.push_back(chunkId);
         }
 
-        LOG_INFO_IF(!IsRecovery(), "Chunks allocated (ChunkIds: [%s], TransactionId: %s)",
+        Profiler.Increment(AddChunkCounter, chunkCount);
+
+        LOG_INFO_IF(!IsRecovery(), "Chunks created (ChunkIds: [%s], TransactionId: %s)",
             ~JoinToString(chunkIds),
             ~transactionId.ToString());
 
@@ -498,11 +533,11 @@ private:
 
         // Unregister chunk replicas from all known locations.
         FOREACH (auto holderId, chunk.StoredLocations()) {
-            RemoveChunkAtLocation(holderId, chunk, false);
+            ScheduleChunkReplicaRemoval(holderId, chunk, false);
         }
         if (~chunk.CachedLocations()) {
             FOREACH (auto holderId, *chunk.CachedLocations()) {
-                RemoveChunkAtLocation(holderId, chunk, true);
+                ScheduleChunkReplicaRemoval(holderId, chunk, true);
             }
         }
 
@@ -517,6 +552,8 @@ private:
                 }
             }
         }
+
+        Profiler.Increment(RemoveChunkCounter);
     }
 
     void OnChunkListDestroyed(TChunkList& chunkList)
@@ -563,7 +600,7 @@ private:
         HolderAddressMap.insert(MakePair(address, holderId)).second;
 
         if (IsLeader()) {
-            StartHolderTracking(*newHolder, true);
+            StartHolderTracking(*newHolder, false);
         }
 
         return holderId;
@@ -580,10 +617,15 @@ private:
     }
 
 
-    TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
+    TVoid FullHeartbeat(const TMsgFullHeartbeat& message2)
     {
-        Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
         PROFILE_TIMING ("full_heartbeat_time") {
+            TReqFullHeartbeat message;
+            auto requestBody = TRef(const_cast<char*>(message2.request_body().data()), message2.request_body().length());
+            YVERIFY(DeserializeProtobuf(&message, requestBody));
+
+            Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
+
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
 
@@ -601,7 +643,7 @@ private:
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
-                HolderLeaseTracking->OnHolderOnline(holder);
+                HolderLeaseTracker->OnHolderOnline(holder, false);
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
@@ -637,7 +679,7 @@ private:
             holder.Statistics() = statistics;
 
             if (IsLeader()) {
-                HolderLeaseTracking->OnHolderHeartbeat(holder);
+                HolderLeaseTracker->OnHolderHeartbeat(holder);
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
@@ -764,21 +806,21 @@ private:
 
     virtual void OnLeaderRecoveryComplete()
     {
-        ChunkPlacement = New<TChunkPlacement>(~Config, Bootstrap);
+        ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
 
-        ChunkReplication = New<TChunkReplication>(~Config, Bootstrap, ~ChunkPlacement);
+        HolderLeaseTracker = New<THolderLeaseTracker>(Config, Bootstrap);
 
-        HolderLeaseTracking = New<THolderLeaseTracker>(~Config, Bootstrap);
+        JobScheduler = New<TJobScheduler>(Config, Bootstrap, ChunkPlacement, HolderLeaseTracker);
 
         // Assign initial leases to holders.
-        // NB: Holders should remain unconfirmed until the first heartbeat.
-        FOREACH (const auto& pair, HolderMap) {
-            StartHolderTracking(*pair.second, false);
+        // NB: Holders will remain unconfirmed until the first heartbeat.
+        FOREACH (const auto& pair, HolderMap) { 
+            StartHolderTracking(*pair.second, true);
         }
 
         PROFILE_TIMING ("full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
-            ChunkReplication->RefreshAllChunks();
+            JobScheduler->RefreshAllChunks();
             LOG_INFO("Full chunk refresh completed");
         }
     }
@@ -786,25 +828,30 @@ private:
     virtual void OnStopLeading()
     {
         ChunkPlacement.Reset();
-        ChunkReplication.Reset();
-        HolderLeaseTracking.Reset();
+        JobScheduler.Reset();
+        HolderLeaseTracker.Reset();
     }
 
 
-    void StartHolderTracking(const THolder& holder, bool confirmed)
+    void StartHolderTracking(const THolder& holder, bool recovery)
     {
-        HolderLeaseTracking->OnHolderRegistered(holder, confirmed);
+        HolderLeaseTracker->OnHolderRegistered(holder, recovery);
+        if (holder.GetState() == EHolderState::Online) {
+            HolderLeaseTracker->OnHolderOnline(holder, recovery);
+        }
+
         ChunkPlacement->OnHolderRegistered(holder);
-        ChunkReplication->OnHolderRegistered(holder);
+        
+        JobScheduler->OnHolderRegistered(holder);
 
         HolderRegistered_.Fire(holder);
     }
 
     void StopHolderTracking(const THolder& holder)
     {
-        HolderLeaseTracking->OnHolderUnregistered(holder);
+        HolderLeaseTracker->OnHolderUnregistered(holder);
         ChunkPlacement->OnHolderUnregistered(holder);
-        ChunkReplication->OnHolderUnregistered(holder);
+        JobScheduler->OnHolderUnregistered(holder);
 
         HolderUnregistered_.Fire(holder);
     }
@@ -881,18 +928,22 @@ private:
         }
 
         if (!cached && IsLeader()) {
-            ChunkReplication->ScheduleChunkRefresh(chunk.GetId());
+            JobScheduler->ScheduleChunkRefresh(chunk.GetId());
+        }
+
+        if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
+            Profiler.Increment(AddChunkReplicaCounter);
         }
     }
 
-    void RemoveChunkAtLocation(THolderId holderId, TChunk& chunk, bool cached)
+    void ScheduleChunkReplicaRemoval(THolderId holderId, TChunk& chunk, bool cached)
     {
         auto chunkId = chunk.GetId();
         auto& holder = GetHolder(holderId);
         holder.RemoveChunk(chunkId, cached);
 
         if (!cached && IsLeader()) {
-            ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
+            JobScheduler->ScheduleChunkRemoval(holder, chunkId);
         }
     }
 
@@ -943,8 +994,10 @@ private:
         }
 
         if (!cached && IsLeader()) {
-            ChunkReplication->ScheduleChunkRefresh(chunk.GetId());
+            JobScheduler->ScheduleChunkRefresh(chunk.GetId());
         }
+
+        Profiler.Increment(RemoveChunkReplicaCounter);
     }
 
 
@@ -993,7 +1046,7 @@ private:
         }
 
         if (IsLeader()) {
-            ChunkReplication->ScheduleChunkRefresh(job.GetChunkId());
+            JobScheduler->ScheduleChunkRefresh(job.GetChunkId());
         }
 
         UnregisterReplicationSinks(job);
@@ -1043,7 +1096,7 @@ private:
                 size);
 
             if (IsLeader()) {
-                ChunkReplication->ScheduleChunkRemoval(holder, chunkId);
+                JobScheduler->ScheduleChunkRemoval(holder, chunkId);
             }
 
             return;
@@ -1180,9 +1233,9 @@ DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Holder, THolder, THolderId, Holde
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkIds, *ChunkReplication);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverreplicatedChunkIds, *ChunkReplication);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderreplicatedChunkIds, *ChunkReplication);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkIds, *JobScheduler);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverreplicatedChunkIds, *JobScheduler);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderreplicatedChunkIds, *JobScheduler);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1316,7 +1369,7 @@ private:
 
         // Use the size reported by the client, but check it for consistency first.
         if (chunk.GetSize() != TChunk::UnknownSize && chunk.GetSize() != size) {
-            LOG_FATAL("Mismatched chunk size reported by client (ChunkId: %s, , KnownSize: %" PRId64 ", NewSize: %" PRId64 ")",
+            LOG_FATAL("Mismatched chunk size reported by client (ChunkId: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ")",
                 ~Id.ToString(),
                 chunk.GetSize(),
                 size);
@@ -1326,7 +1379,7 @@ private:
         FOREACH (const auto& address, holderAddresses) {
             auto* holder = Owner->FindHolder(address);
             if (!holder) {
-                LOG_WARNING("Client has confirmed a chunk at unknown holder (ChunkId: %s, HolderAddress: %s)",
+                LOG_WARNING_IF(!Owner->IsRecovery(), "Tried to confirm a chunk at unknown holder (ChunkId: %s, HolderAddress: %s)",
                     ~Id.ToString(),
                     ~address);
                 continue;
@@ -1522,7 +1575,7 @@ void TChunkManager::TChunkListTypeHandler::OnObjectDestroyed(TChunkList& chunkLi
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkManager(
-    TConfig* config,
+    TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }
@@ -1603,17 +1656,22 @@ void TChunkManager::DetachFromChunkList(TChunkList& chunkList, const yvector<TCh
     Impl->DetachFromChunkList(chunkList, childrenIds);
 }
 
-void TChunkManager::RunJobControl(
+void TChunkManager::ScheduleJobs(
     const THolder& holder,
     const yvector<TJobInfo>& runningJobs,
     yvector<TJobStartInfo>* jobsToStart,
     yvector<TJobStopInfo>* jobsToStop)
 {
-    Impl->RunJobControl(
+    Impl->ScheduleJobs(
         holder,
         runningJobs,
         jobsToStart,
         jobsToStop);
+}
+
+bool TChunkManager::IsJobSchedulerEnabled()
+{
+    return Impl->IsJobSchedulerEnabled();
 }
 
 void TChunkManager::FillHolderAddresses(
@@ -1631,6 +1689,11 @@ TTotalHolderStatistics TChunkManager::GetTotalHolderStatistics()
 bool TChunkManager::IsHolderConfirmed(const THolder& holder)
 {
     return Impl->IsHolderConfirmed(holder);
+}
+
+i32 TChunkManager::GetChunkReplicaCount()
+{
+    return Impl->GetChunkReplicaCount();
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)

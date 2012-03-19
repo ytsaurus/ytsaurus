@@ -15,11 +15,11 @@ class TMetaChange
 {
 public:
     typedef TIntrusivePtr<TMetaChange> TPtr;
-    typedef IFunc<TResult> TChangeFunc;
+    typedef typename IFunc<TResult>::TPtr TChangeFunc;
 
     TMetaChange(
         IMetaStateManager* metaStateManager,
-        TChangeFunc* func,
+        TChangeFunc func,
         const TSharedRef& changeData);
 
     typename TFuture<TResult>::TPtr Commit();
@@ -32,7 +32,7 @@ private:
     typedef TMetaChange<TResult> TThis;
 
     IMetaStateManagerPtr MetaStateManager;
-    typename TChangeFunc::TPtr Func;
+    TChangeFunc Func;
     IAction::TPtr ChangeAction;
     TSharedRef ChangeData;
     bool Started;
@@ -62,7 +62,7 @@ template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
     IMetaStateManager* metaStateManager,
     const TMessage& message,
-    IFunc<TResult>* func);
+    TIntrusivePtr< IFunc<TResult> > func);
 
 ////////////////////////////////////////////////////////////////////////////////
 

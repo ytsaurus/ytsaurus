@@ -1,0 +1,27 @@
+package NYT.NTableClient.NProto;
+
+import "yt/ytlib/table_client/schema.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReadLimit
+{
+    optional int64 row_index = 1;
+    optional TKey key = 2;
+}
+
+message TChunkSlice
+{
+    required bytes chunk_id = 1;
+    required TReadLimit start_limit = 2;
+    required TReadLimit end_limit = 3;
+}
+
+message TFetchedChunk
+{
+    required TChunkSlice slice = 1;
+    repeated string holder_addresses = 2;
+    optional bytes attributes = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

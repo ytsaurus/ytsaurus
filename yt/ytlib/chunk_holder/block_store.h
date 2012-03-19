@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/cache.h>
+#include <ytlib/chunk_server/block_id.h>
 #include <ytlib/chunk_client/block_cache.h>
 
 namespace NYT {
@@ -36,9 +37,9 @@ class TBlockStore
 public:
     //! Constructs a store.
     TBlockStore(
-        TChunkHolderConfig* config,
-        TChunkRegistry* chunkRegistry,
-        TReaderCache* readerCache);
+        TChunkHolderConfigPtr config,
+        TChunkRegistryPtr chunkRegistry,
+        TReaderCachePtr readerCache);
 
     typedef TValueOrError<TCachedBlockPtr> TGetBlockResult;
     typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
@@ -76,7 +77,7 @@ public:
     i64 GetPendingReadSize() const;
 
     //! Returns a caching adapter.
-    NChunkClient::IBlockCache* GetBlockCache();
+    NChunkClient::IBlockCache::TPtr GetBlockCache();
 
 private:
     class TStoreImpl;

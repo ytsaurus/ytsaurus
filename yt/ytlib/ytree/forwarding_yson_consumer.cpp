@@ -15,21 +15,21 @@ TForwardingYsonConsumer::TForwardingYsonConsumer()
 
 void TForwardingYsonConsumer::ForwardNode(
     IYsonConsumer* consumer,
-    IAction* onForwardingFinished)
+    IAction::TPtr onForwardingFinished)
 {
     DoForward(consumer, onForwardingFinished, 0);
 }
 
 void TForwardingYsonConsumer::ForwardAttributes(
     IYsonConsumer* consumer,
-    IAction* onForwardingFinished)
+    IAction::TPtr onForwardingFinished)
 {
     DoForward(consumer, onForwardingFinished, 1);
 }
 
 void TForwardingYsonConsumer::DoForward(
     IYsonConsumer* consumer,
-    IAction* onForwardingFinished,
+    IAction::TPtr onForwardingFinished,
     int depth)
 {
     YASSERT(!ForwardingConsumer);

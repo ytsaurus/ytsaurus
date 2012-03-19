@@ -121,7 +121,7 @@ public:
     virtual void OnMyAttributesItem(const Stroka& key)
     {
         AttributeKey = key;
-        ForwardNode(&AttributeWriter, ~FromFunctor([=]
+        ForwardNode(&AttributeWriter, FromFunctor([=]
             {
                 auto node = PeekNode();
                 node->Attributes().SetYson(AttributeKey, AttributeValue);

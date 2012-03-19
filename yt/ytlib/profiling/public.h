@@ -16,6 +16,9 @@ struct TQueuedSample;
 //! Generic value for samples. 
 typedef i64 TValue;
 
+typedef ui64 TCpuInstant;
+typedef i64  TCpuDuration;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProfiling

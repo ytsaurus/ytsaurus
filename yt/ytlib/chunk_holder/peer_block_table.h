@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/configurable.h>
+#include <ytlib/chunk_server/block_id.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -26,22 +27,6 @@ struct TPeerInfo
 
 //////////////////////////////////////////////////////////////////////////////// 
 
-struct TPeerBlockTableConfig
-    : public TConfigurable
-{
-    int MaxPeersPerBlock;
-    TDuration SweepPeriod;
-
-    TPeerBlockTableConfig()
-    {
-        Register("max_peers_per_block", MaxPeersPerBlock)
-            .GreaterThan(0)
-            .Default(64);
-        Register("sweep_period", SweepPeriod)
-            .Default(TDuration::Minutes(10));
-    }
-};
-
 //! When Chunk Holder sends a block to a certain client
 //! its address is remembered to facilitate peer-to-peer transfers.
 //! This class maintains an auto-expiring map for this purpose.
@@ -53,7 +38,7 @@ class TPeerBlockTable
     : public TRefCounted
 {
 public:
-    TPeerBlockTable(TPeerBlockTableConfig* config);
+    TPeerBlockTable(TPeerBlockTableConfigPtr config);
     
     //! Gets peers where a particular block was sent to.
     /*!

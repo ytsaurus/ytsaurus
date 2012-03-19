@@ -35,7 +35,7 @@ namespace NThreadAffinity {
 // Check that the cast TThread::TId -> TAtomic is safe.
 // NB: TAtomic is volatile intptr_t.
 static_assert(sizeof(TThread::TId) == sizeof(intptr_t),
-    "Current implementation assumes that TThread::ID can be atomically swapped.");
+    "Current implementation assumes that TThread::TId can be atomically swapped.");
 
 class TSlot
 {
@@ -79,7 +79,9 @@ static_assert(sizeof(TSpinLock) == sizeof(TAtomic),
     YASSERT(*reinterpret_cast<const TAtomic*>(&(spinLock)) != 0);
 
 #define VERIFY_INVOKER_AFFINITY(invoker, slot) \
-    invoker->Invoke(FromMethod(&::NYT::NThreadAffinity::TSlot::Check, &slot ## __Slot))
+    invoker->Invoke(FromFunctor([&] () { \
+        slot ## __Slot.Check(); \
+    }))
 
 #else
 

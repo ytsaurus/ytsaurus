@@ -223,7 +223,7 @@ private:
     {
         ItemKey = key;
         TreeBuilder->BeginTree();
-        ForwardNode(TreeBuilder, ~FromMethod(&TThis::OnForwardingFinished, this));
+        ForwardNode(TreeBuilder, FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -269,7 +269,7 @@ private:
     virtual void OnMyListItem()
     {
         TreeBuilder->BeginTree();
-        ForwardNode(TreeBuilder, ~FromMethod(&TThis::OnForwardingFinished, this));
+        ForwardNode(TreeBuilder, FromMethod(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -326,14 +326,14 @@ void SetNodeFromProducer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef IParamAction<NBus::IMessage::TPtr> TYPathResponseHandler;
+typedef IParamAction<NBus::IMessage::TPtr>::TPtr TYPathResponseHandler;
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,
     const TYPath& path,
     const Stroka& verb,
     const Stroka& loggingCategory,
-    TYPathResponseHandler* responseHandler);
+    TYPathResponseHandler responseHandler);
 
 IYPathServicePtr CreateRootService(IYPathService* underlyingService);
 

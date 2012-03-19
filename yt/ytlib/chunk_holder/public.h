@@ -1,23 +1,18 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/chunk_server/id.h>
+#include <ytlib/chunk_server/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap;
-
 struct TLocationConfig;
 typedef TIntrusivePtr<TLocationConfig> TLocationConfigPtr;
 
 struct TChunkHolderConfig;
 typedef TIntrusivePtr<TChunkHolderConfig> TChunkHolderConfigPtr;
-
-struct TMasterConnectorConfig;
-typedef TIntrusivePtr<TMasterConnectorConfig> TMasterConnectorConfigPtr;
 
 class TMasterConnector;
 typedef TIntrusivePtr<TMasterConnector> TMasterConnectorPtr;

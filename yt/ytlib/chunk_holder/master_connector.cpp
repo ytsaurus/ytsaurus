@@ -2,7 +2,6 @@
 #include "master_connector.h"
 #include "common.h"
 #include "config.h"
-#include "bootstrap.h"
 #include "location.h"
 #include "block_store.h"
 #include "chunk.h"
@@ -19,12 +18,14 @@
 #include <ytlib/chunk_server/holder_statistics.h>
 #include <ytlib/election/leader_channel.h>
 #include <ytlib/logging/tagged_logger.h>
+#include <ytlib/cell_node/bootstrap.h>
 
 #include <util/system/hostname.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NCellNode;
 using namespace NChunkServer::NProto;
 using namespace NChunkClient;
 using namespace NRpc;
@@ -35,7 +36,7 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnector::TMasterConnector(TMasterConnectorConfig* config, TBootstrap* bootstrap)
+TMasterConnector::TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
     , State(EState::Offline)
@@ -47,8 +48,7 @@ TMasterConnector::TMasterConnector(TMasterConnectorConfig* config, TBootstrap* b
 
 void TMasterConnector::Start()
 {
-    LeaderChannel = CreateLeaderChannel(~Config->Masters);
-    Proxy.Reset(new TProxy(~LeaderChannel));
+    Proxy.Reset(new TProxy(~Bootstrap->GetLeaderChannel()));
 
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
@@ -63,22 +63,13 @@ void TMasterConnector::Start()
         &TMasterConnector::OnChunkRemoved,
         MakeWeak(this)));
 
-    LOG_INFO("Chunk holder address is %s, master addresses are [%s]",
-        ~Config->PeerAddress,
-        ~JoinToString(Config->Masters->Addresses));
-
     OnHeartbeat();
-}
-
-IChannel::TPtr TMasterConnector::GetLeaderChannel() const
-{
-    return LeaderChannel;
 }
 
 void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
-        ~FromMethod(&TMasterConnector::OnHeartbeat, MakeStrong(this))
+        FromMethod(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()),
         Config->HeartbeatPeriod);
 }
@@ -104,7 +95,7 @@ void TMasterConnector::SendRegister()
 {
     auto request = Proxy->RegisterHolder();
     *request->mutable_statistics() = ComputeStatistics();
-    request->set_address(Config->PeerAddress);
+    request->set_address(Bootstrap->GetPeerAddress());
     request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
     request->Invoke()->Subscribe(
         FromMethod(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
@@ -139,6 +130,7 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response)
 {
+    // ToDo: why waiting 5 sec before first heartbeat?
     ScheduleHeartbeat();
 
     if (!response->IsOK()) {
@@ -217,7 +209,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
         static_cast<int>(request->jobs_size()));
 }
 
-TChunkAddInfo TMasterConnector::GetAddInfo(const TChunk* chunk)
+TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
 {
     TChunkAddInfo info;
     info.set_chunk_id(chunk->GetId().ToProto());
@@ -226,7 +218,7 @@ TChunkAddInfo TMasterConnector::GetAddInfo(const TChunk* chunk)
     return info;
 }
 
-TChunkRemoveInfo TMasterConnector::GetRemoveInfo(const TChunk* chunk)
+TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TChunkPtr chunk)
 {
     TChunkRemoveInfo info;
     info.set_chunk_id(chunk->GetId().ToProto());
@@ -333,7 +325,7 @@ void TMasterConnector::Disconnect()
     RemovedSinceLastSuccess.clear();
 }
 
-void TMasterConnector::OnChunkAdded(TChunk* chunk)
+void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 {
     NLog::TTaggedLogger Logger(ChunkHolderLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
@@ -359,7 +351,7 @@ void TMasterConnector::OnChunkAdded(TChunk* chunk)
     AddedSinceLastSuccess.insert(chunk);
 }
 
-void TMasterConnector::OnChunkRemoved(TChunk* chunk)
+void TMasterConnector::OnChunkRemoved(TChunkPtr chunk)
 {
     NLog::TTaggedLogger Logger(ChunkHolderLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
@@ -376,7 +368,7 @@ void TMasterConnector::OnChunkRemoved(TChunk* chunk)
 
     if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end()) {
         AddedSinceLastSuccess.erase(chunk);
-        LOG_DEBUG("Trying to remove a chunk whose addition has been registered, cancelling addition and removal");
+        LOG_DEBUG("Trying to remove a chunk whose addition has been registered, canceling addition and removal");
         return;
     }
 

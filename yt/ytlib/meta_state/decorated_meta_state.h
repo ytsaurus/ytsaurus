@@ -21,10 +21,11 @@ class TDecoratedMetaState
 {
 public:
     TDecoratedMetaState(
-        IMetaState* state,
-        IInvoker* stateInvoker,
-        TSnapshotStore* snapshotStore,
-        TChangeLogCache* changeLogCache);
+        IMetaStatePtr state,
+        IInvoker::TPtr stateInvoker,
+        IInvoker::TPtr controlInvoker,
+        TSnapshotStorePtr snapshotStore,
+        TChangeLogCachePtr changeLogCache);
 
     //! Initializes the instance.
     void Start();
@@ -33,7 +34,7 @@ public:
     /*!
      * \note Thread affinity: any
      */
-    IInvoker* GetStateInvoker() const;
+    IInvoker::TPtr GetStateInvoker() const;
 
     //! Returns the current version of the state.
     /*!
@@ -52,21 +53,31 @@ public:
     /*!
      *  It is always no smaller than #GetVersion.
      *  
-     *  \note Thread affinity: StateThread
-     */
-    TMetaVersion GetReachableVersion() const;
-
-    //! Same as #GetReachableVersion but call be called from an arbitrary thread.
-    /*!
      *  \note Thread affinity: any
      */
     TMetaVersion GetReachableVersionAsync() const;
+
+    //! Returns the version that is sent to followers via pings.
+    /*!
+     *  During recovery this is equal to the reachable version.
+     *  After recovery this is equal to the version resulting from applying all
+     *  changes in the latest batch.
+     *  
+     *  \note Thread affinity: ControlThread
+     */
+    TMetaVersion GetPingVersion() const;
+
+    //! Updates the ping version.
+    /*!
+     *  \note Thread affinity: ControlThread
+     */
+    void SetPingVersion(const TMetaVersion& version);
 
     //! Returns the underlying state.
     /*!
      * \note Thread affinity: any
      */
-    IMetaState* GetState() const;
+    IMetaStatePtr GetState() const;
 
     //! Delegates the call to IMetaState::Clear.
     /*!
@@ -130,6 +141,7 @@ private:
     TSpinLock VersionSpinLock;
     TMetaVersion Version;
     TMetaVersion ReachableVersion;
+    TMetaVersion PingVersion;
 
     void IncrementRecordCount();
     void ComputeReachableVersion();
@@ -137,6 +149,7 @@ private:
     TCachedAsyncChangeLogPtr GetCurrentChangeLog();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

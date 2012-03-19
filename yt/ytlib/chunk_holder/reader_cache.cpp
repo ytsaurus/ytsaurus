@@ -36,11 +36,11 @@ class TReaderCache::TImpl
     : public TSizeLimitedCache<TChunkId, TCachedReader>
 {
 public:
-    TImpl(TChunkHolderConfig* config)
+    TImpl(TChunkHolderConfigPtr config)
         : TSizeLimitedCache<TChunkId, TCachedReader>(config->MaxCachedReaders)
     { }
 
-    TGetReaderResult Get(const TChunk* chunk)
+    TGetReaderResult Get(TChunkPtr chunk)
     {
         auto chunkId = chunk->GetId();
         TInsertCookie cookie(chunkId);
@@ -66,7 +66,7 @@ public:
         return cookie.GetAsyncResult()->Get();
     }
 
-    void Evict(const TChunk* chunk)
+    void Evict(TChunkPtr chunk)
     {
         TCacheBase::Remove(chunk->GetId());
     }
@@ -74,16 +74,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReaderCache::TReaderCache(TChunkHolderConfig* config)
+TReaderCache::TReaderCache(TChunkHolderConfigPtr config)
     : Impl(New<TImpl>(config))
 { }
 
-TReaderCache::TGetReaderResult TReaderCache::GetReader(const TChunk* chunk)
+TReaderCache::TGetReaderResult TReaderCache::GetReader(TChunkPtr chunk)
 {
     return Impl->Get(chunk);
 }
 
-void TReaderCache::EvictReader(const TChunk* chunk)
+void TReaderCache::EvictReader(TChunkPtr chunk)
 {
     Impl->Evict(chunk);
 }

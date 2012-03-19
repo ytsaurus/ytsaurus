@@ -23,7 +23,7 @@ class TReplyInterceptorContext
 public:
     TReplyInterceptorContext(
         IServiceContext* underlyingContext,
-        IAction* onReply)
+        IAction::TPtr onReply)
         : UnderlyingContext(underlyingContext)
         , OnReply(onReply)
     {
@@ -122,7 +122,7 @@ public:
         return UnderlyingContext->GetRequestInfo();
     }
 
-    virtual IAction::TPtr Wrap(IAction* action) 
+    virtual IAction::TPtr Wrap(IAction::TPtr action) 
     {
         return UnderlyingContext->Wrap(action);
     }
@@ -166,7 +166,7 @@ public:
             UnderlyingService->IsWriteRequest(context)
             ? New<TReplyInterceptorContext>(
                 context,
-                ~FromMethod(&TWriteBackService::SaveFile, MakeStrong(this)))
+                FromMethod(&TWriteBackService::SaveFile, MakeStrong(this)))
             : IServiceContext::TPtr(context);
         UnderlyingService->Invoke(~wrappedContext);
     }

@@ -97,10 +97,10 @@ struct TSnapshotBuilderConfig
     {
         Register("remote_timeout", RemoteTimeout)
             .GreaterThan(TDuration())
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Minutes(5));
         Register("local_timeout", LocalTimeout)
             .GreaterThan(TDuration())
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Minutes(5));
     }
 };
 
@@ -183,9 +183,6 @@ struct TPersistentStateManagerConfig
      */
     i32 MaxChangesBetweenSnapshots;
 
-    //! Maximum time a follower waits for "Sync" request from the leader.
-    TDuration SyncTimeout;
-
     //! Default timeout for RPC requests.
     TDuration RpcTimeout;
 
@@ -214,8 +211,6 @@ struct TPersistentStateManagerConfig
         Register("max_changes_between_snapshots", MaxChangesBetweenSnapshots)
             .Default(-1)
             .GreaterThanOrEqual(-1);
-        Register("sync_timeout", SyncTimeout)
-            .Default(TDuration::MilliSeconds(5000));
         Register("rpc_timeout", RpcTimeout)
             .Default(TDuration::MilliSeconds(3000));
         Register("cell", Cell)

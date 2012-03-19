@@ -117,12 +117,12 @@ TObjectManager::TPtr TBootstrap::GetObjectManager() const
     return ObjectManager;
 }
 
-TChunkManager::TPtr TBootstrap::GetChunkManager() const
+TChunkManagerPtr TBootstrap::GetChunkManager() const
 {
     return ChunkManager;
 }
 
-IHolderAuthority::TPtr TBootstrap::GetHolderAuthority() const
+IHolderAuthorityPtr TBootstrap::GetHolderAuthority() const
 {
     return HolderAuthority;
 }
@@ -173,7 +173,7 @@ void TBootstrap::Run()
 
     HolderAuthority = CreateHolderAuthority(this);
 
-    ChunkManager = New<TChunkManager>(~Config->Chunks, this);
+    ChunkManager = New<TChunkManager>(Config->Chunks, this);
 
     auto chunkService = New<TChunkService>(this);
     rpcServer->RegisterService(~chunkService);

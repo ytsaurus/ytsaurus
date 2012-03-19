@@ -77,7 +77,7 @@ public:
 
     TVirtualNodeTypeHandler(
         TBootstrap* bootstrap,
-        TYPathServiceProducer* producer,
+        TYPathServiceProducer producer,
         EObjectType objectType)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(bootstrap)
         , Producer(producer)
@@ -111,7 +111,7 @@ public:
     }
 
 private:
-    TYPathServiceProducer::TPtr Producer;
+    TYPathServiceProducer Producer;
     EObjectType ObjectType;
 
 };
@@ -119,7 +119,7 @@ private:
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
-    TYPathServiceProducer* producer)
+    TYPathServiceProducer producer)
 {
     return New<TVirtualNodeTypeHandler>(
         bootstrap,
@@ -136,11 +136,10 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     return CreateVirtualTypeHandler(
         bootstrap,
         objectType,
-        ~FromFunctor([=] (const TVersionedNodeId& id) -> IYPathServicePtr
-            {
-                UNUSED(id);
-                return service_;
-            }));
+        FromFunctor([=] (const TVersionedNodeId& id) -> IYPathServicePtr {
+            UNUSED(id);
+            return service_;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

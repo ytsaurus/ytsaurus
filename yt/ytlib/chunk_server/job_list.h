@@ -1,17 +1,22 @@
 #pragma once
 
-#include "id.h"
+#include "public.h"
 
-#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
+#include <ytlib/cell_master/public.h>
 
 namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobList
+// TODO(babenko): move impl to cpp
+class TJobList
 {
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
+    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
+public:
+
     TJobList(const TChunkId& chunkId)
         : ChunkId_(chunkId)
     { }
@@ -44,8 +49,6 @@ struct TJobList
         }
     }
     
-    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
-    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

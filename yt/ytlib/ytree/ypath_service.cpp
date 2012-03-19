@@ -26,7 +26,7 @@ class TViaYPathService
     : public TYPathServiceBase
 {
 public:
-    TViaYPathService(IYPathService* underlyingService, IInvoker* invoker)
+    TViaYPathService(IYPathServicePtr underlyingService, IInvoker::TPtr invoker)
         : UnderlyingService(underlyingService)
         , Invoker(invoker)
     { }
@@ -56,7 +56,7 @@ private:
 
 } // namespace <anonymous>
 
-IYPathServicePtr IYPathService::Via(IInvoker* invoker)
+IYPathServicePtr IYPathService::Via(IInvoker::TPtr invoker)
 {
     return New<TViaYPathService>(this, invoker);
 }

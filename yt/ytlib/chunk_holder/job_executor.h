@@ -8,6 +8,7 @@
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/logging/tagged_logger.h>
+#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -22,11 +23,11 @@ class TJob
 {
 public:
     TJob(
-        TJobExecutor* owner,
-        IInvoker* serviceInvoker,
+        TJobExecutorPtr owner,
+        IInvoker::TPtr serviceInvoker,
         EJobType jobType,
         const TJobId& jobId,
-        TStoredChunk* chunk,
+        TStoredChunkPtr chunk,
         const yvector<Stroka>& targetAddresses);
 
     //! Returns the type.
@@ -47,7 +48,7 @@ public:
 private:
     friend class TJobExecutor;
 
-    TJobExecutor* Owner;
+    TJobExecutorPtr Owner;
     EJobType JobType;
     TJobId JobId;
     EJobState State;
@@ -94,20 +95,20 @@ class TJobExecutor
 public:
     //! Constructs a new instance.
     TJobExecutor(
-        TChunkHolderConfig* config,
-        TChunkStore* chunkStore,
-        TBlockStore* blockStore,
-        IInvoker* serviceInvoker);
+        TChunkHolderConfigPtr config,
+        TChunkStorePtr chunkStore,
+        TBlockStorePtr blockStore,
+        IInvoker::TPtr serviceInvoker);
     
     //! Starts a new job with the given parameters.
     TJobPtr StartJob(
         EJobType jobType,
         const TJobId& jobId,
-        TStoredChunk* chunk,
+        TStoredChunkPtr chunk,
         const yvector<Stroka>& targetAddresses);
 
     //! Stops the job.
-    void StopJob(TJob* job);
+    void StopJob(TJobPtr job);
 
     // TODO: is it needed?
     //! Stop all currently active jobs.

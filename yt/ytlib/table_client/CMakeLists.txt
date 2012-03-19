@@ -12,6 +12,8 @@ set( SRCS
   ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
   ${BASE}/value.cpp
+  ${BASE}/validating_writer.cpp
+  ${BASE}/sorted_validating_writer.cpp
 )
 set( HDRS
   ${BASE}/channel_reader.h
@@ -21,12 +23,14 @@ set( HDRS
   ${BASE}/chunk_sequence_writer.h
   ${BASE}/chunk_writer.h
   ${BASE}/common.h
-  ${BASE}/reader.h
+  ${BASE}/async_reader.h
   ${BASE}/schema.h
   ${BASE}/table_reader.h
   ${BASE}/table_writer.h
   ${BASE}/value.h
-  ${BASE}/writer.h
+  ${BASE}/validating_writer.h
+  ${BASE}/sorted_validating_writer.h
+  ${BASE}/async_writer.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -36,3 +40,4 @@ list(APPEND YT_SOURCE_FILES
 
 protoc( ${BASE}/table_chunk_meta.proto YT_SOURCE_FILES )
 protoc( ${BASE}/schema.proto YT_SOURCE_FILES )
+protoc( ${BASE}/table_reader.proto YT_SOURCE_FILES )

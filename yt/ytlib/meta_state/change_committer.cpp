@@ -28,6 +28,7 @@ TCommitter::TCommitter(
     , EpochStateInvoker(epochStateInvoker)
     , CommitCounter("commit_rate")
     , BatchCommitCounter("commit_batch_rate")
+    , CommitTimeCounter("commit_time")
 {
     YASSERT(metaState);
     YASSERT(epochControlInvoker);
@@ -145,10 +146,10 @@ private:
         }
         
         // This is the version the next batch will have.
-        Committer->FollowerPingVersion =
+        Committer->MetaState->SetPingVersion(
             rotateChangeLog
             ? TMetaVersion(StartVersion.SegmentId + 1, 0)
-            : TMetaVersion(StartVersion.SegmentId, StartVersion.RecordCount + BatchedChanges.size());
+            : TMetaVersion(StartVersion.SegmentId, StartVersion.RecordCount + BatchedChanges.size()));
     }
 
     bool CheckCommitQuorum()
@@ -226,13 +227,13 @@ private:
 TLeaderCommitter::TLeaderCommitter(
     TLeaderCommitterConfig* config,
     TCellManager* cellManager,
-    TDecoratedMetaState* metaState,
+    TDecoratedMetaState* decoratedState,
     TChangeLogCache* changeLogCache,
     TFollowerTracker* followerTracker,
     const TEpoch& epoch,
     IInvoker* epochControlInvoker,
     IInvoker* epochStateInvoker)
-    : TCommitter(metaState, epochControlInvoker, epochStateInvoker)
+    : TCommitter(decoratedState, epochControlInvoker, epochStateInvoker)
     , Config(config)
     , CellManager(cellManager)
     , ChangeLogCache(changeLogCache)
@@ -243,9 +244,6 @@ TLeaderCommitter::TLeaderCommitter(
     YASSERT(cellManager);
     YASSERT(changeLogCache);
     YASSERT(followerTracker);
-
-    // Save the reachable version and report it to followers during recovery.
-    FollowerPingVersion = MetaState->GetReachableVersionAsync();
 }
 
 void TLeaderCommitter::Start()
@@ -281,13 +279,6 @@ void TLeaderCommitter::Flush(bool rotateChangeLog)
     }
 }
 
-TMetaVersion TLeaderCommitter::GetFollowerPingVersion() const
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return FollowerPingVersion;
-}
-
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     IAction::TPtr changeAction,
     const TSharedRef& changeData)
@@ -295,21 +286,23 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     VERIFY_THREAD_AFFINITY(StateThread);
     YASSERT(changeAction);
 
-    auto version = MetaState->GetVersion();
-    LOG_DEBUG("Starting commit at version %s", ~version.ToString());
+    PROFILE_AGGREGATED_TIMING (CommitTimeCounter) {
+        auto version = MetaState->GetVersion();
+        LOG_DEBUG("Starting commit at version %s", ~version.ToString());
 
-    auto logResult = MetaState->LogChange(version, changeData);
-    auto batchResult = BatchChange(version, changeData, logResult);
+        auto logResult = MetaState->LogChange(version, changeData);
+        auto batchResult = BatchChange(version, changeData, logResult);
 
-    MetaState->ApplyChange(changeAction);
+        MetaState->ApplyChange(changeAction);
 
-    LOG_DEBUG("Change is applied locally at version %s", ~version.ToString());
+        LOG_DEBUG("Change is applied locally at version %s", ~version.ToString());
 
-    ChangeApplied_.Fire();
+        ChangeApplied_.Fire();
 
-    Profiler.Increment(CommitCounter);
+        Profiler.Increment(CommitCounter);
 
-    return batchResult;
+        return batchResult;
+    }
 }
 
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
@@ -348,7 +341,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
         YASSERT(!BatchTimeoutCookie);
         CurrentBatch = New<TBatch>(MakeStrong(this), version);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
-            ~FromMethod(
+            FromMethod(
                 &TLeaderCommitter::OnBatchTimeout,
                 MakeStrong(this),
                 CurrentBatch)
@@ -388,17 +381,19 @@ TCommitter::TResult::TPtr TFollowerCommitter::Commit(
     VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(!changes.empty());
 
-    Profiler.Increment(CommitCounter, changes.size());
-    Profiler.Increment(BatchCommitCounter);
+    PROFILE_AGGREGATED_TIMING (CommitTimeCounter) {
+        Profiler.Increment(CommitCounter, changes.size());
+        Profiler.Increment(BatchCommitCounter);
 
-    return
-        FromMethod(
-            &TFollowerCommitter::DoCommit,
-            MakeStrong(this),
-            expectedVersion,
-            changes)
-        ->AsyncVia(EpochStateInvoker)
-        ->Do();
+        return
+            FromMethod(
+                &TFollowerCommitter::DoCommit,
+                MakeStrong(this),
+                expectedVersion,
+                changes)
+            ->AsyncVia(EpochStateInvoker)
+            ->Do();
+    }
 }
 
 TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(

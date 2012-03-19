@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-
+#include "public.h"
 #include "chunk_service.pb.h"
 
 namespace NYT {

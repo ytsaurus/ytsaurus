@@ -7,8 +7,9 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/chunk_server/chunk_service_proxy.h>
+#include <ytlib/chunk_server/block_id.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
+#include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/chunk_holder/chunk_holder_service_proxy.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 
@@ -78,7 +79,7 @@ public:
             LOG_INFO("Fresh chunk seeds are needed");
             GetSeedsResult = New<TAsyncGetSeedsResult>();
             TDelayedInvoker::Submit(
-                ~FromMethod(&TRemoteReader::DoFindChunk, TWeakPtr<TRemoteReader>(this)),
+                FromMethod(&TRemoteReader::DoFindChunk, TWeakPtr<TRemoteReader>(this)),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
 
@@ -438,7 +439,7 @@ private:
                     OnRetryFailed(TError("Unable to fetch all chunk blocks"));
                 } else {
                     TDelayedInvoker::Submit(
-                        ~FromMethod(&TReadSession::NewPass, MakeStrong(this)),
+                        FromMethod(&TReadSession::NewPass, MakeStrong(this)),
                         reader->Config->PassBackoffTime);
                 }
                 return;

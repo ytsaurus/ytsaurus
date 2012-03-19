@@ -21,7 +21,7 @@ struct TCellMasterConfig
 
     NTransactionServer::TTransactionManager::TConfig::TPtr Transactions;
 
-    NChunkServer::TChunkManagerConfig::TPtr Chunks;
+    NChunkServer::TChunkManagerConfigPtr Chunks;
 
     NObjectServer::TObjectManagerConfigPtr Objects;
 

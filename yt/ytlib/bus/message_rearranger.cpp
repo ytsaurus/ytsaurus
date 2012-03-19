@@ -10,7 +10,7 @@ namespace NBus {
 
 TMessageRearranger::TMessageRearranger(
     const TSessionId& sessionId,
-    IParamAction<IMessage*>* onMessage,
+    IParamAction<IMessage*>::TPtr onMessage,
     TDuration timeout)
     : SessionId(sessionId)
     , OnMessageDequeued(onMessage)
@@ -97,7 +97,7 @@ void TMessageRearranger::RescheduleTimeout()
 
     TDelayedInvoker::CancelAndClear(TimeoutCookie);
     TimeoutCookie = TDelayedInvoker::Submit(
-        ~FromMethod(&TMessageRearranger::OnTimeout, MakeStrong(this)),
+        FromMethod(&TMessageRearranger::OnTimeout, MakeWeak(this)),
         Timeout);
 }
 

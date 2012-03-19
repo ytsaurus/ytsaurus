@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "common.h"
-#include "reader.h"
+#include "async_reader.h"
 #include "chunk_reader.h"
 
 #include <ytlib/chunk_client/block_cache.h>
@@ -15,7 +15,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkSequenceReader
-    : public IAsyncReader
+    : public virtual TRefCounted
 {
 public:
     typedef TIntrusivePtr<TChunkSequenceReader> TPtr;
@@ -41,25 +41,15 @@ public:
         const NObjectServer::TTransactionId& transactionId,
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache,
-        // ToDo: use rvalue reference.
-        const yvector<NChunkServer::TChunkId>& chunkIds,
-        // TODO(babenko): fixme, make i64
-        int startRow,
-        int endRow);
+        const std::vector<NProto::TFetchedChunk>& fetchedChunks);
 
     TAsyncError::TPtr AsyncOpen();
 
-    bool HasNextRow() const;
-
     TAsyncError::TPtr AsyncNextRow();
 
-    bool NextColumn();
+    bool IsValid() const;
 
-    TValue GetValue() const;
-
-    TColumn GetColumn() const;
-
-    void Cancel(const TError& error);
+    const TRow& GetCurrentRow() const;
 
 private:
     void PrepareNextChunk();
@@ -69,14 +59,11 @@ private:
     void SetCurrentChunk(TChunkReader::TPtr nextReader);
     void OnNextRow(TError error);
 
-
     TConfig::TPtr Config;
     TChannel Channel;
     NChunkClient::IBlockCache::TPtr BlockCache;
     NObjectServer::TTransactionId TransactionId;
-    yvector<NChunkServer::TChunkId> ChunkIds;
-    int StartRow;
-    int EndRow;
+    std::vector<NProto::TFetchedChunk> FetchedChunks;
 
     NRpc::IChannel::TPtr MasterChannel;
 

@@ -99,7 +99,7 @@ struct IYPathService
     static IYPathServicePtr FromProducer(TYsonProducer producer);
 
     //! Creates a wrapper than handles all requests via the given invoker.
-    IYPathServicePtr Via(IInvoker* invoker);
+    IYPathServicePtr Via(IInvoker::TPtr invoker);
 
     //! Creates a wrapper than invokes a given service producer in a lazy fashion
     //! and then redirects all requests to the returned service.

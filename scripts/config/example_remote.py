@@ -59,7 +59,7 @@ class Server(Base, RemoteServer):
     
 class Master(Server):
     address = Subclass(MasterAddresses)
-    params = Template('--cell-master --config %(config_path)s --port %(port)d --id %(__name__)s')
+    params = Template('--master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
     log_path = Template("master-%(__name__)s.log")
     debug_log_path = Template("master-%(__name__)s.debug.log")
@@ -67,8 +67,8 @@ class Master(Server):
     config = Template({
         'meta_state' : {
             'leader_committer' : {
-	        	'max_batch_delay': 50
-	        },
+                'max_batch_delay': 50
+            },
             'cell' : {
                 'addresses' : MasterAddresses
             },
@@ -80,7 +80,11 @@ class Master(Server):
             },
         },
         'chunks' : {
-            'registered_holder_timeout' : 180000
+            'registered_holder_timeout' : 180000,
+            'jobs' : {
+                'min_online_holder_count' : 250,
+                'max_lost_chunk_fraction' : 0.01
+            }
         },
         'logging' : Logging
     })
@@ -105,7 +109,9 @@ DoCleanCache = FileDescr('do_clean_cache', ('remote', 'exec'))
 class Holder(Server):
     files = Server.files + [CleanCache, DoCleanCache]
 
-    groupid = Subclass(xrange(10))
+    # XXX(sandello): I have taken one group for my personal experiments
+    # for deploying YT via Chef. Hence nodes 670-699 are unused in this deployment.
+    groupid = Subclass(xrange(9))
     nodeid = Subclass(xrange(30), 1)
 
     log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
@@ -116,33 +122,32 @@ class Holder(Server):
         return 'n01-0%dg' % (400 + 30 * cls.groupid + cls.nodeid)
     
     port = Port
-    params = Template('--chunk-holder --config %(config_path)s --port %(port)d')
+    params = Template('--node --config %(config_path)s --port %(port)d')
 
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
     config = Template({ 
-        'master_connector' : {
-            'masters' : {
-            	'addresses' : MasterAddresses
+        'masters' : {
+            'addresses' : MasterAddresses
+        },
+        'chunk_holder' : {
+            'store_locations' : [
+                { 'path' : '/yt/disk1/data/chunk_store', 'quota' : storeQuota },
+                { 'path' : '/yt/disk2/data/chunk_store', 'quota' : storeQuota },
+                { 'path' : '/yt/disk3/data/chunk_store', 'quota' : storeQuota },
+                { 'path' : '/yt/disk4/data/chunk_store', 'quota' : storeQuota }
+            ],
+            'cache_location' : {
+                'path' : '/yt/disk1/data/chunk_cache', 'quota' : cacheQuota
             },
-            'full_heartbeat_timeout' : 180000
+            'cache_remote_reader' : { 
+                'publish_peer' : 'true'
+            },
+            'full_heartbeat_timeout' : 180000,
+            'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
+            'max_cached_readers' : 256,
+            'response_throttling_size' : 500 * 1024 * 1024
         },
-        'masters' : { 'addresses' : MasterAddresses },
-        'chunk_store_locations' : [
-            { 'path' : '/yt/disk1/data/chunk_store', 'quota' : storeQuota },
-            { 'path' : '/yt/disk2/data/chunk_store', 'quota' : storeQuota },
-            { 'path' : '/yt/disk3/data/chunk_store', 'quota' : storeQuota },
-            { 'path' : '/yt/disk4/data/chunk_store', 'quota' : storeQuota }
-        ],
-        'chunk_cache_location' : {
-            'path' : '/yt/disk1/data/chunk_cache', 'quota' : cacheQuota
-        },
-        'cache_remote_reader' : { 
-            'publish_peer' : 'true'
-        },
-        'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
-        'max_cached_readers' : 256,
-        'response_throttling_size' : 500 * 1024 * 1024,
         'logging' : Logging
     })
     
@@ -150,13 +155,13 @@ class Holder(Server):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
         print >>fd, 'rm -f %s' % cls.debug_log_path
-        for location in cls.config['chunk_store_locations']:
+        for location in cls.config['chunk_holder']['store_locations']:
             print >>fd, 'rm -rf %s' % location['path']
-        print >>fd, 'rm -rf %s' % cls.config['chunk_cache_location']['path']
+        print >>fd, 'rm -rf %s' % cls.config['chunk_holder']['cache_location']['path']
 
     def do_clean_cache(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rm -rf %s' % cls.config['chunk_cache_location']['path']
+        print >>fd, 'rm -rf %s' % cls.config['chunk_holder']['cache_location']['path']
 
 
 configure(Base)

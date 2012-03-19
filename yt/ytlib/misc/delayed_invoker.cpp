@@ -34,17 +34,17 @@ public:
         Shutdown();
     }
 
-    TCookie Submit(IAction* action, TDuration delay)
+    TCookie Submit(IAction::TPtr action, TDuration delay)
     {
         return Submit(action, delay.ToDeadLine());
     }
 
-    TCookie Submit(IAction* action, TInstant deadline)
+    TCookie Submit(IAction::TPtr action, TInstant deadline)
     {
         auto entry = New<TEntry>(action, deadline);
 
         LOG_TRACE("Submitted delayed action (Action: %p, Cookie: %p, Deadline: %s)",
-            action,
+            ~action,
             ~entry,
             ~entry->Deadline.ToString());
 
@@ -139,12 +139,12 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction* action, TDuration delay)
+TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction::TPtr action, TDuration delay)
 {
     return Singleton<TDelayedInvoker::TImpl>()->Submit(action, delay);
 }
 
-TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction* action, TInstant deadline)
+TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction::TPtr action, TInstant deadline)
 {
     return Singleton<TDelayedInvoker::TImpl>()->Submit(action, deadline);
 }

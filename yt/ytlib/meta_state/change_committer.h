@@ -41,6 +41,7 @@ protected:
     IInvoker::TPtr EpochStateInvoker;
     NProfiling::TRateCounter CommitCounter;
     NProfiling::TRateCounter BatchCommitCounter;
+    NProfiling::TAggregateCounter CommitTimeCounter;
 
 };
 
@@ -73,16 +74,6 @@ public:
      *  \note Thread affinity: ControlThread
      */
     void Stop();
-
-    //! Returns the version to be sent to followers in a ping.
-    /*!
-     *  During recovery this is equal to the reachable version.
-     *  After recovery this is equal to the version resulting from applying all
-     *  changes in the latest batch.
-     *  
-     *  \note Thread affinity: ControlThread
-     */
-    TMetaVersion GetFollowerPingVersion() const;
 
     //! Initiates a new distributed commit.
     /*!
@@ -130,8 +121,6 @@ private:
     TChangeLogCachePtr ChangeLogCache;
     TFollowerTrackerPtr FollowerTracker;
     TEpoch Epoch;
-
-    TMetaVersion FollowerPingVersion;
 
     //! Protects the rest.
     TSpinLock BatchSpinLock;

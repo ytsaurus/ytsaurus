@@ -16,7 +16,7 @@ class TReaderCache
 {
 public:
     //! Constructs a new instance.
-    TReaderCache(TChunkHolderConfig* config);
+    TReaderCache(TChunkHolderConfigPtr config);
 
     typedef TValueOrError<NChunkClient::TChunkFileReader::TPtr> TGetReaderResult;
     typedef TChunkHolderServiceProxy::EErrorCode EErrorCode;
@@ -30,10 +30,10 @@ public:
      *  
      *  The returned reader is already open.
      */
-     TGetReaderResult GetReader(const TChunk* chunk);
+     TGetReaderResult GetReader(TChunkPtr chunk);
 
     //! Evicts the reader from the cache thus hopefully closing the file.
-    void EvictReader(const TChunk* chunk);
+    void EvictReader(TChunkPtr chunk);
 
 private:
     class TCachedReader;

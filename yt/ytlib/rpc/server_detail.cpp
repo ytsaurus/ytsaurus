@@ -152,7 +152,7 @@ Stroka TServiceContextBase::GetResponseInfo()
     return ResponseInfo;
 }
 
-IAction::TPtr TServiceContextBase::Wrap(IAction* action)
+IAction::TPtr TServiceContextBase::Wrap(IAction::TPtr action)
 {
     return FromMethod(
         &TServiceContextBase::WrapThunk,

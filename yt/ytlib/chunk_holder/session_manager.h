@@ -18,9 +18,9 @@ class TSession
 {
 public:
     TSession(
-        TSessionManager* sessionManager,
+        TSessionManagerPtr sessionManager,
         const TChunkId& chunkId,
-        TLocation* location);
+        TLocationPtr location);
 
     //! Starts the session.
     void Start();
@@ -144,10 +144,10 @@ public:
 
     //! Constructs a manager.
     TSessionManager(
-        TChunkHolderConfig* config,
-        TBlockStore* blockStore,
-        TChunkStore* chunkStore,
-        IInvoker* serviceInvoker);
+        TChunkHolderConfigPtr config,
+        TBlockStorePtr blockStore,
+        TChunkStorePtr chunkStore,
+        IInvoker::TPtr serviceInvoker);
 
     //! Starts a new chunk upload session.
     TSessionPtr StartSession(const TChunkId& chunkId);
@@ -157,14 +157,14 @@ public:
      * The call returns a result that gets set when the session is finished.
      */
     TFuture<TChunkPtr>::TPtr FinishSession(
-        TSession* session,
+        TSessionPtr session,
         const NChunkHolder::NProto::TChunkAttributes& attributes);
 
     //! Cancels an earlier opened upload session.
     /*!
      * Chunk file is closed asynchronously, however the call returns immediately.
      */
-    void CancelSession(TSession* session, const TError& error);
+    void CancelSession(TSessionPtr session, const TError& error);
 
     //! Finds a session by TChunkId. Returns NULL when no session is found.
     TSessionPtr FindSession(const TChunkId& chunkId) const;

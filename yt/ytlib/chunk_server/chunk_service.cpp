@@ -1,12 +1,14 @@
 #include "stdafx.h"
 #include "chunk_service.h"
 #include "holder_statistics.h"
+#include "holder.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/action_util.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -21,6 +23,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 NLog::TLogger Logger("ChunkServer");
+NProfiling::TProfiler Profiler("chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,10 +79,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     TMsgRegisterHolder message;
     message.set_address(address);
     message.set_incarnation_id(incarnationId.ToProto());
-    message.mutable_statistics()->MergeFrom(statistics);
+    *message.mutable_statistics() = statistics;
     chunkManager
         ->InitiateRegisterHolder(message)
-        ->OnSuccess(~FromFunctor([=] (THolderId id)
+        ->OnSuccess(FromFunctor([=] (THolderId id)
             {
                 response->set_holder_id(id);
                 context->SetResponseInfo("HolderId: %d", id);
@@ -91,6 +94,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
+    PROFILE_TIMING ("xxx") {
     auto holderId = request->holder_id();
 
     context->SetRequestInfo("HolderId: %d", holderId);
@@ -106,16 +110,26 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
         return;
     }
 
-    TMsgFullHeartbeat heartbeatMsg;
-    heartbeatMsg.set_holder_id(holderId);
-    *heartbeatMsg.mutable_statistics() = request->statistics();
-    heartbeatMsg.mutable_chunks()->MergeFrom(request->chunks());
+    PROFILE_TIMING_CHECKPOINT("1");
 
-    chunkManager
+    TMsgFullHeartbeat heartbeatMsg;
+    auto requestBody = context->GetUntypedContext()->GetRequestBody();
+    heartbeatMsg.set_request_body(requestBody.Begin(), requestBody.Size());
+    //heartbeatMsg.set_holder_id(holderId);
+    //*heartbeatMsg.mutable_statistics() = request->statistics();
+    //FOREACH (const auto& info, request->chunks()) {
+    //    *heartbeatMsg.add_chunks() = info;
+    //}
+
+    PROFILE_TIMING_CHECKPOINT("2");
+    auto x = chunkManager
         ->InitiateFullHeartbeat(heartbeatMsg)
         ->OnSuccess(CreateSuccessHandler(~context))
-        ->OnError(CreateErrorHandler(~context))
-        ->Commit();
+        ->OnError(CreateErrorHandler(~context));
+
+        PROFILE_TIMING_CHECKPOINT("3");
+        x->Commit();
+    }
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
@@ -148,7 +162,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
     yvector<TJobInfo> runningJobs(request->jobs().begin(), request->jobs().end());
     yvector<TJobStartInfo> jobsToStart;
     yvector<TJobStopInfo> jobsToStop;
-    chunkManager->RunJobControl(
+    chunkManager->ScheduleJobs(
         holder,
         runningJobs,
         &jobsToStart,
@@ -219,7 +233,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
     message.set_chunk_count(chunkCount);
     chunkManager
         ->InitiateCreateChunks(message)
-        ->OnSuccess(~FromFunctor([=] (yvector<TChunkId> chunkIds)
+        ->OnSuccess(FromFunctor([=] (yvector<TChunkId> chunkIds)
             {
                 YASSERT(chunkIds.size() == chunkCount);
                 for (int index = 0; index < chunkCount; ++index) {

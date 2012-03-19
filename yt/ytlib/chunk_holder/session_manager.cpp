@@ -25,9 +25,9 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
-    TSessionManager* sessionManager,
+    TSessionManagerPtr sessionManager,
     const TChunkId& chunkId,
-    TLocation* location)
+    TLocationPtr location)
     : SessionManager(sessionManager)
     , ChunkId(chunkId)
     , Location(location)
@@ -200,7 +200,9 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
         blockIndex);
 
     try {
-        Sync(~Writer, &TChunkFileWriter::AsyncWriteBlock, block->GetData());
+        std::vector<TSharedRef> blocks;
+        blocks.push_back(block->GetData());
+        Sync(~Writer, &TChunkFileWriter::AsyncWriteBlocks, blocks);
     } catch (const std::exception& ex) {
         LOG_FATAL("Error writing chunk block (BlockIndex: %d)\n%s",
             blockIndex,
@@ -320,7 +322,11 @@ TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
 TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 {
     try {
-        Sync(~Writer, &TChunkFileWriter::AsyncClose, attributes);
+        Sync(
+            ~Writer, 
+            &TChunkFileWriter::AsyncClose, 
+            std::vector<TSharedRef>(), 
+            attributes);
     } catch (const std::exception& ex) {
         LOG_FATAL("Error closing chunk file\n%s",
             ex.what());
@@ -388,10 +394,10 @@ void TSession::ReleaseSpaceOccupiedByBlocks()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSessionManager::TSessionManager(
-    TChunkHolderConfig* config,
-    TBlockStore* blockStore,
-    TChunkStore* chunkStore,
-    IInvoker* serviceInvoker)
+    TChunkHolderConfigPtr config,
+    TBlockStorePtr blockStore,
+    TChunkStorePtr chunkStore,
+    IInvoker::TPtr serviceInvoker)
     : Config(config)
     , BlockStore(blockStore)
     , ChunkStore(chunkStore)
@@ -423,7 +429,7 @@ TSessionPtr TSessionManager::StartSession(
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,
-        ~FromMethod(
+        FromMethod(
             &TSessionManager::OnLeaseExpired,
             MakeStrong(this),
             session)
@@ -439,7 +445,7 @@ TSessionPtr TSessionManager::StartSession(
     return session;
 }
 
-void TSessionManager::CancelSession(TSession* session, const TError& error)
+void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
 {
     auto chunkId = session->GetChunkId();
 
@@ -453,7 +459,7 @@ void TSessionManager::CancelSession(TSession* session, const TError& error)
 }
 
 TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
-    TSession* session, 
+    TSessionPtr session, 
     const TChunkAttributes& attributes)
 {
     auto chunkId = session->GetChunkId();

@@ -464,7 +464,7 @@ void TTransactionManager::CreateLease(const TTransaction& transaction, TTransact
     auto timeout = manifest->Timeout.Get(Config->DefaultTransactionTimeout);
     auto lease = TLeaseManager::CreateLease(
         timeout,
-        ~FromMethod(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
+        FromMethod(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
         ->Via(
             Bootstrap->GetStateInvoker(),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));

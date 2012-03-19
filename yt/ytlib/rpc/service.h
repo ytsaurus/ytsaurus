@@ -118,7 +118,7 @@ struct IServiceContext
     virtual Stroka GetResponseInfo() = 0;
 
     //! Wraps the given action into an exception guard that logs the exception and replies.
-    virtual IAction::TPtr Wrap(IAction* action) = 0;
+    virtual IAction::TPtr Wrap(IAction::TPtr action) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,7 +254,7 @@ public:
         return Context;
     }
 
-    IAction::TPtr Wrap(IAction* action)
+    IAction::TPtr Wrap(IAction::TPtr action)
     {
         YASSERT(action);
         return Context->Wrap(action);
@@ -338,7 +338,7 @@ public:
 
     using TBase::Wrap;
 
-    IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
+    IAction::TPtr Wrap(typename IParamAction<TPtr>::TPtr paramAction)
     {
         YASSERT(paramAction);
         return this->Context->Wrap(~paramAction->Bind(MakeStrong(this)));
@@ -365,7 +365,7 @@ public:
 
     using TBase::Wrap;
 
-    IAction::TPtr Wrap(IParamAction<TPtr>* paramAction)
+    IAction::TPtr Wrap(typename IParamAction<TPtr>::TPtr paramAction)
     {
         YASSERT(paramAction);
         return this->Context->Wrap(~paramAction->Bind(MakeStrong(this)));
@@ -432,7 +432,7 @@ protected:
             const NProfiling::TTimer& timer)
             : RuntimeInfo(runtimeInfo)
             , Timer(timer)
-            , Running(false)
+            , RunningSync(false)
             , Completed(false)
         { }
 
@@ -442,8 +442,8 @@ protected:
         //! Guards the rest.
         TSpinLock SpinLock;
 
-        //! True if the service method is currently running.
-        bool Running;
+        //! True if the service method is currently running synchronously.
+        bool RunningSync;
 
         //! True if #OnEndRequest is already called.
         bool Completed;

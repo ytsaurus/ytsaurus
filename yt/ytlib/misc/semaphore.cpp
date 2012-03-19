@@ -5,17 +5,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncSemaphore::TAsyncSemaphore(int maxFreeSlots)
+TAsyncSemaphore::TAsyncSemaphore(i64 maxFreeSlots)
     : MaxFreeSlots(maxFreeSlots)
     , FreeSlotCount(maxFreeSlots)
     , RequestedSlots(0)
     , AcquireEvent(NULL)
-    , StaticResult(New< TFuture<TVoid> >())
-{
-    StaticResult->Set(TVoid());
-}
+    , StaticResult(MakeFuture(TVoid()))
+{ }
 
-void TAsyncSemaphore::Release(int slots /* = 1 */)
+void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 {
     TGuard<TSpinLock> guard(SpinLock);
     FreeSlotCount += slots;
@@ -32,7 +30,7 @@ void TAsyncSemaphore::Release(int slots /* = 1 */)
     }
 }
 
-TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire(int slots /* = 1 */)
+TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire(i64 slots /* = 1 */)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 

@@ -41,6 +41,7 @@ public:
         bool createSnapshot)
         : Owner(owner)
         , Version(version)
+        , CreateSnapshot(createSnapshot)
     { }
 
     void Run()
@@ -61,16 +62,9 @@ public:
             Awaiter = New<TParallelAwaiter>(~Owner->EpochControlInvoker);
         }
 
-        for (TPeerId id = 0; id < Owner->CellManager->GetPeerCount(); ++id) {
-            if (id != Owner->CellManager->GetSelfId()) {
-                // We're currently in the state thread but the request must
-                // be sent from the control thread to ensure proper version order.
-                Owner->EpochControlInvoker->Invoke(FromMethod(
-                    &TSession::DoSendRequest,
-                    MakeStrong(this),
-                    id));
-            }
-        }
+        Owner->EpochControlInvoker->Invoke(FromMethod(
+            &TSession::DoSendRequests,
+            MakeStrong(this)));
         
         if (CreateSnapshot) {
             Awaiter->Await(
@@ -83,35 +77,44 @@ public:
                 MakeStrong(this)));
         } else {
             Owner->DecoratedState->RotateChangeLog();
-
             // No need to complete the awaiter.
         }
     }
 
 private:
-    void DoSendRequest(TPeerId id)
+    void DoSendRequests()
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        if (CreateSnapshot) {
-            LOG_DEBUG("Requesting follower %d to create a snapshot", id);
-        } else {
-            LOG_DEBUG("Requesting follower %d to rotate the changelog", id);
+        for (TPeerId id = 0; id < Owner->CellManager->GetPeerCount(); ++id) {
+            if (id == Owner->CellManager->GetSelfId()) continue;
+
+            if (CreateSnapshot) {
+                LOG_DEBUG("Requesting follower %d to create a snapshot", id);
+            } else {
+                LOG_DEBUG("Requesting follower %d to rotate the changelog", id);
+            }
+
+            auto proxy = Owner->CellManager->GetMasterProxy<TProxy>(id);
+            auto request = proxy
+                ->AdvanceSegment()
+                ->SetTimeout(Owner->Config->RemoteTimeout);
+            request->set_segment_id(Version.SegmentId);
+            request->set_record_count(Version.RecordCount);
+            request->set_epoch(Owner->Epoch.ToProto());
+            request->set_create_snapshot(CreateSnapshot);
+
+            auto responseHandler =
+                CreateSnapshot
+                ? FromMethod(&TSession::OnSnapshotCreated, MakeStrong(this), id)
+                : FromMethod(&TSession::OnChangeLogRotated, MakeStrong(this), id);
+            Awaiter->Await(
+                request->Invoke(),
+                Owner->CellManager->GetPeerAddress(id),
+                responseHandler);
         }
 
-        auto proxy = Owner->CellManager->GetMasterProxy<TProxy>(id);
-        auto request = proxy
-            ->AdvanceSegment()
-            ->SetTimeout(Owner->Config->RemoteTimeout);
-        request->set_segment_id(Version.SegmentId);
-        request->set_record_count(Version.RecordCount);
-        request->set_epoch(Owner->Epoch.ToProto());
-        request->set_create_snapshot(CreateSnapshot);
-
-        Awaiter->Await(
-            request->Invoke(),
-            Owner->CellManager->GetPeerAddress(id),
-            FromMethod(&TSession::OnRemoteSegmentAdvanced, MakeStrong(this), id));
+        Owner->DecoratedState->SetPingVersion(TMetaVersion(Version.SegmentId + 1, 0));
     }
 
     void DoCompleteSession()
@@ -156,21 +159,30 @@ private:
         Checksums[Owner->CellManager->GetSelfId()] = result.Checksum;
     }
 
-    void OnRemoteSegmentAdvanced(TProxy::TRspAdvanceSegment::TPtr response, TPeerId followerId)
+    void OnChangeLogRotated(TProxy::TRspAdvanceSegment::TPtr response, TPeerId id)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error creating a snapshot at follower %d\n%s",
-                followerId,
+            LOG_WARNING("Error rotating the changelog at follower %d\n%s",
+                id,
+                ~response->GetError().ToString());
+        }
+    }
+
+    void OnSnapshotCreated(TProxy::TRspAdvanceSegment::TPtr response, TPeerId id)
+    {
+        if (!response->IsOK()) {
+            LOG_WARNING("Error creating the snapshot at follower %d\n%s",
+                id,
                 ~response->GetError().ToString());
             return;
         }
 
         auto checksum = response->checksum();
         LOG_INFO("Remote snapshot is created at follower %d (Checksum: %" PRIx64 ")",
-            followerId,
+            id,
             checksum);
 
-        Checksums[followerId] = checksum;
+        Checksums[id] = checksum;
     }
 
     TSnapshotBuilderPtr Owner;
@@ -243,7 +255,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(
     }
     LocalResult = New<TAsyncLocalResult>();
 
-    LOG_INFO("Creating a local snapshot at version: %s", ~version.ToString());
+    LOG_INFO("Creating a local snapshot at version %s", ~version.ToString());
 
     if (DecoratedState->GetVersion() != version) {
         LOG_WARNING("Invalid version, snapshot creation canceled: expected %s, received %s",
@@ -252,14 +264,14 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(
         return MakeFuture(TLocalResult(EResultCode::InvalidVersion));
     }
 
-    i32 segmentId = version.SegmentId + 1;
+    i32 snapshotId = version.SegmentId + 1;
 
 #if defined(_unix_)
     LOG_INFO("Going to fork");
     auto forkTimer = Profiler.TimingStart("fork_time");
     pid_t childPid = fork();
     if (childPid == -1) {
-        LOG_ERROR("Could not fork while creating local snapshot %d", segmentId);
+        LOG_ERROR("Could not fork while creating local snapshot %d", snapshotId);
         LocalResult->Set(TLocalResult(EResultCode::ForkError));
     } else if (childPid == 0) {
         DoCreateLocalSnapshot(version);
@@ -270,12 +282,12 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(
         WatchdogQueue->GetInvoker()->Invoke(FromMethod(
             &TSnapshotBuilder::WatchdogFork,
             TWeakPtr<TSnapshotBuilder>(this),
-            segmentId,
+            snapshotId,
             childPid));
     }
 #else
     auto checksum = DoCreateLocalSnapshot(version);
-    OnLocalSnapshotCreated(segmentId, checksum);
+    OnLocalSnapshotCreated(snapshotId, checksum);
 #endif
         
     DecoratedState->RotateChangeLog();
@@ -306,7 +318,7 @@ void TSnapshotBuilder::OnLocalSnapshotCreated(i32 snapshotId, const TChecksum& c
 #if defined(_unix_)
 void TSnapshotBuilder::WatchdogFork(
     TWeakPtr<TSnapshotBuilder> weakSnapshotBuilder,
-    i32 segmentId, 
+    i32 snapshotId, 
     pid_t childPid)
 {
     TInstant deadline;
@@ -314,8 +326,7 @@ void TSnapshotBuilder::WatchdogFork(
     {
         auto snapshotBuilder = weakSnapshotBuilder.Lock();
         if (!snapshotBuilder) {
-            LOG_INFO("Snapshot builder has been deleted, exiting watchdog (SegmentId: %d)",
-                segmentId);
+            LOG_INFO("Snapshot builder has been deleted, exiting watchdog (SnapshotId: %d)", snapshotId);
             return;
         }
         deadline = snapshotBuilder->Config->LocalTimeout.ToDeadLine();
@@ -329,13 +340,13 @@ void TSnapshotBuilder::WatchdogFork(
             sleep(1);
         } else {
             if (!weakSnapshotBuilder.IsExpired()) {
-                LOG_INFO("Snapshot builder has been deleted, killing child process (ChildPid: %d, SegmentId: %d)",
+                LOG_INFO("Snapshot builder has been deleted, killing child process (ChildPid: %d, SnapshotId: %d)",
                     childPid,
-                    segmentId);
+                    snapshotId);
             } else {
-                LOG_ERROR("Local snapshot creating timed out, killing child process (ChildPid: %d, SegmentId: %d)",
+                LOG_ERROR("Local snapshot creating timed out, killing child process (ChildPid: %d, SnapshotId: %d)",
                     childPid,
-                    segmentId);
+                    snapshotId);
             }
             auto killResult = kill(childPid, 9);
             if (killResult != 0) {
@@ -349,29 +360,29 @@ void TSnapshotBuilder::WatchdogFork(
     }
 
     if (!WIFEXITED(status)) {
-        LOG_ERROR("Snapshot child process has terminated abnormally with status %d (SegmentId: %d)",
+        LOG_ERROR("Snapshot child process has terminated abnormally with status %d (SnapshotId: %d)",
             status,
-            segmentId);
+            snapshotId);
         localResult->Set(TLocalResult(EResultCode::ForkError));
         return;
     }
 
     auto exitStatus = WEXITSTATUS(status);
-    LOG_INFO("Snapshot child process terminated with exit status %d (SegmentId: %d)",
+    LOG_INFO("Snapshot child process terminated with exit status %d (SnapshotId: %d)",
         exitStatus,
-        segmentId);
+        snapshotId);
 
     auto snapshotBuilder = weakSnapshotBuilder.Lock();
     if (!snapshotBuilder) {
-        LOG_INFO("Snapshot builder has been deleted, exiting watchdog (SegmentId: %d)",
-            segmentId);
+        LOG_INFO("Snapshot builder has been deleted, exiting watchdog (SnapshotId: %d)",
+            snapshotId);
         return;
     }
 
-    auto result = snapshotBuilder->SnapshotStore->GetReader(segmentId);
+    auto result = snapshotBuilder->SnapshotStore->GetReader(snapshotId);
     if (!result.IsOK()) {
         LOG_ERROR("Cannot open snapshot %d\n%s",
-            segmentId,
+            snapshotId,
             ~result.ToString());
         localResult->Set(TLocalResult(EResultCode::ForkError));
         return;
@@ -380,7 +391,7 @@ void TSnapshotBuilder::WatchdogFork(
     auto reader = result.Value();
     reader->Open();
     auto checksum = reader->GetChecksum();
-    snapshotBuilder->OnLocalSnapshotCreated(segmentId, checksum);
+    snapshotBuilder->OnLocalSnapshotCreated(snapshotId, checksum);
 }
 #endif
 

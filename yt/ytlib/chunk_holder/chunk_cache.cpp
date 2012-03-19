@@ -5,6 +5,7 @@
 #include "location.h"
 #include "chunk.h"
 #include "block_store.h"
+#include "config.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/serialize.h>
@@ -16,7 +17,7 @@
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/election/leader_channel.h>
-#include <ytlib/chunk_holder/bootstrap.h>
+#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -26,6 +27,7 @@ using namespace NChunkServer;
 using namespace NElection;
 using namespace NRpc;
 using namespace NProto;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,8 +41,8 @@ class TChunkCache::TImpl
 public:
     typedef TWeightLimitedCache<TChunkId, TCachedChunk> TBase;
 
-    TImpl(TChunkHolderConfig* config, TBootstrap* bootstrap)
-        : TBase(config->ChunkCacheLocation->Quota == 0 ? Max<i64>() : config->ChunkCacheLocation->Quota)
+    TImpl(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
+        : TBase(config->CacheLocation->Quota == 0 ? Max<i64>() : config->CacheLocation->Quota)
         , Config(config)
         , Bootstrap(bootstrap)
     { }
@@ -51,7 +53,7 @@ public:
 
         Location = New<TLocation>(
             ELocationType::Cache,
-            ~Config->ChunkCacheLocation,
+            ~Config->CacheLocation,
             ~Bootstrap->GetReaderCache(),
             "ChunkCache");
 
@@ -70,17 +72,17 @@ public:
         LOG_INFO("Chunk cache scan completed, %d chunks found", GetSize());
     }
 
-    void Register(TCachedChunk* chunk)
+    void Register(TCachedChunkPtr chunk)
     {
         chunk->GetLocation()->UpdateUsedSpace(chunk->GetSize());
     }
 
-    void Unregister(TCachedChunk* chunk)
+    void Unregister(TCachedChunkPtr chunk)
     {
         chunk->GetLocation()->UpdateUsedSpace(-chunk->GetSize());
     }
 
-    void Put(TCachedChunk* chunk)
+    void Put(TCachedChunkPtr chunk)
     {
         TInsertCookie cookie(chunk->GetId());
         YVERIFY(BeginInsert(&cookie));
@@ -113,8 +115,8 @@ private:
     TBootstrap* Bootstrap;
     TLocationPtr Location;
 
-    DEFINE_SIGNAL(void(TChunk*), ChunkAdded);
-    DEFINE_SIGNAL(void(TChunk*), ChunkRemoved);
+    DEFINE_SIGNAL(void(TChunkPtr), ChunkAdded);
+    DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
 
     virtual i64 GetWeight(TCachedChunk* chunk) const
     {
@@ -167,8 +169,8 @@ private:
 
             RemoteReader = CreateRemoteReader(
                 ~Owner->Config->CacheRemoteReader,
-                Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
-                ~Owner->Bootstrap->GetMasterConnector()->GetLeaderChannel(),
+                ~Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
+                ~Owner->Bootstrap->GetLeaderChannel(),
                 ChunkId,
                 SeedAddresses);
 
@@ -245,7 +247,9 @@ private:
 
             LOG_INFO("Writing block (BlockIndex: %d)", BlockIndex);
             // NB: This is always done synchronously.
-            auto writeResult = FileWriter->AsyncWriteBlock(SequentialReader->GetBlock())->Get();
+            std::vector<TSharedRef> blocks;
+            blocks.push_back(SequentialReader->GetBlock());
+            auto writeResult = FileWriter->AsyncWriteBlocks(MoveRV(blocks))->Get();
             if (!writeResult.IsOK()) {
                 OnError(writeResult);
                 return;
@@ -260,7 +264,10 @@ private:
         {
             LOG_INFO("Closing chunk");
             // NB: This is always done synchronously.
-            auto closeResult = FileWriter->AsyncClose(ChunkInfo.attributes())->Get();
+            auto closeResult = FileWriter->AsyncClose(
+                std::vector<TSharedRef>(),
+                ChunkInfo.attributes())->Get();
+
             if (!closeResult.IsOK()) {
                 OnError(closeResult);
                 return;
@@ -309,7 +316,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkCache::TChunkCache(TChunkHolderConfig* config, TBootstrap* bootstrap)
+TChunkCache::TChunkCache(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }
 
@@ -344,8 +351,8 @@ TChunkCache::TAsyncDownloadResult::TPtr TChunkCache::DownloadChunk(
     return Impl->Download(chunkId, seedAddresses);
 }
 
-DELEGATE_SIGNAL(TChunkCache, void(TChunk*), ChunkAdded, *Impl);
-DELEGATE_SIGNAL(TChunkCache, void(TChunk*), ChunkRemoved, *Impl);
+DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkAdded, *Impl);
+DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkRemoved, *Impl);
 
 ////////////////////////////////////////////////////////////////////////////////
 

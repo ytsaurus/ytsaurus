@@ -51,12 +51,6 @@ void TTableReader::Open()
             ~fetchRsp->GetError().ToString());
     }
 
-    yvector<TChunkId> chunkIds;
-    chunkIds.reserve(fetchRsp->chunks_size());
-    FOREACH (const auto& chunkInfo, fetchRsp->chunks()) {
-        chunkIds.push_back(TChunkId::FromProto(chunkInfo.chunk_id()));
-    }
-
     auto channel = TChannel::FromProto(fetchRsp->channel());
 
     Reader = New<TChunkSequenceReader>(
@@ -65,10 +59,7 @@ void TTableReader::Open()
         TransactionId,
         ~MasterChannel,
         ~BlockCache,
-        chunkIds,
-        0,
-        // TODO(babenko): fixme, make i64
-        std::numeric_limits<int>::max());
+        FromProto<NProto::TFetchedChunk>(fetchRsp->chunks()));
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {
@@ -87,37 +78,16 @@ bool TTableReader::NextRow()
 
     CheckAborted();
 
-    if (!Reader->HasNextRow()) {
-        return false;
-    }
-
     Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
-    return true;
+    return Reader->IsValid();
 }
 
-bool TTableReader::NextColumn()
+const TRow& TTableReader::GetRow() const
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
 
-    CheckAborted();
-    return Reader->NextColumn();
-}
-
-TColumn TTableReader::GetColumn() const
-{
-    VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(IsOpen);
-
-    return Reader->GetColumn();
-}
-
-TValue TTableReader::GetValue() const
-{
-    VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(IsOpen);
-
-    return Reader->GetValue();
+    return Reader->GetCurrentRow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,8 @@
 #include "composite_meta_state_detail.h"
 #include "meta_state_manager.h"
 
+#include <ytlib/misc/delayed_invoker.h>
+
 namespace NYT {
 namespace NMetaState {
 
@@ -13,7 +15,7 @@ namespace NMetaState {
 template <class TResult>
 TMetaChange<TResult>::TMetaChange(
     IMetaStateManager* metaStateManager,
-    TChangeFunc* func,
+    TChangeFunc func,
     const TSharedRef& changeData)
     : MetaStateManager(metaStateManager)
     , Func(func)
@@ -41,7 +43,7 @@ void TMetaChange<TResult>::DoCommit()
     MetaStateManager
         ->CommitChange(
             ChangeData,
-            ~FromMethod(&TThis::ChangeFuncThunk, MakeStrong(this)))
+            FromMethod(&TThis::ChangeFuncThunk, MakeStrong(this)))
         ->Subscribe(
             FromMethod(&TThis::OnCommitted, MakeStrong(this)));
 }
@@ -91,7 +93,7 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
         }
         if (Retriable) {
             TDelayedInvoker::Submit(
-                ~FromMethod(&TThis::DoCommit, MakeStrong(this))
+                FromMethod(&TThis::DoCommit, MakeStrong(this))
                 ->Via(MetaStateManager->GetStateInvoker(), EpochContext),
                 BackoffTime);
         }
@@ -130,7 +132,7 @@ template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
     IMetaStateManager* metaStateManager,
     const TMessage& message,
-    IFunc<TResult>* func)
+    TIntrusivePtr< IFunc<TResult> > func)
 {
     YASSERT(metaStateManager);
     YASSERT(func);

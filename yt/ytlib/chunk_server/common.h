@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/logging/log.h>
 
 namespace NYT {
