@@ -151,7 +151,7 @@ private:
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("get")
+            .Item("do").Scalar("set")
             .Item("path").Scalar(PathArg->getValue())
             .Item("value").OnNode(DeserializeFromYson(ValueArg->getValue()));
 
@@ -278,7 +278,7 @@ private:
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("create")
+            .Item("do").Scalar("lock")
             .Item("path").Scalar(PathArg->getValue())
             .Item("mode").Scalar(ModeArg->getValue());
 
