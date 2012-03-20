@@ -1,0 +1,26 @@
+package NYT.NExecAgent.NProto;
+
+import "yt/ytlib/exec/operations.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetJobSpec
+{ 
+    required bytes job_id = 1;
+}
+
+message TRspGetJobSpec
+{
+    required NScheduler.NProto.TJobSpec job_spec = 1;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// One-way.
+message TReqOnJobFinished
+{
+    required NScheduler.NProto.TJobId job_id = 1;
+    required NScheduler.NProto.TJobResult job_result = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
