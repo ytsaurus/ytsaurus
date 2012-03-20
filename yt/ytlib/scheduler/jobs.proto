@@ -13,6 +13,7 @@ message TJobSpec
 {
     required int32 type = 1;
     required bytes operation_spec = 2;
+    repeated NYT.NFileServer.NProto.TRspFetch files = 3;
 
     extensions 100 to max;
 }

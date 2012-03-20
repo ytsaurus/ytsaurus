@@ -30,7 +30,7 @@ public:
         TJobManagerConfigPtr config,
         TBootstrap* bootstrap);
 
-    ~TJobManager();
+    //~TJobManager();
 
     //! Starts a new job.
     void StartJob(
@@ -65,19 +65,8 @@ private:
     TJobManagerConfigPtr Config;
     TBootstrap* Bootstrap;
 
-    //void OnJobStarted(const TJobId& jobId);
-
-    //void OnJobFinished(
-    //    NScheduler::NProto::TJobResult jobResult,
-    //    const TJobId& jobId);
-
     std::vector<TSlotPtr> Slots;
     yhash_map<TJobId, TJobPtr> Jobs;
-
-    //NChunkHolder::TChunkCachePtr ChunkCache;
-    //NRpc::IChannel::TPtr MasterChannel;
-
-    //NScheduler::TSchedulerInternalProxy SchedulerProxy;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

@@ -4,8 +4,11 @@
 #include "jobs.pb.h"
 
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/chunk_holder/public.h>
+//ToDo: consider removing.
+#include <ytlib/chunk_holder/chunk_cache.h>
 #include <ytlib/rpc/channel.h>
 
 namespace NYT {
@@ -21,9 +24,9 @@ public:
         const TJobId& jobId,
         const NScheduler::NProto::TJobSpec& jobSpec,
         NChunkHolder::TChunkCachePtr chunkCache,
-        NRpc::IChannel::TPtr masterChannel,
-        TSlotPtr slot,
-        IProxyController* proxyController);
+        TSlotPtr slot);
+
+    void Start(TEnvironmentManager* environmentManager);
 
     //! Kills the job if it is running. Cleans up the slot.
     void Abort(const TError& error);
@@ -31,8 +34,9 @@ public:
     const TJobId& GetId() const;
 
     const NScheduler::NProto::TJobSpec& GetSpec();
-    
+
     NScheduler::EJobState GetState();
+
 
     NScheduler::NProto::TJobResult GetResult();
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
@@ -41,45 +45,32 @@ public:
     DECLARE_SIGNAL(void(NScheduler::NProto::TJobResult), Finished);
 
 private:
-    //void RunJobProxy();
+    void DoStart(TEnvironmentManagerPtr environmentManager);
+    void OnChunkDownloaded(
+        NChunkHolder::TChunkCache::TDownloadResult result,
+        const Stroka& fileName,
+        bool executable);
 
-    //void PrepareFiles();
-
-    //void OnFilesFetched(
-    //    NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
-
-    //void OnChunkDownloaded(
-    //    NChunkHolder::TChunkCache::TDownloadResult result,
-    //    int fileIndex,
-    //    const Stroka& fileName,
-    //    bool executable);
+    void RunJobProxy();
 
     //void OnJobExit(TError error);
 
     //void DoCancel(const TError& error);
 
-    //void StartComplete();
 
     TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
     NChunkHolder::TChunkCachePtr ChunkCache;
-    NRpc::IChannel::TPtr MasterChannel;
     TSlotPtr Slot;
     TAutoPtr<IProxyController> ProxyController;
 
-    //NChunkHolder::TChunkCachePtr ChunkCache;
-    //NRpc::IChannel::TPtr MasterChannel;
+    NScheduler::EJobState JobState;
 
-    //NCypress::TCypressServiceProxy CypressProxy;
-    //TError Error;
+    NScheduler::NProto::TJobResult JobResult;
 
-    TFuture<NScheduler::NProto::TJobResult>::TPtr JobResult;
-    TFuture<TVoid>::TPtr Started;
-    TFuture<NScheduler::NProto::TJobResult>::TPtr Finished;
+    std::vector<NChunkHolder::TCachedChunkPtr> CachedChunks;
 
-    //yvector<NChunkHolder::TCachedChunkPtr> CachedChunks;
-
-    //DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
