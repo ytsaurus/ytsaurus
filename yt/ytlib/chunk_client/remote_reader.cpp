@@ -125,7 +125,7 @@ private:
 
         auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
         CypressProxy
-            ->Execute(~req)
+            ->Execute(req)
             ->Subscribe(FromMethod(&TRemoteReader::OnChunkFetched, TWeakPtr<TRemoteReader>(this)));
     }
 
