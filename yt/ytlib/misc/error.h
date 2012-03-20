@@ -3,6 +3,7 @@
 #include "common.h"
 #include "enum.h"
 #include "property.h"
+#include "error.pb.h"
 
 #include <ytlib/actions/future.h>
 
@@ -18,45 +19,24 @@ class TError
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Message);
 
 public:
-    TError()
-        : Code_(OK)
-    { }
+    TError();
 
-    explicit TError(const Stroka& message)
-        : Code_(Fail)
-        , Message_(message)
-    { }
+    explicit TError(const Stroka& message);
 
-    TError(const TError& other)
-        : Code_(other.Code_)
-        , Message_(other.Message_)
-    { }
+    TError(const TError& other);
 
-    TError(int code, const Stroka& message)
-        : Code_(code)
-        , Message_(message)
-    { }
+    TError(int code, const Stroka& message);
 
-    bool IsOK() const
-    {
-        return Code_ == OK;
-    }
+    bool IsOK() const;
 
-    Stroka ToString() const
-    {
-        switch (Code_) {
-            case OK:
-                return "OK";
-            case Fail:
-                return Message_;
-            default:
-                return Sprintf("(%d): %s", Code_, ~Message_);
-        }
-    }
+    Stroka ToString() const;
+
+    NProto::TError ToProto() const;
+    static TError FromProto(const NProto::TError& protoError);
 
     enum
     {
-        OK = 0,
+        OK = 0, 
         Fail = INT_MAX
     };
 };

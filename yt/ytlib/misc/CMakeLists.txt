@@ -97,3 +97,5 @@ add_custom_command(
     DEPENDS ${BASE}/new.h.pump
     COMMENT "Regenerating new.h..."
 )
+
+protoc( ${BASE}/error.proto YT_SOURCE_FILES )
