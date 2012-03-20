@@ -11,7 +11,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStartTransactionCommand::DoExecute(TStartTransactionRequest* request)
+void TStartCommand::DoExecute(TStartRequest* request)
 {
     auto transactionManager = DriverImpl->GetTransactionManager();
     auto newTransaction = transactionManager->Start(~request->Manifest);
@@ -22,7 +22,7 @@ void TStartTransactionCommand::DoExecute(TStartTransactionRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCommitTransactionCommand::DoExecute(TCommitTransactionRequest* request)
+void TCommitCommand::DoExecute(TCommitRequest* request)
 {
     auto transaction = DriverImpl->GetTransaction(request, true);
     transaction->Commit();
@@ -31,7 +31,7 @@ void TCommitTransactionCommand::DoExecute(TCommitTransactionRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortTransactionCommand::DoExecute(TAbortTransactionRequest* request)
+void TAbortCommand::DoExecute(TAbortRequest* request)
 {
     auto transaction = DriverImpl->GetTransaction(request, true);
     transaction->Commit();

@@ -120,9 +120,9 @@ public:
             ~config->TransactionManager,
             ~MasterChannel);
 
-        RegisterCommand("start_transaction", ~New<TStartTransactionCommand>(this));
-        RegisterCommand("commit_transaction", ~New<TCommitTransactionCommand>(this));
-        RegisterCommand("abort_transaction", ~New<TAbortTransactionCommand>(this));
+        RegisterCommand("start", ~New<TStartCommand>(this));
+        RegisterCommand("commit", ~New<TCommitCommand>(this));
+        RegisterCommand("abort", ~New<TAbortCommand>(this));
 
         RegisterCommand("get", ~New<TGetCommand>(this));
         RegisterCommand("set", ~New<TSetCommand>(this));

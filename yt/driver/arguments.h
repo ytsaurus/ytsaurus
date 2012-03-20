@@ -280,7 +280,7 @@ private:
         BuildYsonMapFluently(consumer)
             .Item("do").Scalar("lock")
             .Item("path").Scalar(PathArg->getValue())
-            .Item("mode").Scalar(ModeArg->getValue());
+            .Item("mode").Scalar(ModeArg->getValue().ToString());
 
         TTransactedArgs::BuildCommand(consumer);
     }
