@@ -59,7 +59,9 @@ void TFileLogWriter::EnsureInitialized()
         return;
 
     try {
-        NFS::ForcePath(NFS::GetDirectoryName(FileName));
+
+        // TODO(babenko): need an absolute path here
+        //NFS::ForcePath(NFS::GetDirectoryName(FileName));
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
         FileOutput->SetFinishPropagateMode(true);
