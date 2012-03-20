@@ -24,7 +24,6 @@ class TSlot;
 typedef TIntrusivePtr<TSlot> TSlotPtr;
 
 struct IProxyController;
-typedef TIntrusivePtr<IProxyController> IProxyControllerPtr;
 
 struct IEnvironmentBuilder;
 typedef TIntrusivePtr<IEnvironmentBuilder> IEnvironmentBuilderPtr;

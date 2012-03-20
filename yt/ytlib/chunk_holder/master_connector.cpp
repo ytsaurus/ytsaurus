@@ -47,7 +47,7 @@ TMasterConnector::TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* boo
 
 void TMasterConnector::Start()
 {
-    Proxy.Reset(new TProxy(~Bootstrap->GetLeaderChannel()));
+    Proxy.Reset(new TProxy(~Bootstrap->GetMasterChannel()));
 
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
         &TMasterConnector::OnChunkAdded,
@@ -96,12 +96,13 @@ void TMasterConnector::SendRegister()
     *request->mutable_statistics() = ComputeStatistics();
     request->set_address(Bootstrap->GetPeerAddress());
     request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
+
+    LOG_INFO("Sending register request (%s)",
+        ~ToString(*request->mutable_statistics()));
+
     request->Invoke()->Subscribe(
         FromMethod(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()));
-
-    LOG_INFO("Register request sent (%s)",
-        ~ToString(*request->mutable_statistics()));
 }
 
 NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
@@ -163,13 +164,13 @@ void TMasterConnector::SendFullHeartbeat()
         *request->add_chunks() = GetAddInfo(~chunk);
     }
 
+    LOG_INFO("Sending full heartbeat (%s, Chunks: %d)",
+        ~ToString(request->statistics()),
+        static_cast<int>(request->chunks_size()));
+
     request->Invoke()->Subscribe(
         FromMethod(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()));
-
-    LOG_INFO("Full heartbeat sent (%s, Chunks: %d)",
-        ~ToString(request->statistics()),
-        static_cast<int>(request->chunks_size()));
 }
 
 void TMasterConnector::SendIncrementalHeartbeat()
@@ -197,15 +198,15 @@ void TMasterConnector::SendIncrementalHeartbeat()
         info->set_state(job->GetState());
     }
 
-    request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()));
-
-    LOG_INFO("Incremental heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
+    LOG_INFO("Sending incremental heartbeat (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
         ~ToString(request->statistics()),
         static_cast<int>(request->added_chunks_size()),
         static_cast<int>(request->removed_chunks_size()),
         static_cast<int>(request->jobs_size()));
+
+    request->Invoke()->Subscribe(
+        FromMethod(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
+        ->Via(Bootstrap->GetControlInvoker()));
 }
 
 TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)

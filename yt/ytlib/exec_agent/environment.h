@@ -12,7 +12,7 @@ namespace NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IProxyController
-    : public virtual TRefCounted
+    : private TNonCopyable
 {
     /*!
      *  Runs job proxy.
@@ -48,7 +48,7 @@ struct IProxyController
 struct IEnvironmentBuilder
     : public virtual TRefCounted
 {
-    virtual IProxyControllerPtr CreateProxyController(
+    virtual TAutoPtr<IProxyController> CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
         const Stroka& workingDirectory) = 0;

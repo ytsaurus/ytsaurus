@@ -24,10 +24,10 @@ struct TCellNodeConfig
     NElection::TLeaderLookup::TConfig::TPtr Masters;
 
     //! Data node configuration part.
-    NChunkHolder::TChunkHolderConfigPtr Data;
+    NChunkHolder::TChunkHolderConfigPtr ChunkHolder;
 
     //! Exec node configuration part.
-    NExecAgent::TExecAgentConfigPtr Exec;
+    NExecAgent::TExecAgentConfigPtr ExecAgent;
 
     TCellNodeConfig()
     {
@@ -36,8 +36,8 @@ struct TCellNodeConfig
         Register("monitoring_port", MonitoringPort)
             .Default(10000);
         Register("masters", Masters);
-        Register("data", Data);
-        Register("exec", Exec);
+        Register("chunk_holder", ChunkHolder);
+        Register("exec_agent", ExecAgent);
     }
 };
 

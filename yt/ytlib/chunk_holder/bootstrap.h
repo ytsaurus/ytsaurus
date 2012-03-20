@@ -35,7 +35,7 @@ public:
     NBus::IBusServer::TPtr GetBusServer() const;
     TPeerBlockTablePtr GetPeerBlockTable() const;
     TReaderCachePtr GetReaderCache() const;
-    NRpc::IChannel::TPtr GetLeaderChannel() const;
+    NRpc::IChannel::TPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
 
 private:

@@ -8,15 +8,15 @@
 #include <ytlib/actions/action_util.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
+#include <ytlib/chunk_holder/chunk_cache.h>
 
 namespace NYT {
 namespace NExecAgent {
 
 using namespace NScheduler::NProto;
-//using namespace NChunkClient;
-//using namespace NFileServer;
-//using namespace NTransactionClient;
-//using namespace NCypress;
+using namespace NChunkHolder;
+using namespace NRpc;
+using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,18 +38,20 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 TJob::TJob(
     const TJobId& jobId,
-    const NScheduler::NProto::TJobSpec& jobSpec,
-    TBootstrap* bootstrap,
+    const TJobSpec& jobSpec,
+    TChunkCachePtr chunkCache,
+    IChannel::TPtr masterChannel,
     TSlotPtr slot,
-    IProxyControllerPtr proxyController)
+    IProxyController* proxyController)
     : JobId(jobId)
     , JobSpec(jobSpec)
-    , Bootstrap(bootstrap)
+    , ChunkCache(chunkCache)
+    , MasterChannel(masterChannel)
     , Slot(slot)
+    , ProxyController(proxyController)
     , JobResult(New< TFuture<NScheduler::NProto::TJobResult> >())
     , Started(New< TFuture<TVoid> >())
     , Finished(New< TFuture<NScheduler::NProto::TJobResult> >())
-    , ProxyController(proxyController)
 {
     //Slot->GetInvoker()->Invoke(FromMethod(
     //    &TJob::PrepareFiles,
@@ -81,6 +83,14 @@ void TJob::UnsubscribeFinished(const TCallback<void(TJobResult)>& callback)
 {
     YUNREACHABLE();
 }
+
+TJobResult TJob::GetResult()
+{
+    TJobResult result;
+    YVERIFY(JobResult->TryGet(&result));
+    return result;
+}
+
 //
 //void TJob::SubscribeOnStarted(IAction::TPtr callback)
 //{

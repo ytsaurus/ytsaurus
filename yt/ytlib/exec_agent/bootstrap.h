@@ -24,7 +24,8 @@ public:
 
     TExecAgentConfigPtr GetConfig() const;
     IInvoker::TPtr GetControlInvoker() const;
-    NRpc::IChannel::TPtr GetLeaderChannel() const;
+    NRpc::IChannel::TPtr GetMasterChannel() const;
+    NRpc::IChannel::TPtr GetSchedulerChannel() const;
     Stroka GetPeerAddress() const;
     TJobManagerPtr GetJobManager() const;
     TEnvironmentManagerPtr GetEnvironmentManager() const;

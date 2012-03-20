@@ -145,9 +145,9 @@ TReaderCachePtr TBootstrap::GetReaderCache() const
     return ReaderCache;
 }
 
-IChannel::TPtr TBootstrap::GetLeaderChannel() const
+IChannel::TPtr TBootstrap::GetMasterChannel() const
 {
-    return NodeBootstrap->GetLeaderChannel();
+    return NodeBootstrap->GetMasterChannel();
 }
 
 Stroka TBootstrap::GetPeerAddress() const

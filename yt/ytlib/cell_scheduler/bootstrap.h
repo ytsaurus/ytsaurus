@@ -24,7 +24,7 @@ public:
     ~TBootstrap();
 
     TCellSchedulerConfigPtr GetConfig() const;
-    NRpc::IChannel::TPtr GetLeaderChannel() const;
+    NRpc::IChannel::TPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
     IInvoker::TPtr GetControlInvoker() const;
     NTransactionClient::TTransactionManager::TPtr GetTransactionManager() const;
@@ -37,7 +37,7 @@ private:
 
     IInvoker::TPtr ControlInvoker;
     NBus::IBusServer::TPtr BusServer;
-    NRpc::IChannel::TPtr LeaderChannel;
+    NRpc::IChannel::TPtr MasterChannel;
     Stroka PeerAddress;
     NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NTransactionClient::ITransaction::TPtr BootstrapTransaction;

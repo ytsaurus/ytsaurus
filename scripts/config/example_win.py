@@ -85,7 +85,7 @@ class Holder(WinNode, Server):
             'masters' : {
               'addresses' : MasterAddresses
             },
-            'data' : {
+            'chunk_holder' : {
                 'store_locations' : [
                     { 'path' : r'%(work_dir)s\chunk_store.0' }
                 ],
@@ -94,7 +94,7 @@ class Holder(WinNode, Server):
                     'quota' : 10 * 1024 * 1024
                 },
             },
-            'exec' : {
+            'exec_agent' : {
             },
             'logging' : Logging
         })
@@ -102,9 +102,9 @@ class Holder(WinNode, Server):
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
-                for location in cls.config['data']['store_locations']:
+                for location in cls.config['chunk_holder']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
-                print >>fd, 'rmdir /S /Q   %s' % cls.config['data']['cache_location']['path']
+                print >>fd, 'rmdir /S /Q   %s' % cls.config['chunk_holder']['cache_location']['path']
 
 
 class Client(WinNode, Base):

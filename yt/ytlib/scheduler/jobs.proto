@@ -98,8 +98,6 @@ message TMapJobSpec
 
     // Additional files to be placed into the sandbox.
     repeated NYT.NFileServer.NProto.TRspFetch files = 7;
-
-    // TODO(babenko): stderr bookkeeping?
 }
 
 ////////////////////////////////////////////////////////////////////////////////

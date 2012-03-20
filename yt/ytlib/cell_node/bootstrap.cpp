@@ -68,7 +68,7 @@ void TBootstrap::Run()
         ~PeerAddress,
         ~JoinToString(Config->Masters->Addresses));
 
-    LeaderChannel = CreateLeaderChannel(~Config->Masters);
+    MasterChannel = CreateLeaderChannel(~Config->Masters);
 
     auto controlQueue = New<TActionQueue>("Control");
     ControlInvoker = controlQueue->GetInvoker();
@@ -112,10 +112,10 @@ void TBootstrap::Run()
         "/orchid",
         ~NMonitoring::GetYPathHttpHandler(~OrchidRoot->Via(controlQueue->GetInvoker())));
 
-    NChunkHolder::TBootstrap dataNodeBootstrap(Config->Data, this);
+    NChunkHolder::TBootstrap dataNodeBootstrap(Config->ChunkHolder, this);
     dataNodeBootstrap.Init();
 
-    NExecAgent::TBootstrap execNodeBootstrap(Config->Exec, this);
+    NExecAgent::TBootstrap execNodeBootstrap(Config->ExecAgent, this);
     execNodeBootstrap.Init();
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
@@ -152,9 +152,15 @@ IServer::TPtr TBootstrap::GetRpcServer() const
     return RpcServer;
 }
 
-IChannel::TPtr TBootstrap::GetLeaderChannel() const
+IChannel::TPtr TBootstrap::GetMasterChannel() const
 {
-    return LeaderChannel;
+    return MasterChannel;
+}
+
+IChannel::TPtr TBootstrap::GetSchedulerChannel() const
+{
+    // TODO(babenko): for now we just use redirector
+    return MasterChannel;
 }
 
 Stroka TBootstrap::GetPeerAddress() const

@@ -66,7 +66,7 @@ void TBootstrap::Init()
         ~PeerAddress,
         ~JoinToString(Config->Masters->Addresses));
 
-    LeaderChannel = CreateLeaderChannel(~Config->Masters);
+    MasterChannel = CreateLeaderChannel(~Config->Masters);
 
     auto controlQueue = New<TActionQueue>("Control");
     ControlInvoker = controlQueue->GetInvoker();
@@ -113,7 +113,7 @@ void TBootstrap::Init()
 
     TransactionManager = New<TTransactionManager>(
         Config->Transactions,
-        LeaderChannel);
+        MasterChannel);
 
     auto schedulerService = New<TSchedulerService>(this);
     rpcServer->RegisterService(schedulerService);
@@ -129,7 +129,7 @@ void TBootstrap::Register()
 {
     // TODO(babenko): Currently we use succeed-or-die strategy. Add retries later.
     
-    TCypressServiceProxy proxy(LeaderChannel);
+    TCypressServiceProxy proxy(MasterChannel);
 
     // Take the lock to prevent multiple instances of scheduler from running simultaneously.
     // To this aim, we create an auxiliary transaction that takes care of this lock.
@@ -173,9 +173,9 @@ TCellSchedulerConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-IChannel::TPtr TBootstrap::GetLeaderChannel() const
+IChannel::TPtr TBootstrap::GetMasterChannel() const
 {
-    return LeaderChannel;
+    return MasterChannel;
 }
 
 Stroka TBootstrap::GetPeerAddress() const

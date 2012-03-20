@@ -24,7 +24,7 @@ void TEnvironmentManager::Register(
     YVERIFY(Builders.insert(MakePair(envType, envBuilder)).second);
 }
 
-IProxyControllerPtr TEnvironmentManager::CreateProxyController(
+TAutoPtr<IProxyController> TEnvironmentManager::CreateProxyController(
     const Stroka& envName, 
     const TJobId& jobId, 
     const Stroka& workingDirectory)

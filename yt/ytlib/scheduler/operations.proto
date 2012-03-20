@@ -6,7 +6,7 @@ package NYT.NScheduler.NProto;
 // Completely describes the operation to be executed.
 message TOperationSpec
 {
-    // User (typically top-level) transaction where the task
+    // User (typically top-level) transaction where the operation
     // processing must happen.
     required bytes transaction_id = 2;
     // Operation spec in YSON (the type is embedded inside). 

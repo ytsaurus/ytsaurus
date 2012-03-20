@@ -89,6 +89,17 @@ std::vector<TJobPtr> TJobManager::GetAllJobs()
     return result;
 }
 
+int TJobManager::GetTotalSlotCount()
+{
+    return Config->SlotCount;
+}
+
+int TJobManager::GetFreeSlotCount()
+{
+    // TODO(babenko): implement
+    return GetTotalSlotCount();
+}
+
 //
 //
 //void TJobManager::StartJob(

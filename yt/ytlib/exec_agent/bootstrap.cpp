@@ -51,9 +51,14 @@ IInvoker::TPtr TBootstrap::GetControlInvoker() const
     return NodeBootstrap->GetControlInvoker();
 }
 
-IChannel::TPtr TBootstrap::GetLeaderChannel() const
+IChannel::TPtr TBootstrap::GetMasterChannel() const
 {
-    return NodeBootstrap->GetLeaderChannel();
+    return NodeBootstrap->GetMasterChannel();
+}
+
+IChannel::TPtr TBootstrap::GetSchedulerChannel() const
+{
+    return NodeBootstrap->GetMasterChannel();
 }
 
 Stroka TBootstrap::GetPeerAddress() const

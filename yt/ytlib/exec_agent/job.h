@@ -5,8 +5,8 @@
 
 #include <ytlib/misc/error.h>
 #include <ytlib/actions/signal.h>
-//#include <ytlib/chunk_holder/chunk_cache.h>
-//#include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/chunk_holder/public.h>
+#include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -20,9 +20,10 @@ public:
     TJob(
         const TJobId& jobId,
         const NScheduler::NProto::TJobSpec& jobSpec,
-        TBootstrap* bootstrap,
+        NChunkHolder::TChunkCachePtr chunkCache,
+        NRpc::IChannel::TPtr masterChannel,
         TSlotPtr slot,
-        IProxyControllerPtr proxyController);
+        IProxyController* proxyController);
 
     //! Kills the job if it is running. Cleans up the slot.
     void Abort(const TError& error);
@@ -30,6 +31,10 @@ public:
     const TJobId& GetId() const;
 
     const NScheduler::NProto::TJobSpec& GetSpec();
+    
+    NScheduler::EJobState GetState();
+
+    NScheduler::NProto::TJobResult GetResult();
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
 
     DECLARE_SIGNAL(void(), Started);
@@ -57,9 +62,10 @@ private:
 
     TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
-    TBootstrap* Bootstrap;
+    NChunkHolder::TChunkCachePtr ChunkCache;
+    NRpc::IChannel::TPtr MasterChannel;
     TSlotPtr Slot;
-    IProxyControllerPtr ProxyController;
+    TAutoPtr<IProxyController> ProxyController;
 
     //NChunkHolder::TChunkCachePtr ChunkCache;
     //NRpc::IChannel::TPtr MasterChannel;

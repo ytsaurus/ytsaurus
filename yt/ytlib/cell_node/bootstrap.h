@@ -29,7 +29,8 @@ public:
     NChunkServer::TIncarnationId GetIncarnationId() const;
     IInvoker::TPtr GetControlInvoker() const;
     NBus::IBusServer::TPtr GetBusServer() const;
-    NRpc::IChannel::TPtr GetLeaderChannel() const;
+    NRpc::IChannel::TPtr GetMasterChannel() const;
+    NRpc::IChannel::TPtr GetSchedulerChannel() const;
     NRpc::IServer::TPtr GetRpcServer() const;
     Stroka GetPeerAddress() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
@@ -44,7 +45,7 @@ private:
     IInvoker::TPtr ControlInvoker;
     NBus::IBusServer::TPtr BusServer;
     NRpc::IServer::TPtr RpcServer;
-    NRpc::IChannel::TPtr LeaderChannel;
+    NRpc::IChannel::TPtr MasterChannel;
     Stroka PeerAddress;
     NYTree::IMapNodePtr OrchidRoot;
 

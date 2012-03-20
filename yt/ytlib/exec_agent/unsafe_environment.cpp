@@ -246,7 +246,7 @@ class TUnsafeEnvironmentBuilder
     : public IEnvironmentBuilder
 {
 public:
-    IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
+    TAutoPtr<IProxyController> TUnsafeEnvironmentBuilder::CreateProxyController(
         NYTree::INodePtr configuration, 
         const TJobId& jobId, 
         const Stroka& workingDirectory)

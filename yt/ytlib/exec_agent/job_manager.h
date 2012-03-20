@@ -41,13 +41,13 @@ public:
     /*!
      *  If the job is running, aborts it.
      */
-    void StopJob(const TJob& jobId);
+    void StopJob(const TJobId& jobId);
 
     //! Removes the job from the list thus making the slot free.
     /*!
      *  It is illegal to call #Remove before the job is stopped.
      */
-    void RemoveJob(const TJob& jobId);
+    void RemoveJob(const TJobId& jobId);
 
     //! Finds the job by its id, returns NULL if no job is found.
     TJobPtr FindJob(const TJobId& jobId);
@@ -61,6 +61,9 @@ public:
     void SetJobResult(
         const TJobId& jobId, 
         const NScheduler::NProto::TJobResult& jobResult);
+
+    int GetTotalSlotCount();
+    int GetFreeSlotCount();
 
 private:
     TJobManagerConfigPtr Config;

@@ -3,12 +3,12 @@
         addresses = ["localhost:8001", "localhost:8002", "localhost:8003" ]
     };
 
-    data = {
-        chunk_store_locations = [ {path = "node1"} ];
-        chunk_cache_location = {path = "cache1"};
+    chunk_holder = {
+        store_locations = [ {path = "node1"} ];
+        cache_locations = {path = "cache1"};
     }
 
-    exec = {
+    exec_agent = {
     };
 
     "logging"= {

@@ -169,7 +169,7 @@ private:
             RemoteReader = CreateRemoteReader(
                 ~Owner->Config->CacheRemoteReader,
                 ~Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
-                ~Owner->Bootstrap->GetLeaderChannel(),
+                ~Owner->Bootstrap->GetMasterChannel(),
                 ChunkId,
                 SeedAddresses);
 
