@@ -51,6 +51,10 @@ bool operator>=(const TValue& lhs, const TValue& rhs);
 
 typedef std::vector<Stroka> TKey;
 
+typedef Stroka TColumn;
+
+typedef std::vector< std::pair<TColumn, TValue> > TRow;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient
