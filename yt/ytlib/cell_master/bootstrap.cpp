@@ -67,13 +67,13 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Server");
+static NLog::TLogger Logger("MasterBootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
     const Stroka& configFileName,
-    TCellMasterConfig* config)
+    TCellMasterConfigPtr config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
