@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "public.h"
 
@@ -7,6 +7,17 @@ namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSchedulerConnector
+    : public TRefCounted
+{
+public:
+    TSchedulerConnector(
+        TSchedulerConnectorConfigPtr config,    
+        TBootstrap* bootstrap);
+
+    void Start();
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

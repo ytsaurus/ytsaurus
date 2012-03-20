@@ -27,7 +27,7 @@ struct TCellNodeConfig
     NChunkHolder::TChunkHolderConfigPtr Data;
 
     //! Exec node configuration part.
-    NExecAgent::TJobManagerConfigPtr Exec;
+    NExecAgent::TExecAgentConfigPtr Exec;
 
     TCellNodeConfig()
     {
@@ -37,7 +37,7 @@ struct TCellNodeConfig
             .Default(10000);
         Register("masters", Masters);
         Register("data", Data);
-        Register("exec", Data);
+        Register("exec", Exec);
     }
 };
 

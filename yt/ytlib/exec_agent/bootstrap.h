@@ -16,13 +16,13 @@ class TBootstrap
 {
 public:
     TBootstrap(
-    	TJobManagerConfigPtr config,
+    	TExecAgentConfigPtr config,
 	    NCellNode::TBootstrap* nodeBootstrap);
     ~TBootstrap();
     
     void Init();
 
-    TJobManagerConfigPtr GetConfig() const;
+    TExecAgentConfigPtr GetConfig() const;
     IInvoker::TPtr GetControlInvoker() const;
     NRpc::IChannel::TPtr GetLeaderChannel() const;
     Stroka GetPeerAddress() const;
@@ -30,11 +30,12 @@ public:
     TEnvironmentManagerPtr GetEnvironmentManager() const;
 
 private:
-	TJobManagerConfigPtr Config;
+	TExecAgentConfigPtr Config;
 	NCellNode::TBootstrap* NodeBootstrap;
     
     TJobManagerPtr JobManager;
     TEnvironmentManagerPtr EnvironmentManager;
+    TSchedulerConnectorPtr SchedulerConnector;
 
 };
 

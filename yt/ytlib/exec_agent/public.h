@@ -14,9 +14,6 @@ using NScheduler::TOperationId;
 
 class TBootstrap;
 
-class TJobManagerConfig;
-typedef TIntrusivePtr<TJobManagerConfig> TJobManagerConfigPtr;
-
 class TJobManager;
 typedef TIntrusivePtr<TJobManager> TJobManagerPtr;
 
@@ -32,14 +29,26 @@ typedef TIntrusivePtr<IProxyController> IProxyControllerPtr;
 struct IEnvironmentBuilder;
 typedef TIntrusivePtr<IEnvironmentBuilder> IEnvironmentBuilderPtr;
 
+class TEnvironmentManager;
+typedef TIntrusivePtr<TEnvironmentManager> TEnvironmentManagerPtr;
+
+class TSchedulerConnector;
+typedef TIntrusivePtr<TSchedulerConnector> TSchedulerConnectorPtr;
+
 class TEnvironmentConfig;
 typedef TIntrusivePtr<TEnvironmentConfig> TEnvironmentConfigPtr;
 
 class TEnvironmentManagerConfig;
 typedef TIntrusivePtr<TEnvironmentManagerConfig> TEnvironmentManagerConfigPtr;
 
-class TEnvironmentManager;
-typedef TIntrusivePtr<TEnvironmentManager> TEnvironmentManagerPtr;
+class TJobManagerConfig;
+typedef TIntrusivePtr<TJobManagerConfig> TJobManagerConfigPtr;
+
+class TSchedulerConnectorConfig;
+typedef TIntrusivePtr<TSchedulerConnectorConfig> TSchedulerConnectorConfigPtr;
+
+class TExecAgentConfig;
+typedef TIntrusivePtr<TExecAgentConfig> TExecAgentConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

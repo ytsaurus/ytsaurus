@@ -6,6 +6,7 @@
 #include "environment.h"
 #include "environment_manager.h"
 #include "unsafe_environment.h"
+#include "scheduler_connector.h"
 
 #include <ytlib/cell_node/bootstrap.h>
 
@@ -17,7 +18,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
-    TJobManagerConfigPtr config,
+    TExecAgentConfigPtr config,
     NCellNode::TBootstrap* nodeBootstrap)
     : Config(config)
     , NodeBootstrap(nodeBootstrap)
@@ -31,16 +32,16 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Init()
 {
-    JobManager = New<TJobManager>(Config, this);
+    JobManager = New<TJobManager>(Config->JobManager, this);
 
     auto supervisorService = New<TSupervisorService>(this);
     NodeBootstrap->GetRpcServer()->RegisterService(supervisorService);
 
-    EnvironmentManager = New<TEnvironmentManager>(Config);
+    EnvironmentManager = New<TEnvironmentManager>(Config->EnvironmentManager);
     EnvironmentManager->Register("unsafe",  CreateUnsafeEnvironmentBuilder());
 }
 
-TJobManagerConfigPtr TBootstrap::GetConfig() const
+TExecAgentConfigPtr TBootstrap::GetConfig() const
 {
     return Config;
 }

@@ -1,7 +1,7 @@
 {
-	masters= {
-    	addresses = ["localhost:8000"]
-	};
+    masters = {
+        addresses = ["localhost:8000"]
+    };
 
     "logging"= {
         "rules"= [

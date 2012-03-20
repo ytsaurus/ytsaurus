@@ -51,7 +51,7 @@ public:
 };
 
 struct TJobManagerConfig
-    : public TEnvironmentManagerConfig
+    : public TConfigurable
 {
     // TODO(babenko): read from cypress.
     Stroka SchedulerAddress;
@@ -69,6 +69,36 @@ struct TJobManagerConfig
     }
 };
 
+struct TSchedulerConnectorConfig
+    : public TConfigurable
+{
+    //! Period between consequent heartbeats.
+    TDuration HeartbeatPeriod;
+
+    TSchedulerConnectorConfig()
+    {
+        Register("heartbeat_period", HeartbeatPeriod)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
+struct TExecAgentConfig
+    : public TConfigurable
+{
+    TJobManagerConfigPtr JobManager;
+    TEnvironmentManagerConfigPtr EnvironmentManager;
+    TSchedulerConnectorConfigPtr SchedulerConnector;
+
+    TExecAgentConfig()
+    {
+        Register("job_manager", JobManager)
+            .DefaultNew();
+        Register("environment_manager", EnvironmentManager)
+            .DefaultNew();
+        Register("scheduler_connector", SchedulerConnector)
+            .DefaultNew();
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
