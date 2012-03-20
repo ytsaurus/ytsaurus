@@ -24,7 +24,7 @@ private:
     TSchedulerConnectorConfigPtr Config;
     TBootstrap* Bootstrap;
     
-    THolder<NScheduler::TSchedulerServiceProxy> Proxy;
+    NScheduler::TSchedulerServiceProxy Proxy;
     TPeriodicInvoker::TPtr PeriodicInvoker;
 
     void SendHeartbeat();

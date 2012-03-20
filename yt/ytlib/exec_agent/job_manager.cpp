@@ -100,6 +100,23 @@ int TJobManager::GetFreeSlotCount()
     return GetTotalSlotCount();
 }
 
+void TJobManager::StartJob( const TJobId& jobId, const NScheduler::NProto::TJobSpec& jobSpec )
+{
+    YUNREACHABLE();
+}
+
+void TJobManager::StopJob( const TJobId& jobId )
+{
+    YUNREACHABLE();
+
+}
+
+void TJobManager::RemoveJob( const TJobId& jobId )
+{
+    YUNREACHABLE();
+
+}
+
 //
 //
 //void TJobManager::StartJob(

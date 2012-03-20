@@ -20,7 +20,7 @@ struct TCellSchedulerConfig
     int MonitoringPort;
 
     NElection::TLeaderLookup::TConfig::TPtr Masters;
-    NTransactionClient::TTransactionManager::TConfig::TPtr Transactions;
+    NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
 
     TCellSchedulerConfig()
     {
@@ -29,7 +29,7 @@ struct TCellSchedulerConfig
         Register("monitoring_port", MonitoringPort)
             .Default(10000);
         Register("masters", Masters);
-        Register("transactions", Transactions)
+        Register("transaction_manager", TransactionManager)
             .DefaultNew();
     }
 };

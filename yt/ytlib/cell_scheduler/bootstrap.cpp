@@ -3,23 +3,32 @@
 #include "config.h"
 
 #include <ytlib/misc/ref_counted_tracker.h>
+
 #include <ytlib/actions/action_queue.h>
+
 #include <ytlib/bus/nl_server.h>
+
 #include <ytlib/election/leader_channel.h>
+
 #include <ytlib/orchid/orchid_service.h>
+
 #include <ytlib/monitoring/monitoring_manager.h>
 #include <ytlib/monitoring/ytree_integration.h>
 #include <ytlib/monitoring/http_server.h>
 #include <ytlib/monitoring/http_integration.h>
+
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/yson_file_service.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/serialize.h>
+
 #include <ytlib/profiling/profiling_manager.h>
+
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/cypress/id.h>
+
 #include <ytlib/scheduler/scheduler_service.h>
 
 namespace NYT {
@@ -112,7 +121,7 @@ void TBootstrap::Init()
         ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
 
     TransactionManager = New<TTransactionManager>(
-        Config->Transactions,
+        Config->TransactionManager,
         MasterChannel);
 
     auto schedulerService = New<TSchedulerService>(this);
@@ -138,7 +147,7 @@ void TBootstrap::Register()
     try {
         BootstrapTransaction = TransactionManager->Start();
     } catch (const std::exception& ex) {
-        LOG_FATAL("Failed to start bootstrap transaction\n%s", ex.what());
+        ythrow yexception() << Sprintf("Failed to start bootstrap transaction\n%s", ex.what());
     }
 
     LOG_INFO("Taking lock");

@@ -91,8 +91,7 @@ struct TExecAgentConfig
 
     TExecAgentConfig()
     {
-        Register("job_manager", JobManager)
-            .DefaultNew();
+        Register("job_manager", JobManager);
         Register("environment_manager", EnvironmentManager)
             .DefaultNew();
         Register("scheduler_connector", SchedulerConnector)

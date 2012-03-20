@@ -39,6 +39,9 @@ void TBootstrap::Init()
 
     EnvironmentManager = New<TEnvironmentManager>(Config->EnvironmentManager);
     EnvironmentManager->Register("unsafe",  CreateUnsafeEnvironmentBuilder());
+
+    SchedulerConnector = New<TSchedulerConnector>(Config->SchedulerConnector, this);
+    SchedulerConnector->Start();
 }
 
 TExecAgentConfigPtr TBootstrap::GetConfig() const

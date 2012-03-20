@@ -5,6 +5,7 @@
 #include "job_manager.h"
 #include "job.h"
 
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -21,6 +22,7 @@ TSchedulerConnector::TSchedulerConnector(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , Proxy(bootstrap->GetSchedulerChannel())
 {
     YASSERT(config);
     YASSERT(bootstrap);
@@ -28,16 +30,17 @@ TSchedulerConnector::TSchedulerConnector(
 
 void TSchedulerConnector::Start()
 {
-    Proxy.Reset(new TSchedulerServiceProxy(Bootstrap->GetSchedulerChannel()));
     PeriodicInvoker = New<TPeriodicInvoker>(
-        FromMethod(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
+        FromMethod(&TSchedulerConnector::SendHeartbeat, MakeWeak(this))
+        ->Via(Bootstrap->GetControlInvoker()),
         Config->HeartbeatPeriod);
+    PeriodicInvoker->Start();
 }
 
 void TSchedulerConnector::SendHeartbeat()
 {
     // Construct state snapshot.
-    auto req = Proxy->Heartbeat();
+    auto req = Proxy.Heartbeat();
     req->set_address(Bootstrap->GetPeerAddress());
     auto jobManager = Bootstrap->GetJobManager();
     req->set_total_slot_count(jobManager->GetTotalSlotCount());
@@ -67,6 +70,7 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
 {
     if (!rsp->IsOK()) {
         LOG_ERROR("Error reporting heartbeat to scheduler\n%s", ~rsp->GetError().ToString());
+        return;
     }
 
     LOG_INFO("Successfully reported heartbeat to scheduler");

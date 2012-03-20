@@ -13,7 +13,6 @@
 namespace NYT {
 namespace NExecAgent {
 
-using namespace NScheduler::NProto;
 using namespace NChunkHolder;
 using namespace NRpc;
 using namespace NScheduler::NProto;
@@ -63,6 +62,11 @@ const TJobId& TJob::GetId() const
     return JobId;
 }
 
+const TJobSpec& TJob::GetSpec()
+{
+    return JobSpec;
+}
+
 // TODO(babenko): get rid of this when new futures are ready
 void TJob::SubscribeStarted(const TClosure& callback)
 {
@@ -89,6 +93,16 @@ TJobResult TJob::GetResult()
     TJobResult result;
     YVERIFY(JobResult->TryGet(&result));
     return result;
+}
+
+void TJob::SetResult( const NScheduler::NProto::TJobResult& jobResult )
+{
+    YUNIMPLEMENTED();
+}
+
+NScheduler::EJobState TJob::GetState()
+{
+    return NScheduler::EJobState::Running;
 }
 
 //

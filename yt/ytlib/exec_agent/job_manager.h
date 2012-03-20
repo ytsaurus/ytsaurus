@@ -58,10 +58,6 @@ public:
     //! Returns a list of all currently known jobs.
     std::vector<TJobPtr> GetAllJobs();
 
-    void SetJobResult(
-        const TJobId& jobId, 
-        const NScheduler::NProto::TJobResult& jobResult);
-
     int GetTotalSlotCount();
     int GetFreeSlotCount();
 
