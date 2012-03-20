@@ -532,7 +532,7 @@ protected:
     TYPathResponseHandler ResponseHandler;
     NLog::TLogger Logger;
 
-    virtual void DoReply(const TError& error, IMessage* responseMessage)
+    virtual void DoReply(const TError& error, IMessage::TPtr responseMessage)
     {
         UNUSED(error);
 
