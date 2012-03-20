@@ -19,8 +19,6 @@ TYsonTableInput::TYsonTableInput(
 
 bool TYsonTableInput::ReadRow()
 {
-    Reader->NextRow();
-
     if (!Reader->IsValid())
         return false;
 
@@ -31,6 +29,8 @@ bool TYsonTableInput::ReadRow()
         YsonWriter.OnStringScalar(pair.second.ToString(), false);
     }
     YsonWriter.OnEndMap(false);
+
+    Reader->NextRow();
     return true;
 }
 
