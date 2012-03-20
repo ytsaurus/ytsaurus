@@ -3,14 +3,13 @@ package NYT.NScheduler.NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Sent from a client to the scheduler.
-// Completely describes the task to be executed.
-message TTaskSpec
+// Completely describes the operation to be executed.
+message TOperationSpec
 {
-    required int32 type = 1;
     // User (typically top-level) transaction where the task
     // processing must happen.
     required bytes transaction_id = 2;
-    // Task spec in YSON.
+    // Operation spec in YSON (the type is embedded inside). 
     required bytes spec = 3;
 }
 

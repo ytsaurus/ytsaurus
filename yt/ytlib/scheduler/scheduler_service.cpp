@@ -25,25 +25,25 @@ TSchedulerService::TSchedulerService(TBootstrap* bootstrap)
 {
     YASSERT(bootstrap);
 
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTask));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTask));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(WaitForTask));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(WaitForOperation));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TSchedulerService, StartTask)
+DEFINE_RPC_SERVICE_METHOD(TSchedulerService, StartOperation)
 {
     // TODO(babenko): implement
     YUNIMPLEMENTED();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TSchedulerService, AbortTask)
+DEFINE_RPC_SERVICE_METHOD(TSchedulerService, AbortOperation)
 {
     // TODO(babenko): implement
     YUNIMPLEMENTED();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TSchedulerService, WaitForTask)
+DEFINE_RPC_SERVICE_METHOD(TSchedulerService, WaitForOperation)
 {
     // TODO(babenko): implement
     YUNIMPLEMENTED();

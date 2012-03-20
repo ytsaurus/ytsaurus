@@ -10,7 +10,7 @@ namespace NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NScheduler::TJobId;
-using NScheduler::TTaskId;
+using NScheduler::TOperationId;
 
 class TBootstrap;
 

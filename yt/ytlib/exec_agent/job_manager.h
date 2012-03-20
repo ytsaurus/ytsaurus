@@ -58,15 +58,10 @@ public:
     //! Returns a list of all currently known jobs.
     std::vector<TJobPtr> GetAllJobs();
 
-    void OnJobFinished(
+
+    void SetJobResult(
         const TJobId& jobId, 
         const NScheduler::NProto::TJobResult& jobResult);
-
-    //void SetJobResult(
-    //    const TJobId& jobId, 
-    //    const NScheduler::NProto::TJobResult& jobResult);
-
-    //const NScheduler::NProto::TJobSpec& GetJobSpec(const TJobId& jobId);
 
 private:
     TJobManagerConfigPtr Config;

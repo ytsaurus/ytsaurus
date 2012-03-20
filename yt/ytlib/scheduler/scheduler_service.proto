@@ -1,45 +1,45 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/scheduler/tasks.proto";
+import "yt/ytlib/scheduler/operations.proto";
 import "yt/ytlib/scheduler/jobs.proto";
 import "yt/ytlib/rpc/rpc.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Starts a new task.
+// Starts a new operation.
 
-message TReqStartTask
+message TReqStartOperation
 { 
-    required TTaskSpec spec = 1;
+    required TOperationSpec spec = 1;
 }
 
-message TRspStartTask
+message TRspStartOperation
 {
-    required bytes task_id = 1;
+    required bytes operation_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Aborts an existing task.
+// Aborts an existing operation.
 
-message TReqAbortTask
+message TReqAbortOperation
 { 
-    required bytes task_id = 1;
+    required bytes operation_id = 1;
 }
 
-message TRspAbortTask
+message TRspAbortOperation
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Waits until a given task is finished.
+// Waits until a given operation is finished.
 
-message TReqWaitForTask
+message TReqWaitForOperation
 { 
-    required bytes task_id = 1;
+    required bytes operation_id = 1;
 }
 
-message TRspWaitForTask
+message TRspWaitForOperation
 {
 	//required NYT.NRpc.NProto.TError error = 1;
 }

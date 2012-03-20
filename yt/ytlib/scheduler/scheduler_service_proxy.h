@@ -25,9 +25,9 @@ public:
     { }
 
     // From clients to scheduler.
-    DEFINE_RPC_PROXY_METHOD(NProto, StartTask);
-    DEFINE_RPC_PROXY_METHOD(NProto, AbortTask);
-    DEFINE_RPC_PROXY_METHOD(NProto, WaitForTask);
+    DEFINE_RPC_PROXY_METHOD(NProto, StartOperation);
+    DEFINE_RPC_PROXY_METHOD(NProto, AbortOperation);
+    DEFINE_RPC_PROXY_METHOD(NProto, WaitForOperation);
 
     // From nodes to scheduler.
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);

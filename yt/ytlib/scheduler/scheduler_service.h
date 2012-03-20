@@ -23,9 +23,9 @@ private:
 
     NCellScheduler::TBootstrap* Bootstrap;
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, StartTask);
-    DECLARE_RPC_SERVICE_METHOD(NProto, AbortTask);
-    DECLARE_RPC_SERVICE_METHOD(NProto, WaitForTask);
+    DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation);
+    DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation);
+    DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat);
 };

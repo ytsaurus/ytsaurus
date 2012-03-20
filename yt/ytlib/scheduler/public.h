@@ -11,24 +11,24 @@ namespace NScheduler {
 
 typedef TGuid TJobId;
 
-typedef TGuid TTaskId;
+typedef TGuid TOperationId;
 
-DECLARE_ENUM(ETaskType,
-	((Map)(0))
+DECLARE_ENUM(EOperationType,
+    ((Map)(0))
 );
 
 DECLARE_ENUM(EJobType,
-	((Map)(0))
+    ((Map)(0))
 );
 
-DECLARE_ENUM(ETaskState,
-	((Prepaing)(0))
+DECLARE_ENUM(EOperationState,
+    ((Prepaing)(0))
 );
 
 DECLARE_ENUM(EJobState,
-	((Running)(0))
-	((Completed)(1))
-	((Failed)(2))
+    ((Running)(0))
+    ((Completed)(1))
+    ((Failed)(2))
 );
 
 class TSchedulerService;

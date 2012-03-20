@@ -1,14 +1,18 @@
 #include "stdafx.h"
 #include "job.h"
 #include "environment_manager.h"
+#include "slot.h"
+#include "environment.h"
 #include "private.h"
 
+#include <ytlib/actions/action_util.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
 
 namespace NYT {
 namespace NExecAgent {
 
+using namespace NScheduler::NProto;
 //using namespace NChunkClient;
 //using namespace NFileServer;
 //using namespace NTransactionClient;
@@ -32,34 +36,51 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//TJob::TJob(
-//    const TJobId& jobId,
-//    const NScheduler::NProto::TJobSpec& jobSpec,
-//    NChunkHolder::TChunkCachePtr chunkCache,
-//    NRpc::IChannel::TPtr masterChannel,
-//    TSlotPtr slot,
-//    IProxyControllerPtr proxyController)
-//    : Config(config)
-//    , JobSpec(jobSpec)
-//    , ChunkCache(chunkCache)
-//    , JobId(jobId)
-//    , MasterChannel(masterChannel)
-//    , CypressProxy(masterChannel)
-//    , Slot(slot)
-//    , JobResult(New< TFuture<NScheduler::NProto::TJobResult> >())
-//    , OnStarted(New< TFuture<TVoid> >())
-//    , OnFinished(New< TFuture<NScheduler::NProto::TJobResult> >())
-//    , ProxyController(proxyController)
-//{
-//    Slot->GetInvoker()->Invoke(FromMethod(
-//        &TJob::PrepareFiles,
-//        MakeStrong(this)));
-//}
-//
-//const TJobId& TJob::GetId() const
-//{
-//    return JobId;
-//}
+TJob::TJob(
+    const TJobId& jobId,
+    const NScheduler::NProto::TJobSpec& jobSpec,
+    TBootstrap* bootstrap,
+    TSlotPtr slot,
+    IProxyControllerPtr proxyController)
+    : JobId(jobId)
+    , JobSpec(jobSpec)
+    , Bootstrap(bootstrap)
+    , Slot(slot)
+    , JobResult(New< TFuture<NScheduler::NProto::TJobResult> >())
+    , Started(New< TFuture<TVoid> >())
+    , Finished(New< TFuture<NScheduler::NProto::TJobResult> >())
+    , ProxyController(proxyController)
+{
+    //Slot->GetInvoker()->Invoke(FromMethod(
+    //    &TJob::PrepareFiles,
+    //    MakeStrong(this)));
+}
+
+const TJobId& TJob::GetId() const
+{
+    return JobId;
+}
+
+// TODO(babenko): get rid of this when new futures are ready
+void TJob::SubscribeStarted(const TClosure& callback)
+{
+    Started->Subscribe(FromFunctor([=] (TVoid) { callback.Run(); }));
+}
+
+void TJob::UnsubscribeStarted(const TClosure& callback)
+{
+    YUNREACHABLE();
+}
+
+void TJob::SubscribeFinished(const TCallback<void(TJobResult)>& callback)
+{
+    Finished->Subscribe(FromFunctor([=] (TJobResult result) { callback.Run(result); }));
+}
+
+void TJob::UnsubscribeFinished(const TCallback<void(TJobResult)>& callback)
+{
+    YUNREACHABLE();
+}
 //
 //void TJob::SubscribeOnStarted(IAction::TPtr callback)
 //{
