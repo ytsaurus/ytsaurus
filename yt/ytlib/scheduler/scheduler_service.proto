@@ -1,6 +1,5 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/scheduler/operations.proto";
 import "yt/ytlib/scheduler/jobs.proto";
 import "yt/ytlib/rpc/rpc.proto";
 
@@ -10,7 +9,13 @@ import "yt/ytlib/rpc/rpc.proto";
 
 message TReqStartOperation
 { 
-    required TOperationSpec spec = 1;
+    // EOperationType value.
+    required int32 type = 1;
+    // User (typically top-level) transaction where the operation
+    // processing must happen.
+    required bytes transaction_id = 2;
+    // Operation spec in YSON (the type is embedded inside). 
+    required bytes spec = 3;
 }
 
 message TRspStartOperation

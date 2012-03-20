@@ -19,17 +19,11 @@
 
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/yson_file_service.h>
-#include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/ypath_client.h>
-#include <ytlib/ytree/serialize.h>
 
 #include <ytlib/profiling/profiling_manager.h>
 
-#include <ytlib/cypress/cypress_ypath_proxy.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
-#include <ytlib/cypress/id.h>
-
 #include <ytlib/scheduler/scheduler_service.h>
+#include <ytlib/scheduler/scheduler.h>
 
 namespace NYT {
 namespace NCellScheduler {
@@ -41,7 +35,6 @@ using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NCypress;
-using namespace NTransactionClient;
 using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,13 +55,6 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Run()
 {
-    Init();
-    Register();
-    Sleep(TDuration::Max());
-}
-
-void TBootstrap::Init()
-{
     PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
 
     LOG_INFO("Starting scheduler (PeerAddress: %s, MasterAddresses: [%s])",
@@ -83,6 +69,8 @@ void TBootstrap::Init()
     BusServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->RpcPort));
 
     auto rpcServer = CreateRpcServer(~BusServer);
+
+    Scheduler = New<TScheduler>(Config, this);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -120,10 +108,6 @@ void TBootstrap::Init()
         "/orchid",
         ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
 
-    TransactionManager = New<TTransactionManager>(
-        Config->TransactionManager,
-        MasterChannel);
-
     auto schedulerService = New<TSchedulerService>(this);
     rpcServer->RegisterService(schedulerService);
 
@@ -132,49 +116,10 @@ void TBootstrap::Init()
 
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
     rpcServer->Start();
-}
 
-void TBootstrap::Register()
-{
-    // TODO(babenko): Currently we use succeed-or-die strategy. Add retries later.
-    
-    TCypressServiceProxy proxy(MasterChannel);
+    Scheduler->Start();
 
-    // Take the lock to prevent multiple instances of scheduler from running simultaneously.
-    // To this aim, we create an auxiliary transaction that takes care of this lock.
-    // We never commit or commit this transaction, so it gets aborted (and the lock gets released)
-    // when the scheduler dies.
-    try {
-        BootstrapTransaction = TransactionManager->Start();
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Failed to start bootstrap transaction\n%s", ex.what());
-    }
-
-    LOG_INFO("Taking lock");
-    {
-        auto req = TCypressYPathProxy::Lock(WithTransaction(
-            "/sys/scheduler/lock",
-            BootstrapTransaction->GetId()));
-        req->set_mode(ELockMode::Exclusive);
-        auto rsp = proxy.Execute(req)->Get();
-        if (!rsp->IsOK()) {
-            ythrow yexception() << Sprintf("Failed to take scheduler lock, check for another running scheduler instances\n%s",
-                ~rsp->GetError().ToString());
-        }
-    }
-    LOG_INFO("Lock taken");
-
-    LOG_INFO("Publishing scheduler address");
-    {
-        auto req = TYPathProxy::Set("/sys/scheduler/runtime@address");
-        req->set_value(SerializeToYson(PeerAddress));
-        auto rsp = proxy.Execute(req)->Get();
-        if (!rsp->IsOK()) {
-            ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
-                ~rsp->GetError().ToString());
-        }
-    }
-    LOG_INFO("Scheduler address published");
+    Sleep(TDuration::Max());
 }
 
 TCellSchedulerConfigPtr TBootstrap::GetConfig() const
@@ -197,9 +142,9 @@ IInvoker::TPtr TBootstrap::GetControlInvoker() const
     return ControlInvoker;
 }
 
-TTransactionManager::TPtr TBootstrap::GetTransactionManager() const
+TSchedulerPtr TBootstrap::GetScheduler() const
 {
-    return TransactionManager;
+    return Scheduler;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

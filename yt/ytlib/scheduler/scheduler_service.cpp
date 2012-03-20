@@ -1,14 +1,17 @@
 #include "stdafx.h"
 #include "scheduler_service.h"
 #include "private.h"
+#include "scheduler.h"
 
 #include <ytlib/cell_scheduler/bootstrap.h>
+#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NScheduler {
 
 using namespace NRpc;
 using namespace NCellScheduler;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,8 +36,15 @@ TSchedulerService::TSchedulerService(TBootstrap* bootstrap)
 
 DEFINE_RPC_SERVICE_METHOD(TSchedulerService, StartOperation)
 {
-    // TODO(babenko): implement
-    YUNIMPLEMENTED();
+    auto type = EOperationType(request->type());
+    auto transactionId = TTransactionId::FromProto(request->transaction_id());
+    auto spec = DeserializeFromYson(request->spec());
+
+    context->SetRequestInfo("Type: %s, TransactionId: %s",
+        ~type.ToString(),
+        ~transactionId.ToString());
+
+
 }
 
 DEFINE_RPC_SERVICE_METHOD(TSchedulerService, AbortOperation)
@@ -51,8 +61,13 @@ DEFINE_RPC_SERVICE_METHOD(TSchedulerService, WaitForOperation)
 
 DEFINE_RPC_SERVICE_METHOD(TSchedulerService, Heartbeat)
 {
-    // TODO(babenko): implement
-    YUNIMPLEMENTED();
+    auto address = request->address();
+
+    context->SetRequestInfo("Address: %s, JobCount: %d, TotalSlotCount: %d, FreeSlotCount: %d",
+        ~address,
+        request->jobs_size(),
+        request->total_slot_count(),
+        request->free_slot_count());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

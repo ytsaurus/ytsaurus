@@ -17,7 +17,7 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
 
     auto reader = New<TFileReader>(
         ~config,
-        DriverImpl->GetMasterChannel(),
+        ~DriverImpl->GetMasterChannel(),
         ~DriverImpl->GetTransaction(request),
         DriverImpl->GetBlockCache(),
         request->Path);
@@ -44,7 +44,7 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
 
     auto writer = New<TFileWriter>(
         ~config,
-        DriverImpl->GetMasterChannel(),
+        ~DriverImpl->GetMasterChannel(),
         ~DriverImpl->GetTransaction(request),
         DriverImpl->GetTransactionManager(),
         request->Path);

@@ -2,35 +2,21 @@
 
 #include "command.h"
 
+#include <ytlib/scheduler/map_operation.h>
+
 namespace NYT {
 namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMapRequest
-    : public TRequestBase
+    : public TTransactedRequest
 {
-    Stroka Command;
-    yvector<NYTree::TYPath> Files;
-
-    yvector<NYTree::TYPath> In;
-    yvector<NYTree::TYPath> Out;
+    NScheduler::TMapOperationSpecPtr Spec;
 
     TMapRequest()
     {
-        Register("command", Command)
-            .Default(Stroka());
-        Register("files", Files)
-            .Default(yvector<NYTree::TYPath>());
-        Register("in", In);
-        Register("out", Out);
-    }
-
-    virtual void DoValidate() const
-    {
-        if (Command.empty() && Files.empty()) {
-            ythrow yexception() << "Neither \"command\" nor \"files\" are given";
-        }
+        Register("spec", Spec);
     }
 };
 

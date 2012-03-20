@@ -13,6 +13,6 @@ struct TCellSchedulerConfig;
 typedef TIntrusivePtr<TCellSchedulerConfig> TCellSchedulerConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NCellScheduler
 } // namespace NYT

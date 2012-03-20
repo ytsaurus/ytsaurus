@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <ytlib/cell_node/public.h>
+#include <ytlib/chunk_holder/public.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/rpc/channel.h>
 
@@ -16,8 +17,8 @@ class TBootstrap
 {
 public:
     TBootstrap(
-    	TExecAgentConfigPtr config,
-	    NCellNode::TBootstrap* nodeBootstrap);
+        TExecAgentConfigPtr config,
+        NCellNode::TBootstrap* nodeBootstrap);
     ~TBootstrap();
     
     void Init();
@@ -29,10 +30,11 @@ public:
     Stroka GetPeerAddress() const;
     TJobManagerPtr GetJobManager() const;
     TEnvironmentManagerPtr GetEnvironmentManager() const;
+    NChunkHolder::TChunkCachePtr GetChunkCache() const;
 
 private:
-	TExecAgentConfigPtr Config;
-	NCellNode::TBootstrap* NodeBootstrap;
+    TExecAgentConfigPtr Config;
+    NCellNode::TBootstrap* NodeBootstrap;
     
     TJobManagerPtr JobManager;
     TEnvironmentManagerPtr EnvironmentManager;

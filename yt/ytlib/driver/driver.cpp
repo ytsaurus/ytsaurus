@@ -156,11 +156,21 @@ public:
         return ~Config;
     }
 
-    IChannel* GetMasterChannel() const
+    IChannel::TPtr GetMasterChannel() const
     {
-        return ~MasterChannel;
+        return MasterChannel;
     }
 
+    IChannel::TPtr GetSchedulerChannel() const
+    {
+        // Scheduler and master run in separate processes, but we use
+        // scheduler proxy with channel to master because master incorporates
+        // redirection service that will pass our request down the proper
+        // scheduler instance (given that there is a proper instance and that
+        // it had registered itself with the master at /sys/scheduler@address,
+        // see server/scheduler_bootstrap.cpp)
+        return MasterChannel;
+    }
 
     virtual void ReplyError(const TError& error)
     {

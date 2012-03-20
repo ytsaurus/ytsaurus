@@ -3,14 +3,16 @@
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/enum.h>
+#include <ytlib/transaction_server/public.h>
 
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TGuid TJobId;
+using NTransactionServer::TTransactionId;
 
+typedef TGuid TJobId;
 typedef TGuid TOperationId;
 
 DECLARE_ENUM(EOperationType,
@@ -35,6 +37,15 @@ class TSchedulerService;
 typedef TIntrusivePtr<TSchedulerService> TSchedulerServicePtr;
 
 class TSchedulerServiceProxy;
+
+class TOperation;
+typedef TIntrusivePtr<TOperation> TOperationPtr;
+
+class TScheduler;
+typedef TIntrusivePtr<TScheduler> TSchedulerPtr;
+
+class TMapOperationSpec;
+typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

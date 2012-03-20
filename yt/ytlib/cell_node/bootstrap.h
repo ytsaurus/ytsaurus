@@ -11,6 +11,8 @@
 #include <ytlib/rpc/server.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/chunk_server/public.h>
+#include <ytlib/chunk_holder/public.h>
+#include <ytlib/exec_agent/public.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -35,6 +37,9 @@ public:
     Stroka GetPeerAddress() const;
     NYTree::IMapNodePtr GetOrchidRoot() const;
 
+    NChunkHolder::TBootstrap* GetChunkHolderBootstrap() const;
+    NExecAgent::TBootstrap* GetExecAgentBootstrap() const;
+
     void Run();
 
 private:
@@ -48,6 +53,9 @@ private:
     NRpc::IChannel::TPtr MasterChannel;
     Stroka PeerAddress;
     NYTree::IMapNodePtr OrchidRoot;
+
+    THolder<NChunkHolder::TBootstrap> ChunkHolderBootstrap;
+    THolder<NExecAgent::TBootstrap> ExecAgentBootstrap;
 
 };
 

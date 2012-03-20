@@ -4,6 +4,8 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/redirector_service.cpp
   ${BASE}/scheduler_service.cpp
+  ${BASE}/scheduler.cpp
+  ${BASE}/map_operation.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -11,6 +13,8 @@ set( HDRS
   ${BASE}/redirector_service.h
   ${BASE}/scheduler_service.h
   ${BASE}/scheduler_service_proxy.h
+  ${BASE}/scheduler.h
+  ${BASE}/map_operation.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -18,6 +22,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/operations.proto YT_SOURCE_FILES )
 protoc( ${BASE}/jobs.proto YT_SOURCE_FILES )
 protoc( ${BASE}/scheduler_service.proto YT_SOURCE_FILES )

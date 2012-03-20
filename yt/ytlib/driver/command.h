@@ -57,7 +57,8 @@ struct IDriverImpl
     { }
 
     virtual TDriver::TConfig* GetConfig() const = 0;
-    virtual NRpc::IChannel* GetMasterChannel() const = 0;
+    virtual NRpc::IChannel::TPtr GetMasterChannel() const = 0;
+    virtual NRpc::IChannel::TPtr GetSchedulerChannel() const = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer(const Stroka& spec = "") = 0;
     virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec = "") = 0;

@@ -9,6 +9,8 @@
 #include "scheduler_connector.h"
 
 #include <ytlib/cell_node/bootstrap.h>
+#include <ytlib/chunk_holder/bootstrap.h>
+#include <ytlib/chunk_holder/chunk_cache.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -77,6 +79,11 @@ TJobManagerPtr TBootstrap::GetJobManager() const
 TEnvironmentManagerPtr TBootstrap::GetEnvironmentManager() const
 {
     return EnvironmentManager;
+}
+
+NChunkHolder::TChunkCachePtr TBootstrap::GetChunkCache() const
+{
+    return NodeBootstrap->GetChunkHolderBootstrap()->GetChunkCache();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

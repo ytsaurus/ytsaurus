@@ -27,6 +27,7 @@
 #include <ytlib/chunk_holder/bootstrap.h>
 #include <ytlib/chunk_holder/config.h>
 #include <ytlib/chunk_holder/ytree_integration.h>
+#include <ytlib/chunk_holder/chunk_cache.h>
 
 #include <ytlib/exec_agent/bootstrap.h>
 #include <ytlib/exec_agent/config.h>
@@ -112,11 +113,11 @@ void TBootstrap::Run()
         "/orchid",
         ~NMonitoring::GetYPathHttpHandler(~OrchidRoot->Via(controlQueue->GetInvoker())));
 
-    NChunkHolder::TBootstrap dataNodeBootstrap(Config->ChunkHolder, this);
-    dataNodeBootstrap.Init();
+    ChunkHolderBootstrap.Reset(new NChunkHolder::TBootstrap(Config->ChunkHolder, this));
+    ChunkHolderBootstrap->Init();
 
-    NExecAgent::TBootstrap execNodeBootstrap(Config->ExecAgent, this);
-    execNodeBootstrap.Init();
+    ExecAgentBootstrap.Reset(new NExecAgent::TBootstrap(Config->ExecAgent, this));
+    ExecAgentBootstrap->Init();
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
@@ -171,6 +172,16 @@ Stroka TBootstrap::GetPeerAddress() const
 IMapNodePtr TBootstrap::GetOrchidRoot() const
 {
     return OrchidRoot;
+}
+
+NChunkHolder::TBootstrap* TBootstrap::GetChunkHolderBootstrap() const
+{
+    return ChunkHolderBootstrap.Get();
+}
+
+NExecAgent::TBootstrap* TBootstrap::GetExecAgentBootstrap() const
+{
+    return ExecAgentBootstrap.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
