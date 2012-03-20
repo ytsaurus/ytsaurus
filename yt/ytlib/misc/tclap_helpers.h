@@ -1,11 +1,14 @@
 #pragma once
 
+#include "common.h"
 #include "guid.h"
 #include "enum.h"
 #include "string.h"
 
 #include <ytlib/object_server/public.h>
+#include <ytlib/object_server/id.h>
 #include <ytlib/cypress/public.h>
+#include <ytlib/cypress/id.h>
 
 namespace TCLAP {
 

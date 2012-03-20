@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "enum.h"
+#include "foreach.h"
 
 namespace NYT {
 

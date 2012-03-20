@@ -154,7 +154,7 @@ public:
         TParent DoMap(const TFunc& func)
         {
             this->Consumer->OnBeginMap();
-            func(TListCore(this->Consumer));
+            func(TMapCore(this->Consumer));
             this->Consumer->OnEndMap();
             return this->Parent;
         }

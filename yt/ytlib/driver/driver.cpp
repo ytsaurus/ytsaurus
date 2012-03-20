@@ -231,36 +231,18 @@ public:
         return ~TransactionManager;
     }
 
-    virtual TTransactionId GetCurrentTransactionId()
+    virtual TTransactionId GetTransactionId(TTransactedRequest* request, bool required)
     {
-        return !Transaction ? NullTransactionId : Transaction->GetId();
-    }
-
-    virtual TTransactionId GetTransactionId(TTransactedRequest* request)
-    {
-        return request->TransactionId != NullTransactionId ? request->TransactionId : GetCurrentTransactionId();
+        if (required && request->TransactionId == NullTransactionId) {
+            ythrow yexception() << "No transaction was set";
+        }
+        return request->TransactionId;
     }
 
     virtual ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required)
     {
-        if (request->TransactionId == NullTransactionId) {
-            return GetCurrentTransaction(required);
-        } else {
-            return TransactionManager->Attach(request->TransactionId);
-        }
-    }
-
-    virtual ITransaction* GetCurrentTransaction(bool required)
-    {
-        if (!Transaction && required) {
-            ythrow yexception() << "No current transaction";
-        }
-        return ~Transaction;
-    }
-
-    virtual void SetCurrentTransaction(ITransaction* transaction)
-    {
-        Transaction = transaction;
+        auto transactionId = GetTransactionId(request, required);
+        return TransactionManager->Attach(transactionId);
     }
 
 private:
@@ -271,7 +253,6 @@ private:
     IChannel::TPtr MasterChannel;
     IBlockCache::TPtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
-    ITransaction::TPtr Transaction;
 
     void RegisterCommand(const Stroka& name, ICommand* command)
     {

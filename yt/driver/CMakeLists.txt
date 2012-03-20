@@ -1,6 +1,10 @@
-add_executable( yt
+set( SRCS
   main.cpp
+  arguments.h
 )
+
+add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )
+add_executable( yt ${SRCS} )
 
 include_directories(
   ${CMAKE_SOURCE_DIR}
