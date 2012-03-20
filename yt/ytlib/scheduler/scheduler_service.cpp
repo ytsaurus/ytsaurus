@@ -4,6 +4,7 @@
 #include "scheduler.h"
 
 #include <ytlib/cell_scheduler/bootstrap.h>
+#include <ytlib/scheduler/scheduler.h>
 #include <ytlib/ytree/serialize.h>
 
 namespace NYT {
@@ -38,13 +39,29 @@ DEFINE_RPC_SERVICE_METHOD(TSchedulerService, StartOperation)
 {
     auto type = EOperationType(request->type());
     auto transactionId = TTransactionId::FromProto(request->transaction_id());
-    auto spec = DeserializeFromYson(request->spec());
+    auto spec = DeserializeFromYson(request->spec())->AsMap();
 
     context->SetRequestInfo("Type: %s, TransactionId: %s",
         ~type.ToString(),
         ~transactionId.ToString());
 
-
+    Bootstrap
+        ->GetScheduler()
+        ->StartOperation(
+            type,
+            transactionId,
+            spec)
+        ->Subscribe(FromFunctor([=] (TValueOrError<TOperationPtr> result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+                return;
+            }
+            auto operation = result.Value();
+            auto id = operation->GetOperationId();
+            response->set_operation_id(id.ToProto());
+            context->SetResponseInfo("OperationId: %s", ~id.ToString());
+            context->Reply();
+        }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TSchedulerService, AbortOperation)
