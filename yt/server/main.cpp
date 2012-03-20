@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include "scheduler_bootstrap.h"
 
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
@@ -7,12 +6,14 @@
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/chunk_holder/config.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
 #include <ytlib/cell_node/bootstrap.h>
 #include <ytlib/cell_node/config.h>
 #include <ytlib/cell_node/bootstrap.h>
-#include <ytlib/chunk_holder/config.h>
+#include <ytlib/cell_scheduler/config.h>
+#include <ytlib/cell_scheduler/bootstrap.h>
 
 namespace NYT {
 
@@ -120,6 +121,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             config->Load(~configNode, false);
 
             // Override RPC port.
+            // TODO(babenko): enable overriding arbitrary options from the command line
             if (port >= 0) {
                 config->RpcPort = port;
             }
@@ -157,12 +159,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ex.what());
         }
 
-        NCellMaster::TBootstrap bootstrap(configFileName, ~config);
+        NCellMaster::TBootstrap bootstrap(configFileName, config);
         bootstrap.Run();
     }
 
     if (isScheduler) {
-        auto config = New<TSchedulerBootstrap::TConfig>();
+        auto config = New<NCellScheduler::TCellSchedulerConfig>();
         if (results.Has(&configTemplateOpt)) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
@@ -172,12 +174,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
         try {
             config->Load(~configNode);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
+            ythrow yexception() << Sprintf("Error parsing cell scheduler configuration\n%s",
                 ex.what());
         }
 
-        TSchedulerBootstrap schedulerBootstrap(configFileName, ~config);
-        schedulerBootstrap.Run();
+        NCellScheduler::TBootstrap bootstrap(configFileName, config);
+        bootstrap.Run();
     }
 
     // Actually this will never happen.

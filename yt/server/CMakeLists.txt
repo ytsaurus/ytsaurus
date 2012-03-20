@@ -1,6 +1,5 @@
 set( SRCS
   main.cpp
-  scheduler_bootstrap.cpp
 )
 
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )
@@ -11,6 +10,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
+  ${CMAKE_BINARY_DIR}/yt/ytlib/misc
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_holder
   ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
