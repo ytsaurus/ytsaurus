@@ -1,12 +1,11 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_server )
 set( SRCS
-  ${BASE}/public.cpp
+  ${BASE}/block_id.cpp
   ${BASE}/chunk.cpp
   ${BASE}/chunk_list.cpp
   ${BASE}/chunk_manager.cpp
   ${BASE}/chunk_placement.cpp
-  ${BASE}/job_scheduler.cpp
   ${BASE}/chunk_service.cpp
   ${BASE}/chunk_statistics.cpp
   ${BASE}/chunk_tree_ref.cpp
@@ -16,18 +15,18 @@ set( SRCS
   ${BASE}/holder_authority.cpp
   ${BASE}/holder_lease_tracker.cpp
   ${BASE}/holder_statistics.cpp
-  ${BASE}/block_id.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
+  ${BASE}/job_scheduler.cpp
+  ${BASE}/public.cpp
 )
 set( HDRS
-  ${BASE}/public.h
+  ${BASE}/block_id.h
   ${BASE}/chunk.h
   ${BASE}/chunk_list.h
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_manager.h
   ${BASE}/chunk_placement.h
-  ${BASE}/job_scheduler.h
   ${BASE}/chunk_service.h
   ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_statistics.h
@@ -40,9 +39,10 @@ set( HDRS
   ${BASE}/holder_authority.h
   ${BASE}/holder_lease_tracker.h
   ${BASE}/holder_statistics.h
-  ${BASE}/block_id.h
   ${BASE}/job.h
   ${BASE}/job_list.h
+  ${BASE}/job_scheduler.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
