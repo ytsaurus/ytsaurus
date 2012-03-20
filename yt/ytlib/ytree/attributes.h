@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "attributes.pb.h"
+#include <ytlib/ytree/attributes.pb.h>
 
 #include <ytlib/misc/nullable.h>
 

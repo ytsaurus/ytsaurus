@@ -1,3 +1,12 @@
+include_directories(
+  .
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/yt
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/include
+)
+
 add_subdirectory(ytlib)
 add_subdirectory(server)
 add_subdirectory(driver)

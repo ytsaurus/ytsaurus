@@ -71,7 +71,7 @@ void TTableReader::Open()
     LOG_INFO("Table reader opened");
 }
 
-bool TTableReader::NextRow()
+void TTableReader::NextRow()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
@@ -79,6 +79,15 @@ bool TTableReader::NextRow()
     CheckAborted();
 
     Sync(~Reader, &TChunkSequenceReader::AsyncNextRow);
+}
+
+bool TTableReader::IsValid() const
+{
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
+    CheckAborted();
+
     return Reader->IsValid();
 }
 

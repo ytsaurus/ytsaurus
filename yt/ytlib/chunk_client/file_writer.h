@@ -2,7 +2,7 @@
 
 #include "async_writer.h"
 #include "format.h"
-#include "chunk.pb.h"
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 #include <util/system/file.h>
 

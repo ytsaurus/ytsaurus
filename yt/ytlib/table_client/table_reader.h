@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "common.h"
+#include "sync_reader.h"
 #include "chunk_sequence_reader.h"
 
 #include <ytlib/logging/tagged_logger.h>
@@ -31,6 +32,7 @@ namespace NTableClient {
  */
 class TTableReader
     : public NTransactionClient::TTransactionListener
+    , public ISyncReader
 {
 public:
     typedef TIntrusivePtr<TTableReader> TPtr;
@@ -57,14 +59,15 @@ public:
         NChunkClient::IBlockCache* blockCache,
         const NYTree::TYPath& path);
 
-    //! Opens the reader and positions it right before the first row.
+    //! Opens the reader and positions it on the first row
+    /*!
+     *  Check if row is valid before getting it.
+     */
     void Open();
 
-    //! Moves the reader to the next row and positions it right before the first column.
-    /*!
-     *  \returns False iff no more rows are left.
-     */
-    bool NextRow();
+    void NextRow();
+
+    bool IsValid() const;
 
     const TRow& GetRow() const;
 

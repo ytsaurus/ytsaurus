@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "file_writer.h"
-#include "file_chunk_meta.pb.h"
+#include <ytlib/file_client/file_chunk_meta.pb.h>
 
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>

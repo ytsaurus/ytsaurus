@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "table_chunk_meta.pb.h"
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/ref.h>
@@ -50,6 +50,10 @@ bool operator>=(const TValue& lhs, const TValue& rhs);
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::vector<Stroka> TKey;
+
+typedef Stroka TColumn;
+
+typedef std::vector< std::pair<TColumn, TValue> > TRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 

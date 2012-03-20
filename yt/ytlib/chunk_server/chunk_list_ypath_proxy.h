@@ -1,6 +1,6 @@
 #pragma once
 
-#include "chunk_list_ypath.pb.h"
+#include <ytlib/chunk_server/chunk_list_ypath.pb.h>
 
 #include <ytlib/object_server/object_ypath_proxy.h>
 

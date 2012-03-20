@@ -9,7 +9,7 @@
 #include "block_store.h"
 #include "peer_block_table.h"
 #include "session_manager.h"
-#include "chunk_holder_service.pb.h"
+#include <ytlib/chunk_holder/chunk_holder_service.pb.h>
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>

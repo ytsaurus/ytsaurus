@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_manager.pb.h"
+#include <ytlib/chunk_server/chunk_manager.pb.h>
 
 #include <ytlib/actions/signal.h>
 #include <ytlib/meta_state/composite_meta_state.h>
