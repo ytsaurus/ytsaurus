@@ -40,7 +40,7 @@ protected:
      */
     typedef NRpc::EErrorCode EErrorCode;
 
-    TProxyBase(IChannel* channel, const Stroka& serviceName);
+    TProxyBase(IChannel::TPtr channel, const Stroka& serviceName);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
 
@@ -94,7 +94,7 @@ protected:
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(
-        IChannel* channel,
+        IChannel::TPtr channel,
         const Stroka& path,
         const Stroka& verb,
         bool oneWay);
@@ -117,7 +117,7 @@ public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
 
     TTypedClientRequest(
-        IChannel* channel,
+        IChannel::TPtr channel,
         const Stroka& path,
         const Stroka& verb,
         bool oneWay)
@@ -240,7 +240,7 @@ private:
     virtual void OnAcknowledgement();
     virtual void OnResponse(NBus::IMessage* message);
 
-    void Deserialize(NBus::IMessage* responseMessage);
+    void Deserialize(NBus::IMessage::TPtr responseMessage);
 
 };
 
