@@ -251,6 +251,31 @@ void SetExecutableMode(const Stroka& path, bool executable)
     // TODO(babenko): implement this
 }
 
+void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
+{
+#ifdef _win_
+    // From MSDN: If the function succeeds, the return value is nonzero.
+    // If the function fails, the return value is zero. To get extended error information, call GetLastError.
+    auto res = !CreateSymbolicLink(~linkPath, ~filePath, (DWORD)0);
+    if (res == 0) {
+        ythrow yexception() << Sprintf(
+            "Failed to link %s to %s (Error: %d)",
+            ~filePath.Quote(),
+            ~linkPath.Quote(),
+            GetLastError());
+    }
+#else
+    auto res = symlink(~filePath, ~linkPath);
+    if (res != 0) {
+        ythrow yexception() << Sprintf(
+            "Failed to link %s to %s (Error: %d)",
+            ~filePath.Quote(),
+            ~linkPath.Quote(),
+            errno);
+    }
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFS
