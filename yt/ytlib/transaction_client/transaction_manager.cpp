@@ -28,8 +28,8 @@ public:
     typedef TIntrusivePtr<TTransaction> TPtr;
 
     TTransaction(
-        NRpc::IChannel* cellChannel,
-        INode* manifest,
+        NRpc::IChannel::TPtr cellChannel,
+        INodePtr manifest,
         const TTransactionId& parentId,
         TTransactionManager* owner)
         : Owner(owner)
@@ -43,7 +43,7 @@ public:
     }
 
     TTransaction(
-        NRpc::IChannel* cellChannel,
+        NRpc::IChannel::TPtr cellChannel,
         TTransactionManager* owner,
         const TTransactionId& id)
         : Owner(owner)
@@ -71,7 +71,7 @@ public:
         if (Manifest) {
             req->set_manifest(SerializeToYson(~Manifest));
         }
-        auto rsp = Proxy.Execute(~req)->Get();
+        auto rsp = Proxy.Execute(req)->Get();
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
             State = EState::Aborted;
@@ -131,7 +131,7 @@ public:
         LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
 
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
-        auto rsp = Proxy.Execute(~req)->Get();
+        auto rsp = Proxy.Execute(req)->Get();
         if (!rsp->IsOK()) {
             // Let's pretend the transaction was aborted.
             // No sync here, should be safe.
@@ -237,7 +237,7 @@ private:
     {
         // Fire and forget.
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
-        Proxy.Execute(~req);
+        Proxy.Execute(req);
     }
 
     void DoAbort()
@@ -253,8 +253,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
-    TConfig* config, 
-    NRpc::IChannel* channel)
+    TConfig::TPtr config, 
+    NRpc::IChannel::TPtr channel)
     : Config(config)
     , Channel(channel)
     , CypressProxy(channel)
@@ -263,7 +263,7 @@ TTransactionManager::TTransactionManager(
 }
 
 ITransaction::TPtr TTransactionManager::Start(
-    INode* manifest,
+    INodePtr manifest,
     const TTransactionId& parentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -306,7 +306,7 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
 
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
     CypressProxy
-        .Execute(~req)
+        .Execute(req)
         ->Subscribe(FromMethod(
             &TTransactionManager::OnPingResponse,
             MakeStrong(this), 
