@@ -10,6 +10,7 @@ set( SRCS
 set( HDRS
   ${BASE}/public.h
   ${BASE}/private.h
+  ${BASE}/config.h
   ${BASE}/redirector_service.h
   ${BASE}/scheduler_service.h
   ${BASE}/scheduler_service_proxy.h

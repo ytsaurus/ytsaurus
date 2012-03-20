@@ -2,6 +2,7 @@
 
 #include "yson_consumer.h"
 #include "yson_writer.h"
+#include "tree_visitor.h"
 
 // For TVoid.
 #include <ytlib/actions/action.h>
@@ -99,6 +100,18 @@ public:
         TParent Scalar(bool value)
         {
             return Scalar(value ? Stroka("true") : Stroka("false"));
+        }
+
+        TParent Node(const TYson& value)
+        {
+            DeserializeFromYson(value, Consumer);
+            return Parent;
+        }
+
+        TParent Node(INodePtr node)
+        {
+            VisitTree(~node, Consumer, true);
+            return Parent;
         }
 
         TParent Entity()

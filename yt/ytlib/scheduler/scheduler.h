@@ -4,9 +4,14 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/periodic_invoker.h>
+
 #include <ytlib/cell_scheduler/public.h>
+
 #include <ytlib/ytree/public.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
+
 #include <ytlib/cypress/cypress_service_proxy.h>
 
 namespace NYT {
@@ -52,6 +57,8 @@ public:
         const TTransactionId& transactionId,
         const NYTree::IMapNodePtr spec);
 
+    void AbortOperation(TOperationPtr operation);
+
 private:
     NCellScheduler::TCellSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* Bootstrap;
@@ -61,7 +68,23 @@ private:
 
     NTransactionClient::ITransaction::TPtr BootstrapTransaction;
 
-    void Register();
+    TPeriodicInvoker::TPtr TransactionRefreshInvoker;
+    TPeriodicInvoker::TPtr NodesRefreshInvoker;
+
+    yhash_map<TOperationId, TOperationPtr> Operations;
+
+    void RegisterOperation(TOperationPtr operation);
+    void UnregisterOperation(TOperationPtr operation);
+
+    void RegisterAtMaster();
+
+    void StartRefresh();
+    void RefreshTransactions();
+    void OnTransactionsRefreshed(
+        NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr rsp,
+        std::vector<TTransactionId> transactionIds);
+    void RefreshNodes();
+    void OnNodesRefreshed(NYTree::TYPathProxy::TRspGet::TPtr rsp);
     
     TValueOrError<TOperationPtr> OnOperationNodeCreated(
         NYTree::TYPathProxy::TRspSet::TPtr rsp,

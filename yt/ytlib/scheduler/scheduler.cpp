@@ -2,11 +2,15 @@
 #include "scheduler.h"
 #include "private.h"
 
+#include <ytlib/misc/string.h>
+
 #include <ytlib/cell_scheduler/config.h>
 #include <ytlib/cell_scheduler/bootstrap.h>
 
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/cypress/id.h>
+
+#include <ytlib/object_server/object_ypath_proxy.h>
 
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
@@ -20,6 +24,7 @@ using namespace NCellScheduler;
 using namespace NTransactionClient;
 using namespace NCypress;
 using namespace NYTree;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -77,10 +82,11 @@ TScheduler::TScheduler(
 
 void TScheduler::Start()
 {
-    Register();
+    RegisterAtMaster();
+    StartRefresh();
 }
 
-void TScheduler::Register()
+void TScheduler::RegisterAtMaster()
 {
     // TODO(babenko): Currently we use succeed-or-die strategy. Add retries later.
 
@@ -121,6 +127,21 @@ void TScheduler::Register()
     LOG_INFO("Scheduler address published");
 }
 
+void TScheduler::StartRefresh()
+{
+    TransactionRefreshInvoker = New<TPeriodicInvoker>(
+        FromMethod(&TScheduler::RefreshTransactions, MakeWeak(this))
+        ->Via(Bootstrap->GetControlInvoker()),
+        Config->TransactionsRefreshPeriod);
+    TransactionRefreshInvoker->Start();
+
+    NodesRefreshInvoker = New<TPeriodicInvoker>(
+        FromMethod(&TScheduler::RefreshNodes, MakeWeak(this))
+        ->Via(Bootstrap->GetControlInvoker()),
+        Config->NodesRefreshPeriod);
+    NodesRefreshInvoker->Start();
+}
+
 TFuture< TValueOrError<TOperationPtr> >::TPtr TScheduler::StartOperation(
     EOperationType type,
     const TTransactionId& transactionId,
@@ -138,7 +159,7 @@ TFuture< TValueOrError<TOperationPtr> >::TPtr TScheduler::StartOperation(
         transactionId,
         spec);
 
-    LOG_INFO("Starting %s operation (OperationId: %s, TransactionId: %s)",
+    LOG_INFO("Starting operation (Type: %s, OperationId: %s, TransactionId: %s)",
         ~type.ToString(),
         ~operationId.ToString(),
         ~transactionId.ToString());
@@ -146,10 +167,13 @@ TFuture< TValueOrError<TOperationPtr> >::TPtr TScheduler::StartOperation(
     // Create a node in Cypress that will represent the operation.
     auto setReq = TYPathProxy::Set(GetOperationPath(operationId));
     setReq->set_value(BuildYsonFluently()
-        .BeginMap()
-            .Item("type").Scalar(type.ToString())
+        .WithAttributes().BeginMap()
+        .EndMap()
+        .BeginAttributes()
+            .Item("type").Scalar(CamelCaseToUnderscoreCase(type.ToString()))
             .Item("transaction_id").Scalar(transactionId.ToString())
-        .EndMap());
+            .Item("spec").Node(spec)
+        .EndAttributes());
 
     return CypressProxy.Execute(setReq)->Apply(
         FromMethod(
@@ -171,12 +195,112 @@ TValueOrError<TOperationPtr> TScheduler::OnOperationNodeCreated(
         return error;
     }
 
+    RegisterOperation(operation);
     return operation;
+}
+
+void TScheduler::AbortOperation(TOperationPtr operation)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LOG_INFO("Aborting operation (OperationId: %s)",
+        ~operation->GetOperationId().ToString());
+
+    UnregisterOperation(operation);
 }
 
 TYPath TScheduler::GetOperationPath(const TOperationId& id)
 {
     return CombineYPaths("/sys/scheduler/operations", id.ToString());
+}
+
+void TScheduler::RefreshNodes()
+{
+}
+
+void TScheduler::OnNodesRefreshed(TYPathProxy::TRspGet::TPtr rsp)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+}
+
+void TScheduler::RefreshTransactions()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    // Check if any operations are running.
+    if (Operations.empty())
+        return;
+
+    // Collect all transactions that are used by currently running operations.
+    yhash_set<TTransactionId> transactionIds;
+    FOREACH (const auto& pair, Operations) {
+        transactionIds.insert(pair.second->GetTransactionId());
+    }
+
+    // Invoke GetId verbs for these transactions to see if they are alive.
+    std::vector<TTransactionId> transactionIdsList;
+    auto batchReq = CypressProxy.ExecuteBatch();
+    FOREACH (const auto& id, transactionIds) {
+        auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
+        transactionIdsList.push_back(id);
+        batchReq->AddRequest(checkReq);
+    }
+
+    LOG_INFO("Refreshing %d transactions", batchReq->GetSize());
+    batchReq->Invoke()->Subscribe(
+        FromMethod(&TScheduler::OnTransactionsRefreshed, MakeStrong(this), transactionIdsList)
+        ->Via(Bootstrap->GetControlInvoker()));
+
+}
+
+void TScheduler::OnTransactionsRefreshed(
+    TCypressServiceProxy::TRspExecuteBatch::TPtr rsp,
+    std::vector<TTransactionId> transactionIds)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!rsp->IsOK()) {
+        LOG_ERROR("Error refreshing transactions\n%s", rsp->GetError().ToString());
+        return;
+    }
+
+    LOG_INFO("Transactions refreshed successfully");
+
+    // Collect the list of dead transactions.
+    yhash_set<TTransactionId> deadTransactionIds;
+    for (int index = 0; index < rsp->GetSize(); ++index) {
+        if (!rsp->GetResponse(index)->IsOK()) {
+            YVERIFY(deadTransactionIds.insert(transactionIds[index]).second);
+        }
+    }
+
+    // Collect the list of operations corresponding to dead transactions.
+    std::vector<TOperationPtr> deadOperations;
+    FOREACH (const auto& pair, Operations) {
+        auto operation = pair.second;
+        if (deadTransactionIds.find(operation->GetTransactionId()) != deadTransactionIds.end()) {
+            deadOperations.push_back(operation);
+        }
+    }
+
+    // Abort dead operations.
+    FOREACH (auto operation, deadOperations) {
+        LOG_INFO("Operation corresponds to a dead transaction, aborting (OperationId: %s, TransactionId: %s)",
+            ~operation->GetOperationId().ToString(),
+            ~operation->GetTransactionId().ToString());
+        AbortOperation(operation);
+    }
+}
+
+void TScheduler::RegisterOperation(TOperationPtr operation)
+{
+    YVERIFY(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
+}
+
+void TScheduler::UnregisterOperation(TOperationPtr operation)
+{
+    YVERIFY(Operations.erase(operation->GetOperationId()) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////
