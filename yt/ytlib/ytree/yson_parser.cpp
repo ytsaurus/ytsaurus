@@ -537,6 +537,12 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool fragmented)
     parser.Finish();
 }
 
+void ParseYson(const Stroka& string, IYsonConsumer* consumer, bool fragmented)
+{
+    TStringInput input(string);
+    ParseYson(&input, consumer, fragmented);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYtree

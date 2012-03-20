@@ -32,10 +32,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
             
-void ParseYson(
-    TInputStream* input,
-    IYsonConsumer* consumer,
-    bool fragmented = false);
+void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool fragmented = false);
+void ParseYson(const Stroka& string, IYsonConsumer* consumer, bool fragmented = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
