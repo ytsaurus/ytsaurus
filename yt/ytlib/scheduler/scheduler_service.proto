@@ -1,0 +1,85 @@
+package NYT.NScheduler.NProto;
+
+import "yt/ytlib/scheduler/tasks.proto";
+import "yt/ytlib/rpc/rpc.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Starts a new task.
+
+message TReqStartTask
+{ 
+    required TTaskSpec spec = 1;
+}
+
+message TRspStartTask
+{
+    required bytes task_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Aborts an existing task.
+
+message TReqAbortTask
+{ 
+    required bytes task_id = 1;
+}
+
+message TRspAbortTask
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Waits until a given task is finished.
+
+message TReqWaitForTask
+{ 
+    required bytes task_id = 1;
+}
+
+message TRspWaitForTask
+{
+	//required NYT.NRpc.NProto.TError error = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Informs the scheduler about exec node status and
+// requests orders.
+
+message TJobStatus
+{
+	required bytes job_id = 1;
+	required int32 state = 2;
+//	required NYT.NRpc.NProto.TError error = 3;
+}
+
+message TReqHeartbeat
+{
+	required string address = 1;
+	required int32 total_slot_count = 2;
+	required int32 free_slot_count = 3;
+	repeated TJobStatus jobs = 4;
+	// TODO(babenko): report resource usage info
+}
+
+message TStartJobInfo
+{
+	required bytes job_id = 1;
+	required TJobSpec spec = 2;
+}
+
+message TStopJobInfo
+{
+	required bytes job_id = 1;
+}
+
+message TRspHeartbeat
+{
+	repeated TStartJobInfo jobs_to_start = 1;
+	repeated TStopJobInfo jobs_to_stop = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
