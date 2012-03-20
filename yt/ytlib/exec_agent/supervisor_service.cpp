@@ -45,7 +45,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
         ~jobId.ToString(),
         ~error.ToString());
 
-    Bootstrap->GetJobManager()->OnJobFinished(
+    Bootstrap->GetJobManager()->SetJobResult(
         jobId,
         request->result());
 }
