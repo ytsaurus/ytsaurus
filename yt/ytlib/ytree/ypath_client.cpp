@@ -12,7 +12,6 @@ namespace NYTree {
 
 using namespace NBus;
 using namespace NRpc;
-using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +28,7 @@ IMessage::TPtr TYPathRequest::Serialize()
 {
     auto bodyData = SerializeBody();
 
-    TRequestHeader header;
+    NRpc::NProto::TRequestHeader header;
     header.set_path(Path_);
     header.set_verb(Verb_);
     if (HasAttributes()) {
@@ -49,7 +48,7 @@ void TYPathResponse::Deserialize(NBus::IMessage* message)
     YASSERT(message);
 
     auto header = GetResponseHeader(message);
-    Error_ = GetResponseError(header);
+    Error_ = TError::FromProto(header.error());
     if (header.has_attributes()) {
         SetAttributes(FromProto(header.attributes()));
     }
@@ -265,7 +264,7 @@ void OnYPathResponse(
     const TYPath& resolvedPath)
 {
     auto header = GetResponseHeader(~responseMessage);
-    auto error = GetResponseError(header);
+    auto error = TError::FromProto(header.error());
 
     if (error.IsOK()) {
         asyncResponseMessage->Set(responseMessage);
@@ -275,7 +274,7 @@ void OnYPathResponse(
             ~verb,
             ~resolvedPath,
             ~error.GetMessage());
-        SetResponseError(header, TError(error.GetCode(), message));
+        *header.mutable_error() = TError(error.GetCode(), message).ToProto();
 
         auto updatedResponseMessage = SetResponseHeader(~responseMessage, header);
         asyncResponseMessage->Set(updatedResponseMessage);
@@ -325,13 +324,8 @@ ExecuteVerb(
             verb,
             ComputeResolvedYPath(path, suffixPath)));
 
-    try {
-        // This should never throw.
-        suffixService->Invoke(~context);
-    }
-    catch (const std::exception& ex) {
-        LOG_FATAL("Unexpected exception during verb execution\n%s", ex.what());
-    }
+    // This should never throw.
+    suffixService->Invoke(~context);
 
     return asyncResponseMessage;
 }
