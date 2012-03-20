@@ -148,9 +148,22 @@ public:
     TDriverProgram()
         : ExitCode(0)
     {
+        RegisterParser("start", ~New<TStartArgs>());
+        RegisterParser("commit", ~New<TCommitArgs>());
+        RegisterParser("abort", ~New<TAbortArgs>());
+
         RegisterParser("get", ~New<TGetArgs>());
         RegisterParser("set", ~New<TSetArgs>());
         RegisterParser("remove", ~New<TRemoveArgs>());
+        RegisterParser("list", ~New<TListArgs>());
+        RegisterParser("create", ~New<TCreateArgs>());
+        RegisterParser("lock", ~New<TLockArgs>());
+
+        RegisterParser("download", ~New<TDownloadArgs>());
+        RegisterParser("upload", ~New<TUploadArgs>());
+
+        RegisterParser("read", ~New<TReadArgs>());
+        RegisterParser("write", ~New<TWriteArgs>());
     }
 
     int Main(int argc, const char* argv[])
