@@ -117,8 +117,6 @@ class YTEnv:
                 ).split(), stderr = subprocess.PIPE)
             p.poll()
             name = "master-%d" % (i)
-            if p.returncode is not None:
-                print '%s is already dead with error %s' %(name, p.stderr)
             self.process_to_kill.append((p, name))
 
     # TODO(panin): think about refactoring this part
@@ -150,7 +148,7 @@ class YTEnv:
 
     def _run_holders(self):
         for i in xrange(self.NUM_HOLDERS):
-            p = subprocess.Popen('ytserver --chunk-holder --config {config_path} --port {port}'.format(
+            p = subprocess.Popen('ytserver --node --config {config_path} --port {port}'.format(
                     port=7001 + i,
                     config_path=self.config_paths['holder'][i],
                 ).split())
