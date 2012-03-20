@@ -128,7 +128,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
             config->Validate();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing chunk holder configuration\n%s",
+            ythrow yexception() << Sprintf("Error parsing cell node configuration\n%s",
                 ex.what());
         }
 
