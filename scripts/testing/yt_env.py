@@ -114,13 +114,17 @@ class YTEnv:
                     port=8001 + i,
                     config_path=self.config_paths['master'][i],
                     i=i,
-                ).split())
-            self.process_to_kill.append((p, "master-%d" % (i)))
+                ).split(), stderr = subprocess.PIPE)
+            p.poll()
+            name = "master-%d" % (i)
+            if p.returncode is not None:
+                print '%s is already dead with error %s' %(name, p.stderr)
+            self.process_to_kill.append((p, name))
 
     # TODO(panin): think about refactoring this part
     def _wait_for_ready_masters(self):
         if self.NUM_MASTERS == 0: return
-        max_wait_time = 5
+        max_wait_time = 10
         sleep_quantum = 0.5
         current_wait_time = 0
         print 'Waiting for masters to be ready...'
