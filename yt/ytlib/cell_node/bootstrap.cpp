@@ -4,9 +4,7 @@
 
 #include <ytlib/misc/ref_counted_tracker.h>
 #include <ytlib/bus/nl_server.h>
-#include <ytlib/rpc/channel_cache.h>
 #include <ytlib/election/leader_channel.h>
-#include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/orchid/orchid_service.h>
@@ -45,7 +43,7 @@ using namespace NChunkHolder;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChunkHolder");
+static NLog::TLogger Logger("NodeBootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
