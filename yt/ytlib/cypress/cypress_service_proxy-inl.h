@@ -60,7 +60,7 @@ std::vector< TIntrusivePtr<TTypedResponse> > TCypressServiceProxy::TRspExecuteBa
 
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-TCypressServiceProxy::Execute(TTypedRequest* innerRequest)
+TCypressServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
@@ -71,8 +71,7 @@ TCypressServiceProxy::Execute(TTypedRequest* innerRequest)
     outerRequest->Attachments() = innerRequestMessage->GetParts();
 
     return outerRequest->Invoke()->Apply(FromFunctor(
-        [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
-        {
+        [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse> {
             auto innerResponse = New<TTypedResponse>();
             auto error = outerResponse->GetError();
             if (error.IsOK()) {

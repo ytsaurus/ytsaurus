@@ -6,6 +6,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
+  ${CMAKE_BINARY_DIR}/yt/ytlib/misc
   ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_holder
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_server

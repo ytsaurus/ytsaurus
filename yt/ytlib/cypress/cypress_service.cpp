@@ -86,7 +86,7 @@ private:
     void OnResponse(IMessage::TPtr responseMessage, int requestIndex)
     {
         auto responseHeader = GetResponseHeader(~responseMessage);
-        auto error = GetResponseError(responseHeader);
+        auto error = TError::FromProto(responseHeader.error());
 
         LOG_DEBUG("Execute[%d] -> Error: %s",
             requestIndex,

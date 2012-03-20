@@ -457,7 +457,7 @@ void TCypressManager::ValidateLock(
             const auto& lock = GetLock(lockId);
             // Check for download conflict.
             if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
-                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s a downward lock at node %s taken by transaction %s",
+                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s downward lock at node %s taken by transaction %s",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
                     ~FormatEnum(lock.GetMode()).Quote(),
