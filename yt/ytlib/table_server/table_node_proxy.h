@@ -1,7 +1,7 @@
 #pragma once
 
 #include "table_node.h"
-#include "table_ypath.pb.h"
+#include <ytlib/table_server/table_ypath.pb.h>
 
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/cypress/node_proxy_detail.h>

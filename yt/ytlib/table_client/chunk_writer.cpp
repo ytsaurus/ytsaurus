@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "chunk_writer.h"
-#include "table_chunk_meta.pb.h"
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/actions/action_util.h>
 #include <ytlib/chunk_client/writer_thread.h>

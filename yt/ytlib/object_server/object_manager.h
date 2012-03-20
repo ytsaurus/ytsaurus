@@ -3,7 +3,7 @@
 #include "public.h"
 #include "attribute_set.h"
 #include "type_handler.h"
-#include "object_manager.pb.h"
+#include <ytlib/object_server/object_manager.pb.h>
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/id_generator.h>

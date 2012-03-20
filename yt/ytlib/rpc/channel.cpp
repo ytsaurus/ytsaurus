@@ -2,7 +2,7 @@
 #include "channel.h"
 #include "client.h"
 #include "message.h"
-#include "rpc.pb.h"
+#include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/bus/nl_client.h>
 

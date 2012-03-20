@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "file_reader_base.h"
-#include "file_chunk_meta.pb.h"
+#include <ytlib/file_client/file_chunk_meta.pb.h>
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
