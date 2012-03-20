@@ -7,3 +7,10 @@ class TestRunMaster(YTEnvSetup):
 
     def test(self):
         assert True
+
+class TestRunHolder(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_HOLDERS = 1
+
+    def test(self):
+        assert True

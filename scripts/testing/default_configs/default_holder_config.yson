@@ -1,6 +1,34 @@
 {
-  "cache_remote_reader" = {
-    "publish_peer" = "true";
+  "chunk_holder" = {
+    "cache_remote_reader" = {
+      "publish_peer" = "true";
+    };
+    "response_throttling_size" = 524288000;
+    "max_cached_blocks_size" = 10737418240;
+    "store_locations" = [
+      {
+        "path" = "/yt/disk1/data/chunk_store";
+        "quota" = 1825361100800;
+      };
+      {
+        "path" = "/yt/disk2/data/chunk_store";
+        "quota" = 1825361100800;
+      };
+      {
+        "path" = "/yt/disk3/data/chunk_store";
+        "quota" = 1825361100800;
+      };
+      {
+        "path" = "/yt/disk4/data/chunk_store";
+        "quota" = 1825361100800;
+      };
+    ];
+    "cache_location" = {
+      "path" = "/yt/disk1/data/chunk_cache";
+      "quota" = 1073741824;
+    };
+    "full_heartbeat_timeout" = 180000;
+    "max_cached_readers" = 256;
   };
   "masters" = {
     "addresses" = [
@@ -12,7 +40,7 @@
   "logging" = {
     "rules" = [
       {
-        "min_level" = "debug";
+        "min_level" = "info";
         "writers" = [
           "file";
         ];
@@ -23,35 +51,10 @@
     ];
     "writers" = {
       "file" = {
-        "file_name" = "holder-0-0.log";
+        "file_name" = "holder-0.log";
         "type" = "file";
         "pattern" = "$(datetime) $(level) $(category) $(message)";
       };
     };
   };
-  "chunk_cache_location" = {
-    "path" = "/yt/disk1/data/chunk_cache";
-    "quota" = 1073741824;
-  };
-  "response_throttling_size" = 524288000;
-  "max_cached_blocks_size" = 10737418240;
-  "chunk_store_locations" = [
-    {
-      "path" = "/yt/disk1/data/chunk_store";
-      "quota" = 1825361100800;
-    };
-    {
-      "path" = "/yt/disk2/data/chunk_store";
-      "quota" = 1825361100800;
-    };
-    {
-      "path" = "/yt/disk3/data/chunk_store";
-      "quota" = 1825361100800;
-    };
-    {
-      "path" = "/yt/disk4/data/chunk_store";
-      "quota" = 1825361100800;
-    };
-  ];
-  "max_cached_readers" = 256;
 }
