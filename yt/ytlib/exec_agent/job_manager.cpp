@@ -71,7 +71,10 @@ TJobPtr TJobManager::GetJob(const TJobId& jobId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto job = FindJob(jobId);
-    YASSERT(job);
+    if (!job) {
+        // TODO(babenko): error code
+        ythrow yexception() << Sprintf("No such job %s", ~jobId.ToString());
+    }
     return job;
 }
 

@@ -52,12 +52,11 @@ public:
     //! Finds the job by its id, returns NULL if no job is found.
     TJobPtr FindJob(const TJobId& jobId);
 
-    //! Finds the job by its id, fails if no job is found.
+    //! Finds the job by its id, throws if no job is found.
     TJobPtr GetJob(const TJobId& jobId);
 
     //! Returns a list of all currently known jobs.
     std::vector<TJobPtr> GetAllJobs();
-
 
     void SetJobResult(
         const TJobId& jobId, 
