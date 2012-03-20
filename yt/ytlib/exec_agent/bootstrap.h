@@ -27,12 +27,14 @@ public:
     NRpc::IChannel::TPtr GetLeaderChannel() const;
     Stroka GetPeerAddress() const;
     TJobManagerPtr GetJobManager() const;
+    TEnvironmentManagerPtr GetEnvironmentManager() const;
 
 private:
 	TJobManagerConfigPtr Config;
 	NCellNode::TBootstrap* NodeBootstrap;
     
     TJobManagerPtr JobManager;
+    TEnvironmentManagerPtr EnvironmentManager;
 
 };
 

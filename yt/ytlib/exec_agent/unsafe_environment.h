@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "environment.h"
 
 namespace NYT {
 namespace NExecAgent {

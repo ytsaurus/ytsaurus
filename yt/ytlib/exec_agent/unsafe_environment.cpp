@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "unsafe_environment.h"
+#include "environment.h"
 #include "private.h"
 
 #include <ytlib/misc/thread_affinity.h>

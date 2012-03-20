@@ -3,6 +3,8 @@
 #include "public.h"
 #include "tasks.pb.h"
 
+#include <ytlib/misc/thread_affinity.h>
+
 //#include <ytlib/exec/scheduler_internal_proxy.h>
 //#include <ytlib/chunk_holder/chunk_cache.h>
 //#include <ytlib/misc/error.h>
@@ -66,6 +68,8 @@ public:
     //const NScheduler::NProto::TJobSpec& GetJobSpec(const TJobId& jobId);
 
 private:
+    TJobManagerConfigPtr Config;
+    TBootstrap* Bootstrap;
 
     //void OnJobStarted(const TJobId& jobId);
 
@@ -73,22 +77,16 @@ private:
     //    NScheduler::NProto::TJobResult jobResult,
     //    const TJobId& jobId);
 
-    //TConfig::TPtr Config;
-
-    //TActionQueue::TPtr JobManagerThread;
-
-    //std::vector<TSlotPtr> Slots;
+    std::vector<TSlotPtr> Slots;
 
     //yhash_map<TJobId, TIntrusivePtr<TJob> > Jobs;
-
-    //TEnvironmentManager EnvironmentManager;
 
     //NChunkHolder::TChunkCachePtr ChunkCache;
     //NRpc::IChannel::TPtr MasterChannel;
 
     //NScheduler::TSchedulerInternalProxy SchedulerProxy;
 
-    //DECLARE_THREAD_AFFINITY_SLOT(JobManagerThread);
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "job_manager.h"
-//#include "unsafe_environment.h"
+#include "config.h"
+#include "slot.h"
+#include "bootstrap.h"
 #include "private.h"
 
 #include <ytlib/misc/fs.h>
@@ -17,20 +19,20 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//TJobManager::TJobManager(
-//    TJobManagerConfigPtr config,
-//    TBootstrap* bootstrap,)
-//    : Config(config)
-//    , JobManagerThread(New<TActionQueue>("JobManager"))
-//    , EnvironmentManager(config)
-//    , ChunkCache(chunkCache)
-//    , MasterChannel(masterChannel)
-//    // make special "scheduler channel" that asks master for scheduler 
-//    , SchedulerProxy(~NRpc::CreateBusChannel(Config->SchedulerAddress))
-//{
-    //using namespace std;
-    //VERIFY_INVOKER_AFFINITY(JobManagerThread->GetInvoker(), JobManagerThread);
+TJobManager::TJobManager(
+    TJobManagerConfigPtr config,
+    TBootstrap* bootstrap)
+    : Config(config)
+    , Bootstrap(bootstrap)
+    // make special "scheduler channel" that asks master for scheduler 
+    //, SchedulerProxy(~NRpc::CreateBusChannel(Config->SchedulerAddress))
+{
+    YASSERT(config);
+    YASSERT(bootstrap);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetControlInvoker(), ControlThread);
 
+    //using namespace std;
+    // TODO(babenko): fix tallyman startup
     //try {
     //    tallyman_start( "/export/home/yeti/projects/wallet" );
     //}
@@ -41,35 +43,26 @@ static NLog::TLogger& Logger = ExecAgentLogger;
     //    LOG_DEBUG("Failed to start tallyman: %s", err.what());
     //}
 
-    //// Init job slots.
-    //for (int slotIndex = 0; slotIndex < Config->SlotCount; ++ slotIndex) {
-    //    auto slotName = Sprintf("slot.%d", slotIndex);
-    //    auto location = NFS::CombinePaths(Config->SlotLocation, slotName);
+    // Init job slots.
+    for (int slotIndex = 0; slotIndex < Config->SlotCount; ++slotIndex) {
+        auto slotName = Sprintf("slot.%d", slotIndex);
+        auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
+        Slots.push_back(New<TSlot>(slotPath, slotName));
+    }
+}
 
-    //    Slots.push_back(New<TSlot>(~Config->Slot, location, slotName));
-    //}
-
-    //// Register environment builders.
-    //EnvironmentManager.Register(
-    //    "unsafe", 
-    //    ~New<TUnsafeEnvironmentBuilder>());
-//}
-//
-//TJobManager::~TJobManager()
-//{
+TJobManager::~TJobManager()
+{
+// TODO(babenko): fix tallyman finalization
 //    tallyman_stop();
-//}
+}
 //
-//IInvoker::TPtr TJobManager::GetInvoker()
-//{
-//    return JobManagerThread->GetInvoker();
-//}
 //
 //void TJobManager::StartJob(
 //    const TJobId& jobId,
 //    const NScheduler::NProto::TJobSpec& jobSpec)
 //{
-//    VERIFY_THREAD_AFFINITY(JobManagerThread);
+//    VERIFY_THREAD_AFFINITY(ControlThread);
 //
 //    TSlot::TPtr emptySlot;
 //    FOREACH(auto slot, Slots) {
@@ -150,7 +143,7 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 //
 //void TJobManager::OnJobStarted(const TJobId& jobId)
 //{
-//    VERIFY_THREAD_AFFINITY(JobManagerThread);
+//    VERIFY_THREAD_AFFINITY(ControlThread);
 //
 //    auto req = SchedulerProxy.JobStarted();
 //    *(req->mutable_job_id()) = jobId.ToProto();
@@ -161,7 +154,7 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 //
 //void TJobManager::CancelOperation(const TOperationId& operationId)
 //{
-//    VERIFY_THREAD_AFFINITY(JobManagerThread);
+//    VERIFY_THREAD_AFFINITY(ControlThread);
 //    FOREACH(auto& job, Jobs) {
 //        if (job.First().OperationId == operationId) {
 //            job.Second()->Cancel(TError("Job cancelled by sheduler."));
@@ -174,7 +167,7 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 //    NScheduler::NProto::TJobResult jobResult,
 //    const TJobId& jobId)
 //{
-//    VERIFY_THREAD_AFFINITY(JobManagerThread);
+//    VERIFY_THREAD_AFFINITY(ControlThread);
 //
 //    LOG_DEBUG("Job finished (JobId: %s)", ~jobId.ToString());
 //
@@ -190,7 +183,7 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 //
 //TJob::TPtr TJobManager::GetJob(const TJobId& jobId)
 //{
-//    VERIFY_THREAD_AFFINITY(JobManagerThread);
+//    VERIFY_THREAD_AFFINITY(ControlThread);
 //
 //    auto it = Jobs.find(jobId);
 //    if (it == Jobs.end()) {
@@ -213,7 +206,7 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 //const NScheduler::NProto::TJobSpec& 
 //TJobManager::GetJobSpec(const TJobId& jobId)
 //{
-//    VERIFY_THREAD_AFFINITY(JobManagerThread);
+//    VERIFY_THREAD_AFFINITY(ControlThread);
 //
 //    auto job = GetJob(jobId);
 //    return job->GetSpec();

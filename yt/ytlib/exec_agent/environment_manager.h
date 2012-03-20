@@ -2,19 +2,16 @@
 
 #include "public.h"
 
-#include <ytlib/misc/configurable.h>
-
 namespace NYT {
 namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TEnvironmentManager
+    : public TRefCounted
 {
 public:
-    TEnvironmentManager(TEnvironmentManagerConfigPtr environmentMap);
+    TEnvironmentManager(TEnvironmentManagerConfigPtr config);
 
     IProxyControllerPtr CreateProxyController(
         const Stroka& envName,

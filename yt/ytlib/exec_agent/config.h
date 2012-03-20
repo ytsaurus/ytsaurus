@@ -28,7 +28,7 @@ struct TEnvironmentConfig
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes configuration for a collection of named environments.
-class TEnvironmentManagerConfig
+struct TEnvironmentManagerConfig
     : public TConfigurable
 {
 public:
@@ -46,7 +46,6 @@ public:
         return it->second;
     }
 
-private:
     yhash_map<Stroka, TEnvironmentConfigPtr> Environments;
 
 };

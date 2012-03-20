@@ -13,8 +13,6 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-
 TEnvironmentManager::TEnvironmentManager(TEnvironmentManagerConfigPtr config)
     : Config(config)
 { }
@@ -39,7 +37,7 @@ IProxyControllerPtr TEnvironmentManager::CreateProxyController(
     }
 
     return it->second->CreateProxyController(
-        env->Config,
+        env->GetOptions(),
         jobId,
         workingDirectory);
 }

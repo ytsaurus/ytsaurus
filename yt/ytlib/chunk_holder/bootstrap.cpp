@@ -33,7 +33,10 @@ TBootstrap::TBootstrap(
     NCellNode::TBootstrap* nodeBootstrap)
     : Config(config)
     , NodeBootstrap(nodeBootstrap)
-{ }
+{
+    YASSERT(config);
+    YASSERT(nodeBootstrap);
+}
 
 TBootstrap::~TBootstrap()
 { }

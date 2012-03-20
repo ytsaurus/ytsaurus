@@ -3,6 +3,9 @@
 #include "config.h"
 #include "job_manager.h"
 #include "supervisor_service.h"
+#include "environment.h"
+#include "environment_manager.h"
+#include "unsafe_environment.h"
 
 #include <ytlib/cell_node/bootstrap.h>
 
@@ -18,7 +21,10 @@ TBootstrap::TBootstrap(
     NCellNode::TBootstrap* nodeBootstrap)
     : Config(config)
     , NodeBootstrap(nodeBootstrap)
-{ }
+{
+    YASSERT(config);
+    YASSERT(nodeBootstrap);
+}
 
 TBootstrap::~TBootstrap()
 { }
@@ -29,6 +35,9 @@ void TBootstrap::Init()
 
     auto supervisorService = New<TSupervisorService>(this);
     NodeBootstrap->GetRpcServer()->RegisterService(supervisorService);
+
+    EnvironmentManager = New<TEnvironmentManager>(Config);
+    EnvironmentManager->Register("unsafe",  CreateUnsafeEnvironmentBuilder());
 }
 
 TJobManagerConfigPtr TBootstrap::GetConfig() const
@@ -54,6 +63,11 @@ Stroka TBootstrap::GetPeerAddress() const
 TJobManagerPtr TBootstrap::GetJobManager() const
 {
     return JobManager;
+}
+
+TEnvironmentManagerPtr TBootstrap::GetEnvironmentManager() const
+{
+    return EnvironmentManager;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
