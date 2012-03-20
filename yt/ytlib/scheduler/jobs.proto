@@ -48,7 +48,7 @@ message TTableOutputSpec
 }
 
 // Defines how to store stderr from a job.
-message TStderrSpec
+message TStdErrSpec
 {
     // The transaction for uploading stderr chunks.
     required bytes transaction_id = 1;
@@ -91,7 +91,7 @@ message TMapJobSpec
     required bytes output_transaction_id = 4;
 
     // Describes how to store job stderr.
-    required TStderrSpec stderr_spec = 5;
+    required TStdErrSpec std_err_spec = 5;
 
     // The user command to be executed.
     required string shell_comand = 6;
