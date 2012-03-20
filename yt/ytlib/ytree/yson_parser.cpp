@@ -537,9 +537,9 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool fragmented)
     parser.Finish();
 }
 
-void ParseYson(const Stroka& string, IYsonConsumer* consumer, bool fragmented)
+void ParseYson(const TYson& yson, IYsonConsumer* consumer, bool fragmented)
 {
-    TStringInput input(string);
+    TStringInput input(yson);
     ParseYson(&input, consumer, fragmented);
 }
 

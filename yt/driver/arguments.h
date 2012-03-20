@@ -1,6 +1,8 @@
 #pragma once
 
 #include <ytlib/ytree/tree_builder.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/serialize.h>
 
 #include <tclap/CmdLine.h>
 #include <ytlib/misc/tclap_helpers.h>
@@ -95,8 +97,9 @@ protected:
 
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
-        consumer->OnMapItem("transaction_id");
-        consumer->OnStringScalar(TxArg->getValue().ToString());
+        BuildYsonMapFluently(consumer)
+            .Item("transaction_id")
+            .Scalar(TxArg->getValue().ToString());
         TArgsBase::BuildCommand(consumer);
     }
 };
@@ -109,7 +112,7 @@ class TGetArgs
 public:
     TGetArgs()
     {
-        PathArg.Reset(new TFreeStringArg("path", "path in cypress", true, "", "string"));
+        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
         Cmd->add(~PathArg);
     }
 
@@ -118,11 +121,9 @@ private:
 
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
-        consumer->OnMapItem("do");
-        consumer->OnStringScalar("get");
-
-        consumer->OnMapItem("path");
-        consumer->OnStringScalar(PathArg->getValue());
+        BuildYsonMapFluently(consumer)
+            .Item("do").Scalar("get")
+            .Item("path").Scalar(PathArg->getValue());
 
         TTransactedArgs::BuildCommand(consumer);
     }
@@ -149,15 +150,10 @@ private:
 
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
-        consumer->OnMapItem("do");
-        consumer->OnStringScalar("set");
-
-        consumer->OnMapItem("path");
-        consumer->OnStringScalar(PathArg->getValue());
-
-        consumer->OnMapItem("value");
-        TStringInput input(ValueArg->getValue());
-        ParseYson(&input, consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("do").Scalar("get")
+            .Item("path").Scalar(PathArg->getValue())
+            .Item("value").OnNode(DeserializeFromYson(ValueArg->getValue()));
 
         TTransactedArgs::BuildCommand(consumer);
     }
@@ -180,11 +176,9 @@ private:
 
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
-        consumer->OnMapItem("do");
-        consumer->OnStringScalar("remove");
-
-        consumer->OnMapItem("path");
-        consumer->OnStringScalar(PathArg->getValue());
+        BuildYsonMapFluently(consumer)
+            .Item("do").Scalar("remove")
+            .Item("path").Scalar(PathArg->getValue());
 
         TTransactedArgs::BuildCommand(consumer);
     }
@@ -207,11 +201,9 @@ private:
 
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
-        consumer->OnMapItem("do");
-        consumer->OnStringScalar("list");
-
-        consumer->OnMapItem("path");
-        consumer->OnStringScalar(PathArg->getValue());
+        BuildYsonMapFluently(consumer)
+            .Item("do").Scalar("list")
+            .Item("path").Scalar(PathArg->getValue());
 
         TTransactedArgs::BuildCommand(consumer);
     }
@@ -248,14 +240,16 @@ private:
 
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
-        consumer->OnMapItem("do");
-        consumer->OnStringScalar("create");
+        auto manifestYson = ManifestArg->getValue();
 
-        consumer->OnMapItem("path");
-        consumer->OnStringScalar(PathArg->getValue());
-
-        consumer->OnMapItem("type");
-        consumer->OnStringScalar(TypeArg->getValue().ToString());
+        BuildYsonMapFluently(consumer)
+            .Item("do").Scalar("create")
+            .Item("path").Scalar(PathArg->getValue())
+            .Item("type").Scalar(TypeArg->getValue().ToString())
+            .DoIf(!manifestYson.empty(),
+                  [=] (TFluentMap fluent) {
+                fluent.Item("manifest").OnNode(DeserializeFromYson(manifestYson));
+             });
 
         TTransactedArgs::BuildCommand(consumer);
     }

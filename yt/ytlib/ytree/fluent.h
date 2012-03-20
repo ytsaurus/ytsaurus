@@ -1,7 +1,9 @@
 #pragma once
 
+#include "public.h"
 #include "yson_consumer.h"
 #include "yson_writer.h"
+#include "tree_visitor.h"
 
 // For TVoid.
 #include <ytlib/actions/action.h>
@@ -105,6 +107,11 @@ public:
         {
             this->Consumer->OnEntity(HasAttributes);
             return this->Parent;
+        }
+
+        TParent OnNode(INodePtr node)
+        {
+            VisitTree(~node, this->Consumer);
         }
 
         TList<TParent> BeginList()
