@@ -162,6 +162,11 @@ Stroka TBootstrap::GetPeerAddress() const
     return PeerAddress;
 }
 
+IMapNodePtr TBootstrap::GetOrchidRoot() const
+{
+    return OrchidRoot;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCellNode

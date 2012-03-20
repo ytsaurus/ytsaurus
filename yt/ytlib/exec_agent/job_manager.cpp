@@ -2,6 +2,7 @@
 #include "job_manager.h"
 #include "config.h"
 #include "slot.h"
+#include "job.h"
 #include "bootstrap.h"
 #include "private.h"
 
@@ -56,6 +57,35 @@ TJobManager::~TJobManager()
 // TODO(babenko): fix tallyman finalization
 //    tallyman_stop();
 }
+
+TJobPtr TJobManager::FindJob(const TJobId& jobId)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto it = Jobs.find(jobId);
+    return it == Jobs.end() ? NULL : it->second;
+}
+
+TJobPtr TJobManager::GetJob(const TJobId& jobId)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto job = FindJob(jobId);
+    YASSERT(job);
+    return job;
+}
+
+std::vector<TJobPtr> TJobManager::GetAllJobs()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    std::vector<TJobPtr> result;
+    FOREACH (const auto& pair, Jobs) {
+        result.push_back(pair.second);
+    }
+    return result;
+}
+
 //
 //
 //void TJobManager::StartJob(
@@ -183,15 +213,6 @@ TJobManager::~TJobManager()
 //
 //TJob::TPtr TJobManager::GetJob(const TJobId& jobId)
 //{
-//    VERIFY_THREAD_AFFINITY(ControlThread);
-//
-//    auto it = Jobs.find(jobId);
-//    if (it == Jobs.end()) {
-//        ythrow NRpc::TServiceException(EErrorCode::NoSuchJob) <<
-//            Sprintf("No job %s in active jobs.", ~jobId.ToString());
-//    }
-//
-//    return it->second;
 //}
 //
 //void TJobManager::SetJobResult(

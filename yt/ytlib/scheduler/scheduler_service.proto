@@ -70,15 +70,11 @@ message TStartJobInfo
 	required TJobSpec spec = 2;
 }
 
-message TStopJobInfo
-{
-	required bytes job_id = 1;
-}
-
 message TRspHeartbeat
 {
 	repeated TStartJobInfo jobs_to_start = 1;
-	repeated TStopJobInfo jobs_to_stop = 2;
+	repeated bytes jobs_to_stop = 2;
+  repeated bytes jobs_to_remove = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
