@@ -56,6 +56,20 @@ message TStdErrSpec
     required bytes chunk_list_id = 2;
 }
 
+message TUserJobSpec
+{
+    extend TJobSpec
+    {
+        optional TMapJobSpec user_job_spec = 100;
+    }
+
+    // Additional files to be placed into the sandbox.
+    repeated NYT.NFileServer.NProto.TRspFetch files = 1;
+
+    // The user command to be executed.
+    required string shell_comand = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Below one can find the "map" job specs.
@@ -73,7 +87,7 @@ message TMapJobSpec
 {
     extend TJobSpec
     {
-        optional TMapJobSpec map_job_spec = 100;
+        optional TMapJobSpec map_job_spec = 101;
     }
 
     // Portions of input data to be processed.
@@ -92,12 +106,6 @@ message TMapJobSpec
 
     // Describes how to store job stderr.
     required TStdErrSpec std_err_spec = 5;
-
-    // The user command to be executed.
-    required string shell_comand = 6;
-
-    // Additional files to be placed into the sandbox.
-    repeated NYT.NFileServer.NProto.TRspFetch files = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
