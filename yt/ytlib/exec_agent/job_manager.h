@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "tasks.pb.h"
+#include "jobs.pb.h"
 
 #include <ytlib/misc/thread_affinity.h>
 

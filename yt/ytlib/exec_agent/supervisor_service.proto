@@ -1,6 +1,6 @@
 package NYT.NExecAgent.NProto;
 
-import "yt/ytlib/scheduler/tasks.proto";
+import "yt/ytlib/scheduler/jobs.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

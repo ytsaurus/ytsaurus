@@ -1,9 +1,5 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/table_client/schema.proto";
-import "yt/ytlib/table_client/table_reader.proto";
-import "yt/ytlib/misc/error.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // Sent from a client to the scheduler.
@@ -14,97 +10,8 @@ message TTaskSpec
     // User (typically top-level) transaction where the task
     // processing must happen.
     required bytes transaction_id = 2;
-    // TODO(babenko): attributes?
-
-    extensions 100 to max;
-}
-
-// Sent from the scheduler to an exec node.
-// Describes a portion of processing for a job.
-message TJobSpec
-{
-    required int32 type = 1;
-    // TODO(babenko): attributes?
-
-    extensions 100 to max;
-}
-
-// Typically sent from a job proxy to its supervisor
-// (but is also passed on to other parts of the system).
-// Describes the outcome of the job, in particular if it has finished successfully.
-message TJobResult
-{
-	required NYT.NProto.TError Error = 1;
-}
-
-// Describes a part of input table to be processed by a job.
-message TTableInputSpec
-{
-    // A channel to read from the table.
-    // Upon receiving a task spec, the scheduler asks the master to parse input paths
-    // and extract these channels.
-    required NTableClient.NProto.TChannel channel = 1;
-
-    // Chunks (parts of, actually) comprising the input.
-    repeated NYT.NTableClient.NProto.TFetchedChunk chunks = 2;
-}
-
-// Defines the way of storing output from a job into a table.
-message TTableOutputSpec
-{
-    // The schema that must be used for writing the table.
-    // Upon receiving a task spec, the scheduler requests this schema from the master.
-    required bytes schema = 1;
-    // Chunk list where new chunks must be attached to.
-    required bytes chunk_list_id = 2;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Below one can find the "map" task and job specs.
-/*
- * Conceptually map is the simplest task.
- * Input consists of a number of tables (or parts thereof).
- * These tables are merged together into a sequence of rows,
- * sequence is split into fragments and these fragments
- * are fed to jobs. Each job runs a given shell command.
- * The outputs of jobs are collected thus forming a number
- * of output tables.
- */
-
-message TMapTaskSpec
-{
-    extend TTaskSpec
-    {
-        optional TMapTaskSpec map_task_spec = 100;
-    }
-
-    repeated string inputs = 1;
-    repeated string outputs = 2;
-    repeated string files = 3;
-    required string shell_command = 4;
-}
-
-message TMapJobSpec
-{
-    extend TJobSpec
-    {
-        optional TMapJobSpec map_job_spec = 100;
-    }
-
-    // Portions of input data to be processed.
-    repeated TTableInputSpec input_specs = 1;
-    // The transaction that has locked the input.
-    // It's likely that the job won't need this but we
-    // shall keep it here for the sake of symmetric.
-    required bytes input_transaction_id = 2;
-
-    // Describes the way of storing job output.
-    repeated TTableOutputSpec output_specs = 3;
-    // The transaction used for writing output chunks.
-    required bytes output_transaction_id = 4;
-
-    // TODO(babenko): stderr bookkeeping?
+    // Task spec in YSON.
+    required bytes spec = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

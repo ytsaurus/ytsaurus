@@ -1,6 +1,7 @@
 package NYT.NScheduler.NProto;
 
 import "yt/ytlib/scheduler/tasks.proto";
+import "yt/ytlib/scheduler/jobs.proto";
 import "yt/ytlib/rpc/rpc.proto";
 
 ////////////////////////////////////////////////////////////////////////////////

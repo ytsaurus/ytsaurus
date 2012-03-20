@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "tasks.pb.h"
+#include "jobs.pb.h"
 
 #include <ytlib/actions/signal.h>
 #include <ytlib/cell_node/public.h>

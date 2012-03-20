@@ -19,4 +19,5 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/tasks.proto YT_SOURCE_FILES )
+protoc( ${BASE}/jobs.proto YT_SOURCE_FILES )
 protoc( ${BASE}/scheduler_service.proto YT_SOURCE_FILES )
