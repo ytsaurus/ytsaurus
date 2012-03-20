@@ -21,7 +21,7 @@ void TGetCommand::DoExecute(TGetRequest* request)
         request->Path,
         DriverImpl->GetTransactionId(request)));
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         TYson value = ypathResponse->value();
@@ -51,7 +51,7 @@ void TSetCommand::DoExecute(TSetRequest* request)
     }
     ypathRequest->set_value(value);
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         DriverImpl->ReplySuccess();
@@ -69,7 +69,7 @@ void TRemoveCommand::DoExecute(TRemoveRequest* request)
         request->Path,
         DriverImpl->GetTransactionId(request)));
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
@@ -88,7 +88,7 @@ void TListCommand::DoExecute(TListRequest* request)
         request->Path,
         DriverImpl->GetTransactionId(request)));
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
@@ -119,7 +119,7 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
         ypathRequest->set_manifest(serializedManifest);
     }
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
@@ -144,7 +144,7 @@ void TLockCommand::DoExecute(TLockRequest* request)
         DriverImpl->GetTransactionId(request)));
     ypathRequest->set_mode(request->Mode);
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
