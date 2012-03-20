@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/exec_agent )
 set( SRCS
   ${BASE}/private.cpp
+  ${BASE}/bootstrap.cpp
   ${BASE}/environment_manager.cpp
   ${BASE}/job.cpp
   ${BASE}/job_manager.cpp
@@ -13,6 +14,7 @@ set( SRCS
 set( HDRS
   ${BASE}/public.h
   ${BASE}/private.h
+  ${BASE}/bootstrap.h
   ${BASE}/config.h
   ${BASE}/environment.h
   ${BASE}/environment_manager.h
