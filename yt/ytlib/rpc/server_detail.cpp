@@ -46,7 +46,7 @@ void TServiceContextBase::Reply(const TError& error)
 
     TResponseHeader header;
     header.set_request_id(RequestId.ToProto());
-    SetResponseError(header, Error);
+    *header.mutable_error() = Error.ToProto();
     ToProto(header.mutable_attributes(), *ResponseAttributes_);
 
     IMessage::TPtr responseMessage;

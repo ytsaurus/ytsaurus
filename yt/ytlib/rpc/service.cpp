@@ -29,10 +29,7 @@ void IServiceContext::Reply(NBus::IMessage* message)
         LOG_FATAL("Error deserializing response header");
     }
 
-    TError error(
-        header.error_code(),
-        header.has_error_message() ? header.error_message() : "");
-
+    auto error = TError::FromProto(header.error());
     if (error.IsOK()) {
         YASSERT(parts.ysize() >= 2);
 

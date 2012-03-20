@@ -12,7 +12,6 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NProto;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +27,7 @@ public:
     typedef TIntrusivePtr<TServiceContext> TPtr;
 
     TServiceContext(
-        const TRequestHeader& header,
+        const NProto::TRequestHeader& header,
         IMessage* requestMessage,
         IBus* replyBus,
         IService* service,

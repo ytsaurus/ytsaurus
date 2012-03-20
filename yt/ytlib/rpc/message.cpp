@@ -8,7 +8,6 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +60,7 @@ NBus::IMessage::TPtr CreateResponseMessage(
 }
 
 NBus::IMessage::TPtr CreateErrorResponseMessage(
-    const TResponseHeader& header)
+    const NProto::TResponseHeader& header)
 {
     TBlob headerBlob;
     if (!SerializeProtobuf(&header, &headerBlob)) {
@@ -75,29 +74,23 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error)
 {
-    TResponseHeader header;
+    NProto::TResponseHeader header;
     header.set_request_id(requestId.ToProto());
-    header.set_error_code(error.GetCode());
-    if (error.GetCode() != TError::OK) {
-        header.set_error_message(error.GetMessage());
-    }
-
+    *header.mutable_error() = error.ToProto();
     return CreateErrorResponseMessage(header);
 }
 
 NBus::IMessage::TPtr CreateErrorResponseMessage(
     const TError& error)
 {
-    TResponseHeader header;
-    header.set_error_code(error.GetCode());
-    header.set_error_message(error.GetMessage());
-
+    NProto::TResponseHeader header;
+    *header.mutable_error() = error.ToProto();
     return CreateErrorResponseMessage(header);
 }
 
-TRequestHeader GetRequestHeader(IMessage* message)
+NProto::TRequestHeader GetRequestHeader(IMessage* message)
 {
-    TRequestHeader header;
+    NProto::TRequestHeader header;
     const auto& parts = message->GetParts();
     YASSERT(!parts.empty());
 
@@ -108,7 +101,7 @@ TRequestHeader GetRequestHeader(IMessage* message)
     return header;
 }
 
-IMessage::TPtr SetRequestHeader(IMessage* message, const TRequestHeader& header)
+IMessage::TPtr SetRequestHeader(IMessage* message, const NProto::TRequestHeader& header)
 {
     TBlob headerData;
     if (!SerializeProtobuf(&header, &headerData)) {
@@ -122,9 +115,9 @@ IMessage::TPtr SetRequestHeader(IMessage* message, const TRequestHeader& header)
     return CreateMessageFromParts(parts);
 }
 
-TResponseHeader GetResponseHeader(IMessage* message)
+NProto::TResponseHeader GetResponseHeader(IMessage* message)
 {
-    TResponseHeader header;
+    NProto::TResponseHeader header;
     const auto& parts = message->GetParts();
     YASSERT(parts.size() >= 1);
 
@@ -135,7 +128,7 @@ TResponseHeader GetResponseHeader(IMessage* message)
     return header;
 }
 
-IMessage::TPtr SetResponseHeader(IMessage* message, const TResponseHeader& header)
+IMessage::TPtr SetResponseHeader(IMessage* message, const NProto::TResponseHeader& header)
 {
     TBlob headerData;
     if (!SerializeProtobuf(&header, &headerData)) {
@@ -147,26 +140,6 @@ IMessage::TPtr SetResponseHeader(IMessage* message, const TResponseHeader& heade
     parts[0] = TSharedRef(MoveRV(headerData));
 
     return CreateMessageFromParts(parts);
-}
-
-TError GetResponseError(const NProto::TResponseHeader& header)
-{
-    if (header.error_code() == TError::OK) {
-        return TError();
-    } else {
-        return TError(header.error_code(), header.error_message());
-    }
-}
-
-void SetResponseError(TResponseHeader& header, const TError& error)
-{
-    if (error.IsOK()) {
-        header.set_error_code(TError::OK);
-        header.clear_error_message();
-    } else {
-        header.set_error_code(error.GetCode());
-        header.set_error_message(error.GetMessage());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

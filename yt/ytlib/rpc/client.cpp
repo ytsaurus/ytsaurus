@@ -6,7 +6,6 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NProto;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,7 +14,7 @@ static NLog::TLogger& Logger = RpcLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProxyBase::TProxyBase(IChannel* channel, const Stroka& serviceName)
+TProxyBase::TProxyBase(IChannel::TPtr channel, const Stroka& serviceName)
     : Channel(channel)
     , ServiceName(serviceName)
     , DefaultTimeout_(channel->GetDefaultTimeout())
@@ -26,7 +25,7 @@ TProxyBase::TProxyBase(IChannel* channel, const Stroka& serviceName)
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientRequest::TClientRequest(
-    IChannel* channel,
+    IChannel::TPtr channel,
     const Stroka& path,
     const Stroka& verb,
     bool oneWay)
@@ -42,7 +41,7 @@ TClientRequest::TClientRequest(
 
 IMessage::TPtr TClientRequest::Serialize() const
 {
-    TRequestHeader header;
+    NProto::TRequestHeader header;
     header.set_request_id(RequestId.ToProto());
     header.set_path(Path);
     header.set_verb(Verb);
@@ -140,7 +139,7 @@ IMessage::TPtr TClientResponse::GetResponseMessage() const
     return ResponseMessage;
 }
 
-void TClientResponse::Deserialize(IMessage* responseMessage)
+void TClientResponse::Deserialize(IMessage::TPtr responseMessage)
 {
     YASSERT(responseMessage);
     YASSERT(!ResponseMessage);
@@ -158,7 +157,7 @@ void TClientResponse::Deserialize(IMessage* responseMessage)
         parts.end(),
         std::back_inserter(Attachments_));
 
-    auto header = GetResponseHeader(responseMessage);
+    auto header = GetResponseHeader(~responseMessage);
 
     if (header.has_attributes()) {
         Attributes_ = FromProto(header.attributes());
