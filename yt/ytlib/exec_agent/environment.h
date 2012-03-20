@@ -4,6 +4,7 @@
 
 #include <ytlib/ytree/ytree.h>
 #include <ytlib/misc/error.h>
+#include <ytlib/actions/signal.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -28,8 +29,7 @@ struct IProxyController
      */
     virtual void Kill(const TError& error) = 0;
 
-    // TODO(babenko): use signals
-    virtual void SubscribeOnExit(IParamAction<TError>* callback) = 0;
+    DECLARE_INTERFACE_SIGNAL(TCallback<void(TError)>, Exited);
 
     // virtual void SubscribeOnMemoryLimit(IParamAction<i64>* callback) = 0;
     // virtual bool IsRunning() const = 0;

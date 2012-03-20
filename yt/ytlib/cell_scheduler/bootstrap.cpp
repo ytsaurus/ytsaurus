@@ -20,6 +20,7 @@
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/cypress/id.h>
+#include <ytlib/scheduler/scheduler_service.h>
 
 namespace NYT {
 namespace NCellScheduler {
@@ -32,6 +33,7 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NCypress;
 using namespace NTransactionClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,6 +115,9 @@ void TBootstrap::Init()
         Config->Transactions,
         LeaderChannel);
 
+    auto schedulerService = New<TSchedulerService>(this);
+    rpcServer->RegisterService(schedulerService);
+
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
 
@@ -122,8 +127,7 @@ void TBootstrap::Init()
 
 void TBootstrap::Register()
 {
-    // TODO(babenko): Currently we use succeed-or-die strategy.
-    // Add retries later.
+    // TODO(babenko): Currently we use succeed-or-die strategy. Add retries later.
     
     TCypressServiceProxy proxy(LeaderChannel);
 
@@ -179,7 +183,12 @@ Stroka TBootstrap::GetPeerAddress() const
     return PeerAddress;
 }
 
-TTransactionManager::TPtr TBootstrap::GetTransactionManager()
+IInvoker::TPtr TBootstrap::GetControlInvoker() const
+{
+    return ControlInvoker;
+}
+
+TTransactionManager::TPtr TBootstrap::GetTransactionManager() const
 {
     return TransactionManager;
 }

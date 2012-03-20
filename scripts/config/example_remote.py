@@ -130,7 +130,7 @@ class Holder(Server):
         'masters' : {
             'addresses' : MasterAddresses
         },
-        'chunk_holder' : {
+        'data' : {
             'store_locations' : [
                 { 'path' : '/yt/disk1/data/chunk_store', 'quota' : storeQuota },
                 { 'path' : '/yt/disk2/data/chunk_store', 'quota' : storeQuota },
@@ -148,6 +148,8 @@ class Holder(Server):
             'max_cached_readers' : 256,
             'response_throttling_size' : 500 * 1024 * 1024
         },
+        'exec' : {
+        },
         'logging' : Logging
     })
     
@@ -155,13 +157,13 @@ class Holder(Server):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
         print >>fd, 'rm -f %s' % cls.debug_log_path
-        for location in cls.config['chunk_holder']['store_locations']:
+        for location in cls.config['data']['store_locations']:
             print >>fd, 'rm -rf %s' % location['path']
-        print >>fd, 'rm -rf %s' % cls.config['chunk_holder']['cache_location']['path']
+        print >>fd, 'rm -rf %s' % cls.config['data']['cache_location']['path']
 
     def do_clean_cache(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rm -rf %s' % cls.config['chunk_holder']['cache_location']['path']
+        print >>fd, 'rm -rf %s' % cls.config['data']['cache_location']['path']
 
 
 configure(Base)

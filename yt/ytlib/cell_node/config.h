@@ -4,6 +4,7 @@
 
 #include <ytlib/chunk_holder/public.h>
 #include <ytlib/election/leader_lookup.h>
+#include <ytlib/exec_agent/config.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -22,10 +23,11 @@ struct TCellNodeConfig
     //! Cell masters.
     NElection::TLeaderLookup::TConfig::TPtr Masters;
 
-    //! Chunk Holder's configuration part.
-    NChunkHolder::TChunkHolderConfigPtr ChunkHolder;
+    //! Data node configuration part.
+    NChunkHolder::TChunkHolderConfigPtr Data;
 
-    // TODO(babenko): add ExecAgent's part
+    //! Exec node configuration part.
+    NExecAgent::TJobManagerConfigPtr Exec;
 
     TCellNodeConfig()
     {
@@ -34,8 +36,8 @@ struct TCellNodeConfig
         Register("monitoring_port", MonitoringPort)
             .Default(10000);
         Register("masters", Masters);
-        Register("chunk_holder", ChunkHolder)
-            .DefaultNew();
+        Register("data", Data);
+        Register("exec", Data);
     }
 };
 

@@ -28,6 +28,8 @@
 #include <ytlib/chunk_holder/job_executor.h>
 #include <ytlib/chunk_holder/peer_block_updater.h>
 #include <ytlib/chunk_holder/ytree_integration.h>
+#include <ytlib/exec_agent/job_manager.h>
+#include <ytlib/exec_agent/supervisor_service.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -40,6 +42,7 @@ using namespace NOrchid;
 using namespace NChunkServer;
 using namespace NProfiling;
 using namespace NChunkHolder;
+using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,42 +79,47 @@ void TBootstrap::Run()
 
     auto rpcServer = CreateRpcServer(~BusServer);
 
-    ReaderCache = New<TReaderCache>(Config->ChunkHolder);
+    ReaderCache = New<TReaderCache>(Config->Data);
 
     auto chunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(
-        Config->ChunkHolder,
+        Config->Data,
         chunkRegistry,
         ReaderCache);
 
-    PeerBlockTable = New<TPeerBlockTable>(Config->ChunkHolder->PeerBlockTable);
+    PeerBlockTable = New<TPeerBlockTable>(Config->Data->PeerBlockTable);
 
-    auto peerUpdater = New<TPeerBlockUpdater>(Config->ChunkHolder, this);
+    auto peerUpdater = New<TPeerBlockUpdater>(Config->Data, this);
     peerUpdater->Start();
 
-    ChunkStore = New<TChunkStore>(Config->ChunkHolder, this);
+    ChunkStore = New<TChunkStore>(Config->Data, this);
     ChunkStore->Start();
 
-    ChunkCache = New<TChunkCache>(Config->ChunkHolder, this);
+    ChunkCache = New<TChunkCache>(Config->Data, this);
     ChunkCache->Start();
 
     SessionManager = New<TSessionManager>(
-        Config->ChunkHolder,
+        Config->Data,
         BlockStore,
         ChunkStore,
         controlQueue->GetInvoker());
 
-    JobExecutor = New<TJobExecutor>(
-        Config->ChunkHolder,
+    DataJobExecutor = New<TJobExecutor>(
+        Config->Data,
         ChunkStore,
         BlockStore,
         controlQueue->GetInvoker());
 
-    auto masterConnector = New<TMasterConnector>(Config->ChunkHolder, this);
+    auto masterConnector = New<TMasterConnector>(Config->Data, this);
 
-    auto chunkHolderService = New<TChunkHolderService>(Config->ChunkHolder, this);
-    rpcServer->RegisterService(~chunkHolderService);
+    ExecJobManager = New<TJobManager>(Config->Exec, this);
+
+    auto chunkHolderService = New<TChunkHolderService>(Config->Data, this);
+    rpcServer->RegisterService(chunkHolderService);
+
+    auto execSupervisorService = New<TSupervisorService>(this);
+    rpcServer->RegisterService(chunkHolderService);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -193,9 +201,9 @@ TSessionManagerPtr TBootstrap::GetSessionManager() const
     return SessionManager;
 }
 
-TJobExecutorPtr TBootstrap::GetJobExecutor() const
+TJobExecutorPtr TBootstrap::GetDataJobExecutor() const
 {
-    return JobExecutor;
+    return DataJobExecutor;
 }
 
 IInvoker::TPtr TBootstrap::GetControlInvoker() const
@@ -231,6 +239,11 @@ IChannel::TPtr TBootstrap::GetLeaderChannel() const
 Stroka TBootstrap::GetPeerAddress() const
 {
     return PeerAddress;
+}
+
+NExecAgent::TJobManagerPtr TBootstrap::GetExecJobManager() const
+{
+    return ExecJobManager;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -14,7 +14,7 @@ namespace NExecAgent {
 class TEnvironmentManager
 {
 public:
-    TEnvironmentManager(TEnvironmentMapPtr environmentMap);
+    TEnvironmentManager(TEnvironmentManagerConfigPtr environmentMap);
 
     IProxyControllerPtr CreateProxyController(
         const Stroka& envName,
@@ -26,7 +26,7 @@ public:
         IEnvironmentBuilderPtr envBuilder);
 
 private:
-    TEnvironmentMapPtr EnvironmentMap;
+    TEnvironmentManagerConfigPtr Config;
     yhash_map<Stroka, IEnvironmentBuilderPtr> Builders;
 
 };

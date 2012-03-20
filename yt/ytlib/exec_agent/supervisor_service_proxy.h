@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "common.h"
+#include "public.h"
 #include "supervisor_service.pb.h"
 
 #include <ytlib/rpc/service.h>

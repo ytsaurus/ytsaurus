@@ -1,6 +1,6 @@
 ﻿#include "stdafx.h"
 #include "unsafe_environment.h"
-#include "common.h"
+#include "private.h"
 
 #include <ytlib/misc/thread_affinity.h>
 
@@ -233,32 +233,39 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-IProxyController* TUnsafeEnvironmentBuilder::CreateProxyController(
-    NYTree::INode* configuration, 
-    const TJobId& jobId, 
-    const Stroka& workingDirectory)
-{
-    auto config = New<TUnsafeProxyController::TConfig>();
-    config->Load(configuration);
-
-    return new TUnsafeProxyController(~config, jobId, workingDirectory);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 #else
 
-IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
-    NYTree::INodePtr config, 
-    const TJobId& jobId, 
-    const Stroka& workingDirectory)
-{
-    YUNIMPLEMENTED();
-}
+// We do not have a Windows implementation yet.
 
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnsafeEnvironmentBuilder
+    : public IEnvironmentBuilder
+{
+public:
+    IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
+        NYTree::INodePtr configuration, 
+        const TJobId& jobId, 
+        const Stroka& workingDirectory)
+    {
+#ifndef _win_
+        auto config = New<TUnsafeProxyController::TConfig>();
+        config->Load(configuration);
+
+        return new TUnsafeProxyController(~config, jobId, workingDirectory);
+#else
+        // We do not have a Windows implementation yet.
+        YUNIMPLEMENTED();
+#endif
+    }
+};
+
+IEnvironmentBuilderPtr CreateUnsafeEnvironmentBuilder()
+{
+    return New<TUnsafeEnvironmentBuilder>();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

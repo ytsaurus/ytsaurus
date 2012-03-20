@@ -30,11 +30,11 @@ typedef TIntrusivePtr<IProxyController> IProxyControllerPtr;
 struct IEnvironmentBuilder;
 typedef TIntrusivePtr<IEnvironmentBuilder> IEnvironmentBuilderPtr;
 
-class TEnvironment;
-typedef TIntrusivePtr<TEnvironment> TEnvironmentPtr;
+class TEnvironmentConfig;
+typedef TIntrusivePtr<TEnvironmentConfig> TEnvironmentConfigPtr;
 
-class TEnvironmentMap;
-typedef TIntrusivePtr<TEnvironmentMap> TEnvironmentMapPtr;
+class TEnvironmentManagerConfig;
+typedef TIntrusivePtr<TEnvironmentManagerConfig> TEnvironmentManagerConfigPtr;
 
 class TEnvironmentManager;
 typedef TIntrusivePtr<TEnvironmentManager> TEnvironmentManagerPtr;

@@ -1,11 +1,16 @@
 #include "stdafx.h"
-
 #include "supervisor_service.h"
 #include "supervisor_service_proxy.h"
 #include "job_manager.h"
+#include "job.h"
+#include "private.h"
+
+#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NExecAgent {
+
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,39 +18,39 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSupervisorService::TSupervisorService(
-    NRpc::IServer* server,
-    TJobManager* jobManager)
+TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     : NRpc::TServiceBase(
-        ~jobManager->GetInvoker(),
+        ~bootstrap->GetControlInvoker(),
         TSupervisorServiceProxy::GetServiceName(),
         Logger.GetCategory())
-    //    , Config(config)
-    , JobManager(jobManager)
+    , Bootstrap(bootstrap)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpec));
     RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(OnJobFinished));
-
-    server->RegisterService(this);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
 {
-    //ToDo: context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
+    auto jobId = TJobId::FromProto(request->job_id());
+    context->SetRequestInfo("JobId: %s", ~jobId.ToString());
 
-    *(response->mutable_job_spec()) = JobManager->GetJobSpec(
-        TJobId::FromProto(request->job_id()));
+    auto job = Bootstrap->GetExecJobManager()->GetJob(jobId);
+    *response->mutable_job_spec() = job->GetSpec();
 
     context->Reply();
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 {
-    //ToDo: context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
+    auto jobId = TJobId::FromProto(request->job_id());
+    auto error = TError::FromProto(request->result().error());
+    context->SetRequestInfo("JobId: %s, Error: %s",
+        ~jobId.ToString(),
+        ~error.ToString());
 
-    JobManager->SetJobResult(
-        TJobId::FromProto(request->job_id()),
-        request->job_result());
+    Bootstrap->GetExecJobManager()->OnJobFinished(
+        jobId,
+        request->result());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

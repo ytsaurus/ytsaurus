@@ -1,12 +1,12 @@
 #include "stdafx.h"
-
 #include "job_manager.h"
-#include "unsafe_environment.h"
+//#include "unsafe_environment.h"
+#include "private.h"
 
 #include <ytlib/misc/fs.h>
 
-#include <yt/tallyman.h>
-#include <system_error>
+//#include <yt/tallyman.h>
+//#include <system_error>
 
 namespace NYT {
 namespace NExecAgent {
@@ -16,7 +16,7 @@ namespace NExecAgent {
 static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/*
 TJobManager::TJobManager(
     TConfig* config,
     NChunkHolder::TChunkCache* chunkCache,
@@ -219,7 +219,7 @@ TJobManager::GetJobSpec(const TJobId& jobId)
     auto job = GetJob(jobId);
     return job->GetSpec();
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

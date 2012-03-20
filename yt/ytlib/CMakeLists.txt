@@ -26,7 +26,7 @@ set( DIRS
   driver
   object_server
   scheduler
- # exec_agent
+  exec_agent
 )
 
 foreach( _d_ ${DIRS} )

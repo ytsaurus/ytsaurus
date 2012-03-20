@@ -26,7 +26,8 @@ public:
     TCellSchedulerConfigPtr GetConfig() const;
     NRpc::IChannel::TPtr GetLeaderChannel() const;
     Stroka GetPeerAddress() const;
-    NTransactionClient::TTransactionManager::TPtr GetTransactionManager();
+    IInvoker::TPtr GetControlInvoker() const;
+    NTransactionClient::TTransactionManager::TPtr GetTransactionManager() const;
 
     void Run();
 

@@ -2,7 +2,7 @@ package NYT.NScheduler.NProto;
 
 import "yt/ytlib/table_client/schema.proto";
 import "yt/ytlib/table_client/table_reader.proto";
-import "yt/ytlib/rpc/rpc.proto";
+import "yt/ytlib/misc/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +27,14 @@ message TJobSpec
     // TODO(babenko): attributes?
 
     extensions 100 to max;
+}
+
+// Typically sent from a job proxy to its supervisor
+// (but is also passed on to other parts of the system).
+// Describes the outcome of the job, in particular if it has finished successfully.
+message TJobResult
+{
+	required NYT.NProto.TError Error = 1;
 }
 
 // Describes a part of input table to be processed by a job.

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "job.h"
 #include "environment_manager.h"
+#include "private.h"
 
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
@@ -8,10 +9,10 @@
 namespace NYT {
 namespace NExecAgent {
 
-using namespace NChunkClient;
-using namespace NFileServer;
-using namespace NTransactionClient;
-using namespace NCypress;
+//using namespace NChunkClient;
+//using namespace NFileServer;
+//using namespace NTransactionClient;
+//using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,16 +1,12 @@
 #pragma once
 
-#include "common.h"
-#include "job.h"
-#include "slot.h"
-#include "environment.h"
-#include "environment_manager.h"
+#include "public.h"
+#include "tasks.pb.h"
 
-#include "operations.pb.h"
-
-#include <ytlib/exec/scheduler_internal_proxy.h>
-#include <ytlib/chunk_holder/chunk_cache.h>
-#include <ytlib/misc/error.h>
+#include <ytlib/cell_node/public.h>
+//#include <ytlib/exec/scheduler_internal_proxy.h>
+//#include <ytlib/chunk_holder/chunk_cache.h>
+//#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -31,8 +27,7 @@ public:
 
     TJobManager(
         TJobManagerConfigPtr config,
-        NChunkHolder::TChunkCache* chunkCache,
-        NRpc::IChannel::TPtr masterChannel);
+        NCellNode::TBootstrap* bootstrap);
 
     ~TJobManager();
 
@@ -41,47 +36,55 @@ public:
         const TJobId& jobId,
         const NScheduler::NProto::TJobSpec& jobSpec);
 
-    // TODO(babenko):
-    // void StopJob(const TJobId& jobId);
-    //void CancelOperation(const TOperationId& operationId);
+    //! Stops a job.
+    /*!
+     *  If the job is running, kills it.
+     *  Otherwise the job vanishes from the list.
+     */
+    void StopJob(const TJob& jobId);
 
+    //! Finds the job by its id, returns NULL if no job is found.
+    TJobPtr FindJob(const TJobId& jobId);
+    //! Finds the job by its id, throws if no job is found.
     TJobPtr GetJob(const TJobId& jobId);
 
     //! Returns a list of all currently known jobs.
     std::vector<TJobPtr> GetJobs();
 
-    IInvoker::TPtr GetInvoker();
-
-    void SetJobResult(
+    void OnJobFinished(
         const TJobId& jobId, 
         const NScheduler::NProto::TJobResult& jobResult);
+
+    //void SetJobResult(
+    //    const TJobId& jobId, 
+    //    const NScheduler::NProto::TJobResult& jobResult);
 
     //const NScheduler::NProto::TJobSpec& GetJobSpec(const TJobId& jobId);
 
 private:
 
-    void OnJobStarted(const TJobId& jobId);
+    //void OnJobStarted(const TJobId& jobId);
 
-    void OnJobFinished(
-        NScheduler::NProto::TJobResult jobResult,
-        const TJobId& jobId);
+    //void OnJobFinished(
+    //    NScheduler::NProto::TJobResult jobResult,
+    //    const TJobId& jobId);
 
-    TConfig::TPtr Config;
+    //TConfig::TPtr Config;
 
-    TActionQueue::TPtr JobManagerThread;
+    //TActionQueue::TPtr JobManagerThread;
 
-    std::vector<TSlotPtr> Slots;
+    //std::vector<TSlotPtr> Slots;
 
-    yhash_map<TJobId, TIntrusivePtr<TJob> > Jobs;
+    //yhash_map<TJobId, TIntrusivePtr<TJob> > Jobs;
 
-    TEnvironmentManager EnvironmentManager;
+    //TEnvironmentManager EnvironmentManager;
 
-    NChunkHolder::TChunkCachePtr ChunkCache;
-    NRpc::IChannel::TPtr MasterChannel;
+    //NChunkHolder::TChunkCachePtr ChunkCache;
+    //NRpc::IChannel::TPtr MasterChannel;
 
-    NScheduler::TSchedulerInternalProxy SchedulerProxy;
+    //NScheduler::TSchedulerInternalProxy SchedulerProxy;
 
-    DECLARE_THREAD_AFFINITY_SLOT(JobManagerThread);
+    //DECLARE_THREAD_AFFINITY_SLOT(JobManagerThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

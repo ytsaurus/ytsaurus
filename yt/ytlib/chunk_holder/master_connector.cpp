@@ -192,7 +192,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
         *request->add_removed_chunks() = GetRemoveInfo(~chunk);
     }
 
-    FOREACH (const auto& job, Bootstrap->GetJobExecutor()->GetAllJobs()) {
+    FOREACH (const auto& job, Bootstrap->GetDataJobExecutor()->GetAllJobs()) {
         auto* info = request->add_jobs();
         info->set_job_id(job->GetJobId().ToProto());
         info->set_state(job->GetState());
@@ -269,14 +269,14 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
 
     FOREACH (const auto& jobInfo, response->jobs_to_stop()) {
         auto jobId = TJobId::FromProto(jobInfo.job_id());
-        auto job = Bootstrap->GetJobExecutor()->FindJob(jobId);
+        auto job = Bootstrap->GetDataJobExecutor()->FindJob(jobId);
         if (!job) {
             LOG_WARNING("Request to stop a non-existing job (JobId: %s)",
                 ~jobId.ToString());
             continue;
         }
 
-        Bootstrap->GetJobExecutor()->StopJob(~job);
+        Bootstrap->GetDataJobExecutor()->StopJob(~job);
     }
 
     FOREACH (const auto& startInfo, response->jobs_to_start()) {
@@ -293,7 +293,7 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
             continue;
         }
 
-        Bootstrap->GetJobExecutor()->StartJob(
+        Bootstrap->GetDataJobExecutor()->StartJob(
             jobType,
             jobId,
             ~chunk,

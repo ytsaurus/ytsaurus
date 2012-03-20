@@ -8,16 +8,7 @@ namespace NExecAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnsafeEnvironmentBuilder
-    : public IEnvironmentBuilder
-{
-public:
-    IProxyControllerPtr CreateProxyController(
-        NYTree::INodePtr config, 
-        const TJobId& jobId, 
-        const Stroka& workingDirectory);
-
-};
+IEnvironmentBuilderPtr CreateUnsafeEnvironmentBuilder();
 
 ////////////////////////////////////////////////////////////////////////////////
 

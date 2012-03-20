@@ -10,51 +10,57 @@ namespace NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes configuration of a single environment.
-// TODO(babenko): consider renaming to TEnvironmentConfig
-struct TEnvironment
+struct TEnvironmentConfig
     : public TConfigurable
 {
     Stroka Type;
     NYTree::INodePtr Config;
 
-    TEnvironment()
+    TEnvironmentConfig()
     {
         Register("type", Type)
             .NonEmpty();
-        // TODO(babenko): consider placing everything into options
-        Register("config", Config);
+        // TODO(babenko): use GetOptions instead
+        // Register("config", Config);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes configuration for a collection of names environments.
-// TODO(babenko): consider renaming to TEnvironmentMapConfig
-class TEnvironmentMap
+//! Describes configuration for a collection of named environments.
+class TEnvironmentManagerConfig
     : public TConfigurable
 {
 public:
-    TEnvironmentMap();
+    TEnvironmentManagerConfig()
+    {
+        Register("environments", Environments);
+    }
 
-    TEnvironmentPtr FindEnvironment(const Stroka& name);
+    TEnvironmentConfigPtr FindEnvironment(const Stroka& name)
+    {
+        auto it = Environments.find(name);
+        if (it == Environments.end()) {
+            ythrow yexception() << Sprintf("No such environment %s", ~name);
+        }
+        return it->second;
+    }
 
 private:
-    yhash_map<Stroka, TEnvironmentPtr> Environments;
+    yhash_map<Stroka, TEnvironmentConfigPtr> Environments;
 
 };
 
 struct TJobManagerConfig
-    : public TEnvironmentMap
+    : public TEnvironmentManagerConfig
 {
-    typedef TIntrusivePtr<TConfig> TPtr;
-
-    // ToDo: read from cypress.
+    // TODO(babenko): read from cypress.
     Stroka SchedulerAddress;
 
     int  SlotCount;
     Stroka SlotLocation;
 
-    TConfig()
+    TJobManagerConfig()
     {
         Register("scheduler_address", SchedulerAddress).NonEmpty();
         Register("slot_count", SlotCount)

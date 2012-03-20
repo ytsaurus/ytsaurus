@@ -1,6 +1,6 @@
 ﻿#include "stdafx.h"
 #include "slot.h"
-#include "common.h"
+#include "private.h"
 
 #include <ytlib/misc/fs.h>
 #include <util/folder/dirut.h>

@@ -1,7 +1,8 @@
 ﻿#include "stdafx.h"
 #include "environment_manager.h"
 #include "environment.h"
-#include "common.h"
+#include "config.h"
+#include "private.h"
 
 namespace NYT {
 namespace NExecAgent {
@@ -12,24 +13,10 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEnvironmentMap::TEnvironmentMap()
-{
-    Register("environments", Environments);
-}
-
-TEnvironmentPtr TEnvironmentMap::FindEnvironment(const Stroka& name)
-{
-    auto it = Environments.find(name);
-    if (it == Environments.end()) {
-        LOG_WARNING_AND_THROW(yexception(), "No such environment %s", ~name);
-    }
-    return it->second;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TEnvironmentManager::TEnvironmentManager(TEnvironmentMapPtr environmentMap)
-    : EnvironmentMap(environmentMap)
+TEnvironmentManager::TEnvironmentManager(TEnvironmentManagerConfigPtr config)
+    : Config(config)
 { }
 
 void TEnvironmentManager::Register(
@@ -44,11 +31,11 @@ IProxyControllerPtr TEnvironmentManager::CreateProxyController(
     const TJobId& jobId, 
     const Stroka& workingDirectory)
 {
-    auto env = EnvironmentMap->FindEnvironment(envName);
+    auto env = Config->FindEnvironment(envName);
 
     auto it = Builders.find(env->Type);
     if (it == Builders.end()) {
-        LOG_WARNING_AND_THROW(yexception(), "No such environment type %s", ~env->Type);
+        ythrow yexception() << Sprintf("No such environment type %s", ~env->Type);
     }
 
     return it->second->CreateProxyController(
