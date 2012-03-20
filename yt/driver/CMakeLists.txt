@@ -8,6 +8,7 @@ include_directories(
 
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/include
+  ${CMAKE_BINARY_DIR}/yt/ytlib/misc
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_holder
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_server
   ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_client
