@@ -3,6 +3,7 @@ set( DIRS
   election
   cell_master
   cell_node
+  cell_scheduler
   chunk_holder
   chunk_client
   chunk_server
@@ -25,6 +26,7 @@ set( DIRS
   driver
   object_server
   scheduler
+ # exec_agent
 )
 
 foreach( _d_ ${DIRS} )
@@ -60,12 +62,15 @@ include_directories(
   ${CMAKE_BINARY_DIR}/include
   .
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}/misc
   ${CMAKE_CURRENT_BINARY_DIR}/chunk_server
   ${CMAKE_CURRENT_BINARY_DIR}/chunk_holder
   ${CMAKE_CURRENT_BINARY_DIR}/rpc
   ${CMAKE_CURRENT_BINARY_DIR}/ytree
   ${CMAKE_CURRENT_BINARY_DIR}/file_server
   ${CMAKE_CURRENT_BINARY_DIR}/file_client
+  ${CMAKE_CURRENT_BINARY_DIR}/exec_agent
+  ${CMAKE_CURRENT_BINARY_DIR}/scheduler
 )
 
 if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
