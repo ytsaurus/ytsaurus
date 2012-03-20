@@ -88,6 +88,16 @@ private:
                 WithTransaction("/sys/scheduler", transactionId),
                 "{}");
 
+            SyncYPathSet(
+                service,
+                WithTransaction("/sys/scheduler/lock", transactionId),
+                "{}");
+
+            SyncYPathSet(
+                service,
+                WithTransaction("/sys/scheduler/runtime", transactionId),
+                "{}");
+
             SyncYPathCreate(
                 service,
                 WithTransaction("/sys/holders", transactionId),
