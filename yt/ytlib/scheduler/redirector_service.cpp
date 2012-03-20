@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "redirector_service.h"
+#include "scheduler_service_proxy.h"
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/serialize.h>
@@ -28,8 +29,7 @@ public:
     typedef TIntrusivePtr<TRedirectorService> TPtr;
 
     TRedirectorService(NCellMaster::TBootstrap* bootstrap)
-        // TODO(babenko): replace literal with TFooServiceProxy::GetServiceName()
-        : TRedirectorServiceBase("Scheduler", Logger.GetCategory())
+        : TRedirectorServiceBase(TSchedulerServiceProxy::GetServiceName(), Logger.GetCategory())
         , Bootstrap(bootstrap)
     { }
 

@@ -31,6 +31,11 @@ DECLARE_ENUM(EJobState,
 	((Failed)(2))
 );
 
+class TSchedulerService;
+typedef TIntrusivePtr<TSchedulerService> TSchedulerServicePtr;
+
+class TSchedulerServiceProxy;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
