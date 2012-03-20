@@ -149,6 +149,10 @@ class Holder(Server):
             'response_throttling_size' : 500 * 1024 * 1024
         },
         'exec_agent' : {
+            'job_manager': {
+                'slot_location' : r'%(work_dir)s\slots',
+                'scheduler_address' : 'meta01-001g.yt.yandex.net:7000'
+            }
         },
         'logging' : Logging
     })

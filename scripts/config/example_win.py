@@ -95,6 +95,10 @@ class Holder(WinNode, Server):
                 },
             },
             'exec_agent' : {
+                'job_manager': {
+                    'slot_location' : r'%(work_dir)s\slots',
+                    'scheduler_address' : 'locahost:7000'
+                }
             },
             'logging' : Logging
         })
