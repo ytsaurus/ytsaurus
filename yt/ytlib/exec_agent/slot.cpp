@@ -16,6 +16,7 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 TSlot::TSlot(const Stroka& path, const Stroka& name)
     : IsEmpty_(true)
+    , IsClean(true)
     , Path(path)
     , SlotThread(New<TActionQueue>(name))
 {
@@ -26,8 +27,6 @@ TSlot::TSlot(const Stroka& path, const Stroka& name)
 void TSlot::Acquire()
 {
     IsEmpty_ = false;
-    NFS::ForcePath(SandboxPath);
-    LOG_TRACE("Slot created sandbox path: %s", ~SandboxPath);
 }
 
 bool TSlot::IsEmpty() const 
@@ -38,7 +37,21 @@ bool TSlot::IsEmpty() const
 void TSlot::Clean()
 {
     RemoveDirWithContents(SandboxPath);
+    IsClean = true;
+}
+
+void TSlot::Release()
+{
+    YASSERT(IsClean);
     IsEmpty_ = true;
+}
+
+void TSlot::InitSandbox()
+{
+    YASSERT(!IsEmpty_);
+    NFS::ForcePath(SandboxPath);
+    IsClean = false;
+    LOG_TRACE("Slot created sandbox path: %s", ~SandboxPath);
 }
 
 void TSlot::MakeLink(

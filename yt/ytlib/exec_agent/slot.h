@@ -18,7 +18,9 @@ public:
     bool IsEmpty() const;
 
     void Acquire();
+    void InitSandbox();
     void Clean();
+    void Release();
 
     IInvoker::TPtr GetInvoker();
 
@@ -32,6 +34,7 @@ public:
 
 private:
     volatile bool IsEmpty_;
+    bool IsClean;
 
     Stroka Path;
     Stroka SandboxPath;

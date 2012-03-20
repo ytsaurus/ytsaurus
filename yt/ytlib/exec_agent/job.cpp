@@ -6,9 +6,11 @@
 #include "private.h"
 
 #include <ytlib/actions/action_util.h>
+#include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
-#include <ytlib/chunk_holder/chunk_cache.h>
+#include <ytlib/chunk_holder/chunk.h>
+#include <ytlib/chunk_holder/location.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -23,38 +25,158 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//// ToDo: make error.proto in misc.
-//NScheduler::NProto::TJobResult MakeJobResult(const TError& error)
-//{
-//    NScheduler::NProto::TJobResult result;
-//    result.set_is_ok(error.IsOK());
-//    result.set_error_message(error.GetMessage());
-//
-//    return result;
-//}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJob::TJob(
     const TJobId& jobId,
     const TJobSpec& jobSpec,
     TChunkCachePtr chunkCache,
-    IChannel::TPtr masterChannel,
-    TSlotPtr slot,
-    IProxyController* proxyController)
+    TSlotPtr slot)
     : JobId(jobId)
     , JobSpec(jobSpec)
     , ChunkCache(chunkCache)
-    , MasterChannel(masterChannel)
     , Slot(slot)
-    , ProxyController(proxyController)
-    , JobResult(New< TFuture<NScheduler::NProto::TJobResult> >())
-    , Started(New< TFuture<TVoid> >())
-    , Finished(New< TFuture<NScheduler::NProto::TJobResult> >())
+    , JobState(NScheduler::EJobState::Created)
 {
-    //Slot->GetInvoker()->Invoke(FromMethod(
-    //    &TJob::PrepareFiles,
-    //    MakeStrong(this)));
+    VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
+    Slot->Acquire();
+}
+
+void TJob::Start(TEnvironmentManager* environmentManager)
+{
+    JobState = NScheduler::EJobState::PreparingProxy;
+    Slot->GetInvoker()->Invoke(FromMethod(
+        &TJob::DoStart,
+        MakeWeak(this),
+        environmentManager));
+}
+
+void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    Stroka environmentType = "default";
+    try {
+        ProxyController = environmentManager->CreateProxyController(
+            //XXX: type of execution environment must not be directly
+            // selectable by user -- it is more of the global cluster setting
+            //jobSpec.operation_spec().environment(),
+            environmentType,
+            JobId,
+            Slot->GetWorkingDirectory());
+
+    } catch (const std::exception& ex) {
+        Stroka msg = Sprintf(
+            "Failed to create proxy controller for environment \"%s\" (JobId: %s, Path: %s)", 
+            ~environmentType,
+            ~JobId.ToString(), 
+            ex.what());
+
+        LOG_DEBUG("%s", ~msg);
+        *JobResult.mutable_error() = TError(msg).ToProto();
+        JobState = NScheduler::EJobState::Failed;
+        return;
+    }
+
+    JobState = NScheduler::EJobState::PreparingSandbox;
+
+    try {
+        Slot->InitSandbox();
+    } catch (const std::exception& ex) {
+        Stroka msg = Sprintf(
+            "Failed to create a sandbox. (JobId: %s, Path: %s)", 
+            ~JobId.ToString(), 
+            ex.what());
+
+        LOG_WARNING("%s", msg);
+        *JobResult.mutable_error() = TError(msg).ToProto();
+        JobState = NScheduler::EJobState::Failed;
+        return;
+    }
+
+    auto awaiter = New<TParallelAwaiter>(~Slot->GetInvoker());
+    for (int fileIndex = 0; fileIndex < JobSpec.files_size(); ++fileIndex) {
+        auto& fetchedChunk = JobSpec.files(fileIndex);
+
+        awaiter->Await(ChunkCache->DownloadChunk(
+            TChunkId::FromProto(fetchedChunk.chunk_id())), 
+            FromMethod(
+                &TJob::OnChunkDownloaded,
+                MakeWeak(this),
+                fetchedChunk.file_name(),
+                fetchedChunk.executable()));
+    }
+
+    awaiter->Complete(FromMethod(
+        &TJob::RunJobProxy,
+        MakeWeak(this)));
+}
+
+void TJob::OnChunkDownloaded(
+    NChunkHolder::TChunkCache::TDownloadResult result,
+    const Stroka& fileName,
+    bool executable)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (!result.IsOK()) {
+        Stroka msg = Sprintf(
+            "Failed to download file (JobId: %s, FileName: %s, Error: %s)", 
+            ~JobId.ToString(),
+            ~fileName,
+            ~result.GetMessage());
+
+        LOG_WARNING("%s", msg);
+        *JobResult.mutable_error() = TError(msg).ToProto();
+        JobState = NScheduler::EJobState::Failed;
+        return;
+    }
+
+    CachedChunks.push_back(result.Value());
+
+    try {
+        Slot->MakeLink(
+            fileName, 
+            CachedChunks.back()->GetFileName(), 
+            executable);
+    } catch (yexception& ex) {
+        Stroka msg = Sprintf(
+            "Failed to make symlink (JobId: %s, FileName: %s, Error: %s)", 
+            ~JobId.ToString(),
+            ~fileName,
+            ex.what());
+
+        LOG_WARNING("%s", msg);
+        *JobResult.mutable_error() = TError(msg).ToProto();
+        JobState = NScheduler::EJobState::Failed;
+        return;
+    }
+
+    LOG_DEBUG("Successfully downloaded file (JobId: %s, FileName: %s)", 
+        ~JobId.ToString(),
+        ~fileName);
+}
+
+void TJob::RunJobProxy()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (JobState == NScheduler::EJobState::Failed) {
+        Slot->Clean();
+        return;
+    }
+
+    try {
+        ProxyController->Run();
+        /*ProxyController->SubscribeOnExit(~FromMethod(
+            &TJob::OnJobExit,
+            TPtr(this))->Via(Slot->GetInvoker()));*/
+
+    } catch (const std::exception& ex) {
+        //DoCancel(TError(ex.what()));
+        JobState = NScheduler::EJobState::Failed;
+        return;
+    }
+
+    JobState = NScheduler::EJobState::StartedProxy;
 }
 
 const TJobId& TJob::GetId() const
@@ -67,35 +189,12 @@ const TJobSpec& TJob::GetSpec()
     return JobSpec;
 }
 
-// TODO(babenko): get rid of this when new futures are ready
-void TJob::SubscribeStarted(const TClosure& callback)
-{
-    Started->Subscribe(FromFunctor([=] (TVoid) { callback.Run(); }));
-}
-
-void TJob::UnsubscribeStarted(const TClosure& callback)
-{
-    YUNREACHABLE();
-}
-
-void TJob::SubscribeFinished(const TCallback<void(TJobResult)>& callback)
-{
-    Finished->Subscribe(FromFunctor([=] (TJobResult result) { callback.Run(result); }));
-}
-
-void TJob::UnsubscribeFinished(const TCallback<void(TJobResult)>& callback)
-{
-    YUNREACHABLE();
-}
-
 TJobResult TJob::GetResult()
 {
-    TJobResult result;
-    YVERIFY(JobResult->TryGet(&result));
-    return result;
+    return JobResult;
 }
 
-void TJob::SetResult( const NScheduler::NProto::TJobResult& jobResult )
+void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
 {
     YUNIMPLEMENTED();
 }
@@ -117,6 +216,7 @@ NScheduler::EJobState TJob::GetState()
 //    OnFinished->Subscribe(callback);
 //}
 //
+
 //const NScheduler::NProto::TJobSpec& TJob::GetSpec()
 //{
 //    // ToDo(psushin): make special supervisor call "Ready to start"
@@ -180,126 +280,8 @@ NScheduler::EJobState TJob::GetState()
 //
 //    OnStarted->Set(TVoid());
 //}
-//
-//void TJob::PrepareFiles()
-//{
-//    VERIFY_THREAD_AFFINITY(JobThread);
-//
-//    if (!Error.IsOK())
-//        return;
-//
-//    auto transactionId = TTransactionId::FromProto(JobSpec.transaction_id());
-//    auto batchReq = CypressProxy.ExecuteBatch();
-//
-//    for (int i = 0; i < JobSpec.operation_spec().files_size(); ++i) {
-//        auto fetchReq = TFileYPathProxy::Fetch(WithTransaction(
-//            JobSpec.operation_spec().files(i),
-//            transactionId));
-//        batchReq->AddRequest(~fetchReq);
-//    }
-//
-//    batchReq->Invoke()->Subscribe(FromMethod(
-//        &TJob::OnFilesFetched,
-//        TPtr(this))->Via(Slot->GetInvoker()));
-//}
-//
-//void TJob::OnFilesFetched(
-//    TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
-//{
-//    VERIFY_THREAD_AFFINITY(JobThread);
-//
-//    if (!Error.IsOK())
-//        return;
-//
-//    if (!batchRsp->IsOK()) {
-//        DoCancel(batchRsp->GetError());
-//        return;
-//    }
-//
-//    auto awaiter = New<TParallelAwaiter>(~Slot->GetInvoker());
-//
-//    for (int fileIndex = 0; fileIndex < batchRsp->GetSize(); ++fileIndex) {
-//        auto fetchRsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>(fileIndex);
-//        if (!fetchRsp->IsOK()) {
-//            DoCancel(fetchRsp->GetError());
-//            return;
-//        }
-//
-//        auto chunkId = TChunkId::FromProto(fetchRsp->chunk_id());
-//        auto fileName = fetchRsp->file_name();
-//        auto executable = fetchRsp->executable();
-//
-//        awaiter->Await(ChunkCache->DownloadChunk(chunkId), FromMethod(
-//            &TJob::OnChunkDownloaded,
-//            TPtr(this),
-//            fileIndex,
-//            fileName,
-//            executable));
-//    }
-//
-//    awaiter->Complete(FromMethod(
-//        &TJob::RunJobProxy,
-//        TPtr(this)));
-//}
-//
-//void TJob::OnChunkDownloaded(
-//    NChunkHolder::TChunkCache::TDownloadResult result,
-//    int fileIndex,
-//    const Stroka& fileName,
-//    bool executable)
-//{
-//    VERIFY_THREAD_AFFINITY(JobThread);
-//
-//    if (!Error.IsOK())
-//        return;
-//
-//    if (!result.IsOK()) {
-//        LOG_INFO("Failed to download file (JobId: %s, file name: %s, error: %s)", 
-//            ~JobId.ToString(),
-//            ~fileName,
-//            ~result.GetMessage());
-//        DoCancel(result);
-//        return;
-//    }
-//
-//    CachedChunks.push_back(result.Value());
-//
-//    try {
-//        Slot->MakeLink(
-//            fileName, 
-//            CachedChunks.back()->GetFileName(), 
-//            executable);
-//    } catch (yexception& ex) {
-//        LOG_INFO("Failed to make symlink (JobId: %s, file name: %s, error: %s)", 
-//            ~JobId.ToString(),
-//            ~fileName,
-//            ex.what());
-//        DoCancel(TError(ex.what()));
-//        return;
-//    }
-//
-//    LOG_INFO("Successfully downloaded file (JobId: %s, file name: %s)", 
-//        ~JobId.ToString(),
-//        ~fileName);
-//}
-//
-//void TJob::RunJobProxy()
-//{
-//    VERIFY_THREAD_AFFINITY(JobThread);
-//
-//    if (!Error.IsOK())
-//        return;
-//
-//    try {
-//        ProxyController->Run();
-//        ProxyController->SubscribeOnExit(~FromMethod(
-//            &TJob::OnJobExit,
-//            TPtr(this))->Via(Slot->GetInvoker()));
-//
-//    } catch (yexception& ex) {
-//        DoCancel(TError(ex.what()));
-//    }
-//}
+
+
 //
 //void TJob::OnJobExit(TError error)
 //{
