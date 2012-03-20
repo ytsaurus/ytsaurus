@@ -3,13 +3,14 @@
 #include "public.h"
 
 #include <ytlib/actions/invoker.h>
-#include <ytlib/misc/guid.h>
-#include <ytlib/chunk_holder/public.h>
-#include <ytlib/exec_agent/public.h>
+//#include <ytlib/misc/guid.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/bus/server.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/server.h>
+#include <ytlib/ytree/public.h>
+#include <ytlib/chunk_server/public.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -26,18 +27,12 @@ public:
 
     TCellNodeConfigPtr GetConfig() const;
     NChunkServer::TIncarnationId GetIncarnationId() const;
-    NChunkHolder::TChunkStorePtr GetChunkStore() const;
-    NChunkHolder::TChunkCachePtr GetChunkCache() const;
-    NChunkHolder::TSessionManagerPtr GetSessionManager() const;
-    NChunkHolder::TJobExecutorPtr GetDataJobExecutor() const;
     IInvoker::TPtr GetControlInvoker() const;
-    NChunkHolder::TBlockStorePtr GetBlockStore();
     NBus::IBusServer::TPtr GetBusServer() const;
-    NChunkHolder::TPeerBlockTablePtr GetPeerBlockTable() const;
-    NChunkHolder::TReaderCachePtr GetReaderCache() const;
     NRpc::IChannel::TPtr GetLeaderChannel() const;
+    NRpc::IServer::TPtr GetRpcServer() const;
     Stroka GetPeerAddress() const;
-    NExecAgent::TJobManagerPtr GetExecJobManager() const;
+    NYTree::IMapNodePtr GetOrchidRoot() const;
 
     void Run();
 
@@ -46,18 +41,12 @@ private:
     TCellNodeConfigPtr Config;
     
     NChunkServer::TIncarnationId IncarnationId;
-    NChunkHolder::TChunkStorePtr ChunkStore;
-    NChunkHolder::TChunkCachePtr ChunkCache;
-    NChunkHolder::TSessionManagerPtr SessionManager;
-    NChunkHolder::TJobExecutorPtr DataJobExecutor;
     IInvoker::TPtr ControlInvoker;
-    NChunkHolder::TBlockStorePtr BlockStore;
     NBus::IBusServer::TPtr BusServer;
-    NChunkHolder::TPeerBlockTablePtr PeerBlockTable;
-    NChunkHolder::TReaderCachePtr ReaderCache;
+    NRpc::IServer::TPtr RpcServer;
     NRpc::IChannel::TPtr LeaderChannel;
     Stroka PeerAddress;
-    NExecAgent::TJobManagerPtr ExecJobManager;
+    NYTree::IMapNodePtr OrchidRoot;
 
 };
 

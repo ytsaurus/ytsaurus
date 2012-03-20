@@ -14,14 +14,14 @@ struct TEnvironmentConfig
     : public TConfigurable
 {
     Stroka Type;
-    NYTree::INodePtr Config;
+
+    // Type-dependent configuration is stored as options.
 
     TEnvironmentConfig()
     {
+        SetKeepOptions(true);
         Register("type", Type)
             .NonEmpty();
-        // TODO(babenko): use GetOptions instead
-        // Register("config", Config);
     }
 };
 

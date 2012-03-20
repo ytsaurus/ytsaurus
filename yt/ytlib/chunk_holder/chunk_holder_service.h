@@ -5,7 +5,6 @@
 
 #include <ytlib/rpc/service.h>
 #include <ytlib/rpc/channel_cache.h>
-#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -17,7 +16,7 @@ class TChunkHolderService
 {
 public:
     //! Creates an instance.
-    TChunkHolderService(TChunkHolderConfigPtr config, NCellNode::TBootstrap* bootstrap);
+    TChunkHolderService(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
 
 private:
     typedef TChunkHolderService TThis;
@@ -25,7 +24,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TChunkHolderConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap;
     NRpc::TChannelCache ChannelCache;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartChunk);

@@ -6,6 +6,7 @@
 #include "chunk.h"
 #include "block_store.h"
 #include "config.h"
+#include "bootstrap.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/serialize.h>
@@ -17,7 +18,6 @@
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/election/leader_channel.h>
-#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -27,7 +27,6 @@ using namespace NChunkServer;
 using namespace NElection;
 using namespace NRpc;
 using namespace NProto;
-using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

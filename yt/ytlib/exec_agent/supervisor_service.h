@@ -4,7 +4,6 @@
 #include "supervisor_service.pb.h"
 
 #include <ytlib/rpc/server.h>
-#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -17,12 +16,12 @@ class TSupervisorService
 public:
     typedef TIntrusivePtr<TSupervisorService> TPtr;
 
-    TSupervisorService(NCellNode::TBootstrap* bootstrap);
+    TSupervisorService(TBootstrap* bootstrap);
 
 private:
     typedef TSupervisorService TThis;
 
-    NCellNode::TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, OnJobFinished);

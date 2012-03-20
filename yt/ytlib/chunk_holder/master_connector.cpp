@@ -9,6 +9,7 @@
 #include "chunk_cache.h"
 #include "session_manager.h"
 #include "job_executor.h"
+#include "bootstrap.h"
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/rpc/client.h>
@@ -18,14 +19,12 @@
 #include <ytlib/chunk_server/holder_statistics.h>
 #include <ytlib/election/leader_channel.h>
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/cell_node/bootstrap.h>
 
 #include <util/system/hostname.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
-using namespace NCellNode;
 using namespace NChunkServer::NProto;
 using namespace NChunkClient;
 using namespace NRpc;
@@ -192,7 +191,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
         *request->add_removed_chunks() = GetRemoveInfo(~chunk);
     }
 
-    FOREACH (const auto& job, Bootstrap->GetDataJobExecutor()->GetAllJobs()) {
+    FOREACH (const auto& job, Bootstrap->GetJobExecutor()->GetAllJobs()) {
         auto* info = request->add_jobs();
         info->set_job_id(job->GetJobId().ToProto());
         info->set_state(job->GetState());
@@ -269,14 +268,14 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
 
     FOREACH (const auto& jobInfo, response->jobs_to_stop()) {
         auto jobId = TJobId::FromProto(jobInfo.job_id());
-        auto job = Bootstrap->GetDataJobExecutor()->FindJob(jobId);
+        auto job = Bootstrap->GetJobExecutor()->FindJob(jobId);
         if (!job) {
             LOG_WARNING("Request to stop a non-existing job (JobId: %s)",
                 ~jobId.ToString());
             continue;
         }
 
-        Bootstrap->GetDataJobExecutor()->StopJob(~job);
+        Bootstrap->GetJobExecutor()->StopJob(~job);
     }
 
     FOREACH (const auto& startInfo, response->jobs_to_start()) {
@@ -293,7 +292,7 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
             continue;
         }
 
-        Bootstrap->GetDataJobExecutor()->StartJob(
+        Bootstrap->GetJobExecutor()->StartJob(
             jobType,
             jobId,
             ~chunk,

@@ -3,7 +3,6 @@
 #include "public.h"
 #include "tasks.pb.h"
 
-#include <ytlib/cell_node/public.h>
 //#include <ytlib/exec/scheduler_internal_proxy.h>
 //#include <ytlib/chunk_holder/chunk_cache.h>
 //#include <ytlib/misc/error.h>
@@ -27,7 +26,7 @@ public:
 
     TJobManager(
         TJobManagerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
 
     ~TJobManager();
 

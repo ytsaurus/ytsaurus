@@ -3,14 +3,11 @@
 #include "supervisor_service_proxy.h"
 #include "job_manager.h"
 #include "job.h"
+#include "bootstrap.h"
 #include "private.h"
-
-#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NExecAgent {
-
-using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +31,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
     auto jobId = TJobId::FromProto(request->job_id());
     context->SetRequestInfo("JobId: %s", ~jobId.ToString());
 
-    auto job = Bootstrap->GetExecJobManager()->GetJob(jobId);
+    auto job = Bootstrap->GetJobManager()->GetJob(jobId);
     *response->mutable_job_spec() = job->GetSpec();
 
     context->Reply();
@@ -48,7 +45,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
         ~jobId.ToString(),
         ~error.ToString());
 
-    Bootstrap->GetExecJobManager()->OnJobFinished(
+    Bootstrap->GetJobManager()->OnJobFinished(
         jobId,
         request->result());
 }

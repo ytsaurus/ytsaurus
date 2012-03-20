@@ -11,51 +11,49 @@
 namespace NYT {
 namespace NExecAgent {
 
-using namespace NCellNode;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobManager::TJobManager(
-    TJobManagerConfigPtr config,
-    TBootstrap* bootstrap,)
-    : Config(config)
-    , JobManagerThread(New<TActionQueue>("JobManager"))
-    , EnvironmentManager(config)
-    , ChunkCache(chunkCache)
-    , MasterChannel(masterChannel)
-    // make special "scheduler channel" that asks master for scheduler 
-    , SchedulerProxy(~NRpc::CreateBusChannel(Config->SchedulerAddress))
-{
-    using namespace std;
-    VERIFY_INVOKER_AFFINITY(JobManagerThread->GetInvoker(), JobManagerThread);
+//TJobManager::TJobManager(
+//    TJobManagerConfigPtr config,
+//    TBootstrap* bootstrap,)
+//    : Config(config)
+//    , JobManagerThread(New<TActionQueue>("JobManager"))
+//    , EnvironmentManager(config)
+//    , ChunkCache(chunkCache)
+//    , MasterChannel(masterChannel)
+//    // make special "scheduler channel" that asks master for scheduler 
+//    , SchedulerProxy(~NRpc::CreateBusChannel(Config->SchedulerAddress))
+//{
+    //using namespace std;
+    //VERIFY_INVOKER_AFFINITY(JobManagerThread->GetInvoker(), JobManagerThread);
 
-    try {
-        tallyman_start( "/export/home/yeti/projects/wallet" );
-    }
-    catch ( const system_error& err ) {
-        LOG_DEBUG("Failed to start tallyman: %s", err.what());
-    }
-    catch ( const runtime_error& err ) {
-        LOG_DEBUG("Failed to start tallyman: %s", err.what());
-    }
+    //try {
+    //    tallyman_start( "/export/home/yeti/projects/wallet" );
+    //}
+    //catch ( const system_error& err ) {
+    //    LOG_DEBUG("Failed to start tallyman: %s", err.what());
+    //}
+    //catch ( const runtime_error& err ) {
+    //    LOG_DEBUG("Failed to start tallyman: %s", err.what());
+    //}
 
-    // Init job slots.
-    for (int slotIndex = 0; slotIndex < Config->SlotCount; ++ slotIndex) {
-        auto slotName = Sprintf("slot.%d", slotIndex);
-        auto location = NFS::CombinePaths(Config->SlotLocation, slotName);
+    //// Init job slots.
+    //for (int slotIndex = 0; slotIndex < Config->SlotCount; ++ slotIndex) {
+    //    auto slotName = Sprintf("slot.%d", slotIndex);
+    //    auto location = NFS::CombinePaths(Config->SlotLocation, slotName);
 
-        Slots.push_back(New<TSlot>(~Config->Slot, location, slotName));
-    }
+    //    Slots.push_back(New<TSlot>(~Config->Slot, location, slotName));
+    //}
 
-    // Register environment builders.
-    EnvironmentManager.Register(
-        "unsafe", 
-        ~New<TUnsafeEnvironmentBuilder>());
-}
+    //// Register environment builders.
+    //EnvironmentManager.Register(
+    //    "unsafe", 
+    //    ~New<TUnsafeEnvironmentBuilder>());
+//}
 //
 //TJobManager::~TJobManager()
 //{

@@ -1,190 +1,100 @@
 #include "stdafx.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "chunk_holder_service.h"
+#include "reader_cache.h"
+#include "session_manager.h"
+#include "block_store.h"
+#include "peer_block_table.h"
+#include "chunk_store.h"
+#include "chunk_cache.h"
+#include "chunk_registry.h"
+#include "master_connector.h"
+#include "job_executor.h"
+#include "peer_block_updater.h"
+#include "ytree_integration.h"
 
-/*
-#include <ytlib/misc/ref_counted_tracker.h>
-#include <ytlib/bus/nl_server.h>
-#include <ytlib/election/leader_channel.h>
-#include <ytlib/ytree/ephemeral.h>
-#include <ytlib/ytree/virtual.h>
-#include <ytlib/orchid/orchid_service.h>
-#include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/ytree_integration.h>
-#include <ytlib/monitoring/http_server.h>
-#include <ytlib/monitoring/http_integration.h>
-#include <ytlib/ytree/yson_file_service.h>
+#include <ytlib/cell_node/bootstrap.h>
+
 #include <ytlib/ytree/ypath_client.h>
-#include <ytlib/profiling/profiling_manager.h>
-#include <ytlib/chunk_holder/config.h>
-#include <ytlib/chunk_holder/chunk_holder_service.h>
-#include <ytlib/chunk_holder/reader_cache.h>
-#include <ytlib/chunk_holder/session_manager.h>
-#include <ytlib/chunk_holder/block_store.h>
-#include <ytlib/chunk_holder/peer_block_table.h>
-#include <ytlib/chunk_holder/chunk_store.h>
-#include <ytlib/chunk_holder/chunk_cache.h>
-#include <ytlib/chunk_holder/chunk_registry.h>
-#include <ytlib/chunk_holder/master_connector.h>
-#include <ytlib/chunk_holder/job_executor.h>
-#include <ytlib/chunk_holder/peer_block_updater.h>
-#include <ytlib/chunk_holder/ytree_integration.h>
-#include <ytlib/exec_agent/job_manager.h>
-#include <ytlib/exec_agent/supervisor_service.h>
+#include <ytlib/ytree/virtual.h>
 
 namespace NYT {
-namespace NCellNode {
+namespace NChunkHolder {
 
 using namespace NBus;
 using namespace NRpc;
-using namespace NYTree;
-using namespace NMonitoring;
-using namespace NOrchid;
 using namespace NChunkServer;
-using namespace NProfiling;
-using namespace NChunkHolder;
-using namespace NExecAgent;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static NLog::TLogger Logger("NodeBootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
-    const Stroka& configFileName,
-    TCellNodeConfigPtr config)
-    : ConfigFileName(configFileName)
-    , Config(config)
+    TChunkHolderConfigPtr config,
+    NCellNode::TBootstrap* nodeBootstrap)
+    : Config(config)
+    , NodeBootstrap(nodeBootstrap)
 { }
 
 TBootstrap::~TBootstrap()
 { }
 
-void TBootstrap::Run()
+void TBootstrap::Init()
 {
-    IncarnationId = TIncarnationId::Create();
-    PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
-
-    LOG_INFO("Starting chunk holder (IncarnationId: %s, PeerAddress: %s, MasterAddresses: [%s])",
-        ~IncarnationId.ToString(),
-        ~PeerAddress,
-        ~JoinToString(Config->Masters->Addresses));
-
-    LeaderChannel = CreateLeaderChannel(~Config->Masters);
-
-    auto controlQueue = New<TActionQueue>("Control");
-    ControlInvoker = controlQueue->GetInvoker();
-
-    BusServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->RpcPort));
-
-    auto rpcServer = CreateRpcServer(~BusServer);
-
-    ReaderCache = New<TReaderCache>(Config->Data);
+    ReaderCache = New<TReaderCache>(Config);
 
     auto chunkRegistry = New<TChunkRegistry>(this);
 
     BlockStore = New<TBlockStore>(
-        Config->Data,
+        Config,
         chunkRegistry,
         ReaderCache);
 
-    PeerBlockTable = New<TPeerBlockTable>(Config->Data->PeerBlockTable);
+    PeerBlockTable = New<TPeerBlockTable>(Config->PeerBlockTable);
 
-    auto peerUpdater = New<TPeerBlockUpdater>(Config->Data, this);
+    auto peerUpdater = New<TPeerBlockUpdater>(Config, this);
     peerUpdater->Start();
 
-    ChunkStore = New<TChunkStore>(Config->Data, this);
+    ChunkStore = New<TChunkStore>(Config, this);
     ChunkStore->Start();
 
-    ChunkCache = New<TChunkCache>(Config->Data, this);
+    ChunkCache = New<TChunkCache>(Config, this);
     ChunkCache->Start();
 
     SessionManager = New<TSessionManager>(
-        Config->Data,
+        Config,
         BlockStore,
         ChunkStore,
-        controlQueue->GetInvoker());
+        NodeBootstrap->GetControlInvoker());
 
     JobExecutor = New<TJobExecutor>(
-        Config->Data,
+        Config,
         ChunkStore,
         BlockStore,
-        controlQueue->GetInvoker());
+        NodeBootstrap->GetControlInvoker());
 
-    auto masterConnector = New<TMasterConnector>(Config->Data, this);
+    auto masterConnector = New<TMasterConnector>(Config, this);
 
-    ExecJobManager = New<TJobManager>(Config->Exec, this);
+    auto chunkHolderService = New<TChunkHolderService>(Config, this);
+    NodeBootstrap->GetRpcServer()->RegisterService(chunkHolderService);
 
-    auto chunkHolderService = New<TChunkHolderService>(Config->Data, this);
-    rpcServer->RegisterService(chunkHolderService);
-
-    auto execSupervisorService = New<TSupervisorService>(this);
-    rpcServer->RegisterService(chunkHolderService);
-
-    auto monitoringManager = New<TMonitoringManager>();
-    monitoringManager->Register(
-        "ref_counted",
-        FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
-    monitoringManager->Register(
-        "bus_server",
-        FromMethod(&IBusServer::GetMonitoringInfo, BusServer));
-    monitoringManager->Start();
-
-    auto orchidFactory = NYTree::GetEphemeralNodeFactory();
-    auto orchidRoot = orchidFactory->CreateMap();
     SyncYPathSetNode(
-        ~orchidRoot,
-        "monitoring",
-        ~NYTree::CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
-    SyncYPathSetNode(
-        ~orchidRoot,
-        "profiling",
-        ~CreateVirtualNode(
-            ~TProfilingManager::Get()->GetRoot()
-            ->Via(TProfilingManager::Get()->GetInvoker())));
-    SyncYPathSetNode(
-        ~orchidRoot,
-        "config",
-        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProducer(ConfigFileName)));
-    SyncYPathSetNode(
-        ~orchidRoot,
+        ~NodeBootstrap->GetOrchidRoot(),
         "stored_chunks",
         ~NYTree::CreateVirtualNode(~CreateStoredChunkMapService(~ChunkStore)));
     SyncYPathSetNode(
-        ~orchidRoot,
+        ~NodeBootstrap->GetOrchidRoot(),
         "cached_chunks",
         ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
-
-    auto orchidService = New<TOrchidService>(
-        ~orchidRoot,
-        controlQueue->GetInvoker());
-    rpcServer->RegisterService(~orchidService);
-
-    ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
-    httpServer->Register(
-        "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
-
-    LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
-    httpServer->Start();
-
-    LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
-    rpcServer->Start();
-
-    masterConnector->Start();
-
-    Sleep(TDuration::Max());
 }
 
-TCellNodeConfigPtr TBootstrap::GetConfig() const
+TChunkHolderConfigPtr TBootstrap::GetConfig() const
 {
     return Config;
 }
 
 TIncarnationId TBootstrap::GetIncarnationId() const
 {
-    return IncarnationId;
+    return NodeBootstrap->GetIncarnationId();
 }
 
 TChunkStorePtr TBootstrap::GetChunkStore() const
@@ -209,7 +119,7 @@ TJobExecutorPtr TBootstrap::GetJobExecutor() const
 
 IInvoker::TPtr TBootstrap::GetControlInvoker() const
 {
-    return ControlInvoker;
+    return NodeBootstrap->GetControlInvoker();
 }
 
 TBlockStorePtr TBootstrap::GetBlockStore()
@@ -219,7 +129,7 @@ TBlockStorePtr TBootstrap::GetBlockStore()
 
 IBusServer::TPtr TBootstrap::GetBusServer() const
 {
-    return BusServer;
+    return NodeBootstrap->GetBusServer();
 }
 
 TPeerBlockTablePtr TBootstrap::GetPeerBlockTable() const
@@ -234,21 +144,15 @@ TReaderCachePtr TBootstrap::GetReaderCache() const
 
 IChannel::TPtr TBootstrap::GetLeaderChannel() const
 {
-    return LeaderChannel;
+    return NodeBootstrap->GetLeaderChannel();
 }
 
 Stroka TBootstrap::GetPeerAddress() const
 {
-    return PeerAddress;
-}
-
-NExecAgent::TJobManagerPtr TBootstrap::GetExecJobManager() const
-{
-    return ExecJobManager;
+    return NodeBootstrap->GetPeerAddress();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCellNode
+} // namespace NChunkHolder
 } // namespace NYT
-*/

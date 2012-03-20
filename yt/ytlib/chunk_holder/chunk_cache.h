@@ -5,7 +5,6 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/actions/signal.h>
-#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -28,7 +27,7 @@ public:
     typedef yvector<TCachedChunkPtr> TChunks;
 
     //! Constructs a new instance.
-    TChunkCache(TChunkHolderConfigPtr config, NCellNode::TBootstrap* bootstrap);
+    TChunkCache(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
 
     //! Initializes the cache.
     void Start();

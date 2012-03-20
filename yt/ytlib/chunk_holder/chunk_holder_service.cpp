@@ -9,13 +9,13 @@
 #include "block_store.h"
 #include "peer_block_table.h"
 #include "session_manager.h"
+#include "bootstrap.h"
 #include "chunk_holder_service.pb.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/action_util.h>
 #include <ytlib/actions/parallel_awaiter.h>
-#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -23,7 +23,6 @@ namespace NChunkHolder {
 using namespace NRpc;
 using namespace NChunkClient;
 using namespace NProto;
-using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

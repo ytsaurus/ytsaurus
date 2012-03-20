@@ -3,6 +3,7 @@
 #include "common.h"
 #include "block_store.h"
 #include "chunk_holder_service_proxy.h"
+#include "bootstrap.h"
 #include "config.h"
 
 #include <ytlib/rpc/channel_cache.h>
