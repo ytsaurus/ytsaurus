@@ -143,6 +143,10 @@ public:
         Cmd->add(~ValueArg);
     }
 
+private:
+    THolder<TFreeStringArg> PathArg;
+    THolder<TFreeStringArg> ValueArg;
+
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
         consumer->OnMapItem("do");
@@ -157,10 +161,6 @@ public:
 
         TTransactedArgs::BuildCommand(consumer);
     }
-
-private:
-    THolder<TFreeStringArg> PathArg;
-    THolder<TFreeStringArg> ValueArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,6 +175,9 @@ public:
         Cmd->add(~PathArg);
     }
 
+private:
+    THolder<TFreeStringArg> PathArg;
+
     virtual void BuildCommand(IYsonConsumer* consumer)
     {
         consumer->OnMapItem("do");
@@ -185,10 +188,6 @@ public:
 
         TTransactedArgs::BuildCommand(consumer);
     }
-
-
-private:
-    THolder<TFreeStringArg> PathArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,6 +204,18 @@ public:
 
 private:
     THolder<TFreeStringArg> PathArg;
+
+    virtual void BuildCommand(IYsonConsumer* consumer)
+    {
+        consumer->OnMapItem("do");
+        consumer->OnStringScalar("list");
+
+        consumer->OnMapItem("path");
+        consumer->OnStringScalar(PathArg->getValue());
+
+        TTransactedArgs::BuildCommand(consumer);
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -234,6 +245,21 @@ private:
 
     typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
     THolder<TManifestArg> ManifestArg;
+
+    virtual void BuildCommand(IYsonConsumer* consumer)
+    {
+        consumer->OnMapItem("do");
+        consumer->OnStringScalar("create");
+
+        consumer->OnMapItem("path");
+        consumer->OnStringScalar(PathArg->getValue());
+
+        consumer->OnMapItem("type");
+        consumer->OnStringScalar(TypeArg->getValue().ToString());
+
+        TTransactedArgs::BuildCommand(consumer);
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
