@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "table_chunk_meta.pb.h"
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/ref.h>

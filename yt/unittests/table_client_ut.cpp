@@ -1,7 +1,5 @@
 ﻿#include "stdafx.h"
 
-//#include "table_reader.pb.h"
-
 #include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/chunk_client/file_writer.h>
 

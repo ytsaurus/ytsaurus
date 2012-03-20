@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "file_node.h"
-#include "file_ypath.pb.h"
+#include <ytlib/file_server/file_ypath.pb.h>
 
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/cypress/node_proxy_detail.h>

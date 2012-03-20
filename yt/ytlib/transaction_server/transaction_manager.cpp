@@ -2,7 +2,7 @@
 #include "transaction_manager.h"
 #include "transaction.h"
 #include "transaction_ypath_proxy.h"
-#include "transaction_ypath.pb.h"
+#include <ytlib/transaction_server/transaction_ypath.pb.h>
 
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>

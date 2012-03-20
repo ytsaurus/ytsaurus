@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "meta_state_manager.pb.h"
+#include <ytlib/meta_state/meta_state_manager.pb.h>
 
 #include <ytlib/misc/ref.h>
 

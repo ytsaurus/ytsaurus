@@ -2,7 +2,7 @@
 
 #include "node.h"
 #include "cypress_manager.h"
-#include "ypath.pb.h"
+#include <ytlib/ytree/ypath.pb.h>
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/ytree/node_detail.h>

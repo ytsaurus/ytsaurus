@@ -2,7 +2,7 @@
 #include "remote_writer.h"
 #include "holder_channel_cache.h"
 #include "writer_thread.h"
-#include "chunk_holder_service.pb.h"
+#include <ytlib/chunk_holder/chunk_holder_service.pb.h>
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/metric.h>

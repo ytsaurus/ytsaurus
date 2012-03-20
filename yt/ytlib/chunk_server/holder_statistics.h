@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_service.pb.h"
+#include <ytlib/chunk_server/chunk_service.pb.h>
 
 namespace NYT {
 namespace NChunkServer {

@@ -6,7 +6,7 @@
 #include "chunk_list.h"
 #include "job.h"
 #include "job_list.h"
-#include "chunk_manager.pb.h"
+#include <ytlib/chunk_server/chunk_manager.pb.h>
 #include "chunk_placement.h"
 #include "job_scheduler.h"
 #include "holder_lease_tracker.h"
@@ -14,11 +14,11 @@
 #include "chunk_service_proxy.h"
 #include "holder_authority.h"
 #include "holder_statistics.h"
-#include "chunk_manager.pb.h"
-#include "chunk_ypath.pb.h"
-#include "chunk_list_ypath.pb.h"
-#include "file_chunk_meta.pb.h"
-#include "table_chunk_meta.pb.h"
+#include <ytlib/chunk_server/chunk_manager.pb.h>
+#include <ytlib/chunk_server/chunk_ypath.pb.h>
+#include <ytlib/chunk_server/chunk_list_ypath.pb.h>
+#include <ytlib/file_client/file_chunk_meta.pb.h>
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/misc/foreach.h>
