@@ -16,6 +16,9 @@ TYsonTableOutput::TYsonTableOutput(ISyncWriter* syncWriter)
     Writer->Open();
 }
 
+TYsonTableOutput::~TYsonTableOutput() throw()
+{ }
+
 void TYsonTableOutput::DoWrite(const void* buf, size_t len)
 {
     const char* begin = static_cast<const char*>(buf);

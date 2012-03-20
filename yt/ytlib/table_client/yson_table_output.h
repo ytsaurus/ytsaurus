@@ -18,6 +18,7 @@ class TYsonTableOutput
 {
 public:
     TYsonTableOutput(ISyncWriter* syncWriter);
+    ~TYsonTableOutput() throw();
 
 private:
     void DoWrite(const void* buf, size_t len);
