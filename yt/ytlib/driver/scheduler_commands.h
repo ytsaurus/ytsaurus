@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <ytlib/scheduler/map_operation.h>
+#include <ytlib/scheduler/map_controller.h>
 
 namespace NYT {
 namespace NDriver {

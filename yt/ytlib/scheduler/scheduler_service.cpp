@@ -5,6 +5,9 @@
 
 #include <ytlib/cell_scheduler/bootstrap.h>
 #include <ytlib/scheduler/scheduler.h>
+#include <ytlib/scheduler/operation.h>
+#include <ytlib/scheduler/job.h>
+#include <ytlib/scheduler/exec_node.h>
 #include <ytlib/ytree/serialize.h>
 
 namespace NYT {

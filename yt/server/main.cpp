@@ -14,6 +14,7 @@
 #include <ytlib/cell_node/bootstrap.h>
 #include <ytlib/cell_scheduler/config.h>
 #include <ytlib/cell_scheduler/bootstrap.h>
+#include <ytlib/scheduler/config.h>
 
 namespace NYT {
 

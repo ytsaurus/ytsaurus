@@ -88,6 +88,8 @@ void TBootstrap::Init()
         ~NodeBootstrap->GetOrchidRoot(),
         "cached_chunks",
         ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
+
+    masterConnector->Start();
 }
 
 TChunkHolderConfigPtr TBootstrap::GetConfig() const
