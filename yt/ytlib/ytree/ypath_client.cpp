@@ -2,7 +2,7 @@
 #include "ypath_client.h"
 #include "ypath_proxy.h"
 #include "ypath_detail.h"
-#include "rpc.pb.h"
+#include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/rpc/message.h>

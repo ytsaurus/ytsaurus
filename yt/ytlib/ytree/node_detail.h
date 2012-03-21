@@ -5,7 +5,7 @@
 #include "ypath_service.h"
 #include "tree_builder.h"
 #include "yson_reader.h"
-#include "ypath.pb.h"
+#include <ytlib/ytree/ypath.pb.h>
 #include "ypath_detail.h"
 
 namespace NYT {

@@ -10,8 +10,8 @@
 #include "peer_block_table.h"
 #include "session_manager.h"
 #include "bootstrap.h"
-#include "chunk_holder_service.pb.h"
 
+#include <ytlib/chunk_holder/chunk_holder_service.pb.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/action_util.h>

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ypath_client.h"
-#include "ypath.pb.h"
+#include <ytlib/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {

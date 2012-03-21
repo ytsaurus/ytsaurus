@@ -27,9 +27,9 @@ struct IProxyController
      *  
      *  Must be called from the same thread as #Run.
      */
-    virtual void Kill(const TError& error) = 0;
+    virtual void Kill(const TError& error) throw() = 0;
 
-    DECLARE_INTERFACE_SIGNAL(TCallback<void(TError)>, Exited);
+    DECLARE_INTERFACE_SIGNAL(void(TError), Exited);
 
     // virtual void SubscribeOnMemoryLimit(IParamAction<i64>* callback) = 0;
     // virtual bool IsRunning() const = 0;

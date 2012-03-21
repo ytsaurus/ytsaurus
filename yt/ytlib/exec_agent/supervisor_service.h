@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "supervisor_service.pb.h"
 
+#include <ytlib/exec_agent/supervisor_service.pb.h>
 #include <ytlib/rpc/server.h>
 
 namespace NYT {

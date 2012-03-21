@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "rpc.pb.h"
+#include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/bus/message.h>
 

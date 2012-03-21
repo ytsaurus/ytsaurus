@@ -5,30 +5,6 @@ set( SRCS
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )
 add_executable( ytserver ${SRCS} )
 
-include_directories(
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_BINARY_DIR}/include
-  ${CMAKE_BINARY_DIR}/yt/ytlib/misc
-  ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_server
-  ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_holder
-  ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
-  ${CMAKE_BINARY_DIR}/yt/ytlib/object_server
-)
-
-if ( NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}" )
-  include_directories(
-    ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_client
-    ${CMAKE_BINARY_DIR}/yt/ytlib/election
-    ${CMAKE_BINARY_DIR}/yt/ytlib/transaction_server
-    ${CMAKE_BINARY_DIR}/yt/ytlib/meta_state
-    ${CMAKE_BINARY_DIR}/yt/ytlib/cypress
-    ${CMAKE_BINARY_DIR}/yt/ytlib/orchid
-    ${CMAKE_BINARY_DIR}/yt/ytlib/object_server
-  )
-endif()
-
 target_link_libraries( ytserver
   ytlib
 )

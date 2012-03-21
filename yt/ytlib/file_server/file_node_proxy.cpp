@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "file_node_proxy.h"
-#include "file_chunk_meta.pb.h"
+#include <ytlib/file_client/file_chunk_meta.pb.h>
 
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>

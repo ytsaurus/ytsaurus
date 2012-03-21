@@ -3,8 +3,8 @@
 #include "common.h"
 #include "enum.h"
 #include "property.h"
-#include "error.pb.h"
 
+#include <ytlib/misc/error.pb.h>
 #include <ytlib/actions/future.h>
 
 namespace NYT {

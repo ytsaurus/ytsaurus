@@ -6,7 +6,7 @@
 #include "block_store.h"
 #include "chunk.h"
 #include "chunk_store.h"
-#include "chunk.pb.h"
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/sync.h>

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "chunk.pb.h"
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/enum.h>

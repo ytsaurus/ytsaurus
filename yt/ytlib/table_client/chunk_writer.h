@@ -6,7 +6,7 @@
 #include "value.h"
 #include "schema.h"
 #include "channel_writer.h"
-#include "table_chunk_meta.pb.h"
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>

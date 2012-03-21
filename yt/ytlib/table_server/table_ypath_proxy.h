@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "table_ypath.pb.h"
+#include <ytlib/table_server/table_ypath.pb.h>
 
 #include <ytlib/ytree/ypath_proxy.h>
 

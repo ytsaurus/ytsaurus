@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "orchid_service.pb.h"
+#include <ytlib/orchid/orchid_service.pb.h>
 
 #include <ytlib/rpc/service.h>
 #include <ytlib/rpc/client.h>

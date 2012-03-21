@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "message.h"
-#include "rpc.pb.h"
+#include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/misc/serialize.h>
 
