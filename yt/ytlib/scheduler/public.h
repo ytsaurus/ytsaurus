@@ -45,6 +45,9 @@ class TSchedulerServiceProxy;
 class TOperation;
 typedef TIntrusivePtr<TOperation> TOperationPtr;
 
+class TSchedulerConfig;
+typedef TIntrusivePtr<TSchedulerConfig> TSchedulerConfigPtr;
+
 class TScheduler;
 typedef TIntrusivePtr<TScheduler> TSchedulerPtr;
 

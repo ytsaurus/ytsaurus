@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "scheduler.h"
 #include "private.h"
+#include "config.h"
 
 #include <ytlib/misc/string.h>
 
@@ -66,13 +67,10 @@ IMapNodePtr TOperation::GetSpec() const
 ////////////////////////////////////////////////////////////////////
 
 TScheduler::TScheduler(
-    TCellSchedulerConfigPtr config,
+    TSchedulerConfigPtr config,
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
-    , TransactionManager(New<TTransactionManager>(
-        config->TransactionManager,
-        bootstrap->GetMasterChannel()))
     , CypressProxy(bootstrap->GetMasterChannel())
 {
     YASSERT(config);
@@ -95,7 +93,7 @@ void TScheduler::RegisterAtMaster()
     // We never commit or commit this transaction, so it gets aborted (and the lock gets released)
     // when the scheduler dies.
     try {
-        BootstrapTransaction = TransactionManager->Start();
+        BootstrapTransaction = Bootstrap->GetTransactionManager()->Start();
     } catch (const std::exception& ex) {
         ythrow yexception() << Sprintf("Failed to start bootstrap transaction\n%s", ex.what());
     }

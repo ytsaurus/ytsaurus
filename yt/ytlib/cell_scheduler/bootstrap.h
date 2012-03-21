@@ -9,6 +9,8 @@
 #include <ytlib/rpc/channel.h>
 // TODO(babenko): replace with public.h
 #include <ytlib/scheduler/public.h>
+// TODO(babenko): replace with public.h
+#include <ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT {
 namespace NCellScheduler {
@@ -27,6 +29,7 @@ public:
     NRpc::IChannel::TPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
     IInvoker::TPtr GetControlInvoker() const;
+    NTransactionClient::TTransactionManager::TPtr GetTransactionManager() const;
     NScheduler::TSchedulerPtr GetScheduler() const;
 
     void Run();
@@ -39,6 +42,7 @@ private:
     NBus::IBusServer::TPtr BusServer;
     NRpc::IChannel::TPtr MasterChannel;
     Stroka PeerAddress;
+    NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NScheduler::TSchedulerPtr Scheduler;
 
 };

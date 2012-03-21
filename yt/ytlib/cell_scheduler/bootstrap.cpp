@@ -24,6 +24,7 @@
 
 #include <ytlib/scheduler/scheduler_service.h>
 #include <ytlib/scheduler/scheduler.h>
+#include <ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NCellScheduler {
@@ -36,6 +37,7 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NCypress;
 using namespace NScheduler;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +72,11 @@ void TBootstrap::Run()
 
     auto rpcServer = CreateRpcServer(~BusServer);
 
-    Scheduler = New<TScheduler>(Config, this);
+    TransactionManager = New<TTransactionManager>(
+        Config->TransactionManager,
+        MasterChannel);
+
+    Scheduler = New<TScheduler>(Config->Scheduler, this);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -140,6 +146,11 @@ Stroka TBootstrap::GetPeerAddress() const
 IInvoker::TPtr TBootstrap::GetControlInvoker() const
 {
     return ControlInvoker;
+}
+
+TTransactionManager::TPtr TBootstrap::GetTransactionManager() const
+{
+    return TransactionManager;
 }
 
 TSchedulerPtr TBootstrap::GetScheduler() const

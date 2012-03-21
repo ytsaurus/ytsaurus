@@ -47,7 +47,7 @@ class TScheduler
 {
 public:
     TScheduler(
-        NCellScheduler::TCellSchedulerConfigPtr config,
+        TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
 
     void Start();
@@ -60,10 +60,9 @@ public:
     void AbortOperation(TOperationPtr operation);
 
 private:
-    NCellScheduler::TCellSchedulerConfigPtr Config;
+    TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* Bootstrap;
 
-    NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NCypress::TCypressServiceProxy CypressProxy;
 
     NTransactionClient::ITransaction::TPtr BootstrapTransaction;

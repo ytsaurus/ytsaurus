@@ -19,11 +19,9 @@ struct TCellSchedulerConfig
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
-    TDuration TransactionsRefreshPeriod;
-    TDuration NodesRefreshPeriod;
-
     NElection::TLeaderLookup::TConfig::TPtr Masters;
     NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
+    NScheduler::TSchedulerConfigPtr Scheduler;
 
     TCellSchedulerConfig()
     {
@@ -31,12 +29,10 @@ struct TCellSchedulerConfig
             .Default(11000);
         Register("monitoring_port", MonitoringPort)
             .Default(10000);
-        Register("transactions_refresh_period", TransactionsRefreshPeriod)
-            .Default(TDuration::Seconds(15));
-        Register("nodes_refresh_period", NodesRefreshPeriod)
-            .Default(TDuration::Seconds(15));
         Register("masters", Masters);
         Register("transaction_manager", TransactionManager)
+            .DefaultNew();
+        Register("scheduler", Scheduler)
             .DefaultNew();
     }
 };
