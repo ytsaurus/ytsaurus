@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "chunk.pb.h"
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>

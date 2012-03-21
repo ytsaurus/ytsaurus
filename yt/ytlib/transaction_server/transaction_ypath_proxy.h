@@ -1,4 +1,4 @@
-#include "transaction_ypath.pb.h"
+#include <ytlib/transaction_server/transaction_ypath.pb.h>
 
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/configurable.h>

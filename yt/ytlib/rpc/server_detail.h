@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "service.h"
-#include "rpc.pb.h"
+#include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/bus/message.h>
 

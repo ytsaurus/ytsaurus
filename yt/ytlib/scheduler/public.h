@@ -28,13 +28,29 @@ DECLARE_ENUM(EOperationState,
 );
 
 DECLARE_ENUM(EJobState,
+    ((Running)(0))
+    ((Aborting)(1))
+
+    ((Completed)(3))
+    ((Failed)(4))
+    ((Aborted)(5))
+);
+
+DECLARE_ENUM(EJobProgress,
     ((Created)(0))
     ((PreparingProxy)(1))
-    ((PreparingSandbox)(2))
-    ((StartedProxy)(3))
-    ((Running)(4))
-    ((Completed)(5))
-    ((Failed)(6))
+
+    ((PreparingSandbox)(10))
+    
+    ((StartedProxy)(50))
+    ((StartedJob)(51))
+    ((FinishedJob)(52))
+
+    ((Cleanup)(80))
+
+    ((Completed)(101))
+    ((Failed)(102))
+    ((Aborted)(103))
 );
 
 class TSchedulerService;

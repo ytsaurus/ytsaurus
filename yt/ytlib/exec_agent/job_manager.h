@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "jobs.pb.h"
 
+#include <ytlib/scheduler/jobs.pb.h>
 #include <ytlib/misc/thread_affinity.h>
 
 //#include <ytlib/exec/scheduler_internal_proxy.h>

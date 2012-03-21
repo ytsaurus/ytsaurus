@@ -25,6 +25,9 @@ public:
     IInvoker::TPtr GetInvoker();
 
     //! Makes symbolic link on target inside slot sandbox.
+    /*!
+     *  Throws if operation fails.
+     */
     void MakeLink(
         const Stroka& linkName, 
         const Stroka& targetPath,

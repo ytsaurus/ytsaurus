@@ -15,9 +15,9 @@
 namespace NYT {
 namespace NExecAgent {
 
-using namespace NChunkHolder;
-using namespace NRpc;
+using namespace NScheduler;
 using namespace NScheduler::NProto;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,16 +25,22 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// ToDo: kill me please.
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJob::TJob(
     const TJobId& jobId,
     const TJobSpec& jobSpec,
-    TChunkCachePtr chunkCache,
+    NChunkHolder::TChunkCachePtr chunkCache,
     TSlotPtr slot)
     : JobId(jobId)
     , JobSpec(jobSpec)
     , ChunkCache(chunkCache)
     , Slot(slot)
-    , JobState(NScheduler::EJobState::Created)
+    , JobState(NScheduler::EJobState::Running)
+    , JobProgress(NScheduler::EJobProgress::Created)
 {
     VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
     Slot->Acquire();
@@ -42,7 +48,9 @@ TJob::TJob(
 
 void TJob::Start(TEnvironmentManager* environmentManager)
 {
-    JobState = NScheduler::EJobState::PreparingProxy;
+    YASSERT(JobProgress == EJobProgress::Created);
+
+    JobProgress = EJobProgress::PreparingProxy;
     Slot->GetInvoker()->Invoke(FromMethod(
         &TJob::DoStart,
         MakeWeak(this),
@@ -52,6 +60,11 @@ void TJob::Start(TEnvironmentManager* environmentManager)
 void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (JobProgress > EJobProgress::Cleanup)
+        return;
+
+    YASSERT(JobProgress == EJobProgress::PreparingProxy);
 
     Stroka environmentType = "default";
     try {
@@ -71,38 +84,29 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             ex.what());
 
         LOG_DEBUG("%s", ~msg);
-        *JobResult.mutable_error() = TError(msg).ToProto();
-        JobState = NScheduler::EJobState::Failed;
+        DoAbort(TError(msg), NScheduler::EJobState::Failed);
         return;
     }
 
-    JobState = NScheduler::EJobState::PreparingSandbox;
-
-    try {
-        Slot->InitSandbox();
-    } catch (const std::exception& ex) {
-        Stroka msg = Sprintf(
-            "Failed to create a sandbox. (JobId: %s, Path: %s)", 
-            ~JobId.ToString(), 
-            ex.what());
-
-        LOG_WARNING("%s", msg);
-        *JobResult.mutable_error() = TError(msg).ToProto();
-        JobState = NScheduler::EJobState::Failed;
-        return;
-    }
+    JobProgress = NScheduler::EJobProgress::PreparingSandbox;
+    Slot->InitSandbox();
+    // ToDo(psushin): create job proxy config.
 
     auto awaiter = New<TParallelAwaiter>(~Slot->GetInvoker());
-    for (int fileIndex = 0; fileIndex < JobSpec.files_size(); ++fileIndex) {
-        auto& fetchedChunk = JobSpec.files(fileIndex);
 
-        awaiter->Await(ChunkCache->DownloadChunk(
-            TChunkId::FromProto(fetchedChunk.chunk_id())), 
-            FromMethod(
-                &TJob::OnChunkDownloaded,
-                MakeWeak(this),
-                fetchedChunk.file_name(),
-                fetchedChunk.executable()));
+    if (JobSpec.HasExtension(NScheduler::NProto::TUserJobSpec::user_job_spec)) {
+        auto userSpec = JobSpec.GetExtension(NScheduler::NProto::TUserJobSpec::user_job_spec);
+        for (int fileIndex = 0; fileIndex < userSpec.files_size(); ++fileIndex) {
+            auto& fetchedChunk = userSpec.files(fileIndex);
+
+            awaiter->Await(ChunkCache->DownloadChunk(
+                NChunkServer::TChunkId::FromProto(fetchedChunk.chunk_id())), 
+                FromMethod(
+                    &TJob::OnChunkDownloaded,
+                    MakeWeak(this),
+                    fetchedChunk.file_name(),
+                    fetchedChunk.executable()));
+        }
     }
 
     awaiter->Complete(FromMethod(
@@ -117,6 +121,11 @@ void TJob::OnChunkDownloaded(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    if (JobProgress > EJobProgress::Cleanup)
+        return;
+
+    YASSERT(JobProgress == EJobProgress::PreparingSandbox);
+
     if (!result.IsOK()) {
         Stroka msg = Sprintf(
             "Failed to download file (JobId: %s, FileName: %s, Error: %s)", 
@@ -125,8 +134,8 @@ void TJob::OnChunkDownloaded(
             ~result.GetMessage());
 
         LOG_WARNING("%s", msg);
-        *JobResult.mutable_error() = TError(msg).ToProto();
-        JobState = NScheduler::EJobState::Failed;
+        SetResult(TError(msg));
+        JobProgress = NScheduler::EJobProgress::Failed;
         return;
     }
 
@@ -145,8 +154,8 @@ void TJob::OnChunkDownloaded(
             ex.what());
 
         LOG_WARNING("%s", msg);
-        *JobResult.mutable_error() = TError(msg).ToProto();
-        JobState = NScheduler::EJobState::Failed;
+        SetResult(TError(msg));
+        JobProgress = NScheduler::EJobProgress::Failed;
         return;
     }
 
@@ -159,24 +168,46 @@ void TJob::RunJobProxy()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobState == NScheduler::EJobState::Failed) {
-        Slot->Clean();
+    if (JobProgress > EJobProgress::Cleanup)
         return;
-    }
+
+    YASSERT(JobProgress == EJobProgress::PreparingSandbox);
 
     try {
+        JobProgress == EJobProgress::StartedProxy;
         ProxyController->Run();
-        /*ProxyController->SubscribeOnExit(~FromMethod(
-            &TJob::OnJobExit,
-            TPtr(this))->Via(Slot->GetInvoker()));*/
-
     } catch (const std::exception& ex) {
-        //DoCancel(TError(ex.what()));
-        JobState = NScheduler::EJobState::Failed;
+        DoAbort(TError(ex.what()), NScheduler::EJobState::Failed);
         return;
     }
 
-    JobState = NScheduler::EJobState::StartedProxy;
+    ProxyController->SubscribeExited(FromMethod(
+        &TJob::OnJobExit,
+        MakeWeak(this))->Via(Slot->GetInvoker())->ToCallback());
+}
+
+void TJob::OnJobExit(TError error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (JobProgress > EJobProgress::Cleanup)
+        return;
+
+    YASSERT(JobProgress < EJobProgress::Cleanup);
+
+    if (!error.IsOK()) {
+        DoAbort(error, EJobState::Failed);
+        return;
+    }
+
+    auto jobResult = GetResult();
+    if (!jobResult.has_error()) {
+        DoAbort(TError(
+            "Job proxy successfully exited but job result has not been set."),
+            EJobState::Failed);
+    } else {
+        SetResult(TError());
+    }
 }
 
 const TJobId& TJob::GetId() const
@@ -189,119 +220,82 @@ const TJobSpec& TJob::GetSpec()
     return JobSpec;
 }
 
-TJobResult TJob::GetResult()
+NScheduler::NProto::TJobResult TJob::GetResult()
 {
+    TGuard<TSpinLock> guard(SpinLock);
     return JobResult;
 }
 
 void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
 {
-    YUNIMPLEMENTED();
+    TGuard<TSpinLock> guard(SpinLock);
+    if (!JobResult.has_error() || JobResult.error().code() == 0) {
+        JobResult = jobResult;
+    }
+}
+
+void TJob::SetResult(const TError& error)
+{
+    NScheduler::NProto::TJobResult jobResult;
+    *jobResult.mutable_error() = error.ToProto();
+    SetResult(jobResult);
 }
 
 NScheduler::EJobState TJob::GetState()
 {
-    return NScheduler::EJobState::Running;
+    return JobState;
 }
 
-//
-//void TJob::SubscribeOnStarted(IAction::TPtr callback)
-//{
-//    OnStarted->Subscribe(callback->ToParamAction<TVoid>());
-//}
-//
-//void TJob::SubscribeOnFinished(
-//    IParamAction<NScheduler::NProto::TJobResult>::TPtr callback)
-//{
-//    OnFinished->Subscribe(callback);
-//}
-//
+void TJob::Abort(const TError& error)
+{
+    JobState = EJobState::Aborting;
+    Slot->GetInvoker()->Invoke(FromMethod(
+        &TJob::DoAbort,
+        MakeStrong(this),
+        error,
+        EJobState::Aborted));
+}
 
-//const NScheduler::NProto::TJobSpec& TJob::GetSpec()
-//{
-//    // ToDo(psushin): make special supervisor call "Ready to start"
-//    // to identify moment of start completion more precisely.
-//    Slot->GetInvoker()->Invoke(FromMethod(
-//        &TJob::StartComplete,
-//        MakeStrong(this));
-//    return JobSpec;
-//}
-//
-//void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
-//{
-//    JobResult->Set(jobResult);
-//}
-//
-//void TJob::Cancel(const TError& error)
-//{
-//    Slot->GetInvoker()->Invoke(FromMethod(
-//        &TJob::DoCancel,
-//        MakeStrong(this),
-//        error));
-//}
-//
-//void TJob::DoCancel(const TError& error)
-//{
-//    VERIFY_THREAD_AFFINITY(JobThread);
-//
-//    YASSERT(Error.IsOK());
-//    YASSERT(!OnFinished->IsSet());
-//
-//    Error = error;
-//
-//    try {
-//        LOG_TRACE("Trying to kill job (JobId: %s, error: %s)", 
-//            ~JobId.ToString(),
-//            ~error.GetMessage());
-//
-//        ProxyController->Kill(error);
-//    } catch (yexception& e) {
-//        Error = TError(Sprintf(
-//            "Failed to kill job (JobId: %s, error: %s)", 
-//            ~JobId.ToString(),
-//            e.what()));
-//
-//        LOG_DEBUG("%s", ~Error.GetMessage());
-//    }
-//
-//    if (!OnFinished->IsSet()) {
-//        OnFinished->Set(MakeJobResult(Error));
-//    }
-//
-//    Slot->Clean();
-//}
-//
-//void TJob::StartComplete()
-//{
-//    VERIFY_THREAD_AFFINITY(JobThread);
-//
-//    if (!Error.IsOK())
-//        return;
-//
-//    OnStarted->Set(TVoid());
-//}
+void TJob::DoAbort(const TError& error, EJobState resultState)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
 
+    if (JobProgress > EJobProgress::Cleanup)
+        return;
 
-//
-//void TJob::OnJobExit(TError error)
-//{
-//    VERIFY_THREAD_AFFINITY(JobThread);
-//
-//    if (!Error.IsOK())
-//        return;
-//
-//    if (!error.IsOK()) {
-//        DoCancel(error);
-//        return;
-//    }
-//
-//    if (!JobResult->IsSet()) {
-//        DoCancel(TError(
-//            "Job proxy successfully exited but job result has not been set."));
-//    } else {
-//        OnFinished->Set(JobResult->Get());
-//    }
-//}
+    YASSERT(JobProgress < EJobProgress::Cleanup);
+
+    const auto jobProgress = JobProgress;
+    JobProgress = EJobProgress::Cleanup;
+
+    LOG_DEBUG("Aborting job (JobId: %s)", 
+        ~JobId.ToString());
+
+    if (jobProgress >= EJobProgress::StartedProxy)
+        try {
+            LOG_DEBUG("Killing job (JobId: %s)", 
+                ~JobId.ToString());
+            ProxyController->Kill(error);
+        } catch (const std::exception& e) {
+            //NB: retries should be done inside proxy controller (if makes sense).
+            LOG_FATAL("Failed to kill job (JobId: %s)", 
+                ~JobId.ToString());
+        }
+
+    if (jobProgress >= EJobProgress::PreparingSandbox) {
+        LOG_DEBUG("Cleaning slot (JobId: %s)", 
+            ~JobId.ToString());
+        Slot->Clean();
+    }
+
+    SetResult(error);
+    JobState = resultState;
+}
+
+TJob::~TJob()
+{
+    Slot->Release();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

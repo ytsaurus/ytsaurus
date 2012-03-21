@@ -8,6 +8,7 @@ set( SRCS
 set( HDRS
   ${BASE}/profiler.h
   ${BASE}/profiling_manager.h
+  ${BASE}/public.h
   ${BASE}/timing.h
 )
 

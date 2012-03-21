@@ -2,7 +2,7 @@
 
 #include "common.h"
 #include "async_writer.h"
-#include "chunk_service.pb.h"
+#include <ytlib/chunk_server/chunk_service.pb.h>
 
 #include <ytlib/misc/configurable.h>
 #include <ytlib/misc/metric.h>

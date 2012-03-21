@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "jobs.pb.h"
 
+#include <ytlib/scheduler/jobs.pb.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/signal.h>
@@ -25,10 +25,11 @@ public:
         const NScheduler::NProto::TJobSpec& jobSpec,
         NChunkHolder::TChunkCachePtr chunkCache,
         TSlotPtr slot);
+    ~TJob();
 
     void Start(TEnvironmentManager* environmentManager);
 
-    //! Kills the job if it is running. Cleans up the slot.
+    //! Kills the job if it is running.
     void Abort(const TError& error);
 
     const TJobId& GetId() const;
@@ -40,6 +41,7 @@ public:
 
     NScheduler::NProto::TJobResult GetResult();
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
+    void SetResult(const TError& error);
 
     DECLARE_SIGNAL(void(), Started);
     DECLARE_SIGNAL(void(NScheduler::NProto::TJobResult), Finished);
@@ -53,22 +55,27 @@ private:
 
     void RunJobProxy();
 
-    //void OnJobExit(TError error);
+    //! Called by ProxyController when proxy process finishes.
+    void OnJobExit(TError error);
 
-    //void DoCancel(const TError& error);
+    void DoAbort(const TError& error, NScheduler::EJobState resultState);
 
-
-    TJobId JobId;
+    const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
-    NChunkHolder::TChunkCachePtr ChunkCache;
-    TSlotPtr Slot;
-    TAutoPtr<IProxyController> ProxyController;
 
     NScheduler::EJobState JobState;
+    NScheduler::EJobProgress JobProgress;
 
-    NScheduler::NProto::TJobResult JobResult;
+    TSlotPtr Slot;
 
+    NChunkHolder::TChunkCachePtr ChunkCache;
     std::vector<NChunkHolder::TCachedChunkPtr> CachedChunks;
+
+    TAutoPtr<IProxyController> ProxyController;
+
+    // Protects #JobResult.
+    TSpinLock SpinLock;
+    NScheduler::NProto::TJobResult JobResult;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 };
