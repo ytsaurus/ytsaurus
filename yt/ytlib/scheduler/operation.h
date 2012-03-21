@@ -20,14 +20,16 @@ class TOperation
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
 
-    //! Polymorphic specification.
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
-    //! The time when the operation was started.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
     //! Currently existing jobs in the operation.
-    DEFINE_BYVAL_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
+
+    IOperationController* GetController() const;
+    //! Used internally by the scheduler.
+    void SetController(TAutoPtr<IOperationController> controller);
 
 public:
     TOperation(
@@ -36,6 +38,9 @@ public:
         const TTransactionId& transactionId,
         NYTree::IMapNodePtr spec,
         TInstant startTime);
+
+private:
+    TAutoPtr<IOperationController> Controller;
 
 };
 

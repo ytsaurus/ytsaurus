@@ -22,7 +22,6 @@
 
 #include <ytlib/profiling/profiling_manager.h>
 
-#include <ytlib/scheduler/scheduler_service.h>
 #include <ytlib/scheduler/scheduler.h>
 #include <ytlib/scheduler/config.h>
 
@@ -114,8 +113,7 @@ void TBootstrap::Run()
         "/orchid",
         ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
 
-    auto schedulerService = New<TSchedulerService>(this);
-    rpcServer->RegisterService(schedulerService);
+    rpcServer->RegisterService(Scheduler->GetService());
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

@@ -3,8 +3,7 @@
 #include "public.h"
 
 #include <ytlib/cell_scheduler/public.h>
-#include <ytlib/ytree/public.h>
-#include <ytlib/misc/error.h>
+#include <ytlib/rpc/service.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -21,20 +20,11 @@ public:
 
     void Start();
 
-    TFuture< TValueOrError<TOperationPtr> >::TPtr StartOperation(
-        EOperationType type,
-        const TTransactionId& transactionId,
-        const NYTree::IMapNodePtr spec);
-
-    void AbortOperation(TOperationPtr operation);
-
-    //void Schedule(
-    //    TExecNodePtr node,
-    //    )
+    NRpc::IService::TPtr GetService();
 
 private:
     class TImpl;
-    THolder<TImpl> Impl;
+    TIntrusivePtr<TImpl> Impl;
 
 };
 

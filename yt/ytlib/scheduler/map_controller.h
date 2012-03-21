@@ -27,14 +27,9 @@ struct TMapOperationSpec
         Register("in", In);
         Register("out", Out);
     }
-
-    virtual void DoValidate() const
-    {
-        if (ShellCommand.empty() && Files.empty()) {
-            ythrow yexception() << "Neither \"shell_command\" nor \"files\" are given";
-        }
-    }
 };
+
+TAutoPtr<IOperationController> CreateMapController(TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -5,6 +5,11 @@
 #include "exec_node.h"
 #include "operation.h"
 #include "job.h"
+#include "scheduler_strategy.h"
+#include "fifo_strategy.h"
+#include "operation_controller.h"
+#include "map_controller.h"
+#include "scheduler_service_proxy.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -16,6 +21,8 @@
 
 #include <ytlib/cell_scheduler/config.h>
 #include <ytlib/cell_scheduler/bootstrap.h>
+
+#include <ytlib/scheduler/scheduler_service.pb.h>
 
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/cypress/id.h>
@@ -43,27 +50,55 @@ NLog::TLogger& Logger = SchedulerLogger;
 ////////////////////////////////////////////////////////////////////
 
 class TScheduler::TImpl
+    : public NRpc::TServiceBase
 {
 public:
     TImpl(
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap)
-        : Config(config)
+        : NRpc::TServiceBase(
+            ~bootstrap->GetControlInvoker(),
+            TSchedulerServiceProxy::GetServiceName(),
+            SchedulerLogger.GetCategory())
+        , Config(config)
         , Bootstrap(bootstrap)
         , CypressProxy(bootstrap->GetMasterChannel())
     {
         YASSERT(config);
         YASSERT(bootstrap);
-        VERIFY_INVOKER_AFFINITY(bootstrap->GetControlInvoker(), ControlThread);
+        VERIFY_INVOKER_AFFINITY(GetControlInvoker(), ControlThread);
     }
 
     void Start()
     {
+        InitStrategy();
         RegisterAtMaster();
         StartRefresh();
     }
 
-    TFuture< TValueOrError<TOperationPtr> >::TPtr StartOperation(
+private:
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    TSchedulerConfigPtr Config;
+    NCellScheduler::TBootstrap* Bootstrap;
+
+    NCypress::TCypressServiceProxy CypressProxy;
+
+    TAutoPtr<ISchedulerStrategy> Strategy;
+
+    NTransactionClient::ITransaction::TPtr BootstrapTransaction;
+
+    TPeriodicInvoker::TPtr TransactionRefreshInvoker;
+    TPeriodicInvoker::TPtr NodesRefreshInvoker;
+
+    yhash_map<Stroka, TExecNodePtr> Nodes;
+    yhash_map<TOperationId, TOperationPtr> Operations;
+    yhash_map<TJobId, TJobPtr> Jobs;
+
+
+    typedef TValueOrError<TOperationPtr> TStartResult;
+
+    TFuture< TStartResult >::TPtr StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
         const NYTree::IMapNodePtr spec)
@@ -73,6 +108,11 @@ public:
         // Generate operation id.
         auto operationId = TOperationId::Create();
 
+        LOG_INFO("Starting operation (Type: %s, OperationId: %s, TransactionId: %s)",
+            ~type.ToString(),
+            ~operationId.ToString(),
+            ~transactionId.ToString());
+
         // Create operation object.
         auto operation = New<TOperation>(
             operationId,
@@ -80,11 +120,15 @@ public:
             transactionId,
             spec,
             TInstant::Now());
+        // The operation owns the controller but not vice versa.
+        // Hence we use raw pointers inside controllers.
+        operation->SetController(CreateController(operation.Get()));
 
-        LOG_INFO("Starting operation (Type: %s, OperationId: %s, TransactionId: %s)",
-            ~type.ToString(),
-            ~operationId.ToString(),
-            ~transactionId.ToString());
+        try {
+            InitializeOperation(operation);
+        } catch (const std::exception& ex) {
+            return MakeFuture(TStartResult(TError(Sprintf("Operation cannot be started\n%s", ex.what()))));
+        }
 
         // Create a node in Cypress that will represent the operation.
         auto setReq = TYPathProxy::Set(GetOperationPath(operationId));
@@ -99,43 +143,16 @@ public:
 
         return CypressProxy.Execute(setReq)->Apply(
             FromMethod(
-            &TImpl::OnOperationNodeCreated,
-            this,
-            operation)
-            ->AsyncVia(Bootstrap->GetControlInvoker()));
+                &TImpl::OnOperationNodeCreated,
+                this,
+                operation)
+            ->AsyncVia(GetControlInvoker()));
     }
 
-    void AbortOperation(TOperationPtr operation)
+    void InitializeOperation(TOperationPtr operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Aborting operation (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
-
-        UnregisterOperation(operation);
+        operation->GetController()->Initialize();
     }
-
-
-    TExecNodePtr FindNode(const Stroka& address)
-    {
-        auto it = Nodes.find(address);
-        return it == Nodes.end() ? NULL : it->second;
-    }
-
-private:
-    TSchedulerConfigPtr Config;
-    NCellScheduler::TBootstrap* Bootstrap;
-
-    NCypress::TCypressServiceProxy CypressProxy;
-
-    NTransactionClient::ITransaction::TPtr BootstrapTransaction;
-
-    TPeriodicInvoker::TPtr TransactionRefreshInvoker;
-    TPeriodicInvoker::TPtr NodesRefreshInvoker;
-
-    yhash_map<Stroka, TExecNodePtr> Nodes;
-    yhash_map<TOperationId, TOperationPtr> Operations;
-    yhash_map<TJobId, TJobId> Jobs;
 
     TValueOrError<TOperationPtr> OnOperationNodeCreated(
         NYTree::TYPathProxy::TRspSet::TPtr rsp,
@@ -150,7 +167,60 @@ private:
         }
 
         RegisterOperation(operation);
+
+        LOG_INFO("Operation started (OperationId: %s)", 
+            ~operation->GetOperationId().ToString());
         return operation;
+    }
+
+
+    void AbortOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Aborting operation (OperationId: %s)",
+            ~operation->GetOperationId().ToString());
+
+        operation->GetController()->Abort();
+        UnregisterOperation(operation);
+
+        LOG_INFO("Operation aborted (OperationId: %s)",
+            ~operation->GetOperationId().ToString());
+    }
+
+
+    TOperationPtr FindOperation(const TOperationId& id)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto it = Operations.find(id);
+        return it == Operations.end() ? NULL : it->second;
+    }
+
+    TOperationPtr GetOperation(const TOperationId& id)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto operation = FindOperation(id);
+        if (!operation) {
+            // TODO(babenko): error code
+            ythrow yexception() << Sprintf("No such operation %s", ~id.ToString());
+        }
+        return operation;
+    }
+
+
+    TExecNodePtr FindNode(const Stroka& address)
+    {
+        auto it = Nodes.find(address);
+        return it == Nodes.end() ? NULL : it->second;
+    }
+
+
+    TJobPtr FindJob(const TJobId& jobId)
+    {
+        auto it = Jobs.find(jobId);
+        return it == Jobs.end() ? NULL : it->second;
     }
 
 
@@ -168,13 +238,41 @@ private:
     void RegisterOperation(TOperationPtr operation)
     {
         YVERIFY(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
+        LOG_DEBUG("Operation registered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
 
     void UnregisterOperation(TOperationPtr operation)
     {
+        FOREACH (auto job, operation->Jobs()) {
+            UnregisterJob(job);
+        }
         YVERIFY(Operations.erase(operation->GetOperationId()) == 1);
+        LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
 
+    
+    void RegisterJob(TJobPtr job)
+    {
+        YVERIFY(Jobs.insert(MakePair(job->GetId(), job)).second);
+        LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
+            ~job->GetId().ToString(),
+            ~job->GetOperation()->GetOperationId().ToString());
+    }
+
+    void UnregisterJob(TJobPtr job)
+    {
+        YVERIFY(Jobs.erase(job->GetId()) == 1);
+        LOG_DEBUG("Job unregistered (JobId: %s, OperationId: %s)",
+            ~job->GetId().ToString(),
+            ~job->GetOperation()->GetOperationId().ToString());
+    }
+
+
+    void InitStrategy()
+    {
+        // TODO(babenko): make configurable
+        Strategy = CreateFifoStrategy();
+    }
 
     void RegisterAtMaster()
     {
@@ -222,13 +320,13 @@ private:
     {
         TransactionRefreshInvoker = New<TPeriodicInvoker>(
             FromMethod(&TImpl::RefreshTransactions, this)
-            ->Via(Bootstrap->GetControlInvoker()),
+            ->Via(GetControlInvoker()),
             Config->TransactionsRefreshPeriod);
         TransactionRefreshInvoker->Start();
 
         NodesRefreshInvoker = New<TPeriodicInvoker>(
             FromMethod(&TImpl::RefreshNodes, this)
-            ->Via(Bootstrap->GetControlInvoker()),
+            ->Via(GetControlInvoker()),
             Config->NodesRefreshPeriod);
         NodesRefreshInvoker->Start();
     }
@@ -260,7 +358,7 @@ private:
         LOG_INFO("Refreshing %d transactions", batchReq->GetSize());
         batchReq->Invoke()->Subscribe(
             FromMethod(&TImpl::OnTransactionsRefreshed, this, transactionIdsList)
-            ->Via(Bootstrap->GetControlInvoker()));
+            ->Via(GetControlInvoker()));
     }
 
     void OnTransactionsRefreshed(
@@ -312,7 +410,7 @@ private:
         auto req = TYPathProxy::Get("/sys/holders@online");
         CypressProxy.Execute(req)->Subscribe(
             FromMethod(&TImpl::OnNodesRefreshed, this)
-            ->Via(Bootstrap->GetControlInvoker()));
+            ->Via(GetControlInvoker()));
     }
 
     void OnNodesRefreshed(NYTree::TYPathProxy::TRspGet::TPtr rsp)
@@ -353,20 +451,167 @@ private:
     }
 
 
+    IInvoker::TPtr GetControlInvoker()
+    {
+        return Bootstrap->GetControlInvoker();
+    }
+
     static NYTree::TYPath GetOperationPath(const TOperationId& id)
     {
         return CombineYPaths("/sys/scheduler/operations", id.ToString());
     }
 
+    static TAutoPtr<IOperationController> CreateController(TOperation* operation)
+    {
+        // TODO(babenko): add more operation types
+        switch (operation->GetType()) {
+            case EOperationType::Map:
+                return CreateMapController(operation);
+                break;
+            default:
+                YUNREACHABLE();
+        }
+    }
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
+    {
+        auto type = EOperationType(request->type());
+        auto transactionId = TTransactionId::FromProto(request->transaction_id());
+        auto spec = DeserializeFromYson(request->spec())->AsMap();
+
+        context->SetRequestInfo("Type: %s, TransactionId: %s",
+            ~type.ToString(),
+            ~transactionId.ToString());
+
+        StartOperation(
+            type,
+            transactionId,
+            spec)
+        ->Subscribe(FromFunctor([=] (TValueOrError<TOperationPtr> result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+                return;
+            }
+            auto operation = result.Value();
+            auto id = operation->GetOperationId();
+            response->set_operation_id(id.ToProto());
+            context->SetResponseInfo("OperationId: %s", ~id.ToString());
+            context->Reply();
+        }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
+    {
+        auto operationId = TTransactionId::FromProto(request->operation_id());
+
+        context->SetRequestInfo("OperationId: %s", ~operationId.ToString());
+
+        auto operation = GetOperation(operationId);
+        AbortOperation(operation);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)
+    {
+        // TODO(babenko): implement
+        YUNIMPLEMENTED();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
+    {
+        auto address = request->address();
+
+        context->SetRequestInfo("Address: %s, JobCount: %d, TotalSlotCount: %d, FreeSlotCount: %d",
+            ~address,
+            request->jobs_size(),
+            request->total_slot_count(),
+            request->free_slot_count());
+
+        FOREACH (const auto& jobStatus, request->jobs()) {
+            auto jobId = TJobId::FromProto(jobStatus.job_id());
+            auto state = EJobState(jobStatus.state());
+            auto job = FindJob(jobId);
+            Stroka message;
+            if (job) {
+                switch (state) {
+                    case EJobState::Completed:
+                        message = "Job completed";
+
+                        response->add_jobs_to_remove(jobId.ToProto());
+                        break;
+
+                    case EJobState::Failed:
+                    case EJobState::Aborted:
+                        LOG_INFO("Finished job reported by node, removal scheduled (Address: %s, JobId: %s, State: %s)",
+                            ~address,
+                            ~jobId.ToString(),
+                            ~state.ToString());
+                        response->add_jobs_to_remove(jobId.ToProto());
+                        break;
+
+                    case EJobState::Running:
+                        LOG_WARNING("Unknown job reported by node, stop scheduled (Address: %s, JobId: %s, State: %s)",
+                            ~address,
+                            ~jobId.ToString(),
+                            ~state.ToString());
+                        response->add_jobs_to_stop(jobId.ToProto());
+                        break;
+
+                    case EJobState::Aborting:
+                        LOG_DEBUG("Job abort in progress reported by node (Address: %s, JobId: %s, State: %s)",
+                            ~address,
+                            ~jobId.ToString(),
+                            ~state.ToString());
+                        break;
+
+                    default:
+                        YUNREACHABLE();
+                }
+            } else {
+                switch (state) {
+                    case EJobState::Completed:
+                    case EJobState::Failed:
+                    case EJobState::Aborted:
+                        LOG_INFO("Finished job reported by node, removal scheduled (Address: %s, JobId: %s, State: %s)",
+                            ~address,
+                            ~jobId.ToString(),
+                            ~state.ToString());
+                        response->add_jobs_to_remove(jobId.ToProto());
+                        break;
+
+                    case EJobState::Running:
+                        LOG_WARNING("Unknown job reported by node, stop scheduled (Address: %s, JobId: %s, State: %s)",
+                            ~address,
+                            ~jobId.ToString(),
+                            ~state.ToString());
+                        response->add_jobs_to_stop(jobId.ToProto());
+                        break;
+
+                    case EJobState::Aborting:
+                        LOG_DEBUG("Job abort in progress reported by node (Address: %s, JobId: %s, State: %s)",
+                            ~address,
+                            ~jobId.ToString(),
+                            ~state.ToString());
+                        break;
+
+                    default:
+                        YUNREACHABLE();
+                }
+            }
+            LOG_INFO("%s (Address: %s, JobId: %s, State: %s)",
+
+                ~address,
+                ~jobId.ToString(),
+                ~state.ToString());
+        }
+    }
 
 };
 
 TScheduler::TScheduler(
     TSchedulerConfigPtr config,
     TBootstrap* bootstrap)
-    : Impl(new TImpl(config, bootstrap))
+    : Impl(New<TImpl>(config, bootstrap))
 { }
 
 void TScheduler::Start()
@@ -374,20 +619,9 @@ void TScheduler::Start()
     Impl->Start();
 }
 
-TFuture< TValueOrError<TOperationPtr> >::TPtr TScheduler::StartOperation(
-    EOperationType type,
-    const TTransactionId& transactionId,
-    const NYTree::IMapNodePtr spec)
+NRpc::IService::TPtr TScheduler::GetService()
 {
-    return  Impl->StartOperation(
-        type,
-        transactionId,
-        spec);
-}
-
-void TScheduler::AbortOperation(TOperationPtr operation)
-{
-    Impl->AbortOperation(operation);
+    return Impl;
 }
 
 ////////////////////////////////////////////////////////////////////

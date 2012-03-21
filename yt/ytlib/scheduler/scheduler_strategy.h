@@ -7,6 +7,15 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ISchedulerStrategy
+{
+    virtual ~ISchedulerStrategy()
+    { }
+
+    virtual void OnOperationStarted(TOperationPtr operation) = 0;
+    virtual void OnOperationFinished(TOperationPtr operation) = 0;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

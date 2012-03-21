@@ -14,7 +14,7 @@ message TReqStartOperation
     // User (typically top-level) transaction where the operation
     // processing must happen.
     required bytes transaction_id = 2;
-    // Operation spec in YSON (the type is embedded inside). 
+    // Operation spec in YSON. 
     required bytes spec = 3;
 }
 

@@ -64,5 +64,5 @@ using std::string; // hack for guid.h to work
 #include "weak_ptr.h"
 #include "ref_counted.h"
 #include "new.h"
-
 #include "arcadia_helper.h"
+#include "hash.h"

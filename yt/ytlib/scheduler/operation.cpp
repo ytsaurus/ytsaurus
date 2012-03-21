@@ -2,6 +2,7 @@
 #include "operation.h"
 #include "job.h"
 #include "exec_node.h"
+#include "operation_controller.h"
 
 namespace NYT {
 namespace NScheduler {
@@ -20,6 +21,16 @@ TOperation::TOperation(
     , Spec_(spec)
     , StartTime_(startTime)
 { }
+
+IOperationController* TOperation::GetController() const
+{
+    return Controller.Get();
+}
+
+void TOperation::SetController(TAutoPtr<IOperationController> controller)
+{
+    Controller = controller;
+}
 
 ////////////////////////////////////////////////////////////////////
 

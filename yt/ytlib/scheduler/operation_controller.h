@@ -8,13 +8,16 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationController
-    : public TRefCounted
 {
-    void OnOperationStarted(TOperationPtr operation);
-    void OnOperationFinished(TOperationPtr operation);
+    virtual ~IOperationController()
+    { }
 
-    void Schedule(
-        )
+    virtual void Initialize() = 0;
+
+    virtual void Abort() = 0;
+
+    virtual void Complete() = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

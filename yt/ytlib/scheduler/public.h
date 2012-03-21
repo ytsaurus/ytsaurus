@@ -30,10 +30,9 @@ DECLARE_ENUM(EOperationState,
 DECLARE_ENUM(EJobState,
     ((Running)(0))
     ((Aborting)(1))
-
-    ((Completed)(3))
-    ((Failed)(4))
-    ((Aborted)(5))
+    ((Completed)(2))
+    ((Failed)(3))
+    ((Aborted)(4))
 );
 
 DECLARE_ENUM(EJobProgress,
@@ -72,6 +71,10 @@ typedef TIntrusivePtr<TSchedulerConfig> TSchedulerConfigPtr;
 
 class TScheduler;
 typedef TIntrusivePtr<TScheduler> TSchedulerPtr;
+
+struct ISchedulerStrategy;
+
+struct IOperationController;
 
 class TMapOperationSpec;
 typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;

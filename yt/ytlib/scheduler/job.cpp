@@ -9,11 +9,11 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////
 
 TJob::TJob(
-    const TJobId& jobId,
-    TOperationPtr operation,
+    const TJobId& id,
+    TOperation* operation,
     TExecNodePtr node,
     TInstant startTime)
-    : JobId_(jobId)
+    : Id_(id)
     , Operation_(operation)
     , Node_(node)
     , StartTime_(startTime)

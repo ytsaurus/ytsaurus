@@ -13,10 +13,10 @@ class TJob
     : public TRefCounted
 {
     //! Job id.
-    DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
+    DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
-    //! Operation the job belongs to. Weak ref breaks the cycle.
-    DEFINE_BYVAL_RO_PROPERTY(TWeakPtr<TOperation>, Operation);
+    //! The operation the job belongs to.
+    DEFINE_BYVAL_RO_PROPERTY(TOperation*, Operation);
     
     //! Exec node where the job is running.
     DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
@@ -26,8 +26,8 @@ class TJob
 
 public:
     TJob(
-        const TJobId& jobId,
-        TOperationPtr operation,
+        const TJobId& id,
+        TOperation* operation,
         TExecNodePtr node,
         TInstant startTime);
 
