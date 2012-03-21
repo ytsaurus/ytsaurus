@@ -2,6 +2,8 @@
 
 #include "common.h"
 #include "invoker.h"
+#include "bind.h"
+#include "callback.h"
 
 #include <ytlib/misc/new.h>
 
@@ -42,6 +44,11 @@ struct IAction
 
     template <class TParam>
     typename IParamAction<TParam>::TPtr ToParamAction();
+
+    TCallback<void()> ToCallback()
+    {
+        return Bind(&IAction::Do, MakeStrong(this));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,6 +92,11 @@ struct IParamAction
     IAction::TPtr Bind(TParam param);
 
     TPtr Via(TIntrusivePtr<IInvoker> invoker);
+
+    TCallback<void(TParam)> ToCallback()
+    {
+        return Bind(&IParamAction::Do, MakeStrong(this));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
