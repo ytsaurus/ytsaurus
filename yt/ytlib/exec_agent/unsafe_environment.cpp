@@ -3,6 +3,9 @@
 #include "environment.h"
 #include "private.h"
 
+// TODO(babenko): remove this ASAP
+#include <ytlib/actions/action_util.h>
+
 #include <ytlib/misc/thread_affinity.h>
 
 #ifndef _win_

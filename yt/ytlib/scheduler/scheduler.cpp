@@ -89,10 +89,13 @@ public:
         StartRefresh();
     }
 
-    IYPathServicePtr CreateOrchidService()
+    NYTree::TYPathServiceProducer CreateOrchidProducer()
     {
         // TODO(babenko): virtualize
-        return IYPathService::FromProducer(FromMethod(&TImpl::BuildOrchidYson, this));
+        auto producer = FromMethod(&TImpl::BuildOrchidYson, this);
+        return FromFunctor([=] () {
+            return IYPathService::FromProducer(producer);
+        });
     }
 
 private:
@@ -266,8 +269,7 @@ private:
         }
         UnregisterOperation(operation);
     }
-
-
+    
 
     TOperationPtr FindOperation(const TOperationId& id)
     {
@@ -367,6 +369,8 @@ private:
     void RegisterJob(TJobPtr job)
     {
         YVERIFY(Jobs.insert(MakePair(job->GetId(), job)).second);
+        YVERIFY(job->GetOperation()->Jobs().insert(job).second);
+        YVERIFY(job->GetNode()->Jobs().insert(job).second);
         LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
@@ -374,8 +378,9 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
-        YVERIFY(job->GetOperation()->Jobs().erase(job) == 1);
         YVERIFY(Jobs.erase(job->GetId()) == 1);
+        YVERIFY(job->GetOperation()->Jobs().erase(job) == 1);
+        YVERIFY(job->GetNode()->Jobs().erase(job) == 1);
         LOG_DEBUG("Job unregistered (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
@@ -846,6 +851,8 @@ private:
             return;
         }
 
+        node->Utilization() = utilization;
+
         auto missingJobs = node->Jobs();
 
         PROFILE_TIMING ("analysis_time") {
@@ -1001,9 +1008,9 @@ NRpc::IService::TPtr TScheduler::GetService()
     return Impl;
 }
 
-IYPathServicePtr TScheduler::CreateOrchidService()
+NYTree::TYPathServiceProducer TScheduler::CreateOrchidProducer()
 {
-    return Impl->CreateOrchidService();
+    return Impl->CreateOrchidProducer();
 }
 
 ////////////////////////////////////////////////////////////////////

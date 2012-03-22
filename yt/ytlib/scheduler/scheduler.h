@@ -22,7 +22,7 @@ public:
     void Start();
 
     NRpc::IService::TPtr GetService();
-    NYTree::IYPathServicePtr CreateOrchidService();
+    NYTree::TYPathServiceProducer CreateOrchidProducer();
 
 private:
     class TImpl;

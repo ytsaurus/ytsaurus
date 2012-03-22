@@ -55,7 +55,6 @@ DECLARE_ENUM(EJobProgress,
 
     ((Completed)(101))
     ((Failed)(102))
-    ((Aborted)(103))
 );
 
 DECLARE_ENUM(ESchedulerStrategy,

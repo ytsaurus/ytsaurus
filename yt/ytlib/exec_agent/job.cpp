@@ -207,7 +207,11 @@ void TJob::OnJobExit(TError error)
             "Job proxy successfully exited but job result has not been set."),
             EJobState::Failed);
     } else {
-        SetResult(TError());
+        JobProgress = EJobProgress::Cleanup;
+        Slot->Clean();
+
+        JobProgress = EJobProgress::Completed;
+        JobState = EJobState::Completed;
     }
 }
 
@@ -293,6 +297,8 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
             ~JobId.ToString());
         Slot->Clean();
     }
+
+    JobProgress = EJobProgress::Failed;
 
     SetResult(error);
     JobState = resultState;
