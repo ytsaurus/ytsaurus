@@ -226,8 +226,9 @@ private:
                 break;
 
             default:
-                ythrow yexception() << Sprintf("Error parsing YSON: Unexpected lexeme of type %s (%s)",
-                    ~Lexer.GetState().ToString(),
+                ythrow yexception() << Sprintf("Error parsing YSON: Unexpected lexeme %s of type %s (%s)",
+                    ~token.ToString().Quote(),
+                    ~token.GetType().ToString(),
                     ~GetPositionInfo());
         }
     }
@@ -251,7 +252,8 @@ private:
                 } else if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::ListBeforeItem;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or ']', but lexeme of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or ']', but lexeme %s of type %s found (%s)",
+                        ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
@@ -273,7 +275,8 @@ private:
                     Consumer->OnMapItem(token.GetStringValue());
                     StateStack.top() = EState::MapAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected string literal, but lexeme of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Error parsing YSON: Expected string literal, but lexeme %s of type %s found (%s)",
+                        ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
@@ -283,7 +286,8 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::MapBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme %s of type %s found (%s)",
+                        ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
@@ -299,7 +303,8 @@ private:
                 } else if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '}', but lexeme of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '}', but lexeme %s of type %s found (%s)",
+                        ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
@@ -329,7 +334,8 @@ private:
                     Consumer->OnAttributesItem(token.GetStringValue());
                     StateStack.top() = EState::AttributesAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected string literal, but lexeme of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Error parsing YSON: Expected string literal, but lexeme %s of type %s found (%s)",
+                        ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
@@ -339,7 +345,8 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::AttributesBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme %s of type %s found (%s)",
+                        ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
@@ -353,7 +360,8 @@ private:
                 if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::AttributesBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '>', but lexeme of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '>', but lexeme %s of type %s found (%s)",
+                        ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
@@ -370,12 +378,14 @@ private:
 
         auto tokenType = token.GetType();
         if (!Fragmented) {
-            ythrow yexception() << Sprintf("Error parsing YSON: Document is already parsed, but unexpected lexeme of type %s found (%s)",
+            ythrow yexception() << Sprintf("Error parsing YSON: Document is already parsed, but unexpected lexeme %s of type %s found (%s)",
+                ~token.ToString().Quote(),
                 ~tokenType.ToString(),
                 ~GetPositionInfo());
         }
         if (tokenType != ETokenType::Semicolon) {
-            ythrow yexception() << Sprintf("Error parsing YSON: Expected ';', but lexeme of type %s found (%s)",
+            ythrow yexception() << Sprintf("Error parsing YSON: Expected ';', but lexeme %s of type %s found (%s)",
+                ~token.ToString().Quote(),
                 ~tokenType.ToString(),
                 ~GetPositionInfo());
         }

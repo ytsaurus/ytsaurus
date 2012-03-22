@@ -173,6 +173,22 @@ private:
                 ProduceToken(ETokenType::RightAngle, Stroka(ch));
                 break;
 
+            case '/':
+                ProduceToken(ETokenType::Slash, Stroka(ch));
+                break;
+
+            case '@':
+                ProduceToken(ETokenType::At, Stroka(ch));
+                break;
+
+            case '#':
+                ProduceToken(ETokenType::Hash, Stroka(ch));
+                break;
+
+            case '!':
+                ProduceToken(ETokenType::Bang, Stroka(ch));
+                break;
+
             case '\x01':
                 SetInProgressState(EInnerState::InsideBinaryString);
                 YASSERT(Token.StringValue.empty());

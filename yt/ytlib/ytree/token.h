@@ -13,7 +13,9 @@ DECLARE_ENUM(ETokenType,
     (String)
     (Int64)
     (Double)
+
     // Special values:
+    // YSON
     (Semicolon) // ;
     (Equals) // =
     (LeftBracket) // [
@@ -22,6 +24,11 @@ DECLARE_ENUM(ETokenType,
     (RightBrace) // }
     (LeftAngle) // <
     (RightAngle) // >
+    // YPath
+    (Slash) // /
+    (At) // @
+    (Hash) // #
+    (Bang) // !
 );
 
 ////////////////////////////////////////////////////////////////////////////////
