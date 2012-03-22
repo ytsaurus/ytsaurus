@@ -11,30 +11,37 @@
 #include <ytlib/cypress/id.h>
 #include <ytlib/ytree/yson_writer.h>
 
+#include <tclap/CmdLine.h>
+
 namespace TCLAP {
 
 template<>
-struct ArgTraits<Stroka> {
+struct ArgTraits<Stroka>
+{
     typedef StringLike ValueCategory;
 };
 
 template<>
-struct ArgTraits<NYT::NObjectServer::TTransactionId> {
+struct ArgTraits<NYT::NObjectServer::TTransactionId>
+{
     typedef ValueLike ValueCategory;
 };
 
 template<>
-struct ArgTraits<NYT::NCypress::ELockMode> {
+struct ArgTraits<NYT::NCypress::ELockMode>
+{
     typedef ValueLike ValueCategory;
 };
 
 template<>
-struct ArgTraits<NYT::NObjectServer::EObjectType> {
+struct ArgTraits<NYT::NObjectServer::EObjectType>
+{
     typedef ValueLike ValueCategory;
 };
 
 template<>
-struct ArgTraits<NYT::NYTree::EYsonFormat> {
+struct ArgTraits<NYT::NYTree::EYsonFormat>
+{
     typedef ValueLike ValueCategory;
 };
 

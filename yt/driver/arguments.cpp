@@ -59,7 +59,8 @@ void TArgsBase::BuildOpts(IYsonConsumer* consumer)
     }
 }
 
-void TArgsBase::BuildCommand(IYsonConsumer* consumer) {
+void TArgsBase::BuildCommand(IYsonConsumer* consumer)
+{
     BuildOpts(consumer);
 }
 

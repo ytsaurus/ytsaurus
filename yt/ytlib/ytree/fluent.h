@@ -109,6 +109,7 @@ public:
             return this->Parent;
         }
 
+        //TODO(panin): rename
         TParent OnNode(INodePtr node)
         {
             VisitTree(~node, this->Consumer);
