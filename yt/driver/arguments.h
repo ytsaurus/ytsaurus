@@ -3,6 +3,8 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/ypath_client.h>
 
 #include <ytlib/misc/tclap_helpers.h>
 #include <tclap/CmdLine.h>
@@ -26,14 +28,18 @@ public:
     Stroka GetConfigName();
     NYTree::EYsonFormat GetOutputFormat();
 
+    void ApplyConfigUpdates(NYTree::IYPathService* service);
+
 protected:
     //useful typedefs
     typedef TCLAP::UnlabeledValueArg<Stroka> TFreeStringArg;
 
     THolder<TCLAP::CmdLine> Cmd;
 
+    // config related
     THolder<TCLAP::ValueArg<std::string> > ConfigArg;
-    THolder<TCLAP::ValueArg<NYTree::EYsonFormat> > FormatArg;
+    THolder<TCLAP::ValueArg<NYTree::EYsonFormat> > OutputFormatArg;
+    THolder<TCLAP::MultiArg<Stroka> > ConfigUpdatesArg;
 
     THolder<TCLAP::MultiArg<std::string> > OptsArg;
 

@@ -202,6 +202,8 @@ public:
                 ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
             }
 
+            argsParser->ApplyConfigUpdates(~configNode);
+
             try {
                 config->Load(~configNode);
             } catch (const std::exception& ex) {
