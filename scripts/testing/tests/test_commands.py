@@ -21,12 +21,12 @@ def remove(path, **kw): return command('remove', path, **kw)
 def set(path, value, **kw): return command('set', path, value, **kw)
 
 def start_transaction():
-    raw_tx = expect_ok(command('start'))
+    raw_tx = expect_ok(command('start_tx'))
     tx_id = raw_tx.replace('"', '').strip('\n')
     return tx_id
 
-def commit_transaction(**kw): return command('commit', **kw)
-def abort_transaction(**kw): return command('abort', **kw)
+def commit_transaction(**kw): return command('commit_tx', **kw)
+def abort_transaction(**kw): return command('abort_tx', **kw)
 
 #########################################
 
