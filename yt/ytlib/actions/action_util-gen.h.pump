@@ -529,13 +529,13 @@ typename IParamFunc<TParam, TResult>::TPtr FromMethod(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAction::TPtr FromCallback(const TCallback<void()>& callback)
+inline IAction::TPtr FromCallback(const TCallback<void()>& callback)
 {
     return FromMethod(&TCallback<void()>::Run, &callback);
 }
 
 template <class TParam>
-typename IParamAction<TParam>::TPtr FromCallback(const TCallback<void(TParam)>& callback)
+inline typename IParamAction<TParam>::TPtr FromCallback(const TCallback<void(TParam)>& callback)
 {
     return FromMethod(&TCallback<void(TParam)>::Run, &callback);
 }

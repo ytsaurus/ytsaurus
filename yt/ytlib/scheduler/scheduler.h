@@ -4,6 +4,7 @@
 
 #include <ytlib/cell_scheduler/public.h>
 #include <ytlib/rpc/service.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -21,6 +22,7 @@ public:
     void Start();
 
     NRpc::IService::TPtr GetService();
+    NYTree::TYPathServiceProducer CreateOrchidProducer();
 
 private:
     class TImpl;

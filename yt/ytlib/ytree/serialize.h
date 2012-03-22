@@ -45,6 +45,10 @@ TOutputStream& SerializeToYson(
     TOutputStream& output,
     EYsonFormat format = EYsonFormat::Binary);
 
+TYson SerializeToYson(
+    TYsonProducer producer,
+    EYsonFormat format = EYsonFormat::Binary);
+
 template <class T>
 TYson SerializeToYson(
     const T& value,

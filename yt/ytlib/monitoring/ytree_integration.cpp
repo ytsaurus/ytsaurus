@@ -16,10 +16,9 @@ TYPathServiceProducer CreateMonitoringProducer(
     TMonitoringManager* monitoringManager)
 {
     auto monitoringManager_ = MakeStrong(monitoringManager);
-    return FromFunctor([=] () -> IYPathServicePtr
-        {
-            return ~monitoringManager_->GetRoot();
-        });
+    return FromFunctor([=] () -> IYPathServicePtr {
+        return ~monitoringManager_->GetRoot();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

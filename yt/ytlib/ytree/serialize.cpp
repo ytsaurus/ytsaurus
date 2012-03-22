@@ -14,29 +14,26 @@ namespace NYTree {
 
 TYsonProducer ProducerFromYson(TInputStream* input)
 {
-    return FromFunctor([=] (IYsonConsumer* consumer)
-        {
-            TYsonReader reader(consumer, input);
-            reader.Read();
-        });
+    return FromFunctor([=] (IYsonConsumer* consumer) {
+        TYsonReader reader(consumer, input);
+        reader.Read();
+    });
 }
 
 TYsonProducer ProducerFromYson(const TYson& data)
 {
-    return FromFunctor([=] (IYsonConsumer* consumer)
-        {
-            TStringInput input(data);
-            TYsonReader reader(consumer, &input);
-            reader.Read();
-        });
+    return FromFunctor([=] (IYsonConsumer* consumer) {
+        TStringInput input(data);
+        TYsonReader reader(consumer, &input);
+        reader.Read();
+    });
 }
 
 TYsonProducer ProducerFromNode(INode* node)
 {
-    return FromFunctor([=] (IYsonConsumer* consumer)
-        {
-            VisitTree(node, consumer);
-        });
+    return FromFunctor([=] (IYsonConsumer* consumer) {
+        VisitTree(node, consumer);
+    });
 }
 
 void ValidateYson(TInputStream* input)
@@ -75,6 +72,16 @@ TOutputStream& SerializeToYson(
     TYsonWriter writer(&output, format);
     VisitTree(node, &writer);
     return output;
+}
+
+TYson SerializeToYson(
+    TYsonProducer producer,
+    EYsonFormat format)
+{
+    TStringStream output;
+    TYsonWriter writer(&output, format);
+    producer->Do(&writer);
+    return output.Str();
 }
 
 INodePtr CloneNode(INode* node, INodeFactory* factory)
