@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/error.h>
 #include <ytlib/ytree/ytree.h>
 
 namespace NYT {
@@ -17,6 +18,8 @@ class TOperation
     
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
     
+    DEFINE_BYVAL_RW_PROPERTY(EOperationState, State);
+
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(TTransactionId, TransactionId);
 
@@ -30,6 +33,9 @@ class TOperation
     IOperationController* GetController() const;
     //! Used internally by the scheduler.
     void SetController(TAutoPtr<IOperationController> controller);
+
+    //! Contains the error for failed operations.
+    DEFINE_BYVAL_RW_PROPERTY(TError, Error);
 
 public:
     TOperation(

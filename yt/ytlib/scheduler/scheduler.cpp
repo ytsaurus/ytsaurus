@@ -16,6 +16,8 @@
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/string.h>
 
+#include <ytlib/actions/action_queue.h>
+
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -68,6 +70,7 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , CypressProxy(bootstrap->GetMasterChannel())
+        , BackgroundQueue(New<TActionQueue>("Background"))
     {
         YASSERT(config);
         YASSERT(bootstrap);
@@ -93,8 +96,8 @@ private:
 
     TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* Bootstrap;
-
     NCypress::TCypressServiceProxy CypressProxy;
+    TActionQueue::TPtr BackgroundQueue;
 
     TAutoPtr<ISchedulerStrategy> Strategy;
 
@@ -135,10 +138,11 @@ private:
         // Hence we use raw pointers inside controllers.
         operation->SetController(CreateController(operation.Get()));
 
-        try {
-            InitializeOperation(operation);
-        } catch (const std::exception& ex) {
-            return MakeFuture(TStartResult(TError(Sprintf("Operation cannot be started\n%s", ex.what()))));
+        operation->SetState(EOperationState::Initializing);
+        auto initError = InitializeOperation(operation);
+        if (!initError.IsOK()) {
+            return MakeFuture(TStartResult(TError(Sprintf("Operation cannot be started\n%s",
+                initError.GetMessage()))));
         }
 
         // Create a node in Cypress that will represent the operation.
@@ -161,9 +165,10 @@ private:
             ->AsyncVia(GetControlInvoker()));
     }
 
-    void InitializeOperation(TOperationPtr operation)
+    TError InitializeOperation(TOperationPtr operation)
     {
-        operation->GetController()->Initialize();
+        // TODO(babenko): add some controller-independent sanity checks.
+        return operation->GetController()->Initialize();
     }
 
     TValueOrError<TOperationPtr> OnOperationNodeCreated(
@@ -172,32 +177,91 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto id = operation->GetOperationId();
         if (!rsp->IsOK()) {
             auto error = rsp->GetError();
-            LOG_ERROR("Error creating operation node\n%s", ~error.ToString());
+            LOG_ERROR("Error creating operation node (OperationId: %s)\n%s",
+                ~id.ToString(),
+                ~error.ToString());
             return error;
         }
 
         RegisterOperation(operation);
+        LOG_INFO("Operation started (OperationId: %s)", ~id.ToString());
 
-        LOG_INFO("Operation started (OperationId: %s)", 
-            ~operation->GetOperationId().ToString());
+        YASSERT(operation->GetState() == EOperationState::Initializing);           
+        operation->SetState(EOperationState::Preparing);
+
+        // Run async preparation.
+        LOG_INFO("Preparing operation (OperationId: %s)", ~id.ToString());
+        operation ->GetController()->Prepare()->Subscribe(
+            FromMethod(&TImpl::OnOperationPrepared, this, operation)
+            ->Via(GetControlInvoker()));
+
+        // Indicate start success right away.
         return operation;
     }
 
-
-    void AbortOperation(TOperationPtr operation)
+    void OnOperationPrepared(
+        TError error,
+        TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Aborting operation (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
+        auto id = operation->GetOperationId();
+        if (!error.IsOK()) {
+            LOG_WARNING("Operation preparation failed (OperationId: %s)\n%s", 
+                ~id.ToString(),
+                ~error.GetMessage());
+            UnregisterOperation(operation);
+            return;
+        }
 
-//        operation->GetController()->Abort();
+        YASSERT(operation->GetState() == EOperationState::Preparing);           
+        operation->SetState(EOperationState::Running);
+
+        LOG_INFO("Operation has prepared and is now running (OperationId: %s)", 
+            ~id.ToString());
+
+        // From this moment on the controller is fully responsible for the
+        // operation's fate. It will eventually call #OnOperationCompleted or
+        // #OnOperationFailed to inform the scheduler about the outcome.
+    }
+
+
+    DECLARE_ENUM(EAbortReason,
+        (TransactionExpired)
+        (UserRequest)
+    );
+
+    void AbortOperation(TOperationPtr operation, EAbortReason reason)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto state = operation->GetState();
+        switch (state) {
+            case EOperationState::Preparing:
+            case EOperationState::Running:
+                LOG_INFO("Aborting operation (OperationId: %s, State: %s, Reason: %s)",
+                    ~operation->GetOperationId().ToString(),
+                    ~state.ToString(),
+                    ~reason.ToString());
+                operation->GetController()->OnOperationAborted(operation);
+                operation->SetState(EOperationState::Aborted);
+                break;
+
+            case EOperationState::Completed:
+            case EOperationState::Failed:
+                LOG_INFO("Cleaning up operation (OperationId: %s, State: %s, Reason: %s)",
+                    ~operation->GetOperationId().ToString(),
+                    ~state.ToString(),
+                    ~reason.ToString());
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
         UnregisterOperation(operation);
-
-        LOG_INFO("Operation aborted (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
     }
 
 
@@ -476,10 +540,10 @@ private:
 
         // Abort dead operations.
         FOREACH (auto operation, deadOperations) {
-            LOG_INFO("Operation corresponds to a dead transaction, aborting (OperationId: %s, TransactionId: %s)",
+            LOG_INFO("Operation's transaction has expired, aborting (OperationId: %s, TransactionId: %s)",
                 ~operation->GetOperationId().ToString(),
                 ~operation->GetTransactionId().ToString());
-            AbortOperation(operation);
+            AbortOperation(operation, EAbortReason::TransactionExpired);
         }
     }
 
@@ -534,11 +598,6 @@ private:
     }
 
 
-    IInvoker::TPtr GetControlInvoker()
-    {
-        return Bootstrap->GetControlInvoker();
-    }
-
     static NYTree::TYPath GetOperationPath(const TOperationId& id)
     {
         return CombineYPaths("/sys/scheduler/operations", id.ToString());
@@ -562,12 +621,24 @@ private:
         return Bootstrap->GetMasterChannel();
     }
 
+    IInvoker::TPtr GetControlInvoker()
+    {
+        return Bootstrap->GetControlInvoker();
+    }
+
+    virtual IInvoker::TPtr GetBackgroundInvoker()
+    {
+        return BackgroundQueue->GetInvoker();
+    }
+
     virtual TJobPtr CreateJob(
         TOperationPtr operation,
         TExecNodePtr node,
         const NProto::TJobSpec& spec)
     {
-        // NB: The job does not get registered immediately.
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // The job does not get registered immediately.
         // Instead we wait until this job is returned back to us by the strategy.
         auto job = New<TJob>(
             TJobId::Create(),
@@ -576,6 +647,72 @@ private:
             spec,
             TInstant::Now());
         return job;
+    }
+
+    virtual void OnOperationCompleted(
+        TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        GetControlInvoker()->Invoke(FromMethod(
+            &TImpl::DoOperationCompleted,
+            this,
+            operation));
+    }
+
+    void DoOperationCompleted(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto state = operation->GetState();
+        YASSERT(state == EOperationState::Running ||
+                state == EOperationState::Aborting ||
+                state == EOperationState::Aborted);
+        if (state != EOperationState::Running) {
+            // Operation is being aborted.
+            return;
+        }
+
+        LOG_INFO("Operation completed (OperationId: %s)",
+            ~operation->GetOperationId().ToString());
+
+        operation->SetState(EOperationState::Completed);
+
+        // The operation will remain in this state until it is swept.
+    }
+
+    virtual void OnOperationFailed(
+        TOperationPtr operation,
+        const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        GetControlInvoker()->Invoke(FromMethod(
+            &TImpl::DoOperationCompleted,
+            this,
+            operation));
+    }
+
+    void DoOperationFailed(TOperationPtr operation, TError error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto state = operation->GetState();
+        YASSERT(state == EOperationState::Running ||
+                state == EOperationState::Failed ||
+                state == EOperationState::Aborting ||
+                state == EOperationState::Aborted);
+        if (state != EOperationState::Running) {
+            // Safe to call OnOperationFailed multiple times, just ignore it.
+            return;
+        }
+
+        LOG_INFO("Operation failed (OperationId: %s)\n%s",
+            ~operation->GetOperationId().ToString(),
+            ~error.GetMessage());
+
+        operation->SetState(EOperationState::Failed);
+        operation->SetError(error);
+
+        // The operation will remain in this state until it is swept.
     }
 
 
@@ -614,7 +751,7 @@ private:
         context->SetRequestInfo("OperationId: %s", ~operationId.ToString());
 
         auto operation = GetOperation(operationId);
-        AbortOperation(operation);
+        AbortOperation(operation, EAbortReason::TransactionExpired);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)

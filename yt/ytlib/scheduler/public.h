@@ -24,14 +24,13 @@ DECLARE_ENUM(EJobType,
 );
 
 DECLARE_ENUM(EOperationState,
-    ((Initializing)(0))
-    ((Preparing)(1))
-    ((Running)(2))
-    ((Completed)(3))
-    ((Aborting)(4))
-    ((Aborted)(5))
-    ((Failing)(6))
-    ((Failed)(7))
+    (Initializing)
+    (Preparing)
+    (Running)
+    (Completed)
+    (Aborting)
+    (Aborted)
+    (Failed)
 );
 
 DECLARE_ENUM(EJobState,

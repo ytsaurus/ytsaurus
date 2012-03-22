@@ -21,29 +21,26 @@ public:
         , Operation(operation)
     { }
 
-    virtual void Initialize()
+    virtual TError Initialize()
     {
         Spec = New<TMapOperationSpec>();
         Spec->Load(~Operation->GetSpec());
 
         if (Spec->ShellCommand.empty() && Spec->Files.empty()) {
-            ythrow yexception() << "Neither \"shell_command\" nor \"files\" are given";
+            return TError("Neither \"shell_command\" nor \"files\" are given");
         }
 
         if (Spec->In.empty()) {
             // TODO(babenko): is this an error?
-            ythrow yexception() << "No input tables are given";
+            return TError("No input tables are given");
         }
+
+        return TError();
     }
 
-    virtual void Abort()
+    virtual TAsyncError Prepare()
     {
-
-    }
-
-    virtual void Complete()
-    {
-
+        return MakeFuture(TError());
     }
 
     virtual void OnJobRunning(TJobPtr job)
@@ -57,6 +54,11 @@ public:
     }
 
     virtual void OnJobFailed(TJobPtr job)
+    {
+
+    }
+
+    virtual void OnOperationAborted(TOperationPtr operation)
     {
 
     }
