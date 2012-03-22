@@ -150,7 +150,7 @@ class YTEnv:
     def _all_holders_ready(self):
         holders_status = {}
 
-        good_marker = re.compile(r".*Holder registered .* HolderId: (\d+).*")
+        good_marker = re.compile(r".*Holder online .* HolderId: (\d+).*")
         bad_marker = re.compile(r".*Holder unregistered .* HolderId: (\d+).*")
 
         def update_status(marker, line, status, value):

@@ -9,6 +9,7 @@
 #include <ytlib/object_server/id.h>
 #include <ytlib/cypress/public.h>
 #include <ytlib/cypress/id.h>
+#include <ytlib/ytree/yson_writer.h>
 
 namespace TCLAP {
 
@@ -29,6 +30,11 @@ struct ArgTraits<NYT::NCypress::ELockMode> {
 
 template<>
 struct ArgTraits<NYT::NObjectServer::EObjectType> {
+    typedef ValueLike ValueCategory;
+};
+
+template<>
+struct ArgTraits<NYT::NYTree::EYsonFormat> {
     typedef ValueLike ValueCategory;
 };
 

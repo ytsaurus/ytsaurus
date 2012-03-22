@@ -1,5 +1,5 @@
 #!/bin/bash -exv
-#% NUM_MASTERS = 1
+#% NUM_MASTERS = 3
 #% NUM_HOLDERS = 5
 
 yt create /table table

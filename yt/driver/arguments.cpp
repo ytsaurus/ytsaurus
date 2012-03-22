@@ -11,11 +11,15 @@ TArgsBase::TArgsBase()
     Cmd.Reset(new TCLAP::CmdLine("Command line"));
     ConfigArg.Reset(new TCLAP::ValueArg<std::string>(
         "", "config", "configuration file", false, "", "file_name"));
+    FormatArg.Reset(new TCLAP::ValueArg<EYsonFormat>(
+        "", "format", "output format", false, EYsonFormat::Text, "text, pretty, binary"));
+
     OptsArg.Reset(new TCLAP::MultiArg<std::string>(
         "", "opts", "other options", false, "options"));
 
     Cmd->add(~ConfigArg);
     Cmd->add(~OptsArg);
+    Cmd->add(~FormatArg);
 }
 
 void TArgsBase::Parse(std::vector<std::string>& args)
@@ -36,6 +40,11 @@ INodePtr TArgsBase::GetCommand()
 Stroka TArgsBase::GetConfigName()
 {
     return Stroka(ConfigArg->getValue());
+}
+
+EYsonFormat TArgsBase::GetOutputFormat()
+{
+    return FormatArg->getValue();
 }
 
 void TArgsBase::BuildOpts(IYsonConsumer* consumer)

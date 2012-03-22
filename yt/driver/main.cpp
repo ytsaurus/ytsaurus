@@ -210,6 +210,8 @@ public:
 
             NLog::TLogManager::Get()->Configure(~config->Logging);
 
+            config->OutputFormat = argsParser->GetOutputFormat();
+
             Driver = new TDriver(~config, &StreamProvider);
 
             auto command = argsParser->GetCommand();

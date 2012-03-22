@@ -22,7 +22,9 @@ public:
     void Parse(std::vector<std::string>& args);
 
     NYTree::INodePtr GetCommand();
+
     Stroka GetConfigName();
+    NYTree::EYsonFormat GetOutputFormat();
 
 protected:
     //useful typedefs
@@ -31,6 +33,8 @@ protected:
     THolder<TCLAP::CmdLine> Cmd;
 
     THolder<TCLAP::ValueArg<std::string> > ConfigArg;
+    THolder<TCLAP::ValueArg<NYTree::EYsonFormat> > FormatArg;
+
     THolder<TCLAP::MultiArg<std::string> > OptsArg;
 
     void BuildOpts(NYTree::IYsonConsumer* consumer);
