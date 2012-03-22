@@ -74,13 +74,14 @@ Stroka GetFileName(const Stroka& path)
 
 Stroka GetDirectoryName(const Stroka& path)
 {
+    auto realPath = RealPath(path);
 #ifdef _win_
     // May be mixed style of filename ('/' and '\')
-    Stroka path_loc = path;
+    Stroka path_loc = realPath;
     correctpath(path_loc);
     return path_loc.substr(0, path_loc.find_last_of(LOCSLASH_C));
 #else
-    return path.substr(0, path.find_last_of(LOCSLASH_C));
+    return realPath.substr(0, realPath.find_last_of(LOCSLASH_C));
 #endif
 }
 
