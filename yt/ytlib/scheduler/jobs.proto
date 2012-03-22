@@ -12,7 +12,6 @@ import "yt/ytlib/misc/error.proto";
 message TJobSpec
 {
     required int32 type = 1;
-    required bytes operation_spec = 2;
 
     extensions 100 to max;
 }

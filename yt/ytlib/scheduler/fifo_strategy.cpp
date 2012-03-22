@@ -41,6 +41,10 @@ public:
             if (freeCount == 0) {
                 break;
             }
+
+            if (operation->GetState() != EOperationState::Running) {
+                continue;
+            }
             
             int startCountBefore = static_cast<int>(jobsToStart->size());
             

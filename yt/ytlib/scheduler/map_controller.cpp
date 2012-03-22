@@ -10,6 +10,8 @@
 namespace NYT {
 namespace NScheduler {
 
+using namespace NProto;
+
 ////////////////////////////////////////////////////////////////////
 
 class TMapController
@@ -26,14 +28,12 @@ public:
         Spec = New<TMapOperationSpec>();
         Spec->Load(~Operation->GetSpec());
 
-        if (Spec->ShellCommand.empty() && Spec->Files.empty()) {
-            return TError("Neither \"shell_command\" nor \"files\" are given");
-        }
-
         if (Spec->In.empty()) {
             // TODO(babenko): is this an error?
             return TError("No input tables are given");
         }
+
+        JobsToStart = 10;
 
         return TError();
     }
@@ -63,11 +63,26 @@ public:
 
     }
 
+    int JobsToStart;
+
     virtual void ScheduleJobs(
         TExecNodePtr node,
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort)
     {
+        if (JobsToStart == 0)
+            return;
+
+        TUserJobSpec userJobSpec;
+        userJobSpec.set_shell_comand("cat");
+
+        TJobSpec jobSpec;
+        jobSpec.set_type(EJobType::Map);
+        *jobSpec.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
+
+
+        jobsToStart->push_back(Host->CreateJob(Operation, node, jobSpec));
+        --JobsToStart;
     }
 
 private:

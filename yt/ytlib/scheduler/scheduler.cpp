@@ -89,6 +89,12 @@ public:
         StartRefresh();
     }
 
+    IYPathServicePtr CreateOrchidService()
+    {
+        // TODO(babenko): virtualize
+        return IYPathService::FromProducer(FromMethod(&TImpl::BuildOrchidYson, this));
+    }
+
 private:
     typedef TImpl TThis;
 
@@ -106,10 +112,14 @@ private:
     TPeriodicInvoker::TPtr TransactionRefreshInvoker;
     TPeriodicInvoker::TPtr NodesRefreshInvoker;
 
-    yhash_map<Stroka, TExecNodePtr> Nodes;
-    yhash_map<TOperationId, TOperationPtr> Operations;
-    yhash_map<TJobId, TJobPtr> Jobs;
+    typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
+    TExecNodeMap ExecNodes;
 
+    typedef yhash_map<TOperationId, TOperationPtr> TOperationMap;
+    TOperationMap Operations;
+
+    typedef yhash_map<TJobId, TJobPtr> TJobMap;
+    TJobMap Jobs;
 
     typedef TValueOrError<TOperationPtr> TStartResult;
 
@@ -148,14 +158,7 @@ private:
         // Create a node in Cypress that will represent the operation.
         LOG_INFO("Creating operation node (OperationId: %s)", ~operationId.ToString());
         auto setReq = TYPathProxy::Set(GetOperationPath(operationId));
-        setReq->set_value(BuildYsonFluently()
-            .WithAttributes().BeginMap()
-            .EndMap()
-            .BeginAttributes()
-                .Item("type").Scalar(CamelCaseToUnderscoreCase(type.ToString()))
-                .Item("transaction_id").Scalar(transactionId.ToString())
-                .Item("spec").Node(spec)
-            .EndAttributes());
+        setReq->set_value(SerializeToYson(FromMethod(&TImpl::BuildOperationYson, this, operation)));
 
         return CypressProxy.Execute(setReq)->Apply(
             FromMethod(
@@ -288,8 +291,8 @@ private:
 
     TExecNodePtr FindNode(const Stroka& address)
     {
-        auto it = Nodes.find(address);
-        return it == Nodes.end() ? NULL : it->second;
+        auto it = ExecNodes.find(address);
+        return it == ExecNodes.end() ? NULL : it->second;
     }
 
     TJobPtr FindJob(const TJobId& jobId)
@@ -301,12 +304,12 @@ private:
 
     void RegisterNode(TExecNodePtr node)
     {
-        YVERIFY(Nodes.insert(MakePair(node->GetAddress(), node)).second);    
+        YVERIFY(ExecNodes.insert(MakePair(node->GetAddress(), node)).second);    
     }
 
     void UnregisterNode(TExecNodePtr node)
     {
-        YVERIFY(Nodes.erase(node->GetAddress()) == 1);
+        YVERIFY(ExecNodes.erase(node->GetAddress()) == 1);
     }
 
     
@@ -574,7 +577,7 @@ private:
         // Examine the list of nodes returned by master and figure out the difference.
 
         yhash_set<TExecNodePtr> deadNodes;
-        FOREACH (const auto& pair, Nodes) {
+        FOREACH (const auto& pair, ExecNodes) {
             YVERIFY(deadNodes.insert(pair.second).second);
         }
 
@@ -713,6 +716,71 @@ private:
         operation->SetError(error);
 
         // The operation will remain in this state until it is swept.
+    }
+
+
+
+    void BuildOrchidYson(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
+                    fluent.Item(pair.first.ToString());
+                    BuildOperationYson(consumer, pair.second);
+                })
+                .Item("jobs").DoMapFor(Jobs, [=] (TFluentMap fluent, TJobMap::value_type pair) {
+                    fluent.Item(pair.first.ToString());
+                    BuildJobYson(consumer, pair.second);
+                })
+                .Item("exec_nodes").DoMapFor(ExecNodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
+                    fluent.Item(pair.first);
+                    BuildExecNodeYson(consumer, pair.second);
+                })
+            .EndMap();
+    }
+
+    void BuildOperationYson(IYsonConsumer* consumer, TOperationPtr operation)
+    {
+        BuildYsonFluently(consumer)
+            .WithAttributes().BeginMap()
+            .EndMap()
+            .BeginAttributes()
+                .Item("type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
+                .Item("transaction_id").Scalar(operation->GetTransactionId().ToString())
+                .Item("spec").Node(operation->GetSpec())
+            .EndAttributes();
+    }
+
+    void BuildJobYson(IYsonConsumer* consumer, TJobPtr job)
+    {
+        BuildYsonFluently(consumer)
+            .WithAttributes().BeginMap()
+            .EndMap()
+            .BeginAttributes()
+                .Item("type").Scalar(CamelCaseToUnderscoreCase(EJobType(job->Spec().type()).ToString()))
+                .Item("state").Scalar(CamelCaseToUnderscoreCase(job->GetState().ToString()))
+                //.DoIf(!job->Result().IsOK(), [=] (TFluentMap fluent) {
+                //    auto error = TError::FromProto(job->Result().error());
+                //    fluent.Item("result").BeginMap()
+                //        .Item("code").Scalar(error.GetCode())
+                //        .Item("message").Scalar(error.GetMessage())
+                //    .EndMap();
+                //})
+            .EndAttributes();
+    }
+
+    void BuildExecNodeYson(IYsonConsumer* consumer, TExecNodePtr node)
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("utilization").BeginMap()
+                    .Item("total_slot_count").Scalar(node->Utilization().total_slot_count())
+                    .Item("free_slot_count").Scalar(node->Utilization().free_slot_count())
+                .EndMap()
+                .Item("job_count").Scalar(node->Jobs().size())
+            .EndMap();
     }
 
 
@@ -931,6 +999,11 @@ void TScheduler::Start()
 NRpc::IService::TPtr TScheduler::GetService()
 {
     return Impl;
+}
+
+IYPathServicePtr TScheduler::CreateOrchidService()
+{
+    return Impl->CreateOrchidService();
 }
 
 ////////////////////////////////////////////////////////////////////

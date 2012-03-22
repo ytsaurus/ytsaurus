@@ -96,12 +96,16 @@ void TBootstrap::Run()
         ~orchidRoot,
         "profiling",
         ~CreateVirtualNode(
-        ~TProfilingManager::Get()->GetRoot()
-        ->Via(TProfilingManager::Get()->GetInvoker())));
+            ~TProfilingManager::Get()->GetRoot()
+            ->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
         ~orchidRoot,
         "config",
         ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProducer(ConfigFileName)));
+    SyncYPathSetNode(
+        ~orchidRoot,
+        "scheduler",
+        ~NYTree::CreateVirtualNode(~Scheduler->CreateOrchidService()));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
