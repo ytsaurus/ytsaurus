@@ -10,6 +10,8 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ETokenType,
+    (None) // Empty or uninitialized token
+
     (String)
     (Int64)
     (Double)

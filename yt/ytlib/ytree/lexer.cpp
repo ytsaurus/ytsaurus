@@ -95,9 +95,6 @@ public:
     void Finish()
     {
         switch (State_) {
-            case EState::None:
-                break;
-
             case EState::InProgress:
                 switch (InnerState) {
                     case EInnerState::InsideBinaryInt64:
@@ -123,10 +120,10 @@ public:
                     default:
                         YUNREACHABLE();
                 }
+                break;
 
             default:
-                // Should not finish in terminal states
-                YUNREACHABLE();
+                break;
         }
         
     }
@@ -464,9 +461,7 @@ void DoChopToken(TLexer& lexer, const TStringBuf& data, TStringBuf* suffix)
             ++position;
         }
     }
-    if (lexer.GetState() != TLexer::EState::Terminal) {
-        lexer.Finish();
-    }
+    lexer.Finish();
     YASSERT(lexer.GetState() == TLexer::EState::Terminal);
     if (suffix) {
         *suffix = data.SubStr(position);
