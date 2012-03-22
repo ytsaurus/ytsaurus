@@ -30,9 +30,7 @@ class TOperation
     //! Currently existing jobs in the operation.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
-    IOperationController* GetController() const;
-    //! Used internally by the scheduler.
-    void SetController(TAutoPtr<IOperationController> controller);
+    DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 
     //! Contains the error for failed operations.
     DEFINE_BYVAL_RW_PROPERTY(TError, Error);
@@ -44,9 +42,6 @@ public:
         const TTransactionId& transactionId,
         NYTree::IMapNodePtr spec,
         TInstant startTime);
-
-private:
-    TAutoPtr<IOperationController> Controller;
 
 };
 

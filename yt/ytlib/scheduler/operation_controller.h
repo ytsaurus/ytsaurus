@@ -4,6 +4,7 @@
 
 #include <ytlib/scheduler/jobs.pb.h>
 #include <ytlib/rpc/channel.h>
+#include <ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -17,6 +18,8 @@ struct IOperationHost
 
 
     virtual NRpc::IChannel::TPtr GetMasterChannel() = 0;
+
+    virtual NTransactionClient::TTransactionManager::TPtr GetTransactionManager() = 0;
 
     //! Returns the control invoker of the scheduler.
     virtual IInvoker::TPtr GetControlInvoker() = 0;
@@ -68,10 +71,8 @@ struct IOperationHost
  *  \note Thread affinity: ControlThread
  */
 struct IOperationController
+    : public TRefCounted
 {
-    virtual ~IOperationController()
-    { }
-
     //! Performs a fast synchronous initialization.
     /*
      *  If an error is returned the operation is aborted immediately.
@@ -85,6 +86,9 @@ struct IOperationController
      *  Otherwise the operation is marked as failed.
      */
     virtual TAsyncError Prepare() = 0;
+
+    //! Returns the number of jobs still the controller still needs to start.
+    virtual i64 GetPendingJobCount() = 0;
     
     //! Called during heartbeat processing to notify the controller that a job is running.
     virtual void OnJobRunning(TJobPtr job) = 0;
@@ -100,7 +104,7 @@ struct IOperationController
      *  All jobs are aborted automatically.
      *  The operation, however, may carry out any additional cleanup it finds necessary.
      */
-    virtual void OnOperationAborted(TOperationPtr operation) = 0;
+    virtual void OnOperationAborted() = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
     virtual void ScheduleJobs(

@@ -22,16 +22,6 @@ TOperation::TOperation(
     , StartTime_(startTime)
 { }
 
-IOperationController* TOperation::GetController() const
-{
-    return Controller.Get();
-}
-
-void TOperation::SetController(TAutoPtr<IOperationController> controller)
-{
-    Controller = controller;
-}
-
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

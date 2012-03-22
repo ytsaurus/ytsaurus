@@ -611,7 +611,7 @@ private:
         return CombineYPaths("/sys/scheduler/operations", id.ToString());
     }
 
-    TAutoPtr<IOperationController> CreateController(TOperation* operation)
+    IOperationControllerPtr CreateController(TOperation* operation)
     {
         // TODO(babenko): add more operation types
         switch (operation->GetType()) {
@@ -629,7 +629,12 @@ private:
         return Bootstrap->GetMasterChannel();
     }
 
-    IInvoker::TPtr GetControlInvoker()
+    virtual TTransactionManager::TPtr GetTransactionManager()
+    {
+        return Bootstrap->GetTransactionManager();
+    }
+
+    virtual IInvoker::TPtr GetControlInvoker()
     {
         return Bootstrap->GetControlInvoker();
     }

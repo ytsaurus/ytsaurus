@@ -87,6 +87,7 @@ struct ISchedulerStrategy;
 struct IOperationHost;
 
 struct IOperationController;
+typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;
 
 class TMapOperationSpec;
 typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;

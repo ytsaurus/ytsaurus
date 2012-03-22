@@ -90,7 +90,7 @@ message TMapJobSpec
     }
 
     // Portions of input data to be processed.
-    repeated TTableInputSpec input_specs = 1;
+    required TTableInputSpec input_spec = 1;
 
     // The transaction that has locked the input.
     // It's likely that the job won't need this but we
@@ -104,7 +104,7 @@ message TMapJobSpec
     required bytes output_transaction_id = 4;
 
     // Describes how to store job stderr.
-    required TStdErrSpec std_err_spec = 5;
+    optional TStdErrSpec std_err_spec = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
