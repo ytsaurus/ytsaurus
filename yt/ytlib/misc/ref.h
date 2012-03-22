@@ -38,6 +38,12 @@ public:
         Size_ = blob.size();
     }
 
+    //! Creates a reference for a given string.
+    TRef(const Stroka& str)
+        : Data(const_cast<char*>(str.data()))
+        , Size_(str.length())
+    { }
+
     const char* Begin() const
     {
         return Data;
