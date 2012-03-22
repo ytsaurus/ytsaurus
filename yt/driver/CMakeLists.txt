@@ -1,6 +1,6 @@
 set( SRCS
   main.cpp
-  arguments.h
+  arguments.cpp
 )
 
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )

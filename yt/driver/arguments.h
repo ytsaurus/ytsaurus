@@ -9,48 +9,20 @@
 
 namespace NYT {
 
-using namespace NYTree;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-//TODO(panin): move to proper place
 class TArgsBase
     : public TRefCounted
 {
 public:
     typedef TIntrusivePtr<TArgsBase> TPtr;
 
-    TArgsBase()
-    {
-        Cmd.Reset(new TCLAP::CmdLine("Command line"));
-        ConfigArg.Reset(new TCLAP::ValueArg<std::string>(
-            "", "config", "configuration file", false, "", "file_name"));
-        OptsArg.Reset(new TCLAP::MultiArg<std::string>(
-            "", "opts", "other options", false, "options"));
+    TArgsBase();
 
-        Cmd->add(~ConfigArg);
-        Cmd->add(~OptsArg);
-    }
+    void Parse(std::vector<std::string>& args);
 
-    void Parse(std::vector<std::string>& args)
-    {
-        Cmd->parse(args);
-    }
-
-    INodePtr GetCommand()
-    {
-        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-        builder->BeginTree();
-        builder->OnBeginMap();
-        BuildCommand(~builder);
-        builder->OnEndMap();
-        return builder->EndTree();
-    }
-
-    Stroka GetConfigName()
-    {
-        return Stroka(ConfigArg->getValue());
-    }
+    NYTree::INodePtr GetCommand();
+    Stroka GetConfigName();
 
 protected:
     //useful typedefs
@@ -61,47 +33,23 @@ protected:
     THolder<TCLAP::ValueArg<std::string> > ConfigArg;
     THolder<TCLAP::MultiArg<std::string> > OptsArg;
 
-    void BuildOpts(IYsonConsumer* consumer)
-    {
-        FOREACH (auto opts, OptsArg->getValue()) {
-            NYTree::TYson yson = Stroka("{") + Stroka(opts) + "}";
-            auto items = NYTree::DeserializeFromYson(yson)->AsMap();
-            FOREACH (auto child, items->GetChildren()) {
-                consumer->OnMapItem(child.first);
-                consumer->OnStringScalar(child.second->AsString()->GetValue());
-            }
-        }
-    }
-
-    virtual void BuildCommand(IYsonConsumer* consumer) {
-        BuildOpts(consumer);
-    }
+    void BuildOpts(NYTree::IYsonConsumer* consumer);
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 class TTransactedArgs
     : public TArgsBase
 {
 public:
-    TTransactedArgs()
-    {
-        TxArg.Reset(new TTxArg(
-            "", "tx", "transaction id", false, NObjectServer::NullTransactionId, "guid"));
-        Cmd->add(~TxArg);
-    }
+    TTransactedArgs();
+
 protected:
     typedef TCLAP::ValueArg<NObjectServer::TTransactionId> TTxArg;
     THolder<TTxArg> TxArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("transaction_id")
-            .Scalar(TxArg->getValue().ToString());
-        TArgsBase::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,23 +58,12 @@ class TGetArgs
     : public TTransactedArgs
 {
 public:
-    TGetArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        Cmd->add(~PathArg);
-    }
+    TGetArgs();
 
 private:
     THolder<TFreeStringArg> PathArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("get")
-            .Item("path").Scalar(PathArg->getValue());
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,28 +72,13 @@ class TSetArgs
     : public TTransactedArgs
 {
 public:
-    TSetArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        ValueArg.Reset(new TFreeStringArg("value", "value to set", true, "", "yson"));
-
-        Cmd->add(~PathArg);
-        Cmd->add(~ValueArg);
-    }
+    TSetArgs();
 
 private:
     THolder<TFreeStringArg> PathArg;
     THolder<TFreeStringArg> ValueArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("set")
-            .Item("path").Scalar(PathArg->getValue())
-            .Item("value").OnNode(DeserializeFromYson(ValueArg->getValue()));
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,23 +87,12 @@ class TRemoveArgs
     : public TTransactedArgs
 {
 public:
-    TRemoveArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        Cmd->add(~PathArg);
-    }
+    TRemoveArgs();
 
 private:
     THolder<TFreeStringArg> PathArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("remove")
-            .Item("path").Scalar(PathArg->getValue());
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,23 +101,12 @@ class TListArgs
     : public TTransactedArgs
 {
 public:
-    TListArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        Cmd->add(~PathArg);
-    }
+    TListArgs();
 
 private:
     THolder<TFreeStringArg> PathArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("list")
-            .Item("path").Scalar(PathArg->getValue());
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,18 +115,7 @@ class TCreateArgs
     : public TTransactedArgs
 {
 public:
-    TCreateArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        TypeArg.Reset(new TTypeArg(
-            "type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type"));
-
-        Cmd->add(~PathArg);
-        Cmd->add(~TypeArg);
-
-        ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
-        Cmd->add(~ManifestArg);
-    }
+    TCreateArgs();
 
 private:
     THolder<TFreeStringArg> PathArg;
@@ -237,20 +126,7 @@ private:
     typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
     THolder<TManifestArg> ManifestArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        auto manifestYson = ManifestArg->getValue();
-
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("create")
-            .Item("path").Scalar(PathArg->getValue())
-            .Item("type").Scalar(TypeArg->getValue().ToString())
-            .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
-                fluent.Item("manifest").OnNode(DeserializeFromYson(manifestYson));
-             });
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
 };
 
@@ -260,14 +136,7 @@ class TLockArgs
     : public TTransactedArgs
 {
 public:
-    TLockArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        ModeArg.Reset(new TModeArg(
-            "", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive"));
-        Cmd->add(~PathArg);
-        Cmd->add(~ModeArg);
-    }
+    TLockArgs();
 
 private:
     THolder<TFreeStringArg> PathArg;
@@ -275,15 +144,7 @@ private:
     typedef TCLAP::ValueArg<NCypress::ELockMode> TModeArg;
     THolder<TModeArg> ModeArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("lock")
-            .Item("path").Scalar(PathArg->getValue())
-            .Item("mode").Scalar(ModeArg->getValue().ToString());
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
 };
 
@@ -293,26 +154,13 @@ class TStartTxArgs
     : public TArgsBase
 {
 public:
-    TStartTxArgs()
-    {
-        ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
-        Cmd->add(~ManifestArg);
-    }
+    TStartTxArgs();
 
 private:
     typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
     THolder<TManifestArg> ManifestArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        auto manifestYson = ManifestArg->getValue();
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("start")
-            .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
-                fluent.Item("manifest").OnNode(DeserializeFromYson(manifestYson));
-             });
-        TArgsBase::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,13 +173,8 @@ public:
     { }
 
 private:
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("commit");
 
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -344,13 +187,7 @@ public:
     { }
 
 private:
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("abort");
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,23 +196,12 @@ class TReadArgs
     : public TTransactedArgs
 {
 public:
-    TReadArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        Cmd->add(~PathArg);
-    }
+    TReadArgs();
 
 private:
     THolder<TFreeStringArg> PathArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("read")
-            .Item("path").Scalar(PathArg->getValue());
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
 };
 
@@ -385,14 +211,7 @@ class TWriteArgs
     : public TTransactedArgs
 {
 public:
-    TWriteArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        Cmd->add(~PathArg);
-
-        ValueArg.Reset(new TFreeStringArg("value", "value to set", true, "", "yson"));
-        Cmd->add(~ValueArg);
-    }
+    TWriteArgs();
 
     // TODO(panin): validation?
 //    virtual void DoValidate() const
@@ -411,15 +230,7 @@ private:
     //TODO(panin):support value from stdin
     THolder<TFreeStringArg> ValueArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("write")
-            .Item("path").Scalar(PathArg->getValue())
-            .Item("value").OnNode(DeserializeFromYson(ValueArg->getValue()));
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
 };
 
@@ -429,23 +240,12 @@ class TUploadArgs
     : public TTransactedArgs
 {
 public:
-    TUploadArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        Cmd->add(~PathArg);
-    }
+    TUploadArgs();
 
 private:
     THolder<TFreeStringArg> PathArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("upload")
-            .Item("path").Scalar(PathArg->getValue());
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
 };
 
@@ -455,23 +255,12 @@ class TDownloadArgs
     : public TTransactedArgs
 {
 public:
-    TDownloadArgs()
-    {
-        PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-        Cmd->add(~PathArg);
-    }
+    TDownloadArgs();
 
 private:
     THolder<TFreeStringArg> PathArg;
 
-    virtual void BuildCommand(IYsonConsumer* consumer)
-    {
-        BuildYsonMapFluently(consumer)
-            .Item("do").Scalar("download")
-            .Item("path").Scalar(PathArg->getValue());
-
-        TTransactedArgs::BuildCommand(consumer);
-    }
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
