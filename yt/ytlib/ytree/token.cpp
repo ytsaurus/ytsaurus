@@ -10,7 +10,7 @@ namespace NYTree {
 
 TToken::TToken()
     : Int64Value(0)
-    , DoubleValue(0)
+    , DoubleValue(0.0)
 { }
 
 const Stroka& TToken::GetStringValue() const

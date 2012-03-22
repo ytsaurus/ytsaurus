@@ -1,13 +1,12 @@
 #pragma once
 
 #include "public.h"
+#include "token.h"
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TToken;
 
 class TLexer
 {
@@ -42,6 +41,14 @@ private:
     class TImpl;
     THolder<TImpl> Impl;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TToken ChopToken(const TStringBuf& data, TStringBuf* suffix);
+Stroka ChopStringToken(const TStringBuf& data, TStringBuf* suffix);
+i64 ChopInt64Token(const TStringBuf& data, TStringBuf* suffix);
+double ChopDoubleToken(const TStringBuf& data, TStringBuf* suffix);
+ETokenType ChopSpecialToken(const TStringBuf& data, TStringBuf* suffix);
 
 ////////////////////////////////////////////////////////////////////////////////
             

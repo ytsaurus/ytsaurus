@@ -437,6 +437,88 @@ const TToken& TLexer::GetToken() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+      
+namespace {
+
+void DoChopToken(TLexer& lexer, const TStringBuf& data, TStringBuf* suffix)
+{
+    int position = 0;
+    while (lexer.GetState() != TLexer::EState::Terminal && position < data.length()) {
+        if (lexer.Consume(data[position])) {
+            ++position;
+        }
+    }
+    if (lexer.GetState() != TLexer::EState::Terminal) {
+        lexer.Finish();
+    }
+    YASSERT(lexer.GetState() == TLexer::EState::Terminal);
+    if (suffix) {
+        *suffix = data.SubStr(position);
+    }
+}
+
+} // namespace
+
+TToken ChopToken(const TStringBuf& data, TStringBuf* suffix)
+{
+    TLexer lexer;
+    DoChopToken(lexer, data, suffix);
+    return lexer.GetToken();
+}
+
+Stroka ChopStringToken(const TStringBuf& data, TStringBuf* suffix)
+{
+    TLexer lexer;
+    DoChopToken(lexer, data, suffix);
+    const auto& token = lexer.GetToken();
+    if (token.GetType() != ETokenType::String) {
+        ythrow yexception() << Sprintf("Expected String token, but token %s of type %s found",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
+    }
+    return token.GetStringValue();
+}
+
+i64 ChopInt64Token(const TStringBuf& data, TStringBuf* suffix)
+{
+    TLexer lexer;
+    DoChopToken(lexer, data, suffix);
+    const auto& token = lexer.GetToken();
+    if (token.GetType() != ETokenType::Int64) {
+        ythrow yexception() << Sprintf("Expected Int64 token, but token %s of type %s found",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
+    }
+    return token.GetInt64Value();
+}
+
+double ChopDoubleToken(const TStringBuf& data, TStringBuf* suffix)
+{
+    TLexer lexer;
+    DoChopToken(lexer, data, suffix);
+    const auto& token = lexer.GetToken();
+    if (token.GetType() != ETokenType::Double) {
+        ythrow yexception() << Sprintf("Expected Double token, but token %s of type %s found",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
+    }
+    return token.GetDoubleValue();
+}
+
+ETokenType ChopSpecialToken(const TStringBuf& data, TStringBuf* suffix)
+{
+    TLexer lexer;
+    DoChopToken(lexer, data, suffix);
+    const auto& token = lexer.GetToken();
+    if (token.GetType() <= ETokenType::Double) {
+        ythrow yexception() << Sprintf("Expected special value token, but token %s of type %s found",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
+    }
+    return token.GetType();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT
