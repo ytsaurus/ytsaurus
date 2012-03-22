@@ -107,7 +107,7 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
             return;
         }
     } else {
-        YASSERT(!State.IsActive());
+        //YASSERT(!State.IsActive());
     }
 
     // Finishing AsyncOpen.

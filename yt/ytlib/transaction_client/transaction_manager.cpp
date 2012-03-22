@@ -288,7 +288,9 @@ ITransaction::TPtr TTransactionManager::Attach(const TTransactionId& id)
         }
     }
 
-    return New<TTransaction>(~Channel, this, id);
+    auto transaction = New<TTransaction>(~Channel, this, id);
+    RegisterTransaction(transaction);
+    return transaction;
 }
 
 

@@ -11,7 +11,6 @@ struct TDownloadRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
 
     TDownloadRequest()
     {
@@ -37,7 +36,6 @@ struct TUploadRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
 
     TUploadRequest()
     {
