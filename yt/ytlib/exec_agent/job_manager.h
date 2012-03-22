@@ -42,7 +42,7 @@ public:
     /*!
      *  If the job is running, aborts it.
      */
-    void StopJob(const TJobId& jobId);
+    void AbortJob(const TJobId& jobId);
 
     //! Removes the job from the list thus making the slot free.
     /*!

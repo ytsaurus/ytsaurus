@@ -252,13 +252,13 @@ NScheduler::EJobProgress TJob::GetProgress() const
     return JobProgress;
 }
 
-void TJob::Abort(const TError& error)
+void TJob::Abort()
 {
     JobState = EJobState::Aborting;
     Slot->GetInvoker()->Invoke(FromMethod(
         &TJob::DoAbort,
         MakeStrong(this),
-        error,
+        TError("Job aborted by scheduler"),
         EJobState::Aborted));
 }
 

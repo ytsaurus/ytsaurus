@@ -147,16 +147,20 @@ void TJobManager::StartJob(
         ~EJobType(jobSpec.type()).ToString());
 }
 
-void TJobManager::StopJob( const TJobId& jobId )
+void TJobManager::AbortJob(const TJobId& jobId)
 {
-    YUNREACHABLE();
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto job = GetJob(jobId);
+    job->Abort();
 }
 
-void TJobManager::RemoveJob( const TJobId& jobId )
+void TJobManager::RemoveJob(const TJobId& jobId)
 {
-    YUNREACHABLE();
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    YASSERT(GetJob(jobId)->GetProgress() > EJobProgress::Cleanup);
 
+    Jobs.erase(jobId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

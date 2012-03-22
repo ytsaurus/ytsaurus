@@ -260,11 +260,14 @@ public:
         OnExit->Get();
     }
 
-    DECLARE_INTERFACE_SIGNAL(void(TError), Exited);
-
-    void SubscribeExited(TCallback<void(TError)> callback) 
+    void SubscribeExited(const TCallback<void(TError)>& callback) 
     {
-        OnExit->Subscribe(callback);
+        OnExit->Subscribe(FromCallback(callback));
+    }
+
+    void UnsubscribeExited(const TCallback<void(TError)>& callback) 
+    {
+        YUNIMPLEMENTED();
     }
 
 private:

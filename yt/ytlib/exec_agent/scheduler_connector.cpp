@@ -86,7 +86,7 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
     FOREACH (const auto& protoJobId, rsp->jobs_to_abort()) {
         auto jobId = TJobId::FromProto(protoJobId);
         // TODO(babenko): rename to AbortJob
-        jobManager->StopJob(jobId);
+        jobManager->AbortJob(jobId);
     }
 
     FOREACH (const auto& startInfo, rsp->jobs_to_start()) {

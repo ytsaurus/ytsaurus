@@ -30,7 +30,7 @@ public:
     void Start(TEnvironmentManager* environmentManager);
 
     //! Kills the job if it is running.
-    void Abort(const TError& error);
+    void Abort();
 
     const TJobId& GetId() const;
 
