@@ -20,6 +20,10 @@ def get(path, **kw): return command('get', path, **kw)
 def remove(path, **kw): return command('remove', path, **kw)
 def set(path, value, **kw): return command('set', path, value, **kw)
 
+def create(path, object_type, **kw): return command('create', path, object_type, **kw)
+def read(path, **kw): return command('read', path, **kw)
+def write(path, value, **kw): return command('write', path, value, **kw)
+
 def start_transaction():
     raw_tx = expect_ok(command('start_tx'))
     tx_id = raw_tx.replace('"', '').strip('\n')
@@ -113,7 +117,7 @@ class TestLockCommands(YTEnvSetup):
 
         expect_ok(lock('/a/b', tx = tx1))
 
-        # now taking lock for any element in /a/b/c case en error
+        # now taking lock for any element in /a/b/c cause en error
         expect_error(lock('/a', tx = tx2))
         expect_error(lock('/a/b', tx = tx2))
         expect_error(lock('/a/b/c', tx = tx2))
@@ -125,3 +129,20 @@ class TestLockCommands(YTEnvSetup):
         #TODO(panin): shared locks
 
 
+class TestTableCommands(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_HOLDERS = 5
+
+    def test_simple(self):
+        expect_ok(create('/table', 'table'))
+
+        assert_eq(read('/table'), '')
+        assert_eq(get('/table@row_count'), '0')
+
+        expect_ok(write('/table', '[{b="hello"}]'))
+        assert_eq(read('/table'), '{"b"="hello"}')
+        assert_eq(get('/table@row_count'), '1')
+
+        expect_ok(write('/table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
+        assert_eq(read('/table'), '{"b"="hello"};{"a"="1";"b"="2"};{"a"="30";"x"="10";"y"="20"}')
+        assert_eq(get('/table@row_count'), '3')
