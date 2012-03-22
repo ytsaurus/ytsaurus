@@ -236,7 +236,57 @@ private:
 
 #else
 
-// We do not have a Windows implementation yet.
+//! Dummy stub for windows.
+class TUnsafeProxyController
+    : public IProxyController
+{
+public:
+    TUnsafeProxyController(const TJobId& jobId)
+        : JobId(jobId)
+        , ControllerThread(ThreadFunc, this)
+    { }
+
+    void Run() 
+    {
+        ControllerThread.Start();
+        ControllerThread.Detach();
+
+        LOG_DEBUG("Run job /dummy stub/ (JobId: %s)", ~JobId.ToString());
+    }
+
+    void Kill(const TError& error) 
+    {
+        LOG_DEBUG("Kill job /dummy stub/ (JobId: %s)", ~JobId.ToString());
+        OnExit->Get();
+    }
+
+    DECLARE_INTERFACE_SIGNAL(void(TError), Exited);
+
+    void SubscribeExited(TCallback<void(TError)> callback) 
+    {
+        OnExit->Subscribe(callback);
+    }
+
+private:
+    static void* ThreadFunc(void* param)
+    {
+        auto* controller = (TUnsafeProxyController*) param;
+        controller->ThreadMain();
+        return NULL;
+    }
+
+    void ThreadMain()
+    {
+        Sleep(TDuration::Seconds(5));
+        LOG_DEBUG("Job finished (JobId: %s)", ~JobId.ToString());
+
+        OnExit->Set(TError("This is dummy job!"));
+    }
+
+    TJobId JobId;
+    TFuture<TError>::TPtr OnExit;
+    TThread ControllerThread;
+};
 
 #endif
 
@@ -257,8 +307,7 @@ public:
 
         return new TUnsafeProxyController(~config, jobId, workingDirectory);
 #else
-        // We do not have a Windows implementation yet.
-        YUNIMPLEMENTED();
+        return new TUnsafeProxyController(jobId);
 #endif
     }
 };

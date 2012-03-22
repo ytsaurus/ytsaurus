@@ -25,11 +25,6 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// ToDo: kill me please.
-
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJob::TJob(
     const TJobId& jobId,
     const TJobSpec& jobSpec,
@@ -55,7 +50,6 @@ void TJob::Start(TEnvironmentManager* environmentManager)
 {
     YASSERT(JobProgress == EJobProgress::Created);
 
-    JobProgress = EJobProgress::PreparingProxy;
     Slot->GetInvoker()->Invoke(FromMethod(
         &TJob::DoStart,
         MakeWeak(this),
@@ -69,7 +63,8 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     if (JobProgress > EJobProgress::Cleanup)
         return;
 
-    YASSERT(JobProgress == EJobProgress::PreparingProxy);
+    YASSERT(JobProgress == EJobProgress::Created);
+    JobProgress = EJobProgress::PreparingProxy;
 
     Stroka environmentType = "default";
     try {
@@ -95,6 +90,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     JobProgress = NScheduler::EJobProgress::PreparingSandbox;
     Slot->InitSandbox();
+
     // ToDo(psushin): create job proxy config.
 
     auto awaiter = New<TParallelAwaiter>(~Slot->GetInvoker());
