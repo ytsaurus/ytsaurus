@@ -122,18 +122,7 @@ class YTEnv:
     # TODO(panin): think about refactoring this part
     def _wait_for_ready_masters(self):
         if self.NUM_MASTERS == 0: return
-        max_wait_time = 10
-        sleep_quantum = 0.5
-        current_wait_time = 0
-        print 'Waiting for masters to be ready...'
-        while current_wait_time < max_wait_time:
-            print 'Waited', current_wait_time
-            if self._all_masters_ready():
-                print 'All masters are ready'
-                return
-            time.sleep(sleep_quantum)
-            current_wait_time += sleep_quantum
-        assert False, "Masters still not ready after %s seconds" % max_wait_time
+        self._wait_for(self._all_masters_ready, name = "masters")
 
     def _all_masters_ready(self):
         good_marker = "World initialization completed"
@@ -156,18 +145,7 @@ class YTEnv:
 
     def _wait_for_ready_holders(self):
         if self.NUM_HOLDERS == 0: return
-        max_wait_time = 10
-        sleep_quantum = 1
-        current_wait_time = 0
-        print 'Waiting for holders to be ready...'
-        while current_wait_time < max_wait_time:
-            print 'Waited', current_wait_time
-            if self._all_holders_ready():
-                print 'All holders ready'
-                return
-            time.sleep(sleep_quantum)
-            current_wait_time += sleep_quantum
-        assert False, "Holders still not ready after %s seconds" % max_wait_time
+        self._wait_for(self._all_holders_ready, name = "holders")
 
     def _all_holders_ready(self):
         holders_status = {}
@@ -308,3 +286,17 @@ class YTEnv:
         config_path = os.path.join(self.path_to_run, 'driver_config.yson')
         write_config(self.driver_config, config_path)
         os.environ['YT_CONFIG'] = config_path
+
+    def _wait_for(self, condition, max_wait_time=10, sleep_quantum=0.5, name=""):
+        current_wait_time = 0
+        print 'Waiting for {0}'.format(name), 
+        while current_wait_time < max_wait_time:
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            if condition():
+                print ' %s ready' % name
+                return
+            time.sleep(sleep_quantum)
+            current_wait_time += sleep_quantum
+        print
+        assert False, "%s still not ready after %s seconds" % max_wait_time
