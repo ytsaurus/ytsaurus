@@ -242,6 +242,9 @@ public:
     virtual ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required)
     {
         auto transactionId = GetTransactionId(request, required);
+        if (transactionId == NullTransactionId) {
+            return NULL;
+        }
         return TransactionManager->Attach(transactionId);
     }
 

@@ -106,9 +106,7 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
                 TWeakPtr<TChunkSequenceReader>(this)));
             return;
         }
-    } else {
-        //YASSERT(!State.IsActive());
-    }
+    } 
 
     // Finishing AsyncOpen.
     State.FinishOperation();

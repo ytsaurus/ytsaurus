@@ -7,12 +7,12 @@ Logging = {
         'raw' :
         {
             'type' : 'raw',
-            'file_name' : "/yt/disk1/data/logs/%(debug_log_path)s"
+            'file_name' : "/yt/%(log_disk)s/data/logs/%(debug_log_path)s"
         },
         'file' :
         {
             'type' : "file",
-            'file_name' : "/yt/disk1/data/logs/%(log_path)s",
+            'file_name' : "/yt/%(log_disk)s/data/logs/%(log_path)s",
             'pattern' : "$(datetime) $(level) $(category) $(message)"
         }
     },
@@ -58,9 +58,11 @@ class Server(Base, RemoteServer):
     bin_path = '/home/yt/build/bin/ytserver'
     
 class Master(Server):
+    base_dir = '/yt/disk2/data'
     address = Subclass(MasterAddresses)
     params = Template('--master --config %(config_path)s --port %(port)d --id %(__name__)s')
 
+    log_disk = 'disk2'
     log_path = Template("master-%(__name__)s.log")
     debug_log_path = Template("master-%(__name__)s.debug.log")
 
@@ -72,8 +74,8 @@ class Master(Server):
             'cell' : {
                 'addresses' : MasterAddresses
             },
-            'snapshot_path' : '/yt/disk1/data/snapshots',
-            'log_path' : '/yt/disk2/data/changelogs',
+            'snapshot_path' : '/yt/disk2/data/snapshots',
+            'log_path' : '/yt/disk1/data/changelogs',
             'max_changes_between_snapshots' : 1000000,
             'change_log_downloader' : {
                 'records_per_request' : 10240
@@ -114,6 +116,7 @@ class Holder(Server):
     groupid = Subclass(xrange(9))
     nodeid = Subclass(xrange(30), 1)
 
+    log_disk = 'disk1'
     log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
     debug_log_path = Template("holder-%(groupid)d-%(nodeid)d.debug.log")
     
