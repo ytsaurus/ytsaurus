@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/node_detail.cpp
   ${BASE}/null_yson_consumer.cpp
   ${BASE}/serialize.cpp
+  ${BASE}/token.cpp
   ${BASE}/tree_builder.cpp
   ${BASE}/tree_visitor.cpp
   ${BASE}/virtual.cpp
@@ -36,6 +37,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/serialize-inl.h
   ${BASE}/serialize.h
+  ${BASE}/token.h
   ${BASE}/tree_builder.h
   ${BASE}/tree_visitor.h
   ${BASE}/virtual.h

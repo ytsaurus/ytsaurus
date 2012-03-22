@@ -7,24 +7,15 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TToken;
+
 class TLexer
 {
 public:
     DECLARE_ENUM(EState,
         (None)
         (InProgress)
-        // Terminal states:
-        (String)
-        (Int64)
-        (Double)
-        (Semicolon) // ;
-        (Equals) // =
-        (LeftBracket) // [
-        (RightBracket) // ]
-        (LeftBrace) // {
-        (RightBrace) // }
-        (LeftAngle) // <
-        (RightAngle) // >
+        (Terminal)
     );
 
     TLexer();
@@ -44,13 +35,8 @@ public:
     
     EState GetState() const;
 
-    const Stroka& GetStringValue() const;
-    i64 GetInt64Value() const;
-    double GetDoubleValue() const;
-
-    //! Returns special value (in terminal states other than String, Int64 and
-    //! Double) as a string. For diagnostics purposes.
-    const Stroka& GetSpecialValue() const;
+    //! Returns parsed token when in terminal state.
+    const TToken& GetToken() const;
     
 private:
     class TImpl;

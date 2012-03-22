@@ -2,6 +2,7 @@
 #include "yson_parser.h"
 
 #include "yson_consumer.h"
+#include "token.h"
 #include "lexer.h"
 
 #include <stack>
@@ -34,8 +35,6 @@ class TYsonParser::TImpl
         (FragmentParsed)        // ...<...> @
     );
 
-    typedef TLexer::EState ELexerState;
-
     IYsonConsumer* Consumer;
     bool Fragmented;
 
@@ -64,35 +63,6 @@ public:
         , Fragment(0)
     { }
 
-//    bool IsAwaiting(bool ignoreAttributes) const
-//    {
-//        if (Lexer.IsAwaiting())
-//            return true;
-
-//        if (StateStack.empty())
-//            return true;
-
-//        if (!ignoreAttributes)
-//            return true;
-
-//        if (StateStack.size() > 1)
-//            return true;
-
-//        // StateStack.size() == 1
-//        switch (StateStack.top()) {
-//            case EState::Parsed:
-//            case EState::StringEnd:
-//            case EState::Int64End:
-//            case EState::DoubleEnd:
-//            case EState::ListEnd:
-//            case EState::MapEnd:
-//                return false;
-
-//            default:
-//                return true;
-//        }
-//    }
-
     void Consume(char ch)
     {
         bool stop = false;
@@ -106,8 +76,8 @@ public:
                     ~CurrentExceptionMessage());
             }
 
-            if (Lexer.GetState() != ELexerState::None && Lexer.GetState() != ELexerState::InProgress) {
-                ConsumeLexeme();
+            if (Lexer.GetState() == TLexer::EState::Terminal) {
+                ConsumeToken(Lexer.GetToken());
                 Lexer.Reset();
             }
         }
@@ -123,11 +93,11 @@ public:
     void Finish()
     {
         Lexer.Finish();
-        if (Lexer.GetState() != ELexerState::None) {
-            ConsumeLexeme();
+        if (Lexer.GetState() == TLexer::EState::Terminal) {
+            ConsumeToken(Lexer.GetToken());
             Lexer.Reset();
         }
-        YASSERT(Lexer.GetState() == ELexerState::None);
+        YASSERT(Lexer.GetState() == TLexer::EState::None);
 
         while (!StateStack.empty() && StateStack.top() != EState::FragmentParsed) {
             switch (CurrentState()) {
@@ -161,14 +131,14 @@ public:
     }
 
 private:
-    void ConsumeLexeme()
+    void ConsumeToken(const TToken& token)
     {
-        YASSERT(Lexer.GetState() != ELexerState::InProgress);
+        YASSERT(Lexer.GetState() == TLexer::EState::Terminal);
         bool consumed = false;
         while (!consumed) {
             switch (CurrentState()) {
                 case EState::None:
-                    ConsumeNew();
+                    ConsumeNew(token);
                     consumed = true;
                     break;
 
@@ -182,7 +152,7 @@ private:
 
                 case EState::ListBeforeItem:
                 case EState::ListAfterItem:
-                    ConsumeList();
+                    ConsumeList(token);
                     consumed = true;
                     break;
 
@@ -190,7 +160,7 @@ private:
                 case EState::MapAfterKey:
                 case EState::MapBeforeValue:
                 case EState::MapAfterValue:
-                    ConsumeMap();
+                    ConsumeMap(token);
                     consumed = true;
                     break;
 
@@ -198,12 +168,12 @@ private:
                 case EState::AttributesAfterKey:
                 case EState::AttributesBeforeValue:
                 case EState::AttributesAfterValue:
-                    ConsumeAttributes();
+                    ConsumeAttributes(token);
                     consumed = true;
                     break;
 
                 case EState::FragmentParsed:
-                    ConsumeParsed();
+                    ConsumeParsed(token);
                     consumed = true;
                     break;
 
@@ -213,43 +183,43 @@ private:
         }
     }
 
-    void ConsumeNew()
+    void ConsumeNew(const TToken& token)
     {
         if (Fragmented) {
             Consumer->OnListItem();
         }
-        ConsumeAny();
+        ConsumeAny(token);
     }
 
-    void ConsumeAny()
+    void ConsumeAny(const TToken& token)
     {
-        switch (Lexer.GetState()) {
-            case ELexerState::String:
-                CachedStringValue = Lexer.GetStringValue();
+        switch (token.GetType()) {
+            case ETokenType::String:
+                CachedStringValue = token.GetStringValue();
                 StateStack.push(EState::StringEnd);
                 break;
 
-            case ELexerState::Int64:
-                CachedInt64Value = Lexer.GetInt64Value();
+            case ETokenType::Int64:
+                CachedInt64Value = token.GetInt64Value();
                 StateStack.push(EState::Int64End);
                 break;
 
-            case ELexerState::Double:
-                CachedDoubleValue = Lexer.GetDoubleValue();
+            case ETokenType::Double:
+                CachedDoubleValue = token.GetDoubleValue();
                 StateStack.push(EState::DoubleEnd);
                 break;
 
-            case ELexerState::LeftBracket:
+            case ETokenType::LeftBracket:
                 Consumer->OnBeginList();
                 StateStack.push(EState::ListBeforeItem);
                 break;
 
-            case ELexerState::LeftBrace:
+            case ETokenType::LeftBrace:
                 Consumer->OnBeginMap();
                 StateStack.push(EState::MapBeforeKey);
                 break;
 
-            case ELexerState::LeftAngle:
+            case ETokenType::LeftAngle:
                 Consumer->OnEntity(true);
                 Consumer->OnBeginAttributes();
                 StateStack.push(EState::AttributesBeforeKey);
@@ -262,27 +232,27 @@ private:
         }
     }
 
-    void ConsumeList()
+    void ConsumeList(const TToken& token)
     {
-        auto lexerState = Lexer.GetState();
+        auto tokenType = token.GetType();
         switch (CurrentState()) {
             case EState::ListBeforeItem:
-                if (lexerState == ELexerState::RightBracket) {
+                if (tokenType == ETokenType::RightBracket) {
                     StateStack.top() = EState::ListEnd;
                 } else {
                     Consumer->OnListItem();
-                    ConsumeAny();
+                    ConsumeAny(token);
                 }
                 break;
 
             case EState::ListAfterItem:
-                if (lexerState == ELexerState::RightBracket) {
+                if (tokenType == ETokenType::RightBracket) {
                     StateStack.top() = EState::ListEnd;
-                } else if (lexerState == ELexerState::Semicolon) {
+                } else if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::ListBeforeItem;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or ']', but lexeme of type %s found (%s)",
-                        ~lexerState.ToString(),
+                        ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
                 break;
@@ -292,45 +262,45 @@ private:
         }
     }
 
-    void ConsumeMap()
+    void ConsumeMap(const TToken& token)
     {
-        auto lexerState = Lexer.GetState();
+        auto tokenType = token.GetType();
         switch (CurrentState()) {
             case EState::MapBeforeKey:
-                if (lexerState == ELexerState::RightBrace) {
+                if (tokenType == ETokenType::RightBrace) {
                     StateStack.top() = EState::MapEnd;
-                } else if (lexerState == ELexerState::String) {
-                    Consumer->OnMapItem(Lexer.GetStringValue());
+                } else if (tokenType == ETokenType::String) {
+                    Consumer->OnMapItem(token.GetStringValue());
                     StateStack.top() = EState::MapAfterKey;  
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected string literal, but lexeme of type %s found (%s)",
-                        ~lexerState.ToString(),
+                        ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
                 break;
 
             case EState::MapAfterKey:
-                if (lexerState == ELexerState::Equals) {
+                if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::MapBeforeValue;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme of type %s found (%s)",
-                        ~lexerState.ToString(),
+                        ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
                 break;
 
             case EState::MapBeforeValue:
-                ConsumeAny();
+                ConsumeAny(token);
                 break;
 
             case EState::MapAfterValue:
-                if (lexerState == ELexerState::RightBrace) {
+                if (tokenType == ETokenType::RightBrace) {
                     StateStack.top() = EState::MapEnd;
-                } else if (lexerState == ELexerState::Semicolon) {
+                } else if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '}', but lexeme of type %s found (%s)",
-                        ~lexerState.ToString(),
+                        ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
                 break;
@@ -340,12 +310,12 @@ private:
         }
     }
 
-    void ConsumeAttributes()
+    void ConsumeAttributes(const TToken& token)
     {
-        auto lexerState = Lexer.GetState();
+        auto tokenType = token.GetType();
         auto currentState = CurrentState();
 
-        if (lexerState == ELexerState::RightAngle &&
+        if (tokenType == ETokenType::RightAngle &&
             (currentState == EState::AttributesBeforeKey || currentState == EState::AttributesAfterValue))
         {
             Consumer->OnEndAttributes();
@@ -355,36 +325,36 @@ private:
 
         switch (CurrentState()) {
             case EState::AttributesBeforeKey:
-                if (lexerState == ELexerState::String) {
-                    Consumer->OnAttributesItem(Lexer.GetStringValue());
+                if (tokenType == ETokenType::String) {
+                    Consumer->OnAttributesItem(token.GetStringValue());
                     StateStack.top() = EState::AttributesAfterKey;  
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected string literal, but lexeme of type %s found (%s)",
-                        ~lexerState.ToString(),
+                        ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
                 break;
 
             case EState::AttributesAfterKey:
-                if (lexerState == ELexerState::Equals) {
+                if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::AttributesBeforeValue;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme of type %s found (%s)",
-                        ~lexerState.ToString(),
+                        ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
                 break;
 
             case EState::AttributesBeforeValue:
-                ConsumeAny();
+                ConsumeAny(token);
                 break;
 
             case EState::AttributesAfterValue:
-                if (lexerState == ELexerState::Semicolon) {
+                if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::AttributesBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '>', but lexeme of type %s found (%s)",
-                        ~lexerState.ToString(),
+                        ~tokenType.ToString(),
                         ~GetPositionInfo());
                 }
                 break;
@@ -394,19 +364,19 @@ private:
         }
     }
 
-    void ConsumeParsed()
+    void ConsumeParsed(const TToken& token)
     {
         YASSERT(StateStack.top() == EState::FragmentParsed);
 
-        auto lexerState = Lexer.GetState();
+        auto tokenType = token.GetType();
         if (!Fragmented) {
             ythrow yexception() << Sprintf("Error parsing YSON: Document is already parsed, but unexpected lexeme of type %s found (%s)",
-                ~lexerState.ToString(),
+                ~tokenType.ToString(),
                 ~GetPositionInfo());
         }
-        if (lexerState != ELexerState::Semicolon) {
+        if (tokenType != ETokenType::Semicolon) {
             ythrow yexception() << Sprintf("Error parsing YSON: Expected ';', but lexeme of type %s found (%s)",
-                ~lexerState.ToString(),
+                ~tokenType.ToString(),
                 ~GetPositionInfo());
         }
 
@@ -417,7 +387,9 @@ private:
 
     bool ConsumeEnd()
     {
-        bool attributes = Lexer.GetState() == ELexerState::LeftAngle;
+        bool attributes =
+            Lexer.GetState() == TLexer::EState::Terminal &&
+            Lexer.GetToken().GetType() == ETokenType::LeftAngle;
         switch (CurrentState()) {
             case EState::StringEnd:
                 Consumer->OnStringScalar(CachedStringValue, attributes);
