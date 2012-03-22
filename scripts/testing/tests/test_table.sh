@@ -1,4 +1,4 @@
-#!/bin/bash -exv
+#!/bin/bash
 #% NUM_MASTERS = 3
 #% NUM_HOLDERS = 5
 

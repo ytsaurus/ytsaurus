@@ -143,8 +143,9 @@ void TJobScheduler::ProcessExistingJobs(
                     default:
                         YUNREACHABLE();
                 }
-                LOG_INFO("Job is running (JobId: %s, HolderId: %d)",
+                LOG_INFO("Job is running (JobId: %s, Address: %s, HolderId: %d)",
                     ~jobId.ToString(),
+                    ~holder.GetAddress(),
                     holder.GetId());
 
                 if (TInstant::Now() - job->GetStartTime() > Config->Jobs->JobTimeout) {
@@ -152,8 +153,9 @@ void TJobScheduler::ProcessExistingJobs(
                     stopInfo.set_job_id(jobId.ToProto());
                     jobsToStop->push_back(stopInfo);
 
-                    LOG_WARNING("Job timed out (JobId: %s, HolderId: %d, Duration: %d ms)",
+                    LOG_WARNING("Job timed out (JobId: %s, Address: %s, HolderId: %d, Duration: %d ms)",
                         ~jobId.ToString(),
+                        ~holder.GetAddress(),
                         holder.GetId(),
                         static_cast<i32>((TInstant::Now() - job->GetStartTime()).MilliSeconds()));
                 }
@@ -167,9 +169,10 @@ void TJobScheduler::ProcessExistingJobs(
 
                 ScheduleChunkRefresh(job->GetChunkId());
 
-                LOG_INFO("Job %s (JobId: %s, HolderId: %d)",
+                LOG_INFO("Job %s (JobId: %s, Address: %s, HolderId: %d)",
                     jobState == EJobState::Completed ? "completed" : "failed",
                     ~jobId.ToString(),
+                    ~holder.GetAddress(),
                     holder.GetId());
                 break;
             }
@@ -246,8 +249,9 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
 
     auto targets = ChunkPlacement->GetReplicationTargets(*chunk, requestedCount);
     if (targets.empty()) {
-        LOG_TRACE("No suitable target holders for replication (ChunkId: %s, HolderId: %d)",
+        LOG_TRACE("No suitable target holders for replication (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
+            ~sourceHolder.GetAddress(),
             sourceHolder.GetId());
         return EScheduleFlags::None;
     }
