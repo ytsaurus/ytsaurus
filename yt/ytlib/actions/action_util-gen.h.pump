@@ -94,6 +94,59 @@ IAction::TPtr FromMethod(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Thunk for const member function, without parameter, without return value.
+namespace NActionThunks {
+template <class TTargetPtr$_and_$tmpl_args>
+class TConstMemberVoidFunc$i
+    : public IAction
+{
+private:
+    typedef typename TActionTargetTraits<TTargetPtr>::TUnderlying TUnderlying;
+    typedef void (TUnderlying::* TMethod)($TArgs) const;
+
+$for j [[
+    typedef typename TActionArgTraits<TArg$j>::TCopy TArgCopy$j;
+
+]]
+
+    TTargetPtr Target;
+    TMethod Method;
+
+$for j [[
+    TArgCopy$j Arg$j;
+
+]]
+
+public:
+    TConstMemberVoidFunc$i(const TTargetPtr target, TMethod method$ctor_args)
+        : Target(target), Method(method)$ctor_list
+    { }
+
+    virtual void Do()
+    {
+        typedef TActionTargetTraits<TTargetPtr> TTraits;
+
+        auto lock = TTraits::Lock(Target);
+        TUnderlying* target = TTraits::Get(Target);
+
+        if (TTraits::StrongReference || target) {
+            (target->*Method)($Args);
+        }
+    }
+};
+} // namespace NActionThunks
+
+// Corresponding wrapper.
+template <class TTargetPtr, class TUnderlying$_and_$tmpl_args>
+inline // TODO: FORCED_INLINE
+IAction::TPtr FromMethod(
+    void (TUnderlying::* method)($TArgs) const,
+    const TTargetPtr target$wrap_args)
+{
+    return New< NActionThunks::TConstMemberVoidFunc$i<TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Thunk for member function, without parameter, with return value.
 namespace NActionThunks {
 template <class TResult, class TTargetPtr$_and_$tmpl_args>
@@ -191,6 +244,59 @@ typename IParamAction<TParam>::TPtr FromMethod(
     TTargetPtr target$wrap_args)
 {
     return New< NActionThunks::TParamMemberVoidFunc$i<TParam, TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Thunk for const member function, with parameter, without return value.
+namespace NActionThunks {
+template <class TParam, class TTargetPtr$_and_$tmpl_args>
+class TParamConstMemberVoidFunc$i
+    : public IParamAction<TParam>
+{
+private:
+    typedef typename TActionTargetTraits<TTargetPtr>::TUnderlying TUnderlying;
+    typedef void (TUnderlying::* TMethod)(TParam$_and_$TArgs) const;
+
+$for j [[
+    typedef typename TActionArgTraits<TArg$j>::TCopy TArgCopy$j;
+
+]]
+
+    TTargetPtr Target;
+    TMethod Method;
+
+$for j [[
+    TArgCopy$j Arg$j;
+
+]]
+
+public:
+    TParamConstMemberVoidFunc$i(const TTargetPtr target, TMethod method$ctor_args)
+        : Target(target), Method(method)$ctor_list
+    { }
+
+    virtual void Do(TParam param)
+    {
+        typedef TActionTargetTraits<TTargetPtr> TTraits;
+
+        auto lock = TTraits::Lock(Target);
+        TUnderlying* target = TTraits::Get(Target);
+
+        if (TTraits::StrongReference || target) {
+            (target->*Method)(param$_and_$Args);
+        }
+    }
+};
+} // namespace NActionThunks
+
+// Corresponding wrapper.
+template <class TParam, class TTargetPtr, class TUnderlying$_and_$tmpl_args>
+inline // TODO: FORCED_INLINE
+typename IParamAction<TParam>::TPtr FromMethod(
+    void (TUnderlying::* method)(TParam$_and_$TArgs) const,
+    const TTargetPtr target$wrap_args)
+{
+    return New< NActionThunks::TParamConstMemberVoidFunc$i<TParam, TTargetPtr$_and_$TArgs> >(target, method$_and_$args);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -420,6 +526,19 @@ typename IParamFunc<TParam, TResult>::TPtr FromMethod(
 
 
 ]]
+
+////////////////////////////////////////////////////////////////////////////////
+
+IAction::TPtr FromCallback(const TCallback<void()>& callback)
+{
+    return FromMethod(&TCallback<void()>::Run, &callback);
+}
+
+template <class TParam>
+typename IParamAction<TParam>::TPtr FromCallback(const TCallback<void(TParam)>& callback)
+{
+    return FromMethod(&TCallback<void(TParam)>::Run, &callback);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
