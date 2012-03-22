@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "server.h"
-#include "rpc.pb.h"
+#include <ytlib/rpc/rpc.pb.h>
 #include "server_detail.h"
 
 #include <ytlib/logging/log.h>

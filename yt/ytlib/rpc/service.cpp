@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "service.h"
-#include "rpc.pb.h"
+#include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/logging/log.h>
 #include <ytlib/ytree/ypath_client.h>

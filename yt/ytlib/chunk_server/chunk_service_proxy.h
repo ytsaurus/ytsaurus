@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "chunk_service.pb.h"
+#include <ytlib/chunk_server/chunk_service.pb.h>
 
 #include <ytlib/rpc/service.h>
 #include <ytlib/rpc/client.h>

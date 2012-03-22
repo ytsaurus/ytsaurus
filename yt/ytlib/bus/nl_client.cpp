@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "nl_client.h"
-#include "rpc.pb.h"
+#include <ytlib/rpc/rpc.pb.h>
 #include "message_rearranger.h"
 #include "packet.h"
 

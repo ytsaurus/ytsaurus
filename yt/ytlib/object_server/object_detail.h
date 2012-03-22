@@ -4,8 +4,8 @@
 #include "id.h"
 #include "object_proxy.h"
 #include "object_manager.h"
-#include "object_ypath.pb.h"
-#include "ypath.pb.h"
+#include <ytlib/object_server/object_ypath.pb.h>
+#include <ytlib/ytree/ypath.pb.h>
 
 #include <ytlib/misc/property.h>
 #include <ytlib/meta_state/map.h>

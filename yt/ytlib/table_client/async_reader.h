@@ -12,8 +12,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector< std::pair<TColumn, TValue> > TRow;
-
 //! Before using reader client must call #AsyncOpen and ensure that returned 
 //! future is set with OK error code.
 //! Method #AsyncNextRow switches reader to next row (and should be called 

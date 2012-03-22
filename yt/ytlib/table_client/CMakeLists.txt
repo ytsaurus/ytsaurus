@@ -9,13 +9,20 @@ set( SRCS
   ${BASE}/chunk_writer.cpp
   ${BASE}/common.cpp
   ${BASE}/schema.cpp
+  ${BASE}/sorted_validating_writer.cpp
   ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
-  ${BASE}/value.cpp
   ${BASE}/validating_writer.cpp
-  ${BASE}/sorted_validating_writer.cpp
+  ${BASE}/value.cpp
+  ${BASE}/sync_writer.cpp
+  ${BASE}/sync_reader.cpp
+  ${BASE}/yson_table_input.cpp
+  ${BASE}/yson_table_output.cpp
+  ${BASE}/yson_row_consumer.cpp
 )
 set( HDRS
+  ${BASE}/async_reader.h
+  ${BASE}/async_writer.h
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
   ${BASE}/chunk_reader.h
@@ -23,14 +30,17 @@ set( HDRS
   ${BASE}/chunk_sequence_writer.h
   ${BASE}/chunk_writer.h
   ${BASE}/common.h
-  ${BASE}/async_reader.h
   ${BASE}/schema.h
+  ${BASE}/sorted_validating_writer.h
   ${BASE}/table_reader.h
   ${BASE}/table_writer.h
-  ${BASE}/value.h
   ${BASE}/validating_writer.h
-  ${BASE}/sorted_validating_writer.h
-  ${BASE}/async_writer.h
+  ${BASE}/value.h
+  ${BASE}/sync_writer.h
+  ${BASE}/sync_reader.h
+  ${BASE}/yson_table_input.h
+  ${BASE}/yson_table_output.h
+  ${BASE}/yson_row_consumer.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -4,7 +4,7 @@
 #include "value.h"
 #include "schema.h"
 #include "channel_writer.h"
-#include "table_chunk_meta.pb.h"
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/nullable.h>

@@ -2,17 +2,13 @@
 
 #include "common.h"
 #include "value.h"
-#include "schema.pb.h"
+#include <ytlib/table_client/schema.pb.h>
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NTableClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef Stroka TColumn;
 
 ////////////////////////////////////////////////////////////////////////////////
 

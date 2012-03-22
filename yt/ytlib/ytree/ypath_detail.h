@@ -5,7 +5,7 @@
 #include "tree_builder.h"
 #include "yson_writer.h"
 #include "forwarding_yson_consumer.h"
-#include "ypath.pb.h"
+#include <ytlib/ytree/ypath.pb.h>
 #include "attributes.h"
 
 #include <ytlib/actions/action_util.h>

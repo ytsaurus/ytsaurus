@@ -1,393 +1,13 @@
 #include "stdafx.h"
 #include "yson_parser.h"
 
-#include "yson_format.h"
 #include "yson_consumer.h"
+#include "lexer.h"
 
-#include <ytlib/misc/zigzag.h>
-
-#include <util/string/escape.h>
+#include <stack>
 
 namespace NYT {
 namespace NYTree {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-class TYsonLexer
-{
-public:
-    DECLARE_ENUM(EState,
-        (Start)
-        (InsideBinaryInt64)
-        (InsideBinaryDouble)
-        (InsideBinaryString)
-        (InsideUnquotedString)
-        (InsideQuotedString)
-        (InsideNumeric)
-        (InsideDouble)
-
-        // Terminal states:
-        (ItemSeparator)
-        (KeyValueSeparator)
-        (ListStart)
-        (ListEnd)
-        (MapStart)
-        (MapEnd)
-        (AttributesStart)
-        (AttributesEnd)
-        (String)
-        (Int64)
-        (Double)
-    );
-
-    TYsonLexer()
-    {
-        Reset();
-    }
-
-    void Reset()
-    {
-        State_ = EState::Start;
-        StringValue = Stroka();
-        Int64Value = 0;
-        DoubleValue = 0;
-        BytesToRead = 0;
-        BytesRead = 0;
-    }
-
-    DEFINE_BYVAL_RO_PROPERTY(EState, State)
-
-    bool InTerminalState() const
-    {
-        return State_ >= EState::ItemSeparator;
-    }
-
-    const Stroka& GetStringValue() const
-    {
-        YASSERT(State_ == EState::String);
-        return StringValue;
-    }
-
-    i64 GetInt64Value() const
-    {
-        YASSERT(State_ == EState::Int64);
-        return Int64Value;
-    }
-
-    double GetDoubleValue() const
-    {
-        YASSERT(State_ == EState::Double);
-        return DoubleValue;
-    }
-    
-    //! Returns true iff the character was read.
-    bool Read(char ch)
-    {
-        switch (State_) {
-            case EState::Start:
-                ReadStart(ch);
-                return true;
-            
-            case EState::InsideUnquotedString:
-                return ReadUnquotedString(ch);
-
-            case EState::InsideQuotedString:
-                ReadQuotedString(ch);
-                return true;
-
-            case EState::InsideBinaryString:
-                ReadBinaryString(ch);
-                return true;
-
-            case EState::InsideNumeric:
-                return ReadNumeric(ch);
-
-            case EState::InsideDouble:
-                return ReadDouble(ch);
-
-            case EState::InsideBinaryInt64:
-                ReadBinaryInt64(ch);
-                return true;
-
-            case EState::InsideBinaryDouble:
-                ReadBinaryDouble(ch);
-                return true;
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    void Finish()
-    {
-        switch (State_) {
-            case EState::Start:
-                break;
-
-            case EState::InsideBinaryInt64:
-            case EState::InsideBinaryDouble:
-            case EState::InsideBinaryString:
-            case EState::InsideQuotedString:
-                ythrow yexception() << Sprintf("Premature end of stream (LexerState: %s)",
-                    ~State_.ToString());
-
-            case EState::InsideUnquotedString:
-                FinishString();
-                break;
-
-            case EState::InsideNumeric:
-                FinishNumeric();
-                break;
-
-            case EState::InsideDouble:
-                FinishDouble();
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    bool IsAwaiting() const
-    {
-        return State_ != EState::Start;
-    }
-
-private:
-
-    void ReadStart(char ch)
-    {
-        if (isspace(ch))
-            return;
-
-        switch (ch) {
-            case ItemSeparator:
-                State_ = EState::ItemSeparator;
-                break;;
-
-            case KeyValueSeparator:
-                State_ = EState::KeyValueSeparator;
-                break;
-
-            case BeginListSymbol:
-                State_ = EState::ListStart;
-                break;
-
-            case EndListSymbol:
-                State_ = EState::ListEnd;
-                break;
-
-            case BeginMapSymbol:
-                State_ = EState::MapStart;
-                break;
-
-            case EndMapSymbol:
-                State_ = EState::MapEnd;
-                break;
-
-            case BeginAttributesSymbol:
-                State_ = EState::AttributesStart;
-                break;
-
-            case EndAttributesSymbol:
-                State_ = EState::AttributesEnd;
-                break;
-
-            case StringMarker:
-                State_ = EState::InsideBinaryString;
-                YASSERT(BytesToRead == 0);
-                break;
-
-            case Int64Marker:
-                State_ = EState::InsideBinaryInt64;
-                YASSERT(Int64Value == 0);
-                break;
-
-            case DoubleMarker:
-                State_ = EState::InsideBinaryDouble;
-                BytesToRead = static_cast<int>(sizeof(double));
-                YASSERT(DoubleValue == 0.0);
-                break;
-
-            case '"':
-                State_ = EState::InsideQuotedString;
-                YASSERT(StringValue.empty());
-                break;
-
-            default:
-                if (isspace(ch)) {
-                    break;;
-                } else if (isdigit(ch) || ch == '+' || ch == '-') {
-                    StringValue = Stroka(ch);
-                    State_ = EState::InsideNumeric;
-                } else if (isalpha(ch) || ch == '_') {
-                    StringValue = Stroka(ch);
-                    State_ = EState::InsideUnquotedString;
-                } else {
-                    ythrow yexception() << Sprintf("Unexpected character %s",
-                        ~Stroka(ch).Quote());
-                }
-                break;
-        }
-    }
-
-    bool ReadUnquotedString(char ch)
-    {
-        if (isalpha(ch) || isdigit(ch) || ch == '_') {
-            StringValue.append(ch);
-            return true;
-        } else {
-            FinishString();
-            return false;
-        }
-    }
-
-    void ReadQuotedString(char ch)
-    {
-        bool finish = false;
-        if (ch != '"') {
-            StringValue.append(ch);
-        } else {
-            // We must count the count of '\' at the end of StringValue
-            // to check if it's not \"
-            int slashCount = 0;
-            int length = StringValue.length();
-            while (slashCount < length && StringValue[length - 1 - slashCount] == '\\')
-                ++slashCount;
-            if (slashCount % 2 == 0) {
-                finish = true;
-            } else {
-                StringValue.append(ch);
-            }
-        }
-
-        if (finish) {
-            StringValue = UnescapeC(StringValue);
-            FinishString();
-        }
-    }
-
-    void ReadBinaryInt64(char ch) {
-        ui8 byte = static_cast<ui8>(ch);
-
-        if (7 * BytesRead > 8 * sizeof(ui64) ) {
-            ythrow yexception() << Sprintf("The data is too long to read Int64");
-        }
-
-        ui64 ui64Value = static_cast<ui64>(Int64Value);
-        ui64Value |= (static_cast<ui64> (byte & 0x7F)) << (7 * BytesRead);
-        ++BytesRead;
-
-        if ((byte & 0x80) == 0) {
-            Int64Value = ZigZagDecode64(static_cast<ui64>(ui64Value));
-            State_ = EState::Int64;
-            BytesRead = 0;
-        } else {
-            Int64Value = static_cast<i64>(ui64Value);
-        }
-    }
-
-    void ReadBinaryString(char ch)
-    {
-        if (BytesToRead == 0) {
-            ReadBinaryInt64(ch);
-            if (State_ == EState::Int64) {
-                BytesToRead = Int64Value;
-                Int64Value = 0;
-                State_ = EState::InsideBinaryString;
-            }
-        } else {
-            StringValue.append(ch);
-            --BytesToRead;
-
-            if (BytesToRead == 0) {
-                FinishString();
-            }
-        }
-    }
-
-    bool ReadNumeric(char ch)
-    {
-        if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
-            StringValue.append(ch);
-            return true;
-        } else if (ch == '.' || ch == 'e' || ch == 'E') {
-            StringValue.append(ch);
-            State_ = EState::InsideDouble;
-            return true;
-        } else {
-            FinishNumeric();
-            return false;
-        }
-    }
-
-    bool ReadDouble(char ch)
-    {
-        if (isdigit(ch) ||
-            ch == '+' || ch == '-' ||
-            ch == '.' ||
-            ch == 'e' || ch == 'E')
-        {
-            StringValue.append(ch);
-            return true;
-        } else {
-            FinishDouble();
-            return false;
-        }
-    }
-
-    void ReadBinaryDouble(char ch)
-    {
-        ui8 byte = static_cast<ui8>(ch);
-
-        *(reinterpret_cast<ui64*>(&DoubleValue)) |=
-                static_cast<ui64>(byte) << (8 * (8 - BytesToRead));
-        --BytesToRead;
-
-        if (BytesToRead == 0) {
-            State_ = EState::Double;
-        }
-    }
-
-    void FinishString()
-    {
-        State_ = EState::String;
-    }
-
-    void FinishNumeric()
-    {
-        try {
-            Int64Value = FromString<i64>(StringValue);
-        } catch (const std::exception& ex) {
-            // This exception is wrapped in parser
-            ythrow yexception() << Sprintf("Failed to parse Int64 literal %s",
-                ~StringValue.Quote());
-        }
-        State_ = EState::Int64;
-    }
-
-    void FinishDouble()
-    {
-        try {
-            DoubleValue = FromString<double>(StringValue);
-        } catch (const std::exception& ex) {
-            // This exception is wrapped in parser
-            ythrow yexception() << Sprintf("Failed to parse Double literal %s",
-                ~StringValue.Quote());
-        }
-        State_ = EState::Double;
-    }
-
-    Stroka StringValue;
-    i64 Int64Value;
-    double DoubleValue;
-    int BytesToRead; // For binary strings and doubles
-    int BytesRead; // For varints
-};
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -398,7 +18,7 @@ class TYsonParser::TImpl
         (None)                  // @ (special value for empty stack)
         (StringEnd)             // "..." @
         (Int64End)              // 123...9 @
-        (DoubleEnd)             // 1.23...9 @
+        (DoubleEnd)             // 0.123...9 @
         (ListBeforeItem)        // [...; @
         (ListAfterItem)         // [... @
         (ListEnd)               // [...] @
@@ -414,12 +34,12 @@ class TYsonParser::TImpl
         (FragmentParsed)        // ...<...> @
     );
 
-    typedef TYsonLexer::EState ELexerState;
+    typedef TLexer::EState ELexerState;
 
     IYsonConsumer* Consumer;
     bool Fragmented;
 
-    TYsonLexer Lexer;
+    TLexer Lexer;
     std::stack<EState> StateStack;
 
     Stroka CachedStringValue;
@@ -478,7 +98,7 @@ public:
         bool stop = false;
         while (!stop) {
             try {
-                stop = Lexer.Read(ch);
+                stop = Lexer.Consume(ch);
             } catch (...) {
                 ythrow yexception() << Sprintf("Error parsing YSON: Could not read symbol %s (%s):\n%s",
                     ~Stroka(ch).Quote(),
@@ -486,7 +106,7 @@ public:
                     ~CurrentExceptionMessage());
             }
 
-            if (Lexer.InTerminalState()) {
+            if (Lexer.GetState() != ELexerState::None && Lexer.GetState() != ELexerState::InProgress) {
                 ConsumeLexeme();
                 Lexer.Reset();
             }
@@ -503,11 +123,11 @@ public:
     void Finish()
     {
         Lexer.Finish();
-        if (Lexer.InTerminalState()) {
+        if (Lexer.GetState() != ELexerState::None) {
             ConsumeLexeme();
             Lexer.Reset();
         }
-        YASSERT(Lexer.GetState() == ELexerState::Start);
+        YASSERT(Lexer.GetState() == ELexerState::None);
 
         while (!StateStack.empty() && StateStack.top() != EState::FragmentParsed) {
             switch (CurrentState()) {
@@ -543,6 +163,7 @@ public:
 private:
     void ConsumeLexeme()
     {
+        YASSERT(Lexer.GetState() != ELexerState::InProgress);
         bool consumed = false;
         while (!consumed) {
             switch (CurrentState()) {
@@ -618,17 +239,17 @@ private:
                 StateStack.push(EState::DoubleEnd);
                 break;
 
-            case ELexerState::ListStart:
+            case ELexerState::LeftBracket:
                 Consumer->OnBeginList();
                 StateStack.push(EState::ListBeforeItem);
                 break;
 
-            case ELexerState::MapStart:
+            case ELexerState::LeftBrace:
                 Consumer->OnBeginMap();
                 StateStack.push(EState::MapBeforeKey);
                 break;
 
-            case ELexerState::AttributesStart:
+            case ELexerState::LeftAngle:
                 Consumer->OnEntity(true);
                 Consumer->OnBeginAttributes();
                 StateStack.push(EState::AttributesBeforeKey);
@@ -646,7 +267,7 @@ private:
         auto lexerState = Lexer.GetState();
         switch (CurrentState()) {
             case EState::ListBeforeItem:
-                if (lexerState == ELexerState::ListEnd) {
+                if (lexerState == ELexerState::RightBracket) {
                     StateStack.top() = EState::ListEnd;
                 } else {
                     Consumer->OnListItem();
@@ -655,9 +276,9 @@ private:
                 break;
 
             case EState::ListAfterItem:
-                if (lexerState == ELexerState::ListEnd) {
+                if (lexerState == ELexerState::RightBracket) {
                     StateStack.top() = EState::ListEnd;
-                } else if (lexerState == ELexerState::ItemSeparator) {
+                } else if (lexerState == ELexerState::Semicolon) {
                     StateStack.top() = EState::ListBeforeItem;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or ']', but lexeme of type %s found (%s)",
@@ -676,7 +297,7 @@ private:
         auto lexerState = Lexer.GetState();
         switch (CurrentState()) {
             case EState::MapBeforeKey:
-                if (lexerState == ELexerState::MapEnd) {
+                if (lexerState == ELexerState::RightBrace) {
                     StateStack.top() = EState::MapEnd;
                 } else if (lexerState == ELexerState::String) {
                     Consumer->OnMapItem(Lexer.GetStringValue());
@@ -689,7 +310,7 @@ private:
                 break;
 
             case EState::MapAfterKey:
-                if (lexerState == ELexerState::KeyValueSeparator) {
+                if (lexerState == ELexerState::Equals) {
                     StateStack.top() = EState::MapBeforeValue;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme of type %s found (%s)",
@@ -703,9 +324,9 @@ private:
                 break;
 
             case EState::MapAfterValue:
-                if (lexerState == ELexerState::MapEnd) {
+                if (lexerState == ELexerState::RightBrace) {
                     StateStack.top() = EState::MapEnd;
-                } else if (lexerState == ELexerState::ItemSeparator) {
+                } else if (lexerState == ELexerState::Semicolon) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '}', but lexeme of type %s found (%s)",
@@ -724,7 +345,7 @@ private:
         auto lexerState = Lexer.GetState();
         auto currentState = CurrentState();
 
-        if (lexerState == ELexerState::AttributesEnd &&
+        if (lexerState == ELexerState::RightAngle &&
             (currentState == EState::AttributesBeforeKey || currentState == EState::AttributesAfterValue))
         {
             Consumer->OnEndAttributes();
@@ -745,7 +366,7 @@ private:
                 break;
 
             case EState::AttributesAfterKey:
-                if (lexerState == ELexerState::KeyValueSeparator) {
+                if (lexerState == ELexerState::Equals) {
                     StateStack.top() = EState::AttributesBeforeValue;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme of type %s found (%s)",
@@ -759,7 +380,7 @@ private:
                 break;
 
             case EState::AttributesAfterValue:
-                if (lexerState == ELexerState::ItemSeparator) {
+                if (lexerState == ELexerState::Semicolon) {
                     StateStack.top() = EState::AttributesBeforeKey;
                 } else {
                     ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '>', but lexeme of type %s found (%s)",
@@ -783,7 +404,7 @@ private:
                 ~lexerState.ToString(),
                 ~GetPositionInfo());
         }
-        if (lexerState != ELexerState::ItemSeparator) {
+        if (lexerState != ELexerState::Semicolon) {
             ythrow yexception() << Sprintf("Error parsing YSON: Expected ';', but lexeme of type %s found (%s)",
                 ~lexerState.ToString(),
                 ~GetPositionInfo());
@@ -796,7 +417,7 @@ private:
 
     bool ConsumeEnd()
     {
-        bool attributes = Lexer.GetState() == ELexerState::AttributesStart;
+        bool attributes = Lexer.GetState() == ELexerState::LeftAngle;
         switch (CurrentState()) {
             case EState::StringEnd:
                 Consumer->OnStringScalar(CachedStringValue, attributes);
