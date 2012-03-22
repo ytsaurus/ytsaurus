@@ -647,6 +647,10 @@ private:
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
+            LOG_INFO("Holder online (Address: %s, HolderId: %d)",
+                ~holder.GetAddress(),
+                holderId);
+
             YASSERT(holder.StoredChunkIds().empty());
             YASSERT(holder.CachedChunkIds().empty());
 
