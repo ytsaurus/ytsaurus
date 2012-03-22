@@ -27,6 +27,7 @@ set( DIRS
   object_server
   scheduler
   exec_agent
+  job_proxy
 )
 
 foreach( _d_ ${DIRS} )

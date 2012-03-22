@@ -38,6 +38,8 @@ struct TCellNodeConfig
         Register("masters", Masters);
         Register("chunk_holder", ChunkHolder);
         Register("exec_agent", ExecAgent);
+
+        SetKeepOptions(true);
     }
 };
 

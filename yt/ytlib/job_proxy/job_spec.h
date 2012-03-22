@@ -18,26 +18,7 @@ namespace NJobProxy {
 class TJobSpec
 {
 public:
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
 
-        NYTree::EYsonFormat OutputFormat;
-        NTableClient::TChunkSequenceReader::TConfig::TPtr ChunkSequenceReader;
-        NTableClient::TChunkSequenceWriter::TConfig::TPtr ChunkSequenceWriter;
-        NElection::TLeaderLookup::TConfig::TPtr Masters;
-        NFileClient::TFileWriterBase::TConfig::TPtr StdErr;
-
-        TConfig()
-        {
-            Register("output_format", OutputFormat).Default(NYTree::EYsonFormat::Text);
-            Register("chunk_sequence_reader", ChunkSequenceReader).DefaultNew();
-            Register("chunk_sequence_writer", ChunkSequenceWriter).DefaultNew();
-            Register("masters", Masters);
-            Register("std_err", StdErr).Default(New<NFileClient::TFileWriterBase::TConfig>(1,1));
-        }
-    };
 
     TJobSpec(
         TConfig* config,

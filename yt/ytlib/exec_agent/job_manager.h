@@ -31,8 +31,6 @@ public:
         TJobManagerConfigPtr config,
         TBootstrap* bootstrap);
 
-    //~TJobManager();
-
     //! Starts a new job.
     void StartJob(
         const TJobId& jobId,
