@@ -14,7 +14,7 @@ public:
         const TSchema& schema,
         IAsyncWriter* writer);
 
-    TAsyncError::TPtr AsyncEndRow();
+    TAsyncError AsyncEndRow();
 
 private:
     TKey PreviousKey;

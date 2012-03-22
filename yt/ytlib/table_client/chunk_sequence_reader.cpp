@@ -78,7 +78,7 @@ void TChunkSequenceReader::OnNextReaderOpened(
     NextReader->Set(NULL);
 }
 
-TAsyncError::TPtr TChunkSequenceReader::AsyncOpen()
+TAsyncError TChunkSequenceReader::AsyncOpen()
 {
     YASSERT(NextChunkIndex == 0);
     YASSERT(!State.HasRunningOperation());
@@ -147,7 +147,7 @@ const TRow& TChunkSequenceReader::GetCurrentRow() const
     return CurrentReader->GetCurrentRow();
 }
 
-TAsyncError::TPtr TChunkSequenceReader::AsyncNextRow()
+TAsyncError TChunkSequenceReader::AsyncNextRow()
 {
     YASSERT(!State.HasRunningOperation());
     YASSERT(IsValid());

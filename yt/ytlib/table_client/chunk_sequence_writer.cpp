@@ -113,7 +113,7 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
     }
 }
 
-TAsyncError::TPtr TChunkSequenceWriter::AsyncOpen(
+TAsyncError TChunkSequenceWriter::AsyncOpen(
     const NProto::TTableChunkAttributes& attributes)
 {
     YASSERT(!State.HasRunningOperation());
@@ -138,7 +138,7 @@ void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
     State.FinishOperation();
 }
 
-TAsyncError::TPtr TChunkSequenceWriter::AsyncEndRow(
+TAsyncError TChunkSequenceWriter::AsyncEndRow(
     TKey& key,
     std::vector<TChannelWriter::TPtr>& channels)
 {
@@ -188,7 +188,7 @@ void TChunkSequenceWriter::FinishCurrentChunk(
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
 
-        TAsyncError::TPtr finishResult = New<TAsyncError>();
+        TAsyncError finishResult = New< TFuture<TError> >();
         CloseChunksAwaiter->Await(finishResult, 
             FromMethod(
                 &TChunkSequenceWriter::OnChunkFinished, 
@@ -219,7 +219,7 @@ bool TChunkSequenceWriter::IsNextChunkTime() const
 void TChunkSequenceWriter::OnChunkClosed(
     TError error,
     TChunkWriter::TPtr currentChunk,
-    TAsyncError::TPtr finishResult)
+    TAsyncError finishResult)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -256,7 +256,7 @@ void TChunkSequenceWriter::OnChunkClosed(
 void TChunkSequenceWriter::OnChunkRegistered(
     TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp,
     TChunkId chunkId,
-    TAsyncError::TPtr finishResult)
+    TAsyncError finishResult)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -294,7 +294,7 @@ void TChunkSequenceWriter::OnChunkFinished(
         ~chunkId.ToString());
 }
 
-TAsyncError::TPtr TChunkSequenceWriter::AsyncClose(
+TAsyncError TChunkSequenceWriter::AsyncClose(
     TKey& lastKey,
     std::vector<TChannelWriter::TPtr>& channels)
 {

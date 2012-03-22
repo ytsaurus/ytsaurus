@@ -40,24 +40,24 @@ public:
         const NProto::TReadLimit& startLimit,
         const NProto::TReadLimit& endLimit);
 
-    TAsyncError::TPtr AsyncOpen();
+    TAsyncError AsyncOpen();
 
     //! Asynchronously switches the reader to the next row.
     /*!
      *  This call cannot block.
      */
-    TAsyncError::TPtr AsyncNextRow();
+    TAsyncError AsyncNextRow();
 
     bool IsValid() const;
     const TRow& GetCurrentRow() const;
 
 private:
-    TAsyncError::TPtr DoNextRow();
+    TAsyncError DoNextRow();
 
     void ContinueNextRow(
         TError error, 
         int channelIndex, 
-        TAsyncError::TPtr& result);
+        TAsyncError& result);
 
     void MakeCurrentRow();
 

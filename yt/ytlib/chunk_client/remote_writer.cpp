@@ -820,7 +820,7 @@ void TRemoteWriter::CancelAllPings()
     }
 }
 
-TAsyncError::TPtr TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
+TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -898,7 +898,7 @@ void TRemoteWriter::DoClose(
     }
 }
 
-TAsyncError::TPtr TRemoteWriter::AsyncClose(
+TAsyncError TRemoteWriter::AsyncClose(
     const std::vector<TSharedRef>& lastBlocks,
     const TChunkAttributes& attributes)
 {

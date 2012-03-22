@@ -38,7 +38,7 @@ void TChunkFileWriter::Open()
     IsOpen = true;
 }
 
-TAsyncError::TPtr TChunkFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
+TAsyncError TChunkFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
 {
     YASSERT(IsOpen);
     YASSERT(!IsClosed);
@@ -63,7 +63,7 @@ TAsyncError::TPtr TChunkFileWriter::AsyncWriteBlocks(const std::vector<TSharedRe
     return MakeFuture(TError());
 }
 
-TAsyncError::TPtr TChunkFileWriter::AsyncClose(
+TAsyncError TChunkFileWriter::AsyncClose(
     const std::vector<TSharedRef>& blocks,
     const TChunkAttributes& attributes)
 {

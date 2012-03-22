@@ -43,9 +43,9 @@ public:
         NChunkClient::IBlockCache* blockCache,
         const std::vector<NProto::TFetchedChunk>& fetchedChunks);
 
-    TAsyncError::TPtr AsyncOpen();
+    TAsyncError AsyncOpen();
 
-    TAsyncError::TPtr AsyncNextRow();
+    TAsyncError AsyncNextRow();
 
     bool IsValid() const;
 

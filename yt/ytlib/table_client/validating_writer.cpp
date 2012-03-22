@@ -49,7 +49,7 @@ TValidatingWriter::TValidatingWriter(
     Attributes.set_is_sorted(false);
 }
 
-TAsyncError::TPtr TValidatingWriter::AsyncOpen()
+TAsyncError TValidatingWriter::AsyncOpen()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -95,7 +95,7 @@ void TValidatingWriter::Write(const TColumn& column, TValue value)
     }
 }
 
-TAsyncError::TPtr TValidatingWriter::AsyncEndRow()
+TAsyncError TValidatingWriter::AsyncEndRow()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -123,7 +123,7 @@ TAsyncError::TPtr TValidatingWriter::AsyncEndRow()
     return Writer->AsyncEndRow(CurrentKey, ChannelWriters);
 }
 
-TAsyncError::TPtr TValidatingWriter::AsyncClose()
+TAsyncError TValidatingWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(RowStart);

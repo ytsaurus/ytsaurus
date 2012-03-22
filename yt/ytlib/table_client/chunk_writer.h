@@ -55,14 +55,14 @@ public:
 
     ~TChunkWriter();
 
-    TAsyncError::TPtr AsyncOpen(
+    TAsyncError AsyncOpen(
         const NProto::TTableChunkAttributes& attributes);
 
-    TAsyncError::TPtr AsyncEndRow(
+    TAsyncError AsyncEndRow(
         TKey& key,
         std::vector<TChannelWriter::TPtr>& channels);
 
-    TAsyncError::TPtr AsyncClose(
+    TAsyncError AsyncClose(
         TKey& lastKey,
         std::vector<TChannelWriter::TPtr>& channels);
 

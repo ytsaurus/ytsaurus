@@ -89,12 +89,12 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError::TPtr AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
+    virtual TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
 
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError::TPtr AsyncClose(
+    virtual TAsyncError AsyncClose(
         const std::vector<TSharedRef>& lastBlocks,
         const NChunkHolder::NProto::TChunkAttributes& attributes);
 

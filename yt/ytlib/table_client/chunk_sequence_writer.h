@@ -77,14 +77,14 @@ public:
 
     ~TChunkSequenceWriter();
 
-    TAsyncError::TPtr AsyncOpen(
+    TAsyncError AsyncOpen(
         const NProto::TTableChunkAttributes& attributes);
 
-    TAsyncError::TPtr AsyncEndRow(
+    TAsyncError AsyncEndRow(
         TKey& key,
         std::vector<TChannelWriter::TPtr>& channels);
 
-    TAsyncError::TPtr AsyncClose(
+    TAsyncError AsyncClose(
         TKey& lastKey,
         std::vector<TChannelWriter::TPtr>& channels);
 
@@ -104,12 +104,12 @@ private:
     void OnChunkClosed(
         TError error,
         TChunkWriter::TPtr currentChunk,
-        TAsyncError::TPtr finishResult);
+        TAsyncError finishResult);
 
     void OnChunkRegistered(
         NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp,
         NChunkClient::TChunkId chunkId,
-        TAsyncError::TPtr finishResult);
+        TAsyncError finishResult);
 
     void OnChunkFinished(
         TError error,

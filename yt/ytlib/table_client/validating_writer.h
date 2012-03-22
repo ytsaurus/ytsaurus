@@ -17,11 +17,11 @@ public:
         const TSchema& schema, 
         IAsyncWriter* writer);
 
-    virtual TAsyncError::TPtr AsyncOpen();
+    virtual TAsyncError AsyncOpen();
     void Write(const TColumn& column, TValue value);
 
-    virtual TAsyncError::TPtr AsyncEndRow();
-    virtual TAsyncError::TPtr AsyncClose();
+    virtual TAsyncError AsyncEndRow();
+    virtual TAsyncError AsyncClose();
 
 protected:
     IAsyncWriter::TPtr Writer;

@@ -20,14 +20,14 @@ struct IAsyncWriter
 {
     typedef TIntrusivePtr<IAsyncWriter> TPtr;
 
-    virtual TAsyncError::TPtr AsyncOpen(
+    virtual TAsyncError AsyncOpen(
         const NProto::TTableChunkAttributes& attributes) = 0;
 
-    virtual TAsyncError::TPtr AsyncEndRow(
+    virtual TAsyncError AsyncEndRow(
         TKey& key,
         std::vector<TChannelWriter::TPtr>& channels) = 0;
 
-    virtual TAsyncError::TPtr AsyncClose(
+    virtual TAsyncError AsyncClose(
         TKey& lastKey,
         std::vector<TChannelWriter::TPtr>& channels) = 0;
 };

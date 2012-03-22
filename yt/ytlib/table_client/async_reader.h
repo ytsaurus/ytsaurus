@@ -25,9 +25,9 @@ struct IAsyncReader
 {
     typedef TIntrusivePtr<IAsyncReader> TPtr;
 
-    virtual TAsyncError::TPtr AsyncOpen() = 0;
+    virtual TAsyncError AsyncOpen() = 0;
 
-    virtual TAsyncError::TPtr AsyncNextRow() = 0;
+    virtual TAsyncError AsyncNextRow() = 0;
     virtual bool IsValid() const = 0;
 
     virtual const TRow& GetCurrentRow() const = 0;

@@ -65,7 +65,7 @@ public:
      *  It is not allowed to ask for the next block until the previous one is retrieved.
      *  If an error occurs during fetching then the whole session is failed.
      */
-    TAsyncError::TPtr AsyncNextBlock();
+    TAsyncError AsyncNextBlock();
 
     //! Returns the current block.
     /*!

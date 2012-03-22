@@ -532,7 +532,7 @@ TChunkReader::TChunkReader(
         endLimit);
 }
 
-TAsyncError::TPtr TChunkReader::AsyncOpen()
+TAsyncError TChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
@@ -541,7 +541,7 @@ TAsyncError::TPtr TChunkReader::AsyncOpen()
     return State.GetOperationError();
 }
 
-TAsyncError::TPtr TChunkReader::AsyncNextRow()
+TAsyncError TChunkReader::AsyncNextRow()
 {
     // No thread affinity - called from SetCurrentChunk of TChunkSequenceReader.
     YASSERT(!State.HasRunningOperation());
@@ -561,7 +561,7 @@ TAsyncError::TPtr TChunkReader::AsyncNextRow()
     return State.GetOperationError();
 }
 
-TAsyncError::TPtr TChunkReader::DoNextRow()
+TAsyncError TChunkReader::DoNextRow()
 {
     // NB: we have to use custom future here (not AsyncStreamState)
     // because DoNextRow could be called from AsyncOpen. (see Initializer::ValidateRow)
@@ -588,7 +588,7 @@ TAsyncError::TPtr TChunkReader::DoNextRow()
 void TChunkReader::ContinueNextRow(
     TError error,
     int channelIndex,
-    TAsyncError::TPtr& result)
+    TAsyncError& result)
 {
     if (!error.IsOK()) {
         YASSERT(!result->IsSet());
@@ -610,7 +610,7 @@ void TChunkReader::ContinueNextRow(
             YASSERT(SequentialReader->HasNext());
 
             if (result->IsSet())
-                result = New<TAsyncError>();
+                result = New< TFuture<TError> >();
 
             SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
                 &TChunkReader::ContinueNextRow,
