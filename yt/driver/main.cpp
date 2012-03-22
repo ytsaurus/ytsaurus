@@ -148,9 +148,9 @@ public:
     TDriverProgram()
         : ExitCode(0)
     {
-        RegisterParser("start", ~New<TStartArgs>());
-        RegisterParser("commit", ~New<TCommitArgs>());
-        RegisterParser("abort", ~New<TAbortArgs>());
+        RegisterParser("start_tx", ~New<TStartTxArgs>());
+        RegisterParser("commit_tx", ~New<TCommitTxArgs>());
+        RegisterParser("abort_tx", ~New<TAbortTxArgs>());
 
         RegisterParser("get", ~New<TGetArgs>());
         RegisterParser("set", ~New<TSetArgs>());

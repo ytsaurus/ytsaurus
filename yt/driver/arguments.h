@@ -289,11 +289,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStartArgs
+class TStartTxArgs
     : public TArgsBase
 {
 public:
-    TStartArgs()
+    TStartTxArgs()
     {
         ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
         Cmd->add(~ManifestArg);
@@ -317,11 +317,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCommitArgs
+class TCommitTxArgs
     : public TTransactedArgs
 {
 public:
-    TCommitArgs()
+    TCommitTxArgs()
     { }
 
 private:
@@ -336,11 +336,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAbortArgs
+class TAbortTxArgs
     : public TTransactedArgs
 {
 public:
-    TAbortArgs()
+    TAbortTxArgs()
     { }
 
 private:
