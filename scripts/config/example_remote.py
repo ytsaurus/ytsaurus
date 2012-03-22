@@ -72,8 +72,8 @@ class Master(Server):
             'cell' : {
                 'addresses' : MasterAddresses
             },
-            'snapshot_path' : '/yt/disk1/data/snapshots',
-            'log_path' : '/yt/disk2/data/changelogs',
+            'snapshot_path' : '/yt/disk2/data/snapshots',
+            'log_path' : '/yt/disk1/data/changelogs',
             'max_changes_between_snapshots' : 1000000,
             'change_log_downloader' : {
                 'records_per_request' : 10240
