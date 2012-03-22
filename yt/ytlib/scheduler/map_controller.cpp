@@ -33,8 +33,6 @@ public:
             return TError("No input tables are given");
         }
 
-        JobsToStart = 10;
-
         return TError();
     }
 
@@ -62,8 +60,6 @@ public:
     {
 
     }
-
-    int JobsToStart;
 
     virtual void ScheduleJobs(
         TExecNodePtr node,
