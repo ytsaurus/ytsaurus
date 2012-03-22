@@ -51,6 +51,8 @@ struct IAction
     }
 };
 
+IAction::TPtr FromCallback(const TCallback<void()>& callback);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TResult>
@@ -98,6 +100,9 @@ struct IParamAction
         return ::NYT::Bind(&IParamAction::Do, MakeStrong(this));
     }
 };
+
+template <class TParam>
+typename IParamAction<TParam>::TPtr FromCallback(const TCallback<void(TParam)>& callback);
 
 ////////////////////////////////////////////////////////////////////////////////
 
