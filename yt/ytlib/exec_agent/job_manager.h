@@ -5,6 +5,7 @@
 #include <ytlib/scheduler/jobs.pb.h>
 #include <ytlib/misc/thread_affinity.h>
 
+#include <ytlib/scheduler/scheduler_service.pb.h>
 //#include <ytlib/exec/scheduler_internal_proxy.h>
 //#include <ytlib/chunk_holder/chunk_cache.h>
 //#include <ytlib/misc/error.h>
@@ -58,8 +59,8 @@ public:
     //! Returns a list of all currently known jobs.
     std::vector<TJobPtr> GetAllJobs();
 
-    int GetTotalSlotCount();
-    int GetFreeSlotCount();
+    //! Utilization includes slot statistics and various resource usage information.
+    NScheduler::NProto::TNodeUtilization GetUtilization();
 
 private:
     TJobManagerConfigPtr Config;

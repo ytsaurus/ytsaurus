@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "scheduler_commands.h"
 
-#include <ytlib/scheduler/scheduler_service_proxy.h>
+#include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/ytree/serialize.h>
 
 namespace NYT {

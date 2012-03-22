@@ -15,7 +15,7 @@ class TSlot
 public:
     TSlot(const Stroka& path, const Stroka& name);
 
-    bool IsEmpty() const;
+    bool IsFree() const;
 
     void Acquire();
     void InitSandbox();
@@ -36,7 +36,7 @@ public:
     const Stroka& GetWorkingDirectory() const;
 
 private:
-    volatile bool IsEmpty_;
+    volatile bool IsFree_;
     bool IsClean;
 
     Stroka Path;

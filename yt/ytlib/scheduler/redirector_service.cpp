@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "redirector_service.h"
-#include "scheduler_service_proxy.h"
+#include "scheduler_proxy.h"
 
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/serialize.h>

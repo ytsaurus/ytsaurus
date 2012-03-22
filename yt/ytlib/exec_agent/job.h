@@ -36,9 +36,9 @@ public:
 
     const NScheduler::NProto::TJobSpec& GetSpec();
 
-    NScheduler::EJobState GetState();
-
-
+    NScheduler::EJobState GetState() const;
+    NScheduler::EJobProgress GetProgress() const;
+    
     NScheduler::NProto::TJobResult GetResult();
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
     void SetResult(const TError& error);

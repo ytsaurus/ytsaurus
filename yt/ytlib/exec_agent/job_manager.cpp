@@ -15,6 +15,9 @@
 namespace NYT {
 namespace NExecAgent {
 
+using namespace NScheduler;
+using namespace NScheduler::NProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ExecAgentLogger;
@@ -93,19 +96,18 @@ std::vector<TJobPtr> TJobManager::GetAllJobs()
     return result;
 }
 
-int TJobManager::GetTotalSlotCount()
+TNodeUtilization TJobManager::GetUtilization()
 {
-    return Config->SlotCount;
-}
-
-int TJobManager::GetFreeSlotCount()
-{
-    int count = 0;
-    FOREACH(auto slot, Slots) {
-        if (slot->IsEmpty())
-            ++count;
+    TNodeUtilization result;
+    result.set_total_slot_count(Slots.size());
+    int freeCount = 0;
+    FOREACH (auto slot, Slots) {
+        if (slot->IsFree()) {
+            ++freeCount;
+        }
     }
-    return count;
+    result.set_free_slot_count(freeCount);
+    return result;
 }
 
 void TJobManager::StartJob(
@@ -116,7 +118,7 @@ void TJobManager::StartJob(
 
     TSlotPtr emptySlot;
     FOREACH(auto slot, Slots) {
-        if (slot->IsEmpty()) {
+        if (slot->IsFree()) {
             emptySlot = slot;
             break;
         }
@@ -140,7 +142,9 @@ void TJobManager::StartJob(
 
     Jobs[jobId] = job;
 
-    LOG_DEBUG("Job created (JobId: %s)", ~jobId.ToString());
+    LOG_DEBUG("Job started (JobId: %s, JobType: %s)",
+        ~jobId.ToString(),
+        ~EJobType(jobSpec.type()).ToString());
 }
 
 void TJobManager::StopJob( const TJobId& jobId )

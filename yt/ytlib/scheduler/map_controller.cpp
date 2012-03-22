@@ -16,8 +16,9 @@ class TMapController
     : public IOperationController
 {
 public:
-    TMapController(TOperation* operation)
-        : Operation(operation)
+    TMapController(IOperationHost* host, TOperation* operation)
+        : Host(host)
+        , Operation(operation)
     { }
 
     virtual void Initialize()
@@ -60,15 +61,25 @@ public:
 
     }
 
+    virtual void ScheduleJobs(
+        TExecNodePtr node,
+        std::vector<TJobPtr>* jobsToStart,
+        std::vector<TJobPtr>* jobsToAbort)
+    {
+    }
+
 private:
+    IOperationHost* Host;
     TOperation* Operation;
 
     TMapOperationSpecPtr Spec;
 };
 
-TAutoPtr<IOperationController> CreateMapController(TOperation* operation)
+TAutoPtr<IOperationController> CreateMapController(
+    IOperationHost* host,
+    TOperation* operation)
 {
-    return new TMapController(operation);
+    return new TMapController(host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

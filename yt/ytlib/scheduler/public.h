@@ -24,7 +24,14 @@ DECLARE_ENUM(EJobType,
 );
 
 DECLARE_ENUM(EOperationState,
-    ((Prepaing)(0))
+    ((Initializing)(0))
+    ((Preparing)(1))
+    ((Running)(2))
+    ((Completed)(3))
+    ((Aborting)(4))
+    ((Aborted)(5))
+    ((Failing)(6))
+    ((Failed)(7))
 );
 
 DECLARE_ENUM(EJobState,
@@ -52,6 +59,11 @@ DECLARE_ENUM(EJobProgress,
     ((Aborted)(103))
 );
 
+DECLARE_ENUM(ESchedulerStrategy,
+    (Null)
+    (Fifo)
+);
+
 class TSchedulerService;
 typedef TIntrusivePtr<TSchedulerService> TSchedulerServicePtr;
 
@@ -73,6 +85,8 @@ class TScheduler;
 typedef TIntrusivePtr<TScheduler> TSchedulerPtr;
 
 struct ISchedulerStrategy;
+
+struct IOperationHost;
 
 struct IOperationController;
 

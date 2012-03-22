@@ -14,6 +14,7 @@ struct TSchedulerConfig
 {
     TDuration TransactionsRefreshPeriod;
     TDuration NodesRefreshPeriod;
+    ESchedulerStrategy Strategy;
 
     TSchedulerConfig()
     {
@@ -21,6 +22,8 @@ struct TSchedulerConfig
             .Default(TDuration::Seconds(15));
         Register("nodes_refresh_period", NodesRefreshPeriod)
             .Default(TDuration::Seconds(15));
+        Register("strategy", Strategy)
+            .Default(ESchedulerStrategy::Null);
     }
 };
 

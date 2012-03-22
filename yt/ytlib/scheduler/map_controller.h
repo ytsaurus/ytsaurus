@@ -29,7 +29,9 @@ struct TMapOperationSpec
     }
 };
 
-TAutoPtr<IOperationController> CreateMapController(TOperation* operation);
+TAutoPtr<IOperationController> CreateMapController(
+    IOperationHost* host,
+    TOperation* operation);
 
 ////////////////////////////////////////////////////////////////////////////////
 

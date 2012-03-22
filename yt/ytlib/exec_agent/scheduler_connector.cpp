@@ -43,14 +43,14 @@ void TSchedulerConnector::SendHeartbeat()
     auto req = Proxy.Heartbeat();
     req->set_address(Bootstrap->GetPeerAddress());
     auto jobManager = Bootstrap->GetJobManager();
-    req->set_total_slot_count(jobManager->GetTotalSlotCount());
-    req->set_free_slot_count(jobManager->GetFreeSlotCount());
+    *req->mutable_utilization() = jobManager->GetUtilization();
 
     auto jobs = Bootstrap->GetJobManager()->GetAllJobs();
     FOREACH (auto job, jobs) {
         auto* jobStatus = req->add_jobs();
         jobStatus->set_job_id(job->GetId().ToProto());
         jobStatus->set_state(job->GetState());
+        jobStatus->set_progress(job->GetProgress());
         if (job->GetState() == EJobState::Completed) {
             *jobStatus->mutable_result() = job->GetResult();
         }
@@ -58,8 +58,8 @@ void TSchedulerConnector::SendHeartbeat()
 
     LOG_INFO("Sending heartbeat to scheduler (JobCount: %d, TotalSlotCount: %d, FreeSlotCount: %d)",
         req->jobs_size(),
-        req->total_slot_count(),
-        req->free_slot_count());
+        req->utilization().total_slot_count(),
+        req->utilization().free_slot_count());
 
     req->Invoke()->Subscribe(
         FromMethod(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
@@ -83,8 +83,9 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
         jobManager->RemoveJob(jobId);
     }
 
-    FOREACH (const auto& protoJobId, rsp->jobs_to_stop()) {
+    FOREACH (const auto& protoJobId, rsp->jobs_to_abort()) {
         auto jobId = TJobId::FromProto(protoJobId);
+        // TODO(babenko): rename to AbortJob
         jobManager->StopJob(jobId);
     }
 

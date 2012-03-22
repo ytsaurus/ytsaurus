@@ -4,7 +4,6 @@
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 #include <ytlib/rpc/service.h>
-#include <ytlib/rpc/client.h>
 
 namespace NYT {
 namespace NScheduler {

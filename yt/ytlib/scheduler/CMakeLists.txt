@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/job.cpp
   ${BASE}/exec_node.cpp
   ${BASE}/scheduler.cpp
+  ${BASE}/null_strategy.cpp
   ${BASE}/fifo_strategy.cpp
   ${BASE}/map_controller.cpp
 )
@@ -15,12 +16,13 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/config.h
   ${BASE}/redirector_service.h
-  ${BASE}/scheduler_service_proxy.h
+  ${BASE}/scheduler_proxy.h
   ${BASE}/operation.h
   ${BASE}/job.h
   ${BASE}/exec_node.h
   ${BASE}/scheduler.h
   ${BASE}/scheduler_strategy.h
+  ${BASE}/null_strategy.h
   ${BASE}/fifo_strategy.h
   ${BASE}/operation_controller.h
   ${BASE}/map_controller.h

@@ -46,6 +46,11 @@ TJob::TJob(
     Slot->Acquire();
 }
 
+TJob::~TJob()
+{
+    Slot->Release();
+}
+
 void TJob::Start(TEnvironmentManager* environmentManager)
 {
     YASSERT(JobProgress == EJobProgress::Created);
@@ -241,9 +246,14 @@ void TJob::SetResult(const TError& error)
     SetResult(jobResult);
 }
 
-NScheduler::EJobState TJob::GetState()
+NScheduler::EJobState TJob::GetState() const
 {
     return JobState;
+}
+
+NScheduler::EJobProgress TJob::GetProgress() const
+{
+    return JobProgress;
 }
 
 void TJob::Abort(const TError& error)
@@ -290,11 +300,6 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
 
     SetResult(error);
     JobState = resultState;
-}
-
-TJob::~TJob()
-{
-    Slot->Release();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/scheduler/scheduler_service_proxy.h>
+#include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
