@@ -51,7 +51,7 @@ struct IAction
     }
 };
 
-IAction::TPtr FromCallback(const TCallback<void()>& callback);
+inline IAction::TPtr FromCallback(const TCallback<void()>& callback);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +102,7 @@ struct IParamAction
 };
 
 template <class TParam>
-typename IParamAction<TParam>::TPtr FromCallback(const TCallback<void(TParam)>& callback);
+inline typename IParamAction<TParam>::TPtr FromCallback(const TCallback<void(TParam)>& callback);
 
 ////////////////////////////////////////////////////////////////////////////////
 
