@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/job_proxy/config.h>
 #include <ytlib/misc/configurable.h>
 
 namespace NYT {
@@ -53,15 +54,11 @@ public:
 struct TJobManagerConfig
     : public TConfigurable
 {
-    // TODO(babenko): read from cypress.
-    Stroka SchedulerAddress;
-
     int  SlotCount;
     Stroka SlotLocation;
 
     TJobManagerConfig()
     {
-        Register("scheduler_address", SchedulerAddress).NonEmpty();
         Register("slot_count", SlotCount)
             .Default(8);
         Register("slot_location", SlotLocation)
@@ -89,13 +86,24 @@ struct TExecAgentConfig
     TEnvironmentManagerConfigPtr EnvironmentManager;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
+    NJobProxy::TJobIoConfigPtr JobIo;
+    NYTree::INodePtr JobProxyLogging;
+    TDuration SupervisorTimeout;
+
     TExecAgentConfig()
     {
-        Register("job_manager", JobManager);
+        Register("job_manager", JobManager)
+            .DefaultNew();
         Register("environment_manager", EnvironmentManager)
             .DefaultNew();
         Register("scheduler_connector", SchedulerConnector)
             .DefaultNew();
+        Register("job_io", JobIo)
+            .DefaultNew();
+        Register("job_proxy_logging", JobProxyLogging)
+            .Default(NULL);
+        Register("supervisor_timeout", SupervisorTimeout)
+            .Default(TDuration::Seconds(5));
     }
 };
 

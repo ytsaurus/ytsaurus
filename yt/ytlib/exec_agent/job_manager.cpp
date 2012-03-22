@@ -7,10 +7,9 @@
 #include "private.h"
 #include "environment_manager.h"
 
+#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/job_proxy/config.h>
 #include <ytlib/misc/fs.h>
-
-//#include <yt/tallyman.h>
-//#include <system_error>
 
 namespace NYT {
 namespace NExecAgent {
@@ -29,41 +28,23 @@ TJobManager::TJobManager(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
-    // make special "scheduler channel" that asks master for scheduler 
-    //, SchedulerProxy(~NRpc::CreateBusChannel(Config->SchedulerAddress))
 {
     YASSERT(config);
     YASSERT(bootstrap);
     VERIFY_INVOKER_AFFINITY(bootstrap->GetControlInvoker(), ControlThread);
-
-    /*
-    using namespace std;
-    // TODO(babenko): fix tallyman startup
-    try {
-        tallyman_start( "/export/home/yeti/projects/wallet" );
-    }
-    catch ( const system_error& err ) {
-        LOG_DEBUG("Failed to start tallyman: %s", err.what());
-    }
-    catch ( const runtime_error& err ) {
-        LOG_DEBUG("Failed to start tallyman: %s", err.what());
-    }*/
 
     // Init job slots.
     for (int slotIndex = 0; slotIndex < Config->SlotCount; ++slotIndex) {
         auto slotName = Sprintf("slot.%d", slotIndex);
         auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
         Slots.push_back(New<TSlot>(slotPath, slotName));
+
+        auto proxyConfigPath = NFS::CombinePaths(slotPath, ProxyConfigFileName);
+        TFileOutput output(proxyConfigPath);
+        NYTree::TYsonWriter writer(&output);
+        bootstrap->GetJobProxyConfig()->Save(&writer);
     }
 }
-
-/*
-TJobManager::~TJobManager()
-{
-// TODO(babenko): fix tallyman finalization
-//    tallyman_stop();
-}
-*/
 
 TJobPtr TJobManager::FindJob(const TJobId& jobId)
 {

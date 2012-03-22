@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "private.h"
 #include "job_manager.h"
 #include "supervisor_service.h"
 #include "environment.h"
@@ -9,7 +10,10 @@
 #include "scheduler_connector.h"
 
 #include <ytlib/cell_node/bootstrap.h>
+#include <ytlib/cell_node/config.h>
+#include <ytlib/job_proxy/config.h>
 #include <ytlib/chunk_holder/bootstrap.h>
+#include <ytlib/chunk_holder/config.h>
 #include <ytlib/chunk_holder/chunk_cache.h>
 
 namespace NYT {
@@ -34,6 +38,14 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Init()
 {
+    JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
+    JobProxyConfig->JobIo = Config->JobIo;
+    JobProxyConfig->RpcTimeout = Config->SupervisorTimeout;
+    JobProxyConfig->Logging = Config->JobProxyLogging;
+    JobProxyConfig->SandboxName = SandboxName;
+    JobProxyConfig->Masters = NodeBootstrap->GetConfig()->Masters;
+    JobProxyConfig->ExecAgentAddress = NodeBootstrap->GetPeerAddress();
+
     JobManager = New<TJobManager>(Config->JobManager, this);
 
     auto supervisorService = New<TSupervisorService>(this);
@@ -84,6 +96,11 @@ TEnvironmentManagerPtr TBootstrap::GetEnvironmentManager() const
 NChunkHolder::TChunkCachePtr TBootstrap::GetChunkCache() const
 {
     return NodeBootstrap->GetChunkHolderBootstrap()->GetChunkCache();
+}
+
+NJobProxy::TJobProxyConfigPtr TBootstrap::GetJobProxyConfig() const
+{
+    return JobProxyConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
