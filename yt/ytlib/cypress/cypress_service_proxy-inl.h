@@ -35,7 +35,7 @@ TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetRespons
     auto it = range.first;
     int index = it->second;
     YASSERT(++it == range.second);
-    return GetResponse(index);
+    return GetResponse<TTypedResponse>(index);
 }
 
 template <class TTypedResponse>
