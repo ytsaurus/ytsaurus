@@ -83,10 +83,14 @@ public:
 
         Owner->RegisterTransaction(this);
 
+        StartPingInvoker();
+    }
+
+    void StartPingInvoker() {
         PingInvoker = New<TPeriodicInvoker>(
             FromMethod(
                 &TTransactionManager::PingTransaction,
-                Owner, 
+                Owner,
                 Id),
             Owner->Config->PingPeriod);
         PingInvoker->Start();
@@ -248,6 +252,7 @@ private:
         Aborted.Fire();
         Aborted.Clear();
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -290,6 +295,7 @@ ITransaction::TPtr TTransactionManager::Attach(const TTransactionId& id)
 
     auto transaction = New<TTransaction>(~Channel, this, id);
     RegisterTransaction(transaction);
+    transaction->StartPingInvoker();
     return transaction;
 }
 
