@@ -7,6 +7,7 @@
 #include <ytlib/actions/action_util.h>
 
 #include <ytlib/misc/thread_affinity.h>
+#include <util/system/execpath.h>
 
 #ifndef _win_
 
@@ -49,28 +50,11 @@ class TUnsafeProxyController
     : public IProxyController
 {
 public:
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        Stroka ProxyPath;
-        Stroka ProxyConfigPath;
-
-        TConfig() 
-        {
-            Register("proxy_path", ProxyPath).NonEmpty();
-            Register("proxy_config_path", ProxyConfigPath).NonEmpty();
-        }
-
-        // i64 MemoryLimit;
-    };
-
     TUnsafeProxyController(
-        TConfig* config,
+        const Stroka& proxyPath,
         const TJobId& jobId,
         const Stroka& workingDirectory)
-        : Config(config)
+        : ProxyPath(proxyPath)
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
         , ProcessId(-1)
@@ -102,25 +86,21 @@ public:
 
             // search the PATH, inherit environment
             execlp(
-                ~Config->ProxyPath, 
-                ~Config->ProxyPath, 
+                ~ProxyPath, 
+                ~ProxyPath, 
                 "--job-proxy", 
-                "--config", ~Config->ProxyConfigPath,
-                "--operation-id", ~JobId.OperationId.ToString(),
-                "--job-index", ~ToString(JobId.JobIndex),
+                "--config", ~ProxyConfigFileName,
+                "--job-id", ~JobId.ToString(),
                 (void*)NULL);
             int _errno = errno;
 
-            fprintf(stderr, "Failed to exec job-proxy (%s --job-proxy --config %s --operation-id %s --job-index %s): %s\n",
-                ~Config->ProxyPath,
-                ~Config->ProxyConfigPath,
-                ~JobId.OperationId.ToString(),
-                ~ToString(JobId.JobIndex),
-                strerror(_errno)
-                );
+            fprintf(stderr, "Failed to exec job-proxy (%s --job-proxy --config %s --job-id %s): %s\n",
+                ~ProxyPath,
+                ~ProxyConfigFileName,
+                ~JobId.ToString(),
+                strerror(_errno));
 
             exit(7);
-            //YUNREACHABLE();
         }
 
         if (ProcessId < 0) {
@@ -138,7 +118,7 @@ public:
         ControllerThread.Detach();
     }
 
-    void Kill(const TError& error) 
+    void Kill(const TError& error) throw() 
     {
         VERIFY_THREAD_AFFINITY(JobThread);
         
@@ -157,15 +137,20 @@ public:
                 // Process group doesn't exist already.
                 return;
             else
-                ythrow yexception() << Sprintf(
+                LOG_FATAL(
                     "Failed to kill job - killpg failed (errno: %d)",
                     errno);
         }
     }
 
-    void SubscribeOnExit(IParamAction<TError>* callback) 
+    void SubscribeExited(const TCallback<void(TError)>& callback) 
     {
-        OnExit->Subscribe(callback);
+        OnExit->Subscribe(FromCallback(callback));
+    }
+
+    void UnsubscribeExited(const TCallback<void(TError)>& callback) 
+    {
+        YUNIMPLEMENTED();
     }
 
 private:
@@ -220,8 +205,8 @@ private:
         OnExit->Set(Error);
     }
 
-    TConfig::TPtr Config;
 
+    const Stroka ProxyPath;
     const Stroka WorkingDirectory;
     TJobId JobId;
 
@@ -302,20 +287,24 @@ class TUnsafeEnvironmentBuilder
     : public IEnvironmentBuilder
 {
 public:
-    TAutoPtr<IProxyController> TUnsafeEnvironmentBuilder::CreateProxyController(
+    TUnsafeEnvironmentBuilder()
+    : ProxyPath(GetExecPath())
+    { }
+
+    TAutoPtr<IProxyController> CreateProxyController(
         NYTree::INodePtr configuration, 
         const TJobId& jobId, 
         const Stroka& workingDirectory)
     {
 #ifndef _win_
-        auto config = New<TUnsafeProxyController::TConfig>();
-        config->Load(configuration);
-
-        return new TUnsafeProxyController(~config, jobId, workingDirectory);
+        return new TUnsafeProxyController(ProxyPath, jobId, workingDirectory);
 #else
         return new TUnsafeProxyController(jobId);
 #endif
     }
+
+private:
+    Stroka ProxyPath;
 };
 
 IEnvironmentBuilderPtr CreateUnsafeEnvironmentBuilder()

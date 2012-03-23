@@ -31,6 +31,25 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// ToDo(psushin): set sigint handler?
+// ToDo(psushin): extract it to separate file.
+TError StatusToError(int status)
+{
+    if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
+        return TError();
+    } else if (WIFSIGNALED(status)) {
+        return TError(Sprintf("Process terminated by signal %d",  WTERMSIG(status)));
+    } else if (WIFSTOPPED(status)) {
+        return TError(Sprintf("Process stopped by signal %d",  WSTOPSIG(status)));
+    } else if (WIFEXITED(status)) {
+        return TError(Sprintf("Process exited with value %d",  WEXITSTATUS(status)));
+    } else {
+        return TError(Sprintf("Status %d", status));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobProxy::TJobProxy(
     TJobProxyConfig* config,
     const TJobId& jobId)
@@ -104,8 +123,8 @@ void TJobProxy::InitPipes()
     // Make pipe for each input and each output table.
     for (int i = 0; i < JobSpec->GetInputCount(); ++i) {
         TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
-        DataPipes.push_back(
-            New<TInputPipe>(JobSpec->GetInputTable(buffer.Get(), i),
+        DataPipes.push_back(New<TInputPipe>(
+            JobSpec->GetInputTable(i, buffer.Get()) ,
             buffer,
             3 * i));
     }
@@ -187,12 +206,7 @@ void TJobProxy::Run()
 
         {
             NScheduler::NProto::TJobResult result;
-            if (JobExitStatus.IsOK()) {
-                result.set_is_ok(true);
-            } else {
-                result.set_is_ok(false);
-                result.set_error_message(JobExitStatus.GetMessage());
-            }
+            *result.mutable_error() = JobExitStatus.ToProto();
             ReportResult(result);
         }
 
@@ -203,8 +217,8 @@ void TJobProxy::Run()
             ex.what());
 
         NScheduler::NProto::TJobResult result;
-        result.set_is_ok(false);
-        result.set_error_message(ex.what());
+        result.mutable_error()->set_code(TError::Fail);
+        result.mutable_error()->set_message(ex.what());
 
         ReportResult(result);
     }
@@ -214,7 +228,7 @@ void TJobProxy::ReportResult(
     const NScheduler::NProto::TJobResult& result)
 {
     auto req = Proxy.OnJobFinished();
-    *(req->mutable_job_result()) = result;
+    *(req->mutable_result()) = result;
     *(req->mutable_job_id()) = JobId.ToProto();
 
     auto rsp = req->Invoke()->Get();
@@ -279,7 +293,7 @@ void TJobProxy::DoJobIO()
             ythrow yexception() << "waitpid failed with errno: " << errno;
         }
 
-        JobExitStatus = GetStatusInfo(status);
+        JobExitStatus = StatusToError(status);
 
         FOREACH(auto& pipe, DataPipes) {
             pipe->Finish();
