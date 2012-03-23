@@ -239,16 +239,10 @@ public:
         }
     }
 
-    virtual IAttributeDictionary& Attributes()
-    {
-        return *GetUserAttributes();
-    }
-
 private:
     IYPathServicePtr UnderlyingService;
     ICompositeNode* Parent;
-    TAutoPtr<IAttributeDictionary> Attributes_;
-
+    
     // TSupportsAttributes members
 
     virtual IAttributeDictionary* GetUserAttributes()
