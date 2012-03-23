@@ -227,16 +227,10 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
 }
 
 template <class T>
-void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
+void TParameter<T>::Save(NYTree::IYsonConsumer* consumer) const
 {
     if (IsPresent()) {
         NYTree::Write(Parameter, consumer);
-    } else {
-        consumer->OnEntity(true);
-        consumer->OnBeginAttributes();
-        consumer->OnAttributesItem("type");
-        consumer->OnStringScalar(DemangleCxxName(typeid(T).name()));
-        consumer->OnEndAttributes();
     }
 }
 
