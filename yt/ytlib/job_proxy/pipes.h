@@ -1,8 +1,9 @@
 ﻿#pragma once
 
-#include "common.h"
+#include "private.h"
 
-#include <ytlib/table_client/writer.h>
+#include <ytlib/table_client/yson_table_input.h>
+#include <ytlib/misc/blob_output.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -64,11 +65,11 @@ struct IDataPipe
 
 ////////////////////////////////////////////////////////////////////
 
-class TErrorPipe
+class TOutputPipe
     : public IDataPipe
 {
 public:
-    TErrorPipe(TOutputStream* output, int jobDescriptor = 2);
+    TOutputPipe(TAutoPtr<TOutputStream> output, int jobDescriptor);
 
     void PrepareJobDescriptors();
     void PrepareProxyDescriptors();
@@ -98,7 +99,10 @@ public:
      *  \note Takes ownership of the input stream.
      *  \param jobDescriptor - number of underlying read descriptor in the job process.
      */
-    TInputPipe(TInputStream* input, int jobDescriptor);
+    TInputPipe(
+        TAutoPtr<NTableClient::TYsonTableInput> ysonInput, 
+        TAutoPtr<TBlobOutput> buffer, 
+        int jobDescriptor);
 
     void PrepareJobDescriptors();
     void PrepareProxyDescriptors();
@@ -111,53 +115,14 @@ public:
 
 private:
     TPipe Pipe;
-    TAutoPtr<TInputStream> InputStream;
     int JobDescriptor;
 
-    // ToDo: configurable?
-    static const int BufferSize = 4096;
-    char Buffer[BufferSize];
+    TAutoPtr<NTableClient::TYsonTableInput> YsonTableInput;
+    TAutoPtr<TBlobOutput> Buffer;
     int Position;
-    int Length;
 
     bool HasData;
     bool IsFinished;
-};
-
-////////////////////////////////////////////////////////////////////
-
-class TOutputPipe
-    : public IDataPipe
-{
-public:
-    typedef TIntrusivePtr<TOutputPipe> TPtr;
-
-    TOutputPipe(NTableClient::ISyncWriter* writer, int jobDescriptor);
-
-    /*!
-     *  Called from job process after fork and before exec.
-     */
-    void PrepareJobDescriptors();
-    void PrepareProxyDescriptors();
-
-    int GetEpollDescriptor() const;
-    int GetEpollFlags() const;
-
-    bool ProcessData(ui32 epollEvents);
-    void Finish();
-
-private:
-    static void* ThreadFunc(void* param);
-    void ThreadMain();
-
-    TPipe ReadingPipe;
-    TPipe FinishPipe;
-
-    Stroka ErrorString;
-    int JobDescriptor;
-
-    NTableClient::ISyncWriter::TPtr Writer;
-    TThread OutputThread;
 };
 
 ////////////////////////////////////////////////////////////////////

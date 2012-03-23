@@ -1,8 +1,11 @@
 #include "stdafx.h"
 
+#include "config.h"
 #include "job_proxy.h"
+
+
 #include <ytlib/rpc/channel.h>
-#include <ytlib/misc/waitpid.h>
+//#include <ytlib/misc/linux.h>
 
 #ifdef _linux_
 
@@ -24,33 +27,16 @@ namespace NJobProxy {
 
 static NLog::TLogger& Logger = JobProxyLogger;
 
-using namespace NTransactionClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static int set_sigpipe()
-{
-    struct sigaction act;
-
-    sigemptyset(&act.sa_mask);
-    sigaddset(&act.sa_mask, SIGPIPE);
-
-    act.sa_flags = 0;
-    act.sa_handler = SIG_IGN;
-    sigaction(SIGPIPE, &act, 0);
-}
-
-static int dummy = set_sigpipe();
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
-    TConfig* config,
-    const TOperationId& operationId, 
-    const int jobIndex)
+    TJobProxyConfig* config,
+    const TJobId& jobId)
     : Config(config)
-    , Proxy(~NRpc::CreateBusChannel(config->SupervisorServiceAddress))
-    , JobId(operationId, jobIndex)
+    , Proxy(~NRpc::CreateBusChannel(config->ExecAgentAddress))
+    , JobId(jobId)
     , ProcessId(-1)
     , ActivePipesCount(0)
 {
@@ -61,7 +47,7 @@ void TJobProxy::GetJobSpec()
 {
     LOG_DEBUG("Requesting spec for job %s", ~JobId.ToString());
     auto req = Proxy.GetJobSpec();
-    *req->mutable_job_id() = JobId.ToProto();
+    req->set_job_id(JobId.ToProto());
 
     auto rsp = req->Invoke()->Get();
 
@@ -71,12 +57,10 @@ void TJobProxy::GetJobSpec()
             ~rsp->GetError().ToString());
     }
 
-    auto txId = TTransactionId::FromProto(rsp->job_spec().transaction_id());
-
     JobSpec = new TJobSpec(
-        ~Config->JobSpec, 
-        rsp->job_spec(), 
-        txId);
+        ~Config->JobIo, 
+        ~Config->Masters,
+        rsp->job_spec());
 }
 
 #ifdef _linux_
@@ -108,22 +92,27 @@ void TJobProxy::InitPipes()
     // and "standard" descriptor numbers in forked job (see comments above) 
     // we ensure that lower 3 * N descriptors are allocated before creating pipes.
 
-    yvector<int> reservedDescriptors;
+    std::vector<int> reservedDescriptors;
     do {
         reservedDescriptors.push_back(SafeDup(STDIN_FILENO));
     } while (reservedDescriptors.back() < maxReservedDescriptor);
 
-    DataPipes.push_back(New<TErrorPipe>(JobSpec->GetErrorOutput()));
+    
+    DataPipes.push_back(New<TOutputPipe>(JobSpec->GetErrorOutput(), STDERR_FILENO));
     ++ActivePipesCount;
 
     // Make pipe for each input and each output table.
     for (int i = 0; i < JobSpec->GetInputCount(); ++i) {
-        DataPipes.push_back(New<TInputPipe>(JobSpec->GetTableInput(i), 3 * i));
+        TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
+        DataPipes.push_back(
+            New<TInputPipe>(JobSpec->GetInputTable(buffer.Get(), i),
+            buffer,
+            3 * i));
     }
 
     for (int i = 0; i < JobSpec->GetOutputCount(); ++i) {
         ++ActivePipesCount;
-        DataPipes.push_back(New<TOutputPipe>(~JobSpec->GetTableOutput(i), 3 * i + 1));
+        DataPipes.push_back(New<TOutputPipe>(~JobSpec->GetOutputTable(i), 3 * i + 1));
     }
 
     // Close reserved descriptors.
@@ -158,7 +147,7 @@ void TJobProxy::StartJob()
 
         exit(7);
     }
-    catch (const yexception& e) {
+    catch (const std::exception& e) {
         ::write(STDERR_FILENO, e.what(), strlen(e.what()));
     }
     // catch (...) {
@@ -296,7 +285,7 @@ void TJobProxy::DoJobIO()
             pipe->Finish();
         }
 
-        ::close(efd);
+        SafeClose(efd);
     } catch (...) {
         // Try to close all pipes despite any other errors.
         // It is safe to call Finish multiple times.
@@ -337,11 +326,6 @@ void TJobProxy::StartJob()
 
 
 #endif
-
-void TJobProxy::ReportStatistic() 
-{
-    // Later.
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

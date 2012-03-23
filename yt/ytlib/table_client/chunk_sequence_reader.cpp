@@ -12,16 +12,12 @@ using namespace NChunkServer;
 
 TChunkSequenceReader::TChunkSequenceReader(
     TConfig* config,
-    const TChannel& channel,
-    const NObjectServer::TTransactionId& transactionId,
     NRpc::IChannel* masterChannel,
     NChunkClient::IBlockCache* blockCache,
-    const std::vector<NProto::TFetchedChunk>& fetchedChunks)
+    const std::vector<NProto::TInputChunk>& fetchedChunks)
     : Config(config)
-    , Channel(channel)
     , BlockCache(blockCache)
-    , TransactionId(transactionId)
-    , FetchedChunks(fetchedChunks)
+    , InputChunks(fetchedChunks)
     , MasterChannel(masterChannel)
     , NextChunkIndex(-1)
     , NextReader(New< TFuture<TChunkReader::TPtr> >())
@@ -32,7 +28,7 @@ TChunkSequenceReader::TChunkSequenceReader(
 void TChunkSequenceReader::PrepareNextChunk()
 {
     YASSERT(!NextReader->IsSet());
-    int chunkSlicesSize = static_cast<int>(FetchedChunks.size());
+    int chunkSlicesSize = static_cast<int>(InputChunks.size());
     YASSERT(NextChunkIndex < chunkSlicesSize);
 
     ++NextChunkIndex;
@@ -41,21 +37,22 @@ void TChunkSequenceReader::PrepareNextChunk()
         return;
     }
 
-    const auto& fetchedChunk = FetchedChunks[NextChunkIndex];
-    const auto& slice = fetchedChunk.slice();
+    const auto& inputChunk = InputChunks[NextChunkIndex];
+    const auto& slice = inputChunk.slice();
     auto remoteReader = CreateRemoteReader(
         ~Config->RemoteReader,
         ~BlockCache,
         ~MasterChannel,
-        TChunkId::FromProto(fetchedChunk.slice().chunk_id()),
-        FromProto<Stroka>(fetchedChunk.holder_addresses()));
+        TChunkId::FromProto(inputChunk.slice().chunk_id()),
+        FromProto<Stroka>(inputChunk.holder_addresses()));
 
     auto chunkReader = New<TChunkReader>(
         ~Config->SequentialReader,
-        Channel,
+        TChannel::FromProto(inputChunk.channel()),
         ~remoteReader,
         slice.start_limit(),
-        slice.end_limit());
+        slice.end_limit(),
+        ""); // ToDo(psushin): pass row attributes here.
 
     chunkReader->AsyncOpen()->Subscribe(FromMethod(
         &TChunkSequenceReader::OnNextReaderOpened,
@@ -83,7 +80,7 @@ TAsyncError TChunkSequenceReader::AsyncOpen()
     YASSERT(NextChunkIndex == 0);
     YASSERT(!State.HasRunningOperation());
 
-    if (FetchedChunks.size() != 0) {
+    if (InputChunks.size() != 0) {
         State.StartOperation();
         NextReader->Subscribe(FromMethod(
             &TChunkSequenceReader::SetCurrentChunk,

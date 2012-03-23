@@ -1,24 +1,17 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
+#include "private.h"
 #include "pipes.h"
 #include "job_spec.h"
 
-//#include "job_stats.pb.h"
-
-#include <ytlib/exec_agent/common.h>
+#include <ytlib/job_proxy/public.h>
+#include <ytlib/scheduler/public.h>
+#include <ytlib/exec_agent/public.h>
 #include <ytlib/exec_agent/supervisor_service_proxy.h>
-#include <ytlib/transaction_client/transaction.h>
 
 namespace NYT {
 namespace NJobProxy {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// ToDo: move to scheduler namespace.
-typedef TGuid TOperationId;
-
-//typedef TValueOrError<NProto::TJobStats> TJobStats;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,32 +19,9 @@ class TJobProxy
     : public TNonCopyable
 {
 public:
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        Stroka SupervisorServiceAddress;
-        TDuration RpcTimeout;
-        TDuration SelectTimeout;
-
-        TJobSpec::TConfig::TPtr JobSpec;
-        Stroka SandboxName;
-
-        TConfig()
-        {
-            Register("supervisor_service_address", SupervisorServiceAddress);
-            Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
-            Register("select_timeout", SelectTimeout).Default(TDuration::Seconds(1));
-            Register("job_spec", JobSpec).DefaultNew();
-            Register("sandbox_name", SandboxName).Default("sandbox");
-        }
-    };
-
     TJobProxy(
-        TConfig* config,
-        const TOperationId& operationId, 
-        const int jobIndex);
+        TJobProxyConfig* config,
+        const NScheduler::TJobId& jobId);
 
     void Run();
 
@@ -68,7 +38,7 @@ private:
 
     typedef NExecAgent::TSupervisorServiceProxy TProxy;
 
-    TConfig::TPtr Config;
+    TJobProxyConfigPtr Config;
     TProxy Proxy;
 
     const NExecAgent::TJobId JobId;

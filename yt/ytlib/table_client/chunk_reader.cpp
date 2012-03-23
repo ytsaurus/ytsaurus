@@ -514,7 +514,8 @@ TChunkReader::TChunkReader(
     const TChannel& channel,
     NChunkClient::IAsyncReader* chunkReader,
     const NProto::TReadLimit& startLimit,
-    const NProto::TReadLimit& endLimit)
+    const NProto::TReadLimit& endLimit,
+    const Stroka& rowAttributes)
     : Codec(NULL)
     , SequentialReader(NULL)
     , Channel(channel)

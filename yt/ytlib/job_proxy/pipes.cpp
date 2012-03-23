@@ -18,7 +18,6 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NYTree;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////
@@ -117,7 +116,7 @@ void SafeMakeNonblocking(int fd)
 
 ////////////////////////////////////////////////////////////////////
 
-TErrorPipe::TErrorPipe(TOutputStream* output, int jobDescriptor /* = 2 */)
+TOutputPipe::TOutputPipe(TAutoPtr<TOutputStream> output, int jobDescriptor /* = 2 */)
     : OutputStream(output)
     , JobDescriptor(jobDescriptor)
     , IsFinished(false)
@@ -127,7 +126,7 @@ TErrorPipe::TErrorPipe(TOutputStream* output, int jobDescriptor /* = 2 */)
     Pipe = TPipe(fd);
 }
 
-void TErrorPipe::PrepareJobDescriptors()
+void TOutputPipe::PrepareJobDescriptors()
 {
     YASSERT(!IsFinished);
 
@@ -136,7 +135,7 @@ void TErrorPipe::PrepareJobDescriptors()
     SafeClose(Pipe.WriteFd);
 }
 
-void TErrorPipe::PrepareProxyDescriptors()
+void TOutputPipe::PrepareProxyDescriptors()
 {
     YASSERT(!IsFinished);
 
@@ -144,14 +143,14 @@ void TErrorPipe::PrepareProxyDescriptors()
     SafeMakeNonblocking(Pipe.ReadFd);
 }
 
-int TErrorPipe::GetEpollDescriptor() const 
+int TOutputPipe::GetEpollDescriptor() const 
 {
     YASSERT(!IsFinished);
 
     return Pipe.ReadFd;
 }
 
-int TErrorPipe::GetEpollFlags() const
+int TOutputPipe::GetEpollFlags() const
 {
     YASSERT(!IsFinished);
 
@@ -162,7 +161,7 @@ int TErrorPipe::GetEpollFlags() const
 #endif
 }
 
-bool TErrorPipe::ProcessData(ui32 epollEvent)
+bool TOutputPipe::ProcessData(ui32 epollEvent)
 {
     YASSERT(!IsFinished);
 
@@ -188,7 +187,7 @@ bool TErrorPipe::ProcessData(ui32 epollEvent)
             return true;
         } else if (size == 0) {
             errno = 0;
-            ::close(Pipe.ReadFd);
+            SafeClose(Pipe.ReadFd);
 
             LOG_TRACE("Error pipe closed (JobDescriptor: %d)", JobDescriptor);
 
@@ -214,7 +213,7 @@ bool TErrorPipe::ProcessData(ui32 epollEvent)
     return true;
 }
 
-void TErrorPipe::Finish()
+void TOutputPipe::Finish()
 {
     if (!IsFinished) {
         OutputStream->Finish();
@@ -224,10 +223,13 @@ void TErrorPipe::Finish()
 
 ////////////////////////////////////////////////////////////////////
 
-TInputPipe::TInputPipe(TInputStream* input, int jobDescriptor)
-    : InputStream(input)
+TInputPipe::TInputPipe(
+    TAutoPtr<TYsonTableInput> ysonInput, 
+    TAutoPtr<TBlobOutput> buffer, 
+    int jobDescriptor)
+    : YsonTableInput(ysonInput)
+    , Buffer(buffer)
     , JobDescriptor(jobDescriptor)
-    , Length(0)
     , Position(0)
     , IsFinished(false)
 {
@@ -275,8 +277,8 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
     YASSERT(!IsFinished);
 
     while (HasData) {
-        if (Position < Length) {
-            auto res = ::write(Pipe.WriteFd, Buffer + Position, Length - Position);
+        if (Position < Buffer->GetSize()) {
+            auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
 
             LOG_TRACE("Written %ld bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
 
@@ -297,10 +299,11 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
             }
         } else {
             Position = 0;
-            Length = InputStream->Read(Buffer, BufferSize);
-
-            if (!(HasData = (Length > 0)))
+            Buffer->Clear();
+            HasData = YsonTableInput->ReadRow();
+            if (!HasData) {
                 SafeClose(Pipe.WriteFd);
+            }
         }
     }
 
@@ -319,7 +322,8 @@ void TInputPipe::Finish()
     }
 
     // Try to read some data from the pipe.
-    ssize_t res = read(Pipe.ReadFd, Buffer, BufferSize);
+    char buffer;
+    ssize_t res = read(Pipe.ReadFd, &buffer, 1);
     if (res > 0) {
         ythrow yexception() << 
             Sprintf("Not all data was consumed by job (fd: %d, job fd: %d)",
@@ -329,104 +333,6 @@ void TInputPipe::Finish()
 
     SafeClose(Pipe.ReadFd);
     IsFinished = true;
-}
-
-////////////////////////////////////////////////////////////////////
-
-TOutputPipe::TOutputPipe(NTableClient::ISyncWriter* writer, int jobDescriptor)
-    : Writer(writer)
-    , OutputThread(ThreadFunc, (void*)this)
-    , JobDescriptor(jobDescriptor)
-{
-    int fd[2];
-    SafePipe(fd);
-    ReadingPipe = TPipe(fd);
-}
-
-void TOutputPipe::PrepareJobDescriptors()
-{
-    SafeClose(ReadingPipe.ReadFd);
-    SafeDup2(ReadingPipe.WriteFd, JobDescriptor);
-    SafeClose(ReadingPipe.WriteFd);
-}
-
-void TOutputPipe::PrepareProxyDescriptors()
-{
-    SafeClose(ReadingPipe.WriteFd);
-
-    int fd[2];
-    SafePipe(fd);
-    FinishPipe = TPipe(fd);
-
-    OutputThread.Start();
-    OutputThread.Detach();
-}
-
-int TOutputPipe::GetEpollDescriptor() const
-{
-    YASSERT(FinishPipe.ReadFd >= 0);
-    return FinishPipe.ReadFd;
-}
-
-int TOutputPipe::GetEpollFlags() const
-{
-    YASSERT(FinishPipe.ReadFd >= 0);
-
-#ifdef _linux_
-    return EPOLLIN | EPOLLERR | EPOLLHUP;
-#else
-    YUNIMPLEMENTED();
-#endif
-}
-
-void* TOutputPipe::ThreadFunc(void* param)
-{
-    TOutputPipe* outputPipe = (TOutputPipe*)param;
-    outputPipe->ThreadMain();
-    return NULL;
-}
-
-void TOutputPipe::ThreadMain()
-{
-    try {
-        Writer->Open();
-
-        TFile file(FHANDLE(ReadingPipe.ReadFd));
-        TFileInput input(file);
-
-        TAutoPtr<TRowConsumer> rowConsumer(new TRowConsumer(~Writer));
-        TYsonFragmentReader reader(rowConsumer.Get(), &input);
-
-        while (reader.HasNext()) {
-            reader.ReadNext();
-        }
-
-        Writer->Close();
-
-    } catch (yexception e) {
-        ErrorString = e.what();
-    }
-
-    // ToDo(psushin): replace by event?
-    // No matter what we write, this just indicates that we're done.
-    ::write(FinishPipe.WriteFd, "Done", 4);
-    ::close(FinishPipe.WriteFd);
-
-    LOG_TRACE("Output pipe finished reading (JobDescriptor: %d)", JobDescriptor);
-}
-
-bool TOutputPipe::ProcessData(ui32 epollEvents)
-{
-    LOG_TRACE("Output pipe closed (JobDescriptor: %d)", JobDescriptor);
-    SafeClose(FinishPipe.ReadFd);
-    return false;
-}
-
-void TOutputPipe::Finish()
-{
-    if (!ErrorString.Empty()) {
-        ythrow yexception() << ErrorString;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////

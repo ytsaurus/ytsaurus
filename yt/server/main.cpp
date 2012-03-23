@@ -15,6 +15,8 @@
 #include <ytlib/cell_scheduler/config.h>
 #include <ytlib/cell_scheduler/bootstrap.h>
 #include <ytlib/scheduler/config.h>
+#include <ytlib/job_proxy/config.h>
+#include <ytlib/job_proxy/job_proxy.h>
 
 namespace NYT {
 
@@ -51,6 +53,16 @@ EExitCode GuardedMain(int argc, const char* argv[])
         .NoArgument()
         .Optional();
 
+    const TOpt& jobProxyOpt = opts.AddLongOption("job-proxy", "start job proxy")
+        .NoArgument()
+        .Optional();
+
+    Stroka jobIdOpt;
+    opts.AddLongOption("job-id", "job id (for job-proxy mode)")
+        .Optional()
+        .RequiredArgument("ID")
+        .StoreResult(&jobIdOPt);
+
     int port = -1;
     opts.AddLongOption("port", "port to listen")
         .Optional()
@@ -63,8 +75,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
         .RequiredArgument("ID")
         .StoreResult(&peerId);
 
-    Stroka configFileName;
+    Stroka configFileName("config.yson");
     opts.AddLongOption("config", "configuration file")
+        .Optional()
         .RequiredArgument("FILE")
         .StoreResult(&configFileName);
 
@@ -78,6 +91,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isCellMaster = results.Has(&cellMasterOpt);
     bool isCellNode = results.Has(&cellNodeOpt);
     bool isScheduler = results.Has(&schedulerOpt);
+    bool isJobProxy = results.Has(&jobProxyOpt);
 
     int modeCount = 0;
     if (isCellNode) {
@@ -91,22 +105,28 @@ EExitCode GuardedMain(int argc, const char* argv[])
         ++modeCount;
     }
 
+    if (isJobProxy) {
+        ++modeCount;
+    }
+
     if (modeCount != 1) {
         opts.PrintUsage(results.GetProgramName());
         return EExitCode::OptionsError;
     }
 
-    // Configure logging.
-    NLog::TLogManager::Get()->Configure(configFileName, "logging");
-
-    // Parse configuration file.
     INodePtr configNode;
-    try {
-        TIFStream configStream(configFileName);
-        configNode = DeserializeFromYson(&configStream);
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error reading server configuration\n%s",
-            ex.what());
+    if (!results.Has(&configTemplateOpt)) {
+        // Configure logging.
+        NLog::TLogManager::Get()->Configure(configFileName, "logging");
+
+        // Parse configuration file.
+        try {
+            TIFStream configStream(configFileName);
+            configNode = DeserializeFromYson(&configStream);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error reading server configuration\n%s",
+                ex.what());
+        }
     }
 
     // Start an appropriate server.
@@ -181,6 +201,34 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         NCellScheduler::TBootstrap bootstrap(configFileName, config);
         bootstrap.Run();
+    }
+
+    if (isJobProxy) {
+        auto config = New<NJobProxy::TJobProxyConfig>();
+        if (results.Has(&configTemplateOpt)) {
+            TYsonWriter writer(&Cout, EYsonFormat::Pretty);
+            config->Save(&writer);
+            return EExitCode::OK;
+        }
+
+        TJobId jobId;
+        try {
+            jobId = TGuid::FromString(jobIdOpt);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Invalid job-id value: %s",
+                ex.what());
+            return EExitCode::OptionsError;
+        }
+
+        try {
+            config->Load(~configNode);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error parsing job-proxy configuration\n%s",
+                ex.what());
+        }
+
+        TJobProxy jobProxy(~config, jobId);
+        jobProxy.Run();
     }
 
     // Actually this will never happen.

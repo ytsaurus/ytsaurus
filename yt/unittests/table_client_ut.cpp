@@ -69,7 +69,7 @@ public:
             TRow ethalon = FilterRow(Rows[i], channel);
 
             EXPECT_TRUE(chunkReader->IsValid());
-            auto row = chunkReader->GetCurrentRow();
+            auto row = chunkReader->GetRowData();
             std::sort(row.begin(), row.end());
 
             EXPECT_EQ(ethalon, row);

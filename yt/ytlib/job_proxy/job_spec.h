@@ -1,52 +1,44 @@
 #pragma once
 
-#include "common.h"
+#include "private.h"
+#include "public.h"
 
-#include "../exec/operations.pb.h"
+#include <ytlib/scheduler/jobs.pb.h>
+
+// ToDo: replace with public.
 #include <ytlib/election/leader_lookup.h>
-#include <ytlib/transaction_client/transaction.h>
-#include <ytlib/table_client/chunk_sequence_reader.h>
-#include <ytlib/table_client/chunk_sequence_writer.h>
-#include <ytlib/file_client/file_writer_base.h>
-#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/table_client/yson_table_input.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
+// ToDo: Convert to interface with factory depending on job type in future.
 class TJobSpec
 {
 public:
-
-
     TJobSpec(
-        TConfig* config,
-        const NScheduler::NProto::TJobSpec& jobSpec,
-        const NTransactionClient::TTransactionId& transactionId);
+        TJobIoConfig* config,
+        NElection::TLeaderLookup::TConfig* mastersConfig,
+        const NScheduler::NProto::TJobSpec& jobSpec);
 
     int GetInputCount() const;
     int GetOutputCount() const;
 
-    TOutputStream* GetErrorOutput();
-    TInputStream* GetTableInput(int index);
-    NTableClient::ISyncWriter::TPtr GetTableOutput(int index);
+    TAutoPtr<NTableClient::TYsonTableInput> GetInputTable(int index, TOutputStream* output);
+    TAutoPtr<TOutputStream> GetOutputTable(int index);
+    TAutoPtr<TOutputStream> GetErrorOutput();
 
-    Stroka GetShellCommand() const;
+    const Stroka& GetShellCommand() const;
 
 private:
-    TConfig::TPtr Config;
+    TJobIoConfigPtr Config;
 
-    // ToDo: make factory, depending on job type and interface.
-    NScheduler::NProto::TJobSpec ProtoSpec;
-    NScheduler::NProto::TMapJobSpec MapSpec;
+    NScheduler::NProto::TMapJobSpec MapJobSpec;
+    NScheduler::NProto::TUserJobSpec UserJobSpec;
 
-    NTransactionClient::TTransactionId TransactionId;
     NRpc::IChannel::TPtr MasterChannel;
-    NTransactionClient::TTransactionId StdErrTransactionId;
-    NChunkServer::TChunkListId StdErrChunkListId;
-    NFileClient::TFileWriterBase* StdErr;
-
 };
 
 ////////////////////////////////////////////////////////////////////

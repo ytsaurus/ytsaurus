@@ -51,15 +51,24 @@ void TTableReader::Open()
             ~fetchRsp->GetError().ToString());
     }
 
-    auto channel = TChannel::FromProto(fetchRsp->channel());
+    //ToDo(psushin): fix fetch and kill me.
+    std::vector<NProto::TInputChunk> inputChunks;
+    for (int i = 0; i < fetchRsp->chunks_size(); ++i) {
+        NProto::TInputChunk chunk;
+        *chunk.mutable_slice() = fetchRsp->chunks(i).slice();
+        FOREACH(auto& holder, fetchRsp->chunks(i).holder_addresses()) {
+            chunk.add_holder_addresses(holder);
+        }
+        *chunk.mutable_channel() = fetchRsp->channel();
+
+        inputChunks.push_back(chunk);
+    }
 
     Reader = New<TChunkSequenceReader>(
         ~Config->ChunkSequenceReader,
-        channel,
-        TransactionId,
         ~MasterChannel,
         ~BlockCache,
-        FromProto<NProto::TFetchedChunk>(fetchRsp->chunks()));
+        inputChunks);
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {

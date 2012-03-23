@@ -4,6 +4,7 @@
 #include "value.h"
 #include "schema.h"
 
+#include <ytlib/ytree/public.h>
 #include <ytlib/misc/ref_counted.h>
 #include <ytlib/misc/async_stream_state.h>
 

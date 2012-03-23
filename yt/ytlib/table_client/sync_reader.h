@@ -22,6 +22,7 @@ struct ISyncReader
 struct IAsyncReader;
 
 class TSyncReader 
+    : public ISyncReader
 {
 public:
     TSyncReader(IAsyncReader* asyncReader);

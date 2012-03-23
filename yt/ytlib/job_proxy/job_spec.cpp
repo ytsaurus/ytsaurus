@@ -1,16 +1,26 @@
 #include "stdafx.h"
 
 #include "job_spec.h"
+#include "config.h"
 
+// ToDo(psushin): use public.h everywhere.
+#include <ytlib/election/leader_channel.h>
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/sync_writer.h>
+#include <ytlib/table_client/validating_writer.h>
+#include <ytlib/table_client/yson_table_output.h>
+
+
+/*
+#include <ytlib/file_client/file_writer_base.h>
 #include <ytlib/table_client/yson_table_input.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/ytree/yson_writer.h>
-#include <ytlib/election/leader_channel.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
-
+*/
 
 namespace NYT {
 namespace NJobProxy {
@@ -21,15 +31,20 @@ static NLog::TLogger& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////
 
+
 using namespace NScheduler;
+using namespace NScheduler::NProto;
 using namespace NTableClient;
-using namespace NFileClient;
-using namespace NTransactionClient;
-using namespace NTransactionServer;
 using namespace NYTree;
+using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
+
+/*
+using namespace NFileClient;
+
 using namespace NCypress;
+
 
 ////////////////////////////////////////////////////////////////////
 
@@ -101,84 +116,80 @@ private:
     TObjectId ChunkListId;
 };
 
+*/
 ////////////////////////////////////////////////////////////////////
 
+
 TJobSpec::TJobSpec(
-    TConfig* config,
-    const NScheduler::NProto::TJobSpec& jobSpec,
-    const TTransactionId& transactionId)
+    TJobIoConfig* config,
+    NElection::TLeaderLookup::TConfig* mastersConfig,
+    const NScheduler::NProto::TJobSpec& jobSpec)
     : Config(config)
-    , ProtoSpec(jobSpec)
-    , TransactionId(transactionId)
-    , StdErrTransactionId(NullTransactionId) // optional
-    , StdErr(NULL)
+    , MasterChannel(CreateLeaderChannel(mastersConfig))
 {
-    YASSERT(ProtoSpec.HasExtension(NScheduler::NProto::TMapJobSpec::map_job_spec));
-    MapSpec = ProtoSpec.GetExtension(NScheduler::NProto::TMapJobSpec::map_job_spec);
+    YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
+    YASSERT(jobSpec.HasExtension(TMapJobSpec::map_job_spec));
 
-    YASSERT(MapSpec.input_tables_size() ==
-        ProtoSpec.operation_spec().input_tables_size());
-
-    MasterChannel = CreateLeaderChannel(~Config->Masters);
+    UserJobSpec = jobSpec.GetExtension(TUserJobSpec::user_job_spec);
+    MapJobSpec = jobSpec.GetExtension(TMapJobSpec::map_job_spec);
 }
 
 int TJobSpec::GetInputCount() const 
 {
-    return ProtoSpec.operation_spec().input_tables_size();
+    // Always single input for map.
+    return 1;
 }
 
 int TJobSpec::GetOutputCount() const
 {
-    return ProtoSpec.operation_spec().output_tables_size();
+    return MapJobSpec.output_specs_size();
 }
 
-TInputStream* TJobSpec::GetTableInput(int index)
+TAutoPtr<NTableClient::TYsonTableInput> TJobSpec::GetInputTable(int index, TOutputStream* output)
 {
     YASSERT(index < GetInputCount());
 
-    TChannel channel = TChannel::FromProto(
-        MapSpec.input_tables(index).channel());
-    
     auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
 
-    yvector<NTableClient::NProto::TChunkSlice> slices(
-        MapSpec.input_tables(index).chunk_slices().begin(),
-        MapSpec.input_tables(index).chunk_slices().end());
+    std::vector<NTableClient::NProto::TInputChunk> chunks(
+        MapJobSpec.input_spec().chunks().begin(),
+        MapJobSpec.input_spec().chunks().end());
 
-    LOG_DEBUG("Creating %d input, %d slices.", 
+    LOG_DEBUG("Creating %d input from %d chunks.", 
         index, 
-        slices.ysize());
+        chunks.size());
 
     auto reader = New<TChunkSequenceReader>(
         ~Config->ChunkSequenceReader,
-        channel,
-        TransactionId,
         ~MasterChannel,
         ~blockCache,
-        slices);
+        chunks);
 
-    return new TYsonTableInput(~reader, Config->OutputFormat);
+    // ToDo: extract format from operation spec.
+    return new TYsonTableInput(~New<TSyncReader>(~reader), EYsonFormat::Text, output);
 }
 
-NTableClient::ISyncWriter::TPtr TJobSpec::GetTableOutput(int index)
+TAutoPtr<TOutputStream> TJobSpec::GetOutputTable(int index)
 {
-    const TYson& schema = MapSpec.output_tables(index).schema();
+    YASSERT(index < GetOutputCount());
+    const TYson& schema = MapJobSpec.output_specs(index).schema();
+    YASSERT(!schema.empty());
+
     auto chunkSequenceWriter = New<TChunkSequenceWriter>(
         ~Config->ChunkSequenceWriter,
         ~MasterChannel,
-        TransactionId,
-        NChunkServer::TChunkListId::FromProto(
-            MapSpec.output_tables(index).chunk_list_id()),
-        schema.empty()
-            ? TSchema::Default()
-            : TSchema::FromYson(schema)
-    );
+        TTransactionId::FromProto(MapJobSpec.output_transaction_id()),
+        TChunkListId::FromProto(MapJobSpec.output_specs(index).chunk_list_id()));
 
-    return chunkSequenceWriter;
+    return new TYsonTableOutput(~New<TSyncWriter>(
+        new TValidatingWriter(
+            TSchema::FromYson(schema), 
+            ~chunkSequenceWriter)));
 }
 
-TOutputStream* TJobSpec::GetErrorOutput()
+TAutoPtr<TOutputStream> TJobSpec::GetErrorOutput()
 {
+    /*
     if (ProtoSpec.has_std_err())
         return new TErrorOutput(
             ~Config->StdErr,
@@ -186,13 +197,14 @@ TOutputStream* TJobSpec::GetErrorOutput()
             TObjectId::FromProto(ProtoSpec.std_err().transaction_id()),
             TObjectId::FromProto(ProtoSpec.std_err().chunk_list_id()));
 
-    else
-        return new TNullOutput();
+    else*/
+
+    return new TNullOutput();
 }
 
-Stroka TJobSpec::GetShellCommand() const
+const Stroka& TJobSpec::GetShellCommand() const
 {
-    return ProtoSpec.operation_spec().shell_command();
+    return UserJobSpec.shell_comand();
 }
 
 ////////////////////////////////////////////////////////////////////
