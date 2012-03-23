@@ -104,14 +104,14 @@ public:
 
         TParent Node(const TYson& value)
         {
-            DeserializeFromYson(value, Consumer);
-            return Parent;
+            DeserializeFromYson(value, this->Consumer);
+            return this->Parent;
         }
 
         TParent Node(INodePtr node)
         {
-            VisitTree(~node, Consumer, true);
-            return Parent;
+            VisitTree(~node, this->Consumer, true);
+            return this->Parent;
         }
 
         TParent Entity()

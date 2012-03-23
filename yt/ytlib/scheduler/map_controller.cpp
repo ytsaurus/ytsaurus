@@ -508,7 +508,7 @@ public:
 
         RemoveJobInfo(job);
 
-        LOG_INFO("Job %s completed");
+        LOG_INFO("Job %s completed", ~job->GetId().ToString());
 
         if (JobCounter.GetPending() == 0) {
             CompleteOperation();
@@ -579,7 +579,7 @@ public:
         YASSERT(pendingJobs > 0);
         i64 pendingWeight = WeightCounter.GetPending();
         YASSERT(pendingWeight > 0);
-        int maxWeightPerJob = (pendingWeight + pendingJobs - 1) / pendingJobs;
+        i64 maxWeightPerJob = (pendingWeight + pendingJobs - 1) / pendingJobs;
 
         auto jobInfo = New<TJobInfo>();
 
@@ -1116,7 +1116,7 @@ private:
         ChunkCounter.Init(totalChunkCount);
         WeightCounter.Init(TotalWeight);
 
-        LOG_INFO("Preparation completed (RowCount: %" PRId64 ", DataSize: %" PRId64 ", Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
+        LOG_INFO("Preparation completed (RowCount: %" PRId64 ", DataSize: %" PRId64 ", Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %" PRId64 ")",
             TotalRowCount,
             TotalRowCount,
             TotalWeight,

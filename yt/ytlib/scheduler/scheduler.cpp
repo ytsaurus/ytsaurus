@@ -517,7 +517,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!rsp->IsOK()) {
-            LOG_ERROR("Error refreshing transactions\n%s", rsp->GetError().ToString());
+            LOG_ERROR("Error refreshing transactions\n%s", ~rsp->GetError().ToString());
             return;
         }
 
@@ -567,7 +567,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!rsp->IsOK()) {
-            LOG_ERROR("Error refreshing exec nodes\n%s", rsp->GetError().ToString());
+            LOG_ERROR("Error refreshing exec nodes\n%s", ~rsp->GetError().ToString());
             return;
         }
 
