@@ -75,17 +75,17 @@ struct IOperationController
 {
     //! Performs a fast synchronous initialization.
     /*
-     *  If an error is returned the operation is aborted immediately.
+     *  If an exception is thrown then the operation fails immediately.
      *  The diagnostics is returned to the client, no Cypress node is created.
      */
-    virtual TError Initialize() = 0;
+    virtual void Initialize() = 0;
 
     //! Performs a possibly lengthy initial preparation.
     /*!
-     *  If preparation succeeds then the operation is considered running.
-     *  Otherwise the operation is marked as failed.
+     *  The controller must set the promise when the preparation is finished (either successfully or unsuccessfully).
+     *  IOperationHost::OnOperationFailed can be called during preparation to indicate an error.
      */
-    virtual TAsyncError Prepare() = 0;
+    virtual TFuture<TVoid>::TPtr Prepare() = 0;
 
     //! Returns the number of jobs still the controller still needs to start.
     virtual i64 GetPendingJobCount() = 0;

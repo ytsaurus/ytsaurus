@@ -1,3 +1,5 @@
+#pragma once
+
 #include <ytlib/transaction_server/transaction_ypath.pb.h>
 
 #include <ytlib/misc/nullable.h>

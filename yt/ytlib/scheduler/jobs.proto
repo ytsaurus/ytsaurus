@@ -24,16 +24,11 @@ message TJobResult
     required NYT.NProto.TError Error = 1;
 }
 
-// Describes a part of input table to be processed by a job.
+// Describes a part of input table(s) to be processed by a job.
 message TTableInputSpec
 {
-    // A channel to read from the table.
-    // Upon receiving an operation spec, the scheduler asks the master to parse input paths
-    // and extract these channels.
-    required NTableClient.NProto.TChannel channel = 1;
-
-    // Chunks (parts of, actually) comprising the input.
-    repeated NYT.NTableClient.NProto.TFetchedChunk chunks = 2;
+    // Chunks comprising the input.
+    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
 }
 
 // Defines how to store output from a job into a table.

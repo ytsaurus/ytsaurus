@@ -181,12 +181,12 @@ TEST_F(TEmptyKeysSortedRows2, ReadWholeChunk)
     // Read whole chunk.
     auto chunkReader = New<TChunkReader>(
         ~New<NChunkClient::TSequentialReader::TConfig>(),
-        TChannel::Universal(),
+        TChannel::CreateUniversal(),
         ~CreateFileReader(),
         NProto::TReadLimit(),
         NProto::TReadLimit());
 
-    Test.Read(chunkReader, TChannel::Universal());
+    Test.Read(chunkReader, TChannel::CreateUniversal());
 }
 
 TEST_F(TEmptyKeysSortedRows2, ReadSecondRow) 
@@ -194,7 +194,7 @@ TEST_F(TEmptyKeysSortedRows2, ReadSecondRow)
     NProto::TReadLimit startLimit;
     startLimit.set_row_index(1);
 
-    TChannel channel = TChannel::Empty(); 
+    TChannel channel = TChannel::CreateEmpty(); 
     channel.AddColumn("b");
 
     auto chunkReader = New<TChunkReader>(
@@ -215,12 +215,12 @@ TEST_F(TEmptyKeysSortedRows2, ReadFirstRow)
 
     auto chunkReader = New<TChunkReader>(
         ~New<NChunkClient::TSequentialReader::TConfig>(),
-        TChannel::Empty(),
+        TChannel::CreateEmpty(),
         ~CreateFileReader(),
         NProto::TReadLimit(),
         endLimit);
 
-    Test.Read(chunkReader, TChannel::Empty(), 0, 1);
+    Test.Read(chunkReader, TChannel::CreateEmpty(), 0, 1);
 } 
 
 TEST_F(TEmptyKeysSortedRows2, ReadChannel) 
@@ -229,7 +229,7 @@ TEST_F(TEmptyKeysSortedRows2, ReadChannel)
     NProto::TReadLimit startLimit; startLimit.mutable_key();
     NProto::TReadLimit endLimit; endLimit.mutable_key();
 
-    TChannel channel = TChannel::Empty(); 
+    TChannel channel = TChannel::CreateEmpty(); 
     channel.AddColumn("a");
 
     auto chunkReader = New<TChunkReader>(
@@ -252,7 +252,7 @@ TEST_F(TEmptyKeysSortedRows2, ReadNothing) {
 
     auto chunkReader = New<TChunkReader>(
         ~New<NChunkClient::TSequentialReader::TConfig>(),
-        TChannel::Universal(),
+        TChannel::CreateUniversal(),
         ~CreateFileReader(),
         startLimit,
         endLimit);
@@ -274,15 +274,15 @@ public:
     {
         auto schema = TSchema::Default();
         {
-            auto channel = TChannel::Empty();
+            auto channel = TChannel::CreateEmpty();
             channel.AddColumn("a");
             schema.AddChannel(channel);
         } {
-            auto channel = TChannel::Empty();
+            auto channel = TChannel::CreateEmpty();
             channel.AddColumn("b");
             schema.AddChannel(channel);
         } {
-            auto channel = TChannel::Empty();
+            auto channel = TChannel::CreateEmpty();
             channel.AddRange(TRange("ba"));
             schema.AddChannel(channel);
         }
@@ -301,12 +301,12 @@ TEST_F(TEmptyKeysUnsortedRows2, ReadWhole)
 {
     auto chunkReader = New<TChunkReader>(
         ~New<NChunkClient::TSequentialReader::TConfig>(),
-        TChannel::Universal(),
+        TChannel::CreateUniversal(),
         ~CreateFileReader(),
         NProto::TReadLimit(),
         NProto::TReadLimit());
 
-    Test.Read(chunkReader, TChannel::Universal());
+    Test.Read(chunkReader, TChannel::CreateUniversal());
 } 
 
 TEST_F(TEmptyKeysUnsortedRows2, ReadSecond) 
@@ -314,7 +314,7 @@ TEST_F(TEmptyKeysUnsortedRows2, ReadSecond)
     NProto::TReadLimit startLimit;
     startLimit.set_row_index(1);
 
-    TChannel channel = TChannel::Empty(); 
+    TChannel channel = TChannel::CreateEmpty(); 
     channel.AddColumn("b");
 
     auto chunkReader = New<TChunkReader>(
@@ -334,7 +334,7 @@ TEST_F(TEmptyKeysUnsortedRows2, ReadKeyRangeFail)
 
     auto chunkReader = New<TChunkReader>(
         ~New<NChunkClient::TSequentialReader::TConfig>(),
-        TChannel::Empty(),
+        TChannel::CreateEmpty(),
         ~CreateFileReader(),
         startLimit,
         endLimit);
@@ -395,17 +395,17 @@ public:
     {
         auto schema = TSchema::Default();
         {
-            auto channel = TChannel::Empty();
+            auto channel = TChannel::CreateEmpty();
             channel.AddColumn("bing");
             channel.AddRange(TRange("google "));
             schema.AddChannel(channel);
         } {
-            auto channel = TChannel::Empty();
+            auto channel = TChannel::CreateEmpty();
             channel.AddColumn("google");
             channel.AddRange(TRange("", "bing"));
             schema.AddChannel(channel);
         } {
-            auto channel = TChannel::Empty();
+            auto channel = TChannel::CreateEmpty();
             channel.AddRange(TRange("yandex"));
             schema.AddChannel(channel);
         }
@@ -428,12 +428,12 @@ TEST_F(TManyRows, ReadWhole)
 {
     auto chunkReader = New<TChunkReader>(
         ~New<NChunkClient::TSequentialReader::TConfig>(),
-        TChannel::Universal(),
+        TChannel::CreateUniversal(),
         ~CreateFileReader(),
         NProto::TReadLimit(),
         NProto::TReadLimit());
 
-    Test.Read(chunkReader, TChannel::Universal());
+    Test.Read(chunkReader, TChannel::CreateUniversal());
 }
 
 TEST_F(TManyRows, ReadKeyRange)
@@ -445,7 +445,7 @@ TEST_F(TManyRows, ReadKeyRange)
     NProto::TReadLimit endLimit;
     endLimit.mutable_key()->add_values("google+");
 
-    auto channel = TChannel::Empty();
+    auto channel = TChannel::CreateEmpty();
     channel.AddRange(TRange("google"));
 
     auto chunkReader = New<TChunkReader>(
@@ -520,17 +520,17 @@ public:
     {
         auto schema = TSchema::Default();
         {
-            auto channel = TChannel::Empty();
+            auto channel = TChannel::CreateEmpty();
             channel.AddColumn("bing");
             channel.AddRange(TRange("google "));
             schema.AddChannel(channel);
         } {
-            auto channel = TChannel::Empty();
+            auto channel = TChannel::CreateEmpty();
             channel.AddColumn("google");
             channel.AddRange(TRange("", "bing"));
             schema.AddChannel(channel);
         } {
-            auto channel = TChannel::Empty();
+            auto channel = TChannel::CreateEmpty();
             channel.AddRange(TRange("yandex"));
             schema.AddChannel(channel);
         }
@@ -558,7 +558,7 @@ TEST_F(TVeryLongRows, ReadKeyRange)
     NProto::TReadLimit endLimit;
     endLimit.mutable_key()->add_values("yahoo");
 
-    auto channel = TChannel::Empty();
+    auto channel = TChannel::CreateEmpty();
     channel.AddRange(TRange("google"));
 
     auto chunkReader = New<TChunkReader>(

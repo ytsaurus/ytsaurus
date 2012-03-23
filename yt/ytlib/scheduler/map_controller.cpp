@@ -7,15 +7,25 @@
 #include "private.h"
 
 #include <ytlib/logging/tagged_logger.h>
+
 #include <ytlib/ytree/serialize.h>
+
 #include <ytlib/misc/thread_affinity.h>
+
+#include <ytlib/transaction_server/transaction_ypath_proxy.h>
+
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/table_client/table_reader.pb.h>
+
 #include <ytlib/object_server/object_ypath_proxy.h>
-//#include <ytlib/transaction_server/transaction_ypath_proxy.h>
+
 #include <ytlib/file_server/file_ypath_proxy.h>
+
 #include <ytlib/cypress/cypress_service_proxy.h>
+
 #include <ytlib/chunk_server/public.h>
+#include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+
 #include <ytlib/table_client/schema.h>
 
 namespace NYT {
@@ -54,14 +64,12 @@ public:
         VERIFY_INVOKER_AFFINITY(Host->GetBackgroundInvoker(), BackgroundThread);
     }
 
-    virtual TError Initialize()
-    {
-        return TError();
-    }
+    virtual void Initialize()
+    { }
 
-    virtual TAsyncError Prepare()
+    virtual TFuture<TVoid>::TPtr Prepare()
     {
-        return MakeFuture(TError());
+        return MakeFuture(TVoid());
     }
 
     virtual void OnJobRunning(TJobPtr job)
@@ -80,8 +88,10 @@ public:
         UNUSED(job);
     }
 
+
     virtual void OnOperationAborted()
     { }
+
 
     virtual void ScheduleJobs(
         TExecNodePtr node,
@@ -103,18 +113,32 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
 
-    void Fail(const TError& error)
+
+    void OnOperationFailed(const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Operation failed\n%s", ~error.ToString());
+
         Host->OnOperationFailed(Operation, error);
+        AbortOperation();
     }
 
-    void Complete()
+    void OnOperationCompleted()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Operation completed");
+
         Host->OnOperationCompleted(Operation);
     }
 
 
-    //static i64 GetRowCount(const TFetchedChunk& fetchedChunk)
+    virtual void AbortOperation()
+    { }
+
+
+    //static i64 GetRowCount(const TInputChunk& fetchedChunk)
     //{
     //    TChunkAttributes chunkAttributes;
     //    DeserializeProtobuf(&chunkAttributes, fetchedChunk.attributes());
@@ -140,29 +164,31 @@ protected:
 class TChunkAllocationMap
 {
 public:
-    TChunkAllocationMap(std::vector<TFetchedChunk>& chunks)
+    int PutChunk(const TInputChunk& chunk, i64 weight)
     {
-        // TODO(babenko): use move ctor when available
-        Chunks.swap(chunks);
-
-        for (int index = 0; index < static_cast<int>(Chunks.size()); ++index) {
-            PutChunk(index);
-        }
+        TChunkInfo info;
+        info.Chunk = chunk;
+        info.Weight = weight;
+        int index = static_cast<int>(ChunkInfos.size());
+        ChunkInfos.push_back(info);
+        RegisterChunk(index);
+        return index;
     }
 
-    const TFetchedChunk& GetChunk(int index)
+    const TInputChunk& GetChunk(int index)
     {
-        return Chunks[index];
+        return ChunkInfos[index].Chunk;
     }
 
     void AllocateChunks(
         const Stroka& address,
-        int maxChunks,
+        i64 maxWeight,
         std::vector<int>* indexes,
+        i64* allocatedWeight,
         int* localCount,
         int* remoteCount)
     {
-        indexes->reserve(maxChunks);
+        *allocatedWeight = 0;
 
         // Take local chunks first.
         *localCount = 0;
@@ -171,7 +197,7 @@ public:
             auto& localIndexes = addressIt->second;
             auto localIt = localIndexes.begin();
             while (localIt != localIndexes.end()) {
-                if (indexes->size() >= maxChunks) {
+                if (*allocatedWeight >= maxWeight) {
                     break;
                 }
 
@@ -183,6 +209,7 @@ public:
                 localIndexes.erase(localIt);
                 YVERIFY(UnallocatedIndexes.erase(chunkIndex) == 1);
                 ++*localCount;
+                allocatedWeight += ChunkInfos[chunkIndex].Weight;
                 
                 localIt = nextLocalIt;
             }
@@ -192,7 +219,7 @@ public:
         *remoteCount = 0;
         auto remoteIt = UnallocatedIndexes.begin();
         while (remoteIt != UnallocatedIndexes.end()) {
-            if (indexes->size() >= maxChunks) {
+            if (*allocatedWeight >= maxWeight) {
                 break;
             }
 
@@ -201,11 +228,12 @@ public:
             int chunkIndex = *remoteIt;
 
             indexes->push_back(*remoteIt);
-            const auto& chunk = Chunks[chunkIndex];
-            FOREACH (const auto& address, chunk.holder_addresses()) {
+            const auto& info = ChunkInfos[chunkIndex];
+            FOREACH (const auto& address, info.Chunk.holder_addresses()) {
                 YVERIFY(AddressToIndexSet[address].erase(chunkIndex) == 1);
             }
             ++*remoteCount;
+            allocatedWeight += ChunkInfos[chunkIndex].Weight;
             
             remoteIt = nextRemoteIt;
         }
@@ -214,19 +242,25 @@ public:
     void DeallocateChunks(const std::vector<int>& indexes)
     {
         FOREACH (auto index, indexes) {
-            PutChunk(index);
+            RegisterChunk(index);
         }
     }
 
 private:
-    std::vector<TFetchedChunk> Chunks;
+    struct TChunkInfo
+    {
+        TInputChunk Chunk;
+        i64 Weight;
+    };
+
+    std::vector<TChunkInfo> ChunkInfos;
     yhash_map<Stroka, yhash_set<int> > AddressToIndexSet;
     yhash_set<int> UnallocatedIndexes;
 
-    void PutChunk(int index)
+    void RegisterChunk(int index)
     {
-        const auto& chunk = Chunks[index];
-        FOREACH (const auto& address, chunk.holder_addresses()) {
+        const auto& info = ChunkInfos[index];
+        FOREACH (const auto& address, info.Chunk.holder_addresses()) {
             YVERIFY(AddressToIndexSet[address].insert(index).second);
         }
         YVERIFY(UnallocatedIndexes.insert(index).second);
@@ -242,13 +276,18 @@ public:
     TChunkListPool(
         NRpc::IChannel::TPtr masterChannel,
         IInvoker::TPtr controlInvoker,
+        TOperationPtr operation,
         const TTransactionId& transactionId)
         : MasterChannel(masterChannel)
         , ControlInvoker(controlInvoker)
+        , Operation(operation)
         , TransactionId(transactionId)
+        , Logger(OperationLogger)
         , RequestInProgress(false)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker, ControlThread);
+        
+        Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
     }
 
     int GetSize() const
@@ -258,13 +297,18 @@ public:
         return static_cast<int>(Ids.size());
     }
 
-    TChunkListId Pop()
+    TChunkListId Extract()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YASSERT(!Ids.empty());
         auto id = Ids.back();
         Ids.pop_back();
+
+        LOG_DEBUG("Extracted chunk list %s from the pool, %d remaining",
+            ~id.ToString(),
+            static_cast<int>(Ids.size()));
+
         return id;
     }
 
@@ -272,8 +316,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (RequestInProgress)
+        if (RequestInProgress) {
+            LOG_DEBUG("Cannot allocate more chunk lists, another request is in progress");
             return;
+        }
+
+        LOG_INFO("Allocating %d chunk lists for pool", count);
 
         TCypressServiceProxy cypressProxy(MasterChannel);
         auto batchReq = cypressProxy.ExecuteBatch();
@@ -296,8 +344,10 @@ private:
 
     NRpc::IChannel::TPtr MasterChannel;
     IInvoker::TPtr ControlInvoker;
+    TOperationPtr Operation;
     TTransactionId TransactionId;
 
+    NLog::TTaggedLogger Logger;
     bool RequestInProgress;
     std::vector<TChunkListId> Ids;
 
@@ -309,13 +359,16 @@ private:
 
         if (!batchRsp->IsOK()) {
             LOG_ERROR("Error allocating chunk lists\n%s", ~batchRsp->GetError().ToString());
+            // TODO(babenko): backoff time?
             return;
         }
+
+        LOG_INFO("Chunk lists allocated");
 
         YASSERT(RequestInProgress);
         YASSERT(Ids.empty());
 
-        FOREACH  (auto rsp, batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>()) {
+        FOREACH (auto rsp, batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>()) {
             Ids.push_back(TChunkListId::FromProto(rsp->object_id()));
         }
     }
@@ -409,28 +462,35 @@ public:
         : TOperationControllerBase(host, operation)
     { }
 
-    virtual TError Initialize()
+    virtual void Initialize()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         Spec = New<TMapOperationSpec>();
         try {
             Spec->Load(~Operation->GetSpec());
         } catch (const std::exception& ex) {
-            return TError(Sprintf("Error parsing operation spec\n%s", ex.what()));
+            ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
         }
 
         if (Spec->In.empty()) {
             // TODO(babenko): is this an error?
-            return TError("No input tables are given");
+            ythrow yexception() << "No input tables are given";
         }
-
-        return TError();
     }
 
-    virtual TAsyncError Prepare()
+    virtual TFuture<TVoid>::TPtr Prepare()
     {
-        //FromMethod(&TThis::StartPrimaryTransaction, this)->AsyncVia(Host->GetBackgroundInvoker())->Do()
-        //->Apply(FromMethod(&TThis::OnPrimaryTransactionStarted)->AsyncVia(Host->GetBackgroundInvoker())
-        return MakeFuture(TError());
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return MakeFuture(TVoid())
+            ->Apply(BindBackgroundTask(&TThis::StartPrimaryTransaction, this))
+            ->Apply(BindBackgroundTask(&TThis::OnPrimaryTransactionStarted, this))
+            ->Apply(BindBackgroundTask(&TThis::StartSeconaryTransactions, this))
+            ->Apply(BindBackgroundTask(&TThis::OnSecondaryTransactionsStarted, this))
+            ->Apply(BindBackgroundTask(&TThis::RequestInputs, this))
+            ->Apply(BindBackgroundTask(&TThis::OnInputsReceived, this))
+            ->Apply(BindBackgroundTask(&TThis::CompletePreparation, this));
     }
 
 
@@ -465,11 +525,15 @@ public:
         JobCounter.Failed(1);
         ChunkCounter.Failed(jobInfo->ChunkIndexes.size());
 
-        // TODO(babenko): failed jobs threshold
-
         ReleaseChunkLists(jobInfo->OutputChunkListIds);
 
         RemoveJobInfo(job);
+
+        // TODO(babenko): make configurable
+        if (JobCounter.GetFailed() > 10) {
+            OnOperationFailed(TError("%d jobs failed, aborting the operation",
+                JobCounter.GetFailed()));
+        }
     }
 
 
@@ -477,7 +541,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        AbortTransactions();
+        AbortOperation();
     }
 
 
@@ -487,44 +551,57 @@ public:
         std::vector<TJobPtr>* jobsToAbort)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        
+        // Check if we have any unassigned chunks left.
+        if (ChunkCounter.GetPending() == 0) {
+            LOG_DEBUG("No pending chunks left, ignoring scheduling request");
+            return;
+        }
 
         // Check if we have enough chunk lists in the pool.
         if (ChunkListPool->GetSize() < OutputTables.size()) {
+            LOG_DEBUG("No chunk lists in pool left, ignoring scheduling request");
             // TODO(babenko): make configurable
             ChunkListPool->Allocate(OutputTables.size() * 10);
             return;
         }
 
-        // Make a copy of generic spec and customize it.
+        // We've got a job to do! :)
+        
+        // Make a copy of the generic spec and customize it.
         auto jobSpec = GenericJobSpec;
         auto* mapJobSpec = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
 
         i64 pendingJobs = JobCounter.GetPending();
         YASSERT(pendingJobs > 0);
-        i64 pendingChunks = ChunkCounter.GetPending();
-        int maxChunksPerJob = (pendingChunks + pendingJobs - 1) / pendingJobs;
+        i64 pendingWeight = WeightCounter.GetPending();
+        YASSERT(pendingWeight > 0);
+        int maxWeightPerJob = (pendingWeight + pendingJobs - 1) / pendingJobs;
 
         auto jobInfo = New<TJobInfo>();
 
+        // Allocate chunks for the job.
         auto& chunkIndexes = jobInfo->ChunkIndexes;
+        i64 allocatedWeight;
         int localCount;
         int remoteCount;
         ChunkAllocationMap->AllocateChunks(
             node->GetAddress(),
-            maxChunksPerJob,
+            maxWeightPerJob,
             &chunkIndexes,
+            &allocatedWeight,
             &localCount,
             &remoteCount);
 
-        LOG_DEBUG("Allocated %d input chunks for node %s (MaxCount: %d, LocalCount: %d, RemoteCount: %d)",
+        LOG_DEBUG("Allocated %d input chunks for node %s (AllocatedWeight: %" PRId64 ", MaxWeight: %" PRId64 ", LocalCount: %d, RemoteCount: %d)",
             static_cast<int>(chunkIndexes.size()),
             ~node->GetAddress(),
-            maxChunksPerJob,
+            allocatedWeight,
+            maxWeightPerJob,
             localCount,
             remoteCount);
 
-        if (chunkIndexes.empty())
-            return;
+        YASSERT(!chunkIndexes.empty());
 
         FOREACH (int chunkIndex, chunkIndexes) {
             const auto& chunk = ChunkAllocationMap->GetChunk(chunkIndex);
@@ -532,7 +609,7 @@ public:
         }
 
         FOREACH (auto& outputSpec, *mapJobSpec->mutable_output_specs()) {
-            auto chunkListId = ChunkListPool->Pop();
+            auto chunkListId = ChunkListPool->Extract();
             jobInfo->OutputChunkListIds.push_back(chunkListId);
             outputSpec.set_chunk_list_id(chunkListId.ToProto());
         }
@@ -546,6 +623,7 @@ public:
 
         JobCounter.Start(1);
         ChunkCounter.Start(chunkIndexes.size());
+        WeightCounter.Start(allocatedWeight);
 
         jobsToStart->push_back(job);
     }
@@ -561,30 +639,35 @@ private:
     typedef TMapController TThis;
 
     TMapOperationSpecPtr Spec;
+
+    // The primary transaction for the whole operation (nested inside operation's transaction).
     ITransaction::TPtr PrimaryTransaction;
+    // The transaction for reading input tables (nested inside the primary one).
+    // These tables are locked with Snapshot mode.
     ITransaction::TPtr InputTransaction;
+    // The transaction for writing output tables (nested inside the primary one).
+    // These tables are locked with Shared mode.
     ITransaction::TPtr OutputTransaction;
 
+    // Input tables.
     struct TInputTable
     {
         TTableYPathProxy::TRspFetch::TPtr FetchResponse;
     };
 
-    TInputTable InputTable;
+    std::vector<TInputTable> InputTables;
 
+    // Output tables.
     struct TOutputTable
     {
-        TOutputTable()
-            // TODO(babenko): don't need this default
-            : Schema("{}")
-        { }
-
         TYson Schema;
+        TChunkListId OutputChunkListId;
         std::vector<TChunkListId> DoneChunkListIds;
     };
 
     std::vector<TOutputTable> OutputTables;
 
+    // Files.
     struct TFile
     {
         TFileYPathProxy::TRspFetch::TPtr FetchResponse;
@@ -592,18 +675,28 @@ private:
 
     std::vector<TFile> Files;
 
+    // Running counters.
     TRunningCounter JobCounter;
     TRunningCounter ChunkCounter;
+    TRunningCounter WeightCounter;
+
+    // Size estimates.
+    i64 TotalRowCount;
+    i64 TotalDataSize;
 
     ::THolder<TChunkAllocationMap> ChunkAllocationMap;
     TChunkListPoolPtr ChunkListPool;
 
+    // The template for starting new jobs.
     TJobSpec GenericJobSpec;
 
+    // Job scheduled so far.
     struct TJobInfo
         : public TIntrinsicRefCounted
     {
+        // Chunk indexes assigned to this job.
         std::vector<int> ChunkIndexes;
+        // Chunk lists allocated to store the result of this job (one per each output table).
         std::vector<TChunkListId> OutputChunkListIds;
     };
 
@@ -612,55 +705,19 @@ private:
     yhash_map<TJobPtr, TJobInfoPtr> JobInfos;
 
 
-    TVoid StartTransactions()
+    // Helpers for constructing a pipeline.
+    template <class TTarget, class TIn, class TOut>
+    TIntrusivePtr< IParamFunc<TIn, TIntrusivePtr< TFuture<TOut> > > >
+    BindBackgroundTask(TIntrusivePtr< TFuture<TOut> > (TTarget::*method)(TIn), TTarget* target)
     {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-        LOG_INFO("Creating primary transaction");
-        PrimaryTransaction = Host->GetTransactionManager()->Start(NULL, Operation->GetTransactionId());
-        LOG_INFO("Primary transaction id is %s", ~PrimaryTransaction->GetId().ToString());
-
-        LOG_INFO("Creating input transaction");
-        InputTransaction = Host->GetTransactionManager()->Start(NULL, PrimaryTransaction->GetId());
-        LOG_INFO("Input transaction id is %s", ~InputTransaction->GetId().ToString());
-
-        LOG_INFO("Creating output transaction");
-        OutputTransaction = Host->GetTransactionManager()->Start(NULL, PrimaryTransaction->GetId());
-        LOG_INFO("Output transaction id is %s", ~OutputTransaction->GetId().ToString());
+        return FromMethod(method, MakeWeak(target))->AsyncVia(Host->GetBackgroundInvoker());
     }
 
-    void CommitTransactions()
+    template <class TTarget, class TIn, class TOut>
+    TIntrusivePtr< IParamFunc<TIn, TIntrusivePtr< TFuture<TOut> > > >
+    BindBackgroundTask(TOut (TTarget::*method)(TIn), TTarget* target)
     {
-        try {
-            LOG_INFO("Committing input transaction");
-            InputTransaction->Commit();
-            LOG_INFO("Input transaction committed");
-
-            LOG_INFO("Committing output transaction");
-            OutputTransaction->Commit();
-            LOG_INFO("Output transaction committed");
-
-            LOG_INFO("Committing primary transaction");
-            PrimaryTransaction->Commit();
-            LOG_INFO("Primary transaction committed");
-        } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error committing transactions\n%s",
-                ex.what());
-        }
-    }
-
-    void AbortTransactions()
-    {
-        LOG_INFO("Aborting operation transactions")
-        if (PrimaryTransaction) {
-            PrimaryTransaction->Abort();
-        }
-
-        // No need to abort the others.
-
-        PrimaryTransaction.Reset();
-        InputTransaction.Reset();
-        OutputTransaction.Reset();
+        return FromMethod(method, MakeWeak(target))->AsyncVia(Host->GetBackgroundInvoker());
     }
 
 
@@ -681,6 +738,8 @@ private:
         YVERIFY(JobInfos.erase(job) == 1);
     }
 
+    
+    // Unsorted helpers.
 
     void InitGenericJobSpec()
     {
@@ -695,7 +754,6 @@ private:
         *jobSpec.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
 
         TMapJobSpec mapJobSpec;
-        *mapJobSpec.mutable_input_spec()->mutable_channel() = InputTable.FetchResponse->channel();
         mapJobSpec.set_input_transaction_id(InputTransaction->GetId().ToProto());
         FOREACH (const auto& table, OutputTables) {
             auto* outputSpec = mapJobSpec.add_output_specs();
@@ -715,15 +773,132 @@ private:
             batchReq->AddRequest(req);
         }
         // Fire-and-forget.
+        // TODO(babenko): log result
         batchReq->Invoke();
     }
 
-    /*
-    TCypressServiceProxy::TInvExecuteBatch::TPtr AcquireTables()
+    // TODO(babenko): YPath and RPC responses currently share no base class
+    template <class TResponse>
+    bool CheckResponse(TResponse response, const Stroka& failureMessage) 
+    {
+        if (response->IsOK()) {
+            return true;
+        } else {
+            OnOperationFailed(TError(failureMessage + "\n" + response->GetError().ToString()));
+            return false;
+        }
+    }
+
+
+    // Here comes the preparation pipeline.
+
+    // Round 1:
+    // - Start primary transaction.
+
+    TCypressServiceProxy::TInvExecuteBatch::TPtr StartPrimaryTransaction(TVoid)
     {
         VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-        LOG_INFO("Acquiring tables");
+        auto batchReq = CypressProxy.ExecuteBatch();
+
+        {
+            auto req = TTransactionYPathProxy::CreateObject(FromObjectId(Operation->GetTransactionId()));
+            req->set_type(EObjectType::Transaction);
+            batchReq->AddRequest(req, "start_primary_tx");
+        }
+
+        return batchReq->Invoke();
+    }
+
+    TVoid OnPrimaryTransactionStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+        if (!CheckResponse(batchRsp, "Error creating primary transaction")) {
+            return TVoid();
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_primary_tx");
+            if (!CheckResponse(rsp, "Error creating primary transaction")) {
+                return TVoid();
+            }
+            auto id = TTransactionId::FromProto(rsp->object_id());
+            PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
+        }
+
+        return TVoid();
+    }
+
+    // Round 2:
+    // - Start input transaction.
+    // - Start output transaction.
+
+    TCypressServiceProxy::TInvExecuteBatch::TPtr StartSeconaryTransactions(TVoid)
+    {
+        VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+        auto batchReq = CypressProxy.ExecuteBatch();
+
+        {
+            auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
+            req->set_type(EObjectType::Transaction);
+            batchReq->AddRequest(req, "start_input_tx");
+        }
+
+        {
+            auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
+            req->set_type(EObjectType::Transaction);
+            batchReq->AddRequest(req, "start_output_tx");
+        }
+
+        return batchReq->Invoke();
+    }
+
+    TVoid OnSecondaryTransactionsStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+        if (!CheckResponse(batchRsp, "Error creating secondary transactions")) {
+            return TVoid();
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_input_tx");
+            if (!CheckResponse(rsp, "Error creating input transaction")) {
+                return TVoid();
+            }
+            auto id = TTransactionId::FromProto(rsp->object_id());
+            LOG_INFO("Input transaction id is %s", ~id.ToString());
+            InputTransaction = Host->GetTransactionManager()->Attach(id);
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_output_tx");
+            if (!CheckResponse(rsp, "Error creating output transaction")) {
+                return TVoid();
+            }
+            auto id = TTransactionId::FromProto(rsp->object_id());
+            LOG_INFO("Output transaction id is %s", ~id.ToString());
+            OutputTransaction = Host->GetTransactionManager()->Attach(id);
+        }
+
+        return TVoid();
+    }
+
+    // Round 3: 
+    // - Fetch input tables.
+    // - Lock input tables.
+    // - Lock output tables.
+    // - Fetch files.
+    // - Get output tables schemata.
+    // - Get output chunk lists.
+
+    TCypressServiceProxy::TInvExecuteBatch::TPtr RequestInputs(TVoid)
+    {
+        VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+        LOG_INFO("Requesting inputs");
 
         auto batchReq = CypressProxy.ExecuteBatch();
 
@@ -731,187 +906,244 @@ private:
             auto req = TTableYPathProxy::Fetch(WithTransaction(path, PrimaryTransaction->GetId()));
             req->set_fetch_holder_addresses(true);
             req->set_fetch_chunk_attributes(true);
-            batchReq->AddRequest(req, "fetch_in");
+            batchReq->AddRequest(req, "fetch_in_tables");
         }
 
         FOREACH (const auto& path, Spec->In) {
             auto req = TCypressYPathProxy::Lock(WithTransaction(path, InputTransaction->GetId()));
             req->set_mode(ELockMode::Snapshot);
-            batchReq->AddRequest(req, "lock_in");
+            batchReq->AddRequest(req, "lock_in_tables");
         }
 
         FOREACH (const auto& path, Spec->Out) {
             auto req = TCypressYPathProxy::Lock(WithTransaction(path, OutputTransaction->GetId()));
             req->set_mode(ELockMode::Shared);
-            batchReq->AddRequest(req, "lock_out");
+            batchReq->AddRequest(req, "lock_out_tables");
         }
 
-        // TODO(babenko): request output schemas
+        FOREACH (const auto& path, Spec->Out) {
+            auto req = TYPathProxy::Get(CombineYPaths(
+                WithTransaction(path, Operation->GetTransactionId()),
+                "@schema"));
+            batchReq->AddRequest(req, "get_out_tables_schemata");
+        }
+
+        FOREACH (const auto& path, Spec->Files) {
+            auto req = TFileYPathProxy::Fetch(WithTransaction(path, Operation->GetTransactionId()));
+            batchReq->AddRequest(req, "fetch_files");
+        }
 
         FOREACH (const auto& path, Spec->Out) {
             auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(path, OutputTransaction->GetId()));
-            batchReq->AddRequest(req, "get_out_chunk_lists");
+            batchReq->AddRequest(req, "get_chunk_lists");
         }
 
         return batchReq->Invoke();
     }
 
-    TVoid OnTablesAcquired(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    TVoid OnInputsReceived(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-        if (!batchRsp->IsOK()) {
-            Fail(TError(Sprintf("Error acquiring input\n%s",
-                ~batchRsp->GetError().ToString())));
+        if (!CheckResponse(batchRsp, "Error requesting inputs")) {
             return TVoid();
         }
 
         {
             InputTables.resize(Spec->In.size());
             TotalRowCount = 0;
-            auto fetchInRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_in");
-            auto lockInRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_in");
+            auto fetchInTablesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_in_tables");
+            auto lockInTablesRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_in_tables");
             for (int index = 0; index < static_cast<int>(Spec->In.size()); ++index) {
-                auto lockInRsp = lockInRsps[index];
-                if (!lockInRsp->IsOK()) {
-                    Fail(TError(Sprintf("Error locking input table\n%s",
-                        ~lockInRsp->GetError().ToString())));
+                auto lockInTableRsp = lockInTablesRsps[index];
+                if (!CheckResponse(lockInTableRsp, "Error locking input table")) {
                     return TVoid();
                 }
 
-                auto fetchInRsp = fetchInRsps[index];
-                if (!lockInRsp->IsOK()) {
-                    Fail(TError(Sprintf("Error fetching input table\n%s",
-                        ~fetchInRsp->GetError().ToString())));
+                auto fetchInTableRsp = fetchInTablesRsps[index];
+                if (!CheckResponse(fetchInTableRsp, "Error fetching input input table")) {
                     return TVoid();
                 }
 
                 auto& table = InputTables[index];
-                table.FetchRsp = fetchInRsp;
+                table.FetchResponse = fetchInTableRsp;
             }
         }
 
         {
             OutputTables.resize(Spec->Out.size());
-            auto lockOutRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_out");
-            auto getOutChunkListsRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_chunk_lists");
+            auto lockOutTablesRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_out_tables");
+            auto getChunkListsRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_chunk_lists");
+            auto getOutTablesSchemataRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_tables_schemata");
             for (int index = 0; index < static_cast<int>(Spec->Out.size()); ++index) {
-                auto lockOutRsp = lockOutRsps[index];
-                if (!lockOutRsp->IsOK()) {
-                    Fail(TError(Sprintf("Error locking output table\n%s",
-                        ~lockOutRsp->GetError().ToString())));
+                auto lockOutTablesRsp = lockOutTablesRsps[index];
+                if (!CheckResponse(lockOutTablesRsp, "Error fetching input input table")) {
                     return TVoid();
                 }
 
-                auto getOutChunkListRsp = getOutChunkListsRsps[index];
-                if (!getOutChunkListRsp->IsOK()) {
-                    Fail(TError(Sprintf("Error getting output chunk list\n%s",
-                        ~getOutChunkListRsp->GetError().ToString())));
+                auto getChunkListRsp = getChunkListsRsps[index];
+                if (!CheckResponse(getChunkListRsp, "Error getting output chunk list")) {
                     return TVoid();
                 }
+
+                auto getOutTableSchemaRsp = getOutTablesSchemataRsps[index];
 
                 auto& table = OutputTables[index];
-                // TODO(babenko): fill schema
-                table.ChunkListId = TChunkListId::FromProto(getOutChunkListRsp->chunk_list_id());
+                table.OutputChunkListId = TChunkListId::FromProto(getChunkListRsp->chunk_list_id());
+                // TODO(babenko): fill output schema
+                table.Schema = "{}";
             }
         }
 
-        // TODO(babenko): statistics
-        LOG_INFO("Tables acquired");
+        {
+            auto fetchFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_files");
+            FOREACH (auto fetchFileRsp, fetchFilesRsps) {
+                if (!CheckResponse(fetchFileRsp, "Error fetching files")) {
+                    return TVoid();
+                }
+                TFile file;
+                file.FetchResponse = fetchFileRsp;
+                Files.push_back(file);
+            }
+        }
+
+        LOG_INFO("Inputs received");
+
+        return TVoid();
     }
-    */
 
-    //TCypressServiceProxy::TInvExecuteBatch::TPtr StartPrimaryTransaction()
-    //{
-    //    auto batchReq = CypressProxy.ExecuteBatch();
+    // Round 4.
+    // - Compute ???
 
-    //    {
-    //        auto req = TTransactionYPathProxy::CreateObject(
-    //            FromObjectId(Operation->GetTransactionId()));
-    //        req->set_type(EObjectType::Transaction);
-    //        batchReq->AddRequest(req, "start_primary_tx");
-    //    }
+    TVoid CompletePreparation(TVoid)
+    {
+        return TVoid();
+    }
+    
 
-    //    return batchReq->Invoke();
-    //}
 
-    //TVoid OnPrimaryTransactionStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
-    //{
-    //    if (!batchRsp->IsOK()) {
-    //        Fail(TError(Sprintf("Error creating primary transaction\n%s",
-    //            ~batchRsp->GetError().ToString())));
-    //        return TVoid();
-    //    }
-
-    //    {
-    //        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_primary_tx");
-    //        auto id = TTransactionId::FromProto(rsp->object_id());
-    //        PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
-    //    }
-
-    //    return TVoid();
-    //}
-
-    //TCypressServiceProxy::TInvExecuteBatch::TPtr StartSeconaryTransactions()
-    //{
-    //    auto batchReq = CypressProxy.ExecuteBatch();
-
-    //    {
-    //        auto req = TTransactionYPathProxy::CreateObject(
-    //            FromObjectId(PrimaryTransaction->GetId()));
-    //        req->set_type(EObjectType::Transaction);
-    //        batchReq->AddRequest(req, "start_input_tx");
-    //    }
-
-    //    {
-    //        auto req = TTransactionYPathProxy::CreateObject(
-    //            FromObjectId(PrimaryTransaction->GetId()));
-    //        req->set_type(EObjectType::Transaction);
-    //        batchReq->AddRequest(req, "start_output_tx");
-    //    }
-
-    //    return batchReq->Invoke();
-    //}
-
-    //TVoid OnSecondaryTransactionsStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
-    //{
-    //    if (!batchRsp->IsOK()) {
-    //        Fail(TError(Sprintf("Error creating secondary transactions\n%s",
-    //            ~batchRsp->GetError().ToString())));
-    //        return TVoid();
-    //    }
-
-    //    {
-    //        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_input_tx");
-    //        auto id = TTransactionId::FromProto(rsp->object_id());
-    //        LOG_INFO("Input transaction id is %s", ~id.ToString());
-    //        InputTransaction = Host->GetTransactionManager()->Attach(id);
-    //    }
-
-    //    {
-    //        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_output_tx");
-    //        auto id = TTransactionId::FromProto(rsp->object_id());
-    //        LOG_INFO("Output transaction id is %s", ~id.ToString());
-    //        OutputTransaction = Host->GetTransactionManager()->Attach(id);
-    //    }
-
-    //    return TVoid();
-    //}
-
+    // Here comes the completion pipeline.
 
     void Complete()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        MakeFuture(TVoid())
+            ->Apply(BindBackgroundTask(&TThis::CommitOutputs, this))
+            ->Apply(BindBackgroundTask(&TThis::OnOutputsCommitted, this));
+    }
+
+    // Round 1.
+    // - Attach output chunk lists.
+    // - Commit input transaction.
+    // - Commit output transaction.
+    // - Commit primary transaction.
+
+    TCypressServiceProxy::TInvExecuteBatch::TPtr CommitOutputs(TVoid)
+    {
         VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-        try {
-            CommitTransactions();
-        } catch (const std::exception& ex) {
-            Fail(TError(ex.what()));
-            return;
+        LOG_INFO("Committing outputs (ChunkCount: %d)",
+            ChunkCounter.GetDone());
+
+        auto batchReq = CypressProxy.ExecuteBatch();
+
+        FOREACH (const auto& table, OutputTables) {
+            auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
+            FOREACH (const auto& childId, table.DoneChunkListIds) {
+                req->add_children_ids(childId.ToProto());
+            }
+            batchReq->AddRequest(req, "attach_chunk_lists");
         }
 
-        TOperationControllerBase::Complete();
+        {
+            auto req = TTransactionYPathProxy::Commit(FromObjectId(InputTransaction->GetId()));
+            batchReq->AddRequest(req, "commit_input_tx");
+        }
+
+        {
+            auto req = TTransactionYPathProxy::Commit(FromObjectId(OutputTransaction->GetId()));
+            batchReq->AddRequest(req, "commit_output_tx");
+        }
+
+        {
+            auto req = TTransactionYPathProxy::Commit(FromObjectId(PrimaryTransaction->GetId()));
+            batchReq->AddRequest(req, "commit_primary_tx");
+        }
+
+        return batchReq->Invoke();
     }
+
+    TVoid OnOutputsCommitted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+        if (!CheckResponse(batchRsp, "Error committing outputs")) {
+            return TVoid();
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse("attach_chunk_lists");
+            if (!CheckResponse(rsp, "Error attaching chunk lists")) {
+                return TVoid();
+            }       
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse("commit_input_tx");
+            if (!CheckResponse(rsp, "Error committing input transaction")) {
+                return TVoid();
+            }
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse("commit_output_tx");
+            if (!CheckResponse(rsp, "Error committing output transaction")) {
+                return TVoid();
+            }
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse("commit_primary_tx");
+            if (!CheckResponse(rsp, "Error committing primary transaction")) {
+                return TVoid();
+            }
+        }
+
+        LOG_INFO("Outputs committed");
+
+        OnOperationCompleted();
+    }
+
+
+    // Abortion... not a pipeline really :)
+
+    virtual void AbortOperation()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Aborting operation");
+
+        AbortTransactions();
+
+        LOG_INFO("Operation aborted");
+    }
+
+    void AbortTransactions()
+    {
+        LOG_INFO("Aborting operation transactions")
+        if (PrimaryTransaction) {
+            // This method is async, no problem in using it here.
+            PrimaryTransaction->Abort();
+        }
+
+        // No need to abort the others.
+
+        PrimaryTransaction.Reset();
+        InputTransaction.Reset();
+        OutputTransaction.Reset();
+    }
+
 
 };
 

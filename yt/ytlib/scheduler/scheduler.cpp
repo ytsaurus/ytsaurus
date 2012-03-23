@@ -152,10 +152,11 @@ private:
         operation->SetController(CreateController(operation.Get()));
 
         operation->SetState(EOperationState::Initializing);
-        auto initError = InitializeOperation(operation);
-        if (!initError.IsOK()) {
-            return MakeFuture(TStartResult(TError(Sprintf("Operation cannot be started\n%s",
-                initError.GetMessage()))));
+        try {
+            InitializeOperation(operation);
+        } catch (const std::exception& ex) {
+            return MakeFuture(TStartResult(TError(Sprintf("Operation failed to start\n%s",
+                ex.what()))));
         }
 
         // Create a node in Cypress that will represent the operation.
@@ -171,10 +172,10 @@ private:
             ->AsyncVia(GetControlInvoker()));
     }
 
-    TError InitializeOperation(TOperationPtr operation)
+    void InitializeOperation(TOperationPtr operation)
     {
         // TODO(babenko): add some controller-independent sanity checks.
-        return operation->GetController()->Initialize();
+        operation->GetController()->Initialize();
     }
 
     TValueOrError<TOperationPtr> OnOperationNodeCreated(
@@ -209,25 +210,18 @@ private:
     }
 
     void OnOperationPrepared(
-        TError error,
+        TVoid,
         TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto id = operation->GetOperationId();
-        if (!error.IsOK()) {
-            LOG_WARNING("Operation preparation failed (OperationId: %s)\n%s", 
-                ~id.ToString(),
-                ~error.GetMessage());
-            UnregisterOperation(operation);
-            return;
-        }
 
-        YASSERT(operation->GetState() == EOperationState::Preparing);           
+        if (operation->GetState() != EOperationState::Preparing)
+            return;
         operation->SetState(EOperationState::Running);
 
         LOG_INFO("Operation has prepared and is now running (OperationId: %s)", 
-            ~id.ToString());
+            ~operation->GetOperationId().ToString());
 
         // From this moment on the controller is fully responsible for the
         // operation's fate. It will eventually call #OnOperationCompleted or
@@ -252,7 +246,7 @@ private:
                     ~operation->GetOperationId().ToString(),
                     ~state.ToString(),
                     ~reason.ToString());
-                operation->GetController()->OnOperationAborted(operation);
+                operation->GetController()->OnOperationAborted();
                 operation->SetState(EOperationState::Aborted);
                 break;
 
@@ -677,10 +671,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto state = operation->GetState();
-        YASSERT(state == EOperationState::Running ||
-                state == EOperationState::Aborting ||
-                state == EOperationState::Aborted);
-        if (state != EOperationState::Running) {
+        if (state != EOperationState::Preparing && state != EOperationState::Running) {
             // Operation is being aborted.
             return;
         }
@@ -699,9 +690,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
         GetControlInvoker()->Invoke(FromMethod(
-            &TImpl::DoOperationCompleted,
+            &TImpl::DoOperationFailed,
             this,
-            operation));
+            operation,
+            error));
     }
 
     void DoOperationFailed(TOperationPtr operation, TError error)
@@ -709,11 +701,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto state = operation->GetState();
-        YASSERT(state == EOperationState::Running ||
-                state == EOperationState::Failed ||
-                state == EOperationState::Aborting ||
-                state == EOperationState::Aborted);
-        if (state != EOperationState::Running) {
+        if (state != EOperationState::Preparing && state != EOperationState::Running) {
             // Safe to call OnOperationFailed multiple times, just ignore it.
             return;
         }

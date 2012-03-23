@@ -4,24 +4,41 @@ import "yt/ytlib/table_client/schema.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// A read boundary given either by a row index, or a key, or both.
+// The boundary is inclusive or exclusive depending of the context (see TChunkSlice below).
 message TReadLimit
 {
     optional int64 row_index = 1;
     optional TKey key = 2;
 }
 
+// A contiguous part of a single table chunk.
 message TChunkSlice
 {
+    // The id of the chunk.
     required bytes chunk_id = 1;
+	// The left boundary, inclusive.
     required TReadLimit start_limit = 2;
+	// The right boundary, exclusive.
     required TReadLimit end_limit = 3;
 }
 
-message TFetchedChunk
+// Describes how to read a portion of table chunk and feed it to the client.
+message TInputChunk
 {
+    // A part of table chunk.
     required TChunkSlice slice = 1;
+	
+	// Initial seed addresses. The reader may ask the master for additional ones.
     repeated string holder_addresses = 2;
-    optional bytes attributes = 3;
+	
+	// Column filter.
+    required TChannel channel = 3;
+
+	// Used by operations to enable the client distinguishing between
+	// several tables that come through a single input stream.
+	// When this value is given the reader inserts this YSON fragment at every row.
+	optional bytes system_fragment = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -95,7 +95,9 @@ public:
     ~TTransaction()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        Owner->UnregisterTransaction(Id);
+        if (Owner) {
+            Owner->UnregisterTransaction(Id);
+        }
     }
 
     virtual TTransactionId GetId() const
@@ -162,6 +164,43 @@ public:
         HandleAbort();
     }
 
+    virtual void Detach()
+    {
+        VERIFY_THREAD_AFFINITY(ClientThread);
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            switch (State) {
+                case EState::Committed:
+                    ythrow yexception() << "Transaction is already committed";
+                    break;
+
+                case EState::Aborted:
+                    ythrow yexception() << "Transaction is already aborted";
+                    break;
+
+                case EState::Active:
+                    State = EState::Detached;
+                    break;
+
+                case EState::Detached:
+                    return;
+
+                default:
+                    YUNREACHABLE();
+            }
+        }
+
+        if (PingInvoker) {
+            PingInvoker->Stop();
+        }
+
+        Owner->UnregisterTransaction(Id);
+        Owner.Reset();
+
+        LOG_INFO("Transaction detached (TransactionId: %s)", ~Id.ToString());
+    }
+
     virtual void SubscribeAborted(const TCallback<void()>& handler)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -215,6 +254,7 @@ private:
         (Aborted)
         (Committing)
         (Committed)
+        (Detached)
     );
 
     TTransactionManager::TPtr Owner;

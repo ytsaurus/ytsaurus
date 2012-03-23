@@ -207,9 +207,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     }
 
     auto channel = TChannel::Empty();
-    ParseYPath(
-        context->GetPath(),
-        &channel);
+    ParseYPath(context->GetPath(), &channel);
 
     *response->mutable_channel() = channel.ToProto();
 
