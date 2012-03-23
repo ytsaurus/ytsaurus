@@ -23,12 +23,12 @@ message TReqFetch
 
 message TRspFetch
 {
-	message TChunkInfo
-	{
-		required NYT.NTableClient.NProto.TChunkSlice slice = 1;
-		repeated string holder_addresses = 2;
-		optional bytes attributes = 3;
-	}
+    message TChunkInfo
+    {
+        required NYT.NTableClient.NProto.TChunkSlice slice = 1;
+        repeated string holder_addresses = 2;
+        optional bytes attributes = 3;
+    }
 
     required NYT.NTableClient.NProto.TChannel channel = 1;
     repeated TChunkInfo chunks = 2;

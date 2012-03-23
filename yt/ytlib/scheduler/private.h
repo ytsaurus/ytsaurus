@@ -9,9 +9,8 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////
 
 extern NLog::TLogger SchedulerLogger;
+extern NLog::TLogger OperationsLogger;
 extern NProfiling::TProfiler SchedulerProfiler;
-
-extern NLog::TLogger OperationLogger;
 
 ////////////////////////////////////////////////////////////////////
 

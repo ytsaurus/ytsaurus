@@ -9,8 +9,10 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/fluent.h>
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/string.h>
 
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
@@ -46,10 +48,12 @@ using namespace NFileServer;
 
 ////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger(OperationLogger);
+static NLog::TLogger& Logger(OperationsLogger);
+static NProfiling::TProfiler Profiler("operations/map");
 
 ////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): extract to a proper place
 class TOperationControllerBase
     : public IOperationController
 {
@@ -58,7 +62,7 @@ public:
         : Host(host)
         , Operation(operation)
         , CypressProxy(host->GetMasterChannel())
-        , Logger(OperationLogger)
+        , Logger(OperationsLogger)
     {
         VERIFY_INVOKER_AFFINITY(Host->GetControlInvoker(), ControlThread);
         VERIFY_INVOKER_AFFINITY(Host->GetBackgroundInvoker(), BackgroundThread);
@@ -136,34 +140,20 @@ protected:
 
     virtual void AbortOperation()
     { }
-
-
-    //static i64 GetRowCount(const TInputChunk& fetchedChunk)
-    //{
-    //    TChunkAttributes chunkAttributes;
-    //    DeserializeProtobuf(&chunkAttributes, fetchedChunk.attributes());
-
-    //    YASSERT(chunkAttributes.HasExtension(TTableChunkAttributes::table_attributes));
-    //    const auto& tableChunkAttributes = chunkAttributes.GetExtension(TTableChunkAttributes::table_attributes);
-
-    //    return tableChunkAttributes.row_count();
-    //}
-
-    //static i64 GetRowCount(TTableYPathProxy::TRspFetch::TPtr rsp)
-    //{
-    //    i64 result = 0;
-    //    FOREACH (const auto& chunk, rsp->chunks()) {
-    //        result += GetRowCount(chunk);
-    //    }
-    //    return result;
-    //}
 };
 
 ////////////////////////////////////////////////////////////////////
 
-class TChunkAllocationMap
+// TODO(babenko): extract to a proper place
+class TChunkPool
 {
 public:
+    TChunkPool(TOperationPtr operation)
+        : Logger(OperationsLogger)
+    {
+        Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
+    }
+
     int PutChunk(const TInputChunk& chunk, i64 weight)
     {
         TChunkInfo info;
@@ -237,6 +227,8 @@ public:
             
             remoteIt = nextRemoteIt;
         }
+
+        LOG_DEBUG("Extracted chunks [%s] from the pool", ~JoinToString(*indexes));
     }
 
     void DeallocateChunks(const std::vector<int>& indexes)
@@ -244,9 +236,13 @@ public:
         FOREACH (auto index, indexes) {
             RegisterChunk(index);
         }
+
+        LOG_DEBUG("Chunks [%s] are back in the pool", ~JoinToString(indexes));
     }
 
 private:
+    NLog::TTaggedLogger Logger;
+
     struct TChunkInfo
     {
         TInputChunk Chunk;
@@ -269,6 +265,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): extract to a proper place
 class TChunkListPool
     : public TRefCounted
 {
@@ -282,7 +279,7 @@ public:
         , ControlInvoker(controlInvoker)
         , Operation(operation)
         , TransactionId(transactionId)
-        , Logger(OperationLogger)
+        , Logger(OperationsLogger)
         , RequestInProgress(false)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker, ControlThread);
@@ -378,6 +375,7 @@ typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
 
 ////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): extract to a proper place
 class TRunningCounter
 {
 public:
@@ -473,9 +471,9 @@ public:
             ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
         }
 
-        if (Spec->In.empty()) {
-            // TODO(babenko): is this an error?
-            ythrow yexception() << "No input tables are given";
+        ExecNodeCount = Host->GetExecNodeCount();
+        if (ExecNodeCount == 0) {
+            ythrow yexception() << "No online exec nodes";
         }
     }
 
@@ -509,6 +507,12 @@ public:
         ChunkCounter.Completed(jobInfo->ChunkIndexes.size());
 
         RemoveJobInfo(job);
+
+        LOG_INFO("Job %s completed");
+
+        if (JobCounter.GetPending() == 0) {
+            CompleteOperation();
+        }
     }
 
     virtual void OnJobFailed(TJobPtr job)
@@ -517,10 +521,7 @@ public:
 
         auto jobInfo = GetJobInfo(job);
 
-        for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
-            auto chunkListId = jobInfo->OutputChunkListIds[index];
-            OutputTables[index].DoneChunkListIds.push_back(chunkListId);
-        }
+        ChunkPool->DeallocateChunks(jobInfo->ChunkIndexes);
 
         JobCounter.Failed(1);
         ChunkCounter.Failed(jobInfo->ChunkIndexes.size());
@@ -528,6 +529,8 @@ public:
         ReleaseChunkLists(jobInfo->OutputChunkListIds);
 
         RemoveJobInfo(job);
+
+        LOG_INFO("Job %s failed", ~job->GetId().ToString());
 
         // TODO(babenko): make configurable
         if (JobCounter.GetFailed() > 10) {
@@ -585,7 +588,7 @@ public:
         i64 allocatedWeight;
         int localCount;
         int remoteCount;
-        ChunkAllocationMap->AllocateChunks(
+        ChunkPool->AllocateChunks(
             node->GetAddress(),
             maxWeightPerJob,
             &chunkIndexes,
@@ -593,7 +596,7 @@ public:
             &localCount,
             &remoteCount);
 
-        LOG_DEBUG("Allocated %d input chunks for node %s (AllocatedWeight: %" PRId64 ", MaxWeight: %" PRId64 ", LocalCount: %d, RemoteCount: %d)",
+        LOG_DEBUG("Allocated %d chunks for node %s (AllocatedWeight: %" PRId64 ", MaxWeight: %" PRId64 ", LocalCount: %d, RemoteCount: %d)",
             static_cast<int>(chunkIndexes.size()),
             ~node->GetAddress(),
             allocatedWeight,
@@ -604,7 +607,7 @@ public:
         YASSERT(!chunkIndexes.empty());
 
         FOREACH (int chunkIndex, chunkIndexes) {
-            const auto& chunk = ChunkAllocationMap->GetChunk(chunkIndex);
+            const auto& chunk = ChunkPool->GetChunk(chunkIndex);
             *mapJobSpec->mutable_input_spec()->add_chunks() = chunk;
         }
 
@@ -683,8 +686,12 @@ private:
     // Size estimates.
     i64 TotalRowCount;
     i64 TotalDataSize;
+    i64 TotalWeight;
 
-    ::THolder<TChunkAllocationMap> ChunkAllocationMap;
+    // Fixed during init time, used to compute job count.
+    int ExecNodeCount;
+
+    ::THolder<TChunkPool> ChunkPool;
     TChunkListPoolPtr ChunkListPool;
 
     // The template for starting new jobs.
@@ -779,7 +786,7 @@ private:
         batchReq->Invoke();
     }
 
-    // TODO(babenko): YPath and RPC responses currently share no base class
+    // TODO(babenko): YPath and RPC responses currently share no base class.
     template <class TResponse>
     bool CheckResponse(TResponse response, const Stroka& failureMessage) 
     {
@@ -1015,20 +1022,118 @@ private:
     }
 
     // Round 4.
-    // - Compute ???
+    // - Compute various row counts, sizes, weights etc.
+    // - Construct input chunks and put them into the pool.
+    // - Choose job count.
+    // - Preallocate chunk lists.
+    // - Initialize running counters.
 
     TVoid CompletePreparation(TVoid)
     {
+        VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+        LOG_INFO("Completing preparation");
+
+        ChunkPool.Reset(new TChunkPool(Operation));
+        ChunkListPool = New<TChunkListPool>(
+            Host->GetMasterChannel(),
+            Host->GetControlInvoker(),
+            Operation,
+            PrimaryTransaction->GetId());
+
+        // Compute statistics and populate the pools.
+
+        TotalRowCount = 0;
+        TotalDataSize = 0;
+        TotalWeight = 0;
+
+        i64 totalChunkCount = 0;
+
+        for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
+            const auto& table = InputTables[tableIndex];
+
+            TNullable<TYson> rowAttributes;
+            if (InputTables.size() > 1) {
+                // TODO(babenko): think of a proper name
+                rowAttributes = BuildYsonFluently()
+                    .BeginMap()
+                        .Item("table_index").Scalar(tableIndex)
+                    .EndMap();
+            }
+
+            auto fetchRsp = table.FetchResponse;
+            FOREACH (const auto& chunkInfo, fetchRsp->chunks()) {
+                TInputChunk inputChunk;
+                *inputChunk.mutable_slice() = chunkInfo.slice();
+                inputChunk.mutable_holder_addresses()->MergeFrom(chunkInfo.holder_addresses());
+                *inputChunk.mutable_channel() = fetchRsp->channel();
+                if (rowAttributes) {
+                    inputChunk.set_row_attributes(rowAttributes.Get());
+                }
+
+                TChunkAttributes chunkAttributes;
+                YVERIFY(DeserializeProtobuf(&chunkAttributes, chunkInfo.attributes()));
+
+                YASSERT(chunkAttributes.HasExtension(TTableChunkAttributes::table_attributes));
+                const auto& tableChunkAttributes = chunkAttributes.GetExtension(TTableChunkAttributes::table_attributes);
+
+                // TODO(babenko): compute more accurately
+                i64 rowCount = tableChunkAttributes.row_count();
+                i64 dataSize = tableChunkAttributes.uncompressed_size();
+
+                TotalRowCount += rowCount;
+                TotalDataSize += TotalDataSize;
+
+                // TODO(babenko): make customizable
+                i64 weight = dataSize;
+
+                TotalWeight += weight;
+
+                ChunkPool->PutChunk(inputChunk, weight);
+
+                ++totalChunkCount;
+            }
+        }
+
+        // Choose job count.
+        i64 totalJobCount = Spec->JobCount.Get(ExecNodeCount);
+        totalJobCount = std::min(totalJobCount, static_cast<i64>(totalChunkCount));
+        totalJobCount = std::min(totalJobCount, TotalRowCount);
+
+        // Check for empty inputs.
+        if (totalJobCount == 0) {
+            LOG_INFO("Empty input");
+            CompleteOperation();
+            return TVoid();
+        }
+
+        // Allocate some initial chunk lists.
+        // TOOD(babenko): make configurable
+        ChunkListPool->Allocate(OutputTables.size() * 10);
+
+        // Init running counters.
+        JobCounter.Init(totalJobCount);
+        ChunkCounter.Init(totalChunkCount);
+        WeightCounter.Init(TotalWeight);
+
+        LOG_INFO("Preparation completed (RowCount: %" PRId64 ", DataSize: %" PRId64 ", Weight: %" PRId64 ", ChunkCount: %d, JobCount: %d)",
+            TotalRowCount,
+            TotalRowCount,
+            TotalWeight,
+            totalChunkCount,
+            totalJobCount);
+
         return TVoid();
     }
-    
 
 
     // Here comes the completion pipeline.
 
-    void Complete()
+    void CompleteOperation()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        LOG_INFO("Completing operation");
 
         MakeFuture(TVoid())
             ->Apply(BindBackgroundTask(&TThis::CommitOutputs, this))
@@ -1047,6 +1152,11 @@ private:
 
         LOG_INFO("Committing outputs (ChunkCount: %d)",
             ChunkCounter.GetDone());
+
+        // We don't need pings any longer, detach the transactions.
+        PrimaryTransaction->Detach();
+        InputTransaction->Detach();
+        OutputTransaction->Detach();
 
         auto batchReq = CypressProxy.ExecuteBatch();
 
@@ -1115,10 +1225,12 @@ private:
         LOG_INFO("Outputs committed");
 
         OnOperationCompleted();
+
+        return TVoid();
     }
 
 
-    // Abortion... not a pipeline really :)
+    // Abort is not a pipeline really :)
 
     virtual void AbortOperation()
     {
@@ -1134,18 +1246,14 @@ private:
     void AbortTransactions()
     {
         LOG_INFO("Aborting operation transactions")
+
         if (PrimaryTransaction) {
             // This method is async, no problem in using it here.
             PrimaryTransaction->Abort();
         }
 
         // No need to abort the others.
-
-        PrimaryTransaction.Reset();
-        InputTransaction.Reset();
-        OutputTransaction.Reset();
     }
-
 
 };
 

@@ -17,9 +17,9 @@ message TChunkSlice
 {
     // The id of the chunk.
     required bytes chunk_id = 1;
-	// The left boundary, inclusive.
+    // The left boundary, inclusive.
     required TReadLimit start_limit = 2;
-	// The right boundary, exclusive.
+    // The right boundary, exclusive.
     required TReadLimit end_limit = 3;
 }
 
@@ -28,17 +28,16 @@ message TInputChunk
 {
     // A part of table chunk.
     required TChunkSlice slice = 1;
-	
-	// Initial seed addresses. The reader may ask the master for additional ones.
+    
+    // Initial seed addresses. The reader may ask the master for additional ones.
     repeated string holder_addresses = 2;
-	
-	// Column filter.
+    
+    // Column filter.
     required TChannel channel = 3;
 
-	// Used by operations to enable the client distinguishing between
-	// several tables that come through a single input stream.
-	// When this value is given the reader inserts this YSON fragment at every row.
-	optional bytes system_fragment = 4;
+    // When this value is given the reader inserts this YSON map as attributes at every row.
+    // This enables,  e.g., the client to distinguish between several tables coming through a single input stream.
+    optional bytes row_attributes = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

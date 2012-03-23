@@ -638,6 +638,13 @@ private:
         return BackgroundQueue->GetInvoker();
     }
 
+    virtual int GetExecNodeCount()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return static_cast<int>(ExecNodes.size());
+    }
+
     virtual TJobPtr CreateJob(
         TOperationPtr operation,
         TExecNodePtr node,

@@ -2,6 +2,7 @@
 #include "exec_node.h"
 #include "job.h"
 #include "operation.h"
+#include "operation_controller.h"
 
 namespace NYT {
 namespace NScheduler {

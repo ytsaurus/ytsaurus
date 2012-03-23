@@ -16,6 +16,7 @@ struct TMapOperationSpec
     yvector<NYTree::TYPath> Files;
     yvector<NYTree::TYPath> In;
     yvector<NYTree::TYPath> Out;
+    TNullable<int> JobCount;
 
     TMapOperationSpec()
     {
@@ -26,6 +27,8 @@ struct TMapOperationSpec
             .Default(yvector<NYTree::TYPath>());
         Register("in", In);
         Register("out", Out);
+        // TODO(babenko): validate > 0
+        Register("job_count", JobCount);
     }
 };
 

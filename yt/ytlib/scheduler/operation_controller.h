@@ -17,11 +17,20 @@ struct IOperationHost
     { }
 
 
+    /*!
+     *  \note Thread affinity: any
+     */
     virtual NRpc::IChannel::TPtr GetMasterChannel() = 0;
 
+    /*!
+     *  \note Thread affinity: any
+     */
     virtual NTransactionClient::TTransactionManager::TPtr GetTransactionManager() = 0;
 
     //! Returns the control invoker of the scheduler.
+    /*!
+     *  \note Thread affinity: any
+     */
     virtual IInvoker::TPtr GetControlInvoker() = 0;
     
     //! Returns the invoker for heavy background activities.
@@ -30,8 +39,16 @@ struct IOperationHost
      *  (e.g. sorting samples keys, constructing partitions etc).
      *  There are no affinity guarantees whatsoever.
      *  This could easily be a thread pool.
+     *  
+     *  \note Thread affinity: any
      */
     virtual IInvoker::TPtr GetBackgroundInvoker() = 0;
+
+    //! Returns the number of currently active exec nodes.
+    /*!
+     *  \note Thread affinity: ControlThread
+     */
+    virtual int GetExecNodeCount() = 0;
 
     //! A factory method for creating new jobs.
     /*!
