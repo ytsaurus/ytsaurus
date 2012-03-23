@@ -92,8 +92,7 @@ TTransactedArgs::TTransactedArgs()
 void TTransactedArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("transaction_id")
-        .Scalar(TxArg->getValue().ToString());
+        .Item("transaction_id").Scalar(TxArg->getValue().ToString());
     TArgsBase::BuildCommand(consumer);
 }
 
