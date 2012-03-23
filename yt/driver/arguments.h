@@ -47,6 +47,8 @@ protected:
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
+typedef TIntrusivePtr<TArgsBase> TArgsBasePtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactedArgs
@@ -262,6 +264,23 @@ private:
     THolder<TFreeStringArg> PathArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapArgs
+    : public TTransactedArgs
+{
+public:
+    TMapArgs();
+
+private:
+    THolder<TCLAP::MultiArg<Stroka> > InArg;
+    THolder<TCLAP::MultiArg<Stroka> > OutArg;
+    THolder<TCLAP::ValueArg<Stroka> > ShellCommandArg;
+
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

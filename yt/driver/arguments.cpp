@@ -342,6 +342,36 @@ void TDownloadArgs::BuildCommand(IYsonConsumer* consumer)
     TTransactedArgs::BuildCommand(consumer);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TMapArgs::TMapArgs()
+{
+    InArg.Reset(new TCLAP::MultiArg<Stroka>("", "in", "input tables", false, "path"));
+    Cmd->add(~InArg);
+
+    OutArg.Reset(new TCLAP::MultiArg<Stroka>("", "out", "output tables", false, "path"));
+    Cmd->add(~OutArg);
+
+    ShellCommandArg.Reset(new TCLAP::ValueArg<Stroka>("", "command", "shell command", true, "", "path"));
+    Cmd->add(~ShellCommandArg);
+}
+
+void TMapArgs::BuildCommand(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("do").Scalar("map")
+        .Item("spec").BeginMap()
+            .Item("shell_command").Scalar(ShellCommandArg->getValue())
+            .Item("in").DoListFor(InArg->getValue(), [=] (TFluentList fluent, Stroka path) {
+                fluent.Item().Scalar(path);
+            })
+            .Item("out").DoListFor(OutArg->getValue(), [=] (TFluentList fluent, Stroka path) {
+                fluent.Item().Scalar(path);
+            })
+        .EndMap();
+
+    TTransactedArgs::BuildCommand(consumer);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
