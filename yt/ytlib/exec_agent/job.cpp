@@ -134,7 +134,7 @@ void TJob::OnChunkDownloaded(
             ~fileName,
             ~result.GetMessage());
 
-        LOG_WARNING("%s", msg);
+        LOG_WARNING("%s", ~msg);
         SetResult(TError(msg));
         JobProgress = NScheduler::EJobProgress::Failed;
         return;
@@ -154,7 +154,7 @@ void TJob::OnChunkDownloaded(
             ~fileName,
             ex.what());
 
-        LOG_WARNING("%s", msg);
+        LOG_WARNING("%s", ~msg);
         SetResult(TError(msg));
         JobProgress = NScheduler::EJobProgress::Failed;
         return;
