@@ -50,7 +50,7 @@ class Server(Base):
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
-        params = Template('--master --config %(config_path)s --port %(port)d --id %(__name__)s')
+        params = Template('--master --config %(config_path)s --port %(port)d')
 
         config = Template({
                 'meta_state' : {

@@ -129,6 +129,10 @@ public:
 
         CellManager = New<TCellManager>(~Config->Cell);
 
+        LOG_INFO("Self peer address is %s and peer id is %d",
+            ~CellManager->SelfAddress(),
+            CellManager->SelfId());
+
         ElectionManager = New<TElectionManager>(
             ~Config->Election,
             ~CellManager,
@@ -838,7 +842,7 @@ public:
         LOG_INFO("Starting leader recovery");
 
         ControlStatus = EPeerStatus::LeaderRecovery;
-        LeaderId = CellManager->GetSelfId();
+        LeaderId = CellManager->SelfId();
 
         StartEpoch(epoch);
 

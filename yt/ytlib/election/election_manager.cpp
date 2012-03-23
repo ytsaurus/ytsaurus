@@ -1,4 +1,4 @@
-#include "stdafx.h"
+
 #include "election_manager.h"
 
 #include <ytlib/misc/serialize.h>
@@ -38,7 +38,7 @@ public:
 
         auto& cellManager = ElectionManager->CellManager;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id != cellManager->GetSelfId()) {
+            if (id != cellManager->SelfId()) {
                 SendPing(id);
             }
         }
@@ -71,7 +71,7 @@ private:
         auto request = proxy
             ->PingFollower()
             ->SetTimeout(ElectionManager->Config->RpcTimeout);
-        request->set_leader_id(ElectionManager->CellManager->GetSelfId());
+        request->set_leader_id(ElectionManager->CellManager->SelfId());
         request->set_epoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
             request->Invoke(),
@@ -194,7 +194,7 @@ public:
             ~ElectionManager->VoteEpoch.ToString());
 
         ProcessVote(
-            cellManager->GetSelfId(),
+            cellManager->SelfId(),
             TStatus(
                 ElectionManager->State,
                 ElectionManager->VoteId,
@@ -202,7 +202,7 @@ public:
                 ElectionManager->VoteEpoch));
 
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id == cellManager->GetSelfId()) continue;
+            if (id == cellManager->SelfId()) continue;
 
             auto proxy = cellManager->GetMasterProxy<TProxy>(id);
             proxy->SetDefaultTimeout(ElectionManager->Config->RpcTimeout);
@@ -308,7 +308,7 @@ private:
         // Use the local one for self
         // (others may still be following with an outdated epoch).
         auto candidateEpoch =
-            candidateId == ElectionManager->CellManager->GetSelfId()
+            candidateId == ElectionManager->CellManager->SelfId()
             ? ElectionManager->VoteEpoch
             : candidateStatus.VoteEpoch;
 
@@ -337,7 +337,7 @@ private:
         Awaiter->Cancel();
 
         // Become a leader or a follower.
-        if (candidateId == ElectionManager->CellManager->GetSelfId()) {
+        if (candidateId == ElectionManager->CellManager->SelfId()) {
             EpochInvoker->Invoke(FromMethod(
                 &TElectionManager::StartLeading,
                 TElectionManager::TPtr(ElectionManager)));
@@ -375,7 +375,7 @@ private:
         if (candidateId != candidateStatus.VoteId)
             return false;
 
-        if (candidateId == ElectionManager->CellManager->GetSelfId()) {
+        if (candidateId == ElectionManager->CellManager->SelfId()) {
             // Check that we're voting.
             YASSERT(candidateStatus.State == TProxy::EState::Voting);
             return true;
@@ -556,7 +556,7 @@ void TElectionManager::StartVoteForSelf()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     State = TProxy::EState::Voting;
-    VoteId = CellManager->GetSelfId();
+    VoteId = CellManager->SelfId();
     VoteEpoch = TGuid::Create();
 
     YASSERT(!ControlEpochContext);
@@ -610,7 +610,7 @@ void TElectionManager::StartLeading()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     UpdateState(TProxy::EState::Leading);
-    YASSERT(VoteId == CellManager->GetSelfId());
+    YASSERT(VoteId == CellManager->SelfId());
 
     // Initialize followers state.
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
@@ -618,7 +618,7 @@ void TElectionManager::StartLeading()
         PotentialFollowers.insert(i);
     }
     
-    StartEpoch(CellManager->GetSelfId(), VoteEpoch);
+    StartEpoch(CellManager->SelfId(), VoteEpoch);
 
     // Send initial pings.
     YASSERT(!FollowerPinger);
@@ -766,7 +766,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetStatus)
     response->set_vote_id(VoteId);
     response->set_priority(priority);
     response->set_vote_epoch(VoteEpoch.ToProto());
-    response->set_self_id(CellManager->GetSelfId());
+    response->set_self_id(CellManager->SelfId());
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         response->add_peer_addresses(CellManager->GetPeerAddress(id));
     }
