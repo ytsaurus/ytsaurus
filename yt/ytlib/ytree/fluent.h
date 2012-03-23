@@ -105,8 +105,7 @@ public:
 
         TParent Node(const TYson& value)
         {
-            DeserializeFromYson(value, this->Consumer);
-            return this->Parent;
+            return Node(DeserializeFromYson(value));
         }
 
         TParent Node(INodePtr node)
@@ -119,12 +118,6 @@ public:
         {
             this->Consumer->OnEntity(HasAttributes);
             return this->Parent;
-        }
-
-        //TODO(panin): rename
-        TParent OnNode(INodePtr node)
-        {
-            VisitTree(~node, this->Consumer);
         }
 
         TList<TParent> BeginList()

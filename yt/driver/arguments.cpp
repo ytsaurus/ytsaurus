@@ -130,7 +130,7 @@ void TSetArgs::BuildCommand(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("set")
         .Item("path").Scalar(PathArg->getValue())
-        .Item("value").OnNode(DeserializeFromYson(ValueArg->getValue()));
+        .Item("value").Node(ValueArg->getValue());
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -193,7 +193,7 @@ void TCreateArgs::BuildCommand(IYsonConsumer* consumer)
         .Item("path").Scalar(PathArg->getValue())
         .Item("type").Scalar(TypeArg->getValue().ToString())
         .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
-            fluent.Item("manifest").OnNode(DeserializeFromYson(manifestYson));
+            fluent.Item("manifest").Node(manifestYson);
          });
 
     TTransactedArgs::BuildCommand(consumer);
@@ -234,7 +234,7 @@ void TStartTxArgs::BuildCommand(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("start")
         .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
-            fluent.Item("manifest").OnNode(DeserializeFromYson(manifestYson));
+            fluent.Item("manifest").Node(manifestYson);
          });
     TArgsBase::BuildCommand(consumer);
 }
@@ -303,7 +303,7 @@ void TWriteArgs::BuildCommand(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("write")
         .Item("path").Scalar(PathArg->getValue())
-        .Item("value").OnNode(DeserializeFromYson(ValueArg->getValue()));
+        .Item("value").Node(ValueArg->getValue());
 
     TTransactedArgs::BuildCommand(consumer);
 }

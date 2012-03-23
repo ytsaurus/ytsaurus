@@ -178,12 +178,7 @@ private:
 class TCommitTxArgs
     : public TTransactedArgs
 {
-public:
-    TCommitTxArgs()
-    { }
-
 private:
-
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
@@ -192,10 +187,6 @@ private:
 class TAbortTxArgs
     : public TTransactedArgs
 {
-public:
-    TAbortTxArgs()
-    { }
-
 private:
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
