@@ -28,6 +28,8 @@ using std::string; // hack for guid.h to work
 #include <util/generic/yexception.h>
 #include <util/generic/pair.h>
 
+#include <util/folder/dirut.h>
+
 #include <util/datetime/base.h>
 
 #include <util/string/printf.h>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "public.h"
 #include "yson_consumer.h"
 #include "yson_writer.h"
 #include "tree_visitor.h"
@@ -120,6 +121,12 @@ public:
             return this->Parent;
         }
 
+        //TODO(panin): rename
+        TParent OnNode(INodePtr node)
+        {
+            VisitTree(~node, this->Consumer);
+        }
+
         TList<TParent> BeginList()
         {
             this->Consumer->OnBeginList();
@@ -130,7 +137,7 @@ public:
         TParent DoList(const TFunc& func)
         {
             this->Consumer->OnBeginList();
-            func(TListCore(this->Consumer));
+            func(TList<TVoid>(this->Consumer));
             this->Consumer->OnEndList();
             return this->Parent;
         }
@@ -140,7 +147,7 @@ public:
         {
             this->Consumer->OnBeginList();
             for (auto current = begin; current != end; ++current) {
-                func(TListCore(this->Consumer), current);
+                func(TList<TVoid>(this->Consumer), current);
             }
             this->Consumer->OnEndList();
             return this->Parent;
@@ -151,7 +158,7 @@ public:
         {
             this->Consumer->OnBeginList();
             FOREACH (const auto& item, collection) {
-                func(TListCore(this->Consumer), item);
+                func(TList<TVoid>(this->Consumer), item);
             }
             this->Consumer->OnEndList();
             return this->Parent;
@@ -167,7 +174,7 @@ public:
         TParent DoMap(const TFunc& func)
         {
             this->Consumer->OnBeginMap();
-            func(TListCore(this->Consumer));
+            func(TMap<TVoid>(this->Consumer));
             this->Consumer->OnEndMap();
             return this->Parent;
         }
@@ -177,7 +184,7 @@ public:
         {
             this->Consumer->OnBeginMap();
             for (auto current = begin; current != end; ++current) {
-                func(TMapCore(this->Consumer), current);
+                func(TMap<TVoid>(this->Consumer), current);
             }
             this->Consumer->OnEndMap();
             return this->Parent;
@@ -188,7 +195,7 @@ public:
         {
             this->Consumer->OnBeginMap();
             FOREACH (const auto& item, collection) {
-                func(TMapCore(this->Consumer), item);
+                func(TMap<TVoid>(this->Consumer), item);
             }
             this->Consumer->OnEndMap();
             return this->Parent;
@@ -246,29 +253,14 @@ public:
         }
     };
 
-    class TListCore
-        : public TFluentBase<TVoid>
-    {
-    public:
-        TListCore(IYsonConsumer* consumer)
-            : TFluentBase<TVoid>(consumer, TVoid())
-        { }
-
-        TAny<TListCore> Item()
-        {
-            this->Consumer->OnListItem();
-            return TAny<TListCore>(this->Consumer, *this, false);
-        }
-    };
-
-    template <class TParent>
+    template <class TParent = TVoid>
     class TList
         : public TFluentBase<TParent>
     {
     public:
         typedef TList<TParent> TThis;
 
-        TList(IYsonConsumer* consumer, const TParent& parent, bool hasAttributes)
+        TList(IYsonConsumer* consumer, const TParent& parent = TParent(), bool hasAttributes = false)
             : TFluentBase<TParent>(consumer, parent)
             , HasAttributes(hasAttributes)
         { }
@@ -282,7 +274,7 @@ public:
         template <class TFunc>
         TThis& Do(const TFunc& func)
         {
-            func(TListCore(this->Consumer));
+            func(TList(this->Consumer));
             return *this;
         }
 
@@ -290,7 +282,7 @@ public:
         TThis& DoIf(bool condition, const TFunc& func)
         {
             if (condition) {
-                func(TListCore(this->Consumer));
+                func(TList(this->Consumer));
             }
             return *this;
         }
@@ -299,7 +291,7 @@ public:
         TThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
         {
             for (auto current = begin; current != end; ++current) {
-                func(TListCore(this->Consumer), current);
+                func(TList<TVoid>(this->Consumer), current);
             }
             return *this;
         }
@@ -308,7 +300,7 @@ public:
         TThis& DoFor(const TCollection& collection, const TFunc& func)
         {
             FOREACH (const auto& item, collection) {
-                func(TListCore(this->Consumer), item);
+                func(TList(this->Consumer), item);
             }
             return *this;
         }
@@ -324,29 +316,14 @@ public:
 
     };
 
-    class TMapCore
-        : public TFluentBase<TVoid>
-    {
-    public:
-        TMapCore(IYsonConsumer* consumer)
-            : TFluentBase<TVoid>(consumer, TVoid())
-        { }
-
-        TAny<TMapCore> Item(const Stroka& key)
-        {
-            this->Consumer->OnMapItem(key);
-            return TAny<TMapCore>(this->Consumer, *this, false);
-        }
-    };
-
-    template <class TParent>
+    template <class TParent = TVoid>
     class TMap
         : public TFluentBase<TParent>
     {
     public:
         typedef TMap<TParent> TThis;
 
-        TMap(IYsonConsumer* consumer, const TParent& parent, bool hasAttributes)
+        TMap(IYsonConsumer* consumer, const TParent& parent = TParent(), bool hasAttributes = false)
             : TFluentBase<TParent>(consumer, parent)
             , HasAttributes(hasAttributes)
         { }
@@ -360,7 +337,7 @@ public:
         template <class TFunc>
         TThis& Do(const TFunc& func)
         {
-            func(TMapCore(this->Consumer));
+            func(TMap(this->Consumer));
             return *this;
         }
 
@@ -368,7 +345,7 @@ public:
         TThis& DoIf(bool condition, const TFunc& func)
         {
             if (condition) {
-                func(TMapCore(this->Consumer));
+                func(TMap(this->Consumer));
             }
             return *this;
         }
@@ -377,7 +354,7 @@ public:
         TThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
         {
             for (auto current = begin; current != end; ++current) {
-                func(TMapCore(this->Consumer), current);
+                func(TMap(this->Consumer), current);
             }
             return *this;
         }
@@ -386,11 +363,12 @@ public:
         TThis& DoFor(const TCollection& collection, const TFunc& func)
         {
             FOREACH (const auto& item, collection) {
-                func(TMapCore(this->Consumer), item);
+                func(TMap(this->Consumer), item);
             }
             return *this;
         }
 
+        //TODO(panin): forbid this call for TParent = TVoid
         TParent EndMap()
         {
             this->Consumer->OnEndMap(HasAttributes);
@@ -404,8 +382,8 @@ public:
 
 };
 
-typedef TFluentYsonBuilder::TListCore   TFluentList;
-typedef TFluentYsonBuilder::TMapCore    TFluentMap;
+typedef TFluentYsonBuilder::TList<TVoid>   TFluentList;
+typedef TFluentYsonBuilder::TMap<TVoid>   TFluentMap;
 
 ////////////////////////////////////////////////////////////////////////////////
 

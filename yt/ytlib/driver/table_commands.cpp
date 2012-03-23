@@ -19,7 +19,7 @@ using namespace NTableClient;
 
 void TReadCommand::DoExecute(TReadRequest* request)
 {
-    auto stream = DriverImpl->CreateOutputStream(ToStreamSpec(request->Stream));
+    auto stream = DriverImpl->CreateOutputStream();
 
     auto reader = New<TTableReader>(
         ~DriverImpl->GetConfig()->TableReader,
@@ -70,7 +70,7 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
                 YUNREACHABLE();
         }
     } else {
-        auto stream = DriverImpl->CreateInputStream(ToStreamSpec(request->Stream));
+        auto stream = DriverImpl->CreateInputStream();
         ParseYson(stream.Get(), &consumer, true);
     }
 

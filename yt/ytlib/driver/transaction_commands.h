@@ -7,64 +7,64 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStartTransactionRequest
+struct TStartRequest
     : public TRequestBase
 {
     NYTree::INodePtr Manifest;
 
-    TStartTransactionRequest()
+    TStartRequest()
     {
         Register("manifest", Manifest)
             .Default();
     }
 };
 
-class TStartTransactionCommand
-    : public TCommandBase<TStartTransactionRequest>
+class TStartCommand
+    : public TCommandBase<TStartRequest>
 {
 public:
-    TStartTransactionCommand(IDriverImpl* driverImpl)
+    TStartCommand(IDriverImpl* driverImpl)
         : TCommandBase(driverImpl)
     { }
 
 private:
-    virtual void DoExecute(TStartTransactionRequest* request);
+    virtual void DoExecute(TStartRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCommitTransactionRequest
+struct TCommitRequest
     : public TTransactedRequest
 { };
 
-class TCommitTransactionCommand
-    : public TCommandBase<TCommitTransactionRequest>
+class TCommitCommand
+    : public TCommandBase<TCommitRequest>
 {
 public:
-    TCommitTransactionCommand(IDriverImpl* driverImpl)
+    TCommitCommand(IDriverImpl* driverImpl)
         : TCommandBase(driverImpl)
     { }
 
 private:
-    virtual void DoExecute(TCommitTransactionRequest* request);
+    virtual void DoExecute(TCommitRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAbortTransactionRequest
+struct TAbortRequest
     : public TTransactedRequest
 { };
 
-class TAbortTransactionCommand
-    : public TCommandBase<TAbortTransactionRequest>
+class TAbortCommand
+    : public TCommandBase<TAbortRequest>
 {
 public:
-    TAbortTransactionCommand(IDriverImpl* driverImpl)
+    TAbortCommand(IDriverImpl* driverImpl)
         : TCommandBase(driverImpl)
     { }
 
 private:
-    virtual void DoExecute(TAbortTransactionRequest* request);
+    virtual void DoExecute(TAbortRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

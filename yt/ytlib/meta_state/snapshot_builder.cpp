@@ -87,7 +87,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
         for (TPeerId id = 0; id < Owner->CellManager->GetPeerCount(); ++id) {
-            if (id == Owner->CellManager->GetSelfId()) continue;
+            if (id == Owner->CellManager->SelfId()) continue;
 
             if (CreateSnapshot) {
                 LOG_DEBUG("Requesting follower %d to create a snapshot", id);
@@ -156,7 +156,7 @@ private:
             return;
         }
 
-        Checksums[Owner->CellManager->GetSelfId()] = result.Checksum;
+        Checksums[Owner->CellManager->SelfId()] = result.Checksum;
     }
 
     void OnChangeLogRotated(TProxy::TRspAdvanceSegment::TPtr response, TPeerId id)

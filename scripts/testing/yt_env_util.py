@@ -1,5 +1,20 @@
 import subprocess
 
+#TODO: new interface
+
+YT = "yt"
+
+def command(name, *args, **kw):
+    all_args = [name] + list(args)
+    for k, v in kw.items():
+        all_args.extend(['--' + k, v])
+    print all_args
+
+    process = subprocess.Popen([YT] + all_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    return stdout, stderr, process.returncode
+
+###########################################################################
 
 def launch_yt(**kw):
     args = dict(

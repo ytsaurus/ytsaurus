@@ -1,31 +1,29 @@
 #!/bin/bash
 #% NUM_MASTERS = 3
 #% NUM_HOLDERS = 0
-#% INIT_TIMEOUT = 3
-#% SETUP_TIMEOUT = 0
 
-echo '{do = set; path = "/root"; value = {nodes=[1; 2]} <attr=100;mode=rw>}' | ytdriver
-echo '{do = get; path = "/root@"}' | ytdriver
-echo '{do = get; path = "/root@attr"}' | ytdriver
+yt set /root '{nodes=[1; 2]} <attr=100;mode=rw>'
+yt get /root@
+yt get /root@attr
 
-echo '{do = remove; path = "/root@"}' | ytdriver
-echo '{do = get; path = "/root@"}' | ytdriver
+yt remove /root@
+yt get /root@
 
-echo '{do = remove; path = "/root/nodes"}' | ytdriver
-echo '{do = get; path = "/root"}' | ytdriver
+yt remove /root/nodes
+yt get /root
 
 echo 'changing attributes'
-echo '{do = set; path = "/root/2"; value = [] < author=ignat >}' | ytdriver
-echo '{do = get; path = "/root/2"}' | ytdriver
-echo '{do = get; path = "/root/2@"}' | ytdriver
-echo '{do = get; path = "/root/2@author"}' | ytdriver
+yt set /root/2 '[] < author=ignat >'
+yt get /root/2
+yt get /root/2@
+yt get /root/2@author
 
-echo '{do = set; path = "/root/2@author"; value = "not_ignat" }' | ytdriver
-echo '{do = get; path = "/root/2@author"}' | ytdriver
+yt set /root/2@author not_ignat
+yt get /root/2@author 
 
 echo 'nested attributes'
-echo '{do = set; path = "/root/3"; value = [] <dir=<file=-100<>>>}' | ytdriver
-echo '{do = get; path = "/root/3@"}' | ytdriver
-echo '{do = get; path = "/root/3@dir@"}' | ytdriver
-echo '{do = get; path = "/root/3@dir@file"}' | ytdriver
-echo '{do = get; path = "/root/3@dir@file@"}' | ytdriver
+yt set /root/3 '[] <dir=<file=-100<>>>' 
+yt get /root/3@
+yt get /root/3@dir@
+yt get /root/3@dir@file
+yt get /root/3@dir@file@

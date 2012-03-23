@@ -25,7 +25,7 @@ void TGetCommand::DoExecute(TGetRequest* request)
 
     if (ypathResponse->IsOK()) {
         TYson value = ypathResponse->value();
-        DriverImpl->ReplySuccess(value, ToStreamSpec(request->Stream));
+        DriverImpl->ReplySuccess(value);
     } else {
         DriverImpl->ReplyError(ypathResponse->GetError());
     }
@@ -46,7 +46,7 @@ void TSetCommand::DoExecute(TSetRequest* request)
     if (request->Value) {
         value = SerializeToYson(~request->Value);
     } else {
-        auto producer = DriverImpl->CreateInputProducer(ToStreamSpec(request->Stream));
+        auto producer = DriverImpl->CreateInputProducer();
         value = SerializeToYson(producer);
     }
     ypathRequest->set_value(value);
@@ -92,7 +92,7 @@ void TListCommand::DoExecute(TListRequest* request)
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
-         auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
+         auto consumer = DriverImpl->CreateOutputConsumer();
          BuildYsonFluently(~consumer)
              .DoListFor(ypathResponse->keys(), [=] (TFluentList fluent, Stroka key)
                 {
@@ -123,7 +123,7 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
-        auto consumer = DriverImpl->CreateOutputConsumer(ToStreamSpec(request->Stream));
+        auto consumer = DriverImpl->CreateOutputConsumer();
         auto id = TNodeId::FromProto(ypathResponse->object_id());
         BuildYsonFluently(~consumer)
             .BeginMap()

@@ -32,10 +32,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
             
-void ParseYson(
-    TInputStream* input,
-    IYsonConsumer* consumer,
-    bool fragmented = false);
+void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool fragmented = false);
+void ParseYson(const TYson& yson, IYsonConsumer* consumer, bool fragmented = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

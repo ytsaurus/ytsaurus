@@ -13,7 +13,7 @@ namespace NYTree {
     
 TYsonWriter::TYsonWriter(TOutputStream* stream, EYsonFormat format)
     : Stream(stream)
-    , IsFirstItem(false)
+    , IsFirstItem(true)
     , IsEmptyEntity(false)
     , Indent(0)
     , Format(format)

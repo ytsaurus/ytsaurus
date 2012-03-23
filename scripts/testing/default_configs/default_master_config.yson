@@ -17,7 +17,7 @@
   "logging" = {
     "rules" = [
       {
-        "min_level" = "debug";
+        "min_level" = "info";
         "writers" = [
           "file";
         ];
