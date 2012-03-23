@@ -384,18 +384,27 @@ private:
 
     void OnJobRunning(TJobPtr job)
     {
-        job->GetOperation()->GetController()->OnJobRunning(job);
+        auto operation = job->GetOperation();
+        if (operation->GetState() == EOperationState::Running) {
+            operation->GetController()->OnJobRunning(job);
+        }
     }
 
     void OnJobCompleted(TJobPtr job, const NProto::TJobResult& result)
     {
-        job->GetOperation()->GetController()->OnJobCompleted(job);
+        auto operation = job->GetOperation();
+        if (operation->GetState() == EOperationState::Running) {
+            operation->GetController()->OnJobCompleted(job);
+        }
         UnregisterJob(job);
     }
 
     void OnJobFailed(TJobPtr job, const NProto::TJobResult& result)
     {
-        job->GetOperation()->GetController()->OnJobFailed(job);
+        auto operation = job->GetOperation();
+        if (operation->GetState() == EOperationState::Running) {
+            operation->GetController()->OnJobFailed(job);
+        }
         UnregisterJob(job);
     }
 
@@ -544,11 +553,26 @@ private:
 
         // Abort dead operations.
         FOREACH (auto operation, deadOperations) {
-            LOG_INFO("Operation belongs to an expired transaction, aborting (OperationId: %s, TransactionId: %s)",
-                ~operation->GetOperationId().ToString(),
-                ~operation->GetTransactionId().ToString());
-            
-            AbortOperation(operation, EAbortReason::TransactionExpired);
+            switch (operation->GetState()) {
+                case EOperationState::Preparing:
+                case EOperationState::Running:
+                    LOG_INFO("Operation belongs to an expired transaction, aborting (OperationId: %s, TransactionId: %s)",
+                        ~operation->GetOperationId().ToString(),
+                        ~operation->GetTransactionId().ToString());
+                    AbortOperation(operation, EAbortReason::TransactionExpired);
+                    break;
+
+                case EOperationState::Completed:
+                case EOperationState::Aborted:
+                case EOperationState::Failed:
+                    LOG_INFO("Operation belongs to an expired transaction, sweeping (OperationId: %s, TransactionId: %s)",
+                        ~operation->GetOperationId().ToString(),
+                        ~operation->GetTransactionId().ToString());
+                    break;
+
+                default:
+                    YUNREACHABLE();
+            }
             UnregisterOperation(operation);
         }
     }

@@ -53,6 +53,13 @@ void TMapCommand::DoExecute(TMapRequest* request)
             DriverImpl->ReplyError(waitOpRsp->GetError());
             return;
         }
+
+        auto error = TError::FromProto(waitOpRsp->result().error());
+        if (error.IsOK()) {
+            DriverImpl->ReplySuccess();
+        } else {
+            DriverImpl->ReplyError(error);
+        }
     }
 
     // TODO(babenko): dump stderrs
