@@ -830,6 +830,7 @@ private:
                 return TVoid();
             }
             auto id = TTransactionId::FromProto(rsp->object_id());
+            LOG_INFO("Primary transaction is %s", ~id.ToString());
             PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
         }
 

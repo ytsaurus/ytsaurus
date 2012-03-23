@@ -20,6 +20,7 @@ TOperation::TOperation(
     , TransactionId_(transactionId)
     , Spec_(spec)
     , StartTime_(startTime)
+    , Finished_(New< TFuture<NProto::TOperationResult> >())
 { }
 
 ////////////////////////////////////////////////////////////////////

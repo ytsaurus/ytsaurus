@@ -47,6 +47,7 @@ using namespace NTransactionClient;
 using namespace NCypress;
 using namespace NYTree;
 using namespace NObjectServer;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -155,8 +156,7 @@ private:
         try {
             InitializeOperation(operation);
         } catch (const std::exception& ex) {
-            return MakeFuture(TStartResult(TError(Sprintf("Operation failed to start\n%s",
-                ex.what()))));
+            return MakeFuture(TStartResult(TError("Operation failed to start\n%s", ex.what())));
         }
 
         // Create a node in Cypress that will represent the operation.
@@ -239,31 +239,20 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto state = operation->GetState();
-        switch (state) {
-            case EOperationState::Preparing:
-            case EOperationState::Running:
-                LOG_INFO("Aborting operation (OperationId: %s, State: %s, Reason: %s)",
-                    ~operation->GetOperationId().ToString(),
-                    ~state.ToString(),
-                    ~reason.ToString());
-                operation->GetController()->OnOperationAborted();
-                operation->SetState(EOperationState::Aborted);
-                break;
-
-            case EOperationState::Completed:
-            case EOperationState::Failed:
-                LOG_INFO("Cleaning up operation (OperationId: %s, State: %s, Reason: %s)",
-                    ~operation->GetOperationId().ToString(),
-                    ~state.ToString(),
-                    ~reason.ToString());
-                break;
-
-            default:
-                YUNREACHABLE();
+        if (state == EOperationState::Preparing || state == EOperationState::Running) {
+            LOG_INFO("Aborting operation (OperationId: %s, State: %s, Reason: %s)",
+                ~operation->GetOperationId().ToString(),
+                ~state.ToString(),
+                ~reason.ToString());
+                
+            operation->GetController()->OnOperationAborted();
+            SetOperationFinished(
+                operation,
+                EOperationState::Aborted,
+                TError("Operation aborted (Reason: %s)", ~reason.ToString()));
         }
-        UnregisterOperation(operation);
     }
-    
+
 
     TOperationPtr FindOperation(const TOperationId& id)
     {
@@ -330,6 +319,17 @@ private:
         RemoveOperationNode(operation);
 
         LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
+    }
+
+    void SetOperationFinished(
+        TOperationPtr operation,
+        EOperationState state,
+        const TError& error)
+    {
+        TOperationResult result;
+        *result.mutable_error() = error.ToProto();
+        operation->GetFinished()->Set(result);
+        operation->SetState(state);
     }
 
     void RemoveOperationNode(TOperationPtr operation)
@@ -547,7 +547,9 @@ private:
             LOG_INFO("Operation belongs to an expired transaction, aborting (OperationId: %s, TransactionId: %s)",
                 ~operation->GetOperationId().ToString(),
                 ~operation->GetTransactionId().ToString());
+            
             AbortOperation(operation, EAbortReason::TransactionExpired);
+            UnregisterOperation(operation);
         }
     }
 
@@ -573,7 +575,9 @@ private:
             return;
         }
 
-        LOG_INFO("Exec nodes refreshed successfully");
+        auto onlineAddresses = DeserializeFromYson< yvector<Stroka> >(rsp->value());
+        LOG_INFO("Exec nodes refreshed successfully, %d nodes found",
+            static_cast<int>(onlineAddresses.size()));
 
         // Examine the list of nodes returned by master and figure out the difference.
 
@@ -582,7 +586,6 @@ private:
             YVERIFY(deadNodes.insert(pair.second).second);
         }
 
-        auto onlineAddresses = DeserializeFromYson< yvector<Stroka> >(rsp->value());
         
         FOREACH (const auto& address, onlineAddresses) {
             auto node = FindNode(address);
@@ -688,7 +691,7 @@ private:
         LOG_INFO("Operation completed (OperationId: %s)",
             ~operation->GetOperationId().ToString());
 
-        operation->SetState(EOperationState::Completed);
+        SetOperationFinished(operation, EOperationState::Completed, TError());
 
         // The operation will remain in this state until it is swept.
     }
@@ -705,7 +708,7 @@ private:
             error));
     }
 
-    void DoOperationFailed(TOperationPtr operation, TError error)
+    void DoOperationFailed(TOperationPtr operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -719,8 +722,7 @@ private:
             ~operation->GetOperationId().ToString(),
             ~error.GetMessage());
 
-        operation->SetState(EOperationState::Failed);
-        operation->SetError(error);
+        SetOperationFinished(operation, EOperationState::Failed, error);
 
         // The operation will remain in this state until it is swept.
     }
@@ -832,13 +834,21 @@ private:
         context->SetRequestInfo("OperationId: %s", ~operationId.ToString());
 
         auto operation = GetOperation(operationId);
-        AbortOperation(operation, EAbortReason::TransactionExpired);
+        AbortOperation(operation, EAbortReason::UserRequest);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)
     {
-        // TODO(babenko): implement
-        YUNIMPLEMENTED();
+        auto operationId = TTransactionId::FromProto(request->operation_id());
+
+        context->SetRequestInfo("OperationId: %s", ~operationId.ToString());
+
+        auto operation = GetOperation(operationId);
+        // TODO(babenko): const&
+        operation->GetFinished()->Subscribe(FromFunctor([=] (TOperationResult result) {
+            *response->mutable_result() = result;
+            context->Reply();
+        }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)

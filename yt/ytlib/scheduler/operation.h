@@ -5,6 +5,7 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/scheduler/scheduler_service.pb.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -32,8 +33,8 @@ class TOperation
 
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 
-    //! Contains the error for failed operations.
-    DEFINE_BYVAL_RW_PROPERTY(TError, Error);
+    //! Gets set when the operation is finished.
+    DEFINE_BYVAL_RO_PROPERTY(TFuture<NProto::TOperationResult>::TPtr, Finished);
 
 public:
     TOperation(
@@ -44,7 +45,6 @@ public:
         TInstant startTime);
 
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

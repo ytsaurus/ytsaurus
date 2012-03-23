@@ -41,46 +41,21 @@ void TMapCommand::DoExecute(TMapRequest* request)
             .Item("operation_id").Scalar(operationId.ToString())
         .EndMap());
 
-    //// ... and wait until operation will complete
-    //{
-    //    auto request = proxy.WaitOperation();
-    //    request->set_operation_id(operationId);
-    //    request->SetTimeout(Null);
-    //    auto future = request->Invoke();
+    {
+        auto waitOpReq = proxy.WaitForOperation();
+        waitOpReq->set_operation_id(operationId.ToProto());
 
-    //    // this would block until scheduler answers us
-    //    // which could be "immediatedly" in case of errors
-    //    auto response = future->Get();
-    //    if (response->IsOK()) {
-    //        // OK means operation has finished successfully,
-    //        // there are could be additional information that we must
-    //        // pass to the user
-    //        DriverImpl->ReplySuccess();
-    //        // DriverImpl->ReplySuccess(NYTree::BuildYsonFluently()
-    //        //     .BeginMap()
-    //        //         .Item("status").Scalar("completed")
-    //        //     .EndMap()
-    //        //     .operator NYTree::TYson()
-    //        //     );
-    //    } else {
-    //        // operation was unsuccessful -- may be there was
-    //        // communication error or operation wasn't valid and therefore
-    //        // has been rejected by the scheduler or it has been canceled
-    //        // by whatever cause
+        // Operation can run for a while, override the default timeout.
+        waitOpReq->SetTimeout(Null);
+        auto waitOpRsp = waitOpReq->Invoke()->Get();
 
-    //        if (NRpc::IsRpcError(response->GetError())) {
-    //            // communication error
+        if (!waitOpRsp->IsOK()) {
+            DriverImpl->ReplyError(waitOpRsp->GetError());
+            return;
+        }
+    }
 
-    //            //TODO: engage some retry policy, give up for now
-    //            DriverImpl->ReplyError(response->GetError());
-    //        } else {
-    //            // error from the scheduler
-
-    //            DriverImpl->ReplyError(response->GetError());
-    //        }
-    //    }
-    //}
-
+    // TODO(babenko): dump stderrs
 }
 
 ////////////////////////////////////////////////////////////////////////////////

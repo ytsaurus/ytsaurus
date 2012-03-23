@@ -2,6 +2,7 @@ package NYT.NScheduler.NProto;
 
 import "yt/ytlib/scheduler/jobs.proto";
 import "yt/ytlib/rpc/rpc.proto";
+import "yt/ytlib/misc/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +40,11 @@ message TRspAbortOperation
 
 // Waits until a given operation is finished.
 
+message TOperationResult
+{
+    required NYT.NProto.TError error = 1;
+}
+
 message TReqWaitForOperation
 { 
     required bytes operation_id = 1;
@@ -46,7 +52,7 @@ message TReqWaitForOperation
 
 message TRspWaitForOperation
 {
-    required TJobResult result = 1;
+    required TOperationResult result = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +64,7 @@ message TJobStatus
 {
     required bytes job_id = 1;
     required int32 state = 2;
-	required int32 progress = 3;
+    required int32 progress = 3;
     optional TJobResult result = 4;
 }
 
@@ -72,7 +78,7 @@ message TNodeUtilization
 message TReqHeartbeat
 {
     required string address = 1;
-	required TNodeUtilization utilization = 2;
+    required TNodeUtilization utilization = 2;
     repeated TJobStatus jobs = 3;
 }
 
