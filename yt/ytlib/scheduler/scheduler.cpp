@@ -319,7 +319,9 @@ private:
 
     void UnregisterOperation(TOperationPtr operation)
     {
-        FOREACH (auto job, operation->Jobs()) {
+        // Take a copy, the collection will be modified.
+        auto jobs = operation->Jobs();
+        FOREACH (auto job, jobs) {
             UnregisterJob(job);
         }
         YVERIFY(Operations.erase(operation->GetOperationId()) == 1);
@@ -542,7 +544,7 @@ private:
 
         // Abort dead operations.
         FOREACH (auto operation, deadOperations) {
-            LOG_INFO("Operation's transaction has expired, aborting (OperationId: %s, TransactionId: %s)",
+            LOG_INFO("Operation belongs to an expired transaction, aborting (OperationId: %s, TransactionId: %s)",
                 ~operation->GetOperationId().ToString(),
                 ~operation->GetTransactionId().ToString());
             AbortOperation(operation, EAbortReason::TransactionExpired);

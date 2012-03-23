@@ -66,6 +66,8 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(Host->GetControlInvoker(), ControlThread);
         VERIFY_INVOKER_AFFINITY(Host->GetBackgroundInvoker(), BackgroundThread);
+
+        Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
     }
 
     virtual void Initialize()
@@ -188,48 +190,39 @@ public:
         *localCount = 0;
         auto addressIt = AddressToIndexSet.find(address);
         if (addressIt != AddressToIndexSet.end()) {
-            auto& localIndexes = addressIt->second;
-            auto localIt = localIndexes.begin();
-            while (localIt != localIndexes.end()) {
+            const auto& localIndexes = addressIt->second;
+            FOREACH (int chunkIndex, localIndexes) {
                 if (*allocatedWeight >= maxWeight) {
                     break;
                 }
-
-                auto nextLocalIt = localIt;
-                ++nextLocalIt;
-                int chunkIndex = *localIt;
-
                 indexes->push_back(chunkIndex);
-                localIndexes.erase(localIt);
-                YVERIFY(UnallocatedIndexes.erase(chunkIndex) == 1);
                 ++*localCount;
                 allocatedWeight += ChunkInfos[chunkIndex].Weight;
-                
-                localIt = nextLocalIt;
+
             }
         }
 
-        // Proceed with remote chunks next.
+        // Unregister taken local chunks.
+        // We have to do this right away, otherwise we risk getting the same chunks
+        // in the next phase.
+        for (int i = 0; i < *localCount; ++i) {
+            UnregisterChunk((*indexes)[i]);
+        }
+
+        // Take remote chunks.
         *remoteCount = 0;
-        auto remoteIt = UnallocatedIndexes.begin();
-        while (remoteIt != UnallocatedIndexes.end()) {
+        FOREACH (int chunkIndex, UnallocatedIndexes) {
             if (*allocatedWeight >= maxWeight) {
                 break;
             }
-
-            auto nextRemoteIt = remoteIt;
-            ++nextRemoteIt;
-            int chunkIndex = *remoteIt;
-
-            indexes->push_back(*remoteIt);
-            const auto& info = ChunkInfos[chunkIndex];
-            FOREACH (const auto& address, info.Chunk.holder_addresses()) {
-                YVERIFY(AddressToIndexSet[address].erase(chunkIndex) == 1);
-            }
+            indexes->push_back(chunkIndex);
             ++*remoteCount;
             allocatedWeight += ChunkInfos[chunkIndex].Weight;
-            
-            remoteIt = nextRemoteIt;
+        }
+
+        // Unregister taken remote chunks.
+        for (int i = *localCount; i < *localCount + *remoteCount; ++i) {
+            UnregisterChunk((*indexes)[i]);
         }
 
         LOG_DEBUG("Extracted chunks [%s] from the pool", ~JoinToString(*indexes));
@@ -265,6 +258,15 @@ private:
         }
         YVERIFY(UnallocatedIndexes.insert(index).second);
     }
+
+    void UnregisterChunk(int index)
+    {
+        const auto& info = ChunkInfos[index];
+        FOREACH (const auto& address, info.Chunk.holder_addresses()) {
+            YVERIFY(AddressToIndexSet[address].erase(index) == 1);
+        }
+        YVERIFY(UnallocatedIndexes.erase(index) == 1);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -286,21 +288,17 @@ public:
         , Logger(OperationsLogger)
         , RequestInProgress(false)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker, ControlThread);
-        
         Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
     }
 
     int GetSize() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         return static_cast<int>(Ids.size());
     }
 
     TChunkListId Extract()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        //VERIFY_THREAD_AFFINITY(ControlThread);
 
         YASSERT(!Ids.empty());
         auto id = Ids.back();
@@ -315,8 +313,6 @@ public:
 
     void Allocate(int count)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         if (RequestInProgress) {
             LOG_DEBUG("Cannot allocate more chunk lists, another request is in progress");
             return;
@@ -341,8 +337,6 @@ public:
     }
 
 private:
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
     NRpc::IChannel::TPtr MasterChannel;
     IInvoker::TPtr ControlInvoker;
     TOperationPtr Operation;
@@ -354,8 +348,7 @@ private:
 
     void OnChunkListsCreated(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
+        YASSERT(RequestInProgress);
         RequestInProgress = false;
 
         if (!batchRsp->IsOK()) {
@@ -366,7 +359,6 @@ private:
 
         LOG_INFO("Chunk lists allocated");
 
-        YASSERT(RequestInProgress);
         YASSERT(Ids.empty());
 
         FOREACH (auto rsp, batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>()) {
@@ -754,25 +746,26 @@ private:
     
     // Unsorted helpers.
 
-    void InitGenericJobSpec()
+    void InitJobSpecTemplate()
     {
-        TJobSpec jobSpec;
-        jobSpec.set_type(EJobType::Map);
+        JobSpecTemplate.set_type(EJobType::Map);
 
         TUserJobSpec userJobSpec;
         userJobSpec.set_shell_comand(Spec->ShellCommand);
         FOREACH (const auto& file, Files) {
             *userJobSpec.add_files() = *file.FetchResponse;
         }
-        *jobSpec.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
+        *JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
 
         TMapJobSpec mapJobSpec;
         mapJobSpec.set_input_transaction_id(InputTransaction->GetId().ToProto());
+        mapJobSpec.set_output_transaction_id(OutputTransaction->GetId().ToProto());
         FOREACH (const auto& table, OutputTables) {
             auto* outputSpec = mapJobSpec.add_output_specs();
             outputSpec->set_schema(table.Schema);
         }
-        *jobSpec.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
+        *JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
+
 
         // TODO(babenko): stderr
     }
@@ -882,7 +875,7 @@ private:
                 return TVoid();
             }
             auto id = TTransactionId::FromProto(rsp->object_id());
-            LOG_INFO("Input transaction id is %s", ~id.ToString());
+            LOG_INFO("Input transaction is %s", ~id.ToString());
             InputTransaction = Host->GetTransactionManager()->Attach(id);
         }
 
@@ -892,7 +885,7 @@ private:
                 return TVoid();
             }
             auto id = TTransactionId::FromProto(rsp->object_id());
-            LOG_INFO("Output transaction id is %s", ~id.ToString());
+            LOG_INFO("Output transaction is %s", ~id.ToString());
             OutputTransaction = Host->GetTransactionManager()->Attach(id);
         }
 
@@ -1120,9 +1113,11 @@ private:
         ChunkCounter.Init(totalChunkCount);
         WeightCounter.Init(TotalWeight);
 
+        InitJobSpecTemplate();
+
         LOG_INFO("Preparation completed (RowCount: %" PRId64 ", DataSize: %" PRId64 ", Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %" PRId64 ")",
             TotalRowCount,
-            TotalRowCount,
+            TotalDataSize,
             TotalWeight,
             totalChunkCount,
             totalJobCount);
