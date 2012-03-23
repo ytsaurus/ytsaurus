@@ -794,8 +794,14 @@ private:
     {
         auto type = EOperationType(request->type());
         auto transactionId = TTransactionId::FromProto(request->transaction_id());
-        auto spec = DeserializeFromYson(request->spec())->AsMap();
 
+        IMapNodePtr spec;
+        try {
+            spec = DeserializeFromYson(request->spec())->AsMap();
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+        }
+        
         context->SetRequestInfo("Type: %s, TransactionId: %s",
             ~type.ToString(),
             ~transactionId.ToString());
