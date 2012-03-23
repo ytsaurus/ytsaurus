@@ -163,7 +163,7 @@ TEST_F(TLexerTest, Strings)
     TestToken("\" abc_123\\t\\\\\\\"\"", ETokenType::String, " abc_123\t\\\"");
     TestToken("\"\\x01\\x02\\x03\\x04\"", ETokenType::String, "\x01\x02\x03\x04");
 
-    TestToken("\x01\x00", ETokenType::String, "");
+    TestToken(Stroka("\x01\x00", 2), ETokenType::String, "");
     TestToken("\x01\x08\x01\x02\x03\x04", ETokenType::String, "\x01\x02\x03\x04");
 }
 
@@ -174,7 +174,7 @@ TEST_F(TLexerTest, Integers)
     TestToken("+1", ETokenType::Int64, "1");
     TestToken("-1", ETokenType::Int64, "-1");
 
-    TestToken("\x02\x00", ETokenType::Int64, "0");
+    TestToken(Stroka("\x02\x00", 2), ETokenType::Int64, "0");
     TestToken("\x02\x01", ETokenType::Int64, "-1");
     TestToken("\x02\x02", ETokenType::Int64, "1");
     TestToken("\x02\x03", ETokenType::Int64, "-2");
