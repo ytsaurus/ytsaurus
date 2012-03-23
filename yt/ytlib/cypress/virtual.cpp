@@ -55,11 +55,11 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
-        if (IsLocalYPath(path)) {
+        if (ChopToken(path).GetType() == ETokenType::Slash) {
+            return TResolveResult::There(~Service, path);
+        } else {
             return TBase::Resolve(path, verb);
         }
-        auto redirectedPath = ChopYPathRedirectMarker(path);
-        return TResolveResult::There(~Service, redirectedPath);
     }
 
 private:

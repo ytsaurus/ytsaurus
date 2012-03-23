@@ -493,46 +493,6 @@ int TListNodeProxy::GetChildIndex(const INode* child)
     return it->second;
 }
 
-void TListNodeProxy::CreateRecursive(const TYPath& path, INode* value)
-{
-    auto factory = CreateFactory();
-    TListNodeMixin::SetRecursive(~factory, path, value);
-}
-
-IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
-    const TYPath& path,
-    const Stroka& verb)
-{
-    return TListNodeMixin::ResolveRecursive(path, verb);
-}
-
-void TListNodeProxy::SetRecursive(
-    const TYPath& path,
-    TReqSet* request,
-    TRspSet* response,
-    TCtxSet* context)
-{
-    UNUSED(response);
-
-    auto factory = CreateFactory();
-    TListNodeMixin::SetRecursive(~factory, path, request);
-    context->Reply();
-}
-
-void TListNodeProxy::SetNodeRecursive(
-    const TYPath& path,
-    TReqSetNode* request,
-    TRspSetNode* response,
-    TCtxSetNode* context)
-{
-    UNUSED(response);
-
-    auto factory = CreateFactory();
-    auto value = reinterpret_cast<INode*>(request->value_ptr());
-    TListNodeMixin::SetRecursive(~factory, path, value);
-    context->Reply();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypress

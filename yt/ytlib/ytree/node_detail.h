@@ -103,25 +103,6 @@ protected:
     IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const Stroka& verb);
-
-    void SetRecursive(
-        INodeFactory* factory,
-        const TYPath& path,
-        NProto::TReqSet* request);
-    void SetRecursive(
-        INodeFactory* factory,
-        const TYPath& path,
-        INode* value);
-
-private:
-    int ParseChildIndex(const TStringBuf& str);
-
-    void CreateChild(
-        INodeFactory* factory,
-        int beforeIndex,
-        const TYPath& path,
-        INode* value);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

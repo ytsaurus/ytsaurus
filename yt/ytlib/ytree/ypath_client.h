@@ -120,7 +120,7 @@ extern TYPath RootMarker;
 extern TYPath AttributeMarker;
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/*
 void ChopYPathToken(
     const TYPath& path,
     Stroka* token,
@@ -129,7 +129,7 @@ void ChopYPathToken(
 TYPath ChopYPathAttributeMarker(const TYPath& path);
 
 TYPath ChopYPathRedirectMarker(const TYPath& path);
-
+*/
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
@@ -149,6 +149,7 @@ TYPath CombineYPaths(
     const TYPath& path3,
     const TYPath& path4);
 
+/*
 //! Returns True if the path is empty.
 bool IsEmptyYPath(const TYPath& path);
 
@@ -164,9 +165,9 @@ bool IsAttributeYPath(const TYPath& path);
  *  All other paths (including "/") are forwarded to the service.
  *  Thus "virtual" denotes the virtual node while "virtual/" denotes its content.
  *  Same applies to the attributes (cf. "virtual@" vs "virtual/@").
- */
+ *//*
 bool IsLocalYPath(const TYPath& path);
-
+*/
 void ResolveYPath(
     IYPathService* rootService,
     const TYPath& path,

@@ -455,8 +455,13 @@ const TToken& TLexer::GetToken() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsEmpty(const TStringBuf& data)
+{
+    return ChopToken(data).GetType() == ETokenType::None;
+}
+
 // TODO(roizner): Make suffix TStringBuf*
-TToken ChopToken(const TStringBuf& data, TStringBuf* suffix)
+TToken ChopToken(const TStringBuf& data, Stroka* suffix)
 {
     TLexer lexer;
     int position = 0;
@@ -472,7 +477,7 @@ TToken ChopToken(const TStringBuf& data, TStringBuf* suffix)
     return lexer.GetState() == TLexer::EState::Terminal ? lexer.GetToken() : TToken();
 }
 
-Stroka ChopStringToken(const TStringBuf& data, TStringBuf* suffix)
+Stroka ChopStringToken(const TStringBuf& data, Stroka* suffix)
 {
     auto token = ChopToken(data, suffix);
     if (token.GetType() != ETokenType::String) {
@@ -483,7 +488,7 @@ Stroka ChopStringToken(const TStringBuf& data, TStringBuf* suffix)
     return token.GetStringValue();
 }
 
-i64 ChopInt64Token(const TStringBuf& data, TStringBuf* suffix)
+i64 ChopInt64Token(const TStringBuf& data, Stroka* suffix)
 {
     auto token = ChopToken(data, suffix);
     if (token.GetType() != ETokenType::Int64) {
@@ -494,7 +499,7 @@ i64 ChopInt64Token(const TStringBuf& data, TStringBuf* suffix)
     return token.GetInt64Value();
 }
 
-double ChopDoubleToken(const TStringBuf& data, TStringBuf* suffix)
+double ChopDoubleToken(const TStringBuf& data, Stroka* suffix)
 {
     auto token = ChopToken(data, suffix);
     if (token.GetType() != ETokenType::Double) {
@@ -505,7 +510,7 @@ double ChopDoubleToken(const TStringBuf& data, TStringBuf* suffix)
     return token.GetDoubleValue();
 }
 
-ETokenType ChopSpecialToken(const TStringBuf& data, TStringBuf* suffix)
+ETokenType ChopSpecialToken(const TStringBuf& data, Stroka* suffix)
 {
     auto token = ChopToken(data, suffix);
     if (token.GetType() <= ETokenType::Double) {

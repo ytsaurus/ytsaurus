@@ -7,6 +7,7 @@
 #include "yson_writer.h"
 #include "ypath_client.h"
 #include "serialize.h"
+#include "lexer.h"
 
 namespace NYT {
 namespace NYTree {
@@ -96,9 +97,8 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
 {
-    Stroka token;
     TYPath suffixPath;
-    ChopYPathToken(path, &token, &suffixPath);
+    auto token = ChopStringToken(path, &suffixPath);
 
     auto child = FindChild(token);
     if (child) {
@@ -130,17 +130,19 @@ void TMapNodeMixin::SetRecursive(
     // Check that no attribute markers are present.
     std::vector<Stroka> tokens;
     TYPath currentPath = path;
-    while (!currentPath.empty()) {
-        if (IsAttributeYPath(currentPath)) {
-            ythrow yexception() << Sprintf("Cannot set an attribute of a non-existing node");
-        }
 
-        Stroka token;
-        TYPath suffixPath;
-        ChopYPathToken(currentPath, &token, &suffixPath);
-
+    while (true) {
+        auto token = ChopStringToken(currentPath, &currentPath);
         tokens.push_back(token);
-        currentPath = suffixPath;
+
+        auto separator = ChopToken(currentPath, &currentPath);
+        if (separator.GetType() == ETokenType::None) {
+            break;
+        } else if (separator.GetType() != ETokenType::Slash) {
+            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                ~separator.ToString().Quote(),
+                ~separator.GetType().ToString());
+        }
     }
 
     // Check that the first token gives a unique key.
@@ -171,134 +173,19 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
 {
-    Stroka token;
     TYPath suffixPath;
-    ChopYPathToken(path, &token, &suffixPath);
-
-    if (token.empty()) {
-        ythrow yexception() << "Child index is empty";
-    }
-
-    char lastPrefixCh = token[token.length() - 1];
-    if ((verb == "Set" || verb == "SetNode" || verb == "Create") &&
-        (lastPrefixCh == '+' || lastPrefixCh == '-'))
-    {
-        return IYPathService::TResolveResult::Here(path);
-    } else {
-        int index = ParseChildIndex(token);
-        auto child = FindChild(index);
-        YASSERT(child);
-        return IYPathService::TResolveResult::There(~child, suffixPath);
-    }
-}
-
-void TListNodeMixin::SetRecursive(
-    INodeFactory* factory,
-    const TYPath& path,
-    NProto::TReqSet* request)
-{
-    auto value = DeserializeFromYson(request->value(), factory);
-    SetRecursive(factory, path, ~value);
-}
-
-void TListNodeMixin::SetRecursive(
-    INodeFactory* factory,
-    const TYPath& path,
-    INode* value)
-{
-    INodePtr currentNode = this;
-    TYPath currentPath = path;
-
-    Stroka token;
-    TYPath suffixPath;
-    ChopYPathToken(currentPath, &token, &suffixPath);
-
-    if (token.empty()) {
-        ythrow yexception() << "Child index is empty";
-    }
-
-    if (token == "+") {
-        return CreateChild(factory, GetChildCount(), suffixPath, value);
-    } else if (token == "-") {
-        return CreateChild(factory, 0, suffixPath, value);
-    }
-
-    char lastPrefixCh = token[token.length() - 1];
-    if (lastPrefixCh != '+' && lastPrefixCh != '-') {
-        ythrow yexception() << "Insertion point expected";
-    }
-
-    int index = ParseChildIndex(TStringBuf(token.begin(), token.length() - 1));
-    switch (lastPrefixCh) {
-        case '+':
-            CreateChild(factory, index + 1, suffixPath, value);
-            break;
-        case '-':
-            CreateChild(factory, index, suffixPath, value);
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
-}
-
-void TListNodeMixin::CreateChild(
-    INodeFactory* factory,
-    int beforeIndex,
-    const TYPath& path,
-    INode* value)
-{
-    if (IsFinalYPath(path)) {
-        AddChild(value, beforeIndex);
-    } else {
-        auto currentNode = factory->CreateMap();
-        auto currentPath = path;
-        AddChild(~currentNode, beforeIndex);
-
-        while (true) {
-            Stroka token;
-            TYPath suffixPath;
-            ChopYPathToken(currentPath, &token, &suffixPath);
-
-            if (IsFinalYPath(suffixPath)) {
-                YVERIFY(currentNode->AddChild(value, token));
-                break;
-            }
-
-            auto intermediateNode = factory->CreateMap();
-            YVERIFY(currentNode->AddChild(~intermediateNode, token));
-
-            currentNode = intermediateNode;
-            currentPath = suffixPath;
-        }
-    }
-}
-
-int TListNodeMixin::ParseChildIndex(const TStringBuf& str)
-{
-    int index;
-    try {
-        index = FromString<int>(str);
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Failed to parse index %s\n%s",
-            ~Stroka(str).Quote(),
-            ex.what());
-    }
-
-    int count = GetChildCount();
-    if (count == 0) {
-        ythrow yexception() << Sprintf("Invalid index %d: list is empty",
-            index);
-    }
+    auto index = ChopInt64Token(path, &suffixPath);
+    auto count = GetChildCount();
 
     if (index < 0 || index >= count) {
-        ythrow yexception() << Sprintf("Invalid index %d: expected value in range %d..%d",
+        ythrow yexception() << Sprintf("Index out of range (Index: %" PRId64 ", ChildCount: %" PRId64 ")",
             index,
-            0,
-            count - 1);
+            count);
     }
 
-    return index;
+    auto child = FindChild(index);
+    YASSERT(child);
+    return IYPathService::TResolveResult::There(~child, suffixPath);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

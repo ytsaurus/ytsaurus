@@ -2,6 +2,8 @@
 #include "object_manager.h"
 #include "config.h"
 
+#include <ytlib/ytree/lexer.h>
+
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
@@ -174,29 +176,32 @@ public:
         auto transactionManager = Bootstrap->GetTransactionManager();
         auto objectId = cypressManager->GetRootNodeId();
 
-        if (!currentPath.empty() && currentPath.has_prefix(TransactionIdMarker)) {
-            Stroka token;
-            ChopTransactionIdToken(currentPath, &token, &currentPath);
-            if (!TObjectId::FromString(token.substr(TransactionIdMarker.length()), &transactionId)) {
-                ythrow yexception() << Sprintf("Error parsing transaction id (Value: %s)", ~token);
-            }
+        Stroka suffixPath;
+        auto token = ChopToken(currentPath, &suffixPath);
 
+        if (token.GetType() == ETokenType::Bang) {
+            Stroka transactionToken = ChopStringToken(suffixPath, &suffixPath);
+            if (!TObjectId::FromString(transactionToken, &transactionId)) {
+                ythrow yexception() << Sprintf("Error parsing transaction id (Value: %s)", ~transactionToken);
+            }
             if (transactionId != NullTransactionId && !transactionManager->FindTransaction(transactionId)) {
                 ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
             }
+            currentPath = suffixPath;
+            token = ChopToken(currentPath, &suffixPath);
         }
 
-        if (currentPath.has_prefix(RootMarker)) {
-            currentPath = currentPath.substr(RootMarker.length());
-            objectId = cypressManager->GetRootNodeId();
-        } else if (currentPath.has_prefix(ObjectIdMarker)) {
-            Stroka token;
-            ChopYPathToken(currentPath, &token, &currentPath);
-            if (!TObjectId::FromString(token.substr(ObjectIdMarker.length()), &objectId)) {
-                ythrow yexception() << Sprintf("Error parsing object id (Value: %s)", ~token);
+        if (token.GetType() == ETokenType::Hash) {
+            Stroka objectToken = ChopStringToken(suffixPath, &suffixPath);
+            if (!TObjectId::FromString(objectToken, &objectId)) {
+                ythrow yexception() << Sprintf("Error parsing object id (Value: %s)", ~objectToken);
             }
-        } else {
-            ythrow yexception() << Sprintf("Invalid YPath syntax (Path: %s)", ~path);
+            currentPath = suffixPath;
+            token = ChopToken(currentPath, &suffixPath);
+        }
+
+        if (token.GetType() != ETokenType::Slash) {
+            ythrow yexception() << Sprintf("Invalid YPath syntax (Path: %s)", ~currentPath);
         }
 
         auto proxy = objectManager->FindProxy(TVersionedObjectId(objectId, transactionId));
@@ -226,21 +231,6 @@ public:
 
 private:
     TBootstrap* Bootstrap;
-
-    static void ChopTransactionIdToken(
-        const TYPath& path,
-        Stroka* token,
-        TYPath* suffixPath)
-    {
-        size_t index = path.find_first_of("/#");
-        if (index == TYPath::npos) {
-            ythrow yexception() << Sprintf("YPath does not refer to any object (Path: %s)", ~path);
-        }
-
-        *token = path.substr(0, index);
-        *suffixPath = path.substr(index);
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

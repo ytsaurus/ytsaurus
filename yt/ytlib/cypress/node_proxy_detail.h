@@ -5,6 +5,7 @@
 #include <ytlib/cypress/cypress_ypath.pb.h>
 
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/lexer.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_detail.h>
@@ -229,7 +230,7 @@ protected:
         UNUSED(request);
         UNUSED(response);
 
-        if (NYTree::IsFinalYPath(context->GetPath())) {
+        if (NYTree::IsEmpty(context->GetPath())) {
             ythrow yexception() << "Node already exists";
         }
 
@@ -524,9 +525,9 @@ protected:
             nodeId)
     { }
 
-    virtual void CreateRecursive(
-        const NYTree::TYPath& path,
-        NYTree::INode* value) = 0;
+    //virtual void CreateRecursive(
+    //    const NYTree::TYPath& path,
+    //    NYTree::INode* value) = 0;
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
@@ -564,7 +565,7 @@ protected:
 
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
-        if (NYTree::IsFinalYPath(context->GetPath())) {
+        if (NYTree::IsEmpty(context->GetPath())) {
             // This should throw an exception.
             TBase::Create(request, response, context);
             return;
@@ -668,12 +669,6 @@ public:
 
 protected:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
-
-    virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
-    virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
-    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
-    virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

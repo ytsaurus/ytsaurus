@@ -10,9 +10,6 @@ namespace NCypress {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NYTree::TYPath ObjectIdMarker;
-extern const NYTree::TYPath TransactionIdMarker;
-
 //! Creates the YPath pointing to an object with a given id.
 NYTree::TYPath FromObjectId(const TObjectId& id);
 
