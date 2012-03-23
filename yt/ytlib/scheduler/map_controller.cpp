@@ -560,16 +560,16 @@ public:
 
         // Check if we have enough chunk lists in the pool.
         if (ChunkListPool->GetSize() < OutputTables.size()) {
-            LOG_DEBUG("No chunk lists in pool left, ignoring scheduling request");
+            LOG_DEBUG("No pooled chunk lists left, ignoring scheduling request");
             // TODO(babenko): make configurable
-            ChunkListPool->Allocate(OutputTables.size() * 10);
+            ChunkListPool->Allocate(OutputTables.size() * 5);
             return;
         }
 
         // We've got a job to do! :)
         
         // Make a copy of the generic spec and customize it.
-        auto jobSpec = GenericJobSpec;
+        auto jobSpec = JobSpecTemplate;
         auto* mapJobSpec = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
 
         i64 pendingJobs = JobCounter.GetPending();
@@ -688,7 +688,7 @@ private:
     TChunkListPoolPtr ChunkListPool;
 
     // The template for starting new jobs.
-    TJobSpec GenericJobSpec;
+    TJobSpec JobSpecTemplate;
 
     // Job scheduled so far.
     struct TJobInfo
@@ -696,7 +696,7 @@ private:
     {
         // Chunk indexes assigned to this job.
         std::vector<int> ChunkIndexes;
-        // Chunk lists allocated to store the result of this job (one per each output table).
+        // Chunk lists allocated to store the output (one per each output table).
         std::vector<TChunkListId> OutputChunkListIds;
     };
 
@@ -705,7 +705,7 @@ private:
     yhash_map<TJobPtr, TJobInfoPtr> JobInfos;
 
 
-    // Helpers for constructing a pipeline.
+    // Helpers for pipeline construction.
     template <class TTarget, class TIn, class TOut>
     TIntrusivePtr< IParamFunc<TIn, TIntrusivePtr< TFuture<TOut> > > >
     BindBackgroundTask(TIntrusivePtr< TFuture<TOut> > (TTarget::*method)(TIn), TTarget* target)
@@ -720,6 +720,8 @@ private:
         return FromMethod(method, MakeWeak(target))->AsyncVia(Host->GetBackgroundInvoker());
     }
 
+
+    // Scheduled jobs info management.
 
     void PutJobInfo(TJobPtr job, TJobInfoPtr jobInfo)
     {
