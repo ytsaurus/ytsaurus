@@ -23,13 +23,15 @@
 namespace NYT {
 namespace NJobProxy {
 
+using namespace NScheduler;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = JobProxyLogger;
 
-using namespace NScheduler;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
 
 // ToDo(psushin): set sigint handler?
 // ToDo(psushin): extract it to separate file.
@@ -47,6 +49,8 @@ TError StatusToError(int status)
         return TError(Sprintf("Status %d", status));
     }
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
