@@ -141,6 +141,7 @@ private:
                 State = EState::Failed;
                 LookupResult.Reset();
                 Channel.Reset();
+                break;
 
             case EState::Connecting:
             case EState::Failed:
@@ -178,6 +179,7 @@ private:
                 YASSERT(LookupResult);
                 YASSERT(!Channel);
                 auto lookupResult = LookupResult;
+                YASSERT(!lookupResult->IsSet());
                 guard.Release();
 
                 return lookupResult->Apply(FromMethod(
