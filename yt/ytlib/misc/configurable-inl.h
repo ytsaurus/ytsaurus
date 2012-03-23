@@ -288,43 +288,32 @@ TParameter<T>& TParameter<T>::CheckThat(TValidatorPtr validator)
 DEFINE_VALIDATOR(
     GreaterThan(T value),
     parameter > value,
-    yexception()
-        << "Validation failure (Expected: >"
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected >" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(T value),
     parameter >= value,
-    yexception()
-        << "Validation failure (Expected: >="
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected >=" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     LessThan(T value),
     parameter < value,
-    yexception()
-        << "Validation failure (Expected: <"
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected <" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(T value),
     parameter <= value,
-    yexception()
-        << "Validation failure (Expected: <="
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected <=" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     InRange(T lowerBound, T upperBound),
     lowerBound <= parameter && parameter <= upperBound,
-    yexception()
-        << "Validation failure (Expected: in range ["
-        << lowerBound << ", " << upperBound << "], Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected in range ["<< lowerBound << ", " << upperBound << "], found " << parameter)
 
 DEFINE_VALIDATOR(
     NonEmpty(),
     parameter.size() > 0,
-    yexception()
-        << "Validation failure (Expected: non-empty)")
+    yexception() << "Validation failure: expected non-empty")
 
 #undef DEFINE_VALIDATOR
 
