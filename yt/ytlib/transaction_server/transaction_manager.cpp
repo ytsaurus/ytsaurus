@@ -329,6 +329,10 @@ void TTransactionManager::Commit(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    if (transaction.GetState() != ETransactionState::Active) {
+        ythrow yexception() << "Cannot commit an inactive transaction";
+    }
+
     auto id = transaction.GetId();
 
     if (!transaction.NestedTransactions().empty()) {
@@ -352,12 +356,16 @@ void TTransactionManager::Abort(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    if (transaction.GetState() != ETransactionState::Active) {
+        ythrow yexception() << "Cannot abort an inactive transaction";
+    }
+
     auto id = transaction.GetId();
 
     // Make a copy, the set will be modified.
     auto nestedTransactions = transaction.NestedTransactions();
-    FOREACH (auto* transaction, nestedTransactions) {
-        Abort(*transaction);
+    FOREACH (auto* nestedTransaction, nestedTransactions) {
+        Abort(*nestedTransaction);
     }
     YASSERT(transaction.NestedTransactions().empty());
 
@@ -379,8 +387,8 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
     auto objectManager = Bootstrap->GetObjectManager();
     auto transactionId = transaction.GetId();
 
-    if (transaction.GetParent()) {
-        auto* parent = transaction.GetParent();
+    auto* parent = transaction.GetParent();
+    if (parent) {
         YVERIFY(parent->NestedTransactions().erase(&transaction) == 1);
         objectManager->UnrefObject(transactionId);
     }
