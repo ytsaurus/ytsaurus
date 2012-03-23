@@ -229,9 +229,7 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
 template <class T>
 void TParameter<T>::Save(NYTree::IYsonConsumer* consumer) const
 {
-    if (IsPresent()) {
-        NYTree::Write(Parameter, consumer);
-    }
+    NYTree::Write(Parameter, consumer);
 }
 
 template <class T>
