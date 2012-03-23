@@ -16,42 +16,52 @@ class TLexerTest: public ::testing::Test
 public:
     typedef TLexer::EState EState;
 
-    TLexer Lexer;
+    THolder<TLexer> Lexer;
     
+    virtual void SetUp()
+    {
+        Reset();
+    }
+
+    void Reset()
+    {
+        Lexer.Reset(new TLexer());
+    }
+
     void TestConsume(char ch, bool expectedConsumed = true)
     {
-        EXPECT_EQ(expectedConsumed, Lexer.Consume(ch));
+        EXPECT_EQ(expectedConsumed, Lexer->Consume(ch));
     }
 
     void CheckState(EState state)
     {
-        EXPECT_EQ(state, Lexer.GetState());
+        EXPECT_EQ(state, Lexer->GetState());
+    }
+
+    const TToken& GetToken(const Stroka& input)
+    {
+        FOREACH (char ch, input) {
+            TestConsume(ch);
+        }
+        Lexer->Finish();
+        CheckState(EState::Terminal);
+        return Lexer->GetToken();
     }
 
     void TestToken(const Stroka& input, ETokenType expectedType, const Stroka& expectedValue)
     {
-        FOREACH (char ch, input) {
-            TestConsume(ch);
-        }
-        Lexer.Finish();
-        CheckState(EState::Terminal);
-        auto& token = Lexer.GetToken();
+        auto& token = GetToken(input);
         EXPECT_EQ(expectedType, token.GetType());
         EXPECT_EQ(expectedValue, token.ToString());
-        Lexer.Reset();
+        Reset();
     }
 
     void TestDouble(const Stroka& input, double expectedValue)
     {
-        FOREACH (char ch, input) {
-            TestConsume(ch);
-        }
-        Lexer.Finish();
-        CheckState(EState::Terminal);
-        auto& token = Lexer.GetToken();
+        auto& token = GetToken(input);
         EXPECT_EQ(ETokenType::Double, token.GetType());
         EXPECT_DOUBLE_EQ(expectedValue, token.GetDoubleValue());
-        Lexer.Reset();
+        Reset();
     }
 
     void TestIncorrectFinish(const Stroka& input)
@@ -59,8 +69,8 @@ public:
         FOREACH (char ch, input) {
             TestConsume(ch);
         }
-        EXPECT_THROW(Lexer.Finish(), yexception);
-        Lexer.Reset();
+        EXPECT_THROW(Lexer->Finish(), yexception);
+        Reset();
     }
 
     void TestIncorrectInput(const Stroka& input)
@@ -69,8 +79,8 @@ public:
         for (int i = 0; i < length - 1; ++i) {
             TestConsume(input[i]);
         }
-        EXPECT_THROW(Lexer.Consume(input.back()), yexception);
-        Lexer.Reset();
+        EXPECT_THROW(Lexer->Consume(input.back()), yexception);
+        Reset();
     }
 };
 
@@ -90,7 +100,7 @@ TEST_F(TLexerTest, States)
     TestConsume(' ', false);
     CheckState(EState::Terminal);
     
-    Lexer.Reset();
+    Lexer->Reset();
 
     CheckState(EState::None);
     TestConsume(' ');
@@ -100,36 +110,36 @@ TEST_F(TLexerTest, States)
     TestConsume(';', false);
     CheckState(EState::Terminal);
 
-    Lexer.Reset();
+    Lexer->Reset();
 
     CheckState(EState::None);
     TestConsume(';');
     CheckState(EState::Terminal);
     
-    Lexer.Reset();
+    Lexer->Reset();
 
     CheckState(EState::None);
     TestConsume('1');
     CheckState(EState::InProgress);
     TestConsume('2');
     CheckState(EState::InProgress);
-    Lexer.Finish();
+    Lexer->Finish();
     CheckState(EState::Terminal);
     
-    Lexer.Reset();
+    Lexer->Reset();
     
     CheckState(EState::None);
     TestConsume(' ');
     CheckState(EState::None);
-    Lexer.Finish();
+    Lexer->Finish();
     CheckState(EState::None);
 
-    Lexer.Reset();
+    Lexer->Reset();
 
     CheckState(EState::None);
-    Lexer.Finish();
+    Lexer->Finish();
     CheckState(EState::None);
-    Lexer.Finish();
+    Lexer->Finish();
     CheckState(EState::None);
 }
 
