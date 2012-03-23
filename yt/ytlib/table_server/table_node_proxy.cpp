@@ -141,7 +141,7 @@ void TTableNodeProxy::ParseYPath(
     NTableClient::TChannel* channel)
 {
     // Set defaults.
-    *channel = TChannel::Universal();
+    *channel = TChannel::CreateUniversal();
     
     // A simple shortcut.
     if (path.empty()) {
@@ -206,7 +206,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }   
     }
 
-    auto channel = TChannel::Empty();
+    auto channel = TChannel::CreateEmpty();
     ParseYPath(context->GetPath(), &channel);
 
     *response->mutable_channel() = channel.ToProto();
