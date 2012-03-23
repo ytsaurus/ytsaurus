@@ -120,26 +120,30 @@ protected:
 
     void OnOperationFailed(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         LOG_INFO("Operation failed\n%s", ~error.ToString());
 
         Host->OnOperationFailed(Operation, error);
-        AbortOperation();
+
+        Host->GetControlInvoker()->Invoke(FromMethod(
+            &TOperationControllerBase::AbortOperation,
+            MakeWeak(this)));
     }
 
     void OnOperationCompleted()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         LOG_INFO("Operation completed");
 
         Host->OnOperationCompleted(Operation);
     }
 
-
     virtual void AbortOperation()
-    { }
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1109,7 +1113,7 @@ private:
 
         // Allocate some initial chunk lists.
         // TOOD(babenko): make configurable
-        ChunkListPool->Allocate(OutputTables.size() * 10);
+        ChunkListPool->Allocate(OutputTables.size() * totalJobCount + 10);
 
         // Init running counters.
         JobCounter.Init(totalJobCount);
@@ -1195,10 +1199,12 @@ private:
         }
 
         {
-            auto rsp = batchRsp->GetResponse("attach_chunk_lists");
-            if (!CheckResponse(rsp, "Error attaching chunk lists")) {
-                return TVoid();
-            }       
+            auto rsps = batchRsp->GetResponses("attach_chunk_lists");
+            FOREACH (auto rsp, rsps) {
+                if (!CheckResponse(rsp, "Error attaching chunk lists")) {
+                    return TVoid();
+                }       
+            }
         }
 
         {
@@ -1234,6 +1240,8 @@ private:
 
     virtual void AbortOperation()
     {
+        TOperationControllerBase::AbortOperation();
+
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Aborting operation");

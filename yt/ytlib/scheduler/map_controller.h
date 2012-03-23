@@ -21,14 +21,14 @@ struct TMapOperationSpec
     TMapOperationSpec()
     {
         SetKeepOptions(true);
-        Register("shell_command", ShellCommand)
-            .Default("");
+        Register("shell_command", ShellCommand);
         Register("files", Files)
             .Default(yvector<NYTree::TYPath>());
         Register("in", In);
         Register("out", Out);
         // TODO(babenko): validate > 0
-        Register("job_count", JobCount);
+        Register("job_count", JobCount)
+            .Default();
     }
 };
 
