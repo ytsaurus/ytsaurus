@@ -309,7 +309,7 @@ const ICypressNode* TCypressManager::FindVersionedNode(
         }
 
         // Move to the parent transaction.
-        const auto& transaction = transactionManager->GetTransaction(transactionId);
+        const auto& transaction = transactionManager->GetTransaction(currentTransactionId);
         currentTransactionId = transaction.GetParentId();
     }
 }
@@ -372,7 +372,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
         }
 
         // Move to the parent transaction.
-        const auto& transaction = transactionManager->GetTransaction(transactionId);
+        const auto& transaction = transactionManager->GetTransaction(currentTransactionId);
         currentTransactionId = transaction.GetParentId();
     }
 }
