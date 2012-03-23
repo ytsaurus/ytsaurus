@@ -107,6 +107,11 @@ TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(const S
     return GetResponse<TYPathResponse>(key);
 }
 
+std::vector<NYTree::TYPathResponse::TPtr> TCypressServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+{
+    return GetResponses<TYPathResponse>(key);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressServiceProxy::TReqExecuteBatch::TPtr TCypressServiceProxy::ExecuteBatch()
