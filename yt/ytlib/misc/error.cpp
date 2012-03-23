@@ -14,6 +14,15 @@ TError::TError(const Stroka& message)
     , Message_(message)
 { }
 
+TError::TError(const char* format, ...)
+    : Code_(Fail)
+{
+    va_list params;
+    va_start(params, format);
+    vsprintf(Message_, format, params);
+    va_end(params);
+}
+
 TError::TError(const TError& other)
     : Code_(other.Code_)
     , Message_(other.Message_)
@@ -23,6 +32,15 @@ TError::TError(int code, const Stroka& message)
     : Code_(code)
     , Message_(message)
 { }
+
+TError::TError(int code, const char* format, ...)
+    : Code_(Fail)
+{
+    va_list params;
+    va_start(params, format);
+    vsprintf(Message_, format, params);
+    va_end(params);
+}
 
 Stroka TError::ToString() const
 {

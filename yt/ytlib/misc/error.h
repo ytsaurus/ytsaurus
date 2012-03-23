@@ -20,12 +20,13 @@ class TError
 
 public:
     TError();
-
-    explicit TError(const Stroka& message);
-
     TError(const TError& other);
 
+    explicit TError(const Stroka& message);
+    TError(const char* format, ...);
+
     TError(int code, const Stroka& message);
+    TError(int code, const char* format, ...);
 
     bool IsOK() const;
 
