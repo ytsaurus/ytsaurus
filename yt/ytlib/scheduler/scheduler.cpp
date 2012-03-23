@@ -784,7 +784,7 @@ private:
                     .Item("total_slot_count").Scalar(node->Utilization().total_slot_count())
                     .Item("free_slot_count").Scalar(node->Utilization().free_slot_count())
                 .EndMap()
-                .Item("job_count").Scalar(node->Jobs().size())
+                .Item("job_count").Scalar(static_cast<int>(node->Jobs().size()))
             .EndMap();
     }
 
