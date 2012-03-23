@@ -23,6 +23,8 @@ namespace NYT {
 using namespace NLastGetopt;
 using namespace NYTree;
 using namespace NElection;
+using namespace NScheduler;
+using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +63,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     opts.AddLongOption("job-id", "job id (for job-proxy mode)")
         .Optional()
         .RequiredArgument("ID")
-        .StoreResult(&jobIdOPt);
+        .StoreResult(&jobIdOpt);
 
     int port = -1;
     opts.AddLongOption("port", "port to listen")
