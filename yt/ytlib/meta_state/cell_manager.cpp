@@ -25,8 +25,8 @@ TCellManager::TCellManager(TCellConfig* config)
     
     SelfAddress_ = Sprintf("%s:%d", GetHostName(), Config->RpcPort);
     SelfId_ = std::distance(
-        std::find(OrderedAddresses.begin(), OrderedAddresses.end(), SelfAddress_),
-        OrderedAddresses.end());
+        OrderedAddresses.begin(),
+        std::find(OrderedAddresses.begin(), OrderedAddresses.end(), SelfAddress_));
 
     if (SelfId_ == OrderedAddresses.size()) {
         LOG_FATAL("Self is absent in the list of masters (SelfAddress: %s)",
