@@ -34,7 +34,7 @@ TError::TError(int code, const Stroka& message)
 { }
 
 TError::TError(int code, const char* format, ...)
-    : Code_(Fail)
+    : Code_(code)
 {
     va_list params;
     va_start(params, format);
