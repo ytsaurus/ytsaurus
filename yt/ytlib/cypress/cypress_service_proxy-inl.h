@@ -33,7 +33,10 @@ TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetRespons
     YASSERT(!key.empty());
     auto range = KeyToIndexes.equal_range(key);
     auto it = range.first;
+    // Failure here means that no responses with the given key are found.
+    YASSERT(range.first != range.second);
     int index = it->second;
+    // Failure here means that more than one response with the given key is found.
     YASSERT(++it == range.second);
     return GetResponse<TTypedResponse>(index);
 }
