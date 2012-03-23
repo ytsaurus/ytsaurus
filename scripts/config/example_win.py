@@ -78,7 +78,7 @@ class Master(WinNode, Server):
         
 class Holder(WinNode, Server):
         address = Subclass(opts.limit_iter('--holders',
-            [('%s:%d' % (socket.getfqdn(), port)) for port in range(9000, 9100)]))
+            ['%s:%d' % (socket.getfqdn(), p) for p in range(9000, 9100)]))
         
         params = Template('--node --config %(config_path)s --port %(port)d')
         
