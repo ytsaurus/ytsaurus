@@ -75,7 +75,6 @@ protected:
 
     virtual void LogRequest() = 0;
     virtual void LogResponse(const TError& error) = 0;
-    virtual void LogException(const Stroka& message) = 0;
 
     static void AppendInfo(Stroka& lhs, const Stroka& rhs);
 

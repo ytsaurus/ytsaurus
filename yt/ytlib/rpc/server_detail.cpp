@@ -169,7 +169,6 @@ void TServiceContextBase::WrapThunk(IAction::TPtr action) throw()
     } catch (const std::exception& ex) {
         auto message = ex.what();
         Reply(TError(EErrorCode::ServiceError, message));
-        LogException(message);
     }
 }
 

@@ -562,17 +562,6 @@ protected:
             ~str);
     }
 
-    virtual void LogException(const Stroka& message)
-    {
-        Stroka str;
-        AppendInfo(str, Sprintf("Path: %s", ~Path));
-        AppendInfo(str, Sprintf("Verb: %s", ~Verb));
-        AppendInfo(str, ResponseInfo);
-        LOG_FATAL("Unhandled exception in YPath service method (%s)\n%s",
-            ~str,
-            ~message);
-    }
-
 };
 
 NRpc::IServiceContext::TPtr CreateYPathContext(

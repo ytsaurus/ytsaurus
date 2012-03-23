@@ -75,18 +75,6 @@ private:
             ~str);
     }
 
-    virtual void LogException(const Stroka& message)
-    {
-        Stroka str;
-        AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
-        AppendInfo(str, Sprintf("Path: %s", ~Path));
-        AppendInfo(str, Sprintf("Verb: %s", ~Verb));
-        AppendInfo(str, ResponseInfo);
-        LOG_FATAL("Unhandled exception in RPC service method (%s)\n%s",
-            ~str,
-            ~message);
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
