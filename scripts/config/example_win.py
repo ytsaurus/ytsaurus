@@ -2,6 +2,7 @@
 from cfglib.ytremote import *
 from cfglib.ytwin import *
 import cfglib.opts as opts
+import socket
 
 build_dir = r'c:\Users\Max\Work\Yandex\YT\build'
 
@@ -40,7 +41,7 @@ Logging = {
 }
 
 MasterAddresses = opts.limit_iter('--masters',
-        ['localhost:%d' % port for port in xrange(8001, 8004)])
+        ['%s:%d' % (socket.getfqdn(), port) for port in xrange(8001, 8004)])
 
 class Base(AggrBase):
         path = opts.get_string('--name', 'control')
@@ -77,7 +78,7 @@ class Master(WinNode, Server):
         
 class Holder(WinNode, Server):
         address = Subclass(opts.limit_iter('--holders',
-                        [('localhost:%d' % p) for p in range(9000, 9100)]))
+            [('%s:%d' % (socket.getfqdn(), port)) for port in range(9000, 9100)]))
         
         params = Template('--node --config %(config_path)s --port %(port)d')
         
