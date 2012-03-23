@@ -296,10 +296,14 @@ private:
             ConsumeBinaryInt64(ch);
 
             if (State_ == EState::Terminal) {
-                BytesRead = -Token.GetInt64Value();
-                Token.Int64Value = 0;
-                State_ = EState::None; // SetInProgressState asserts it
+                i64 length = Token.GetInt64Value();
+                if (length < 0) {
+                    ythrow yexception() << Sprintf("Error reading binary string: String cannot have negative length (Length: %" PRId64 ")",
+                        length);
+                }
+                Reset();
                 SetInProgressState(EInnerState::InsideBinaryString);
+                BytesRead = -length;
             } else {
                 YASSERT(BytesRead > 0); // So we won't FinishString
             }
