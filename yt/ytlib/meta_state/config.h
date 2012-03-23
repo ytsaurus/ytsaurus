@@ -13,27 +13,24 @@ namespace NMetaState {
 struct TCellConfig
     : public TConfigurable
 {
+    //! RPC interface port number.
+    int RpcPort;
+
     //! Master server addresses.
     yvector<Stroka> Addresses;
 
-    //! The current master server id.
-    TPeerId Id;
-
     TCellConfig()
     {
-        Register("id", Id)
-            .Default(NElection::InvalidPeerId);
+        Register("rpc_port", RpcPort)
+            .Default(9091);
         Register("addresses", Addresses)
             .NonEmpty();
     }
 
     virtual void DoValidate() const
     {
-        if (Id == NElection::InvalidPeerId) {
-            ythrow yexception() << "Missing peer id";
-        }
-        if (Id < 0 || Id >= Addresses.ysize()) {
-            ythrow yexception() << Sprintf("Id must be in range 0..%d", Addresses.ysize() - 1);
+        if ((Addresses.ysize() % 2) != 1) {
+            ythrow yexception() << Sprintf("Cell should consist of odd number of masters");
         }
     }
 };
@@ -66,7 +63,6 @@ struct TChangeLogDownloaderConfig
 struct TSnapshotDownloaderConfig
     : public TConfigurable
 {
-
     TDuration LookupTimeout;
     TDuration ReadTimeout;
     i32 BlockSize;

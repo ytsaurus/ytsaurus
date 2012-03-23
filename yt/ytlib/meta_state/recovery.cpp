@@ -352,7 +352,7 @@ TLeaderRecovery::TLeaderRecovery(
         changeLogCache,
         snapshotStore,
         epoch,
-        cellManager->GetSelfId(),
+        cellManager->SelfId(),
         epochControlInvoker,
         epochStateInvoker)
 { }

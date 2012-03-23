@@ -24,7 +24,6 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/async_change_log.h
-  ${BASE}/cell_manager-inl.h
   ${BASE}/cell_manager.h
   ${BASE}/change_committer.h
   ${BASE}/change_log.h

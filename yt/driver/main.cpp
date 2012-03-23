@@ -36,8 +36,8 @@ using namespace NDriver;
 using namespace NYTree;
 
 static NLog::TLogger& Logger = DriverLogger;
-static const char* DefaultConfigFileName = ".ytdriver.config.yson";
-
+static const char* DefaultConfigFileName = ".ytdriver.conf";
+static const char* SystemConfigPath = "/etc/";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,6 +190,9 @@ public:
                     configFileName = Stroka(configFromEnv);
                 } else {
                     configFileName = NFS::CombinePaths(GetHomePath(), DefaultConfigFileName);
+                    if (!isexist(~configFileName)) {
+                        configFileName = NFS::CombinePaths(SystemConfigPath, DefaultConfigFileName);
+                    }
                 }
             }
 
@@ -201,6 +204,8 @@ public:
             } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
             }
+
+            argsParser->ApplyConfigUpdates(~configNode);
 
             try {
                 config->Load(~configNode);

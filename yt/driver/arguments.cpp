@@ -9,17 +9,22 @@ using namespace NYTree;
 TArgsBase::TArgsBase()
 {
     Cmd.Reset(new TCLAP::CmdLine("Command line"));
+
     ConfigArg.Reset(new TCLAP::ValueArg<std::string>(
         "", "config", "configuration file", false, "", "file_name"));
-    FormatArg.Reset(new TCLAP::ValueArg<EYsonFormat>(
+    OutputFormatArg.Reset(new TCLAP::ValueArg<EYsonFormat>(
         "", "format", "output format", false, EYsonFormat::Text, "text, pretty, binary"));
+
+    ConfigUpdatesArg.Reset(new TCLAP::MultiArg<Stroka>(
+        "", "set", "set custom updates in config", false, "ypath=value"));
 
     OptsArg.Reset(new TCLAP::MultiArg<std::string>(
         "", "opts", "other options", false, "options"));
 
     Cmd->add(~ConfigArg);
     Cmd->add(~OptsArg);
-    Cmd->add(~FormatArg);
+    Cmd->add(~OutputFormatArg);
+    Cmd->add(~ConfigUpdatesArg);
 }
 
 void TArgsBase::Parse(std::vector<std::string>& args)
@@ -44,7 +49,18 @@ Stroka TArgsBase::GetConfigName()
 
 EYsonFormat TArgsBase::GetOutputFormat()
 {
-    return FormatArg->getValue();
+    return OutputFormatArg->getValue();
+}
+
+void TArgsBase::ApplyConfigUpdates(NYTree::IYPathService* service)
+{
+    FOREACH (auto updateString, ConfigUpdatesArg->getValue()) {
+        int index = updateString.find_first_of('=');
+        auto ypath = updateString.substr(0, index);
+        auto yson = updateString.substr(index + 1);
+        SyncYPathSet(service, ypath, yson);
+    }
+
 }
 
 void TArgsBase::BuildOpts(IYsonConsumer* consumer)
@@ -325,6 +341,7 @@ void TDownloadArgs::BuildCommand(IYsonConsumer* consumer)
 
     TTransactedArgs::BuildCommand(consumer);
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

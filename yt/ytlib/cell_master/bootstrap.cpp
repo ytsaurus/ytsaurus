@@ -139,11 +139,6 @@ IInvoker::TPtr TBootstrap::GetStateInvoker(EStateThreadQueue queueIndex)
 
 void TBootstrap::Run()
 {
-    // TODO: extract method
-    Stroka address = Config->MetaState->Cell->Addresses.at(Config->MetaState->Cell->Id);
-    size_t index = address.find_last_of(":");
-    int rpcPort = FromString<int>(address.substr(index + 1));
-
     LOG_INFO("Starting cell master");
 
     MetaState = New<TCompositeMetaState>();
@@ -151,7 +146,7 @@ void TBootstrap::Run()
     ControlQueue = New<TActionQueue>("Control");
     StateQueue = New<TMultiActionQueue>(StateThreadQueueCount, "MetaState");
 
-    auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(rpcPort));
+    auto busServer = CreateNLBusServer(~New<TNLBusServerConfig>(Config->MetaState->Cell->RpcPort));
 
     auto rpcServer = CreateRpcServer(~busServer);
 
@@ -245,7 +240,7 @@ void TBootstrap::Run()
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();
 
-    LOG_INFO("Listening for RPC requests on port %d", rpcPort);
+    LOG_INFO("Listening for RPC requests on port %d", Config->MetaState->Cell->RpcPort);
     rpcServer->Start();
 
     Sleep(TDuration::Max());
