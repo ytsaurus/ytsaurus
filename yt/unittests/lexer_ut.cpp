@@ -64,6 +64,14 @@ public:
         Reset();
     }
 
+    void TestSpecialValue(const Stroka& input, ETokenType expectedType)
+    {
+        auto& token = GetToken(input);
+        EXPECT_EQ(expectedType, token.GetType());
+        EXPECT_EQ(input, token.ToString());
+        Reset();
+    }
+
     void TestIncorrectFinish(const Stroka& input)
     {
         FOREACH (char ch, input) {
@@ -129,7 +137,7 @@ TEST_F(TLexerTest, States)
     Lexer->Reset();
     
     CheckState(EState::None);
-    TestConsume(' ');
+    TestConsume('\t');
     CheckState(EState::None);
     Lexer->Finish();
     CheckState(EState::None);
@@ -143,12 +151,73 @@ TEST_F(TLexerTest, States)
     CheckState(EState::None);
 }
 
+TEST_F(TLexerTest, Empty)
+{
+    TestToken(" \t\r\n", ETokenType::None, "");
+}
+
+TEST_F(TLexerTest, Strings)
+{
+    TestToken("abc_123", ETokenType::String, "abc_123");
+
+    TestToken("\"abc_123\"", ETokenType::String, "abc_123");
+    TestToken("\" abc_123\\t\\\\\\\"\"", ETokenType::String, " abc_123\t\\\"");
+    TestToken("\"\\x01\\x02\\x03\\x04\"", ETokenType::String, "\x01\x02\x03\x04");
+
+    TestToken("\x01\x00", ETokenType::String, "");
+    TestToken("\x01\x08\x01\x02\x03\x04", ETokenType::String, "\x01\x02\x03\x04");
+}
+
+TEST_F(TLexerTest, Integers)
+{
+    TestToken("123", ETokenType::Int64, "123");
+    TestToken("0", ETokenType::Int64, "0");
+    TestToken("+1", ETokenType::Int64, "1");
+    TestToken("-1", ETokenType::Int64, "-1");
+
+    TestToken("\x02\x00", ETokenType::Int64, "0");
+    TestToken("\x02\x01", ETokenType::Int64, "-1");
+    TestToken("\x02\x02", ETokenType::Int64, "1");
+    TestToken("\x02\x03", ETokenType::Int64, "-2");
+    TestToken("\x02\x04", ETokenType::Int64, "2");
+    TestToken("\x02\x80\x80\x80\x02", ETokenType::Int64, ToString(1ull << 21));
+}
+
+TEST_F(TLexerTest, Doubles)
+{
+    const double x = 3.1415926;
+    TestDouble("3.1415926", x);
+    TestDouble("0.31415926e+1", x);
+    TestDouble("31415926e-7", x);
+    TestDouble(Stroka('\x03') + Stroka((const char*) &x, sizeof(x)), x);
+}
+
+TEST_F(TLexerTest, SpecialValues)
+{
+    TestSpecialValue(";", ETokenType::Semicolon);
+    TestSpecialValue("=", ETokenType::Equals);
+    TestSpecialValue("[", ETokenType::LeftBracket);
+    TestSpecialValue("]", ETokenType::RightBracket);
+    TestSpecialValue("{", ETokenType::LeftBrace);
+    TestSpecialValue("}", ETokenType::RightBrace);
+    TestSpecialValue("<", ETokenType::LeftAngle);
+    TestSpecialValue(">", ETokenType::RightAngle);
+    TestSpecialValue("/", ETokenType::Slash);
+    TestSpecialValue("@", ETokenType::At);
+    TestSpecialValue("#", ETokenType::Hash);
+    TestSpecialValue("!", ETokenType::Bang);
+}
+
 TEST_F(TLexerTest, IncorrectChars)
 {
     TestIncorrectInput("\x01\x03"); // Binary string with negative length
-    TestIncorrectInput("|");
-    TestIncorrectInput("&");
-    TestIncorrectInput("*");
+    TestIncorrectInput("|"); // unknown symbol
+    TestIncorrectInput("&"); // unknown symbol
+    TestIncorrectInput("*"); // unknown symbol
+    TestIncorrectInput("."); // unknown symbol
+    TestIncorrectInput(","); // unknown symbol
+    TestIncorrectInput("("); // unknown symbol
+    TestIncorrectInput(")"); // unknown symbol
 }
 
 TEST_F(TLexerTest, IncorrectFinish)
