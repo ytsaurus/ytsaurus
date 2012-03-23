@@ -139,6 +139,10 @@ TEST_F(TLexerTest, States)
     CheckState(EState::None);
     TestConsume('\t');
     CheckState(EState::None);
+    TestConsume('\r');
+    CheckState(EState::None);
+    TestConsume('\n');
+    CheckState(EState::None);
     Lexer->Finish();
     CheckState(EState::None);
 
@@ -149,11 +153,6 @@ TEST_F(TLexerTest, States)
     CheckState(EState::None);
     Lexer->Finish();
     CheckState(EState::None);
-}
-
-TEST_F(TLexerTest, Empty)
-{
-    TestToken(" \t\r\n", ETokenType::None, "");
 }
 
 TEST_F(TLexerTest, Strings)
