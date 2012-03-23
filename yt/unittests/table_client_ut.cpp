@@ -69,7 +69,7 @@ public:
             TRow ethalon = FilterRow(Rows[i], channel);
 
             EXPECT_TRUE(chunkReader->IsValid());
-            auto row = chunkReader->GetRowData();
+            auto row = chunkReader->GetCurrentRow();
             std::sort(row.begin(), row.end());
 
             EXPECT_EQ(ethalon, row);
@@ -184,7 +184,8 @@ TEST_F(TEmptyKeysSortedRows2, ReadWholeChunk)
         TChannel::CreateUniversal(),
         ~CreateFileReader(),
         NProto::TReadLimit(),
-        NProto::TReadLimit());
+        NProto::TReadLimit(),
+        "");
 
     Test.Read(chunkReader, TChannel::CreateUniversal());
 }
@@ -202,7 +203,8 @@ TEST_F(TEmptyKeysSortedRows2, ReadSecondRow)
         channel,
         ~CreateFileReader(),
         startLimit,
-        NProto::TReadLimit());
+        NProto::TReadLimit(),
+        "");
 
     Test.Read(chunkReader, channel, 1);
 } 
@@ -218,7 +220,8 @@ TEST_F(TEmptyKeysSortedRows2, ReadFirstRow)
         TChannel::CreateEmpty(),
         ~CreateFileReader(),
         NProto::TReadLimit(),
-        endLimit);
+        endLimit,
+        "");
 
     Test.Read(chunkReader, TChannel::CreateEmpty(), 0, 1);
 } 
@@ -237,7 +240,8 @@ TEST_F(TEmptyKeysSortedRows2, ReadChannel)
         channel,
         ~CreateFileReader(),
         startLimit,
-        endLimit);
+        endLimit,
+        "");
 
     Test.Read(chunkReader, channel);
 }
@@ -255,7 +259,8 @@ TEST_F(TEmptyKeysSortedRows2, ReadNothing) {
         TChannel::CreateUniversal(),
         ~CreateFileReader(),
         startLimit,
-        endLimit);
+        endLimit,
+        "");
 
     ReadNone(chunkReader);
 }
@@ -304,7 +309,8 @@ TEST_F(TEmptyKeysUnsortedRows2, ReadWhole)
         TChannel::CreateUniversal(),
         ~CreateFileReader(),
         NProto::TReadLimit(),
-        NProto::TReadLimit());
+        NProto::TReadLimit(),
+        "");
 
     Test.Read(chunkReader, TChannel::CreateUniversal());
 } 
@@ -322,7 +328,8 @@ TEST_F(TEmptyKeysUnsortedRows2, ReadSecond)
         channel,
         ~CreateFileReader(),
         startLimit,
-        NProto::TReadLimit());
+        NProto::TReadLimit(),
+        "");
 
     Test.Read(chunkReader, channel, 1);
 }
@@ -337,7 +344,8 @@ TEST_F(TEmptyKeysUnsortedRows2, ReadKeyRangeFail)
         TChannel::CreateEmpty(),
         ~CreateFileReader(),
         startLimit,
-        endLimit);
+        endLimit,
+        "");
 
     OpenFail(chunkReader);
 }
@@ -431,7 +439,8 @@ TEST_F(TManyRows, ReadWhole)
         TChannel::CreateUniversal(),
         ~CreateFileReader(),
         NProto::TReadLimit(),
-        NProto::TReadLimit());
+        NProto::TReadLimit(),
+        "");
 
     Test.Read(chunkReader, TChannel::CreateUniversal());
 }
@@ -453,7 +462,8 @@ TEST_F(TManyRows, ReadKeyRange)
         channel,
         ~CreateFileReader(),
         startLimit,
-        endLimit);
+        endLimit,
+        "");
 
     Test.Read(chunkReader, channel, BlockSize, 2 * BlockSize);
 } 
@@ -566,7 +576,8 @@ TEST_F(TVeryLongRows, ReadKeyRange)
         channel,
         ~CreateFileReader(),
         startLimit,
-        endLimit);
+        endLimit,
+        "");
 
     Test.Read(chunkReader, channel, BlockSize, 2 * BlockSize);
 } 
