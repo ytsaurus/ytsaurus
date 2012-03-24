@@ -116,7 +116,7 @@ public:
 
         TParent Node(const TYson& value)
         {
-            TStringStream stream(value);
+            TStringInput stream(value);
             TYsonReader reader(this->Consumer, &stream);
             reader.Read();
             return this->Parent;
