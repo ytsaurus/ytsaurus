@@ -174,8 +174,8 @@ TCreateArgs::TCreateArgs()
     TypeArg.Reset(new TTypeArg(
         "type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type"));
 
-    CmdLine->add(~PathArg);
     CmdLine->add(~TypeArg);
+    CmdLine->add(~PathArg);
 
     ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
     CmdLine->add(~ManifestArg);
@@ -202,6 +202,7 @@ TLockArgs::TLockArgs()
 {
     PathArg.Reset(new TUnlabeledStringArg("path", "path to an object in Cypress that must be locked", true, "", "path"));
     ModeArg.Reset(new TModeArg("", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive"));
+
     CmdLine->add(~PathArg);
     CmdLine->add(~ModeArg);
 }
