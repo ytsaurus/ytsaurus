@@ -203,7 +203,7 @@ public:
         }
 
         // Unregister taken local chunks.
-        // We have to do this right away, otherwise we risk getting the same chunks
+        // We have to do this right away, otherwise we risk getting same chunks
         // in the next phase.
         for (int i = 0; i < *localCount; ++i) {
             UnregisterChunk((*indexes)[i]);
@@ -298,8 +298,6 @@ public:
 
     TChunkListId Extract()
     {
-        //VERIFY_THREAD_AFFINITY(ControlThread);
-
         YASSERT(!Ids.empty());
         auto id = Ids.back();
         Ids.pop_back();
