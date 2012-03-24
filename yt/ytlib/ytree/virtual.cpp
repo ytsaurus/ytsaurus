@@ -83,7 +83,7 @@ void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqG
             response->set_value(stream.Str());
         } else {
             auto wholeValue = DeserializeFromYson(stream.Str());
-            auto value = SyncYPathGet(~wholeValue, suffixPath);
+            auto value = SyncYPathGet(wholeValue, suffixPath);
             response->set_value(value);
         }
     }
@@ -115,7 +115,7 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
         }
 
         auto wholeValue = DeserializeFromYson(stream.Str());
-        keys = SyncYPathList(~wholeValue, suffixPath);
+        keys = SyncYPathList(wholeValue, suffixPath);
     }
 
     NYT::ToProto(response->mutable_keys(), keys);
@@ -137,7 +137,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
         ythrow yexception() << Sprintf("Key %s is not found", ~token.Quote());
     }
 
-    return TResolveResult::There(~service, suffixPath);
+    return TResolveResult::There(service, suffixPath);
 }
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
@@ -210,7 +210,7 @@ class TVirtualEntityNode
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
-    TVirtualEntityNode(IYPathService* underlyingService)
+    TVirtualEntityNode(IYPathServicePtr underlyingService)
         : UnderlyingService(underlyingService)
     { }
 
@@ -235,7 +235,7 @@ public:
         if (IsLocalYPath(path)) {
             return TNodeBase::Resolve(path, verb);
         } else {
-            return TResolveResult::There(~UnderlyingService, path);
+            return TResolveResult::There(UnderlyingService, path);
         }
     }
 
@@ -256,14 +256,14 @@ private:
     }
 };
 
-INodePtr CreateVirtualNode(IYPathService* service)
+INodePtr CreateVirtualNode(IYPathServicePtr service)
 {
     return New<TVirtualEntityNode>(service);
 }
 
 NYT::NYTree::INodePtr CreateVirtualNode(TYPathServiceProducer producer)
 {
-    return CreateVirtualNode(~IYPathService::FromProducer(producer));
+    return CreateVirtualNode(IYPathService::FromProducer(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

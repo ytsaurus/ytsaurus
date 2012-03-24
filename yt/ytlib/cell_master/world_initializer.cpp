@@ -190,7 +190,7 @@ private:
     }
 
     // TODO(babenko): consider moving somewhere
-    static TObjectId SyncYPathCreate(IYPathService* service, const TYPath& path, EObjectType type, const TYson& manifest = "{}")
+    static TObjectId SyncYPathCreate(IYPathServicePtr service, const TYPath& path, EObjectType type, const TYson& manifest = "{}")
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(type);

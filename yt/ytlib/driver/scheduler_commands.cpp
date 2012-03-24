@@ -12,7 +12,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMapCommand::DoExecute(TMapRequest* request)
+void TMapCommand::DoExecute(TMapRequestPtr request)
 {
     auto transaction = DriverImpl->GetTransaction(request, true);
 

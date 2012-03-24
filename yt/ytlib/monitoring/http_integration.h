@@ -11,7 +11,7 @@ namespace NMonitoring {
 ////////////////////////////////////////////////////////////////////////////////
 
 NHttp::TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
-    NYTree::IYPathService* service);
+    NYTree::IYPathServicePtr service);
 
 NHttp::TServer::TAsyncHandler::TPtr GetYPathHttpHandler(
     NYTree::TYPathServiceProducer producer);

@@ -232,13 +232,14 @@ public:
                     {
                         fluent
                             .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
-                            .Item("active_followers").DoListFor(0, CellManager->GetPeerCount(),
-                                [=] (TFluentList fluent, TPeerId id)
-                                    {
-                                        if (tracker->IsFollowerActive(id)) {
-                                            fluent.Item().Scalar(id);
-                                        }
-                                    });
+                            .Item("active_followers").DoListFor(
+                                0,
+                                CellManager->GetPeerCount(),
+                                [=] (TFluentList fluent, TPeerId id) {
+                                    if (tracker->IsFollowerActive(id)) {
+                                        fluent.Item().Scalar(id);
+                                    }
+                                });
                     })
             .EndMap();
     }
