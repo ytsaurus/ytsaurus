@@ -1479,7 +1479,7 @@ private:
 
         if (name == "children_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList.ChildrenIds(), [=] (TFluentList fluent, TTransactionId id)
+                .DoListFor(chunkList.ChildrenIds(), [=] (TFluentList fluent, TChunkTreeId id)
                     {
                         fluent.Item().Scalar(id.ToString());
                     });
@@ -1488,7 +1488,7 @@ private:
 
         if (name == "parent_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList.ParentIds(), [=] (TFluentList fluent, TTransactionId id)
+                .DoListFor(chunkList.ParentIds(), [=] (TFluentList fluent, TChunkTreeId id)
                     {
                         fluent.Item().Scalar(id.ToString());
                     });

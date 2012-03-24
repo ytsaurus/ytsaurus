@@ -110,16 +110,15 @@ private:
         auto fromTime = ParseInstant(request->Attributes().Find<i64>("from_time"));
         auto range = GetSamples(fromTime);
         TYson yson = BuildYsonFluently()
-            .DoListFor(range.first, range.second, [] (TFluentList fluent, const TSamplesIterator& it)
-                {
-                    const auto& sample = *it;
-                    fluent
-                        .Item().BeginMap()
-                            .Item("id").Scalar(sample.Id)
-                            .Item("time").Scalar(static_cast<i64>(sample.Time.MicroSeconds()))
-                            .Item("value").Scalar(sample.Value)
-                        .EndMap();
-                });
+            .DoListFor(range.first, range.second, [] (TFluentList fluent, const TSamplesIterator& it) {
+                const auto& sample = *it;
+                fluent
+                    .Item().BeginMap()
+                        .Item("id").Scalar(sample.Id)
+                        .Item("time").Scalar(static_cast<i64>(sample.Time.MicroSeconds()))
+                        .Item("value").Scalar(sample.Value)
+                    .EndMap();
+            });
         response->set_value(yson);
         context->Reply();
     }

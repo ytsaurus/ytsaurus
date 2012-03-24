@@ -93,11 +93,7 @@ void TListCommand::DoExecute(TListRequest* request)
 
     if (ypathResponse->IsOK()) {
          auto consumer = DriverImpl->CreateOutputConsumer();
-         BuildYsonFluently(~consumer)
-             .DoListFor(ypathResponse->keys(), [=] (TFluentList fluent, Stroka key)
-                {
-                    fluent.Item().Scalar(key);
-                });
+         BuildYsonFluently(~consumer).List(ypathResponse->keys());
     } else {
         DriverImpl->ReplyError(ypathResponse->GetError());
     }
