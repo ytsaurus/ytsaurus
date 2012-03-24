@@ -204,7 +204,7 @@ public:
             ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~objectId.ToString());
         }
 
-        return TResolveResult::There(~proxy, currentPath);
+        return TResolveResult::There(proxy, currentPath);
     }
 
     virtual void Invoke(IServiceContext* context)
@@ -286,9 +286,9 @@ TObjectManager::TObjectManager(
         static_cast<int>(config->CellId));
 }
 
-IYPathService* TObjectManager::GetRootService()
+IYPathServicePtr TObjectManager::GetRootService()
 {
-    return ~RootService;
+    return RootService;
 }
 
 void TObjectManager::RegisterHandler(IObjectTypeHandler* handler)

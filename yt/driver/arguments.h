@@ -28,7 +28,7 @@ public:
     Stroka GetConfigName();
     NYTree::EYsonFormat GetOutputFormat();
 
-    void ApplyConfigUpdates(NYTree::IYPathService* service);
+    void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
 
 protected:
     // useful  typedefs

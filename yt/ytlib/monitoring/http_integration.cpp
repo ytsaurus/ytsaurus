@@ -90,9 +90,9 @@ TFuture<Stroka>::TPtr HandleRequest(Stroka url, IYPathServicePtr service)
 
 } // namespace <anonymous>
 
-TServer::TAsyncHandler::TPtr GetYPathHttpHandler(IYPathService* service)
+TServer::TAsyncHandler::TPtr GetYPathHttpHandler(IYPathServicePtr service)
 {
-    return FromMethod(&HandleRequest, MakeStrong(service));
+    return FromMethod(&HandleRequest, service);
 }
 
 TServer::TAsyncHandler::TPtr GetYPathHttpHandler(TYPathServiceProducer producer)

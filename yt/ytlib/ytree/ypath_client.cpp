@@ -220,7 +220,7 @@ bool IsLocalYPath(const TYPath& path)
 }
 
 void ResolveYPath(
-    IYPathService* rootService,
+    IYPathServicePtr rootService,
     const TYPath& path,
     const Stroka& verb,
     IYPathServicePtr* suffixService,
@@ -283,7 +283,7 @@ void OnYPathResponse(
 
 TFuture<IMessage::TPtr>::TPtr
 ExecuteVerb(
-    IYPathService* service,
+    IYPathServicePtr service,
     NBus::IMessage* requestMessage)
 {
     NLog::TLogger Logger(service->GetLoggingCategory());
@@ -330,7 +330,7 @@ ExecuteVerb(
     return asyncResponseMessage;
 }
 
-void ExecuteVerb(IYPathService* service, IServiceContext* context)
+void ExecuteVerb(IYPathServicePtr service, IServiceContext* context)
 {
     auto context_ = MakeStrong(context);
     auto requestMessage = context->GetRequestMessage();
@@ -340,7 +340,7 @@ void ExecuteVerb(IYPathService* service, IServiceContext* context)
         }));
 }
 
-TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, const TYPath& path)
+TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Get(path);
     return
@@ -354,7 +354,7 @@ TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, cons
             }));
 }
 
-TYson SyncYPathGet(IYPathService* service, const TYPath& path)
+TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path)
 {
     auto result = AsyncYPathGet(service, path)->Get();
     if (!result.IsOK()) {
@@ -363,7 +363,7 @@ TYson SyncYPathGet(IYPathService* service, const TYPath& path)
     return result.Value();
 }
 
-INodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path)
+INodePtr SyncYPathGetNode(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::GetNode(path);
     auto response = ExecuteVerb(service, ~request)->Get();
@@ -371,7 +371,7 @@ INodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path)
     return reinterpret_cast<INode*>(response->value_ptr());
 }
 
-void SyncYPathSet(IYPathService* service, const TYPath& path, const TYson& value)
+void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYson& value)
 {
     auto request = TYPathProxy::Set(path);
     request->set_value(value);
@@ -379,7 +379,7 @@ void SyncYPathSet(IYPathService* service, const TYPath& path, const TYson& value
     response->ThrowIfError();
 }
 
-void SyncYPathSetNode(IYPathService* service, const TYPath& path, INode* value)
+void SyncYPathSetNode(IYPathServicePtr service, const TYPath& path, INode* value)
 {
     auto request = TYPathProxy::SetNode(path);
     request->set_value_ptr(reinterpret_cast<i64>(value));
@@ -387,14 +387,14 @@ void SyncYPathSetNode(IYPathService* service, const TYPath& path, INode* value)
     response->ThrowIfError();
 }
 
-void SyncYPathRemove(IYPathService* service, const TYPath& path)
+void SyncYPathRemove(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Remove(path);
     auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
 }
 
-yvector<Stroka> SyncYPathList(IYPathService* service, const TYPath& path)
+yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::List(path);
     auto response = ExecuteVerb(service, ~request)->Get();

@@ -50,7 +50,7 @@ EYsonFormat TArgsBase::GetOutputFormat()
     return OutputFormatArg->getValue();
 }
 
-void TArgsBase::ApplyConfigUpdates(NYTree::IYPathService* service)
+void TArgsBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
 {
     FOREACH (auto updateString, ConfigUpdatesArg->getValue()) {
         int index = updateString.find_first_of('=');
