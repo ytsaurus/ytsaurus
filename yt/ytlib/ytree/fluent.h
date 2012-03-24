@@ -7,6 +7,7 @@
 
 // For TVoid.
 #include <ytlib/actions/action.h>
+#include <ytlib/misc/guid.h>
 
 namespace NYT {
 namespace NYTree {
@@ -100,7 +101,12 @@ public:
 
         TParent Scalar(bool value)
         {
-            return Scalar(value ? Stroka("true") : Stroka("false"));
+            return Scalar(FormatBool(value));
+        }
+
+        TParent Scalar(const TGuid& value)
+        {
+            return Scalar(value.ToString());
         }
 
         TParent Node(const TYson& value)
@@ -117,6 +123,17 @@ public:
         TParent Entity()
         {
             this->Consumer->OnEntity(HasAttributes);
+            return this->Parent;
+        }
+
+        template <class TCollection>
+        TParent List(const TCollection& collection)
+        {
+            this->Consumer->OnBeginList();
+            FOREACH (const auto& item, collection) {
+                TAny<TVoid>(this->Consumer, TVoid(), false).Scalar(item);
+            }
+            this->Consumer->OnEndList(HasAttributes);
             return this->Parent;
         }
 
@@ -375,7 +392,7 @@ public:
 
 };
 
-typedef TFluentYsonBuilder::TList<TVoid>   TFluentList;
+typedef TFluentYsonBuilder::TList<TVoid>  TFluentList;
 typedef TFluentYsonBuilder::TMap<TVoid>   TFluentMap;
 
 ////////////////////////////////////////////////////////////////////////////////
