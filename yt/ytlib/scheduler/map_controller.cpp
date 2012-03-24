@@ -162,6 +162,8 @@ public:
 
     int PutChunk(const TInputChunk& chunk, i64 weight)
     {
+        YASSERT(weight > 0);
+
         TChunkInfo info;
         info.Chunk = chunk;
         info.Weight = weight;
@@ -197,8 +199,7 @@ public:
                 }
                 indexes->push_back(chunkIndex);
                 ++*localCount;
-                allocatedWeight += ChunkInfos[chunkIndex].Weight;
-
+                *allocatedWeight += ChunkInfos[chunkIndex].Weight;
             }
         }
 
@@ -217,7 +218,7 @@ public:
             }
             indexes->push_back(chunkIndex);
             ++*remoteCount;
-            allocatedWeight += ChunkInfos[chunkIndex].Weight;
+            *allocatedWeight += ChunkInfos[chunkIndex].Weight;
         }
 
         // Unregister taken remote chunks.
@@ -1158,10 +1159,11 @@ private:
                 i64 dataSize = tableChunkAttributes.uncompressed_size();
 
                 TotalRowCount += rowCount;
-                TotalDataSize += TotalDataSize;
+                TotalDataSize += dataSize;
 
                 // TODO(babenko): make customizable
-                i64 weight = dataSize;
+                // Plus one is to ensure that weights are positive.
+                i64 weight = dataSize + 1;
 
                 TotalWeight += weight;
 
