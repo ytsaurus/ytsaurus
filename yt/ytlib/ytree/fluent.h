@@ -2,11 +2,15 @@
 
 #include "public.h"
 #include "yson_consumer.h"
+#include "yson_reader.h"
 #include "yson_writer.h"
 #include "tree_visitor.h"
+#include "serialize.h"
 
 // For TVoid.
 #include <ytlib/actions/action.h>
+#include <ytlib/misc/guid.h>
+#include <ytlib/misc/string.h>
 
 namespace NYT {
 namespace NYTree {
@@ -16,14 +20,58 @@ namespace NYTree {
 class TFluentYsonBuilder
     : private TNonCopyable
 {
+private:
+    static void WriteScalar(IYsonConsumer* consumer, const char* value, bool hasAttributes)
+    {
+        WriteScalar(consumer, Stroka(value), hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, i32 value, bool hasAttributes)
+    {
+        WriteScalar(consumer, static_cast<i64>(value), hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, ui32 value, bool hasAttributes)
+    {
+        WriteScalar(consumer, static_cast<i64>(value), hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, float value, bool hasAttributes)
+    {
+        WriteScalar(consumer, static_cast<double>(value), hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, bool value, bool hasAttributes)
+    {
+        WriteScalar(consumer, FormatBool(value), hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, const TGuid& value, bool hasAttributes)
+    {
+        WriteScalar(consumer, value.ToString(), hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, const Stroka& value, bool hasAttributes)
+    {
+        consumer->OnStringScalar(value, hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, double value, bool hasAttributes)
+    {
+        consumer->OnDoubleScalar(value, hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, i64 value, bool hasAttributes)
+    {
+        consumer->OnInt64Scalar(value, hasAttributes);
+    }
+
 public:
     class TFluentAny;
     template <class TParent> class TAny;
     template <class TParent> class TToAttributes;
     template <class TParent> class TAttributes;
-    class TListCore;
     template <class TParent> class TList;
-    class TMapCore;
     template <class TParent> class TMap;
 
     template <class TParent>
@@ -59,64 +107,42 @@ public:
             , HasAttributes(hasAttributes)
         { }
 
-        TParent Scalar(const Stroka& value)
+        template <class T>
+        TParent Scalar(T value)
         {
-            this->Consumer->OnStringScalar(value, HasAttributes);
+            WriteScalar(this->Consumer, value, HasAttributes);
             return this->Parent;
-        }
-
-        // A stupid language with a stupid type system.
-        TParent Scalar(const char* value)
-        {
-            return Scalar(Stroka(value));
-        }
-
-        TParent Scalar(i32 value)
-        {
-            return Scalar(static_cast<i64>(value));
-        }
-
-        TParent Scalar(ui32 value)
-        {
-            return Scalar(static_cast<i64>(value));
-        }
-
-        TParent Scalar(i64 value)
-        {
-            this->Consumer->OnInt64Scalar(value, HasAttributes);
-            return this->Parent;
-        }
-
-        TParent Scalar(float value)
-        {
-            return Scalar(static_cast<double>(value));
-        }
-
-        TParent Scalar(double value)
-        {
-            this->Consumer->OnDoubleScalar(value, HasAttributes);
-            return this->Parent;
-        }
-
-        TParent Scalar(bool value)
-        {
-            return Scalar(value ? Stroka("true") : Stroka("false"));
         }
 
         TParent Node(const TYson& value)
         {
-            return Node(DeserializeFromYson(value));
+            TStringInput stream(value);
+            TYsonReader reader(this->Consumer, &stream);
+            reader.Read();
+            return this->Parent;
         }
 
         TParent Node(INodePtr node)
         {
-            VisitTree(~node, this->Consumer, true);
+            VisitTree(node, this->Consumer);
             return this->Parent;
         }
 
         TParent Entity()
         {
             this->Consumer->OnEntity(HasAttributes);
+            return this->Parent;
+        }
+
+        template <class TCollection>
+        TParent List(const TCollection& collection)
+        {
+            this->Consumer->OnBeginList();
+            FOREACH (const auto& item, collection) {
+                this->Consumer->OnListItem();
+                WriteScalar(this->Consumer, item, false);
+            }
+            this->Consumer->OnEndList(HasAttributes);
             return this->Parent;
         }
 
@@ -375,7 +401,7 @@ public:
 
 };
 
-typedef TFluentYsonBuilder::TList<TVoid>   TFluentList;
+typedef TFluentYsonBuilder::TList<TVoid>  TFluentList;
 typedef TFluentYsonBuilder::TMap<TVoid>   TFluentMap;
 
 ////////////////////////////////////////////////////////////////////////////////

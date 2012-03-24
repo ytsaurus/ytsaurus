@@ -168,7 +168,7 @@ bool IsAttributeYPath(const TYPath& path);
 bool IsLocalYPath(const TYPath& path);
 
 void ResolveYPath(
-    IYPathService* rootService,
+    IYPathServicePtr rootService,
     const TYPath& path,
     const Stroka& verb,
     IYPathServicePtr* suffixService,
@@ -176,42 +176,42 @@ void ResolveYPath(
 
 //! Asynchronously executes an untyped YPath verb against the given service.
 TFuture<NBus::IMessage::TPtr>::TPtr
-ExecuteVerb(IYPathService* service, NBus::IMessage* requestMessage);
+ExecuteVerb(IYPathServicePtr service, NBus::IMessage* requestMessage);
 
 //! Asynchronously executes a request against the given service.
-void ExecuteVerb(IYPathService* service, NRpc::IServiceContext* context);
+void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContext* context);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-ExecuteVerb(IYPathService* service, TTypedRequest* request);
+ExecuteVerb(IYPathServicePtr service, TTypedRequest* request);
 
 //! Synchronously executes a typed YPath requested against a given service.
 //! Throws if an error has occurred.
 template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
-SyncExecuteVerb(IYPathService* service, TTypedRequest* request);
+SyncExecuteVerb(IYPathServicePtr service, TTypedRequest* request);
 
 //! Asynchronously executes "Get" verb. 
-TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, const TYPath& path);
+TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathServicePtr service, const TYPath& path);
 
 //! Synchronously executes "Get" verb. Throws if an error has occurred.
-TYson SyncYPathGet(IYPathService* service, const TYPath& path);
+TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path);
 
 //! Synchronously executes "GetNode" verb. Throws if an error has occurred.
-INodePtr SyncYPathGetNode(IYPathService* service, const TYPath& path);
+INodePtr SyncYPathGetNode(IYPathServicePtr service, const TYPath& path);
 
 //! Synchronously executes "Set" verb. Throws if an error has occurred.
-void SyncYPathSet(IYPathService* service, const TYPath& path, const TYson& value);
+void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYson& value);
 
 //! Synchronously executes "SetNode" verb. Throws if an error has occurred.
-void SyncYPathSetNode(IYPathService* service, const TYPath& path, INode* value);
+void SyncYPathSetNode(IYPathServicePtr service, const TYPath& path, INode* value);
 
 //! Synchronously executes "Remove" verb. Throws if an error has occurred.
-void SyncYPathRemove(IYPathService* service, const TYPath& path);
+void SyncYPathRemove(IYPathServicePtr service, const TYPath& path);
 
 //! Synchronously executes "List" verb. Throws if an error has occurred.
-yvector<Stroka> SyncYPathList(IYPathService* service, const TYPath& path);
+yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

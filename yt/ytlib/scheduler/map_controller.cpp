@@ -73,9 +73,9 @@ public:
     virtual void Initialize()
     { }
 
-    virtual TFuture<TVoid>::TPtr Prepare()
+    virtual TFuture<TError>::TPtr Prepare()
     {
-        return MakeFuture(TVoid());
+        return MakeFuture(TError());
     }
 
     virtual void OnJobRunning(TJobPtr job)
@@ -446,6 +446,104 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): move to a proper place
+
+template <class T>
+class TAsyncPipeline
+    : public TRefCounted
+{
+public:
+    TAsyncPipeline(
+        IInvoker::TPtr invoker,
+        TIntrusivePtr< IFunc< TIntrusivePtr < TFuture< TValueOrError<T> > > > > head)
+        : Invoker(invoker)
+        , Lazy(head)
+    { }
+
+    TIntrusivePtr< TFuture< TValueOrError<T> > > Run()
+    {
+        return Lazy->Do();
+    }
+
+    typedef T T1;
+
+    template <class T2>
+    TIntrusivePtr< TAsyncPipeline<T2> > Add(TIntrusivePtr< IParamFunc<T1, T2> > func)
+    {
+        auto wrappedFunc = FromFunctor([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
+            if (!x.IsOK()) {
+                return MakeFuture(TValueOrError<T2>(TError(x)));
+            }
+            try {
+                auto y = func->Do(x.Value());
+                return MakeFuture(TValueOrError<T2>(y));
+            } catch (const std::exception& ex) {
+                return MakeFuture(TValueOrError<T2>(TError(ex.what())));
+            }
+        });
+
+        if (Invoker) {
+            wrappedFunc = wrappedFunc->AsyncVia(Invoker);
+        }
+
+        auto lazy = Lazy;
+        auto newLazy = FromFunctor([=] () {
+            return lazy->Do()->Apply(wrappedFunc);
+        });
+
+        return New< TAsyncPipeline<T2> >(Invoker, newLazy);
+    }
+
+    template <class T2>
+    TIntrusivePtr< TAsyncPipeline<T2> > Add(TIntrusivePtr< IParamFunc<T1, TIntrusivePtr< TFuture<T2> > > > func)
+    {
+        auto toValueOrError = FromFunctor([] (T2 x) {
+            return TValueOrError<T2>(x);
+        });
+
+        auto wrappedFunc = FromFunctor([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
+            if (!x.IsOK()) {
+                return MakeFuture(TValueOrError<T2>(TError(x)));
+            }
+            try {
+                auto y = func->Do(x.Value());
+                return y->Apply(toValueOrError);
+            } catch (const std::exception& ex) {
+                return MakeFuture(TValueOrError<T2>(TError(ex.what())));
+            }
+        });
+
+        if (Invoker) {
+            wrappedFunc = wrappedFunc->AsyncVia(Invoker);
+        }
+
+        auto lazy = Lazy;
+        auto newLazy = FromFunctor([=] () {
+            return lazy->Do()->Apply(wrappedFunc);
+        });
+
+        return New< TAsyncPipeline<T2> >(Invoker, newLazy);
+    }
+
+
+private:
+    IInvoker::TPtr Invoker;
+    TIntrusivePtr< IFunc< TIntrusivePtr < TFuture< TValueOrError<T> > > > > Lazy;
+
+};
+
+TIntrusivePtr< TAsyncPipeline<TVoid> > StartAsyncPipeline(IInvoker::TPtr invoker = NULL)
+{
+    return New< TAsyncPipeline<TVoid> >(
+        invoker,
+        FromFunctor([=] () -> TIntrusivePtr< TFuture< TValueOrError<TVoid> > > {
+            return MakeFuture(TValueOrError<TVoid>(TVoid()));
+        }));
+}
+
+
+////////////////////////////////////////////////////////////////////
+
 class TMapController
     : public TOperationControllerBase
 {
@@ -471,18 +569,23 @@ public:
         }
     }
 
-    virtual TFuture<TVoid>::TPtr Prepare()
+    virtual TFuture<TError>::TPtr Prepare()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return MakeFuture(TVoid())
-            ->Apply(BindBackgroundTask(&TThis::StartPrimaryTransaction, this))
-            ->Apply(BindBackgroundTask(&TThis::OnPrimaryTransactionStarted, this))
-            ->Apply(BindBackgroundTask(&TThis::StartSeconaryTransactions, this))
-            ->Apply(BindBackgroundTask(&TThis::OnSecondaryTransactionsStarted, this))
-            ->Apply(BindBackgroundTask(&TThis::RequestInputs, this))
-            ->Apply(BindBackgroundTask(&TThis::OnInputsReceived, this))
-            ->Apply(BindBackgroundTask(&TThis::CompletePreparation, this));
+        return StartAsyncPipeline(Host->GetBackgroundInvoker())
+            ->Add(FromMethod(&TThis::StartPrimaryTransaction, MakeStrong(this)))
+            ->Add(FromMethod(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
+            ->Add(FromMethod(&TThis::StartSeconaryTransactions, MakeStrong(this)))
+            ->Add(FromMethod(&TThis::OnSecondaryTransactionsStarted, MakeStrong(this)))
+            ->Add(FromMethod(&TThis::RequestInputs, MakeStrong(this)))
+            ->Add(FromMethod(&TThis::OnInputsReceived, MakeStrong(this)))
+            ->Add(FromMethod(&TThis::CompletePreparation, MakeStrong(this)))
+            ->Run()
+            // TODO(babenko): get rid of this
+            ->Apply(FromFunctor([] (TValueOrError<TVoid> x) -> TError {
+                return x.IsOK() ? TError() : TError(x);
+            }));
     }
 
 
@@ -504,7 +607,7 @@ public:
 
         LOG_INFO("Job %s completed", ~job->GetId().ToString());
 
-        if (JobCounter.GetPending() == 0) {
+        if (JobCounter.GetRunning() == 0 && JobCounter.GetPending() == 0) {
             CompleteOperation();
         }
     }
@@ -783,14 +886,12 @@ private:
 
     // TODO(babenko): YPath and RPC responses currently share no base class.
     template <class TResponse>
-    bool CheckResponse(TResponse response, const Stroka& failureMessage) 
+    void CheckResponse(TResponse response, const Stroka& failureMessage) 
     {
-        if (response->IsOK()) {
-            return true;
-        } else {
-            OnOperationFailed(TError(failureMessage + "\n" + response->GetError().ToString()));
-            return false;
-        }
+        if (response->IsOK())
+            return;
+
+        ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
     }
 
 
@@ -818,15 +919,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-        if (!CheckResponse(batchRsp, "Error creating primary transaction")) {
-            return TVoid();
-        }
+        CheckResponse(batchRsp, "Error creating primary transaction");
 
         {
             auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_primary_tx");
-            if (!CheckResponse(rsp, "Error creating primary transaction")) {
-                return TVoid();
-            }
+            CheckResponse(rsp, "Error creating primary transaction");
             auto id = TTransactionId::FromProto(rsp->object_id());
             LOG_INFO("Primary transaction is %s", ~id.ToString());
             PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
@@ -864,15 +961,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-        if (!CheckResponse(batchRsp, "Error creating secondary transactions")) {
-            return TVoid();
-        }
+        CheckResponse(batchRsp, "Error creating secondary transactions");
 
         {
             auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_input_tx");
-            if (!CheckResponse(rsp, "Error creating input transaction")) {
-                return TVoid();
-            }
+            CheckResponse(rsp, "Error creating input transaction");
             auto id = TTransactionId::FromProto(rsp->object_id());
             LOG_INFO("Input transaction is %s", ~id.ToString());
             InputTransaction = Host->GetTransactionManager()->Attach(id);
@@ -880,9 +973,7 @@ private:
 
         {
             auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_output_tx");
-            if (!CheckResponse(rsp, "Error creating output transaction")) {
-                return TVoid();
-            }
+            CheckResponse(rsp, "Error creating output transaction");
             auto id = TTransactionId::FromProto(rsp->object_id());
             LOG_INFO("Output transaction is %s", ~id.ToString());
             OutputTransaction = Host->GetTransactionManager()->Attach(id);
@@ -950,9 +1041,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-        if (!CheckResponse(batchRsp, "Error requesting inputs")) {
-            return TVoid();
-        }
+        CheckResponse(batchRsp, "Error requesting inputs");
 
         {
             InputTables.resize(Spec->In.size());
@@ -961,14 +1050,10 @@ private:
             auto lockInTablesRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_in_tables");
             for (int index = 0; index < static_cast<int>(Spec->In.size()); ++index) {
                 auto lockInTableRsp = lockInTablesRsps[index];
-                if (!CheckResponse(lockInTableRsp, "Error locking input table")) {
-                    return TVoid();
-                }
+                CheckResponse(lockInTableRsp, "Error locking input table");
 
                 auto fetchInTableRsp = fetchInTablesRsps[index];
-                if (!CheckResponse(fetchInTableRsp, "Error fetching input input table")) {
-                    return TVoid();
-                }
+                CheckResponse(fetchInTableRsp, "Error fetching input input table");
 
                 auto& table = InputTables[index];
                 table.FetchResponse = fetchInTableRsp;
@@ -982,14 +1067,10 @@ private:
             auto getOutTablesSchemataRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_tables_schemata");
             for (int index = 0; index < static_cast<int>(Spec->Out.size()); ++index) {
                 auto lockOutTablesRsp = lockOutTablesRsps[index];
-                if (!CheckResponse(lockOutTablesRsp, "Error fetching input input table")) {
-                    return TVoid();
-                }
+                CheckResponse(lockOutTablesRsp, "Error fetching input input table");
 
                 auto getChunkListRsp = getChunkListsRsps[index];
-                if (!CheckResponse(getChunkListRsp, "Error getting output chunk list")) {
-                    return TVoid();
-                }
+                CheckResponse(getChunkListRsp, "Error getting output chunk list");
 
                 auto getOutTableSchemaRsp = getOutTablesSchemataRsps[index];
 
@@ -1003,9 +1084,8 @@ private:
         {
             auto fetchFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_files");
             FOREACH (auto fetchFileRsp, fetchFilesRsps) {
-                if (!CheckResponse(fetchFileRsp, "Error fetching files")) {
-                    return TVoid();
-                }
+                CheckResponse(fetchFileRsp, "Error fetching files");
+
                 TFile file;
                 file.FetchResponse = fetchFileRsp;
                 Files.push_back(file);
@@ -1148,8 +1228,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-        LOG_INFO("Committing outputs (ChunkCount: %d)",
-            ChunkCounter.GetDone());
+        LOG_INFO("Committing %" PRId64 " output chunks", ChunkCounter.GetDone());
 
         // We don't need pings any longer, detach the transactions.
         PrimaryTransaction->Detach();
@@ -1188,38 +1267,28 @@ private:
     {
         VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-        if (!CheckResponse(batchRsp, "Error committing outputs")) {
-            return TVoid();
-        }
+        CheckResponse(batchRsp, "Error committing outputs");
 
         {
             auto rsps = batchRsp->GetResponses("attach_chunk_lists");
             FOREACH (auto rsp, rsps) {
-                if (!CheckResponse(rsp, "Error attaching chunk lists")) {
-                    return TVoid();
-                }       
+                CheckResponse(rsp, "Error attaching chunk lists");
             }
         }
 
         {
             auto rsp = batchRsp->GetResponse("commit_input_tx");
-            if (!CheckResponse(rsp, "Error committing input transaction")) {
-                return TVoid();
-            }
+            CheckResponse(rsp, "Error committing input transaction");
         }
 
         {
             auto rsp = batchRsp->GetResponse("commit_output_tx");
-            if (!CheckResponse(rsp, "Error committing output transaction")) {
-                return TVoid();
-            }
+            CheckResponse(rsp, "Error committing output transaction");
         }
 
         {
             auto rsp = batchRsp->GetResponse("commit_primary_tx");
-            if (!CheckResponse(rsp, "Error committing primary transaction")) {
-                return TVoid();
-            }
+            CheckResponse(rsp, "Error committing primary transaction");
         }
 
         LOG_INFO("Outputs committed");

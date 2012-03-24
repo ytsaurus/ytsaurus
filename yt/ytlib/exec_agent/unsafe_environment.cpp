@@ -76,13 +76,13 @@ public:
             
             ChDir(WorkingDirectory);
 
-            // separate process group for that job - required in non-container mode only
-            setpgid(0, 0); 
-
             // redirect stderr and stdout to file
-            int fd = open("stderr.txt", O_WRONLY | O_CREAT);
+            int fd = open("stderr.txt", O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
             dup2(fd, STDOUT_FILENO);
             dup2(fd, STDERR_FILENO);
+
+            // separate process group for that job - required in non-container mode only
+            setpgid(0, 0); 
 
             // search the PATH, inherit environment
             execlp(
@@ -143,9 +143,14 @@ public:
         }
     }
 
-    void SubscribeExited(const TCallback<void(TError)>& callback) 
+    //void SubscribeExited(const TCallback<void(TError)>& callback) 
+    //{
+    //    OnExit->Subscribe(FromCallback(callback));
+    //}
+
+    void SubscribeExited(IParamAction<TError>::TPtr callback)
     {
-        OnExit->Subscribe(FromCallback(callback));
+        OnExit->Subscribe(callback);
     }
 
     void UnsubscribeExited(const TCallback<void(TError)>& callback) 

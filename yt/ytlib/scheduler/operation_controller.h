@@ -102,7 +102,7 @@ struct IOperationController
      *  The controller must set the promise when the preparation is finished (either successfully or unsuccessfully).
      *  IOperationHost::OnOperationFailed can be called during preparation to indicate an error.
      */
-    virtual TFuture<TVoid>::TPtr Prepare() = 0;
+    virtual TFuture<TError>::TPtr Prepare() = 0;
 
     //! Returns the number of jobs still the controller still needs to start.
     virtual i64 GetPendingJobCount() = 0;

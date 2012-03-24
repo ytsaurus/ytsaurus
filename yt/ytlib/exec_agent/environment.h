@@ -29,8 +29,12 @@ struct IProxyController
      */
     virtual void Kill(const TError& error) throw() = 0;
 
-    DECLARE_INTERFACE_SIGNAL(void(TError), Exited);
-
+    //DECLARE_INTERFACE_SIGNAL(void(TError), Exited);
+    virtual void SubscribeExited(IParamAction<TError>::TPtr callback) = 0;
+    
+    virtual ~IProxyController()
+    {}
+    
     // virtual void SubscribeOnMemoryLimit(IParamAction<i64>* callback) = 0;
     // virtual bool IsRunning() const = 0;
     // virtual TError GetError() const = 0;

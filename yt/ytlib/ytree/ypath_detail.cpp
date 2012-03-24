@@ -587,7 +587,7 @@ class TRootService
     : public IYPathService
 {
 public:
-    TRootService(IYPathService* underlyingService)
+    TRootService(IYPathServicePtr underlyingService)
         : UnderlyingService(underlyingService)
     { }
 
@@ -627,7 +627,7 @@ private:
 
 };
 
-IYPathServicePtr CreateRootService(IYPathService* underlyingService)
+IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService)
 {
     return New<TRootService>(underlyingService);
 }

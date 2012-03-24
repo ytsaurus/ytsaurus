@@ -17,7 +17,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadCommand::DoExecute(TReadRequest* request)
+void TReadCommand::DoExecute(TReadRequestPtr request)
 {
     auto stream = DriverImpl->CreateOutputStream();
 
@@ -25,7 +25,7 @@ void TReadCommand::DoExecute(TReadRequest* request)
         ~DriverImpl->GetConfig()->TableReader,
         ~DriverImpl->GetMasterChannel(),
         ~DriverImpl->GetTransaction(request),
-        DriverImpl->GetBlockCache(),
+        ~DriverImpl->GetBlockCache(),
         request->Path);
 
     TYsonTableInput input(
@@ -39,13 +39,13 @@ void TReadCommand::DoExecute(TReadRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TWriteCommand::DoExecute(TWriteRequest* request)
+void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
     auto writer = New<TTableWriter>(
         ~DriverImpl->GetConfig()->TableWriter,
         ~DriverImpl->GetMasterChannel(),
         ~DriverImpl->GetTransaction(request),
-        DriverImpl->GetTransactionManager(),
+        ~DriverImpl->GetTransactionManager(),
         request->Path);
 
     writer->Open();

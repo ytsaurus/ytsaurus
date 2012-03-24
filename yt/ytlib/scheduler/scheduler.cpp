@@ -210,7 +210,7 @@ private:
     }
 
     void OnOperationPrepared(
-        TVoid,
+        TError,
         TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

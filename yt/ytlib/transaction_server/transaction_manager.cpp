@@ -81,19 +81,17 @@ private:
 
         if (name == "nested_transaction_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* transaction)
-                    {
-                        fluent.Item().Scalar(transaction->GetId().ToString());
-                    });
+                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* transaction) {
+                    fluent.Item().Scalar(transaction->GetId().ToString());
+                });
             return true;
         }
 
         if (name == "created_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id)
-            {
-                fluent.Item().Scalar(id.ToString());
-            });
+                .DoListFor(transaction.CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id) {
+                    fluent.Item().Scalar(id.ToString());
+                });
             return true;
         }
 

@@ -108,10 +108,9 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
         yvector<TChunkId> chunkIds;
         TraverseChunkTree(&chunkIds, tableNode.GetChunkListId());
         BuildYsonFluently(consumer)
-            .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId)
-                {
-                    fluent.Item().Scalar(chunkId.ToString());
-                });
+            .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId) {
+                fluent.Item().Scalar(chunkId.ToString());
+            });
         return true;
     }
 

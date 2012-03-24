@@ -64,7 +64,7 @@ public:
     };
 
     TDriver(
-        TConfig* config,
+        TConfig::TPtr config,
         IDriverStreamProvider* streamProvider);
     ~TDriver();
 

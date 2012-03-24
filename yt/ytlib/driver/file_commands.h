@@ -18,6 +18,8 @@ struct TDownloadRequest
     }
 };
 
+typedef TIntrusivePtr<TDownloadRequest> TDownloadRequestPtr;
+
 class TDownloadCommand
     : public TCommandBase<TDownloadRequest>
 {
@@ -27,7 +29,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute(TDownloadRequest* request);
+    virtual void DoExecute(TDownloadRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +45,8 @@ struct TUploadRequest
     }
 };
 
+typedef TIntrusivePtr<TUploadRequest> TUploadRequestPtr;
+
 class TUploadCommand
     : public TCommandBase<TUploadRequest>
 {
@@ -52,7 +56,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute(TUploadRequest* request);
+    virtual void DoExecute(TUploadRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
