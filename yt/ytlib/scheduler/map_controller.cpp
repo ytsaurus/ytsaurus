@@ -506,7 +506,7 @@ public:
 
         LOG_INFO("Job %s completed", ~job->GetId().ToString());
 
-        if (JobCounter.GetPending() == 0) {
+        if (JobCounter.GetRunning() == 0 && JobCounter.GetPending() == 0) {
             CompleteOperation();
         }
     }
@@ -1150,8 +1150,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-        LOG_INFO("Committing outputs (ChunkCount: %d)",
-            ChunkCounter.GetDone());
+        LOG_INFO("Committing %" PRId64 " output chunks", ChunkCounter.GetDone());
 
         // We don't need pings any longer, detach the transactions.
         PrimaryTransaction->Detach();
