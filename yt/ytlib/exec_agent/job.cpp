@@ -211,7 +211,11 @@ void TJob::OnJobExit(TError error)
         Slot->Clean();
 
         JobProgress = EJobProgress::Completed;
-        JobState = EJobState::Completed;
+        
+        if (TError::FromProto(jobResult.error()).IsOK())
+            JobState = EJobState::Completed;
+        else
+            JobState = EJobState::Failed;
     }
 }
 
@@ -234,7 +238,7 @@ NScheduler::NProto::TJobResult TJob::GetResult()
 void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    if (!JobResult.has_error() || JobResult.error().code() == 0) {
+    if (!JobResult.has_error() || JobResult.error().code() == TError::OK) {
         JobResult = jobResult;
     }
 }
