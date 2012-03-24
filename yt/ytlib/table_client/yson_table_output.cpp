@@ -32,6 +32,7 @@ void TYsonTableOutput::DoWrite(const void* buf, size_t len)
 
 void TYsonTableOutput::DoFinish()
 {
+    YsonParser.Finish();
     Writer->Close();
 }
 

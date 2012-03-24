@@ -35,9 +35,12 @@ struct TCellNodeConfig
             .Default(9000);
         Register("monitoring_port", MonitoringPort)
             .Default(10000);
-        Register("masters", Masters);
-        Register("chunk_holder", ChunkHolder);
-        Register("exec_agent", ExecAgent);
+        Register("masters", Masters)
+            .DefaultNew();
+        Register("chunk_holder", ChunkHolder)
+            .DefaultNew();
+        Register("exec_agent", ExecAgent)
+            .DefaultNew();
 
         SetKeepOptions(true);
     }

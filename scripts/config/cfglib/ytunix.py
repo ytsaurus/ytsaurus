@@ -16,27 +16,20 @@ def wrap_cmd(cmd, silent=False):
 fi''')
     return '\n'.join(res)
 
-cmd_run = 'start-stop-daemon -d ./ -b --exec %(work_dir)s/%(binary)s ' + \
-            '--pidfile %(work_dir)s/pid -m -S -- %(params)s'
-cmd_test = 'start-stop-daemon -d ./ -b -t --exec %(work_dir)s/%(binary)s ' + \
-            '--pidfile %(work_dir)s/pid -m -S'
+ulimit = 'ulimit -c unlimited'
+cmd_run = 'start-stop-daemon -d ./ -b --exec %(bin_path)s --pidfile %(work_dir)s/pid -m -S -- %(params)s'
 cmd_stop = 'start-stop-daemon --pidfile %(work_dir)s/pid -K'
 
 class UnixNode(ServerNode):
-    files = [Config, YsonConfig, Prepare, Run, Clean, Stop]
+    files = [Config, Run, Clean, Stop]
 
     @initmethod
     def init(cls):
         cls._init_path()
 
-    prepare_bin = Template('cp -l %(bin_path)s %(work_dir)s')
-
-    def prepare(cls, fd):
-        print >>fd, shebang
-        print >>fd, wrap_cmd(cls.prepare_bin)
-
     run_tmpl = Template(cmd_run)
     def run(cls, fd):
+        print >>fd, ulimit
         print >>fd, cls.run_tmpl
 
     stop_tmpl = Template(cmd_stop)
@@ -49,4 +42,4 @@ class UnixNode(ServerNode):
 
 def configure(root):
     make_files(root)
-    make_aggregate(root, lambda x: x + '&')
+    make_aggregate(root, lambda x: x + '&', 'wait')

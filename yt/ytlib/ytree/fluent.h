@@ -4,6 +4,7 @@
 #include "yson_consumer.h"
 #include "yson_writer.h"
 #include "tree_visitor.h"
+#include "serialize.h"
 
 // For TVoid.
 #include <ytlib/actions/action.h>

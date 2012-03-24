@@ -143,9 +143,14 @@ public:
         }
     }
 
-    void SubscribeExited(const TCallback<void(TError)>& callback) 
+    //void SubscribeExited(const TCallback<void(TError)>& callback) 
+    //{
+    //    OnExit->Subscribe(FromCallback(callback));
+    //}
+
+    void SubscribeExited(IParamAction<TError>::TPtr callback)
     {
-        OnExit->Subscribe(FromCallback(callback));
+        OnExit->Subscribe(callback);
     }
 
     void UnsubscribeExited(const TCallback<void(TError)>& callback) 

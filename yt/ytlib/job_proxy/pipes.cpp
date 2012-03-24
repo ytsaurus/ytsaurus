@@ -172,11 +172,11 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
     for ( ; ; ) {
         size = ::read(Pipe.ReadFd, buffer, bufferSize);
 
-        LOG_TRACE("Read %d bytes from error pipe (JobDescriptor: %d)", size, JobDescriptor);
+        LOG_TRACE("Read %d bytes from output pipe (JobDescriptor: %d)", size, JobDescriptor);
 
         if (size > 0) {
             OutputStream->Write(buffer, static_cast<size_t>(size));
-            if (size == bufferSize) { // it's marginal case
+            /*if (size == bufferSize) { // it's marginal case
                 // try to read again: is more bytes present in pipe?
                 // Another way would be to restore this descriptor in epoll
                 // and return back to 'read' after epoll's signal
@@ -184,12 +184,14 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
                 // in epoll indeed required)
                 continue;
             }
-            return true;
+            return true; */
+
+            continue;
         } else if (size == 0) {
             errno = 0;
             SafeClose(Pipe.ReadFd);
 
-            LOG_TRACE("Error pipe closed (JobDescriptor: %d)", JobDescriptor);
+            LOG_TRACE("Output pipe closed (JobDescriptor: %d)", JobDescriptor);
 
             return false;
         } else { // size < 0
@@ -201,9 +203,9 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
                     // retry
                     break;
                 default:
-                    ::close(Pipe.ReadFd);
+                    SafeClose(Pipe.ReadFd);
 
-                    LOG_TRACE("Error pipe closed (JobDescriptor: %d)", JobDescriptor);
+                    LOG_TRACE("Output pipe closed (JobDescriptor: %d)", JobDescriptor);
 
                     return false;
             }

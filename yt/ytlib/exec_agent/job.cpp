@@ -184,7 +184,7 @@ void TJob::RunJobProxy()
 
     ProxyController->SubscribeExited(FromMethod(
         &TJob::OnJobExit,
-        MakeWeak(this))->Via(Slot->GetInvoker())->ToCallback());
+        MakeWeak(this))->Via(Slot->GetInvoker()));
 }
 
 void TJob::OnJobExit(TError error)
