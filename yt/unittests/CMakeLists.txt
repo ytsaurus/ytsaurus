@@ -38,6 +38,7 @@ set( SRCS
   callback_ut.cpp
   bind_ut.cpp
   table_client_ut.cpp
+  lexer_ut.cpp
 )
 
 protoc( rpc_ut.proto PROTO_SRC )

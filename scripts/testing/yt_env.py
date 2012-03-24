@@ -69,7 +69,7 @@ class YTEnv:
         self._prepare_configs()
         self._run_masters()
         self._wait_for_ready_masters()
-        self._init_sys()
+        #self._init_sys()
         self._run_services()
         self._wait_for_ready_holders()
 
@@ -110,31 +110,22 @@ class YTEnv:
 
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
-            p = subprocess.Popen('ytserver --cell-master --config {config_path}  --port {port} --id {i}'.format(
+            p = subprocess.Popen('ytserver --master --config {config_path}  --port {port} --id {i}'.format(
                     port=8001 + i,
                     config_path=self.config_paths['master'][i],
                     i=i,
-                ).split())
-            self.process_to_kill.append((p, "master-%d" % (i)))
+                ).split(), stderr = subprocess.PIPE)
+            p.poll()
+            name = "master-%d" % (i)
+            self.process_to_kill.append((p, name))
 
     # TODO(panin): think about refactoring this part
     def _wait_for_ready_masters(self):
         if self.NUM_MASTERS == 0: return
-        max_wait_time = 5
-        sleep_quantum = 0.5
-        current_wait_time = 0
-        print 'Waiting for masters to be ready...'
-        while current_wait_time < max_wait_time:
-            print 'Waited', current_wait_time
-            if self._all_masters_ready():
-                print 'All masters are ready'
-                return
-            time.sleep(sleep_quantum)
-            current_wait_time += sleep_quantum
-        assert False, "Masters still not ready after %s seconds" % max_wait_time
+        self._wait_for(self._all_masters_ready, name = "masters")
 
     def _all_masters_ready(self):
-        good_marker = "Active quorum established"
+        good_marker = "World initialization completed"
         bad_marker = "Active quorum lost"
 
         if (not os.path.exists(self.leader_log)): return False
@@ -146,7 +137,7 @@ class YTEnv:
 
     def _run_holders(self):
         for i in xrange(self.NUM_HOLDERS):
-            p = subprocess.Popen('ytserver --chunk-holder --config {config_path} --port {port}'.format(
+            p = subprocess.Popen('ytserver --node --config {config_path} --port {port}'.format(
                     port=7001 + i,
                     config_path=self.config_paths['holder'][i],
                 ).split())
@@ -154,23 +145,12 @@ class YTEnv:
 
     def _wait_for_ready_holders(self):
         if self.NUM_HOLDERS == 0: return
-        max_wait_time = 10
-        sleep_quantum = 1
-        current_wait_time = 0
-        print 'Waiting for holders to be ready...'
-        while current_wait_time < max_wait_time:
-            print 'Waited', current_wait_time
-            if self._all_holders_ready():
-                print 'All holders ready'
-                return
-            time.sleep(sleep_quantum)
-            current_wait_time += sleep_quantum
-        assert False, "Holders still not ready after %s seconds" % max_wait_time
+        self._wait_for(self._all_holders_ready, name = "holders")
 
     def _all_holders_ready(self):
         holders_status = {}
 
-        good_marker = re.compile(r".*Holder registered .* HolderId: (\d+).*")
+        good_marker = re.compile(r".*Holder online .* HolderId: (\d+).*")
         bad_marker = re.compile(r".*Holder unregistered .* HolderId: (\d+).*")
 
         def update_status(marker, line, status, value):
@@ -198,13 +178,13 @@ class YTEnv:
     def _init_sys(self):
         if self.NUM_MASTERS == 0:
             return
-        cmd = 'cat %s | ytdriver' % (os.path.join(CONFIGS_ROOTDIR, 'default_init.yt'))
+        cmd = 'cat %s | yt' % (os.path.join(CONFIGS_ROOTDIR, 'default_init.yt'))
         subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
         for i in xrange(self.NUM_MASTERS):
             port = 8001 + i
             orchid_yson = '{do=create;path="/sys/masters/localhost:%d/orchid";type=orchid;manifest={remote_address="localhost:%d"}}' %(port, port)
             #print orchid_yson
-            cmd  = "ytdriver '%s'" % (orchid_yson)
+            cmd  = "yt '%s'" % (orchid_yson)
             subprocess.check_output(cmd, shell=True, cwd=self.path_to_run)
 
     def _clean_run_path(self):
@@ -260,15 +240,15 @@ class YTEnv:
             slot_location = os.path.join(current, 'slots')
             logging_file_name = os.path.join(current, 'holder-' + str(i) + '.log')
 
-            #holder_config['chunk_holder']['chunk_cache_location']['path'] = chunk_cache
-            holder_config['chunk_cache_location']['path'] = chunk_cache
+            holder_config['chunk_holder']['cache_location']['path'] = chunk_cache
+            #holder_config['chunk_cache_location']['path'] = chunk_cache
 
-            #store_location = holder_config['chunk_holder']['chunk_store_locations']
-            store_location = holder_config['chunk_store_locations']
+            store_location = holder_config['chunk_holder']['store_locations']
+            #store_location = holder_config['store_locations']
             store_location = store_location[0:1]
             store_location[0]['path'] = chunk_store
-            #holder_config['chunk_holder']['chunk_store_locations'] = store_location
-            holder_config['chunk_store_locations'] = store_location
+            holder_config['chunk_holder']['store_locations'] = store_location
+            #holder_config['chunk_store_locations'] = store_location
 
             #holder_config['job_manager']['slot_location'] = slot_location
 
@@ -306,3 +286,17 @@ class YTEnv:
         config_path = os.path.join(self.path_to_run, 'driver_config.yson')
         write_config(self.driver_config, config_path)
         os.environ['YT_CONFIG'] = config_path
+
+    def _wait_for(self, condition, max_wait_time=10, sleep_quantum=0.5, name=""):
+        current_wait_time = 0
+        print 'Waiting for {0}'.format(name), 
+        while current_wait_time < max_wait_time:
+            sys.stdout.write('.')
+            sys.stdout.flush()
+            if condition():
+                print ' %s ready' % name
+                return
+            time.sleep(sleep_quantum)
+            current_wait_time += sleep_quantum
+        print
+        assert False, "%s still not ready after %s seconds" % max_wait_time

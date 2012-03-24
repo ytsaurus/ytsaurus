@@ -95,7 +95,9 @@ void TJob::Start()
                 ->GetInfo()
                 ->Subscribe(FromFunctor([=] (IAsyncReader::TGetInfoResult result) {
                     if (!result.IsOK()) {
-                        LOG_WARNING("Error getting chunk info\n%s", ~result.ToString());
+                        LOG_WARNING("Error getting chunk info (ChunkId: %s)\n%s",
+                            ~Chunk->GetId().ToString(),
+                            ~result.ToString());
 
                         this_->State = EJobState::Failed;
                         return;

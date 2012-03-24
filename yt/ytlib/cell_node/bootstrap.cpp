@@ -62,7 +62,7 @@ TBootstrap::~TBootstrap()
 void TBootstrap::Run()
 {
     IncarnationId = TIncarnationId::Create();
-    PeerAddress = Sprintf("%s:%d", ~HostName(), Config->RpcPort);
+    PeerAddress = Sprintf("%s:%d", GetHostName(), Config->RpcPort);
 
     LOG_INFO("Starting chunk holder (IncarnationId: %s, PeerAddress: %s, MasterAddresses: [%s])",
         ~IncarnationId.ToString(),

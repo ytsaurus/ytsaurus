@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "lexer.h"
 
-#include "yson_format.h"
+#include "token.h"
 
 #include <ytlib/misc/zigzag.h>
 #include <ytlib/misc/property.h>
@@ -37,35 +37,14 @@ public:
         YASSERT(InnerState == EState::None);
         YASSERT(State_ != EState::InProgress);
         State_ = EState::None;
-        StringValue = Stroka();
-        Int64Value = 0;
-        DoubleValue = 0;
+        Token = TToken();
         BytesRead = 0;
     }
 
-    const Stroka& GetStringValue() const
+    const TToken& GetToken() const
     {
-        YASSERT(State_ == EState::String);
-        return StringValue;
-    }
-
-    i64 GetInt64Value() const
-    {
-        YASSERT(State_ == EState::Int64);
-        return Int64Value;
-    }
-
-    double GetDoubleValue() const
-    {
-        YASSERT(State_ == EState::Double);
-        return DoubleValue;
-    }
-
-    const Stroka& GetSpecialValue() const
-    {
-        YASSERT(State_ >= EState::Semicolon);
-        YASSERT(!StringValue.empty());
-        return StringValue;
+        YASSERT(State_ == EState::Terminal);
+        return Token;
     }
     
     //! Returns true iff the character was read.
@@ -116,19 +95,16 @@ public:
     void Finish()
     {
         switch (State_) {
-            case EState::None:
-                break;
-
             case EState::InProgress:
-                switch (State_) {
+                switch (InnerState) {
                     case EInnerState::InsideBinaryInt64:
                     case EInnerState::InsideBinaryDouble:
                     case EInnerState::InsideBinaryString:
                     case EInnerState::InsideQuotedString:
                         ythrow yexception() << Sprintf("Premature end of stream (LexerState: %s, BytesRead: %d)",
-                            ~State_.ToString(),
+                            ~InnerState.ToString(),
                             BytesRead);
-
+    
                     case EInnerState::InsideUnquotedString:
                         FinishString();
                         break;
@@ -144,10 +120,10 @@ public:
                     default:
                         YUNREACHABLE();
                 }
+                break;
 
             default:
-                // Should not finish in terminal states
-                YUNREACHABLE();
+                break;
         }
         
     }
@@ -163,69 +139,86 @@ private:
 
         switch (ch) {
             case ';':
-                ProduceState(EState::Semicolon, Stroka(ch));
+                ProduceToken(ETokenType::Semicolon, Stroka(ch));
                 break;;
 
             case '=':
-                ProduceState(EState::Equals, Stroka(ch));
+                ProduceToken(ETokenType::Equals, Stroka(ch));
                 break;
 
             case '[':
-                ProduceState(EState::LeftBracket, Stroka(ch));
+                ProduceToken(ETokenType::LeftBracket, Stroka(ch));
                 break;
 
             case ']':
-                ProduceState(EState::RightBracket, Stroka(ch));
+                ProduceToken(ETokenType::RightBracket, Stroka(ch));
                 break;
 
             case '{':
-                ProduceState(EState::LeftBrace, Stroka(ch));
+                ProduceToken(ETokenType::LeftBrace, Stroka(ch));
                 break;
 
             case '}':
-                ProduceState(EState::RightBrace, Stroka(ch));
+                ProduceToken(ETokenType::RightBrace, Stroka(ch));
                 break;
 
             case '<':
-                ProduceState(EState::LeftAngle, Stroka(ch));
+                ProduceToken(ETokenType::LeftAngle, Stroka(ch));
                 break;
 
             case '>':
-                ProduceState(EState::RightAngle, Stroka(ch));
+                ProduceToken(ETokenType::RightAngle, Stroka(ch));
+                break;
+
+            case '/':
+                ProduceToken(ETokenType::Slash, Stroka(ch));
+                break;
+
+            case '@':
+                ProduceToken(ETokenType::At, Stroka(ch));
+                break;
+
+            case '#':
+                ProduceToken(ETokenType::Hash, Stroka(ch));
+                break;
+
+            case '!':
+                ProduceToken(ETokenType::Bang, Stroka(ch));
                 break;
 
             case '\x01':
                 SetInProgressState(EInnerState::InsideBinaryString);
-                YASSERT(StringValue.empty());
+                YASSERT(Token.StringValue.empty());
                 YASSERT(BytesRead == 0);
                 break;
 
             case '\x02':
                 SetInProgressState(EInnerState::InsideBinaryInt64);
-                YASSERT(Int64Value == 0);
+                YASSERT(Token.Int64Value == 0);
                 YASSERT(BytesRead == 0);
                 break;
 
             case '\x03':
                 SetInProgressState(EInnerState::InsideBinaryDouble);
-                YASSERT(DoubleValue == 0.0);
+                YASSERT(Token.DoubleValue == 0.0);
                 YASSERT(BytesRead == 0);
                 BytesRead = -static_cast<int>(sizeof(double));
                 break;
 
             case '"':
                 SetInProgressState(EInnerState::InsideQuotedString);
-                YASSERT(StringValue.empty());
+                YASSERT(Token.StringValue.empty());
+                YASSERT(BytesRead == 0);
                 break;
 
             default:
                 if (isspace(ch)) {
                     break;
                 } else if (isdigit(ch) || ch == '+' || ch == '-') {
-                    StringValue = Stroka(ch);
+                    Token.StringValue = Stroka(ch);
                     SetInProgressState(EInnerState::InsideNumeric);
                 } else if (isalpha(ch) || ch == '_') {
-                    StringValue = Stroka(ch);
+                    Token.StringValue = Stroka(ch);
                     SetInProgressState(EInnerState::InsideUnquotedString);
                 } else {
                     ythrow yexception() << Sprintf("Unexpected character %s",
@@ -238,7 +231,7 @@ private:
     bool ConsumeUnquotedString(char ch)
     {
         if (isalpha(ch) || isdigit(ch) || ch == '_') {
-            StringValue.append(ch);
+            Token.StringValue.append(ch);
             return true;
         } else {
             FinishString();
@@ -249,25 +242,28 @@ private:
     void ConsumeQuotedString(char ch)
     {
         bool finish = false;
+        auto& stringValue = Token.StringValue;
         if (ch != '"') {
-            StringValue.append(ch);
+            stringValue.append(ch);
         } else {
             // We must count the number of '\' at the end of StringValue
             // to check if it's not \"
             int slashCount = 0;
-            int length = StringValue.length();
-            while (slashCount < length && StringValue[length - 1 - slashCount] == '\\')
+            int length = stringValue.length();
+            while (slashCount < length && stringValue[length - 1 - slashCount] == '\\')
                 ++slashCount;
             if (slashCount % 2 == 0) {
                 finish = true;
             } else {
-                StringValue.append(ch);
+                stringValue.append(ch);
             }
         }
 
         if (finish) {
-            StringValue = UnescapeC(StringValue);
+            stringValue = UnescapeC(stringValue);
             FinishString();
+        } else {
+            ++BytesRead;
         }
     }
 
@@ -278,32 +274,36 @@ private:
             ythrow yexception() << Sprintf("The data is too long to read binary Int64");
         }
 
-        ui64 ui64Value = static_cast<ui64>(Int64Value);
+        ui64 ui64Value = static_cast<ui64>(Token.Int64Value);
         ui64Value |= (static_cast<ui64> (byte & 0x7F)) << (7 * BytesRead);
         ++BytesRead;
 
         if ((byte & 0x80) == 0) {
-            Int64Value = ZigZagDecode64(static_cast<ui64>(ui64Value));
-            ProduceState(EState::Int64);
+            Token.Int64Value = ZigZagDecode64(static_cast<ui64>(ui64Value));
+            ProduceToken(ETokenType::Int64);
             BytesRead = 0;
         } else {
-            Int64Value = static_cast<i64>(ui64Value);
+            Token.Int64Value = static_cast<i64>(ui64Value);
         }
     }
 
     void ConsumeBinaryString(char ch)
     {
         if (BytesRead < 0) {
-            StringValue.append(ch);
+            Token.StringValue.append(ch);
             ++BytesRead;
         } else { // We are reading length
             ConsumeBinaryInt64(ch);
 
-            if (State_ == EState::Int64) {
-                BytesRead = -Int64Value;
-                Int64Value = 0;
-                State_ = EState::None; // SetInProgressState asserts it
+            if (State_ == EState::Terminal) {
+                i64 length = Token.GetInt64Value();
+                if (length < 0) {
+                    ythrow yexception() << Sprintf("Error reading binary string: String cannot have negative length (Length: %" PRId64 ")",
+                        length);
+                }
+                Reset();
                 SetInProgressState(EInnerState::InsideBinaryString);
+                BytesRead = -length;
             } else {
                 YASSERT(BytesRead > 0); // So we won't FinishString
             }
@@ -317,10 +317,10 @@ private:
     bool ConsumeNumeric(char ch)
     {
         if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
-            StringValue.append(ch);
+            Token.StringValue.append(ch);
             return true;
         } else if (ch == '.' || ch == 'e' || ch == 'E') {
-            StringValue.append(ch);
+            Token.StringValue.append(ch);
             InnerState = EInnerState::InsideDouble;
             return true;
         } else {
@@ -336,7 +336,7 @@ private:
             ch == '.' ||
             ch == 'e' || ch == 'E')
         {
-            StringValue.append(ch);
+            Token.StringValue.append(ch);
             return true;
         } else {
             FinishDouble();
@@ -348,51 +348,54 @@ private:
     {
         ui8 byte = static_cast<ui8>(ch);
 
-        *(reinterpret_cast<ui64*>(&DoubleValue)) |=
+        *(reinterpret_cast<ui64*>(&Token.DoubleValue)) |=
             static_cast<ui64>(byte) << (8 * (8 + BytesRead));
         ++BytesRead;
 
         if (BytesRead == 0) {
-            ProduceState(EState::Double);
+            ProduceToken(ETokenType::Double);
         }
     }
 
     void FinishString()
     {
-        ProduceState(EState::String);
+        ProduceToken(ETokenType::String);
     }
 
     void FinishNumeric()
     {
         try {
-            Int64Value = FromString<i64>(StringValue);
+            Token.Int64Value = FromString<i64>(Token.StringValue);
         } catch (const std::exception& ex) {
             // This exception is wrapped in parser
             ythrow yexception() << Sprintf("Failed to parse Int64 literal %s",
-                ~StringValue.Quote());
+                ~Token.StringValue.Quote());
         }
-        ProduceState(EState::Int64);
+        Token.StringValue = Stroka();
+        ProduceToken(ETokenType::Int64);
     }
 
     void FinishDouble()
     {
         try {
-            DoubleValue = FromString<double>(StringValue);
+            Token.DoubleValue = FromString<double>(Token.StringValue);
         } catch (const std::exception& ex) {
             // This exception is wrapped in parser
             ythrow yexception() << Sprintf("Failed to parse Double literal %s",
-                ~StringValue.Quote());
+                ~Token.StringValue.Quote());
         }
-        ProduceState(EState::Double);
+        Token.StringValue = Stroka();
+        ProduceToken(ETokenType::Double);
     }
 
-    void ProduceState(EState state, Stroka stringValue = Stroka())
+    void ProduceToken(ETokenType type, Stroka stringValue = Stroka())
     {
         YASSERT(State_ == EState::None || State_ == EState::InProgress);
-        State_ = state;
+        State_ = EState::Terminal;
         InnerState = EInnerState::None;
+        Token.Type_ = type;
         if (!stringValue.empty()) {
-            StringValue = stringValue;
+            Token.StringValue = stringValue;
         }
     }
 
@@ -406,10 +409,7 @@ private:
     }
 
     EInnerState InnerState;
-
-    Stroka StringValue;
-    i64 Int64Value;
-    double DoubleValue;
+    TToken Token;
 
     /*
      * BytesRead > 0 means we've read BytesRead bytes (in binary Int64)
@@ -448,27 +448,75 @@ TLexer::EState TLexer::GetState() const
     return Impl->GetState();
 }
 
-const Stroka& TLexer::GetStringValue() const
+const TToken& TLexer::GetToken() const
 {
-    return Impl->GetStringValue();
-}
-
-i64 TLexer::GetInt64Value() const
-{
-    return Impl->GetInt64Value();
-}
-
-double TLexer::GetDoubleValue() const
-{
-    return Impl->GetDoubleValue();
-}
-
-const Stroka& TLexer::GetSpecialValue() const
-{
-    return Impl->GetSpecialValue();
+    return Impl->GetToken();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
+// TODO(roizner): Make suffix TStringBuf*
+TToken ChopToken(const TStringBuf& data, TStringBuf* suffix)
+{
+    TLexer lexer;
+    int position = 0;
+    while (lexer.GetState() != TLexer::EState::Terminal && position < data.length()) {
+        if (lexer.Consume(data[position])) {
+            ++position;
+        }
+    }
+    lexer.Finish();
+    if (suffix) {
+        *suffix = data.SubStr(position);
+    }
+    return lexer.GetState() == TLexer::EState::Terminal ? lexer.GetToken() : TToken();
+}
+
+Stroka ChopStringToken(const TStringBuf& data, TStringBuf* suffix)
+{
+    auto token = ChopToken(data, suffix);
+    if (token.GetType() != ETokenType::String) {
+        ythrow yexception() << Sprintf("Expected String token, but token %s of type %s found",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
+    }
+    return token.GetStringValue();
+}
+
+i64 ChopInt64Token(const TStringBuf& data, TStringBuf* suffix)
+{
+    auto token = ChopToken(data, suffix);
+    if (token.GetType() != ETokenType::Int64) {
+        ythrow yexception() << Sprintf("Expected Int64 token, but token %s of type %s found",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
+    }
+    return token.GetInt64Value();
+}
+
+double ChopDoubleToken(const TStringBuf& data, TStringBuf* suffix)
+{
+    auto token = ChopToken(data, suffix);
+    if (token.GetType() != ETokenType::Double) {
+        ythrow yexception() << Sprintf("Expected Double token, but token %s of type %s found",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
+    }
+    return token.GetDoubleValue();
+}
+
+ETokenType ChopSpecialToken(const TStringBuf& data, TStringBuf* suffix)
+{
+    auto token = ChopToken(data, suffix);
+    if (token.GetType() <= ETokenType::Double) {
+        ythrow yexception() << Sprintf("Expected special value token, but token %s of type %s found",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
+    }
+    return token.GetType();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT

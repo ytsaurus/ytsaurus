@@ -30,8 +30,7 @@ public:
 
     void Run()
     {
-        TStringInput input(Input);
-        ParseYson(&input, &Mock, Fragmented);
+        ParseYson(Input, &Mock, Fragmented);
     }
 };
 
@@ -116,6 +115,16 @@ TEST_F(TYsonReaderTest, BinaryString)
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnStringScalar("YSON", false));
+
+    Run();
+}
+
+TEST_F(TYsonReaderTest, EmpryBinaryString)
+{
+    Input = Stroka("\x01\x00", 2); // StringMarker + length ( = 0 )
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnStringScalar("", false));
 
     Run();
 }

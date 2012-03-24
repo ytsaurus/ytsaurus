@@ -11,62 +11,31 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStartTransactionCommand::DoExecute(TStartTransactionRequest* request)
+void TStartCommand::DoExecute(TStartRequest* request)
 {
-    auto oldTransaction = DriverImpl->GetCurrentTransaction();
-    if (oldTransaction) {
-        oldTransaction->Abort();
-        DriverImpl->SetCurrentTransaction(NULL);
-    }
-
     auto transactionManager = DriverImpl->GetTransactionManager();
     auto newTransaction = transactionManager->Start(~request->Manifest);
-    DriverImpl->SetCurrentTransaction(~newTransaction);
 
     BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
-        .BeginMap()
-            .Item("transaction_id").Scalar(newTransaction->GetId().ToString())
-        .EndMap();
+        .Scalar(newTransaction->GetId().ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCommitTransactionCommand::DoExecute(TCommitTransactionRequest* request)
+void TCommitCommand::DoExecute(TCommitRequest* request)
 {
-    auto transactionId = request->TransactionId;
-    if (transactionId == NullTransactionId ||
-        transactionId == DriverImpl->GetCurrentTransactionId())
-    {
-        auto transaction = DriverImpl->GetCurrentTransaction(true);
-        transaction->Commit();
-        DriverImpl->SetCurrentTransaction(NULL);
-        DriverImpl->ReplySuccess();
-    } else {
-        auto transactionManager = DriverImpl->GetTransactionManager();
-        auto transaction = transactionManager->Attach(transactionId);
-        transaction->Commit();
-        DriverImpl->ReplySuccess();
-    }
+    auto transaction = DriverImpl->GetTransaction(request, true);
+    transaction->Commit();
+    DriverImpl->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortTransactionCommand::DoExecute(TAbortTransactionRequest* request)
+void TAbortCommand::DoExecute(TAbortRequest* request)
 {
-    auto transactionId = request->TransactionId;
-    if (transactionId == NullTransactionId ||
-        transactionId == DriverImpl->GetCurrentTransactionId())
-    {
-        auto transaction = DriverImpl->GetCurrentTransaction(true);
-        transaction->Abort();
-        DriverImpl->SetCurrentTransaction(NULL);
-        DriverImpl->ReplySuccess();
-    } else {
-        auto transactionManager = DriverImpl->GetTransactionManager();
-        auto transaction = transactionManager->Attach(transactionId);
-        transaction->Abort();
-        DriverImpl->ReplySuccess();
-    }
+    auto transaction = DriverImpl->GetTransaction(request, true);
+    transaction->Commit();
+    DriverImpl->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

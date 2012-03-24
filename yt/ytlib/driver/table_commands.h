@@ -18,9 +18,6 @@ struct TReadRequest
     TReadRequest()
     {
         Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
     }
 };
 
@@ -48,9 +45,6 @@ struct TWriteRequest
     TWriteRequest()
     {
         Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
         Register("value", Value)
             .Default();
     }

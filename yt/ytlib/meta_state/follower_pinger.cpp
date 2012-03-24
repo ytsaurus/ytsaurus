@@ -46,7 +46,7 @@ void TFollowerPinger::Start()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-        if (id != CellManager->GetSelfId()) {
+        if (id != CellManager->SelfId()) {
             SendPing(id);
         }
     }

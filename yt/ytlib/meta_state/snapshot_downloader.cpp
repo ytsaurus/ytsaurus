@@ -55,7 +55,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
 
     LOG_INFO("Getting snapshot %d info from peers", snapshotId);
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
-        if (peerId == CellManager->GetSelfId()) continue;
+        if (peerId == CellManager->SelfId()) continue;
 
         LOG_INFO("Requesting snapshot info from peer %d", peerId);
 

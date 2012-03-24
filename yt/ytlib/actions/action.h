@@ -47,9 +47,11 @@ struct IAction
 
     TCallback<void()> ToCallback()
     {
-        return Bind(&IAction::Do, MakeStrong(this));
+        return ::NYT::Bind(&IAction::Do, MakeStrong(this));
     }
 };
+
+inline IAction::TPtr FromCallback(const TCallback<void()>& callback);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,9 +97,12 @@ struct IParamAction
 
     TCallback<void(TParam)> ToCallback()
     {
-        return Bind(&IParamAction::Do, MakeStrong(this));
+        return ::NYT::Bind(&IParamAction::Do, MakeStrong(this));
     }
 };
+
+template <class TParam>
+inline typename IParamAction<TParam>::TPtr FromCallback(const TCallback<void(TParam)>& callback);
 
 ////////////////////////////////////////////////////////////////////////////////
 

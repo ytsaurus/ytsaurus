@@ -1,21 +1,45 @@
 set( SRCS
   main.cpp
+  arguments.cpp
 )
 
-add_executable( ytdriver ${SRCS} )
+add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )
+add_executable( yt ${SRCS} )
 
-target_link_libraries( ytdriver
+include_directories(
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/yt
+  ${CMAKE_SOURCE_DIR}/contrib/tclap
+
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/include
+  ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_holder
+  ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_server
+  ${CMAKE_BINARY_DIR}/yt/ytlib/chunk_client
+  ${CMAKE_BINARY_DIR}/yt/ytlib/table_client
+  ${CMAKE_BINARY_DIR}/yt/ytlib/table_server
+  ${CMAKE_BINARY_DIR}/yt/ytlib/file_server
+  ${CMAKE_BINARY_DIR}/yt/ytlib/transaction_server
+  ${CMAKE_BINARY_DIR}/yt/ytlib/object_server
+  ${CMAKE_BINARY_DIR}/yt/ytlib/cypress
+  ${CMAKE_BINARY_DIR}/yt/ytlib/ytree
+  ${CMAKE_BINARY_DIR}/yt/ytlib/election
+  ${CMAKE_BINARY_DIR}/yt/ytlib/meta_state
+)
+
+
+target_link_libraries( yt
   ytlib
 )
 
 if (YT_BUILD_WITH_STLPORT)
-  target_link_libraries( ytdriver stlport )
+  target_link_libraries( yt stlport )
   if (CMAKE_COMPILER_IS_GNUCXX)
-    set_target_properties( ytdriver PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
+    set_target_properties( yt PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
   endif()
 endif()
 
 install(
-  TARGETS ytdriver
+  TARGETS yt
   RUNTIME DESTINATION bin
 )

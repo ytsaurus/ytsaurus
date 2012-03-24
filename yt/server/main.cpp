@@ -55,12 +55,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
         .RequiredArgument("PORT")
         .StoreResult(&port);
 
-    auto peerId = InvalidPeerId;
-    opts.AddLongOption("id", "peer id")
-        .Optional()
-        .RequiredArgument("ID")
-        .StoreResult(&peerId);
-
     Stroka configFileName;
     opts.AddLongOption("config", "configuration file")
         .RequiredArgument("FILE")
@@ -145,10 +139,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         try {
             config->Load(~configNode, false);
-            
-            // Override peer id.
-            if (peerId != InvalidPeerId) {
-                config->MetaState->Cell->Id = peerId;
+
+            // Override RPC port.
+            if (port >= 0) {
+                config->RpcPort = port;
             }
 
             config->Validate();

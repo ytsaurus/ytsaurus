@@ -59,25 +59,21 @@ struct IDriverImpl
     virtual TDriver::TConfig* GetConfig() const = 0;
     virtual NRpc::IChannel* GetMasterChannel() const = 0;
 
-    virtual NYTree::TYsonProducer CreateInputProducer(const Stroka& spec = "") = 0;
-    virtual TAutoPtr<TInputStream> CreateInputStream(const Stroka& spec = "") = 0;
+    virtual NYTree::TYsonProducer CreateInputProducer() = 0;
+    virtual TAutoPtr<TInputStream> CreateInputStream() = 0;
 
-    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer(const Stroka& spec = "") = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream(const Stroka& spec = "") = 0;
+    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer() = 0;
+    virtual TAutoPtr<TOutputStream> CreateOutputStream() = 0;
 
     virtual void ReplyError(const TError& error) = 0;
     virtual void ReplySuccess() = 0;
-    virtual void ReplySuccess(const NYTree::TYson& yson, const Stroka& spec = "") = 0;
+    virtual void ReplySuccess(const NYTree::TYson& yson) = 0;
 
     virtual NChunkClient::IBlockCache* GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManager* GetTransactionManager() = 0;
-    virtual NObjectServer::TTransactionId GetCurrentTransactionId() = 0;
 
-    virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequest* request) = 0;
+    virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequest* request, bool required = false) = 0;
     virtual NTransactionClient::ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required = false) = 0;
-
-    virtual NTransactionClient::ITransaction* GetCurrentTransaction(bool required = false) = 0;
-    virtual void SetCurrentTransaction(NTransactionClient::ITransaction* transaction) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

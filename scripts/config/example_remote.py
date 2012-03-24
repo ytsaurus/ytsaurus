@@ -60,7 +60,7 @@ class Server(Base, RemoteServer):
 class Master(Server):
     base_dir = '/yt/disk2/data'
     address = Subclass(MasterAddresses)
-    params = Template('--master --config %(config_path)s --port %(port)d --id %(__name__)s')
+    params = Template('--master --config %(config_path)s --port %(port)d')
 
     log_disk = 'disk2'
     log_path = Template("master-%(__name__)s.log")

@@ -11,14 +11,10 @@ struct TDownloadRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
 
     TDownloadRequest()
     {
         Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
     }
 };
 
@@ -40,14 +36,10 @@ struct TUploadRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
 
     TUploadRequest()
     {
         Register("path", Path);
-        Register("stream", Stream)
-            .Default()
-            .CheckThat(~StreamSpecIsValid);
     }
 };
 
