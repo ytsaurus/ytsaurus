@@ -21,6 +21,8 @@ struct TReadRequest
     }
 };
 
+typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
+
 class TReadCommand
     : public TCommandBase<TReadRequest>
 {
@@ -30,7 +32,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute(TReadRequest* request);
+    virtual void DoExecute(TReadRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,6 +62,8 @@ struct TWriteRequest
     }
 };
 
+typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
+
 class TWriteCommand
     : public TCommandBase<TWriteRequest>
 {
@@ -69,7 +73,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute(TWriteRequest* request);
+    virtual void DoExecute(TWriteRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

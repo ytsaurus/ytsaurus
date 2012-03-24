@@ -11,7 +11,7 @@ using namespace NFileClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDownloadCommand::DoExecute(TDownloadRequest* request)
+void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 {
     auto config = DriverImpl->GetConfig()->FileReader;
 
@@ -19,7 +19,7 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
         ~config,
         ~DriverImpl->GetMasterChannel(),
         ~DriverImpl->GetTransaction(request),
-        DriverImpl->GetBlockCache(),
+        ~DriverImpl->GetBlockCache(),
         request->Path);
     reader->Open();
 
@@ -38,7 +38,7 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUploadCommand::DoExecute(TUploadRequest* request)
+void TUploadCommand::DoExecute(TUploadRequestPtr request)
 {
     auto config = DriverImpl->GetConfig()->FileWriter;
 
@@ -46,7 +46,7 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
         ~config,
         ~DriverImpl->GetMasterChannel(),
         ~DriverImpl->GetTransaction(request),
-        DriverImpl->GetTransactionManager(),
+        ~DriverImpl->GetTransactionManager(),
         request->Path);
     writer->Open();
 

@@ -14,7 +14,7 @@ using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetCommand::DoExecute(TGetRequest* request)
+void TGetCommand::DoExecute(TGetRequestPtr request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
@@ -33,7 +33,7 @@ void TGetCommand::DoExecute(TGetRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSetCommand::DoExecute(TSetRequest* request)
+void TSetCommand::DoExecute(TSetRequestPtr request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
 
@@ -62,7 +62,7 @@ void TSetCommand::DoExecute(TSetRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveCommand::DoExecute(TRemoveRequest* request)
+void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
@@ -81,7 +81,7 @@ void TRemoveCommand::DoExecute(TRemoveRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TListCommand::DoExecute(TListRequest* request)
+void TListCommand::DoExecute(TListRequestPtr request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
@@ -101,7 +101,7 @@ void TListCommand::DoExecute(TListRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCreateCommand::DoExecute(TCreateRequest* request)
+void TCreateCommand::DoExecute(TCreateRequestPtr request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
@@ -132,7 +132,7 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLockCommand::DoExecute(TLockRequest* request)
+void TLockCommand::DoExecute(TLockRequestPtr request)
 {
     TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(

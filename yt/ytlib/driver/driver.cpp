@@ -104,7 +104,7 @@ class TDriver::TImpl
 {
 public:
     TImpl(
-        TConfig* config,
+        TConfig::TPtr config,
         IDriverStreamProvider* streamProvider)
         : Config(config)
         , StreamProvider(streamProvider)
@@ -151,7 +151,7 @@ public:
         return Error;
     }
 
-    virtual TConfig* GetConfig() const
+    virtual TConfig::TPtr GetConfig() const
     {
         return ~Config;
     }
@@ -198,7 +198,7 @@ public:
         reader.Read();
     }
 
-    // Simplified version for unconditional success (yes, its empty output).
+    // Simplified version for unconditional success (yes, it's empty output).
     virtual void ReplySuccess()
     { }
 
@@ -231,17 +231,17 @@ public:
         return new TOwningBufferedOutput(stream);
     }
 
-    virtual IBlockCache* GetBlockCache()
+    virtual IBlockCache::TPtr GetBlockCache()
     {
-        return ~BlockCache;
+        return BlockCache;
     }
 
-    virtual TTransactionManager* GetTransactionManager()
+    virtual TTransactionManager::TPtr GetTransactionManager()
     {
-        return ~TransactionManager;
+        return TransactionManager;
     }
 
-    virtual TTransactionId GetTransactionId(TTransactedRequest* request, bool required)
+    virtual TTransactionId GetTransactionId(TTransactedRequestPtr request, bool required)
     {
         if (required && request->TransactionId == NullTransactionId) {
             ythrow yexception() << "No transaction was set";
@@ -249,7 +249,7 @@ public:
         return request->TransactionId;
     }
 
-    virtual ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required)
+    virtual ITransaction::TPtr GetTransaction(TTransactedRequestPtr request, bool required)
     {
         auto transactionId = GetTransactionId(request, required);
         if (transactionId == NullTransactionId) {
@@ -267,7 +267,7 @@ private:
     IBlockCache::TPtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
 
-    void RegisterCommand(const Stroka& name, ICommand* command)
+    void RegisterCommand(const Stroka& name, ICommand::TPtr command)
     {
         YVERIFY(Commands.insert(MakePair(name, command)).second);
     }
@@ -297,7 +297,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TDriver::TDriver(
-    TConfig* config,
+    TConfig::TPtr config,
     IDriverStreamProvider* streamProvider)
     : Impl(new TImpl(config, streamProvider))
 { }

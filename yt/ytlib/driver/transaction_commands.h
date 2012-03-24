@@ -19,6 +19,8 @@ struct TStartRequest
     }
 };
 
+typedef TIntrusivePtr<TStartRequest> TStartRequestPtr;
+
 class TStartCommand
     : public TCommandBase<TStartRequest>
 {
@@ -28,7 +30,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute(TStartRequest* request);
+    virtual void DoExecute(TStartRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,6 +38,8 @@ private:
 struct TCommitRequest
     : public TTransactedRequest
 { };
+
+typedef TIntrusivePtr<TCommitRequest> TCommitRequestPtr;
 
 class TCommitCommand
     : public TCommandBase<TCommitRequest>
@@ -46,7 +50,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute(TCommitRequest* request);
+    virtual void DoExecute(TCommitRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,6 +58,8 @@ private:
 struct TAbortRequest
     : public TTransactedRequest
 { };
+
+typedef TIntrusivePtr<TAbortRequest> TAbortRequestPtr;
 
 class TAbortCommand
     : public TCommandBase<TAbortRequest>
@@ -64,7 +70,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute(TAbortRequest* request);
+    virtual void DoExecute(TAbortRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

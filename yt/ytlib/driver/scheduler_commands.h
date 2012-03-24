@@ -20,6 +20,8 @@ struct TMapRequest
     }
 };
 
+typedef TIntrusivePtr<TMapRequest> TMapRequestPtr;
+
 class TMapCommand
     : public TCommandBase<TMapRequest>
 {
@@ -29,7 +31,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute(TMapRequest* request);
+    virtual void DoExecute(TMapRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
