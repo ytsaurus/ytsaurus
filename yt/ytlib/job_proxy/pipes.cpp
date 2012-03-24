@@ -234,6 +234,7 @@ TInputPipe::TInputPipe(
     , JobDescriptor(jobDescriptor)
     , Position(0)
     , IsFinished(false)
+    , HasData(true)
 {
     int fd[2];
     SafePipe(fd);
