@@ -157,7 +157,7 @@ TAutoPtr<NTableClient::TYsonTableInput> TJobSpec::GetInputTable(int index, TOutp
 
     LOG_DEBUG("Creating %d input from %d chunks.", 
         index, 
-        chunks.size());
+        static_cast<int>(chunks.size()));
 
     auto reader = New<TChunkSequenceReader>(
         ~Config->ChunkSequenceReader,
