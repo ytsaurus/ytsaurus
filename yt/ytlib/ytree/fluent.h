@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "yson_consumer.h"
+#include "yson_reader.h"
 #include "yson_writer.h"
 #include "tree_visitor.h"
 #include "serialize.h"
@@ -20,68 +21,49 @@ class TFluentYsonBuilder
     : private TNonCopyable
 {
 private:
-    template <class T>
-    static void Write(IYsonConsumer* consumer, T value, bool hasAttributes);
-
-    template <>
-    static void Write(IYsonConsumer* consumer, const char* value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, const char* value, bool hasAttributes)
     {
-        Write(consumer, Stroka(value), hasAttributes);
+        WriteScalar(consumer, Stroka(value), hasAttributes);
     }
 
-    template <>
-    static void Write(IYsonConsumer* consumer, i32 value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, i32 value, bool hasAttributes)
     {
-        Write(consumer, static_cast<i64>(value), hasAttributes);
+        WriteScalar(consumer, static_cast<i64>(value), hasAttributes);
     }
 
-    template <>
-    static void Write(IYsonConsumer* consumer, ui32 value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, ui32 value, bool hasAttributes)
     {
-        Write(consumer, static_cast<i64>(value), hasAttributes);
+        WriteScalar(consumer, static_cast<i64>(value), hasAttributes);
     }
 
-    template <>
-    static void Write(IYsonConsumer* consumer, i64 value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, float value, bool hasAttributes)
     {
-        consumer->OnInt64Scalar(value, hasAttributes);
+        WriteScalar(consumer, static_cast<double>(value), hasAttributes);
     }
 
-    template <>
-    static void Write(IYsonConsumer* consumer, float value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, bool value, bool hasAttributes)
     {
-        Write(consumer, static_cast<double>(value), hasAttributes);
+        WriteScalar(consumer, FormatBool(value), hasAttributes);
     }
 
-    template <>
-    static void Write(IYsonConsumer* consumer, double value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, const TGuid& value, bool hasAttributes)
+    {
+        WriteScalar(consumer, value.ToString(), hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, const Stroka& value, bool hasAttributes)
+    {
+        consumer->OnStringScalar(value, hasAttributes);
+    }
+
+    static void WriteScalar(IYsonConsumer* consumer, double value, bool hasAttributes)
     {
         consumer->OnDoubleScalar(value, hasAttributes);
     }
 
-    template <>
-    static void Write(IYsonConsumer* consumer, bool value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, i64 value, bool hasAttributes)
     {
-        Write(consumer, FormatBool(value), hasAttributes);
-    }
-
-    template <>
-    static void Write(IYsonConsumer* consumer, const TGuid& value, bool hasAttributes)
-    {
-        Write(consumer, value.ToString(), hasAttributes);
-    }
-
-    template <>
-    static void Write(IYsonConsumer* consumer, const TYson& value, bool hasAttributes)
-    {
-        Write(consumer, DeserializeFromYson(value), hasAttributes);
-    }
-
-    template <>
-    static void Write(IYsonConsumer* consumer, INodePtr node, bool hasAttributes)
-    {
-        UNUSED(hasAttributes);
-        VisitTree(node, consumer, true);
+        consumer->OnInt64Scalar(value, hasAttributes);
     }
 
 public:
@@ -128,19 +110,21 @@ public:
         template <class T>
         TParent Scalar(T value)
         {
-            Write(this->Consumer, value, HasAttributes);
+            WriteScalar(this->Consumer, value, HasAttributes);
             return this->Parent;
         }
 
         TParent Node(const TYson& value)
         {
-            Write(this->Consumer, value, HasAttributes);
+            TStringStream stream(value);
+            TYsonReader reader(this->Consumer, &stream);
+            reader.Read();
             return this->Parent;
         }
 
         TParent Node(INodePtr node)
         {
-            Write(this->Consumer, node, HasAttributes);
+            VisitTree(node, this->Consumer);
             return this->Parent;
         }
 
@@ -156,7 +140,7 @@ public:
             this->Consumer->OnBeginList();
             FOREACH (const auto& item, collection) {
                 this->Consumer->OnListItem();
-                Write(this->Consumer, item, false);
+                WriteScalar(this->Consumer, item, false);
             }
             this->Consumer->OnEndList(HasAttributes);
             return this->Parent;
