@@ -29,7 +29,8 @@ struct TCellSchedulerConfig
             .Default(11000);
         Register("monitoring_port", MonitoringPort)
             .Default(10000);
-        Register("masters", Masters);
+        Register("masters", Masters).
+            DefaultNew();
         Register("transaction_manager", TransactionManager)
             .DefaultNew();
         Register("scheduler", Scheduler)

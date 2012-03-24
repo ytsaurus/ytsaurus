@@ -50,7 +50,7 @@ void TRowConsumer::OnBeginList()
 
 void TRowConsumer::OnListItem()
 {
-    YUNREACHABLE();
+    // Represents separator between rows, do nothing.
 }
 
 void TRowConsumer::OnEndList(bool hasAttributes)

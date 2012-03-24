@@ -135,7 +135,7 @@ void TJobProxy::InitPipes()
 
     for (int i = 0; i < JobSpec->GetOutputCount(); ++i) {
         ++ActivePipesCount;
-        DataPipes.push_back(New<TOutputPipe>(~JobSpec->GetOutputTable(i), 3 * i + 1));
+        DataPipes.push_back(New<TOutputPipe>(JobSpec->GetOutputTable(i), 3 * i + 1));
     }
 
     // Close reserved descriptors.
