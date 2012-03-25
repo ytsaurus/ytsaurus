@@ -144,9 +144,7 @@ private:
     {
         NLog::TLogger& Logger = RpcLogger;
         TBlob blob;
-        if (!SerializeProtobuf(this, &blob)) {
-            LOG_FATAL("Error serializing request body");
-        }
+        YVERIFY(SerializeProtobuf(this, &blob));
         return blob;
     }
 
@@ -276,9 +274,7 @@ private:
     virtual void DeserializeBody(const TRef& data)
     {
         NLog::TLogger& Logger = RpcLogger;
-        if (!DeserializeProtobuf(this, data)) {
-            LOG_FATAL("Error deserializing response body");
-        }
+        YVERIFY(DeserializeProtobuf(this, data));
     }
 };
 

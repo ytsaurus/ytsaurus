@@ -303,9 +303,7 @@ public:
         NLog::TLogger& Logger = RpcLogger;
         if (error.IsOK()) {
             TBlob responseBlob;
-            if (!SerializeProtobuf(&Response_, &responseBlob)) {
-                LOG_FATAL("Error serializing response");
-            }
+            YVERIFY(SerializeProtobuf(&Response_, &responseBlob));
             this->Context->SetResponseBody(MoveRV(responseBlob));
         }
         this->Context->Reply(error);
