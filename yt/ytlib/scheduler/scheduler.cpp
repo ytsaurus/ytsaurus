@@ -1011,11 +1011,11 @@ private:
         }
 
         FOREACH (auto job, jobsToStart) {
-            LOG_INFO("Scheduling job start (Address: %s, JobId: %s, OperationId: %s, JobType: %s)",
+            LOG_INFO("Scheduling %s job start on %s (JobId: %s, OperationId: %s)",
+                ~EJobType(job->Spec().type()).ToString(),
                 ~address,
                 ~job->GetId().ToString(),
-                ~job->GetOperation()->GetOperationId().ToString(),
-                ~EJobType(job->Spec().type()).ToString());
+                ~job->GetOperation()->GetOperationId().ToString());
             auto* jobInfo = response->add_jobs_to_start();
             jobInfo->set_job_id(job->GetId().ToProto());
             *jobInfo->mutable_spec() = job->Spec();
@@ -1023,7 +1023,7 @@ private:
         }
 
         FOREACH (auto job, jobsToAbort) {
-            LOG_INFO("Scheduling job abort (Address: %s, JobId: %s, OperationId: %s)",
+            LOG_INFO("Scheduling job abort on %s (JobId: %s, OperationId: %s)",
                 ~address,
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
