@@ -68,7 +68,7 @@ void TChunkSequenceWriter::CreateNextChunk()
     req->Invoke()->Subscribe(
         FromMethod(
             &TChunkSequenceWriter::OnChunkCreated,
-            TWeakPtr<TChunkSequenceWriter>(this))
+            MakeWeak(this))
         ->Via(WriterThread->GetInvoker()));
 }
 
@@ -81,36 +81,36 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
         return;
     }
 
-    if (rsp->IsOK()) {
-        YASSERT(rsp->chunks_size() == 1);
-        const auto& chunkInfo = rsp->chunks(0);
-
-        auto addresses = FromProto<Stroka>(chunkInfo.holder_addresses());
-        auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
-
-        LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
-            ~JoinToString(addresses),
-            ~chunkId.ToString());
-
-        auto remoteWriter = New<TRemoteWriter>(
-            ~Config->RemoteWriter,
-            chunkId,
-            addresses);
-        remoteWriter->Open();
-
-        auto chunkWriter = New<TChunkWriter>(
-            ~Config->ChunkWriter,
-            ~remoteWriter);
-
-        // Although we call _Async_Open, it return immediately.
-        // See TChunkWriter for details.
-        chunkWriter->AsyncOpen(Attributes);
-
-        NextChunk->Set(chunkWriter);
-
-    } else {
+    if (!rsp->IsOK()) {
         State.Fail(rsp->GetError());
+        return;
     }
+        
+    YASSERT(rsp->chunks_size() == 1);
+    const auto& chunkInfo = rsp->chunks(0);
+
+    auto addresses = FromProto<Stroka>(chunkInfo.holder_addresses());
+    auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
+
+    LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
+        ~JoinToString(addresses),
+        ~chunkId.ToString());
+
+    auto remoteWriter = New<TRemoteWriter>(
+        ~Config->RemoteWriter,
+        chunkId,
+        addresses);
+    remoteWriter->Open();
+
+    auto chunkWriter = New<TChunkWriter>(
+        ~Config->ChunkWriter,
+        ~remoteWriter);
+
+    // Although we call _Async_Open, it returns immediately.
+    // See TChunkWriter for details.
+    chunkWriter->AsyncOpen(Attributes);
+
+    NextChunk->Set(chunkWriter);
 }
 
 TAsyncError TChunkSequenceWriter::AsyncOpen(
@@ -124,7 +124,7 @@ TAsyncError TChunkSequenceWriter::AsyncOpen(
     State.StartOperation();
     NextChunk->Subscribe(FromMethod(
         &TChunkSequenceWriter::InitCurrentChunk,
-        TWeakPtr<TChunkSequenceWriter>(this)));
+        MakeWeak(this)));
 
     return State.GetOperationError();
 }
@@ -162,13 +162,13 @@ TAsyncError TChunkSequenceWriter::AsyncEndRow(
         FinishCurrentChunk(key, channels);
         NextChunk->Subscribe(FromMethod(
             &TChunkSequenceWriter::InitCurrentChunk,
-            TWeakPtr<TChunkSequenceWriter>(this)));
+            MakeWeak(this)));
     } else {
         // NB! Do not make functor here: action target should be 
         // intrusive or weak pointer to 
         CurrentChunk->AsyncEndRow(key, channels)->Subscribe(FromMethod(
             &TChunkSequenceWriter::OnRowEnded,
-            TWeakPtr<TChunkSequenceWriter>(this)));
+            MakeWeak(this)));
     }
 
     return State.GetOperationError();
@@ -184,20 +184,24 @@ void TChunkSequenceWriter::FinishCurrentChunk(
     TKey& lastKey,
     std::vector<TChannelWriter::TPtr>& channels)
 {
+    if (!CurrentChunk)
+        return;
+
     if (CurrentChunk->GetCurrentSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
 
-        TAsyncError finishResult = New< TFuture<TError> >();
-        CloseChunksAwaiter->Await(finishResult, 
+        auto finishResult = New< TFuture<TError> >();
+        CloseChunksAwaiter->Await(
+            finishResult, 
             FromMethod(
                 &TChunkSequenceWriter::OnChunkFinished, 
-                TWeakPtr<TChunkSequenceWriter>(this),
+                MakeWeak(this),
                 CurrentChunk->GetChunkId()));
 
         CurrentChunk->AsyncClose(lastKey, channels)->Subscribe(FromMethod(
             &TChunkSequenceWriter::OnChunkClosed,
-            TWeakPtr<TChunkSequenceWriter>(this),
+            MakeWeak(this),
             CurrentChunk,
             finishResult));
 
@@ -212,8 +216,9 @@ void TChunkSequenceWriter::FinishCurrentChunk(
 bool TChunkSequenceWriter::IsNextChunkTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return (CurrentChunk->GetCurrentSize() / double(Config->MaxChunkSize)) > 
-        (Config->NextChunkThreshold / 100.0);
+    return
+        (double) CurrentChunk->GetCurrentSize() / Config->MaxChunkSize >
+        Config->NextChunkThreshold;
 }
 
 void TChunkSequenceWriter::OnChunkClosed(
@@ -248,7 +253,7 @@ void TChunkSequenceWriter::OnChunkClosed(
 
     batchReq->Invoke()->Subscribe(FromMethod(
         &TChunkSequenceWriter::OnChunkRegistered,
-        TWeakPtr<TChunkSequenceWriter>(this),
+        MakeWeak(this),
         currentChunk->GetChunkId(),
         finishResult));
 }
@@ -305,7 +310,7 @@ TAsyncError TChunkSequenceWriter::AsyncClose(
 
     CloseChunksAwaiter->Complete(FromMethod(
         &TChunkSequenceWriter::OnClose,
-        TWeakPtr<TChunkSequenceWriter>(this)));
+        MakeWeak(this)));
 
     return State.GetOperationError();
 }
