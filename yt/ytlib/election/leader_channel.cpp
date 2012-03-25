@@ -120,19 +120,19 @@ private:
         return promisedChannel;
     }
 
-    void OnLeaderFound(TLeaderLookup::TResult result, TFuture<IChannel::TPtr>::TPtr promisedChannel)
+    void OnLeaderFound(TLeaderLookup::TResult result, TFuture<IChannel::TPtr>::TPtr channelPromise)
     {
         if (result.Id == NElection::InvalidPeerId) {
             TGuard<TSpinLock> guard(SpinLock);
-            if (ChannelPromise == promisedChannel) {
-                promisedChannel->Set(NULL);
+            if (ChannelPromise == channelPromise) {
+                channelPromise->Set(NULL);
                 ChannelPromise.Reset();
             }
         } else {
             auto channel = CreateBusChannel(result.Address);
             TGuard<TSpinLock> guard(SpinLock);
-            if (ChannelPromise == promisedChannel) {
-                promisedChannel->Set(channel);
+            if (ChannelPromise == channelPromise) {
+                channelPromise->Set(channel);
             }
         }
     }
@@ -159,7 +159,7 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
         IChannel::TPtr currentChannel;
-        if (ChannelPromise->TryGet(&currentChannel) && currentChannel == failedChannel) {
+        if (currentChannel == failedChannel && ChannelPromise->TryGet(&currentChannel)) {
             ChannelPromise.Reset();
         }
     }
