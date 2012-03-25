@@ -104,6 +104,24 @@ class Master(Server):
         print >>fd, 'rm %s/*' % cls.config['meta_state']['snapshot_path']
         print >>fd, 'rm %s/*' % cls.config['meta_state']['log_path']
         
+class Scheduler(Server):
+    address = MasterAddresses[1]
+    params = Template('--scheduler --config %(config_path)s')
+
+    log_disk = 'disk2'
+    log_path = Template("scheduler.log")
+    debug_log_path = Template("scheduler.debug.log")
+
+    config = Template({
+        'masters' : {
+                'addresses' : MasterAddresses
+        },
+        'scheduler' : {
+            'strategy' : 'Fifo'
+        },
+        'rpc_port' : 9092,
+        'logging' : Logging
+    })
 
 CleanCache = FileDescr('clean_cache', ('aggregate', 'exec'))
 DoCleanCache = FileDescr('do_clean_cache', ('remote', 'exec'))
@@ -126,6 +144,11 @@ class Holder(Server):
     
     port = Port
     params = Template('--node --config %(config_path)s --port %(port)d')
+
+    proxyLogging = deepcopy(Logging)
+    proxyLogging['writers']['raw']['file_name'] = 'raw.log'
+    proxyLogging['writers']['file']['file_name'] = 'file.log'
+    proxyLogging['rules'][0]['min_level'] = 'trace'
 
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
@@ -152,10 +175,17 @@ class Holder(Server):
             'response_throttling_size' : 500 * 1024 * 1024
         },
         'exec_agent' : {
+            'environment_manager' : {
+                'environments' : {
+                    'default' : {
+                        'type' : 'unsafe'
+                    }
+                }
+            },
             'job_manager': {
                 'slot_location' : r'%(work_dir)s\slots',
-                'scheduler_address' : 'meta01-001g.yt.yandex.net:7000'
-            }
+            },
+            'job_proxy_logging' : proxyLogging,
         },
         'logging' : Logging
     })
