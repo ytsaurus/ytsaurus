@@ -392,6 +392,7 @@ private:
 
     void OnJobCompleted(TJobPtr job, const NProto::TJobResult& result)
     {
+        job->Result() = result;
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobCompleted(job);
@@ -401,6 +402,7 @@ private:
 
     void OnJobFailed(TJobPtr job, const NProto::TJobResult& result)
     {
+        job->Result() = result;
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobFailed(job);

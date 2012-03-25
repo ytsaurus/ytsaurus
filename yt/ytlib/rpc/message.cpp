@@ -23,9 +23,7 @@ NBus::IMessage::TPtr CreateRequestMessage(
     yvector<TSharedRef> parts;
 
     TBlob headerBlob;
-    if (!SerializeProtobuf(&header, &headerBlob)) {
-        LOG_FATAL("Could not serialize request header");
-    }
+    YVERIFY(SerializeProtobuf(&header, &headerBlob));
 
     parts.push_back(TSharedRef(MoveRV(headerBlob)));
     parts.push_back(TSharedRef(MoveRV(body)));
@@ -45,9 +43,7 @@ NBus::IMessage::TPtr CreateResponseMessage(
     yvector<TSharedRef> parts;
 
     TBlob headerBlob;
-    if (!SerializeProtobuf(&header, &headerBlob)) {
-        LOG_FATAL("Error serializing response header");
-    }
+    YVERIFY(SerializeProtobuf(&header, &headerBlob));
 
     parts.push_back(TSharedRef(MoveRV(headerBlob)));
     parts.push_back(body);
@@ -93,20 +89,14 @@ NProto::TRequestHeader GetRequestHeader(IMessage* message)
     NProto::TRequestHeader header;
     const auto& parts = message->GetParts();
     YASSERT(!parts.empty());
-
-    if (!DeserializeProtobuf(&header, parts[0])) {
-        LOG_FATAL("Error deserializing request header");
-    }
-
+    YVERIFY(DeserializeProtobuf(&header, parts[0]));
     return header;
 }
 
 IMessage::TPtr SetRequestHeader(IMessage* message, const NProto::TRequestHeader& header)
 {
     TBlob headerData;
-    if (!SerializeProtobuf(&header, &headerData)) {
-        LOG_FATAL("Error serializing request header");
-    }
+    YVERIFY(SerializeProtobuf(&header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());
@@ -120,20 +110,14 @@ NProto::TResponseHeader GetResponseHeader(IMessage* message)
     NProto::TResponseHeader header;
     const auto& parts = message->GetParts();
     YASSERT(parts.size() >= 1);
-
-    if (!DeserializeProtobuf(&header, parts[0])) {
-        LOG_FATAL("Error deserializing response header");
-    }
-
+    YVERIFY(DeserializeProtobuf(&header, parts[0]));
     return header;
 }
 
 IMessage::TPtr SetResponseHeader(IMessage* message, const NProto::TResponseHeader& header)
 {
     TBlob headerData;
-    if (!SerializeProtobuf(&header, &headerData)) {
-        LOG_FATAL("Error serializing response header");
-    }
+    YVERIFY(SerializeProtobuf(&header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());

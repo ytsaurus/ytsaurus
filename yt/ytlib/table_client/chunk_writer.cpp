@@ -110,8 +110,7 @@ TSharedRef TChunkWriter::PrepareBlock(
 }
 
 TChunkWriter::~TChunkWriter()
-{
-}
+{ }
 
 i64 TChunkWriter::GetCurrentSize() const
 {

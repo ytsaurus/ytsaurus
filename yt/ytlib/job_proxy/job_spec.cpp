@@ -155,7 +155,7 @@ TAutoPtr<NTableClient::TYsonTableInput> TJobSpec::GetInputTable(int index, TOutp
         MapJobSpec.input_spec().chunks().begin(),
         MapJobSpec.input_spec().chunks().end());
 
-    LOG_DEBUG("Creating %d input from %d chunks.", 
+    LOG_DEBUG("Creating %d input from %d chunks", 
         index, 
         static_cast<int>(chunks.size()));
 
