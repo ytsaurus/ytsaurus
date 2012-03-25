@@ -1399,12 +1399,7 @@ private:
             }
         }
 
-        TBlob blob;
-        if (!SerializeProtobuf(&request->attributes(), &blob)) {
-            LOG_FATAL("Error serializing chunk attributes (ChunkId: %s)", ~Id.ToString());
-        }
-
-        chunk.SetAttributes(TSharedRef(MoveRV(blob)));
+        chunk.SetAttributes(TSharedRef::FromString(request->attributes()));
 
         LOG_INFO_IF(!Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
 

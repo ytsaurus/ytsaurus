@@ -31,18 +31,17 @@ public:
         Size_ = size;
     }
 
-    //! Creates a reference for a given blob.
-    TRef(const TBlob& blob)
+    //! Creates a non-owning reference for a given blob.
+    static TRef FromBlob(const TBlob& blob)
     {
-        Data = const_cast<char*>(blob.begin());
-        Size_ = blob.size();
+        return TRef(const_cast<char*>(blob.begin()), blob.size());
     }
 
-    //! Creates a reference for a given string.
-    TRef(const Stroka& str)
-        : Data(const_cast<char*>(str.data()))
-        , Size_(str.length())
-    { }
+    //! Creates a non-owning reference for a given string.
+    static TRef FromString(const Stroka& str)
+    {
+        return TRef(const_cast<char*>(str.data()), str.length());
+    }
 
     const char* Begin() const
     {
@@ -134,12 +133,20 @@ public:
         return TSharedRef(NULL, ref);
     }
 
+    //! Creates an owning reference by copying data from a given string.
+    static TSharedRef FromString(const Stroka& str)
+    {
+        TBlob blob(str.length());
+        std::copy(str.begin(), str.end(), blob.begin());
+        return TSharedRef(MoveRV(blob));
+    }
+
     //! Creates a reference to the whole blob taking the ownership of its content.
     TSharedRef(TBlob&& blob)
         : Blob(new TBlob())
     {
         Blob->swap(blob);
-        Ref = *Blob;
+        Ref = TRef::FromBlob(*Blob);
     }
 
     //! Creates a reference from another shared reference a reference to a portion of its data.

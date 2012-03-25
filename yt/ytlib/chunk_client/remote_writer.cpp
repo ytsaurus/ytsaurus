@@ -954,7 +954,11 @@ TChunkYPathProxy::TReqConfirm::TPtr TRemoteWriter::GetConfirmRequest()
 
     auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
     req->set_size(ChunkSize);
-    *req->mutable_attributes() = Attributes;
+
+    TBlob attributesBlob;
+    SerializeProtobuf(&Attributes, &attributesBlob);
+    req->set_attributes(Stroka(attributesBlob.begin(), attributesBlob.end()));
+
     FOREACH (auto holder, Holders) {
         if (holder->IsAlive) {
             req->add_holder_addresses(holder->Address);
