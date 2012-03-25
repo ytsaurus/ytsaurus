@@ -93,10 +93,10 @@ public:
         // but we should get rid of Terminate soon anyway.
     
         IChannel::TPtr channel;
-        if (PromissedChannel->TryGet(&channel)) {
+        if (ChannelPromise->TryGet(&channel)) {
             channel->Terminate();
         }
-        PromissedChannel.Reset();
+        ChannelPromise.Reset();
     }
 
 private:
@@ -106,11 +106,11 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
         
-        if (PromissedChannel) {
-            return PromissedChannel;
+        if (ChannelPromise) {
+            return ChannelPromise;
         }
 
-        auto promisedChannel = PromissedChannel = New< TFuture<IChannel::TPtr> >();
+        auto promisedChannel = ChannelPromise = New< TFuture<IChannel::TPtr> >();
         guard.Release();
 
         LeaderLookup->GetLeader()->Subscribe(FromMethod(
@@ -124,13 +124,14 @@ private:
     {
         if (result.Id == NElection::InvalidPeerId) {
             TGuard<TSpinLock> guard(SpinLock);
-            if (PromissedChannel == promisedChannel) {
+            if (ChannelPromise == promisedChannel) {
                 promisedChannel->Set(NULL);
+                ChannelPromise.Reset();
             }
         } else {
             auto channel = CreateBusChannel(result.Address);
             TGuard<TSpinLock> guard(SpinLock);
-            if (PromissedChannel == promisedChannel) {
+            if (ChannelPromise == promisedChannel) {
                 promisedChannel->Set(channel);
             }
         }
@@ -158,8 +159,8 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
         IChannel::TPtr currentChannel;
-        if (PromissedChannel->TryGet(&currentChannel) && currentChannel == failedChannel) {
-            PromissedChannel.Reset();
+        if (ChannelPromise->TryGet(&currentChannel) && currentChannel == failedChannel) {
+            ChannelPromise.Reset();
         }
     }
 
@@ -168,7 +169,7 @@ private:
     TLeaderLookup::TPtr LeaderLookup;
 
     TSpinLock SpinLock;
-    TFuture<IChannel::TPtr>::TPtr PromissedChannel;
+    TFuture<IChannel::TPtr>::TPtr ChannelPromise;
 
 };
 
