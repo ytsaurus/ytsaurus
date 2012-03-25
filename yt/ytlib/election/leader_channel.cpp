@@ -158,8 +158,7 @@ private:
     void OnChannelFailed(IChannel::TPtr failedChannel)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        IChannel::TPtr currentChannel;
-        if (currentChannel == failedChannel && ChannelPromise->TryGet(&currentChannel)) {
+        if (currentChannel == failedChannel) {
             ChannelPromise.Reset();
         }
     }

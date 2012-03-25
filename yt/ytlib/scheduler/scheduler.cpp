@@ -196,7 +196,7 @@ private:
         RegisterOperation(operation);
         LOG_INFO("Operation started (OperationId: %s)", ~id.ToString());
 
-        YASSERT(operation->GetState() == EOperationState::Initializing);           
+        YASSERT(operation->GetState() == EOperationState::Initializing);
         operation->SetState(EOperationState::Preparing);
 
         // Run async preparation.
@@ -210,14 +210,20 @@ private:
     }
 
     void OnOperationPrepared(
-        TError,
+        // TODO(babenko): const&
+        TError error,
         TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-
         if (operation->GetState() != EOperationState::Preparing)
             return;
+
+        if (!error.OK()) {
+            OnOperationFailed(operation, error);
+            return;
+        }
+
         operation->SetState(EOperationState::Running);
 
         LOG_INFO("Operation has prepared and is now running (OperationId: %s)", 
