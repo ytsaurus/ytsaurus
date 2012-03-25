@@ -278,6 +278,7 @@ public:
 private:
     THolder<TCLAP::MultiArg<Stroka> > InArg;
     THolder<TCLAP::MultiArg<Stroka> > OutArg;
+    THolder<TCLAP::MultiArg<Stroka> > FilesArg;
     THolder<TCLAP::ValueArg<Stroka> > ShellCommandArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);

@@ -343,11 +343,14 @@ void TDownloadArgs::BuildCommand(IYsonConsumer* consumer)
 
 TMapArgs::TMapArgs()
 {
-    InArg.Reset(new TCLAP::MultiArg<Stroka>("", "in", "input tables", false, "path"));
+    InArg.Reset(new TCLAP::MultiArg<Stroka>("", "in", "input tables", false, "ypath"));
     CmdLine->add(~InArg);
 
-    OutArg.Reset(new TCLAP::MultiArg<Stroka>("", "out", "output tables", false, "path"));
+    OutArg.Reset(new TCLAP::MultiArg<Stroka>("", "out", "output tables", false, "ypath"));
     CmdLine->add(~OutArg);
+
+    FilesArg.Reset(new TCLAP::MultiArg<Stroka>("", "file", "additional files", false, "ypath"));
+    CmdLine->add(~FilesArg);
 
     ShellCommandArg.Reset(new TCLAP::ValueArg<Stroka>("", "command", "shell command", true, "", "path"));
     CmdLine->add(~ShellCommandArg);
@@ -361,6 +364,7 @@ void TMapArgs::BuildCommand(IYsonConsumer* consumer)
             .Item("shell_command").Scalar(ShellCommandArg->getValue())
             .Item("in").List(InArg->getValue())
             .Item("out").List(OutArg->getValue())
+            .Item("files").List(FilesArg->getValue())
         .EndMap();
 
     TTransactedArgs::BuildCommand(consumer);
