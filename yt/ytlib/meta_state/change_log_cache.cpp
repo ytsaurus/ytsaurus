@@ -30,6 +30,7 @@ TChangeLogCache::TChangeLogCache(
     const Stroka& path,
     TChangeLogCacheConfigPtr config)
     : TSizeLimitedCache<i32, TCachedAsyncChangeLog>(config->MaxSize)
+    , Config(config)
     , Path(path)
 { }
 
