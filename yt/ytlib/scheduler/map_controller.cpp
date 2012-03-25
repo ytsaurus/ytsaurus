@@ -607,7 +607,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Job %s completed", ~job->GetId().ToString());
+        LOG_INFO("Job %s completed\n%s",
+            ~job->GetId().ToString(),
+            ~TError::FromProto(job->Result().error()).ToString());
 
         auto jobInfo = GetJobInfo(job);
 
@@ -652,7 +654,7 @@ public:
 
         // TODO(babenko): make configurable
         if (JobCounter.GetFailed() > 10) {
-            OnOperationFailed(TError("%d jobs failed, aborting the operation",
+            OnOperationFailed(TError("%d jobs failed, aborting operation",
                 JobCounter.GetFailed()));
         }
     }
