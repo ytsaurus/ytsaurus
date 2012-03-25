@@ -42,8 +42,8 @@ public:
                 .GreaterThan(1024)
                 .Default(1024 * 1024);
             Register("sampling_size", SamplingSize)
-                .GreaterThanOrEqual(1024)
-                .Default(1024);
+                .GreaterThanOrEqual(1000)
+                .Default(100000);
             Register("codec_id", CodecId)
                 .Default(ECodecId::None);
         }
