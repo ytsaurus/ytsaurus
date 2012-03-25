@@ -420,18 +420,21 @@ public:
 
     void Start(i64 count)
     {
+        YASSERT(Pending_ >= count);
         Running_ += count;
         Pending_ -= count;
     }
 
     void Completed(i64 count)
     {
+        YASSERT(Running_ >= count);
         Running_ -= count;
         Done_ += count;
     }
 
     void Failed(i64 count)
     {
+        YASSERT(Running_ >= count);
         Running_ -= count;
         Pending_ += count;
         Failed_ += count;
@@ -444,6 +447,16 @@ private:
     i64 Pending_;
     i64 Failed_;
 };
+
+Stroka ToString(const TRunningCounter& counter)
+{
+    return Sprintf("T: %" PRId64 ", R: %" PRId64, ", D: %" PRId64 ", P: %" PRId64, ", F: %" PRId64,
+        counter.GetTotal(),
+        counter.GetRunning(),
+        counter.GetDone(),
+        counter.GetPending(),
+        counter.GetFailed());
+}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -594,6 +607,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_INFO("Job %s completed", ~job->GetId().ToString());
+
         auto jobInfo = GetJobInfo(job);
 
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
@@ -603,10 +618,11 @@ public:
 
         JobCounter.Completed(1);
         ChunkCounter.Completed(jobInfo->ChunkIndexes.size());
+        WeightCounter.Completed(jobInfo->Weight);
 
         RemoveJobInfo(job);
 
-        LOG_INFO("Job %s completed", ~job->GetId().ToString());
+        DumpStatistics();
 
         if (JobCounter.GetRunning() == 0 && JobCounter.GetPending() == 0) {
             CompleteOperation();
@@ -617,18 +633,22 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_INFO("Job %s failed\n%s",
+            ~job->GetId().ToString(),
+            ~TError::FromProto(job->Result().error()).ToString());
+
         auto jobInfo = GetJobInfo(job);
 
         ChunkPool->DeallocateChunks(jobInfo->ChunkIndexes);
 
         JobCounter.Failed(1);
         ChunkCounter.Failed(jobInfo->ChunkIndexes.size());
+        WeightCounter.Failed(jobInfo->Weight);
 
         ReleaseChunkLists(jobInfo->OutputChunkListIds);
-
         RemoveJobInfo(job);
 
-        LOG_INFO("Job %s failed", ~job->GetId().ToString());
+        DumpStatistics();
 
         // TODO(babenko): make configurable
         if (JobCounter.GetFailed() > 10) {
@@ -714,6 +734,8 @@ public:
             jobInfo->OutputChunkListIds.push_back(chunkListId);
             outputSpec.set_chunk_list_id(chunkListId.ToProto());
         }
+
+        jobInfo->Weight = allocatedWeight;
         
         auto job = Host->CreateJob(
             Operation,
@@ -725,6 +747,8 @@ public:
         JobCounter.Start(1);
         ChunkCounter.Start(chunkIndexes.size());
         WeightCounter.Start(allocatedWeight);
+
+        DumpStatistics();
 
         jobsToStart->push_back(job);
     }
@@ -796,35 +820,22 @@ private:
     TJobSpec JobSpecTemplate;
 
     // Job scheduled so far.
+    // TOOD(babenko): consider keeping this in job's attributes
     struct TJobInfo
         : public TIntrinsicRefCounted
     {
         // Chunk indexes assigned to this job.
         std::vector<int> ChunkIndexes;
+
         // Chunk lists allocated to store the output (one per each output table).
         std::vector<TChunkListId> OutputChunkListIds;
+
+        // Total weight of allocated chunks.
+        i64 Weight;
     };
 
     typedef TIntrusivePtr<TJobInfo> TJobInfoPtr;
-
     yhash_map<TJobPtr, TJobInfoPtr> JobInfos;
-
-
-    // Helpers for pipeline construction.
-    template <class TTarget, class TIn, class TOut>
-    TIntrusivePtr< IParamFunc<TIn, TIntrusivePtr< TFuture<TOut> > > >
-    BindBackgroundTask(TIntrusivePtr< TFuture<TOut> > (TTarget::*method)(TIn), TTarget* target)
-    {
-        return FromMethod(method, MakeWeak(target))->AsyncVia(Host->GetBackgroundInvoker());
-    }
-
-    template <class TTarget, class TIn, class TOut>
-    TIntrusivePtr< IParamFunc<TIn, TIntrusivePtr< TFuture<TOut> > > >
-    BindBackgroundTask(TOut (TTarget::*method)(TIn), TTarget* target)
-    {
-        return FromMethod(method, MakeWeak(target))->AsyncVia(Host->GetBackgroundInvoker());
-    }
-
 
     // Scheduled jobs info management.
 
@@ -847,6 +858,14 @@ private:
 
     
     // Unsorted helpers.
+
+    void DumpStatistics()
+    {
+        LOG_DEBUG("Running statistics: Jobs = {%s}, Chunks = {%s}, Weight = {%s}",
+            ~ToString(JobCounter),
+            ~ToString(ChunkCounter),
+            ~ToString(WeightCounter));
+    }
 
     void InitJobSpecTemplate()
     {
@@ -1215,9 +1234,19 @@ private:
 
         LOG_INFO("Completing operation");
 
-        MakeFuture(TVoid())
-            ->Apply(BindBackgroundTask(&TThis::CommitOutputs, this))
-            ->Apply(BindBackgroundTask(&TThis::OnOutputsCommitted, this));
+        auto this_ = MakeStrong(this);
+        StartAsyncPipeline(Host->GetBackgroundInvoker())
+            ->Add(FromMethod(&TThis::CommitOutputs, MakeStrong(this)))
+            ->Add(FromMethod(&TThis::OnOutputsCommitted, MakeStrong(this)))
+            ->Run()
+            ->Subscribe(FromFunctor([=] (TValueOrError<TVoid> result) {
+                if (result.IsOK()) {
+                    this_->OnOperationCompleted();
+                } else {
+                    this_->OnOperationFailed(result);
+                }
+            }));
+
     }
 
     // Round 1.
