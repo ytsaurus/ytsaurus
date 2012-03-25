@@ -483,6 +483,7 @@ void TChangeLog::TImpl::Flush()
         TGuard<TMutex> guard(Mutex);
         FileOutput->Flush();
         File->Flush();
+        IndexFile->Flush();
     }
 
     LOG_DEBUG("Changelog flush completed");
@@ -676,7 +677,6 @@ void TChangeLog::TImpl::HandleRecord(i32 recordId, i32 recordSize)
                 IndexFile->Seek(0, sSet);
                 TLogIndexHeader header(Id, indexRecordCount);
                 NYT::Write(*IndexFile, header);
-                IndexFile->Flush();
             } catch (const std::exception& ex) {
                 LOG_FATAL("Error appending to index\n%s", ex.what());
             }
