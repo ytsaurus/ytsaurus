@@ -99,7 +99,7 @@ TAsyncError TChunkFileWriter::AsyncClose(
 
     TChunkMetaHeader header;
     header.Signature = header.ExpectedSignature;
-    header.Checksum = GetChecksum(metaBlob);
+    header.Checksum = GetChecksum(TRef::FromBlob(metaBlob));
 
     Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
 
