@@ -56,6 +56,11 @@ class Base(AggrBase):
     
 class Server(Base, RemoteServer):
     bin_path = '/home/yt/build/bin/ytserver'
+
+    def do_clean(cls, fd):
+        print >>fd, shebang
+        print >>fd, 'rm -f %s' % cls.log_path
+        print >>fd, 'rm -f %s' % cls.debug_log_path
     
 class Master(Server):
     base_dir = '/yt/disk2/data'
@@ -91,12 +96,6 @@ class Master(Server):
         'logging' : Logging
     })
     
-    def do_run(cls, fd):
-        print >>fd, shebang
-        print >>fd, ulimit
-        print >>fd, cls.export_ld_path
-        print >>fd, wrap_cmd(cls.run_tmpl)
-        
     def do_clean(cls, fd):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
@@ -105,12 +104,13 @@ class Master(Server):
         print >>fd, 'rm %s/*' % cls.config['meta_state']['log_path']
         
 class Scheduler(Server):
+    base_dir = '/yt/disk2/data'
     address = MasterAddresses[1]
     params = Template('--scheduler --config %(config_path)s')
 
     log_disk = 'disk2'
-    log_path = Template("scheduler.log")
-    debug_log_path = Template("scheduler.debug.log")
+    log_path = "scheduler.log"
+    debug_log_path = "scheduler.debug.log"
 
     config = Template({
         'masters' : {
