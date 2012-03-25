@@ -30,6 +30,7 @@ public:
     TImpl(
         const Stroka& fileName,
         i32 id,
+        bool disableFlush,
         i64 indexBlockSize);
 
     void Open();
@@ -203,6 +204,7 @@ private:
     Stroka FileName;
     Stroka IndexFileName;
     i32 Id;
+    bool DisableFlush;
     i64 IndexBlockSize;
 
     i32 RecordCount;
@@ -226,11 +228,13 @@ private:
 TChangeLog::TImpl::TImpl(
     const Stroka& fileName,
     i32 id,
+    bool disableFlush,
     i64 indexBlockSize)
     : State(EState::Closed)
     , FileName(fileName)
     , IndexFileName(fileName + IndexSuffix)
     , Id(id)
+    , DisableFlush(disableFlush)
     , IndexBlockSize(indexBlockSize)
     , PrevRecordCount(-1)
     , CurrentBlockSize(-1)
@@ -470,6 +474,9 @@ void TChangeLog::TImpl::Append(i32 firstRecordId, const yvector<TSharedRef>& rec
 
 void TChangeLog::TImpl::Flush()
 {
+    if (DisableFlush)
+        return;
+
     LOG_DEBUG("Changelog flush started");
 
     {
@@ -748,8 +755,13 @@ bool TChangeLog::TImpl::IsFinalized() const
 TChangeLog::TChangeLog(
     const Stroka& fileName,
     i32 id,
+    bool disableFlush,
     i64 indexBlockSize)
-    : Impl(new TImpl(fileName, id, indexBlockSize))
+    : Impl(new TImpl(
+        fileName,
+        id,
+        disableFlush,
+        indexBlockSize))
 { }
 
 i32 TChangeLog::GetId() const

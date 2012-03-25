@@ -110,7 +110,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
 
-        ChangeLogCache = New<TChangeLogCache>(Config->LogPath);
+        ChangeLogCache = New<TChangeLogCache>(Config->LogPath, Config->ChangeLogCache);
 
         SnapshotStore = New<TSnapshotStore>(Config->SnapshotPath);
 
