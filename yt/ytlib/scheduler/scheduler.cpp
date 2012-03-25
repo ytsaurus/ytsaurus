@@ -219,7 +219,7 @@ private:
         if (operation->GetState() != EOperationState::Preparing)
             return;
 
-        if (!error.OK()) {
+        if (!error.IsOK()) {
             OnOperationFailed(operation, error);
             return;
         }
