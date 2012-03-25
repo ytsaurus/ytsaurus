@@ -450,7 +450,7 @@ private:
 
 Stroka ToString(const TRunningCounter& counter)
 {
-    return Sprintf("T: %" PRId64 ", R: %" PRId64, ", D: %" PRId64 ", P: %" PRId64, ", F: %" PRId64,
+    return Sprintf("T: %" PRId64 ", R: %" PRId64 ", D: %" PRId64 ", P: %" PRId64 ", F: %" PRId64,
         counter.GetTotal(),
         counter.GetRunning(),
         counter.GetDone(),
