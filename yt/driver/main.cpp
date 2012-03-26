@@ -36,7 +36,9 @@ using namespace NDriver;
 using namespace NYTree;
 
 static NLog::TLogger& Logger = DriverLogger;
-static const char* DefaultConfigFileName = ".ytdriver.conf";
+static const char* UserConfigFileName = ".ytdriver.conf";
+static const char* SystemConfigFileName = "ytdriver.conf";
+
 static const char* SystemConfigPath = "/etc/";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,15 +185,28 @@ public:
 
             argsParser->Parse(args);
 
-            Stroka configFileName = argsParser->GetConfigName();
-            if (configFileName.empty()) {
-                auto configFromEnv = getenv("YT_CONFIG");
-                if (configFromEnv) {
-                    configFileName = Stroka(configFromEnv);
-                } else {
-                    configFileName = NFS::CombinePaths(GetHomePath(), DefaultConfigFileName);
-                    if (!isexist(~configFileName)) {
-                        configFileName = NFS::CombinePaths(SystemConfigPath, DefaultConfigFileName);
+            Stroka configFromCmd = argsParser->GetConfigName();
+            Stroka configFromEnv = Stroka(getenv("YT_CONFIG"));
+            Stroka userConfig = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
+            Stroka systemConfig = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
+
+
+            auto configName = configFromCmd;
+            if (configName.empty()) {
+                configName = configFromEnv;
+                if (configName.empty()) {
+                    configName = userConfig;
+                    if (!isexist(~configName)) {
+                        configName = systemConfig;
+                        if (!isexist(~configName)) {
+                            ythrow yexception() <<
+                                Sprintf("Config wasn't found. Please specify it using on of the follwoing:\n"
+                                "commandline option --config\n"
+                                "env YT_CONFIG\n"
+                                "user file: %s\n"
+                                "system file: %s",
+                                ~userConfig, ~systemConfig);
+                        }
                     }
                 }
             }
@@ -199,7 +214,7 @@ public:
             auto config = New<TConfig>();
             INodePtr configNode;
             try {
-                TIFStream configStream(configFileName);
+                TIFStream configStream(configName);
                 configNode = DeserializeFromYson(&configStream);
             } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
