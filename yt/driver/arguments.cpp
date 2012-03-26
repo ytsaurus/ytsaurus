@@ -12,8 +12,8 @@ TArgsBase::TArgsBase()
 
     ConfigArg.Reset(new TCLAP::ValueArg<std::string>(
         "", "config", "configuration file", false, "", "file_name"));
-    OutputFormatArg.Reset(new TCLAP::ValueArg<EYsonFormat>(
-        "", "format", "output format", false, EYsonFormat::Text, "text, pretty, binary"));
+    OutputFormatArg.Reset(new TOutputFormatArg(
+        "", "format", "output format", false, TFormat(), "text, pretty, binary"));
 
     ConfigUpdatesArg.Reset(new TCLAP::MultiArg<Stroka>(
         "", "set", "set custom updates in config", false, "ypath=value"));
@@ -47,7 +47,7 @@ Stroka TArgsBase::GetConfigName()
     return Stroka(ConfigArg->getValue());
 }
 
-EYsonFormat TArgsBase::GetOutputFormat()
+TArgsBase::TFormat TArgsBase::GetOutputFormat()
 {
     return OutputFormatArg->getValue();
 }

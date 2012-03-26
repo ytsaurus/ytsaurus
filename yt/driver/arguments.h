@@ -26,7 +26,9 @@ public:
     NYTree::INodePtr GetCommand();
 
     Stroka GetConfigName();
-    NYTree::EYsonFormat GetOutputFormat();
+
+    typedef TNullable<NYTree::EYsonFormat> TFormat;
+    TFormat GetOutputFormat();
 
     void ApplyConfigUpdates(NYTree::IYPathService* service);
 
@@ -38,7 +40,10 @@ protected:
 
     // config related
     THolder<TCLAP::ValueArg<std::string> > ConfigArg;
-    THolder<TCLAP::ValueArg<NYTree::EYsonFormat> > OutputFormatArg;
+
+    typedef TCLAP::ValueArg< TFormat > TOutputFormatArg;
+    THolder<TOutputFormatArg> OutputFormatArg;
+
     THolder<TCLAP::MultiArg<Stroka> > ConfigUpdatesArg;
 
     THolder<TCLAP::MultiArg<std::string> > OptsArg;

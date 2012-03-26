@@ -238,7 +238,12 @@ public:
 
             NLog::TLogManager::Get()->Configure(~config->Logging);
 
-            config->OutputFormat = argsParser->GetOutputFormat();
+            auto outputFormatFromCmd = argsParser->GetOutputFormat();
+            if (outputFormatFromCmd) {
+                config->OutputFormat = outputFormatFromCmd.Get();
+            }
+
+            Cout << config->OutputFormat.ToString() << Endl;
 
             Driver = new TDriver(~config, &StreamProvider);
 
