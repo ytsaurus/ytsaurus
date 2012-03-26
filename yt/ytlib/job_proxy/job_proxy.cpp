@@ -40,13 +40,13 @@ TError StatusToError(int status)
     if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
         return TError();
     } else if (WIFSIGNALED(status)) {
-        return TError(Sprintf("Process terminated by signal %d",  WTERMSIG(status)));
+        return TError("Process terminated by signal %d",  WTERMSIG(status));
     } else if (WIFSTOPPED(status)) {
-        return TError(Sprintf("Process stopped by signal %d",  WSTOPSIG(status)));
+        return TError("Process stopped by signal %d",  WSTOPSIG(status));
     } else if (WIFEXITED(status)) {
-        return TError(Sprintf("Process exited with value %d",  WEXITSTATUS(status)));
+        return TError("Process exited with value %d",  WEXITSTATUS(status));
     } else {
-        return TError(Sprintf("Status %d", status));
+        return TError("Status %d", status);
     }
 }
 

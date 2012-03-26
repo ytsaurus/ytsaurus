@@ -55,9 +55,9 @@ TAsyncError TChunkFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& bl
             DataSize += data.Size();
         }
     } catch (yexception& e) {
-        return MakeFuture(TError(Sprintf(
+        return MakeFuture(TError(
             "Failed to write block to file: %s",
-            e.what())));
+            e.what()));
     }
 
     return MakeFuture(TError());
@@ -83,9 +83,9 @@ TAsyncError TChunkFileWriter::AsyncClose(
         DataFile->Close();
         DataFile.Destroy();
     } catch (yexception& e) {
-        return MakeFuture(TError(Sprintf(
+        return MakeFuture(TError(
             "Failed to close file: %s",
-            e.what())));
+            e.what()));
     }
 
     // Write meta.
@@ -111,21 +111,21 @@ TAsyncError TChunkFileWriter::AsyncClose(
         chunkMetaFile.Write(metaBlob.begin(), metaBlob.ysize());
         chunkMetaFile.Close();
     } catch (yexception& e) {
-        return MakeFuture(TError(Sprintf(
+        return MakeFuture(TError(
             "Failed to write chunk meta to file: %s",
-            e.what())));
+            e.what()));
     }
 
     if (!NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName)) {
-        return MakeFuture(TError(Sprintf(
+        return MakeFuture(TError(
             "Error renaming temp chunk meta file %s",
-            ~chunkMetaFileName.Quote())));
+            ~chunkMetaFileName.Quote()));
     }
 
     if (!NFS::Rename(FileName + NFS::TempFileSuffix, FileName)) {
-        return MakeFuture(TError(Sprintf(
+        return MakeFuture(TError(
             "Error renaming temp chunk file %s",
-            ~FileName.Quote())));
+            ~FileName.Quote()));
     }
 
     ChunkInfo.set_id(Id.ToProto());
