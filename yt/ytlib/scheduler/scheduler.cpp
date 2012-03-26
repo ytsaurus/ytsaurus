@@ -789,7 +789,7 @@ private:
             .EndMap()
             .BeginAttributes()
                 .Item("type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
-                .Item("transaction_id").Scalar(operation->GetTransactionId().ToString())
+                .Item("transaction_id").Scalar(operation->GetTransactionId())
                 .Item("spec").Node(operation->GetSpec())
             .EndAttributes();
     }
