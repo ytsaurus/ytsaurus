@@ -174,9 +174,17 @@ public:
 
         try {
             if (argc < 2) {
+                PrintAllCommands();
                 ythrow yexception() << "Not enough arguments";
             }
-            auto argsParser = GetArgsParser(Stroka(argv[1]));
+            Stroka commandName = Stroka(argv[1]);
+
+            if (commandName == "--help") {
+                PrintAllCommands();
+                exit(0);
+            }
+
+            auto argsParser = GetArgsParser(commandName);
 
             std::vector<std::string> args;
             for (int i = 1; i < argc; ++i) {
@@ -200,7 +208,7 @@ public:
                         configName = systemConfig;
                         if (!isexist(~configName)) {
                             ythrow yexception() <<
-                                Sprintf("Config wasn't found. Please specify it using on of the follwoing:\n"
+                                Sprintf("Config wasn't found. Please specify it using on of the following:\n"
                                 "commandline option --config\n"
                                 "env YT_CONFIG\n"
                                 "user file: %s\n"
@@ -249,6 +257,14 @@ public:
         TDelayedInvoker::Shutdown();
 
         return ExitCode;
+    }
+
+    void PrintAllCommands()
+    {
+        Cout << "Available commands: " << Endl;
+        FOREACH (auto p, GetSortedIterators(ArgsParsers)) {
+            Cout << "   " << p->first << Endl;
+        }
     }
 
 private:

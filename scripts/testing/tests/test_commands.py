@@ -84,16 +84,16 @@ class TestTxCommands(YTEnvSetup):
         expect_ok(set('/value', '42'))
 
         tx_id = start_transaction()
-        expect_ok(set('/value', '100', tx = tx_id))
-        assert_eq(get('/value', tx = tx_id), '100')
-        assert_eq(get('/value'), '42')
+        expect_ok( set('/value', '100', tx = tx_id))
+        assert_eq( get('/value',        tx = tx_id), '100')
+        assert_eq( get('/value'), '42')
         commit_transaction(tx = tx_id)
-        assert_eq(get('/value'), '100')
+        assert_eq( get('/value'), '100')
 
         tx_id = start_transaction()
-        expect_ok(set('/value', '100500', tx = tx_id))
+        expect_ok( set('/value', '100500', tx = tx_id))
         abort_transaction(tx = tx_id)
-        assert_eq(get('/value'), '100')
+        assert_eq( get('/value'), '100')
 
 class TestLockCommands(YTEnvSetup):
     NUM_MASTERS = 1
@@ -188,17 +188,17 @@ class TestTableCommands(YTEnvSetup):
     NUM_HOLDERS = 5
 
     def test_simple(self):
-        expect_ok(create('/table', 'table'))
+        expect_ok( create('/table', 'table'))
 
-        assert_eq(read('/table'), '')
-        assert_eq(get('/table@row_count'), '0')
+        assert_eq( read('/table'), '')
+        assert_eq( get('/table@row_count'), '0')
 
-        expect_ok(write('/table', '[{b="hello"}]'))
-        assert_eq(read('/table'), '{"b"="hello"}')
-        assert_eq(get('/table@row_count'), '1')
+        expect_ok( write('/table', '[{b="hello"}]'))
+        assert_eq( read('/table'), '{"b"="hello"}')
+        assert_eq( get('/table@row_count'), '1')
 
-        expect_ok(write('/table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
-        assert_eq(read('/table'), '{"b"="hello"};{"a"="1";"b"="2"};{"a"="30";"x"="10";"y"="20"}')
-        assert_eq(get('/table@row_count'), '3')
+        expect_ok( write('/table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
+        assert_eq( read('/table'), '{"b"="hello"};{"a"="1";"b"="2"};{"a"="30";"x"="10";"y"="20"}')
+        assert_eq( get('/table@row_count'), '3')
 
-        expect_ok(remove('/table'))
+        expect_ok( remove('/table'))
