@@ -68,10 +68,12 @@ void TMasterConnector::Start()
 
 void TMasterConnector::ScheduleHeartbeat()
 {
+    // TODO(panin): think about specializing RandomNumber<TDuration>
+    TDuration randomDelay = TDuration::MicroSeconds(RandomNumber(Config->HeartbeatSplay.MicroSeconds()));
     TDelayedInvoker::Submit(
         FromMethod(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         ->Via(Bootstrap->GetControlInvoker()),
-        Config->HeartbeatPeriod);
+        Config->HeartbeatPeriod + randomDelay);
 }
 
 void TMasterConnector::OnHeartbeat()

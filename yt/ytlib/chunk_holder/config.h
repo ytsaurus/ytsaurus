@@ -72,6 +72,9 @@ struct TChunkHolderConfig
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
+    //! Random delay after HeartbeatPeriod
+    TDuration HeartbeatSplay;
+
     //! Timeout for FullHeartbeat requests.
     /*!
      *  This is usually much larger then the default RPC timeout.
@@ -131,6 +134,8 @@ struct TChunkHolderConfig
     {
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+        Register("heartbeat_period", HeartbeatSplay)
+            .Default(TDuration::Seconds(1));
         Register("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         Register("max_cached_blocks_size", MaxCachedBlocksSize)
