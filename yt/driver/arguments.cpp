@@ -7,29 +7,21 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TArgsBase::TArgsBase()
+    : Cmd("Command line")
+    , ConfigArg("", "config", "configuration file", false, "", "file_name")
+    , OutputFormatArg("", "format", "output format", false, TFormat(), "text, pretty, binary")
+    , ConfigUpdatesArg("", "set", "set custom updates in config", false, "ypath=value")
+    , OptsArg("", "opts", "other options", false, "options")
 {
-    Cmd.Reset(new TCLAP::CmdLine("Command line"));
-
-    ConfigArg.Reset(new TCLAP::ValueArg<std::string>(
-        "", "config", "configuration file", false, "", "file_name"));
-    OutputFormatArg.Reset(new TOutputFormatArg(
-        "", "format", "output format", false, TFormat(), "text, pretty, binary"));
-
-    ConfigUpdatesArg.Reset(new TCLAP::MultiArg<Stroka>(
-        "", "set", "set custom updates in config", false, "ypath=value"));
-
-    OptsArg.Reset(new TCLAP::MultiArg<std::string>(
-        "", "opts", "other options", false, "options"));
-
-    Cmd->add(~ConfigArg);
-    Cmd->add(~OptsArg);
-    Cmd->add(~OutputFormatArg);
-    Cmd->add(~ConfigUpdatesArg);
+    Cmd.add(ConfigArg);
+    Cmd.add(OptsArg);
+    Cmd.add(OutputFormatArg);
+    Cmd.add(ConfigUpdatesArg);
 }
 
 void TArgsBase::Parse(std::vector<std::string>& args)
 {
-    Cmd->parse(args);
+    Cmd.parse(args);
 }
 
 INodePtr TArgsBase::GetCommand()
@@ -44,17 +36,17 @@ INodePtr TArgsBase::GetCommand()
 
 Stroka TArgsBase::GetConfigName()
 {
-    return Stroka(ConfigArg->getValue());
+    return Stroka(ConfigArg.getValue());
 }
 
 TArgsBase::TFormat TArgsBase::GetOutputFormat()
 {
-    return OutputFormatArg->getValue();
+    return OutputFormatArg.getValue();
 }
 
 void TArgsBase::ApplyConfigUpdates(NYTree::IYPathService* service)
 {
-    FOREACH (auto updateString, ConfigUpdatesArg->getValue()) {
+    FOREACH (auto updateString, ConfigUpdatesArg.getValue()) {
         int index = updateString.find_first_of('=');
         auto ypath = updateString.substr(0, index);
         auto yson = updateString.substr(index + 1);
@@ -65,7 +57,7 @@ void TArgsBase::ApplyConfigUpdates(NYTree::IYPathService* service)
 
 void TArgsBase::BuildOpts(IYsonConsumer* consumer)
 {
-    FOREACH (auto opts, OptsArg->getValue()) {
+    FOREACH (auto opts, OptsArg.getValue()) {
         NYTree::TYson yson = Stroka("{") + Stroka(opts) + "}";
         auto items = NYTree::DeserializeFromYson(yson)->AsMap();
         FOREACH (auto child, items->GetChildren()) {
@@ -83,33 +75,32 @@ void TArgsBase::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactedArgs::TTransactedArgs()
+    : TxArg("", "tx", "transaction id", false, NObjectServer::NullTransactionId, "guid")
 {
-    TxArg.Reset(new TTxArg(
-        "", "tx", "transaction id", false, NObjectServer::NullTransactionId, "guid"));
-    Cmd->add(~TxArg);
+    Cmd.add(TxArg);
 }
 
 void TTransactedArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("transaction_id")
-        .Scalar(TxArg->getValue().ToString());
+        .Scalar(TxArg.getValue().ToString());
     TArgsBase::BuildCommand(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TGetArgs::TGetArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    Cmd->add(~PathArg);
+    Cmd.add(PathArg);
 }
 
 void TGetArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("get")
-        .Item("path").Scalar(PathArg->getValue());
+        .Item("path").Scalar(PathArg.getValue());
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -117,20 +108,19 @@ void TGetArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSetArgs::TSetArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
+    , ValueArg("value", "value to set", true, "", "yson")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    ValueArg.Reset(new TFreeStringArg("value", "value to set", true, "", "yson"));
-
-    Cmd->add(~PathArg);
-    Cmd->add(~ValueArg);
+    Cmd.add(PathArg);
+    Cmd.add(ValueArg);
 }
 
 void TSetArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("set")
-        .Item("path").Scalar(PathArg->getValue())
-        .Item("value").OnNode(DeserializeFromYson(ValueArg->getValue()));
+        .Item("path").Scalar(PathArg.getValue())
+        .Item("value").OnNode(DeserializeFromYson(ValueArg.getValue()));
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -138,16 +128,16 @@ void TSetArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TRemoveArgs::TRemoveArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    Cmd->add(~PathArg);
+    Cmd.add(PathArg);
 }
 
 void TRemoveArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("remove")
-        .Item("path").Scalar(PathArg->getValue());
+        .Item("path").Scalar(PathArg.getValue());
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -155,16 +145,16 @@ void TRemoveArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TListArgs::TListArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    Cmd->add(~PathArg);
+    Cmd.add(PathArg);
 }
 
 void TListArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("list")
-        .Item("path").Scalar(PathArg->getValue());
+        .Item("path").Scalar(PathArg.getValue());
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -172,26 +162,23 @@ void TListArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateArgs::TCreateArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
+    , TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
+    , ManifestArg("", "manifest", "manifest", false, "", "yson")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    TypeArg.Reset(new TTypeArg(
-        "type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type"));
-
-    Cmd->add(~PathArg);
-    Cmd->add(~TypeArg);
-
-    ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
-    Cmd->add(~ManifestArg);
+    Cmd.add(PathArg);
+    Cmd.add(TypeArg);
+    Cmd.add(ManifestArg);
 }
 
 void TCreateArgs::BuildCommand(IYsonConsumer* consumer)
 {
-    auto manifestYson = ManifestArg->getValue();
+    auto manifestYson = ManifestArg.getValue();
 
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("create")
-        .Item("path").Scalar(PathArg->getValue())
-        .Item("type").Scalar(TypeArg->getValue().ToString())
+        .Item("path").Scalar(PathArg.getValue())
+        .Item("type").Scalar(TypeArg.getValue().ToString())
         .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
             fluent.Item("manifest").OnNode(DeserializeFromYson(manifestYson));
          });
@@ -202,20 +189,19 @@ void TCreateArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TLockArgs::TLockArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
+    , ModeArg("", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    ModeArg.Reset(new TModeArg(
-        "", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive"));
-    Cmd->add(~PathArg);
-    Cmd->add(~ModeArg);
+    Cmd.add(PathArg);
+    Cmd.add(ModeArg);
 }
 
 void TLockArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("lock")
-        .Item("path").Scalar(PathArg->getValue())
-        .Item("mode").Scalar(ModeArg->getValue().ToString());
+        .Item("path").Scalar(PathArg.getValue())
+        .Item("mode").Scalar(ModeArg.getValue().ToString());
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -223,14 +209,14 @@ void TLockArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TStartTxArgs::TStartTxArgs()
+    : ManifestArg("", "manifest", "manifest", false, "", "yson")
 {
-    ManifestArg.Reset(new TManifestArg("", "manifest", "manifest", false, "", "yson"));
-    Cmd->add(~ManifestArg);
+    Cmd.add(ManifestArg);
 }
 
 void TStartTxArgs::BuildCommand(IYsonConsumer* consumer)
 {
-    auto manifestYson = ManifestArg->getValue();
+    auto manifestYson = ManifestArg.getValue();
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("start")
         .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
@@ -262,16 +248,16 @@ void TAbortTxArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadArgs::TReadArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    Cmd->add(~PathArg);
+    Cmd.add(PathArg);
 }
 
 void TReadArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("read")
-        .Item("path").Scalar(PathArg->getValue());
+        .Item("path").Scalar(PathArg.getValue());
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -279,12 +265,11 @@ void TReadArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TWriteArgs::TWriteArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
+    , ValueArg("value", "value to set", true, "", "yson")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    Cmd->add(~PathArg);
-
-    ValueArg.Reset(new TFreeStringArg("value", "value to set", true, "", "yson"));
-    Cmd->add(~ValueArg);
+    Cmd.add(PathArg);
+    Cmd.add(ValueArg);
 }
 
     // TODO(panin): validation?
@@ -302,8 +287,8 @@ void TWriteArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("write")
-        .Item("path").Scalar(PathArg->getValue())
-        .Item("value").OnNode(DeserializeFromYson(ValueArg->getValue()));
+        .Item("path").Scalar(PathArg.getValue())
+        .Item("value").OnNode(DeserializeFromYson(ValueArg.getValue()));
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -311,16 +296,16 @@ void TWriteArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TUploadArgs::TUploadArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    Cmd->add(~PathArg);
+    Cmd.add(PathArg);
 }
 
 void TUploadArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("upload")
-        .Item("path").Scalar(PathArg->getValue());
+        .Item("path").Scalar(PathArg.getValue());
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -328,16 +313,16 @@ void TUploadArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TDownloadArgs::TDownloadArgs()
+    : PathArg("path", "path in Cypress", true, "", "path")
 {
-    PathArg.Reset(new TFreeStringArg("path", "path in Cypress", true, "", "path"));
-    Cmd->add(~PathArg);
+    Cmd.add(PathArg);
 }
 
 void TDownloadArgs::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("download")
-        .Item("path").Scalar(PathArg->getValue());
+        .Item("path").Scalar(PathArg.getValue());
 
     TTransactedArgs::BuildCommand(consumer);
 }

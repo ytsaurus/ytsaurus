@@ -243,8 +243,6 @@ public:
                 config->OutputFormat = outputFormatFromCmd.Get();
             }
 
-            Cout << config->OutputFormat.ToString() << Endl;
-
             Driver = new TDriver(~config, &StreamProvider);
 
             auto command = argsParser->GetCommand();
