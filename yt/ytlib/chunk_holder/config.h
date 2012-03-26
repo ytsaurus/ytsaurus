@@ -133,7 +133,7 @@ struct TChunkHolderConfig
     {
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
-        Register("heartbeat_period", HeartbeatSplay)
+        Register("heartbeat_splay", HeartbeatSplay)
             .Default(TDuration::Seconds(1));
         Register("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
