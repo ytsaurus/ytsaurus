@@ -3,6 +3,8 @@ package NYT.NTableClient.NProto;
 import "yt/ytlib/chunk_holder/chunk.proto";
 import "yt/ytlib/table_client/schema.proto";
 
+option optimize_for = SPEED;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TBlockInfo
