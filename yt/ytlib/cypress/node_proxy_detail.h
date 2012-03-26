@@ -594,7 +594,8 @@ protected:
 
         auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, this->TransactionId);
 
-        CreateRecursive(context->GetPath(), ~proxy);
+        // TODO: implement
+        //CreateRecursive(context->GetPath(), ~proxy);
 
         response->set_object_id(nodeId.ToProto());
 
