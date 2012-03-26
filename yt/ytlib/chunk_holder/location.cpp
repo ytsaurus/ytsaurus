@@ -85,7 +85,7 @@ i64 TLocation::GetUsedSpace() const
 
 i64 TLocation::GetQuota() const
 {
-   return Config->Quota == 0 ? Max<i64>() : Config->Quota;
+    return Config->Quota.Get(Max<i64>());
 }
 
 double TLocation::GetLoadFactor() const
