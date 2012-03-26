@@ -106,7 +106,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     }
 
     if (verb == "Set" || verb == "SetNode" || verb == "Create") {
-        return IYPathService::TResolveResult::Here(path);
+        return IYPathService::TResolveResult::Here(RootMarker + path);
     }
 
     ythrow yexception() << Sprintf("Key %s is not found", ~token.Quote());
