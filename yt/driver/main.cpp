@@ -246,7 +246,7 @@ public:
             RunCommand(command);
 
         } catch (const std::exception& ex) {
-            LOG_ERROR("%s", ex.what());
+            Cerr << "Error occured: " << ex.what() << Endl;
             ExitCode = 1;
         }
 
@@ -262,8 +262,8 @@ public:
     void PrintAllCommands()
     {
         Cout << "Available commands: " << Endl;
-        FOREACH (auto p, GetSortedIterators(ArgsParsers)) {
-            Cout << "   " << p->first << Endl;
+        FOREACH (auto parserPair, GetSortedIterators(ArgsParsers)) {
+            Cout << "   " << parserPair->first << Endl;
         }
     }
 
