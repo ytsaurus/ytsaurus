@@ -142,7 +142,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
             // Override RPC port.
             if (port >= 0) {
-                config->RpcPort = port;
+                config->MetaState->Cell->RpcPort = port;
             }
 
             config->Validate();
