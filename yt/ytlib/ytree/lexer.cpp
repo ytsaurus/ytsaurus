@@ -34,7 +34,7 @@ public:
 
     void Reset()
     {
-        YASSERT(InnerState == EState::None);
+        YASSERT(InnerState == EInnerState::None);
         YASSERT(State_ != EState::InProgress);
         State_ = EState::None;
         Token = TToken();
