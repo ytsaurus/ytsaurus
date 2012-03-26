@@ -253,9 +253,16 @@ public:
         OnExit->Get();
     }
 
-    void SubscribeExited(const TCallback<void(TError)>& callback) 
+// ToDo(psushin): restore new callbacks.
+/*    void SubscribeExited(const TCallback<void(TError)>& callback) 
     {
         OnExit->Subscribe(FromCallback(callback));
+    }
+*/
+
+    void SubscribeExited(IParamAction<TError>::TPtr callback)
+    {
+        OnExit->Subscribe(callback);
     }
 
     void UnsubscribeExited(const TCallback<void(TError)>& callback) 

@@ -28,16 +28,19 @@ message TInputChunk
 {
     // A part of table chunk.
     required TChunkSlice slice = 1;
-    
+
     // Initial seed addresses. The reader may ask the master for additional ones.
     repeated string holder_addresses = 2;
-    
+
     // Column filter.
     required TChannel channel = 3;
 
+    // Cypress chunk attributes.
+    optional bytes chunk_attributes = 4;
+
     // When this value is given the reader inserts this YSON map as attributes at every row.
     // This enables,  e.g., the client to distinguish between several tables coming through a single input stream.
-    optional bytes row_attributes = 4;
+    optional bytes row_attributes = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

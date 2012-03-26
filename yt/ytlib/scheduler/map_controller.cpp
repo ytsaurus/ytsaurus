@@ -1160,17 +1160,16 @@ private:
             }
 
             auto fetchRsp = table.FetchResponse;
-            FOREACH (const auto& chunkInfo, fetchRsp->chunks()) {
-                TInputChunk inputChunk;
-                *inputChunk.mutable_slice() = chunkInfo.slice();
-                inputChunk.mutable_holder_addresses()->MergeFrom(chunkInfo.holder_addresses());
-                *inputChunk.mutable_channel() = fetchRsp->channel();
+            FOREACH (auto& inputChunk, *fetchRsp->mutable_chunks()) {
+                // Currently fetch never returns row attributes.
+                YASSERT(!inputChunk.has_row_attributes());
+
                 if (rowAttributes) {
                     inputChunk.set_row_attributes(rowAttributes.Get());
                 }
 
                 TChunkAttributes chunkAttributes;
-                YVERIFY(DeserializeProtobuf(&chunkAttributes, TRef::FromString(chunkInfo.attributes())));
+                YVERIFY(DeserializeProtobuf(&chunkAttributes, TRef::FromString(inputChunk.chunk_attributes())));
 
                 YASSERT(chunkAttributes.HasExtension(TTableChunkAttributes::table_attributes));
                 const auto& tableChunkAttributes = chunkAttributes.GetExtension(TTableChunkAttributes::table_attributes);

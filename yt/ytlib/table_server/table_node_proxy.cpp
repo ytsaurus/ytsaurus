@@ -183,32 +183,32 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     yvector<TChunkId> chunkIds;
     TraverseChunkTree(&chunkIds, impl.GetChunkListId());
 
+    auto channel = TChannel::CreateEmpty();
+    ParseYPath(context->GetPath(), &channel);
+
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& chunkId, chunkIds) {
-        auto* chunkInfo = response->add_chunks();
-        auto* slice = chunkInfo->mutable_slice();
+        auto* inputChunk = response->add_chunks();
+        auto* slice = inputChunk->mutable_slice();
 
         slice->set_chunk_id(chunkId.ToProto());
         slice->mutable_start_limit();
         slice->mutable_end_limit();
 
+        *inputChunk->mutable_channel() = channel.ToProto();
+
         const auto& chunk = chunkManager->GetChunk(chunkId);
         if (chunk.IsConfirmed()) {
             if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
-                chunkManager->FillHolderAddresses(chunkInfo->mutable_holder_addresses(), chunk);
+                chunkManager->FillHolderAddresses(inputChunk->mutable_holder_addresses(), chunk);
             }
 
             if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
                 const auto& attributes = chunk.GetAttributes();
-                chunkInfo->set_attributes(attributes.Begin(), attributes.Size());
+                inputChunk->set_chunk_attributes(attributes.Begin(), attributes.Size());
             }
-        }   
+        }
     }
-
-    auto channel = TChannel::CreateEmpty();
-    ParseYPath(context->GetPath(), &channel);
-
-    *response->mutable_channel() = channel.ToProto();
 
     context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());
 
