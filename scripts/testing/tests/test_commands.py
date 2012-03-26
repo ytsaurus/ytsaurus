@@ -51,17 +51,22 @@ class TestTxCommands(YTEnvSetup):
     NUM_HOLDERS = 0
 
     def test_simple(self):
+
         tx_id = start_transaction()
         
         #check that transaction is on the master (also within a tx)
         assert get_transactions() == {tx_id: None}
         assert get_transactions(tx = tx_id) == {tx_id: None}
-        
+
         commit_transaction(tx = tx_id)
+        # couldn't commit or abort commited transaction
+        expect_error(commit_transaction(tx = tx_id))
+        expect_error(abort_transaction(tx = tx_id))
 
         #check that transaction no longer exists
         assert get_transactions() == {}
 
+        ##############################################################3
         #check the same for abort
         tx_id = start_transaction()
 
@@ -69,8 +74,26 @@ class TestTxCommands(YTEnvSetup):
         assert get_transactions(tx = tx_id) == {tx_id: None}
         
         abort_transaction(tx = tx_id)
+        # couldn't commit or abort aborted transaction
+        expect_error(commit_transaction(tx = tx_id))
+        expect_error(abort_transaction(tx = tx_id))
+
         assert get_transactions() == {}
 
+    def test_changes_inside_tx(self):
+        expect_ok(set('/value', '42'))
+
+        tx_id = start_transaction()
+        expect_ok(set('/value', '100', tx = tx_id))
+        assert_eq(get('/value', tx = tx_id), '100')
+        assert_eq(get('/value'), '42')
+        commit_transaction(tx = tx_id)
+        assert_eq(get('/value'), '100')
+
+        tx_id = start_transaction()
+        expect_ok(set('/value', '100500', tx = tx_id))
+        abort_transaction(tx = tx_id)
+        assert_eq(get('/value'), '100')
 
 class TestLockCommands(YTEnvSetup):
     NUM_MASTERS = 1
@@ -103,11 +126,43 @@ class TestLockCommands(YTEnvSetup):
         expect_ok(set('/map', '{list = [1; 2; 3] <attr=some>}', tx = tx_id))
 
         # check that lock is set on nested nodes
-        assert_eq(get('/map@lock_mode', tx = tx_id), '"exclusive"')
-        assert_eq(get('/map/list@lock_mode', tx = tx_id), '"exclusive"')
-        assert_eq(get('/map/list/0@lock_mode', tx = tx_id), '"exclusive"')
+        assert_eq( get('/map@lock_mode',        tx = tx_id), '"exclusive"')
+        assert_eq( get('/map/list@lock_mode',   tx = tx_id), '"exclusive"')
+        assert_eq( get('/map/list/0@lock_mode', tx = tx_id), '"exclusive"')
 
         abort_transaction(tx = tx_id)
+
+    def test_shared_locks(self):
+
+        types_to_check = """
+        string_node
+        int64_node
+        double_node
+        map_node
+        list_node
+
+        file
+        table
+        chunk_map
+        lost_chunk_map
+        overreplicated_chunk_map
+        underreplicated_chunk_map
+        chunk_list_map
+        transaction_map
+        node_map
+        lock_map
+        holder
+        holder_map
+        orchid
+        """.split()
+
+        # shared locks are available only on tables (as well as creation of different types)
+        for object_type in types_to_check:
+            tx_id = start_transaction()
+            expect_ok(create('/some', object_type, tx = tx_id))
+            expect_error(lock('/some', mode = 'shared', tx = tx_id))
+            expect_ok(abort_transaction(tx = tx_id))
+
 
     def test_lock_combinations(self):
         expect_ok(set('/a/b/c', '42'))
@@ -126,7 +181,6 @@ class TestLockCommands(YTEnvSetup):
         expect_ok(abort_transaction(tx = tx2))
 
         expect_ok(remove('/a'))
-        #TODO(panin): shared locks
 
 
 class TestTableCommands(YTEnvSetup):
@@ -146,3 +200,5 @@ class TestTableCommands(YTEnvSetup):
         expect_ok(write('/table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
         assert_eq(read('/table'), '{"b"="hello"};{"a"="1";"b"="2"};{"a"="30";"x"="10";"y"="20"}')
         assert_eq(get('/table@row_count'), '3')
+
+        expect_ok(remove('/table'))
