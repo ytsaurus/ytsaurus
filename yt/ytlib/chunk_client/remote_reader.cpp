@@ -207,9 +207,9 @@ protected:
                 OnGotSeeds();
             }
         } else {
-            OnSessionFailed(TError(Sprintf("Retries have been aborted due to master error (RetryIndex: %d)\n%s",
+            OnSessionFailed(TError("Retries have been aborted due to master error (RetryIndex: %d)\n%s",
                 RetryIndex,
-                ~result.ToString())));
+                ~result.ToString()));
         }
     }
 
@@ -231,8 +231,8 @@ protected:
             ++RetryIndex;
             NewRetry();
         } else {
-            OnSessionFailed(TError(Sprintf("All retries failed (RetryCount: %d)",
-                RetryIndex)));
+            OnSessionFailed(TError("All retries failed (RetryCount: %d)",
+                RetryIndex));
         }
     }
 

@@ -132,12 +132,12 @@ private:
             auto innerResponseMessage = CreateMessageFromParts(response->Attachments());
             context->Reply(~innerResponseMessage);
         } else {
-            context->Reply(TError(Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
+            context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
                 ~path,
                 ~verb,
                 ~manifest->RemoteAddress,
                 ~manifest->RemoteRoot,
-                ~response->GetError().ToString())));
+                ~response->GetError().ToString()));
         }
     }
 

@@ -57,7 +57,7 @@ protected:
         try {
             redirectParams.Address = DeserializeFromYson<Stroka>(SyncYPathGet(~root, "sys/scheduler/runtime@address"));
         } catch (const std::exception& ex) {
-            return TError(Sprintf("Error reading redirection parameters\n%s", ex.what()));
+            return TError("Error reading redirection parameters\n%s", ex.what());
         }
 
         return redirectParams;
