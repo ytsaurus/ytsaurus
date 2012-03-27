@@ -153,7 +153,7 @@ static TYson DoGetAttribute(
 {
     if (systemAttributeProvider) {
         TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
+        TYsonWriter writer(&stream);
         if (systemAttributeProvider->GetSystemAttribute(key, &writer)) {
             if (isSystem) {
                 *isSystem = true;
@@ -248,7 +248,7 @@ void TSupportsAttributes::GetAttribute(
     
     if (IsFinalYPath(path)) {
         TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
+        TYsonWriter writer(&stream);
         
         writer.OnBeginMap();
 
