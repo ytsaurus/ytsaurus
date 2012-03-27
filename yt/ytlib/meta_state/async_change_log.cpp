@@ -463,6 +463,11 @@ TAsyncChangeLog::TAsyncChangeLog(TChangeLogPtr changeLog)
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
+void TAsyncChangeLog::Shutdown()
+{
+    TImpl::Get()->Shutdown();
+}
+
 TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)

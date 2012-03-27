@@ -260,6 +260,7 @@ public:
         }
 
         // TODO: refactor system shutdown
+        // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
         NLog::TLogManager::Get()->Shutdown();
         NRpc::TRpcManager::Get()->Shutdown();
         NProfiling::TProfilingManager::Get()->Shutdown();

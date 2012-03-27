@@ -53,7 +53,14 @@ Matcher<Stroka>::Matcher(const char* s)
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int rv = RUN_ALL_TESTS();
+
+    // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
+    TAsyncChangeLog::Shutdown();
+    NLog::TLogManager::Get()->Shutdown();
+    NProfiling::TProfilingManager::Get()->Shutdown();
+    NRpc::TRpcManager::Get()->Shutdown();
+    TDelayedInvoker::Shutdown();
+
+    return rv;
 }
-
-
