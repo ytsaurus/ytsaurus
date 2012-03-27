@@ -151,7 +151,6 @@ public:
         const TSessionId& sessionId,
         const TUdpAddress& address)
         : Server(server)
-        , Requester(server->Requester)
         , SessionId(sessionId)
         , Address(address)
         , SequenceId(0)
@@ -179,7 +178,6 @@ public:
             Lease.Reset();
         }
         Server.Reset();
-        Requester = NULL;
     }
 
     void EnqueueIncomingMessage(
@@ -256,7 +254,6 @@ private:
     typedef std::deque<IMessage::TPtr> TResponseMessages;
 
     TWeakPtr<TNLBusServer> Server;
-    ::TIntrusivePtr<IRequester> Requester;
     TSessionId SessionId;
     TUdpAddress Address;
     TGuid PingId;
@@ -268,18 +265,24 @@ private:
 
     void SendPing()
     {
+        auto server = Server.Lock();
+
+        YASSERT(server);
         YASSERT(PingId == TGuid());
 
         TBlob data;
         CreatePacket(SessionId, TPacketHeader::EType::Ping, &data);
-        PingId = Requester->SendRequest(Address, "", &data);
+        PingId = server->Requester->SendRequest(Address, "", &data);
     }
 
     void CancelPing()
     {
+        auto server = Server.Lock();
+
+        YASSERT(server);
         YASSERT(PingId != TGuid());
 
-        Requester->CancelRequest(PingId);
+        server->Requester->CancelRequest(PingId);
         PingId = TGuid();
     }
 
@@ -290,9 +293,10 @@ private:
 
     void OnMessageDequeued(IMessage* message)
     {
-        auto server_ = Server.Lock();
-        if (server_) {
-            server_->Handler->OnMessage(message, this);
+        auto server = Server.Lock();
+
+        if (server) {
+            server->Handler->OnMessage(message, this);
         }
     }
 

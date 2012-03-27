@@ -144,7 +144,7 @@ private:
     {
         NLog::TLogger& Logger = RpcLogger;
         TBlob blob;
-        YVERIFY(SerializeProtobuf(this, &blob));
+        YVERIFY(SerializeToProtobuf(this, &blob));
         return blob;
     }
 
@@ -274,7 +274,7 @@ private:
     virtual void DeserializeBody(const TRef& data)
     {
         NLog::TLogger& Logger = RpcLogger;
-        YVERIFY(DeserializeProtobuf(this, data));
+        YVERIFY(DeserializeFromProtobuf(this, data));
     }
 };
 

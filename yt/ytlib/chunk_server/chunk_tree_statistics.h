@@ -7,19 +7,21 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkStatistics
+struct TChunkTreeStatistics
 {
     i64 RowCount;
     i64 UncompressedSize;
     i64 CompressedSize;
+    i32 ChunkCount;
 
-    TChunkStatistics()
+    TChunkTreeStatistics()
         : RowCount(0)
         , UncompressedSize(0)
         , CompressedSize(0)
+        , ChunkCount(0)
     { }
 
-    void Accumulate(const TChunkStatistics& other);
+    void Accumulate(const TChunkTreeStatistics& other);
     void Negate();
 
     void Save(TOutputStream* output) const;

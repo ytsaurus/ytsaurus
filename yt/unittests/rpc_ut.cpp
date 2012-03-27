@@ -194,6 +194,7 @@ public:
     virtual void TearDown()
     {
         RpcServer->Stop();
+        RpcServer.Reset();
     }
 
     // For services to signal when they processed incoming onewey rpc request

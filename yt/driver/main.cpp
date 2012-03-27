@@ -21,6 +21,8 @@
 #include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
 
+#include <build.h>
+
 #ifdef _win_
 #include <io.h>
 #else
@@ -36,7 +38,9 @@ using namespace NDriver;
 using namespace NYTree;
 
 static NLog::TLogger& Logger = DriverLogger;
-static const char* DefaultConfigFileName = ".ytdriver.conf";
+static const char* UserConfigFileName = ".ytdriver.conf";
+static const char* SystemConfigFileName = "ytdriver.conf";
+
 static const char* SystemConfigPath = "/etc/";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,9 +178,21 @@ public:
 
         try {
             if (argc < 2) {
+                PrintAllCommands();
                 ythrow yexception() << "Not enough arguments";
             }
-            auto argsParser = GetArgsParser(Stroka(argv[1]));
+            Stroka commandName = Stroka(argv[1]);
+
+            if (commandName == "--help") {
+                PrintAllCommands();
+                exit(0);
+            }
+            if (commandName == "--version") {
+                PrintVersion();
+                exit(0);
+            }
+
+            auto argsParser = GetArgsParser(commandName);
 
             std::vector<std::string> args;
             for (int i = 1; i < argc; ++i) {
@@ -185,15 +201,28 @@ public:
 
             argsParser->Parse(args);
 
-            Stroka configFileName = argsParser->GetConfigName();
-            if (configFileName.empty()) {
-                auto configFromEnv = getenv("YT_CONFIG");
-                if (configFromEnv) {
-                    configFileName = Stroka(configFromEnv);
-                } else {
-                    configFileName = NFS::CombinePaths(GetHomePath(), DefaultConfigFileName);
-                    if (!isexist(~configFileName)) {
-                        configFileName = NFS::CombinePaths(SystemConfigPath, DefaultConfigFileName);
+            Stroka configFromCmd = argsParser->GetConfigName();
+            Stroka configFromEnv = Stroka(getenv("YT_CONFIG"));
+            Stroka userConfig = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
+            Stroka systemConfig = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
+
+
+            auto configName = configFromCmd;
+            if (configName.empty()) {
+                configName = configFromEnv;
+                if (configName.empty()) {
+                    configName = userConfig;
+                    if (!isexist(~configName)) {
+                        configName = systemConfig;
+                        if (!isexist(~configName)) {
+                            ythrow yexception() <<
+                                Sprintf("Config wasn't found. Please specify it using on of the following:\n"
+                                "commandline option --config\n"
+                                "env YT_CONFIG\n"
+                                "user file: %s\n"
+                                "system file: %s",
+                                ~userConfig, ~systemConfig);
+                        }
                     }
                 }
             }
@@ -201,7 +230,7 @@ public:
             auto config = New<TConfig>();
             INodePtr configNode;
             try {
-                TIFStream configStream(configFileName);
+                TIFStream configStream(configName);
                 configNode = DeserializeFromYson(&configStream);
             } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
@@ -217,7 +246,10 @@ public:
 
             NLog::TLogManager::Get()->Configure(~config->Logging);
 
-            config->OutputFormat = argsParser->GetOutputFormat();
+            auto outputFormatFromCmd = argsParser->GetOutputFormat();
+            if (outputFormatFromCmd) {
+                config->OutputFormat = outputFormatFromCmd.Get();
+            }
 
             Driver = new TDriver(~config, &StreamProvider);
 
@@ -225,7 +257,7 @@ public:
             RunCommand(command);
 
         } catch (const std::exception& ex) {
-            LOG_ERROR("%s", ex.what());
+            Cerr << "Error occured: " << ex.what() << Endl;
             ExitCode = 1;
         }
 
@@ -236,6 +268,19 @@ public:
         TDelayedInvoker::Shutdown();
 
         return ExitCode;
+    }
+
+    void PrintAllCommands()
+    {
+        Cout << "Available commands: " << Endl;
+        FOREACH (auto parserPair, GetSortedIterators(ArgsParsers)) {
+            Cout << "   " << parserPair->first << Endl;
+        }
+    }
+
+    void PrintVersion()
+    {
+        Cout << YT_VERSION << Endl;
     }
 
 private:

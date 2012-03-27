@@ -114,10 +114,10 @@ class Scheduler(Server):
 
     config = Template({
         'masters' : {
-                'addresses' : MasterAddresses
+            'addresses' : MasterAddresses
         },
-        'scheduler' : {
-            'strategy' : 'Fifo'
+        'scheduler' : {   
+            'strategy' : 'fifo'
         },
         'rpc_port' : 9092,
         'logging' : Logging

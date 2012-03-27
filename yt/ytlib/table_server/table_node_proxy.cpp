@@ -86,6 +86,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
 {
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
+    attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_size");
     attributes->push_back("compressed_size");
     attributes->push_back("row_count");
@@ -111,6 +112,12 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
             .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId) {
                 fluent.Item().Scalar(chunkId.ToString());
             });
+        return true;
+    }
+
+    if (name == "chunk_count") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.Statistics().ChunkCount);
         return true;
     }
 

@@ -12,6 +12,7 @@ import subprocess
 #import signal
 import re
 import time
+import socket
 
 SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
 CONFIGS_ROOTDIR = os.path.abspath('default_configs')
@@ -96,7 +97,9 @@ class YTEnv:
         self.scheduler_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_scheduler_config.yson'))
         self.driver_config = read_config(os.path.join(CONFIGS_ROOTDIR, 'default_driver_config.yson'))
 
-        master_addresses = ["localhost:" + str(8001 + i) for i in xrange(self.NUM_MASTERS)]
+        hostname = socket.gethostname()
+        master_addresses = [hostname + ':' + str(8001 + i) for i in xrange(self.NUM_MASTERS)]
+        
         self.master_config['meta_state']['cell']['addresses'] = master_addresses
         self.holder_config['masters']['addresses'] = master_addresses
         self.scheduler_config['masters']['addresses'] = master_addresses
@@ -110,11 +113,10 @@ class YTEnv:
 
     def _run_masters(self):
         for i in xrange(self.NUM_MASTERS):
-            p = subprocess.Popen('ytserver --master --config {config_path}  --port {port} --id {i}'.format(
-                    port=8001 + i,
+            p = subprocess.Popen('ytserver --master --config {config_path}  --port {port}'.format(
                     config_path=self.config_paths['master'][i],
-                    i=i,
-                ).split(), stderr = subprocess.PIPE)
+                    port=8001 + i
+                ).split())
             p.poll()
             name = "master-%d" % (i)
             self.process_to_kill.append((p, name))
@@ -299,4 +301,4 @@ class YTEnv:
             time.sleep(sleep_quantum)
             current_wait_time += sleep_quantum
         print
-        assert False, "%s still not ready after %s seconds" % max_wait_time
+        assert False, "%s still not ready after %s seconds" % (name, max_wait_time)

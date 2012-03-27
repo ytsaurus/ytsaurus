@@ -31,7 +31,7 @@ void TMetaStatePart::MethodThunk(
     YASSERT(changeMethod);
 
     TMessage message;
-    YVERIFY(DeserializeProtobuf(&message, changeData));
+    YVERIFY(DeserializeFromProtobuf(&message, changeData));
 
     changeMethod->Do(message);
 }

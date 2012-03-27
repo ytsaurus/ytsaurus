@@ -25,7 +25,7 @@ void IServiceContext::Reply(NBus::IMessage* message)
     YASSERT(!parts.empty());
 
     TResponseHeader header;
-    YVERIFY(DeserializeProtobuf(&header, parts[0]));
+    YVERIFY(DeserializeFromProtobuf(&header, parts[0]));
 
     auto error = TError::FromProto(header.error());
     if (error.IsOK()) {
