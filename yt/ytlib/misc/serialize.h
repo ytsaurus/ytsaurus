@@ -271,11 +271,11 @@ int ReadVarInt64(TInputStream* input, i64* value);
 
 //! Serializes a given protobuf message into a given blob.
 //! Return true iff everything was OK.
-bool SerializeProtobuf(const google::protobuf::Message* message, TBlob* data);
+bool SerializeToProtobuf(const google::protobuf::Message* message, TBlob* data);
 
 //! Deserializes a given chunk of memory into a given protobuf message.
 //! Return true iff everything was OK.
-bool DeserializeProtobuf(google::protobuf::Message* message, TRef data);
+bool DeserializeFromProtobuf(google::protobuf::Message* message, TRef data);
 
 ////////////////////////////////////////////////////////////////////////////////
 

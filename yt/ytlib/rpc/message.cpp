@@ -24,7 +24,7 @@ NBus::IMessage::TPtr CreateRequestMessage(
     yvector<TSharedRef> parts;
 
     TBlob headerBlob;
-    if (!SerializeProtobuf(&header, &headerBlob)) {
+    if (!SerializeToProtobuf(&header, &headerBlob)) {
         LOG_FATAL("Could not serialize request header");
     }
 
@@ -46,7 +46,7 @@ NBus::IMessage::TPtr CreateResponseMessage(
     yvector<TSharedRef> parts;
 
     TBlob headerBlob;
-    if (!SerializeProtobuf(&header, &headerBlob)) {
+    if (!SerializeToProtobuf(&header, &headerBlob)) {
         LOG_FATAL("Error serializing response header");
     }
 
@@ -64,7 +64,7 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     const TResponseHeader& header)
 {
     TBlob headerBlob;
-    if (!SerializeProtobuf(&header, &headerBlob)) {
+    if (!SerializeToProtobuf(&header, &headerBlob)) {
         LOG_FATAL("Error serializing error response header");
     }
 
@@ -101,7 +101,7 @@ TRequestHeader GetRequestHeader(IMessage* message)
     const auto& parts = message->GetParts();
     YASSERT(!parts.empty());
 
-    if (!DeserializeProtobuf(&header, parts[0])) {
+    if (!DeserializeFromProtobuf(&header, parts[0])) {
         LOG_FATAL("Error deserializing request header");
     }
 
@@ -111,7 +111,7 @@ TRequestHeader GetRequestHeader(IMessage* message)
 IMessage::TPtr SetRequestHeader(IMessage* message, const TRequestHeader& header)
 {
     TBlob headerData;
-    if (!SerializeProtobuf(&header, &headerData)) {
+    if (!SerializeToProtobuf(&header, &headerData)) {
         LOG_FATAL("Error serializing request header");
     }
 
@@ -128,7 +128,7 @@ TResponseHeader GetResponseHeader(IMessage* message)
     const auto& parts = message->GetParts();
     YASSERT(parts.size() >= 1);
 
-    if (!DeserializeProtobuf(&header, parts[0])) {
+    if (!DeserializeFromProtobuf(&header, parts[0])) {
         LOG_FATAL("Error deserializing response header");
     }
 
@@ -138,7 +138,7 @@ TResponseHeader GetResponseHeader(IMessage* message)
 IMessage::TPtr SetResponseHeader(IMessage* message, const TResponseHeader& header)
 {
     TBlob headerData;
-    if (!SerializeProtobuf(&header, &headerData)) {
+    if (!SerializeToProtobuf(&header, &headerData)) {
         LOG_FATAL("Error serializing response header");
     }
 

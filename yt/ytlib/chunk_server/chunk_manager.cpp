@@ -622,7 +622,7 @@ private:
         PROFILE_TIMING ("full_heartbeat_time") {
             TReqFullHeartbeat message;
             auto requestBody = TRef(const_cast<char*>(message2.request_body().data()), message2.request_body().length());
-            YVERIFY(DeserializeProtobuf(&message, requestBody));
+            YVERIFY(DeserializeFromProtobuf(&message, requestBody));
 
             Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
 
@@ -1400,7 +1400,7 @@ private:
         }
 
         TBlob blob;
-        if (!SerializeProtobuf(&request->attributes(), &blob)) {
+        if (!SerializeToProtobuf(&request->attributes(), &blob)) {
             LOG_FATAL("Error serializing chunk attributes (ChunkId: %s)", ~Id.ToString());
         }
 

@@ -15,7 +15,7 @@ void DeserializeChangeHeader(
     TMsgChangeHeader* header)
 {
     auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
-    YVERIFY(DeserializeProtobuf(
+    YVERIFY(DeserializeFromProtobuf(
         header,
         TRef(changeData.Begin() + sizeof (fixedHeader), fixedHeader->HeaderSize)));
 }
@@ -27,7 +27,7 @@ void DeserializeChange(
 {
     auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
 
-    YVERIFY(DeserializeProtobuf(
+    YVERIFY(DeserializeFromProtobuf(
         header,
         TRef(changeData.Begin() + sizeof (TFixedChangeHeader), fixedHeader->HeaderSize)));
 
