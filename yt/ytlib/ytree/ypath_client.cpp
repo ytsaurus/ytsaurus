@@ -216,7 +216,7 @@ TYPath ChopYPathRedirectMarker(const TYPath& path)
 
 bool IsLocalYPath(const TYPath& path)
 {
-    return IsEmptyYPath(path) || IsAttributeYPath(path);
+    return IsAttributeYPath(path);
 }
 
 void ResolveYPath(
