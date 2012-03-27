@@ -51,7 +51,6 @@ void TTableReader::Open()
             ~fetchRsp->GetError().ToString());
     }
 
-    //ToDo(psushin): fix fetch and kill me.
     std::vector<NProto::TInputChunk> inputChunks = 
         FromProto<NProto::TInputChunk>(fetchRsp->chunks());
 
