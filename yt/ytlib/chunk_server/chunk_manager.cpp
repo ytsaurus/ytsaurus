@@ -441,12 +441,13 @@ private:
     }
 
 
-    TChunkStatistics GetChunkStatistics(const TChunk& chunk)
+    TChunkTreeStatistics GetChunkTreeStatistics(const TChunk& chunk)
     {
-        TChunkStatistics result;
+        TChunkTreeStatistics result;
 
         YASSERT(chunk.GetSize() != TChunk::UnknownSize);
         result.CompressedSize = chunk.GetSize();
+        result.ChunkCount = 1;
 
         auto attributes = chunk.DeserializeAttributes();
         switch (attributes.type()) {
@@ -473,10 +474,10 @@ private:
     void UpdateStatistics(TChunkList& chunkList, const TChunkTreeId& childId, bool negate)
     {
         // Compute delta.
-        TChunkStatistics delta;
+        TChunkTreeStatistics delta;
         switch (TypeFromId(childId)) {
             case EObjectType::Chunk:
-                delta = GetChunkStatistics(GetChunk(childId));
+                delta = GetChunkTreeStatistics(GetChunk(childId));
                 break;
             case EObjectType::ChunkList:
                 delta = GetChunkList(childId).Statistics();
