@@ -46,6 +46,37 @@ def get_transactions(**kw):
 
 #########################################
 
+class TestCypressCommands(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_HOLDERS = 0
+
+    def test_invalid_cases(self):
+        # path not starting with /
+        expect_error( set('a', '20'))
+
+        # empty path
+        expect_error( set('', '20'))
+
+        # empty token in path
+        expect_error( set('/a//b', '30'))
+
+        # change the type of root
+        expect_error( set('/', '[]'))
+
+        # set the root to the empty map
+        # expect_error( set('/', '{}'))
+
+        # remove the root
+        expect_error( remove('/'))
+       
+        # get non existent child
+        expect_error( get('/b'))
+
+        # remove non existent child
+        expect_error( remove('/b'))
+
+
+
 class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 0
