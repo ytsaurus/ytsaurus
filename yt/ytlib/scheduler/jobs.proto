@@ -1,6 +1,6 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/table_client/schema.proto";
+import "yt/ytlib/chunk_holder/chunk.proto";
 import "yt/ytlib/table_client/table_reader.proto";
 import "yt/ytlib/file_server/file_ypath.proto";
 import "yt/ytlib/misc/error.proto";
@@ -22,6 +22,8 @@ message TJobSpec
 message TJobResult
 {
     required NYT.NProto.TError Error = 1;
+
+    extensions 100 to max;
 }
 
 // Describes a part of input table(s) to be processed by a job.
@@ -103,3 +105,29 @@ message TMapJobSpec
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TMergeJobSpec
+{
+    extend TJobSpec
+    {
+        optional TMergeJobSpec merge_job_spec = 102;
+    }
+  
+    required bytes output_chunk_list_id = 1;
+    required bytes output_transaction_id = 2;
+    repeated bytes input_chunks_ids = 3;
+    required bytes schema = 4;
+}
+
+message TMergeJobResult
+{
+    extend TJobResult
+    {
+        optional TMergeJobResult merge_job_result = 101;
+    }
+    
+    repeated NYT.NChunkHolder.NProto.TChunkMeta metas = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
