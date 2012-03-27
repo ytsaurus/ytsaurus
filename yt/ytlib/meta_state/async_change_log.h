@@ -73,6 +73,8 @@ public:
     i32 GetRecordCount() const;
     bool IsFinalized() const;
 
+    // XXX(sandello): This is very-very-very dirty. Dirty-dirty-dirty. 
+    // Bad, bad, nasty --girl-- static initialization fiasco.
     static void Shutdown();
 
 private:

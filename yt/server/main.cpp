@@ -17,6 +17,7 @@
 #include <ytlib/scheduler/config.h>
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/job_proxy/job_proxy.h>
+#include <ytlib/meta_state/async_change_log.h>
 
 namespace NYT {
 
@@ -246,9 +247,10 @@ int Main(int argc, const char* argv[])
     }
 
     // TODO: refactor system shutdown
+    NMetaState::TAsyncChangeLog::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
-    NProfiling::TProfilingManager::Get()->Shutdown();
     NRpc::TRpcManager::Get()->Shutdown();
+    NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 
     return exitCode;

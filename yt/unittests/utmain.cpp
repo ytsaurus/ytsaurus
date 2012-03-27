@@ -1,5 +1,11 @@
 #include "stdafx.h"
 
+#include <ytlib/rpc/rpc_manager.h>
+#include <ytlib/logging/log_manager.h>
+#include <ytlib/profiling/profiling_manager.h>
+#include <ytlib/meta_state/async_change_log.h>
+#include <ytlib/misc/delayed_invoker.h>
+
 #include <util/datetime/base.h>
 #include <util/random/random.h>
 #include <util/string/printf.h>
@@ -53,7 +59,14 @@ Matcher<Stroka>::Matcher(const char* s)
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    int rv = RUN_ALL_TESTS();
+
+    // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
+    NYT::NMetaState::TAsyncChangeLog::Shutdown();
+    NYT::NLog::TLogManager::Get()->Shutdown();
+    NYT::NProfiling::TProfilingManager::Get()->Shutdown();
+    NYT::NRpc::TRpcManager::Get()->Shutdown();
+    NYT::TDelayedInvoker::Shutdown();
+
+    return rv;
 }
-
-
