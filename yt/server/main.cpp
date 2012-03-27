@@ -194,7 +194,7 @@ int Main(int argc, const char* argv[])
     }
 
     // TODO: refactor system shutdown
-    TAsyncChangeLog::Shutdown();
+    NMetaState::TAsyncChangeLog::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
     NRpc::TRpcManager::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
