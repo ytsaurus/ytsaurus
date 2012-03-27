@@ -41,7 +41,7 @@ protected:
     // config related
     TCLAP::ValueArg<Stroka> ConfigArg;
 
-    typedef TCLAP::ValueArg< TFormat > TOutputFormatArg;
+    typedef TCLAP::ValueArg<TFormat> TOutputFormatArg;
     TOutputFormatArg OutputFormatArg;
 
     TCLAP::MultiArg<Stroka> ConfigUpdatesArg;

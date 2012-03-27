@@ -11,10 +11,15 @@ using namespace NYTree;
 TArgsBase::TArgsBase()
     : CmdLine("Command line", ' ', YT_VERSION)
     , ConfigArg("", "config", "configuration file", false, "", "file_name")
-    , OutputFormatArg("", "format", "output format", false, TFormat(EYsonFormat::Text), "text, pretty, binary")
+    , OutputFormatArg("", "format", "output format", false, TFormat(), "text, pretty, binary")
     , ConfigUpdatesArg("", "config_set", "set configuration value", false, "ypath=yson")
     , OptsArg("", "opts", "other options", false, "key=yson")
-{ }
+{
+    CmdLine.add(ConfigArg);
+    CmdLine.add(OptsArg);
+    CmdLine.add(OutputFormatArg);
+    CmdLine.add(ConfigUpdatesArg);
+}
 
 void TArgsBase::Parse(std::vector<std::string>& args)
 {
@@ -74,7 +79,9 @@ void TArgsBase::BuildCommand(IYsonConsumer* consumer)
 
 TTransactedArgs::TTransactedArgs()
     : TxArg("", "tx", "set transaction id", false, NObjectServer::NullTransactionId, "transaction_id")
-{ }
+{
+    CmdLine.add(TxArg);
+}
 
 void TTransactedArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -87,7 +94,9 @@ void TTransactedArgs::BuildCommand(IYsonConsumer* consumer)
 
 TGetArgs::TGetArgs()
     : PathArg("path", "path to an object in Cypress that must be retrieved", true, "", "path")
-{ }
+{
+    CmdLine.add(PathArg);
+}
 
 void TGetArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -103,7 +112,10 @@ void TGetArgs::BuildCommand(IYsonConsumer* consumer)
 TSetArgs::TSetArgs()
     : PathArg("path", "path to an object in Cypress that must be set", true, "", "path")
     , ValueArg("value", "value to set", true, "", "yson")
-{ }
+{
+    CmdLine.add(PathArg);
+    CmdLine.add(ValueArg);
+}
 
 void TSetArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -119,7 +131,9 @@ void TSetArgs::BuildCommand(IYsonConsumer* consumer)
 
 TRemoveArgs::TRemoveArgs()
     : PathArg("path", "path to an object in Cypress that must be removed", true, "", "path")
-{ }
+{
+    CmdLine.add(PathArg);
+}
 
 void TRemoveArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -134,7 +148,9 @@ void TRemoveArgs::BuildCommand(IYsonConsumer* consumer)
 
 TListArgs::TListArgs()
     : PathArg("path", "path to a object in Cypress whose children must be listed", true, "", "path")
-{ }
+{
+    CmdLine.add(PathArg);
+}
 
 void TListArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -151,7 +167,11 @@ TCreateArgs::TCreateArgs()
     : PathArg("path", "path for a new object in Cypress", true, "", "ypath")
     , TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
     , ManifestArg("", "manifest", "manifest", false, "", "yson")
-{ }
+{
+    CmdLine.add(PathArg);
+    CmdLine.add(TypeArg);
+    CmdLine.add(ManifestArg);
+}
 
 void TCreateArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -173,7 +193,10 @@ void TCreateArgs::BuildCommand(IYsonConsumer* consumer)
 TLockArgs::TLockArgs()
     : PathArg("path", "path to an object in Cypress that must be locked", true, "", "path")
     , ModeArg("", "mode", "lock mode", false, NCypress::ELockMode::Exclusive, "snapshot, shared, exclusive")
-{ }
+{
+    CmdLine.add(PathArg);
+    CmdLine.add(ModeArg);
+}
 
 void TLockArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -189,7 +212,9 @@ void TLockArgs::BuildCommand(IYsonConsumer* consumer)
 
 TStartTxArgs::TStartTxArgs()
     : ManifestArg("", "manifest", "manifest", false, "", "yson")
-{ }
+{
+    CmdLine.add(ManifestArg);
+}
 
 void TStartTxArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -226,7 +251,9 @@ void TAbortTxArgs::BuildCommand(IYsonConsumer* consumer)
 
 TReadArgs::TReadArgs()
     : PathArg("path", "path to a table in Cypress that must be read", true, "", "ypath")
-{ }
+{
+    CmdLine.add(PathArg);
+}
 
 void TReadArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -242,7 +269,10 @@ void TReadArgs::BuildCommand(IYsonConsumer* consumer)
 TWriteArgs::TWriteArgs()
     : PathArg("path", "path to a table in Cypress that must be written", true, "", "ypath")
     , ValueArg("value", "row(s) to write", true, "", "yson")
-{ }
+{
+    CmdLine.add(PathArg);
+    CmdLine.add(ValueArg);
+}
 
     // TODO(panin): validation?
 //    virtual void DoValidate() const
@@ -269,7 +299,9 @@ void TWriteArgs::BuildCommand(IYsonConsumer* consumer)
 
 TUploadArgs::TUploadArgs()
     : PathArg("path", "to a new file in Cypress that must be uploaded", true, "", "ypath")
-{ }
+{
+    CmdLine.add(PathArg);
+}
 
 void TUploadArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -284,7 +316,9 @@ void TUploadArgs::BuildCommand(IYsonConsumer* consumer)
 
 TDownloadArgs::TDownloadArgs()
     : PathArg("path", "path to a file in Cypress that must be downloaded", true, "", "ypath")
-{ }
+{
+    CmdLine.add(PathArg);
+}
 
 void TDownloadArgs::BuildCommand(IYsonConsumer* consumer)
 {
@@ -302,7 +336,12 @@ TMapArgs::TMapArgs()
     , OutArg("", "out", "output tables", false, "ypath")
     , FilesArg("", "file", "additional files", false, "ypath")
     , ShellCommandArg("", "command", "shell command", true, "", "path")
-{ }
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(FilesArg);
+    CmdLine.add(ShellCommandArg);
+}
 
 void TMapArgs::BuildCommand(IYsonConsumer* consumer)
 {
