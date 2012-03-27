@@ -184,7 +184,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* 
 
 void TVirtualMapBase::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
-    attributes->push_back("size");
+    attributes->push_back("count");
     TAttributedYPathServiceBase::GetSystemAttributes(attributes);
 }
 
