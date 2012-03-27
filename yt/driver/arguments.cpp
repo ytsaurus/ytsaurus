@@ -1,5 +1,7 @@
 #include "arguments.h"
 
+#include <build.h>
+
 namespace NYT {
 
 using namespace NYTree;
@@ -7,7 +9,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TArgsBase::TArgsBase()
-    : Cmd("Command line")
+    : Cmd("Command line", ' ', YT_VERSION)
     , ConfigArg("", "config", "configuration file", false, "", "file_name")
     , OutputFormatArg("", "format", "output format", false, TFormat(), "text, pretty, binary")
     , ConfigUpdatesArg("", "set", "set custom updates in config", false, "ypath=value")

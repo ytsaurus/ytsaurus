@@ -21,6 +21,8 @@
 #include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
 
+#include <build.h>
+
 #ifdef _win_
 #include <io.h>
 #else
@@ -183,6 +185,10 @@ public:
                 PrintAllCommands();
                 exit(0);
             }
+            if (commandName == "--version") {
+                PrintVersion();
+                exit(0);
+            }
 
             auto argsParser = GetArgsParser(commandName);
 
@@ -268,6 +274,11 @@ public:
         FOREACH (auto parserPair, GetSortedIterators(ArgsParsers)) {
             Cout << "   " << parserPair->first << Endl;
         }
+    }
+
+    void PrintVersion()
+    {
+        Cout << YT_VERSION << Endl;
     }
 
 private:
