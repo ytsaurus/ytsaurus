@@ -163,8 +163,8 @@ private:
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
 
-    //! Chunk uncompressed size (as reported by the holders on Finish).
-    i64 ChunkSize;
+    //! Returned from holder in Finish.
+    NChunkHolder::NProto::TChunkInfo ChunkInfo;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;

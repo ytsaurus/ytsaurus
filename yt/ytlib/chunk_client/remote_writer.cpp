@@ -17,6 +17,8 @@
 #include <util/datetime/cputimer.h>
 #include <util/stream/str.h>
 
+#include <contrib/libs/protobuf/text_format.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -24,6 +26,9 @@ using namespace NRpc;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer;
 using namespace NCypress;
+
+using namespace google::protobuf;
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -432,7 +437,6 @@ TRemoteWriter::TRemoteWriter(
     , AliveHolderCount(addresses.ysize())
     , CurrentGroup(New<TGroup>(AliveHolderCount, 0, this))
     , BlockCount(0)
-    , ChunkSize(-1)
     , StartChunkTiming(0, 1000, 20)
     , PutBlocksTiming(0, 1000, 20)
     , SendBlocksTiming(0, 1000, 20)
@@ -729,18 +733,25 @@ void TRemoteWriter::OnChunkFinished(TProxy::TRspFinishChunk::TPtr rsp, THolderPt
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    i64 size = rsp->size();
+    auto& chunkInfo = rsp->chunk_info();
     LOG_DEBUG("Chunk is finished (Address: %s, Size: %" PRId64 ")",
         ~holder->Address,
-        size);
+        chunkInfo.size());
 
-    if (ChunkSize >= 0 && ChunkSize != size) {
-        LOG_FATAL("Mismatched chunk size reported by holder (KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s)",
-            ChunkSize,
-            size,
+    // If ChunkInfo is set.
+    if (ChunkInfo.has_id() && (
+        ChunkInfo.meta_checksum() != chunkInfo.meta_checksum() ||
+        ChunkInfo.size() != chunkInfo.size())) 
+    {
+        Stroka knownInfo, newInfo;
+        TextFormat::PrintToString(ChunkInfo, &knownInfo);
+        TextFormat::PrintToString(chunkInfo, &newInfo);
+        LOG_FATAL("Mismatched chunk info reported by holder (KnownInfo: %s, NewInfo: %s, Address: %s)",
+            ~knownInfo,
+            ~newInfo,
             ~holder->Address);
     }
-    ChunkSize = size;
+    ChunkInfo = chunkInfo;
 }
 
 TRemoteWriter::TProxy::TInvFinishChunk::TPtr
@@ -952,8 +963,10 @@ TChunkYPathProxy::TReqConfirm::TPtr TRemoteWriter::GetConfirmRequest()
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(State.IsClosed());
 
+    YASSERT(ChunkInfo.has_size());
+
     auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
-    req->set_size(ChunkSize);
+    req->set_size(ChunkInfo.size());
 
     TBlob attributesBlob;
     SerializeToProtobuf(&Attributes, &attributesBlob);
