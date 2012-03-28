@@ -10,7 +10,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ETokenType,
-    (None) // Empty or uninitialized token
+    (None) // Empty or uninitialized token (used for EndOfStream)
 
     (String)
     (Int64)
@@ -42,6 +42,8 @@ class TToken
     friend class TLexer;
 
 public:
+    static const TToken EndOfStream;
+
     TToken();
 
     DEFINE_BYVAL_RO_PROPERTY(ETokenType, Type);
