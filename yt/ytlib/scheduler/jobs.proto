@@ -115,7 +115,7 @@ message TMergeJobSpec
   
     required bytes output_chunk_list_id = 1;
     required bytes output_transaction_id = 2;
-    repeated bytes input_chunks_ids = 3;
+    repeated NYT.NTableClient.NProto.TInputChunk input_chunks = 3;
     required bytes schema = 4;
 }
 
@@ -126,7 +126,7 @@ message TMergeJobResult
         optional TMergeJobResult merge_job_result = 101;
     }
     
-    repeated NYT.NChunkHolder.NProto.TChunkMeta metas = 1;
+    repeated NYT.NChunkHolder.NProto.TChunkInfo chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
