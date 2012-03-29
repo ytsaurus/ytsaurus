@@ -136,10 +136,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
     Bootstrap
         ->GetSessionManager()
         ->FinishSession(~session, attributes)
-        ->Subscribe(FromFunctor([=] (TChunkPtr chunk) {
-            response->set_size(chunk->GetSize());
+        ->Subscribe(FromFunctor([=] () {
+            auto chunkInfo = session->GetChunkInfo();
+
+            // Attributes are not reported to the writer,- he already has it.
+            chunkInfo.clear_attributes();
+            response->mutable_chunk_info()->CopyFrom(chunkInfo);
             context->Reply();
-        }));
+        })->ToParamAction<TVoid>());
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
