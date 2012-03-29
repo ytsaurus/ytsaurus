@@ -25,6 +25,8 @@ class TSyncReader
     : public ISyncReader
 {
 public:
+    typedef TIntrusivePtr<TSyncReader> TPtr;
+
     TSyncReader(IAsyncReader* asyncReader);
 
     void Open();

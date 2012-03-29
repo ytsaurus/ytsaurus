@@ -3,12 +3,12 @@
 #include "public.h"
 #include "private.h"
 #include "pipes.h"
-#include "job_spec.h"
 
 #include <ytlib/job_proxy/public.h>
 #include <ytlib/scheduler/public.h>
 #include <ytlib/exec_agent/public.h>
 #include <ytlib/exec_agent/supervisor_service_proxy.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -20,37 +20,26 @@ class TJobProxy
 {
 public:
     TJobProxy(
-        TJobProxyConfig* config,
+        TJobProxyConfigPtr config,
         const NScheduler::TJobId& jobId);
 
-    void Run();
+    void Start();
 
 private:
-    void GetJobSpec();
-    void InitPipes();
-    void ReportStatistic();
-    void DoJobIO();
+    void SendHeartbeat();
 
-    // Called from forked process.
-    void StartJob();
-
+    NScheduler::NProto::TJobSpec TJobProxy::GetJobSpec();
     void ReportResult(const NScheduler::NProto::TJobResult& result);
 
     typedef NExecAgent::TSupervisorServiceProxy TProxy;
 
     TJobProxyConfigPtr Config;
     TProxy Proxy;
+    TAutoPtr<IJob> Job;
 
-    const NExecAgent::TJobId JobId;
-    TAutoPtr<TJobSpec> JobSpec;
+    const NScheduler::TJobId JobId;
 
-    yvector<IDataPipe::TPtr> DataPipes;
-    int ActivePipesCount;
-
-    //TJobStats JobStats;
-    TError JobExitStatus;
-
-    int ProcessId;
+    TPeriodicInvoker::TPtr PingInvoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

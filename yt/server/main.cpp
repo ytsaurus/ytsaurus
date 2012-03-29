@@ -225,7 +225,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         TJobProxy jobProxy(~config, jobId);
-        jobProxy.Run();
+        jobProxy.Start();
     }
 
     // Actually this will never happen.

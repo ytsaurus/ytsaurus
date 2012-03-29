@@ -49,6 +49,13 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
     job->SetResult(request->result());
 }
 
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnProgress)
+{
+    UNUSED(request);
+
+    // Progress tracking did not implemented yet.
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NExecAgent

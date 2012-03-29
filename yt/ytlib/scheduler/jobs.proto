@@ -112,7 +112,7 @@ message TMergeJobSpec
     {
         optional TMergeJobSpec merge_job_spec = 102;
     }
-  
+
     required bytes output_chunk_list_id = 1;
     required bytes output_transaction_id = 2;
     repeated NYT.NTableClient.NProto.TInputChunk input_chunks = 3;
@@ -125,9 +125,8 @@ message TMergeJobResult
     {
         optional TMergeJobResult merge_job_result = 101;
     }
-    
+
     repeated NYT.NChunkHolder.NProto.TChunkInfo chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-

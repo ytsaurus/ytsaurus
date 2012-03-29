@@ -25,6 +25,8 @@ class TSyncWriter
     : public ISyncWriter
 {
 public:
+    typedef TIntrusivePtr<TSyncWriter> TPtr;
+
     TSyncWriter(TValidatingWriter* writer);
 
     void Open();
