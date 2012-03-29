@@ -1,37 +1,41 @@
 #include "stdafx.h"
-#include "chunk_statistics.h"
+#include "chunk_tree_statistics.h"
 
 namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkStatistics::Accumulate(const TChunkStatistics& other)
+void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
 {
     RowCount += other.RowCount;
     UncompressedSize += other.UncompressedSize;
     CompressedSize += other.CompressedSize;
+    ChunkCount += other.ChunkCount;
 }
 
-void TChunkStatistics::Negate()
+void TChunkTreeStatistics::Negate()
 {
     RowCount = -RowCount;
     UncompressedSize = -UncompressedSize;
     CompressedSize = -CompressedSize;
+    ChunkCount = -ChunkCount;
 }
 
-void TChunkStatistics::Save(TOutputStream* output) const
+void TChunkTreeStatistics::Save(TOutputStream* output) const
 {
     ::Save(output, RowCount);
     ::Save(output, UncompressedSize);
     ::Save(output, CompressedSize);
+    ::Save(output, ChunkCount);
 }
 
-void TChunkStatistics::Load(TInputStream* input)
+void TChunkTreeStatistics::Load(TInputStream* input)
 {
     ::Load(input, RowCount);
     ::Load(input, UncompressedSize);
     ::Load(input, CompressedSize);
+    ::Load(input, ChunkCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

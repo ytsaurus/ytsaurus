@@ -35,9 +35,8 @@ struct TLocationConfig
     Stroka Path;
 
     //! Maximum space chunks are allowed to occupy.
-    //! (0 indicates to occupy all available space on drive).
-    // TODO(babenko): use nullable
-    i64 Quota;
+    //! (If not initialized then indicates to occupy all available space on drive).
+    TNullable<i64> Quota;
 
     //! Consider the location to be full when left space is less than #LowWatermark
     i64 LowWatermark;
@@ -48,7 +47,7 @@ struct TLocationConfig
     TLocationConfig()
     {
         Register("path", Path).NonEmpty();
-        Register("quota", Quota).Default(0);
+        Register("quota", Quota).Default(TNullable<i64>());
         Register("low_watermark", LowWatermark)
             .GreaterThan(0)
             .Default(1024 * 1024 * 1024); // 1 G
@@ -71,6 +70,9 @@ struct TChunkHolderConfig
 {
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
+
+    //! Random delay after HeartbeatPeriod
+    TDuration HeartbeatSplay;
 
     //! Timeout for FullHeartbeat requests.
     /*!
@@ -131,6 +133,8 @@ struct TChunkHolderConfig
     {
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+        Register("heartbeat_splay", HeartbeatSplay)
+            .Default(TDuration::Seconds(1));
         Register("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         Register("max_cached_blocks_size", MaxCachedBlocksSize)

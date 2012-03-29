@@ -13,6 +13,7 @@
 #include <ytlib/cell_node/config.h>
 #include <ytlib/cell_node/bootstrap.h>
 #include <ytlib/chunk_holder/config.h>
+#include <ytlib/meta_state/async_change_log.h>
 
 namespace NYT {
 
@@ -142,7 +143,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
             // Override RPC port.
             if (port >= 0) {
-                config->RpcPort = port;
+                config->MetaState->Cell->RpcPort = port;
             }
 
             config->Validate();
@@ -193,9 +194,10 @@ int Main(int argc, const char* argv[])
     }
 
     // TODO: refactor system shutdown
+    NMetaState::TAsyncChangeLog::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
-    NProfiling::TProfilingManager::Get()->Shutdown();
     NRpc::TRpcManager::Get()->Shutdown();
+    NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 
     return exitCode;

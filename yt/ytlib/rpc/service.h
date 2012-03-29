@@ -213,7 +213,7 @@ public:
 
     void Deserialize()
     {
-        if (!DeserializeProtobuf(&Request_, Context->GetRequestBody())) {
+        if (!DeserializeFromProtobuf(&Request_, Context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
         }
@@ -303,7 +303,7 @@ public:
         NLog::TLogger& Logger = RpcLogger;
         if (error.IsOK()) {
             TBlob responseBlob;
-            if (!SerializeProtobuf(&Response_, &responseBlob)) {
+            if (!SerializeToProtobuf(&Response_, &responseBlob)) {
                 LOG_FATAL("Error serializing response");
             }
             this->Context->SetResponseBody(MoveRV(responseBlob));

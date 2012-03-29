@@ -71,7 +71,7 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
         }
     } else {
         auto stream = DriverImpl->CreateInputStream();
-        ParseYson(stream.Get(), &consumer, true);
+        ParseYson(stream.Get(), &consumer, TYsonParser::EMode::ListFragment);
     }
 
     writer->Close();

@@ -25,7 +25,7 @@ void IServiceContext::Reply(NBus::IMessage* message)
     YASSERT(!parts.empty());
 
     TResponseHeader header;
-    if (!DeserializeProtobuf(&header, parts[0])) {
+    if (!DeserializeFromProtobuf(&header, parts[0])) {
         LOG_FATAL("Error deserializing response header");
     }
 

@@ -7,8 +7,8 @@ set( SRCS
   ${BASE}/chunk_manager.cpp
   ${BASE}/chunk_placement.cpp
   ${BASE}/chunk_service.cpp
-  ${BASE}/chunk_statistics.cpp
   ${BASE}/chunk_tree_ref.cpp
+  ${BASE}/chunk_tree_statistics.cpp
   ${BASE}/common.cpp
   ${BASE}/cypress_integration.cpp
   ${BASE}/holder.cpp
@@ -29,8 +29,8 @@ set( HDRS
   ${BASE}/chunk_placement.h
   ${BASE}/chunk_service.h
   ${BASE}/chunk_service_proxy.h
-  ${BASE}/chunk_statistics.h
   ${BASE}/chunk_tree_ref.h
+  ${BASE}/chunk_tree_statistics.h
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/common.h
   ${BASE}/config.h

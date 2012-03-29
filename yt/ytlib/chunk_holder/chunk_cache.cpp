@@ -42,7 +42,7 @@ public:
     typedef TWeightLimitedCache<TChunkId, TCachedChunk> TBase;
 
     TImpl(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
-        : TBase(config->CacheLocation->Quota == 0 ? Max<i64>() : config->CacheLocation->Quota)
+        : TBase(config->CacheLocation->Quota.Get(Max<i64>()))
         , Config(config)
         , Bootstrap(bootstrap)
     { }

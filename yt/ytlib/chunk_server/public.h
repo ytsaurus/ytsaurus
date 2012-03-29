@@ -16,7 +16,7 @@ class TJobList;
 class THolder;
 class TReplicationSink;
 
-struct TChunkStatistics;
+struct TChunkTreeStatistics;
 struct TTotalHolderStatistics;
 
 class TChunkManager;

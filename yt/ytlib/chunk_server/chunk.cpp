@@ -82,7 +82,7 @@ TChunkAttributes TChunk::DeserializeAttributes() const
 {
     YASSERT(IsConfirmed());
     TChunkAttributes attributes;
-    if (!DeserializeProtobuf(&attributes, Attributes_)) {
+    if (!DeserializeFromProtobuf(&attributes, Attributes_)) {
         LOG_FATAL("Error deserializing chunk attributes (ChunkId: %s)", ~Id_.ToString());
     }
     return attributes;
