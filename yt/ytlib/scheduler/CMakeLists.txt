@@ -9,6 +9,7 @@ set( SRCS
   ${BASE}/scheduler.cpp
   ${BASE}/null_strategy.cpp
   ${BASE}/fifo_strategy.cpp
+  ${BASE}/operation_controller_detail.cpp
   ${BASE}/map_controller.cpp
 )
 set( HDRS
@@ -25,6 +26,7 @@ set( HDRS
   ${BASE}/null_strategy.h
   ${BASE}/fifo_strategy.h
   ${BASE}/operation_controller.h
+  ${BASE}/operation_controller_detail.h
   ${BASE}/map_controller.h
 )
 
