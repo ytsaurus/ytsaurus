@@ -579,21 +579,18 @@ TAsyncError::TPtr TChunkReader::DoNextRow()
     CurrentRow.clear();
     CurrentKey.assign(CurrentKey.size(), Stroka());
 
-    auto result = successResult;
-    ContinueNextRow(TError(), -1, result);
-
-    return result;
+    return ContinueNextRow(TError(), -1, successResult);
 }
 
-void TChunkReader::ContinueNextRow(
+TAsyncError::TPtr TChunkReader::ContinueNextRow(
     TError error,
     int channelIndex,
-    TAsyncError::TPtr& result)
+    TAsyncError::TPtr result)
 {
     if (!error.IsOK()) {
         YASSERT(!result->IsSet());
         result->Set(error);
-        return;
+        return result;
     }
 
     if (channelIndex >= 0) {
@@ -609,22 +606,26 @@ void TChunkReader::ContinueNextRow(
         if (!channel.NextRow()) {
             YASSERT(SequentialReader->HasNext());
 
-            if (result->IsSet())
+            if (result->IsSet()) {
+                // Posible when called directly from DoNextRow
                 result = New<TAsyncError>();
+            }
 
-            SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
+            SequentialReader->AsyncNextBlock()->Apply(FromMethod(
                 &TChunkReader::ContinueNextRow,
                 TWeakPtr<TChunkReader>(this),
                 channelIndex,
                 result));
-            return;
+            return result;
         }
         ++channelIndex;
     }
 
     MakeCurrentRow();
+
     if (!result->IsSet())
         result->Set(TError());
+    return result;
 }
 
 void TChunkReader::MakeCurrentRow()
