@@ -25,8 +25,8 @@ class TReadCommand
     : public TCommandBase<TReadRequest>
 {
 public:
-    TReadCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TReadCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:
@@ -64,8 +64,8 @@ class TWriteCommand
     : public TCommandBase<TWriteRequest>
 {
 public:
-    TWriteCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TWriteCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:

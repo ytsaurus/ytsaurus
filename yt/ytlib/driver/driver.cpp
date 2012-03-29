@@ -26,6 +26,10 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const char UserDirectoryMarker = '~';
+
+////////////////////////////////////////////////////////////////////////////////
+
 static NLog::TLogger& Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +104,7 @@ private:
 
 class TDriver::TImpl
     : private TNonCopyable
-    , public IDriverImpl
+    , public ICommandHost
 {
 public:
     TImpl(
@@ -246,6 +250,16 @@ public:
             return NULL;
         }
         return TransactionManager->Attach(transactionId);
+    }
+
+    virtual TYPath PreprocessYPath(const TYPath& ypath)
+    {
+        if (ypath[0] == UserDirectoryMarker) {
+            auto userName = Stroka(getenv("USERNAME"));
+            TYPath userDirectory = Stroka("/home/") + userName;
+            return userDirectory + ypath.substr(1);
+        }
+        return ypath;
     }
 
 private:
