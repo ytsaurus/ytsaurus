@@ -408,13 +408,15 @@ protected:
         : public TIntrinsicRefCounted
     {
         TRuntimeMethodInfo(
-            const TMethodDescriptor& info,
+            const TMethodDescriptor& descriptor,
             IInvoker* invoker,
-            const NYTree::TYPath& path);
+            const NYTree::TYPath& profilingPath);
 
         TMethodDescriptor Descriptor;
         //! Invoker that is used to handle all requests for this method.
         IInvoker::TPtr Invoker;
+        //! Path prefix for all profiling information regarding this method.
+        NYTree::TYPath ProfilingPath;
         //! Increments with each method call.
         NProfiling::TRateCounter RequestCounter;
     };

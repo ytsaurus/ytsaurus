@@ -43,12 +43,13 @@ void IServiceContext::Reply(NBus::IMessage* message)
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
-    const TMethodDescriptor& info,
+    const TMethodDescriptor& descriptor,
     IInvoker* invoker,
-    const NYTree::TYPath& path)
-    : Descriptor(info)
+    const NYTree::TYPath& profilingPath)
+    : Descriptor(descriptor)
     , Invoker(invoker)
-    , RequestCounter(CombineYPaths(path, "request_rate"))
+    , ProfilingPath(profilingPath)
+    , RequestCounter(CombineYPaths(profilingPath, "request_rate"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,11 +122,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
     }
 
     Profiler.Increment(runtimeInfo->RequestCounter);
-    auto timer = Profiler.TimingStart(CombineYPaths(
-        ServiceName,
-        "methods",
-        context->GetVerb(),
-        "time"));
+    auto timer = Profiler.TimingStart(CombineYPaths(runtimeInfo->ProfilingPath, "time"));
 
     auto activeRequest = New<TActiveRequest>(runtimeInfo, timer);
 
@@ -211,7 +208,7 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker*
     auto info = New<TRuntimeMethodInfo>(
         descriptor,
         invoker,
-        CombineYPaths(ServiceName, "methods", descriptor.Verb));
+        CombineYPaths("services", ServiceName, "methods", descriptor.Verb));
     // Failure here means that such verb is already registered.
     YVERIFY(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
 }
