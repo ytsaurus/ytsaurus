@@ -72,11 +72,11 @@ void TSchedulerBootstrap::Run()
     auto orchidRoot = orchidFactory->CreateMap();
     SyncYPathSetNode(
         ~orchidRoot,
-        "monitoring",
+        "/monitoring",
         ~CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "config",
+        "/config",
         ~CreateVirtualNode(~CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(

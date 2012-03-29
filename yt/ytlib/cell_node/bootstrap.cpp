@@ -128,25 +128,25 @@ void TBootstrap::Run()
     auto orchidRoot = orchidFactory->CreateMap();
     SyncYPathSetNode(
         ~orchidRoot,
-        "monitoring",
+        "/monitoring",
         ~NYTree::CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "profiling",
+        "/profiling",
         ~CreateVirtualNode(
             ~TProfilingManager::Get()->GetRoot()
             ->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
         ~orchidRoot,
-        "config",
+        "/config",
         ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProducer(ConfigFileName)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "stored_chunks",
+        "/stored_chunks",
         ~NYTree::CreateVirtualNode(~CreateStoredChunkMapService(~ChunkStore)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "cached_chunks",
+        "/cached_chunks",
         ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
 
     auto orchidService = New<TOrchidService>(

@@ -22,7 +22,7 @@ struct TOrchidManifest
     {
         Register("remote_address", RemoteAddress);
         Register("remote_root", RemoteRoot)
-            .Default("");
+            .Default("/");
         Register("timeout", Timeout)
             .Default(TDuration::MilliSeconds(3000));
     }

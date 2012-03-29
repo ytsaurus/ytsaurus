@@ -662,12 +662,11 @@ public:
     {
         UNUSED(verb);
 
-        auto currentPath = path;
-
-        if (!currentPath.has_prefix(RootMarker)) {
-            ythrow yexception() << Sprintf("YPath must start with %s", ~RootMarker.Quote());
+        TYPath currentPath;
+        auto token = ChopToken(path, &currentPath);
+        if (token.GetType() != ETokenType::Slash) {
+            ythrow yexception() << Sprintf("YPath must start with '/'");
         }
-        currentPath = currentPath.substr(RootMarker.length());
 
         return TResolveResult::There(~UnderlyingService, currentPath);
     }

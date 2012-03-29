@@ -69,7 +69,7 @@ public:
         requestHeader.set_path(path);
         auto innerRequestMessage = SetRequestHeader(~requestMessage, requestHeader);
 
-        auto outerRequest =proxy.Execute();
+        auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage->GetParts();
 
         LOG_INFO("Sending request to a remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
@@ -143,7 +143,7 @@ private:
 
     static Stroka GetRedirectPath(TOrchidManifest* manifest, const TYPath& path)
     {
-        return CombineYPaths(manifest->RemoteRoot, path);
+        return manifest->RemoteRoot + path;
     }
 };
 

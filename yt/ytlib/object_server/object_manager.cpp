@@ -169,41 +169,40 @@ public:
             ythrow yexception() << "YPath cannot be empty";
         }
 
-        auto currentPath = path;
         auto transactionId = NullTransactionId;
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
         auto transactionManager = Bootstrap->GetTransactionManager();
-        auto objectId = cypressManager->GetRootNodeId();
+        TObjectId objectId;
 
-        Stroka suffixPath;
-        auto token = ChopToken(currentPath, &suffixPath);
+        TYPath currentPath;
+        auto token = ChopToken(path, &currentPath);
 
         if (token.GetType() == ETokenType::Bang) {
-            Stroka transactionToken = ChopStringToken(suffixPath, &suffixPath);
+            Stroka transactionToken = ChopStringToken(currentPath, &currentPath);
             if (!TObjectId::FromString(transactionToken, &transactionId)) {
                 ythrow yexception() << Sprintf("Error parsing transaction id (Value: %s)", ~transactionToken);
             }
             if (transactionId != NullTransactionId && !transactionManager->FindTransaction(transactionId)) {
                 ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
             }
-            currentPath = suffixPath;
-            token = ChopToken(currentPath, &suffixPath);
+            token = ChopToken(currentPath, &currentPath);
         }
 
-        if (token.GetType() == ETokenType::Hash) {
-            Stroka objectToken = ChopStringToken(suffixPath, &suffixPath);
+        if (token.GetType() == ETokenType::Slash) {
+            objectId = cypressManager->GetRootNodeId();
+        } else if (token.GetType() == ETokenType::Hash) {
+            Stroka objectToken = ChopStringToken(currentPath, &currentPath);
             if (!TObjectId::FromString(objectToken, &objectId)) {
                 ythrow yexception() << Sprintf("Error parsing object id (Value: %s)", ~objectToken);
             }
-            currentPath = suffixPath;
-            token = ChopToken(currentPath, &suffixPath);
-        }
-
-        if (token.GetType() != ETokenType::Slash) {
+            currentPath = currentPath;
+            token = ChopToken(currentPath, &currentPath);
+        } else {
             ythrow yexception() << Sprintf("Invalid YPath syntax (Path: %s)", ~currentPath);
         }
 
+        YASSERT(!objectId.IsEmpty());
         auto proxy = objectManager->FindProxy(TVersionedObjectId(objectId, transactionId));
         if (!proxy) {
             ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~objectId.ToString());
