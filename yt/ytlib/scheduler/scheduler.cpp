@@ -483,6 +483,51 @@ private:
         LOG_INFO("Scheduler address published");
     }
 
+    void LoadOperations()
+    {
+        LOG_INFO("Requesting operations list");
+        std::vector<TOperationId> operationIds;
+        {
+            auto req = TYPathProxy::List("/sys/scheduler/operations");
+            auto rsp = CypressProxy.Execute(req)->Get();
+            if (!rsp->IsOK()) {
+                ythrow yexception() << Sprintf("Failed to get operations list\n%s",
+                    ~rsp->GetError().ToString());
+            }
+            LOG_INFO("Found %d operations", rsp->keys_size());
+            FOREACH (const auto& key, rsp->keys()) {
+                operationIds.push_back(TOperationId::FromString(key));
+            }
+        }
+
+        LOG_INFO("Requesting operations info");
+        {
+            auto batchReq = CypressProxy.ExecuteBatch();
+            FOREACH (const auto& operationId, operationIds) {
+                auto req = TYPathProxy::Get(CombineYPaths(
+                    "/sys/scheduler/operations",
+                    operationId.ToString(),
+                    "@"));
+                batchReq->AddRequest(req);
+            }
+            auto batchRsp = batchReq->Invoke()->Get();
+            if (!batchRsp->IsOK()) {
+                ythrow yexception() << Sprintf("Failed to get operations info\n%s",
+                    ~batchRsp->GetError().ToString());
+            }
+
+            for (int index = 0; index < batchRsp->GetSize(); ++index) {
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(index);
+                if (!rsp->IsOK()) {
+                    ythrow yexception() << Sprintf("Failed to get operation info\n%s",
+                        ~rsp->GetError().ToString());
+                }
+
+                auto operation = ParseOperationYson(operationIds[index], rsp->value());
+                RegisterOperation(operation);
+            }
+        }
+    }
 
     void StartRefresh()
     {
@@ -782,6 +827,19 @@ private:
             .EndMap();
     }
 
+    struct TOperationConfig
+        : public TConfigurable
+    {
+        EOperationType Type;
+        TTransactionId TransactionId;
+        IMapNodePtr Spec;
+
+        TOperationConfig()
+        {
+
+        }
+    };
+
     void BuildOperationYson(IYsonConsumer* consumer, TOperationPtr operation)
     {
         BuildYsonFluently(consumer)
@@ -792,6 +850,14 @@ private:
                 .Item("transaction_id").Scalar(operation->GetTransactionId())
                 .Item("spec").Node(operation->GetSpec())
             .EndAttributes();
+    }
+
+    TOperationPtr ParseOperationYson(const TOperationId& id, const TYson& yson)
+    {
+        // TODO(babenko): simplify
+        auto node = DeserializeFromYson(yson)->AsMap();
+        auto attributes = CreateEphemeralAttributes();
+        attributes->MergeFrom(node);
     }
 
     void BuildJobYson(IYsonConsumer* consumer, TJobPtr job)
