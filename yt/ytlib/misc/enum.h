@@ -109,7 +109,7 @@ protected:
         \
         name& operator=(const EDomain& e) \
         { \
-            name::operator=(MoveRV(name(static_cast<int>(e)))); \
+            name::operator=(name(static_cast<int>(e))); \
             return *this; \
         } \
         \
