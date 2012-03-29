@@ -10,6 +10,7 @@
 #include <ytlib/cypress/cypress_manager.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <util/digest/murmur.h>
 
@@ -28,6 +29,7 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ObjectServer");
+static NProfiling::TProfiler Profiler("object_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -527,18 +529,27 @@ void TObjectManager::ExecuteVerb(
     IServiceContext* context,
     IParamAction<NRpc::IServiceContext*>::TPtr action)
 {
-    LOG_INFO_IF(!IsRecovery(), "Executing a %s request (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
-        isWrite ? "read-write" : "read-only",
-        ~context->GetPath(),
+    LOG_INFO_IF(!IsRecovery(), "Executing %s request with path %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
         ~context->GetVerb(),
+        ~context->GetPath().Quote(),
         ~id.ObjectId.ToString(),
-        ~id.TransactionId.ToString());
+        ~id.TransactionId.ToString(),
+        ~FormatBool(isWrite));
+
+    auto profilingPath = CombineYPaths(
+        "types",
+        TypeFromId(id.ObjectId).ToString(),
+        "verbs",
+        context->GetVerb(),
+        "time");
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
         !isWrite ||
         MetaStateManager->IsInCommit())
     {
-        action->Do(context);
+        PROFILE_TIMING (profilingPath) {
+            action->Do(context);
+        }
         return;
     }
 
@@ -558,7 +569,9 @@ void TObjectManager::ExecuteVerb(
         ~MetaStateManager,
         message,
         FromFunctor([=] () -> TVoid {
-            action->Do(~wrappedContext);
+            PROFILE_TIMING (profilingPath) {
+                action->Do(~wrappedContext);
+            }
             return TVoid();
         }));
 
