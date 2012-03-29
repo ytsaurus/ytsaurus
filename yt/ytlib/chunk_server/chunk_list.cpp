@@ -18,8 +18,8 @@ TChunkList::TChunkList(const TChunkListId& id)
 void TChunkList::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
-    ::Save(output, ChildrenIds_);
-    ::Save(output, ParentIds_);
+    SaveObjects(output, Children_);
+    SaveObjects(output, Parents_);
     ::Save(output, Statistics_);
 }
 
@@ -27,8 +27,8 @@ void TChunkList::Load(TInputStream* input, const TLoadContext& context)
 {
     UNUSED(context);
     TObjectWithIdBase::Load(input);
-    ::Load(input, ChildrenIds_);
-    ::Load(input, ParentIds_);
+    LoadObjects(input, Children_, context);
+    LoadObjects(input, Parents_, context);
     ::Load(input, Statistics_);
 }
 

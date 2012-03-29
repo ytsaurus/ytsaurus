@@ -5,6 +5,7 @@
 // TODO: remove
 #include <ytlib/object_server/id.h>
 #include <ytlib/transaction_server/public.h>
+#include <ytlib/chunk_server/public.h>
 
 #include <ytlib/misc/property.h>
 
@@ -27,6 +28,12 @@ public:
 template <>
 NTransactionServer::TTransaction* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
 
+template <>
+NChunkServer::TChunkList* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
+
+template <>
+NChunkServer::TChunk* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void SaveObject(TOutputStream* output, const NObjectServer::TObjectWithIdBase* object);
@@ -42,6 +49,10 @@ void LoadObjects(TInputStream* input, std::vector<T*>& objects, const TLoadConte
 
 template <class T>
 void LoadObjects(TInputStream* input, yhash_set<T*>& objects, const TLoadContext& context);
+
+template <>
+void SaveObjects(TOutputStream* output, const std::vector<NChunkServer::TChunkTreeRef>& objects);
+void LoadObjects(TInputStream* input, std::vector<NChunkServer::TChunkTreeRef>& objects, const TLoadContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
