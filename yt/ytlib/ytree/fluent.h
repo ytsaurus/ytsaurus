@@ -113,6 +113,7 @@ public:
         TParent OnNode(INodePtr node)
         {
             VisitTree(~node, this->Consumer);
+            return this->Parent;
         }
 
         TList<TParent> BeginList()

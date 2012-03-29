@@ -117,10 +117,10 @@ void TBootstrap::Run()
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
-        "ref_counted",
+        "/ref_counted",
         FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
-        "bus_server",
+        "/bus_server",
         FromMethod(&IBusServer::GetMonitoringInfo, BusServer));
     monitoringManager->Start();
 

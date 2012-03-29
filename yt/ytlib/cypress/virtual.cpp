@@ -55,11 +55,8 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
-        if (ChopToken(path).GetType() == ETokenType::Slash) {
-            return TResolveResult::There(~Service, path);
-        } else {
-            return TBase::Resolve(path, verb);
-        }
+        // TODO(babenko): handle ugly face
+        return TResolveResult::There(~Service, path);
     }
 
 private:

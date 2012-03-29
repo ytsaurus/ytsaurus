@@ -24,10 +24,12 @@
 namespace NYT {
 namespace NMetaState {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("meta_state");
+static NProfiling::TProfiler Profiler("/meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,7 +112,7 @@ private:
                 : FromMethod(&TSession::OnChangeLogRotated, MakeStrong(this), id);
             Awaiter->Await(
                 request->Invoke(),
-                Owner->CellManager->GetPeerAddress(id),
+                EscapeYPath(Owner->CellManager->GetPeerAddress(id)),
                 responseHandler);
         }
 

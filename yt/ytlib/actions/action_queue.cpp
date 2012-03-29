@@ -24,7 +24,7 @@ TQueueInvoker::TQueueInvoker(
     bool enableLogging)
     : Owner(owner)
     , EnableLogging(enableLogging)
-    , Profiler(CombineYPaths("action_queues", name))
+    , Profiler(CombineYPaths("/action_queues", EscapeYPath(name)))
     , EnqueueCounter("enqueue_rate")
     , DequeueCounter("dequeue_rate")
     , QueueSize(0)
@@ -211,7 +211,7 @@ public:
     {
         for (int index = 0; index < queueCount; ++index) {
             Queues[index].Invoker = New<TQueueInvoker>(
-                CombineYPaths(threadName, ToString(index)),
+                threadName + "." + ToString(index),
                 this,
                 true);
         }

@@ -12,10 +12,12 @@
 namespace NYT {
 namespace NMetaState {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("meta_state");
+static NProfiling::TProfiler Profiler("/meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,7 +117,7 @@ private:
 
             Awaiter->Await(
                 LogResult,
-                cellManager->SelfAddress(),
+                EscapeYPath(cellManager->SelfAddress()),
                 FromMethod(&TBatch::OnLocalCommit, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched changes to followers");
@@ -136,7 +138,7 @@ private:
                 }
                 Awaiter->Await(
                     request->Invoke(),
-                    cellManager->GetPeerAddress(id),
+                    EscapeYPath(cellManager->GetPeerAddress(id)),
                     FromMethod(&TBatch::OnRemoteCommit, MakeStrong(this), id));
             }
             LOG_DEBUG("Batched changes sent");

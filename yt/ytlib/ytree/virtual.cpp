@@ -23,7 +23,7 @@ IYPathService::TResolveResult TAttributedYPathServiceBase::ResolveAttributes(
 {
     UNUSED(path);
     UNUSED(verb);
-    return TResolveResult::Here(AttributeMarker + path);
+    return TResolveResult::Here("@" + path);
 }
 
 void TAttributedYPathServiceBase::DoInvoke(NRpc::IServiceContext* context)

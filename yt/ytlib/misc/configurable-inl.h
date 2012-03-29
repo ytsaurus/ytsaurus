@@ -17,12 +17,14 @@
 #include <util/datetime/base.h>
 
 // Avoid circular references.
-// TODO(babenko): shoudn't this be in public.h?
 namespace NYT {
 namespace NYTree {
     TYPath CombineYPaths(
         const TYPath& path1,
         const TYPath& path2);
+
+    TYPath EscapeYPath(const Stroka& value);
+    TYPath EscapeYPath(i64 value);
 }
 }
 
@@ -79,7 +81,10 @@ struct TLoadHelper<yvector<T>, void>
         auto size = listNode->GetChildCount();
         parameter.resize(size);
         for (int i = 0; i < size; ++i) {
-            TLoadHelper<T>::Load(parameter[i], ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
+            TLoadHelper<T>::Load(
+                parameter[i],
+                ~listNode->GetChild(i),
+                NYTree::CombineYPaths(path, NYTree::EscapeYPath(i)));
         }
     }
 };
@@ -94,7 +99,10 @@ struct TLoadHelper<yhash_set<T>, void>
         auto size = listNode->GetChildCount();
         for (int i = 0; i < size; ++i) {
             T value;
-            TLoadHelper<T>::Load(value, ~listNode->GetChild(i), NYTree::CombineYPaths(path, ToString(i)));
+            TLoadHelper<T>::Load(
+                value,
+                ~listNode->GetChild(i),
+                NYTree::CombineYPaths(path, NYTree::EscapeYPath(i)));
             parameter.insert(MoveRV(value));
         }
     }
@@ -110,7 +118,10 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
         FOREACH (const auto& pair, mapNode->GetChildren()) {
             auto& key = pair.first;
             T value;
-            TLoadHelper<T>::Load(value, ~pair.second, NYTree::CombineYPaths(path, key));
+            TLoadHelper<T>::Load(
+                value,
+                ~pair.second,
+                NYTree::CombineYPaths(path, NYTree::SerializeToYson(key)));
             parameter.insert(MakePair(key, MoveRV(value)));
         }
     }
@@ -145,7 +156,7 @@ inline void ValidateSubconfigs(
     for (int i = 0; i < parameter->ysize(); ++i) {
         ValidateSubconfigs(
             &(*parameter)[i],
-            NYTree::CombineYPaths(path, ToString(i)));
+            NYTree::CombineYPaths(path, NYTree::EscapeYPath(i)));
     }
 }
 
@@ -158,7 +169,7 @@ inline void ValidateSubconfigs(
     FOREACH (const auto& pair, *parameter) {
         ValidateSubconfigs(
             &pair.second,
-            NYTree::CombineYPaths(path, pair.first));
+            NYTree::CombineYPaths(path, NYTree::EscapeYPath(pair.first)));
     }
 }
 

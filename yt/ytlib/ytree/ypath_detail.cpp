@@ -252,7 +252,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
         ythrow TServiceException(EErrorCode::NoSuchVerb) <<
             "Verb is not supported";
     }
-    return TResolveResult::Here(AttributeMarker + path);
+    return TResolveResult::Here("@" + path);
 }
 
 void TSupportsAttributes::GetAttribute(
@@ -543,7 +543,7 @@ void TNodeSetterBase::OnMyBeginMap()
 
 void TNodeSetterBase::OnMyBeginAttributes()
 {
-    SyncYPathRemove(~Node, AttributeMarker);
+    Node->Attributes().Clear();
 }
 
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
@@ -554,7 +554,7 @@ void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
 
 void TNodeSetterBase::OnForwardingFinished()
 {
-    SyncYPathSet(~Node, AttributeMarker + AttributeKey, AttributeValue);
+    Node->Attributes().Set(AttributeKey, AttributeValue);
     AttributeKey.clear();
     AttributeValue.clear();
 }
