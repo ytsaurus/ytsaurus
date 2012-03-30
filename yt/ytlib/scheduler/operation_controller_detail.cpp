@@ -7,7 +7,7 @@
 namespace NYT {
 namespace NScheduler {
 
-    using namespace NCypress;
+using namespace NCypress;
 using namespace NTransactionServer;
 using namespace NTableClient::NProto;
 using namespace NChunkServer;
@@ -19,14 +19,29 @@ TOperationControllerBase::TOperationControllerBase(IOperationHost* host, TOperat
     , Operation(operation)
     , CypressProxy(host->GetMasterChannel())
     , Logger(OperationsLogger)
-{ }
+{
+    Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
+}
 
 void TOperationControllerBase::Initialize()
 { }
 
-TFuture<TError>::TPtr TOperationControllerBase::Prepare()
+TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
 {
-    return MakeFuture(TError());
+    return MakeFuture(TVoid());
+}
+
+TFuture<TVoid>::TPtr TOperationControllerBase::Revive()
+{
+    try {
+        Initialize();
+    } catch (const std::exception& ex) {
+        OnOperationFailed(TError("Operation has failed to initialize\n%s",
+            ex.what()));
+        // This promise is never fulfilled.
+        return New< TFuture<TVoid> >();
+    }
+    return Prepare();
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
@@ -64,10 +79,6 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     LOG_INFO("Operation failed\n%s", ~error.ToString());
 
     Host->OnOperationFailed(Operation, error);
-
-    Host->GetControlInvoker()->Invoke(FromMethod(
-        &TOperationControllerBase::AbortOperation,
-        MakeWeak(this)));
 }
 
 void TOperationControllerBase::OnOperationCompleted()
@@ -82,6 +93,16 @@ void TOperationControllerBase::OnOperationCompleted()
 void TOperationControllerBase::AbortOperation()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+}
+
+TFuture<TVoid>::TPtr TOperationControllerBase::OnInitComplete(TValueOrError<TVoid> result)
+{
+    if (result.IsOK()) {
+        return MakeFuture(TVoid());
+    } else {
+        OnOperationFailed(result);
+        return New< TFuture<TVoid> >();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////

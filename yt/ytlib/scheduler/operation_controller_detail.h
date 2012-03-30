@@ -20,7 +20,8 @@ public:
     TOperationControllerBase(IOperationHost* host, TOperation* operation);
 
     virtual void Initialize();
-    virtual TFuture<TError>::TPtr Prepare();
+    virtual TFuture<TVoid>::TPtr Prepare();
+    virtual TFuture<TVoid>::TPtr Revive();
 
     virtual void OnJobRunning(TJobPtr job);
     virtual void OnJobCompleted(TJobPtr job);
@@ -48,6 +49,8 @@ protected:
     void OnOperationFailed(const TError& error);
 
     void OnOperationCompleted();
+
+    TFuture<TVoid>::TPtr OnInitComplete(TValueOrError<TVoid> result);
 
     virtual void AbortOperation();
 };

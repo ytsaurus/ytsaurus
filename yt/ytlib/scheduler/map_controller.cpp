@@ -69,14 +69,9 @@ public:
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
         }
-
-        ExecNodeCount = Host->GetExecNodeCount();
-        if (ExecNodeCount == 0) {
-            ythrow yexception() << "No online exec nodes";
-        }
     }
 
-    virtual TFuture<TError>::TPtr Prepare()
+    virtual TFuture<TVoid>::TPtr Prepare()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -89,10 +84,7 @@ public:
             ->Add(FromMethod(&TThis::OnInputsReceived, MakeStrong(this)))
             ->Add(FromMethod(&TThis::CompletePreparation, MakeStrong(this)))
             ->Run()
-            // TODO(babenko): get rid of this
-            ->Apply(FromFunctor([] (TValueOrError<TVoid> x) -> TError {
-                return x.IsOK() ? TError() : TError(x);
-            }));
+            ->Apply(FromMethod(&TThis::OnInitComplete, MakeStrong(this)));
     }
 
 
@@ -841,7 +833,7 @@ private:
 
     void AbortTransactions()
     {
-        LOG_INFO("Aborting operation transactions")
+        LOG_INFO("Aborting transactions")
 
         if (PrimaryTransaction) {
             // This method is async, no problem in using it here.

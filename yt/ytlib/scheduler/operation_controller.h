@@ -99,10 +99,18 @@ struct IOperationController
 
     //! Performs a possibly lengthy initial preparation.
     /*!
-     *  The controller must set the promise when the preparation is finished (either successfully or unsuccessfully).
+     *  The controller must set the promise when the preparation is finished successfully.
      *  IOperationHost::OnOperationFailed can be called during preparation to indicate an error.
      */
-    virtual TFuture<TError>::TPtr Prepare() = 0;
+    virtual TFuture<TVoid>::TPtr Prepare() = 0;
+
+    //! Reactivates an already running operation.
+    /*!
+     *  This method is called during scheduler state recovery for each existing operation.
+     *  The controller must set the promise when the revival is finished successfully.
+     *  IOperationHost::OnOperationFailed can be called during revival to indicate an error.
+     */
+    virtual TFuture<TVoid>::TPtr Revive() = 0;
 
     //! Returns the number of jobs still the controller still needs to start.
     virtual i64 GetPendingJobCount() = 0;

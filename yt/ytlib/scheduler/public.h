@@ -26,6 +26,7 @@ DECLARE_ENUM(EJobType,
 DECLARE_ENUM(EOperationState,
     (Initializing)
     (Preparing)
+    (Reviving)
     (Running)
     (Completed)
     (Aborted)

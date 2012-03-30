@@ -88,6 +88,7 @@ public:
         InitStrategy();
         RegisterAtMaster();
         StartRefresh();
+        LoadOperations();
     }
 
     NYTree::TYPathServiceProducer CreateOrchidProducer()
@@ -143,9 +144,9 @@ private:
             spec,
             TInstant::Now());
 
-        LOG_INFO("Starting operation (Type: %s, OperationId: %s, TransactionId: %s)",
-            ~type.ToString(),
+        LOG_INFO("Starting operation %s (Type: %s, TransactionId: %s)",
             ~operationId.ToString(),
+            ~type.ToString(),
             ~transactionId.ToString());
 
         // The operation owns the controller but not vice versa.
@@ -160,7 +161,7 @@ private:
         }
 
         // Create a node in Cypress that will represent the operation.
-        LOG_INFO("Creating operation node (OperationId: %s)", ~operationId.ToString());
+        LOG_INFO("Creating operation node %s", ~operationId.ToString());
         auto setReq = TYPathProxy::Set(GetOperationPath(operationId));
         setReq->set_value(SerializeToYson(FromMethod(&TImpl::BuildOperationYson, this, operation)));
 
@@ -174,7 +175,10 @@ private:
 
     void InitializeOperation(TOperationPtr operation)
     {
-        // TODO(babenko): add some controller-independent sanity checks.
+        if (GetExecNodeCount() == 0) {
+            ythrow yexception() << "No online exec nodes";
+        }
+
         operation->GetController()->Initialize();
     }
 
@@ -187,51 +191,79 @@ private:
         auto id = operation->GetOperationId();
         if (!rsp->IsOK()) {
             auto error = rsp->GetError();
-            LOG_ERROR("Error creating operation node (OperationId: %s)\n%s",
+            LOG_ERROR("Error creating operation node %s\n%s",
                 ~id.ToString(),
                 ~error.ToString());
             return error;
         }
 
         RegisterOperation(operation);
-        LOG_INFO("Operation started (OperationId: %s)", ~id.ToString());
+        LOG_INFO("Operation %s has started", ~id.ToString());
+
+        PrepareOperation(operation);
+
+        return operation;
+    }
+
+    void PrepareOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         YASSERT(operation->GetState() == EOperationState::Initializing);
         operation->SetState(EOperationState::Preparing);
 
         // Run async preparation.
-        LOG_INFO("Preparing operation (OperationId: %s)", ~id.ToString());
+        LOG_INFO("Preparing operation %s", ~operation->GetOperationId().ToString());
         operation ->GetController()->Prepare()->Subscribe(
             FromMethod(&TImpl::OnOperationPrepared, this, operation)
             ->Via(GetControlInvoker()));
-
-        // Indicate start success right away.
-        return operation;
     }
 
-    void OnOperationPrepared(
-        // TODO(babenko): const&
-        TError error,
-        TOperationPtr operation)
+    void OnOperationPrepared(TVoid, TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (operation->GetState() != EOperationState::Preparing)
             return;
 
-        if (!error.IsOK()) {
-            OnOperationFailed(operation, error);
-            return;
-        }
-
         operation->SetState(EOperationState::Running);
 
-        LOG_INFO("Operation has prepared and is now running (OperationId: %s)", 
+        LOG_INFO("Operation %s has been prepared and is now running", 
             ~operation->GetOperationId().ToString());
 
         // From this moment on the controller is fully responsible for the
         // operation's fate. It will eventually call #OnOperationCompleted or
         // #OnOperationFailed to inform the scheduler about the outcome.
+    }
+
+
+    void ReviveOperation(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        RegisterOperation(operation);
+
+        YASSERT(operation->GetState() == EOperationState::Initializing);
+        operation->SetState(EOperationState::Reviving);
+
+        // Run async preparation.
+        LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
+        operation ->GetController()->Revive()->Subscribe(
+            FromMethod(&TImpl::OnOperationRevived, this, operation)
+            ->Via(GetControlInvoker()));
+    }
+
+    void OnOperationRevived(TVoid, TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (operation->GetState() != EOperationState::Reviving)
+            return;
+
+        operation->SetState(EOperationState::Running);
+
+        LOG_INFO("Operation %s has been revived and is now running", 
+            ~operation->GetOperationId().ToString());
     }
 
 
@@ -246,7 +278,7 @@ private:
 
         auto state = operation->GetState();
         if (state == EOperationState::Preparing || state == EOperationState::Running) {
-            LOG_INFO("Aborting operation (OperationId: %s, State: %s, Reason: %s)",
+            LOG_INFO("Aborting operation %s (State: %s, Reason: %s)",
                 ~operation->GetOperationId().ToString(),
                 ~state.ToString(),
                 ~reason.ToString());
@@ -309,7 +341,7 @@ private:
         YVERIFY(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
         Strategy->OnOperationStarted(operation);
 
-        LOG_DEBUG("Operation registered (OperationId: %s)", ~operation->GetOperationId().ToString());
+        LOG_DEBUG("Registered operation %s", ~operation->GetOperationId().ToString());
     }
 
     void UnregisterOperation(TOperationPtr operation)
@@ -324,7 +356,7 @@ private:
 
         RemoveOperationNode(operation);
 
-        LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
+        LOG_DEBUG("Unregistered operation %s", ~operation->GetOperationId().ToString());
     }
 
     void SetOperationFinished(
@@ -342,7 +374,7 @@ private:
     {
         // Remove information about the operation from Cypress.
         auto id = operation->GetOperationId();
-        LOG_INFO("Removing operation node (OperationId: %s)", ~id.ToString());
+        LOG_INFO("Removing operation node %s", ~id.ToString());
         auto req = TYPathProxy::Remove(GetOperationPath(id));
         CypressProxy.Execute(req)->Subscribe(
             FromMethod(&TImpl::OnOperationNodeRemoved, this, operation)
@@ -357,13 +389,13 @@ private:
 
         // TODO(babenko): retry failed attempts
         if (!rsp->IsOK()) {
-            LOG_WARNING("Error removing operation node (OperationId: %s)\n%s",
+            LOG_WARNING("Error removing operation node %s\n%s",
                 ~operation->GetOperationId().ToString(),
                 ~rsp->GetError().ToString());
             return;
         }
 
-        LOG_INFO("Operation node removed successfully (OperationId: %s)",
+        LOG_INFO("Operation node %s removed successfully",
             ~operation->GetOperationId().ToString());
     }
 
@@ -373,7 +405,7 @@ private:
         YVERIFY(Jobs.insert(MakePair(job->GetId(), job)).second);
         YVERIFY(job->GetOperation()->Jobs().insert(job).second);
         YVERIFY(job->GetNode()->Jobs().insert(job).second);
-        LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
+        LOG_DEBUG("Registered job %s (OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
     }
@@ -383,7 +415,7 @@ private:
         YVERIFY(Jobs.erase(job->GetId()) == 1);
         YVERIFY(job->GetOperation()->Jobs().erase(job) == 1);
         YVERIFY(job->GetNode()->Jobs().erase(job) == 1);
-        LOG_DEBUG("Job unregistered (JobId: %s, OperationId: %s)",
+        LOG_DEBUG("Unregistered job %s (OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
     }
@@ -524,9 +556,14 @@ private:
                 }
 
                 auto operation = ParseOperationYson(operationIds[index], rsp->value());
-                RegisterOperation(operation);
+                operation->SetController(CreateController(operation.Get()));
+                Bootstrap->GetControlInvoker()->Invoke(FromMethod(
+                    &TThis::ReviveOperation,
+                    MakeStrong(this),
+                    operation));
             }
         }
+        LOG_INFO("Operations loaded successfully")
     }
 
     void StartRefresh()
@@ -609,7 +646,8 @@ private:
             switch (operation->GetState()) {
                 case EOperationState::Preparing:
                 case EOperationState::Running:
-                    LOG_INFO("Operation belongs to an expired transaction, aborting (OperationId: %s, TransactionId: %s)",
+                case EOperationState::Reviving:
+                    LOG_INFO("Operation %s belongs to an expired transaction %s, aborting",
                         ~operation->GetOperationId().ToString(),
                         ~operation->GetTransactionId().ToString());
                     AbortOperation(operation, EAbortReason::TransactionExpired);
@@ -618,7 +656,7 @@ private:
                 case EOperationState::Completed:
                 case EOperationState::Aborted:
                 case EOperationState::Failed:
-                    LOG_INFO("Operation belongs to an expired transaction, sweeping (OperationId: %s, TransactionId: %s)",
+                    LOG_INFO("Operation %s belongs to an expired transaction %s, sweeping",
                         ~operation->GetOperationId().ToString(),
                         ~operation->GetTransactionId().ToString());
                     break;
@@ -669,14 +707,14 @@ private:
             if (node) {
                 YVERIFY(deadNodes.erase(node) == 1);
             } else {
-                LOG_INFO("Node %s has become online", ~address.Quote());
+                LOG_INFO("Node %s is online", ~address.Quote());
                 auto node = New<TExecNode>(address);
                 RegisterNode(node);
             }
         }
 
         FOREACH (auto node, deadNodes) {
-            LOG_INFO("Node %s has become offline", ~node->GetAddress().Quote());
+            LOG_INFO("Node %s is offline", ~node->GetAddress().Quote());
             UnregisterNode(node);
         }
     }
@@ -698,6 +736,7 @@ private:
                 YUNREACHABLE();
         }
     }
+    
 
     // IOperationHost methods
     virtual NRpc::IChannel::TPtr GetMasterChannel()
@@ -765,7 +804,7 @@ private:
             return;
         }
 
-        LOG_INFO("Operation completed (OperationId: %s)",
+        LOG_INFO("Operation %s has completed",
             ~operation->GetOperationId().ToString());
 
         SetOperationFinished(operation, EOperationState::Completed, TError());
@@ -795,7 +834,7 @@ private:
             return;
         }
 
-        LOG_INFO("Operation failed (OperationId: %s)\n%s",
+        LOG_INFO("Operation %s has failed\n%s",
             ~operation->GetOperationId().ToString(),
             ~error.GetMessage());
 
@@ -827,37 +866,33 @@ private:
             .EndMap();
     }
 
-    struct TOperationConfig
-        : public TConfigurable
-    {
-        EOperationType Type;
-        TTransactionId TransactionId;
-        IMapNodePtr Spec;
-
-        TOperationConfig()
-        {
-
-        }
-    };
-
     void BuildOperationYson(IYsonConsumer* consumer, TOperationPtr operation)
     {
         BuildYsonFluently(consumer)
             .WithAttributes().BeginMap()
             .EndMap()
             .BeginAttributes()
-                .Item("type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
+                .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
                 .Item("transaction_id").Scalar(operation->GetTransactionId())
                 .Item("spec").Node(operation->GetSpec())
+                // TODO(babenko): serialize start time
             .EndAttributes();
     }
 
-    TOperationPtr ParseOperationYson(const TOperationId& id, const TYson& yson)
+    TOperationPtr ParseOperationYson(const TOperationId& operationId, const TYson& yson)
     {
         // TODO(babenko): simplify
         auto node = DeserializeFromYson(yson)->AsMap();
         auto attributes = CreateEphemeralAttributes();
         attributes->MergeFrom(node);
+
+        return New<TOperation>(
+            operationId,
+            attributes->Get<EOperationType>("operation_type"),
+            attributes->Get<TTransactionId>("transaction_id"),
+            attributes->Get<INode>("spec")->AsMap(),
+            // TODO(babenko): parse start time
+            TInstant::Now());
     }
 
     void BuildJobYson(IYsonConsumer* consumer, TJobPtr job)
@@ -992,14 +1027,14 @@ private:
                     // Check if the job is running on a proper node.
                     auto expectedAddress = job->GetNode()->GetAddress();
                     if (address != expectedAddress) {
-                        // Job has moved from node to another. No idea how this could happen.
+                        // Job has moved from one node to another. No idea how this could happen.
                         if (state == EJobState::Completed || state == EJobState::Failed) {
                             response->add_jobs_to_remove(jobId.ToProto());
-                            LOG_WARNING("Job status reported by a wrong node, removal scheduled (ExpectedAddress: %s)",
+                            LOG_WARNING("Job status report was expected from %s, removal scheduled",
                                 ~expectedAddress);
                         } else {
                             response->add_jobs_to_abort(jobId.ToProto());
-                            LOG_WARNING("Job status reported by a wrong node, abort scheduled (ExpectedAddress: %s)",
+                            LOG_WARNING("Job status report was expected from %s, abort scheduled",
                                 ~expectedAddress);
                         }
                         continue;
@@ -1083,9 +1118,9 @@ private:
         }
 
         FOREACH (auto job, jobsToStart) {
-            LOG_INFO("Scheduling %s job start on %s (JobId: %s, OperationId: %s)",
-                ~EJobType(job->Spec().type()).ToString(),
+            LOG_INFO("Scheduling job start on %s (JobType: %s, JobId: %s, OperationId: %s)",
                 ~address,
+                ~EJobType(job->Spec().type()).ToString(),
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
             auto* jobInfo = response->add_jobs_to_start();
