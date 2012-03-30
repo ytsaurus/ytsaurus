@@ -20,7 +20,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Profiling");
-static TProfiler Profiler("self", true);
+static TProfiler Profiler("/self", true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,7 +221,7 @@ private:
             }
         }
 
-        LOG_INFO("Creating bucket %s", ~path.Quote());
+        LOG_INFO("Creating bucket %s", ~path);
         auto bucket = New<TBucket>();
         PathToBucket[path] = bucket;
 

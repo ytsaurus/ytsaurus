@@ -202,7 +202,6 @@ public:
             ythrow yexception() << Sprintf("Invalid YPath syntax (Path: %s)", ~currentPath);
         }
 
-        YASSERT(!objectId.IsEmpty());
         auto proxy = objectManager->FindProxy(TVersionedObjectId(objectId, transactionId));
         if (!proxy) {
             ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~objectId.ToString());

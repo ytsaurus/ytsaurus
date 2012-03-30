@@ -18,11 +18,6 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath RootMarker("/");
-TYPath AttributeMarker("@");
-
-////////////////////////////////////////////////////////////////////////////////
-
 TYPathRequest::TYPathRequest(const Stroka& verb)
     : Verb_(verb)
 { }
@@ -135,6 +130,17 @@ TYPath CombineYPaths(
     const TYPath& path4)
 {
     return CombineYPaths(CombineYPaths(CombineYPaths(path1, path2), path3), path4);
+}
+
+TYPath EscapeYPath(const Stroka& value)
+{
+    // TODO(babenko,roizner): don't escape safe ids
+    return SerializeToYson(value, EYsonFormat::Text);
+}
+
+TYPath EscapeYPath(i64 value)
+{
+    return SerializeToYson(value, EYsonFormat::Text);
 }
 
 void ResolveYPath(

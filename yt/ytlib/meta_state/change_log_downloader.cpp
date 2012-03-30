@@ -9,10 +9,12 @@
 namespace NYT {
 namespace NMetaState {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("meta_state");
+static NProfiling::TProfiler Profiler("/meta_state");
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +66,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
         request->set_change_log_id(version.SegmentId);
         awaiter->Await(
             request->Invoke(),
-            CellManager->GetPeerAddress(id),
+            EscapeYPath(CellManager->GetPeerAddress(id)),
             FromMethod(
                 &TChangeLogDownloader::OnResponse,
                 awaiter,

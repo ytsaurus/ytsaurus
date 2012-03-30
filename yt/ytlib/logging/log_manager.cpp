@@ -33,7 +33,7 @@ static const char* const DefaultFilePattern =
 static const char* const AllCategoriesName = "*";
 
 static TLogger Logger(SystemLoggingCategory);
-static NProfiling::TProfiler Profiler("logging");
+static NProfiling::TProfiler Profiler("/logging");
 
 ////////////////////////////////////////////////////////////////////////////////
 

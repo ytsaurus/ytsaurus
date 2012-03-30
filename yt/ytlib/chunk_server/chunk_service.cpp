@@ -23,7 +23,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 NLog::TLogger Logger("ChunkServer");
-NProfiling::TProfiler Profiler("chunk_server");
+NProfiling::TProfiler Profiler("/chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +94,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
-    PROFILE_TIMING ("xxx") {
     auto holderId = request->holder_id();
 
     context->SetRequestInfo("HolderId: %d", holderId);
@@ -110,8 +109,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
         return;
     }
 
-    PROFILE_TIMING_CHECKPOINT("1");
-
     TMsgFullHeartbeat heartbeatMsg;
     auto requestBody = context->GetUntypedContext()->GetRequestBody();
     heartbeatMsg.set_request_body(requestBody.Begin(), requestBody.Size());
@@ -121,15 +118,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
     //    *heartbeatMsg.add_chunks() = info;
     //}
 
-    PROFILE_TIMING_CHECKPOINT("2");
-    auto x = chunkManager
+    chunkManager
         ->InitiateFullHeartbeat(heartbeatMsg)
         ->OnSuccess(CreateSuccessHandler(~context))
-        ->OnError(CreateErrorHandler(~context));
-
-        PROFILE_TIMING_CHECKPOINT("3");
-        x->Commit();
-    }
+        ->OnError(CreateErrorHandler(~context))
+        ->Commit();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)

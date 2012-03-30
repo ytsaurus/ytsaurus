@@ -23,7 +23,7 @@ using namespace NNetliba;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Bus");
-static NProfiling::TProfiler Profiler("bus/client");
+static NProfiling::TProfiler Profiler("/bus/client");
 
 // TODO: make configurable
 static const int MaxNLCallsPerIteration = 10;

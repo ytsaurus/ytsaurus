@@ -493,6 +493,11 @@ int TListNodeProxy::GetChildIndex(const INode* child)
     return it->second;
 }
 
+void TListNodeProxy::CreateRecursive(const NYTree::TYPath& path, INode* value)
+{
+    YUNIMPLEMENTED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypress
