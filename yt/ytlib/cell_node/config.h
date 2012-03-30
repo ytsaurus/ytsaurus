@@ -21,7 +21,7 @@ struct TCellNodeConfig
     int MonitoringPort;
 
     //! Cell masters.
-    NElection::TLeaderLookup::TConfig::TPtr Masters;
+    NElection::TLeaderLookup::TConfigPtr Masters;
 
     //! Data node configuration part.
     NChunkHolder::TChunkHolderConfigPtr ChunkHolder;

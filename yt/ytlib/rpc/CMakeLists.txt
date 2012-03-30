@@ -12,6 +12,7 @@ set( SRCS
   ${BASE}/server.cpp
   ${BASE}/server_detail.cpp
   ${BASE}/service.cpp
+  ${BASE}/roaming_channel.cpp
 )
 set( HDRS
   ${BASE}/channel.h
@@ -26,6 +27,7 @@ set( HDRS
   ${BASE}/server.h
   ${BASE}/server_detail.h
   ${BASE}/service.h
+  ${BASE}/roaming_channel.h
 )
 
 list(APPEND YT_SOURCE_FILES

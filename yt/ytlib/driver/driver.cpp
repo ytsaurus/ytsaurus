@@ -112,7 +112,7 @@ public:
         YASSERT(config);
         YASSERT(streamProvider);
 
-        MasterChannel = CreateLeaderChannel(~config->Masters);
+        MasterChannel = CreateLeaderChannel(config->Masters);
 
         BlockCache = CreateClientBlockCache(~config->BlockCache);
 

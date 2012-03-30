@@ -48,7 +48,7 @@ struct TJobProxyConfig
     // Filled by exec agent.
     Stroka ExecAgentAddress;
     Stroka SandboxName;
-    NElection::TLeaderLookup::TConfig::TPtr Masters;
+    NElection::TLeaderLookup::TConfigPtr Masters;
     TDuration RpcTimeout;
 
     TJobIoConfigPtr JobIo;

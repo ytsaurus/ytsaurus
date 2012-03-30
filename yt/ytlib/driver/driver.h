@@ -42,7 +42,7 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
 
         NYTree::EYsonFormat OutputFormat;
-        NElection::TLeaderLookup::TConfig::TPtr Masters;
+        NElection::TLeaderLookup::TConfigPtr Masters;
         NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
         NFileClient::TFileReader::TConfig::TPtr FileReader;
         NFileClient::TFileWriter::TConfig::TPtr FileWriter;

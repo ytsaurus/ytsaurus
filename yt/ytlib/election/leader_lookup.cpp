@@ -17,7 +17,7 @@ static NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLeaderLookup::TLeaderLookup(TConfig* config)
+TLeaderLookup::TLeaderLookup(TConfigPtr config)
     : Config(config)
 { }
 

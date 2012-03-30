@@ -19,7 +19,7 @@ struct TCellSchedulerConfig
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
-    NElection::TLeaderLookup::TConfig::TPtr Masters;
+    NElection::TLeaderLookup::TConfigPtr Masters;
     NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
     NScheduler::TSchedulerConfigPtr Scheduler;
 

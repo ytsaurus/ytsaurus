@@ -69,7 +69,7 @@ void TBootstrap::Run()
         ~PeerAddress,
         ~JoinToString(Config->Masters->Addresses));
 
-    MasterChannel = CreateLeaderChannel(~Config->Masters);
+    MasterChannel = CreateLeaderChannel(Config->Masters);
 
     auto controlQueue = New<TActionQueue>("Control");
     ControlInvoker = controlQueue->GetInvoker();
