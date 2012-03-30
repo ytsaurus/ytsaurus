@@ -25,6 +25,12 @@ TChunkTreeRef::TChunkTreeRef(TChunkList* chunkList)
     YASSERT(!(reinterpret_cast<uintptr_t>(chunkList) & 1));
 }
 
+bool TChunkTreeRef::operator == (const TChunkTreeRef& other) const
+{
+    return Pointer == other.Pointer;
+}
+
+
 EObjectType TChunkTreeRef::GetType() const
 {
     if (Pointer & 1) {

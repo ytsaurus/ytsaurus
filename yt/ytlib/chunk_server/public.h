@@ -19,6 +19,8 @@ class TReplicationSink;
 struct TChunkTreeStatistics;
 struct TTotalHolderStatistics;
 
+class TChunkTreeRef;
+
 class TChunkManager;
 typedef TIntrusivePtr<TChunkManager> TChunkManagerPtr;
 

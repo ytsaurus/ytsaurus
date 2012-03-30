@@ -54,10 +54,10 @@ public:
 private:
     TAsyncError::TPtr DoNextRow();
 
-    void ContinueNextRow(
+    TAsyncError::TPtr ContinueNextRow(
         TError error, 
         int channelIndex, 
-        TAsyncError::TPtr& result);
+        TAsyncError::TPtr result);
 
     void MakeCurrentRow();
 
