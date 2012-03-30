@@ -4,7 +4,7 @@
 #include "packet.h"
 #include "message_rearranger.h"
 
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/lease_manager.h>
@@ -156,7 +156,7 @@ public:
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
             SessionId,
-            FromMethod(&TSession::OnMessageDequeued, MakeWeak(this)),
+            Bind(&TSession::OnMessageDequeued, MakeWeak(this)),
             server->Config->MessageRearrangeTimeout))
     { }
 
@@ -167,7 +167,7 @@ public:
         SendPing();
         Lease = TLeaseManager::CreateLease(
             server->Config->SessionTimeout,
-            FromMethod(&TSession::OnLeaseExpired, MakeWeak(this)));
+            Bind(&TSession::OnLeaseExpired, MakeWeak(this)));
     }
 
     void OnUnregistered()

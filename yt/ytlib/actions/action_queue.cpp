@@ -1,10 +1,13 @@
 #include "stdafx.h"
 #include "action_queue.h"
 
-#include <ytlib/logging/log.h>
+#include "bind.h"
+#include "callback.h"
+#include "invoker.h"
+
 #include <ytlib/misc/common.h>
+#include <ytlib/logging/log.h>
 #include <ytlib/ytree/ypath_client.h>
-#include <ytlib/actions/action_util.h>
 #include <ytlib/profiling/timing.h>
 
 namespace NYT {
@@ -34,10 +37,10 @@ TQueueInvoker::TQueueInvoker(
     , TotalTimeCounter("time/total")
 { }
 
-void TQueueInvoker::Invoke(IAction::TPtr action)
+void TQueueInvoker::Invoke(const TClosure& action)
 {
     if (!Owner) {
-        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", ~action);
+        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", action.Handle());
         return;
     }
 
@@ -49,7 +52,7 @@ void TQueueInvoker::Invoke(IAction::TPtr action)
     item.Action = action;
     Queue.Enqueue(item);
 
-    LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", ~action);
+    LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", action.Handle());
 
     Owner->Signal();
 }
@@ -74,9 +77,9 @@ bool TQueueInvoker::DequeueAndExecute()
     Profiler.Aggregate(QueueSizeCounter, size);
 
     auto action = item.Action;
-    LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", ~action);
-    action->Do();
-    LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", ~action);
+    LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", action.Handle());
+    action.Run();
+    LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", action.Handle());
 
     auto endExecInstant = GetCpuInstant();
     Profiler.Aggregate(ExecTimeCounter, CpuDurationToValue(endExecInstant - startExecInstant));
@@ -186,9 +189,9 @@ IInvoker* TActionQueue::GetInvoker()
     return ~QueueInvoker;
 }
 
-IFunc<TActionQueue::TPtr>::TPtr TActionQueue::CreateFactory(const Stroka& threadName)
+TCallback<TActionQueue::TPtr()> TActionQueue::CreateFactory(const Stroka& threadName)
 {
-    return FromFunctor([=] ()
+    return Bind([=] ()
         {
             return NYT::New<NYT::TActionQueue>(threadName);
         });

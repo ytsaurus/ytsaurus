@@ -66,10 +66,10 @@ void TChunkSequenceWriter::CreateNextChunk()
     req->set_transaction_id(TransactionId.ToProto());
 
     req->Invoke()->Subscribe(
-        FromMethod(
+        Bind(
             &TChunkSequenceWriter::OnChunkCreated,
-            TWeakPtr<TChunkSequenceWriter>(this))
-        ->Via(WriterThread->GetInvoker()));
+            MakeWeak(this))
+        .Via(WriterThread->GetInvoker()));
 }
 
 void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
@@ -122,9 +122,9 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncOpen(
     CreateNextChunk();
 
     State.StartOperation();
-    NextChunk->Subscribe(FromMethod(
+    NextChunk->Subscribe(Bind(
         &TChunkSequenceWriter::InitCurrentChunk,
-        TWeakPtr<TChunkSequenceWriter>(this)));
+        MakeWeak(this)));
 
     return State.GetOperationError();
 }
@@ -160,15 +160,15 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncEndRow(
         YASSERT(NextChunk);
         // We're not waiting for chunk to be closed.
         FinishCurrentChunk(key, channels);
-        NextChunk->Subscribe(FromMethod(
+        NextChunk->Subscribe(Bind(
             &TChunkSequenceWriter::InitCurrentChunk,
-            TWeakPtr<TChunkSequenceWriter>(this)));
+            MakeWeak(this)));
     } else {
         // NB! Do not make functor here: action target should be 
         // intrusive or weak pointer to 
-        CurrentChunk->AsyncEndRow(key, channels)->Subscribe(FromMethod(
+        CurrentChunk->AsyncEndRow(key, channels)->Subscribe(Bind(
             &TChunkSequenceWriter::OnRowEnded,
-            TWeakPtr<TChunkSequenceWriter>(this)));
+            MakeWeak(this)));
     }
 
     return State.GetOperationError();
@@ -190,14 +190,14 @@ void TChunkSequenceWriter::FinishCurrentChunk(
 
         TAsyncError::TPtr finishResult = New<TAsyncError>();
         CloseChunksAwaiter->Await(finishResult, 
-            FromMethod(
+            Bind(
                 &TChunkSequenceWriter::OnChunkFinished, 
-                TWeakPtr<TChunkSequenceWriter>(this),
+                MakeWeak(this),
                 CurrentChunk->GetChunkId()));
 
-        CurrentChunk->AsyncClose(lastKey, channels)->Subscribe(FromMethod(
+        CurrentChunk->AsyncClose(lastKey, channels)->Subscribe(Bind(
             &TChunkSequenceWriter::OnChunkClosed,
-            TWeakPtr<TChunkSequenceWriter>(this),
+            MakeWeak(this),
             CurrentChunk,
             finishResult));
 
@@ -217,9 +217,9 @@ bool TChunkSequenceWriter::IsNextChunkTime() const
 }
 
 void TChunkSequenceWriter::OnChunkClosed(
-    TError error,
     TChunkWriter::TPtr currentChunk,
-    TAsyncError::TPtr finishResult)
+    TAsyncError::TPtr finishResult,
+    TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -246,17 +246,17 @@ void TChunkSequenceWriter::OnChunkClosed(
         batchReq->AddRequest(~req);
     }
 
-    batchReq->Invoke()->Subscribe(FromMethod(
+    batchReq->Invoke()->Subscribe(Bind(
         &TChunkSequenceWriter::OnChunkRegistered,
-        TWeakPtr<TChunkSequenceWriter>(this),
+        MakeWeak(this),
         currentChunk->GetChunkId(),
         finishResult));
 }
 
 void TChunkSequenceWriter::OnChunkRegistered(
-    TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp,
     TChunkId chunkId,
-    TAsyncError::TPtr finishResult)
+    TAsyncError::TPtr finishResult,
+    TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -280,8 +280,8 @@ void TChunkSequenceWriter::OnChunkRegistered(
 }
 
 void TChunkSequenceWriter::OnChunkFinished(
-    TError error,
-    TChunkId chunkId)
+    TChunkId chunkId,
+    TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -303,9 +303,9 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncClose(
     State.StartOperation();
     FinishCurrentChunk(lastKey, channels);
 
-    CloseChunksAwaiter->Complete(FromMethod(
+    CloseChunksAwaiter->Complete(Bind(
         &TChunkSequenceWriter::OnClose,
-        TWeakPtr<TChunkSequenceWriter>(this)));
+        MakeWeak(this)));
 
     return State.GetOperationError();
 }

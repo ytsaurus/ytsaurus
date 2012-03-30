@@ -4,7 +4,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/serialize.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/invoker.h>
 
 #include <algorithm>
 #include <limits>
@@ -125,9 +125,9 @@ public:
 
     void Initialize()
     {
-        AsyncReader->AsyncGetChunkInfo()->Subscribe(FromMethod(
+        AsyncReader->AsyncGetChunkInfo()->Subscribe(Bind(
             &TInitializer::OnGotMeta, 
-            MakeStrong(this))->Via(ReaderThread->GetInvoker()));
+            MakeStrong(this)).Via(ReaderThread->GetInvoker()));
     }
 
 private:
@@ -281,10 +281,10 @@ private:
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
-        chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
+        chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(Bind(
             &TInitializer::OnFirstBlock,
             MakeWeak(this),
-            0)->Via(ReaderThread->GetInvoker()));
+            0).Via(ReaderThread->GetInvoker()));
     }
 
     void SelectChannels(TChunkReader::TPtr chunkReader)
@@ -408,7 +408,7 @@ private:
         return result;
     }
 
-    void OnFirstBlock(TError error, int selectedChannelIndex)
+    void OnFirstBlock(int selectedChannelIndex, TError error)
     {
         auto chunkReader = ChunkReader.Lock();
         if (!chunkReader) {
@@ -446,11 +446,11 @@ private:
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.size()) {
             auto anb = chunkReader->SequentialReader->AsyncNextBlock();
-            anb->Subscribe(FromMethod(
+            anb->Subscribe(Bind(
                     &TInitializer::OnFirstBlock, 
                     MakeWeak(this), 
                     selectedChannelIndex)
-                ->Via(ReaderThread->GetInvoker()));
+                .Via(ReaderThread->GetInvoker()));
         } else {
             // Create current row.
             LOG_DEBUG("All first blocks fetched.");
@@ -470,9 +470,9 @@ private:
 
         YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
         if (!StartValidator->IsValid(chunkReader->CurrentKey)) {
-            chunkReader->DoNextRow()->Subscribe(FromMethod(
+            chunkReader->DoNextRow()->Subscribe(Bind(
                 &TInitializer::ValidateRow,
-                MakeWeak(this))->Via(ReaderThread->GetInvoker()));
+                MakeWeak(this)).Via(ReaderThread->GetInvoker()));
             return;
         }
 
@@ -550,7 +550,7 @@ TAsyncError::TPtr TChunkReader::AsyncNextRow()
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    DoNextRow()->Subscribe(FromFunctor([=](TError error) {
+    DoNextRow()->Subscribe(Bind([=](TError error) {
         if (error.IsOK()) {
             this_->State.FinishOperation();
         } else {
@@ -579,13 +579,13 @@ TAsyncError::TPtr TChunkReader::DoNextRow()
     CurrentRow.clear();
     CurrentKey.assign(CurrentKey.size(), Stroka());
 
-    return ContinueNextRow(TError(), -1, successResult);
+    return ContinueNextRow(-1, successResult, TError());
 }
 
 TAsyncError::TPtr TChunkReader::ContinueNextRow(
-    TError error,
     int channelIndex,
-    TAsyncError::TPtr result)
+    TAsyncError::TPtr result,
+    TError error)
 {
     if (!error.IsOK()) {
         YASSERT(!result->IsSet());
@@ -611,9 +611,9 @@ TAsyncError::TPtr TChunkReader::ContinueNextRow(
                 result = New<TAsyncError>();
             }
 
-            SequentialReader->AsyncNextBlock()->Apply(FromMethod(
-                &TChunkReader::ContinueNextRow,
-                TWeakPtr<TChunkReader>(this),
+            SequentialReader->AsyncNextBlock()->Subscribe(Bind(
+                IgnoreResult(&TChunkReader::ContinueNextRow),
+                MakeWeak(this),
                 channelIndex,
                 result));
             return result;

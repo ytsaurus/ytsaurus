@@ -42,9 +42,9 @@ void TFileNode::Save(TOutputStream* output) const
     ::Save(output, ChunkListId_);
 }
 
-void TFileNode::Load(TInputStream* input, const TLoadContext& context)
+void TFileNode::Load(const TLoadContext& context, TInputStream* input)
 {
-    TCypressNodeBase::Load(input, context);
+    TCypressNodeBase::Load(context, input);
     ::Load(input, ChunkListId_);
 }
 

@@ -71,7 +71,7 @@ void TJsonAdapter::OnMyEndMap(bool hasAttributes)
 
 void TJsonAdapter::OnMyBeginAttributes()
 {
-    ForwardAttributes(GetNullYsonConsumer(), NULL);
+    ForwardAttributes(GetNullYsonConsumer(), TClosure());
 }
 
 void TJsonAdapter::OnMyAttributesItem(const Stroka& name)

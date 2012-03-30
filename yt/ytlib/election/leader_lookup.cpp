@@ -38,7 +38,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
         awaiter->Await(
             request->Invoke(),
             address,
-            FromMethod(
+            Bind(
                 &TLeaderLookup::OnResponse,
                 MakeStrong(this),
                 awaiter,
@@ -46,7 +46,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
                 address));
     }
     
-    awaiter->Complete(FromMethod(
+    awaiter->Complete(Bind(
         &TLeaderLookup::OnComplete,
         MakeStrong(this),
         asyncResult));
@@ -55,10 +55,10 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
 }
 
 void TLeaderLookup::OnResponse(
-    TProxy::TRspGetStatus::TPtr response,
     TParallelAwaiter::TPtr awaiter,
     TFuture<TResult>::TPtr asyncResult,
-    const Stroka& address)
+    const Stroka& address,
+    TProxy::TRspGetStatus::TPtr response)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

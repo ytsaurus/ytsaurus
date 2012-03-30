@@ -37,9 +37,9 @@ void TTableNode::Save(TOutputStream* output) const
     SaveObject(output, ChunkList_);
 }
 
-void TTableNode::Load(TInputStream* input, const TLoadContext& context)
+void TTableNode::Load(const TLoadContext& context, TInputStream* input)
 {
-    TCypressNodeBase::Load(input, context);
+    TCypressNodeBase::Load(context, input);
     LoadObject(input, ChunkList_, context);
 }
 

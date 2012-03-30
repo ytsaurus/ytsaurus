@@ -70,7 +70,7 @@ TCypressServiceProxy::Execute(TTypedRequest* innerRequest)
     outerRequest->add_part_counts(innerRequestMessage->GetParts().ysize());
     outerRequest->Attachments() = innerRequestMessage->GetParts();
 
-    return outerRequest->Invoke()->Apply(FromFunctor(
+    return outerRequest->Invoke()->Apply(Bind(
         [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
         {
             auto innerResponse = New<TTypedResponse>();

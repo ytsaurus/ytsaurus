@@ -35,11 +35,11 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool recover
     holderInfo.Confirmed = !recovery;
     holderInfo.Lease = TLeaseManager::CreateLease(
         GetTimeout(holder, holderInfo),
-        FromMethod(
+        Bind(
             &THolderLeaseTracker::OnExpired,
             MakeStrong(this),
             holder.GetId())
-        ->Via(
+        .Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));
     YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), holderInfo)).second);
@@ -98,10 +98,10 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
         ->GetChunkManager()
         ->InitiateUnregisterHolder(message)
         ->SetRetriable(Config->HolderExpirationBackoffTime)
-        ->OnSuccess(FromFunctor([=] (TVoid) {
+        ->OnSuccess(Bind([=] (TVoid) {
             LOG_INFO("Holder expiration commit success (HolderId: %d)", holderId);
         }))
-        ->OnError(FromFunctor([=] () {
+        ->OnError(Bind([=] () {
             LOG_INFO("Holder expiration commit failed (HolderId: %d)", holderId);
         }))
         ->Commit();

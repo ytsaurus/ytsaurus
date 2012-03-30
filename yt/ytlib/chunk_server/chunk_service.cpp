@@ -4,7 +4,7 @@
 #include "holder.h"
 
 #include <ytlib/misc/string.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/object_server/id.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/transaction_server/transaction_manager.h>
@@ -82,13 +82,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     *message.mutable_statistics() = statistics;
     chunkManager
         ->InitiateRegisterHolder(message)
-        ->OnSuccess(FromFunctor([=] (THolderId id)
+        ->OnSuccess(Bind([=] (THolderId id)
             {
                 response->set_holder_id(id);
                 context->SetResponseInfo("HolderId: %d", id);
                 context->Reply();
             }))
-        ->OnError(~CreateErrorHandler(~context))
+        ->OnError(CreateErrorHandler(~context))
         ->Commit();
 }
 
@@ -124,7 +124,10 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
     PROFILE_TIMING_CHECKPOINT("2");
     auto x = chunkManager
         ->InitiateFullHeartbeat(heartbeatMsg)
-        ->OnSuccess(CreateSuccessHandler(~context))
+        ->OnSuccess(Bind([=] (TVoid)
+            {
+                context->Reply();
+            }))
         ->OnError(CreateErrorHandler(~context));
 
         PROFILE_TIMING_CHECKPOINT("3");
@@ -191,7 +194,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
     chunkManager
         ->InitiateUpdateJobs(updateJobsMsg)
-        ->OnSuccess(FromFunctor([=] (TVoid) {
+        ->OnSuccess(Bind([=] (TVoid) {
             context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
                 static_cast<int>(response->jobs_to_start_size()),
                 static_cast<int>(response->jobs_to_stop_size()));
@@ -233,7 +236,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
     message.set_chunk_count(chunkCount);
     chunkManager
         ->InitiateCreateChunks(message)
-        ->OnSuccess(FromFunctor([=] (yvector<TChunkId> chunkIds)
+        ->OnSuccess(Bind([=] (yvector<TChunkId> chunkIds)
             {
                 YASSERT(chunkIds.size() == chunkCount);
                 for (int index = 0; index < chunkCount; ++index) {
@@ -242,7 +245,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
 
                 context->Reply();
             }))
-        ->OnError(~CreateErrorHandler(~context))
+        ->OnError(CreateErrorHandler(~context))
         ->Commit();
 }
 

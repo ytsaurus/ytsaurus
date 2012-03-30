@@ -28,7 +28,7 @@ public:
     TChunk(const TChunkId& id);
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
+    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 
     void AddLocation(THolderId holderId, bool cached);
     void RemoveLocation(THolderId holderId, bool cached);

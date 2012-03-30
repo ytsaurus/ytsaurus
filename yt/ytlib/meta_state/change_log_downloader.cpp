@@ -65,7 +65,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
         awaiter->Await(
             request->Invoke(),
             CellManager->GetPeerAddress(id),
-            FromMethod(
+            Bind(
                 &TChangeLogDownloader::OnResponse,
                 awaiter,
                 asyncResult,
@@ -73,7 +73,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
                 version));
     }
 
-    awaiter->Complete(FromMethod(&TChangeLogDownloader::OnComplete, asyncResult));
+    awaiter->Complete(Bind(&TChangeLogDownloader::OnComplete, asyncResult));
 
     return asyncResult->Get();
 }
@@ -165,11 +165,11 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 }
 
 void TChangeLogDownloader::OnResponse(
-    TProxy::TRspGetChangeLogInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
     TFuture<TPeerId>::TPtr asyncResult,
     TPeerId peerId,
-    TMetaVersion version)
+    TMetaVersion version,
+    TProxy::TRspGetChangeLogInfo::TPtr response)
 {
     if (!response->IsOK()) {
         LOG_INFO("Error %s requesting info on changelog %d from peer %d",

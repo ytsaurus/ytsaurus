@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/actions/invoker.h>
 #include <ytlib/ytree/public.h>
 
 namespace NYT {

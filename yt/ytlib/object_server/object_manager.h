@@ -112,7 +112,7 @@ public:
         const TVersionedObjectId& id,
         bool isWrite,
         NRpc::IServiceContext* context,
-        IParamAction<NRpc::IServiceContext*>::TPtr action);
+        TCallback<void(NRpc::IServiceContext*)> action);
 
     DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
@@ -132,7 +132,7 @@ private:
     void SaveKeys(TOutputStream* output);
     void SaveValues(TOutputStream* output);
     void LoadKeys(TInputStream* input);
-    void LoadValues(TInputStream* input, NCellMaster::TLoadContext context);
+    void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
     virtual void Clear();
 
     TVoid ReplayVerb(const NProto::TMsgExecuteVerb& message);

@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "cancelable_context.h"
 
-#include "action.h"
-#include "action_util.h"
+#include "bind.h"
+#include "callback.h"
 
 namespace NYT {
 
@@ -23,17 +23,16 @@ public:
         YASSERT(underlyingInvoker);
     }
 
-    virtual void Invoke(TIntrusivePtr<IAction> action)
+    virtual void Invoke(const TClosure& action)
     {
-        YASSERT(action);
+        YASSERT(!action.IsNull());
 
         if (Context->Canceled)
             return;
 
-        auto context = Context;
-        UnderlyingInvoker->Invoke(FromFunctor([=] {
-                if (!context->Canceled) {
-                    action->Do();
+        UnderlyingInvoker->Invoke(Bind([=] {
+                if (!Context->Canceled) {
+                    action.Run();
                 }
             }));
     }
@@ -44,8 +43,6 @@ public:
 private:
     TCancelableContextPtr Context;
     IInvoker::TPtr UnderlyingInvoker;
-
-    void ActionThunk(TIntrusivePtr<IAction> action);
 
 };
 

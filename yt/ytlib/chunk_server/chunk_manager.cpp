@@ -142,17 +142,17 @@ public:
         auto metaState = bootstrap->GetMetaState();
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
-            FromMethod(&TChunkManager::TImpl::LoadKeys, MakeStrong(this)));
+            Bind(&TChunkManager::TImpl::LoadKeys, MakeStrong(this)));
         metaState->RegisterLoader(
             "ChunkManager.Values.1",
-            FromMethod(&TChunkManager::TImpl::LoadValues, MakeStrong(this), context));
+            Bind(&TChunkManager::TImpl::LoadValues, MakeStrong(this), context));
         metaState->RegisterSaver(
             "ChunkManager.Keys.1",
-            FromMethod(&TChunkManager::TImpl::SaveKeys, MakeStrong(this)),
+            Bind(&TChunkManager::TImpl::SaveKeys, MakeStrong(this)),
             ESavePhase::Keys);
         metaState->RegisterSaver(
             "ChunkManager.Values.1",
-            FromMethod(&TChunkManager::TImpl::SaveValues, MakeStrong(this)),
+            Bind(&TChunkManager::TImpl::SaveValues, MakeStrong(this)),
             ESavePhase::Values);
 
         metaState->RegisterPart(this);
@@ -172,7 +172,7 @@ public:
             this);
     }
 
-    TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(
+    TMetaChange<TVoid>::TPtr InitiateUnregisterHolder(
         const TMsgUnregisterHolder& message)
     {
         return CreateMetaChange(
@@ -753,7 +753,7 @@ private:
     }
 
 
-    void SaveKeys(TOutputStream* output)
+    void SaveKeys(TOutputStream* output) const
     {
         ChunkMap.SaveKeys(output);
         ChunkListMap.SaveKeys(output);
@@ -762,7 +762,7 @@ private:
         JobListMap.SaveKeys(output);
     }
 
-    void SaveValues(TOutputStream* output)
+    void SaveValues(TOutputStream* output) const
     {
         ::Save(output, HolderIdGenerator);
 
@@ -782,15 +782,15 @@ private:
         JobListMap.LoadKeys(input);
     }
 
-    void LoadValues(TInputStream* input, TLoadContext context)
+    void LoadValues(TLoadContext context, TInputStream* input)
     {
         ::Load(input, HolderIdGenerator);
 
-        ChunkMap.LoadValues(input, context);
-        ChunkListMap.LoadValues(input, context);
-        HolderMap.LoadValues(input, context);
-        JobMap.LoadValues(input, context);
-        JobListMap.LoadValues(input, context);
+        ChunkMap.LoadValues(context, input);
+        ChunkListMap.LoadValues(context, input);
+        HolderMap.LoadValues(context, input);
+        JobMap.LoadValues(context, input);
+        JobListMap.LoadValues(context, input);
 
         // Compute chunk replica count.
         ChunkReplicaCount = 0;

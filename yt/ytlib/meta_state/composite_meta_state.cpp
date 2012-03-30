@@ -82,18 +82,25 @@ void TCompositeMetaState::Save(TOutputStream* output)
     i32 size = Savers.size();
     ::Save(output, size);
     
-    yvector< TPair<TPair<ESavePhase, Stroka>, TSaver::TPtr> > savers;
+    // XXX(sandello): :7
+    typedef TPair<TPair<ESavePhase, Stroka>, TSaver> TElement;
+    yvector<TElement> savers;
     FOREACH (const auto& pair, Savers) {
         savers.push_back(
             MakePair(MakePair(pair.second.second, pair.first), pair.second.first));
     }
-    std::sort(savers.begin(), savers.end());
+    std::sort(
+        savers.begin(), savers.end(),
+        [] (const TElement& lhs, const TElement& rhs)
+            {
+                return lhs.first.first < rhs.first.first;
+            });
 
     FOREACH(auto pair, savers) {
         Stroka name = pair.first.second;
         ::Save(output, name);
         auto saver = pair.second;
-        saver->Do(output);
+        saver.Run(output);
     }
 }
 
@@ -111,7 +118,7 @@ void TCompositeMetaState::Load(TInputStream* input)
                 ~name);
         }
         auto loader = it->second;
-        loader->Do(input);
+        loader.Run(input);
     }
 }
 
@@ -129,7 +136,7 @@ void TCompositeMetaState::ApplyChange(const TRef& changeData)
     auto it = Methods.find(changeType);
     YASSERT(it != Methods.end());
 
-    it->second->Do(messageData);
+    it->second.Run(messageData);
 }
 
 void TCompositeMetaState::Clear()
@@ -139,21 +146,21 @@ void TCompositeMetaState::Clear()
     }
 }
 
-void TCompositeMetaState::RegisterLoader(const Stroka& name, TLoader::TPtr loader)
+void TCompositeMetaState::RegisterLoader(const Stroka& name, TLoader loader)
 {
-    YASSERT(loader);
+    YASSERT(!loader.IsNull());
 
-    YVERIFY(Loaders.insert(MakePair(name, loader)).second);
+    YVERIFY(Loaders.insert(MakePair(name, MoveRV(loader))).second);
 }
 
 void TCompositeMetaState::RegisterSaver(
     const Stroka& name,
-    TSaver::TPtr saver, 
+    TSaver saver, 
     ESavePhase phase)
 {
-    YASSERT(saver);
+    YASSERT(!saver.IsNull());
 
-    YVERIFY(Savers.insert(MakePair(name, MakePair(saver, phase))).second);
+    YVERIFY(Savers.insert(MakePair(name, MakePair(MoveRV(saver), phase))).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

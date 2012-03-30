@@ -47,7 +47,7 @@ struct ILogWriter
             Register("type", Type);
             Register("pattern", Pattern)
                 .Default()
-                .CheckThat(FromFunctor([] (const Stroka& pattern)
+                .CheckThat(Bind([] (const Stroka& pattern)
                 {
                     Stroka errorMessage;
                     if (!ValidatePattern(pattern, &errorMessage))

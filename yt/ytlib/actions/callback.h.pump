@@ -114,6 +114,13 @@ $var MAX_ARITY = 7
 #include <ytlib/misc/rvalue.h>
 
 namespace NYT {
+
+template <class T>
+class TFuture;
+
+class IInvoker;
+class TCancelableContext;
+
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -133,8 +140,41 @@ template <class Signature>
 class TCallback;
 
 namespace NDetail {
-    template <class Runnable, class Signature, class BoundArgsType>
+    template <class Runnable, class Signature, class BoundArgs>
     struct TBindState;
+
+    template <class R>
+    struct TFutureHelper
+    {
+        typedef TFuture<R> TFutureType;
+        typedef TIntrusivePtr<TFutureType> TFuturePtrType;
+        typedef R TPromisedType;
+        enum {
+            WrappedInFuture = 0
+        };
+    };
+
+    template <class R>
+    struct TFutureHelper< TIntrusivePtr< TFuture<R> > >
+    {
+        typedef TFuture<R> TFutureType;
+        typedef TIntrusivePtr<TFutureType> TFuturePtrType;
+        typedef R TPromisedType;
+        enum {
+            WrappedInFuture = 1
+        };
+    };
+
+    template <>
+    struct TFutureHelper<void>
+    {
+        typedef void TFutureType;
+        typedef void TFuturePtrType;
+        typedef void TPromisedType;
+        enum {
+            WrappedInFuture = 0
+        };
+    };
 } // namespace NDetail
 
 
@@ -144,7 +184,7 @@ $range ARG 1..ARITY
 
 $if ARITY == 0 [[
 template <class R>
-class TCallback<R(void)>
+class TCallback<R()>
     : public NYT::NDetail::TCallbackBase
 {
 ]] $else [[
@@ -161,13 +201,17 @@ public:
         : TCallbackBase(TIntrusivePtr< NYT::NDetail::TBindStateBase >())
     { }
 
-    explicit TCallback(TCallback&& other)
+    TCallback(const TCallback& other)
+        : TCallbackBase(other)
+    { }
+
+    TCallback(TCallback&& other)
         : TCallbackBase(MoveRV(other))
     { }
 
-    template <class Runnable, class Signature, class BoundArgsType>
+    template <class Runnable, class Signature, class BoundArgs>
     explicit TCallback(TIntrusivePtr<
-            NYT::NDetail::TBindState<Runnable, Signature, BoundArgsType>
+            NYT::NDetail::TBindState<Runnable, Signature, BoundArgs>
         >&& bindState)
         : TCallbackBase(MoveRV(bindState))
     {
@@ -175,14 +219,25 @@ public:
         // so the compiler will typecheck that the passed in Run() method has
         // the correct type.
         TTypedInvokeFunction invokeFunction =
-            &NYT::NDetail::TBindState<Runnable, Signature, BoundArgsType>
+            &NYT::NDetail::TBindState<Runnable, Signature, BoundArgs>
             ::TInvokerType::Run;
         UntypedInvoke =
             reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
     }
 
     using TCallbackBase::Equals;
-    using TCallbackBase::operator=;
+    
+    TCallback& operator=(const TCallback& other)
+    {
+        TCallback(other).Swap(*this);
+        return *this;
+    }
+ 
+    TCallback& operator=(TCallback&& other)
+    {
+        TCallback(MoveRV(other)).Swap(*this);
+        return *this;
+    }
 
     R Run($for ARG , [[A$(ARG) a$(ARG)]]) const
     {
@@ -196,6 +251,22 @@ $for ARG ,
             [[ForwardRV<A$(ARG)>(a$(ARG))]]);
     }
 
+    // XXX(sandello): This is legacy. Due to forced migration to new callbacks.
+    TCallback Via(
+        TIntrusivePtr<IInvoker> invoker);
+    TCallback Via(
+        TIntrusivePtr<IInvoker> invoker,
+        TIntrusivePtr<TCancelableContext> context);
+
+
+$if ARITY == 0 [[
+    TCallback<typename NDetail::TFutureHelper<R>::TFuturePtrType()>
+]] $else [[
+    TCallback<typename NDetail::TFutureHelper<R>::TFuturePtrType($for ARG , [[A$(ARG)]])>
+]]
+    
+    AsyncVia(TIntrusivePtr<IInvoker> invoker);
+
 private:
     typedef R(*TTypedInvokeFunction)(
         NYT::NDetail::TBindStateBase*[[]]
@@ -206,10 +277,14 @@ $for ARG , [[A$(ARG)&&]]);
 
 
 ]] $$ for ARITY
-// Syntactic sugar to make Callbacks<void(void)> easier to declare since it
+// Syntactic sugar to make Callbacks<void()> easier to declare since it
 // will be used in a lot of APIs with delayed execution.
-typedef TCallback<void(void)> TClosure;
+typedef TCallback<void()> TClosure;
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */
-} // namespace NY
+} // namespace NYT
+
+#define CALLBACK_VIA_H_
+#include "callback_via.h"
+#undef CALLBACK_VIA_H_

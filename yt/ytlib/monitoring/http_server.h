@@ -2,7 +2,8 @@
 
 #include "common.h"
 
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback_forward.h>
+#include <ytlib/actions/future.h>
 
 namespace NYT {
 namespace NHttp {
@@ -46,15 +47,15 @@ class TServer
     : public TNonCopyable
 {
 public:
-    typedef IParamFunc<Stroka, Stroka> TSyncHandler;
-    typedef IParamFunc<Stroka, TFuture<Stroka>::TPtr> TAsyncHandler;
+    typedef TCallback<Stroka(Stroka)> TSyncHandler;
+    typedef TCallback<TFuture<Stroka>::TPtr(Stroka)> TAsyncHandler;
 
 public:
     TServer(int port);
     ~TServer();
 
-    void Register(const Stroka& prefix, TSyncHandler* handler);
-    void Register(const Stroka& prefix, TAsyncHandler* handler);
+    void Register(const Stroka& prefix, TSyncHandler handler);
+    void Register(const Stroka& prefix, TAsyncHandler handler);
 
     void Start();
     void Stop();

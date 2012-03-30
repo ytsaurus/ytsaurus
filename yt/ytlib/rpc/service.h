@@ -118,7 +118,7 @@ struct IServiceContext
     virtual Stroka GetResponseInfo() = 0;
 
     //! Wraps the given action into an exception guard that logs the exception and replies.
-    virtual IAction::TPtr Wrap(IAction::TPtr action) = 0;
+    virtual TClosure Wrap(TClosure action) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,9 +254,9 @@ public:
         return Context;
     }
 
-    IAction::TPtr Wrap(IAction::TPtr action)
+    TClosure Wrap(TClosure action)
     {
-        YASSERT(action);
+        YASSERT(!action.IsNull());
         return Context->Wrap(action);
     }
 
@@ -287,7 +287,11 @@ public:
         , Response_(context)
     { }
 
-    // NB: This overload is added to workaround VS2010 ICE inside lambdas calling Reply.
+    // XXX(sandello): If you ever change signature of any of Reply() functions,
+    // please, search sources for "(*Context::*)(int, const Stroka&)" casts.
+    // These casts mainly used to explicitly choose overloaded function when
+    // binding it to some callback.
+
     void Reply()
     {
         Reply(TError(NYT::TError::OK, ""));
@@ -338,10 +342,11 @@ public:
 
     using TBase::Wrap;
 
-    IAction::TPtr Wrap(typename IParamAction<TPtr>::TPtr paramAction)
+    // TODO(sandello): get rid of double binding here by delaying bind moment to the very last possible moment.
+    TClosure Wrap(TCallback<void(TPtr)> paramAction)
     {
-        YASSERT(paramAction);
-        return this->Context->Wrap(~paramAction->Bind(MakeStrong(this)));
+        YASSERT(!paramAction.IsNull());
+        return this->Context->Wrap(Bind(paramAction, MakeStrong(this)));
     }
 
 };
@@ -365,7 +370,7 @@ public:
 
     using TBase::Wrap;
 
-    IAction::TPtr Wrap(typename IParamAction<TPtr>::TPtr paramAction)
+    TClosure Wrap(TCallback<void(TPtr)> paramAction)
     {
         YASSERT(paramAction);
         return this->Context->Wrap(~paramAction->Bind(MakeStrong(this)));
@@ -380,7 +385,7 @@ class TServiceBase
 {
 protected:
     //! Describes a handler for a service method.
-    typedef IParamAction<IServiceContext*> THandler;
+    typedef TCallback<void(IServiceContext*)> THandler;
 
     //! Information needed to a register a service method.
     struct TMethodDescriptor
@@ -388,7 +393,17 @@ protected:
         //! Initializes the instance.
         TMethodDescriptor(
             const Stroka& verb,
-            THandler::TPtr handler,
+            THandler&& handler,
+            bool oneWay = false)
+            : Verb(verb)
+            , Handler(MoveRV(handler))
+            , OneWay(oneWay)
+        { }
+
+        //! Initializes the instance.
+        TMethodDescriptor(
+            const Stroka& verb,
+            const THandler& handler,
             bool oneWay = false)
             : Verb(verb)
             , Handler(handler)
@@ -399,7 +414,7 @@ protected:
         Stroka Verb;
 
         //! A handler that will serve the requests.
-        THandler::TPtr Handler;
+        THandler Handler;
 
         //! Is the method one-way?
         bool OneWay;
@@ -416,7 +431,7 @@ protected:
 
         TMethodDescriptor Descriptor;
         //! Invoker that is used to handle all requests for this method.
-        IInvoker::TPtr Invoker;
+        TIntrusivePtr<IInvoker> Invoker;
         //! Increments with each method call.
         NProfiling::TRateCounter RequestCounter;
     };
@@ -481,7 +496,7 @@ protected:
     void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker* invoker);
 
 private:
-    IInvoker::TPtr DefaultInvoker;
+    TIntrusivePtr<IInvoker> DefaultInvoker;
     Stroka ServiceName;
     Stroka LoggingCategory;
     NProfiling::TRateCounter RequestCounter;
@@ -499,7 +514,7 @@ private:
 
     virtual void InvokeHandler(
         TRuntimeMethodInfo* runtimeInfo,
-        IAction::TPtr handler,
+        TClosure handler,
         IServiceContext* context);
 };
 
@@ -534,7 +549,7 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
         #method, \
-        FromMethod(&TThis::method##Thunk, this), \
+        Bind(&TThis::method##Thunk, Unretained(this)), \
         false)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -564,7 +579,7 @@ private:
 #define ONE_WAY_RPC_SERVICE_METHOD_DESC(method) \
     TMethodDescriptor( \
         #method, \
-        FromMethod(&TThis::method##Thunk, this), \
+        Bind(&TThis::method##Thunk, Unretained(this)), \
         true)
 
 ////////////////////////////////////////////////////////////////////////////////

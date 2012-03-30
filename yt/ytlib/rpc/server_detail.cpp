@@ -152,18 +152,18 @@ Stroka TServiceContextBase::GetResponseInfo()
     return ResponseInfo;
 }
 
-IAction::TPtr TServiceContextBase::Wrap(IAction::TPtr action)
+TClosure TServiceContextBase::Wrap(TClosure action)
 {
-    return FromMethod(
+    return Bind(
         &TServiceContextBase::WrapThunk,
         MakeStrong(this),
         action);
 }
 
-void TServiceContextBase::WrapThunk(IAction::TPtr action) throw()
+void TServiceContextBase::WrapThunk(TClosure action) throw()
 {
     try {
-        action->Do();
+        action.Run();
     } catch (const TServiceException& ex) {
         Reply(ex.GetError());
     } catch (const std::exception& ex) {

@@ -86,7 +86,7 @@ public:
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
-        auto service = Producer->Do(id);
+        auto service = Producer.Run(id);
         return New<TVirtualNodeProxy>(
             this,
             Bootstrap,
@@ -136,7 +136,7 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     return CreateVirtualTypeHandler(
         bootstrap,
         objectType,
-        FromFunctor([=] (const TVersionedNodeId& id) -> IYPathServicePtr {
+        Bind([=] (const TVersionedNodeId& id) -> IYPathServicePtr {
             UNUSED(id);
             return service_;
         }));

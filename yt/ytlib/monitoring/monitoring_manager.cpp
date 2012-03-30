@@ -5,7 +5,7 @@
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -25,14 +25,14 @@ TMonitoringManager::TMonitoringManager()
     : IsStarted(false)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        FromMethod(&TMonitoringManager::Update, MakeStrong(this)),
+        Bind(&TMonitoringManager::Update, MakeStrong(this)),
         Period);
 }
 
 void TMonitoringManager::Register(const TYPath& path, TYsonProducer producer)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YVERIFY(MonitoringMap.insert(MakePair(path, producer)).second);
+    YVERIFY(MonitoringMap.insert(MakePair(path, MoveRV(producer))).second);
 }
 
 void TMonitoringManager::Unregister(const TYPath& path)
@@ -75,7 +75,7 @@ void TMonitoringManager::Update()
             FOREACH(const auto& pair, MonitoringMap) {
                 TStringStream output;
                 TYsonWriter writer(&output, EYsonFormat::Binary);
-                pair.second->Do(&writer);
+                pair.second.Run(&writer);
 
                 SyncYPathSet(~newRoot, pair.first, output.Str());
             }
@@ -102,7 +102,7 @@ TYsonProducer TMonitoringManager::GetProducer()
     YASSERT(IsStarted);
     YASSERT(Root);
 
-    return FromMethod(&TMonitoringManager::Visit, MakeStrong(this));
+    return Bind(&TMonitoringManager::Visit, MakeStrong(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

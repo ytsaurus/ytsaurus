@@ -3,7 +3,7 @@
 #include "attributes.h"
 #include "forwarding_yson_consumer.h"
 
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/misc/assert.h>
 
 namespace NYT {
@@ -121,7 +121,7 @@ public:
     virtual void OnMyAttributesItem(const Stroka& key)
     {
         AttributeKey = key;
-        ForwardNode(&AttributeWriter, FromFunctor([=]
+        ForwardNode(&AttributeWriter, Bind([=]
             {
                 auto node = PeekNode();
                 node->Attributes().SetYson(AttributeKey, AttributeValue);
@@ -209,4 +209,3 @@ TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
 
 } // namespace NYTree
 } // namespace NYT
-

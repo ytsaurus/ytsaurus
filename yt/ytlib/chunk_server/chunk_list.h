@@ -24,7 +24,7 @@ public:
     TChunkList(const TChunkListId& id);
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
+    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -130,10 +130,10 @@ private:
     i32 UnrefNode(const TNodeId& nodeId);
     i32 GetNodeRefCounter(const TNodeId& nodeId);
 
-    void SaveKeys(TOutputStream* output); // TODO(roizner): make const once new actions are ready
-    void SaveValues(TOutputStream* output); // TODO(roizner): make const once new actions are ready
+    void SaveKeys(TOutputStream* output) const; // TODO(roizner): make const once new actions are ready
+    void SaveValues(TOutputStream* output) const; // TODO(roizner): make const once new actions are ready
     void LoadKeys(TInputStream* input);
-    void LoadValues(TInputStream* input, NCellMaster::TLoadContext context);
+    void LoadValues(const NCellMaster::TLoadContext& context, TInputStream* input);
     virtual void Clear();
 
     virtual void OnLeaderRecoveryComplete();

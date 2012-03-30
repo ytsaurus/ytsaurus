@@ -1,0 +1,226 @@
+$$ Please, use Pump to convert this source file to valid C++ header.
+$$ Note that lines in this file could be longer than 80 symbols.
+#pragma once
+
+$$ See bind.h.pump.
+$var MAX_ARITY = 7
+$range ARITY 0..MAX_ARITY
+
+
+#ifndef CALLBACK_VIA_H_
+#error "Direct inclusion of this file is not allowed, include callback.h"
+#endif
+#undef CALLBACK_VIA_H_
+
+#include "invoker.h"
+#include "cancelable_context.h"
+
+namespace NYT {
+/*! \internal */
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+    template <bool WrappedInFuture, class Signature>
+    struct TAsyncViaHelper;
+};
+
+
+$for ARITY [[
+$range ARG 1..ARITY
+// === Arity $(ARITY).
+
+$if ARITY == 0 [[
+template <class R>
+TCallback<R()>
+TCallback<R()>::Via(TIntrusivePtr<IInvoker> invoker)
+]] $else [[
+template <class R, $for ARG , [[class A$(ARG)]]>
+TCallback<R($for ARG , [[A$(ARG)]])>
+TCallback<R($for ARG , [[A$(ARG)]])>::Via(
+    TIntrusivePtr<IInvoker> invoker)
+]]
+
+{
+    static_assert(NMpl::TIsVoid<R>::Value,
+        "Via() can be used with void return type only.");
+    YASSERT(invoker);
+
+    auto this_ = *this;
+    return Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+        invoker->Invoke(Bind(this_[[]]
+$if ARITY != 0 [[,
+            [[]]
+]]
+$for ARG , 
+            [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+    });
+}
+
+
+$if ARITY == 0 [[
+template <class R>
+TCallback<R()>
+TCallback<R()>::Via(
+    TIntrusivePtr<IInvoker> invoker,
+    TIntrusivePtr<TCancelableContext> context)
+]] $else [[
+template <class R, $for ARG , [[class A$(ARG)]]>
+TCallback<R($for ARG , [[A$(ARG)]])>
+TCallback<R($for ARG , [[A$(ARG)]])>::Via(
+    TIntrusivePtr<IInvoker> invoker,
+    TIntrusivePtr<TCancelableContext> context)
+]]
+
+{
+    static_assert(NMpl::TIsVoid<R>::Value,
+        "Via() can be used with void return type only.");
+    YASSERT(invoker);
+    YASSERT(context);
+
+    auto this_ = *this;
+    auto inner = Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+        if (context->IsCanceled()) {
+            return;
+        }
+        this_.Run([[]]
+$if ARITY != 0 [[[[]]]]
+$for ARG ,
+            [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+    });
+    auto outer = Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+        if (context->IsCanceled()) {
+            return;
+        }
+        invoker->Invoke(Bind(inner[[]]
+$if ARITY != 0 [[,
+            [[]]
+]]
+$for ARG , 
+            [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+    });
+    return outer;
+}
+
+namespace NDetail
+{
+template <bool W, class U[[]]
+$if ARITY != 0 [[, ]]
+$for ARG , [[class A$(ARG)]]>
+struct TAsyncViaHelper<W, U($for ARG , [[A$(ARG)]])>
+{
+    typedef TCallback<U($for ARG , [[A$(ARG)]])> TSourceCallback;
+    typedef TCallback<
+        typename NDetail::TFutureHelper<U>::TFuturePtrType
+        ($for ARG , [[A$(ARG)]])> TTargetCallback;
+
+    static inline TTargetCallback Do(
+        const TSourceCallback& this_,
+        TIntrusivePtr<IInvoker> invoker)
+    {
+        static_assert(!NMpl::TIsVoid<U>::Value,
+            "AsyncVia() can be used with non-void callbacks only.");
+
+        typedef typename NDetail::TFutureHelper<U>::TPromisedType  R;
+        typedef typename NDetail::TFutureHelper<U>::TFutureType FR;
+        typedef typename NDetail::TFutureHelper<U>::TFuturePtrType FRP;
+
+        auto inner = Bind([=] (FRP result[[]]
+$if ARITY != 0 [[, ]]
+$for ARG , [[A$(ARG) a$(ARG)]]) {
+            result->Set(this_.Run([[]]
+$if ARITY != 0 [[
+
+                [[]]
+]]
+$for ARG ,
+                [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+        });
+        auto outer = Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+            FRP result;
+            invoker->Invoke(Bind(inner, result[[]]
+$if ARITY != 0 [[,
+                [[]]
+]]
+$for ARG , 
+                [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+            return result;
+        });
+        return outer;
+    }
+};
+
+template <class U[[]]
+$if ARITY != 0 [[, ]]
+$for ARG , [[class A$(ARG)]]>
+struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
+{
+    typedef TCallback<U($for ARG , [[A$(ARG)]])> TSourceCallback;
+    typedef TCallback<
+        typename NDetail::TFutureHelper<U>::TFuturePtrType
+        ($for ARG , [[A$(ARG)]])> TTargetCallback;
+
+    static inline TTargetCallback Do(
+        const TSourceCallback& this_,
+        TIntrusivePtr<IInvoker> invoker)
+    {
+        static_assert(!NMpl::TIsVoid<U>::Value,
+            "AsyncVia() can be used with non-void callbacks only.");
+
+        typedef typename NDetail::TFutureHelper<U>::TPromisedType  R;
+        typedef typename NDetail::TFutureHelper<U>::TFutureType FR;
+        typedef typename NDetail::TFutureHelper<U>::TFuturePtrType FRP;
+
+        auto inner = Bind([=] (FRP result[[]]
+$if ARITY != 0 [[, ]]
+$for ARG , [[A$(ARG) a$(ARG)]]) {
+            this_.Run([[]]
+$if ARITY != 0 [[
+
+                [[]]
+]]
+$for ARG ,
+                [[ForwardRV<A$(ARG)>(a$(ARG))]])
+                ->Subscribe(Bind(&FR::Set, MoveRV(result)));
+        });
+        auto outer = Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+            FRP result;
+            invoker->Invoke(Bind(inner, result[[]]
+$if ARITY != 0 [[,
+                [[]]
+]]
+$for ARG , 
+                [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+            return result;
+        });
+        return outer;
+    }
+};
+
+}
+
+$if ARITY == 0 [[
+template <class U>
+TCallback<typename NDetail::TFutureHelper<U>::TFuturePtrType()>
+TCallback<U()>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
+]] $else [[
+template <class U, $for ARG , [[class A$(ARG)]]>
+TCallback<
+    typename NDetail::TFutureHelper<U>::TFuturePtrType
+    ($for ARG , [[A$(ARG)]])>
+TCallback<U($for ARG , [[A$(ARG)]])>::AsyncVia(
+    TIntrusivePtr<IInvoker> invoker)
+]]
+
+{
+    return NDetail::TAsyncViaHelper<
+        NDetail::TFutureHelper<U>::WrappedInFuture,
+        U($for ARG , [[A$(ARG)]])
+    >::Do(*this, invoker);
+}
+
+
+]] $$ for ARITY
+
+////////////////////////////////////////////////////////////////////////////////
+/*! \endinternal */
+} // namespace NYT

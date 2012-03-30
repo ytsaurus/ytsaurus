@@ -43,7 +43,7 @@ public:
         , BufferedOutput(~Output)
         , Writer(&BufferedOutput, format)
     {
-        ForwardNode(&Writer, FromFunctor([=] ()
+        ForwardNode(&Writer, Bind([=] ()
             {
                 BufferedOutput.Write('\n');
             }));
@@ -200,7 +200,7 @@ public:
     virtual TYsonProducer CreateInputProducer()
     {
         auto stream = CreateInputStream();
-        return FromFunctor([=] (IYsonConsumer* consumer)
+        return Bind([=] (IYsonConsumer* consumer)
             {
                 TYsonReader reader(consumer, ~stream);
                 reader.Read();

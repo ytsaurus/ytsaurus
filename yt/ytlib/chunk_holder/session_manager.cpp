@@ -52,7 +52,7 @@ TSession::~TSession()
 
 void TSession::Start()
 {
-    GetIOInvoker()->Invoke(FromMethod(
+    GetIOInvoker()->Invoke(Bind(
         &TSession::DoOpenFile,
         MakeStrong(this)));
 }
@@ -177,18 +177,18 @@ void TSession::EnqueueWrites()
         if (slot.State != ESlotState::Received)
             break;
 
-        FromMethod(
+        Bind(
             &TSession::DoWrite,
             MakeStrong(this),
             slot.Block,
             blockIndex)
-        ->AsyncVia(GetIOInvoker())
-        ->Do()
-        ->Subscribe(FromMethod(
+        .AsyncVia(GetIOInvoker())
+        .Run()
+        ->Subscribe(Bind(
             &TSession::OnBlockWritten,
             MakeStrong(this),
             blockIndex)
-        ->Via(SessionManager->ServiceInvoker));
+        .Via(SessionManager->ServiceInvoker));
 
         ++FirstUnwritten;
     }
@@ -215,7 +215,7 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
     return TVoid();
 }
 
-void TSession::OnBlockWritten(TVoid, i32 blockIndex)
+void TSession::OnBlockWritten(i32 blockIndex, TVoid)
 {
     auto& slot = GetSlot(blockIndex);
     YASSERT(slot.State == ESlotState::Received);
@@ -241,13 +241,13 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
     }
 
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
-    return slot.IsWritten->Apply(FromMethod(
+    return slot.IsWritten->Apply(Bind(
         &TSession::OnBlockFlushed,
         MakeStrong(this),
         blockIndex));
 }
 
-TVoid TSession::OnBlockFlushed(TVoid, i32 blockIndex)
+TVoid TSession::OnBlockFlushed(i32 blockIndex, TVoid)
 {
     ReleaseBlocks(blockIndex);
     return TVoid();
@@ -269,27 +269,27 @@ TFuture<TChunkPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
     }
 
     return CloseFile(attributes)->Apply(
-        FromMethod(&TSession::OnFileClosed, MakeStrong(this))
-        ->AsyncVia(SessionManager->ServiceInvoker));
+        Bind(&TSession::OnFileClosed, MakeStrong(this))
+        .AsyncVia(SessionManager->ServiceInvoker));
 }
 
 void TSession::Cancel(const TError& error)
 {
     CloseLease();
     DeleteFile(error)->Apply(
-        FromMethod(&TSession::OnFileDeleted, MakeStrong(this))
-        ->AsyncVia(SessionManager->ServiceInvoker));
+        Bind(&TSession::OnFileDeleted, MakeStrong(this))
+        .AsyncVia(SessionManager->ServiceInvoker));
 }
 
 TFuture<TVoid>::TPtr TSession::DeleteFile(const TError& error)
 {
     return
-        FromMethod(
+        Bind(
             &TSession::DoDeleteFile,
             MakeStrong(this),
             error)
-        ->AsyncVia(GetIOInvoker())
-        ->Do();
+        .AsyncVia(GetIOInvoker())
+        .Run();
 }
 
 TVoid TSession::DoDeleteFile(const TError& error)
@@ -311,12 +311,12 @@ TVoid TSession::OnFileDeleted(TVoid)
 TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
 {
     return
-        FromMethod(
+        Bind(
             &TSession::DoCloseFile,
             MakeStrong(this),
             attributes)
-        ->AsyncVia(GetIOInvoker())
-        ->Do();
+        .AsyncVia(GetIOInvoker())
+        .Run();
 }
 
 TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
@@ -429,11 +429,11 @@ TSessionPtr TSessionManager::StartSession(
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,
-        FromMethod(
+        Bind(
             &TSessionManager::OnLeaseExpired,
             MakeStrong(this),
             session)
-        ->Via(ServiceInvoker));
+        .Via(ServiceInvoker));
     session->SetLease(lease);
 
     YVERIFY(SessionMap.insert(MakePair(chunkId, session)).second);
@@ -466,13 +466,13 @@ TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return session->Finish(attributes)->Apply(FromMethod(
+    return session->Finish(attributes)->Apply(Bind(
         &TSessionManager::OnSessionFinished,
         MakeStrong(this),
         session));
 }
 
-TChunkPtr TSessionManager::OnSessionFinished(TChunkPtr chunk, TSessionPtr session)
+TChunkPtr TSessionManager::OnSessionFinished(TSessionPtr session, TChunkPtr chunk)
 {
     LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
     return chunk;

@@ -28,6 +28,12 @@ namespace NYT {
 class TIntrinsicRefCounted;
 class TExtrinsicRefCounted;
 
+template <class T>
+class TIntrusivePtr;
+
+template <class T>
+class TWeakPtr;
+
 namespace NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,7 +75,7 @@ private:
 #ifdef _win_
 #pragma warning(default:4624)
 #endif
-    template <void(TMixin::*)(void)>
+    template <void(TMixin::*)()>
     struct THelper
     { };
 
@@ -105,7 +111,7 @@ private:
 #pragma warning(default:4624)
 #endif
 
-    template <void(TMixin::*)(void)>
+    template <void(TMixin::*)()>
     struct THelper
     { };
 
@@ -433,7 +439,7 @@ struct TIsNonConstReference<const T&>
 /*! \} */
 
 template <class T>
-struct TExpectedIntrusivePtrAndActualRawPtrHelper
+struct TRawPtrToRefCountedTypeHelper
 {
 #if defined(_win_)
     enum {

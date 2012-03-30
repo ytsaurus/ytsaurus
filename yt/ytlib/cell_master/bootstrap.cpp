@@ -176,13 +176,13 @@ void TBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "ref_counted",
-        FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        Bind(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "meta_state",
-        FromMethod(&IMetaStateManager::GetMonitoringInfo, MetaStateManager));
+        Bind(&IMetaStateManager::GetMonitoringInfo, MetaStateManager));
     monitoringManager->Register(
         "bus_server",
-        FromMethod(&IBusServer::GetMonitoringInfo, busServer));
+        Bind(&IBusServer::GetMonitoringInfo, busServer));
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
@@ -199,7 +199,7 @@ void TBootstrap::Run()
     SyncYPathSetNode(
         ~orchidRoot,
         "config",
-        ~CreateVirtualNode(~CreateYsonFileProducer(ConfigFileName)));
+        ~CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
@@ -232,10 +232,10 @@ void TBootstrap::Run()
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~GetControlInvoker())));
+        NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~GetControlInvoker())));
     httpServer->Register(
         "/cypress",
-        ~NMonitoring::GetYPathHttpHandler(CypressManager->GetRootServiceProducer()));
+        NMonitoring::GetYPathHttpHandler(CypressManager->GetRootServiceProducer()));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

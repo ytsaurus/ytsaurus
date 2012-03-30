@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback_forward.h>
 #include <ytlib/rpc/service.h>
 #include <ytlib/meta_state/meta_state_manager.h>
 
@@ -38,31 +38,19 @@ protected:
         const Stroka& loggingCategory);
 
     template <class TContext>
-    IParamAction<TVoid>::TPtr CreateSuccessHandler(TContext* context)
+    TClosure CreateErrorHandler(TContext* context)
     {
-        TIntrusivePtr<TContext> context_ = context;
-        return FromFunctor([=] (TVoid)
-            {
-                context_->Reply();
-            });
-    }
-
-    template <class TContext>
-    IAction::TPtr CreateErrorHandler(TContext* context)
-    {
-        TIntrusivePtr<TContext> context_ = context;
-        return FromFunctor([=] ()
-            {
-                context_->Reply(
-                    NRpc::EErrorCode::Unavailable,
-                    "Error committing meta state changes");
-            });
+        return Bind(
+            (void (TContext::*)(int, const Stroka&))&TContext::Reply,
+            MakeStrong(context),
+            NRpc::EErrorCode::Unavailable,
+            "Error committing meta state changes");
     }
 
 private:
     virtual void InvokeHandler(
         TRuntimeMethodInfo* runtimeInfo,
-        IAction::TPtr handler,
+        const TClosure& handler,
         NRpc::IServiceContext* context);
 
     void CheckStatus(NMetaState::EPeerStatus status);

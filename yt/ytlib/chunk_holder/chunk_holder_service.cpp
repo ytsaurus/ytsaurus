@@ -13,7 +13,6 @@
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/actions/action_util.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/cell_node/bootstrap.h>
 
@@ -137,7 +136,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
     Bootstrap
         ->GetSessionManager()
         ->FinishSession(~session, attributes)
-        ->Subscribe(FromFunctor([=] (TChunkPtr chunk) {
+        ->Subscribe(Bind([=] (TChunkPtr chunk) {
             response->set_size(chunk->GetSize());
             context->Reply();
         }));
@@ -198,7 +197,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
         putRequest->Attachments().push_back(block->GetData());
     }
 
-    putRequest->Invoke()->Subscribe(FromFunctor([=] (TProxy::TRspPutBlocks::TPtr putResponse) {
+    putRequest->Invoke()->Subscribe(Bind([=] (TProxy::TRspPutBlocks::TPtr putResponse) {
         if (putResponse->IsOK()) {
             context->Reply();
         } else {
@@ -253,7 +252,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
             LOG_DEBUG("GetBlocks: Fetching block (BlockIndex: %d)", blockIndex);
             awaiter->Await(
                 Bootstrap->GetBlockStore()->GetBlock(blockId),
-                FromFunctor([=] (TBlockStore::TGetBlockResult result) {
+                Bind([=] (TBlockStore::TGetBlockResult result) {
                     if (result.IsOK()) {
                         // Attach the real data.
                         blockInfo->set_data_attached(true);
@@ -275,7 +274,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
         }
     }
 
-    awaiter->Complete(FromFunctor([=] () {
+    awaiter->Complete(Bind([=] () {
         // Compute statistics.
         int blocksWithData = 0;
         int blocksWithPeers = 0;
@@ -319,7 +318,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
 
     auto session = GetSession(chunkId);
 
-    session->FlushBlock(blockIndex)->Subscribe(FromFunctor([=] (TVoid) {
+    session->FlushBlock(blockIndex)->Subscribe(Bind([=] (TVoid) {
         context->Reply();
     }));
 }
@@ -342,7 +341,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
     auto chunk = GetChunk(chunkId);
-    chunk->GetInfo()->Subscribe(FromFunctor([=] (TChunk::TGetInfoResult result) {
+    chunk->GetInfo()->Subscribe(Bind([=] (TChunk::TGetInfoResult result) {
         if (result.IsOK()) {
             *response->mutable_chunk_info() = result.Value();
             context->Reply();
@@ -361,7 +360,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
     Bootstrap
         ->GetChunkCache()
         ->DownloadChunk(chunkId)
-        ->Subscribe(FromFunctor([=] (TChunkCache::TDownloadResult result) {
+        ->Subscribe(Bind([=] (TChunkCache::TDownloadResult result) {
             if (result.IsOK()) {
                 context->Reply();
             } else {

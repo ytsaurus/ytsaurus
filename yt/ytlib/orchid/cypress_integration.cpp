@@ -79,14 +79,14 @@ public:
             ~outerRequest->GetRequestId().ToString());
 
         outerRequest->Invoke()->Subscribe(
-            FromMethod(
+            Bind(
                 &TOrchidYPathService::OnResponse,
                 MakeStrong(this),
                 IServiceContext::TPtr(context),
                 manifest,
                 path,
                 verb)
-            ->Via(OrchidQueue->GetInvoker()));
+            .Via(OrchidQueue->GetInvoker()));
     }
 
     virtual Stroka GetLoggingCategory() const
@@ -118,11 +118,11 @@ private:
     }
 
     void OnResponse(
-        TOrchidServiceProxy::TRspExecute::TPtr response,
         NRpc::IServiceContext::TPtr context,
         TOrchidManifest::TPtr manifest,
         TYPath path,
-        const Stroka& verb)
+        const Stroka& verb,
+        TOrchidServiceProxy::TRspExecute::TPtr response)
     {
         LOG_INFO("Reply from a remote Orchid received (RequestId: %s): %s",
             ~response->GetRequestId().ToString(),
@@ -152,7 +152,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::Orchid,
-        FromFunctor([=] (const TVersionedObjectId& id) -> IYPathServicePtr
+        Bind([=] (const TVersionedObjectId& id) -> IYPathServicePtr
             {
                 return New<TOrchidYPathService>(bootstrap, id);
             }));

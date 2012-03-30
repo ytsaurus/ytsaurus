@@ -17,12 +17,34 @@ void TCallbackBase::Reset()
     UntypedInvoke = NULL;
 }
 
+void* TCallbackBase::Handle() const
+{
+    return (void*)((size_t)(void*)BindState.Get() ^ (size_t)(void*)UntypedInvoke);
+}
+
+void TCallbackBase::Swap(TCallbackBase& other)
+{
+    TIntrusivePtr<TBindStateBase> tempBindState = MoveRV(other.BindState);
+    TUntypedInvokeFunction tempUntypedInvoke = MoveRV(other.UntypedInvoke);
+ 
+    other.BindState = MoveRV(BindState);
+    other.UntypedInvoke = MoveRV(UntypedInvoke);
+ 
+    BindState = MoveRV(tempBindState);
+    UntypedInvoke = MoveRV(tempUntypedInvoke);
+}
+
 bool TCallbackBase::Equals(const TCallbackBase& other) const
 {
     return
         BindState.Get() == other.BindState.Get() &&
         UntypedInvoke == other.UntypedInvoke;
 }
+
+TCallbackBase::TCallbackBase(const TCallbackBase& other)
+    : BindState(other.BindState)
+    , UntypedInvoke(other.UntypedInvoke)
+{ }
 
 TCallbackBase::TCallbackBase(TCallbackBase&& other)
     : BindState(MoveRV(other.BindState))
@@ -38,20 +60,6 @@ TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
 
 TCallbackBase::~TCallbackBase()
 { }
-
-TCallbackBase& TCallbackBase::operator=(TCallbackBase& other)
-{
-    BindState = other.BindState;
-    UntypedInvoke = other.UntypedInvoke;
-    return *this;
-}
-
-TCallbackBase& TCallbackBase::operator=(TCallbackBase&& other)
-{
-    BindState = MoveRV(other.BindState);
-    UntypedInvoke = MoveRV(other.UntypedInvoke);
-    return *this;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

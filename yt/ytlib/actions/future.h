@@ -1,7 +1,8 @@
 #pragma once
 
 #include "common.h"
-#include "action.h"
+#include "bind.h"
+#include "callback.h"
 
 #include <util/system/event.h>
 
@@ -22,7 +23,7 @@ class TFuture
     mutable TSpinLock SpinLock;
     mutable ::THolder<Event> ReadyEvent;
 
-    yvector<typename IParamAction<T>::TPtr> Subscribers;
+    yvector< TCallback<void(T)> > Subscribers;
 
 public:
     typedef TIntrusivePtr<TFuture> TPtr;
@@ -64,21 +65,21 @@ public:
      *  If the value is set before the call to #Subscribe the
      *  #action gets called synchronously.
      */
-    void Subscribe(typename IParamAction<T>::TPtr action);
+    void Subscribe(TCallback<void(T)> action);
 
     //! Chains the asynchronous computation with another synchronous function.
-    template <class TOther>
-    TIntrusivePtr< TFuture<TOther> >
-    Apply(TIntrusivePtr< IParamFunc<T, TOther> > func);
+    template <class R>
+    TIntrusivePtr< TFuture<R> >
+    Apply(TCallback<R(T)> func);
 
     //! Chains the asynchronous computation with another asynchronous function.
-    template <class TOther>
-    TIntrusivePtr< TFuture<TOther> >
-    Apply(TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TFuture<TOther>  > > > func);
+    template <class R>
+    TIntrusivePtr< TFuture<R> >
+    Apply(TCallback<TIntrusivePtr< TFuture<R> >(T)> func);
 
     //! Casts the result when its ready.
-    template <class TOther>
-    TIntrusivePtr< TFuture<TOther> > CastTo();
+    template <class R>
+    TIntrusivePtr< TFuture<R> > CastTo();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

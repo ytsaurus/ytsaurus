@@ -25,7 +25,7 @@ TMetaStateServiceBase::TMetaStateServiceBase(
 
 void TMetaStateServiceBase::InvokeHandler(
     TRuntimeMethodInfo* runtimeInfo,
-    IAction::TPtr handler,
+    const TClosure& handler,
     NRpc::IServiceContext* context)
 {
     if (Bootstrap->GetMetaStateManager()->GetStateStatusAsync() != EPeerStatus::Leading) {
@@ -34,7 +34,7 @@ void TMetaStateServiceBase::InvokeHandler(
     }
 
     NRpc::IServiceContext::TPtr context_ = context;
-    runtimeInfo->Invoker->Invoke(FromFunctor([=] ()
+    runtimeInfo->Invoker->Invoke(Bind([=] ()
         {
             if (Bootstrap->GetMetaStateManager()->GetStateStatusAsync() != EPeerStatus::Leading ||
                 !Bootstrap->GetMetaStateManager()->HasActiveQuorum())
@@ -48,7 +48,7 @@ void TMetaStateServiceBase::InvokeHandler(
                 return;
             }
 
-            handler->Do();
+            handler.Run();
         }));
 }
 

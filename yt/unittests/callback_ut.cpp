@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/new.h>
+#include <ytlib/misc/common.h>
 #include <ytlib/actions/callback.h>
 #include <ytlib/actions/callback_internal.h>
 
@@ -26,7 +26,7 @@ struct TFakeInvoker
 
 namespace NDetail {
 
-template <class Runnable, class Signature, class BoundArgsType>
+template <class Runnable, class Signature, class BoundArgs>
 struct TBindState;
 
 // White-box injection into a TCallback<> object for checking
@@ -35,7 +35,7 @@ struct TBindState;
 // chance of colliding with another instantiation and breaking the
 // one-definition-rule.
 template <>
-struct TBindState<void(void), void(void), void(TFakeInvoker)>
+struct TBindState<void(), void(), void(TFakeInvoker)>
     : public TBindStateBase
 {
 public:
@@ -43,7 +43,7 @@ public:
 };
 
 template <>
-struct TBindState<void(void), void(void), void(TFakeInvoker, TFakeInvoker)>
+struct TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
     : public TBindStateBase
 {
 public:
@@ -58,9 +58,9 @@ public:
 
 namespace {
 
-typedef NDetail::TBindState<void(void), void(void), void(TFakeInvoker)>
+typedef NDetail::TBindState<void(), void(), void(TFakeInvoker)>
     TFakeBindState1;
-typedef NDetail::TBindState<void(void), void(void), void(TFakeInvoker, TFakeInvoker)>
+typedef NDetail::TBindState<void(), void(), void(TFakeInvoker, TFakeInvoker)>
     TFakeBindState2;
 
 class TCallbackTest
@@ -76,17 +76,17 @@ public:
     { }
 
 protected:
-    TCallback<void(void)> FirstCallback;
-    const TCallback<void(void)> SecondCallback;
+    TCallback<void()> FirstCallback;
+    const TCallback<void()> SecondCallback;
 
-    TCallback<void(void)> NullCallback;
+    TCallback<void()> NullCallback;
 };
 
 // Ensure we can create unbound callbacks. We need this to be able to store
 // them in class members that can be initialized later.
 TEST_F(TCallbackTest, DefaultConstruction)
 {
-    TCallback<void(void)> c0;
+    TCallback<void()> c0;
 
     TCallback<void(int)> c1;
     TCallback<void(int,int)> c2;
@@ -115,8 +115,8 @@ TEST_F(TCallbackTest, Move)
 {
     EXPECT_IS_FALSE(FirstCallback.IsNull());
 
-    TCallback<void(void)> localCallback(MoveRV(FirstCallback));
-    TCallback<void(void)> anotherCallback;
+    TCallback<void()> localCallback(MoveRV(FirstCallback));
+    TCallback<void()> anotherCallback;
 
     EXPECT_IS_TRUE(FirstCallback.IsNull());
     EXPECT_IS_FALSE(localCallback.IsNull());
@@ -136,14 +136,14 @@ TEST_F(TCallbackTest, Equals)
     EXPECT_IS_FALSE(SecondCallback.Equals(FirstCallback));
 
     // We should compare based on instance, not type.
-    TCallback<void(void)> localCallback(New<TFakeBindState1>());
-    TCallback<void(void)> anotherCallback = FirstCallback;
+    TCallback<void()> localCallback(New<TFakeBindState1>());
+    TCallback<void()> anotherCallback = FirstCallback;
    
     EXPECT_IS_TRUE(FirstCallback.Equals(anotherCallback));
     EXPECT_IS_FALSE(FirstCallback.Equals(localCallback));
 
     // Empty, however, is always equal to empty.
-    TCallback<void(void)> localNullCallback;
+    TCallback<void()> localNullCallback;
     EXPECT_IS_TRUE(NullCallback.Equals(localNullCallback));
 }
 

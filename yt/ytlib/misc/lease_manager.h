@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback.h>
 #include <ytlib/actions/invoker.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/nullable.h>
@@ -27,11 +27,11 @@ private:
     {
         bool IsValid;
         TDuration Timeout;
-        IAction::TPtr OnExpired;
+        TClosure OnExpired;
         TDelayedInvoker::TCookie Cookie;
         TSpinLock SpinLock;
 
-        TEntry(TDuration timeout, IAction::TPtr onExpired)
+        TEntry(TDuration timeout, const TClosure& onExpired)
             : IsValid(true)
             , Timeout(timeout)
             , OnExpired(onExpired)
@@ -46,7 +46,7 @@ public:
     static TLease NullLease;
 
     //! Creates a new lease with a given timeout and a given expiration callback.
-    static TLease CreateLease(TDuration timeout, IAction::TPtr onExpired);
+    static TLease CreateLease(TDuration timeout, const TClosure& onExpired);
 
     //! Renews the lease.
     /*!

@@ -43,7 +43,7 @@ void THolder::Save(TOutputStream* output) const
     ::Save(output, JobIds_);
 }
 
-void THolder::Load(TInputStream* input, const TLoadContext& context)
+void THolder::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     ::Load(input, Address_);

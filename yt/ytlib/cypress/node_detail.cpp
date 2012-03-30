@@ -89,7 +89,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     ::Save(output, LockMode_);
 }
 
-void TCypressNodeBase::Load(TInputStream* input, const TLoadContext& context)
+void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectBase::Load(input);
@@ -118,9 +118,9 @@ void TMapNode::Save(TOutputStream* output) const
     SaveMap(output, KeyToChild());
 }
 
-void TMapNode::Load(TInputStream* input, const TLoadContext& context)
+void TMapNode::Load(const TLoadContext& context, TInputStream* input)
 {
-    TCypressNodeBase::Load(input, context);
+    TCypressNodeBase::Load(context, input);
     ::Load(input, ChildCountDelta_);
     LoadMap(input, KeyToChild());
     FOREACH(const auto& pair, KeyToChild()) {
@@ -241,9 +241,9 @@ void TListNode::Save(TOutputStream* output) const
     ::Save(output, IndexToChild());
 }
 
-void TListNode::Load(TInputStream* input, const TLoadContext& context)
+void TListNode::Load(const TLoadContext& context, TInputStream* input)
 {
-    TCypressNodeBase::Load(input, context);
+    TCypressNodeBase::Load(context, input);
     ::Load(input, IndexToChild());
     for (int i = 0; i < IndexToChild().ysize(); ++i) {
         ChildToIndex()[IndexToChild()[i]] = i;

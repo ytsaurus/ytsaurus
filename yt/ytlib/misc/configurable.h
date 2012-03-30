@@ -5,7 +5,7 @@
 
 #include <ytlib/ytree/public.h>
 
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback.h>
 
 namespace NYT {
 namespace NConfig {
@@ -34,8 +34,7 @@ public:
     /*!
      * \note Must throw exception for incorrect data
      */
-    typedef IParamAction<const T&> TValidator;
-    typedef TIntrusivePtr<TValidator> TValidatorPtr;
+    typedef TCallback<void(const T&)> TValidator;
 
     explicit TParameter(T& parameter);
 
@@ -48,7 +47,7 @@ public: // for users
     TParameter& Default(const T& defaultValue = T());
     TParameter& Default(T&& defaultValue);
     TParameter& DefaultNew();
-    TParameter& CheckThat(TValidatorPtr validator);
+    TParameter& CheckThat(TValidator validator);
     TParameter& GreaterThan(T value);
     TParameter& GreaterThanOrEqual(T value);
     TParameter& LessThan(T value);
@@ -59,7 +58,7 @@ public: // for users
 private:
     T& Parameter;
     bool HasDefaultValue;
-    yvector<typename TValidator::TPtr> Validators;
+    yvector<TValidator> Validators;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

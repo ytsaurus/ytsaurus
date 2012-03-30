@@ -368,7 +368,7 @@ private:
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
         // Doing otherwise will turn holder registration and Cypress update into a single
         // logged change, which is undesirable.
-        FromFunctor([=] () {
+        Bind([=] () {
             if (node->FindChild(address))
                 return;
 
@@ -391,10 +391,10 @@ private:
                 ExecuteVerb(~service, ~req);
             }
         })
-        ->Via(
+        .Via(
             Bootstrap->GetStateInvoker(),
             Bootstrap->GetMetaStateManager()->GetEpochContext())
-        ->Do();
+        .Run();
     }
 
 };

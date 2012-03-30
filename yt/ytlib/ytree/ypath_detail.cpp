@@ -4,7 +4,6 @@
 #include "serialize.h"
 #include <ytlib/rpc/rpc.pb.h>
 
-#include <ytlib/actions/action_util.h>
 #include <ytlib/bus/message.h>
 #include <ytlib/rpc/server_detail.h>
 #include <ytlib/rpc/message.h>
@@ -182,7 +181,7 @@ static void DoSetAttribute(
 {
     if (isSystem) {
         YASSERT(systemAttributeProvider);
-        if (!systemAttributeProvider->SetSystemAttribute(key, ~ProducerFromNode(value))) {
+        if (!systemAttributeProvider->SetSystemAttribute(key, ProducerFromNode(value))) {
             ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
         }
     } else {
@@ -200,7 +199,7 @@ static void DoSetAttribute(
     const TYson& value)
 {
     if (systemAttributeProvider) {
-        if (systemAttributeProvider->SetSystemAttribute(key, ~ProducerFromYson(value))) {
+        if (systemAttributeProvider->SetSystemAttribute(key, ProducerFromYson(value))) {
             return;
         }
 
@@ -499,7 +498,7 @@ void TNodeSetterBase::OnMyBeginAttributes()
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
 {
     AttributeKey = key;
-    ForwardNode(&AttributeWriter, FromMethod(&TThis::OnForwardingFinished, this));
+    ForwardNode(&AttributeWriter, Bind(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()
@@ -536,8 +535,8 @@ protected:
     {
         UNUSED(error);
 
-        if (ResponseHandler) {
-            ResponseHandler->Do(responseMessage);
+        if (!ResponseHandler.IsNull()) {
+            ResponseHandler.Run(responseMessage);
         }
     }
 

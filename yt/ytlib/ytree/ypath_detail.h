@@ -8,7 +8,6 @@
 #include <ytlib/ytree/ypath.pb.h>
 #include "attributes.h"
 
-#include <ytlib/actions/action_util.h>
 #include <ytlib/misc/assert.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/rpc/service.h>
@@ -223,7 +222,7 @@ private:
     {
         ItemKey = key;
         TreeBuilder->BeginTree();
-        ForwardNode(TreeBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+        ForwardNode(TreeBuilder, Bind(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -269,7 +268,7 @@ private:
     virtual void OnMyListItem()
     {
         TreeBuilder->BeginTree();
-        ForwardNode(TreeBuilder, FromMethod(&TThis::OnForwardingFinished, this));
+        ForwardNode(TreeBuilder, Bind(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -317,16 +316,16 @@ void SetNodeFromProducer(
     ITreeBuilder* builder)
 {
     YASSERT(node);
-    YASSERT(producer);
+    YASSERT(!producer.IsNull());
     YASSERT(builder);
 
     TNodeSetter<TNode> setter(node, builder);
-    producer->Do(&setter);
+    producer.Run(&setter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef IParamAction<NBus::IMessage::TPtr>::TPtr TYPathResponseHandler;
+typedef TCallback<void(NBus::IMessage::TPtr)> TYPathResponseHandler;
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
     NBus::IMessage* requestMessage,

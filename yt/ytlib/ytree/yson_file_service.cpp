@@ -23,12 +23,12 @@ class TReplyInterceptorContext
 public:
     TReplyInterceptorContext(
         IServiceContext* underlyingContext,
-        IAction::TPtr onReply)
+        TClosure onReply)
         : UnderlyingContext(underlyingContext)
         , OnReply(onReply)
     {
         YASSERT(underlyingContext);
-        YASSERT(onReply);
+        YASSERT(!onReply.IsNull());
     }
 
     virtual NBus::IMessage::TPtr GetRequestMessage() const
@@ -64,7 +64,7 @@ public:
     virtual void Reply(const TError& error)
     {
         UnderlyingContext->Reply(error);
-        OnReply->Do();
+        OnReply.Run();
     }
 
     virtual TError GetError() const
@@ -122,14 +122,14 @@ public:
         return UnderlyingContext->GetRequestInfo();
     }
 
-    virtual IAction::TPtr Wrap(IAction::TPtr action) 
+    virtual TClosure Wrap(TClosure action) 
     {
         return UnderlyingContext->Wrap(action);
     }
 
 private:
     IServiceContext::TPtr UnderlyingContext;
-    IAction::TPtr OnReply;
+    TClosure OnReply;
 
 };
 
@@ -166,7 +166,7 @@ public:
             UnderlyingService->IsWriteRequest(context)
             ? New<TReplyInterceptorContext>(
                 context,
-                FromMethod(&TWriteBackService::SaveFile, MakeStrong(this)))
+                Bind(&TWriteBackService::SaveFile, MakeStrong(this)))
             : IServiceContext::TPtr(context);
         UnderlyingService->Invoke(~wrappedContext);
     }
@@ -254,7 +254,7 @@ private:
 
 TYPathServiceProducer CreateYsonFileProducer(const Stroka& fileName)
 {
-    return FromFunctor([=] () -> IYPathServicePtr
+    return Bind([=] () -> IYPathServicePtr
         {
             return New<TYsonFileService>(fileName);
         });

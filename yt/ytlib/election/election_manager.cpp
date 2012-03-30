@@ -1,9 +1,9 @@
 
 #include "election_manager.h"
 
+#include <ytlib/actions/invoker.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/logging/log.h>
-#include <ytlib/actions/action_util.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/profiling/profiler.h>
 
@@ -75,8 +75,8 @@ private:
         request->set_epoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
             request->Invoke(),
-            FromMethod(&TFollowerPinger::OnPingResponse, MakeStrong(this), id)
-            ->Via(EpochInvoker));
+            Bind(&TFollowerPinger::OnPingResponse, MakeStrong(this), id)
+            .Via(EpochInvoker));
     }
 
     void SchedulePing(TPeerId id)
@@ -84,12 +84,12 @@ private:
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         TDelayedInvoker::Submit(
-            FromMethod(&TFollowerPinger::SendPing, MakeStrong(this), id)
-            ->Via(EpochInvoker),
+            Bind(&TFollowerPinger::SendPing, MakeStrong(this), id)
+            .Via(EpochInvoker),
             ElectionManager->Config->FollowerPingInterval);
     }
 
-    void OnPingResponse(TProxy::TRspPingFollower::TPtr response, TPeerId id)
+    void OnPingResponse(TPeerId id, TProxy::TRspPingFollower::TPtr response)
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
         YASSERT(ElectionManager->State == TProxy::EState::Leading);
@@ -210,10 +210,10 @@ public:
             auto request = proxy->GetStatus();
             Awaiter->Await(
                 request->Invoke(),
-                FromMethod(&TThis::OnResponse, MakeStrong(this), id));
+                Bind(&TThis::OnResponse, MakeStrong(this), id));
         }
 
-        Awaiter->Complete(FromMethod(&TThis::OnComplete, MakeStrong(this)));
+        Awaiter->Complete(Bind(&TThis::OnComplete, MakeStrong(this)));
     }
 
 private:
@@ -251,13 +251,13 @@ private:
         return CheckForLeader();
     }
 
-    void OnResponse(TProxy::TRspGetStatus::TPtr response, TPeerId peerId)
+    void OnResponse(TPeerId id, TProxy::TRspGetStatus::TPtr response)
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         if (!response->IsOK()) {
             LOG_INFO("Error requesting status from peer %d (Round: %p)\n%s",
-                peerId,
+                id,
                 this,
                 ~response->GetError().ToString());
             return;
@@ -269,14 +269,14 @@ private:
         auto epoch = TEpoch::FromProto(response->vote_epoch());
         
         LOG_DEBUG("Received status from peer %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpoch: %s)",
-            peerId,
+            id,
             this,
             ~state.ToString(),
             vote,
             ~ElectionManager->ElectionCallbacks->FormatPriority(priority),
             ~epoch.ToString());
 
-        ProcessVote(peerId, TStatus(state, vote, priority, epoch));
+        ProcessVote(id, TStatus(state, vote, priority, epoch));
     }
 
     bool CheckForLeader()
@@ -338,11 +338,11 @@ private:
 
         // Become a leader or a follower.
         if (candidateId == ElectionManager->CellManager->SelfId()) {
-            EpochInvoker->Invoke(FromMethod(
+            EpochInvoker->Invoke(Bind(
                 &TElectionManager::StartLeading,
                 TElectionManager::TPtr(ElectionManager)));
         } else {
-            EpochInvoker->Invoke(FromMethod(
+            EpochInvoker->Invoke(Bind(
                 &TElectionManager::StartFollowing,
                 TElectionManager::TPtr(ElectionManager),
                 candidateId,
@@ -461,14 +461,14 @@ void TElectionManager::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ControlInvoker->Invoke(FromMethod(&TElectionManager::DoStart, this));
+    ControlInvoker->Invoke(Bind(&TElectionManager::DoStart, MakeWeak(this)));
 }
 
 void TElectionManager::Stop()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ControlInvoker->Invoke(FromMethod(&TElectionManager::DoStop, this));
+    ControlInvoker->Invoke(Bind(&TElectionManager::DoStop, MakeWeak(this)));
 }
 
 void TElectionManager::Restart()
@@ -593,9 +593,10 @@ void TElectionManager::StartFollowing(
 
     StartEpoch(leaderId, epoch);
 
+    // XXX(sandello): Capture policy here?
     PingTimeoutCookie = TDelayedInvoker::Submit(
-        FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
-        ->Via(~ControlEpochInvoker),
+        Bind(&TElectionManager::OnLeaderPingTimeout, MakeStrong(this))
+        .Via(~ControlEpochInvoker),
         Config->ReadyToFollowTimeout);
 
     LOG_INFO("Starting following leader %d (Epoch: %s)",
@@ -745,9 +746,10 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
     }
 
     TDelayedInvoker::Cancel(PingTimeoutCookie);
+    // XXX(sandello): Capture policy here?
     PingTimeoutCookie = TDelayedInvoker::Submit(
-        FromMethod(&TElectionManager::OnLeaderPingTimeout, this)
-        ->Via(~ControlEpochInvoker),
+        Bind(&TElectionManager::OnLeaderPingTimeout, MakeStrong(this))
+        .Via(~ControlEpochInvoker),
         Config->FollowerPingTimeout);
 
     context->Reply();

@@ -14,7 +14,7 @@ namespace NYTree {
 
 TYsonProducer ProducerFromYson(TInputStream* input)
 {
-    return FromFunctor([=] (IYsonConsumer* consumer)
+    return Bind([=] (IYsonConsumer* consumer)
         {
             TYsonReader reader(consumer, input);
             reader.Read();
@@ -23,7 +23,7 @@ TYsonProducer ProducerFromYson(TInputStream* input)
 
 TYsonProducer ProducerFromYson(const TYson& data)
 {
-    return FromFunctor([=] (IYsonConsumer* consumer)
+    return Bind([=] (IYsonConsumer* consumer)
         {
             TStringInput input(data);
             TYsonReader reader(consumer, &input);
@@ -33,7 +33,7 @@ TYsonProducer ProducerFromYson(const TYson& data)
 
 TYsonProducer ProducerFromNode(INode* node)
 {
-    return FromFunctor([=] (IYsonConsumer* consumer)
+    return Bind([=] (IYsonConsumer* consumer)
         {
             VisitTree(node, consumer);
         });
@@ -215,7 +215,7 @@ void Write(INode& parameter, IYsonConsumer* consumer)
 // TYsonProducer
 void Write(TYsonProducer parameter, IYsonConsumer* consumer)
 {
-    parameter->Do(consumer);
+    parameter.Run(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

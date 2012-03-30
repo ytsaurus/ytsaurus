@@ -31,7 +31,7 @@ void TChunk::Save(TOutputStream* output) const
     SaveNullableSet(output, CachedLocations_);
 }
 
-void TChunk::Load(TInputStream* input, const TLoadContext& context)
+void TChunk::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectWithIdBase::Load(input);

@@ -28,14 +28,14 @@ public:
     template <class T>
     void Await(
         TIntrusivePtr< TFuture<T> > result,
-        TIntrusivePtr< IParamAction<T> > onResult = NULL);
+        TCallback<void(T)> onResult = TCallback<void(T)>());
     template <class T>
     void Await(
         TIntrusivePtr< TFuture<T> > result,
         const NYTree::TYPath& timerPathSuffix,
-        TIntrusivePtr< IParamAction<T> > onResult = NULL);
+        TCallback<void(T)> onResult = TCallback<void(T)>());
 
-    void Complete(IAction::TPtr onComplete = NULL);
+    void Complete(TClosure onComplete = TClosure());
     void Cancel();
     bool IsCanceled() const;
 
@@ -46,7 +46,7 @@ private:
     bool Terminated;
     i32 RequestCount;
     i32 ResponseCount;
-    IAction::TPtr OnComplete;
+    TClosure OnComplete;
     TCancelableContextPtr CancelableContext;
     IInvoker::TPtr CancelableInvoker;
     NProfiling::TProfiler* Profiler;
@@ -60,9 +60,9 @@ private:
 
     template <class T>
     void OnResult(
-        T result,
         const NYTree::TYPath& timerPathSuffix,
-        typename IParamAction<T>::TPtr onResult);
+        TCallback<void(T)> onResult,
+        T result);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

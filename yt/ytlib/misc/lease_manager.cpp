@@ -1,9 +1,9 @@
 #include "stdafx.h"
 #include "lease_manager.h"
 
+#include <ytlib/actions/bind.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/actions/action_util.h>
 
 namespace NYT
 {
@@ -20,14 +20,14 @@ class TLeaseManager::TImpl
 public:
     typedef TLeaseManager::TLease TLease;
 
-    static TLease CreateLease(TDuration timeout, IAction::TPtr onExpired)
+    static TLease CreateLease(TDuration timeout, const TClosure& onExpired)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(onExpired);
+        YASSERT(!onExpired.IsNull());
 
         auto lease = New<TEntry>(timeout, onExpired);
         lease->Cookie = TDelayedInvoker::Submit(
-            FromMethod(&TImpl::OnLeaseExpired, lease),
+            Bind(&TImpl::OnLeaseExpired, lease),
             timeout);
         return lease;
     }
@@ -46,7 +46,7 @@ public:
             lease->Timeout = timeout.Get();
         }
         lease->Cookie = TDelayedInvoker::Submit(
-            FromMethod(&TImpl::OnLeaseExpired, lease),
+            Bind(&TImpl::OnLeaseExpired, lease),
             lease->Timeout);
         return true;
     }
@@ -75,7 +75,7 @@ private:
         InvalidateLease(lease);
         guard.Release();
 
-        onExpired->Do();
+        onExpired.Run();
     }
 
     static void InvalidateLease(TLease lease)
@@ -90,7 +90,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLeaseManager::TLease TLeaseManager::CreateLease(TDuration timeout, IAction::TPtr onExpired)
+TLeaseManager::TLease TLeaseManager::CreateLease(TDuration timeout, const TClosure& onExpired)
 {
     return TImpl::CreateLease(timeout, onExpired);
 }

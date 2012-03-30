@@ -147,17 +147,17 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "Cypress.Keys.1",
-        FromMethod(&TCypressManager::LoadKeys, MakeStrong(this)));
+        Bind(&TCypressManager::LoadKeys, MakeStrong(this)));
     metaState->RegisterLoader(
         "Cypress.Values.1",
-        FromMethod(&TCypressManager::LoadValues, MakeStrong(this), context));
+        Bind(&TCypressManager::LoadValues, MakeStrong(this), context));
     metaState->RegisterSaver(
         "Cypress.Keys.1",
-        FromMethod(&TCypressManager::SaveKeys, MakeStrong(this)),
+        Bind(&TCypressManager::SaveKeys, MakeStrong(this)),
         ESavePhase::Keys);
     metaState->RegisterSaver(
         "Cypress.Values.1",
-        FromMethod(&TCypressManager::SaveValues, MakeStrong(this)),
+        Bind(&TCypressManager::SaveValues, MakeStrong(this)),
         ESavePhase::Values);
 
     metaState->RegisterPart(this);
@@ -275,7 +275,7 @@ TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 {
     auto stateInvoker = MetaStateManager->GetStateInvoker();
     auto this_ = MakeStrong(this);
-    return FromFunctor([=] () -> IYPathServicePtr
+    return Bind([=] () -> IYPathServicePtr
         {
             // Make a coarse check at this (wrong) thread first.
             auto status = this_->MetaStateManager->GetStateStatusAsync();
@@ -715,7 +715,7 @@ ICypressNode& TCypressManager::BranchNode(
     return *branchedNode_;
 }
 
-void TCypressManager::SaveKeys(TOutputStream* output)
+void TCypressManager::SaveKeys(TOutputStream* output) const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -723,7 +723,7 @@ void TCypressManager::SaveKeys(TOutputStream* output)
     LockMap.SaveKeys(output);
 }
 
-void TCypressManager::SaveValues(TOutputStream* output)
+void TCypressManager::SaveValues(TOutputStream* output) const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -739,12 +739,12 @@ void TCypressManager::LoadKeys(TInputStream* input)
     LockMap.LoadKeys(input);
 }
 
-void TCypressManager::LoadValues(TInputStream* input, TLoadContext context)
+void TCypressManager::LoadValues(const TLoadContext& context, TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    NodeMap.LoadValues(input, context);
-    LockMap.LoadValues(input, context);
+    NodeMap.LoadValues(context, input);
+    LockMap.LoadValues(context, input);
 }
 
 void TCypressManager::Clear()

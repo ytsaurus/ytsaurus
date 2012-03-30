@@ -18,18 +18,18 @@ TFuture<T>::TFuture()
 template <class T>
 TFuture<T>::TFuture(T value)
     : IsSet_(true)
-    , Value(value)
+    , Value(MoveRV(value))
 { }
 
 template <class T>
 void TFuture<T>::Set(T value)
 {
-    yvector<typename IParamAction<T>::TPtr> subscribers;
+    yvector< TCallback<void(T)> > subscribers;
 
     {
         TGuard<TSpinLock> guard(SpinLock);
         YASSERT(!IsSet_);
-        Value = value;
+        Value = MoveRV(value);
         IsSet_ = true;
 
         Event* event = ~ReadyEvent;
@@ -41,7 +41,7 @@ void TFuture<T>::Set(T value)
     }
 
     FOREACH(auto& subscriber, subscribers) {
-        subscriber->Do(value);
+        subscriber.Run(Value);
     }
 }
 
@@ -84,72 +84,68 @@ bool TFuture<T>::IsSet() const
 }
 
 template <class T>
-void TFuture<T>::Subscribe(typename IParamAction<T>::TPtr action)
+void TFuture<T>::Subscribe(TCallback<void(T)> action)
 {
-    YASSERT(action);
+    YASSERT(!action.IsNull());
 
     TGuard<TSpinLock> guard(SpinLock);
     if (IsSet_) {
         guard.Release();
-        action->Do(Value);
+        action.Run(Value);
     } else {
-        Subscribers.push_back(action);
+        Subscribers.push_back(MoveRV(action));
     }
 }
 
-template <class T, class TOther>
+template <class T, class R>
 void ApplyFuncThunk(
-    T value,
-    typename TFuture<TOther>::TPtr otherResult,
-    typename IParamFunc<T, TOther>::TPtr func)
+    TIntrusivePtr< TFuture<R> > otherResult,
+    TCallback<R(T)> func,
+    T value)
 {
-    otherResult->Set(func->Do(value));
+    otherResult->Set(func.Run(MoveRV(value)));
 }
 
 template <class T>
-template <class TOther>
-TIntrusivePtr< TFuture<TOther> >
-TFuture<T>::Apply(TIntrusivePtr< IParamFunc<T, TOther> > func)
+template <class R>
+TIntrusivePtr< TFuture<R> >
+TFuture<T>::Apply(TCallback<R(T)> func)
 {
-    YASSERT(func);
+    YASSERT(!func.IsNull());
 
-    auto otherResult = New< TFuture<TOther> >();
-    Subscribe(FromMethod(&ApplyFuncThunk<T, TOther>, otherResult, func));
+    auto otherResult = New< TFuture<R> >();
+    Subscribe(Bind(&ApplyFuncThunk<T, R>, otherResult, Passed(MoveRV(func))));
     return otherResult;
 }
 
-template <class T, class TOther>
+template <class T, class R>
 void AsyncApplyFuncThunk(
-    T value,
-    typename TFuture<TOther>::TPtr otherResult,
-    typename IParamFunc<T, typename TFuture<TOther>::TPtr>::TPtr func)
+    TIntrusivePtr< TFuture<R> > otherResult,
+    TCallback<TIntrusivePtr< TFuture<R> >(T)> func,
+    T value)
 {
-    YASSERT(func);
+    YASSERT(!func.IsNull());
 
-    func->Do(value)->Subscribe(FromMethod(
-        &TFuture<TOther>::Set, otherResult));
+    func.Run(MoveRV(value))->Subscribe(Bind(&TFuture<R>::Set, MoveRV(otherResult)));
 }
 
 template <class T>
-template <class TOther>
-TIntrusivePtr< TFuture<TOther> >
-TFuture<T>::Apply(TIntrusivePtr< IParamFunc<T, TIntrusivePtr< TFuture<TOther> > > > func)
+template <class R>
+TIntrusivePtr< TFuture<R> >
+TFuture<T>::Apply(TCallback<TIntrusivePtr< TFuture<R> >(T)> func)
 {
-    YASSERT(func);
+    YASSERT(!func.IsNull());
 
-    auto otherResult = New< TFuture<TOther> >();
-    Subscribe(FromMethod(&AsyncApplyFuncThunk<T, TOther>, otherResult, func));
+    auto otherResult = New< TFuture<R> >();
+    Subscribe(Bind(&AsyncApplyFuncThunk<T, R>, otherResult, Passed(MoveRV(func))));
     return otherResult;
 }
 
 template <class T>
-template <class TOther>
-TIntrusivePtr< TFuture<TOther> > TFuture<T>::CastTo()
+template <class R>
+TIntrusivePtr< TFuture<R> > TFuture<T>::CastTo()
 {
-    return Apply(FromFunctor([] (T value)
-        {
-            return TOther(value);
-        }));
+    return Apply(Bind([] (T value) { return R(value); }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

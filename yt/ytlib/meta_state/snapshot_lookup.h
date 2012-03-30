@@ -32,8 +32,8 @@ private:
     TFuture<i32>::TPtr ResultPromise;
 
     void OnLookupSnapshotResponse(
-        TProxy::TRspLookupSnapshot::TPtr response,
-        TPeerId peerId);
+        TPeerId peerId,
+        TProxy::TRspLookupSnapshot::TPtr response);
     void OnLookupSnapshotComplete();
 };
 

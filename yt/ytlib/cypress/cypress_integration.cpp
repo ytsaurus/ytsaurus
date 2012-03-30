@@ -87,7 +87,7 @@ private:
             return NULL;
         }
 
-        return IYPathService::FromProducer(FromFunctor([=] (IYsonConsumer* consumer)
+        return IYPathService::FromProducer(Bind([=] (IYsonConsumer* consumer)
             {
                 BuildYsonFluently(consumer)
                     .BeginMap()

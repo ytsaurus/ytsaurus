@@ -22,7 +22,7 @@ void TAttributeSet::Save(TOutputStream* output) const
     SaveMap(output, Attributes_);
 }
 
-void TAttributeSet::Load(TInputStream* input, const TLoadContext& context)
+void TAttributeSet::Load(const TLoadContext& context, TInputStream* input)
 {
     LoadMap(input, Attributes_);
 }

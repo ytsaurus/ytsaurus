@@ -3,7 +3,8 @@
 #include <ytlib/misc/thread_affinity.h>
 
 #include <ytlib/actions/action_queue.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
+#include <ytlib/actions/future.h>
 
 #include <contrib/testing/framework.h>
 
@@ -44,57 +45,57 @@ namespace {
     {
         PROLOGUE();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker1)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker1)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker1).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker1).Run()->Get();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker1)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker1)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker1).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker1).Run()->Get();
     }
 
     void UntangledThreadAccess(TMyObject* object)
     {
         PROLOGUE();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker1)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker2)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker1).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker2).Run()->Get();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker1)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker2)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker1).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker2).Run()->Get();
     }
 
     void UntangledThreadAccessToSharedSlot(TMyObject* object)
     {
         PROLOGUE();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker1)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker2)->Do()->Get();
-        FromMethod(&TMyObject::C, object)->AsyncVia(invoker1)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker1).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker2).Run()->Get();
+        Bind(&TMyObject::C, object).AsyncVia(invoker1).Run()->Get();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker1)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker2)->Do()->Get();
-        FromMethod(&TMyObject::C, object)->AsyncVia(invoker1)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker1).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker2).Run()->Get();
+        Bind(&TMyObject::C, object).AsyncVia(invoker1).Run()->Get();
     }
 
     void TangledThreadAccess1(TMyObject* object)
     {
         PROLOGUE();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker1)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker2)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker1).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker2).Run()->Get();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker1)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker1)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker1).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker1).Run()->Get();
     }
 
     void TangledThreadAccess2(TMyObject* object)
     {
         PROLOGUE();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker1)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker2)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker1).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker2).Run()->Get();
 
-        FromMethod(&TMyObject::A, object)->AsyncVia(invoker2)->Do()->Get();
-        FromMethod(&TMyObject::B, object)->AsyncVia(invoker2)->Do()->Get();
+        Bind(&TMyObject::A, object).AsyncVia(invoker2).Run()->Get();
+        Bind(&TMyObject::B, object).AsyncVia(invoker2).Run()->Get();
     }
 #undef PROLOGUE
 } // namespace <anonymous>

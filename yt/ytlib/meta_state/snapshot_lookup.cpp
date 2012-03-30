@@ -42,14 +42,14 @@ i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
         request->set_max_snapshot_id(maxSnapshotId);
         awaiter->Await(
             request->Invoke(),
-            FromMethod(
+            Bind(
             &TSnapshotLookup::OnLookupSnapshotResponse,
             this,
             peerId));
     }
     LOG_INFO("Snapshot lookup requests sent");
 
-    awaiter->Complete(FromMethod(
+    awaiter->Complete(Bind(
         &TSnapshotLookup::OnLookupSnapshotComplete,
         this));
 
@@ -57,8 +57,8 @@ i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
 }
 
 void TSnapshotLookup::OnLookupSnapshotResponse(
-    TProxy::TRspLookupSnapshot::TPtr response,
-    TPeerId peerId)
+    TPeerId peerId,
+    TProxy::TRspLookupSnapshot::TPtr response)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

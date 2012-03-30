@@ -5,8 +5,9 @@
 #include "yson_writer.h"
 #include "tree_visitor.h"
 
-// For TVoid.
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback.h>
+#include <ytlib/actions/bind_helpers.h> // For TVoid
+#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 namespace NYTree {
@@ -32,7 +33,7 @@ public:
     public:
         TParent Do(TYsonProducer producer)
         {
-            producer->Do(this->Consumer);
+            producer.Run(this->Consumer);
             return this->Parent;
         }
 
