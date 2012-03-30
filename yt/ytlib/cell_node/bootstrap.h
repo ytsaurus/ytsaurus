@@ -51,6 +51,7 @@ private:
     NBus::IBusServer::TPtr BusServer;
     NRpc::IServer::TPtr RpcServer;
     NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannel::TPtr SchedulerChannel;
     Stroka PeerAddress;
     NYTree::IMapNodePtr OrchidRoot;
 

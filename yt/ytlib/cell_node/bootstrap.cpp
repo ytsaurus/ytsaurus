@@ -29,6 +29,8 @@
 #include <ytlib/chunk_holder/ytree_integration.h>
 #include <ytlib/chunk_holder/chunk_cache.h>
 
+#include <ytlib/scheduler/scheduler_channel.h>
+
 #include <ytlib/exec_agent/bootstrap.h>
 #include <ytlib/exec_agent/config.h>
 
@@ -42,6 +44,7 @@ using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NChunkServer;
 using namespace NProfiling;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +73,9 @@ void TBootstrap::Run()
         ~JoinToString(Config->Masters->Addresses));
 
     MasterChannel = CreateLeaderChannel(Config->Masters);
+    
+    // TODO(babenko): for now we use the same timeout both for masters and scheduler
+    SchedulerChannel = CreateSchedulerChannel(Config->Masters->RpcTimeout, MasterChannel);
 
     auto controlQueue = New<TActionQueue>("Control");
     ControlInvoker = controlQueue->GetInvoker();
@@ -160,8 +166,7 @@ IChannel::TPtr TBootstrap::GetMasterChannel() const
 
 IChannel::TPtr TBootstrap::GetSchedulerChannel() const
 {
-    // TODO(babenko): for now we just use redirector
-    return MasterChannel;
+    return SchedulerChannel;
 }
 
 Stroka TBootstrap::GetPeerAddress() const

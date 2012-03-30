@@ -16,9 +16,9 @@ TValueOrError<IChannel::TPtr> OnLeaderFound(TLeaderLookup::TResult result)
 {
     if (result.Id == NElection::InvalidPeerId) {
         return TError("Unable to determine the leader");
-    } else {
-        return CreateBusChannel(result.Address);
-    }
+    } 
+
+    return CreateBusChannel(result.Address);
 }
 
 } // namespace <anonymous>

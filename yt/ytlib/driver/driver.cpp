@@ -12,8 +12,12 @@
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ephemeral.h>
+
 #include <ytlib/election/leader_channel.h>
+
 #include <ytlib/chunk_client/client_block_cache.h>
+
+#include <ytlib/scheduler/scheduler_channel.h>
 
 namespace NYT {
 namespace NDriver {
@@ -23,6 +27,7 @@ using namespace NRpc;
 using namespace NElection;
 using namespace NTransactionClient;
 using namespace NChunkClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,10 +44,9 @@ public:
         , BufferedOutput(~Output)
         , Writer(&BufferedOutput, format)
     {
-        ForwardNode(&Writer, FromFunctor([=] ()
-            {
-                BufferedOutput.Write('\n');
-            }));
+        ForwardNode(&Writer, FromFunctor([=] () {
+            BufferedOutput.Write('\n');
+        }));
     }
 
 private:
@@ -114,30 +118,35 @@ public:
 
         MasterChannel = CreateLeaderChannel(config->Masters);
 
+        // TODO(babenko): for now we use the same timeout both for masters and scheduler
+        SchedulerChannel = CreateSchedulerChannel(
+            config->Masters->RpcTimeout,
+            MasterChannel);
+
         BlockCache = CreateClientBlockCache(~config->BlockCache);
 
         TransactionManager = New<TTransactionManager>(
-            ~config->TransactionManager,
-            ~MasterChannel);
+            config->TransactionManager,
+            MasterChannel);
 
-        RegisterCommand("start", ~New<TStartCommand>(this));
-        RegisterCommand("commit", ~New<TCommitCommand>(this));
-        RegisterCommand("abort", ~New<TAbortCommand>(this));
+        RegisterCommand("start", New<TStartCommand>(this));
+        RegisterCommand("commit", New<TCommitCommand>(this));
+        RegisterCommand("abort", New<TAbortCommand>(this));
 
-        RegisterCommand("get", ~New<TGetCommand>(this));
-        RegisterCommand("set", ~New<TSetCommand>(this));
-        RegisterCommand("remove", ~New<TRemoveCommand>(this));
-        RegisterCommand("list", ~New<TListCommand>(this));
-        RegisterCommand("create", ~New<TCreateCommand>(this));
-        RegisterCommand("lock", ~New<TLockCommand>(this));
+        RegisterCommand("get", New<TGetCommand>(this));
+        RegisterCommand("set", New<TSetCommand>(this));
+        RegisterCommand("remove", New<TRemoveCommand>(this));
+        RegisterCommand("list", New<TListCommand>(this));
+        RegisterCommand("create", New<TCreateCommand>(this));
+        RegisterCommand("lock", New<TLockCommand>(this));
 
-        RegisterCommand("download", ~New<TDownloadCommand>(this));
-        RegisterCommand("upload", ~New<TUploadCommand>(this));
+        RegisterCommand("download", New<TDownloadCommand>(this));
+        RegisterCommand("upload", New<TUploadCommand>(this));
 
-        RegisterCommand("read", ~New<TReadCommand>(this));
-        RegisterCommand("write", ~New<TWriteCommand>(this));
+        RegisterCommand("read", New<TReadCommand>(this));
+        RegisterCommand("write", New<TWriteCommand>(this));
 
-        RegisterCommand("map", ~New<TMapCommand>(this));
+        RegisterCommand("map", New<TMapCommand>(this));
     }
 
     TError Execute(INodePtr command)
@@ -163,13 +172,7 @@ public:
 
     IChannel::TPtr GetSchedulerChannel() const
     {
-        // Scheduler and master run in separate processes, but we use
-        // scheduler proxy with channel to master because master incorporates
-        // redirection service that will pass our request down the proper
-        // scheduler instance (given that there is a proper instance and that
-        // it had registered itself with the master at /sys/scheduler@address,
-        // see server/scheduler_bootstrap.cpp)
-        return MasterChannel;
+        return SchedulerChannel;
     }
 
     virtual void ReplyError(const TError& error)
@@ -181,10 +184,9 @@ public:
         TYsonWriter writer(~output, Config->OutputFormat);
         BuildYsonFluently(&writer)
             .BeginMap()
-                .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent)
-                    {
-                        fluent.Item("code").Scalar(error.GetCode());
-                    })
+                .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent) {
+                    fluent.Item("code").Scalar(error.GetCode());
+                })
                 .Item("message").Scalar(error.GetMessage())
             .EndMap();
         output->Write('\n');
@@ -264,6 +266,7 @@ private:
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
     IChannel::TPtr MasterChannel;
+    IChannel::TPtr SchedulerChannel;
     IBlockCache::TPtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
 
