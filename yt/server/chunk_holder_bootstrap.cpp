@@ -162,13 +162,13 @@ void TChunkHolderBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "/ref_counted",
-        Bind(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "/bus_server",
-        Bind(&IBusServer::GetMonitoringInfo, busServer));
+        BIND(&IBusServer::GetMonitoringInfo, busServer));
     monitoringManager->Register(
         "/rpc_server",
-        Bind(&IServer::GetMonitoringInfo, rpcServer));
+        BIND(&IServer::GetMonitoringInfo, rpcServer));
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
@@ -202,7 +202,7 @@ void TChunkHolderBootstrap::Run()
     httpServer->Register(
         "/orchid",
         ~NMonitoring::GetYPathHttpHandler(
-            ~Bind([=] () -> IYPathService::TPtr
+            ~BIND([=] () -> IYPathService::TPtr
                 {
                     return orchidRoot;
                 }),

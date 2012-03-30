@@ -62,17 +62,17 @@ public:
             Awaiter = New<TParallelAwaiter>(~Owner->EpochControlInvoker);
         }
 
-        Owner->EpochControlInvoker->Invoke(Bind(
+        Owner->EpochControlInvoker->Invoke(BIND(
             &TSession::DoSendRequests,
             MakeStrong(this)));
         
         if (CreateSnapshot) {
             Awaiter->Await(
                 Owner->CreateLocalSnapshot(Version),
-                Bind(&TSession::OnLocalSnapshotCreated, MakeStrong(this)));
+                BIND(&TSession::OnLocalSnapshotCreated, MakeStrong(this)));
 
             // The awaiter must be completed from the control thread.
-            Owner->EpochControlInvoker->Invoke(Bind(
+            Owner->EpochControlInvoker->Invoke(BIND(
                 &TSession::DoCompleteSession,
                 MakeStrong(this)));
         } else {
@@ -106,8 +106,8 @@ private:
 
             auto responseHandler =
                 CreateSnapshot
-                ? Bind(&TSession::OnSnapshotCreated, MakeStrong(this), id)
-                : Bind(&TSession::OnChangeLogRotated, MakeStrong(this), id);
+                ? BIND(&TSession::OnSnapshotCreated, MakeStrong(this), id)
+                : BIND(&TSession::OnChangeLogRotated, MakeStrong(this), id);
             Awaiter->Await(
                 request->Invoke(),
                 Owner->CellManager->GetPeerAddress(id),
@@ -121,7 +121,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        Awaiter->Complete(Bind(&TSession::OnComplete, MakeStrong(this)));
+        Awaiter->Complete(BIND(&TSession::OnComplete, MakeStrong(this)));
     }
 
     void OnComplete()
@@ -279,7 +279,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(
     } else {
         Profiler.TimingStop(forkTimer);
         LOG_INFO("Forked successfully, starting watchdog");
-        WatchdogQueue->GetInvoker()->Invoke(Bind(
+        WatchdogQueue->GetInvoker()->Invoke(BIND(
             &TSnapshotBuilder::WatchdogFork,
             MakeWeak(this),
             snapshotId,

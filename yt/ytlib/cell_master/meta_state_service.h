@@ -40,7 +40,7 @@ protected:
     template <class TContext>
     TClosure CreateErrorHandler(TContext* context)
     {
-        return Bind(
+        return BIND(
             (void (TContext::*)(int, const Stroka&))&TContext::Reply,
             MakeStrong(context),
             NRpc::EErrorCode::Unavailable,

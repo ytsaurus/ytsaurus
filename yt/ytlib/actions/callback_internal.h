@@ -13,6 +13,7 @@ $$==============================================================================
 */
 
 #include <ytlib/misc/common.h>
+#include <ytlib/misc/source_location.h>
 
 namespace NYT {
 namespace NDetail {
@@ -31,9 +32,12 @@ class TBindStateBase
     : public TIntrinsicRefCounted
 {
 protected:
+    TBindStateBase(const ::NYT::TSourceLocation& location);
+
     friend class TIntrinsicRefCounted;
-    virtual ~TBindStateBase()
-    {}
+    virtual ~TBindStateBase();
+
+    ::NYT::TSourceLocation Location_;
 };
 
 //! Holds the TCallback methods that don't require specialization to reduce

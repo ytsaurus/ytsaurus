@@ -318,7 +318,7 @@ ExecuteVerb(
         suffixPath,
         verb,
         suffixService->GetLoggingCategory(),
-        Bind(
+        BIND(
             &OnYPathResponse,
             asyncResponseMessage,
             path,
@@ -341,7 +341,7 @@ void ExecuteVerb(IYPathService* service, IServiceContext* context)
     auto context_ = MakeStrong(context);
     auto requestMessage = context->GetRequestMessage();
     ExecuteVerb(service, ~requestMessage)
-        ->Subscribe(Bind([=] (NBus::IMessage::TPtr responseMessage) {
+        ->Subscribe(BIND([=] (NBus::IMessage::TPtr responseMessage) {
             context_->Reply(~responseMessage);
         }));
 }
@@ -351,7 +351,7 @@ TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathService* service, cons
     auto request = TYPathProxy::Get(path);
     return
         ExecuteVerb(service, ~request)
-        ->Apply(Bind([] (TYPathProxy::TRspGet::TPtr response)
+        ->Apply(BIND([] (TYPathProxy::TRspGet::TPtr response)
             {
                 return
                     response->IsOK()

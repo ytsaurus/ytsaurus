@@ -65,7 +65,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
         awaiter->Await(
             request->Invoke(),
             CellManager->GetPeerAddress(id),
-            Bind(
+            BIND(
                 &TChangeLogDownloader::OnResponse,
                 awaiter,
                 asyncResult,
@@ -73,7 +73,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
                 version));
     }
 
-    awaiter->Complete(Bind(&TChangeLogDownloader::OnComplete, asyncResult));
+    awaiter->Complete(BIND(&TChangeLogDownloader::OnComplete, asyncResult));
 
     return asyncResult->Get();
 }

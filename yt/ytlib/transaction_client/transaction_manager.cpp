@@ -88,7 +88,7 @@ public:
 
     void StartPingInvoker() {
         PingInvoker = New<TPeriodicInvoker>(
-            Bind(
+            BIND(
                 &TTransactionManager::PingTransaction,
                 Owner,
                 Id),
@@ -315,7 +315,7 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
     CypressProxy
         .Execute(~req)
-        ->Subscribe(Bind(
+        ->Subscribe(BIND(
             &TTransactionManager::OnPingResponse,
             MakeStrong(this), 
             id));

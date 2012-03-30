@@ -151,7 +151,7 @@ private:
                 TInstant::Now() + backoffTime < Deadline)
             {
                 TDelayedInvoker::Submit(
-                    Bind(&TRetriableRequest::Send, MakeStrong(this)),
+                    BIND(&TRetriableRequest::Send, MakeStrong(this)),
                     backoffTime);
             } else {
                 State = EState::Done;

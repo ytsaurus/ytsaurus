@@ -80,7 +80,7 @@ public:
     void FlushChanges(bool rotateChangeLog)
     {
         Logger.AddTag(Sprintf("ChangeCount: %d", static_cast<int>(BatchedChanges.size())));
-        Committer->EpochControlInvoker->Invoke(Bind(
+        Committer->EpochControlInvoker->Invoke(BIND(
             &TBatch::DoFlushChanges,
             MakeStrong(this),
             rotateChangeLog));
@@ -116,7 +116,7 @@ private:
             Awaiter->Await(
                 LogResult,
                 cellManager->SelfAddress(),
-                Bind(&TBatch::OnLocalCommit, MakeStrong(this)));
+                BIND(&TBatch::OnLocalCommit, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched changes to followers");
             for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
@@ -137,11 +137,11 @@ private:
                 Awaiter->Await(
                     request->Invoke(),
                     cellManager->GetPeerAddress(id),
-                    Bind(&TBatch::OnRemoteCommit, MakeStrong(this), id));
+                    BIND(&TBatch::OnRemoteCommit, MakeStrong(this), id));
             }
             LOG_DEBUG("Batched changes sent");
 
-            Awaiter->Complete(Bind(&TBatch::OnCompleted, MakeStrong(this)));
+            Awaiter->Complete(BIND(&TBatch::OnCompleted, MakeStrong(this)));
 
         }
         
@@ -341,7 +341,7 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
         YASSERT(!BatchTimeoutCookie);
         CurrentBatch = New<TBatch>(MakeStrong(this), version);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
-            Bind(
+            BIND(
                 &TLeaderCommitter::OnBatchTimeout,
                 MakeStrong(this),
                 CurrentBatch)
@@ -386,7 +386,7 @@ TCommitter::TResult::TPtr TFollowerCommitter::Commit(
         Profiler.Increment(BatchCommitCounter);
 
         return
-            Bind(
+            BIND(
                 &TFollowerCommitter::DoCommit,
                 MakeStrong(this),
                 expectedVersion,
@@ -428,7 +428,7 @@ TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
         ++currentVersion.RecordCount;
     }
 
-    return result->Apply(Bind([] (TVoid) -> TCommitter::EResult {
+    return result->Apply(BIND([] (TVoid) -> TCommitter::EResult {
         return TCommitter::EResult::Committed;
     }));
 }

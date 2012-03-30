@@ -68,7 +68,7 @@ public:
 
         if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
-                Bind(
+                BIND(
                     &TChannel::OnTimeout,
                     MakeStrong(this),
                     requestId),
@@ -86,7 +86,7 @@ public:
             bus = Bus;
         }
 
-        bus->Send(requestMessage)->Subscribe(Bind(
+        bus->Send(requestMessage)->Subscribe(BIND(
             &TChannel::OnAcknowledgement,
             MakeStrong(this),
             requestId));

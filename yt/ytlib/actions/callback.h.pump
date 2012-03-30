@@ -112,6 +112,7 @@ $var MAX_ARITY = 7
 
 #include <ytlib/misc/mpl.h>
 #include <ytlib/misc/rvalue.h>
+#include <ytlib/misc/source_location.h>
 
 namespace NYT {
 
@@ -285,6 +286,7 @@ typedef TCallback<void()> TClosure;
 /*! \endinternal */
 } // namespace NYT
 
+#include "bind.h"
 #define CALLBACK_VIA_H_
 #include "callback_via.h"
 #undef CALLBACK_VIA_H_

@@ -103,7 +103,7 @@ void TObjectProxyBase::Invoke(IServiceContext* context)
         GetVersionedId(),
         IsWriteRequest(context),
         context,
-        Bind(&TYPathServiceBase::GuardedInvoke, TIntrusivePtr<TYPathServiceBase>(this)));
+        BIND(&TYPathServiceBase::GuardedInvoke, TIntrusivePtr<TYPathServiceBase>(this)));
 }
 
 void TObjectProxyBase::DoInvoke(IServiceContext* context)

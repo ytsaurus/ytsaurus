@@ -46,8 +46,8 @@ TCallback<R($for ARG , [[A$(ARG)]])>::Via(
     YASSERT(invoker);
 
     auto this_ = *this;
-    return Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
-        invoker->Invoke(Bind(this_[[]]
+    return BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+        invoker->Invoke(BIND(this_[[]]
 $if ARITY != 0 [[,
             [[]]
 ]]
@@ -78,7 +78,7 @@ TCallback<R($for ARG , [[A$(ARG)]])>::Via(
     YASSERT(context);
 
     auto this_ = *this;
-    auto inner = Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+    auto inner = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
         if (context->IsCanceled()) {
             return;
         }
@@ -87,11 +87,11 @@ $if ARITY != 0 [[[[]]]]
 $for ARG ,
             [[ForwardRV<A$(ARG)>(a$(ARG))]]);
     });
-    auto outer = Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+    auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
         if (context->IsCanceled()) {
             return;
         }
-        invoker->Invoke(Bind(inner[[]]
+        invoker->Invoke(BIND(inner[[]]
 $if ARITY != 0 [[,
             [[]]
 ]]
@@ -124,7 +124,7 @@ struct TAsyncViaHelper<W, U($for ARG , [[A$(ARG)]])>
         typedef typename NDetail::TFutureHelper<U>::TFutureType FR;
         typedef typename NDetail::TFutureHelper<U>::TFuturePtrType FRP;
 
-        auto inner = Bind([=] (FRP result[[]]
+        auto inner = BIND([=] (FRP result[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG) a$(ARG)]]) {
             result->Set(this_.Run([[]]
@@ -135,9 +135,9 @@ $if ARITY != 0 [[
 $for ARG ,
                 [[ForwardRV<A$(ARG)>(a$(ARG))]]));
         });
-        auto outer = Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
-            FRP result;
-            invoker->Invoke(Bind(inner, result[[]]
+        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+            FRP result = New<FR>();
+            invoker->Invoke(BIND(inner, result[[]]
 $if ARITY != 0 [[,
                 [[]]
 ]]
@@ -170,7 +170,7 @@ struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
         typedef typename NDetail::TFutureHelper<U>::TFutureType FR;
         typedef typename NDetail::TFutureHelper<U>::TFuturePtrType FRP;
 
-        auto inner = Bind([=] (FRP result[[]]
+        auto inner = BIND([=] (FRP result[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG) a$(ARG)]]) {
             this_.Run([[]]
@@ -180,11 +180,11 @@ $if ARITY != 0 [[
 ]]
 $for ARG ,
                 [[ForwardRV<A$(ARG)>(a$(ARG))]])
-                ->Subscribe(Bind(&FR::Set, MoveRV(result)));
+                ->Subscribe(BIND(&FR::Set, MoveRV(result)));
         });
-        auto outer = Bind([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
-            FRP result;
-            invoker->Invoke(Bind(inner, result[[]]
+        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
+            FRP result = New<FR>();
+            invoker->Invoke(BIND(inner, result[[]]
 $if ARITY != 0 [[,
                 [[]]
 ]]
@@ -215,7 +215,7 @@ TCallback<U($for ARG , [[A$(ARG)]])>::AsyncVia(
     return NDetail::TAsyncViaHelper<
         NDetail::TFutureHelper<U>::WrappedInFuture,
         U($for ARG , [[A$(ARG)]])
-    >::Do(*this, invoker);
+    >::Do(*this, MoveRV(invoker));
 }
 
 

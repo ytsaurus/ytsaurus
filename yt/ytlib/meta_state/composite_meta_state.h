@@ -31,7 +31,7 @@ protected:
         TResult (TThis::* changeMethod)(const TMessage&))
     {
         // XXX(sandello): Capture policy here?
-        RegisterMethod(Bind(changeMethod, this_));
+        RegisterMethod(BIND(changeMethod, this_));
     }
 
     bool IsLeader() const;

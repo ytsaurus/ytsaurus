@@ -346,7 +346,7 @@ public:
     TClosure Wrap(TCallback<void(TPtr)> paramAction)
     {
         YASSERT(!paramAction.IsNull());
-        return this->Context->Wrap(Bind(paramAction, MakeStrong(this)));
+        return this->Context->Wrap(BIND(paramAction, MakeStrong(this)));
     }
 
 };
@@ -373,7 +373,7 @@ public:
     TClosure Wrap(TCallback<void(TPtr)> paramAction)
     {
         YASSERT(paramAction);
-        return this->Context->Wrap(~paramAction->Bind(MakeStrong(this)));
+        return this->Context->Wrap(~paramAction->BIND(MakeStrong(this)));
     }
 };
 
@@ -549,7 +549,7 @@ private:
 #define RPC_SERVICE_METHOD_DESC(method) \
     ::NYT::NRpc::TServiceBase::TMethodDescriptor( \
         #method, \
-        Bind(&TThis::method##Thunk, Unretained(this)), \
+        BIND(&TThis::method##Thunk, Unretained(this)), \
         false)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -579,7 +579,7 @@ private:
 #define ONE_WAY_RPC_SERVICE_METHOD_DESC(method) \
     TMethodDescriptor( \
         #method, \
-        Bind(&TThis::method##Thunk, Unretained(this)), \
+        BIND(&TThis::method##Thunk, Unretained(this)), \
         true)
 
 ////////////////////////////////////////////////////////////////////////////////

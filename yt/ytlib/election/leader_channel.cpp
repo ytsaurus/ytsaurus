@@ -79,7 +79,7 @@ public:
         YASSERT(responseHandler);
         YASSERT(State != EState::Terminated);
 
-        GetChannel()->Subscribe(Bind(
+        GetChannel()->Subscribe(BIND(
             &TLeaderChannel::OnGotChannel,
             MakeStrong(this),
             request,
@@ -128,7 +128,7 @@ private:
         } else {
             auto responseHandlerWrapper = New<TResponseHandlerWrapper>(
                 ~responseHandler,
-                Bind(&TLeaderChannel::OnChannelFailed, MakeStrong(this)));
+                BIND(&TLeaderChannel::OnChannelFailed, MakeStrong(this)));
             channel->Send(~request, ~responseHandlerWrapper, timeout);
         }
     }
@@ -164,7 +164,7 @@ private:
                 auto lookupResult = LookupResult = LeaderLookup->GetLeader();
                 guard.Release();
 
-                return lookupResult->Apply(Bind(
+                return lookupResult->Apply(BIND(
                     &TLeaderChannel::OnFirstLookupResult,
                     MakeStrong(this)));
             }
@@ -180,7 +180,7 @@ private:
                 auto lookupResult = LookupResult;
                 guard.Release();
 
-                return lookupResult->Apply(Bind(
+                return lookupResult->Apply(BIND(
                     &TLeaderChannel::OnSecondLookupResult,
                     MakeStrong(this)));
             }

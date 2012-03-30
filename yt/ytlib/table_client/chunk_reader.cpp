@@ -125,7 +125,7 @@ public:
 
     void Initialize()
     {
-        AsyncReader->AsyncGetChunkInfo()->Subscribe(Bind(
+        AsyncReader->AsyncGetChunkInfo()->Subscribe(BIND(
             &TInitializer::OnGotMeta, 
             MakeStrong(this)).Via(ReaderThread->GetInvoker()));
     }
@@ -281,7 +281,7 @@ private:
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
-        chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(Bind(
+        chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(BIND(
             &TInitializer::OnFirstBlock,
             MakeWeak(this),
             0).Via(ReaderThread->GetInvoker()));
@@ -446,7 +446,7 @@ private:
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.size()) {
             auto anb = chunkReader->SequentialReader->AsyncNextBlock();
-            anb->Subscribe(Bind(
+            anb->Subscribe(BIND(
                     &TInitializer::OnFirstBlock, 
                     MakeWeak(this), 
                     selectedChannelIndex)
@@ -470,7 +470,7 @@ private:
 
         YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
         if (!StartValidator->IsValid(chunkReader->CurrentKey)) {
-            chunkReader->DoNextRow()->Subscribe(Bind(
+            chunkReader->DoNextRow()->Subscribe(BIND(
                 &TInitializer::ValidateRow,
                 MakeWeak(this)).Via(ReaderThread->GetInvoker()));
             return;
@@ -550,7 +550,7 @@ TAsyncError::TPtr TChunkReader::AsyncNextRow()
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    DoNextRow()->Subscribe(Bind([=](TError error) {
+    DoNextRow()->Subscribe(BIND([=](TError error) {
         if (error.IsOK()) {
             this_->State.FinishOperation();
         } else {
@@ -611,7 +611,7 @@ TAsyncError::TPtr TChunkReader::ContinueNextRow(
                 result = New<TAsyncError>();
             }
 
-            SequentialReader->AsyncNextBlock()->Subscribe(Bind(
+            SequentialReader->AsyncNextBlock()->Subscribe(BIND(
                 IgnoreResult(&TChunkReader::ContinueNextRow),
                 MakeWeak(this),
                 channelIndex,

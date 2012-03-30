@@ -43,9 +43,9 @@ void TMetaChange<TResult>::DoCommit()
     MetaStateManager
         ->CommitChange(
             ChangeData,
-            Bind(&TThis::ChangeFuncThunk, MakeStrong(this)))
+            BIND(&TThis::ChangeFuncThunk, MakeStrong(this)))
         ->Subscribe(
-            Bind(&TThis::OnCommitted, MakeStrong(this)));
+            BIND(&TThis::OnCommitted, MakeStrong(this)));
 }
 
 template <class TResult>
@@ -93,7 +93,7 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
         }
         if (Retriable) {
             TDelayedInvoker::Submit(
-                Bind(&TThis::DoCommit, MakeStrong(this))
+                BIND(&TThis::DoCommit, MakeStrong(this))
                 .Via(MetaStateManager->GetStateInvoker(), EpochContext),
                 BackoffTime);
         }
@@ -120,7 +120,7 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
 
     auto changeData = SerializeChange(header, message);
 
-    auto changeFunc = Bind(func, target, message);
+    auto changeFunc = BIND(func, target, message);
 
     return New< TMetaChange<TResult> >(
         metaStateManager,

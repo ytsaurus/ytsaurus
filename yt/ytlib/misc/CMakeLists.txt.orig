@@ -24,7 +24,6 @@ set( SRCS
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
-  ${BASE}/source_location.cpp
   ${BASE}/thread.cpp
 )
 set( HDRS
@@ -72,7 +71,6 @@ set( HDRS
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
   ${BASE}/singleton.h
-  ${BASE}/source_location.h
   ${BASE}/string.h
   ${BASE}/sync.h
   ${BASE}/tclap_helpers.h

@@ -5,6 +5,7 @@
 
 #include <ytlib/ytree/public.h>
 
+#include <ytlib/actions/bind.h>
 #include <ytlib/actions/callback.h>
 
 namespace NYT {

@@ -64,13 +64,13 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
             ->GetSnapshotInfo()
             ->SetTimeout(Config->LookupTimeout);
         request->set_snapshot_id(snapshotId);
-        awaiter->Await(request->Invoke(), Bind(
+        awaiter->Await(request->Invoke(), BIND(
             &TSnapshotDownloader::OnSnapshotInfoResponse,
             awaiter, asyncResult, peerId));
     }
     LOG_INFO("Snapshot info requests sent");
 
-    awaiter->Complete(Bind(
+    awaiter->Complete(BIND(
         &TSnapshotDownloader::OnSnapshotInfoComplete,
         snapshotId,
         asyncResult));

@@ -36,7 +36,7 @@ void TPeriodicInvoker::RunAction()
 {
     Action.Run();
     Cookie = TDelayedInvoker::Submit(
-        Bind(&TPeriodicInvoker::RunAction, MakeStrong(this))
+        BIND(&TPeriodicInvoker::RunAction, MakeStrong(this))
         .Via(~CancelableInvoker),
         Period);
 }

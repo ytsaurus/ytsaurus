@@ -78,7 +78,7 @@ void TFollowerPinger::SendPing(TPeerId followerId)
     request->set_record_count(version.RecordCount);
     request->set_epoch(Epoch.ToProto());
     request->Invoke()->Subscribe(
-        Bind(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
+        BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
         .Via(EpochControlInvoker));       
 }
 
@@ -87,7 +87,7 @@ void TFollowerPinger::SchedulePing(TPeerId followerId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     TDelayedInvoker::Submit(
-        Bind(&TFollowerPinger::SendPing, MakeStrong(this), followerId)
+        BIND(&TFollowerPinger::SendPing, MakeStrong(this), followerId)
         .Via(EpochControlInvoker),
         Config->PingInterval);
 }

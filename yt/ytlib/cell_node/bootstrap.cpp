@@ -118,10 +118,10 @@ void TBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "ref_counted",
-        Bind(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "bus_server",
-        Bind(&IBusServer::GetMonitoringInfo, BusServer));
+        BIND(&IBusServer::GetMonitoringInfo, BusServer));
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();

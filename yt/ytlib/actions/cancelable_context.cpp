@@ -30,7 +30,7 @@ public:
         if (Context->Canceled)
             return;
 
-        UnderlyingInvoker->Invoke(Bind([=] {
+        UnderlyingInvoker->Invoke(BIND([=] {
                 if (!Context->Canceled) {
                     action.Run();
                 }

@@ -142,17 +142,17 @@ public:
         auto metaState = bootstrap->GetMetaState();
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
-            Bind(&TChunkManager::TImpl::LoadKeys, MakeStrong(this)));
+            BIND(&TChunkManager::TImpl::LoadKeys, MakeStrong(this)));
         metaState->RegisterLoader(
             "ChunkManager.Values.1",
-            Bind(&TChunkManager::TImpl::LoadValues, MakeStrong(this), context));
+            BIND(&TChunkManager::TImpl::LoadValues, MakeStrong(this), context));
         metaState->RegisterSaver(
             "ChunkManager.Keys.1",
-            Bind(&TChunkManager::TImpl::SaveKeys, MakeStrong(this)),
+            BIND(&TChunkManager::TImpl::SaveKeys, MakeStrong(this)),
             ESavePhase::Keys);
         metaState->RegisterSaver(
             "ChunkManager.Values.1",
-            Bind(&TChunkManager::TImpl::SaveValues, MakeStrong(this)),
+            BIND(&TChunkManager::TImpl::SaveValues, MakeStrong(this)),
             ESavePhase::Values);
 
         metaState->RegisterPart(this);

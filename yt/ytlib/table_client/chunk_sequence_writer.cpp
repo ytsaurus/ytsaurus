@@ -66,7 +66,7 @@ void TChunkSequenceWriter::CreateNextChunk()
     req->set_transaction_id(TransactionId.ToProto());
 
     req->Invoke()->Subscribe(
-        Bind(
+        BIND(
             &TChunkSequenceWriter::OnChunkCreated,
             MakeWeak(this))
         .Via(WriterThread->GetInvoker()));
@@ -122,7 +122,7 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncOpen(
     CreateNextChunk();
 
     State.StartOperation();
-    NextChunk->Subscribe(Bind(
+    NextChunk->Subscribe(BIND(
         &TChunkSequenceWriter::InitCurrentChunk,
         MakeWeak(this)));
 
@@ -160,13 +160,13 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncEndRow(
         YASSERT(NextChunk);
         // We're not waiting for chunk to be closed.
         FinishCurrentChunk(key, channels);
-        NextChunk->Subscribe(Bind(
+        NextChunk->Subscribe(BIND(
             &TChunkSequenceWriter::InitCurrentChunk,
             MakeWeak(this)));
     } else {
         // NB! Do not make functor here: action target should be 
         // intrusive or weak pointer to 
-        CurrentChunk->AsyncEndRow(key, channels)->Subscribe(Bind(
+        CurrentChunk->AsyncEndRow(key, channels)->Subscribe(BIND(
             &TChunkSequenceWriter::OnRowEnded,
             MakeWeak(this)));
     }
@@ -190,12 +190,12 @@ void TChunkSequenceWriter::FinishCurrentChunk(
 
         TAsyncError::TPtr finishResult = New<TAsyncError>();
         CloseChunksAwaiter->Await(finishResult, 
-            Bind(
+            BIND(
                 &TChunkSequenceWriter::OnChunkFinished, 
                 MakeWeak(this),
                 CurrentChunk->GetChunkId()));
 
-        CurrentChunk->AsyncClose(lastKey, channels)->Subscribe(Bind(
+        CurrentChunk->AsyncClose(lastKey, channels)->Subscribe(BIND(
             &TChunkSequenceWriter::OnChunkClosed,
             MakeWeak(this),
             CurrentChunk,
@@ -246,7 +246,7 @@ void TChunkSequenceWriter::OnChunkClosed(
         batchReq->AddRequest(~req);
     }
 
-    batchReq->Invoke()->Subscribe(Bind(
+    batchReq->Invoke()->Subscribe(BIND(
         &TChunkSequenceWriter::OnChunkRegistered,
         MakeWeak(this),
         currentChunk->GetChunkId(),
@@ -303,7 +303,7 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncClose(
     State.StartOperation();
     FinishCurrentChunk(lastKey, channels);
 
-    CloseChunksAwaiter->Complete(Bind(
+    CloseChunksAwaiter->Complete(BIND(
         &TChunkSequenceWriter::OnClose,
         MakeWeak(this)));
 

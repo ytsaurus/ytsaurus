@@ -254,7 +254,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
     for (int i = 0; i < numSends; ++i) {
         auto request = proxy->SomeCall();
         request->set_a(i);
-        request->Invoke()->Subscribe(Bind(&TResponseHandler::CheckReply, handler, i + 100));
+        request->Invoke()->Subscribe(BIND(&TResponseHandler::CheckReply, handler, i + 100));
     }
 
     EXPECT_IS_TRUE(handler->Event_.WaitT(TDuration::Seconds(4))); // assert no timeout

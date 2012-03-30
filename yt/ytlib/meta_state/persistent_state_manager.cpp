@@ -154,7 +154,7 @@ public:
 
         ControlStatus = EPeerStatus::Elections;
 
-        GetStateInvoker()->Invoke(Bind(
+        GetStateInvoker()->Invoke(BIND(
             &TDecoratedMetaState::Clear,
             DecoratedState));
 
@@ -227,7 +227,7 @@ public:
                 .Item("state").Scalar(ControlStatus.ToString())
                 .Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
                 .Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
-                .Item("elections").Do(Bind(&TElectionManager::GetMonitoringInfo, ElectionManager))
+                .Item("elections").Do(BIND(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent)
                     {
                         fluent
@@ -275,13 +275,13 @@ public:
 
         auto actualChangeAction =
             changeAction.IsNull()
-            ? Bind(&IMetaState::ApplyChange, DecoratedState->GetState(), changeData)
+            ? BIND(&IMetaState::ApplyChange, DecoratedState->GetState(), changeData)
             : changeAction;
 
         auto result =
             LeaderCommitter
             ->Commit(actualChangeAction, changeData)
-            ->Apply(Bind(&TThis::OnChangeCommitted, MakeStrong(this)));
+            ->Apply(BIND(&TThis::OnChangeCommitted, MakeStrong(this)));
 
         InCommit = false;
 
@@ -398,7 +398,7 @@ public:
                 ex.what());
         }
 
-        IOQueue->GetInvoker()->Invoke(context->Wrap(Bind([=] () {
+        IOQueue->GetInvoker()->Invoke(context->Wrap(BIND([=] () {
             VERIFY_THREAD_AFFINITY(IOThread);
 
             TBlob data(length);
@@ -470,7 +470,7 @@ public:
         }
 
         auto changeLog = result.Value();
-        IOQueue->GetInvoker()->Invoke(context->Wrap(Bind([=] () {
+        IOQueue->GetInvoker()->Invoke(context->Wrap(BIND([=] () {
             VERIFY_THREAD_AFFINITY(IOThread);
 
             yvector<TSharedRef> recordData;
@@ -529,7 +529,7 @@ public:
 
                 FollowerCommitter
                     ->Commit(version, request->Attachments())
-                    ->Subscribe(Bind(&TThis::OnFollowerCommitted, MakeStrong(this), context));
+                    ->Subscribe(BIND(&TThis::OnFollowerCommitted, MakeStrong(this), context));
                 break;
             }
 
@@ -644,7 +644,7 @@ public:
                         version);
 
                     FollowerRecovery->Run()->Subscribe(
-                        Bind(&TThis::OnControlFollowerRecoveryFinished, MakeStrong(this))
+                        BIND(&TThis::OnControlFollowerRecoveryFinished, MakeStrong(this))
                         .Via(~EpochControlInvoker));
                 }
                 break;
@@ -692,17 +692,17 @@ public:
                 if (createSnapshot) {
                     LOG_DEBUG("AdvanceSegment: starting snapshot creation");
 
-                    Bind(&TSnapshotBuilder::CreateLocalSnapshot, SnapshotBuilder, version)
+                    BIND(&TSnapshotBuilder::CreateLocalSnapshot, SnapshotBuilder, version)
                         .AsyncVia(EpochStateInvoker)
                         .Run()
-                        ->Subscribe(Bind(
+                        ->Subscribe(BIND(
                             &TThis::OnCreateLocalSnapshot,
                             MakeStrong(this),
                             context));
                 } else {
                     LOG_DEBUG("AdvanceSegment: advancing segment");
 
-                    EpochStateInvoker->Invoke(context->Wrap(Bind(
+                    EpochStateInvoker->Invoke(context->Wrap(BIND(
                         &TThis::DoStateAdvanceSegment,
                         MakeStrong(this),
                         version)));
@@ -862,7 +862,7 @@ public:
             Epoch,
             ~EpochControlInvoker,
             ~EpochStateInvoker);
-        LeaderCommitter->SubscribeChangeApplied(Bind(&TThis::OnChangeApplied, MakeWeak(this)));
+        LeaderCommitter->SubscribeChangeApplied(BIND(&TThis::OnChangeApplied, MakeWeak(this)));
 
         // During recovery the leader is reporting its reachable version to followers.
         auto version = DecoratedState->GetReachableVersionAsync();
@@ -878,7 +878,7 @@ public:
             EpochControlInvoker);
         FollowerPinger->Start();
 
-        EpochStateInvoker->Invoke(Bind(
+        EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateStartLeading,
             MakeStrong(this)));
     }
@@ -903,11 +903,11 @@ public:
             ~EpochControlInvoker,
             ~EpochStateInvoker);
 
-        Bind(&TLeaderRecovery::Run, LeaderRecovery)
+        BIND(&TLeaderRecovery::Run, LeaderRecovery)
             .AsyncVia(EpochControlInvoker)
             .Run()
             ->Subscribe(
-                Bind(&TThis::OnStateLeaderRecoveryFinished, MakeStrong(this))
+                BIND(&TThis::OnStateLeaderRecoveryFinished, MakeStrong(this))
                 .Via(~EpochStateInvoker));
     }
 
@@ -948,7 +948,7 @@ public:
         YASSERT(StateStatus == EPeerStatus::LeaderRecovery);
         StateStatus = EPeerStatus::Leading;
 
-        EpochControlInvoker->Invoke(Bind(
+        EpochControlInvoker->Invoke(BIND(
             &TThis::DoControlLeaderRecoveryFinished,
             MakeStrong(this)));
 
@@ -973,7 +973,7 @@ public:
 
         LOG_INFO("Stopped leading");
 
-        EpochStateInvoker->Invoke(Bind(
+        EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateStopLeading,
             MakeStrong(this)));
 
@@ -1001,7 +1001,7 @@ public:
         }
 
         if (SnapshotBuilder) {
-            GetStateInvoker()->Invoke(Bind(
+            GetStateInvoker()->Invoke(BIND(
                 &TSnapshotBuilder::WaitUntilFinished,
                 SnapshotBuilder));
             SnapshotBuilder.Reset();
@@ -1030,7 +1030,7 @@ public:
 
         StartEpoch(epoch);
 
-        EpochStateInvoker->Invoke(Bind(
+        EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateStartFollowing,
             MakeStrong(this)));
     }
@@ -1058,7 +1058,7 @@ public:
             return;
         }
 
-        EpochStateInvoker->Invoke(Bind(
+        EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateFollowerRecoveryComplete,
             MakeStrong(this)));
 
@@ -1102,7 +1102,7 @@ public:
 
         LOG_INFO("Stopped following");
 
-        EpochStateInvoker->Invoke(Bind(
+        EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateStopFollowing,
             MakeStrong(this)));
 
@@ -1119,7 +1119,7 @@ public:
         }
 
         if (SnapshotBuilder) {
-            GetStateInvoker()->Invoke(Bind(
+            GetStateInvoker()->Invoke(BIND(
                 &TSnapshotBuilder::WaitUntilFinished,
                 SnapshotBuilder));
             SnapshotBuilder.Reset();

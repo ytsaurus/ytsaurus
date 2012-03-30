@@ -17,7 +17,7 @@ void TMetaStatePart::RegisterMethod(
 
     Stroka changeType = TMessage().GetTypeName();
 
-    auto action = Bind(
+    auto action = BIND(
         &TMetaStatePart::MethodThunk<TMessage, TResult>,
         Unretained(this),
         MoveRV(changeMethod));

@@ -136,7 +136,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
     Bootstrap
         ->GetSessionManager()
         ->FinishSession(~session, attributes)
-        ->Subscribe(Bind([=] (TChunkPtr chunk) {
+        ->Subscribe(BIND([=] (TChunkPtr chunk) {
             response->set_size(chunk->GetSize());
             context->Reply();
         }));
@@ -197,7 +197,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
         putRequest->Attachments().push_back(block->GetData());
     }
 
-    putRequest->Invoke()->Subscribe(Bind([=] (TProxy::TRspPutBlocks::TPtr putResponse) {
+    putRequest->Invoke()->Subscribe(BIND([=] (TProxy::TRspPutBlocks::TPtr putResponse) {
         if (putResponse->IsOK()) {
             context->Reply();
         } else {
@@ -252,7 +252,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
             LOG_DEBUG("GetBlocks: Fetching block (BlockIndex: %d)", blockIndex);
             awaiter->Await(
                 Bootstrap->GetBlockStore()->GetBlock(blockId),
-                Bind([=] (TBlockStore::TGetBlockResult result) {
+                BIND([=] (TBlockStore::TGetBlockResult result) {
                     if (result.IsOK()) {
                         // Attach the real data.
                         blockInfo->set_data_attached(true);
@@ -274,7 +274,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
         }
     }
 
-    awaiter->Complete(Bind([=] () {
+    awaiter->Complete(BIND([=] () {
         // Compute statistics.
         int blocksWithData = 0;
         int blocksWithPeers = 0;
@@ -318,7 +318,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
 
     auto session = GetSession(chunkId);
 
-    session->FlushBlock(blockIndex)->Subscribe(Bind([=] (TVoid) {
+    session->FlushBlock(blockIndex)->Subscribe(BIND([=] (TVoid) {
         context->Reply();
     }));
 }
@@ -341,7 +341,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
     auto chunk = GetChunk(chunkId);
-    chunk->GetInfo()->Subscribe(Bind([=] (TChunk::TGetInfoResult result) {
+    chunk->GetInfo()->Subscribe(BIND([=] (TChunk::TGetInfoResult result) {
         if (result.IsOK()) {
             *response->mutable_chunk_info() = result.Value();
             context->Reply();
@@ -360,7 +360,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
     Bootstrap
         ->GetChunkCache()
         ->DownloadChunk(chunkId)
-        ->Subscribe(Bind([=] (TChunkCache::TDownloadResult result) {
+        ->Subscribe(BIND([=] (TChunkCache::TDownloadResult result) {
             if (result.IsOK()) {
                 context->Reply();
             } else {

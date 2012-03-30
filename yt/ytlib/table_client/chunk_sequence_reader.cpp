@@ -57,7 +57,7 @@ void TChunkSequenceReader::PrepareNextChunk()
         slice.start_limit(),
         slice.end_limit());
 
-    chunkReader->AsyncOpen()->Subscribe(Bind(
+    chunkReader->AsyncOpen()->Subscribe(BIND(
         &TChunkSequenceReader::OnNextReaderOpened,
         MakeWeak(this),
         chunkReader));
@@ -85,7 +85,7 @@ TAsyncError::TPtr TChunkSequenceReader::AsyncOpen()
 
     if (FetchedChunks.size() != 0) {
         State.StartOperation();
-        NextReader->Subscribe(Bind(
+        NextReader->Subscribe(BIND(
             &TChunkSequenceReader::SetCurrentChunk,
             MakeWeak(this)));
     }
@@ -101,7 +101,7 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
         PrepareNextChunk();
 
         if (!CurrentReader->IsValid()) {
-            NextReader->Subscribe(Bind(
+            NextReader->Subscribe(BIND(
                 &TChunkSequenceReader::SetCurrentChunk,
                 MakeWeak(this)));
             return;
@@ -120,7 +120,7 @@ void TChunkSequenceReader::OnNextRow(TError error)
     }
 
     if (!CurrentReader->IsValid()) {
-        NextReader->Subscribe(Bind(
+        NextReader->Subscribe(BIND(
             &TChunkSequenceReader::SetCurrentChunk,
             MakeWeak(this)));
         return;
@@ -154,7 +154,7 @@ TAsyncError::TPtr TChunkSequenceReader::AsyncNextRow()
 
     State.StartOperation();
     
-    CurrentReader->AsyncNextRow()->Subscribe(Bind(
+    CurrentReader->AsyncNextRow()->Subscribe(BIND(
         &TChunkSequenceReader::OnNextRow,
         MakeWeak(this)));
 

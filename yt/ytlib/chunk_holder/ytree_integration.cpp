@@ -53,7 +53,7 @@ private:
             return NULL;
         }
 
-        return IYPathService::FromProducer(Bind([=] (IYsonConsumer* consumer)
+        return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer)
             {
                 BuildYsonFluently(consumer)
                     .BeginMap()

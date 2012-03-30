@@ -42,14 +42,14 @@ i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
         request->set_max_snapshot_id(maxSnapshotId);
         awaiter->Await(
             request->Invoke(),
-            Bind(
+            BIND(
             &TSnapshotLookup::OnLookupSnapshotResponse,
             this,
             peerId));
     }
     LOG_INFO("Snapshot lookup requests sent");
 
-    awaiter->Complete(Bind(
+    awaiter->Complete(BIND(
         &TSnapshotLookup::OnLookupSnapshotComplete,
         this));
 

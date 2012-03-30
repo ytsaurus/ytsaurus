@@ -67,7 +67,7 @@ void TParallelAwaiter::Await(
         }
     }
 
-    result->Subscribe(Bind(
+    result->Subscribe(BIND(
         &TParallelAwaiter::OnResult<T>,
         MakeStrong(this),
         timerPathSuffix,

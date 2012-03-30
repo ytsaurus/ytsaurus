@@ -6,6 +6,13 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TBindStateBase::TBindStateBase(const ::NYT::TSourceLocation& location)
+    : Location_(location)
+{ }
+
+TBindStateBase::~TBindStateBase()
+{ }
+
 bool TCallbackBase::IsNull() const
 {
     return BindState.Get() == NULL;

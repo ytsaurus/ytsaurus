@@ -154,7 +154,7 @@ Stroka TServiceContextBase::GetResponseInfo()
 
 TClosure TServiceContextBase::Wrap(TClosure action)
 {
-    return Bind(
+    return BIND(
         &TServiceContextBase::WrapThunk,
         MakeStrong(this),
         action);

@@ -52,7 +52,7 @@ TSession::~TSession()
 
 void TSession::Start()
 {
-    GetIOInvoker()->Invoke(Bind(
+    GetIOInvoker()->Invoke(BIND(
         &TSession::DoOpenFile,
         MakeStrong(this)));
 }
@@ -177,14 +177,14 @@ void TSession::EnqueueWrites()
         if (slot.State != ESlotState::Received)
             break;
 
-        Bind(
+        BIND(
             &TSession::DoWrite,
             MakeStrong(this),
             slot.Block,
             blockIndex)
         .AsyncVia(GetIOInvoker())
         .Run()
-        ->Subscribe(Bind(
+        ->Subscribe(BIND(
             &TSession::OnBlockWritten,
             MakeStrong(this),
             blockIndex)
@@ -241,7 +241,7 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
     }
 
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
-    return slot.IsWritten->Apply(Bind(
+    return slot.IsWritten->Apply(BIND(
         &TSession::OnBlockFlushed,
         MakeStrong(this),
         blockIndex));
@@ -269,7 +269,7 @@ TFuture<TChunkPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
     }
 
     return CloseFile(attributes)->Apply(
-        Bind(&TSession::OnFileClosed, MakeStrong(this))
+        BIND(&TSession::OnFileClosed, MakeStrong(this))
         .AsyncVia(SessionManager->ServiceInvoker));
 }
 
@@ -277,14 +277,14 @@ void TSession::Cancel(const TError& error)
 {
     CloseLease();
     DeleteFile(error)->Apply(
-        Bind(&TSession::OnFileDeleted, MakeStrong(this))
+        BIND(&TSession::OnFileDeleted, MakeStrong(this))
         .AsyncVia(SessionManager->ServiceInvoker));
 }
 
 TFuture<TVoid>::TPtr TSession::DeleteFile(const TError& error)
 {
     return
-        Bind(
+        BIND(
             &TSession::DoDeleteFile,
             MakeStrong(this),
             error)
@@ -311,7 +311,7 @@ TVoid TSession::OnFileDeleted(TVoid)
 TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
 {
     return
-        Bind(
+        BIND(
             &TSession::DoCloseFile,
             MakeStrong(this),
             attributes)
@@ -429,7 +429,7 @@ TSessionPtr TSessionManager::StartSession(
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,
-        Bind(
+        BIND(
             &TSessionManager::OnLeaseExpired,
             MakeStrong(this),
             session)
@@ -466,7 +466,7 @@ TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return session->Finish(attributes)->Apply(Bind(
+    return session->Finish(attributes)->Apply(BIND(
         &TSessionManager::OnSessionFinished,
         MakeStrong(this),
         session));

@@ -75,7 +75,7 @@ private:
         request->set_epoch(ElectionManager->Epoch.ToProto());
         Awaiter->Await(
             request->Invoke(),
-            Bind(&TFollowerPinger::OnPingResponse, MakeStrong(this), id)
+            BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), id)
             .Via(EpochInvoker));
     }
 
@@ -84,7 +84,7 @@ private:
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         TDelayedInvoker::Submit(
-            Bind(&TFollowerPinger::SendPing, MakeStrong(this), id)
+            BIND(&TFollowerPinger::SendPing, MakeStrong(this), id)
             .Via(EpochInvoker),
             ElectionManager->Config->FollowerPingInterval);
     }
@@ -210,10 +210,10 @@ public:
             auto request = proxy->GetStatus();
             Awaiter->Await(
                 request->Invoke(),
-                Bind(&TThis::OnResponse, MakeStrong(this), id));
+                BIND(&TThis::OnResponse, MakeStrong(this), id));
         }
 
-        Awaiter->Complete(Bind(&TThis::OnComplete, MakeStrong(this)));
+        Awaiter->Complete(BIND(&TThis::OnComplete, MakeStrong(this)));
     }
 
 private:
@@ -338,11 +338,11 @@ private:
 
         // Become a leader or a follower.
         if (candidateId == ElectionManager->CellManager->SelfId()) {
-            EpochInvoker->Invoke(Bind(
+            EpochInvoker->Invoke(BIND(
                 &TElectionManager::StartLeading,
                 TElectionManager::TPtr(ElectionManager)));
         } else {
-            EpochInvoker->Invoke(Bind(
+            EpochInvoker->Invoke(BIND(
                 &TElectionManager::StartFollowing,
                 TElectionManager::TPtr(ElectionManager),
                 candidateId,
@@ -461,14 +461,14 @@ void TElectionManager::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ControlInvoker->Invoke(Bind(&TElectionManager::DoStart, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TElectionManager::DoStart, MakeWeak(this)));
 }
 
 void TElectionManager::Stop()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ControlInvoker->Invoke(Bind(&TElectionManager::DoStop, MakeWeak(this)));
+    ControlInvoker->Invoke(BIND(&TElectionManager::DoStop, MakeWeak(this)));
 }
 
 void TElectionManager::Restart()
@@ -595,7 +595,7 @@ void TElectionManager::StartFollowing(
 
     // XXX(sandello): Capture policy here?
     PingTimeoutCookie = TDelayedInvoker::Submit(
-        Bind(&TElectionManager::OnLeaderPingTimeout, MakeStrong(this))
+        BIND(&TElectionManager::OnLeaderPingTimeout, MakeStrong(this))
         .Via(~ControlEpochInvoker),
         Config->ReadyToFollowTimeout);
 
@@ -748,7 +748,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
     TDelayedInvoker::Cancel(PingTimeoutCookie);
     // XXX(sandello): Capture policy here?
     PingTimeoutCookie = TDelayedInvoker::Submit(
-        Bind(&TElectionManager::OnLeaderPingTimeout, MakeStrong(this))
+        BIND(&TElectionManager::OnLeaderPingTimeout, MakeStrong(this))
         .Via(~ControlEpochInvoker),
         Config->FollowerPingTimeout);
 

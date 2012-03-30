@@ -222,7 +222,7 @@ private:
     {
         ItemKey = key;
         TreeBuilder->BeginTree();
-        ForwardNode(TreeBuilder, Bind(&TThis::OnForwardingFinished, this));
+        ForwardNode(TreeBuilder, BIND(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()
@@ -268,7 +268,7 @@ private:
     virtual void OnMyListItem()
     {
         TreeBuilder->BeginTree();
-        ForwardNode(TreeBuilder, Bind(&TThis::OnForwardingFinished, this));
+        ForwardNode(TreeBuilder, BIND(&TThis::OnForwardingFinished, this));
     }
 
     void OnForwardingFinished()

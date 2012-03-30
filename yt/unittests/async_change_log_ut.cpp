@@ -78,7 +78,7 @@ TEST_F(TAsyncChangeLogTest, ReadLastOnes)
             flushResult->Get();
         }
         if (recordId % 10 == 0) {
-            result = Bind(&ReadRecord, ~AsyncChangeLog, recordId).AsyncVia(Invoker).Run();
+            result = BIND(&ReadRecord, ~AsyncChangeLog, recordId).AsyncVia(Invoker).Run();
         }
     }
     result->Get();

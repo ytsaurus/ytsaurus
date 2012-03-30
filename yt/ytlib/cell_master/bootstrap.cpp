@@ -176,13 +176,13 @@ void TBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "ref_counted",
-        Bind(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "meta_state",
-        Bind(&IMetaStateManager::GetMonitoringInfo, MetaStateManager));
+        BIND(&IMetaStateManager::GetMonitoringInfo, MetaStateManager));
     monitoringManager->Register(
         "bus_server",
-        Bind(&IBusServer::GetMonitoringInfo, busServer));
+        BIND(&IBusServer::GetMonitoringInfo, busServer));
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();

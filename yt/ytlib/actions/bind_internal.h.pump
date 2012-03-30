@@ -24,6 +24,8 @@ $range ARITY 0..MAX_ARITY
 #include "bind_mpl.h"
 #include "callback_internal.h"
 
+#include <ytlib/misc/source_location.h>
+
 namespace NYT {
 namespace NDetail {
 /*! \internal */
@@ -573,7 +575,7 @@ ForwardRV<A$(UNBOUND_ARG)>(a$(UNBOUND_ARG))
 //
 
 template <class Runnable, class Signature, class BoundArgs>
-struct TBindState;
+class TBindState;
 
 $for ARITY [[
 $range ARG 1..ARITY
@@ -582,9 +584,10 @@ template <class Runnable, class Signature[[]]
 $if ARITY > 0 [[, ]]
 $for ARG , [[class S$(ARG)]]
 >
-struct TBindState<Runnable, Signature, void($for ARG , [[S$(ARG)]])>
+class TBindState<Runnable, Signature, void($for ARG , [[S$(ARG)]])>
     : public TBindStateBase
 {
+public:
     typedef TIsMethodHelper<Runnable> IsMethod;
 
 $if ARITY > 0 [[
@@ -615,9 +618,12 @@ $if ARITY > 0 [[
 
 ]]
 $$ The extra [[   ]] is needed to massage spacing. Silly pump.py.
-[[    ]]$if ARITY == 0 [[explicit ]]TBindState(const Runnable& runnable
+[[    ]]TBindState(
+        const ::NYT::TSourceLocation& location,
+        const Runnable& runnable
 $if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]])
-        : Runnable_(runnable)[[]]
+        : TBindStateBase(location)
+        , Runnable_(runnable)[[]]
 $if ARITY > 0 [[
 $for ARG [[
 

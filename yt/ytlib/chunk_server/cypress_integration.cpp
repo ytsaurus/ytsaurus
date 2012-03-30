@@ -352,7 +352,7 @@ public:
     THolderMapBehavior(TBootstrap* bootstrap, const TNodeId& nodeId)
         : TBase(bootstrap, nodeId)
     {
-        bootstrap->GetChunkManager()->SubscribeHolderRegistered(Bind(
+        bootstrap->GetChunkManager()->SubscribeHolderRegistered(BIND(
             &TThis::OnRegistered,
             MakeWeak(this)));
     }
@@ -368,7 +368,7 @@ private:
         // We're already in the state thread but need to postpone the planned changes and enqueue a callback.
         // Doing otherwise will turn holder registration and Cypress update into a single
         // logged change, which is undesirable.
-        Bind([=] () {
+        BIND([=] () {
             if (node->FindChild(address))
                 return;
 

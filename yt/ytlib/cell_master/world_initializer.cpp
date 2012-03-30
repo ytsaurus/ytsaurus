@@ -38,7 +38,7 @@ public:
         YASSERT(bootstrap);
 
         PeriodicInvoker = New<TPeriodicInvoker>(
-            Bind(&TImpl::OnCheck, MakeWeak(this))
+            BIND(&TImpl::OnCheck, MakeWeak(this))
             .Via(bootstrap->GetStateInvoker()),
             CheckPeriod);
         PeriodicInvoker->Start();

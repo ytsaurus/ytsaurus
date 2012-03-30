@@ -269,17 +269,17 @@ TTransactionManager::TTransactionManager(
     auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "TransactionManager.Keys.1",
-        Bind(&TTransactionManager::LoadKeys, MakeStrong(this)));
+        BIND(&TTransactionManager::LoadKeys, MakeStrong(this)));
     metaState->RegisterLoader(
         "TransactionManager.Values.1",
-        Bind(&TTransactionManager::LoadValues, MakeStrong(this), context));
+        BIND(&TTransactionManager::LoadValues, MakeStrong(this), context));
     metaState->RegisterSaver(
         "TransactionManager.Keys.1",
-        Bind(&TTransactionManager::SaveKeys, MakeStrong(this)),
+        BIND(&TTransactionManager::SaveKeys, MakeStrong(this)),
         ESavePhase::Keys);
     metaState->RegisterSaver(
         "TransactionManager.Values.1",
-        Bind(&TTransactionManager::SaveValues, MakeStrong(this)),
+        BIND(&TTransactionManager::SaveValues, MakeStrong(this)),
         ESavePhase::Values);
 
     metaState->RegisterPart(this);
@@ -464,7 +464,7 @@ void TTransactionManager::CreateLease(const TTransaction& transaction, TTransact
     auto timeout = manifest->Timeout.Get(Config->DefaultTransactionTimeout);
     auto lease = TLeaseManager::CreateLease(
         timeout,
-        Bind(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
+        BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
         .Via(
             Bootstrap->GetStateInvoker(),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));

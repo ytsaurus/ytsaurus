@@ -265,17 +265,17 @@ TObjectManager::TObjectManager(
     auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "ObjectManager.Keys.1",
-        Bind(&TObjectManager::LoadKeys, MakeStrong(this)));
+        BIND(&TObjectManager::LoadKeys, MakeStrong(this)));
     metaState->RegisterLoader(
         "ObjectManager.Values.1",
-        Bind(&TObjectManager::LoadValues, MakeStrong(this), context));
+        BIND(&TObjectManager::LoadValues, MakeStrong(this), context));
     metaState->RegisterSaver(
         "ObjectManager.Keys.1",
-        Bind(&TObjectManager::SaveKeys, MakeStrong(this)),
+        BIND(&TObjectManager::SaveKeys, MakeStrong(this)),
         ESavePhase::Keys);
     metaState->RegisterSaver(
         "ObjectManager.Values.1",
-        Bind(&TObjectManager::SaveValues, MakeStrong(this)),
+        BIND(&TObjectManager::SaveValues, MakeStrong(this)),
         ESavePhase::Values);
 
     metaState->RegisterPart(this);
@@ -557,16 +557,16 @@ void TObjectManager::ExecuteVerb(
     auto change = CreateMetaChange(
         ~MetaStateManager,
         message,
-        Bind([=] () -> TVoid {
+        BIND([=] () -> TVoid {
             action.Run(~wrappedContext);
             return TVoid();
         }));
 
     change
-        ->OnSuccess(Bind([=] (TVoid) {
+        ->OnSuccess(BIND([=] (TVoid) {
             wrappedContext->Flush();
         }))
-        ->OnError(Bind([=] () {
+        ->OnError(BIND([=] () {
             context_->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Error committing meta state changes"));

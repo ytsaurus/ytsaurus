@@ -38,7 +38,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
         awaiter->Await(
             request->Invoke(),
             address,
-            Bind(
+            BIND(
                 &TLeaderLookup::OnResponse,
                 MakeStrong(this),
                 awaiter,
@@ -46,7 +46,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
                 address));
     }
     
-    awaiter->Complete(Bind(
+    awaiter->Complete(BIND(
         &TLeaderLookup::OnComplete,
         MakeStrong(this),
         asyncResult));

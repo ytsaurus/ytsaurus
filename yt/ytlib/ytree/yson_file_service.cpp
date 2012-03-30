@@ -166,7 +166,7 @@ public:
             UnderlyingService->IsWriteRequest(context)
             ? New<TReplyInterceptorContext>(
                 context,
-                Bind(&TWriteBackService::SaveFile, MakeStrong(this)))
+                BIND(&TWriteBackService::SaveFile, MakeStrong(this)))
             : IServiceContext::TPtr(context);
         UnderlyingService->Invoke(~wrappedContext);
     }
@@ -254,7 +254,7 @@ private:
 
 TYPathServiceProducer CreateYsonFileProducer(const Stroka& fileName)
 {
-    return Bind([=] () -> IYPathServicePtr
+    return BIND([=] () -> IYPathServicePtr
         {
             return New<TYsonFileService>(fileName);
         });

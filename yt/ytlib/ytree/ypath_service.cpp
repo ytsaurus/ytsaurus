@@ -42,7 +42,7 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        Invoker->Invoke(Bind(
+        Invoker->Invoke(BIND(
             &TViaYPathService::ExecuteRequest,
             MakeStrong(this),
             context));

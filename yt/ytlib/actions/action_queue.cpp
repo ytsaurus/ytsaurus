@@ -191,7 +191,7 @@ IInvoker* TActionQueue::GetInvoker()
 
 TCallback<TActionQueue::TPtr()> TActionQueue::CreateFactory(const Stroka& threadName)
 {
-    return Bind([=] ()
+    return BIND([=] ()
         {
             return NYT::New<NYT::TActionQueue>(threadName);
         });

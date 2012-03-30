@@ -141,8 +141,8 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
     guard.Release();
 
     auto handler = runtimeInfo->Descriptor.Handler;
-    auto guardedHandler = context->Wrap(Bind(handler, context));
-    auto wrappedHandler = Bind([=] () {
+    auto guardedHandler = context->Wrap(BIND(handler, context));
+    auto wrappedHandler = BIND([=] () {
         auto& timer = activeRequest->Timer;
 
         {

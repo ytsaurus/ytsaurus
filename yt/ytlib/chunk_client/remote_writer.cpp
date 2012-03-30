@@ -202,18 +202,18 @@ void TRemoteWriter::TGroup::PutGroup()
 
     auto holder = writer->Holders[holderIndex];
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
-    auto onSuccess = Bind(
+    auto onSuccess = BIND(
         &TGroup::OnPutBlocks, 
         MakeWeak(this), 
         holder);
-    auto onResponse = Bind(
+    auto onResponse = BIND(
         &TRemoteWriter::CheckResponse<TProxy::TRspPutBlocks>,
         Writer,
         holder, 
         onSuccess,
         &writer->PutBlocksTiming);
     awaiter->Await(PutBlocks(holder), onResponse);
-    awaiter->Complete(Bind(
+    awaiter->Complete(BIND(
         &TRemoteWriter::TGroup::Process, 
         MakeWeak(this)));
 }
@@ -269,13 +269,13 @@ void TRemoteWriter::TGroup::SendGroup(THolderPtr srcHolder)
         auto dstHolder = writer->Holders[dstHolderIndex];
         if (dstHolder->IsAlive && !IsSent[dstHolderIndex]) {
             auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
-            auto onResponse = Bind(
+            auto onResponse = BIND(
                 &TGroup::CheckSendResponse,
                 MakeWeak(this),
                 srcHolder,
                 dstHolder);
             awaiter->Await(SendBlocks(srcHolder, dstHolder), onResponse);
-            awaiter->Complete(Bind(&TGroup::Process, MakeWeak(this)));
+            awaiter->Complete(BIND(&TGroup::Process, MakeWeak(this)));
             break;
         }
     }
@@ -319,7 +319,7 @@ void TRemoteWriter::TGroup::CheckSendResponse(
         return;
     }
 
-    auto onSuccess = Bind(
+    auto onSuccess = BIND(
         &TGroup::OnSentBlocks, 
         Unretained(this), // No need for a smart pointer here -- we're invoking action directly.
         srcHolder, 
@@ -471,11 +471,11 @@ void TRemoteWriter::Open()
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto holder, Holders) {
-        auto onSuccess = Bind(
+        auto onSuccess = BIND(
             &TRemoteWriter::OnChunkStarted, 
             TWeak(this), 
             holder);
-        auto onResponse = Bind(
+        auto onResponse = BIND(
             &TRemoteWriter::CheckResponse<TProxy::TRspStartChunk>,
             TWeak(this),
             holder,
@@ -483,7 +483,7 @@ void TRemoteWriter::Open()
             &StartChunkTiming);
         awaiter->Await(StartChunk(holder), onResponse);
     }
-    awaiter->Complete(Bind(&TRemoteWriter::OnSessionStarted, TWeak(this)));
+    awaiter->Complete(BIND(&TRemoteWriter::OnSessionStarted, TWeak(this)));
 
     IsOpen = true;
 }
@@ -516,12 +516,12 @@ void TRemoteWriter::ShiftWindow()
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto holder, Holders) {
         if (holder->IsAlive) {
-            auto onSuccess = Bind(
+            auto onSuccess = BIND(
                 &TRemoteWriter::OnBlockFlushed, 
                 TWeak(this), 
                 holder,
                 lastFlushableBlock);
-            auto onResponse = Bind(
+            auto onResponse = BIND(
                 &TRemoteWriter::CheckResponse<TProxy::TRspFlushBlock>,
                 TWeak(this), 
                 holder, 
@@ -531,7 +531,7 @@ void TRemoteWriter::ShiftWindow()
         }
     }
 
-    awaiter->Complete(Bind(
+    awaiter->Complete(BIND(
         &TRemoteWriter::OnWindowShifted, 
         TWeak(this),
         lastFlushableBlock));
@@ -708,11 +708,11 @@ void TRemoteWriter::CloseSession()
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto holder, Holders) {
         if (holder->IsAlive) {
-            auto onSuccess = Bind(
+            auto onSuccess = BIND(
                 &TRemoteWriter::OnChunkFinished, 
                 TWeak(this), 
                 holder);
-            auto onResponse = Bind(
+            auto onResponse = BIND(
                 &TRemoteWriter::CheckResponse<TProxy::TRspFinishChunk>,
                 TWeak(this), 
                 holder, 
@@ -721,7 +721,7 @@ void TRemoteWriter::CloseSession()
             awaiter->Await(FinishChunk(holder), onResponse);
         }
     }
-    awaiter->Complete(Bind(&TRemoteWriter::OnSessionFinished, TWeak(this)));
+    awaiter->Complete(BIND(&TRemoteWriter::OnSessionFinished, TWeak(this)));
 }
 
 void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::TPtr rsp)
@@ -795,7 +795,7 @@ void TRemoteWriter::SchedulePing(THolderPtr holder)
 
     TDelayedInvoker::CancelAndClear(holder->Cookie);
     holder->Cookie = TDelayedInvoker::Submit(
-        Bind(
+        BIND(
             &TRemoteWriter::PingSession,
             TWeak(this),
             holder)
@@ -833,7 +833,7 @@ TAsyncError::TPtr TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>&
 
     State.StartOperation();
 
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(Bind(
+    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
         &TRemoteWriter::DoWriteBlocks,
         TWeak(this),
         blocks));
@@ -859,7 +859,7 @@ void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
         ++BlockCount;
 
         if (CurrentGroup->GetSize() >= Config->GroupSize) {
-            WriterThread->GetInvoker()->Invoke(Bind(
+            WriterThread->GetInvoker()->Invoke(BIND(
                 &TRemoteWriter::AddGroup,
                 TWeak(this),
                 CurrentGroup));
@@ -915,7 +915,7 @@ TAsyncError::TPtr TRemoteWriter::AsyncClose(
     State.StartOperation();
 
     // XXX(sandello): Do you realize, that lastBlocks and attributes are copied back and forth here?
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(Bind(
+    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
         &TRemoteWriter::DoClose,
         TWeak(this),
         lastBlocks,

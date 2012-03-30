@@ -93,7 +93,7 @@ void TJob::Start()
 
             Chunk
                 ->GetInfo()
-                ->Subscribe(Bind([=] (IAsyncReader::TGetInfoResult result) {
+                ->Subscribe(BIND([=] (IAsyncReader::TGetInfoResult result) {
                     if (!result.IsOK()) {
                         LOG_WARNING("Error getting chunk info (ChunkId: %s)\n%s",
                             ~Chunk->GetId().ToString(),
@@ -146,7 +146,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 
         Writer
             ->AsyncClose(std::vector<TSharedRef>(), ChunkInfo.attributes())
-            ->Subscribe(Bind([=] (TError error) {
+            ->Subscribe(BIND([=] (TError error) {
                 if (error.IsOK()) {
                     LOG_DEBUG("Replication job completed");
 
@@ -172,7 +172,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
         ->BlockStore
         ->GetBlock(blockId)
         ->Subscribe(
-            Bind([=] (TBlockStore::TGetBlockResult result) {
+            BIND([=] (TBlockStore::TGetBlockResult result) {
                 if (!result.IsOK()) {
                     LOG_WARNING("Error getting block for replication (BlockIndex: %d)\n%s",
                         blockIndex,
@@ -185,7 +185,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
                 std::vector<TSharedRef> blocks;
                 blocks.push_back(result.Value()->GetData());
                 this_->Writer->AsyncWriteBlocks(MoveRV(blocks))->Subscribe(
-                    Bind(
+                    BIND(
                         &TJob::ReplicateBlock,
                         this_,
                         blockIndex + 1)

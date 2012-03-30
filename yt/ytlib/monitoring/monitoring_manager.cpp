@@ -25,7 +25,7 @@ TMonitoringManager::TMonitoringManager()
     : IsStarted(false)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        Bind(&TMonitoringManager::Update, MakeStrong(this)),
+        BIND(&TMonitoringManager::Update, MakeStrong(this)),
         Period);
 }
 
@@ -102,7 +102,7 @@ TYsonProducer TMonitoringManager::GetProducer()
     YASSERT(IsStarted);
     YASSERT(Root);
 
-    return Bind(&TMonitoringManager::Visit, MakeStrong(this));
+    return BIND(&TMonitoringManager::Visit, MakeStrong(this));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

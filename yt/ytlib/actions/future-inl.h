@@ -114,7 +114,7 @@ TFuture<T>::Apply(TCallback<R(T)> func)
     YASSERT(!func.IsNull());
 
     auto otherResult = New< TFuture<R> >();
-    Subscribe(Bind(&ApplyFuncThunk<T, R>, otherResult, Passed(MoveRV(func))));
+    Subscribe(BIND(&ApplyFuncThunk<T, R>, otherResult, Passed(MoveRV(func))));
     return otherResult;
 }
 
@@ -126,7 +126,7 @@ void AsyncApplyFuncThunk(
 {
     YASSERT(!func.IsNull());
 
-    func.Run(MoveRV(value))->Subscribe(Bind(&TFuture<R>::Set, MoveRV(otherResult)));
+    func.Run(MoveRV(value))->Subscribe(BIND(&TFuture<R>::Set, MoveRV(otherResult)));
 }
 
 template <class T>
@@ -137,7 +137,7 @@ TFuture<T>::Apply(TCallback<TIntrusivePtr< TFuture<R> >(T)> func)
     YASSERT(!func.IsNull());
 
     auto otherResult = New< TFuture<R> >();
-    Subscribe(Bind(&AsyncApplyFuncThunk<T, R>, otherResult, Passed(MoveRV(func))));
+    Subscribe(BIND(&AsyncApplyFuncThunk<T, R>, otherResult, Passed(MoveRV(func))));
     return otherResult;
 }
 
@@ -145,7 +145,7 @@ template <class T>
 template <class R>
 TIntrusivePtr< TFuture<R> > TFuture<T>::CastTo()
 {
-    return Apply(Bind([] (T value) { return R(value); }));
+    return Apply(BIND([] (T value) { return R(value); }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

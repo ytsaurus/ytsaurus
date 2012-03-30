@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ytlib/misc/common.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/actions/callback.h>
 #include <ytlib/actions/invoker.h>
 #include <ytlib/misc/delayed_invoker.h>

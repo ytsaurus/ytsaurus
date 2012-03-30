@@ -235,7 +235,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::ReplayChangeLogs(
                     ~currentVersion.ToString(),
                     remoteRecordCount);
                 DecoratedState->Clear();
-                return Bind(&TRecovery::Run, MakeStrong(this))
+                return BIND(&TRecovery::Run, MakeStrong(this))
                         .AsyncVia(~EpochControlInvoker)
                         .Run();
             }
@@ -363,7 +363,7 @@ TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
 
     auto version = DecoratedState->GetReachableVersionAsync();
     i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
-    return Bind(
+    return BIND(
                (TAsyncResult::TPtr (TRecovery::*)(const TMetaVersion&, i32))&TRecovery::RecoverToState,
                MakeStrong(this),
                version,
@@ -413,16 +413,16 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
     PostponedVersion = TargetVersion;
     YASSERT(PostponedChanges.empty());
 
-    Bind(
+    BIND(
         (TAsyncResult::TPtr (TRecovery::*)(const TMetaVersion&))&TRecovery::RecoverToState,
         MakeStrong(this),
         TargetVersion)
     .AsyncVia(~EpochStateInvoker)
     .Run()
-    ->Apply(Bind(
+    ->Apply(BIND(
         &TFollowerRecovery::OnSyncReached,
         MakeStrong(this)))
-    ->Subscribe(Bind(
+    ->Subscribe(BIND(
         &TAsyncResult::Set,
         Result));
 
@@ -439,7 +439,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
 
     LOG_INFO("Sync reached");
 
-    return Bind(&TFollowerRecovery::CapturePostponedChanges, MakeStrong(this))
+    return BIND(&TFollowerRecovery::CapturePostponedChanges, MakeStrong(this))
            .AsyncVia(~EpochControlInvoker)
            .Run();
 }
@@ -458,7 +458,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
 
     LOG_INFO("Captured %d postponed changes", changes->ysize());
 
-    return Bind(
+    return BIND(
                &TFollowerRecovery::ApplyPostponedChanges,
                MakeStrong(this),
                Owned(changes.Release()))
@@ -499,7 +499,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
    
     LOG_INFO("Finished applying postponed changes");
 
-    return Bind(
+    return BIND(
                &TFollowerRecovery::CapturePostponedChanges,
                MakeStrong(this))
            .AsyncVia(~EpochControlInvoker)

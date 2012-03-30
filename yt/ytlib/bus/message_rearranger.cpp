@@ -97,7 +97,7 @@ void TMessageRearranger::RescheduleTimeout()
 
     TDelayedInvoker::CancelAndClear(TimeoutCookie);
     TimeoutCookie = TDelayedInvoker::Submit(
-        Bind(&TMessageRearranger::OnTimeout, MakeWeak(this)),
+        BIND(&TMessageRearranger::OnTimeout, MakeWeak(this)),
         Timeout);
 }
 

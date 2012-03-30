@@ -3,6 +3,7 @@
 #include "chunk_manager.h"
 #include "holder.h"
 
+#include <ytlib/actions/bind.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
 
@@ -35,7 +36,7 @@ void THolderLeaseTracker::OnHolderRegistered(const THolder& holder, bool recover
     holderInfo.Confirmed = !recovery;
     holderInfo.Lease = TLeaseManager::CreateLease(
         GetTimeout(holder, holderInfo),
-        Bind(
+        BIND(
             &THolderLeaseTracker::OnExpired,
             MakeStrong(this),
             holder.GetId())
@@ -98,10 +99,10 @@ void THolderLeaseTracker::OnExpired(THolderId holderId)
         ->GetChunkManager()
         ->InitiateUnregisterHolder(message)
         ->SetRetriable(Config->HolderExpirationBackoffTime)
-        ->OnSuccess(Bind([=] (TVoid) {
+        ->OnSuccess(BIND([=] (TVoid) {
             LOG_INFO("Holder expiration commit success (HolderId: %d)", holderId);
         }))
-        ->OnError(Bind([=] () {
+        ->OnError(BIND([=] () {
             LOG_INFO("Holder expiration commit failed (HolderId: %d)", holderId);
         }))
         ->Commit();

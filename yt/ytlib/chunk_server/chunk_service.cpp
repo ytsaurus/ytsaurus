@@ -82,7 +82,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     *message.mutable_statistics() = statistics;
     chunkManager
         ->InitiateRegisterHolder(message)
-        ->OnSuccess(Bind([=] (THolderId id)
+        ->OnSuccess(BIND([=] (THolderId id)
             {
                 response->set_holder_id(id);
                 context->SetResponseInfo("HolderId: %d", id);
@@ -124,7 +124,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
     PROFILE_TIMING_CHECKPOINT("2");
     auto x = chunkManager
         ->InitiateFullHeartbeat(heartbeatMsg)
-        ->OnSuccess(Bind([=] (TVoid)
+        ->OnSuccess(BIND([=] (TVoid)
             {
                 context->Reply();
             }))
@@ -194,7 +194,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
     chunkManager
         ->InitiateUpdateJobs(updateJobsMsg)
-        ->OnSuccess(Bind([=] (TVoid) {
+        ->OnSuccess(BIND([=] (TVoid) {
             context->SetResponseInfo("JobsToStart: %d, JobsToStop: %d",
                 static_cast<int>(response->jobs_to_start_size()),
                 static_cast<int>(response->jobs_to_stop_size()));
@@ -236,7 +236,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
     message.set_chunk_count(chunkCount);
     chunkManager
         ->InitiateCreateChunks(message)
-        ->OnSuccess(Bind([=] (yvector<TChunkId> chunkIds)
+        ->OnSuccess(BIND([=] (yvector<TChunkId> chunkIds)
             {
                 YASSERT(chunkIds.size() == chunkCount);
                 for (int index = 0; index < chunkCount; ++index) {

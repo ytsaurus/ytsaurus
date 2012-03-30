@@ -32,7 +32,7 @@ TSequentialReader::TSequentialReader(
 
     int fetchCount = FreeSlots / Config->GroupSize;
     for (int i = 0; i < fetchCount; ++i) {
-        ReaderThread->GetInvoker()->Invoke(Bind(
+        ReaderThread->GetInvoker()->Invoke(BIND(
             &TSequentialReader::FetchNextGroup,
             MakeWeak(this)));
     }
@@ -67,7 +67,7 @@ TAsyncError::TPtr TSequentialReader::AsyncNextBlock()
 
     auto this_ = MakeStrong(this);
     Window[NextSequenceIndex].AsyncBlock->Subscribe(
-        Bind([=] (TSharedRef) {
+        BIND([=] (TSharedRef) {
             this_->State.FinishOperation();
         }));
 
@@ -110,7 +110,7 @@ void TSequentialReader::ShiftWindow()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ReaderThread->GetInvoker()->Invoke(Bind(
+    ReaderThread->GetInvoker()->Invoke(BIND(
         &TSequentialReader::DoShiftWindow, 
         MakeWeak(this)));
 }
@@ -152,7 +152,7 @@ void TSequentialReader::FetchNextGroup()
         FirstUnfetchedIndex, 
         groupIndexes.ysize());
 
-    ChunkReader->AsyncReadBlocks(groupIndexes)->Subscribe(Bind(
+    ChunkReader->AsyncReadBlocks(groupIndexes)->Subscribe(BIND(
         &TSequentialReader::OnGotBlocks, 
         MakeWeak(this),
         FirstUnfetchedIndex)

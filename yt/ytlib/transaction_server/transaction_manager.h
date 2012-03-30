@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/actions/bind.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>

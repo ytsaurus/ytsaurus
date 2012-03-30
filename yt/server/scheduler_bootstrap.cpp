@@ -62,10 +62,10 @@ void TSchedulerBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "ref_counted",
-        Bind(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "bus_server",
-        Bind(&IBusServer::GetMonitoringInfo, busServer));
+        BIND(&IBusServer::GetMonitoringInfo, busServer));
     monitoringManager->Start();
 
     auto orchidFactory = GetEphemeralNodeFactory();

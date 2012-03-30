@@ -156,7 +156,7 @@ public:
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
             SessionId,
-            Bind(&TSession::OnMessageDequeued, MakeWeak(this)),
+            BIND(&TSession::OnMessageDequeued, MakeWeak(this)),
             server->Config->MessageRearrangeTimeout))
     { }
 
@@ -167,7 +167,7 @@ public:
         SendPing();
         Lease = TLeaseManager::CreateLease(
             server->Config->SessionTimeout,
-            Bind(&TSession::OnLeaseExpired, MakeWeak(this)));
+            BIND(&TSession::OnLeaseExpired, MakeWeak(this)));
     }
 
     void OnUnregistered()

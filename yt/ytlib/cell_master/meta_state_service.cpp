@@ -34,7 +34,7 @@ void TMetaStateServiceBase::InvokeHandler(
     }
 
     NRpc::IServiceContext::TPtr context_ = context;
-    runtimeInfo->Invoker->Invoke(Bind([=] ()
+    runtimeInfo->Invoker->Invoke(BIND([=] ()
         {
             if (Bootstrap->GetMetaStateManager()->GetStateStatusAsync() != EPeerStatus::Leading ||
                 !Bootstrap->GetMetaStateManager()->HasActiveQuorum())

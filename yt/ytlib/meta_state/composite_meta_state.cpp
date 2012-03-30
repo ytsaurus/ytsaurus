@@ -27,13 +27,13 @@ TMetaStatePart::TMetaStatePart(
     YASSERT(metaStateManager);
     YASSERT(metaState);
 
-    metaStateManager->SubscribeStartLeading(Bind(
+    metaStateManager->SubscribeStartLeading(BIND(
         &TThis::OnStartLeading,
         MakeWeak(this)));
-    metaStateManager->SubscribeLeaderRecoveryComplete(Bind(
+    metaStateManager->SubscribeLeaderRecoveryComplete(BIND(
         &TThis::OnLeaderRecoveryComplete,
         MakeWeak(this)));
-    metaStateManager->SubscribeStopLeading(Bind(
+    metaStateManager->SubscribeStopLeading(BIND(
         &TThis::OnStopLeading,
         MakeWeak(this)));
 }
