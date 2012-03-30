@@ -2,7 +2,6 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/scheduler )
 set( SRCS
   ${BASE}/private.cpp
-  ${BASE}/redirector_service.cpp
   ${BASE}/scheduler_channel.cpp
   ${BASE}/operation.cpp
   ${BASE}/job.cpp
@@ -17,7 +16,6 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/private.h
   ${BASE}/config.h
-  ${BASE}/redirector_service.h
   ${BASE}/scheduler_channel.h
   ${BASE}/scheduler_proxy.h
   ${BASE}/operation.h
