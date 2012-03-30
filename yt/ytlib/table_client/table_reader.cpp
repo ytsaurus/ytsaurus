@@ -98,6 +98,14 @@ const TRow& TTableReader::GetRow() const
     return Reader->GetCurrentRow();
 }
 
+const TKey& TTableReader::GetKey() const
+{
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
+    return Reader->GetCurrentKey();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

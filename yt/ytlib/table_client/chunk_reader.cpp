@@ -172,80 +172,84 @@ private:
         if (EndLimit.has_row_index())
             chunkReader->EndRowIndex = std::min(chunkReader->EndRowIndex, EndLimit.row_index());
 
-        if (StartLimit.has_key() || EndLimit.has_key()) {
-            // We expect sorted chunk here.
-            if (!Attributes.is_sorted()) {
-                LOG_WARNING("Received key range read request for an unsorted chunk");
-                OnFail(
-                    TError("Received key range read request for an unsorted chunk"), 
-                    chunkReader);
-                return;
-            }
-
+        {
             auto keyColumns = FromProto<TColumn>(Attributes.key_columns());
-            for (int i = 0; i < keyColumns.size(); ++i) {
-                const auto& column = keyColumns[i];
-                Channel.AddColumn(column);
-                auto& columnInfo = chunkReader->FixedColumns[column];
-                columnInfo.KeyIndex = i;
-                if (chunkReader->Channel.Contains(column))
-                    columnInfo.InChannel = true;
+            if (chunkReader->Options.ReadKey || StartLimit.has_key() || EndLimit.has_key()) {
+                for (int i = 0; i < keyColumns.size(); ++i) {
+                    const auto& column = keyColumns[i];
+                    Channel.AddColumn(column);
+                    auto& columnInfo = chunkReader->FixedColumns[column];
+                    columnInfo.KeyIndex = i;
+                    if (chunkReader->Channel.Contains(column))
+                        columnInfo.InChannel = true;
+                }
+
+                chunkReader->CurrentKey.resize(keyColumns.size());
             }
 
-            chunkReader->CurrentKey.resize(keyColumns.size());
+            if (StartLimit.has_key() || EndLimit.has_key()) {
+                // We expect sorted chunk here.
+                if (!Attributes.is_sorted()) {
+                    LOG_WARNING("Received key range read request for an unsorted chunk");
+                    OnFail(
+                        TError("Received key range read request for an unsorted chunk"), 
+                        chunkReader);
+                    return;
+                }
 
-            if (StartLimit.has_key()) {
-                TKey key = FromProto<Stroka>(StartLimit.key().values());
+                if (StartLimit.has_key()) {
+                    TKey key = FromProto<Stroka>(StartLimit.key().values());
 
-                // define start row
-                if (key.size() == 0) {
-                    // Do nothing - range starts from -inf.
-                } else if (keyColumns.size() == 0) {
-                    // Empty row set selected: requested finite or 
-                    // semifinite range on table with empty key.
-                    chunkReader->EndRowIndex = 0;
-                } else {
-                    StartValidator.Reset(new TGenericValidator< std::greater_equal<TKey> >(key));
+                    // define start row
+                    if (key.size() == 0) {
+                        // Do nothing - range starts from -inf.
+                    } else if (keyColumns.size() == 0) {
+                        // Empty row set selected: requested finite or 
+                        // semifinite range on table with empty key.
+                        chunkReader->EndRowIndex = 0;
+                    } else {
+                        StartValidator.Reset(new TGenericValidator< std::greater_equal<TKey> >(key));
 
-                    typedef decltype(Attributes.key_samples().begin()) TSampleIter;
-                    std::reverse_iterator<TSampleIter> rbegin(Attributes.key_samples().end());
-                    std::reverse_iterator<TSampleIter> rend(Attributes.key_samples().begin());
-                    auto it = std::upper_bound(
-                        rbegin, 
-                        rend, 
-                        key, 
-                        TProtoKeyCompare< std::greater<TKey> >());
+                        typedef decltype(Attributes.key_samples().begin()) TSampleIter;
+                        std::reverse_iterator<TSampleIter> rbegin(Attributes.key_samples().end());
+                        std::reverse_iterator<TSampleIter> rend(Attributes.key_samples().begin());
+                        auto it = std::upper_bound(
+                            rbegin, 
+                            rend, 
+                            key, 
+                            TProtoKeyCompare< std::greater<TKey> >());
 
-                    if (it != rend) {
-                        StartRowIndex = std::max(it->row_index() + 1, StartRowIndex);
+                        if (it != rend) {
+                            StartRowIndex = std::max(it->row_index() + 1, StartRowIndex);
+                        }
                     }
                 }
-            }
 
-            if (EndLimit.has_key()) {
-                auto key = FromProto<Stroka>(EndLimit.key().values());
+                if (EndLimit.has_key()) {
+                    auto key = FromProto<Stroka>(EndLimit.key().values());
 
-                // define end row
-                if (key.size() == 0) {
-                    // Do nothing - range ends at +inf.
-                } else if (keyColumns.size() == 0) {
-                    // Empty row set selected: requested finite or 
-                    // semifinite range on table with empty key.
-                    chunkReader->EndRowIndex = 0;
-                } else {
-                    chunkReader->EndValidator.Reset(
-                        new TGenericValidator< std::less<TKey> >(key));
+                    // define end row
+                    if (key.size() == 0) {
+                        // Do nothing - range ends at +inf.
+                    } else if (keyColumns.size() == 0) {
+                        // Empty row set selected: requested finite or 
+                        // semifinite range on table with empty key.
+                        chunkReader->EndRowIndex = 0;
+                    } else {
+                        chunkReader->EndValidator.Reset(
+                            new TGenericValidator< std::less<TKey> >(key));
 
-                    auto it = std::upper_bound(
-                        Attributes.key_samples().begin(), 
-                        Attributes.key_samples().end(), 
-                        key, 
-                        TProtoKeyCompare< std::less<TKey> >());
+                        auto it = std::upper_bound(
+                            Attributes.key_samples().begin(), 
+                            Attributes.key_samples().end(), 
+                            key, 
+                            TProtoKeyCompare< std::less<TKey> >());
 
-                    if (it != Attributes.key_samples().end()) {
-                        chunkReader->EndRowIndex = std::min(
-                            it->row_index(), 
-                            chunkReader->EndRowIndex);
+                        if (it != Attributes.key_samples().end()) {
+                            chunkReader->EndRowIndex = std::min(
+                                it->row_index(), 
+                                chunkReader->EndRowIndex);
+                        }
                     }
                 }
             }
@@ -515,12 +519,14 @@ TChunkReader::TChunkReader(
     NChunkClient::IAsyncReader* chunkReader,
     const NProto::TReadLimit& startLimit,
     const NProto::TReadLimit& endLimit,
-    const Stroka& rowAttributes)
+    const Stroka& rowAttributes,
+    TChunkReader::TOptions options)
     : Codec(NULL)
     , SequentialReader(NULL)
     , Channel(channel)
     , CurrentRowIndex(-1)
     , EndRowIndex(0)
+    , Options(options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(chunkReader);
@@ -661,6 +667,17 @@ const TRow& TChunkReader::GetCurrentRow() const
     YASSERT(!Initializer);
 
     return CurrentRow;
+}
+
+const TKey& TChunkReader::GetCurrentKey() const
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(!Initializer);
+
+    YASSERT(Options.ReadKey);
+
+    return CurrentKey;
 }
 
 bool TChunkReader::IsValid() const

@@ -34,6 +34,11 @@ const TRow& TSyncReader::GetRow() const
     return AsyncReader->GetCurrentRow();
 }
 
+const TKey& TSyncReader::GetKey() const
+{
+    return AsyncReader->GetCurrentKey();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

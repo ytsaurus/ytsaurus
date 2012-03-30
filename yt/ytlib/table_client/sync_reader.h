@@ -15,6 +15,7 @@ struct ISyncReader
     virtual void NextRow() = 0;
     virtual bool IsValid() const = 0;
     virtual const TRow& GetRow() const = 0;
+    virtual const TKey& GetKey() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +34,7 @@ public:
     void NextRow();
     bool IsValid() const;
     const TRow& GetRow() const;
+    const TKey& GetKey() const;
 
 private:
     TIntrusivePtr<IAsyncReader> AsyncReader;

@@ -21,6 +21,13 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool CompareReaders(
+    const TSyncReader::TPtr& r1, 
+    const TSyncReader::TPtr& r2)
+{
+    return r1->GetKey() < r2->GetKey();
+}
+
 TMergeJob::TMergeJob(
     const TJobIoConfigPtr& config,
     const NElection::TLeaderLookup::TConfig::TPtr& masterConfig,
@@ -42,13 +49,17 @@ TMergeJob::TMergeJob(
             TChunkId::FromProto(inputChunk.slice().chunk_id()),
             seedAddresses);
 
+        TChunkReader::TOptions options;
+        options.ReadKey = true;
+
         auto chunkReader = New<TChunkReader>(
             ~config->ChunkSequenceReader->SequentialReader,
             TChannel::CreateUniversal(),
             ~remoteReader,
             inputChunk.slice().start_limit(),
             inputChunk.slice().end_limit(),
-            ""); // No row attributes.
+            "", // No row attributes.
+            options); 
 
         ChunkReaders.push_back(New<TSyncReader>(~chunkReader));
         ChunkReaders.back()->Open();
@@ -56,6 +67,8 @@ TMergeJob::TMergeJob(
             ChunkReaders.pop_back();
         }
     }
+
+    std::make_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
 
     auto asyncWriter = New<TChunkSequenceWriter>(
         ~config->ChunkSequenceWriter,
@@ -72,8 +85,24 @@ TMergeJob::TMergeJob(
 
 TJobResult TMergeJob::Run()
 {
-    YUNIMPLEMENTED();
-    return TJobResult();
+    while (!ChunkReaders.empty()) {
+        std::pop_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
+        FOREACH(auto& pair, ChunkReaders.back()->GetRow()) {
+            Writer->Write(pair.first, pair.second);
+        }
+        Writer->EndRow();
+
+        ChunkReaders.back()->NextRow();
+        if (ChunkReaders.back()->IsValid()) {
+            std::push_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
+        } else {
+            ChunkReaders.pop_back();
+        }
+    }
+
+    TJobResult result;
+    *result.mutable_error() = TError().ToProto();
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
