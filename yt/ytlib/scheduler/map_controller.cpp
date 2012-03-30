@@ -367,7 +367,7 @@ private:
         JobSpecTemplate.set_type(EJobType::Map);
 
         TUserJobSpec userJobSpec;
-        userJobSpec.set_shell_comand(Spec->ShellCommand);
+        userJobSpec.set_shell_command(Spec->ShellCommand);
         FOREACH (const auto& file, Files) {
             *userJobSpec.add_files() = *file.FetchResponse;
         }

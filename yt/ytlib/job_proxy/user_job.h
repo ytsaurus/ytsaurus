@@ -17,8 +17,7 @@ class TUserJob
 {
 public:
     TUserJob(
-        const TJobIoConfigPtr& ioConfig,
-        const NElection::TLeaderLookup::TConfig::TPtr& masterConfig,
+        const TJobProxyConfigPtr& proxyConfig,
         const NScheduler::NProto::TJobSpec& jobSpec);
 
     NScheduler::NProto::TJobResult Run();
@@ -30,6 +29,8 @@ private:
 
     // Called from forked process.
     void StartJob();
+    
+    TJobProxyConfigPtr Config;
 
     TAutoPtr<IUserJobIo> JobIo;
     NScheduler::NProto::TUserJobSpec UserJobSpec;

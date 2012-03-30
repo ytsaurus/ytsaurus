@@ -1,27 +1,67 @@
 ﻿#include "stdafx.h"
 
+#include "private.h"
 #include "config.h"
 #include "user_job.h"
 #include "user_job_io.h"
 
 #include "pipes.h"
 
+#ifdef _linux_
+
+#include <unistd.h>
+#include <sys/types.h> 
+#include <sys/time.h>
+#include <sys/wait.h>
+
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/epoll.h>
+
+#endif
+
 namespace NYT {
 namespace NJobProxy {
+
+static NLog::TLogger& Logger = JobProxyLogger;
 
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _linux_
+
+// ToDo(psushin): set sigint handler?
+// ToDo(psushin): extract it to separate file.
+TError StatusToError(int status)
+{
+    if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
+        return TError();
+    } else if (WIFSIGNALED(status)) {
+        return TError("Process terminated by signal %d",  WTERMSIG(status));
+    } else if (WIFSTOPPED(status)) {
+        return TError("Process stopped by signal %d",  WSTOPSIG(status));
+    } else if (WIFEXITED(status)) {
+        return TError("Process exited with value %d",  WEXITSTATUS(status));
+    } else {
+        return TError("Status %d", status);
+    }
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 TUserJob::TUserJob(
-    const TJobIoConfigPtr& ioConfig,
-    const NElection::TLeaderLookup::TConfig::TPtr& masterConfig,
+    const TJobProxyConfigPtr& proxyConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
+    : Config(proxyConfig)
 {
     YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
 
     UserJobSpec = jobSpec.GetExtension(TUserJobSpec::user_job_spec);
-    JobIo = CreateUserJobIo(ioConfig, masterConfig, jobSpec);
+    JobIo = CreateUserJobIo(proxyConfig->JobIo, proxyConfig->Masters, jobSpec);
 }
 
 #ifdef _linux_
@@ -29,7 +69,7 @@ TUserJob::TUserJob(
 NScheduler::NProto::TJobResult TUserJob::Run()
 {
     // ToDo(psushin): use tagged logger here.
-    LOG_DEBUG("Running new user job"));
+    LOG_DEBUG("Running new user job");
     InitPipes();
     LOG_DEBUG("Initialized pipes");
 
@@ -88,21 +128,21 @@ void TUserJob::InitPipes()
     } while (reservedDescriptors.back() < maxReservedDescriptor);
 
 
-    DataPipes.push_back(New<TOutputPipe>(JobIo->GetErrorOutput(), STDERR_FILENO));
+    DataPipes.push_back(New<TOutputPipe>(JobIo->CreateErrorOutput(), STDERR_FILENO));
     ++ActivePipesCount;
 
     // Make pipe for each input and each output table.
-    for (int i = 0; i < JobSpec->GetInputCount(); ++i) {
+    for (int i = 0; i < JobIo->GetInputCount(); ++i) {
         TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
         DataPipes.push_back(New<TInputPipe>(
-            JobIo->GetInputTable(i, buffer.Get()) ,
+            JobIo->CreateTableInput(i, buffer.Get()) ,
             buffer,
             3 * i));
     }
 
-    for (int i = 0; i < JobSpec->GetOutputCount(); ++i) {
+    for (int i = 0; i < JobIo->GetOutputCount(); ++i) {
         ++ActivePipesCount;
-        DataPipes.push_back(New<TOutputPipe>(JobIo->GetOutputTable(i), 3 * i + 1));
+        DataPipes.push_back(New<TOutputPipe>(JobIo->CreateTableOutput(i), 3 * i + 1));
     }
 
     // Close reserved descriptors.
@@ -121,18 +161,19 @@ void TUserJob::StartJob()
         // ToDo(psushin): handle errors.
         ChDir(Config->SandboxName);
 
+
+        Stroka cmd = UserJobSpec.shell_command();
         // do not search the PATH, inherit environment
         execl("/bin/sh",
             "/bin/sh", 
             "-c", 
-            ~JobSpec->GetShellCommand(), 
+            ~cmd, 
             (void*)NULL);
         int _errno = errno;
 
         fprintf(stderr, "Failed to exec job (/bin/sh -c '%s'): %s\n",
-            ~JobSpec->GetShellCommand(),
-            strerror(_errno)
-            );
+            ~cmd, 
+            strerror(_errno));
 
         exit(7);
     }

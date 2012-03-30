@@ -63,7 +63,7 @@ message TUserJobSpec
     repeated NYT.NFileServer.NProto.TRspFetch files = 1;
 
     // The user command to be executed.
-    required string shell_comand = 2;
+    required string shell_command = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

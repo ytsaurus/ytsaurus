@@ -3,6 +3,7 @@
 #include "public.h"
 #include "private.h"
 #include "pipes.h"
+#include "job.h"
 
 #include <ytlib/job_proxy/public.h>
 #include <ytlib/scheduler/public.h>
@@ -28,7 +29,7 @@ public:
 private:
     void SendHeartbeat();
 
-    NScheduler::NProto::TJobSpec TJobProxy::GetJobSpec();
+    NScheduler::NProto::TJobSpec GetJobSpec();
     void ReportResult(const NScheduler::NProto::TJobResult& result);
 
     typedef NExecAgent::TSupervisorServiceProxy TProxy;

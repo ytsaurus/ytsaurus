@@ -208,7 +208,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             return EExitCode::OK;
         }
 
-        TJobId jobId;
+        NJobProxy::TJobId jobId;
         try {
             jobId = TGuid::FromString(jobIdOpt);
         } catch (const std::exception& ex) {
