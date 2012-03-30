@@ -9,9 +9,10 @@
 // TODO(babenko): move to rpc/public.h
 
 namespace NYT {
-namespace NRpc {
-    class IServiceContext;
-}
+    class IInvoker;
+    namespace NRpc {
+        class IServiceContext;
+    }
 }
 
 namespace NYT {
@@ -99,7 +100,7 @@ struct IYPathService
     static IYPathServicePtr FromProducer(TYsonProducer producer);
 
     //! Creates a wrapper than handles all requests via the given invoker.
-    IYPathServicePtr Via(IInvoker::TPtr invoker);
+    IYPathServicePtr Via(TIntrusivePtr<IInvoker> invoker);
 
     //! Creates a wrapper than invokes a given service producer in a lazy fashion
     //! and then redirects all requests to the returned service.

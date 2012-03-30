@@ -4,7 +4,6 @@
 #include "message_rearranger.h"
 #include "packet.h"
 
-#include <ytlib/actions/action_util.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/profiling/profiler.h>

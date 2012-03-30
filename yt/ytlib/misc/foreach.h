@@ -91,17 +91,18 @@ inline auto End(TIntrusiveList<T>& collection) -> decltype(collection.End())
  */
 #define FOREACH(var, collection) \
     auto&& PP_CONCAT(foreach_collection_, __LINE__) = collection; \
-    auto PP_CONCAT(foreach_current_, __LINE__) = ::NYT::NForeach::Begin(PP_CONCAT(foreach_collection_, __LINE__)); \
-    auto PP_CONCAT(foreach_end_, __LINE__) = ::NYT::NForeach::End(PP_CONCAT(foreach_collection_, __LINE__)); \
-    for (bool PP_CONCAT(foreach_continue_, __LINE__) = true; \
+    auto   PP_CONCAT(foreach_current_,    __LINE__) = ::NYT::NForeach::Begin(PP_CONCAT(foreach_collection_, __LINE__)); \
+    auto   PP_CONCAT(foreach_end_,        __LINE__) = ::NYT::NForeach::End(  PP_CONCAT(foreach_collection_, __LINE__)); \
+    for (bool \
+         PP_CONCAT(foreach_continue_, __LINE__) = true; \
          PP_CONCAT(foreach_continue_, __LINE__) && \
-         PP_CONCAT(foreach_current_, __LINE__) != PP_CONCAT(foreach_end_, __LINE__); \
+         PP_CONCAT(foreach_current_,  __LINE__) != PP_CONCAT(foreach_end_, __LINE__); \
          PP_CONCAT(foreach_continue_, __LINE__) \
          ? ::NYT::NForeach::MoveNext(PP_CONCAT(foreach_current_, __LINE__)) \
-         : (void) 0) \
+         : (void)0) \
     if (::NYT::NForeach::SetFalse(PP_CONCAT(foreach_continue_, __LINE__))) { } else \
     for (var = ::NYT::NForeach::Deref(PP_CONCAT(foreach_current_, __LINE__)); \
          !PP_CONCAT(foreach_continue_, __LINE__); \
-         PP_CONCAT(foreach_continue_, __LINE__) = true)
+          PP_CONCAT(foreach_continue_, __LINE__) = true)
 
 ////////////////////////////////////////////////////////////////////////////////

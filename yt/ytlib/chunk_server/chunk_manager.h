@@ -29,7 +29,7 @@ public:
     NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const NProto::TMsgRegisterHolder& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateUnregisterHolder(
         const NProto::TMsgUnregisterHolder& message);
 
     NMetaState::TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(

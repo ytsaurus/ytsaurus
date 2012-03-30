@@ -19,7 +19,7 @@ public:
 
     TMessageRearranger(
         const TSessionId& sessionId,
-        IParamAction<IMessage*>::TPtr onDequeuedMessage,
+        TCallback<void(IMessage*)> onDequeuedMessage,
         TDuration timeout);
 
     void EnqueueMessage(
@@ -42,7 +42,7 @@ private:
     typedef ymap<TSequenceId, TPostponedMessage> TPostponedMessages;
 
     TSessionId SessionId;
-    IParamAction<IMessage*>::TPtr OnMessageDequeued;
+    TCallback<void(IMessage*)> OnMessageDequeued;
     TDuration Timeout;
 
     NLog::TTaggedLogger Logger;

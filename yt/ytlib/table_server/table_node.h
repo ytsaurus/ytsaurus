@@ -22,7 +22,7 @@ public:
 
     virtual void Save(TOutputStream* output) const;
     
-    virtual void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
+    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

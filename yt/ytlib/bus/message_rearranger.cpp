@@ -10,7 +10,7 @@ namespace NBus {
 
 TMessageRearranger::TMessageRearranger(
     const TSessionId& sessionId,
-    IParamAction<IMessage*>::TPtr onMessage,
+    TCallback<void(IMessage*)> onMessage,
     TDuration timeout)
     : SessionId(sessionId)
     , OnMessageDequeued(onMessage)
@@ -18,7 +18,7 @@ TMessageRearranger::TMessageRearranger(
     , ExpectedSequenceId(0)
     , Logger(BusLogger)
 {
-    YASSERT(onMessage);
+    YASSERT(!onMessage.IsNull());
 
     Logger.AddTag(Sprintf("SessionId: %s", ~sessionId.ToString()));
 }
@@ -38,7 +38,7 @@ void TMessageRearranger::EnqueueMessage(
             ~requestId.ToString(),
             sequenceId);
 
-        OnMessageDequeued->Do(message);
+        OnMessageDequeued.Run(message);
         ExpectedSequenceId = sequenceId + 1;
         TryFlush();
         RescheduleTimeout();
@@ -81,7 +81,7 @@ void TMessageRearranger::TryFlush()
             ~message.RequestId.ToString(),
             sequenceId);
 
-        OnMessageDequeued->Do(~message.Message);
+        OnMessageDequeued.Run(~message.Message);
         PostponedMessages.erase(it);
         ++ExpectedSequenceId;
     }
@@ -97,7 +97,7 @@ void TMessageRearranger::RescheduleTimeout()
 
     TDelayedInvoker::CancelAndClear(TimeoutCookie);
     TimeoutCookie = TDelayedInvoker::Submit(
-        FromMethod(&TMessageRearranger::OnTimeout, MakeWeak(this)),
+        BIND(&TMessageRearranger::OnTimeout, MakeWeak(this)),
         Timeout);
 }
 

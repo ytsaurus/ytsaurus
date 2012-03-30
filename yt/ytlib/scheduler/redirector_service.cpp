@@ -39,9 +39,9 @@ protected:
     virtual TAsyncRedirectResult HandleRedirect(NRpc::IServiceContext* context)
     {
         return 
-            FromMethod(&TRedirectorService::DoHandleRedirect, MakeStrong(this))
-            ->AsyncVia(Bootstrap->GetStateInvoker())
-            ->Do(context);
+            BIND(&TRedirectorService::DoHandleRedirect, MakeStrong(this))
+            .AsyncVia(Bootstrap->GetStateInvoker())
+            .Run(context);
     }
 
     TRedirectResult DoHandleRedirect(NRpc::IServiceContext::TPtr context)

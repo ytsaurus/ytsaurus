@@ -35,7 +35,7 @@ namespace {
             Write(*output, Value);
         }
 
-        void Load(TInputStream* input, TVoid)
+        void Load(TVoid, TInputStream* input)
         {
             Read(*input, &Value);
         }
@@ -104,7 +104,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
         TStringInput input(snapshotData);
         map.LoadKeys(&input);
         TVoid context;
-        map.LoadValues(&input, context);
+        map.LoadValues(context, &input);
 
         // assert checkMap \subseteq map
         FOREACH(const auto& pair, checkMap) {

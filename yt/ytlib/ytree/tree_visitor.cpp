@@ -90,7 +90,7 @@ void TTreeVisitor::VisitAny(INode* node)
         FOREACH (const auto& key, attributeKeyList) {
             Consumer->OnAttributesItem(key);
             auto value = node->Attributes().GetYson(key);
-            ProducerFromYson(value)->Do(Consumer);
+            ProducerFromYson(value).Run(Consumer);
         }
         Consumer->OnEndAttributes();
     }

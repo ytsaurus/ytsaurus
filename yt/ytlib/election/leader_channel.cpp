@@ -17,7 +17,7 @@ public:
 
     TResponseHandlerWrapper(
         IClientResponseHandler* underlyingHandler,
-        IAction::TPtr onFailed)
+        TClosure onFailed)
         : UnderlyingHandler(underlyingHandler)
         , OnFailed(onFailed)
     { }
@@ -41,13 +41,13 @@ public:
             code == EErrorCode::TransportError ||
             code == EErrorCode::Unavailable)
         {
-            OnFailed->Do();
+            OnFailed.Run();
         }
     }
 
 private:
     IClientResponseHandler::TPtr UnderlyingHandler;
-    IAction::TPtr OnFailed;
+    TClosure OnFailed;
 
 };
 
@@ -79,7 +79,7 @@ public:
         YASSERT(responseHandler);
         YASSERT(State != EState::Terminated);
 
-        GetChannel()->Subscribe(FromMethod(
+        GetChannel()->Subscribe(BIND(
             &TLeaderChannel::OnGotChannel,
             MakeStrong(this),
             request,
@@ -116,10 +116,10 @@ private:
     );
 
     void OnGotChannel(
-        IChannel::TPtr channel,
         IClientRequest::TPtr request,
         IClientResponseHandler::TPtr responseHandler,
-        TNullable<TDuration> timeout)
+        TNullable<TDuration> timeout,
+        IChannel::TPtr channel)
     {
         if (!channel) {
             responseHandler->OnError(TError(
@@ -128,7 +128,7 @@ private:
         } else {
             auto responseHandlerWrapper = New<TResponseHandlerWrapper>(
                 ~responseHandler,
-                FromMethod(&TLeaderChannel::OnChannelFailed, MakeStrong(this)));
+                BIND(&TLeaderChannel::OnChannelFailed, MakeStrong(this)));
             channel->Send(~request, ~responseHandlerWrapper, timeout);
         }
     }
@@ -164,7 +164,7 @@ private:
                 auto lookupResult = LookupResult = LeaderLookup->GetLeader();
                 guard.Release();
 
-                return lookupResult->Apply(FromMethod(
+                return lookupResult->Apply(BIND(
                     &TLeaderChannel::OnFirstLookupResult,
                     MakeStrong(this)));
             }
@@ -180,7 +180,7 @@ private:
                 auto lookupResult = LookupResult;
                 guard.Release();
 
-                return lookupResult->Apply(FromMethod(
+                return lookupResult->Apply(BIND(
                     &TLeaderChannel::OnSecondLookupResult,
                     MakeStrong(this)));
             }

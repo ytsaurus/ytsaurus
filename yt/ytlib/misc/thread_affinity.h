@@ -79,7 +79,7 @@ static_assert(sizeof(TSpinLock) == sizeof(TAtomic),
     YASSERT(*reinterpret_cast<const TAtomic*>(&(spinLock)) != 0);
 
 #define VERIFY_INVOKER_AFFINITY(invoker, slot) \
-    invoker->Invoke(FromFunctor([&] () { \
+    invoker->Invoke(BIND([&] () { \
         slot ## __Slot.Check(); \
     }))
 

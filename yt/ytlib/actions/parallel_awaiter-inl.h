@@ -1,5 +1,5 @@
 #ifndef PARALLEL_AWAITER_INL_H_
-#error "Direct inclusion of this file is not allowed, include action_util.h"
+#error "Direct inclusion of this file is not allowed, include parallel_awaiter.h"
 #endif
 #undef PARALLEL_AWAITER_INL_H_
 
@@ -48,11 +48,11 @@ template <class T>
 void TParallelAwaiter::Await(
     TIntrusivePtr< TFuture<T> > result,
     const NYTree::TYPath& timerPathSuffix,
-    TIntrusivePtr< IParamAction<T> > onResult)
+    TCallback<void(T)> onResult)
 {
     YASSERT(result);
 
-    typename IParamAction<T>::TPtr wrappedOnResult;
+    TCallback<void(T)> wrappedOnResult;
     {
         TGuard<TSpinLock> guard(SpinLock);
         YASSERT(!Completed);
@@ -62,38 +62,38 @@ void TParallelAwaiter::Await(
 
         ++RequestCount;
 
-        if (onResult) {
-            wrappedOnResult = onResult->Via(CancelableInvoker);
+        if (!onResult.IsNull()) {
+            wrappedOnResult = onResult.Via(CancelableInvoker);
         }
     }
 
-    result->Subscribe(FromMethod(
+    result->Subscribe(BIND(
         &TParallelAwaiter::OnResult<T>,
         MakeStrong(this),
         timerPathSuffix,
-        wrappedOnResult));
+        Passed(MoveRV(wrappedOnResult))));
 }
 
 template <class T>
 void TParallelAwaiter::Await(
     TIntrusivePtr< TFuture<T> > result,
-    TIntrusivePtr< IParamAction<T> > onResult)
+    TCallback<void(T)> onResult)
 {
-    Await(result, "", onResult);
+    Await(result, "", MoveRV(onResult));
 }
 
 template <class T>
 void TParallelAwaiter::OnResult(
-    T result,
     const NYTree::TYPath& timerPathSuffix,
-    typename IParamAction<T>::TPtr onResult)
+    TCallback<void(T)> onResult,
+    T result)
 {
-    if (onResult) {
-        onResult->Do(result);
+    if (!onResult.IsNull()) {
+        onResult.Run(result);
     }
 
     bool invokeOnComplete = false;
-    IAction::TPtr onComplete;
+    TClosure onComplete;
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -113,15 +113,15 @@ void TParallelAwaiter::OnResult(
         }
     }
 
-    if (invokeOnComplete && onComplete) {
-        onComplete->Do();
+    if (invokeOnComplete && !onComplete.IsNull()) {
+        onComplete.Run();
     }
 }
 
-inline void TParallelAwaiter::Complete(IAction::TPtr onComplete)
+inline void TParallelAwaiter::Complete(TClosure onComplete)
 {
-    if (onComplete) {
-        onComplete = onComplete->Via(CancelableInvoker);
+    if (!onComplete.IsNull()) {
+        onComplete = onComplete.Via(CancelableInvoker);
     }
 
     bool invokeOnComplete;
@@ -141,8 +141,8 @@ inline void TParallelAwaiter::Complete(IAction::TPtr onComplete)
         }
     }
 
-    if (invokeOnComplete && onComplete) {
-        onComplete->Do();
+    if (invokeOnComplete && !onComplete.IsNull()) {
+        onComplete.Run();
     }
 }
 

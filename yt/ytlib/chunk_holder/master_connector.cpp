@@ -50,16 +50,16 @@ void TMasterConnector::Start()
 {
     Proxy.Reset(new TProxy(~Bootstrap->GetLeaderChannel()));
 
-    Bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
+    Bootstrap->GetChunkStore()->SubscribeChunkAdded(BIND(
         &TMasterConnector::OnChunkAdded,
         MakeWeak(this)));
-    Bootstrap->GetChunkStore()->SubscribeChunkRemoved(Bind(
+    Bootstrap->GetChunkStore()->SubscribeChunkRemoved(BIND(
         &TMasterConnector::OnChunkRemoved,
         MakeWeak(this)));
-    Bootstrap->GetChunkCache()->SubscribeChunkAdded(Bind(
+    Bootstrap->GetChunkCache()->SubscribeChunkAdded(BIND(
         &TMasterConnector::OnChunkAdded,
         MakeWeak(this)));
-    Bootstrap->GetChunkCache()->SubscribeChunkRemoved(Bind(
+    Bootstrap->GetChunkCache()->SubscribeChunkRemoved(BIND(
         &TMasterConnector::OnChunkRemoved,
         MakeWeak(this)));
 
@@ -71,8 +71,8 @@ void TMasterConnector::ScheduleHeartbeat()
     // TODO(panin): think about specializing RandomNumber<TDuration>
     TDuration randomDelay = TDuration::MicroSeconds(RandomNumber(Config->HeartbeatSplay.MicroSeconds()));
     TDelayedInvoker::Submit(
-        FromMethod(&TMasterConnector::OnHeartbeat, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()),
+        BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()),
         Config->HeartbeatPeriod + randomDelay);
 }
 
@@ -100,8 +100,8 @@ void TMasterConnector::SendRegister()
     request->set_address(Bootstrap->GetPeerAddress());
     request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()));
+        BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Register request sent (%s)",
         ~ToString(*request->mutable_statistics()));
@@ -167,8 +167,8 @@ void TMasterConnector::SendFullHeartbeat()
     }
 
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()));
+        BIND(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Full heartbeat sent (%s, Chunks: %d)",
         ~ToString(request->statistics()),
@@ -201,8 +201,8 @@ void TMasterConnector::SendIncrementalHeartbeat()
     }
 
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()));
+        BIND(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()));
 
     LOG_INFO("Incremental heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
         ~ToString(request->statistics()),

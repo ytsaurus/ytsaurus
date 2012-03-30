@@ -2,6 +2,7 @@
 
 #include <ytlib/ytree/lexer.h>
 
+#include <ytlib/misc/foreach.h>
 #include <ytlib/misc/nullable.h>
 
 #include <contrib/testing/framework.h>

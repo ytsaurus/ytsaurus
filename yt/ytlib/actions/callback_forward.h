@@ -7,7 +7,7 @@ namespace NYT {
 template <class Signature>
 class TCallback;
 
-typedef TCallback<void(void)> TClosure;
+typedef TCallback<void()> TClosure;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -62,10 +62,10 @@ void TSchedulerBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "ref_counted",
-        FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "bus_server",
-        FromMethod(&IBusServer::GetMonitoringInfo, busServer));
+        BIND(&IBusServer::GetMonitoringInfo, busServer));
     monitoringManager->Start();
 
     auto orchidFactory = GetEphemeralNodeFactory();
@@ -73,11 +73,11 @@ void TSchedulerBootstrap::Run()
     SyncYPathSetNode(
         ~orchidRoot,
         "monitoring",
-        ~CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
+        ~CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
         "config",
-        ~CreateVirtualNode(~CreateYsonFileProducer(ConfigFileName)));
+        ~CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
@@ -88,7 +88,7 @@ void TSchedulerBootstrap::Run()
     THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
+        NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

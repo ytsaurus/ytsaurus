@@ -126,9 +126,9 @@ private:
 
     void EnqueueWrites();
     TVoid DoWrite(TCachedBlockPtr block, i32 blockIndex);
-    void OnBlockWritten(TVoid, i32 blockIndex);
+    void OnBlockWritten(i32 blockIndex, TVoid);
 
-    TVoid OnBlockFlushed(TVoid, i32 blockIndex);
+    TVoid OnBlockFlushed(i32 blockIndex, TVoid);
 
     void ReleaseSpaceOccupiedByBlocks();
 };
@@ -187,7 +187,7 @@ private:
     TSessionMap SessionMap;
 
     void OnLeaseExpired(TSessionPtr session);
-    TChunkPtr OnSessionFinished(TChunkPtr chunk, TSessionPtr session);
+    TChunkPtr OnSessionFinished(TSessionPtr session, TChunkPtr chunk);
 
 };
 

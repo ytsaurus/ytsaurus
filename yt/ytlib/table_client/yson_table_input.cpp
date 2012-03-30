@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
-
 #include "yson_table_input.h"
+
+#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 namespace NTableClient {

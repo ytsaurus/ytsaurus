@@ -8,7 +8,7 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/ref.h>
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback_forward.h>
 #include <ytlib/actions/invoker.h>
 
 namespace NYT {
@@ -107,7 +107,7 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    void ApplyChange(IAction::TPtr changeAction);
+    void ApplyChange(const TClosure& changeAction);
 
     //! Appends a new record into an appropriate changelog.
     /*!

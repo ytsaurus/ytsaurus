@@ -51,7 +51,7 @@ TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo()
     auto invoker = Location_->GetInvoker();
     auto readerCache = Location_->GetReaderCache();
     return
-        FromFunctor([=] () -> TGetInfoResult {
+        BIND([=] () -> TGetInfoResult {
             auto result = readerCache->GetReader(this_);
             if (!result.IsOK()) {
                 return TError(result);
@@ -66,8 +66,8 @@ TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo()
 
             return info;
         })
-        ->AsyncVia(invoker)
-        ->Do();
+        .AsyncVia(invoker)
+        .Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,7 +6,7 @@
 #include "cell_manager.h"
 
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/actions/future.h>
 
 #include <util/system/fs.h>
@@ -64,13 +64,13 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
             ->GetSnapshotInfo()
             ->SetTimeout(Config->LookupTimeout);
         request->set_snapshot_id(snapshotId);
-        awaiter->Await(request->Invoke(), FromMethod(
+        awaiter->Await(request->Invoke(), BIND(
             &TSnapshotDownloader::OnSnapshotInfoResponse,
             awaiter, asyncResult, peerId));
     }
     LOG_INFO("Snapshot info requests sent");
 
-    awaiter->Complete(FromMethod(
+    awaiter->Complete(BIND(
         &TSnapshotDownloader::OnSnapshotInfoComplete,
         snapshotId,
         asyncResult));
@@ -79,10 +79,10 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
 }
 
 void TSnapshotDownloader::OnSnapshotInfoResponse(
-    TProxy::TRspGetSnapshotInfo::TPtr response,
     TParallelAwaiter::TPtr awaiter,
     TFuture<TSnapshotInfo>::TPtr asyncResult,
-    TPeerId peerId)
+    TPeerId peerId,
+    TProxy::TRspGetSnapshotInfo::TPtr response)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

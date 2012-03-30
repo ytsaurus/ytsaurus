@@ -4,7 +4,7 @@ $var n = 20 $$ The maximum arity.
 // vim:set ft=cpp:
 #pragma once
 
-#include "common.h"
+//#include "common.h"
 
 namespace NYT {
 
@@ -107,9 +107,9 @@ $for i [[
 $range j 1..i
 
 $$ Handy shortcuts.
-$var tmpl_args = [[$for j [[, class TArg$j]]]]
-$var ctor_args = [[$for j , [[ TArg$j&& arg$j]]]]
-$var args_list = [[$for j , [[ ForwardRV<TArg$j>(arg$j)]]]]
+$var tmpl_args = [[$for j [[, class A$j]]]]
+$var ctor_args = [[$for j , [[A$j&& arg$j]]]]
+$var args_list = [[$for j , [[ForwardRV<A$j>(arg$j)]]]]
 
 template <class TType$tmpl_args>
 inline TIntrusivePtr<TType> New($ctor_args)

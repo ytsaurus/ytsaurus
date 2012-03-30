@@ -16,14 +16,20 @@
 #include "callback_forward.h"
 
 #include <ytlib/misc/rvalue.h>
+#include <ytlib/misc/new.h>
 
 namespace NYT {
+
+struct TVoid
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // This file defines a set of argument wrappers that can be used specify
 // the reference counting and reference semantics of arguments that are bound
 // by the #Bind() function in "bind.h".
 //
+////////////////////////////////////////////////////////////////////////////////
 //
 // ARGUMENT BINDING WRAPPERS
 //
@@ -193,7 +199,15 @@ public:
     TPassedWrapper(const TPassedWrapper& other)
         : IsValid(other.IsValid)
         , T_(MoveRV(other.T_))
-    { }
+    {
+        other.IsValid = false;
+    }
+    TPassedWrapper(TPassedWrapper&& other)
+        : IsValid(other.IsValid)
+        , T_(MoveRV(other.T_))
+    {
+        other.IsValid = false;
+    }
     T&& Get() const
     {
         YASSERT(IsValid);
@@ -317,7 +331,7 @@ namespace NDetail {
 template <class T>
 struct TIgnoreResultWrapper
 {
-    explicit TIgnoreResultWrapper(T functor)
+    explicit TIgnoreResultWrapper(const T& functor)
         : Functor(functor)
     { }
     T Functor;
@@ -336,9 +350,10 @@ struct TIgnoreResultWrapper< TCallback<T> >
 } // namespace NDetail
 
 template <class T>
-static inline NDetail::TIgnoreResultWrapper<T> IgnoreResult(T x)
+static inline NDetail::TIgnoreResultWrapper<T>
+IgnoreResult(const T& x)
 {
-    return NDetail::TIgnoreResultWrapper<T>(x);
+    return NDetail::TIgnoreResultWrapper< T >(x);
 }
 
 template <class T>

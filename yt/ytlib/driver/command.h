@@ -29,11 +29,7 @@ struct TRequestBase
     {
         Register("do", Do);
     }
-
-    static IParamAction<const NYTree::INodePtr&>::TPtr StreamSpecIsValid;
 };
-
-Stroka ToStreamSpec(NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

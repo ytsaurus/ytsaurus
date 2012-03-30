@@ -171,7 +171,7 @@ public:
     void LoadKeys(TInputStream* input);
 
     template <class TContext>
-    void LoadValues(TInputStream* input, const TContext& context);
+    void LoadValues(const TContext& context, TInputStream* input);
     
 private:
     //! Slot for the thread in which all the public methods are called.

@@ -3,6 +3,7 @@
 #include "public.h"
 
 // TODO(babenko): replace with public.h
+#include <ytlib/actions/bind.h>
 #include <ytlib/actions/invoker.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/cell_node/public.h>

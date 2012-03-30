@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "sequential_reader.h"
 
-#include <ytlib/actions/action_util.h>
-
 namespace NYT {
 namespace NChunkClient {
 
@@ -34,7 +32,7 @@ TSequentialReader::TSequentialReader(
 
     int fetchCount = FreeSlots / Config->GroupSize;
     for (int i = 0; i < fetchCount; ++i) {
-        ReaderThread->GetInvoker()->Invoke(FromMethod(
+        ReaderThread->GetInvoker()->Invoke(BIND(
             &TSequentialReader::FetchNextGroup,
             MakeWeak(this)));
     }
@@ -69,9 +67,9 @@ TAsyncError::TPtr TSequentialReader::AsyncNextBlock()
 
     auto this_ = MakeStrong(this);
     Window[NextSequenceIndex].AsyncBlock->Subscribe(
-        FromFunctor( [ = ] () {
+        BIND([=] (TSharedRef) {
             this_->State.FinishOperation();
-        })->ToParamAction<TSharedRef>());
+        }));
 
     if (NextSequenceIndex > 0) {
         ShiftWindow();
@@ -82,8 +80,8 @@ TAsyncError::TPtr TSequentialReader::AsyncNextBlock()
     return State.GetOperationError();
 }
 void TSequentialReader::OnGotBlocks(
-    IAsyncReader::TReadResult readResult, 
-    int firstSequenceIndex)
+    int firstSequenceIndex,
+    IAsyncReader::TReadResult readResult)
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
@@ -112,7 +110,7 @@ void TSequentialReader::ShiftWindow()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    ReaderThread->GetInvoker()->Invoke(FromMethod(
+    ReaderThread->GetInvoker()->Invoke(BIND(
         &TSequentialReader::DoShiftWindow, 
         MakeWeak(this)));
 }
@@ -154,11 +152,11 @@ void TSequentialReader::FetchNextGroup()
         FirstUnfetchedIndex, 
         groupIndexes.ysize());
 
-    ChunkReader->AsyncReadBlocks(groupIndexes)->Subscribe(FromMethod(
+    ChunkReader->AsyncReadBlocks(groupIndexes)->Subscribe(BIND(
         &TSequentialReader::OnGotBlocks, 
         MakeWeak(this),
         FirstUnfetchedIndex)
-            ->Via(ReaderThread->GetInvoker()));
+            .Via(ReaderThread->GetInvoker()));
 
     FreeSlots -= groupIndexes.ysize();
     FirstUnfetchedIndex += groupIndexes.ysize();

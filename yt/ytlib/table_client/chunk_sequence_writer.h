@@ -102,20 +102,18 @@ private:
         std::vector<TChannelWriter::TPtr>& channels);
 
     void OnChunkClosed(
-        TError error,
         TChunkWriter::TPtr currentChunk,
-        TAsyncError::TPtr finishResult);
+        TAsyncError::TPtr finishResult,
+        TError error);
 
     void OnChunkRegistered(
-        NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp,
         NChunkClient::TChunkId chunkId,
-        TAsyncError::TPtr finishResult);
+        TAsyncError::TPtr finishResult,
+        NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     void OnChunkFinished(
-        TError error,
-        NChunkClient::TChunkId chunkId);
-
-    void OnChunkRegistered();
+        NChunkClient::TChunkId chunkId,
+        TError error);
 
     void OnRowEnded(TError error);
     void OnClose();

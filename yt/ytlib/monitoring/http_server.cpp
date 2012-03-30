@@ -6,7 +6,7 @@
 #include <quality/Misc/HPTimer.h>
 
 #include <ytlib/misc/id_generator.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/actions/future.h>
 #include <ytlib/logging/log.h>
 
@@ -302,7 +302,7 @@ private:
                 {
                     auto it = impl->SyncHandlers.find(prefix);
                     if (it != impl->SyncHandlers.end()) {
-                        Output() << it->second->Do(suffix);
+                        Output() << it->second.Run(suffix);
                         return true;
                     }
                 }
@@ -310,7 +310,7 @@ private:
                 {
                     auto it = impl->AsyncHandlers.find(prefix);
                     if (it != impl->AsyncHandlers.end()) {
-                        Output() << it->second->Do(suffix)->Get();
+                        Output() << it->second.Run(suffix)->Get();
                         return true;
                     }
                 }
@@ -347,8 +347,8 @@ private:
     };
 
 private:
-    typedef yhash_map<Stroka, TSyncHandler::TPtr> TSyncHandlerMap;
-    typedef yhash_map<Stroka, TAsyncHandler::TPtr> TAsyncHandlerMap;
+    typedef yhash_map<Stroka, TSyncHandler> TSyncHandlerMap;
+    typedef yhash_map<Stroka, TAsyncHandler> TAsyncHandlerMap;
 
 private:
     THolder<TCallback> Callback;
@@ -376,14 +376,14 @@ public:
         Server->Stop();
     }
 
-    void Register(const Stroka& prefix, TSyncHandler* handler)
+    void Register(const Stroka& prefix, TSyncHandler handler)
     {
-        YVERIFY(SyncHandlers.insert(MakePair(prefix, handler)).second);
+        YVERIFY(SyncHandlers.insert(MakePair(prefix, MoveRV(handler))).second);
     }
 
-    void Register(const Stroka& prefix, TAsyncHandler* handler)
+    void Register(const Stroka& prefix, TAsyncHandler handler)
     {
-        YVERIFY(AsyncHandlers.insert(MakePair(prefix, handler)).second);
+        YVERIFY(AsyncHandlers.insert(MakePair(prefix, MoveRV(handler))).second);
     }
 };
 
@@ -521,12 +521,12 @@ TServer::TServer(int port)
 TServer::~TServer()
 { }
 
-void TServer::Register(const Stroka& prefix, TSyncHandler* handler)
+void TServer::Register(const Stroka& prefix, TSyncHandler handler)
 {
     Impl->Register(prefix, handler);
 }
 
-void TServer::Register(const Stroka& prefix, TAsyncHandler* handler)
+void TServer::Register(const Stroka& prefix, TAsyncHandler handler)
 {
     Impl->Register(prefix, handler);
 }

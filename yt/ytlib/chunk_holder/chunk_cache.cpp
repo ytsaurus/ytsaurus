@@ -176,8 +176,8 @@ private:
 
             LOG_INFO("Getting chunk info from holders");
             RemoteReader->AsyncGetChunkInfo()->Subscribe(
-                FromMethod(&TThis::OnGotChunkInfo, MakeStrong(this))
-                ->Via(Invoker));
+                BIND(&TThis::OnGotChunkInfo, MakeStrong(this))
+                .Via(Invoker));
         }
 
     private:
@@ -234,8 +234,8 @@ private:
                 BlockIndex);
 
             SequentialReader->AsyncNextBlock()->Subscribe(
-                FromMethod(&TThis::OnNextBlock, MakeStrong(this))
-                ->Via(Invoker));
+                BIND(&TThis::OnNextBlock, MakeStrong(this))
+                .Via(Invoker));
         }
 
         void OnNextBlock(TError error)

@@ -2,6 +2,8 @@
 
 #include "yson_consumer.h"
 
+#include <ytlib/actions/callback.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -13,8 +15,8 @@ class TForwardingYsonConsumer
 protected:
     TForwardingYsonConsumer();
 
-    void ForwardNode(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
-    void ForwardAttributes(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished);
+    void ForwardNode(IYsonConsumer* consumer, const TClosure& onForwardingFinished);
+    void ForwardAttributes(IYsonConsumer* consumer, const TClosure& onForwardingFinished);
 
     virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
     virtual void OnMyInt64Scalar(i64 value, bool hasAttributes);
@@ -36,7 +38,7 @@ protected:
 private:
     IYsonConsumer* ForwardingConsumer;
     int ForwardingDepth;
-    IAction::TPtr OnForwardingFinished;
+    TClosure OnForwardingFinished;
 
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
     virtual void OnInt64Scalar(i64 value, bool hasAttributes);
@@ -55,7 +57,7 @@ private:
     virtual void OnAttributesItem(const Stroka& name);
     virtual void OnEndAttributes();
 
-    void DoForward(IYsonConsumer* consumer, IAction::TPtr onForwardingFinished, int depth);
+    void DoForward(IYsonConsumer* consumer, const TClosure& onForwardingFinished, int depth);
     void UpdateDepth(int depthDelta);
 
 };

@@ -43,7 +43,7 @@ public:
     virtual void SetResponseInfo(const Stroka& info);
     virtual Stroka GetResponseInfo();
 
-    virtual IAction::TPtr Wrap(IAction::TPtr action);
+    virtual TClosure Wrap(TClosure action);
 
 protected:
     TServiceContextBase(
@@ -80,7 +80,7 @@ protected:
     static void AppendInfo(Stroka& lhs, const Stroka& rhs);
 
 private:
-    void WrapThunk(IAction::TPtr action) throw();
+    void WrapThunk(TClosure action) throw();
     void CheckRepliable() const;
 
 };

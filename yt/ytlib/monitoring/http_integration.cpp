@@ -67,7 +67,7 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
 }
 
 // TOOD(babenko): use const&
-TFuture<Stroka>::TPtr HandleRequest(Stroka url, IYPathServicePtr service)
+TFuture<Stroka>::TPtr HandleRequest(IYPathServicePtr service, Stroka url)
 {
     try {
         // TODO(babenko): rewrite using some standard URL parser
@@ -81,7 +81,7 @@ TFuture<Stroka>::TPtr HandleRequest(Stroka url, IYPathServicePtr service)
             ParseQuery(&req->Attributes(), url.substr(queryIndex + 1));
         }
         req->SetPath(path);
-        return ExecuteVerb(~service, ~req)->Apply(FromMethod(&OnResponse));
+        return ExecuteVerb(~service, ~req)->Apply(BIND(&OnResponse));
     } catch (const std::exception& ex) {
         // TODO(sandello): Proper JSON escaping here.
         return MakeFuture(FormatInternalServerErrorResponse(Stroka(ex.what()).Quote()));
@@ -90,12 +90,12 @@ TFuture<Stroka>::TPtr HandleRequest(Stroka url, IYPathServicePtr service)
 
 } // namespace <anonymous>
 
-TServer::TAsyncHandler::TPtr GetYPathHttpHandler(IYPathService* service)
+TServer::TAsyncHandler GetYPathHttpHandler(IYPathService* service)
 {
-    return FromMethod(&HandleRequest, MakeStrong(service));
+    return BIND(&HandleRequest, MakeStrong(service));
 }
 
-TServer::TAsyncHandler::TPtr GetYPathHttpHandler(TYPathServiceProducer producer)
+TServer::TAsyncHandler GetYPathHttpHandler(TYPathServiceProducer producer)
 {
     return GetYPathHttpHandler(~IYPathService::FromProducer(producer));
 }

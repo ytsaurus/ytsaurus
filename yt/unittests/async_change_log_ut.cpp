@@ -2,7 +2,6 @@
 
 #include <ytlib/meta_state/async_change_log.h>
 #include <ytlib/meta_state/change_log.h>
-#include <ytlib/actions/action_util.h>
 
 #include <util/random/random.h>
 #include <util/system/tempfile.h>
@@ -79,7 +78,7 @@ TEST_F(TAsyncChangeLogTest, ReadLastOnes)
             flushResult->Get();
         }
         if (recordId % 10 == 0) {
-            result = FromMethod(&ReadRecord, ~AsyncChangeLog, recordId)->AsyncVia(Invoker)->Do();
+            result = BIND(&ReadRecord, ~AsyncChangeLog, recordId).AsyncVia(Invoker).Run();
         }
     }
     result->Get();

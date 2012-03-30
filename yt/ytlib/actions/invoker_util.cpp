@@ -1,5 +1,7 @@
 #include "stdafx.h"
+#include "invoker.h"
 #include "invoker_util.h"
+#include "callback.h"
 
 #include <ytlib/misc/singleton.h>
 
@@ -7,9 +9,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSyncInvoker::Invoke(IAction::TPtr action)
+void TSyncInvoker::Invoke(const TClosure& action)
 {
-    action->Do();
+    action.Run();
 }
 
 IInvoker* TSyncInvoker::Get()
