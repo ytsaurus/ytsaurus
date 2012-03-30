@@ -17,7 +17,7 @@ using namespace NScheduler::NProto;
 
 TAutoPtr<IUserJobIo> CreateUserJobIo(
     const TJobIoConfigPtr config,
-    const NElection::TLeaderLookup::TConfig::TPtr mastersConfig,
+    const NElection::TLeaderLookup::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
 {
     YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));

@@ -125,7 +125,9 @@ private:
         TGuard<TSpinLock> guard(SpinLock);
         if (ChannelPromise == channelPromise) {
             channelPromise->Set(result);
-            ChannelPromise.Reset();
+            if (!result.IsOK()) {
+                ChannelPromise.Reset();
+            }
         }
     }
          

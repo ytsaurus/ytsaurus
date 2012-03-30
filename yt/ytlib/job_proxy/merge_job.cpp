@@ -30,7 +30,7 @@ inline bool CompareReaders(
 
 TMergeJob::TMergeJob(
     const TJobIoConfigPtr& config,
-    const NElection::TLeaderLookup::TConfig::TPtr& masterConfig,
+    const NElection::TLeaderLookup::TConfigPtr& masterConfig,
     const NScheduler::NProto::TMergeJobSpec& mergeJobSpec)
 {
     auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());

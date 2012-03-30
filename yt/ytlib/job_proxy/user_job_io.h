@@ -32,7 +32,7 @@ struct IUserJobIo {
 
 TAutoPtr<IUserJobIo> CreateUserJobIo(
     const TJobIoConfigPtr ioConfig,
-    const NElection::TLeaderLookup::TConfig::TPtr mastersConfig,
+    const NElection::TLeaderLookup::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec);
 
 ////////////////////////////////////////////////////////////////////////////////

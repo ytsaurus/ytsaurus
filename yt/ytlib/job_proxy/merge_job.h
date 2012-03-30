@@ -18,7 +18,7 @@ class TMergeJob
 public:
     TMergeJob(
         const TJobIoConfigPtr& config,
-        const NElection::TLeaderLookup::TConfig::TPtr& masterConfig,
+        const NElection::TLeaderLookup::TConfigPtr& masterConfig,
         const NScheduler::NProto::TMergeJobSpec& mergeJobSpec);
 
     NScheduler::NProto::TJobResult Run();
