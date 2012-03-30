@@ -219,7 +219,6 @@ TEST_F(TLexerTest, IncorrectChars)
     TestIncorrectInput(","); // unknown symbol
     TestIncorrectInput("("); // unknown symbol
     TestIncorrectInput(")"); // unknown symbol
-    TestIncorrectInput("-"); // unknown symbol
 }
 
 TEST_F(TLexerTest, IncorrectFinish)
@@ -230,6 +229,7 @@ TEST_F(TLexerTest, IncorrectFinish)
     TestIncorrectFinish("\x01\x06YT"); // binary string shorter than the specified length
     TestIncorrectFinish("\x02\x80\x80"); // unfinished varint
     TestIncorrectFinish("\x03\x01\x01\x01\x01\x01\x01\x01"); // binary double too short
+    TestIncorrectFinish("-"); // numeric not finished
 }
 
 ////////////////////////////////////////////////////////////////////////////////
