@@ -255,7 +255,7 @@ TGuid TGuid::FromString(const Stroka& str)
 {
     TGuid guid;
     if (!FromString(str, &guid)) { 
-        ythrow yexception() << Sprintf("Error parsing guid from %s", ~str.Quote());
+        ythrow yexception() << Sprintf("Error parsing GUID from %s", ~str.Quote());
     }
     return guid;
 }
