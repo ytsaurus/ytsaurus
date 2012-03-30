@@ -25,6 +25,7 @@ public:
         (InsideQuotedString)
         (InsideNumeric)
         (InsideDouble)
+        (AfterPlus)
     );
 
     TImpl()
@@ -82,6 +83,9 @@ public:
                         ConsumeBinaryDouble(ch);
                         return true;
 
+                    case EInnerState::AfterPlus:
+                    	return ConsumePlus(ch);
+
                     default:
                         YUNREACHABLE();
                 }
@@ -117,6 +121,10 @@ public:
                         FinishDouble();
                         break;
 
+                    case EInnerState::AfterPlus:
+                    	FinishPlus();
+                    	break;
+
                     default:
                         YUNREACHABLE();
                 }
@@ -140,7 +148,7 @@ private:
         switch (ch) {
             case ';':
                 ProduceToken(ETokenType::Semicolon, Stroka(ch));
-                break;;
+                break;
 
             case '=':
                 ProduceToken(ETokenType::Equals, Stroka(ch));
@@ -186,6 +194,10 @@ private:
                 ProduceToken(ETokenType::Bang, Stroka(ch));
                 break;
 
+            case '+':
+            	SetInProgressState(EInnerState::AfterPlus);
+            	break;
+
             case '\x01':
                 SetInProgressState(EInnerState::InsideBinaryString);
                 YASSERT(Token.StringValue.empty());
@@ -214,7 +226,7 @@ private:
             default:
                 if (isspace(ch)) {
                     break;
-                } else if (isdigit(ch) || ch == '+' || ch == '-') {
+                } else if (isdigit(ch) || ch == '-') { // case of '+' is handled in AfterPlus state
                     Token.StringValue = Stroka(ch);
                     SetInProgressState(EInnerState::InsideNumeric);
                 } else if (isalpha(ch) || ch == '_') {
@@ -357,6 +369,20 @@ private:
         }
     }
 
+    bool ConsumePlus(char ch)
+    {
+    	if (!isdigit(ch)) {
+    		ProduceToken(ETokenType::Plus, "+");
+    		return false;
+    	}
+
+    	Reset();
+    	Token.StringValue.append('+');
+    	Token.StringValue.append(ch);
+    	SetInProgressState(EInnerState::InsideNumeric);
+    	return true;
+    }
+
     void FinishString()
     {
         ProduceToken(ETokenType::String);
@@ -386,6 +412,11 @@ private:
         }
         Token.StringValue = Stroka();
         ProduceToken(ETokenType::Double);
+    }
+
+    void FinishPlus()
+    {
+    	ProduceToken(ETokenType::Plus, "+");
     }
 
     void ProduceToken(ETokenType type, Stroka stringValue = Stroka())

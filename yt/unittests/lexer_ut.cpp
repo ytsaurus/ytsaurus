@@ -3,6 +3,7 @@
 #include <ytlib/ytree/lexer.h>
 
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/foreach.h>
 
 #include <contrib/testing/framework.h>
 
@@ -205,6 +206,7 @@ TEST_F(TLexerTest, SpecialValues)
     TestSpecialValue("@", ETokenType::At);
     TestSpecialValue("#", ETokenType::Hash);
     TestSpecialValue("!", ETokenType::Bang);
+    TestSpecialValue("+", ETokenType::Plus);
 }
 
 TEST_F(TLexerTest, IncorrectChars)
@@ -217,6 +219,7 @@ TEST_F(TLexerTest, IncorrectChars)
     TestIncorrectInput(","); // unknown symbol
     TestIncorrectInput("("); // unknown symbol
     TestIncorrectInput(")"); // unknown symbol
+    TestIncorrectInput("-"); // unknown symbol
 }
 
 TEST_F(TLexerTest, IncorrectFinish)
