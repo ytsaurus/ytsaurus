@@ -594,8 +594,8 @@ TEST_F(TBindTest, FunctionTypeSupport)
 {
     EXPECT_CALL(StaticObject, VoidMethod0());
 
-    EXPECT_CALL(ObjectWithRC, Ref()).Times(4);
-    EXPECT_CALL(ObjectWithRC, Unref()).Times(4);
+    EXPECT_CALL(ObjectWithRC, Ref()).Times(1);
+    EXPECT_CALL(ObjectWithRC, Unref()).Times(1);
 
     EXPECT_CALL(ObjectWithRC, VoidMethod0()).Times(2);
     EXPECT_CALL(ObjectWithRC, VoidConstMethod0()).Times(2);
@@ -611,7 +611,7 @@ TEST_F(TBindTest, FunctionTypeSupport)
 
     // Bound methods.
     TClosure boundMethodViaRawPtr =
-        BIND(&TObjectWithRC::VoidMethod0, &ObjectWithRC); // (Ref)
+        BIND(&TObjectWithRC::VoidMethod0, &ObjectWithRC); // (NoRef)
     TClosure boundMethodViaRefPtr =
         BIND(&TObjectWithRC::VoidMethod0, TObjectWithRC::TPtr(&ObjectWithRC)); // (Ref)
 
@@ -620,9 +620,9 @@ TEST_F(TBindTest, FunctionTypeSupport)
 
     // Const-methods.
     TClosure constMethodNonConstObject =
-        BIND(&TObjectWithRC::VoidConstMethod0, &ObjectWithRC); // (Ref)
+        BIND(&TObjectWithRC::VoidConstMethod0, &ObjectWithRC); // (NoRef)
     TClosure constMethodConstObject =
-        BIND(&TObjectWithRC::VoidConstMethod0, ConstObjectWithRCPtr); // (Ref)
+        BIND(&TObjectWithRC::VoidConstMethod0, ConstObjectWithRCPtr); // (NoRef)
 
     constMethodNonConstObject.Run();
     constMethodConstObject.Run();
@@ -649,8 +649,8 @@ TEST_F(TBindTest, ReturnValuesSupport)
 {
     EXPECT_CALL(StaticObject, IntMethod0()).WillOnce(Return(13));
 
-    EXPECT_CALL(ObjectWithRC, Ref()).Times(3);
-    EXPECT_CALL(ObjectWithRC, Unref()).Times(3);
+    EXPECT_CALL(ObjectWithRC, Ref()).Times(0);
+    EXPECT_CALL(ObjectWithRC, Unref()).Times(0);
 
     EXPECT_CALL(ObjectWithRC, IntMethod0()).WillOnce(Return(17));
     EXPECT_CALL(ObjectWithRC, IntConstMethod0())
@@ -660,15 +660,15 @@ TEST_F(TBindTest, ReturnValuesSupport)
     TCallback<int()> normalFunc =
         BIND(&StaticIntFunc0);
     TCallback<int()> boundMethod =
-        BIND(&TObjectWithRC::IntMethod0, &ObjectWithRC); // (Ref)
+        BIND(&TObjectWithRC::IntMethod0, &ObjectWithRC); // (NoRef)
 
     EXPECT_EQ(13, normalFunc.Run());
     EXPECT_EQ(17, boundMethod.Run());
 
     TCallback<int()> constMethodNonConstObject =
-        BIND(&TObjectWithRC::IntConstMethod0, &ObjectWithRC); // (Ref)
+        BIND(&TObjectWithRC::IntConstMethod0, &ObjectWithRC); // (NoRef)
     TCallback<int()> constMethodConstObject =
-        BIND(&TObjectWithRC::IntConstMethod0, ConstObjectWithRCPtr); // (Ref)
+        BIND(&TObjectWithRC::IntConstMethod0, ConstObjectWithRCPtr); // (NoRef)
 
     EXPECT_EQ(19, constMethodNonConstObject.Run());
     EXPECT_EQ(23, constMethodConstObject.Run());
@@ -684,8 +684,8 @@ TEST_F(TBindTest, IgnoreResultWrapper)
 {
     EXPECT_CALL(StaticObject, IntMethod0()).WillOnce(Return(13));
 
-    EXPECT_CALL(ObjectWithRC, Ref()).Times(2);
-    EXPECT_CALL(ObjectWithRC, Unref()).Times(2);
+    EXPECT_CALL(ObjectWithRC, Ref()).Times(0);
+    EXPECT_CALL(ObjectWithRC, Unref()).Times(0);
 
     EXPECT_CALL(ObjectWithRC, IntMethod0()).WillOnce(Return(17));
     EXPECT_CALL(ObjectWithRC, IntConstMethod0()).WillOnce(Return(19));
@@ -695,11 +695,11 @@ TEST_F(TBindTest, IgnoreResultWrapper)
     normalFunc.Run();
 
     TClosure boundMethod =
-        BIND(IgnoreResult(&TObjectWithRC::IntMethod0), &ObjectWithRC);
+        BIND(IgnoreResult(&TObjectWithRC::IntMethod0), &ObjectWithRC); // (NoRef)
     boundMethod.Run();
 
     TClosure constBoundMethod =
-        BIND(IgnoreResult(&TObjectWithRC::IntConstMethod0), &ObjectWithRC);
+        BIND(IgnoreResult(&TObjectWithRC::IntConstMethod0), &ObjectWithRC); // (NoRef)
     constBoundMethod.Run();
 }
 
