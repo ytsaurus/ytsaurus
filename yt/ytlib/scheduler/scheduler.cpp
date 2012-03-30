@@ -520,7 +520,7 @@ private:
         LOG_INFO("Requesting operations list");
         std::vector<TOperationId> operationIds;
         {
-            auto req = TYPathProxy::List("/sys/scheduler/operations");
+            auto req = TYPathProxy::List("/sys/operations");
             auto rsp = CypressProxy.Execute(req)->Get();
             if (!rsp->IsOK()) {
                 ythrow yexception() << Sprintf("Failed to get operations list\n%s",
@@ -537,7 +537,7 @@ private:
             auto batchReq = CypressProxy.ExecuteBatch();
             FOREACH (const auto& operationId, operationIds) {
                 auto req = TYPathProxy::Get(CombineYPaths(
-                    "/sys/scheduler/operations",
+                    "/sys/operations",
                     operationId.ToString(),
                     "@"));
                 batchReq->AddRequest(req);
@@ -722,7 +722,7 @@ private:
 
     static NYTree::TYPath GetOperationPath(const TOperationId& id)
     {
-        return CombineYPaths("/sys/scheduler/operations", id.ToString());
+        return CombineYPaths("/sys/operations", id.ToString());
     }
 
     IOperationControllerPtr CreateController(TOperation* operation)

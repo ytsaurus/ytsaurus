@@ -100,7 +100,7 @@ private:
 
             SyncYPathSet(
                 service,
-                WithTransaction("/sys/scheduler/operations", transactionId),
+                WithTransaction("/sys/operations", transactionId),
                 "{}");
 
             SyncYPathCreate(
