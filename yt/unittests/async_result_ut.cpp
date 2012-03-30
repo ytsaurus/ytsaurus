@@ -7,7 +7,7 @@
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-
+namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFutureTest
@@ -47,21 +47,22 @@ TEST_F(TFutureTest, SimpleTryGet)
     EXPECT_EQ(42, value);
 }
 
-class TMockSubscriber
-    : public TCallback<void(int)>
+class TMock
 {
 public:
-
-    MOCK_METHOD1(Run, void(int value));
+    MOCK_METHOD1(Tackle, void(int));
 };
 
 TEST_F(TFutureTest, Subscribe)
 {
-    TMockSubscriber firstSubscriber;
-    TMockSubscriber secondSubscriber;
+    TMock firstMock;
+    TMock secondMock;
 
-    EXPECT_CALL(firstSubscriber, Run(42)).Times(1);
-    EXPECT_CALL(secondSubscriber, Run(42)).Times(1);
+    EXPECT_CALL(firstMock, Tackle(42)).Times(1);
+    EXPECT_CALL(secondMock, Tackle(42)).Times(1);
+
+    auto firstSubscriber = BIND([&] (int x) { firstMock.Tackle(x); });
+    auto secondSubscriber = BIND([&] (int x) { secondMock.Tackle(x); });
 
     Result->Subscribe(firstSubscriber);
     Result->Set(42);
@@ -80,11 +81,14 @@ static void* AsynchronousSetter(void* param)
 
 TEST_F(TFutureTest, SubscribeWithAsynchronousSet)
 {
-    TMockSubscriber firstSubscriber;
-    TMockSubscriber secondSubscriber;
+    TMock firstMock;
+    TMock secondMock;
 
-    EXPECT_CALL(firstSubscriber, Run(42)).Times(1);
-    EXPECT_CALL(secondSubscriber, Run(42)).Times(1);
+    EXPECT_CALL(firstMock, Tackle(42)).Times(1);
+    EXPECT_CALL(secondMock, Tackle(42)).Times(1);
+
+    auto firstSubscriber = BIND([&] (int x) { firstMock.Tackle(x); });
+    auto secondSubscriber = BIND([&] (int x) { secondMock.Tackle(x); });
 
     Result->Subscribe(firstSubscriber);
 
@@ -96,6 +100,6 @@ TEST_F(TFutureTest, SubscribeWithAsynchronousSet)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
+} // namespace <anonymous>
 } // namespace NYT
 
