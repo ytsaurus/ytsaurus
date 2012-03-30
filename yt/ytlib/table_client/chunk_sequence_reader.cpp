@@ -14,13 +14,15 @@ TChunkSequenceReader::TChunkSequenceReader(
     TConfig* config,
     NRpc::IChannel* masterChannel,
     NChunkClient::IBlockCache* blockCache,
-    const std::vector<NProto::TInputChunk>& fetchedChunks)
+    const std::vector<NProto::TInputChunk>& fetchedChunks,
+    TChunkReader::TOptions options)
     : Config(config)
     , BlockCache(blockCache)
     , InputChunks(fetchedChunks)
     , MasterChannel(masterChannel)
     , NextChunkIndex(-1)
     , NextReader(New< TFuture<TChunkReader::TPtr> >())
+    , Options(options)
 {
     PrepareNextChunk();
 }
@@ -52,7 +54,8 @@ void TChunkSequenceReader::PrepareNextChunk()
         ~remoteReader,
         slice.start_limit(),
         slice.end_limit(),
-        ""); // ToDo(psushin): pass row attributes here.
+        "", // ToDo(psushin): pass row attributes here.
+        Options);
 
     chunkReader->AsyncOpen()->Subscribe(FromMethod(
         &TChunkSequenceReader::OnNextReaderOpened,
@@ -142,6 +145,15 @@ const TRow& TChunkSequenceReader::GetCurrentRow() const
     YASSERT(CurrentReader->IsValid());
 
     return CurrentReader->GetCurrentRow();
+}
+
+const TKey& TChunkSequenceReader::GetCurrentKey() const
+{
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(CurrentReader);
+    YASSERT(CurrentReader->IsValid());
+
+    return CurrentReader->GetCurrentKey();
 }
 
 TAsyncError TChunkSequenceReader::AsyncNextRow()

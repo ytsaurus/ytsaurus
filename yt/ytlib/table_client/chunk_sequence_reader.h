@@ -39,7 +39,8 @@ public:
         TConfig* config,
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache,
-        const std::vector<NProto::TInputChunk>& fetchedChunks);
+        const std::vector<NProto::TInputChunk>& fetchedChunks,
+        TChunkReader::TOptions options = TChunkReader::TOptions());
 
     TAsyncError AsyncOpen();
 
@@ -48,6 +49,7 @@ public:
     bool IsValid() const;
 
     const TRow& GetCurrentRow() const;
+    const TKey& GetCurrentKey() const;
 
 private:
     void PrepareNextChunk();
@@ -60,6 +62,8 @@ private:
     TConfig::TPtr Config;
     NChunkClient::IBlockCache::TPtr BlockCache;
     std::vector<NProto::TInputChunk> InputChunks;
+
+    TChunkReader::TOptions Options;
 
     NRpc::IChannel::TPtr MasterChannel;
 

@@ -208,7 +208,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             return EExitCode::OK;
         }
 
-        TJobId jobId;
+        NJobProxy::TJobId jobId;
         try {
             jobId = TGuid::FromString(jobIdOpt);
         } catch (const std::exception& ex) {
@@ -225,7 +225,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         TJobProxy jobProxy(~config, jobId);
-        jobProxy.Run();
+        jobProxy.Start();
     }
 
     // Actually this will never happen.

@@ -32,6 +32,7 @@ struct IAsyncReader
     virtual bool IsValid() const = 0;
 
     virtual const TRow& GetCurrentRow() const = 0;
+    virtual const TKey& GetCurrentKey() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

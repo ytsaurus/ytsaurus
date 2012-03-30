@@ -50,6 +50,7 @@ struct TJobProxyConfig
     Stroka SandboxName;
     NElection::TLeaderLookup::TConfigPtr Masters;
     TDuration RpcTimeout;
+    TDuration HeartbeatPeriod;
 
     TJobIoConfigPtr JobIo;
     NYTree::INodePtr Logging;
@@ -60,6 +61,7 @@ struct TJobProxyConfig
         Register("sandbox_name", SandboxName).NonEmpty();
         Register("masters", Masters);
         Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
+        Register("heartbeat_period", HeartbeatPeriod).Default(TDuration::Seconds(5));
         Register("job_io", JobIo).DefaultNew();
         Register("logging", Logging).Default(NULL);
     }

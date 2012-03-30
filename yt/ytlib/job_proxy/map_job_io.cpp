@@ -1,10 +1,9 @@
 #include "stdafx.h"
 
-#include "job_spec.h"
+#include "map_job_io.h"
 #include "config.h"
 
 // ToDo(psushin): use public.h everywhere.
-#include <ytlib/election/leader_channel.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
 #include <ytlib/table_client/sync_writer.h>
@@ -120,40 +119,36 @@ private:
 ////////////////////////////////////////////////////////////////////
 
 
-TJobSpec::TJobSpec(
-    TJobIoConfig* config,
-    NElection::TLeaderLookup::TConfig* mastersConfig,
-    const NScheduler::NProto::TJobSpec& jobSpec)
+TMapJobIo::TMapJobIo(
+    TJobIoConfigPtr config,
+    NRpc::IChannel* masterChannel,
+    const NScheduler::NProto::TMapJobSpec& ioSpec)
     : Config(config)
-    , MasterChannel(CreateLeaderChannel(mastersConfig))
-{
-    YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
-    YASSERT(jobSpec.HasExtension(TMapJobSpec::map_job_spec));
+    , MasterChannel(masterChannel)
+    , IoSpec(ioSpec)
+{ }
 
-    UserJobSpec = jobSpec.GetExtension(TUserJobSpec::user_job_spec);
-    MapJobSpec = jobSpec.GetExtension(TMapJobSpec::map_job_spec);
-}
-
-int TJobSpec::GetInputCount() const 
+int TMapJobIo::GetInputCount() const 
 {
     // Always single input for map.
     return 1;
 }
 
-int TJobSpec::GetOutputCount() const
+int TMapJobIo::GetOutputCount() const
 {
-    return MapJobSpec.output_specs_size();
+    return IoSpec.output_specs_size();
 }
 
-TAutoPtr<NTableClient::TYsonTableInput> TJobSpec::GetInputTable(int index, TOutputStream* output)
+TAutoPtr<NTableClient::TYsonTableInput> 
+TMapJobIo::CreateTableInput(int index, TOutputStream* output) const
 {
     YASSERT(index < GetInputCount());
 
     auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
 
     std::vector<NTableClient::NProto::TInputChunk> chunks(
-        MapJobSpec.input_spec().chunks().begin(),
-        MapJobSpec.input_spec().chunks().end());
+        IoSpec.input_spec().chunks().begin(),
+        IoSpec.input_spec().chunks().end());
 
     LOG_DEBUG("Creating %d input from %d chunks", 
         index, 
@@ -165,21 +160,24 @@ TAutoPtr<NTableClient::TYsonTableInput> TJobSpec::GetInputTable(int index, TOutp
         ~blockCache,
         chunks);
 
-    // ToDo: extract format from operation spec.
-    return new TYsonTableInput(~New<TSyncReader>(~reader), EYsonFormat::Text, output);
+    // ToDo(psushin): extract format from operation spec.
+    return new TYsonTableInput(
+        ~New<TSyncReader>(~reader), 
+        Config->OutputFormat, 
+        output);
 }
 
-TAutoPtr<TOutputStream> TJobSpec::GetOutputTable(int index)
+TAutoPtr<TOutputStream> TMapJobIo::CreateTableOutput(int index) const
 {
     YASSERT(index < GetOutputCount());
-    const TYson& schema = MapJobSpec.output_specs(index).schema();
+    const TYson& schema = IoSpec.output_specs(index).schema();
     YASSERT(!schema.empty());
 
     auto chunkSequenceWriter = New<TChunkSequenceWriter>(
         ~Config->ChunkSequenceWriter,
         ~MasterChannel,
-        TTransactionId::FromProto(MapJobSpec.output_transaction_id()),
-        TChunkListId::FromProto(MapJobSpec.output_specs(index).chunk_list_id()));
+        TTransactionId::FromProto(IoSpec.output_transaction_id()),
+        TChunkListId::FromProto(IoSpec.output_specs(index).chunk_list_id()));
 
     return new TYsonTableOutput(~New<TSyncWriter>(
         new TValidatingWriter(
@@ -187,7 +185,7 @@ TAutoPtr<TOutputStream> TJobSpec::GetOutputTable(int index)
             ~chunkSequenceWriter)));
 }
 
-TAutoPtr<TOutputStream> TJobSpec::GetErrorOutput()
+TAutoPtr<TOutputStream> TMapJobIo::CreateErrorOutput() const
 {
     /*
     if (ProtoSpec.has_std_err())
@@ -202,13 +200,7 @@ TAutoPtr<TOutputStream> TJobSpec::GetErrorOutput()
     return new TNullOutput();
 }
 
-const Stroka& TJobSpec::GetShellCommand() const
-{
-    return UserJobSpec.shell_comand();
-}
-
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProxy
 } // namespace NYT
-
