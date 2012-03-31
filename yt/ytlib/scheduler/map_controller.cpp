@@ -69,6 +69,8 @@ public:
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
         }
+
+        ExecNodeCount = Host->GetExecNodeCount();
     }
 
     virtual TFuture<TVoid>::TPtr Prepare()
@@ -689,11 +691,14 @@ private:
         WeightCounter.Init(TotalWeight);
 
         // Check for empty inputs.
-        if (totalJobCount == 0) {
+        if (TotalRowCount == 0) {
             LOG_INFO("Empty input");
             CompleteOperation();
             return TVoid();
         }
+
+        YASSERT(TotalWeight > 0);
+        YASSERT(totalJobCount > 0);
 
         // Allocate some initial chunk lists.
         // TOOD(babenko): make configurable
