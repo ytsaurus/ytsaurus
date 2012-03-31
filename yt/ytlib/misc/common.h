@@ -26,6 +26,7 @@ using std::string; // hack for guid.h to work
 #include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
 #include <util/generic/map.h>
+#include <util/generic/set.h>
 #include <util/generic/singleton.h>
 #include <util/generic/yexception.h>
 #include <util/generic/pair.h>
