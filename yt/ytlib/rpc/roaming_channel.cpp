@@ -80,8 +80,8 @@ public:
         GetChannel()->Subscribe(BIND(
             &TRoamingChannel::OnGotChannel,
             MakeStrong(this),
-            request,
-            responseHandler,
+            MakeStrong(request),
+            MakeStrong(responseHandler),
             timeout));
     }
 
