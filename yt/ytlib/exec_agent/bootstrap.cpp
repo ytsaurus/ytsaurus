@@ -75,7 +75,7 @@ IChannel::TPtr TBootstrap::GetMasterChannel() const
 
 IChannel::TPtr TBootstrap::GetSchedulerChannel() const
 {
-    return NodeBootstrap->GetMasterChannel();
+    return NodeBootstrap->GetSchedulerChannel();
 }
 
 Stroka TBootstrap::GetPeerAddress() const

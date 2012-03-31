@@ -54,8 +54,8 @@ void TBootstrap::Init()
 
     PeerBlockTable = New<TPeerBlockTable>(Config->PeerBlockTable);
 
-    auto peerUpdater = New<TPeerBlockUpdater>(Config, this);
-    peerUpdater->Start();
+    PeerBlockUpdater = New<TPeerBlockUpdater>(Config, this);
+    PeerBlockUpdater->Start();
 
     ChunkStore = New<TChunkStore>(Config, this);
     ChunkStore->Start();
@@ -75,7 +75,7 @@ void TBootstrap::Init()
         BlockStore,
         NodeBootstrap->GetControlInvoker());
 
-    auto masterConnector = New<TMasterConnector>(Config, this);
+    MasterConnector = New<TMasterConnector>(Config, this);
 
     auto chunkHolderService = New<TChunkHolderService>(Config, this);
     NodeBootstrap->GetRpcServer()->RegisterService(chunkHolderService);
@@ -89,7 +89,7 @@ void TBootstrap::Init()
         "cached_chunks",
         ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
 
-    masterConnector->Start();
+    MasterConnector->Start();
 }
 
 TChunkHolderConfigPtr TBootstrap::GetConfig() const

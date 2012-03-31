@@ -18,8 +18,8 @@ class TBootstrap
 {
 public:
     TBootstrap(
-    	TChunkHolderConfigPtr config,
-	    NCellNode::TBootstrap* nodeBootstrap);
+        TChunkHolderConfigPtr config,
+        NCellNode::TBootstrap* nodeBootstrap);
     ~TBootstrap();
 
     void Init();
@@ -39,17 +39,19 @@ public:
     Stroka GetPeerAddress() const;
 
 private:
-	TChunkHolderConfigPtr Config;
-	NCellNode::TBootstrap* NodeBootstrap;
+    TChunkHolderConfigPtr Config;
+    NCellNode::TBootstrap* NodeBootstrap;
     
-    NChunkHolder::TChunkStorePtr ChunkStore;
-    NChunkHolder::TChunkCachePtr ChunkCache;
-    NChunkHolder::TSessionManagerPtr SessionManager;
-    NChunkHolder::TJobExecutorPtr JobExecutor;
-    NChunkHolder::TBlockStorePtr BlockStore;
-    NChunkHolder::TPeerBlockTablePtr PeerBlockTable;
-    NChunkHolder::TReaderCachePtr ReaderCache;
-
+    TChunkStorePtr ChunkStore;
+    TChunkCachePtr ChunkCache;
+    TSessionManagerPtr SessionManager;
+    TJobExecutorPtr JobExecutor;
+    TBlockStorePtr BlockStore;
+    TPeerBlockTablePtr PeerBlockTable;
+    TPeerBlockUpdaterPtr PeerBlockUpdater;
+    TReaderCachePtr ReaderCache;
+    TMasterConnectorPtr MasterConnector;
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
