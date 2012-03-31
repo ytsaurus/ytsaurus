@@ -25,6 +25,9 @@ void TMapCommand::DoExecute(TMapRequestPtr request)
         *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
         startOpReq->set_type(EOperationType::Map);
         startOpReq->set_transaction_id(transaction->GetId().ToProto());
+        PreprocessYPaths(request->Spec->In);
+        PreprocessYPaths(request->Spec->Out);
+        PreprocessYPaths(request->Spec->Files);
         startOpReq->set_spec(SerializeToYson(~request->Spec));
 
         auto startOpRsp = startOpReq->Invoke()->Get();
