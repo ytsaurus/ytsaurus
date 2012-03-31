@@ -96,11 +96,6 @@ add_custom_command(
     COMMENT "Regenerating preprocessor-gen.h..."
 )
 
-add_custom_command(
-    OUTPUT  ${BASE}/new.h
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py ${BASE}/new.h.pump > ${BASE}/new.h
-    DEPENDS ${BASE}/new.h.pump
-    COMMENT "Regenerating new.h..."
-)
+PUMP( ${BASE}/new.h.pump YT_SOURCE_FILES )
 
 protoc( ${BASE}/error.proto YT_SOURCE_FILES )
