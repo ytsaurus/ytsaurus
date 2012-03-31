@@ -30,11 +30,15 @@ TSchedulerConnector::TSchedulerConnector(
 
 void TSchedulerConnector::Start()
 {
-    PeriodicInvoker = New<TPeriodicInvoker>(
-        BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this))
+    ScheduleHeartbeat();
+}
+
+void TSchedulerConnector::ScheduleHeartbeat()
+{
+    TDelayedInvoker::Submit(
+        BIND(&TSchedulerConnector::SendHeartbeat, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()),
         Config->HeartbeatPeriod);
-    PeriodicInvoker->Start();
 }
 
 void TSchedulerConnector::SendHeartbeat()
@@ -69,6 +73,8 @@ void TSchedulerConnector::SendHeartbeat()
 
 void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartbeat::TPtr rsp)
 {
+    ScheduleHeartbeat();
+
     if (!rsp->IsOK()) {
         LOG_ERROR("Error reporting heartbeat to scheduler\n%s", ~rsp->GetError().ToString());
         return;
