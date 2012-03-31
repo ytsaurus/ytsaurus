@@ -494,15 +494,20 @@ private:
         // Apply delta to the parent chunk list.
         chunkList.Statistics().Accumulate(delta);
 
-        // Run a DFS-like traversal upwards and apply delta.
-        // TODO(babenko): this only works correctly if upward paths are unique.
-        std::vector<TChunkListId> dfsStack(chunkList.ParentIds().begin(), chunkList.ParentIds().end());
-        while (!dfsStack.empty()) {
-            auto currentChunkListId = dfsStack.back();
-            dfsStack.pop_back();
-            auto& currentChunkList = GetChunkList(currentChunkListId);
-            currentChunkList.Statistics().Accumulate(delta);
-            dfsStack.insert(dfsStack.end(), currentChunkList.ParentIds().begin(), currentChunkList.ParentIds().end());
+        // Go upwards and apply delta.
+        // Also reset Sorted flags.
+        // Check that parents are unique along the way.
+        auto* current = &chunkList;
+        for (;;) {
+            current->Statistics().Accumulate(delta);
+            current->SetSorted(false);
+
+            const auto& parentIds = current->ParentIds();
+            if (parentIds.empty())
+                break;
+
+            YASSERT(parentIds.size() == 1);
+            current = &GetChunkList(*parentIds.begin());
         }
     }
 

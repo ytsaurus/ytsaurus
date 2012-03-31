@@ -90,6 +90,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("uncompressed_size");
     attributes->push_back("compressed_size");
     attributes->push_back("row_count");
+    attributes->push_back("sorted");
     TBase::GetSystemAttributes(attributes);
 }
 
@@ -136,6 +137,12 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
     if (name == "row_count") {
         BuildYsonFluently(consumer)
             .Scalar(chunkList.Statistics().RowCount);
+        return true;
+    }
+
+    if (name == "sorted") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.GetSorted());
         return true;
     }
 
@@ -218,6 +225,17 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     }
 
     context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
+{
+    const auto& impl = GetTypedImplForUpdate();
+
+    auto& rootChunkList = Bootstrap->GetChunkManager()->GetChunkList(impl.GetChunkListId());
+    YASSERT(rootChunkList.ParentIds().empty());
+    rootChunkList.SetSorted(true);
 
     context->Reply();
 }

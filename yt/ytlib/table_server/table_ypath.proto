@@ -5,6 +5,8 @@ import "yt/ytlib/table_client/table_reader.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Branches the table returning the new root chunk list
+// where all new chunks must be added to.
 message TReqGetChunkListForUpdate
 { }
 
@@ -15,6 +17,7 @@ message TRspGetChunkListForUpdate
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Returns info describing a given portion of table.
 message TReqFetch
 {
     optional bool fetch_holder_addresses = 1;
@@ -25,5 +28,15 @@ message TRspFetch
 {
     repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Raises Sets "Sorted" flag for the root chunk list of the table.
+// No checks are done, it's caller's responsibility to ensure proper ordering.
+message TReqSetSorted
+{ }
+
+message TRspSetSorted
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////

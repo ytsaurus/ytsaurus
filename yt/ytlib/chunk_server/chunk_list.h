@@ -18,6 +18,10 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(yvector<TChunkTreeId>, ChildrenIds);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkListId>, ParentIds);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
+    // This is a pessimistic estimate.
+    // In particular, this flag is true for root chunk lists of sorted tables.
+    // However other chunk lists in such a table may have it false.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
 
 public:
     TChunkList(const TChunkListId& id);
