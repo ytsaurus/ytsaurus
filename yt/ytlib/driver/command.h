@@ -113,7 +113,15 @@ protected:
         : Host(host)
     { }
 
+    void PreprocessYPaths(std::vector<NYTree::TYPath>& paths)
+    {
+        for (int index = 0; index < static_cast<int>(paths.size()); ++index) {
+            paths[index] = Host->PreprocessYPath(paths[index]);
+        }
+    }
+
     virtual void DoExecute(TIntrusivePtr<TRequest> request) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
