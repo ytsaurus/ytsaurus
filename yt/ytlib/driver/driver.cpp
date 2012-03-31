@@ -31,11 +31,8 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const char UserDirectoryMarker = '~';
-
-////////////////////////////////////////////////////////////////////////////////
-
 static NLog::TLogger& Logger = DriverLogger;
+const char UserDirectoryMarker = '~';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,11 +209,10 @@ public:
     virtual TYsonProducer CreateInputProducer()
     {
         auto stream = CreateInputStream();
-        return BIND([=] (IYsonConsumer* consumer)
-            {
-                TYsonReader reader(consumer, ~stream);
-                reader.Read();
-            });
+        return BIND([=] (IYsonConsumer* consumer) {
+            TYsonReader reader(consumer, ~stream);
+            reader.Read();
+        });
     }
 
     virtual TAutoPtr<TInputStream> CreateInputStream()
