@@ -66,6 +66,9 @@ typedef TIntrusivePtr<TCachedBlock> TCachedBlockPtr;
 class TPeerBlockTable;
 typedef TIntrusivePtr<TPeerBlockTable> TPeerBlockTablePtr;
 
+class TPeerBlockUpdater;
+typedef TIntrusivePtr<TPeerBlockUpdater> TPeerBlockUpdaterPtr;
+
 class TChunkRegistry;
 typedef TIntrusivePtr<TChunkRegistry> TChunkRegistryPtr;
 
