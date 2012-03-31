@@ -282,7 +282,7 @@ TObjectManager::TObjectManager(
 
     metaState->RegisterPart(this);
 
-    RegisterMethod(this, &TObjectManager::ReplayVerb);
+    RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
 
     LOG_INFO("Object Manager initialized (CellId: %d)",
         static_cast<int>(config->CellId));

@@ -130,29 +130,29 @@ public:
         YASSERT(config);
         YASSERT(bootstrap);
 
-        RegisterMethod(this, &TImpl::FullHeartbeat);
-        RegisterMethod(this, &TImpl::IncrementalHeartbeat);
-        RegisterMethod(this, &TImpl::UpdateJobs);
-        RegisterMethod(this, &TImpl::RegisterHolder);
-        RegisterMethod(this, &TImpl::UnregisterHolder);
-        RegisterMethod(this, &TImpl::CreateChunks);
+        RegisterMethod(BIND(&TImpl::FullHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::IncrementalHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::UpdateJobs, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::RegisterHolder, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::UnregisterHolder, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::CreateChunks, Unretained(this)));
 
         TLoadContext context(bootstrap);
 
         auto metaState = bootstrap->GetMetaState();
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
-            BIND(&TChunkManager::TImpl::LoadKeys, MakeStrong(this)));
+            BIND(&TImpl::LoadKeys, MakeStrong(this)));
         metaState->RegisterLoader(
             "ChunkManager.Values.1",
-            BIND(&TChunkManager::TImpl::LoadValues, MakeStrong(this), context));
+            BIND(&TImpl::LoadValues, MakeStrong(this), context));
         metaState->RegisterSaver(
             "ChunkManager.Keys.1",
-            BIND(&TChunkManager::TImpl::SaveKeys, MakeStrong(this)),
+            BIND(&TImpl::SaveKeys, MakeStrong(this)),
             ESavePhase::Keys);
         metaState->RegisterSaver(
             "ChunkManager.Values.1",
-            BIND(&TChunkManager::TImpl::SaveValues, MakeStrong(this)),
+            BIND(&TImpl::SaveValues, MakeStrong(this)),
             ESavePhase::Values);
 
         metaState->RegisterPart(this);
