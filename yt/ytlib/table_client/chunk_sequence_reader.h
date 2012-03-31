@@ -53,9 +53,7 @@ public:
 
 private:
     void PrepareNextChunk();
-    void OnNextReaderOpened(
-        TError error, 
-        TChunkReader::TPtr reader);
+    void OnNextReaderOpened(TChunkReader::TPtr reader, TError error);
     void SetCurrentChunk(TChunkReader::TPtr nextReader);
     void OnNextRow(TError error);
 

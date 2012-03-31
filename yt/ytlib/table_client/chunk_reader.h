@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "common.h"
 #include "value.h"
@@ -66,10 +66,10 @@ public:
 private:
     TAsyncError DoNextRow();
 
-    void ContinueNextRow(
-        TError error, 
+    TAsyncError ContinueNextRow(
         int channelIndex, 
-        TAsyncError& result);
+        TAsyncError result,
+        TError error);
 
     void MakeCurrentRow();
 

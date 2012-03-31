@@ -21,6 +21,7 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <util/system/hostname.h>
+#include <util/random/random.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -49,16 +50,16 @@ void TMasterConnector::Start()
 {
     Proxy.Reset(new TProxy(~Bootstrap->GetMasterChannel()));
 
-    Bootstrap->GetChunkStore()->SubscribeChunkAdded(Bind(
+    Bootstrap->GetChunkStore()->SubscribeChunkAdded(BIND(
         &TMasterConnector::OnChunkAdded,
         MakeWeak(this)));
-    Bootstrap->GetChunkStore()->SubscribeChunkRemoved(Bind(
+    Bootstrap->GetChunkStore()->SubscribeChunkRemoved(BIND(
         &TMasterConnector::OnChunkRemoved,
         MakeWeak(this)));
-    Bootstrap->GetChunkCache()->SubscribeChunkAdded(Bind(
+    Bootstrap->GetChunkCache()->SubscribeChunkAdded(BIND(
         &TMasterConnector::OnChunkAdded,
         MakeWeak(this)));
-    Bootstrap->GetChunkCache()->SubscribeChunkRemoved(Bind(
+    Bootstrap->GetChunkCache()->SubscribeChunkRemoved(BIND(
         &TMasterConnector::OnChunkRemoved,
         MakeWeak(this)));
 
@@ -68,10 +69,10 @@ void TMasterConnector::Start()
 void TMasterConnector::ScheduleHeartbeat()
 {
     // TODO(panin): think about specializing RandomNumber<TDuration>
-    TDuration randomDelay = TDuration::MicroSeconds(RandomNumber(Config->HeartbeatSplay.MicroSeconds()));
+    auto randomDelay = TDuration::MicroSeconds(RandomNumber(Config->HeartbeatSplay.MicroSeconds()));
     TDelayedInvoker::Submit(
-        FromMethod(&TMasterConnector::OnHeartbeat, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()),
+        BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()),
         Config->HeartbeatPeriod + randomDelay);
 }
 
@@ -98,13 +99,12 @@ void TMasterConnector::SendRegister()
     *request->mutable_statistics() = ComputeStatistics();
     request->set_address(Bootstrap->GetPeerAddress());
     request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
-
-    LOG_INFO("Sending register request (%s)",
-        ~ToString(*request->mutable_statistics()));
-
     request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()));
+        BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()));
+
+    LOG_INFO("Register request sent (%s)",
+        ~ToString(*request->mutable_statistics()));
 }
 
 NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
@@ -166,13 +166,13 @@ void TMasterConnector::SendFullHeartbeat()
         *request->add_chunks() = GetAddInfo(~chunk);
     }
 
-    LOG_INFO("Sending full heartbeat (%s, Chunks: %d)",
+    request->Invoke()->Subscribe(
+        BIND(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()));
+
+    LOG_INFO("Full heartbeat sent (%s, Chunks: %d)",
         ~ToString(request->statistics()),
         static_cast<int>(request->chunks_size()));
-
-    request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()));
 }
 
 void TMasterConnector::SendIncrementalHeartbeat()
@@ -200,15 +200,15 @@ void TMasterConnector::SendIncrementalHeartbeat()
         info->set_state(job->GetState());
     }
 
-    LOG_INFO("Sending incremental heartbeat (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
+    request->Invoke()->Subscribe(
+        BIND(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()));
+
+    LOG_INFO("Incremental heartbeat sent (%s, AddedChunks: %d, RemovedChunks: %d, Jobs: %d)",
         ~ToString(request->statistics()),
         static_cast<int>(request->added_chunks_size()),
         static_cast<int>(request->removed_chunks_size()),
         static_cast<int>(request->jobs_size()));
-
-    request->Invoke()->Subscribe(
-        FromMethod(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()));
 }
 
 TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)

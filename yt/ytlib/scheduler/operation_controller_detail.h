@@ -171,27 +171,27 @@ class TAsyncPipeline
 public:
     TAsyncPipeline(
         IInvoker::TPtr invoker,
-        TIntrusivePtr< IFunc< TIntrusivePtr < TFuture< TValueOrError<T> > > > > head)
+        TCallback< TIntrusivePtr < TFuture< TValueOrError<T> > >() > head)
         : Invoker(invoker)
         , Lazy(head)
     { }
 
     TIntrusivePtr< TFuture< TValueOrError<T> > > Run()
     {
-        return Lazy->Do();
+        return Lazy.Run();
     }
 
     typedef T T1;
 
     template <class T2>
-    TIntrusivePtr< TAsyncPipeline<T2> > Add(TIntrusivePtr< IParamFunc<T1, T2> > func)
+    TIntrusivePtr< TAsyncPipeline<T2> > Add(TCallback<T2(T1)> func)
     {
-        auto wrappedFunc = FromFunctor([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
+        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
             if (!x.IsOK()) {
                 return MakeFuture(TValueOrError<T2>(TError(x)));
             }
             try {
-                auto y = func->Do(x.Value());
+                auto y = func.Run(x.Value());
                 return MakeFuture(TValueOrError<T2>(y));
             } catch (const std::exception& ex) {
                 return MakeFuture(TValueOrError<T2>(TError(ex.what())));
@@ -199,30 +199,30 @@ public:
         });
 
         if (Invoker) {
-            wrappedFunc = wrappedFunc->AsyncVia(Invoker);
+            wrappedFunc = wrappedFunc.AsyncVia(Invoker);
         }
 
         auto lazy = Lazy;
-        auto newLazy = FromFunctor([=] () {
-            return lazy->Do()->Apply(wrappedFunc);
+        auto newLazy = BIND([=] () {
+            return lazy.Run()->Apply(wrappedFunc);
         });
 
         return New< TAsyncPipeline<T2> >(Invoker, newLazy);
     }
 
     template <class T2>
-    TIntrusivePtr< TAsyncPipeline<T2> > Add(TIntrusivePtr< IParamFunc<T1, TIntrusivePtr< TFuture<T2> > > > func)
+    TIntrusivePtr< TAsyncPipeline<T2> > Add(TCallback< TIntrusivePtr< TFuture<T2> >(T1) > func)
     {
-        auto toValueOrError = FromFunctor([] (T2 x) {
+        auto toValueOrError = BIND([] (T2 x) {
             return TValueOrError<T2>(x);
         });
 
-        auto wrappedFunc = FromFunctor([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
+        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
             if (!x.IsOK()) {
                 return MakeFuture(TValueOrError<T2>(TError(x)));
             }
             try {
-                auto y = func->Do(x.Value());
+                auto y = func.Run(x.Value());
                 return y->Apply(toValueOrError);
             } catch (const std::exception& ex) {
                 return MakeFuture(TValueOrError<T2>(TError(ex.what())));
@@ -230,12 +230,12 @@ public:
         });
 
         if (Invoker) {
-            wrappedFunc = wrappedFunc->AsyncVia(Invoker);
+            wrappedFunc = wrappedFunc.AsyncVia(Invoker);
         }
 
         auto lazy = Lazy;
-        auto newLazy = FromFunctor([=] () {
-            return lazy->Do()->Apply(wrappedFunc);
+        auto newLazy = BIND([=] () {
+            return lazy.Run()->Apply(wrappedFunc);
         });
 
         return New< TAsyncPipeline<T2> >(Invoker, newLazy);
@@ -244,7 +244,7 @@ public:
 
 private:
     IInvoker::TPtr Invoker;
-    TIntrusivePtr< IFunc< TIntrusivePtr < TFuture< TValueOrError<T> > > > > Lazy;
+    TCallback< TIntrusivePtr < TFuture< TValueOrError<T> > >() > Lazy;
 
 };
 

@@ -94,8 +94,8 @@ public:
     NYTree::TYPathServiceProducer CreateOrchidProducer()
     {
         // TODO(babenko): virtualize
-        auto producer = FromMethod(&TImpl::BuildOrchidYson, this);
-        return FromFunctor([=] () {
+        auto producer = BIND(&TImpl::BuildOrchidYson, this);
+        return BIND([=] () {
             return IYPathService::FromProducer(producer);
         });
     }
@@ -163,14 +163,14 @@ private:
         // Create a node in Cypress that will represent the operation.
         LOG_INFO("Creating operation node %s", ~operationId.ToString());
         auto setReq = TYPathProxy::Set(GetOperationPath(operationId));
-        setReq->set_value(SerializeToYson(FromMethod(&TImpl::BuildOperationYson, this, operation)));
+        setReq->set_value(SerializeToYson(BIND(&TImpl::BuildOperationYson, this, operation)));
 
         return CypressProxy.Execute(setReq)->Apply(
-            FromMethod(
+            BIND(
                 &TImpl::OnOperationNodeCreated,
                 this,
                 operation)
-            ->AsyncVia(GetControlInvoker()));
+            .AsyncVia(GetControlInvoker()));
     }
 
     void InitializeOperation(TOperationPtr operation)
@@ -183,8 +183,8 @@ private:
     }
 
     TValueOrError<TOperationPtr> OnOperationNodeCreated(
-        NYTree::TYPathProxy::TRspSet::TPtr rsp,
-        TOperationPtr operation)
+        TOperationPtr operation,
+        NYTree::TYPathProxy::TRspSet::TPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -215,11 +215,11 @@ private:
         // Run async preparation.
         LOG_INFO("Preparing operation %s", ~operation->GetOperationId().ToString());
         operation ->GetController()->Prepare()->Subscribe(
-            FromMethod(&TImpl::OnOperationPrepared, this, operation)
-            ->Via(GetControlInvoker()));
+            BIND(&TImpl::OnOperationPrepared, this, operation)
+            .Via(GetControlInvoker()));
     }
 
-    void OnOperationPrepared(TVoid, TOperationPtr operation)
+    void OnOperationPrepared(TOperationPtr operation, TVoid)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -246,14 +246,14 @@ private:
         YASSERT(operation->GetState() == EOperationState::Initializing);
         operation->SetState(EOperationState::Reviving);
 
-        // Run async preparation.
+        // Run async revival.
         LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
         operation ->GetController()->Revive()->Subscribe(
-            FromMethod(&TImpl::OnOperationRevived, this, operation)
-            ->Via(GetControlInvoker()));
+            BIND(&TImpl::OnOperationRevived, this, operation)
+            .Via(GetControlInvoker()));
     }
 
-    void OnOperationRevived(TVoid, TOperationPtr operation)
+    void OnOperationRevived(TOperationPtr operation, TVoid)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -377,13 +377,13 @@ private:
         LOG_INFO("Removing operation node %s", ~id.ToString());
         auto req = TYPathProxy::Remove(GetOperationPath(id));
         CypressProxy.Execute(req)->Subscribe(
-            FromMethod(&TImpl::OnOperationNodeRemoved, this, operation)
-            ->Via(GetControlInvoker()));
+            BIND(&TImpl::OnOperationNodeRemoved, this, operation)
+            .Via(GetControlInvoker()));
     }
 
     void OnOperationNodeRemoved(
-        TYPathProxy::TRspRemove::TPtr rsp,
-        TOperationPtr operation)
+        TOperationPtr operation,
+        TYPathProxy::TRspRemove::TPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -557,7 +557,7 @@ private:
 
                 auto operation = ParseOperationYson(operationIds[index], rsp->value());
                 operation->SetController(CreateController(operation.Get()));
-                Bootstrap->GetControlInvoker()->Invoke(FromMethod(
+                Bootstrap->GetControlInvoker()->Invoke(BIND(
                     &TThis::ReviveOperation,
                     MakeStrong(this),
                     operation));
@@ -569,14 +569,14 @@ private:
     void StartRefresh()
     {
         TransactionRefreshInvoker = New<TPeriodicInvoker>(
-            FromMethod(&TImpl::RefreshTransactions, this)
-            ->Via(GetControlInvoker()),
+            BIND(&TImpl::RefreshTransactions, this)
+            .Via(GetControlInvoker()),
             Config->TransactionsRefreshPeriod);
         TransactionRefreshInvoker->Start();
 
         NodesRefreshInvoker = New<TPeriodicInvoker>(
-            FromMethod(&TImpl::RefreshExecNodes, this)
-            ->Via(GetControlInvoker()),
+            BIND(&TImpl::RefreshExecNodes, this)
+            .Via(GetControlInvoker()),
             Config->NodesRefreshPeriod);
         NodesRefreshInvoker->Start();
     }
@@ -607,13 +607,13 @@ private:
 
         LOG_INFO("Refreshing %d transactions", batchReq->GetSize());
         batchReq->Invoke()->Subscribe(
-            FromMethod(&TImpl::OnTransactionsRefreshed, this, transactionIdsList)
-            ->Via(GetControlInvoker()));
+            BIND(&TImpl::OnTransactionsRefreshed, this, Passed(MoveRV(transactionIdsList)))
+            .Via(GetControlInvoker()));
     }
 
     void OnTransactionsRefreshed(
-        NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr rsp,
-        std::vector<TTransactionId> transactionIds)
+        const std::vector<TTransactionId>& transactionIds,
+        NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -677,8 +677,8 @@ private:
         LOG_INFO("Refreshing exec nodes");
         auto req = TYPathProxy::Get("/sys/holders@online");
         CypressProxy.Execute(req)->Subscribe(
-            FromMethod(&TImpl::OnExecNodesRefreshed, this)
-            ->Via(GetControlInvoker()));
+            BIND(&TImpl::OnExecNodesRefreshed, this)
+            .Via(GetControlInvoker()));
     }
 
     void OnExecNodesRefreshed(NYTree::TYPathProxy::TRspGet::TPtr rsp)
@@ -788,7 +788,7 @@ private:
         TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        GetControlInvoker()->Invoke(FromMethod(
+        GetControlInvoker()->Invoke(BIND(
             &TImpl::DoOperationCompleted,
             this,
             operation));
@@ -817,7 +817,7 @@ private:
         const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        GetControlInvoker()->Invoke(FromMethod(
+        GetControlInvoker()->Invoke(BIND(
             &TImpl::DoOperationFailed,
             this,
             operation,
@@ -853,20 +853,20 @@ private:
             .BeginMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
                     fluent.Item(pair.first.ToString());
-                    BuildOperationYson(consumer, pair.second);
+                    BuildOperationYson(pair.second, consumer);
                 })
                 .Item("jobs").DoMapFor(Jobs, [=] (TFluentMap fluent, TJobMap::value_type pair) {
                     fluent.Item(pair.first.ToString());
-                    BuildJobYson(consumer, pair.second);
+                    BuildJobYson(pair.second, consumer);
                 })
                 .Item("exec_nodes").DoMapFor(ExecNodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     fluent.Item(pair.first);
-                    BuildExecNodeYson(consumer, pair.second);
+                    BuildExecNodeYson(pair.second, consumer);
                 })
             .EndMap();
     }
 
-    void BuildOperationYson(IYsonConsumer* consumer, TOperationPtr operation)
+    void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
             .WithAttributes().BeginMap()
@@ -895,7 +895,7 @@ private:
             TInstant::Now());
     }
 
-    void BuildJobYson(IYsonConsumer* consumer, TJobPtr job)
+    void BuildJobYson(TJobPtr job, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
             .WithAttributes().BeginMap()
@@ -913,7 +913,7 @@ private:
             .EndAttributes();
     }
 
-    void BuildExecNodeYson(IYsonConsumer* consumer, TExecNodePtr node)
+    void BuildExecNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -947,7 +947,7 @@ private:
             type,
             transactionId,
             spec)
-        ->Subscribe(FromFunctor([=] (TValueOrError<TOperationPtr> result) {
+        ->Subscribe(BIND([=] (TValueOrError<TOperationPtr> result) {
             if (!result.IsOK()) {
                 context->Reply(result);
                 return;
@@ -978,7 +978,7 @@ private:
 
         auto operation = GetOperation(operationId);
         // TODO(babenko): const&
-        operation->GetFinished()->Subscribe(FromFunctor([=] (TOperationResult result) {
+        operation->GetFinished()->Subscribe(BIND([=] (TOperationResult result) {
             *response->mutable_result() = result;
             context->Reply();
         }));

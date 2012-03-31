@@ -14,9 +14,9 @@ using namespace NYTree;
 
 void TMapCommand::DoExecute(TMapRequestPtr request)
 {
-    auto transaction = DriverImpl->GetTransaction(request, true);
+    auto transaction = Host->GetTransaction(request, true);
 
-    TSchedulerServiceProxy proxy(DriverImpl->GetSchedulerChannel());
+    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
 
     TOperationId operationId;
     {
@@ -29,14 +29,14 @@ void TMapCommand::DoExecute(TMapRequestPtr request)
 
         auto startOpRsp = startOpReq->Invoke()->Get();
         if (!startOpRsp->IsOK()) {
-            DriverImpl->ReplyError(startOpRsp->GetError());
+            Host->ReplyError(startOpRsp->GetError());
             return;
         }
 
         operationId = TOperationId::FromProto(startOpRsp->operation_id());
     }
 
-    DriverImpl->ReplySuccess(BuildYsonFluently()
+    Host->ReplySuccess(BuildYsonFluently()
         .BeginMap()
             .Item("operation_id").Scalar(operationId.ToString())
         .EndMap());
@@ -50,15 +50,15 @@ void TMapCommand::DoExecute(TMapRequestPtr request)
         auto waitOpRsp = waitOpReq->Invoke()->Get();
 
         if (!waitOpRsp->IsOK()) {
-            DriverImpl->ReplyError(waitOpRsp->GetError());
+            Host->ReplyError(waitOpRsp->GetError());
             return;
         }
 
         auto error = TError::FromProto(waitOpRsp->result().error());
         if (error.IsOK()) {
-            DriverImpl->ReplySuccess();
+            Host->ReplySuccess();
         } else {
-            DriverImpl->ReplyError(error);
+            Host->ReplyError(error);
         }
     }
 

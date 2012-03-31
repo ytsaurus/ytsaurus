@@ -4,16 +4,13 @@
 #include "message_rearranger.h"
 #include "packet.h"
 
-#include <ytlib/actions/action_util.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/profiling/profiler.h>
 
 #include <quality/netliba_v6/udp_http.h>
 
-#include <util/generic/singleton.h>
-#include <util/generic/list.h>
-#include <util/generic/utility.h>
+#include <util/thread/lfqueue.h>
 
 namespace NYT {
 namespace NBus {

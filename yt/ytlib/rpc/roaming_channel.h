@@ -9,7 +9,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef IFunc< TFuture< TValueOrError<IChannel::TPtr> >::TPtr >::TPtr TChannelProducer;
+typedef TCallback< TFuture< TValueOrError<IChannel::TPtr> >::TPtr()> TChannelProducer;
 
 //! Creates a channel with a dynamically discovered endpoint.
 /*!

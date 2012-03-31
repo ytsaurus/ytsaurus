@@ -8,6 +8,8 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/chunk_client/format.h>
 
+#include <util/folder/filelist.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -211,7 +213,7 @@ void TLocation::RemoveChunk(TChunkPtr chunk)
 {
     auto id = chunk->GetId();
     Stroka fileName = chunk->GetFileName();
-    GetInvoker()->Invoke(FromFunctor([=] ()
+    GetInvoker()->Invoke(BIND([=] ()
         {
             // TODO: retry on failure
             LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());

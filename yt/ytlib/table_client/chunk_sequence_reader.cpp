@@ -57,15 +57,15 @@ void TChunkSequenceReader::PrepareNextChunk()
         "", // ToDo(psushin): pass row attributes here.
         Options);
 
-    chunkReader->AsyncOpen()->Subscribe(FromMethod(
+    chunkReader->AsyncOpen()->Subscribe(BIND(
         &TChunkSequenceReader::OnNextReaderOpened,
-        TWeakPtr<TChunkSequenceReader>(this),
+        MakeWeak(this),
         chunkReader));
 }
 
 void TChunkSequenceReader::OnNextReaderOpened(
-    TError error, 
-    TChunkReader::TPtr reader)
+    TChunkReader::TPtr reader,
+    TError error)
 {
     YASSERT(!NextReader->IsSet());
 
@@ -85,9 +85,9 @@ TAsyncError TChunkSequenceReader::AsyncOpen()
 
     if (InputChunks.size() != 0) {
         State.StartOperation();
-        NextReader->Subscribe(FromMethod(
+        NextReader->Subscribe(BIND(
             &TChunkSequenceReader::SetCurrentChunk,
-            TWeakPtr<TChunkSequenceReader>(this)));
+            MakeWeak(this)));
     }
 
     return State.GetOperationError();
@@ -101,9 +101,9 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
         PrepareNextChunk();
 
         if (!CurrentReader->IsValid()) {
-            NextReader->Subscribe(FromMethod(
+            NextReader->Subscribe(BIND(
                 &TChunkSequenceReader::SetCurrentChunk,
-                TWeakPtr<TChunkSequenceReader>(this)));
+                MakeWeak(this)));
             return;
         }
     } 
@@ -120,9 +120,9 @@ void TChunkSequenceReader::OnNextRow(TError error)
     }
 
     if (!CurrentReader->IsValid()) {
-        NextReader->Subscribe(FromMethod(
+        NextReader->Subscribe(BIND(
             &TChunkSequenceReader::SetCurrentChunk,
-            TWeakPtr<TChunkSequenceReader>(this)));
+            MakeWeak(this)));
         return;
     }
 
@@ -163,9 +163,9 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
 
     State.StartOperation();
     
-    CurrentReader->AsyncNextRow()->Subscribe(FromMethod(
+    CurrentReader->AsyncNextRow()->Subscribe(BIND(
         &TChunkSequenceReader::OnNextRow,
-        TWeakPtr<TChunkSequenceReader>(this)));
+        MakeWeak(this)));
 
     return State.GetOperationError();
 }

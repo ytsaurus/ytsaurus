@@ -2,7 +2,6 @@
 #include "chunk_writer.h"
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/actions/action_util.h>
 #include <ytlib/chunk_client/writer_thread.h>
 #include <ytlib/misc/serialize.h>
 

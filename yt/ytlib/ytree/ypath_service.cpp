@@ -14,7 +14,7 @@ IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer)
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    producer->Do(~builder);
+    producer.Run(~builder);
     return builder->EndTree();
 }
 
@@ -42,7 +42,7 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        Invoker->Invoke(FromMethod(
+        Invoker->Invoke(BIND(
             &TViaYPathService::ExecuteRequest,
             MakeStrong(this),
             context));
@@ -83,7 +83,7 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
-        auto service = Producer->Do();
+        auto service = Producer.Run();
         ExecuteVerb(~service, context);
     }
 };

@@ -32,7 +32,7 @@ void TLock::Save(TOutputStream* output) const
     ::Save(output, Mode_);
 }
 
-void TLock::Load(TInputStream* input, const TLoadContext& context)
+void TLock::Load(const TLoadContext& context, TInputStream* input)
 {
     ::Load(input, NodeId_);
     ::Load(input, TransactionId_);

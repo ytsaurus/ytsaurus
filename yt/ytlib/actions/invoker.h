@@ -1,14 +1,11 @@
 #pragma once
 
 #include "common.h"
+#include "callback_forward.h"
 
 #include <ytlib/misc/ref_counted.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IAction;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,7 +14,7 @@ struct IInvoker
 {
     typedef TIntrusivePtr<IInvoker> TPtr;
 
-    virtual void Invoke(TIntrusivePtr<IAction> action) = 0;
+    virtual void Invoke(const TClosure& action) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

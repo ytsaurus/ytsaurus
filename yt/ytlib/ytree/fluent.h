@@ -7,8 +7,9 @@
 #include "tree_visitor.h"
 #include "serialize.h"
 
-// For TVoid.
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback.h>
+#include <ytlib/actions/bind_helpers.h> // For TVoid
+#include <ytlib/misc/foreach.h>
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/string.h>
 
@@ -80,7 +81,7 @@ public:
     public:
         TParent Do(TYsonProducer producer)
         {
-            producer->Do(this->Consumer);
+            producer.Run(this->Consumer);
             return this->Parent;
         }
 

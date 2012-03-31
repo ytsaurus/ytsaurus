@@ -9,7 +9,7 @@ dd if=/dev/urandom of=some_file.txt bs=1000 count=1000 2>/dev/null
 cat some_file.txt |yt upload /file
 
 yt get /file@size
-yt get /sys/chunks/@size
+yt get /sys/chunks@сount
 
 yt download /file > downloaded_file.txt
 
@@ -17,4 +17,4 @@ diff= `diff some_file.txt downloaded_file.txt`
 echo "Diff: $diff"
 
 yt remove /file
-yt get /sys/chunks/@size
+yt get /sys/chunks@count

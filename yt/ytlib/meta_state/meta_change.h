@@ -15,7 +15,7 @@ class TMetaChange
 {
 public:
     typedef TIntrusivePtr<TMetaChange> TPtr;
-    typedef typename IFunc<TResult>::TPtr TChangeFunc;
+    typedef TCallback<TResult()> TChangeFunc;
 
     TMetaChange(
         IMetaStateManager* metaStateManager,
@@ -25,23 +25,23 @@ public:
     typename TFuture<TResult>::TPtr Commit();
 
     TPtr SetRetriable(TDuration backoffTime);
-    TPtr OnSuccess(TIntrusivePtr< IParamAction<TResult> > onSuccess);
-    TPtr OnError(TIntrusivePtr<IAction> onError);
+    TPtr OnSuccess(TCallback<void(TResult)> onSuccess);
+    TPtr OnError(TCallback<void()> onError);
 
 private:
     typedef TMetaChange<TResult> TThis;
 
     IMetaStateManagerPtr MetaStateManager;
     TChangeFunc Func;
-    IAction::TPtr ChangeAction;
+    TClosure ChangeAction;
     TSharedRef ChangeData;
     bool Started;
     bool Retriable;
 
     TCancelableContextPtr EpochContext;
     TDuration BackoffTime;
-    typename IParamAction<TResult>::TPtr OnSuccess_;
-    IAction::TPtr OnError_;
+    TCallback<void(TResult)> OnSuccess_;
+    TClosure OnError_;
     typename TFuture<TResult>::TPtr AsyncResult;
     TResult Result;
 
@@ -62,7 +62,7 @@ template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
     IMetaStateManager* metaStateManager,
     const TMessage& message,
-    TIntrusivePtr< IFunc<TResult> > func);
+    TCallback<TResult()> func);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,16 +4,14 @@
 #include "packet.h"
 #include "message_rearranger.h"
 
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/lease_manager.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/profiling/profiler.h>
 
-#include <util/generic/list.h>
-#include <util/generic/deque.h>
-#include <util/generic/utility.h>
+#include <util/thread/lfqueue.h>
 
 #include <quality/netliba_v6/udp_http.h>
 
@@ -156,7 +154,7 @@ public:
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
             SessionId,
-            FromMethod(&TSession::OnMessageDequeued, MakeWeak(this)),
+            BIND(&TSession::OnMessageDequeued, MakeWeak(this)),
             server->Config->MessageRearrangeTimeout))
     { }
 
@@ -167,7 +165,7 @@ public:
         SendPing();
         Lease = TLeaseManager::CreateLease(
             server->Config->SessionTimeout,
-            FromMethod(&TSession::OnLeaseExpired, MakeWeak(this)));
+            BIND(&TSession::OnLeaseExpired, MakeWeak(this)));
     }
 
     void OnUnregistered()

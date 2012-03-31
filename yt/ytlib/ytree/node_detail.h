@@ -59,7 +59,7 @@ protected:
         auto factory = CreateFactory();
         auto builder = CreateBuilderFromFactory(~factory);
         TStringInput input(value);
-        SetNodeFromProducer(node, ~ProducerFromYson(&input), ~builder);
+        SetNodeFromProducer(node, ProducerFromYson(&input), ~builder);
     }
     
     virtual void DoInvoke(NRpc::IServiceContext* context);

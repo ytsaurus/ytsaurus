@@ -9,7 +9,7 @@
 #include "enum.h"
 #include "demangle.h"
 
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/yson_consumer.h>
@@ -214,9 +214,9 @@ template <class T>
 void TParameter<T>::Validate(const NYTree::TYPath& path) const
 {
     ValidateSubconfigs(&Parameter, path);
-    FOREACH (auto validator, Validators) {
+    FOREACH (const auto& validator, Validators) {
         try {
-            validator->Do(Parameter);
+            validator.Run(Parameter);
         } catch (const std::exception& ex) {
             ythrow yexception()
                 << Sprintf("Validation failed (Path: %s)\n%s",
@@ -237,7 +237,6 @@ bool TParameter<T>::IsPresent() const
 {
     return NConfig::IsPresent(&Parameter);
 }
-
 
 template <class T>
 TParameter<T>& TParameter<T>::Default(const T& defaultValue)
@@ -262,9 +261,9 @@ TParameter<T>& TParameter<T>::DefaultNew()
 }
 
 template <class T>
-TParameter<T>& TParameter<T>::CheckThat(TValidatorPtr validator)
+TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
 {
-    Validators.push_back(validator);
+    Validators.push_back(MoveRV(validator));
     return *this;
 }
 
@@ -275,7 +274,7 @@ TParameter<T>& TParameter<T>::CheckThat(TValidatorPtr validator)
     template <class T> \
     TParameter<T>& TParameter<T>::method \
     { \
-        return CheckThat(FromFunctor([=] (const T& parameter) \
+        return CheckThat(BIND([=] (const T& parameter) \
             { \
                 if (!(condition)) { \
                     ythrow (ex); \

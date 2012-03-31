@@ -84,8 +84,8 @@ private:
     };
 
     void OnGotBlocks(
-        IAsyncReader::TReadResult readResult, 
-        int firstSequenceIndex);
+        int firstSequenceIndex,
+        IAsyncReader::TReadResult readResult);
 
     void ShiftWindow();
     void DoShiftWindow();

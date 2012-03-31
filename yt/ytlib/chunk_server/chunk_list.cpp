@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "chunk_list.h"
 
+#include <ytlib/actions/invoker.h>
 #include <ytlib/cell_master/load_context.h>
 
 namespace NYT {
@@ -18,17 +19,17 @@ TChunkList::TChunkList(const TChunkListId& id)
 void TChunkList::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
-    ::Save(output, ChildrenIds_);
-    ::Save(output, ParentIds_);
+    SaveObjects(output, Children_);
+    SaveObjects(output, Parents_);
     ::Save(output, Statistics_);
 }
 
-void TChunkList::Load(TInputStream* input, const TLoadContext& context)
+void TChunkList::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectWithIdBase::Load(input);
-    ::Load(input, ChildrenIds_);
-    ::Load(input, ParentIds_);
+    LoadObjects(input, Children_, context);
+    LoadObjects(input, Parents_, context);
     ::Load(input, Statistics_);
 }
 

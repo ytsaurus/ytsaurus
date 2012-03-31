@@ -60,25 +60,21 @@ bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
 
 void TTableNodeProxy::TraverseChunkTree(
     yvector<NChunkServer::TChunkId>* chunkIds,
-    const NChunkServer::TChunkTreeId& treeId)
+    const NChunkServer::TChunkList* chunkList)
 {
-    switch (TypeFromId(treeId)) {
-        case EObjectType::Chunk: {
-            chunkIds->push_back(treeId);
-            break;
-        }
-
-        case EObjectType::ChunkList: {
-            auto chunkManager = Bootstrap->GetChunkManager();
-            const auto& chunkList = chunkManager->GetChunkList(treeId);
-            FOREACH (const auto& childId, chunkList.ChildrenIds()) {
-                TraverseChunkTree(chunkIds, childId);
+    FOREACH (const auto& child, chunkList->Children()) {
+        switch (child.GetType()) {
+            case EObjectType::Chunk: {
+                chunkIds->push_back(child.GetId());
+                break;
             }
-            break;
+            case EObjectType::ChunkList: {
+                TraverseChunkTree(chunkIds, child.AsChunkList());
+                break;
+            }
+            default:
+                YUNREACHABLE();
         }
-
-        default:
-            YUNREACHABLE();
     }
 }
 
@@ -96,8 +92,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
 bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
 {
     const auto& tableNode = GetTypedImpl();
-    auto chunkManager = Bootstrap->GetChunkManager();
-    const auto& chunkList = chunkManager->GetChunkList(tableNode.GetChunkListId());
+    const auto& chunkList = *tableNode.GetChunkList();
 
     if (name == "chunk_list_id") {
         BuildYsonFluently(consumer)
@@ -107,7 +102,8 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
     if (name == "chunk_ids") {
         yvector<TChunkId> chunkIds;
-        TraverseChunkTree(&chunkIds, tableNode.GetChunkListId());
+
+        TraverseChunkTree(&chunkIds, tableNode.GetChunkList());
         BuildYsonFluently(consumer)
             .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId) {
                 fluent.Item().Scalar(chunkId.ToString());
@@ -176,9 +172,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
 
     auto& impl = GetTypedImplForUpdate(ELockMode::Shared);
 
-    response->set_chunk_list_id(impl.GetChunkListId().ToProto());
+    const auto& chunkListId = impl.GetChunkList()->GetId();
+    response->set_chunk_list_id(chunkListId.ToProto());
 
-    context->SetResponseInfo("ChunkListId: %s", ~impl.GetChunkListId().ToString());
+    context->SetResponseInfo("ChunkListId: %s", ~chunkListId.ToString());
 
     context->Reply();
 }
@@ -188,7 +185,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     const auto& impl = GetTypedImpl();
 
     yvector<TChunkId> chunkIds;
-    TraverseChunkTree(&chunkIds, impl.GetChunkListId());
+    TraverseChunkTree(&chunkIds, impl.GetChunkList());
 
     auto channel = TChannel::CreateEmpty();
     ParseYPath(context->GetPath(), &channel);

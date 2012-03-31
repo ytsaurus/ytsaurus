@@ -17,7 +17,7 @@ public:
 
     TResponseHandlerWrapper(
         IClientResponseHandler::TPtr underlyingHandler,
-        IAction::TPtr onFailed)
+        TClosure onFailed)
         : UnderlyingHandler(underlyingHandler)
         , OnFailed(onFailed)
     { }
@@ -41,13 +41,13 @@ public:
             code == EErrorCode::TransportError ||
             code == EErrorCode::Unavailable)
         {
-            OnFailed->Do();
+            OnFailed.Run();
         }
     }
 
 private:
     IClientResponseHandler::TPtr UnderlyingHandler;
-    IAction::TPtr OnFailed;
+    TClosure OnFailed;
 
 };
 
@@ -77,7 +77,7 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-        GetChannel()->Subscribe(FromMethod(
+        GetChannel()->Subscribe(BIND(
             &TRoamingChannel::OnGotChannel,
             MakeStrong(this),
             request,
@@ -113,14 +113,16 @@ private:
         auto promisedChannel = ChannelPromise = New< TFuture< TValueOrError<IChannel::TPtr> > >();
         guard.Release();
 
-        Producer->Do()->Subscribe(FromMethod(
+        Producer.Run()->Subscribe(BIND(
             &TRoamingChannel::OnEndpointDiscovered,
             MakeStrong(this),
             promisedChannel));
         return promisedChannel;
     }
 
-    void OnEndpointDiscovered(TValueOrError<IChannel::TPtr> result, TFuture< TValueOrError<IChannel::TPtr> >::TPtr channelPromise)
+    void OnEndpointDiscovered(
+        TFuture< TValueOrError<IChannel::TPtr> >::TPtr channelPromise,
+        TValueOrError<IChannel::TPtr> result)
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (ChannelPromise == channelPromise) {
@@ -132,10 +134,10 @@ private:
     }
          
     void OnGotChannel(
-        TValueOrError<IChannel::TPtr> result,
         IClientRequest::TPtr request,
         IClientResponseHandler::TPtr responseHandler,
-        TNullable<TDuration> timeout)
+        TNullable<TDuration> timeout,
+        TValueOrError<IChannel::TPtr> result)
     {
         if (!result.IsOK()) {
             responseHandler->OnError(result);
@@ -143,7 +145,7 @@ private:
             auto channel = result.Value();
             auto responseHandlerWrapper = New<TResponseHandlerWrapper>(
                 ~responseHandler,
-                FromMethod(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel));
+                BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel));
             channel->Send(~request, ~responseHandlerWrapper, timeout);
         }
     }

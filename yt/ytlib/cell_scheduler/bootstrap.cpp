@@ -25,6 +25,8 @@
 #include <ytlib/scheduler/scheduler.h>
 #include <ytlib/scheduler/config.h>
 
+#include <util/system/hostname.h>
+
 namespace NYT {
 namespace NCellScheduler {
 
@@ -80,10 +82,10 @@ void TBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "ref_counted",
-        FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "bus_server",
-        FromMethod(&IBusServer::GetMonitoringInfo, BusServer));
+        BIND(&IBusServer::GetMonitoringInfo, BusServer));
     monitoringManager->Start();
 
     auto orchidFactory = NYTree::GetEphemeralNodeFactory();
@@ -91,7 +93,7 @@ void TBootstrap::Run()
     SyncYPathSetNode(
         ~orchidRoot,
         "monitoring",
-        ~NYTree::CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
+        ~NYTree::CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
         "profiling",
@@ -101,11 +103,11 @@ void TBootstrap::Run()
     SyncYPathSetNode(
         ~orchidRoot,
         "config",
-        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProducer(ConfigFileName)));
+        ~NYTree::CreateVirtualNode(NYTree::CreateYsonFileProducer(ConfigFileName)));
     SyncYPathSetNode(
         ~orchidRoot,
         "scheduler",
-        ~NYTree::CreateVirtualNode(~Scheduler->CreateOrchidProducer()));
+        ~NYTree::CreateVirtualNode(Scheduler->CreateOrchidProducer()));
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
@@ -115,7 +117,7 @@ void TBootstrap::Run()
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(controlQueue->GetInvoker())));
+        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(controlQueue->GetInvoker())));
 
     rpcServer->RegisterService(Scheduler->GetService());
 

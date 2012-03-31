@@ -84,10 +84,10 @@ private:
     TSpinLock SpinLock;
     
     void OnResponse(
-        TProxy::TRspGetStatus::TPtr response,
         TParallelAwaiter::TPtr awaiter,
         TFuture<TResult>::TPtr asyncResult,
-        const Stroka& address);
+        const Stroka& address,
+        TProxy::TRspGetStatus::TPtr response);
     void OnComplete(TFuture<TResult>::TPtr asyncResult);
 };
 

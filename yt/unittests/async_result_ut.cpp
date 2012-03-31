@@ -7,7 +7,7 @@
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-
+namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFutureTest
@@ -47,24 +47,26 @@ TEST_F(TFutureTest, SimpleTryGet)
     EXPECT_EQ(42, value);
 }
 
-class TMockSubscriber : public IParamAction<int>
+class TMock
 {
 public:
-    typedef TIntrusivePtr<TMockSubscriber> TPtr;
-    MOCK_METHOD1(Do, void(int value));
+    MOCK_METHOD1(Tackle, void(int));
 };
 
 TEST_F(TFutureTest, Subscribe)
 {
-    TMockSubscriber::TPtr firstSubscriber = New<TMockSubscriber>();
-    TMockSubscriber::TPtr secondSubscriber = New<TMockSubscriber>();
+    TMock firstMock;
+    TMock secondMock;
 
-    EXPECT_CALL(*firstSubscriber, Do(42)).Times(1);
-    EXPECT_CALL(*secondSubscriber, Do(42)).Times(1);
+    EXPECT_CALL(firstMock, Tackle(42)).Times(1);
+    EXPECT_CALL(secondMock, Tackle(42)).Times(1);
 
-    Result->Subscribe(firstSubscriber.Get());
+    auto firstSubscriber = BIND([&] (int x) { firstMock.Tackle(x); });
+    auto secondSubscriber = BIND([&] (int x) { secondMock.Tackle(x); });
+
+    Result->Subscribe(firstSubscriber);
     Result->Set(42);
-    Result->Subscribe(secondSubscriber.Get());
+    Result->Subscribe(secondSubscriber);
 }
 
 static void* AsynchronousSetter(void* param)
@@ -79,22 +81,25 @@ static void* AsynchronousSetter(void* param)
 
 TEST_F(TFutureTest, SubscribeWithAsynchronousSet)
 {
-    TMockSubscriber::TPtr firstSubscriber = New<TMockSubscriber>();
-    TMockSubscriber::TPtr secondSubscriber = New<TMockSubscriber>();
+    TMock firstMock;
+    TMock secondMock;
 
-    EXPECT_CALL(*firstSubscriber, Do(42)).Times(1);
-    EXPECT_CALL(*secondSubscriber, Do(42)).Times(1);
+    EXPECT_CALL(firstMock, Tackle(42)).Times(1);
+    EXPECT_CALL(secondMock, Tackle(42)).Times(1);
 
-    Result->Subscribe(firstSubscriber.Get());
+    auto firstSubscriber = BIND([&] (int x) { firstMock.Tackle(x); });
+    auto secondSubscriber = BIND([&] (int x) { secondMock.Tackle(x); });
+
+    Result->Subscribe(firstSubscriber);
 
     TThread thread(&AsynchronousSetter, Result.Get());
     thread.Start();
     thread.Join();
 
-    Result->Subscribe(secondSubscriber.Get());
+    Result->Subscribe(secondSubscriber);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
+} // namespace <anonymous>
 } // namespace NYT
 

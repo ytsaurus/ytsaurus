@@ -31,8 +31,8 @@ TSchedulerConnector::TSchedulerConnector(
 void TSchedulerConnector::Start()
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        FromMethod(&TSchedulerConnector::SendHeartbeat, MakeWeak(this))
-        ->Via(Bootstrap->GetControlInvoker()),
+        BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this))
+        .Via(Bootstrap->GetControlInvoker()),
         Config->HeartbeatPeriod);
     PeriodicInvoker->Start();
 }
@@ -63,8 +63,8 @@ void TSchedulerConnector::SendHeartbeat()
         req->utilization().free_slot_count());
 
     req->Invoke()->Subscribe(
-        FromMethod(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
-        ->Via(Bootstrap->GetControlInvoker()));
+        BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()));
 }
 
 void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartbeat::TPtr rsp)

@@ -38,7 +38,7 @@ TJobScheduler::TJobScheduler(
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
     , HolderLeaseTracker(holderLeaseTracker)
-    , ChunkRefreshDelay(DurationToCycles(config->ChunkRefreshDelay))
+    , ChunkRefreshDelay(DurationToCpuDuration(config->ChunkRefreshDelay))
 {
     YASSERT(config);
     YASSERT(bootstrap);
@@ -636,8 +636,8 @@ void TJobScheduler::ScheduleNextRefresh()
     if (!context)
         return;
     TDelayedInvoker::Submit(
-        FromMethod(&TJobScheduler::OnRefresh, MakeStrong(this))
-        ->Via(
+        BIND(&TJobScheduler::OnRefresh, MakeStrong(this))
+        .Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             context),
         Config->ChunkRefreshQuantum);

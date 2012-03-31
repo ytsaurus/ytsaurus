@@ -19,6 +19,8 @@
 #include <ytlib/job_proxy/job_proxy.h>
 #include <ytlib/meta_state/async_change_log.h>
 
+#include <util/config/last_getopt.h>
+
 namespace NYT {
 
 using namespace NLastGetopt;

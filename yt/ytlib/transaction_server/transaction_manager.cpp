@@ -267,17 +267,17 @@ TTransactionManager::TTransactionManager(
     auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "TransactionManager.Keys.1",
-        FromMethod(&TTransactionManager::LoadKeys, MakeStrong(this)));
+        BIND(&TTransactionManager::LoadKeys, MakeStrong(this)));
     metaState->RegisterLoader(
         "TransactionManager.Values.1",
-        FromMethod(&TTransactionManager::LoadValues, MakeStrong(this), context));
+        BIND(&TTransactionManager::LoadValues, MakeStrong(this), context));
     metaState->RegisterSaver(
         "TransactionManager.Keys.1",
-        FromMethod(&TTransactionManager::SaveKeys, MakeStrong(this)),
+        BIND(&TTransactionManager::SaveKeys, MakeStrong(this)),
         ESavePhase::Keys);
     metaState->RegisterSaver(
         "TransactionManager.Values.1",
-        FromMethod(&TTransactionManager::SaveValues, MakeStrong(this)),
+        BIND(&TTransactionManager::SaveValues, MakeStrong(this)),
         ESavePhase::Values);
 
     metaState->RegisterPart(this);
@@ -429,11 +429,11 @@ void TTransactionManager::LoadKeys(TInputStream* input)
     TransactionMap.LoadKeys(input);
 }
 
-void TTransactionManager::LoadValues(TInputStream* input, TLoadContext context)
+void TTransactionManager::LoadValues(TLoadContext context, TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.LoadValues(input, context);
+    TransactionMap.LoadValues(context, input);
 }
 
 void TTransactionManager::Clear()
@@ -470,8 +470,8 @@ void TTransactionManager::CreateLease(const TTransaction& transaction, TTransact
     auto timeout = manifest->Timeout.Get(Config->DefaultTransactionTimeout);
     auto lease = TLeaseManager::CreateLease(
         timeout,
-        FromMethod(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
-        ->Via(
+        BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
+        .Via(
             Bootstrap->GetStateInvoker(),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));
     YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).second);

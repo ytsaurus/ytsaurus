@@ -24,8 +24,8 @@ class TDownloadCommand
     : public TCommandBase<TDownloadRequest>
 {
 public:
-    TDownloadCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TDownloadCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:
@@ -51,8 +51,8 @@ class TUploadCommand
     : public TCommandBase<TUploadRequest>
 {
 public:
-    TUploadCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TUploadCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:

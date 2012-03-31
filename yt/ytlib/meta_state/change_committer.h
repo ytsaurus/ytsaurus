@@ -89,7 +89,7 @@ public:
      *  \note Thread affinity: StateThread
      */
     TResult::TPtr Commit(
-        IAction::TPtr changeAction,
+        TClosure changeAction,
         const TSharedRef& changeData);
 
     //! Force to send all pending changes.

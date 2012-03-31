@@ -64,8 +64,8 @@ public:
 private:
     void PingTransaction(const TTransactionId& transactionId);
     void OnPingResponse(
-        NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp,
-        const TTransactionId& id);
+        const TTransactionId& id,
+        NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp);
 
     class TTransaction;
 

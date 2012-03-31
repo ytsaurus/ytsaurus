@@ -6,7 +6,7 @@
 #include "meta_state.h"
 #include "snapshot.h"
 
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/callback.h>
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -153,14 +153,14 @@ void TDecoratedMetaState::ApplyChange(const TSharedRef& changeData)
     IncrementRecordCount();
 }
 
-void TDecoratedMetaState::ApplyChange(IAction::TPtr changeAction)
+void TDecoratedMetaState::ApplyChange(const TClosure& changeAction)
 {
-    YASSERT(changeAction);
+    YASSERT(!changeAction.IsNull());
     YASSERT(Started);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     try {
-        changeAction->Do();
+        changeAction.Run();
     } catch (const std::exception& ex) {
         LOG_FATAL("Error applying change (Version: %s)\n%s",
             ~Version.ToString(),

@@ -257,8 +257,8 @@ void TChunkListPool::Allocate(int count)
     }
 
     batchReq->Invoke()->Subscribe(
-        FromMethod(&TChunkListPool::OnChunkListsCreated, MakeWeak(this))
-        ->Via(ControlInvoker));
+        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this))
+        .Via(ControlInvoker));
 
     RequestInProgress = true;
 }
@@ -287,7 +287,7 @@ TIntrusivePtr< TAsyncPipeline<TVoid> > StartAsyncPipeline(IInvoker::TPtr invoker
 {
     return New< TAsyncPipeline<TVoid> >(
         invoker,
-        FromFunctor([=] () -> TIntrusivePtr< TFuture< TValueOrError<TVoid> > > {
+        BIND([=] () -> TIntrusivePtr< TFuture< TValueOrError<TVoid> > > {
             return MakeFuture(TValueOrError<TVoid>(TVoid()));
     }));
 }

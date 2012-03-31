@@ -39,7 +39,7 @@ private:
 
     void TraverseChunkTree(
         yvector<NChunkServer::TChunkId>* chunkIds,
-        const NChunkServer::TChunkTreeId& treeId);
+        const NChunkServer::TChunkList *chunkTreeRef);
 
     void ParseYPath(
         const NYTree::TYPath& path,

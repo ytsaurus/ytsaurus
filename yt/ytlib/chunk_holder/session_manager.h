@@ -100,7 +100,7 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    TFuture<TVoid>::TPtr Finish(const TChunkAttributes& attributes);
+    TFuture<TChunkPtr>::TPtr Finish(const TChunkAttributes& attributes);
     void Cancel(const TError& error);
 
     void SetLease(TLeaseManager::TLease lease);
@@ -122,13 +122,13 @@ private:
 
     TFuture<TVoid>::TPtr CloseFile(const TChunkAttributes& attributes);
     TVoid DoCloseFile(const TChunkAttributes& attributes);
-    TVoid OnFileClosed(TVoid);
+    TChunkPtr OnFileClosed(TVoid);
 
     void EnqueueWrites();
     TVoid DoWrite(TCachedBlockPtr block, i32 blockIndex);
-    void OnBlockWritten(TVoid, i32 blockIndex);
+    void OnBlockWritten(i32 blockIndex, TVoid);
 
-    TVoid OnBlockFlushed(TVoid, i32 blockIndex);
+    TVoid OnBlockFlushed(i32 blockIndex, TVoid);
 
     void ReleaseSpaceOccupiedByBlocks();
 };
@@ -156,7 +156,7 @@ public:
     /*!
      * The call returns a result that gets set when the session is finished.
      */
-    TFuture<TVoid>::TPtr FinishSession(
+    TFuture<TChunkPtr>::TPtr FinishSession(
         TSessionPtr session,
         const NChunkHolder::NProto::TChunkAttributes& attributes);
 
@@ -187,7 +187,7 @@ private:
     TSessionMap SessionMap;
 
     void OnLeaseExpired(TSessionPtr session);
-    TVoid OnSessionFinished(TVoid, TSessionPtr session);
+    TChunkPtr OnSessionFinished(TSessionPtr session, TChunkPtr chunk);
 
 };
 

@@ -67,7 +67,7 @@ public:
 
         if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(
-                FromMethod(
+                BIND(
                     &TChannel::OnTimeout,
                     MakeStrong(this),
                     requestId),
@@ -85,7 +85,7 @@ public:
             bus = Bus;
         }
 
-        bus->Send(requestMessage)->Subscribe(FromMethod(
+        bus->Send(requestMessage)->Subscribe(BIND(
             &TChannel::OnAcknowledgement,
             MakeStrong(this),
             requestId));
@@ -135,7 +135,7 @@ private:
     TSpinLock SpinLock;
 
     // TODO(babenko): make const&
-    void OnAcknowledgement(ESendResult sendResult, TRequestId requestId)
+    void OnAcknowledgement(TRequestId requestId, ESendResult sendResult)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

@@ -29,7 +29,7 @@ TJobProxy::TJobProxy(
     , JobId(jobId)
 {
     PingInvoker = New<TPeriodicInvoker>(
-        FromMethod(&TJobProxy::SendHeartbeat, this), 
+        BIND(&TJobProxy::SendHeartbeat, this), 
         config->HeartbeatPeriod);
 
     Proxy.SetDefaultTimeout(config->RpcTimeout);

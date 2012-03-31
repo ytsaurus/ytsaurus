@@ -94,7 +94,7 @@ public:
 
     void StartPingInvoker() {
         PingInvoker = New<TPeriodicInvoker>(
-            FromMethod(
+            BIND(
                 &TTransactionManager::PingTransaction,
                 Owner,
                 Id),
@@ -358,12 +358,10 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
     LOG_DEBUG("Renewing lease for transaction %s", ~id.ToString());
 
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
-    CypressProxy
-        .Execute(req)
-        ->Subscribe(FromMethod(
-            &TTransactionManager::OnPingResponse,
-            MakeStrong(this), 
-            id));
+    CypressProxy.Execute(req)->Subscribe(BIND(
+		&TTransactionManager::OnPingResponse,
+        MakeStrong(this), 
+        id));
 }
 
 void TTransactionManager::RegisterTransaction(TTransaction::TPtr transaction)
@@ -379,8 +377,8 @@ void TTransactionManager::UnregisterTransaction(const TTransactionId& id)
 }
 
 void TTransactionManager::OnPingResponse(
-    TTransactionYPathProxy::TRspRenewLease::TPtr rsp,
-    const TTransactionId& id)
+    const TTransactionId& id,
+    TTransactionYPathProxy::TRspRenewLease::TPtr rsp)
 {
     TTransaction::TPtr transaction;
     {

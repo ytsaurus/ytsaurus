@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "ytree_integration.h"
 
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/ytree/ytree.h>
 #include <ytlib/ytree/virtual.h>
 
@@ -16,8 +16,8 @@ TYPathServiceProducer CreateMonitoringProducer(
     TMonitoringManager* monitoringManager)
 {
     auto monitoringManager_ = MakeStrong(monitoringManager);
-    return FromFunctor([=] () -> IYPathServicePtr {
-        return ~monitoringManager_->GetRoot();
+    return BIND([=] () -> IYPathServicePtr {
+		return ~monitoringManager_->GetRoot();
     });
 }
 

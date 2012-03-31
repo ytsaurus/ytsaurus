@@ -76,15 +76,15 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return StartAsyncPipeline(Host->GetBackgroundInvoker())
-            ->Add(FromMethod(&TThis::StartPrimaryTransaction, MakeStrong(this)))
-            ->Add(FromMethod(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
-            ->Add(FromMethod(&TThis::StartSeconaryTransactions, MakeStrong(this)))
-            ->Add(FromMethod(&TThis::OnSecondaryTransactionsStarted, MakeStrong(this)))
-            ->Add(FromMethod(&TThis::RequestInputs, MakeStrong(this)))
-            ->Add(FromMethod(&TThis::OnInputsReceived, MakeStrong(this)))
-            ->Add(FromMethod(&TThis::CompletePreparation, MakeStrong(this)))
+            ->Add(BIND(&TThis::StartPrimaryTransaction, MakeStrong(this)))
+            ->Add(BIND(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
+            ->Add(BIND(&TThis::StartSeconaryTransactions, MakeStrong(this)))
+            ->Add(BIND(&TThis::OnSecondaryTransactionsStarted, MakeStrong(this)))
+            ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
+            ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
+            ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
             ->Run()
-            ->Apply(FromMethod(&TThis::OnInitComplete, MakeStrong(this)));
+            ->Apply(BIND(&TThis::OnInitComplete, MakeStrong(this)));
     }
 
 
@@ -722,10 +722,10 @@ private:
 
         auto this_ = MakeStrong(this);
         StartAsyncPipeline(Host->GetBackgroundInvoker())
-            ->Add(FromMethod(&TThis::CommitOutputs, MakeStrong(this)))
-            ->Add(FromMethod(&TThis::OnOutputsCommitted, MakeStrong(this)))
+            ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
+            ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
             ->Run()
-            ->Subscribe(FromFunctor([=] (TValueOrError<TVoid> result) {
+            ->Subscribe(BIND([=] (TValueOrError<TVoid> result) {
                 if (result.IsOK()) {
                     this_->OnOperationCompleted();
                 } else {

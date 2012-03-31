@@ -25,8 +25,8 @@ class TStartCommand
     : public TCommandBase<TStartRequest>
 {
 public:
-    TStartCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TStartCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:
@@ -45,8 +45,8 @@ class TCommitCommand
     : public TCommandBase<TCommitRequest>
 {
 public:
-    TCommitCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TCommitCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:
@@ -65,8 +65,8 @@ class TAbortCommand
     : public TCommandBase<TAbortRequest>
 {
 public:
-    TAbortCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TAbortCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:

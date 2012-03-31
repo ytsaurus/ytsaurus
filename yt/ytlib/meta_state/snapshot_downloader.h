@@ -51,10 +51,10 @@ private:
 
     TSnapshotInfo GetSnapshotInfo(i32 snapshotId); // also finds snapshot source
     static void OnSnapshotInfoResponse(
-        TProxy::TRspGetSnapshotInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
         TFuture<TSnapshotInfo>::TPtr asyncResult,
-        TPeerId peerId);
+        TPeerId peerId,
+        TProxy::TRspGetSnapshotInfo::TPtr response);
     static void OnSnapshotInfoComplete(
         i32 snapshotId,
         TFuture<TSnapshotInfo>::TPtr asyncResult);

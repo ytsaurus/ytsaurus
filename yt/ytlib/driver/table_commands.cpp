@@ -19,18 +19,18 @@ using namespace NTableClient;
 
 void TReadCommand::DoExecute(TReadRequestPtr request)
 {
-    auto stream = DriverImpl->CreateOutputStream();
+    auto stream = Host->CreateOutputStream();
 
     auto reader = New<TTableReader>(
-        ~DriverImpl->GetConfig()->TableReader,
-        ~DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(request),
-        ~DriverImpl->GetBlockCache(),
-        request->Path);
+        ~Host->GetConfig()->TableReader,
+        ~Host->GetMasterChannel(),
+        ~Host->GetTransaction(request),
+        ~Host->GetBlockCache(),
+        Host->PreprocessYPath(request->Path));
 
     TYsonTableInput input(
         ~reader, 
-        DriverImpl->GetConfig()->OutputFormat, 
+        Host->GetConfig()->OutputFormat, 
         stream.Get());
 
     while (input.ReadRow())
@@ -42,11 +42,11 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
 void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
     auto writer = New<TTableWriter>(
-        ~DriverImpl->GetConfig()->TableWriter,
-        ~DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(request),
-        ~DriverImpl->GetTransactionManager(),
-        request->Path);
+        ~Host->GetConfig()->TableWriter,
+        ~Host->GetMasterChannel(),
+        ~Host->GetTransaction(request),
+        ~Host->GetTransactionManager(),
+        Host->PreprocessYPath(request->Path));
 
     writer->Open();
     TRowConsumer consumer(~writer);
@@ -70,12 +70,12 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
                 YUNREACHABLE();
         }
     } else {
-        auto stream = DriverImpl->CreateInputStream();
-        ParseYson(stream.Get(), &consumer, true);
+        auto stream = Host->CreateInputStream();
+        ParseYson(stream.Get(), &consumer, TYsonParser::EMode::ListFragment);
     }
 
     writer->Close();
-    DriverImpl->ReplySuccess();
+    Host->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/serialize.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/invoker.h>
 
 #include <algorithm>
 #include <limits>
@@ -125,9 +125,9 @@ public:
 
     void Initialize()
     {
-        AsyncReader->AsyncGetChunkInfo()->Subscribe(FromMethod(
+        AsyncReader->AsyncGetChunkInfo()->Subscribe(BIND(
             &TInitializer::OnGotMeta, 
-            MakeStrong(this))->Via(ReaderThread->GetInvoker()));
+            MakeStrong(this)).Via(ReaderThread->GetInvoker()));
     }
 
 private:
@@ -285,10 +285,10 @@ private:
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
-        chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
+        chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(BIND(
             &TInitializer::OnFirstBlock,
             MakeWeak(this),
-            0)->Via(ReaderThread->GetInvoker()));
+            0).Via(ReaderThread->GetInvoker()));
     }
 
     void SelectChannels(TChunkReader::TPtr chunkReader)
@@ -412,7 +412,7 @@ private:
         return result;
     }
 
-    void OnFirstBlock(TError error, int selectedChannelIndex)
+    void OnFirstBlock(int selectedChannelIndex, TError error)
     {
         auto chunkReader = ChunkReader.Lock();
         if (!chunkReader) {
@@ -450,11 +450,11 @@ private:
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.size()) {
             auto anb = chunkReader->SequentialReader->AsyncNextBlock();
-            anb->Subscribe(FromMethod(
+            anb->Subscribe(BIND(
                     &TInitializer::OnFirstBlock, 
                     MakeWeak(this), 
                     selectedChannelIndex)
-                ->Via(ReaderThread->GetInvoker()));
+                .Via(ReaderThread->GetInvoker()));
         } else {
             // Create current row.
             LOG_DEBUG("All first blocks fetched.");
@@ -474,9 +474,9 @@ private:
 
         YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
         if (!StartValidator->IsValid(chunkReader->CurrentKey)) {
-            chunkReader->DoNextRow()->Subscribe(FromMethod(
+            chunkReader->DoNextRow()->Subscribe(BIND(
                 &TInitializer::ValidateRow,
-                MakeWeak(this))->Via(ReaderThread->GetInvoker()));
+                MakeWeak(this)).Via(ReaderThread->GetInvoker()));
             return;
         }
 
@@ -557,7 +557,7 @@ TAsyncError TChunkReader::AsyncNextRow()
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    DoNextRow()->Subscribe(FromFunctor([=](TError error) {
+    DoNextRow()->Subscribe(BIND([=](TError error) {
         if (error.IsOK()) {
             this_->State.FinishOperation();
         } else {
@@ -586,21 +586,18 @@ TAsyncError TChunkReader::DoNextRow()
     CurrentRow.clear();
     CurrentKey.assign(CurrentKey.size(), Stroka());
 
-    auto result = successResult;
-    ContinueNextRow(TError(), -1, result);
-
-    return result;
+    return ContinueNextRow(-1, successResult, TError());
 }
 
-void TChunkReader::ContinueNextRow(
-    TError error,
+TAsyncError TChunkReader::ContinueNextRow(
     int channelIndex,
-    TAsyncError& result)
+    TAsyncError result,
+    TError error)
 {
     if (!error.IsOK()) {
         YASSERT(!result->IsSet());
         result->Set(error);
-        return;
+        return result;
     }
 
     if (channelIndex >= 0) {
@@ -616,22 +613,26 @@ void TChunkReader::ContinueNextRow(
         if (!channel.NextRow()) {
             YASSERT(SequentialReader->HasNext());
 
-            if (result->IsSet())
+            if (result->IsSet()) {
+                // Possible when called directly from DoNextRow
                 result = New< TFuture<TError> >();
+            }
 
-            SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
-                &TChunkReader::ContinueNextRow,
-                TWeakPtr<TChunkReader>(this),
+            SequentialReader->AsyncNextBlock()->Subscribe(BIND(
+                IgnoreResult(&TChunkReader::ContinueNextRow),
+                MakeWeak(this),
                 channelIndex,
                 result));
-            return;
+            return result;
         }
         ++channelIndex;
     }
 
     MakeCurrentRow();
+
     if (!result->IsSet())
         result->Set(TError());
+    return result;
 }
 
 void TChunkReader::MakeCurrentRow()

@@ -35,10 +35,10 @@ IChannel::TPtr CreateSchedulerChannel(
 {
     return CreateRoamingChannel(
         defaultTimeout,
-        FromFunctor([=] () -> TFuture< TValueOrError<IChannel::TPtr> >::TPtr {
+        BIND([=] () -> TFuture< TValueOrError<IChannel::TPtr> >::TPtr {
             TCypressServiceProxy proxy(masterChannel);
             auto req = TYPathProxy::Get("/sys/scheduler/runtime@address");
-            return proxy.Execute(req)->Apply(FromMethod(&OnSchedulerAddressFound));
+            return proxy.Execute(req)->Apply(BIND(&OnSchedulerAddressFound));
         }));
 
 }

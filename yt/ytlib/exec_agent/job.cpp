@@ -5,7 +5,6 @@
 #include "environment.h"
 #include "private.h"
 
-#include <ytlib/actions/action_util.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
@@ -18,6 +17,8 @@ namespace NExecAgent {
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NRpc;
+
+using NChunkServer::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +51,7 @@ void TJob::Start(TEnvironmentManager* environmentManager)
 {
     YASSERT(JobProgress == EJobProgress::Created);
 
-    Slot->GetInvoker()->Invoke(FromMethod(
+    Slot->GetInvoker()->Invoke(BIND(
         &TJob::DoStart,
         MakeWeak(this),
         environmentManager));
@@ -97,28 +98,25 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     if (JobSpec.HasExtension(NScheduler::NProto::TUserJobSpec::user_job_spec)) {
         auto userSpec = JobSpec.GetExtension(NScheduler::NProto::TUserJobSpec::user_job_spec);
-        for (int fileIndex = 0; fileIndex < userSpec.files_size(); ++fileIndex) {
-            auto& fetchedChunk = userSpec.files(fileIndex);
-
-            awaiter->Await(ChunkCache->DownloadChunk(
-                NChunkServer::TChunkId::FromProto(fetchedChunk.chunk_id())), 
-                FromMethod(
+        FOREACH (const auto& fetchRsp, userSpec.files()) {
+            auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
+            awaiter->Await(
+                ChunkCache->DownloadChunk(chunkId), 
+                BIND(
                     &TJob::OnChunkDownloaded,
                     MakeWeak(this),
-                    fetchedChunk.file_name(),
-                    fetchedChunk.executable()));
+                    fetchRsp));
         }
     }
 
-    awaiter->Complete(FromMethod(
+    awaiter->Complete(BIND(
         &TJob::RunJobProxy,
         MakeWeak(this)));
 }
 
 void TJob::OnChunkDownloaded(
-    NChunkHolder::TChunkCache::TDownloadResult result,
-    const Stroka& fileName,
-    bool executable)
+    const NFileServer::NProto::TRspFetch& fetchRsp,
+    NChunkHolder::TChunkCache::TDownloadResult result)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -126,6 +124,8 @@ void TJob::OnChunkDownloaded(
         return;
 
     YASSERT(JobProgress == EJobProgress::PreparingSandbox);
+
+    auto fileName = fetchRsp.file_name();
 
     if (!result.IsOK()) {
         Stroka msg = Sprintf(
@@ -146,7 +146,7 @@ void TJob::OnChunkDownloaded(
         Slot->MakeLink(
             fileName, 
             CachedChunks.back()->GetFileName(), 
-            executable);
+            fetchRsp.executable());
     } catch (yexception& ex) {
         Stroka msg = Sprintf(
             "Failed to make symlink (JobId: %s, FileName: %s, Error: %s)", 
@@ -182,9 +182,9 @@ void TJob::RunJobProxy()
         return;
     }
 
-    ProxyController->SubscribeExited(FromMethod(
+    ProxyController->SubscribeExited(BIND(
         &TJob::OnJobExit,
-        MakeWeak(this))->Via(Slot->GetInvoker()));
+        MakeWeak(this)).Via(Slot->GetInvoker()));
 }
 
 void TJob::OnJobExit(TError error)
@@ -263,7 +263,7 @@ NScheduler::EJobProgress TJob::GetProgress() const
 void TJob::Abort()
 {
     JobState = EJobState::Aborting;
-    Slot->GetInvoker()->Invoke(FromMethod(
+    Slot->GetInvoker()->Invoke(BIND(
         &TJob::DoAbort,
         MakeStrong(this),
         TError("Job aborted by scheduler"),

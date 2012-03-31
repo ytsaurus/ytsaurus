@@ -6,6 +6,9 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/thread_affinity.h>
 
+#include <util/folder/filelist.h>
+#include <util/folder/dirut.h>
+
 namespace NYT {
 namespace NMetaState {
 

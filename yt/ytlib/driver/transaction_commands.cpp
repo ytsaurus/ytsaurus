@@ -13,10 +13,10 @@ using namespace NTransactionClient;
 
 void TStartCommand::DoExecute(TStartRequestPtr request)
 {
-    auto transactionManager = DriverImpl->GetTransactionManager();
+    auto transactionManager = Host->GetTransactionManager();
     auto newTransaction = transactionManager->Start(~request->Manifest);
 
-    BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
+    BuildYsonFluently(~Host->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());
 }
 
@@ -24,18 +24,18 @@ void TStartCommand::DoExecute(TStartRequestPtr request)
 
 void TCommitCommand::DoExecute(TCommitRequestPtr request)
 {
-    auto transaction = DriverImpl->GetTransaction(request, true);
+    auto transaction = Host->GetTransaction(request, true);
     transaction->Commit();
-    DriverImpl->ReplySuccess();
+    Host->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TAbortCommand::DoExecute(TAbortRequestPtr request)
 {
-    auto transaction = DriverImpl->GetTransaction(request, true);
+    auto transaction = Host->GetTransaction(request, true);
     transaction->Commit();
-    DriverImpl->ReplySuccess();
+    Host->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -29,7 +29,7 @@ public:
     NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const NProto::TMsgRegisterHolder& message);
 
-    NMetaState::TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(
+    NMetaState::TMetaChange<TVoid>::TPtr InitiateUnregisterHolder(
         const NProto::TMsgUnregisterHolder& message);
 
     NMetaState::TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(
@@ -69,8 +69,8 @@ public:
     TChunk& CreateChunk();
     TChunkList& CreateChunkList();
 
-    void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds);
-    void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds);
+    void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef> &children);
+    void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children);
 
     void ScheduleJobs(
         const THolder& holder,

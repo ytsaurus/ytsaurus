@@ -17,26 +17,27 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonReaderTest: public ::testing::Test
+class TYsonParserTest: public ::testing::Test
 {
 public:
     Stroka Input;
     StrictMock<TMockYsonConsumer> Mock;
-    bool Fragmented;
+    TYsonParser::EMode Mode;
 
-    TYsonReaderTest()
-        : Fragmented(false)
-    { }
+    virtual void SetUp()
+    {
+        Mode = TYsonParser::EMode::Node;
+    }
 
     void Run()
     {
-        ParseYson(Input, &Mock, Fragmented);
+        ParseYson(Input, &Mock, Mode);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TYsonReaderTest, Int64)
+TEST_F(TYsonParserTest, Int64)
 {
     Input = "   100500  ";
 
@@ -46,7 +47,7 @@ TEST_F(TYsonReaderTest, Int64)
     Run();
 }
 
-TEST_F(TYsonReaderTest, Double)
+TEST_F(TYsonParserTest, Double)
 {
     Input = " 31415926e-7  ";
 
@@ -56,7 +57,7 @@ TEST_F(TYsonReaderTest, Double)
     Run();
 }
 
-TEST_F(TYsonReaderTest, StringStartingWithLetter)
+TEST_F(TYsonParserTest, StringStartingWithLetter)
 {
     Input = " Hello_789_World_123   ";
 
@@ -66,7 +67,7 @@ TEST_F(TYsonReaderTest, StringStartingWithLetter)
     Run();
 }
 
-TEST_F(TYsonReaderTest, StringStartingWithQuote)
+TEST_F(TYsonParserTest, StringStartingWithQuote)
 {
     Input = "\" abcdeABCDE <1234567> + (10_000) - = 900   \"";
 
@@ -76,7 +77,7 @@ TEST_F(TYsonReaderTest, StringStartingWithQuote)
     Run();
 }
 
-TEST_F(TYsonReaderTest, EntityWithEmptyAttributes)
+TEST_F(TYsonParserTest, EntityWithEmptyAttributes)
 {
     Input = "< >";
 
@@ -88,7 +89,7 @@ TEST_F(TYsonReaderTest, EntityWithEmptyAttributes)
     Run();
 }
 
-TEST_F(TYsonReaderTest, BinaryInt64)
+TEST_F(TYsonParserTest, BinaryInt64)
 {
     Input = Stroka(" \x02\x80\x80\x80\x02  ", 1 + 5 + 2); //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
 
@@ -98,7 +99,7 @@ TEST_F(TYsonReaderTest, BinaryInt64)
     Run();
 }
 
-TEST_F(TYsonReaderTest, BinaryDouble)
+TEST_F(TYsonParserTest, BinaryDouble)
 {
     double x = 2.71828;
     Input = Stroka("\x03", 1) + Stroka((char*) &x, sizeof(double)); // DoubleMarker
@@ -109,7 +110,7 @@ TEST_F(TYsonReaderTest, BinaryDouble)
     Run();
 }
 
-TEST_F(TYsonReaderTest, BinaryString)
+TEST_F(TYsonParserTest, BinaryString)
 {
     Input = Stroka(" \x01\x08YSON", 1 + 6); // StringMarker + length ( = 4) + String
 
@@ -119,7 +120,7 @@ TEST_F(TYsonReaderTest, BinaryString)
     Run();
 }
 
-TEST_F(TYsonReaderTest, EmpryBinaryString)
+TEST_F(TYsonParserTest, EmpryBinaryString)
 {
     Input = Stroka("\x01\x00", 2); // StringMarker + length ( = 0 )
 
@@ -129,7 +130,7 @@ TEST_F(TYsonReaderTest, EmpryBinaryString)
     Run();
 }
 
-TEST_F(TYsonReaderTest, EmptyList)
+TEST_F(TYsonParserTest, EmptyList)
 {
     Input = "  [    ]   ";
 
@@ -140,7 +141,7 @@ TEST_F(TYsonReaderTest, EmptyList)
     Run();
 }
 
-TEST_F(TYsonReaderTest, EmptyMap)
+TEST_F(TYsonParserTest, EmptyMap)
 {
     Input = "  {    }   ";
 
@@ -151,7 +152,7 @@ TEST_F(TYsonReaderTest, EmptyMap)
     Run();
 }
 
-TEST_F(TYsonReaderTest, OneElementList)
+TEST_F(TYsonParserTest, OneElementList)
 {
     Input = "  [  42  ]   ";
 
@@ -164,7 +165,7 @@ TEST_F(TYsonReaderTest, OneElementList)
     Run();
 }
 
-TEST_F(TYsonReaderTest, OneElementMap)
+TEST_F(TYsonParserTest, OneElementMap)
 {
     Input = "  {  hello = world  }   ";
 
@@ -177,7 +178,7 @@ TEST_F(TYsonReaderTest, OneElementMap)
     Run();
 }
 
-TEST_F(TYsonReaderTest, OneElementBinaryMap)
+TEST_F(TYsonParserTest, OneElementBinaryMap)
 {
     Input = Stroka("{\x01\x0Ahello=\x01\x0Aworld}",1 + 7 + 1 + 7 + 1);
 
@@ -192,7 +193,7 @@ TEST_F(TYsonReaderTest, OneElementBinaryMap)
 
 
 
-TEST_F(TYsonReaderTest, SeveralElementsList)
+TEST_F(TYsonParserTest, SeveralElementsList)
 {
     Input = "  [  42    ; 1e3   ; nosy_111 ; \"nosy is the best format ever!\"; { } ; ]   ";
 
@@ -220,7 +221,7 @@ TEST_F(TYsonReaderTest, SeveralElementsList)
     Run();
 }
 
-TEST_F(TYsonReaderTest, MapWithAttributes)
+TEST_F(TYsonParserTest, MapWithAttributes)
 {
     Input =  "{ path = \"/home/sandello\" ; mode = 0755 } \n";
     Input += "<acl = { read = [ \"*\" ]; write = [ sandello ] } ;  \n";
@@ -263,7 +264,7 @@ TEST_F(TYsonReaderTest, MapWithAttributes)
     Run();
 }
 
-TEST_F(TYsonReaderTest, Unescaping)
+TEST_F(TYsonParserTest, Unescaping)
 {
     Input =
         "\"\\0\\1\\2\\3\\4\\5\\6\\7\\x08\\t\\n\\x0B\\x0C\\r\\x0E\\x0F"
@@ -293,7 +294,7 @@ TEST_F(TYsonReaderTest, Unescaping)
     Run();
 }
 
-TEST_F(TYsonReaderTest, TrailingSlashes)
+TEST_F(TYsonParserTest, TrailingSlashes)
 {
     Stroka slash = "\\";
     Stroka escapedSlash = slash + slash;
@@ -306,10 +307,10 @@ TEST_F(TYsonReaderTest, TrailingSlashes)
     Run();
 }
 
-TEST_F(TYsonReaderTest, Fragments)
+TEST_F(TYsonParserTest, ListFragment)
 {
     Input = "   1 ;2; 3; 4;5  ";
-    Fragmented = true;
+    Mode = TYsonParser::EMode::ListFragment;
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnListItem());
@@ -326,10 +327,10 @@ TEST_F(TYsonReaderTest, Fragments)
     Run();
 }
 
-TEST_F(TYsonReaderTest, FragmentsWithTrailingSemicolon)
+TEST_F(TYsonParserTest, ListFragmentWithTrailingSemicolon)
 {
     Input = "{};[];<>;";
-    Fragmented = true;
+    Mode = TYsonParser::EMode::ListFragment;
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnListItem());
@@ -346,10 +347,10 @@ TEST_F(TYsonReaderTest, FragmentsWithTrailingSemicolon)
     Run();
 }
 
-TEST_F(TYsonReaderTest, OneFragment)
+TEST_F(TYsonParserTest, OneListFragment)
 {
     Input = "   100500  ";
-    Fragmented = true;
+    Mode = TYsonParser::EMode::ListFragment;
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnListItem());
@@ -358,10 +359,71 @@ TEST_F(TYsonReaderTest, OneFragment)
     Run();
 }
 
-TEST_F(TYsonReaderTest, ZeroFragments)
+TEST_F(TYsonParserTest, EmptyListFragment)
 {
     Input = "  ";
-    Fragmented = true;
+    Mode = TYsonParser::EMode::ListFragment;
+
+    InSequence dummy;
+    Run();
+}
+
+TEST_F(TYsonParserTest, MapFragment)
+{
+    Input = "  a = 1 ;b=2; c= 3; d =4;e=5  ";
+    Mode = TYsonParser::EMode::MapFragment;
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnMapItem("a"));
+    EXPECT_CALL(Mock, OnInt64Scalar(1, false));
+    EXPECT_CALL(Mock, OnMapItem("b"));
+    EXPECT_CALL(Mock, OnInt64Scalar(2, false));
+    EXPECT_CALL(Mock, OnMapItem("c"));
+    EXPECT_CALL(Mock, OnInt64Scalar(3, false));
+    EXPECT_CALL(Mock, OnMapItem("d"));
+    EXPECT_CALL(Mock, OnInt64Scalar(4, false));
+    EXPECT_CALL(Mock, OnMapItem("e"));
+    EXPECT_CALL(Mock, OnInt64Scalar(5, false));
+
+    Run();
+}
+
+TEST_F(TYsonParserTest, MapFragmentWithTrailingSemicolon)
+{
+    Input = "map={};list=[];entity=<>;";
+    Mode = TYsonParser::EMode::MapFragment;
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnMapItem("map"));
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnEndMap(false));
+    EXPECT_CALL(Mock, OnMapItem("list"));
+    EXPECT_CALL(Mock, OnBeginList());
+    EXPECT_CALL(Mock, OnEndList(false));
+    EXPECT_CALL(Mock, OnMapItem("entity"));
+    EXPECT_CALL(Mock, OnEntity(true));
+    EXPECT_CALL(Mock, OnBeginAttributes());
+    EXPECT_CALL(Mock, OnEndAttributes());
+
+    Run();
+}
+
+TEST_F(TYsonParserTest, OneMapFragment)
+{
+    Input = "   \"1\" = 100500  ";
+    Mode = TYsonParser::EMode::MapFragment;
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnMapItem("1"));
+    EXPECT_CALL(Mock, OnInt64Scalar(100500, false));
+
+    Run();
+}
+
+TEST_F(TYsonParserTest, EmptyMapFragment)
+{
+    Input = "  ";
+    Mode = TYsonParser::EMode::MapFragment;
 
     InSequence dummy;
     Run();

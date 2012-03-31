@@ -11,29 +11,30 @@ namespace NMetaState {
 
 template <class TMessage, class TResult>
 void TMetaStatePart::RegisterMethod(
-    TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod)
+    TCallback<TResult(const TMessage&)> changeMethod)
 {
-    YASSERT(changeMethod);
+    YASSERT(!changeMethod.IsNull());
 
     Stroka changeType = TMessage().GetTypeName();
-    auto action = FromMethod(
+
+    auto action = BIND(
         &TMetaStatePart::MethodThunk<TMessage, TResult>,
-        this,
-        changeMethod);
+        Unretained(this),
+        MoveRV(changeMethod));
     YVERIFY(MetaState->Methods.insert(MakePair(changeType, action)).second == 1);
 }
 
 template <class TMessage, class TResult>
 void TMetaStatePart::MethodThunk(
-    const TRef& changeData,
-    typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod)
+    TCallback<TResult(const TMessage&)> changeMethod,
+    const TRef& changeData)
 {
-    YASSERT(changeMethod);
+    YASSERT(!changeMethod.IsNull());
 
     TMessage message;
     YVERIFY(DeserializeFromProtobuf(&message, changeData));
 
-    changeMethod->Do(message);
+    changeMethod.Run(message);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

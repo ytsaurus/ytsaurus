@@ -32,7 +32,7 @@ public:
     TJob(const TJobId& jobId);
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
+    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 
 };
 

@@ -267,11 +267,11 @@ void ResolveYPath(
 }
 
 void OnYPathResponse(
-    IMessage::TPtr responseMessage,
     TFuture<IMessage::TPtr>::TPtr asyncResponseMessage,
     const TYPath& path,
     const Stroka& verb,
-    const TYPath& resolvedPath)
+    const TYPath& resolvedPath,
+    IMessage::TPtr responseMessage)
 {
     auto header = GetResponseHeader(~responseMessage);
     auto error = TError::FromProto(header.error());
@@ -327,7 +327,7 @@ ExecuteVerb(
         suffixPath,
         verb,
         suffixService->GetLoggingCategory(),
-        FromMethod(
+        BIND(
             &OnYPathResponse,
             asyncResponseMessage,
             path,
@@ -345,7 +345,7 @@ void ExecuteVerb(IYPathServicePtr service, IServiceContext* context)
     auto context_ = MakeStrong(context);
     auto requestMessage = context->GetRequestMessage();
     ExecuteVerb(service, ~requestMessage)
-        ->Subscribe(FromFunctor([=] (NBus::IMessage::TPtr responseMessage) {
+        ->Subscribe(BIND([=] (NBus::IMessage::TPtr responseMessage) {
             context_->Reply(~responseMessage);
         }));
 }
@@ -355,7 +355,7 @@ TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathServicePtr service, co
     auto request = TYPathProxy::Get(path);
     return
         ExecuteVerb(service, ~request)
-        ->Apply(FromFunctor([] (TYPathProxy::TRspGet::TPtr response)
+        ->Apply(BIND([] (TYPathProxy::TRspGet::TPtr response)
             {
                 return
                     response->IsOK()

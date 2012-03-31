@@ -49,9 +49,9 @@ typedef TIntrusivePtr<TTransactedRequest> TTransactedRequestPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IDriverImpl
+struct ICommandHost
 {
-    virtual ~IDriverImpl()
+    virtual ~ICommandHost()
     { }
 
     virtual TDriver::TConfig::TPtr GetConfig() const = 0;
@@ -73,6 +73,8 @@ struct IDriverImpl
 
     virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequestPtr request, bool required = false) = 0;
     virtual NTransactionClient::ITransaction::TPtr GetTransaction(TTransactedRequestPtr request, bool required = false) = 0;
+
+    virtual NYTree::TYPath PreprocessYPath(const NYTree::TYPath& ypath) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,10 +107,10 @@ public:
     }
 
 protected:
-    IDriverImpl* DriverImpl;
+    ICommandHost* Host;
 
-    TCommandBase(IDriverImpl* driverImpl)
-        : DriverImpl(driverImpl)
+    TCommandBase(ICommandHost* host)
+        : Host(host)
     { }
 
     virtual void DoExecute(TIntrusivePtr<TRequest> request) = 0;

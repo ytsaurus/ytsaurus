@@ -34,6 +34,8 @@
 #include <ytlib/exec_agent/bootstrap.h>
 #include <ytlib/exec_agent/config.h>
 
+#include <util/system/hostname.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -87,17 +89,17 @@ void TBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "ref_counted",
-        FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "bus_server",
-        FromMethod(&IBusServer::GetMonitoringInfo, BusServer));
+        BIND(&IBusServer::GetMonitoringInfo, BusServer));
     monitoringManager->Start();
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SyncYPathSetNode(
         ~OrchidRoot,
         "monitoring",
-        ~NYTree::CreateVirtualNode(~CreateMonitoringProducer(~monitoringManager)));
+        ~NYTree::CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
         ~OrchidRoot,
         "profiling",
@@ -107,7 +109,7 @@ void TBootstrap::Run()
     SyncYPathSetNode(
         ~OrchidRoot,
         "config",
-        ~NYTree::CreateVirtualNode(~NYTree::CreateYsonFileProducer(ConfigFileName)));
+        ~NYTree::CreateVirtualNode(NYTree::CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(
         ~OrchidRoot,
@@ -117,7 +119,7 @@ void TBootstrap::Run()
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~OrchidRoot->Via(controlQueue->GetInvoker())));
+        NMonitoring::GetYPathHttpHandler(OrchidRoot->Via(controlQueue->GetInvoker())));
 
     ChunkHolderBootstrap.Reset(new NChunkHolder::TBootstrap(Config->ChunkHolder, this));
     ChunkHolderBootstrap->Init();

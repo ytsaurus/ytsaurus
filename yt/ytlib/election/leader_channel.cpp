@@ -28,8 +28,8 @@ IChannel::TPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config)
     auto leaderLookup = New<TLeaderLookup>(config);
     return CreateRoamingChannel(
         config->RpcTimeout,
-        FromFunctor([=] () -> TFuture< TValueOrError<IChannel::TPtr> >::TPtr {
-            return leaderLookup->GetLeader()->Apply(FromMethod(&OnLeaderFound));
+        BIND([=] () -> TFuture< TValueOrError<IChannel::TPtr> >::TPtr {
+            return leaderLookup->GetLeader()->Apply(BIND(&OnLeaderFound));
         }));
 }
 

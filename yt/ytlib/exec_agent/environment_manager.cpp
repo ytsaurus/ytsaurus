@@ -33,7 +33,7 @@ TAutoPtr<IProxyController> TEnvironmentManager::CreateProxyController(
 
     auto it = Builders.find(env->Type);
     if (it == Builders.end()) {
-        ythrow yexception() << Sprintf("No such environment type %s", ~env->Type);
+        ythrow yexception() << Sprintf("No such environment type %s", ~env->Type.Quote());
     }
 
     return it->second->CreateProxyController(

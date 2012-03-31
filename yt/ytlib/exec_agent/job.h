@@ -11,6 +11,8 @@
 #include <ytlib/chunk_holder/chunk_cache.h>
 #include <ytlib/rpc/channel.h>
 
+#include <ytlib/file_server/file_ypath.pb.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -49,9 +51,8 @@ public:
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
     void OnChunkDownloaded(
-        NChunkHolder::TChunkCache::TDownloadResult result,
-        const Stroka& fileName,
-        bool executable);
+        const NFileServer::NProto::TRspFetch& fetchRsp,
+        NChunkHolder::TChunkCache::TDownloadResult result);
 
     void RunJobProxy();
 

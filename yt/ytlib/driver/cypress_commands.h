@@ -28,8 +28,8 @@ class TGetCommand
     : public TCommandBase<TGetRequest>
 {
 public:
-    TGetCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TGetCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:
@@ -68,8 +68,8 @@ class TSetCommand
     : public TCommandBase<TSetRequest>
 {
 public:
-    TSetCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TSetCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:
@@ -95,8 +95,8 @@ class TRemoveCommand
     : public TCommandBase<TRemoveRequest>
 {
 public:
-    TRemoveCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TRemoveCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:
@@ -123,8 +123,8 @@ class TListCommand
     : public TCommandBase<TListRequest>
 {
 public:
-    TListCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TListCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:
@@ -156,8 +156,8 @@ class TCreateCommand
     : public TCommandBase<TCreateRequest>
 {
 public:
-    TCreateCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TCreateCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:
@@ -186,8 +186,8 @@ class TLockCommand
     : public TCommandBase<TLockRequest>
 {
 public:
-    TLockCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TLockCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:

@@ -2,13 +2,13 @@
 #include "periodic_invoker.h"
 
 #include <ytlib/actions/invoker_util.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPeriodicInvoker::TPeriodicInvoker(IAction::TPtr action, TDuration period)
+TPeriodicInvoker::TPeriodicInvoker(TClosure action, TDuration period)
     : Action(action)
     , Period(period)
     , CancelableContext(New<TCancelableContext>())
@@ -34,10 +34,10 @@ void TPeriodicInvoker::Stop()
 
 void TPeriodicInvoker::RunAction()
 {
-    Action->Do();
+    Action.Run();
     Cookie = TDelayedInvoker::Submit(
-        FromMethod(&TPeriodicInvoker::RunAction, MakeWeak(this))
-        ->Via(~CancelableInvoker),
+        BIND(&TPeriodicInvoker::RunAction, MakeWeak(this))
+        .Via(~CancelableInvoker),
         Period);
 }
 

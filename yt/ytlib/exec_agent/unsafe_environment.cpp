@@ -3,9 +3,6 @@
 #include "environment.h"
 #include "private.h"
 
-// TODO(babenko): remove this ASAP
-#include <ytlib/actions/action_util.h>
-
 #include <ytlib/misc/thread_affinity.h>
 #include <util/system/execpath.h>
 
@@ -253,14 +250,7 @@ public:
         OnExit->Get();
     }
 
-// ToDo(psushin): restore new callbacks.
-/*    void SubscribeExited(const TCallback<void(TError)>& callback) 
-    {
-        OnExit->Subscribe(FromCallback(callback));
-    }
-*/
-
-    void SubscribeExited(IParamAction<TError>::TPtr callback)
+    void SubscribeExited(const TCallback<void(TError)>& callback) 
     {
         OnExit->Subscribe(callback);
     }

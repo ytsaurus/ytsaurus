@@ -15,7 +15,6 @@ set( SRCS
   ${BASE}/guid.cpp
   ${BASE}/home.cpp
   ${BASE}/lease_manager.cpp
-  ${BASE}/linux.cpp
   ${BASE}/metric.cpp
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
@@ -25,7 +24,6 @@ set( SRCS
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
-  ${BASE}/source_location.cpp
   ${BASE}/thread.cpp
 )
 set( HDRS
@@ -57,7 +55,6 @@ set( HDRS
   ${BASE}/lazy_holder.h
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
-  ${BASE}/linux.h
   ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/new.h
@@ -74,7 +71,6 @@ set( HDRS
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
   ${BASE}/singleton.h
-  ${BASE}/source_location.h
   ${BASE}/string.h
   ${BASE}/sync.h
   ${BASE}/tclap_helpers.h
@@ -102,5 +98,3 @@ add_custom_command(
     DEPENDS ${BASE}/new.h.pump
     COMMENT "Regenerating new.h..."
 )
-
-protoc( ${BASE}/error.proto YT_SOURCE_FILES )

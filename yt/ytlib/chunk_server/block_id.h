@@ -51,7 +51,7 @@ inline bool operator!=(const TBlockId& blockId1, const TBlockId& blockId2)
 
 //! A hasher for TBlockId.
 template <>
-struct hash<NYT::NChunkServer::TBlockId>
+struct ::hash<NYT::NChunkServer::TBlockId>
 {
     i32 operator()(const NYT::NChunkServer::TBlockId& blockId) const
     {

@@ -14,26 +14,29 @@ namespace NYTree {
 
 TYsonProducer ProducerFromYson(TInputStream* input)
 {
-    return FromFunctor([=] (IYsonConsumer* consumer) {
-        TYsonReader reader(consumer, input);
-        reader.Read();
-    });
+    return BIND([=] (IYsonConsumer* consumer)
+        {
+            TYsonReader reader(consumer, input);
+            reader.Read();
+        });
 }
 
 TYsonProducer ProducerFromYson(const TYson& data)
 {
-    return FromFunctor([=] (IYsonConsumer* consumer) {
-        TStringInput input(data);
-        TYsonReader reader(consumer, &input);
-        reader.Read();
-    });
+    return BIND([=] (IYsonConsumer* consumer)
+        {
+            TStringInput input(data);
+            TYsonReader reader(consumer, &input);
+            reader.Read();
+        });
 }
 
 TYsonProducer ProducerFromNode(INode* node)
 {
-    return FromFunctor([=] (IYsonConsumer* consumer) {
-        VisitTree(node, consumer);
-    });
+    return BIND([=] (IYsonConsumer* consumer)
+        {
+            VisitTree(node, consumer);
+        });
 }
 
 void ValidateYson(TInputStream* input)
@@ -80,7 +83,7 @@ TYson SerializeToYson(
 {
     TStringStream output;
     TYsonWriter writer(&output, format);
-    producer->Do(&writer);
+    producer.Run(&writer);
     return output.Str();
 }
 
@@ -222,7 +225,7 @@ void Write(INode& parameter, IYsonConsumer* consumer)
 // TYsonProducer
 void Write(TYsonProducer parameter, IYsonConsumer* consumer)
 {
-    parameter->Do(consumer);
+    parameter.Run(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

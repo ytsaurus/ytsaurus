@@ -4,6 +4,7 @@
 #undef LOAD_CONTEXT_INL_H_
 
 #include <ytlib/misc/foreach.h>
+#include <ytlib/chunk_server/chunk_tree_ref.h>
 
 //#include <util/ysaveload.h>
 
@@ -32,7 +33,6 @@ void SaveObjects(TOutputStream* output, const T& objects)
         ::Save(output, object->GetId());
     }
 }
-
 
 template <class T>
 void LoadObjects(TInputStream* input, std::vector<T*>& objects, const TLoadContext& context)

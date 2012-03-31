@@ -78,9 +78,9 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto& fileNode = GetTypedImpl();
     const auto& chunkList = chunkManager->GetChunkList(fileNode.GetChunkListId());
-    YASSERT(chunkList.ChildrenIds().ysize() == 1);
-    auto chunkId = chunkList.ChildrenIds()[0];
-    const auto& chunk = chunkManager->GetChunk(chunkId);
+    YASSERT(chunkList.Children().size() == 1);
+    auto chunkRef = chunkList.Children()[0];
+    const auto& chunk = *chunkRef.AsChunk();
     auto attributes = chunk
         .DeserializeAttributes()
         .GetExtension(TFileChunkAttributes::file_attributes);
@@ -112,7 +112,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
 
     if (name == "chunk_id") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkId.ToString());
+            .Scalar(chunkRef.GetId().ToString());
         return true;
     }
 
@@ -128,12 +128,13 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
     auto chunkListId = impl.GetChunkListId();
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto& chunkList = chunkManager->GetChunkList(chunkListId);
-    YASSERT(chunkList.ChildrenIds().size() == 1);
+    YASSERT(chunkList.Children().size() == 1);
     
-    auto chunkId = chunkList.ChildrenIds()[0];
-    YASSERT(TypeFromId(chunkId) == EObjectType::Chunk);
+    auto chunkRef = chunkList.Children()[0];
+    YASSERT(chunkRef.GetType() == EObjectType::Chunk);
 
-    const auto& chunk = chunkManager->GetChunk(chunkId);
+    auto chunkId = chunkRef.GetId();
+    const auto& chunk = *chunkRef.AsChunk();
 
     response->set_chunk_id(chunkId.ToProto());
     chunkManager->FillHolderAddresses(response->mutable_holder_addresses(), chunk);

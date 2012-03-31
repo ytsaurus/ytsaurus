@@ -31,6 +31,10 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const char UserDirectoryMarker = '~';
+
+////////////////////////////////////////////////////////////////////////////////
+
 static NLog::TLogger& Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +48,7 @@ public:
         , BufferedOutput(~Output)
         , Writer(&BufferedOutput, format)
     {
-        ForwardNode(&Writer, FromFunctor([=] () {
+        ForwardNode(&Writer, BIND([=] () {
             BufferedOutput.Write('\n');
         }));
     }
@@ -104,7 +108,7 @@ private:
 
 class TDriver::TImpl
     : private TNonCopyable
-    , public IDriverImpl
+    , public ICommandHost
 {
 public:
     TImpl(
@@ -208,7 +212,7 @@ public:
     virtual TYsonProducer CreateInputProducer()
     {
         auto stream = CreateInputStream();
-        return FromFunctor([=] (IYsonConsumer* consumer)
+        return BIND([=] (IYsonConsumer* consumer)
             {
                 TYsonReader reader(consumer, ~stream);
                 reader.Read();
@@ -258,6 +262,17 @@ public:
             return NULL;
         }
         return TransactionManager->Attach(transactionId);
+    }
+
+    virtual TYPath PreprocessYPath(const TYPath& ypath)
+    {
+        // TODO(babenko): use tokenizer
+        if (ypath[0] == UserDirectoryMarker) {
+            auto userName = Stroka(getenv("USERNAME"));
+            TYPath userDirectory = Stroka("/home/") + userName;
+            return userDirectory + ypath.substr(1);
+        }
+        return ypath;
     }
 
 private:

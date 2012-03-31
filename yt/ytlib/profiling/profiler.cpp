@@ -5,6 +5,8 @@
 
 #include <ytlib/ytree/ypath_client.h>
 
+#include <util/datetime/cputimer.h>
+
 namespace NYT {
 namespace NProfiling  {
 

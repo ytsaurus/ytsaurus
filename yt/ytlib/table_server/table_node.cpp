@@ -5,6 +5,7 @@
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/cell_master/load_context.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -22,7 +23,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
 
 TTableNode::TTableNode(const TVersionedNodeId& id, const TTableNode& other)
     : TCypressNodeBase(id, other)
-    , ChunkListId_(other.ChunkListId_)
+    , ChunkList_(other.ChunkList_)
 { }
 
 EObjectType TTableNode::GetObjectType() const
@@ -33,13 +34,13 @@ EObjectType TTableNode::GetObjectType() const
 void TTableNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
-    ::Save(output, ChunkListId_);
+    SaveObject(output, ChunkList_);
 }
 
-void TTableNode::Load(TInputStream* input, const TLoadContext& context)
+void TTableNode::Load(const TLoadContext& context, TInputStream* input)
 {
-    TCypressNodeBase::Load(input, context);
-    ::Load(input, ChunkListId_);
+    TCypressNodeBase::Load(context, input);
+    LoadObject(input, ChunkList_, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,8 +86,9 @@ public:
 
         // Create an empty chunk list and reference it from the node.
         auto& chunkList = chunkManager->CreateChunkList();
+        node->SetChunkList(&chunkList);
+
         auto chunkListId = chunkList.GetId();
-        node->SetChunkListId(chunkListId);
         objectManager->RefObject(chunkListId);
         cypressManager->RegisterNode(transactionId, node.Release());
 
@@ -106,7 +108,7 @@ public:
 protected:
     virtual void DoDestroy(TTableNode& node)
     {
-        Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkListId());
+        Bootstrap->GetObjectManager()->UnrefObject(node.GetChunkList()->GetId());
     }
 
     virtual void DoBranch(const TTableNode& originatingNode, TTableNode& branchedNode)
@@ -118,14 +120,15 @@ protected:
 
         // Create composite chunk list and place it in the root of branchedNode.
         auto& branchedChunkList = chunkManager->CreateChunkList();
+        branchedNode.SetChunkList(&branchedChunkList);
+
         auto branchedChunkListId = branchedChunkList.GetId();
-        branchedNode.SetChunkListId(branchedChunkListId);
         objectManager->RefObject(branchedChunkListId);
 
         // Make the original chunk list a child of the composite one.
-        yvector<TChunkTreeId> childrenIds;
-        childrenIds.push_back(originatingNode.GetChunkListId());
-        chunkManager->AttachToChunkList(branchedChunkList, childrenIds);
+        yvector<TChunkTreeRef> children;
+        children.push_back( TChunkTreeRef(originatingNode.GetChunkList()) );
+        chunkManager->AttachToChunkList(branchedChunkList, children);
     }
 
     // TODO(babenko): this needs much improvement
@@ -135,20 +138,20 @@ protected:
         auto objectManager = Bootstrap->GetObjectManager();
 
         // Obtain the chunk list of branchedNode.
-        auto branchedChunkListId = branchedNode.GetChunkListId();
-        auto& branchedChunkList = chunkManager->GetChunkList(branchedChunkListId);
-        YASSERT(branchedChunkList.GetObjectRefCounter() == 1);
+        auto branchedChunkList = branchedNode.GetChunkList();
+        YASSERT(branchedChunkList->GetObjectRefCounter() == 1);
 
         // Replace the first child of the branched chunk list with the current chunk list of originatingNode.
-        YASSERT(branchedChunkList.ChildrenIds().size() >= 1);
-        auto oldFirstChildId = branchedChunkList.ChildrenIds()[0];
-        auto newFirstChildId = originatingNode.GetChunkListId();
-        branchedChunkList.ChildrenIds()[0] = newFirstChildId;
+        YASSERT(branchedChunkList->Children().size() >= 1);
+        auto oldFirstChild = branchedChunkList->Children()[0];
+        auto newFirstChild = originatingNode.GetChunkList();
+        auto newFirstChildId = newFirstChild->GetId();
+        branchedChunkList->Children()[0] = TChunkTreeRef(newFirstChild);
         objectManager->RefObject(newFirstChildId);
-        objectManager->UnrefObject(oldFirstChildId);
+        objectManager->UnrefObject(oldFirstChild.GetId());
 
         // Replace the chunk list of originatingNode.
-        originatingNode.SetChunkListId(branchedChunkListId);
+        originatingNode.SetChunkList(branchedChunkList);
         objectManager->UnrefObject(newFirstChildId);
     }
 

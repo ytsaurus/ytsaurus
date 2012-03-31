@@ -16,18 +16,18 @@ using namespace NCypress;
 
 void TGetCommand::DoExecute(TGetRequestPtr request)
 {
-    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
+        Host->PreprocessYPath(request->Path),
+        Host->GetTransactionId(request)));
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         TYson value = ypathResponse->value();
-        DriverImpl->ReplySuccess(value);
+        Host->ReplySuccess(value);
     } else {
-        DriverImpl->ReplyError(ypathResponse->GetError());
+        Host->ReplyError(ypathResponse->GetError());
     }
 }
 
@@ -35,18 +35,18 @@ void TGetCommand::DoExecute(TGetRequestPtr request)
 
 void TSetCommand::DoExecute(TSetRequestPtr request)
 {
-    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
 
     auto ypathRequest = TYPathProxy::Set(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
+        Host->PreprocessYPath(request->Path),
+        Host->GetTransactionId(request)));
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     TYson value;
     if (request->Value) {
         value = SerializeToYson(~request->Value);
     } else {
-        auto producer = DriverImpl->CreateInputProducer();
+        auto producer = Host->CreateInputProducer();
         value = SerializeToYson(producer);
     }
     ypathRequest->set_value(value);
@@ -54,9 +54,9 @@ void TSetCommand::DoExecute(TSetRequestPtr request)
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
-        DriverImpl->ReplySuccess();
+        Host->ReplySuccess();
     } else {
-        DriverImpl->ReplyError(ypathResponse->GetError());
+        Host->ReplyError(ypathResponse->GetError());
     }
 }
 
@@ -64,18 +64,18 @@ void TSetCommand::DoExecute(TSetRequestPtr request)
 
 void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 {
-    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
+        Host->PreprocessYPath(request->Path),
+        Host->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
-        DriverImpl->ReplySuccess();
+        Host->ReplySuccess();
     } else {
-        DriverImpl->ReplyError(ypathResponse->GetError());
+        Host->ReplyError(ypathResponse->GetError());
     }
 }
 
@@ -83,19 +83,19 @@ void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 
 void TListCommand::DoExecute(TListRequestPtr request)
 {
-    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
+        Host->PreprocessYPath(request->Path),
+        Host->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
-         auto consumer = DriverImpl->CreateOutputConsumer();
+         auto consumer = Host->CreateOutputConsumer();
          BuildYsonFluently(~consumer).List(ypathResponse->keys());
     } else {
-        DriverImpl->ReplyError(ypathResponse->GetError());
+        Host->ReplyError(ypathResponse->GetError());
     }
 }
 
@@ -103,10 +103,10 @@ void TListCommand::DoExecute(TListRequestPtr request)
 
 void TCreateCommand::DoExecute(TCreateRequestPtr request)
 {
-    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
+        Host->PreprocessYPath(request->Path),
+        Host->GetTransactionId(request)));
 
     ypathRequest->set_type(request->Type);
 
@@ -119,14 +119,14 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
-        auto consumer = DriverImpl->CreateOutputConsumer();
+        auto consumer = Host->CreateOutputConsumer();
         auto id = TNodeId::FromProto(ypathResponse->object_id());
         BuildYsonFluently(~consumer)
             .BeginMap()
                 .Item("object_id").Scalar(id.ToString())
             .EndMap();
     } else {
-        DriverImpl->ReplyError(ypathResponse->GetError());
+        Host->ReplyError(ypathResponse->GetError());
     }
 }
 
@@ -134,10 +134,10 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
 
 void TLockCommand::DoExecute(TLockRequestPtr request)
 {
-    TCypressServiceProxy proxy(DriverImpl->GetMasterChannel());
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
-        request->Path,
-        DriverImpl->GetTransactionId(request)));
+        Host->PreprocessYPath(request->Path),
+        Host->GetTransactionId(request)));
     ypathRequest->set_mode(request->Mode);
 
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
@@ -145,12 +145,12 @@ void TLockCommand::DoExecute(TLockRequestPtr request)
 
     if (ypathResponse->IsOK()) {
         auto lockId = TLockId::FromProto(ypathResponse->lock_id());
-        BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
+        BuildYsonFluently(~Host->CreateOutputConsumer())
             .BeginMap()
                 .Item("lock_id").Scalar(lockId.ToString())
             .EndMap();
     } else {
-        DriverImpl->ReplyError(ypathResponse->GetError());
+        Host->ReplyError(ypathResponse->GetError());
     }
 }
 

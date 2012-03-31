@@ -30,7 +30,7 @@ void TTransaction::Save(TOutputStream* output) const
     ::Save(output, CreatedNodeIds_);
 }
 
-void TTransaction::Load(TInputStream* input, const TLoadContext& context)
+void TTransaction::Load(const TLoadContext& context, TInputStream* input)
 {
     TObjectWithIdBase::Load(input);
     ::Load(input, State_);

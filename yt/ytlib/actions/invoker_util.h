@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "action.h"
+#include "callback_forward.h"
 
 namespace NYT {
 
@@ -12,7 +12,7 @@ class TSyncInvoker
     : public IInvoker
 {
 public:
-    virtual void Invoke(TIntrusivePtr<IAction> action);
+    virtual void Invoke(const TClosure& action);
 
     static IInvoker* Get();
 };

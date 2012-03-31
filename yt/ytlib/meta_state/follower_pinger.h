@@ -32,7 +32,7 @@ private:
 
     void SendPing(TPeerId followerId);
     void SchedulePing(TPeerId followerId);
-    void OnPingResponse(TProxy::TRspPingFollower::TPtr response, TPeerId followerId);
+    void OnPingResponse(TPeerId followerId, TProxy::TRspPingFollower::TPtr response);
 
     TFollowerPingerConfigPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;

@@ -26,8 +26,8 @@ class TMapCommand
     : public TCommandBase<TMapRequest>
 {
 public:
-    TMapCommand(IDriverImpl* driverImpl)
-        : TCommandBase(driverImpl)
+    TMapCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
     { }
 
 private:

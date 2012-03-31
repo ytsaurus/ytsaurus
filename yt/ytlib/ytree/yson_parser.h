@@ -12,14 +12,13 @@ namespace NYTree {
 class TYsonParser
 {
 public:
-    DECLARE_ENUM(EPhase,
-        (NotStarted)
-        (InProgress)
-        (AwaitingAttributes)
-        (Parsed)
+    DECLARE_ENUM(EMode,
+        (Node)
+        (ListFragment)
+        (MapFragment)
     );
 
-    TYsonParser(IYsonConsumer* consumer, bool fragmented = false);
+    TYsonParser(IYsonConsumer* consumer, EMode mode = EMode::Node);
     ~TYsonParser();
 
     void Consume(char ch);
@@ -32,8 +31,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
             
-void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool fragmented = false);
-void ParseYson(const TYson& yson, IYsonConsumer* consumer, bool fragmented = false);
+void ParseYson(
+    TInputStream* input,
+    IYsonConsumer* consumer,
+    TYsonParser::EMode mode = TYsonParser::EMode::Node);
+
+void ParseYson(
+    const TYson& yson,
+    IYsonConsumer* consumer,
+    TYsonParser::EMode mode = TYsonParser::EMode::Node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

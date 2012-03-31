@@ -11,7 +11,7 @@ namespace NYT {
 //! Performs action periodically.
 /*!
  *  \note
- *  Uses TDelayedInvoker. Consider wrapping actions with #IAction::Via.
+ *  Uses TDelayedInvoker. Consider wrapping actions with #TClosure::Via.
  */
 class TPeriodicInvoker
     : public TRefCounted
@@ -27,7 +27,7 @@ public:
      *  \param action An action to call.
      *  \param period An interval between consequent invocations.
      */
-    TPeriodicInvoker(IAction::TPtr action, TDuration period);
+    TPeriodicInvoker(TClosure action, TDuration period);
 
     //! Starts invocations.
     /*!
@@ -43,7 +43,7 @@ public:
     bool IsActive() const;
 
 private:
-    IAction::TPtr Action;
+    TClosure Action;
     TDuration Period;
     TDelayedInvoker::TCookie Cookie;
     TCancelableContextPtr CancelableContext;

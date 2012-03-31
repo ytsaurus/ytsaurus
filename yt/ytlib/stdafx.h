@@ -1,85 +1,49 @@
 #pragma once
 
-#include <algorithm>
-#include <string>
-#include <map>
-#include <set>
-#include <vector>
-#include <list>
+#ifdef _MSC_VER
 
-// TODO: try to get rid of this
-using std::string; // hack for guid.h to work
-
-#include <util/system/atomic.h>
-#include <util/system/defaults.h>
-#include <util/system/mutex.h>
-#include <util/system/event.h>
-#include <util/system/thread.h>
-#include <util/system/file.h>
-#include <util/system/hostname.h>
-#include <util/system/yield.h>
-#include <util/system/atexit.h>
-#include <util/system/spinlock.h>
-
-#include <util/charset/wide.h>
-
-#include <util/thread/lfqueue.h>
-
-#include <util/memory/tempbuf.h>
-
-#include <util/generic/list.h>
-#include <util/generic/deque.h>
-#include <util/generic/utility.h>
-#include <util/generic/stroka.h>
-#include <util/generic/ptr.h>
-#include <util/generic/vector.h>
-#include <util/generic/hash.h>
-#include <util/generic/hash_set.h>
-#include <util/generic/singleton.h>
-#include <util/generic/typehelpers.h>
-#include <util/generic/yexception.h>
-#include <util/generic/pair.h>
-
-#include <util/datetime/base.h>
-#include <util/datetime/cputimer.h>
-
-#include <util/string/printf.h>
-#include <util/string/cast.h>
-#include <util/string/vector.h>
-
-#include <util/random/random.h>
-
-#include <util/stream/str.h>
-#include <util/stream/input.h>
-#include <util/stream/output.h>
-#include <util/stream/file.h>
-
-#include <util/folder/filelist.h>
-#include <util/folder/dirut.h>
-
-#include <util/config/last_getopt.h>
-
-#include <util/server/http.h>
-#include <util/autoarray.h>
-#include <util/ysaveload.h>
-#include <util/str_stl.h>
-
-#include <quality/netliba_v6/udp_http.h>
-#include <quality/netliba_v6/udp_address.h>
-
-#include <library/json/json_writer.h>
+#include <ytlib/misc/common.h>
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <contrib/libs/protobuf/io/coded_stream.h>
+#include <contrib/libs/protobuf/stubs/common.h>
 #include <contrib/libs/protobuf/stubs/once.h>
+#include <contrib/libs/protobuf/generated_message_util.h>
+#include <contrib/libs/protobuf/extension_set.h>
+#include <contrib/libs/protobuf/generated_message_reflection.h>
 #include <contrib/libs/protobuf/descriptor.h>
 #include <contrib/libs/protobuf/reflection_ops.h>
 #include <contrib/libs/protobuf/repeated_field.h>
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/message_lite.h>
-
-#ifdef _MSC_VER
-    // For protobuf-generated files:
-    // C4125: decimal digit terminates octal escape sequence
-    #pragma warning (disable : 4125)
+/*
+#include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_holder/chunk_holder_service.pb.h>
+#include <ytlib/chunk_server/chunk_list_ypath.pb.h>
+#include <ytlib/chunk_server/chunk_manager.pb.h>
+#include <ytlib/chunk_server/chunk_service.pb.h>
+#include <ytlib/chunk_server/chunk_ypath.pb.h>
+#include <ytlib/cypress/cypress_service.pb.h>
+#include <ytlib/cypress/cypress_ypath.pb.h>
+#include <ytlib/election/election_manager.pb.h>
+#include <ytlib/exec_agent/supervisor_service.pb.h>
+#include <ytlib/file_client/file_chunk_meta.pb.h>
+#include <ytlib/file_server/file_ypath.pb.h>
+#include <ytlib/meta_state/meta_state_manager.pb.h>
+#include <ytlib/misc/error.pb.h>
+#include <ytlib/object_server/object_manager.pb.h>
+#include <ytlib/object_server/object_ypath.pb.h>
+#include <ytlib/orchid/orchid_service.pb.h>
+#include <ytlib/rpc/rpc.pb.h>
+#include <ytlib/scheduler/jobs.pb.h>
+#include <ytlib/scheduler/scheduler_service.pb.h>
+#include <ytlib/table_client/schema.pb.h>
+#include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/table_server/table_ypath.pb.h>
+#include <ytlib/transaction_server/transaction_ypath.pb.h>
+#include <ytlib/ytree/attributes.pb.h>
+#include <ytlib/ytree/ypath.pb.h>
+*/
 #endif
+

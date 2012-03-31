@@ -133,8 +133,8 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
     guard.Release();
 
     auto handler = runtimeInfo->Descriptor.Handler;
-    auto guardedHandler = context->Wrap(~handler->Bind(context));
-    auto wrappedHandler = FromFunctor([=] () {
+    auto guardedHandler = context->Wrap(BIND(handler, context));
+    auto wrappedHandler = BIND([=] () {
         auto& timer = activeRequest->Timer;
 
         {
@@ -143,7 +143,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
             Profiler.TimingCheckpoint(timer, "wait");
         }
 
-        guardedHandler->Do();
+        guardedHandler.Run();
 
         {
             TGuard<TSpinLock> guard(activeRequest->SpinLock);
@@ -215,7 +215,7 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker*
 
 void TServiceBase::InvokeHandler(
     TRuntimeMethodInfo* runtimeInfo,
-    IAction::TPtr handler,
+    TClosure handler,
     IServiceContext* context)
 {
     UNUSED(context);

@@ -70,12 +70,12 @@ public:
 
             awaiter->Await(
                 ExecuteVerb(rootService, ~requestMessage),
-                FromMethod(&TExecuteSession::OnResponse, MakeStrong(this), requestIndex));
+                BIND(&TExecuteSession::OnResponse, MakeStrong(this), requestIndex));
 
             requestPartIndex += partCount;
         }
 
-        awaiter->Complete(FromMethod(&TExecuteSession::OnComplete, MakeStrong(this)));
+        awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
     }
 
 private:
@@ -83,7 +83,7 @@ private:
     TCypressService::TPtr Owner;
     std::vector<IMessage::TPtr> ResponseMessages;
 
-    void OnResponse(IMessage::TPtr responseMessage, int requestIndex)
+    void OnResponse(int requestIndex, IMessage::TPtr responseMessage)
     {
         auto responseHeader = GetResponseHeader(~responseMessage);
         auto error = TError::FromProto(responseHeader.error());

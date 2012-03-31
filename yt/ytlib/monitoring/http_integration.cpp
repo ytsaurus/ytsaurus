@@ -9,6 +9,8 @@
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/serialize.h>
 
+#include <library/json/json_writer.h>
+
 namespace NYT {
 namespace NMonitoring {
     
@@ -67,7 +69,7 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
 }
 
 // TOOD(babenko): use const&
-TFuture<Stroka>::TPtr HandleRequest(Stroka url, IYPathServicePtr service)
+TFuture<Stroka>::TPtr HandleRequest(IYPathServicePtr service, Stroka url)
 {
     try {
         // TODO(babenko): rewrite using some standard URL parser
@@ -81,7 +83,7 @@ TFuture<Stroka>::TPtr HandleRequest(Stroka url, IYPathServicePtr service)
             ParseQuery(&req->Attributes(), url.substr(queryIndex + 1));
         }
         req->SetPath(path);
-        return ExecuteVerb(~service, ~req)->Apply(FromMethod(&OnResponse));
+        return ExecuteVerb(~service, ~req)->Apply(BIND(&OnResponse));
     } catch (const std::exception& ex) {
         // TODO(sandello): Proper JSON escaping here.
         return MakeFuture(FormatInternalServerErrorResponse(Stroka(ex.what()).Quote()));
@@ -90,12 +92,12 @@ TFuture<Stroka>::TPtr HandleRequest(Stroka url, IYPathServicePtr service)
 
 } // namespace <anonymous>
 
-TServer::TAsyncHandler::TPtr GetYPathHttpHandler(IYPathServicePtr service)
+TServer::TAsyncHandler GetYPathHttpHandler(IYPathServicePtr service)
 {
-    return FromMethod(&HandleRequest, service);
+    return BIND(&HandleRequest, service);
 }
 
-TServer::TAsyncHandler::TPtr GetYPathHttpHandler(TYPathServiceProducer producer)
+TServer::TAsyncHandler GetYPathHttpHandler(TYPathServiceProducer producer)
 {
     return GetYPathHttpHandler(~IYPathService::FromProducer(producer));
 }
