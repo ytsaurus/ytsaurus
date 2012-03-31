@@ -28,7 +28,7 @@ TPeerBlockUpdater::TPeerBlockUpdater(
     , Bootstrap(bootstrap)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        BIND(&TPeerBlockUpdater::Update, MakeStrong(this))
+        BIND(&TPeerBlockUpdater::Update, MakeWeak(this))
         .Via(bootstrap->GetControlInvoker()),
         Config->PeerUpdatePeriod);
 }
