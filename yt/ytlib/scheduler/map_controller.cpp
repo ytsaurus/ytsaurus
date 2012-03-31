@@ -683,6 +683,11 @@ private:
         totalJobCount = std::min(totalJobCount, static_cast<i64>(totalChunkCount));
         totalJobCount = std::min(totalJobCount, TotalRowCount);
 
+        // Init running counters.
+        JobCounter.Init(totalJobCount);
+        ChunkCounter.Init(totalChunkCount);
+        WeightCounter.Init(TotalWeight);
+
         // Check for empty inputs.
         if (totalJobCount == 0) {
             LOG_INFO("Empty input");
@@ -693,11 +698,6 @@ private:
         // Allocate some initial chunk lists.
         // TOOD(babenko): make configurable
         ChunkListPool->Allocate(OutputTables.size() * totalJobCount + 10);
-
-        // Init running counters.
-        JobCounter.Init(totalJobCount);
-        ChunkCounter.Init(totalChunkCount);
-        WeightCounter.Init(TotalWeight);
 
         InitJobSpecTemplate();
 
