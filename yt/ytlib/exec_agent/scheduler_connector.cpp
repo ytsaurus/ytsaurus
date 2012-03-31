@@ -57,14 +57,14 @@ void TSchedulerConnector::SendHeartbeat()
         }
     }
 
-    LOG_INFO("Sending heartbeat to scheduler (JobCount: %d, TotalSlotCount: %d, FreeSlotCount: %d)",
-        req->jobs_size(),
-        req->utilization().total_slot_count(),
-        req->utilization().free_slot_count());
-
     req->Invoke()->Subscribe(
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()));
+
+    LOG_INFO("Scheduler heartbeat sent (JobCount: %d, TotalSlotCount: %d, FreeSlotCount: %d)",
+        req->jobs_size(),
+        req->utilization().total_slot_count(),
+        req->utilization().free_slot_count());
 }
 
 void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartbeat::TPtr rsp)
