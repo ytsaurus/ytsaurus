@@ -119,7 +119,7 @@ namespace NYT {
 template <class T>
 class TFuture;
 
-class IInvoker;
+struct IInvoker;
 class TCancelableContext;
 
 /*! \internal */
