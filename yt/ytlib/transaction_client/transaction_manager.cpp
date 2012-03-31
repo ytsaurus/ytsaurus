@@ -339,11 +339,11 @@ ITransaction::TPtr TTransactionManager::Attach(const TTransactionId& id)
         }
     }
 
+    // Not found, create a new one.
     auto transaction = New<TTransaction>(~Channel, this, id);
     transaction->Attach();
     return transaction;
 }
-
 
 void TTransactionManager::PingTransaction(const TTransactionId& id)
 {
@@ -359,7 +359,7 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
 
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
     CypressProxy.Execute(req)->Subscribe(BIND(
-		&TTransactionManager::OnPingResponse,
+        &TTransactionManager::OnPingResponse,
         MakeStrong(this), 
         id));
 }
@@ -368,12 +368,14 @@ void TTransactionManager::RegisterTransaction(TTransaction::TPtr transaction)
 {
     TGuard<TSpinLock> guard(SpinLock);
     YVERIFY(TransactionMap.insert(MakePair(transaction->GetId(), ~transaction)).second);
+    LOG_DEBUG("Registered transaction %s", ~transaction->GetId().ToString());
 }
 
 void TTransactionManager::UnregisterTransaction(const TTransactionId& id)
 {
     TGuard<TSpinLock> guard(SpinLock);
     TransactionMap.erase(id);
+    LOG_DEBUG("Unregistered transaction %s", ~id.ToString());
 }
 
 void TTransactionManager::OnPingResponse(
