@@ -4,13 +4,18 @@
 #include "job.h"
 #include "exec_node.h"
 
+#include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+
 namespace NYT {
 namespace NScheduler {
 
 using namespace NCypress;
 using namespace NTransactionServer;
-using namespace NTableClient::NProto;
+using namespace NFileServer;
+using namespace NTableServer;
 using namespace NChunkServer;
+using namespace NYTree;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -24,11 +29,34 @@ TOperationControllerBase::TOperationControllerBase(IOperationHost* host, TOperat
 }
 
 void TOperationControllerBase::Initialize()
-{ }
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    
+    ExecNodeCount = Host->GetExecNodeCount();
+}
 
 TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
 {
-    return MakeFuture(TVoid());
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto this_ = MakeStrong(this);
+    return StartAsyncPipeline(Host->GetBackgroundInvoker())
+        ->Add(BIND(&TThis::StartPrimaryTransaction, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
+        ->Add(BIND(&TThis::StartSeconaryTransactions, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnSecondaryTransactionsStarted, MakeStrong(this)))
+        ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
+        ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
+        ->Run()
+        ->Apply(BIND([=] (TValueOrError<TVoid> result) -> TFuture<TVoid>::TPtr {
+            if (result.IsOK()) {
+                return MakeFuture(TVoid());
+            } else {
+                this_->OnOperationFailed(result);
+                return New< TFuture<TVoid> >();
+            }
+        }));
 }
 
 TFuture<TVoid>::TPtr TOperationControllerBase::Revive()
@@ -60,7 +88,11 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 }
 
 void TOperationControllerBase::OnOperationAborted()
-{ }
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    AbortOperation();
+}
 
 void TOperationControllerBase::ScheduleJobs(
     TExecNodePtr node,
@@ -93,16 +125,341 @@ void TOperationControllerBase::OnOperationCompleted()
 void TOperationControllerBase::AbortOperation()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LOG_INFO("Aborting operation");
+
+    AbortTransactions();
+
+    LOG_INFO("Operation aborted");
 }
 
-TFuture<TVoid>::TPtr TOperationControllerBase::OnInitComplete(TValueOrError<TVoid> result)
+void TOperationControllerBase::AbortTransactions()
 {
-    if (result.IsOK()) {
-        return MakeFuture(TVoid());
-    } else {
-        OnOperationFailed(result);
-        return New< TFuture<TVoid> >();
+    LOG_INFO("Aborting transactions")
+
+    if (PrimaryTransaction) {
+        // This method is async, no problem in using it here.
+        PrimaryTransaction->Abort();
     }
+
+    // No need to abort the others.
+}
+
+void TOperationControllerBase::CompleteOperation()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    LOG_INFO("Completing operation");
+
+    auto this_ = MakeStrong(this);
+    StartAsyncPipeline(Host->GetBackgroundInvoker())
+        ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
+        ->Run()
+        ->Subscribe(BIND([=] (TValueOrError<TVoid> result) {
+            if (result.IsOK()) {
+                this_->OnOperationCompleted();
+            } else {
+                this_->OnOperationFailed(result);
+            }
+    }));
+}
+
+TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::CommitOutputs(TVoid)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    auto batchReq = CypressProxy.ExecuteBatch();
+
+    FOREACH (const auto& table, OutputTables) {
+        auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
+        FOREACH (const auto& childId, table.ChunkTreeIds) {
+            req->add_children_ids(childId.ToProto());
+        }
+        batchReq->AddRequest(req, "attach_chunk_trees");
+    }
+
+    {
+        auto req = TTransactionYPathProxy::Commit(FromObjectId(InputTransaction->GetId()));
+        batchReq->AddRequest(req, "commit_input_tx");
+    }
+
+    {
+        auto req = TTransactionYPathProxy::Commit(FromObjectId(OutputTransaction->GetId()));
+        batchReq->AddRequest(req, "commit_output_tx");
+    }
+
+    {
+        auto req = TTransactionYPathProxy::Commit(FromObjectId(PrimaryTransaction->GetId()));
+        batchReq->AddRequest(req, "commit_primary_tx");
+    }
+
+    // We don't need pings any longer, detach the transactions.
+    PrimaryTransaction->Detach();
+    InputTransaction->Detach();
+    OutputTransaction->Detach();
+
+    return batchReq->Invoke();
+}
+
+TVoid TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    CheckResponse(batchRsp, "Error committing outputs");
+
+    {
+        auto rsps = batchRsp->GetResponses("attach_chunk_trees");
+        FOREACH (auto rsp, rsps) {
+            CheckResponse(rsp, "Error attaching chunk trees");
+        }
+    }
+
+    {
+        auto rsp = batchRsp->GetResponse("commit_input_tx");
+        CheckResponse(rsp, "Error committing input transaction");
+    }
+
+    {
+        auto rsp = batchRsp->GetResponse("commit_output_tx");
+        CheckResponse(rsp, "Error committing output transaction");
+    }
+
+    {
+        auto rsp = batchRsp->GetResponse("commit_primary_tx");
+        CheckResponse(rsp, "Error committing primary transaction");
+    }
+
+    LOG_INFO("Outputs committed");
+
+    OnOperationCompleted();
+
+    return TVoid();
+}
+
+TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::StartPrimaryTransaction(TVoid)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    auto batchReq = CypressProxy.ExecuteBatch();
+
+    {
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(Operation->GetTransactionId()));
+        req->set_type(EObjectType::Transaction);
+        batchReq->AddRequest(req, "start_primary_tx");
+    }
+
+    return batchReq->Invoke();
+}
+
+TVoid TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    CheckResponse(batchRsp, "Error creating primary transaction");
+
+    {
+        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_primary_tx");
+        CheckResponse(rsp, "Error creating primary transaction");
+        auto id = TTransactionId::FromProto(rsp->object_id());
+        LOG_INFO("Primary transaction is %s", ~id.ToString());
+        PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
+    }
+
+    return TVoid();
+}
+
+TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::StartSeconaryTransactions(TVoid)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    auto batchReq = CypressProxy.ExecuteBatch();
+
+    {
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
+        req->set_type(EObjectType::Transaction);
+        batchReq->AddRequest(req, "start_input_tx");
+    }
+
+    {
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
+        req->set_type(EObjectType::Transaction);
+        batchReq->AddRequest(req, "start_output_tx");
+    }
+
+    return batchReq->Invoke();
+}
+
+TVoid TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    CheckResponse(batchRsp, "Error creating secondary transactions");
+
+    {
+        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_input_tx");
+        CheckResponse(rsp, "Error creating input transaction");
+        auto id = TTransactionId::FromProto(rsp->object_id());
+        LOG_INFO("Input transaction is %s", ~id.ToString());
+        InputTransaction = Host->GetTransactionManager()->Attach(id);
+    }
+
+    {
+        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_output_tx");
+        CheckResponse(rsp, "Error creating output transaction");
+        auto id = TTransactionId::FromProto(rsp->object_id());
+        LOG_INFO("Output transaction is %s", ~id.ToString());
+        OutputTransaction = Host->GetTransactionManager()->Attach(id);
+    }
+
+    return TVoid();
+}
+
+TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::RequestInputs(TVoid)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    LOG_INFO("Requesting inputs");
+
+    auto batchReq = CypressProxy.ExecuteBatch();
+
+    auto inPaths = GetInputTablePaths();
+    auto outPaths = GetOutputTablePaths();
+    auto filePaths = GetFilePaths();
+
+    // Lock everything first (fail-fast).
+    FOREACH (const auto& path, inPaths) {
+        TInputTable table;
+        table.Path = path;
+        InputTables.push_back(table);
+
+        auto req = TCypressYPathProxy::Lock(WithTransaction(path, InputTransaction->GetId()));
+        req->set_mode(ELockMode::Snapshot);
+        batchReq->AddRequest(req, "lock_in_tables");
+    }
+
+    FOREACH (const auto& path, outPaths) {
+        TOutputTable table;
+        table.Path = path;
+        OutputTables.push_back(table);
+
+        auto req = TCypressYPathProxy::Lock(WithTransaction(path, OutputTransaction->GetId()));
+        req->set_mode(ELockMode::Shared);
+        batchReq->AddRequest(req, "lock_out_tables");
+    }
+
+    // Do the rest next.
+    FOREACH (const auto& path, inPaths) {
+        auto req = TTableYPathProxy::Fetch(WithTransaction(path, PrimaryTransaction->GetId()));
+        req->set_fetch_holder_addresses(true);
+        req->set_fetch_chunk_attributes(true);
+        batchReq->AddRequest(req, "fetch_in_tables");
+    }
+
+    FOREACH (const auto& path, outPaths) {
+        {
+            auto req = TYPathProxy::Get(CombineYPaths(
+                WithTransaction(path, Operation->GetTransactionId()),
+                "@schema"));
+            batchReq->AddRequest(req, "get_out_tables_schemata");
+        }
+        {
+            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(path, OutputTransaction->GetId()));
+            batchReq->AddRequest(req, "get_chunk_lists");
+        }
+    }
+
+    FOREACH (const auto& path, filePaths) {
+        TFile file;
+        file.Path = path;
+        Files.push_back(file);
+
+        auto req = TFileYPathProxy::Fetch(WithTransaction(path, Operation->GetTransactionId()));
+        batchReq->AddRequest(req, "fetch_files");
+    }
+
+    return batchReq->Invoke();
+}
+
+TVoid TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    CheckResponse(batchRsp, "Error requesting inputs");
+
+    {
+        auto fetchInTablesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_in_tables");
+        auto lockInTablesRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_in_tables");
+        for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
+            auto lockInTableRsp = lockInTablesRsps[index];
+            CheckResponse(lockInTableRsp, "Error locking input table");
+
+            auto fetchInTableRsp = fetchInTablesRsps[index];
+            CheckResponse(fetchInTableRsp, "Error fetching input input table");
+
+            auto& table = InputTables[index];
+            table.FetchResponse = fetchInTableRsp;
+        }
+    }
+
+    {
+        auto lockOutTablesRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_out_tables");
+        auto getChunkListsRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_chunk_lists");
+        auto getOutTablesSchemataRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_tables_schemata");
+        for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
+            auto lockOutTablesRsp = lockOutTablesRsps[index];
+            CheckResponse(lockOutTablesRsp, "Error fetching input input table");
+
+            auto getChunkListRsp = getChunkListsRsps[index];
+            CheckResponse(getChunkListRsp, "Error getting output chunk list");
+
+            auto getOutTableSchemaRsp = getOutTablesSchemataRsps[index];
+
+            auto& table = OutputTables[index];
+            table.OutputChunkListId = TChunkListId::FromProto(getChunkListRsp->chunk_list_id());
+            // TODO(babenko): fill output schema
+            table.Schema = "{}";
+        }
+    }
+
+    {
+        auto fetchFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_files");
+        for (int index = 0; index < static_cast<int>(Files.size()); ++index) {
+            auto fetchFileRsp = fetchFilesRsps[index];
+            CheckResponse(fetchFileRsp, "Error fetching files");
+
+            auto& file = Files[index];
+            file.FetchResponse = fetchFileRsp;
+        }
+    }
+
+    LOG_INFO("Inputs received");
+
+    return TVoid();
+}
+
+TVoid TOperationControllerBase::CompletePreparation(TVoid)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    LOG_INFO("Completing preparation");
+
+    DoCompletePreparation();
+
+    return TVoid();
+}
+
+void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>& ids)
+{
+    auto batchReq = CypressProxy.ExecuteBatch();
+    FOREACH (const auto& id, ids) {
+        auto req = TTransactionYPathProxy::ReleaseObject();
+        req->set_object_id(id.ToProto());
+        batchReq->AddRequest(req);
+    }
+    // Fire-and-forget.
+    // TODO(babenko): log result
+    batchReq->Invoke();
 }
 
 ////////////////////////////////////////////////////////////////////

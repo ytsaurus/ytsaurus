@@ -728,7 +728,6 @@ private:
 
     IOperationControllerPtr CreateController(TOperation* operation)
     {
-        // TODO(babenko): add more operation types
         switch (operation->GetType()) {
             case EOperationType::Map:
                 return CreateMapController(this, operation);

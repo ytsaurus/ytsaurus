@@ -19,6 +19,8 @@ using namespace NTableClient;
 
 void TReadCommand::DoExecute(TReadRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     auto stream = Host->CreateOutputStream();
 
     auto reader = New<TTableReader>(
@@ -26,7 +28,7 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
         ~Host->GetMasterChannel(),
         ~Host->GetTransaction(request),
         ~Host->GetBlockCache(),
-        Host->PreprocessYPath(request->Path));
+        request->Path);
 
     TYsonTableInput input(
         ~reader, 
@@ -41,12 +43,14 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
 
 void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     auto writer = New<TTableWriter>(
         ~Host->GetConfig()->TableWriter,
         ~Host->GetMasterChannel(),
         ~Host->GetTransaction(request),
         ~Host->GetTransactionManager(),
-        Host->PreprocessYPath(request->Path));
+        request->Path);
 
     writer->Open();
     TRowConsumer consumer(~writer);

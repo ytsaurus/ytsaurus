@@ -12,7 +12,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMapCommand::DoExecute(TMapRequestPtr request)
+TSchedulerCommandBase::TSchedulerCommandBase(ICommandHost* host)
+    : TUntypedCommandBase(host)
+{ }
+
+void TSchedulerCommandBase::RunOperation(
+    TTransactedRequestPtr request,
+    NScheduler::EOperationType type,
+    const NYTree::TYson& spec)
 {
     auto transaction = Host->GetTransaction(request, true);
 
@@ -20,15 +27,11 @@ void TMapCommand::DoExecute(TMapRequestPtr request)
 
     TOperationId operationId;
     {
-
         auto startOpReq = proxy.StartOperation();
         *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
-        startOpReq->set_type(EOperationType::Map);
+        startOpReq->set_type(type);
         startOpReq->set_transaction_id(transaction->GetId().ToProto());
-        PreprocessYPaths(request->Spec->In);
-        PreprocessYPaths(request->Spec->Out);
-        PreprocessYPaths(request->Spec->Files);
-        startOpReq->set_spec(SerializeToYson(~request->Spec));
+        startOpReq->set_spec(spec);
 
         auto startOpRsp = startOpReq->Invoke()->Get();
         if (!startOpRsp->IsOK()) {
@@ -64,8 +67,46 @@ void TMapCommand::DoExecute(TMapRequestPtr request)
             Host->ReplyError(error);
         }
     }
+}
 
+////////////////////////////////////////////////////////////////////////////////
+
+TMapCommand::TMapCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+    , TSchedulerCommandBase(host)
+{ }
+
+void TMapCommand::DoExecute(TMapRequestPtr request)
+{
+    PreprocessYPaths(&request->Spec->In);
+    PreprocessYPaths(&request->Spec->Out);
+    PreprocessYPaths(&request->Spec->Files);
+
+    RunOperation(
+        request,
+        EOperationType::Map,
+        SerializeToYson(request->Spec));
     // TODO(babenko): dump stderrs
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMergeCommand::TMergeCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+    , TSchedulerCommandBase(host)
+{ }
+
+void TMergeCommand::DoExecute(TMergeRequestPtr request)
+{
+    PreprocessYPaths(&request->Spec->In);
+    PreprocessYPath(&request->Spec->Out);
+
+    RunOperation(
+        request,
+        EOperationType::Merge,
+        SerializeToYson(request->Spec));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

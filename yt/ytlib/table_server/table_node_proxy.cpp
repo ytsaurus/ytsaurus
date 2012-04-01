@@ -230,9 +230,9 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
     const auto& impl = GetTypedImplForUpdate();
 
-    auto& rootChunkList = Bootstrap->GetChunkManager()->GetChunkList(impl.GetChunkListId());
-    YASSERT(rootChunkList.ParentIds().empty());
-    rootChunkList.SetSorted(true);
+    auto* rootChunkList = impl.GetChunkList();
+    YASSERT(rootChunkList->Parents().empty());
+    rootChunkList->SetSorted(true);
 
     context->Reply();
 }

@@ -7,42 +7,18 @@
 #include "exec_node.h"
 #include "private.h"
 
-#include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/fluent.h>
-
-#include <ytlib/misc/string.h>
-
-#include <ytlib/transaction_server/transaction_ypath_proxy.h>
-
-#include <ytlib/table_server/table_ypath_proxy.h>
-#include <ytlib/table_client/table_reader.pb.h>
-
-#include <ytlib/object_server/object_ypath_proxy.h>
-
-#include <ytlib/file_server/file_ypath_proxy.h>
-
-#include <ytlib/cypress/cypress_service_proxy.h>
-
-#include <ytlib/chunk_server/public.h>
-#include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 
 #include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NScheduler {
 
-using namespace NProto;
 using namespace NYTree;
-using namespace NTableClient;
-using namespace NTableClient::NProto;
-using namespace NTableServer;
-using namespace NTableServer::NProto;
-using namespace NTransactionClient;
-using namespace NTransactionServer;
-using namespace NCypress;
 using namespace NChunkServer;
+using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
-using namespace NFileServer;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -61,7 +37,7 @@ public:
 
     virtual void Initialize()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        TOperationControllerBase::Initialize();
 
         Spec = New<TMapOperationSpec>();
         try {
@@ -69,24 +45,6 @@ public:
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
         }
-
-        ExecNodeCount = Host->GetExecNodeCount();
-    }
-
-    virtual TFuture<TVoid>::TPtr Prepare()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return StartAsyncPipeline(Host->GetBackgroundInvoker())
-            ->Add(BIND(&TThis::StartPrimaryTransaction, MakeStrong(this)))
-            ->Add(BIND(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
-            ->Add(BIND(&TThis::StartSeconaryTransactions, MakeStrong(this)))
-            ->Add(BIND(&TThis::OnSecondaryTransactionsStarted, MakeStrong(this)))
-            ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
-            ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
-            ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
-            ->Run()
-            ->Apply(BIND(&TThis::OnInitComplete, MakeStrong(this)));
     }
 
 
@@ -102,7 +60,7 @@ public:
 
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto chunkListId = jobInfo->OutputChunkListIds[index];
-            OutputTables[index].DoneChunkListIds.push_back(chunkListId);
+            OutputTables[index].ChunkTreeIds.push_back(chunkListId);
         }
 
         JobCounter.Completed(1);
@@ -144,14 +102,6 @@ public:
             OnOperationFailed(TError("%d jobs failed, aborting operation",
                 JobCounter.GetFailed()));
         }
-    }
-
-
-    virtual void OnOperationAborted()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        AbortOperation();
     }
 
 
@@ -250,44 +200,7 @@ public:
     }
 
 private:
-    typedef TMapController TThis;
-
     TMapOperationSpecPtr Spec;
-
-    // The primary transaction for the whole operation (nested inside operation's transaction).
-    ITransaction::TPtr PrimaryTransaction;
-    // The transaction for reading input tables (nested inside the primary one).
-    // These tables are locked with Snapshot mode.
-    ITransaction::TPtr InputTransaction;
-    // The transaction for writing output tables (nested inside the primary one).
-    // These tables are locked with Shared mode.
-    ITransaction::TPtr OutputTransaction;
-
-    // Input tables.
-    struct TInputTable
-    {
-        TTableYPathProxy::TRspFetch::TPtr FetchResponse;
-    };
-
-    std::vector<TInputTable> InputTables;
-
-    // Output tables.
-    struct TOutputTable
-    {
-        TYson Schema;
-        TChunkListId OutputChunkListId;
-        std::vector<TChunkListId> DoneChunkListIds;
-    };
-
-    std::vector<TOutputTable> OutputTables;
-
-    // Files.
-    struct TFile
-    {
-        TFileYPathProxy::TRspFetch::TPtr FetchResponse;
-    };
-
-    std::vector<TFile> Files;
 
     // Running counters.
     TRunningCounter JobCounter;
@@ -298,9 +211,6 @@ private:
     i64 TotalRowCount;
     i64 TotalDataSize;
     i64 TotalWeight;
-
-    // Fixed during init time, used to compute job count.
-    int ExecNodeCount;
 
     ::THolder<TChunkPool> ChunkPool;
     TChunkListPoolPtr ChunkListPool;
@@ -326,6 +236,7 @@ private:
     typedef TIntrusivePtr<TJobInfo> TJobInfoPtr;
     yhash_map<TJobPtr, TJobInfoPtr> JobInfos;
 
+
     // Scheduled jobs info management.
 
     void PutJobInfo(TJobPtr job, TJobInfoPtr jobInfo)
@@ -346,279 +257,25 @@ private:
     }
 
     
-    // Unsorted helpers.
+    // Custom bits of preparation pipeline.
 
-    void DumpStatistics()
+    virtual std::vector<TYPath> GetInputTablePaths()
     {
-        LOG_DEBUG("Running statistics: Jobs = {%s}, Chunks = {%s}, Weight = {%s}",
-            ~ToString(JobCounter),
-            ~ToString(ChunkCounter),
-            ~ToString(WeightCounter));
+        return Spec->In;
     }
 
-    void InitJobSpecTemplate()
+    virtual std::vector<TYPath> GetOutputTablePaths()
     {
-        JobSpecTemplate.set_type(EJobType::Map);
-
-        TUserJobSpec userJobSpec;
-        userJobSpec.set_shell_command(Spec->Mapper);
-        FOREACH (const auto& file, Files) {
-            *userJobSpec.add_files() = *file.FetchResponse;
-        }
-        *JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
-
-        TMapJobSpec mapJobSpec;
-        mapJobSpec.set_input_transaction_id(InputTransaction->GetId().ToProto());
-        mapJobSpec.set_output_transaction_id(OutputTransaction->GetId().ToProto());
-        FOREACH (const auto& table, OutputTables) {
-            auto* outputSpec = mapJobSpec.add_output_specs();
-            outputSpec->set_schema(table.Schema);
-        }
-        *JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
-
-
-        // TODO(babenko): stderr
+        return Spec->Out;
     }
 
-    void ReleaseChunkLists(const std::vector<TChunkListId>& ids)
+    virtual std::vector<TYPath> GetFilePaths()
     {
-        auto batchReq = CypressProxy.ExecuteBatch();
-        FOREACH (const auto& id, ids) {
-            auto req = TTransactionYPathProxy::ReleaseObject();
-            req->set_object_id(id.ToProto());
-            batchReq->AddRequest(req);
-        }
-        // Fire-and-forget.
-        // TODO(babenko): log result
-        batchReq->Invoke();
+        return Spec->Files;
     }
 
-    // TODO(babenko): YPath and RPC responses currently share no base class.
-    template <class TResponse>
-    void CheckResponse(TResponse response, const Stroka& failureMessage) 
+    virtual void DoCompletePreparation()
     {
-        if (response->IsOK())
-            return;
-
-        ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
-    }
-
-
-    // Here comes the preparation pipeline.
-
-    // Round 1:
-    // - Start primary transaction.
-
-    TCypressServiceProxy::TInvExecuteBatch::TPtr StartPrimaryTransaction(TVoid)
-    {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-        auto batchReq = CypressProxy.ExecuteBatch();
-
-        {
-            auto req = TTransactionYPathProxy::CreateObject(FromObjectId(Operation->GetTransactionId()));
-            req->set_type(EObjectType::Transaction);
-            batchReq->AddRequest(req, "start_primary_tx");
-        }
-
-        return batchReq->Invoke();
-    }
-
-    TVoid OnPrimaryTransactionStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
-    {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-        CheckResponse(batchRsp, "Error creating primary transaction");
-
-        {
-            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_primary_tx");
-            CheckResponse(rsp, "Error creating primary transaction");
-            auto id = TTransactionId::FromProto(rsp->object_id());
-            LOG_INFO("Primary transaction is %s", ~id.ToString());
-            PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
-        }
-
-        return TVoid();
-    }
-
-    // Round 2:
-    // - Start input transaction.
-    // - Start output transaction.
-
-    TCypressServiceProxy::TInvExecuteBatch::TPtr StartSeconaryTransactions(TVoid)
-    {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-        auto batchReq = CypressProxy.ExecuteBatch();
-
-        {
-            auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
-            req->set_type(EObjectType::Transaction);
-            batchReq->AddRequest(req, "start_input_tx");
-        }
-
-        {
-            auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
-            req->set_type(EObjectType::Transaction);
-            batchReq->AddRequest(req, "start_output_tx");
-        }
-
-        return batchReq->Invoke();
-    }
-
-    TVoid OnSecondaryTransactionsStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
-    {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-        CheckResponse(batchRsp, "Error creating secondary transactions");
-
-        {
-            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_input_tx");
-            CheckResponse(rsp, "Error creating input transaction");
-            auto id = TTransactionId::FromProto(rsp->object_id());
-            LOG_INFO("Input transaction is %s", ~id.ToString());
-            InputTransaction = Host->GetTransactionManager()->Attach(id);
-        }
-
-        {
-            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_output_tx");
-            CheckResponse(rsp, "Error creating output transaction");
-            auto id = TTransactionId::FromProto(rsp->object_id());
-            LOG_INFO("Output transaction is %s", ~id.ToString());
-            OutputTransaction = Host->GetTransactionManager()->Attach(id);
-        }
-
-        return TVoid();
-    }
-
-    // Round 3: 
-    // - Fetch input tables.
-    // - Lock input tables.
-    // - Lock output tables.
-    // - Fetch files.
-    // - Get output tables schemata.
-    // - Get output chunk lists.
-
-    TCypressServiceProxy::TInvExecuteBatch::TPtr RequestInputs(TVoid)
-    {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-        LOG_INFO("Requesting inputs");
-
-        auto batchReq = CypressProxy.ExecuteBatch();
-
-        FOREACH (const auto& path, Spec->In) {
-            auto req = TTableYPathProxy::Fetch(WithTransaction(path, PrimaryTransaction->GetId()));
-            req->set_fetch_holder_addresses(true);
-            req->set_fetch_chunk_attributes(true);
-            batchReq->AddRequest(req, "fetch_in_tables");
-        }
-
-        FOREACH (const auto& path, Spec->In) {
-            auto req = TCypressYPathProxy::Lock(WithTransaction(path, InputTransaction->GetId()));
-            req->set_mode(ELockMode::Snapshot);
-            batchReq->AddRequest(req, "lock_in_tables");
-        }
-
-        FOREACH (const auto& path, Spec->Out) {
-            auto req = TCypressYPathProxy::Lock(WithTransaction(path, OutputTransaction->GetId()));
-            req->set_mode(ELockMode::Shared);
-            batchReq->AddRequest(req, "lock_out_tables");
-        }
-
-        FOREACH (const auto& path, Spec->Out) {
-            auto req = TYPathProxy::Get(CombineYPaths(
-                WithTransaction(path, Operation->GetTransactionId()),
-                "@schema"));
-            batchReq->AddRequest(req, "get_out_tables_schemata");
-        }
-
-        FOREACH (const auto& path, Spec->Files) {
-            auto req = TFileYPathProxy::Fetch(WithTransaction(path, Operation->GetTransactionId()));
-            batchReq->AddRequest(req, "fetch_files");
-        }
-
-        FOREACH (const auto& path, Spec->Out) {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(path, OutputTransaction->GetId()));
-            batchReq->AddRequest(req, "get_chunk_lists");
-        }
-
-        return batchReq->Invoke();
-    }
-
-    TVoid OnInputsReceived(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
-    {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-        CheckResponse(batchRsp, "Error requesting inputs");
-
-        {
-            InputTables.resize(Spec->In.size());
-            TotalRowCount = 0;
-            auto fetchInTablesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_in_tables");
-            auto lockInTablesRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_in_tables");
-            for (int index = 0; index < static_cast<int>(Spec->In.size()); ++index) {
-                auto lockInTableRsp = lockInTablesRsps[index];
-                CheckResponse(lockInTableRsp, "Error locking input table");
-
-                auto fetchInTableRsp = fetchInTablesRsps[index];
-                CheckResponse(fetchInTableRsp, "Error fetching input input table");
-
-                auto& table = InputTables[index];
-                table.FetchResponse = fetchInTableRsp;
-            }
-        }
-
-        {
-            OutputTables.resize(Spec->Out.size());
-            auto lockOutTablesRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_out_tables");
-            auto getChunkListsRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_chunk_lists");
-            auto getOutTablesSchemataRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_tables_schemata");
-            for (int index = 0; index < static_cast<int>(Spec->Out.size()); ++index) {
-                auto lockOutTablesRsp = lockOutTablesRsps[index];
-                CheckResponse(lockOutTablesRsp, "Error fetching input input table");
-
-                auto getChunkListRsp = getChunkListsRsps[index];
-                CheckResponse(getChunkListRsp, "Error getting output chunk list");
-
-                auto getOutTableSchemaRsp = getOutTablesSchemataRsps[index];
-
-                auto& table = OutputTables[index];
-                table.OutputChunkListId = TChunkListId::FromProto(getChunkListRsp->chunk_list_id());
-                // TODO(babenko): fill output schema
-                table.Schema = "{}";
-            }
-        }
-
-        {
-            auto fetchFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_files");
-            FOREACH (auto fetchFileRsp, fetchFilesRsps) {
-                CheckResponse(fetchFileRsp, "Error fetching files");
-
-                TFile file;
-                file.FetchResponse = fetchFileRsp;
-                Files.push_back(file);
-            }
-        }
-
-        LOG_INFO("Inputs received");
-
-        return TVoid();
-    }
-
-    // Round 4.
-    // - Compute various row counts, sizes, weights etc.
-    // - Construct input chunks and put them into the pool.
-    // - Choose job count.
-    // - Preallocate chunk lists.
-    // - Initialize running counters.
-
-    TVoid CompletePreparation(TVoid)
-    {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-        LOG_INFO("Completing preparation");
-
         ChunkPool.Reset(new TChunkPool(Operation));
         ChunkListPool = New<TChunkListPool>(
             Host->GetMasterChannel(),
@@ -683,7 +340,6 @@ private:
         // Choose job count.
         i64 totalJobCount = Spec->JobCount.Get(ExecNodeCount);
         totalJobCount = std::min(totalJobCount, static_cast<i64>(totalChunkCount));
-        totalJobCount = std::min(totalJobCount, TotalRowCount);
 
         // Init running counters.
         JobCounter.Init(totalJobCount);
@@ -694,7 +350,7 @@ private:
         if (TotalRowCount == 0) {
             LOG_INFO("Empty input");
             CompleteOperation();
-            return TVoid();
+            return;
         }
 
         YASSERT(TotalWeight > 0);
@@ -712,140 +368,41 @@ private:
             TotalWeight,
             totalChunkCount,
             totalJobCount);
-
-        return TVoid();
     }
 
 
-    // Here comes the completion pipeline.
+    // Unsorted helpers.
 
-    void CompleteOperation()
+    void DumpStatistics()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        LOG_INFO("Completing operation");
-
-        auto this_ = MakeStrong(this);
-        StartAsyncPipeline(Host->GetBackgroundInvoker())
-            ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
-            ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
-            ->Run()
-            ->Subscribe(BIND([=] (TValueOrError<TVoid> result) {
-                if (result.IsOK()) {
-                    this_->OnOperationCompleted();
-                } else {
-                    this_->OnOperationFailed(result);
-                }
-            }));
-
+        LOG_DEBUG("Running statistics: Jobs = {%s}, Chunks = {%s}, Weight = {%s}",
+            ~ToString(JobCounter),
+            ~ToString(ChunkCounter),
+            ~ToString(WeightCounter));
     }
 
-    // Round 1.
-    // - Attach output chunk lists.
-    // - Commit input transaction.
-    // - Commit output transaction.
-    // - Commit primary transaction.
-
-    TCypressServiceProxy::TInvExecuteBatch::TPtr CommitOutputs(TVoid)
+    void InitJobSpecTemplate()
     {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
+        JobSpecTemplate.set_type(EJobType::Map);
 
-        LOG_INFO("Committing %" PRId64 " output chunks", ChunkCounter.GetDone());
+        TUserJobSpec userJobSpec;
+        userJobSpec.set_shell_command(Spec->Mapper);
+        FOREACH (const auto& file, Files) {
+            *userJobSpec.add_files() = *file.FetchResponse;
+        }
+        *JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
 
-        // We don't need pings any longer, detach the transactions.
-        PrimaryTransaction->Detach();
-        InputTransaction->Detach();
-        OutputTransaction->Detach();
-
-        auto batchReq = CypressProxy.ExecuteBatch();
-
+        TMapJobSpec mapJobSpec;
+        mapJobSpec.set_input_transaction_id(InputTransaction->GetId().ToProto());
+        mapJobSpec.set_output_transaction_id(OutputTransaction->GetId().ToProto());
         FOREACH (const auto& table, OutputTables) {
-            auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-            FOREACH (const auto& childId, table.DoneChunkListIds) {
-                req->add_children_ids(childId.ToProto());
-            }
-            batchReq->AddRequest(req, "attach_chunk_lists");
+            auto* outputSpec = mapJobSpec.add_output_specs();
+            outputSpec->set_schema(table.Schema);
         }
-
-        {
-            auto req = TTransactionYPathProxy::Commit(FromObjectId(InputTransaction->GetId()));
-            batchReq->AddRequest(req, "commit_input_tx");
-        }
-
-        {
-            auto req = TTransactionYPathProxy::Commit(FromObjectId(OutputTransaction->GetId()));
-            batchReq->AddRequest(req, "commit_output_tx");
-        }
-
-        {
-            auto req = TTransactionYPathProxy::Commit(FromObjectId(PrimaryTransaction->GetId()));
-            batchReq->AddRequest(req, "commit_primary_tx");
-        }
-
-        return batchReq->Invoke();
-    }
-
-    TVoid OnOutputsCommitted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
-    {
-        VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-        CheckResponse(batchRsp, "Error committing outputs");
-
-        {
-            auto rsps = batchRsp->GetResponses("attach_chunk_lists");
-            FOREACH (auto rsp, rsps) {
-                CheckResponse(rsp, "Error attaching chunk lists");
-            }
-        }
-
-        {
-            auto rsp = batchRsp->GetResponse("commit_input_tx");
-            CheckResponse(rsp, "Error committing input transaction");
-        }
-
-        {
-            auto rsp = batchRsp->GetResponse("commit_output_tx");
-            CheckResponse(rsp, "Error committing output transaction");
-        }
-
-        {
-            auto rsp = batchRsp->GetResponse("commit_primary_tx");
-            CheckResponse(rsp, "Error committing primary transaction");
-        }
-
-        LOG_INFO("Outputs committed");
-
-        OnOperationCompleted();
-
-        return TVoid();
-    }
+        *JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
 
 
-    // Abort is not a pipeline really :)
-
-    virtual void AbortOperation()
-    {
-        TOperationControllerBase::AbortOperation();
-
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Aborting operation");
-
-        AbortTransactions();
-
-        LOG_INFO("Operation aborted");
-    }
-
-    void AbortTransactions()
-    {
-        LOG_INFO("Aborting transactions")
-
-        if (PrimaryTransaction) {
-            // This method is async, no problem in using it here.
-            PrimaryTransaction->Abort();
-        }
-
-        // No need to abort the others.
+        // TODO(babenko): stderr
     }
 
 };

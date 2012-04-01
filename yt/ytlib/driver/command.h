@@ -89,11 +89,29 @@ struct ICommand
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequest>
-class TCommandBase
+class TUntypedCommandBase
     : public ICommand
 {
+protected:
+    ICommandHost* Host;
+
+    explicit TUntypedCommandBase(ICommandHost* host);
+
+    void PreprocessYPath(NYTree::TYPath* path);
+    void PreprocessYPaths(std::vector<NYTree::TYPath>* paths);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRequest>
+class TTypedCommandBase
+    : public virtual TUntypedCommandBase
+{
 public:
+    explicit TTypedCommandBase(ICommandHost* host)
+        : TUntypedCommandBase(host)
+    { }
+
     virtual void Execute(NYTree::INodePtr request)
     {
         auto typedRequest = New<TRequest>();
@@ -107,19 +125,6 @@ public:
     }
 
 protected:
-    ICommandHost* Host;
-
-    TCommandBase(ICommandHost* host)
-        : Host(host)
-    { }
-
-    void PreprocessYPaths(std::vector<NYTree::TYPath>& paths)
-    {
-        for (int index = 0; index < static_cast<int>(paths.size()); ++index) {
-            paths[index] = Host->PreprocessYPath(paths[index]);
-        }
-    }
-
     virtual void DoExecute(TIntrusivePtr<TRequest> request) = 0;
 
 };

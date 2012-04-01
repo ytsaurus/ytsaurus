@@ -90,8 +90,11 @@ struct IOperationHost;
 struct IOperationController;
 typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;
 
-class TMapOperationSpec;
+struct  TMapOperationSpec;
 typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
+
+struct TMergeOperationSpec;
+typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

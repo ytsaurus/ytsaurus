@@ -7,26 +7,27 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStartRequest
+struct TStartTransactionRequest
     : public TRequestBase
 {
     NYTree::INodePtr Manifest;
 
-    TStartRequest()
+    TStartTransactionRequest()
     {
         Register("manifest", Manifest)
             .Default();
     }
 };
 
-typedef TIntrusivePtr<TStartRequest> TStartRequestPtr;
+typedef TIntrusivePtr<TStartTransactionRequest> TStartRequestPtr;
 
-class TStartCommand
-    : public TCommandBase<TStartRequest>
+class TStartTransactionCommand
+    : public TTypedCommandBase<TStartTransactionRequest>
 {
 public:
-    TStartCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TStartTransactionCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -35,18 +36,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCommitRequest
+struct TCommitTransactionRequest
     : public TTransactedRequest
 { };
 
-typedef TIntrusivePtr<TCommitRequest> TCommitRequestPtr;
+typedef TIntrusivePtr<TCommitTransactionRequest> TCommitRequestPtr;
 
-class TCommitCommand
-    : public TCommandBase<TCommitRequest>
+class TCommitTransactionCommand
+    : public TTypedCommandBase<TCommitTransactionRequest>
 {
 public:
-    TCommitCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TCommitTransactionCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -61,12 +63,13 @@ struct TAbortRequest
 
 typedef TIntrusivePtr<TAbortRequest> TAbortRequestPtr;
 
-class TAbortCommand
-    : public TCommandBase<TAbortRequest>
+class TAbortTransactionCommand
+    : public TTypedCommandBase<TAbortRequest>
 {
 public:
-    TAbortCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TAbortTransactionCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:

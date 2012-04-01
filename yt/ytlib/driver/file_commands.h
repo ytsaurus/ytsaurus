@@ -21,11 +21,12 @@ struct TDownloadRequest
 typedef TIntrusivePtr<TDownloadRequest> TDownloadRequestPtr;
 
 class TDownloadCommand
-    : public TCommandBase<TDownloadRequest>
+    : public TTypedCommandBase<TDownloadRequest>
 {
 public:
-    TDownloadCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TDownloadCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -48,11 +49,12 @@ struct TUploadRequest
 typedef TIntrusivePtr<TUploadRequest> TUploadRequestPtr;
 
 class TUploadCommand
-    : public TCommandBase<TUploadRequest>
+    : public TTypedCommandBase<TUploadRequest>
 {
 public:
-    TUploadCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TUploadCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:

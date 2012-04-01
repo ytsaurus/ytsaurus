@@ -13,6 +13,8 @@ using namespace NFileClient;
 
 void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     auto config = Host->GetConfig()->FileReader;
 
     auto reader = New<TFileReader>(
@@ -20,7 +22,7 @@ void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
         ~Host->GetMasterChannel(),
         ~Host->GetTransaction(request),
         ~Host->GetBlockCache(),
-        Host->PreprocessYPath(request->Path));
+        request->Path);
     reader->Open();
 
     // TODO(babenko): use FileName and Executable values
@@ -40,6 +42,8 @@ void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 
 void TUploadCommand::DoExecute(TUploadRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     auto config = Host->GetConfig()->FileWriter;
 
     auto writer = New<TFileWriter>(
@@ -47,7 +51,7 @@ void TUploadCommand::DoExecute(TUploadRequestPtr request)
         ~Host->GetMasterChannel(),
         ~Host->GetTransaction(request),
         ~Host->GetTransactionManager(),
-        Host->PreprocessYPath(request->Path));
+        request->Path);
     writer->Open();
 
     auto input = Host->CreateInputStream();

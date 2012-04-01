@@ -16,9 +16,11 @@ using namespace NCypress;
 
 void TGetCommand::DoExecute(TGetRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
@@ -35,10 +37,11 @@ void TGetCommand::DoExecute(TGetRequestPtr request)
 
 void TSetCommand::DoExecute(TSetRequestPtr request)
 {
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    PreprocessYPath(&request->Path);
 
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Set(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
@@ -64,9 +67,11 @@ void TSetCommand::DoExecute(TSetRequestPtr request)
 
 void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
@@ -83,9 +88,11 @@ void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 
 void TListCommand::DoExecute(TListRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
 
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
@@ -103,9 +110,11 @@ void TListCommand::DoExecute(TListRequestPtr request)
 
 void TCreateCommand::DoExecute(TCreateRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
 
     ypathRequest->set_type(request->Type);
@@ -134,9 +143,11 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
 
 void TLockCommand::DoExecute(TLockRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->set_mode(request->Mode);
 

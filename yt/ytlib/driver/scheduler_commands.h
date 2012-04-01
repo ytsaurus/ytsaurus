@@ -3,9 +3,25 @@
 #include "command.h"
 
 #include <ytlib/scheduler/map_controller.h>
+#include <ytlib/scheduler/merge_controller.h>
 
 namespace NYT {
 namespace NDriver {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchedulerCommandBase
+    : public virtual TUntypedCommandBase
+{
+protected:
+    explicit TSchedulerCommandBase(ICommandHost* host);
+
+    void RunOperation(
+        TTransactedRequestPtr request,
+        NScheduler::EOperationType type,
+        const NYTree::TYson& spec);
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,12 +39,11 @@ struct TMapRequest
 typedef TIntrusivePtr<TMapRequest> TMapRequestPtr;
 
 class TMapCommand
-    : public TCommandBase<TMapRequest>
+    : public TSchedulerCommandBase
+    , public TTypedCommandBase<TMapRequest>
 {
 public:
-    TMapCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
-    { }
+    explicit TMapCommand(ICommandHost* commandHost);
 
 private:
     virtual void DoExecute(TMapRequestPtr request);
@@ -39,6 +54,8 @@ private:
 struct TMergeRequest
     : public TTransactedRequest
 {
+    NScheduler::TMergeOperationSpecPtr Spec;
+
     TMergeRequest()
     {
         Register("spec", Spec);
@@ -48,12 +65,11 @@ struct TMergeRequest
 typedef TIntrusivePtr<TMergeRequest> TMergeRequestPtr;
 
 class TMergeCommand
-    : public TCommandBase<TMapRequest>
+    : public TSchedulerCommandBase
+    , public TTypedCommandBase<TMergeRequest>
 {
 public:
-    TMergeCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
-    { }
+    explicit TMergeCommand(ICommandHost* commandHost);
 
 private:
     virtual void DoExecute(TMergeRequestPtr request);

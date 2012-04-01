@@ -24,11 +24,12 @@ struct TReadRequest
 typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
 
 class TReadCommand
-    : public TCommandBase<TReadRequest>
+    : public TTypedCommandBase<TReadRequest>
 {
 public:
-    TReadCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TReadCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -68,11 +69,12 @@ struct TWriteRequest
 typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
 
 class TWriteCommand
-    : public TCommandBase<TWriteRequest>
+    : public TTypedCommandBase<TWriteRequest>
 {
 public:
-    TWriteCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TWriteCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
