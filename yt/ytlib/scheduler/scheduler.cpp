@@ -10,6 +10,7 @@
 #include "fifo_strategy.h"
 #include "operation_controller.h"
 #include "map_controller.h"
+#include "merge_controller.h"
 #include "scheduler_proxy.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -731,6 +732,9 @@ private:
         switch (operation->GetType()) {
             case EOperationType::Map:
                 return CreateMapController(this, operation);
+                break;
+            case EOperationType::Merge:
+                return CreateMergeController(this, operation);
                 break;
             default:
                 YUNREACHABLE();

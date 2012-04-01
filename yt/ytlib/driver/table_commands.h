@@ -43,12 +43,15 @@ struct TWriteRequest
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;
     NYTree::INodePtr Value;
+    bool Sorted;
 
     TWriteRequest()
     {
         Register("path", Path);
         Register("value", Value)
             .Default();
+        Register("sorted", Sorted)
+            .Default(false);
     }
 
     virtual void DoValidate() const

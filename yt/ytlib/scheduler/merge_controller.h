@@ -8,25 +8,23 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMapOperationSpec
+struct TMergeOperationSpec
     : public TOperationSpecBase
 {
-    Stroka Mapper;
-    yvector<NYTree::TYPath> Files;
     yvector<NYTree::TYPath> In;
-    yvector<NYTree::TYPath> Out;
+    NYTree::TYPath Out;
+    bool Sorted;
 
-    TMapOperationSpec()
+    TMergeOperationSpec()
     {
-        Register("mapper", Mapper);
-        Register("files", Files)
-            .Default(yvector<NYTree::TYPath>());
         Register("in", In);
         Register("out", Out);
+        Register("sorted", Sorted)
+            .Default(false);
     }
 };
 
-IOperationControllerPtr CreateMapController(
+IOperationControllerPtr CreateMergeController(
     IOperationHost* host,
     TOperation* operation);
 

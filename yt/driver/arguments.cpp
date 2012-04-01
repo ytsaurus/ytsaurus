@@ -335,12 +335,12 @@ TMapArgs::TMapArgs()
     : InArg("", "in", "input tables", false, "ypath")
     , OutArg("", "out", "output tables", false, "ypath")
     , FilesArg("", "file", "additional files", false, "ypath")
-    , ShellCommandArg("", "command", "shell command", true, "", "path")
+    , MapperArg("", "command", "shell command", true, "", "path")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
     CmdLine.add(FilesArg);
-    CmdLine.add(ShellCommandArg);
+    CmdLine.add(MapperArg);
 }
 
 void TMapArgs::BuildCommand(IYsonConsumer* consumer)
@@ -348,10 +348,35 @@ void TMapArgs::BuildCommand(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("map")
         .Item("spec").BeginMap()
-            .Item("shell_command").Scalar(ShellCommandArg.getValue())
+            .Item("mapper").Scalar(MapperArg.getValue())
             .Item("in").List(InArg.getValue())
             .Item("out").List(OutArg.getValue())
             .Item("files").List(FilesArg.getValue())
+        .EndMap();
+
+    TTransactedArgs::BuildCommand(consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMergeArgs::TMergeArgs()
+    : InArg("", "in", "input tables", false, "ypath")
+    , OutArg("", "out", "output table", false, "ypath")
+    , SortedArg("s", "sorted", "produce sorted output (all input tables must be sorted)")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(SortedArg);
+}
+
+void TMergeArgs::BuildCommand(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("do").Scalar("merge")
+        .Item("spec").BeginMap()
+            .Item("in").List(InArg.getValue())
+            .Item("out").List(OutArg.getValue())
+            .Item("sorted").Scalar(SortedArg.getValue())
         .EndMap();
 
     TTransactedArgs::BuildCommand(consumer);

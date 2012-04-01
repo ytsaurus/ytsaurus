@@ -27,6 +27,20 @@ struct TSchedulerConfig
     }
 };
 
+struct TOperationSpecBase
+    : public TConfigurable
+{
+    TNullable<int> JobCount;
+
+    TOperationSpecBase()
+    {
+        SetKeepOptions(true);
+        // TODO(babenko): validate > 0
+        Register("job_count", JobCount)
+            .Default();
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

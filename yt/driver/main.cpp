@@ -170,6 +170,7 @@ public:
         RegisterParser("write", New<TWriteArgs>());
 
         RegisterParser("map", New<TMapArgs>());
+        RegisterParser("merge", New<TMergeArgs>());
     }
 
     int Main(int argc, const char* argv[])

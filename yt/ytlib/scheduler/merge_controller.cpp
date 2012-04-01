@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "map_controller.h"
+#include "merge_controller.h"
 #include "operation_controller.h"
 #include "operation_controller_detail.h"
 #include "operation.h"
@@ -51,14 +51,15 @@ static NProfiling::TProfiler Profiler("operations/map");
 
 ////////////////////////////////////////////////////////////////////
 
-class TMapController
+class TMergeController
     : public TOperationControllerBase
 {
 public:
-    TMapController(IOperationHost* host, TOperation* operation)
+    TMergeController(IOperationHost* host, TOperation* operation)
         : TOperationControllerBase(host, operation)
     { }
 
+    /*
     virtual void Initialize()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -250,7 +251,7 @@ public:
     }
 
 private:
-    typedef TMapController TThis;
+    typedef TMergeController TThis;
 
     TMapOperationSpecPtr Spec;
 
@@ -847,14 +848,15 @@ private:
 
         // No need to abort the others.
     }
-
+    */
 };
 
 IOperationControllerPtr CreateMapController(
     IOperationHost* host,
     TOperation* operation)
 {
-    return New<TMapController>(host, operation);
+    return NULL;
+    //return New<TMergeController>(host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

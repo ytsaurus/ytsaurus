@@ -278,7 +278,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 class TMapArgs
     : public TTransactedArgs
 {
@@ -289,7 +288,24 @@ private:
     TCLAP::MultiArg<Stroka> InArg;
     TCLAP::MultiArg<Stroka> OutArg;
     TCLAP::MultiArg<Stroka> FilesArg;
-    TCLAP::ValueArg<Stroka> ShellCommandArg;
+    TCLAP::ValueArg<Stroka> MapperArg;
+
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMergeArgs
+    : public TTransactedArgs
+{
+public:
+    TMergeArgs();
+
+private:
+    TCLAP::MultiArg<Stroka> InArg;
+    TUnlabeledStringArg OutArg;
+    TCLAP::SwitchArg SortedArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 

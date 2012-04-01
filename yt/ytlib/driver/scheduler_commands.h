@@ -36,6 +36,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMergeRequest
+    : public TTransactedRequest
+{
+    TMergeRequest()
+    {
+        Register("spec", Spec);
+    }
+};
+
+typedef TIntrusivePtr<TMergeRequest> TMergeRequestPtr;
+
+class TMergeCommand
+    : public TCommandBase<TMapRequest>
+{
+public:
+    TMergeCommand(ICommandHost* commandHost)
+        : TCommandBase(commandHost)
+    { }
+
+private:
+    virtual void DoExecute(TMergeRequestPtr request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
 
