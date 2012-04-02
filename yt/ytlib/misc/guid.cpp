@@ -198,9 +198,9 @@ TGuid::TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3)
 TGuid::TGuid(ui64 part0, ui64 part1)
 {
     Parts[0] = static_cast<ui32>(part0);
-    Parts[1] = static_cast<ui32>(part0 >> 4);
+    Parts[1] = static_cast<ui32>(part0 >> 32);
     Parts[2] = static_cast<ui32>(part1);
-    Parts[3] = static_cast<ui32>(part1 >> 4);
+    Parts[3] = static_cast<ui32>(part1 >> 32);
 }
 
 TGuid::TGuid(const TGUID& guid)
@@ -290,8 +290,8 @@ TGuid TGuid::FromProto(const NProto::TGuid &protoGuid)
 
 NProto::TGuid TGuid::ToProto() const
 {
-    ui64 first = (static_cast<ui64>(Parts[1]) << 4) + Parts[0];
-    ui64 second = (static_cast<ui64>(Parts[3]) << 4) + Parts[2];
+    ui64 first = (static_cast<ui64>(Parts[1]) << 32) + Parts[0];
+    ui64 second = (static_cast<ui64>(Parts[3]) << 32) + Parts[2];
     NProto::TGuid protoGuid;
     protoGuid.set_first(first);
     protoGuid.set_second(second);
