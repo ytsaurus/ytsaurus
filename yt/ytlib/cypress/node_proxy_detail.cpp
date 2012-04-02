@@ -313,8 +313,7 @@ void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
 
 void TMapNodeProxy::CreateRecursive(const TYPath& path, INode* value)
 {
-    auto factory = CreateFactory();
-    TMapNodeMixin::SetRecursive(~factory, path, value);
+    TMapNodeMixin::SetRecursive(path, value);
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -345,9 +344,8 @@ void TMapNodeProxy::SetNodeRecursive(
 {
     UNUSED(response);
 
-    auto factory = CreateFactory();
     auto value = reinterpret_cast<INode*>(request->value_ptr());
-    TMapNodeMixin::SetRecursive(~factory, path, value);
+    TMapNodeMixin::SetRecursive(path, value);
     context->Reply();
 }
 

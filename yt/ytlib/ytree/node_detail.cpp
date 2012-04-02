@@ -100,12 +100,23 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     TYPath suffixPath;
     auto token = ChopStringToken(path, &suffixPath);
 
+    if (token.empty()) {
+        ythrow yexception() << Sprintf("Child name cannot be empty");
+    }
+
     auto child = FindChild(token);
     if (child) {
         return IYPathService::TResolveResult::There(~child, suffixPath);
     }
 
     if (verb == "Set" || verb == "SetNode" || verb == "Create") {
+        auto nextToken = ChopToken(suffixPath);
+        if (!nextToken.IsEmpty()) {
+            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                ~nextToken.ToString().Quote(),
+                ~nextToken.GetType().ToString());
+        }
+
         return IYPathService::TResolveResult::Here("/" + path);
     }
 
@@ -118,53 +129,27 @@ void TMapNodeMixin::SetRecursive(
     NProto::TReqSet* request)
 {
     auto value = DeserializeFromYson(request->value(), factory);
-    TMapNodeMixin::SetRecursive(factory, path, ~value);
+    TMapNodeMixin::SetRecursive(path, ~value);
 }
 
 void TMapNodeMixin::SetRecursive(
-    INodeFactory* factory,
     const TYPath& path,
     INode* value)
 {
-    // Split path into tokens.
-    // Check that no attribute markers are present.
-    std::vector<Stroka> tokens;
-    TYPath currentPath = path;
+    TYPath suffixPath;
+    auto token = ChopToken(path, &suffixPath);
 
-    while (true) {
-        auto token = ChopStringToken(currentPath, &currentPath);
-        tokens.push_back(token);
-
-        auto separator = ChopToken(currentPath, &currentPath);
-        if (separator.IsEmpty()) {
-            break;
-        } else if (separator.GetType() != ETokenType::Slash) {
-            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                ~separator.ToString().Quote(),
-                ~separator.GetType().ToString());
-        }
+    if (token.GetType() != ETokenType::String) {
+        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
     }
 
-    // Check that the first token gives a unique key.
-    auto firstToken = tokens.front();
-    if (FindChild(firstToken)) {
-        ythrow yexception() << Sprintf("Key %s already exists", ~firstToken.Quote());
-    }
-
-    // Make the actual changes.
-    IMapNodePtr currentNode = this;
-    for (auto it = tokens.begin(); it != tokens.end(); ++it) {
-        auto token = *it;
-        if (it == tokens.end() - 1) {
-            // Final step: append the given value.
-            YVERIFY(currentNode->AddChild(value, token));
-        } else {
-            // Intermediate step: create and append a map.
-            auto intermediateNode = factory->CreateMap();
-            YVERIFY(currentNode->AddChild(~intermediateNode, token));
-            currentNode = intermediateNode;
-        }
-    }
+    YASSERT(IsEmpty(suffixPath));
+    const auto& childName = token.GetStringValue();
+    YASSERT(!childName.empty());
+    YASSERT(!FindChild(childName));
+    AddChild(value, childName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

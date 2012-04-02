@@ -60,9 +60,6 @@ public:
     void Check(const TYPath& path, TYson expected)
     {
         TYson output = Get(path);
-//        Cout << Endl;
-//        Cout << "output:   " << output << Endl;
-//        Cout << "expected: " << expected << Endl;
         EXPECT_EQ(expected, output);
     }
 

@@ -265,9 +265,8 @@ private:
     {
         UNUSED(response);
 
-        auto factory = CreateFactory();
         auto value = reinterpret_cast<INode*>(request->value_ptr());
-        TMapNodeMixin::SetRecursive(~factory, path, value);
+        TMapNodeMixin::SetRecursive(path, value);
         context->Reply();
     }
 };

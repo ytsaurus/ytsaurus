@@ -87,7 +87,6 @@ protected:
         const TYPath& path,
         NProto::TReqSet* request);
     void SetRecursive(
-        INodeFactory* factory,
         const TYPath& path,
         INode* value);
 
