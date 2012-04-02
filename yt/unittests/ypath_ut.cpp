@@ -204,17 +204,13 @@ TEST_F(TYPathTest, Attributes)
 
 TEST_F(TYPathTest, InvalidCases)
 {
-    // empty path
-    EXPECT_ANY_THROW(Set("/a", "{}"));
+    Set("/root", "{}");
 
-    // change the type of root
-    EXPECT_ANY_THROW(Set("", "[]"));
-
-    // remove the root
-    EXPECT_ANY_THROW(Remove(""));
-
-    // get non-existent path
-    EXPECT_ANY_THROW(Get("/b"));
+    EXPECT_ANY_THROW(Set("a", "{}")); // must start with '/'
+    EXPECT_ANY_THROW(Set("/root/", "{}")); // cannot end with '/'
+    EXPECT_ANY_THROW(Set("", "[]")); // change the type of root
+    EXPECT_ANY_THROW(Remove("")); // remove the root
+    EXPECT_ANY_THROW(Get("/b")); // get non-existent path
 
     // get non-existent attribute from non-existent node
     EXPECT_ANY_THROW(Get("/b@some"));
