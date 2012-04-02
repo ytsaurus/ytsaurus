@@ -197,6 +197,10 @@ private:
             	SetInProgressState(EInnerState::AfterPlus);
             	break;
 
+            case '^':
+                ProduceToken(ETokenType::Caret, Stroka(ch));
+                break;
+
             case '\x01':
                 SetInProgressState(EInnerState::InsideBinaryString);
                 YASSERT(Token.StringValue.empty());

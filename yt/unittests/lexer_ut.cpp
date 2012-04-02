@@ -207,6 +207,7 @@ TEST_F(TLexerTest, SpecialValues)
     TestSpecialValue("#", ETokenType::Hash);
     TestSpecialValue("!", ETokenType::Bang);
     TestSpecialValue("+", ETokenType::Plus);
+    TestSpecialValue("^", ETokenType::Caret);
 }
 
 TEST_F(TLexerTest, IncorrectChars)
