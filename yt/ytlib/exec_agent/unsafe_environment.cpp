@@ -5,6 +5,8 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <util/system/execpath.h>
+#include <util/folder/dirut.h>
+#include <fcntl.h>
 
 #ifndef _win_
 
@@ -140,12 +142,7 @@ public:
         }
     }
 
-    //void SubscribeExited(const TCallback<void(TError)>& callback) 
-    //{
-    //    OnExit->Subscribe(FromCallback(callback));
-    //}
-
-    void SubscribeExited(IParamAction<TError>::TPtr callback)
+    void SubscribeExited(const TCallback<void(TError)>& callback)
     {
         OnExit->Subscribe(callback);
     }

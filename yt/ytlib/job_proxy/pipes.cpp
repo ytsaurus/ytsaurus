@@ -5,6 +5,7 @@
 #include <ytlib/table_client/yson_row_consumer.h>
 
 #include <util/system/file.h>
+#include <errno.h>
 
 #ifdef _linux_
 

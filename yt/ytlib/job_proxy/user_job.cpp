@@ -5,7 +5,10 @@
 #include "user_job.h"
 #include "user_job_io.h"
 
+#include <util/folder/dirut.h>
+
 #include "pipes.h"
+#include <errno.h>
 
 #ifdef _linux_
 

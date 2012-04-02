@@ -95,7 +95,7 @@ public:
     NYTree::TYPathServiceProducer CreateOrchidProducer()
     {
         // TODO(babenko): virtualize
-        auto producer = BIND(&TImpl::BuildOrchidYson, this);
+        auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
         return BIND([=] () {
             return IYPathService::FromProducer(producer);
         });
@@ -164,12 +164,12 @@ private:
         // Create a node in Cypress that will represent the operation.
         LOG_INFO("Creating operation node %s", ~operationId.ToString());
         auto setReq = TYPathProxy::Set(GetOperationPath(operationId));
-        setReq->set_value(SerializeToYson(BIND(&TImpl::BuildOperationYson, this, operation)));
+        setReq->set_value(SerializeToYson(BIND(&TImpl::BuildOperationYson, MakeStrong(this), operation)));
 
         return CypressProxy.Execute(setReq)->Apply(
             BIND(
                 &TImpl::OnOperationNodeCreated,
-                this,
+                MakeStrong(this),
                 operation)
             .AsyncVia(GetControlInvoker()));
     }
@@ -216,7 +216,7 @@ private:
         // Run async preparation.
         LOG_INFO("Preparing operation %s", ~operation->GetOperationId().ToString());
         operation ->GetController()->Prepare()->Subscribe(
-            BIND(&TImpl::OnOperationPrepared, this, operation)
+            BIND(&TImpl::OnOperationPrepared, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
@@ -250,7 +250,7 @@ private:
         // Run async revival.
         LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
         operation ->GetController()->Revive()->Subscribe(
-            BIND(&TImpl::OnOperationRevived, this, operation)
+            BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
@@ -378,7 +378,7 @@ private:
         LOG_INFO("Removing operation node %s", ~id.ToString());
         auto req = TYPathProxy::Remove(GetOperationPath(id));
         CypressProxy.Execute(req)->Subscribe(
-            BIND(&TImpl::OnOperationNodeRemoved, this, operation)
+            BIND(&TImpl::OnOperationNodeRemoved, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
@@ -570,13 +570,13 @@ private:
     void StartRefresh()
     {
         TransactionRefreshInvoker = New<TPeriodicInvoker>(
-            BIND(&TImpl::RefreshTransactions, this)
+            BIND(&TImpl::RefreshTransactions, MakeWeak(this))
             .Via(GetControlInvoker()),
             Config->TransactionsRefreshPeriod);
         TransactionRefreshInvoker->Start();
 
         NodesRefreshInvoker = New<TPeriodicInvoker>(
-            BIND(&TImpl::RefreshExecNodes, this)
+            BIND(&TImpl::RefreshExecNodes, MakeWeak(this))
             .Via(GetControlInvoker()),
             Config->NodesRefreshPeriod);
         NodesRefreshInvoker->Start();
@@ -608,7 +608,7 @@ private:
 
         LOG_INFO("Refreshing %d transactions", batchReq->GetSize());
         batchReq->Invoke()->Subscribe(
-            BIND(&TImpl::OnTransactionsRefreshed, this, Passed(MoveRV(transactionIdsList)))
+            BIND(&TImpl::OnTransactionsRefreshed, MakeStrong(this), Passed(MoveRV(transactionIdsList)))
             .Via(GetControlInvoker()));
     }
 
@@ -678,7 +678,7 @@ private:
         LOG_INFO("Refreshing exec nodes");
         auto req = TYPathProxy::Get("/sys/holders@online");
         CypressProxy.Execute(req)->Subscribe(
-            BIND(&TImpl::OnExecNodesRefreshed, this)
+            BIND(&TImpl::OnExecNodesRefreshed, MakeStrong(this))
             .Via(GetControlInvoker()));
     }
 
@@ -793,7 +793,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
         GetControlInvoker()->Invoke(BIND(
             &TImpl::DoOperationCompleted,
-            this,
+            MakeStrong(this),
             operation));
     }
 
@@ -822,7 +822,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
         GetControlInvoker()->Invoke(BIND(
             &TImpl::DoOperationFailed,
-            this,
+            MakeStrong(this),
             operation,
             error));
     }
