@@ -173,12 +173,12 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
         }
         case ETokenType::Int64: {
     		auto index = token.GetInt64Value();
-    		auto count = GetChildCount();
+            auto count = GetChildCount();
     		if (index < 0) {
     			index += count;
     		}
     		if (index < 0 || index >= count) {
-				ythrow yexception() << Sprintf("Index out of range (Index: %" PRId64 ", ChildCount: %" PRId64 ")",
+                ythrow yexception() << Sprintf("Index out of range (Index: %" PRId64 ", ChildCount: %" PRId32 ")",
 					token.GetInt64Value(),
 					count);
     		}
