@@ -49,6 +49,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(ETokenType, Type);
 
+    bool IsEmpty() const;
     const Stroka& GetStringValue() const;
     i64 GetInt64Value() const;
     double GetDoubleValue() const;

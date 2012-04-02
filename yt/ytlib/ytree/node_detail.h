@@ -71,6 +71,8 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(roizner): Add TSupports Get,GetNode,Set,SetNode,Remove,Create
+
 class TMapNodeMixin
     : public virtual IMapNode
     , public virtual TSupportsList
@@ -103,6 +105,15 @@ protected:
     IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
         const Stroka& verb);
+
+    void SetRecursive(
+        INodeFactory* factory,
+        const TYPath& path,
+        NProto::TReqSet* request);
+    void SetRecursive(
+        const TYPath& path,
+        INode* value);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

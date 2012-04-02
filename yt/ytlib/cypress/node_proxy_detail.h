@@ -564,7 +564,7 @@ protected:
 
         NYTree::TYPath suffixPath;
         auto token = NYTree::ChopToken(context->GetPath(), &suffixPath);
-        if (token.GetType() == NYTree::ETokenType::None) {
+        if (token.IsEmpty()) {
             ythrow yexception() << "Node already exists";
         }
 
@@ -673,8 +673,19 @@ public:
 protected:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
 
-    virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
-
+    virtual void CreateRecursive(
+        const NYTree::TYPath& path,
+        INode* value);
+    virtual void SetRecursive(
+        const NYTree::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        TCtxSet* context);
+    virtual void SetNodeRecursive(
+        const NYTree::TYPath& path,
+        TReqSetNode* request,
+        TRspSetNode* response,
+        TCtxSetNode* context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

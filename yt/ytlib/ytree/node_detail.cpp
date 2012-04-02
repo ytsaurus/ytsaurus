@@ -136,7 +136,7 @@ void TMapNodeMixin::SetRecursive(
         tokens.push_back(token);
 
         auto separator = ChopToken(currentPath, &currentPath);
-        if (separator.GetType() == ETokenType::None) {
+        if (separator.IsEmpty()) {
             break;
         } else if (separator.GetType() != ETokenType::Slash) {
             ythrow yexception() << Sprintf("Unexpected token %s of type %s",
@@ -174,18 +174,65 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const Stroka& verb)
 {
     TYPath suffixPath;
-    auto index = ChopInt64Token(path, &suffixPath);
-    auto count = GetChildCount();
 
-    if (index < 0 || index >= count) {
-        ythrow yexception() << Sprintf("Index out of range (Index: %" PRId64 ", ChildCount: %" PRId64 ")",
-            index,
-            count);
+    auto token = ChopToken(path, &suffixPath);
+    switch (token.GetType()) {
+        case ETokenType::Plus: {
+    		auto nextToken = ChopToken(suffixPath);
+    		if (!nextToken.IsEmpty()) {
+    			ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+    				~nextToken.ToString().Quote(),
+    				~nextToken.GetType().ToString());
+    		}
+    		return IYPathService::TResolveResult::Here("/" + path);
+        }
+        case ETokenType::Int64: {
+    		auto index = token.GetInt64Value();
+    		auto count = GetChildCount();
+    		if (index < 0) {
+    			index += count;
+    		}
+    		if (index < 0 || index >= count) {
+				ythrow yexception() << Sprintf("Index out of range (Index: %" PRId64 ", ChildCount: %" PRId64 ")",
+					token.GetInt64Value(),
+					count);
+    		}
+    		auto child = FindChild(index);
+			YASSERT(child);
+			return IYPathService::TResolveResult::There(~child, suffixPath);
+        }
+    	default:
+            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                ~token.ToString().Quote(),
+                ~token.GetType().ToString());
     }
+}
 
-    auto child = FindChild(index);
-    YASSERT(child);
-    return IYPathService::TResolveResult::There(~child, suffixPath);
+void TListNodeMixin::SetRecursive(
+    INodeFactory* factory,
+    const TYPath& path,
+    NProto::TReqSet* request)
+{
+    auto value = DeserializeFromYson(request->value(), factory);
+    TListNodeMixin::SetRecursive(path, ~value);
+}
+
+void TListNodeMixin::SetRecursive(
+    const TYPath& path,
+    INode* value)
+{
+    TYPath suffixPath;
+    auto token = ChopToken(path, &suffixPath);
+
+    if (token.GetType() == ETokenType::Plus) {
+        YASSERT(IsEmpty(suffixPath));
+        AddChild(value);
+    } else {
+        // TODO(roizner): support syntaxis "list/^n" and "list/n^"
+        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

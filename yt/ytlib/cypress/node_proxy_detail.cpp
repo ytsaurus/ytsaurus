@@ -493,9 +493,35 @@ int TListNodeProxy::GetChildIndex(const INode* child)
     return it->second;
 }
 
-void TListNodeProxy::CreateRecursive(const NYTree::TYPath& path, INode* value)
+void TListNodeProxy::CreateRecursive(const TYPath& path, INode* value)
 {
-    YUNIMPLEMENTED();
+    TListNodeMixin::SetRecursive(path, value);
+}
+
+void TListNodeProxy::SetRecursive(
+    const TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    TCtxSet* context)
+{
+    UNUSED(response);
+
+    auto factory = CreateFactory();
+    TListNodeMixin::SetRecursive(~factory, path, request);
+    context->Reply();
+}
+
+void TListNodeProxy::SetNodeRecursive(
+    const TYPath& path,
+    TReqSetNode* request,
+    TRspSetNode* response,
+    TCtxSetNode* context)
+{
+    UNUSED(response);
+
+    auto value = reinterpret_cast<INode*>(request->value_ptr());
+    TListNodeMixin::SetRecursive(path, value);
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
