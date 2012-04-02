@@ -57,7 +57,7 @@ void TChunkFileReader::Open()
             ~FileName); 
     }
 
-    ChunkInfo.set_id(chunkMeta.id());
+    *ChunkInfo.mutable_id() = chunkMeta.id();
     ChunkInfo.set_meta_checksum(checksum);
     ChunkInfo.mutable_blocks()->MergeFrom(chunkMeta.blocks());
     ChunkInfo.mutable_attributes()->CopyFrom(chunkMeta.attributes());

@@ -1,5 +1,7 @@
 package NYT.NFileServer.NProto;
 
+import "yt/ytlib/misc/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqFetch
@@ -7,7 +9,7 @@ message TReqFetch
 
 message TRspFetch
 {
-    required bytes chunk_id = 1;
+    required NYT.NProto.TGuid chunk_id = 1;
     repeated bytes holder_addresses = 2;
     required string file_name = 3;
     required bool executable = 4;

@@ -1,5 +1,7 @@
 package NYT.NMetaState.NProto;
 
+import "yt/ytlib/misc/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TMsgChangeHeader
@@ -68,7 +70,7 @@ message TReqPingFollower
 {
     required int32 segment_id = 1;
     required int32 record_count = 2;
-    required bytes epoch = 3;
+    required NYT.NProto.TGuid epoch = 3;
 }
 
 message TRspPingFollower
@@ -82,7 +84,7 @@ message TReqApplyChanges
 {
     required int32 segment_id = 1;
     required int32 record_count = 2;
-    required bytes epoch = 3;
+    required NYT.NProto.TGuid epoch = 3;
     // Data of changes are passed via attachment.
 }
 
@@ -97,7 +99,7 @@ message TReqAdvanceSegment
 {
     required int32 segment_id = 1;
     required int32 record_count = 2;
-    required bytes epoch = 3;
+    required NYT.NProto.TGuid epoch = 3;
     required bool create_snapshot = 4;
 }
 

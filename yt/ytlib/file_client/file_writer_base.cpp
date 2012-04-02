@@ -49,7 +49,7 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         Config->TotalReplicaCount);
 
     auto createChunksReq = ChunkProxy.CreateChunks();
-    createChunksReq->set_transaction_id(uploadTransactionId.ToProto());
+    *createChunksReq->mutable_transaction_id() = uploadTransactionId.ToProto();
     createChunksReq->set_chunk_count(1);
     createChunksReq->set_upload_replica_count(Config->UploadReplicaCount);
     auto createChunksRsp = createChunksReq->Invoke()->Get();

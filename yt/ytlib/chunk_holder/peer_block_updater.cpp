@@ -68,7 +68,7 @@ void TPeerBlockUpdater::Update()
             }
             auto* block_id = request->add_block_ids();
             const auto& blockId = block->GetKey();
-            block_id->set_chunk_id(blockId.ChunkId.ToProto());
+            *block_id->mutable_chunk_id() = blockId.ChunkId.ToProto();
             block_id->set_block_index(blockId.BlockIndex);
         }
     }

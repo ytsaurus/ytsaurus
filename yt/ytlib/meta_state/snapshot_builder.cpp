@@ -101,7 +101,7 @@ private:
                 ->SetTimeout(Owner->Config->RemoteTimeout);
             request->set_segment_id(Version.SegmentId);
             request->set_record_count(Version.RecordCount);
-            request->set_epoch(Owner->Epoch.ToProto());
+            *request->mutable_epoch() = Owner->Epoch.ToProto();
             request->set_create_snapshot(CreateSnapshot);
 
             auto responseHandler =

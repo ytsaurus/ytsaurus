@@ -23,7 +23,7 @@ TChunkFileWriter::TChunkFileWriter(const TChunkId& id, const Stroka& fileName)
     , IsClosed(false)
     , DataSize(0)
 {
-    ChunkMeta.set_id(id.ToProto());
+    *ChunkMeta.mutable_id() = id.ToProto();
 }
 
 void TChunkFileWriter::Open()
@@ -128,7 +128,7 @@ TAsyncError::TPtr TChunkFileWriter::AsyncClose(
             ~FileName.Quote())));
     }
 
-    ChunkInfo.set_id(Id.ToProto());
+    *ChunkInfo.mutable_id() = Id.ToProto();
     ChunkInfo.set_meta_checksum(header.Checksum);
     ChunkInfo.set_size(DataSize + metaBlob.size() + sizeof (TChunkMetaHeader));
     ChunkInfo.mutable_blocks()->MergeFrom(ChunkMeta.blocks());

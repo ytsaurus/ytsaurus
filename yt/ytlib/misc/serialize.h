@@ -201,12 +201,12 @@ struct TProtoTraits
 template <>
 struct TProtoTraits<TGuid>
 {
-    static Stroka ToProto(const TGuid& value)
+    static NProto::TGuid ToProto(const TGuid& value)
     {
         return value.ToProto();
     }
 
-    static TGuid FromProto(const Stroka& value)
+    static TGuid FromProto(const NProto::TGuid& value)
     {
         return TGuid::FromProto(value);
     }

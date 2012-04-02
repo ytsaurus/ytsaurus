@@ -76,7 +76,7 @@ void TFollowerPinger::SendPing(TPeerId followerId)
         ->SetTimeout(Config->RpcTimeout);
     request->set_segment_id(version.SegmentId);
     request->set_record_count(version.RecordCount);
-    request->set_epoch(Epoch.ToProto());
+    *request->mutable_epoch() = Epoch.ToProto();
     request->Invoke()->Subscribe(
         BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
         .Via(EpochControlInvoker));       

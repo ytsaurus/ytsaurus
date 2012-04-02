@@ -5,6 +5,8 @@
 #include <util/generic/typetraits.h>
 #include <quality/Misc/Guid.h>
 
+#include <ytlib/misc/guid.pb.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +20,9 @@ struct TGuid
 
     //! Constructor from parts.
     TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3);
+
+    //! Constructor from parts.
+    TGuid(ui64 part0, ui64 part1);
 
     //! Copy constructor.
     TGuid(const TGuid& guid); // copy ctor
@@ -44,10 +49,10 @@ struct TGuid
     static bool FromString(const Stroka &str, TGuid* guid);
 
     //! Conversion to protobuf type, which we mapped to Stroka
-    Stroka ToProto() const;
+    NProto::TGuid ToProto() const;
 
     //! Conversion from protobuf type.
-    static TGuid FromProto(const Stroka& protoGuid);
+    static TGuid FromProto(const NProto::TGuid& protoGuid);
 };
 
 bool operator == (const TGuid &a, const TGuid &b);

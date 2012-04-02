@@ -1,15 +1,11 @@
-package NYT.NObjectServer.NProto;
-
-import "yt/ytlib/misc/guid.proto";
+package NYT.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetId
-{ }
-
-message TRspGetId
+message TGuid
 {
-    required NYT.NProto.TGuid object_id = 1;
+    required uint64 first = 1;
+    required uint64 second = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

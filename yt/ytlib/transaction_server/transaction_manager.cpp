@@ -175,7 +175,7 @@ private:
             objectManager->RefObject(objectId);
         }
 
-        response->set_object_id(objectId.ToProto());
+        *response->mutable_object_id() = objectId.ToProto();
 
         context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
 

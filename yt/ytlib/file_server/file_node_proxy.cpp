@@ -136,7 +136,7 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
     auto chunkId = chunkRef.GetId();
     const auto& chunk = *chunkRef.AsChunk();
 
-    response->set_chunk_id(chunkId.ToProto());
+    *response->mutable_chunk_id() = chunkId.ToProto();
     chunkManager->FillHolderAddresses(response->mutable_holder_addresses(), chunk);
 
     response->set_executable(IsExecutable());

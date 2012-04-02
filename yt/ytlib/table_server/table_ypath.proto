@@ -2,6 +2,7 @@ package NYT.NTableServer.NProto;
 
 import "yt/ytlib/table_client/schema.proto";
 import "yt/ytlib/table_client/table_reader.proto";
+import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,7 +11,7 @@ message TReqGetChunkListForUpdate
 
 message TRspGetChunkListForUpdate
 {
-    required bytes chunk_list_id = 1;
+    required NYT.NProto.TGuid chunk_list_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

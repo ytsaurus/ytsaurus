@@ -93,7 +93,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
     UNUSED(request);
 
-    response->set_object_id(Id.ToProto());
+    *response->mutable_object_id() = Id.ToProto();
     context->Reply();
 }
 

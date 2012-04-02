@@ -227,7 +227,7 @@ TRemoteWriter::TGroup::PutBlocks(THolderPtr holder)
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     auto req = holder->Proxy.PutBlocks();
-    req->set_chunk_id(writer->ChunkId.ToProto());
+    *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
 
@@ -298,7 +298,7 @@ TRemoteWriter::TGroup::SendBlocks(
         ~dstHolder->Address);
 
     auto req = srcHolder->Proxy.SendBlocks();
-    req->set_chunk_id(writer->ChunkId.ToProto());
+    *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->set_block_count(Blocks.ysize());
     req->set_address(dstHolder->Address);
@@ -547,7 +547,7 @@ TRemoteWriter::FlushBlock(THolderPtr holder, int blockIndex)
         ~holder->Address);
 
     auto req = holder->Proxy.FlushBlock();
-    req->set_chunk_id(ChunkId.ToProto());
+    *req->mutable_chunk_id() = ChunkId.ToProto();
     req->set_block_index(blockIndex);
     return req->Invoke();
 }
@@ -661,7 +661,7 @@ TRemoteWriter::TProxy::TInvStartChunk::TPtr TRemoteWriter::StartChunk(THolderPtr
     LOG_DEBUG("Starting chunk at %s", ~holder->Address);
 
     auto req = holder->Proxy.StartChunk();
-    req->set_chunk_id(ChunkId.ToProto());
+    *req->mutable_chunk_id() = ChunkId.ToProto();
     return req->Invoke();
 }
 
@@ -750,7 +750,7 @@ TRemoteWriter::FinishChunk(THolderPtr holder)
     LOG_DEBUG("Finishing chunk at %s", ~holder->Address);
 
     auto req = holder->Proxy.FinishChunk();
-    req->set_chunk_id(ChunkId.ToProto());
+    *req->mutable_chunk_id() = ChunkId.ToProto();
     req->mutable_attributes()->CopyFrom(Attributes);
     return req->Invoke();
 }
@@ -779,7 +779,7 @@ void TRemoteWriter::PingSession(THolderPtr holder)
     LOG_DEBUG("Sending ping to %s", ~holder->Address);
 
     auto req = holder->Proxy.PingSession();
-    req->set_chunk_id(ChunkId.ToProto());
+    *req->mutable_chunk_id() = ChunkId.ToProto();
     req->Invoke();
 
     SchedulePing(holder);

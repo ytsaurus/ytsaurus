@@ -189,7 +189,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
 
     TProxy proxy(~ChannelCache.GetChannel(address));
     auto putRequest = proxy.PutBlocks();
-    putRequest->set_chunk_id(chunkId.ToProto());
+    *putRequest->mutable_chunk_id() = chunkId.ToProto();
     putRequest->set_start_block_index(startBlockIndex);
     
     for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {

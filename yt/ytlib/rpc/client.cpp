@@ -43,7 +43,7 @@ TClientRequest::TClientRequest(
 IMessage::TPtr TClientRequest::Serialize() const
 {
     TRequestHeader header;
-    header.set_request_id(RequestId.ToProto());
+    *header.mutable_request_id() = RequestId.ToProto();
     header.set_path(Path);
     header.set_verb(Verb);
     header.set_one_way(OneWay_);

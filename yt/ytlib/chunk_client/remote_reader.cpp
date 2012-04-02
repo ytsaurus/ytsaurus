@@ -459,7 +459,7 @@ private:
                 proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
 
                 auto request = proxy.GetBlocks();
-                request->set_chunk_id(reader->ChunkId.ToProto());
+                *request->mutable_chunk_id() = reader->ChunkId.ToProto();
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
                 if (reader->Config->PublishPeer) {
                     request->set_peer_address(reader->Config->PeerAddress);
@@ -624,7 +624,7 @@ private:
         proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
 
         auto request = proxy.GetChunkInfo();
-        request->set_chunk_id(reader->ChunkId.ToProto());
+        *request->mutable_chunk_id() = reader->ChunkId.ToProto();
         request->Invoke()->Subscribe(BIND(&TGetInfoSession::OnGotChunkInfo, MakeStrong(this)));
     }
 

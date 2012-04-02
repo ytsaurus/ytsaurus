@@ -72,7 +72,7 @@ private:
             ->PingFollower()
             ->SetTimeout(ElectionManager->Config->RpcTimeout);
         request->set_leader_id(ElectionManager->CellManager->SelfId());
-        request->set_epoch(ElectionManager->Epoch.ToProto());
+        *request->mutable_epoch() = ElectionManager->Epoch.ToProto();
         Awaiter->Await(
             request->Invoke(),
             BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), id)
@@ -767,7 +767,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetStatus)
     response->set_state(State);
     response->set_vote_id(VoteId);
     response->set_priority(priority);
-    response->set_vote_epoch(VoteEpoch.ToProto());
+    *response->mutable_vote_epoch() = VoteEpoch.ToProto();
     response->set_self_id(CellManager->SelfId());
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         response->add_peer_addresses(CellManager->GetPeerAddress(id));

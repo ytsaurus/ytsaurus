@@ -98,7 +98,7 @@ void TMasterConnector::SendRegister()
     auto request = Proxy->RegisterHolder();
     *request->mutable_statistics() = ComputeStatistics();
     request->set_address(Bootstrap->GetPeerAddress());
-    request->set_incarnation_id(Bootstrap->GetIncarnationId().ToProto());
+    *request->mutable_incarnation_id() = Bootstrap->GetIncarnationId().ToProto();
     request->Invoke()->Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()));
@@ -196,7 +196,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
 
     FOREACH (const auto& job, Bootstrap->GetJobExecutor()->GetAllJobs()) {
         auto* info = request->add_jobs();
-        info->set_job_id(job->GetJobId().ToProto());
+        *info->mutable_job_id() = job->GetJobId().ToProto();
         info->set_state(job->GetState());
     }
 
@@ -214,7 +214,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
 TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
 {
     TChunkAddInfo info;
-    info.set_chunk_id(chunk->GetId().ToProto());
+    *info.mutable_chunk_id() = chunk->GetId().ToProto();
     info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     info.set_size(chunk->GetSize());
     return info;
@@ -223,7 +223,7 @@ TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
 TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TChunkPtr chunk)
 {
     TChunkRemoveInfo info;
-    info.set_chunk_id(chunk->GetId().ToProto());
+    *info.mutable_chunk_id() = chunk->GetId().ToProto();
     info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     return info;
 }

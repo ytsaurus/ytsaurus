@@ -130,7 +130,7 @@ private:
                     ->SetTimeout(Committer->Config->RpcTimeout);
                 request->set_segment_id(StartVersion.SegmentId);
                 request->set_record_count(StartVersion.RecordCount);
-                request->set_epoch(Committer->Epoch.ToProto());
+                *request->mutable_epoch() = Committer->Epoch.ToProto();
                 FOREACH (const auto& change, BatchedChanges) {
                     request->Attachments().push_back(change);
                 }

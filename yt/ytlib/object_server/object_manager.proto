@@ -1,11 +1,13 @@
 package NYT.NObjectServer.NProto;
 
+import "yt/ytlib/misc/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TMsgExecuteVerb
 {
-    required bytes object_id = 1;
-    required bytes transaction_id = 2;
+    required NYT.NProto.TGuid object_id = 1;
+    required NYT.NProto.TGuid transaction_id = 2;
     repeated bytes request_parts = 3;
 }
 

@@ -174,7 +174,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
     auto& impl = GetTypedImplForUpdate(ELockMode::Shared);
 
     const auto& chunkListId = impl.GetChunkList()->GetId();
-    response->set_chunk_list_id(chunkListId.ToProto());
+    *response->mutable_chunk_list_id() = chunkListId.ToProto();
 
     context->SetResponseInfo("ChunkListId: %s", ~chunkListId.ToString());
 
@@ -193,7 +193,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         auto* chunkInfo = response->add_chunks();
         auto* slice = chunkInfo->mutable_slice();
 
-        slice->set_chunk_id(chunkId.ToProto());
+        *slice->mutable_chunk_id() = chunkId.ToProto();
         slice->mutable_start_limit();
         slice->mutable_end_limit();
 

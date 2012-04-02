@@ -543,8 +543,8 @@ void TObjectManager::ExecuteVerb(
     }
 
     TMsgExecuteVerb message;
-    message.set_object_id(id.ObjectId.ToProto());
-    message.set_transaction_id(id.TransactionId.ToProto());
+    *message.mutable_object_id() = id.ObjectId.ToProto();
+    *message.mutable_transaction_id() = id.TransactionId.ToProto();
 
     auto requestMessage = context->GetRequestMessage();
     FOREACH (const auto& part, requestMessage->GetParts()) {

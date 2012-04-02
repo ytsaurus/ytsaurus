@@ -63,7 +63,7 @@ void TChunkSequenceWriter::CreateNextChunk()
     auto req = ChunkProxy.CreateChunks();
     req->set_chunk_count(1);
     req->set_upload_replica_count(Config->UploadReplicaCount);
-    req->set_transaction_id(TransactionId.ToProto());
+    *req->mutable_transaction_id() = TransactionId.ToProto();
 
     req->Invoke()->Subscribe(
         BIND(
@@ -235,13 +235,13 @@ void TChunkSequenceWriter::OnChunkClosed(
     batchReq->AddRequest(~currentChunk->GetConfirmRequest());
     {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkList));
-        req->add_children_ids(currentChunk->GetChunkId().ToProto());
+        *req->add_children_ids() = currentChunk->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }
     {
         auto req = TTransactionYPathProxy::ReleaseObject(FromObjectId(TransactionId));
-        req->set_object_id(currentChunk->GetChunkId().ToProto());
+        *req->mutable_object_id() = currentChunk->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }

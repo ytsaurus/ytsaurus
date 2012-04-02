@@ -87,6 +87,8 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
+protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
+
 add_custom_command(
     OUTPUT  ${BASE}/preprocessor-gen.h
     COMMAND ${PYTHON_EXECUTABLE} ${BASE}/preprocessor-gen.py > ${BASE}/preprocessor-gen.h

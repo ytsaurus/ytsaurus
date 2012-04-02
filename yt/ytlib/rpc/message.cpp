@@ -76,7 +76,7 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     const TError& error)
 {
     TResponseHeader header;
-    header.set_request_id(requestId.ToProto());
+    *header.mutable_request_id() = requestId.ToProto();
     header.set_error_code(error.GetCode());
     if (error.GetCode() != TError::OK) {
         header.set_error_message(error.GetMessage());
