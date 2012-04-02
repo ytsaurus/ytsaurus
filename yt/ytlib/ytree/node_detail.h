@@ -113,6 +113,7 @@ protected:
         const TYPath& path,
         INode* value);
 
+    i64 NormalizeAndCheckIndex(i64 index) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

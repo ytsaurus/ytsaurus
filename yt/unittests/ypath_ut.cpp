@@ -132,18 +132,17 @@ TEST_F(TYPathTest, ListModification)
     Remove("/list/-1");
     Check("/list", "[1;2]");
 
-    // TODO: Enable when ^n and n^ syntax is supported
-//    Set("/list/^0", "0");
-//    Check("/list", "[0;1;2]");
+    Set("/list/^0", "0");
+    Check("/list", "[0;1;2]");
 
-//    Set("/list/1^", "3");
-//    Check("/list", "[0;1;3;2]");
+    Set("/list/1^", "3");
+    Check("/list", "[0;1;3;2]");
 
-//    Set("/list/-1^", "4");
-//    Check("/list", "[0;1;3;2;4]");
+    Set("/list/-1^", "4");
+    Check("/list", "[0;1;3;2;4]");
 
-//    Set("/list/^-1", "5");
-//    Check("/list", "[0;1;3;2;5;4]");
+    Set("/list/^-1", "5");
+    Check("/list", "[0;1;3;2;5;4]");
 }
 
 TEST_F(TYPathTest, ListReassignment)

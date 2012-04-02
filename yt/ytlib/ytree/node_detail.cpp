@@ -160,36 +160,43 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 {
     TYPath suffixPath;
 
-    auto token = ChopToken(path, &suffixPath);
-    switch (token.GetType()) {
-        case ETokenType::Plus: {
-    		auto nextToken = ChopToken(suffixPath);
-    		if (!nextToken.IsEmpty()) {
+    auto token1 = ChopToken(path, &suffixPath);
+    auto token2 = ChopToken(suffixPath, &suffixPath);
+    if (token1.GetType() == ETokenType::Int64 && token2.GetType() == ETokenType::Caret) {
+        std::swap(token1, token2);
+    }
+
+    switch (token1.GetType()) {
+        case ETokenType::Plus:
+            if (!token2.IsEmpty()) {
     			ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-    				~nextToken.ToString().Quote(),
-    				~nextToken.GetType().ToString());
+                    ~token2.ToString().Quote(),
+                    ~token2.GetType().ToString());
     		}
     		return IYPathService::TResolveResult::Here("/" + path);
-        }
+
         case ETokenType::Int64: {
-    		auto index = token.GetInt64Value();
-            auto count = GetChildCount();
-    		if (index < 0) {
-    			index += count;
-    		}
-    		if (index < 0 || index >= count) {
-                ythrow yexception() << Sprintf("Index out of range (Index: %" PRId64 ", ChildCount: %" PRId32 ")",
-					token.GetInt64Value(),
-					count);
-    		}
-    		auto child = FindChild(index);
-			YASSERT(child);
-			return IYPathService::TResolveResult::There(~child, suffixPath);
+            YASSERT(token2.GetType() != ETokenType::Caret);
+
+            auto index = NormalizeAndCheckIndex(token1.GetInt64Value());
+            auto child = FindChild(index);
+            YASSERT(child);
+            return IYPathService::TResolveResult::There(~child, suffixPath);
+        }
+        case ETokenType::Caret: {
+            NormalizeAndCheckIndex(token2.GetInt64Value());
+            auto token3 = ChopToken(suffixPath);
+            if (!token3.IsEmpty()) {
+                ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                    ~token3.ToString().Quote(),
+                    ~token3.GetType().ToString());
+            }
+            return IYPathService::TResolveResult::Here("/" + path);
         }
     	default:
             ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                ~token.ToString().Quote(),
-                ~token.GetType().ToString());
+                ~token1.ToString().Quote(),
+                ~token1.GetType().ToString());
     }
 }
 
@@ -207,17 +214,51 @@ void TListNodeMixin::SetRecursive(
     INode* value)
 {
     TYPath suffixPath;
-    auto token = ChopToken(path, &suffixPath);
+    auto token1 = ChopToken(path, &suffixPath);
+    auto token2 = ChopToken(suffixPath, &suffixPath);
 
-    if (token.GetType() == ETokenType::Plus) {
-        YASSERT(IsEmpty(suffixPath));
-        AddChild(value);
-    } else {
-        // TODO(roizner): support syntaxis "list/^n" and "list/n^"
-        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-            ~token.ToString().Quote(),
-            ~token.GetType().ToString());
+    int beforeIndex = -1;
+
+    switch (token1.GetType()) {
+        case ETokenType::Plus:
+            YASSERT(token2.IsEmpty());
+            break;
+
+        case ETokenType::Caret:
+            YASSERT(token2.GetType() == ETokenType::Int64);
+            YASSERT(IsEmpty(suffixPath));
+            beforeIndex = NormalizeAndCheckIndex(token2.GetInt64Value());
+            break;
+
+        case ETokenType::Int64:
+            YASSERT(token2.GetType() == ETokenType::Caret);
+            YASSERT(IsEmpty(suffixPath));
+            beforeIndex = NormalizeAndCheckIndex(token2.GetInt64Value()) + 1;
+            if (beforeIndex == GetChildCount()) {
+                beforeIndex = -1;
+            }
+            break;
+
+        default:
+            YUNREACHABLE();
     }
+
+    AddChild(value, beforeIndex);
+}
+
+i64 TListNodeMixin::NormalizeAndCheckIndex(i64 index) const
+{
+    auto result = index;
+    auto count = GetChildCount();
+    if (result < 0) {
+        result += count;
+    }
+    if (result < 0 || result >= count) {
+        ythrow yexception() << Sprintf("Index out of range (Index: %" PRId64 ", ChildCount: %" PRId32 ")",
+            index,
+            count);
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
