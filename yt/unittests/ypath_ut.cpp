@@ -92,58 +92,58 @@ TEST_F(TYPathTest, MapModification)
     Set("/map/list", "[]");
     Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[]}}");
 
-//    Set("/map/list/+/a", "1");
-//    Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[{\"a\"=1}]}}");
-
-//    Set("/map/list/-/b", "2");
-//    Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[{\"b\"=2};{\"a\"=1}]}}");
-
     Remove("/map/hello");
-    Check("", "{\"map\"={\"list\"=[{\"b\"=2};{\"a\"=1}]}}");
+    Check("", "{\"map\"={\"list\"=[]}}");
 
     Remove("/map");
     Check("", "{}");
 }
 
-TEST_F(TYPathTest, DISABLED_ListModification)
+TEST_F(TYPathTest, ListModification)
 {
     Set("/list", "[1;2;3]");
+    Check("", "{\"list\"=[1;2;3]}");
+    Check("/list", "[1;2;3]");
+    Check("/list/0", "1");
+    Check("/list/1", "2");
+    Check("/list/2", "3");
+    Check("/list/-1", "3");
+    Check("/list/-2", "2");
+    Check("/list/-3", "1");
 
-    Set("/list/+", "100");
-    Check("", "{\"list\"=[1;2;3;100]}");
+    Set("/list/+", "4");
+    Check("/list", "[1;2;3;4]");
 
-    Set("/list/-", "200");
-    Check("", "{\"list\"=[200;1;2;3;100]}");
+    Set("/list/+", "5");
+    Check("/list", "[1;2;3;4;5]");
 
-    Set("/list/-", "500");
-    Check("", "{\"list\"=[500;200;1;2;3;100]}");
+    Set("/list/2", "100");
+    Check("/list", "[1;2;100;4;5]");
 
-    Set("/list/2+", "1000");
-    Check("", "{\"list\"=[500;200;1;1000;2;3;100]}");
-
-    Set("/list/3", "220");
-    Check("", "{\"list\"=[500;200;1;220;2;3;100]}");
-    Check("/list/3", "220");
+    Set("/list/-2", "3");
+    Check("/list", "[1;2;100;3;5]");
 
     Remove("/list/4");
-    Check("", "{\"list\"=[500;200;1;220;3;100]}");
-    CheckList("list", "500;200;1;220;3;100");
+    Check("/list", "[1;2;100;3]");
 
-    Remove("/list/4");
-    Check("", "{\"list\"=[500;200;1;220;100]}");
-    CheckList("/list", "500;200;1;220;100");
+    Remove("/list/2");
+    Check("/list", "[1;2;3]");
 
-    Remove("/list/0");
-    Check("", "{\"list\"=[200;1;220;100]}");
-    CheckList("/list", "200;1;220;100");
+    Remove("/list/-1");
+    Check("/list", "[1;2]");
 
-    Set("/list/+", "666");
-    Check("", "{\"list\"=[200;1;220;100;666]}");
-    CheckList("/list", "200;1;220;100;666");
+    // TODO: Enable when ^n and n^ syntax is supported
+//    Set("/list/^0", "0");
+//    Check("/list", "[0;1;2]");
 
-    Set("/list/-", "777");
-    Check("", "{\"list\"=[777;200;1;220;100;666]}");
-    CheckList("/list", "777;200;1;220;100;666");
+//    Set("/list/1^", "3");
+//    Check("/list", "[0;1;3;2]");
+
+//    Set("/list/-1^", "4");
+//    Check("/list", "[0;1;3;2;4]");
+
+//    Set("/list/^-1", "5");
+//    Check("/list", "[0;1;3;2;5;4]");
 }
 
 TEST_F(TYPathTest, ListReassignment)
@@ -156,10 +156,7 @@ TEST_F(TYPathTest, ListReassignment)
 
 TEST_F(TYPathTest, Ls)
 {
-    Set("/d/x4/y4", "4");
-    Set("/c/x3/y3", "3");
-    Set("/b/x2/y2", "2");
-    Set("/a/x1/y1", "1");
+    Set("", "{a={x1={y1=1}};b={x2={y2=2}};c={x3={y3=3}};d={x4={y4=4}}}");
 
     Remove("/b");
     Set("/e", "5");

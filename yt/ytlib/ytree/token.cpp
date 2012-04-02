@@ -17,7 +17,7 @@ TToken::TToken()
 
 bool TToken::IsEmpty() const
 {
-	return Type_ != ETokenType::None;
+    return Type_ == ETokenType::None;
 }
 
 const Stroka& TToken::GetStringValue() const

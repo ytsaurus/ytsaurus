@@ -509,6 +509,13 @@ void TListNodeProxy::SetRecursive(
     context->Reply();
 }
 
+IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
+    const TYPath& path,
+    const Stroka& verb)
+{
+    return TListNodeMixin::ResolveRecursive(path, verb);
+}
+
 void TListNodeProxy::SetNodeRecursive(
     const TYPath& path,
     TReqSetNode* request,

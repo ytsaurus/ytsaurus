@@ -386,6 +386,24 @@ private:
     {
         return TListNodeMixin::ResolveRecursive(path, verb);
     }
+
+    virtual void SetRecursive(const TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context)
+    {
+        UNUSED(response);
+
+        auto factory = CreateFactory();
+        TListNodeMixin::SetRecursive(~factory, path, request);
+        context->Reply();
+    }
+
+    virtual void SetNodeRecursive(const TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context)
+    {
+        UNUSED(response);
+
+        auto value = reinterpret_cast<INode*>(request->value_ptr());
+        TListNodeMixin::SetRecursive(path, value);
+        context->Reply();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

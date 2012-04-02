@@ -676,6 +676,9 @@ protected:
     virtual void CreateRecursive(
         const NYTree::TYPath& path,
         INode* value);
+    virtual IYPathService::TResolveResult ResolveRecursive(
+        const NYTree::TYPath& path,
+        const Stroka& verb);
     virtual void SetRecursive(
         const NYTree::TYPath& path,
         TReqSet* request,
