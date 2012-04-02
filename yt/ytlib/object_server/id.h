@@ -152,7 +152,7 @@ DECLARE_PODTYPE(NYT::NObjectServer::TVersionedObjectId);
 
 //! A hasher for TVersionedNodeId.
 template <>
-struct ::hash<NYT::NObjectServer::TVersionedObjectId>
+struct hash<NYT::NObjectServer::TVersionedObjectId>
 {
     i32 operator() (const NYT::NObjectServer::TVersionedObjectId& id) const
     {

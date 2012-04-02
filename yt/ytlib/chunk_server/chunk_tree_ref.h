@@ -33,7 +33,7 @@ private:
 } // namespace NYT
 
 template <>
-struct ::hash<NYT::NChunkServer::TChunkTreeRef>
+struct hash<NYT::NChunkServer::TChunkTreeRef>
 {
     inline size_t operator()(const NYT::NChunkServer::TChunkTreeRef& chunkRef) const
     {

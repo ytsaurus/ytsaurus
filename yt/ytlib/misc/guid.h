@@ -64,7 +64,7 @@ DECLARE_PODTYPE(NYT::TGuid)
 
 //! A hasher for TGuid.
 template <>
-struct ::hash<NYT::TGuid>
+struct hash<NYT::TGuid>
 {
     inline size_t operator()(const NYT::TGuid& guid) const
     {

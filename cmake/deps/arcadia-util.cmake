@@ -134,6 +134,7 @@ set( S_SRCS
   ${S_BASE}/user.cpp
 
   ${S_BASE}/defaults.h
+  ${S_BASE}/platform.h
   ${S_BASE}/maxlen.h
 )
 
