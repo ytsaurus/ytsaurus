@@ -158,10 +158,9 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
 {
-    TYPath suffixPath;
-
-    auto token1 = ChopToken(path, &suffixPath);
-    auto token2 = ChopToken(suffixPath, &suffixPath);
+    TYPath suffixPath1, suffixPath2;
+    auto token1 = ChopToken(path, &suffixPath1);
+    auto token2 = ChopToken(suffixPath1, &suffixPath2);
     if (token1.GetType() == ETokenType::Int64 && token2.GetType() == ETokenType::Caret) {
         std::swap(token1, token2);
     }
@@ -181,11 +180,11 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             auto index = NormalizeAndCheckIndex(token1.GetInt64Value());
             auto child = FindChild(index);
             YASSERT(child);
-            return IYPathService::TResolveResult::There(~child, suffixPath);
+            return IYPathService::TResolveResult::There(~child, suffixPath1);
         }
         case ETokenType::Caret: {
             NormalizeAndCheckIndex(token2.GetInt64Value());
-            auto token3 = ChopToken(suffixPath);
+            auto token3 = ChopToken(suffixPath2);
             if (!token3.IsEmpty()) {
                 ythrow yexception() << Sprintf("Unexpected token %s of type %s",
                     ~token3.ToString().Quote(),
@@ -233,7 +232,7 @@ void TListNodeMixin::SetRecursive(
         case ETokenType::Int64:
             YASSERT(token2.GetType() == ETokenType::Caret);
             YASSERT(IsEmpty(suffixPath));
-            beforeIndex = NormalizeAndCheckIndex(token2.GetInt64Value()) + 1;
+            beforeIndex = NormalizeAndCheckIndex(token1.GetInt64Value()) + 1;
             if (beforeIndex == GetChildCount()) {
                 beforeIndex = -1;
             }
