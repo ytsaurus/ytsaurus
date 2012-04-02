@@ -108,6 +108,7 @@ TYPath CombineYPaths(
     switch (token.GetType()) {
         case ETokenType::Slash:
         case ETokenType::At:
+        case ETokenType::None:
             return path1 + path2;
 
         default:
