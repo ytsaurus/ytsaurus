@@ -1,6 +1,6 @@
 ﻿#include "stdafx.h"
 #include "config.h"
-#include "merge_job.h"
+#include "sorted_merge_job.h"
 
 #include <ytlib/object_server/id.h>
 #include <ytlib/election/leader_channel.h>
@@ -22,13 +22,13 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 inline bool CompareReaders(
-    const TSyncReader::TPtr& r1, 
-    const TSyncReader::TPtr& r2)
+    const TSyncReaderAdapter::TPtr& r1, 
+    const TSyncReaderAdapter::TPtr& r2)
 {
     return r1->GetKey() < r2->GetKey();
 }
 
-TMergeJob::TMergeJob(
+TSortedMergeJob::TSortedMergeJob(
     const TJobIoConfigPtr& config,
     const NElection::TLeaderLookup::TConfigPtr& masterConfig,
     const NScheduler::NProto::TMergeJobSpec& mergeJobSpec)
@@ -61,7 +61,7 @@ TMergeJob::TMergeJob(
             "", // No row attributes.
             options); 
 
-        ChunkReaders.push_back(New<TSyncReader>(~chunkReader));
+        ChunkReaders.push_back(New<TSyncReaderAdapter>(~chunkReader));
         ChunkReaders.back()->Open();
         if (!ChunkReaders.back()->IsValid()) {
             ChunkReaders.pop_back();
@@ -70,6 +70,7 @@ TMergeJob::TMergeJob(
 
     std::make_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
 
+    // ToDo(psushin): estimate row count for writer.
     auto asyncWriter = New<TChunkSequenceWriter>(
         ~config->ChunkSequenceWriter,
         ~masterChannel,
@@ -83,7 +84,7 @@ TMergeJob::TMergeJob(
     Writer->Open();
 }
 
-TJobResult TMergeJob::Run()
+TJobResult TSortedMergeJob::Run()
 {
     while (!ChunkReaders.empty()) {
         std::pop_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
@@ -99,6 +100,7 @@ TJobResult TMergeJob::Run()
             ChunkReaders.pop_back();
         }
     }
+    Writer->Close();
 
     TJobResult result;
     *result.mutable_error() = TError().ToProto();

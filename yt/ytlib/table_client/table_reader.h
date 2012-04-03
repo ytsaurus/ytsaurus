@@ -32,7 +32,7 @@ namespace NTableClient {
  */
 class TTableReader
     : public NTransactionClient::TTransactionListener
-    , public ISyncReader
+    , public ISyncTableReader
 {
 public:
     typedef TIntrusivePtr<TTableReader> TPtr;

@@ -8,9 +8,11 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISyncReader 
+struct ISyncTableReader 
     : public virtual TRefCounted
 {
+    typedef TIntrusivePtr<ISyncTableReader> TPtr;
+
     virtual void Open() = 0;
     virtual void NextRow() = 0;
     virtual bool IsValid() const = 0;
@@ -22,13 +24,13 @@ struct ISyncReader
 
 struct IAsyncReader;
 
-class TSyncReader 
-    : public ISyncReader
+class TSyncReaderAdapter 
+    : public ISyncTableReader
 {
 public:
-    typedef TIntrusivePtr<TSyncReader> TPtr;
+    typedef TIntrusivePtr<TSyncReaderAdapter> TPtr;
 
-    TSyncReader(IAsyncReader* asyncReader);
+    TSyncReaderAdapter(IAsyncReader* asyncReader);
 
     void Open();
     void NextRow();

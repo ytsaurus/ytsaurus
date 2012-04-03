@@ -9,7 +9,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////
 
 TYsonTableInput::TYsonTableInput(
-    ISyncReader* reader, 
+    ISyncTableReader* reader, 
     NYTree::EYsonFormat format,
     TOutputStream* outputStream)
     : Reader(reader)

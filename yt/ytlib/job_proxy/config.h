@@ -16,7 +16,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobIoConfig
+struct TJobIOConfig
     : public TConfigurable
 {
     NYTree::EYsonFormat OutputFormat;
@@ -24,7 +24,7 @@ struct TJobIoConfig
     NTableClient::TChunkSequenceWriter::TConfig::TPtr ChunkSequenceWriter;
     NFileClient::TFileWriterBase::TConfig::TPtr ErrorFileWriter;
 
-    TJobIoConfig()
+    TJobIOConfig()
     {
         Register("output_format", OutputFormat)
             .Default(NYTree::EYsonFormat::Text);

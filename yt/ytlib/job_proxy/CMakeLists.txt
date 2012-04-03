@@ -5,7 +5,8 @@ set( SRCS
   ${BASE}/job_proxy.cpp
   ${BASE}/pipes.cpp
   ${BASE}/user_job.cpp
-  ${BASE}/merge_job.cpp
+  ${BASE}/ordered_merge_job.cpp
+  ${BASE}/sorted_merge_job.cpp
   ${BASE}/user_job_io.cpp
   ${BASE}/map_job_io.cpp
 )
@@ -17,7 +18,8 @@ set( HDRS
   ${BASE}/pipes.h
   ${BASE}/job.h
   ${BASE}/user_job.h
-  ${BASE}/merge_job.h
+  ${BASE}/ordered_merge_job.h
+  ${BASE}/sorted_merge_job.h
   ${BASE}/user_job_io.h
   ${BASE}/map_job_io.h
 )

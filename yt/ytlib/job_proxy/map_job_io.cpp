@@ -162,7 +162,7 @@ TMapJobIO::CreateTableInput(int index, TOutputStream* output) const
 
     // ToDo(psushin): extract format from operation spec.
     return new TYsonTableInput(
-        ~New<TSyncReader>(~reader), 
+        ~New<TSyncReaderAdapter>(~reader), 
         Config->OutputFormat, 
         output);
 }
