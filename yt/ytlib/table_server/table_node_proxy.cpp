@@ -209,15 +209,24 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         *inputChunk->mutable_channel() = channel.ToProto();
 
         const auto& chunk = chunkManager->GetChunk(chunkId);
-        if (chunk.IsConfirmed()) {
-            if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
-                chunkManager->FillHolderAddresses(inputChunk->mutable_holder_addresses(), chunk);
-            }
+        if (!chunk.IsConfirmed()) {
+            ythrow yexception() << Sprintf("Attempt to fetch a table containing an unconfirmed chunk %s",
+                ~chunkId.ToString());
+        }
 
-            if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
-                const auto& attributes = chunk.GetAttributes();
-                inputChunk->set_chunk_attributes(attributes.Begin(), attributes.Size());
-            }
+        const auto& attributesBlob = chunk.GetAttributes();
+        NTableClient::NProto::TTableChunkAttributes attributes;
+        YVERIFY(DeserializeFromProto(&attributes, attributesBlob));
+
+        inputChunk->set_approximate_row_count(attributes.row_count());
+        inputChunk->set_approximate_data_size(chunk.GetSize());
+
+        if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
+            chunkManager->FillHolderAddresses(inputChunk->mutable_holder_addresses(), chunk);
+        }
+
+        if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
+            inputChunk->set_chunk_attributes(attributesBlob.Begin(), attributesBlob.Size());
         }
     }
 
