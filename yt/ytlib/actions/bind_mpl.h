@@ -205,7 +205,7 @@ struct TIsWeakMethodHelper<true, TConstRefWrapper< TWeakPtr<T> > >
 template <bool IsMethod, class T>
 struct TMaybeLockHelper
 {
-    T T_;
+    const T& T_;
     inline TMaybeLockHelper(const T& x)
         : T_(x)
     { }
@@ -213,7 +213,7 @@ struct TMaybeLockHelper
     {
         return *this;
     }
-    inline T Get() const
+    inline const T& Get() const
     {
         return T_;
     }
