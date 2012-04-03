@@ -1492,6 +1492,10 @@ private:
     {
         attributes->push_back("children_ids");
         attributes->push_back("parent_ids");
+        attributes->push_back("row_count");
+        attributes->push_back("uncompressed_size");
+        attributes->push_back("compressed_size");
+        attributes->push_back("chunk_count");
         TBase::GetSystemAttributes(attributes);
     }
 
@@ -1512,6 +1516,32 @@ private:
                 .DoListFor(chunkList.Parents(), [=] (TFluentList fluent, TChunkList* chunkList) {
                     fluent.Item().Scalar(chunkList->GetId());
                 });
+            return true;
+        }
+
+        const auto& statistics = chunkList.Statistics();
+
+        if (name == "row_count") {
+            BuildYsonFluently(consumer)
+                .Scalar(statistics.RowCount);
+            return true;
+        }
+
+        if (name == "uncompressed_size") {
+            BuildYsonFluently(consumer)
+                .Scalar(statistics.UncompressedSize);
+            return true;
+        }
+
+        if (name == "compressed_size") {
+            BuildYsonFluently(consumer)
+                .Scalar(statistics.CompressedSize);
+            return true;
+        }
+
+        if (name == "chunk_count") {
+            BuildYsonFluently(consumer)
+                .Scalar(statistics.ChunkCount);
             return true;
         }
 
