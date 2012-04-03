@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/configurable.h>
+#include <ytlib/job_proxy/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -31,6 +32,7 @@ struct TOperationSpecBase
     : public TConfigurable
 {
     TNullable<int> JobCount;
+    NJobProxy::TJobIoConfigPtr JobIOConfig;
 
     TOperationSpecBase()
     {
@@ -38,6 +40,8 @@ struct TOperationSpecBase
         // TODO(babenko): validate > 0
         Register("job_count", JobCount)
             .Default();
+        Register("job_io_config", JobIOConfig)
+            .DefaultNew();
     }
 };
 

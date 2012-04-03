@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 #include "operation_controller.h"
 
 #include <ytlib/logging/tagged_logger.h>
@@ -177,46 +177,6 @@ protected:
     // Unsorted helpers.
 
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
-};
-
-////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): extract to a proper place
-class TChunkPool
-{
-public:
-    TChunkPool(TOperationPtr operation);
-
-    int PutChunk(const NTableClient::NProto::TInputChunk& chunk, i64 weight);
-
-    const NTableClient::NProto::TInputChunk& GetChunk(int index);
-
-    void AllocateChunks(
-        const Stroka& address,
-        i64 maxWeight,
-        std::vector<int>* indexes,
-        i64* allocatedWeight,
-        int* localCount,
-        int* remoteCount);
-
-    void DeallocateChunks(const std::vector<int>& indexes);
-
-private:
-    NLog::TTaggedLogger Logger;
-
-    struct TChunkInfo
-    {
-        NTableClient::NProto::TInputChunk Chunk;
-        i64 Weight;
-    };
-
-    std::vector<TChunkInfo> ChunkInfos;
-    yhash_map<Stroka, yhash_set<int> > AddressToIndexSet;
-    yhash_set<int> UnallocatedIndexes;
-
-    void RegisterChunk(int index);
-
-    void UnregisterChunk(int index);
 };
 
 ////////////////////////////////////////////////////////////////////

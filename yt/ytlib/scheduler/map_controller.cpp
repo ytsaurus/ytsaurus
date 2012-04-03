@@ -1,15 +1,12 @@
 #include "stdafx.h"
 #include "map_controller.h"
-#include "operation_controller.h"
-#include "operation_controller_detail.h"
-#include "operation.h"
-#include "job.h"
-#include "exec_node.h"
 #include "private.h"
+#include "operation_controller_detail.h"
+#include "chunk_pool.h"
 
 #include <ytlib/ytree/fluent.h>
-
 #include <ytlib/table_client/schema.h>
+#include <ytlib/job_proxy/config.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -64,7 +61,7 @@ public:
         }
 
         JobCounter.Completed(1);
-        ChunkCounter.Completed(jobInfo->ChunkIndexes.size());
+        ChunkCounter.Completed(jobInfo->Chunks.size());
         WeightCounter.Completed(jobInfo->Weight);
 
         RemoveJobInfo(job);
@@ -80,16 +77,17 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Job %s failed\n%s",
-            ~job->GetId().ToString(),
-            ~TError::FromProto(job->Result().error()).ToString());
-
         auto jobInfo = GetJobInfo(job);
 
-        ChunkPool->DeallocateChunks(jobInfo->ChunkIndexes);
+        LOG_INFO("Job %s failed, %d chunks are back in the pool\n%s",
+            ~job->GetId().ToString(),
+            static_cast<int>(jobInfo->Chunks.size()),
+            ~TError::FromProto(job->Result().error()).ToString());
+
+        ChunkPool->Put(jobInfo->Chunks);
 
         JobCounter.Failed(1);
-        ChunkCounter.Failed(jobInfo->ChunkIndexes.size());
+        ChunkCounter.Failed(jobInfo->Chunks.size());
         WeightCounter.Failed(jobInfo->Weight);
 
         ReleaseChunkLists(jobInfo->OutputChunkListIds);
@@ -136,36 +134,36 @@ public:
         YASSERT(pendingJobs > 0);
         i64 pendingWeight = WeightCounter.GetPending();
         YASSERT(pendingWeight > 0);
-        i64 maxWeightPerJob = (pendingWeight + pendingJobs - 1) / pendingJobs;
+        i64 weightPerJob = (pendingWeight + pendingJobs - 1) / pendingJobs;
 
         auto jobInfo = New<TJobInfo>();
 
         // Allocate chunks for the job.
-        auto& chunkIndexes = jobInfo->ChunkIndexes;
-        i64 allocatedWeight;
+        auto& extractedChunks = jobInfo->Chunks;
+        i64 extractedWeight;
         int localCount;
         int remoteCount;
-        ChunkPool->AllocateChunks(
+        ChunkPool->Extract(
             node->GetAddress(),
-            maxWeightPerJob,
-            &chunkIndexes,
-            &allocatedWeight,
+            weightPerJob,
+            false,
+            &extractedChunks,
+            &extractedWeight,
             &localCount,
             &remoteCount);
 
-        LOG_DEBUG("Allocated %d chunks for node %s (AllocatedWeight: %" PRId64 ", MaxWeight: %" PRId64 ", LocalCount: %d, RemoteCount: %d)",
-            static_cast<int>(chunkIndexes.size()),
+        LOG_DEBUG("Extracted %d chunks for node %s (ExtractedWeight: %" PRId64 ", WeightPerJob: %" PRId64 ", LocalCount: %d, RemoteCount: %d)",
+            static_cast<int>(extractedChunks.size()),
             ~node->GetAddress(),
-            allocatedWeight,
-            maxWeightPerJob,
+            extractedWeight,
+            weightPerJob,
             localCount,
             remoteCount);
 
-        YASSERT(!chunkIndexes.empty());
+        YASSERT(!extractedChunks.empty());
 
-        FOREACH (int chunkIndex, chunkIndexes) {
-            const auto& chunk = ChunkPool->GetChunk(chunkIndex);
-            *mapJobSpec->mutable_input_spec()->add_chunks() = chunk;
+        FOREACH (const auto& chunk, extractedChunks) {
+            *mapJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
         }
 
         FOREACH (auto& outputSpec, *mapJobSpec->mutable_output_specs()) {
@@ -174,7 +172,7 @@ public:
             *outputSpec.mutable_chunk_list_id() = chunkListId.ToProto();
         }
 
-        jobInfo->Weight = allocatedWeight;
+        jobInfo->Weight = extractedWeight;
         
         auto job = Host->CreateJob(
             Operation,
@@ -184,8 +182,8 @@ public:
         PutJobInfo(job, jobInfo);
 
         JobCounter.Start(1);
-        ChunkCounter.Start(chunkIndexes.size());
-        WeightCounter.Start(allocatedWeight);
+        ChunkCounter.Start(extractedChunks.size());
+        WeightCounter.Start(extractedWeight);
 
         DumpStatistics();
 
@@ -212,7 +210,7 @@ private:
     i64 TotalDataSize;
     i64 TotalWeight;
 
-    ::THolder<TChunkPool> ChunkPool;
+    ::THolder<TUnorderedChunkPool> ChunkPool;
     TChunkListPoolPtr ChunkListPool;
 
     // The template for starting new jobs.
@@ -223,8 +221,8 @@ private:
     struct TJobInfo
         : public TIntrinsicRefCounted
     {
-        // Chunk indexes assigned to this job.
-        std::vector<int> ChunkIndexes;
+        // Chunks assigned to this job.
+        std::vector<TPooledChunkPtr> Chunks;
 
         // Chunk lists allocated to store the output (one per each output table).
         std::vector<TChunkListId> OutputChunkListIds;
@@ -276,7 +274,7 @@ private:
 
     virtual void DoCompletePreparation()
     {
-        ChunkPool.Reset(new TChunkPool(Operation));
+        ChunkPool.Reset(new TUnorderedChunkPool());
         ChunkListPool = New<TChunkListPool>(
             Host->GetMasterChannel(),
             Host->GetControlInvoker(),
@@ -331,7 +329,8 @@ private:
 
                 TotalWeight += weight;
 
-                ChunkPool->PutChunk(inputChunk, weight);
+                auto pooledChunk = New<TPooledChunk>(inputChunk, weight);
+                ChunkPool->Put(pooledChunk);
 
                 ++totalChunkCount;
             }
@@ -399,6 +398,8 @@ private:
             outputSpec->set_schema(table.Schema);
         }
         *JobSpecTemplate.MutableExtension(TMapJobSpec::map_job_spec) = mapJobSpec;
+
+        JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIOConfig));
 
 
         // TODO(babenko): stderr
