@@ -4,6 +4,7 @@ import "yt/ytlib/chunk_holder/chunk.proto";
 import "yt/ytlib/table_client/table_reader.proto";
 import "yt/ytlib/file_server/file_ypath.proto";
 import "yt/ytlib/misc/error.proto";
+import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,16 +41,16 @@ message TTableOutputSpec
     // Upon receiving an operation spec, the scheduler requests this schema from the master.
     required bytes schema = 1;
     // Chunk list where new chunks must be attached to.
-    required bytes chunk_list_id = 2;
+    required NYT.NProto.TGuid chunk_list_id = 2;
 }
 
 // Defines how to store stderr from a job.
 message TStdErrSpec
 {
     // The transaction for uploading stderr chunks.
-    required bytes transaction_id = 1;
+    required NYT.NProto.TGuid transaction_id = 1;
     // The chunk list where stderr chunks must be placed.
-    required bytes chunk_list_id = 2;
+    required NYT.NProto.TGuid chunk_list_id = 2;
 }
 
 message TUserJobSpec
@@ -89,16 +90,11 @@ message TMapJobSpec
     // Portions of input data to be processed.
     required TTableInputSpec input_spec = 1;
 
-    // The transaction that has locked the input.
-    // It's likely that the job won't need this but we
-    // shall keep it here for the sake of symmetric.
-    required bytes input_transaction_id = 2;
-
     // Describes how to store job output.
     repeated TTableOutputSpec output_specs = 3;
 
     // The transaction used for writing output chunks.
-    required bytes output_transaction_id = 4;
+    required NYT.NProto.TGuid output_transaction_id = 4;
 
     // Describes how to store job stderr.
     optional TStdErrSpec std_err_spec = 5;
@@ -113,10 +109,9 @@ message TMergeJobSpec
         optional TMergeJobSpec merge_job_spec = 102;
     }
 
-    required bytes output_chunk_list_id = 1;
-    required bytes output_transaction_id = 2;
-    repeated NYT.NTableClient.NProto.TInputChunk input_chunks = 3;
-    required bytes schema = 4;
+    required TTableInputSpec input_spec = 1;
+    required TTableOutputSpec output_spec = 2;
+    required NYT.NProto.TGuid output_transaction_id = 3;
 }
 
 message TMergeJobResult

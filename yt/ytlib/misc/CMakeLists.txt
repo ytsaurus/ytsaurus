@@ -25,6 +25,7 @@ set( SRCS
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
+  ${BASE}/protobuf_helpers.cpp
   ${BASE}/source_location.cpp
   ${BASE}/thread.cpp
 )
@@ -73,6 +74,8 @@ set( HDRS
   ${BASE}/rvalue.h
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
+  ${BASE}/protobuf_helpers.h
+  ${BASE}/protobuf_helpers-inl.h
   ${BASE}/singleton.h
   ${BASE}/source_location.h
   ${BASE}/string.h
@@ -101,3 +104,4 @@ add_custom_command(
 PUMP( ${BASE}/new.h.pump YT_SOURCE_FILES )
 
 protoc( ${BASE}/error.proto YT_SOURCE_FILES )
+protoc( ${BASE}/extensions.proto YT_SOURCE_FILES )

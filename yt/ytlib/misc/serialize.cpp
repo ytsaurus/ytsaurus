@@ -108,37 +108,5 @@ int ReadVarInt64(TInputStream* input, i64* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SerializeToProtobuf(const google::protobuf::Message* message, TBlob* data)
-{
-    int size = message->ByteSize();
-    data->resize(size);
-    return message->SerializeToArray(data->begin(), size);
-}
-
-bool DeserializeFromProtobuf(google::protobuf::Message* message, TRef data)
-{
-    return message->ParseFromArray(data.Begin(), data.Size());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message)
-{
-    TBlob blob;
-    YVERIFY(SerializeToProtobuf(&message, &blob));
-    ::SaveSize(output, blob.size());
-    output->Write(blob.begin(), blob.size());
-}
-
-void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
-{
-    size_t size = ::LoadSize(input);
-    TBlob blob(size);
-    input->Read(blob.begin(), size);
-    YVERIFY(DeserializeFromProtobuf(&message, TRef::FromBlob(blob)));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT
 

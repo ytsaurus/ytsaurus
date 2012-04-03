@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job.h"
 
-#include <ytlib/scheduler/jobs.pb.h>
+#include <ytlib/scheduler/job.pb.h>
 #include <ytlib/election/leader_lookup.h>
 #include <ytlib/misc/error.h>
 

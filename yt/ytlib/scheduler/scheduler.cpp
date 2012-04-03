@@ -957,7 +957,7 @@ private:
             }
             auto operation = result.Value();
             auto id = operation->GetOperationId();
-            response->set_operation_id(id.ToProto());
+            *response->mutable_operation_id() = id.ToProto();
             context->SetResponseInfo("OperationId: %s", ~id.ToString());
             context->Reply();
         }));
@@ -1032,11 +1032,11 @@ private:
                     if (address != expectedAddress) {
                         // Job has moved from one node to another. No idea how this could happen.
                         if (state == EJobState::Completed || state == EJobState::Failed) {
-                            response->add_jobs_to_remove(jobId.ToProto());
+                            *response->add_jobs_to_remove() = jobId.ToProto();
                             LOG_WARNING("Job status report was expected from %s, removal scheduled",
                                 ~expectedAddress);
                         } else {
-                            response->add_jobs_to_abort(jobId.ToProto());
+                            *response->add_jobs_to_remove() = jobId.ToProto();
                             LOG_WARNING("Job status report was expected from %s, abort scheduled",
                                 ~expectedAddress);
                         }
@@ -1057,7 +1057,7 @@ private:
                         } else {
                             LOG_WARNING("Unknown job has completed, removal scheduled");
                         }
-                        response->add_jobs_to_remove(jobId.ToProto());
+                        *response->add_jobs_to_remove() = jobId.ToProto();
                         break;
 
                     case EJobState::Failed:
@@ -1067,7 +1067,7 @@ private:
                         } else {
                             LOG_INFO("Unknown job has failed, removal scheduled");
                         }
-                        response->add_jobs_to_remove(jobId.ToProto());
+                        *response->add_jobs_to_remove() = jobId.ToProto();
                         break;
 
                     case EJobState::Aborted:
@@ -1077,7 +1077,7 @@ private:
                         } else {
                             LOG_INFO("Job aborted, removal scheduled");
                         }
-                        response->add_jobs_to_remove(jobId.ToProto());
+                        *response->add_jobs_to_remove() = jobId.ToProto();
                         break;
 
                     case EJobState::Running:
@@ -1086,7 +1086,7 @@ private:
                             OnJobRunning(job);
                         } else {
                             LOG_WARNING("Unknown job is running, abort scheduled");
-                            response->add_jobs_to_abort(jobId.ToProto());
+                            *response->add_jobs_to_remove() = jobId.ToProto();
                         }
                         break;
 
@@ -1127,7 +1127,7 @@ private:
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
             auto* jobInfo = response->add_jobs_to_start();
-            jobInfo->set_job_id(job->GetId().ToProto());
+            *jobInfo->mutable_job_id() = job->GetId().ToProto();
             *jobInfo->mutable_spec() = job->Spec();
             RegisterJob(job);
         }
@@ -1137,7 +1137,7 @@ private:
                 ~address,
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
-            response->add_jobs_to_abort(job->GetId().ToProto());
+            *response->add_jobs_to_remove() = job->GetId().ToProto();
             UnregisterJob(job);
         }
 

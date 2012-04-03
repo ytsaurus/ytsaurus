@@ -28,9 +28,8 @@ void TSchedulerCommandBase::RunOperation(
     TOperationId operationId;
     {
         auto startOpReq = proxy.StartOperation();
-        *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
         startOpReq->set_type(type);
-        startOpReq->set_transaction_id(transaction->GetId().ToProto());
+        *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
         startOpReq->set_spec(spec);
 
         auto startOpRsp = startOpReq->Invoke()->Get();
@@ -49,7 +48,7 @@ void TSchedulerCommandBase::RunOperation(
 
     {
         auto waitOpReq = proxy.WaitForOperation();
-        waitOpReq->set_operation_id(operationId.ToProto());
+        *waitOpReq->mutable_operation_id() = operationId.ToProto();
 
         // Operation can run for a while, override the default timeout.
         waitOpReq->SetTimeout(Null);

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/scheduler/jobs.pb.h>
+#include <ytlib/scheduler/job.pb.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 

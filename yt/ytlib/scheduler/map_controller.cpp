@@ -171,7 +171,7 @@ public:
         FOREACH (auto& outputSpec, *mapJobSpec->mutable_output_specs()) {
             auto chunkListId = ChunkListPool->Extract();
             jobInfo->OutputChunkListIds.push_back(chunkListId);
-            outputSpec.set_chunk_list_id(chunkListId.ToProto());
+            *outputSpec.mutable_chunk_list_id() = chunkListId.ToProto();
         }
 
         jobInfo->Weight = allocatedWeight;
@@ -313,7 +313,7 @@ private:
                 }
 
                 TChunkAttributes chunkAttributes;
-                YVERIFY(DeserializeFromProtobuf(&chunkAttributes, TRef::FromString(inputChunk.chunk_attributes())));
+                YVERIFY(DeserializeFromProto(&chunkAttributes, TRef::FromString(inputChunk.chunk_attributes())));
 
                 YASSERT(chunkAttributes.HasExtension(TTableChunkAttributes::table_attributes));
                 const auto& tableChunkAttributes = chunkAttributes.GetExtension(TTableChunkAttributes::table_attributes);
@@ -393,8 +393,8 @@ private:
         *JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
 
         TMapJobSpec mapJobSpec;
-        mapJobSpec.set_input_transaction_id(InputTransaction->GetId().ToProto());
-        mapJobSpec.set_output_transaction_id(OutputTransaction->GetId().ToProto());
+        *mapJobSpec.mutable_input_transaction_id() = InputTransaction->GetId().ToProto();
+        *mapJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
         FOREACH (const auto& table, OutputTables) {
             auto* outputSpec = mapJobSpec.add_output_specs();
             outputSpec->set_schema(table.Schema);

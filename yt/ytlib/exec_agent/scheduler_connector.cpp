@@ -53,7 +53,7 @@ void TSchedulerConnector::SendHeartbeat()
     FOREACH (auto job, jobs) {
         auto state = job->GetState();
         auto* jobStatus = req->add_jobs();
-        jobStatus->set_job_id(job->GetId().ToProto());
+        *jobStatus->mutable_job_id() = job->GetId().ToProto();
         jobStatus->set_state(state);
         jobStatus->set_progress(job->GetProgress());
         if (state == EJobState::Completed || state == EJobState::Failed) {

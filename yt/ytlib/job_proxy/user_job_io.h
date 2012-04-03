@@ -4,7 +4,7 @@
 
 #include <ytlib/election/leader_lookup.h>
 #include <ytlib/table_client/yson_table_input.h>
-#include <ytlib/scheduler/jobs.pb.h>
+#include <ytlib/scheduler/job.pb.h>
 
 class TOutputStream;
 

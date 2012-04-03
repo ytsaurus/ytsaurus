@@ -174,7 +174,7 @@ TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::CommitOut
     FOREACH (const auto& table, OutputTables) {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
         FOREACH (const auto& childId, table.ChunkTreeIds) {
-            req->add_children_ids(childId.ToProto());
+            *req->add_children_ids() = childId.ToProto();
         }
         batchReq->AddRequest(req, "attach_chunk_trees");
     }
@@ -454,7 +454,7 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
     auto batchReq = CypressProxy.ExecuteBatch();
     FOREACH (const auto& id, ids) {
         auto req = TTransactionYPathProxy::ReleaseObject();
-        req->set_object_id(id.ToProto());
+        *req->mutable_object_id() = id.ToProto();
         batchReq->AddRequest(req);
     }
     // Fire-and-forget.

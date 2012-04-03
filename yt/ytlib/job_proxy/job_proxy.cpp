@@ -38,7 +38,7 @@ TJobProxy::TJobProxy(
 void TJobProxy::SendHeartbeat()
 {
     auto req = Proxy.OnProgress();
-    req->set_job_id(JobId.ToProto());
+    *req->mutable_job_id() = JobId.ToProto();
 
     auto rsp = req->Invoke()->Get();
 
@@ -56,7 +56,7 @@ TJobSpec TJobProxy::GetJobSpec()
 {
     LOG_DEBUG("Requesting spec for job %s", ~JobId.ToString());
     auto req = Proxy.GetJobSpec();
-    req->set_job_id(JobId.ToProto());
+    *req->mutable_job_id() = JobId.ToProto();
 
     auto rsp = req->Invoke()->Get();
 

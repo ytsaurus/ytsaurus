@@ -3,7 +3,7 @@
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/sync.h>
-#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/actions/invoker.h>
 
 #include <algorithm>
@@ -519,7 +519,7 @@ TChunkReader::TChunkReader(
     NChunkClient::IAsyncReader* chunkReader,
     const NProto::TReadLimit& startLimit,
     const NProto::TReadLimit& endLimit,
-    const Stroka& rowAttributes,
+    const NYTree::TYson& rowAttributes,
     TChunkReader::TOptions options)
     : Codec(NULL)
     , SequentialReader(NULL)
