@@ -238,10 +238,10 @@ public:
 
 private:
     TUnlabeledStringArg PathArg;
-
     //TODO(panin):support value from stdin
     TUnlabeledStringArg ValueArg;
-
+    TCLAP::SwitchArg SortedArg;
+    
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
 };

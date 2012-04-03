@@ -269,6 +269,7 @@ void TReadArgs::BuildCommand(IYsonConsumer* consumer)
 TWriteArgs::TWriteArgs()
     : PathArg("path", "path to a table in Cypress that must be written", true, "", "ypath")
     , ValueArg("value", "row(s) to write", true, "", "yson")
+    , SortedArg("s", "sorted", "create sorted table (table must initially be empty, input data must be sorted)")
 {
     CmdLine.add(PathArg);
     CmdLine.add(ValueArg);
@@ -360,7 +361,7 @@ void TMapArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TMergeArgs::TMergeArgs()
-    : InArg("", "in", "input tables", false, "ypath")
+    : InArg("", "in", "input tables", false, "ypath", CmdLine)
     , OutArg("", "out", "output table", false, "ypath")
     , SortedArg("s", "sorted", "produce sorted output (all input tables must be sorted)")
 {
