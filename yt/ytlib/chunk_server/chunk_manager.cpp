@@ -649,7 +649,7 @@ private:
         PROFILE_TIMING ("full_heartbeat_time") {
             TReqFullHeartbeat message;
             auto requestBody = TRef(const_cast<char*>(message2.request_body().data()), message2.request_body().length());
-            YVERIFY(DeserializeFromProtobuf(&message, requestBody));
+            YVERIFY(DeserializeFromProto(&message, requestBody));
 
             Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
 

@@ -32,7 +32,7 @@ void TMetaStatePart::MethodThunk(
     YASSERT(!changeMethod.IsNull());
 
     TMessage message;
-    YVERIFY(DeserializeFromProtobuf(&message, changeData));
+    YVERIFY(DeserializeFromProto(&message, changeData));
 
     changeMethod.Run(message);
 }

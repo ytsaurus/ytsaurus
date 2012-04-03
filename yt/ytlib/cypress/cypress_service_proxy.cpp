@@ -54,7 +54,7 @@ int TCypressServiceProxy::TReqExecuteBatch::GetSize() const
 TBlob TCypressServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
     TBlob blob;
-    YVERIFY(SerializeToProtobuf(&Body, &blob));
+    YVERIFY(SerializeToProto(&Body, &blob));
     return blob;
 }
 
@@ -82,7 +82,7 @@ void TCypressServiceProxy::TRspExecuteBatch::FireCompleted()
 
 void TCypressServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
-    YVERIFY(DeserializeFromProtobuf(&Body, data));
+    YVERIFY(DeserializeFromProto(&Body, data));
 
     int currentIndex = 0;
     BeginPartIndexes.reserve(Body.part_counts_size());

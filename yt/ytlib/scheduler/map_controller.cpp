@@ -313,7 +313,7 @@ private:
                 }
 
                 TChunkAttributes chunkAttributes;
-                YVERIFY(DeserializeFromProtobuf(&chunkAttributes, TRef::FromString(inputChunk.chunk_attributes())));
+                YVERIFY(DeserializeFromProto(&chunkAttributes, TRef::FromString(inputChunk.chunk_attributes())));
 
                 YASSERT(chunkAttributes.HasExtension(TTableChunkAttributes::table_attributes));
                 const auto& tableChunkAttributes = chunkAttributes.GetExtension(TTableChunkAttributes::table_attributes);
