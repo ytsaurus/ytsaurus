@@ -24,7 +24,7 @@ message TChunkSlice
     required TReadLimit end_limit = 3;
 }
 
-// Describes how to read a portion of table chunk and feed it to the client.
+// Describes a portion of table chunk.
 message TInputChunk
 {
     // A part of table chunk.
@@ -42,6 +42,11 @@ message TInputChunk
     // When this value is given the reader inserts this YSON map as attributes at every row.
     // This enables,  e.g., the client to distinguish between several tables coming through a single input stream.
     optional bytes row_attributes = 5;
+
+    // The following fields are calculated from samples stored on master.
+    // For complete chunks these values are exact.
+    required int64 approximate_data_size = 6;
+    required int64 approximate_row_count = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
