@@ -1,0 +1,35 @@
+package NYT.NExecAgent.NProto;
+
+import "yt/ytlib/scheduler/jobs.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetJobSpec
+{ 
+    required bytes job_id = 1;
+}
+
+message TRspGetJobSpec
+{
+    required NScheduler.NProto.TJobSpec job_spec = 1;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+// One-way.
+message TReqOnJobFinished
+{
+    required bytes job_id = 1;
+    required NScheduler.NProto.TJobResult result = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// One-way.
+message TReqOnProgress
+{
+    required bytes job_id = 1;
+    // Once there's gonna be progress.
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -14,7 +14,7 @@ using namespace NYTree;
 
 TServiceContextBase::TServiceContextBase(
     const TRequestHeader& header,
-    IMessage* requestMessage)
+    IMessage::TPtr requestMessage)
     : RequestId(header.has_request_id() ? TRequestId::FromProto(header.request_id()) : NullRequestId)
     , Path(header.path())
     , Verb(header.verb())
@@ -46,7 +46,7 @@ void TServiceContextBase::Reply(const TError& error)
 
     TResponseHeader header;
     *header.mutable_request_id() = RequestId.ToProto();
-    SetResponseError(header, Error);
+    *header.mutable_error() = Error.ToProto();
     ToProto(header.mutable_attributes(), *ResponseAttributes_);
 
     IMessage::TPtr responseMessage;
@@ -160,7 +160,7 @@ TClosure TServiceContextBase::Wrap(TClosure action)
         action);
 }
 
-void TServiceContextBase::WrapThunk(TClosure action) throw()
+void TServiceContextBase::WrapThunk(TClosure action)
 {
     try {
         action.Run();
@@ -169,7 +169,6 @@ void TServiceContextBase::WrapThunk(TClosure action) throw()
     } catch (const std::exception& ex) {
         auto message = ex.what();
         Reply(TError(EErrorCode::ServiceError, message));
-        LogException(message);
     }
 }
 

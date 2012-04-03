@@ -9,6 +9,7 @@
 #include "chunk_cache.h"
 #include "session_manager.h"
 #include "job_executor.h"
+#include "bootstrap.h"
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/rpc/client.h>
@@ -18,14 +19,13 @@
 #include <ytlib/chunk_server/holder_statistics.h>
 #include <ytlib/election/leader_channel.h>
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/cell_node/bootstrap.h>
 
 #include <util/system/hostname.h>
+#include <util/random/random.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
-using namespace NCellNode;
 using namespace NChunkServer::NProto;
 using namespace NChunkClient;
 using namespace NRpc;
@@ -48,7 +48,7 @@ TMasterConnector::TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* boo
 
 void TMasterConnector::Start()
 {
-    Proxy.Reset(new TProxy(~Bootstrap->GetLeaderChannel()));
+    Proxy.Reset(new TProxy(~Bootstrap->GetMasterChannel()));
 
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(BIND(
         &TMasterConnector::OnChunkAdded,
@@ -69,7 +69,7 @@ void TMasterConnector::Start()
 void TMasterConnector::ScheduleHeartbeat()
 {
     // TODO(panin): think about specializing RandomNumber<TDuration>
-    TDuration randomDelay = TDuration::MicroSeconds(RandomNumber(Config->HeartbeatSplay.MicroSeconds()));
+    auto randomDelay = TDuration::MicroSeconds(RandomNumber(Config->HeartbeatSplay.MicroSeconds()));
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()),

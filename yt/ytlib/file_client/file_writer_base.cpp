@@ -162,7 +162,7 @@ void TFileWriterBase::Close()
 
     LOG_INFO("Confirming chunk");
     auto confirmChunkReq = Writer->GetConfirmRequest();
-    auto confirmChunkRsp = CypressProxy.Execute(~confirmChunkReq)->Get();
+    auto confirmChunkRsp = CypressProxy.Execute(confirmChunkReq)->Get();
     if (!confirmChunkRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
             ~confirmChunkRsp->GetError().ToString());

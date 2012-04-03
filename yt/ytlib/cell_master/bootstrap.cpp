@@ -37,8 +37,6 @@
 
 #include <ytlib/table_server/table_node.h>
 
-#include <ytlib/scheduler/redirector_service.h>
-
 #include <ytlib/ytree/yson_file_service.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_client.h>
@@ -62,18 +60,17 @@ using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NFileServer;
 using namespace NTableServer;
-using namespace NScheduler;
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Server");
+static NLog::TLogger Logger("MasterBootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
     const Stroka& configFileName,
-    TCellMasterConfig* config)
+    TCellMasterConfigPtr config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
@@ -205,9 +202,6 @@ void TBootstrap::Run()
         ~orchidRoot,
         ~GetControlInvoker());
     rpcServer->RegisterService(~orchidRpcService);
-
-    auto schedulerRedirectorService = CreateRedirectorService(this);
-    rpcServer->RegisterService(~schedulerRedirectorService);
 
     CypressManager->RegisterHandler(~CreateChunkMapTypeHandler(this));
     CypressManager->RegisterHandler(~CreateLostChunkMapTypeHandler(this));

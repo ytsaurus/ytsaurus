@@ -11,7 +11,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStartCommand::DoExecute(TStartRequest* request)
+void TStartTransactionCommand::DoExecute(TStartRequestPtr request)
 {
     auto transactionManager = Host->GetTransactionManager();
     auto newTransaction = transactionManager->Start(~request->Manifest);
@@ -22,7 +22,7 @@ void TStartCommand::DoExecute(TStartRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCommitCommand::DoExecute(TCommitRequest* request)
+void TCommitTransactionCommand::DoExecute(TCommitRequestPtr request)
 {
     auto transaction = Host->GetTransaction(request, true);
     transaction->Commit();
@@ -31,7 +31,7 @@ void TCommitCommand::DoExecute(TCommitRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortCommand::DoExecute(TAbortRequest* request)
+void TAbortTransactionCommand::DoExecute(TAbortRequestPtr request)
 {
     auto transaction = Host->GetTransaction(request, true);
     transaction->Commit();

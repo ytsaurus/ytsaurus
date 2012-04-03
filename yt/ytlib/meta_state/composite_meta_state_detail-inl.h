@@ -18,9 +18,9 @@ TBlob SerializeChange(
 
     TBlob data(sizeof (TFixedChangeHeader) + fixedHeader.HeaderSize + fixedHeader.MessageSize);
 
-    Copy(
-        reinterpret_cast<char*>(&fixedHeader),
-        sizeof (TFixedChangeHeader),
+    std::copy(
+        reinterpret_cast<ui8*>(&fixedHeader),
+        reinterpret_cast<ui8*>(&fixedHeader + 1),
         data.begin());
     YVERIFY(header.SerializeToArray(
         data.begin() + sizeof (TFixedChangeHeader),

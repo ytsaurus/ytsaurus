@@ -38,7 +38,7 @@ TJobScheduler::TJobScheduler(
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
     , HolderLeaseTracker(holderLeaseTracker)
-    , ChunkRefreshDelay(DurationToCycles(config->ChunkRefreshDelay))
+    , ChunkRefreshDelay(DurationToCpuDuration(config->ChunkRefreshDelay))
 {
     YASSERT(config);
     YASSERT(bootstrap);

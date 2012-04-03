@@ -21,16 +21,19 @@ struct TReadRequest
     }
 };
 
+typedef TIntrusivePtr<TReadRequest> TReadRequestPtr;
+
 class TReadCommand
-    : public TCommandBase<TReadRequest>
+    : public TTypedCommandBase<TReadRequest>
 {
 public:
-    TReadCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TReadCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
-    virtual void DoExecute(TReadRequest* request);
+    virtual void DoExecute(TReadRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,12 +44,15 @@ struct TWriteRequest
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;
     NYTree::INodePtr Value;
+    bool Sorted;
 
     TWriteRequest()
     {
         Register("path", Path);
         Register("value", Value)
             .Default();
+        Register("sorted", Sorted)
+            .Default(false);
     }
 
     virtual void DoValidate() const
@@ -60,16 +66,19 @@ struct TWriteRequest
     }
 };
 
+typedef TIntrusivePtr<TWriteRequest> TWriteRequestPtr;
+
 class TWriteCommand
-    : public TCommandBase<TWriteRequest>
+    : public TTypedCommandBase<TWriteRequest>
 {
 public:
-    TWriteCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TWriteCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
-    virtual void DoExecute(TWriteRequest* request);
+    virtual void DoExecute(TWriteRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

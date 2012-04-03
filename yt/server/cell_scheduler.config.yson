@@ -1,0 +1,32 @@
+{
+    masters = {
+        addresses = ["localhost:8000"]
+    };
+
+    "logging"= {
+        "rules"= [
+            {
+                "writers"= ["file"];
+                "categories"= ["*"];
+                "min_level"= "Debug"
+            };
+            {
+                "writers"= ["stderr"];
+                "categories"= ["*"];
+                "min_level"= "Info"
+            }
+        ];
+        "writers"= {
+            "file" = {
+                "pattern"= "$(datetime) $(level) $(category) $(message)";
+                "type"= "File";
+                "file_name"= "master.log"
+            };
+
+            "stderr" = {
+                "pattern"= "$(datetime) $(level) $(category) $(message)";
+                "type"= "StdErr";
+            }
+        };
+    }
+}

@@ -1,0 +1,132 @@
+package NYT.NScheduler.NProto;
+
+import "yt/ytlib/chunk_holder/chunk.proto";
+import "yt/ytlib/table_client/table_reader.proto";
+import "yt/ytlib/file_server/file_ypath.proto";
+import "yt/ytlib/misc/error.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Sent from the scheduler to an exec node.
+// Describes a portion of processing for a job.
+message TJobSpec
+{
+    required int32 type = 1;
+
+    extensions 100 to max;
+}
+
+// Typically sent from a job proxy to its supervisor
+// (but is also passed on to other parts of the system).
+// Describes the outcome of the job, in particular if it has finished successfully.
+message TJobResult
+{
+    required NYT.NProto.TError Error = 1;
+
+    extensions 100 to max;
+}
+
+// Describes a part of input table(s) to be processed by a job.
+message TTableInputSpec
+{
+    // Chunks comprising the input.
+    repeated NYT.NTableClient.NProto.TInputChunk chunks = 1;
+}
+
+// Defines how to store output from a job into a table.
+message TTableOutputSpec
+{
+    // The schema that must be used for writing the table.
+    // Upon receiving an operation spec, the scheduler requests this schema from the master.
+    required bytes schema = 1;
+    // Chunk list where new chunks must be attached to.
+    required bytes chunk_list_id = 2;
+}
+
+// Defines how to store stderr from a job.
+message TStdErrSpec
+{
+    // The transaction for uploading stderr chunks.
+    required bytes transaction_id = 1;
+    // The chunk list where stderr chunks must be placed.
+    required bytes chunk_list_id = 2;
+}
+
+message TUserJobSpec
+{
+    extend TJobSpec
+    {
+        optional TUserJobSpec user_job_spec = 100;
+    }
+
+    // Additional files to be placed into the sandbox.
+    repeated NYT.NFileServer.NProto.TRspFetch files = 1;
+
+    // The user command to be executed.
+    required string shell_command = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Below one can find the "map" job specs.
+/*
+ * Conceptually map is the simplest operation.
+ * Input consists of a number of tables (or parts thereof).
+ * These tables are merged together into a sequence of rows,
+ * sequence is split into fragments and these fragments
+ * are fed to jobs. Each job runs a given shell command.
+ * The outputs of jobs are collected thus forming a number
+ * of output tables.
+ */
+
+message TMapJobSpec
+{
+    extend TJobSpec
+    {
+        optional TMapJobSpec map_job_spec = 101;
+    }
+
+    // Portions of input data to be processed.
+    required TTableInputSpec input_spec = 1;
+
+    // The transaction that has locked the input.
+    // It's likely that the job won't need this but we
+    // shall keep it here for the sake of symmetric.
+    required bytes input_transaction_id = 2;
+
+    // Describes how to store job output.
+    repeated TTableOutputSpec output_specs = 3;
+
+    // The transaction used for writing output chunks.
+    required bytes output_transaction_id = 4;
+
+    // Describes how to store job stderr.
+    optional TStdErrSpec std_err_spec = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMergeJobSpec
+{
+    extend TJobSpec
+    {
+        optional TMergeJobSpec merge_job_spec = 102;
+    }
+
+    required bytes output_chunk_list_id = 1;
+    required bytes output_transaction_id = 2;
+    repeated NYT.NTableClient.NProto.TInputChunk input_chunks = 3;
+    required bytes schema = 4;
+}
+
+message TMergeJobResult
+{
+    extend TJobResult
+    {
+        optional TMergeJobResult merge_job_result = 101;
+    }
+
+    repeated NYT.NChunkHolder.NProto.TChunkInfo chunks = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

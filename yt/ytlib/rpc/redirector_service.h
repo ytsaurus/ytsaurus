@@ -9,11 +9,11 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRedirectorServiceBase
+class TRedirectorService
     : public IService
 {
 protected:
-    TRedirectorServiceBase(
+    TRedirectorService(
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 

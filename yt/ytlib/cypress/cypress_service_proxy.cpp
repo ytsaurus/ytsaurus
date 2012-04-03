@@ -12,7 +12,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
-    IChannel* channel,
+    IChannel::TPtr channel,
     const Stroka& path,
     const Stroka& verb)
     : TClientRequest(channel, path, verb, false)
@@ -29,7 +29,7 @@ TCypressServiceProxy::TReqExecuteBatch::Invoke()
 
 TCypressServiceProxy::TReqExecuteBatch::TPtr
 TCypressServiceProxy::TReqExecuteBatch::AddRequest(
-    TYPathRequest* innerRequest,
+    TYPathRequestPtr innerRequest,
     const Stroka& key)
 {
     if (!key.empty()) {
@@ -105,6 +105,11 @@ TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(int ind
 TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
     return GetResponse<TYPathResponse>(key);
+}
+
+std::vector<NYTree::TYPathResponse::TPtr> TCypressServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+{
+    return GetResponses<TYPathResponse>(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

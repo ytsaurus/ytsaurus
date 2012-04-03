@@ -30,9 +30,9 @@ public:
 
         i64 MaxChunkSize;
 
-        //! When current chunk size relative to #MaxChunkSize overcomes this threshold (given in percents)
+        //! When current chunk size relative to #MaxChunkSize overcomes this threshold (given as a fraction)
         //! the writer prepares the next chunk.
-        int NextChunkThreshold;
+        double NextChunkThreshold;
 
         int TotalReplicaCount;
         int UploadReplicaCount;
@@ -46,9 +46,9 @@ public:
                 .GreaterThan(0)
                 .Default(1024 * 1024 * 1024);
             Register("next_chunk_threshold", NextChunkThreshold)
-                .GreaterThan(0)
-                .LessThan(100)
-                .Default(70);
+                .GreaterThan(0.0)
+                .LessThan(1.0)
+                .Default(0.7);
             Register("total_replica_count", TotalReplicaCount)
                 .GreaterThanOrEqual(1)
                 .Default(3);
@@ -77,14 +77,14 @@ public:
 
     ~TChunkSequenceWriter();
 
-    TAsyncError::TPtr AsyncOpen(
+    TAsyncError AsyncOpen(
         const NProto::TTableChunkAttributes& attributes);
 
-    TAsyncError::TPtr AsyncEndRow(
+    TAsyncError AsyncEndRow(
         TKey& key,
         std::vector<TChannelWriter::TPtr>& channels);
 
-    TAsyncError::TPtr AsyncClose(
+    TAsyncError AsyncClose(
         TKey& lastKey,
         std::vector<TChannelWriter::TPtr>& channels);
 
@@ -103,12 +103,12 @@ private:
 
     void OnChunkClosed(
         TChunkWriter::TPtr currentChunk,
-        TAsyncError::TPtr finishResult,
+        TAsyncError finishResult,
         TError error);
 
     void OnChunkRegistered(
         NChunkClient::TChunkId chunkId,
-        TAsyncError::TPtr finishResult,
+        TAsyncError finishResult,
         NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     void OnChunkFinished(

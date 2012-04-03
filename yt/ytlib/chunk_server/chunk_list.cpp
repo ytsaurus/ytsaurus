@@ -14,6 +14,7 @@ using namespace NCellMaster;
 
 TChunkList::TChunkList(const TChunkListId& id)
     : TObjectWithIdBase(id)
+    , Sorted_(false)
 { }
 
 void TChunkList::Save(TOutputStream* output) const
@@ -22,6 +23,7 @@ void TChunkList::Save(TOutputStream* output) const
     SaveObjects(output, Children_);
     SaveObjects(output, Parents_);
     ::Save(output, Statistics_);
+    ::Save(output, Sorted_);
 }
 
 void TChunkList::Load(const TLoadContext& context, TInputStream* input)
@@ -31,6 +33,7 @@ void TChunkList::Load(const TLoadContext& context, TInputStream* input)
     LoadObjects(input, Children_, context);
     LoadObjects(input, Parents_, context);
     ::Load(input, Statistics_);
+    ::Load(input, Sorted_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

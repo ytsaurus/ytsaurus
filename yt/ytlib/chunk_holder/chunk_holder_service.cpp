@@ -9,12 +9,12 @@
 #include "block_store.h"
 #include "peer_block_table.h"
 #include "session_manager.h"
-#include <ytlib/chunk_holder/chunk_holder_service.pb.h>
+#include "bootstrap.h"
 
+#include <ytlib/chunk_holder/chunk_holder_service.pb.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/parallel_awaiter.h>
-#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -22,7 +22,6 @@ namespace NChunkHolder {
 using namespace NRpc;
 using namespace NChunkClient;
 using namespace NProto;
-using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,8 +136,12 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
         ->GetSessionManager()
         ->FinishSession(~session, attributes)
         ->Subscribe(BIND([=] (TChunkPtr chunk) {
-            response->set_size(chunk->GetSize());
+            auto chunkInfo = session->GetChunkInfo();
+            // Don't report attributes to the writer since it has them already.
+            chunkInfo.clear_attributes();
+            *response->mutable_chunk_info() = chunkInfo;
             context->Reply();
+
         }));
 }
 

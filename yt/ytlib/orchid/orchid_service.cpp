@@ -54,7 +54,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
     ->Subscribe(BIND([=] (IMessage::TPtr responseMessage)
         {
             auto responseHeader = GetResponseHeader(~responseMessage);
-            auto error = GetResponseError(responseHeader);
+            auto error = TError::FromProto(responseHeader.error());
 
             context->SetRequestInfo("Error: %s", ~error.ToString());
 

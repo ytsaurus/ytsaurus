@@ -12,7 +12,7 @@ namespace NYT {
 template <class TKey, class TValue, class THash>
 class TCacheBase;
 
-template <class TKey, class TValue, class THash = hash<TKey> >
+template <class TKey, class TValue, class THash = ::hash<TKey> >
 class TCacheValueBase
     : public virtual TRefCounted
 {
@@ -126,7 +126,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class THash = hash<TKey> >
+template <class TKey, class TValue, class THash = ::hash<TKey> >
 class TSizeLimitedCache
     : public TCacheBase<TKey, TValue, THash>
 {
@@ -142,7 +142,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class THash = hash<TKey> >
+template <class TKey, class TValue, class THash = ::hash<TKey> >
 class TWeightLimitedCache
     : public TCacheBase<TKey, TValue, THash>
 {

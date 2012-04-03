@@ -233,14 +233,14 @@ bool TChannel::IsEmpty() const
     return Columns.empty() && Ranges.empty();
 }
 
-TChannel TChannel::Universal()
+TChannel TChannel::CreateUniversal()
 {
     TChannel result;
     result.AddRange(TRange(""));
     return result;
 }
 
-TChannel TChannel::Empty()
+TChannel TChannel::CreateEmpty()
 {
     return TChannel();
 }
@@ -377,7 +377,7 @@ struct TSchema::TConfig
 
 TSchema::TSchema()
 {
-    auto trashChannel = TChannel::Empty();
+    auto trashChannel = TChannel::CreateEmpty();
     // Initially the schema consists of a single trash channel,
     // i.e. [epsilon, infinity).
     // This "trash" channel is expected to be present in any chunk

@@ -77,7 +77,7 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
-                Value = Factory.IsNull() ? Factory.Run() : new T();
+                Value = Factory.IsNull() ? new T() : Factory.Run();
             }
         }
         return ~Value;

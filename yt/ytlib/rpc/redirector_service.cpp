@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "redirector_service_base.h"
+#include "redirector_service.h"
 #include "channel_cache.h"
 
 namespace NYT {
@@ -14,7 +14,7 @@ static TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRedirectorServiceBase::TRequest
+class TRedirectorService::TRequest
     : public IClientRequest
 {
 public:
@@ -68,7 +68,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRedirectorServiceBase::TResponseHandler
+class TRedirectorService::TResponseHandler
     : public IClientResponseHandler
 {
 public:
@@ -96,14 +96,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRedirectorServiceBase::TRedirectorServiceBase(
+TRedirectorService::TRedirectorService(
     const Stroka& serviceName,
     const Stroka& loggingCategory)
     : ServiceName(serviceName)
     , LoggingCategory(loggingCategory)
 { }
 
-void TRedirectorServiceBase::OnBeginRequest(IServiceContext* context)
+void TRedirectorService::OnBeginRequest(IServiceContext* context)
 {
     auto context_= MakeStrong(context);
     HandleRedirect(context)->Subscribe(BIND([=] (TRedirectResult result)
@@ -137,17 +137,17 @@ void TRedirectorServiceBase::OnBeginRequest(IServiceContext* context)
         }));
 }
 
-void TRedirectorServiceBase::OnEndRequest(IServiceContext* context)
+void TRedirectorService::OnEndRequest(IServiceContext* context)
 {
     UNUSED(context);
 }
 
-Stroka TRedirectorServiceBase::GetServiceName() const
+Stroka TRedirectorService::GetServiceName() const
 {
     return ServiceName;
 }
 
-Stroka TRedirectorServiceBase::GetLoggingCategory() const
+Stroka TRedirectorService::GetLoggingCategory() const
 {
     return LoggingCategory;
 }

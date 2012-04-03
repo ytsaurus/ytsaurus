@@ -74,11 +74,13 @@ template <class T, class = void>
 struct TDeserializeTraits;
 
 class TYPathRequest;
+typedef TIntrusivePtr<TYPathRequest> TYPathRequestPtr;
 
 template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathRequest;
 
 class TYPathResponse;
+typedef TIntrusivePtr<TYPathResponse> TYPathResponsePtr;
 
 template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathResponse;

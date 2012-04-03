@@ -28,6 +28,15 @@ class TChunkReader
 public:
     typedef TIntrusivePtr<TChunkReader> TPtr;
 
+    struct TOptions
+    {
+        bool ReadKey;
+
+        TOptions()
+            : ReadKey(false)
+        { }
+    };
+
     /*! 
      *  \param EndRow - if given value exceeds row count of the chunk,
      *  chunk is processed to the end without error. To guarantee reading
@@ -38,25 +47,28 @@ public:
         const TChannel& channel,
         NChunkClient::IAsyncReader* chunkReader,
         const NProto::TReadLimit& startLimit,
-        const NProto::TReadLimit& endLimit);
+        const NProto::TReadLimit& endLimit,
+        const Stroka& rowAttributes,
+        TOptions options);
 
-    TAsyncError::TPtr AsyncOpen();
+    TAsyncError AsyncOpen();
 
     //! Asynchronously switches the reader to the next row.
     /*!
      *  This call cannot block.
      */
-    TAsyncError::TPtr AsyncNextRow();
+    TAsyncError AsyncNextRow();
 
     bool IsValid() const;
     const TRow& GetCurrentRow() const;
+    const TKey& GetCurrentKey() const;
 
 private:
-    TAsyncError::TPtr DoNextRow();
+    TAsyncError DoNextRow();
 
-    TAsyncError::TPtr ContinueNextRow(
+    TAsyncError ContinueNextRow(
         int channelIndex, 
-        TAsyncError::TPtr result,
+        TAsyncError result,
         TError error);
 
     void MakeCurrentRow();
@@ -69,6 +81,7 @@ private:
 
     TAsyncStreamState State;
     TChannel Channel;
+    TOptions Options;
 
     TRow CurrentRow;
 

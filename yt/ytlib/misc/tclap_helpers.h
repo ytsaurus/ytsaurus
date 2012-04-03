@@ -16,42 +16,41 @@
 
 namespace TCLAP {
 
-template<>
+template <>
 struct ArgTraits<Stroka>
 {
     typedef StringLike ValueCategory;
 };
 
-template<>
+template <>
 struct ArgTraits<NYT::NObjectServer::TTransactionId>
 {
     typedef ValueLike ValueCategory;
 };
 
-template<>
+template <>
 struct ArgTraits<NYT::NCypress::ELockMode>
 {
     typedef ValueLike ValueCategory;
 };
 
-template<>
+template <>
 struct ArgTraits<NYT::NObjectServer::EObjectType>
 {
     typedef ValueLike ValueCategory;
 };
 
-template<>
+template <>
 struct ArgTraits<NYT::NYTree::EYsonFormat>
 {
     typedef ValueLike ValueCategory;
 };
 
-template<class T>
+template <class T>
 struct ArgTraits< NYT::TNullable<T> >
 {
     typedef ValueLike ValueCategory;
 };
-
 
 }
 
@@ -65,7 +64,7 @@ inline std::istream& operator >> (std::istream& input, NYT::TGuid& guid)
     return input;
 }
 
-template<class T>
+template <class T>
 inline std::istream& operator >> (std::istream& input, NYT::TEnumBase<T>& mode)
 {
     std::string s;
@@ -74,7 +73,7 @@ inline std::istream& operator >> (std::istream& input, NYT::TEnumBase<T>& mode)
     return input;
 }
 
-template<class T>
+template <class T>
 inline std::istream& operator >> (std::istream& input, NYT::TNullable<T>& nullable)
 {
     std::string s;

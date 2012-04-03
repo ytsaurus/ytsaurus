@@ -1,3 +1,4 @@
+#include "arguments.h"
 
 #include <ytlib/logging/log_manager.h>
 
@@ -20,6 +21,7 @@
 
 #include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
+#include <util/folder/dirut.h>
 
 #include <build.h>
 
@@ -29,8 +31,6 @@
 #include <unistd.h>
 #include <errno.h>
 #endif
-
-#include "arguments.h"
 
 namespace NYT {
 
@@ -152,22 +152,25 @@ public:
     TDriverProgram()
         : ExitCode(0)
     {
-        RegisterParser("start_tx", ~New<TStartTxArgs>());
-        RegisterParser("commit_tx", ~New<TCommitTxArgs>());
-        RegisterParser("abort_tx", ~New<TAbortTxArgs>());
+        RegisterParser("start_tx", New<TStartTxArgs>());
+        RegisterParser("commit_tx", New<TCommitTxArgs>());
+        RegisterParser("abort_tx", New<TAbortTxArgs>());
 
-        RegisterParser("get", ~New<TGetArgs>());
-        RegisterParser("set", ~New<TSetArgs>());
-        RegisterParser("remove", ~New<TRemoveArgs>());
-        RegisterParser("list", ~New<TListArgs>());
-        RegisterParser("create", ~New<TCreateArgs>());
-        RegisterParser("lock", ~New<TLockArgs>());
+        RegisterParser("get", New<TGetArgs>());
+        RegisterParser("set", New<TSetArgs>());
+        RegisterParser("remove", New<TRemoveArgs>());
+        RegisterParser("list", New<TListArgs>());
+        RegisterParser("create", New<TCreateArgs>());
+        RegisterParser("lock", New<TLockArgs>());
 
-        RegisterParser("download", ~New<TDownloadArgs>());
-        RegisterParser("upload", ~New<TUploadArgs>());
+        RegisterParser("download", New<TDownloadArgs>());
+        RegisterParser("upload", New<TUploadArgs>());
 
-        RegisterParser("read", ~New<TReadArgs>());
-        RegisterParser("write", ~New<TWriteArgs>());
+        RegisterParser("read", New<TReadArgs>());
+        RegisterParser("write", New<TWriteArgs>());
+
+        RegisterParser("map", New<TMapArgs>());
+        RegisterParser("merge", New<TMergeArgs>());
     }
 
     int Main(int argc, const char* argv[])
@@ -290,7 +293,7 @@ private:
 
     yhash_map<Stroka, TArgsBase::TPtr> ArgsParsers;
 
-    void RegisterParser(const Stroka& name, TArgsBase* command)
+    void RegisterParser(const Stroka& name, TArgsBasePtr command)
     {
         YVERIFY(ArgsParsers.insert(MakePair(name, command)).second);
     }

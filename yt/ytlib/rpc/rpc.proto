@@ -2,6 +2,7 @@ package NYT.NRpc.NProto;
 
 import "yt/ytlib/ytree/attributes.proto";
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/misc/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,9 +18,8 @@ message TRequestHeader
 message TResponseHeader
 {
     optional NYT.NProto.TGuid request_id = 1;
-    required int32 error_code = 2;
-    optional string error_message = 3;
-    optional NYT.NYTree.NProto.TAttributes attributes = 4;
+    required NYT.NProto.TError error = 2;
+    optional NYT.NYTree.NProto.TAttributes attributes = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

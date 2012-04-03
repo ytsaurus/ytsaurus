@@ -21,7 +21,7 @@ public:
 
     TChunkTreeId GetId() const;
 
-    friend struct hash<TChunkTreeRef>;
+    friend struct ::hash<TChunkTreeRef>;
 
 private:
     uintptr_t Pointer;

@@ -68,9 +68,9 @@ public:
     const std::vector<TColumn>& GetColumns() const;
 
     //! Returns the channel containing all possible columns.
-    static TChannel Universal();
+    static TChannel CreateUniversal();
     //! Returns the empty channel.
-    static TChannel Empty();
+    static TChannel CreateEmpty();
 
 private:
     TChannel();

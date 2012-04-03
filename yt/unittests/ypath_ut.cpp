@@ -12,6 +12,8 @@
 
 #include <contrib/testing/framework.h>
 
+#include <util/string/vector.h>
+
 namespace NYT {
 namespace NYTree {
 

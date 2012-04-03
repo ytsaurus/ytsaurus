@@ -94,7 +94,7 @@ public:
     /*!
      *  This service supports some special prefix syntax for YPaths:
      */
-    NYTree::IYPathService* GetRootService();
+    NYTree::IYPathServicePtr GetRootService();
     
     //! Executes a YPath verb, logging the change if neccessary.
     /*!

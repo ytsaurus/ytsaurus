@@ -10,7 +10,7 @@ namespace NYT {
 TAsyncStreamState::TAsyncStreamState()
     : IsOperationFinished(true)
     , IsActive_(true)
-    , StaticError(New<TAsyncError>(TError()))
+    , StaticError(MakeFuture(TError()))
     , CurrentError(NULL)
 { }
 
@@ -44,7 +44,7 @@ void TAsyncStreamState::DoFail(const TError& error)
         StaticError = CurrentError;
         CurrentError.Reset();
     } else {
-        StaticError = New<TAsyncError>();
+        StaticError = New< TFuture<TError> >();
     }
     StaticError->Set(error);
 }
@@ -102,14 +102,14 @@ void TAsyncStreamState::StartOperation()
     IsOperationFinished = false;
 }
 
-TAsyncError::TPtr TAsyncStreamState::GetOperationError()
+TAsyncError TAsyncStreamState::GetOperationError()
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (IsOperationFinished || !IsActive_) {
         return StaticError;
     } else {
         YASSERT(!CurrentError);
-        CurrentError = New<TAsyncError>();
+        CurrentError = New< TFuture<TError> >();
         return CurrentError;
     }
 }

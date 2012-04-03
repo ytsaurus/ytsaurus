@@ -12,7 +12,6 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NProto;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,10 +27,10 @@ public:
     typedef TIntrusivePtr<TServiceContext> TPtr;
 
     TServiceContext(
-        const TRequestHeader& header,
-        IMessage* requestMessage,
-        IBus* replyBus,
-        IService* service,
+        const NProto::TRequestHeader& header,
+        IMessage::TPtr requestMessage,
+        IBus::TPtr replyBus,
+        IService::TPtr service,
         const Stroka& loggingCategory)
         : TServiceContextBase(header, requestMessage)
         , ReplyBus(replyBus)
@@ -47,7 +46,7 @@ private:
     IService::TPtr Service;
     NLog::TLogger Logger;
 
-    virtual void DoReply(const TError& error, IMessage* responseMessage)
+    virtual void DoReply(const TError& error, IMessage::TPtr responseMessage)
     {
         UNUSED(error);
 
@@ -76,18 +75,6 @@ private:
             ~str);
     }
 
-    virtual void LogException(const Stroka& message)
-    {
-        Stroka str;
-        AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
-        AppendInfo(str, Sprintf("Path: %s", ~Path));
-        AppendInfo(str, Sprintf("Verb: %s", ~Verb));
-        AppendInfo(str, ResponseInfo);
-        LOG_FATAL("Unhandled exception in RPC service method (%s)\n%s",
-            ~str,
-            ~message);
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,12 +86,12 @@ class TRpcServer
 public:
     typedef TIntrusivePtr<TRpcServer> TPtr;
 
-    TRpcServer(IBusServer* busServer)
+    TRpcServer(IBusServer::TPtr busServer)
         : BusServer(busServer)
         , Started(false)
     { }
 
-    virtual void RegisterService(IService* service)
+    virtual void RegisterService(IService::TPtr service)
     {
         YASSERT(service);
 
@@ -213,7 +200,7 @@ private:
 
 };
 
-IServer::TPtr CreateRpcServer(NBus::IBusServer* busServer)
+IServer::TPtr CreateRpcServer(NBus::IBusServer::TPtr busServer)
 {
     return New<TRpcServer>(busServer);
 }

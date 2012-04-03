@@ -1,16 +1,18 @@
 #pragma once
 
-#include <ytlib/rpc/service.h>
-#include <ytlib/cell_master/public.h>
+#include <ytlib/misc/common.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NCellScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IService::TPtr CreateRedirectorService(NCellMaster::TBootstrap* bootstrap);
+class TBootstrap;
+
+struct TCellSchedulerConfig;
+typedef TIntrusivePtr<TCellSchedulerConfig> TCellSchedulerConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NCellScheduler
 } // namespace NYT

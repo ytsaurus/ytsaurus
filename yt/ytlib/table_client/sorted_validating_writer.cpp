@@ -17,7 +17,7 @@ TSortedValidatingWriter::TSortedValidatingWriter(
     Attributes.set_is_sorted(true);
 }
 
-TAsyncError::TPtr TSortedValidatingWriter::AsyncEndRow()
+TAsyncError TSortedValidatingWriter::AsyncEndRow()
 {
     if (PreviousKey > CurrentKey) {
         ythrow yexception() << Sprintf(

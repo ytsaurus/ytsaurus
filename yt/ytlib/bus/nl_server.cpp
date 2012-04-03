@@ -11,9 +11,7 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/profiling/profiler.h>
 
-#include <util/generic/list.h>
-#include <util/generic/deque.h>
-#include <util/generic/utility.h>
+#include <util/thread/lfqueue.h>
 
 #include <quality/netliba_v6/udp_http.h>
 

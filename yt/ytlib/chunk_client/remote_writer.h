@@ -89,12 +89,12 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError::TPtr AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
+    virtual TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
 
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError::TPtr AsyncClose(
+    virtual TAsyncError AsyncClose(
         const std::vector<TSharedRef>& lastBlocks,
         const NChunkHolder::NProto::TChunkAttributes& attributes);
 
@@ -163,8 +163,8 @@ private:
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
 
-    //! Chunk uncompressed size (as reported by the holders on Finish).
-    i64 ChunkSize;
+    //! Returned from holder in Finish.
+    NChunkHolder::NProto::TChunkInfo ChunkInfo;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;

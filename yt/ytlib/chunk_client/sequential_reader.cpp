@@ -55,7 +55,7 @@ TSharedRef TSequentialReader::GetBlock()
     return Window[NextSequenceIndex - 1].AsyncBlock->Get();
 }
 
-TAsyncError::TPtr TSequentialReader::AsyncNextBlock()
+TAsyncError TSequentialReader::AsyncNextBlock()
 {
     // No thread affinity - can be called from 
     // ContinueNextRow of NTableClient::TChunkReader.

@@ -17,43 +17,49 @@ struct ITransaction
 
     //! Commits the transaction.
     /*!
-     * \note
-     * This call may block.
-     * Throws an exception if the commit fails.
-     * Should not be called more than once.
+     *  This call may block.
+     *  Throws an exception if the commit fails.
+     *  Should not be called more than once.
      * 
-     * Thread affinity: ClientThread.
+     *  \note Thread affinity: ClientThread
      */
     virtual void Commit() = 0;
 
     //! Aborts the transaction.
     /*!
-     *  \note
+     *  
      *  This call does not block and does not throw.
      *  Safe to call multiple times.
      * 
-     *  Thread affinity: any.
+     *  \note Thread affinity: any
      */
     virtual void Abort() = 0;
 
+    //! Detaches the transaction, i.e. makes the manager forget about it.
+    /*!
+     *  
+     *  This call does not block and does not throw.
+     *  Safe to call multiple times.
+     * 
+     *  \note Thread affinity: ClientThread
+     */
+    virtual void Detach() = 0;
+
     //! Returns the id of the transaction.
     /*!
-     *  \note
-     *  Thread affinity: any.
+     *  \note Thread affinity: any
      */
     virtual TTransactionId GetId() const  = 0;
 
     //! Returns the id of the parent transaction.
     /*!
-     *  \note
-     *  Thread affinity: any.
+     *  \note Thread affinity: any
      */
     virtual TTransactionId GetParentId() const = 0;
 
     //! Raised when the transaction is aborted.
     /*!
-     *  \note
-     *  Thread affinity: any.
+     *  \note Thread affinity: any
      */
     DECLARE_INTERFACE_SIGNAL(void(), Aborted);
 };

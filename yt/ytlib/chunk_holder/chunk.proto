@@ -34,7 +34,7 @@ message TChunkInfo
     required int64 size = 2;
     required uint64 meta_checksum = 3;
     repeated TBlockInfo blocks = 4;
-    required TChunkAttributes attributes = 5;
+    optional TChunkAttributes attributes = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

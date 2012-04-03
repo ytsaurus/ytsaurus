@@ -77,6 +77,16 @@ TOutputStream& SerializeToYson(
     return output;
 }
 
+TYson SerializeToYson(
+    TYsonProducer producer,
+    EYsonFormat format)
+{
+    TStringStream output;
+    TYsonWriter writer(&output, format);
+    producer.Run(&writer);
+    return output.Str();
+}
+
 INodePtr CloneNode(INode* node, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);

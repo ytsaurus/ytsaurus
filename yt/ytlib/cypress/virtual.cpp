@@ -44,7 +44,7 @@ public:
         TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId,
-        IYPathService* service)
+        IYPathServicePtr service)
         : TBase(
             typeHandler,
             bootstrap,
@@ -59,7 +59,7 @@ public:
             return TBase::Resolve(path, verb);
         }
         auto redirectedPath = ChopYPathRedirectMarker(path);
-        return TResolveResult::There(~Service, redirectedPath);
+        return TResolveResult::There(Service, redirectedPath);
     }
 
 private:
@@ -92,7 +92,7 @@ public:
             Bootstrap,
             id.TransactionId,
             id.ObjectId,
-            ~service);
+            service);
     }
 
     virtual EObjectType GetObjectType()
@@ -130,7 +130,7 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
-    IYPathService* service)
+    IYPathServicePtr service)
 {
     IYPathServicePtr service_ = service;
     return CreateVirtualTypeHandler(

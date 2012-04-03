@@ -87,6 +87,21 @@ private:
                 WithTransaction("/sys/scheduler", transactionId),
                 "{}");
 
+            SyncYPathSet(
+                service,
+                WithTransaction("/sys/scheduler/lock", transactionId),
+                "{}");
+
+            SyncYPathSet(
+                service,
+                WithTransaction("/sys/scheduler/runtime", transactionId),
+                "{}");
+
+            SyncYPathSet(
+                service,
+                WithTransaction("/sys/operations", transactionId),
+                "{}");
+
             SyncYPathCreate(
                 service,
                 WithTransaction("/sys/holders", transactionId),
@@ -174,7 +189,7 @@ private:
     }
 
     // TODO(babenko): consider moving somewhere
-    static TObjectId SyncYPathCreate(IYPathService* service, const TYPath& path, EObjectType type, const TYson& manifest = "{}")
+    static TObjectId SyncYPathCreate(IYPathServicePtr service, const TYPath& path, EObjectType type, const TYson& manifest = "{}")
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(type);

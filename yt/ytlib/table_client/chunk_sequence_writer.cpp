@@ -66,10 +66,8 @@ void TChunkSequenceWriter::CreateNextChunk()
     *req->mutable_transaction_id() = TransactionId.ToProto();
 
     req->Invoke()->Subscribe(
-        BIND(
-            &TChunkSequenceWriter::OnChunkCreated,
-            MakeWeak(this))
-        .Via(WriterThread->GetInvoker()));
+        BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
+        	.Via(WriterThread->GetInvoker()));
 }
 
 void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
@@ -81,39 +79,39 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
         return;
     }
 
-    if (rsp->IsOK()) {
-        YASSERT(rsp->chunks_size() == 1);
-        const auto& chunkInfo = rsp->chunks(0);
-
-        auto addresses = FromProto<Stroka>(chunkInfo.holder_addresses());
-        auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
-
-        LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
-            ~JoinToString(addresses),
-            ~chunkId.ToString());
-
-        auto remoteWriter = New<TRemoteWriter>(
-            ~Config->RemoteWriter,
-            chunkId,
-            addresses);
-        remoteWriter->Open();
-
-        auto chunkWriter = New<TChunkWriter>(
-            ~Config->ChunkWriter,
-            ~remoteWriter);
-
-        // Although we call _Async_Open, it return immediately.
-        // See TChunkWriter for details.
-        chunkWriter->AsyncOpen(Attributes);
-
-        NextChunk->Set(chunkWriter);
-
-    } else {
+    if (!rsp->IsOK()) {
         State.Fail(rsp->GetError());
+        return;
     }
+        
+    YASSERT(rsp->chunks_size() == 1);
+    const auto& chunkInfo = rsp->chunks(0);
+
+    auto addresses = FromProto<Stroka>(chunkInfo.holder_addresses());
+    auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
+
+    LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
+        ~JoinToString(addresses),
+        ~chunkId.ToString());
+
+    auto remoteWriter = New<TRemoteWriter>(
+        ~Config->RemoteWriter,
+        chunkId,
+        addresses);
+    remoteWriter->Open();
+
+    auto chunkWriter = New<TChunkWriter>(
+        ~Config->ChunkWriter,
+        ~remoteWriter);
+
+    // Although we call _Async_Open, it returns immediately.
+    // See TChunkWriter for details.
+    chunkWriter->AsyncOpen(Attributes);
+
+    NextChunk->Set(chunkWriter);
 }
 
-TAsyncError::TPtr TChunkSequenceWriter::AsyncOpen(
+TAsyncError TChunkSequenceWriter::AsyncOpen(
     const NProto::TTableChunkAttributes& attributes)
 {
     YASSERT(!State.HasRunningOperation());
@@ -138,7 +136,7 @@ void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
     State.FinishOperation();
 }
 
-TAsyncError::TPtr TChunkSequenceWriter::AsyncEndRow(
+TAsyncError TChunkSequenceWriter::AsyncEndRow(
     TKey& key,
     std::vector<TChannelWriter::TPtr>& channels)
 {
@@ -184,11 +182,14 @@ void TChunkSequenceWriter::FinishCurrentChunk(
     TKey& lastKey,
     std::vector<TChannelWriter::TPtr>& channels)
 {
+    if (!CurrentChunk)
+        return;
+
     if (CurrentChunk->GetCurrentSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
 
-        TAsyncError::TPtr finishResult = New<TAsyncError>();
+        auto finishResult = New< TFuture<TError> >();
         CloseChunksAwaiter->Await(finishResult, 
             BIND(
                 &TChunkSequenceWriter::OnChunkFinished, 
@@ -212,13 +213,14 @@ void TChunkSequenceWriter::FinishCurrentChunk(
 bool TChunkSequenceWriter::IsNextChunkTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return (CurrentChunk->GetCurrentSize() / double(Config->MaxChunkSize)) > 
-        (Config->NextChunkThreshold / 100.0);
+    return
+        (double) CurrentChunk->GetCurrentSize() / Config->MaxChunkSize >
+        Config->NextChunkThreshold;
 }
 
 void TChunkSequenceWriter::OnChunkClosed(
     TChunkWriter::TPtr currentChunk,
-    TAsyncError::TPtr finishResult,
+    TAsyncError finishResult,
     TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -255,7 +257,7 @@ void TChunkSequenceWriter::OnChunkClosed(
 
 void TChunkSequenceWriter::OnChunkRegistered(
     TChunkId chunkId,
-    TAsyncError::TPtr finishResult,
+    TAsyncError finishResult,
     TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -294,7 +296,7 @@ void TChunkSequenceWriter::OnChunkFinished(
         ~chunkId.ToString());
 }
 
-TAsyncError::TPtr TChunkSequenceWriter::AsyncClose(
+TAsyncError TChunkSequenceWriter::AsyncClose(
     TKey& lastKey,
     std::vector<TChannelWriter::TPtr>& channels)
 {

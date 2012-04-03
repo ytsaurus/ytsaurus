@@ -1,6 +1,5 @@
 set( SRCS
   main.cpp
-  scheduler_bootstrap.cpp
 )
 
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )

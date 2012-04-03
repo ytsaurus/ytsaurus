@@ -227,17 +227,9 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
 }
 
 template <class T>
-void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
+void TParameter<T>::Save(NYTree::IYsonConsumer* consumer) const
 {
-    if (IsPresent()) {
-        NYTree::Write(Parameter, consumer);
-    } else {
-        consumer->OnEntity(true);
-        consumer->OnBeginAttributes();
-        consumer->OnAttributesItem("type");
-        consumer->OnStringScalar(DemangleCxxName(typeid(T).name()));
-        consumer->OnEndAttributes();
-    }
+    NYTree::Write(Parameter, consumer);
 }
 
 template <class T>
@@ -293,43 +285,32 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
 DEFINE_VALIDATOR(
     GreaterThan(T value),
     parameter > value,
-    yexception()
-        << "Validation failure (Expected: >"
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected >" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(T value),
     parameter >= value,
-    yexception()
-        << "Validation failure (Expected: >="
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected >=" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     LessThan(T value),
     parameter < value,
-    yexception()
-        << "Validation failure (Expected: <"
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected <" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(T value),
     parameter <= value,
-    yexception()
-        << "Validation failure (Expected: <="
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected <=" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     InRange(T lowerBound, T upperBound),
     lowerBound <= parameter && parameter <= upperBound,
-    yexception()
-        << "Validation failure (Expected: in range ["
-        << lowerBound << ", " << upperBound << "], Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected in range ["<< lowerBound << ", " << upperBound << "], found " << parameter)
 
 DEFINE_VALIDATOR(
     NonEmpty(),
     parameter.size() > 0,
-    yexception()
-        << "Validation failure (Expected: non-empty)")
+    yexception() << "Validation failure: expected non-empty")
 
 #undef DEFINE_VALIDATOR
 

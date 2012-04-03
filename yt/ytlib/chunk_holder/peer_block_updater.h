@@ -6,14 +6,11 @@
 #include <ytlib/actions/bind.h>
 #include <ytlib/actions/invoker.h>
 #include <ytlib/misc/periodic_invoker.h>
-#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TChunkHolderServiceProxy;
 
 class TPeerBlockUpdater
     : public TRefCounted
@@ -21,7 +18,7 @@ class TPeerBlockUpdater
 public:
     TPeerBlockUpdater(
         TChunkHolderConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -32,7 +29,7 @@ private:
     typedef TChunkHolderServiceProxy TProxy;
 
     TChunkHolderConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap;
     TPeriodicInvoker::TPtr PeriodicInvoker;
 
 };

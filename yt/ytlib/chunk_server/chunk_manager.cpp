@@ -130,29 +130,29 @@ public:
         YASSERT(config);
         YASSERT(bootstrap);
 
-        RegisterMethod(this, &TImpl::FullHeartbeat);
-        RegisterMethod(this, &TImpl::IncrementalHeartbeat);
-        RegisterMethod(this, &TImpl::UpdateJobs);
-        RegisterMethod(this, &TImpl::RegisterHolder);
-        RegisterMethod(this, &TImpl::UnregisterHolder);
-        RegisterMethod(this, &TImpl::CreateChunks);
+        RegisterMethod(BIND(&TImpl::FullHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::IncrementalHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::UpdateJobs, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::RegisterHolder, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::UnregisterHolder, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::CreateChunks, Unretained(this)));
 
         TLoadContext context(bootstrap);
 
         auto metaState = bootstrap->GetMetaState();
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
-            BIND(&TChunkManager::TImpl::LoadKeys, MakeStrong(this)));
+            BIND(&TImpl::LoadKeys, MakeStrong(this)));
         metaState->RegisterLoader(
             "ChunkManager.Values.1",
-            BIND(&TChunkManager::TImpl::LoadValues, MakeStrong(this), context));
+            BIND(&TImpl::LoadValues, MakeStrong(this), context));
         metaState->RegisterSaver(
             "ChunkManager.Keys.1",
-            BIND(&TChunkManager::TImpl::SaveKeys, MakeStrong(this)),
+            BIND(&TImpl::SaveKeys, MakeStrong(this)),
             ESavePhase::Keys);
         metaState->RegisterSaver(
             "ChunkManager.Values.1",
-            BIND(&TChunkManager::TImpl::SaveValues, MakeStrong(this)),
+            BIND(&TImpl::SaveValues, MakeStrong(this)),
             ESavePhase::Values);
 
         metaState->RegisterPart(this);
@@ -515,14 +515,20 @@ private:
         // Apply delta to the parent chunk list.
         chunkList.Statistics().Accumulate(delta);
 
-        // Run a DFS-like traversal upwards and apply delta.
-        // TODO(babenko): this only works correctly if upward paths are unique.
-        std::vector<TChunkList*> dfsStack(chunkList.Parents().begin(), chunkList.Parents().end());
-        while (!dfsStack.empty()) {
-            auto currentChunkList = dfsStack.back();
-            dfsStack.pop_back();
-            currentChunkList->Statistics().Accumulate(delta);
-            dfsStack.insert(dfsStack.end(), currentChunkList->Parents().begin(), currentChunkList->Parents().end());
+        // Go upwards and apply delta.
+        // Also reset Sorted flags.
+        // Check that parents are unique along the way.
+        auto* current = &chunkList;
+        for (;;) {
+            current->Statistics().Accumulate(delta);
+            current->SetSorted(false);
+
+            const auto& parents = current->Parents();
+            if (parents.empty())
+                break;
+
+            YASSERT(parents.size() == 1);
+            current = *parents.begin();
         }
     }
 
@@ -1420,12 +1426,7 @@ private:
             }
         }
 
-        TBlob blob;
-        if (!SerializeToProtobuf(&request->attributes(), &blob)) {
-            LOG_FATAL("Error serializing chunk attributes (ChunkId: %s)", ~Id.ToString());
-        }
-
-        chunk.SetAttributes(TSharedRef(MoveRV(blob)));
+        chunk.SetAttributes(TSharedRef::FromString(request->attributes()));
 
         LOG_INFO_IF(!Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
 
@@ -1500,19 +1501,17 @@ private:
 
         if (name == "children_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList.Children(), [=] (TFluentList fluent, TChunkTreeRef chunkRef)
-                    {
-                        fluent.Item().Scalar(chunkRef.GetId().ToString());
-                    });
+                .DoListFor(chunkList.Children(), [=] (TFluentList fluent, TChunkTreeRef chunkRef) {
+                        fluent.Item().Scalar(chunkRef.GetId());
+                });
             return true;
         }
 
         if (name == "parent_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList.Parents(), [=] (TFluentList fluent, TChunkList* chunkList)
-                    {
-                        fluent.Item().Scalar(chunkList->GetId().ToString());
-                    });
+                .DoListFor(chunkList.Parents(), [=] (TFluentList fluent, TChunkList* chunkList) {
+                    fluent.Item().Scalar(chunkList->GetId());
+                });
             return true;
         }
 

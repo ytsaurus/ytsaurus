@@ -24,8 +24,9 @@ message TReqFinishChunk
 
 message TRspFinishChunk
 {
-    // Full chunk size (including both data and meta).
-    required int64 size = 1;
+    // Returned chunk_info never contains attributes field - 
+    // it doesn't make sense cause client sent it in request.
+    required TChunkInfo chunk_info = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

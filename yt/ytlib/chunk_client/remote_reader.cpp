@@ -14,6 +14,7 @@
 #include <ytlib/cypress/cypress_service_proxy.h>
 
 #include <util/random/shuffle.h>
+#include <util/system/hostname.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -125,7 +126,7 @@ private:
 
         auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
         CypressProxy
-            ->Execute(~req)
+            ->Execute(req)
             ->Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
     }
 
@@ -207,9 +208,9 @@ protected:
                 OnGotSeeds();
             }
         } else {
-            OnSessionFailed(TError(Sprintf("Retries have been aborted due to master error (RetryIndex: %d)\n%s",
+            OnSessionFailed(TError("Retries have been aborted due to master error (RetryIndex: %d)\n%s",
                 RetryIndex,
-                ~result.ToString())));
+                ~result.ToString()));
         }
     }
 
@@ -231,8 +232,8 @@ protected:
             ++RetryIndex;
             NewRetry();
         } else {
-            OnSessionFailed(TError(Sprintf("All retries failed (RetryCount: %d)",
-                RetryIndex)));
+            OnSessionFailed(TError("All retries failed (RetryCount: %d)",
+                RetryIndex));
         }
     }
 

@@ -21,7 +21,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction;
-class TTransactionManifest;
+struct TTransactionManifest;
 
 //! Manages client transactions.
 class TTransactionManager

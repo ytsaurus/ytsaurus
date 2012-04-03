@@ -7,46 +7,52 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStartRequest
+struct TStartTransactionRequest
     : public TRequestBase
 {
     NYTree::INodePtr Manifest;
 
-    TStartRequest()
+    TStartTransactionRequest()
     {
         Register("manifest", Manifest)
             .Default();
     }
 };
 
-class TStartCommand
-    : public TCommandBase<TStartRequest>
+typedef TIntrusivePtr<TStartTransactionRequest> TStartRequestPtr;
+
+class TStartTransactionCommand
+    : public TTypedCommandBase<TStartTransactionRequest>
 {
 public:
-    TStartCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TStartTransactionCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
-    virtual void DoExecute(TStartRequest* request);
+    virtual void DoExecute(TStartRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCommitRequest
+struct TCommitTransactionRequest
     : public TTransactedRequest
 { };
 
-class TCommitCommand
-    : public TCommandBase<TCommitRequest>
+typedef TIntrusivePtr<TCommitTransactionRequest> TCommitRequestPtr;
+
+class TCommitTransactionCommand
+    : public TTypedCommandBase<TCommitTransactionRequest>
 {
 public:
-    TCommitCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TCommitTransactionCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
-    virtual void DoExecute(TCommitRequest* request);
+    virtual void DoExecute(TCommitRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,16 +61,19 @@ struct TAbortRequest
     : public TTransactedRequest
 { };
 
-class TAbortCommand
-    : public TCommandBase<TAbortRequest>
+typedef TIntrusivePtr<TAbortRequest> TAbortRequestPtr;
+
+class TAbortTransactionCommand
+    : public TTypedCommandBase<TAbortRequest>
 {
 public:
-    TAbortCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TAbortTransactionCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
-    virtual void DoExecute(TAbortRequest* request);
+    virtual void DoExecute(TAbortRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

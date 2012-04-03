@@ -25,9 +25,6 @@ struct TCellMasterConfig
 
     NObjectServer::TObjectManagerConfigPtr Objects;
 
-    //! RPC interface port number.
-    int RpcPort;
-
     //! HTTP monitoring interface port number.
     int MonitoringPort;
 
@@ -41,8 +38,6 @@ struct TCellMasterConfig
             .DefaultNew();
         Register("objects", Objects)
             .DefaultNew();
-        Register("rpc_port", RpcPort)
-            .Default(9000);
         Register("monitoring_port", MonitoringPort)
             .Default(10000);
     }

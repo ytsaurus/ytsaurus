@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "action_queue.h"
-
 #include "bind.h"
 #include "callback.h"
 #include "invoker.h"
@@ -9,6 +8,8 @@
 #include <ytlib/logging/log.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/profiling/timing.h>
+
+#include <util/thread/lfqueue.h>
 
 namespace NYT {
 

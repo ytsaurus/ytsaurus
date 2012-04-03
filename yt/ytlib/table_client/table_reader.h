@@ -70,6 +70,7 @@ public:
     bool IsValid() const;
 
     const TRow& GetRow() const;
+    const TKey& GetKey() const;
 
 private:
     TConfig::TPtr Config;

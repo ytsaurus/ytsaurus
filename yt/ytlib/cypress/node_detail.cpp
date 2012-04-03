@@ -28,13 +28,6 @@ const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjec
 } // namespace NCypress
 } // namespace NYT
 
-i32 hash<NYT::NCypress::TVersionedNodeId>::operator()(const NYT::NCypress::TVersionedNodeId& id) const
-{
-    return
-        static_cast<i32>(THash<NYT::TGuid>()(id.ObjectId)) * 497 +
-        static_cast<i32>(THash<NYT::TGuid>()(id.TransactionId));
-}
-
 namespace NYT {
 namespace NCypress {
 

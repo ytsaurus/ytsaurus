@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "persistent_state_manager.h"
-
 #include "change_log.h"
 #include "change_log_cache.h"
 #include "meta_state_manager_proxy.h"
@@ -20,6 +19,8 @@
 #include <ytlib/actions/bind.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/ytree/fluent.h>
+
+#include <util/folder/dirut.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -110,7 +111,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
 
-        ChangeLogCache = New<TChangeLogCache>(Config->LogPath);
+        ChangeLogCache = New<TChangeLogCache>(Config->LogPath, Config->ChangeLogCache);
 
         SnapshotStore = New<TSnapshotStore>(Config->SnapshotPath);
 
@@ -232,13 +233,14 @@ public:
                     {
                         fluent
                             .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
-                            .Item("active_followers").DoListFor(0, CellManager->GetPeerCount(),
-                                [=] (TFluentList fluent, TPeerId id)
-                                    {
-                                        if (tracker->IsFollowerActive(id)) {
-                                            fluent.Item().Scalar(id);
-                                        }
-                                    });
+                            .Item("active_followers").DoListFor(
+                                0,
+                                CellManager->GetPeerCount(),
+                                [=] (TFluentList fluent, TPeerId id) {
+                                    if (tracker->IsFollowerActive(id)) {
+                                        fluent.Item().Scalar(id);
+                                    }
+                                });
                     })
             .EndMap();
     }

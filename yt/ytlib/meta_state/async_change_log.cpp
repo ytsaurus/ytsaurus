@@ -43,14 +43,14 @@ public:
         TGuard<TSpinLock> guard(SpinLock);
 
         if (recordId != DoGetRecordCount()) {
-            LOG_FATAL("Unexpected record id in changelog (expected: %d, got: %d, ChangeLogId: %d)",
+            LOG_FATAL("Unexpected record id in changelog: expected %d, got %d (ChangeLogId: %d)",
                 DoGetRecordCount(),
                 recordId,
                 ChangeLog->GetId());
         }
 
-        RecordsToAppend.push_back(data);
-        Profiler.Enqueue("changelog_queue_size", RecordsToAppend.size());
+        AppendQueue.push_back(data);
+        Profiler.Enqueue("changelog_queue_size", AppendQueue.size());
 
         return Result;
     }
@@ -64,21 +64,23 @@ public:
         PROFILE_TIMING("changelog_flush_append_time") {
             TGuard<TSpinLock> guard(SpinLock);
 
-            YASSERT(RecordsToFlush.empty());
+            YASSERT(FlushQueue.empty());
 
             // In addition to making this code run a tiny bit faster,
             // this check also prevents from calling TChangeLog::Append for an already finalized changelog 
             // (its queue may still be present in the map).
-            if (!RecordsToAppend.empty()) {
-                ChangeLog->Append(FlushedRecordCount, RecordsToAppend);
+            if (AppendQueue.empty()) {
+                return;
             }
-            RecordsToFlush.swap(RecordsToAppend);
+
+            FlushQueue.swap(AppendQueue);
 
             result = Result;
             Result = New<TAppendResult>();
         }
 
         PROFILE_TIMING("changelog_flush_io_time") {
+            ChangeLog->Append(FlushedRecordCount, FlushQueue);
             ChangeLog->Flush();
         }
 
@@ -86,8 +88,8 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            FlushedRecordCount += RecordsToFlush.ysize();
-            RecordsToFlush.clear();
+            FlushedRecordCount += FlushQueue.ysize();
+            FlushQueue.clear();
         }
     }
 
@@ -99,7 +101,7 @@ public:
             TAppendResult::TPtr result;
             {
                 TGuard<TSpinLock> guard(SpinLock);
-                if (RecordsToFlush.empty() && RecordsToAppend.empty()) {
+                if (FlushQueue.empty() && AppendQueue.empty()) {
                     return;
                 }
                 result = Result;
@@ -121,7 +123,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock);
-        return RecordsToAppend.ysize() == 0 && RecordsToFlush.ysize() == 0;
+        return AppendQueue.ysize() == 0 && FlushQueue.ysize() == 0;
     }
 
     // Can return less records than recordCount
@@ -137,14 +139,14 @@ public:
             
             CopyRecords(
                 FlushedRecordCount,
-                RecordsToFlush,
+                FlushQueue,
                 firstRecordId,
                 recordCount,
                 result);
 
             CopyRecords(
-                FlushedRecordCount + RecordsToFlush.ysize(),
-                RecordsToAppend,
+                FlushedRecordCount + FlushQueue.ysize(),
+                AppendQueue,
                 firstRecordId,
                 recordCount,
                 result);
@@ -175,7 +177,7 @@ private:
     int DoGetRecordCount() const
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
-        return FlushedRecordCount + RecordsToFlush.ysize() + RecordsToAppend.ysize();
+        return FlushedRecordCount + FlushQueue.ysize() + AppendQueue.ysize();
     }
 
     static void CopyRecords(
@@ -202,8 +204,8 @@ private:
     
     TSpinLock SpinLock;
     i32 FlushedRecordCount;
-    yvector<TSharedRef> RecordsToAppend;
-    yvector<TSharedRef> RecordsToFlush;
+    yvector<TSharedRef> AppendQueue;
+    yvector<TSharedRef> FlushQueue;
     TAppendResult::TPtr Result;
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);

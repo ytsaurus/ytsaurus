@@ -22,7 +22,7 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
     EObjectType objectType,
-    NYTree::IYPathService* service);
+    NYTree::IYPathServicePtr service);
 
 ////////////////////////////////////////////////////////////////////////////////
 

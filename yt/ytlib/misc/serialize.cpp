@@ -135,7 +135,7 @@ void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
     size_t size = ::LoadSize(input);
     TBlob blob(size);
     input->Read(blob.begin(), size);
-    YVERIFY(DeserializeFromProtobuf(&message, blob));
+    YVERIFY(DeserializeFromProtobuf(&message, TRef::FromBlob(blob)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

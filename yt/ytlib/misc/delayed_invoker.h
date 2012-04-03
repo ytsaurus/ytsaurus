@@ -3,7 +3,7 @@
 #include <ytlib/actions/callback.h>
 
 namespace NYT {
-
+    
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages delayed action execution.
@@ -11,16 +11,23 @@ class TDelayedInvoker
     : private TNonCopyable
 {
 private:
+    struct TEntry;
+    typedef TIntrusivePtr<TEntry> TEntryPtr;
+    typedef ymultimap<TInstant, TEntryPtr> TEntries;
+
     struct TEntry
         : public TRefCounted
     {
         typedef TIntrusivePtr<TEntry> TPtr;
 
+        bool Valid;
         TInstant Deadline;
         TClosure Action;
+        TEntries::iterator Iterator;
 
         TEntry(TClosure action, TInstant deadline)
-            : Deadline(deadline)
+            : Valid(true)
+            , Deadline(deadline)
             , Action(action)
         { }
     };

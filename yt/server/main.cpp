@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include "scheduler_bootstrap.h"
 
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
@@ -7,19 +6,28 @@
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/chunk_holder/config.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
 #include <ytlib/cell_node/bootstrap.h>
 #include <ytlib/cell_node/config.h>
 #include <ytlib/cell_node/bootstrap.h>
-#include <ytlib/chunk_holder/config.h>
+#include <ytlib/cell_scheduler/config.h>
+#include <ytlib/cell_scheduler/bootstrap.h>
+#include <ytlib/scheduler/config.h>
+#include <ytlib/job_proxy/config.h>
+#include <ytlib/job_proxy/job_proxy.h>
 #include <ytlib/meta_state/async_change_log.h>
+
+#include <util/config/last_getopt.h>
 
 namespace NYT {
 
 using namespace NLastGetopt;
 using namespace NYTree;
 using namespace NElection;
+using namespace NScheduler;
+using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +58,16 @@ EExitCode GuardedMain(int argc, const char* argv[])
         .NoArgument()
         .Optional();
 
+    const TOpt& jobProxyOpt = opts.AddLongOption("job-proxy", "start job proxy")
+        .NoArgument()
+        .Optional();
+
+    Stroka jobIdOpt;
+    opts.AddLongOption("job-id", "job id (for job-proxy mode)")
+        .Optional()
+        .RequiredArgument("ID")
+        .StoreResult(&jobIdOpt);
+
     int port = -1;
     opts.AddLongOption("port", "port to listen")
         .Optional()
@@ -58,6 +76,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     Stroka configFileName;
     opts.AddLongOption("config", "configuration file")
+        .Optional()
         .RequiredArgument("FILE")
         .StoreResult(&configFileName);
 
@@ -71,6 +90,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isCellMaster = results.Has(&cellMasterOpt);
     bool isCellNode = results.Has(&cellNodeOpt);
     bool isScheduler = results.Has(&schedulerOpt);
+    bool isJobProxy = results.Has(&jobProxyOpt);
 
     int modeCount = 0;
     if (isCellNode) {
@@ -84,22 +104,28 @@ EExitCode GuardedMain(int argc, const char* argv[])
         ++modeCount;
     }
 
+    if (isJobProxy) {
+        ++modeCount;
+    }
+
     if (modeCount != 1) {
         opts.PrintUsage(results.GetProgramName());
         return EExitCode::OptionsError;
     }
 
-    // Configure logging.
-    NLog::TLogManager::Get()->Configure(configFileName, "logging");
-
-    // Parse configuration file.
     INodePtr configNode;
-    try {
-        TIFStream configStream(configFileName);
-        configNode = DeserializeFromYson(&configStream);
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error reading server configuration\n%s",
-            ex.what());
+    if (!results.Has(&configTemplateOpt)) {
+        // Configure logging.
+        NLog::TLogManager::Get()->Configure(configFileName, "logging");
+
+        // Parse configuration file.
+        try {
+            TIFStream configStream(configFileName);
+            configNode = DeserializeFromYson(&configStream);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error reading server configuration\n%s",
+                ex.what());
+        }
     }
 
     // Start an appropriate server.
@@ -115,13 +141,14 @@ EExitCode GuardedMain(int argc, const char* argv[])
             config->Load(~configNode, false);
 
             // Override RPC port.
+            // TODO(babenko): enable overriding arbitrary options from the command line
             if (port >= 0) {
                 config->RpcPort = port;
             }
 
             config->Validate();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing chunk holder configuration\n%s",
+            ythrow yexception() << Sprintf("Error parsing cell node configuration\n%s",
                 ex.what());
         }
 
@@ -152,12 +179,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ex.what());
         }
 
-        NCellMaster::TBootstrap bootstrap(configFileName, ~config);
+        NCellMaster::TBootstrap bootstrap(configFileName, config);
         bootstrap.Run();
     }
 
     if (isScheduler) {
-        auto config = New<TSchedulerBootstrap::TConfig>();
+        auto config = New<NCellScheduler::TCellSchedulerConfig>();
         if (results.Has(&configTemplateOpt)) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
@@ -167,12 +194,40 @@ EExitCode GuardedMain(int argc, const char* argv[])
         try {
             config->Load(~configNode);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
+            ythrow yexception() << Sprintf("Error parsing cell scheduler configuration\n%s",
                 ex.what());
         }
 
-        TSchedulerBootstrap schedulerBootstrap(configFileName, ~config);
-        schedulerBootstrap.Run();
+        NCellScheduler::TBootstrap bootstrap(configFileName, config);
+        bootstrap.Run();
+    }
+
+    if (isJobProxy) {
+        auto config = New<NJobProxy::TJobProxyConfig>();
+        if (results.Has(&configTemplateOpt)) {
+            TYsonWriter writer(&Cout, EYsonFormat::Pretty);
+            config->Save(&writer);
+            return EExitCode::OK;
+        }
+
+        NJobProxy::TJobId jobId;
+        try {
+            jobId = TGuid::FromString(jobIdOpt);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Invalid job-id value: %s",
+                ex.what());
+            return EExitCode::OptionsError;
+        }
+
+        try {
+            config->Load(~configNode);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error parsing job-proxy configuration\n%s",
+                ex.what());
+        }
+
+        TJobProxy jobProxy(~config, jobId);
+        jobProxy.Start();
     }
 
     // Actually this will never happen.
