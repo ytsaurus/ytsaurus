@@ -1,12 +1,13 @@
 package NYT.NExecAgent.NProto;
 
-import "yt/ytlib/scheduler/jobs.proto";
+import "yt/ytlib/scheduler/job.proto";
+import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetJobSpec
 { 
-    required bytes job_id = 1;
+    required NYT.NProto.TGuid job_id = 1;
 }
 
 message TRspGetJobSpec
@@ -19,7 +20,7 @@ message TRspGetJobSpec
 // One-way.
 message TReqOnJobFinished
 {
-    required bytes job_id = 1;
+    required NYT.NProto.TGuid job_id = 1;
     required NScheduler.NProto.TJobResult result = 2;
 }
 
@@ -28,7 +29,7 @@ message TReqOnJobFinished
 // One-way.
 message TReqOnProgress
 {
-    required bytes job_id = 1;
+    required NYT.NProto.TGuid job_id = 1;
     // Once there's gonna be progress.
 }
 

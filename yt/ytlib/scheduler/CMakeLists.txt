@@ -37,5 +37,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/jobs.proto YT_SOURCE_FILES )
+protoc( ${BASE}/job.proto YT_SOURCE_FILES )
 protoc( ${BASE}/scheduler_service.proto YT_SOURCE_FILES )

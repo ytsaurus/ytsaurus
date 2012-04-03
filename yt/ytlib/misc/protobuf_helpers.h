@@ -5,6 +5,7 @@
 
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/extensions.pb.h>
+#include <ytlib/misc/guid.pb.h>
 
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>
@@ -31,12 +32,12 @@ struct TProtoTraits
 template <>
 struct TProtoTraits<TGuid>
 {
-    static Stroka ToProto(const TGuid& value)
+    static NProto::TGuid ToProto(const TGuid& value)
     {
         return value.ToProto();
     }
 
-    static TGuid FromProto(const Stroka& value)
+    static TGuid FromProto(const NProto::TGuid& value)
     {
         return TGuid::FromProto(value);
     }
@@ -111,7 +112,7 @@ void LoadProto(TInputStream* input, ::google::protobuf::Message& message);
  *  Here |tag| is a unique integer identifier and |data| is a protobuf-serialized
  *  embedded message.
  *  
- *  In contrast to native Protobuf Extensions, ours are not deserialized on-demand.
+ *  In contrast to native Protobuf Extensions, ours are deserialized on-demand.
  */
 
 //! Returns an integer tag for a given type.

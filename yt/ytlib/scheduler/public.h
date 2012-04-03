@@ -17,7 +17,8 @@ typedef TGuid TOperationId;
 
 DECLARE_ENUM(EOperationType,
     ((Map)(0))
-    ((Merge)(1))
+    ((SortedMerge)(1))
+    ((OrderedMerge)(2))
 );
 
 DECLARE_ENUM(EJobType,

@@ -2,6 +2,7 @@
 #include "holder.h"
 
 #include <ytlib/misc/assert.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/cell_master/load_context.h>
 

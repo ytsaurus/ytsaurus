@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/error.h>
-#include <ytlib/scheduler/jobs.pb.h>
+#include <ytlib/scheduler/job.pb.h>
 
 namespace NYT {
 namespace NScheduler {

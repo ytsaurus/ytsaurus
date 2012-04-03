@@ -1,8 +1,9 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/scheduler/jobs.proto";
+import "yt/ytlib/scheduler/job.proto";
 import "yt/ytlib/rpc/rpc.proto";
 import "yt/ytlib/misc/error.proto";
+import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,14 +15,14 @@ message TReqStartOperation
     required int32 type = 1;
     // User (typically top-level) transaction where the operation
     // processing must happen.
-    required bytes transaction_id = 2;
+    required NYT.NProto.TGuid transaction_id = 2;
     // Operation spec in YSON. 
     required bytes spec = 3;
 }
 
 message TRspStartOperation
 {
-    required bytes operation_id = 1;
+    required NYT.NProto.TGuid operation_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +31,7 @@ message TRspStartOperation
 
 message TReqAbortOperation
 { 
-    required bytes operation_id = 1;
+    required NYT.NProto.TGuid operation_id = 1;
 }
 
 message TRspAbortOperation
@@ -47,7 +48,7 @@ message TOperationResult
 
 message TReqWaitForOperation
 { 
-    required bytes operation_id = 1;
+    required NYT.NProto.TGuid operation_id = 1;
 }
 
 message TRspWaitForOperation
@@ -62,7 +63,7 @@ message TRspWaitForOperation
 
 message TJobStatus
 {
-    required bytes job_id = 1;
+    required NYT.NProto.TGuid job_id = 1;
     required int32 state = 2;
     required int32 progress = 3;
     optional TJobResult result = 4;
@@ -84,15 +85,15 @@ message TReqHeartbeat
 
 message TStartJobInfo
 {
-    required bytes job_id = 1;
+    required NYT.NProto.TGuid job_id = 1;
     required TJobSpec spec = 2;
 }
 
 message TRspHeartbeat
 {
     repeated TStartJobInfo jobs_to_start = 1;
-    repeated bytes jobs_to_abort = 2;
-    repeated bytes jobs_to_remove = 3;
+    repeated NYT.NProto.TGuid jobs_to_abort = 2;
+    repeated NYT.NProto.TGuid jobs_to_remove = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
