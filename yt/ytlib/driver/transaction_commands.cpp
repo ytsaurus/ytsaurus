@@ -34,7 +34,7 @@ void TCommitTransactionCommand::DoExecute(TCommitRequestPtr request)
 void TAbortTransactionCommand::DoExecute(TAbortRequestPtr request)
 {
     auto transaction = Host->GetTransaction(request, true);
-    transaction->Commit();
+    transaction->Abort();
     Host->ReplySuccess();
 }
 
