@@ -36,10 +36,10 @@ TMergeJob::TMergeJob(
     auto blockCache = CreateClientBlockCache(~New<TClientBlockCacheConfig>());
     auto masterChannel = CreateLeaderChannel(masterConfig);
 
-    for (int i = 0; i < mergeJobSpec.input_chunks_size(); ++i) {
+    for (int i = 0; i < mergeJobSpec.input_spec().chunks_size(); ++i) {
         // ToDo(psushin): validate that input chunks are sorted.
 
-        const auto& inputChunk = mergeJobSpec.input_chunks(i);
+        const auto& inputChunk = mergeJobSpec.input_spec().chunks(i);
         yvector<Stroka> seedAddresses = FromProto<Stroka>(inputChunk.holder_addresses());
 
         auto remoteReader = CreateRemoteReader(
@@ -74,10 +74,10 @@ TMergeJob::TMergeJob(
         ~config->ChunkSequenceWriter,
         ~masterChannel,
         TTransactionId::FromProto(mergeJobSpec.output_transaction_id()),
-        TChunkListId::FromProto(mergeJobSpec.output_chunk_list_id()));
+        TChunkListId::FromProto(mergeJobSpec.output_spec().chunk_list_id()));
 
     Writer = New<TSyncValidatingAdaptor>(new TSortedValidatingWriter(
-        TSchema::FromYson(mergeJobSpec.schema()), 
+        TSchema::FromYson(mergeJobSpec.output_spec().schema()), 
         ~asyncWriter));
 
     Writer->Open();

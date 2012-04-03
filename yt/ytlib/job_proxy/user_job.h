@@ -32,7 +32,7 @@ private:
     
     TJobProxyConfigPtr Config;
 
-    TAutoPtr<IUserJobIo> JobIo;
+    TAutoPtr<IUserJobIO> JobIO;
     NScheduler::NProto::TUserJobSpec UserJobSpec;
 
     std::vector<TDataPipePtr> DataPipes;

@@ -64,7 +64,7 @@ TUserJob::TUserJob(
     YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
 
     UserJobSpec = jobSpec.GetExtension(TUserJobSpec::user_job_spec);
-    JobIo = CreateUserJobIo(proxyConfig->JobIo, proxyConfig->Masters, jobSpec);
+    JobIO = CreateUserJobIO(proxyConfig->JobIo, proxyConfig->Masters, jobSpec);
 }
 
 #ifdef _linux_
@@ -117,7 +117,7 @@ void TUserJob::InitPipes()
     // all input streams into fd == 0.
 
     int maxReservedDescriptor = std::max(
-        JobIo->GetInputCount(), JobIo->GetOutputCount()) * 3;
+        JobIO->GetInputCount(), JobIO->GetOutputCount()) * 3;
 
     YASSERT(maxReservedDescriptor > 0);
 
@@ -131,21 +131,21 @@ void TUserJob::InitPipes()
     } while (reservedDescriptors.back() < maxReservedDescriptor);
 
 
-    DataPipes.push_back(New<TOutputPipe>(JobIo->CreateErrorOutput(), STDERR_FILENO));
+    DataPipes.push_back(New<TOutputPipe>(JobIO->CreateErrorOutput(), STDERR_FILENO));
     ++ActivePipesCount;
 
     // Make pipe for each input and each output table.
-    for (int i = 0; i < JobIo->GetInputCount(); ++i) {
+    for (int i = 0; i < JobIO->GetInputCount(); ++i) {
         TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
         DataPipes.push_back(New<TInputPipe>(
-            JobIo->CreateTableInput(i, buffer.Get()) ,
+            JobIO->CreateTableInput(i, buffer.Get()) ,
             buffer,
             3 * i));
     }
 
-    for (int i = 0; i < JobIo->GetOutputCount(); ++i) {
+    for (int i = 0; i < JobIO->GetOutputCount(); ++i) {
         ++ActivePipesCount;
-        DataPipes.push_back(New<TOutputPipe>(JobIo->CreateTableOutput(i), 3 * i + 1));
+        DataPipes.push_back(New<TOutputPipe>(JobIO->CreateTableOutput(i), 3 * i + 1));
     }
 
     // Close reserved descriptors.

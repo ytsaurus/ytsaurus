@@ -40,12 +40,12 @@ public:
 
     NScheduler::EJobState GetState() const;
     NScheduler::EJobProgress GetProgress() const;
-    
-    NScheduler::NProto::TJobResult GetResult();
+
+    NScheduler::NProto::TJobResult GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
     void SetResult(const TError& error);
 
-    DECLARE_SIGNAL(void(), Started);
+    DEFINE_SIGNAL(void(), Started);
     DECLARE_SIGNAL(void(NScheduler::NProto::TJobResult), Finished);
 
 private:
@@ -76,7 +76,7 @@ private:
 
     // Protects #JobResult.
     TSpinLock SpinLock;
-    NScheduler::NProto::TJobResult JobResult;
+    TFuture<NScheduler::NProto::TJobResult>::TPtr JobResult;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 };

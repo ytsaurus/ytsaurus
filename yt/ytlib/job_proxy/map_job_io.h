@@ -15,11 +15,11 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-class TMapJobIo
-    : public IUserJobIo
+class TMapJobIO
+    : public IUserJobIO
 {
 public:
-    TMapJobIo(
+    TMapJobIO(
         TJobIoConfigPtr config,
         NRpc::IChannel* masterChannel,
         const NScheduler::NProto::TMapJobSpec& ioSpec);

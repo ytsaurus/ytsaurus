@@ -91,7 +91,7 @@ TNodeUtilization TJobManager::GetUtilization()
     return result;
 }
 
-void TJobManager::StartJob(
+TJobPtr TJobManager::StartJob(
     const TJobId& jobId,
     const NScheduler::NProto::TJobSpec& jobSpec)
 {
@@ -121,11 +121,13 @@ void TJobManager::StartJob(
 
     job->Start(~Bootstrap->GetEnvironmentManager());
 
-    Jobs[jobId] = job;
+    YVERIFY(Jobs.insert(MakePair(jobId, job)).second);
 
     LOG_DEBUG("Job started (JobId: %s, JobType: %s)",
         ~jobId.ToString(),
         ~EJobType(jobSpec.type()).ToString());
+
+    return job;
 }
 
 void TJobManager::AbortJob(const TJobId& jobId)

@@ -119,7 +119,7 @@ private:
 ////////////////////////////////////////////////////////////////////
 
 
-TMapJobIo::TMapJobIo(
+TMapJobIO::TMapJobIO(
     TJobIoConfigPtr config,
     NRpc::IChannel* masterChannel,
     const NScheduler::NProto::TMapJobSpec& ioSpec)
@@ -128,19 +128,19 @@ TMapJobIo::TMapJobIo(
     , IoSpec(ioSpec)
 { }
 
-int TMapJobIo::GetInputCount() const 
+int TMapJobIO::GetInputCount() const 
 {
     // Always single input for map.
     return 1;
 }
 
-int TMapJobIo::GetOutputCount() const
+int TMapJobIO::GetOutputCount() const
 {
     return IoSpec.output_specs_size();
 }
 
 TAutoPtr<NTableClient::TYsonTableInput> 
-TMapJobIo::CreateTableInput(int index, TOutputStream* output) const
+TMapJobIO::CreateTableInput(int index, TOutputStream* output) const
 {
     YASSERT(index < GetInputCount());
 
@@ -167,7 +167,7 @@ TMapJobIo::CreateTableInput(int index, TOutputStream* output) const
         output);
 }
 
-TAutoPtr<TOutputStream> TMapJobIo::CreateTableOutput(int index) const
+TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
 {
     YASSERT(index < GetOutputCount());
     const TYson& schema = IoSpec.output_specs(index).schema();
@@ -185,7 +185,7 @@ TAutoPtr<TOutputStream> TMapJobIo::CreateTableOutput(int index) const
             ~chunkSequenceWriter)));
 }
 
-TAutoPtr<TOutputStream> TMapJobIo::CreateErrorOutput() const
+TAutoPtr<TOutputStream> TMapJobIO::CreateErrorOutput() const
 {
     /*
     if (ProtoSpec.has_std_err())

@@ -37,6 +37,7 @@ TJob::TJob(
     , Slot(slot)
     , JobState(NScheduler::EJobState::Running)
     , JobProgress(NScheduler::EJobProgress::Created)
+    , JobResult(New< TFuture<TJobResult> >())
 {
     VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
     Slot->Acquire();
@@ -201,8 +202,7 @@ void TJob::OnJobExit(TError error)
         return;
     }
 
-    auto jobResult = GetResult();
-    if (!jobResult.has_error()) {
+    if (!JobResult->IsSet()) {
         DoAbort(TError(
             "Job proxy successfully exited but job result has not been set."),
             EJobState::Failed);
@@ -212,7 +212,7 @@ void TJob::OnJobExit(TError error)
 
         JobProgress = EJobProgress::Completed;
         
-        if (TError::FromProto(jobResult.error()).IsOK())
+        if (TError::FromProto(JobResult->Get().error()).IsOK())
             JobState = EJobState::Completed;
         else
             JobState = EJobState::Failed;
@@ -229,18 +229,17 @@ const TJobSpec& TJob::GetSpec()
     return JobSpec;
 }
 
-NScheduler::NProto::TJobResult TJob::GetResult()
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    return JobResult;
-}
-
 void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
 {
-    TGuard<TSpinLock> guard(SpinLock);
-    if (!JobResult.has_error() || JobResult.error().code() == TError::OK) {
-        JobResult = jobResult;
+    if (!JobResult->IsSet()) {
+        JobResult->Set(jobResult);
     }
+}
+
+NScheduler::NProto::TJobResult TJob::GetResult() const
+{
+    YASSERT(JobResult->IsSet());
+    return JobResult->Get();
 }
 
 void TJob::SetResult(const TError& error)
@@ -306,6 +305,16 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
 
     SetResult(error);
     JobState = resultState;
+}
+
+void TJob::SubscribeFinished(const TCallback<void(TJobResult)>& callback)
+{
+    JobResult->Subscribe(callback);
+}
+
+void TJob::UnsubscribeFinished(const TCallback<void(TJobResult)>& callback)
+{
+    YUNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

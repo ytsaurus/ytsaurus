@@ -32,7 +32,7 @@ public:
         TBootstrap* bootstrap);
 
     //! Starts a new job.
-    void StartJob(
+    TJobPtr StartJob(
         const TJobId& jobId,
         const NScheduler::NProto::TJobSpec& jobSpec);
 

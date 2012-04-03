@@ -7,12 +7,14 @@
 
 
 #include <ytlib/rpc/channel.h>
+#include <ytlib/scheduler/public.h>
 //#include <ytlib/misc/linux.h>
 
 
 namespace NYT {
 namespace NJobProxy {
 
+using namespace NScheduler;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,13 +76,24 @@ void TJobProxy::Start()
     try {
         auto jobSpec = GetJobSpec();
 
-        if (jobSpec.HasExtension(TUserJobSpec::user_job_spec)) {
+        switch (jobSpec.type()) {
+        case EJobType::Map:
+            YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
             Job = new TUserJob(Config, jobSpec);
-        } else if (jobSpec.HasExtension(TMergeJobSpec::merge_job_spec)) {
+            break;
+
+        case EJobType::OrderedMerge:
+            YUNIMPLEMENTED();
+            break;
+
+        case EJobType::SortedMerge:
             Job = new TMergeJob(
                 Config->JobIo, 
                 Config->Masters, 
                 jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+
+        default:
+            YUNREACHABLE();
         }
 
         auto result = Job->Run();
