@@ -5,11 +5,11 @@
 #include "job_manager.h"
 #include "job.h"
 
-
 namespace NYT {
 namespace NExecAgent {
 
 using namespace NScheduler;
+using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,15 +30,22 @@ TSchedulerConnector::TSchedulerConnector(
 
 void TSchedulerConnector::Start()
 {
-    ScheduleHeartbeat();
+    ScheduleHeartbeat(true);
 }
 
-void TSchedulerConnector::ScheduleHeartbeat()
+void TSchedulerConnector::ScheduleHeartbeat(bool now)
 {
-    TDelayedInvoker::Submit(
+    auto heartbeatAction =
         BIND(&TSchedulerConnector::SendHeartbeat, MakeStrong(this))
-        .Via(Bootstrap->GetControlInvoker()),
-        Config->HeartbeatPeriod);
+        .Via(Bootstrap->GetControlInvoker());
+    if (now) {
+        Bootstrap->GetControlInvoker()->Invoke(heartbeatAction);
+    } else {
+        TDelayedInvoker::CancelAndClear(HeartbeatCookie);
+        HeartbeatCookie = TDelayedInvoker::Submit(
+            heartbeatAction,
+            Config->HeartbeatPeriod);
+    }
 }
 
 void TSchedulerConnector::SendHeartbeat()
@@ -73,7 +80,7 @@ void TSchedulerConnector::SendHeartbeat()
 
 void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartbeat::TPtr rsp)
 {
-    ScheduleHeartbeat();
+    ScheduleHeartbeat(false);
 
     if (!rsp->IsOK()) {
         LOG_ERROR("Error reporting heartbeat to scheduler\n%s", ~rsp->GetError().ToString());
@@ -87,20 +94,38 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
 
     FOREACH (const auto& protoJobId, rsp->jobs_to_remove()) {
         auto jobId = TJobId::FromProto(protoJobId);
-        jobManager->RemoveJob(jobId);
+        RemoveJob(jobId);
     }
 
     FOREACH (const auto& protoJobId, rsp->jobs_to_abort()) {
         auto jobId = TJobId::FromProto(protoJobId);
-        // TODO(babenko): rename to AbortJob
-        jobManager->AbortJob(jobId);
+        AbortJob(jobId);
     }
 
-    FOREACH (const auto& startInfo, rsp->jobs_to_start()) {
-        auto jobId = TJobId::FromProto(startInfo.job_id());
-        const auto& spec = startInfo.spec();
-        jobManager->StartJob(jobId, spec);
+    FOREACH (const auto& info, rsp->jobs_to_start()) {
+        StartJob(info);
     }
+}
+
+void TSchedulerConnector::StartJob(const TStartJobInfo& info)
+{
+    auto jobId = TJobId::FromProto(info.job_id());
+    const auto& spec = info.spec();
+    auto job = Bootstrap->GetJobManager()->StartJob(jobId, spec);
+    // Schedule an out-of-order heartbeat whenever a job finishes.
+    job->SubscribeFinished(BIND([=] () {
+        ScheduleHeartbeat(true);
+    }));
+}
+
+void TSchedulerConnector::AbortJob(const TJobId& jobId)
+{
+    Bootstrap->GetJobManager()->AbortJob(jobId);
+}
+
+void TSchedulerConnector::RemoveJob(const TJobId& jobId)
+{
+    Bootstrap->GetJobManager()->RemoveJob(jobId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
