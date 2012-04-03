@@ -38,7 +38,7 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& extension)
 {
     i32 tag = GetProtoExtensionTag<T>();
     NProto::TExtension* extension = NULL;
-    FOREACH (const auto& currentExtension, extensions.extensions()) {
+    FOREACH (const auto& currentExtension, extensions->extensions()) {
         if (currentExtension.tag() == tag) {
             extension = &currentExtension;
             break;
