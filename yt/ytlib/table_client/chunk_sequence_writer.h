@@ -30,10 +30,6 @@ public:
 
         i64 MaxChunkSize;
 
-        //! When current chunk size relative to #MaxChunkSize overcomes this threshold (given as a fraction)
-        //! the writer prepares the next chunk.
-        double NextChunkThreshold;
-
         int TotalReplicaCount;
         int UploadReplicaCount;
 
@@ -90,8 +86,6 @@ private:
     void CreateNextChunk();
     void InitCurrentChunk(TChunkWriter::TPtr nextChunk);
     void OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp);
-
-    bool IsNextChunkTime() const;
 
     void FinishCurrentChunk(
         TKey& lastKey,
