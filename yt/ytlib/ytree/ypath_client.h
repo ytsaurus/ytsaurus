@@ -53,7 +53,7 @@ protected:
     virtual TBlob SerializeBody() const
     {
         TBlob blob;
-        YVERIFY(SerializeToProtobuf(this, &blob));
+        YVERIFY(SerializeToProto(this, &blob));
         return blob;
     }
 };
@@ -95,7 +95,7 @@ public:
 protected:
     virtual void DeserializeBody(const TRef& data)
     {
-        YVERIFY(DeserializeFromProtobuf(this, data));
+        YVERIFY(DeserializeFromProto(this, data));
     }
 
 };

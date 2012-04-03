@@ -3,7 +3,7 @@
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/sync.h>
-#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/actions/invoker.h>
 
 #include <algorithm>

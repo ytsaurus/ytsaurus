@@ -1,6 +1,8 @@
 ﻿#include "stdafx.h"
 #include "chunk_sequence_reader.h"
 
+#include <ytlib/misc/protobuf_helpers.h>
+
 #include <limits>
 
 namespace NYT {

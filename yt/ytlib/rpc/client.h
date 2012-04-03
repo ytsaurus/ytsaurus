@@ -5,7 +5,7 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/metric.h>
-#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/bus/client.h>
 #include <ytlib/actions/future.h>
 #include <ytlib/ytree/attributes.h>
@@ -144,7 +144,7 @@ private:
     {
         NLog::TLogger& Logger = RpcLogger;
         TBlob blob;
-        YVERIFY(SerializeToProtobuf(this, &blob));
+        YVERIFY(SerializeToProto(this, &blob));
         return blob;
     }
 
@@ -274,7 +274,7 @@ private:
     virtual void DeserializeBody(const TRef& data)
     {
         NLog::TLogger& Logger = RpcLogger;
-        YVERIFY(DeserializeFromProtobuf(this, data));
+        YVERIFY(DeserializeFromProto(this, data));
     }
 };
 

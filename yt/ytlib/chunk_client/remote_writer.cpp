@@ -969,7 +969,7 @@ TChunkYPathProxy::TReqConfirm::TPtr TRemoteWriter::GetConfirmRequest()
     req->set_size(ChunkInfo.size());
 
     TBlob attributesBlob;
-    SerializeToProtobuf(&Attributes, &attributesBlob);
+    SerializeToProto(&Attributes, &attributesBlob);
     req->set_attributes(Stroka(attributesBlob.begin(), attributesBlob.end()));
 
     FOREACH (auto holder, Holders) {
