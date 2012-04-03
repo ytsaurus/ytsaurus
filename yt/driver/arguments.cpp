@@ -336,7 +336,7 @@ TMapArgs::TMapArgs()
     : InArg("", "in", "input tables", false, "ypath")
     , OutArg("", "out", "output tables", false, "ypath")
     , FilesArg("", "file", "additional files", false, "ypath")
-    , MapperArg("", "command", "shell command", true, "", "path")
+    , MapperArg("", "mapper", "mapper shell command", true, "", "command")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -361,7 +361,7 @@ void TMapArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TMergeArgs::TMergeArgs()
-    : InArg("", "in", "input tables", false, "ypath", CmdLine)
+    : InArg("", "in", "input tables", false, "ypath")
     , OutArg("", "out", "output table", false, "ypath")
     , SortedArg("s", "sorted", "produce sorted output (all input tables must be sorted)")
 {
