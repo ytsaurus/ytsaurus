@@ -25,6 +25,8 @@
 #include <ytlib/scheduler/scheduler.h>
 #include <ytlib/scheduler/config.h>
 
+#include <ytlib/job_proxy/config.h>
+
 #include <util/system/hostname.h>
 
 namespace NYT {

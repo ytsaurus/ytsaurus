@@ -34,11 +34,11 @@ TAutoPtr<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
 }
 
 template <class T>
-void SetProtoExtension(NProto::TExtensionSet* extensions, const T& extension)
+void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 {
     i32 tag = GetProtoExtensionTag<T>();
     NProto::TExtension* extension = NULL;
-    FOREACH (const auto& currentExtension, extensions.extensions()) {
+    FOREACH (const auto& currentExtension, extensions->extensions()) {
         if (currentExtension.tag() == tag) {
             extension = &currentExtension;
             break;
@@ -48,9 +48,9 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& extension)
         extension = extensions->add_extensions();
     }
 
-    int size = extension.ByteSize();
+    int size = value.ByteSize();
     Stroka str(size);
-    YVERIFY(extesion.SerializeToArray(str.begin(), size));
+    YVERIFY(value.SerializeToArray(str.begin(), size));
     extension->set_data(str);
 }
 

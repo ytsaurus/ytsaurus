@@ -2,6 +2,7 @@
 #include "scheduler_commands.h"
 
 #include <ytlib/scheduler/scheduler_proxy.h>
+#include <ytlib/job_proxy/config.h>
 #include <ytlib/ytree/serialize.h>
 
 namespace NYT {

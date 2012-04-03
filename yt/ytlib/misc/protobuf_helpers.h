@@ -142,7 +142,7 @@ TAutoPtr<T> FindProtoExtension(const NProto::TExtensionSet& extensions);
 //! Serializes and stores an extension. Overrides any preexisting extension with
 //! the same tag, if any.
 template <class T>
-void SetProtoExtension(NProto::TExtensionSet* extensions, const T& extension);
+void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

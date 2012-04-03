@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/null_strategy.cpp
   ${BASE}/fifo_strategy.cpp
   ${BASE}/operation_controller_detail.cpp
+  ${BASE}/chunk_pool.cpp
   ${BASE}/map_controller.cpp
   ${BASE}/merge_controller.cpp
 )
@@ -28,6 +29,7 @@ set( HDRS
   ${BASE}/fifo_strategy.h
   ${BASE}/operation_controller.h
   ${BASE}/operation_controller_detail.h
+  ${BASE}/chunk_pool.h
   ${BASE}/map_controller.h
   ${BASE}/merge_controller.h
 )

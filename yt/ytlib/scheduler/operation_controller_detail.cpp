@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "operation_controller_detail.h"
-#include "operation.h"
-#include "job.h"
-#include "exec_node.h"
+#include "private.h"
 
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 
@@ -460,104 +458,6 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
     // Fire-and-forget.
     // TODO(babenko): log result
     batchReq->Invoke();
-}
-
-////////////////////////////////////////////////////////////////////
-
-TChunkPool::TChunkPool(TOperationPtr operation)
-    : Logger(OperationsLogger)
-{
-    Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
-}
-
-int TChunkPool::PutChunk(const TInputChunk& chunk, i64 weight)
-{
-    YASSERT(weight > 0);
-
-    TChunkInfo info;
-    info.Chunk = chunk;
-    info.Weight = weight;
-    int index = static_cast<int>(ChunkInfos.size());
-    ChunkInfos.push_back(info);
-    RegisterChunk(index);
-    return index;
-}
-
-const TInputChunk& TChunkPool::GetChunk(int index)
-{
-    return ChunkInfos[index].Chunk;
-}
-
-void TChunkPool::AllocateChunks(const Stroka& address, i64 maxWeight, std::vector<int>* indexes, i64* allocatedWeight, int* localCount, int* remoteCount)
-{
-    *allocatedWeight = 0;
-
-    // Take local chunks first.
-    *localCount = 0;
-    auto addressIt = AddressToIndexSet.find(address);
-    if (addressIt != AddressToIndexSet.end()) {
-        const auto& localIndexes = addressIt->second;
-        FOREACH (int chunkIndex, localIndexes) {
-            if (*allocatedWeight >= maxWeight) {
-                break;
-            }
-            indexes->push_back(chunkIndex);
-            ++*localCount;
-            *allocatedWeight += ChunkInfos[chunkIndex].Weight;
-        }
-    }
-
-    // Unregister taken local chunks.
-    // We have to do this right away, otherwise we risk getting same chunks
-    // in the next phase.
-    for (int i = 0; i < *localCount; ++i) {
-        UnregisterChunk((*indexes)[i]);
-    }
-
-    // Take remote chunks.
-    *remoteCount = 0;
-    FOREACH (int chunkIndex, UnallocatedIndexes) {
-        if (*allocatedWeight >= maxWeight) {
-            break;
-        }
-        indexes->push_back(chunkIndex);
-        ++*remoteCount;
-        *allocatedWeight += ChunkInfos[chunkIndex].Weight;
-    }
-
-    // Unregister taken remote chunks.
-    for (int i = *localCount; i < *localCount + *remoteCount; ++i) {
-        UnregisterChunk((*indexes)[i]);
-    }
-
-    LOG_DEBUG("Extracted chunks [%s] from the pool", ~JoinToString(*indexes));
-}
-
-void TChunkPool::DeallocateChunks(const std::vector<int>& indexes)
-{
-    FOREACH (auto index, indexes) {
-        RegisterChunk(index);
-    }
-
-    LOG_DEBUG("Chunks [%s] are back in the pool", ~JoinToString(indexes));
-}
-
-void TChunkPool::RegisterChunk(int index)
-{
-    const auto& info = ChunkInfos[index];
-    FOREACH (const auto& address, info.Chunk.holder_addresses()) {
-        YVERIFY(AddressToIndexSet[address].insert(index).second);
-    }
-    YVERIFY(UnallocatedIndexes.insert(index).second);
-}
-
-void TChunkPool::UnregisterChunk(int index)
-{
-    const auto& info = ChunkInfos[index];
-    FOREACH (const auto& address, info.Chunk.holder_addresses()) {
-        YVERIFY(AddressToIndexSet[address].erase(index) == 1);
-    }
-    YVERIFY(UnallocatedIndexes.erase(index) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////

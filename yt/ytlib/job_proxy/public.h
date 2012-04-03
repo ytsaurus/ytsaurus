@@ -22,8 +22,6 @@ struct IJob;
 struct IDataPipe;
 typedef TIntrusivePtr<IDataPipe> TDataPipePtr;
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProxy
