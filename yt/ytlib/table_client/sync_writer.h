@@ -11,6 +11,8 @@ namespace NTableClient {
 struct ISyncTableWriter
     : public virtual TRefCounted
 {
+    typedef TIntrusivePtr<ISyncTableWriter> TPtr;
+
     virtual void Open() = 0;
     virtual void Write(const TColumn& column, TValue value) = 0;
     virtual void EndRow() = 0;

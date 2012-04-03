@@ -39,7 +39,7 @@ public:
         TConfig* config,
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache,
-        const std::vector<NProto::TInputChunk>& fetchedChunks,
+        const std::vector<NProto::TInputChunk>& inputChunks,
         TChunkReader::TOptions options = TChunkReader::TOptions());
 
     TAsyncError AsyncOpen();
@@ -49,6 +49,8 @@ public:
     bool IsValid() const;
 
     const TRow& GetCurrentRow() const;
+
+    // ToDo: consider removing from here.
     const TKey& GetCurrentKey() const;
 
 private:

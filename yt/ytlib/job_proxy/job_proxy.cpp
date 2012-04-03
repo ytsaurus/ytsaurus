@@ -3,7 +3,8 @@
 #include "config.h"
 #include "job_proxy.h"
 #include "user_job.h"
-#include "merge_job.h"
+#include "sorted_merge_job.h"
+#include "ordered_merge_job.h"
 
 
 #include <ytlib/rpc/channel.h>
@@ -83,11 +84,14 @@ void TJobProxy::Start()
             break;
 
         case EJobType::OrderedMerge:
-            YUNIMPLEMENTED();
+            Job = new TOrderedMergeJob(
+                Config->JobIo, 
+                Config->Masters, 
+                jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
             break;
 
         case EJobType::SortedMerge:
-            Job = new TMergeJob(
+            Job = new TSortedMergeJob(
                 Config->JobIo, 
                 Config->Masters, 
                 jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
@@ -128,7 +132,6 @@ void TJobProxy::ReportResult(
         exit(1);
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
