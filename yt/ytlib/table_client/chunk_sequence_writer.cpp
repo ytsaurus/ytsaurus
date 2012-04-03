@@ -67,7 +67,7 @@ void TChunkSequenceWriter::CreateNextChunk()
 
     req->Invoke()->Subscribe(
         BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
-        	.Via(WriterThread->GetInvoker()));
+            .Via(WriterThread->GetInvoker()));
 }
 
 void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
@@ -83,7 +83,7 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
         State.Fail(rsp->GetError());
         return;
     }
-        
+
     YASSERT(rsp->chunks_size() == 1);
     const auto& chunkInfo = rsp->chunks(0);
 
@@ -134,6 +134,8 @@ void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
     CurrentChunk = nextChunk;
     NextChunk.Reset();
     State.FinishOperation();
+
+    CreateNextChunk();
 }
 
 TAsyncError TChunkSequenceWriter::AsyncEndRow(
@@ -141,13 +143,6 @@ TAsyncError TChunkSequenceWriter::AsyncEndRow(
     std::vector<TChannelWriter::TPtr>& channels)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-
-    if (!NextChunk && IsNextChunkTime()) {
-        LOG_DEBUG("Time to prepare next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ")",
-            ~TransactionId.ToString(),
-            CurrentChunk->GetCurrentSize());
-        CreateNextChunk();
-    }
 
     State.StartOperation();
 
@@ -208,14 +203,6 @@ void TChunkSequenceWriter::FinishCurrentChunk(
     }
 
     CurrentChunk.Reset();
-}
-
-bool TChunkSequenceWriter::IsNextChunkTime() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    return
-        (double) CurrentChunk->GetCurrentSize() / Config->MaxChunkSize >
-        Config->NextChunkThreshold;
 }
 
 void TChunkSequenceWriter::OnChunkClosed(
