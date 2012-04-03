@@ -15,10 +15,10 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IAsyncWriter
+struct IAsyncBlockWriter
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IAsyncWriter> TPtr;
+    typedef TIntrusivePtr<IAsyncBlockWriter> TPtr;
 
     virtual TAsyncError AsyncOpen(
         const NProto::TTableChunkAttributes& attributes) = 0;

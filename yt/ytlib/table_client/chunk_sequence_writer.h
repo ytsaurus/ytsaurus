@@ -18,7 +18,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkSequenceWriter
-    : public IAsyncWriter
+    : public IAsyncBlockWriter
 {
 public:
     typedef TIntrusivePtr<TChunkSequenceWriter> TPtr;

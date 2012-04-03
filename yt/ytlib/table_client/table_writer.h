@@ -31,7 +31,7 @@ namespace NTableClient {
  */
 class TTableWriter
     : public NTransactionClient::TTransactionListener
-    , public ISyncWriter
+    , public ISyncTableWriter
 {   
 public:
     typedef TIntrusivePtr<TTableWriter> TPtr;

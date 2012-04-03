@@ -12,7 +12,7 @@ class TSortedValidatingWriter
 public:
     TSortedValidatingWriter(
         const TSchema& schema,
-        IAsyncWriter* writer);
+        IAsyncBlockWriter* writer);
 
     TAsyncError AsyncEndRow();
 

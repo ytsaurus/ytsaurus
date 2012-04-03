@@ -25,7 +25,7 @@ public:
 
 private:
     std::vector<NTableClient::TSyncReader::TPtr> ChunkReaders;
-    NTableClient::TSyncWriter::TPtr Writer;
+    NTableClient::TSyncValidatingAdaptor::TPtr Writer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

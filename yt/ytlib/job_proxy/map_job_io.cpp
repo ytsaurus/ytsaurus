@@ -179,7 +179,7 @@ TAutoPtr<TOutputStream> TMapJobIo::CreateTableOutput(int index) const
         TTransactionId::FromProto(IoSpec.output_transaction_id()),
         TChunkListId::FromProto(IoSpec.output_specs(index).chunk_list_id()));
 
-    return new TYsonTableOutput(~New<TSyncWriter>(
+    return new TYsonTableOutput(~New<TSyncValidatingAdaptor>(
         new TValidatingWriter(
             TSchema::FromYson(schema), 
             ~chunkSequenceWriter)));

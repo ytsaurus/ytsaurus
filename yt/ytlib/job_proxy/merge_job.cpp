@@ -76,7 +76,7 @@ TMergeJob::TMergeJob(
         TTransactionId::FromProto(mergeJobSpec.output_transaction_id()),
         TChunkListId::FromProto(mergeJobSpec.output_chunk_list_id()));
 
-    Writer = New<TSyncWriter>(new TSortedValidatingWriter(
+    Writer = New<TSyncValidatingAdaptor>(new TSortedValidatingWriter(
         TSchema::FromYson(mergeJobSpec.schema()), 
         ~asyncWriter));
 
