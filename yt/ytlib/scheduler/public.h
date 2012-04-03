@@ -22,8 +22,8 @@ DECLARE_ENUM(EOperationType,
 
 DECLARE_ENUM(EJobType,
     ((Map)(0))
-    ((SortedMerge)(1))
-    ((OrderedMerge)(2))
+    ((OrderedMerge)(1))
+    ((SortedMerge)(2))
 );
 
 DECLARE_ENUM(EOperationState,

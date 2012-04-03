@@ -10,7 +10,7 @@ namespace NTableClient {
 
 TSortedValidatingWriter::TSortedValidatingWriter(
     const TSchema& schema,
-    IAsyncWriter* writer)
+    IAsyncBlockWriter* writer)
     : TValidatingWriter(schema, writer)
 {
     PreviousKey.assign(Schema.KeyColumns().size(), Stroka());

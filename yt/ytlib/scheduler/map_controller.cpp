@@ -393,7 +393,6 @@ private:
         *JobSpecTemplate.MutableExtension(TUserJobSpec::user_job_spec) = userJobSpec;
 
         TMapJobSpec mapJobSpec;
-        *mapJobSpec.mutable_input_transaction_id() = InputTransaction->GetId().ToProto();
         *mapJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
         FOREACH (const auto& table, OutputTables) {
             auto* outputSpec = mapJobSpec.add_output_specs();

@@ -13,7 +13,7 @@ class TRowConsumer
     : public NYTree::IYsonConsumer
 {
 public:
-    TRowConsumer(ISyncWriter* writer);
+    TRowConsumer(ISyncTableWriter* writer);
 
 private:
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
@@ -32,7 +32,7 @@ private:
     void CheckNoAttributes(bool hasAttributes);
     void CheckInsideRow();
 
-    ISyncWriter* Writer;
+    ISyncTableWriter* Writer;
     int RowIndex;
     bool InsideRow;
     TColumn Column;

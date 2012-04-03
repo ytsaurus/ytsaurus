@@ -9,7 +9,7 @@ namespace NTableClient {
 
 TValidatingWriter::TValidatingWriter(
     const TSchema& schema, 
-    IAsyncWriter* writer)
+    IAsyncBlockWriter* writer)
     : Writer(writer)
     , Schema(schema)
     , RowStart(true)

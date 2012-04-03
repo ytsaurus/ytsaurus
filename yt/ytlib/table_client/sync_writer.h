@@ -8,7 +8,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISyncWriter
+struct ISyncTableWriter
     : public virtual TRefCounted
 {
     virtual void Open() = 0;
@@ -21,13 +21,13 @@ struct ISyncWriter
 
 class TValidatingWriter;
 
-class TSyncWriter
-    : public ISyncWriter
+class TSyncValidatingAdaptor
+    : public ISyncTableWriter
 {
 public:
-    typedef TIntrusivePtr<TSyncWriter> TPtr;
+    typedef TIntrusivePtr<TSyncValidatingAdaptor> TPtr;
 
-    TSyncWriter(TValidatingWriter* writer);
+    TSyncValidatingAdaptor(TValidatingWriter* writer);
 
     void Open();
     void Write(const TColumn& column, TValue value);

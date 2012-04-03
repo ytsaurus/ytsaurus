@@ -17,14 +17,14 @@ class TYsonTableOutput
     : public TOutputStream
 {
 public:
-    TYsonTableOutput(ISyncWriter* syncWriter);
+    TYsonTableOutput(ISyncTableWriter* syncWriter);
     ~TYsonTableOutput() throw();
 
 private:
     void DoWrite(const void* buf, size_t len);
     void DoFinish();
 
-    TIntrusivePtr<ISyncWriter> Writer;
+    TIntrusivePtr<ISyncTableWriter> Writer;
     TAutoPtr<TRowConsumer> RowConsumer;
     NYTree::TYsonParser YsonParser;
 };

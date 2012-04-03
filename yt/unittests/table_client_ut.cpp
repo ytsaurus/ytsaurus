@@ -98,7 +98,7 @@ public:
         NFs::Remove(~FileName);
     }
 
-    IAsyncWriter::TPtr CreateAsyncWriter()
+    IAsyncBlockWriter::TPtr CreateAsyncWriter()
     {
         auto fileWriter = New<NChunkClient::TChunkFileWriter>(
             NChunkClient::TChunkId::Create(), FileName);

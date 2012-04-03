@@ -13,7 +13,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IUserJobIo {
+struct IUserJobIO {
     virtual int GetInputCount() const = 0;
     virtual int GetOutputCount() const = 0;
 
@@ -30,7 +30,7 @@ struct IUserJobIo {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<IUserJobIo> CreateUserJobIo(
+TAutoPtr<IUserJobIO> CreateUserJobIO(
     const TJobIoConfigPtr ioConfig,
     const NElection::TLeaderLookup::TConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec);

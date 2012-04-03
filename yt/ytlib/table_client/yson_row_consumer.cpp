@@ -6,7 +6,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRowConsumer::TRowConsumer(ISyncWriter* writer)
+TRowConsumer::TRowConsumer(ISyncTableWriter* writer)
     : Writer(writer)
     , RowIndex(0)
     , InsideRow(false)

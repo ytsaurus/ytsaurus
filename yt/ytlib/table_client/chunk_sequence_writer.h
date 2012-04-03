@@ -18,7 +18,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkSequenceWriter
-    : public IAsyncWriter
+    : public IAsyncBlockWriter
 {
 public:
     typedef TIntrusivePtr<TChunkSequenceWriter> TPtr;
@@ -45,10 +45,6 @@ public:
             Register("max_chunk_size", MaxChunkSize)
                 .GreaterThan(0)
                 .Default(1024 * 1024 * 1024);
-            Register("next_chunk_threshold", NextChunkThreshold)
-                .GreaterThan(0.0)
-                .LessThan(1.0)
-                .Default(0.7);
             Register("total_replica_count", TotalReplicaCount)
                 .GreaterThanOrEqual(1)
                 .Default(3);
@@ -119,6 +115,10 @@ private:
     void OnClose();
 
     TConfig::TPtr Config;
+
+    /*const i64 ExpectedRowCount;
+    i64 CurrentRowCount;
+    i64 */
 
     TProxy ChunkProxy;
     NCypress::TCypressServiceProxy CypressProxy;
