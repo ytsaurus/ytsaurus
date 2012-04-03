@@ -164,12 +164,12 @@ void TListArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateArgs::TCreateArgs()
-    : PathArg("path", "path for a new object in Cypress", true, "", "ypath")
-    , TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
+    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
+    , PathArg("path", "path for a new object in Cypress", true, "", "ypath")
     , ManifestArg("", "manifest", "manifest", false, "", "yson")
 {
-    CmdLine.add(PathArg);
     CmdLine.add(TypeArg);
+    CmdLine.add(PathArg);
     CmdLine.add(ManifestArg);
 }
 

@@ -135,10 +135,10 @@ public:
     TCreateArgs();
 
 private:
-    TUnlabeledStringArg PathArg;
-
     typedef TCLAP::UnlabeledValueArg<NObjectServer::EObjectType> TTypeArg;
     TTypeArg TypeArg;
+
+    TUnlabeledStringArg PathArg;
 
     typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
     TManifestArg ManifestArg;
