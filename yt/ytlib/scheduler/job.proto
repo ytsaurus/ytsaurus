@@ -13,6 +13,7 @@ import "yt/ytlib/misc/guid.proto";
 message TJobSpec
 {
     required int32 type = 1;
+    required bytes io_config = 2;
 
     extensions 100 to max;
 }
