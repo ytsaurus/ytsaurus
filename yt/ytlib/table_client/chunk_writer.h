@@ -21,7 +21,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class  TChunkWriter
-    : public IAsyncWriter
+    : public IAsyncBlockWriter
 {
 public:
     typedef TIntrusivePtr<TChunkWriter> TPtr;
@@ -42,8 +42,8 @@ public:
                 .GreaterThan(1024)
                 .Default(1024 * 1024);
             Register("sampling_size", SamplingSize)
-                .GreaterThanOrEqual(1024)
-                .Default(1024);
+                .GreaterThanOrEqual(1000)
+                .Default(100000);
             Register("codec_id", CodecId)
                 .Default(ECodecId::None);
         }
@@ -55,14 +55,14 @@ public:
 
     ~TChunkWriter();
 
-    TAsyncError::TPtr AsyncOpen(
+    TAsyncError AsyncOpen(
         const NProto::TTableChunkAttributes& attributes);
 
-    TAsyncError::TPtr AsyncEndRow(
+    TAsyncError AsyncEndRow(
         TKey& key,
         std::vector<TChannelWriter::TPtr>& channels);
 
-    TAsyncError::TPtr AsyncClose(
+    TAsyncError AsyncClose(
         TKey& lastKey,
         std::vector<TChannelWriter::TPtr>& channels);
 

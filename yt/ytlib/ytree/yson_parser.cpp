@@ -15,28 +15,28 @@ namespace NYTree {
 class TYsonParser::TImpl
 {
     DECLARE_ENUM(EState,
-        // @ stands for current position
-        (None)                  // @ (special value for empty stack)
-        (StringEnd)             // "..." @
-        (Int64End)              // 123...9 @
-        (DoubleEnd)             // 0.123...9 @
-        (ListBeforeItem)        // [...; @
-        (ListAfterItem)         // [... @
-        (ListEnd)               // [...] @
-        (MapBeforeKey)          // {...; @
-        (MapAfterKey)           // {...; "..." @
-        (MapBeforeValue)        // {...; "..." = @
-        (MapAfterValue)         // {...; "..." = ... @
-        (MapEnd)                // {...} @
-        (AttributesBeforeKey)   // <...; @
-        (AttributesAfterKey)    // <...; "..." @
-        (AttributesBeforeValue) // <...; "..." = @
-        (AttributesAfterValue)  // <...; "..." = ... @
-        (FragmentParsed)        // ...<...> @
+        // ^ stands for current position
+        (Start)                 // ^ (special value for empty stack)
+        (StringEnd)             // "..." ^
+        (Int64End)              // 123...9 ^
+        (DoubleEnd)             // 0.123...9 ^
+        (ListBeforeItem)        // [...; ^
+        (ListAfterItem)         // [... ^
+        (ListEnd)               // [...] ^
+        (MapBeforeKey)          // {...; ^
+        (MapAfterKey)           // {...; "..." ^
+        (MapBeforeValue)        // {...; "..." = ^
+        (MapAfterValue)         // {...; "..." = ... ^
+        (MapEnd)                // {...} ^
+        (AttributesBeforeKey)   // <...; ^
+        (AttributesAfterKey)    // <...; "..." ^
+        (AttributesBeforeValue) // <...; "..." = ^
+        (AttributesAfterValue)  // <...; "..." = ... ^
+        (Parsed)                // ...<...> ^
     );
 
     IYsonConsumer* Consumer;
-    bool Fragmented;
+    EMode Mode;
 
     TLexer Lexer;
     std::stack<EState> StateStack;
@@ -52,16 +52,29 @@ class TYsonParser::TImpl
     int Fragment;
 
 public:
-    TImpl(IYsonConsumer* consumer, bool fragmented)
+    TImpl(IYsonConsumer* consumer, EMode mode)
         : Consumer(consumer)
-        , Fragmented(fragmented)
+        , Mode(mode)
         , CachedInt64Value(0)
         , CachedDoubleValue(0.0)
         , Offset(0)
         , Line(1)
         , Position(1)
         , Fragment(0)
-    { }
+    {
+        switch (mode) {
+            case EMode::ListFragment:
+                StateStack.push(EState::ListBeforeItem);
+                break;
+
+            case EMode::MapFragment:
+                StateStack.push(EState::MapBeforeKey);
+                break;
+
+            default:
+                break;
+        }
+    }
 
     void Consume(char ch)
     {
@@ -70,7 +83,7 @@ public:
             try {
                 stop = Lexer.Consume(ch);
             } catch (...) {
-                ythrow yexception() << Sprintf("Error parsing YSON: Could not read symbol %s (%s):\n%s",
+                ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
                     ~Stroka(ch).Quote(),
                     ~GetPositionInfo(),
                     ~CurrentExceptionMessage());
@@ -99,29 +112,11 @@ public:
         }
         YASSERT(Lexer.GetState() == TLexer::EState::None);
 
-        while (!StateStack.empty() && StateStack.top() != EState::FragmentParsed) {
-            switch (CurrentState()) {
-                case EState::StringEnd:
-                case EState::Int64End:
-                case EState::DoubleEnd:
-                case EState::ListEnd:
-                case EState::MapEnd:
-                    YVERIFY(!ConsumeEnd());
-                    break;
+        ConsumeToken(TToken::EndOfStream);
 
-                default:
-                    ythrow yexception() << Sprintf("Error parsing YSON: Cannot finish parsing in state %s (%s)",
-                        ~CurrentState().ToString(),
-                        ~GetPositionInfo());
-            }
-        }
-
-        if (!StateStack.empty()) {
-            YASSERT(StateStack.top() == EState::FragmentParsed);
-            StateStack.pop();
-            YASSERT(StateStack.empty());
-        } else if (!Fragmented) {
-            ythrow yexception() << Sprintf("Error parsing YSON: Cannot finish parsing, nothing was parsed (%s)",
+        if (CurrentState() != EState::Parsed) {
+            ythrow yexception() << Sprintf("Cannot finish parsing in state %s (%s)",
+                ~CurrentState().ToString(),
                 ~GetPositionInfo());
         }
 
@@ -133,12 +128,11 @@ public:
 private:
     void ConsumeToken(const TToken& token)
     {
-        YASSERT(Lexer.GetState() == TLexer::EState::Terminal);
         bool consumed = false;
         while (!consumed) {
             switch (CurrentState()) {
-                case EState::None:
-                    ConsumeNew(token);
+                case EState::Start:
+                    ConsumeAny(token);
                     consumed = true;
                     break;
 
@@ -147,21 +141,19 @@ private:
                 case EState::DoubleEnd:
                 case EState::ListEnd:
                 case EState::MapEnd:
-                    consumed = ConsumeEnd();
+                    consumed = ConsumeEnd(token);
                     break;
 
                 case EState::ListBeforeItem:
                 case EState::ListAfterItem:
-                    ConsumeList(token);
-                    consumed = true;
+                    consumed = ConsumeList(token);
                     break;
 
                 case EState::MapBeforeKey:
                 case EState::MapAfterKey:
                 case EState::MapBeforeValue:
                 case EState::MapAfterValue:
-                    ConsumeMap(token);
-                    consumed = true;
+                    consumed = ConsumeMap(token);
                     break;
 
                 case EState::AttributesBeforeKey:
@@ -172,7 +164,7 @@ private:
                     consumed = true;
                     break;
 
-                case EState::FragmentParsed:
+                case EState::Parsed:
                     ConsumeParsed(token);
                     consumed = true;
                     break;
@@ -183,17 +175,12 @@ private:
         }
     }
 
-    void ConsumeNew(const TToken& token)
-    {
-        if (Fragmented) {
-            Consumer->OnListItem();
-        }
-        ConsumeAny(token);
-    }
-
     void ConsumeAny(const TToken& token)
     {
-        switch (token.GetType()) {
+        switch (token.GetType()) {        
+            case ETokenType::None:
+                break;
+
             case ETokenType::String:
                 CachedStringValue = token.GetStringValue();
                 StateStack.push(EState::StringEnd);
@@ -226,16 +213,31 @@ private:
                 break;
 
             default:
-                ythrow yexception() << Sprintf("Error parsing YSON: Unexpected lexeme %s of type %s (%s)",
+                ythrow yexception() << Sprintf("Unexpected lexeme %s of type %s (%s)",
                     ~token.ToString().Quote(),
                     ~token.GetType().ToString(),
                     ~GetPositionInfo());
         }
     }
 
-    void ConsumeList(const TToken& token)
+    bool ConsumeList(const TToken& token)
     {
         auto tokenType = token.GetType();
+
+        if (Mode == EMode::ListFragment && StateStack.size() == 1) {
+            if (tokenType == ETokenType::None) {
+                StateStack.top() = EState::Parsed;
+                return false;
+            } else if (tokenType == ETokenType::RightBracket) {
+                ythrow yexception() << Sprintf("Unexpected end of list in list fragment (%s)",
+                    ~GetPositionInfo());
+            }
+        }
+
+        if (tokenType == ETokenType::None) {
+            return true;
+        }
+
         switch (CurrentState()) {
             case EState::ListBeforeItem:
                 if (tokenType == ETokenType::RightBracket) {
@@ -252,7 +254,7 @@ private:
                 } else if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::ListBeforeItem;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or ']', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected ';' or ']', but lexeme %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -262,12 +264,32 @@ private:
             default:
                 YUNREACHABLE();
         }
+
+        return true;
     }
 
-    void ConsumeMap(const TToken& token)
+    bool ConsumeMap(const TToken& token)
     {
         auto tokenType = token.GetType();
-        switch (CurrentState()) {
+        auto currentState = CurrentState();
+
+        if (Mode == EMode::MapFragment && StateStack.size() == 1 &&
+            (currentState == EState::MapBeforeKey || currentState == EState::MapAfterValue))
+        {
+            if (tokenType == ETokenType::None) {
+                StateStack.top() = EState::Parsed;
+                return false;
+            } else if (tokenType == ETokenType::RightBrace) {
+                ythrow yexception() << Sprintf("Unexpected end of map in map fragment (%s)",
+                    ~GetPositionInfo());
+            }
+        }
+
+        if (tokenType == ETokenType::None) {
+            return true;
+        }
+
+        switch (currentState) {
             case EState::MapBeforeKey:
                 if (tokenType == ETokenType::RightBrace) {
                     StateStack.top() = EState::MapEnd;
@@ -275,7 +297,7 @@ private:
                     Consumer->OnMapItem(token.GetStringValue());
                     StateStack.top() = EState::MapAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected string literal, but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -286,7 +308,7 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::MapBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected '=', but lexeme %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -303,7 +325,7 @@ private:
                 } else if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '}', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected ';' or '}', but lexeme %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -313,12 +335,18 @@ private:
             default:
                 YUNREACHABLE();
         }
+
+        return true;
     }
 
     void ConsumeAttributes(const TToken& token)
     {
         auto tokenType = token.GetType();
         auto currentState = CurrentState();
+
+        if (tokenType == ETokenType::None) {
+            return;
+        }
 
         if (tokenType == ETokenType::RightAngle &&
             (currentState == EState::AttributesBeforeKey || currentState == EState::AttributesAfterValue))
@@ -328,13 +356,13 @@ private:
             return;
         }
 
-        switch (CurrentState()) {
+        switch (currentState) {
             case EState::AttributesBeforeKey:
                 if (tokenType == ETokenType::String) {
                     Consumer->OnAttributesItem(token.GetStringValue());
                     StateStack.top() = EState::AttributesAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected string literal, but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -345,7 +373,7 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::AttributesBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected '=', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected '=', but lexeme %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -360,7 +388,7 @@ private:
                 if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::AttributesBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Error parsing YSON: Expected ';' or '>', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected ';' or '>', but lexeme %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -374,32 +402,20 @@ private:
 
     void ConsumeParsed(const TToken& token)
     {
-        YASSERT(StateStack.top() == EState::FragmentParsed);
+        YASSERT(StateStack.top() == EState::Parsed);
 
         auto tokenType = token.GetType();
-        if (!Fragmented) {
-            ythrow yexception() << Sprintf("Error parsing YSON: Document is already parsed, but unexpected lexeme %s of type %s found (%s)",
+        if (tokenType != ETokenType::None) {
+            ythrow yexception() << Sprintf("Node is already parsed, but unexpected lexeme %s of type %s found (%s)",
                 ~token.ToString().Quote(),
                 ~tokenType.ToString(),
                 ~GetPositionInfo());
         }
-        if (tokenType != ETokenType::Semicolon) {
-            ythrow yexception() << Sprintf("Error parsing YSON: Expected ';', but lexeme %s of type %s found (%s)",
-                ~token.ToString().Quote(),
-                ~tokenType.ToString(),
-                ~GetPositionInfo());
-        }
-
-        StateStack.pop();
-        YASSERT(StateStack.empty());
-        ++Fragment;
     }
 
-    bool ConsumeEnd()
+    bool ConsumeEnd(const TToken& token)
     {
-        bool attributes =
-            Lexer.GetState() == TLexer::EState::Terminal &&
-            Lexer.GetToken().GetType() == ETokenType::LeftAngle;
+        bool attributes = token.GetType() == ETokenType::LeftAngle;
         switch (CurrentState()) {
             case EState::StringEnd:
                 Consumer->OnStringScalar(CachedStringValue, attributes);
@@ -442,8 +458,8 @@ private:
     {
         StateStack.pop();
         switch (CurrentState()) {
-            case EState::None:
-                StateStack.push(EState::FragmentParsed);
+            case EState::Start:
+                StateStack.push(EState::Parsed);
                 break;
 
             case EState::ListBeforeItem:
@@ -466,31 +482,31 @@ private:
     EState CurrentState() const
     {
         if (StateStack.empty())
-            return EState::None;
+            return EState::Start;
         return StateStack.top();
     }
 
     Stroka GetPositionInfo() const
     {
-        if (Fragmented) {
+        if (Mode == EMode::Node) {
+            return Sprintf("Offset: %d, Line: %d, Position: %d",
+                Offset,
+                Line,
+                Position);
+        } else {
             return Sprintf("Offset: %d, Line: %d, Position: %d, Fragment: %d",
                 Offset,
                 Line,
                 Position,
                 Fragment);
-        } else {
-            return Sprintf("Offset: %d, Line: %d, Position: %d",
-                Offset,
-                Line,
-                Position);
         }
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonParser::TYsonParser(IYsonConsumer *consumer, bool fragmented)
-    : Impl(new TImpl(consumer, fragmented))
+TYsonParser::TYsonParser(IYsonConsumer *consumer, EMode mode)
+    : Impl(new TImpl(consumer, mode))
 { }
 
 
@@ -509,9 +525,9 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool fragmented)
+void ParseYson(TInputStream* input, IYsonConsumer* consumer, TYsonParser::EMode mode)
 {
-    TYsonParser parser(consumer, fragmented);
+    TYsonParser parser(consumer, mode);
     char ch;
     while (input->ReadChar(ch)) {
         parser.Consume(ch);
@@ -519,10 +535,10 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, bool fragmented)
     parser.Finish();
 }
 
-void ParseYson(const TYson& yson, IYsonConsumer* consumer, bool fragmented)
+void ParseYson(const TYson& yson, IYsonConsumer* consumer, TYsonParser::EMode mode)
 {
     TStringInput input(yson);
-    ParseYson(&input, consumer, fragmented);
+    ParseYson(&input, consumer, mode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

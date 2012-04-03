@@ -12,8 +12,14 @@
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ephemeral.h>
+
 #include <ytlib/election/leader_channel.h>
+
 #include <ytlib/chunk_client/client_block_cache.h>
+
+#include <ytlib/scheduler/scheduler_channel.h>
+
+#include <ytlib/job_proxy/config.h>
 
 namespace NYT {
 namespace NDriver {
@@ -23,10 +29,12 @@ using namespace NRpc;
 using namespace NElection;
 using namespace NTransactionClient;
 using namespace NChunkClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DriverLogger;
+const char UserDirectoryMarker = '~';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,10 +47,9 @@ public:
         , BufferedOutput(~Output)
         , Writer(&BufferedOutput, format)
     {
-        ForwardNode(&Writer, FromFunctor([=] ()
-            {
-                BufferedOutput.Write('\n');
-            }));
+        ForwardNode(&Writer, BIND([=] () {
+            BufferedOutput.Write('\n');
+        }));
     }
 
 private:
@@ -100,11 +107,11 @@ private:
 
 class TDriver::TImpl
     : private TNonCopyable
-    , public IDriverImpl
+    , public ICommandHost
 {
 public:
     TImpl(
-        TConfig* config,
+        TConfig::TPtr config,
         IDriverStreamProvider* streamProvider)
         : Config(config)
         , StreamProvider(streamProvider)
@@ -112,32 +119,38 @@ public:
         YASSERT(config);
         YASSERT(streamProvider);
 
-        MasterChannel = CreateLeaderChannel(~config->Masters);
+        MasterChannel = CreateLeaderChannel(config->Masters);
+
+        // TODO(babenko): for now we use the same timeout both for masters and scheduler
+        SchedulerChannel = CreateSchedulerChannel(
+            config->Masters->RpcTimeout,
+            MasterChannel);
 
         BlockCache = CreateClientBlockCache(~config->BlockCache);
 
         TransactionManager = New<TTransactionManager>(
-            ~config->TransactionManager,
-            ~MasterChannel);
+            config->TransactionManager,
+            MasterChannel);
 
-        RegisterCommand("start", ~New<TStartCommand>(this));
-        RegisterCommand("commit", ~New<TCommitCommand>(this));
-        RegisterCommand("abort", ~New<TAbortCommand>(this));
+        RegisterCommand("start", New<TStartTransactionCommand>(this));
+        RegisterCommand("commit", New<TCommitTransactionCommand>(this));
+        RegisterCommand("abort", New<TAbortTransactionCommand>(this));
 
-        RegisterCommand("get", ~New<TGetCommand>(this));
-        RegisterCommand("set", ~New<TSetCommand>(this));
-        RegisterCommand("remove", ~New<TRemoveCommand>(this));
-        RegisterCommand("list", ~New<TListCommand>(this));
-        RegisterCommand("create", ~New<TCreateCommand>(this));
-        RegisterCommand("lock", ~New<TLockCommand>(this));
+        RegisterCommand("get", New<TGetCommand>(this));
+        RegisterCommand("set", New<TSetCommand>(this));
+        RegisterCommand("remove", New<TRemoveCommand>(this));
+        RegisterCommand("list", New<TListCommand>(this));
+        RegisterCommand("create", New<TCreateCommand>(this));
+        RegisterCommand("lock", New<TLockCommand>(this));
 
-        RegisterCommand("download", ~New<TDownloadCommand>(this));
-        RegisterCommand("upload", ~New<TUploadCommand>(this));
+        RegisterCommand("download", New<TDownloadCommand>(this));
+        RegisterCommand("upload", New<TUploadCommand>(this));
 
-        RegisterCommand("read", ~New<TReadCommand>(this));
-        RegisterCommand("write", ~New<TWriteCommand>(this));
+        RegisterCommand("read", New<TReadCommand>(this));
+        RegisterCommand("write", New<TWriteCommand>(this));
 
-        RegisterCommand("map", ~New<TMapCommand>(this));
+        RegisterCommand("map", New<TMapCommand>(this));
+        RegisterCommand("merge", New<TMergeCommand>(this));
     }
 
     TError Execute(INodePtr command)
@@ -151,16 +164,20 @@ public:
         return Error;
     }
 
-    virtual TConfig* GetConfig() const
+    virtual TConfig::TPtr GetConfig() const
     {
         return ~Config;
     }
 
-    IChannel* GetMasterChannel() const
+    IChannel::TPtr GetMasterChannel() const
     {
-        return ~MasterChannel;
+        return MasterChannel;
     }
 
+    IChannel::TPtr GetSchedulerChannel() const
+    {
+        return SchedulerChannel;
+    }
 
     virtual void ReplyError(const TError& error)
     {
@@ -171,10 +188,9 @@ public:
         TYsonWriter writer(~output, Config->OutputFormat);
         BuildYsonFluently(&writer)
             .BeginMap()
-                .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent)
-                    {
-                        fluent.Item("code").Scalar(error.GetCode());
-                    })
+                .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent) {
+                    fluent.Item("code").Scalar(error.GetCode());
+                })
                 .Item("message").Scalar(error.GetMessage())
             .EndMap();
         output->Write('\n');
@@ -188,7 +204,7 @@ public:
         reader.Read();
     }
 
-    // Simplified version for unconditional success (yes, its empty output).
+    // Simplified version for unconditional success (yes, it's empty output).
     virtual void ReplySuccess()
     { }
 
@@ -196,11 +212,10 @@ public:
     virtual TYsonProducer CreateInputProducer()
     {
         auto stream = CreateInputStream();
-        return FromFunctor([=] (IYsonConsumer* consumer)
-            {
-                TYsonReader reader(consumer, ~stream);
-                reader.Read();
-            });
+        return BIND([=] (IYsonConsumer* consumer) {
+            TYsonReader reader(consumer, ~stream);
+            reader.Read();
+        });
     }
 
     virtual TAutoPtr<TInputStream> CreateInputStream()
@@ -221,17 +236,17 @@ public:
         return new TOwningBufferedOutput(stream);
     }
 
-    virtual IBlockCache* GetBlockCache()
+    virtual IBlockCache::TPtr GetBlockCache()
     {
-        return ~BlockCache;
+        return BlockCache;
     }
 
-    virtual TTransactionManager* GetTransactionManager()
+    virtual TTransactionManager::TPtr GetTransactionManager()
     {
-        return ~TransactionManager;
+        return TransactionManager;
     }
 
-    virtual TTransactionId GetTransactionId(TTransactedRequest* request, bool required)
+    virtual TTransactionId GetTransactionId(TTransactedRequestPtr request, bool required)
     {
         if (required && request->TransactionId == NullTransactionId) {
             ythrow yexception() << "No transaction was set";
@@ -239,7 +254,7 @@ public:
         return request->TransactionId;
     }
 
-    virtual ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required)
+    virtual ITransaction::TPtr GetTransaction(TTransactedRequestPtr request, bool required)
     {
         auto transactionId = GetTransactionId(request, required);
         if (transactionId == NullTransactionId) {
@@ -248,16 +263,28 @@ public:
         return TransactionManager->Attach(transactionId);
     }
 
+    virtual TYPath PreprocessYPath(const TYPath& ypath)
+    {
+        // TODO(babenko): use tokenizer
+        if (ypath[0] == UserDirectoryMarker) {
+            auto userName = Stroka(getenv("USERNAME"));
+            TYPath userDirectory = Stroka("/home/") + userName;
+            return userDirectory + ypath.substr(1);
+        }
+        return ypath;
+    }
+
 private:
     TConfig::TPtr Config;
     IDriverStreamProvider* StreamProvider;
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
     IChannel::TPtr MasterChannel;
+    IChannel::TPtr SchedulerChannel;
     IBlockCache::TPtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
 
-    void RegisterCommand(const Stroka& name, ICommand* command)
+    void RegisterCommand(const Stroka& name, ICommand::TPtr command)
     {
         YVERIFY(Commands.insert(MakePair(name, command)).second);
     }
@@ -287,7 +314,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TDriver::TDriver(
-    TConfig* config,
+    TConfig::TPtr config,
     IDriverStreamProvider* streamProvider)
     : Impl(new TImpl(config, streamProvider))
 { }

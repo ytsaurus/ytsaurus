@@ -3,7 +3,6 @@
 #include "id.h"
 
 #include <ytlib/cell_master/public.h>
-#include <ytlib/actions/action.h>
 
 namespace NYT {
 namespace NCypress {
@@ -24,7 +23,7 @@ struct ICypressNode
     virtual void Save(TOutputStream* output) const = 0;
     
     //! Loads the node from the snapshot stream.
-    virtual void Load(TInputStream* input, const NCellMaster::TLoadContext& context) = 0;
+    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) = 0;
 
     //! Returns the id of the node (which is the key in the respective meta-map).
     virtual TVersionedObjectId GetId() const = 0;
@@ -47,7 +46,7 @@ struct ICypressNode
     //! Sets the parent node id.
     virtual void SetParentId(TNodeId value) = 0;
 
-    //! Gets an immutable reference to the node's locks.
+    //! Gets an immutable reference to the node's locks.††
     virtual const yhash_set<TLockId>& LockIds() const = 0;
     //! Gets an mutable reference to the node's locks.
     virtual yhash_set<TLockId>& LockIds() = 0;

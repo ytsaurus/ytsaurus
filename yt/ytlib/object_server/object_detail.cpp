@@ -93,7 +93,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
     UNUSED(request);
 
-    response->set_object_id(Id.ToProto());
+    *response->mutable_object_id() = Id.ToProto();
     context->Reply();
 }
 
@@ -103,7 +103,7 @@ void TObjectProxyBase::Invoke(IServiceContext* context)
         GetVersionedId(),
         IsWriteRequest(context),
         context,
-        FromMethod(&TYPathServiceBase::GuardedInvoke, TIntrusivePtr<TYPathServiceBase>(this)));
+        BIND(&TYPathServiceBase::GuardedInvoke, TIntrusivePtr<TYPathServiceBase>(this)));
 }
 
 void TObjectProxyBase::DoInvoke(IServiceContext* context)

@@ -63,13 +63,11 @@ void TChunkSequenceWriter::CreateNextChunk()
     auto req = ChunkProxy.CreateChunks();
     req->set_chunk_count(1);
     req->set_upload_replica_count(Config->UploadReplicaCount);
-    req->set_transaction_id(TransactionId.ToProto());
+    *req->mutable_transaction_id() = TransactionId.ToProto();
 
     req->Invoke()->Subscribe(
-        FromMethod(
-            &TChunkSequenceWriter::OnChunkCreated,
-            TWeakPtr<TChunkSequenceWriter>(this))
-        ->Via(WriterThread->GetInvoker()));
+        BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
+        	.Via(WriterThread->GetInvoker()));
 }
 
 void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
@@ -81,39 +79,39 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
         return;
     }
 
-    if (rsp->IsOK()) {
-        YASSERT(rsp->chunks_size() == 1);
-        const auto& chunkInfo = rsp->chunks(0);
-
-        auto addresses = FromProto<Stroka>(chunkInfo.holder_addresses());
-        auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
-
-        LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
-            ~JoinToString(addresses),
-            ~chunkId.ToString());
-
-        auto remoteWriter = New<TRemoteWriter>(
-            ~Config->RemoteWriter,
-            chunkId,
-            addresses);
-        remoteWriter->Open();
-
-        auto chunkWriter = New<TChunkWriter>(
-            ~Config->ChunkWriter,
-            ~remoteWriter);
-
-        // Although we call _Async_Open, it return immediately.
-        // See TChunkWriter for details.
-        chunkWriter->AsyncOpen(Attributes);
-
-        NextChunk->Set(chunkWriter);
-
-    } else {
+    if (!rsp->IsOK()) {
         State.Fail(rsp->GetError());
+        return;
     }
+        
+    YASSERT(rsp->chunks_size() == 1);
+    const auto& chunkInfo = rsp->chunks(0);
+
+    auto addresses = FromProto<Stroka>(chunkInfo.holder_addresses());
+    auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
+
+    LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
+        ~JoinToString(addresses),
+        ~chunkId.ToString());
+
+    auto remoteWriter = New<TRemoteWriter>(
+        ~Config->RemoteWriter,
+        chunkId,
+        addresses);
+    remoteWriter->Open();
+
+    auto chunkWriter = New<TChunkWriter>(
+        ~Config->ChunkWriter,
+        ~remoteWriter);
+
+    // Although we call _Async_Open, it returns immediately.
+    // See TChunkWriter for details.
+    chunkWriter->AsyncOpen(Attributes);
+
+    NextChunk->Set(chunkWriter);
 }
 
-TAsyncError::TPtr TChunkSequenceWriter::AsyncOpen(
+TAsyncError TChunkSequenceWriter::AsyncOpen(
     const NProto::TTableChunkAttributes& attributes)
 {
     YASSERT(!State.HasRunningOperation());
@@ -122,9 +120,9 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncOpen(
     CreateNextChunk();
 
     State.StartOperation();
-    NextChunk->Subscribe(FromMethod(
+    NextChunk->Subscribe(BIND(
         &TChunkSequenceWriter::InitCurrentChunk,
-        TWeakPtr<TChunkSequenceWriter>(this)));
+        MakeWeak(this)));
 
     return State.GetOperationError();
 }
@@ -138,7 +136,7 @@ void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
     State.FinishOperation();
 }
 
-TAsyncError::TPtr TChunkSequenceWriter::AsyncEndRow(
+TAsyncError TChunkSequenceWriter::AsyncEndRow(
     TKey& key,
     std::vector<TChannelWriter::TPtr>& channels)
 {
@@ -160,15 +158,15 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncEndRow(
         YASSERT(NextChunk);
         // We're not waiting for chunk to be closed.
         FinishCurrentChunk(key, channels);
-        NextChunk->Subscribe(FromMethod(
+        NextChunk->Subscribe(BIND(
             &TChunkSequenceWriter::InitCurrentChunk,
-            TWeakPtr<TChunkSequenceWriter>(this)));
+            MakeWeak(this)));
     } else {
         // NB! Do not make functor here: action target should be 
         // intrusive or weak pointer to 
-        CurrentChunk->AsyncEndRow(key, channels)->Subscribe(FromMethod(
+        CurrentChunk->AsyncEndRow(key, channels)->Subscribe(BIND(
             &TChunkSequenceWriter::OnRowEnded,
-            TWeakPtr<TChunkSequenceWriter>(this)));
+            MakeWeak(this)));
     }
 
     return State.GetOperationError();
@@ -184,20 +182,23 @@ void TChunkSequenceWriter::FinishCurrentChunk(
     TKey& lastKey,
     std::vector<TChannelWriter::TPtr>& channels)
 {
+    if (!CurrentChunk)
+        return;
+
     if (CurrentChunk->GetCurrentSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
 
-        TAsyncError::TPtr finishResult = New<TAsyncError>();
+        auto finishResult = New< TFuture<TError> >();
         CloseChunksAwaiter->Await(finishResult, 
-            FromMethod(
+            BIND(
                 &TChunkSequenceWriter::OnChunkFinished, 
-                TWeakPtr<TChunkSequenceWriter>(this),
+                MakeWeak(this),
                 CurrentChunk->GetChunkId()));
 
-        CurrentChunk->AsyncClose(lastKey, channels)->Subscribe(FromMethod(
+        CurrentChunk->AsyncClose(lastKey, channels)->Subscribe(BIND(
             &TChunkSequenceWriter::OnChunkClosed,
-            TWeakPtr<TChunkSequenceWriter>(this),
+            MakeWeak(this),
             CurrentChunk,
             finishResult));
 
@@ -212,14 +213,15 @@ void TChunkSequenceWriter::FinishCurrentChunk(
 bool TChunkSequenceWriter::IsNextChunkTime() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return (CurrentChunk->GetCurrentSize() / double(Config->MaxChunkSize)) > 
-        (Config->NextChunkThreshold / 100.0);
+    return
+        (double) CurrentChunk->GetCurrentSize() / Config->MaxChunkSize >
+        Config->NextChunkThreshold;
 }
 
 void TChunkSequenceWriter::OnChunkClosed(
-    TError error,
     TChunkWriter::TPtr currentChunk,
-    TAsyncError::TPtr finishResult)
+    TAsyncError finishResult,
+    TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -235,28 +237,28 @@ void TChunkSequenceWriter::OnChunkClosed(
     batchReq->AddRequest(~currentChunk->GetConfirmRequest());
     {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkList));
-        req->add_children_ids(currentChunk->GetChunkId().ToProto());
+        *req->add_children_ids() = currentChunk->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }
     {
         auto req = TTransactionYPathProxy::ReleaseObject(FromObjectId(TransactionId));
-        req->set_object_id(currentChunk->GetChunkId().ToProto());
+        *req->mutable_object_id() = currentChunk->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }
 
-    batchReq->Invoke()->Subscribe(FromMethod(
+    batchReq->Invoke()->Subscribe(BIND(
         &TChunkSequenceWriter::OnChunkRegistered,
-        TWeakPtr<TChunkSequenceWriter>(this),
+        MakeWeak(this),
         currentChunk->GetChunkId(),
         finishResult));
 }
 
 void TChunkSequenceWriter::OnChunkRegistered(
-    TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp,
     TChunkId chunkId,
-    TAsyncError::TPtr finishResult)
+    TAsyncError finishResult,
+    TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -280,8 +282,8 @@ void TChunkSequenceWriter::OnChunkRegistered(
 }
 
 void TChunkSequenceWriter::OnChunkFinished(
-    TError error,
-    TChunkId chunkId)
+    TChunkId chunkId,
+    TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -294,7 +296,7 @@ void TChunkSequenceWriter::OnChunkFinished(
         ~chunkId.ToString());
 }
 
-TAsyncError::TPtr TChunkSequenceWriter::AsyncClose(
+TAsyncError TChunkSequenceWriter::AsyncClose(
     TKey& lastKey,
     std::vector<TChannelWriter::TPtr>& channels)
 {
@@ -303,9 +305,9 @@ TAsyncError::TPtr TChunkSequenceWriter::AsyncClose(
     State.StartOperation();
     FinishCurrentChunk(lastKey, channels);
 
-    CloseChunksAwaiter->Complete(FromMethod(
+    CloseChunksAwaiter->Complete(BIND(
         &TChunkSequenceWriter::OnClose,
-        TWeakPtr<TChunkSequenceWriter>(this)));
+        MakeWeak(this)));
 
     return State.GetOperationError();
 }

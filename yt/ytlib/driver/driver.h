@@ -42,7 +42,7 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
 
         NYTree::EYsonFormat OutputFormat;
-        NElection::TLeaderLookup::TConfig::TPtr Masters;
+        NElection::TLeaderLookup::TConfigPtr Masters;
         NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
         NFileClient::TFileReader::TConfig::TPtr FileReader;
         NFileClient::TFileWriter::TConfig::TPtr FileWriter;
@@ -52,19 +52,26 @@ public:
 
         TConfig()
         {
-            Register("output_format", OutputFormat).Default(NYTree::EYsonFormat::Text);
+            Register("output_format", OutputFormat)
+                .Default(NYTree::EYsonFormat::Text);
             Register("masters", Masters);
-            Register("transaction_manager", TransactionManager).DefaultNew();
-            Register("file_reader", FileReader).DefaultNew();
-            Register("file_writer", FileWriter).DefaultNew();
-            Register("table_reader", TableReader).DefaultNew();
-            Register("table_writer", TableWriter).DefaultNew();
-            Register("block_cache", BlockCache).DefaultNew();
+            Register("transaction_manager", TransactionManager)
+                .DefaultNew();
+            Register("file_reader", FileReader)
+                .DefaultNew();
+            Register("file_writer", FileWriter)
+                .DefaultNew();
+            Register("table_reader", TableReader)
+                .DefaultNew();
+            Register("table_writer", TableWriter)
+                .DefaultNew();
+            Register("block_cache", BlockCache)
+                .DefaultNew();
         }
     };
 
     TDriver(
-        TConfig* config,
+        TConfig::TPtr config,
         IDriverStreamProvider* streamProvider);
     ~TDriver();
 

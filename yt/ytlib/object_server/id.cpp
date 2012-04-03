@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "id.h"
 
+#include <util/string/vector.h>
+
 namespace NYT {
 namespace NObjectServer {
 

@@ -15,7 +15,7 @@ class TYsonTableInput
 {
 public:
     TYsonTableInput(
-        ISyncReader* reader,
+        ISyncTableReader* reader,
         NYTree::EYsonFormat format,
         TOutputStream* outputStream);
 
@@ -23,7 +23,7 @@ public:
 
 private:
 
-    TIntrusivePtr<ISyncReader> Reader;
+    TIntrusivePtr<ISyncTableReader> Reader;
     NYTree::TYsonWriter YsonWriter;
 };
 

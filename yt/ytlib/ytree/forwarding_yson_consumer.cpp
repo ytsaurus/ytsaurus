@@ -15,21 +15,21 @@ TForwardingYsonConsumer::TForwardingYsonConsumer()
 
 void TForwardingYsonConsumer::ForwardNode(
     IYsonConsumer* consumer,
-    IAction::TPtr onForwardingFinished)
+    const TClosure& onForwardingFinished)
 {
     DoForward(consumer, onForwardingFinished, 0);
 }
 
 void TForwardingYsonConsumer::ForwardAttributes(
     IYsonConsumer* consumer,
-    IAction::TPtr onForwardingFinished)
+    const TClosure& onForwardingFinished)
 {
     DoForward(consumer, onForwardingFinished, 1);
 }
 
 void TForwardingYsonConsumer::DoForward(
     IYsonConsumer* consumer,
-    IAction::TPtr onForwardingFinished,
+    const TClosure& onForwardingFinished,
     int depth)
 {
     YASSERT(!ForwardingConsumer);
@@ -46,8 +46,8 @@ void TForwardingYsonConsumer::UpdateDepth(int depthDelta)
     YASSERT(ForwardingDepth >= 0);
     if (ForwardingDepth == 0) {
         ForwardingConsumer = NULL;
-        if (OnForwardingFinished) {
-            OnForwardingFinished->Do();
+        if (!OnForwardingFinished.IsNull()) {
+            OnForwardingFinished.Run();
             OnForwardingFinished.Reset();
         }
     }

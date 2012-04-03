@@ -2,7 +2,6 @@
 #include "world_initializer.h"
 #include "config.h"
 
-#include <ytlib/actions/action_util.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
@@ -39,8 +38,8 @@ public:
         YASSERT(bootstrap);
 
         PeriodicInvoker = New<TPeriodicInvoker>(
-            FromMethod(&TImpl::OnCheck, MakeWeak(this))
-            ->Via(bootstrap->GetStateInvoker()),
+            BIND(&TImpl::OnCheck, MakeWeak(this))
+            .Via(bootstrap->GetStateInvoker()),
             CheckPeriod);
         PeriodicInvoker->Start();
     }
@@ -86,6 +85,21 @@ private:
             SyncYPathSet(
                 service,
                 WithTransaction("/sys/scheduler", transactionId),
+                "{}");
+
+            SyncYPathSet(
+                service,
+                WithTransaction("/sys/scheduler/lock", transactionId),
+                "{}");
+
+            SyncYPathSet(
+                service,
+                WithTransaction("/sys/scheduler/runtime", transactionId),
+                "{}");
+
+            SyncYPathSet(
+                service,
+                WithTransaction("/sys/operations", transactionId),
                 "{}");
 
             SyncYPathCreate(
@@ -175,7 +189,7 @@ private:
     }
 
     // TODO(babenko): consider moving somewhere
-    static TObjectId SyncYPathCreate(IYPathService* service, const TYPath& path, EObjectType type, const TYson& manifest = "{}")
+    static TObjectId SyncYPathCreate(IYPathServicePtr service, const TYPath& path, EObjectType type, const TYson& manifest = "{}")
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(type);

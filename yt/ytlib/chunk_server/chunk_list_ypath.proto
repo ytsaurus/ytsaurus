@@ -1,10 +1,12 @@
 package NYT.NChunkServer.NProto;
 
+import "yt/ytlib/misc/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqAttach
 {
-    repeated bytes children_ids = 2;
+    repeated NYT.NProto.TGuid children_ids = 2;
 }
 
 message TRspAttach
@@ -14,7 +16,7 @@ message TRspAttach
 
 message TReqDetach
 {
-    repeated bytes children_ids = 2;
+    repeated NYT.NProto.TGuid children_ids = 2;
 }
 
 message TRspDetach

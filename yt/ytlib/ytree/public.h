@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback_forward.h>
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/enum.h>
 
@@ -59,7 +59,7 @@ struct IYsonConsumer;
 
 //! A callback capable of generating YSON by calling appropriate
 //! methods for its IYsonConsumer argument.
-typedef IParamAction<IYsonConsumer*>::TPtr TYsonProducer;
+typedef TCallback<void(IYsonConsumer*)> TYsonProducer;
 
 struct IAttributeDictionary;
 
@@ -67,18 +67,20 @@ struct IAttributeProvider;
 
 struct IYPathService;
 typedef TIntrusivePtr<IYPathService> IYPathServicePtr;
-typedef IFunc<IYPathServicePtr>::TPtr TYPathServiceProducer;
+typedef TCallback<IYPathServicePtr()> TYPathServiceProducer;
 
 // TODO(roizner): Rename it and move somewhere.
 template <class T, class = void>
 struct TDeserializeTraits;
 
 class TYPathRequest;
+typedef TIntrusivePtr<TYPathRequest> TYPathRequestPtr;
 
 template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathRequest;
 
 class TYPathResponse;
+typedef TIntrusivePtr<TYPathResponse> TYPathResponsePtr;
 
 template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathResponse;

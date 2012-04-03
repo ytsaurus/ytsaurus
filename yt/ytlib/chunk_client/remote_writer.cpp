@@ -7,7 +7,6 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/actions/action_util.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 
@@ -17,6 +16,8 @@
 #include <util/datetime/cputimer.h>
 #include <util/stream/str.h>
 
+#include <contrib/libs/protobuf/text_format.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -24,6 +25,9 @@ using namespace NRpc;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer;
 using namespace NCypress;
+
+using namespace google::protobuf;
+
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +116,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
-    void OnPutBlocks(TProxy::TRspPutBlocks::TPtr rsp, THolderPtr holder);
+    void OnPutBlocks(THolderPtr holder, TProxy::TRspPutBlocks::TPtr rsp);
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -128,14 +132,14 @@ private:
      * \note Thread affinity: WriterThread.
      */
     void CheckSendResponse(
-        TRemoteWriter::TProxy::TRspSendBlocks::TPtr rsp,
         THolderPtr srcHolder, 
-        THolderPtr dstHolder);
+        THolderPtr dstHolder,
+        TRemoteWriter::TProxy::TRspSendBlocks::TPtr rsp);
 
     /*!
      * \note Thread affinity: WriterThread.
      */
-    void OnSentBlocks(TProxy::TRspSendBlocks::TPtr rsp, THolderPtr srcHolder, THolderPtr dstHolder);
+    void OnSentBlocks(THolderPtr srcHolder, THolderPtr dstHolder, TProxy::TRspSendBlocks::TPtr rsp);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -203,20 +207,20 @@ void TRemoteWriter::TGroup::PutGroup()
 
     auto holder = writer->Holders[holderIndex];
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
-    auto onSuccess = FromMethod(
+    auto onSuccess = BIND(
         &TGroup::OnPutBlocks, 
-        TWeakPtr<TGroup>(this), 
+        MakeWeak(this), 
         holder);
-    auto onResponse = FromMethod(
+    auto onResponse = BIND(
         &TRemoteWriter::CheckResponse<TProxy::TRspPutBlocks>,
         Writer,
         holder, 
         onSuccess,
         &writer->PutBlocksTiming);
     awaiter->Await(PutBlocks(holder), onResponse);
-    awaiter->Complete(FromMethod(
+    awaiter->Complete(BIND(
         &TRemoteWriter::TGroup::Process, 
-        TWeakPtr<TGroup>(this)));
+        MakeWeak(this)));
 }
 
 TRemoteWriter::TProxy::TInvPutBlocks::TPtr
@@ -228,7 +232,7 @@ TRemoteWriter::TGroup::PutBlocks(THolderPtr holder)
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     auto req = holder->Proxy.PutBlocks();
-    req->set_chunk_id(writer->ChunkId.ToProto());
+    *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
 
@@ -240,7 +244,7 @@ TRemoteWriter::TGroup::PutBlocks(THolderPtr holder)
     return req->Invoke();
 }
 
-void TRemoteWriter::TGroup::OnPutBlocks(TProxy::TRspPutBlocks::TPtr rsp, THolderPtr holder)
+void TRemoteWriter::TGroup::OnPutBlocks(THolderPtr holder, TProxy::TRspPutBlocks::TPtr rsp)
 {
     auto writer = Writer.Lock();
     if (!writer)
@@ -270,13 +274,13 @@ void TRemoteWriter::TGroup::SendGroup(THolderPtr srcHolder)
         auto dstHolder = writer->Holders[dstHolderIndex];
         if (dstHolder->IsAlive && !IsSent[dstHolderIndex]) {
             auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
-            auto onResponse = FromMethod(
+            auto onResponse = BIND(
                 &TGroup::CheckSendResponse,
-                TWeakPtr<TGroup>(this),
+                MakeWeak(this),
                 srcHolder,
                 dstHolder);
             awaiter->Await(SendBlocks(srcHolder, dstHolder), onResponse);
-            awaiter->Complete(FromMethod(&TGroup::Process, TWeakPtr<TGroup>(this)));
+            awaiter->Complete(BIND(&TGroup::Process, MakeWeak(this)));
             break;
         }
     }
@@ -299,7 +303,7 @@ TRemoteWriter::TGroup::SendBlocks(
         ~dstHolder->Address);
 
     auto req = srcHolder->Proxy.SendBlocks();
-    req->set_chunk_id(writer->ChunkId.ToProto());
+    *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->set_block_count(Blocks.ysize());
     req->set_address(dstHolder->Address);
@@ -307,9 +311,9 @@ TRemoteWriter::TGroup::SendBlocks(
 }
 
 void TRemoteWriter::TGroup::CheckSendResponse(
-    TRemoteWriter::TProxy::TRspSendBlocks::TPtr rsp,
-    THolderPtr srcHolder, 
-    THolderPtr dstHolder)
+    THolderPtr srcHolder,
+    THolderPtr dstHolder,
+    TRemoteWriter::TProxy::TRspSendBlocks::TPtr rsp)
 {
     auto writer = Writer.Lock();
     if (!writer)
@@ -320,23 +324,23 @@ void TRemoteWriter::TGroup::CheckSendResponse(
         return;
     }
 
-    auto onSuccess = FromMethod(
+    auto onSuccess = BIND(
         &TGroup::OnSentBlocks, 
-        this, // No need for a smart pointer here -- we're invoking action directly.
+        Unretained(this), // No need for a smart pointer here -- we're invoking action directly.
         srcHolder, 
         dstHolder);
 
     writer->CheckResponse<TRemoteWriter::TProxy::TRspSendBlocks>(
-        rsp, 
         srcHolder, 
         onSuccess,
-        &writer->SendBlocksTiming);
+        &writer->SendBlocksTiming,
+        rsp);
 }
 
 void TRemoteWriter::TGroup::OnSentBlocks(
-    TProxy::TRspSendBlocks::TPtr rsp, 
     THolderPtr srcHolder, 
-    THolderPtr dstHolder)
+    THolderPtr dstHolder,
+    TProxy::TRspSendBlocks::TPtr rsp)
 {
     auto writer = Writer.Lock();
     YASSERT(writer);
@@ -432,7 +436,6 @@ TRemoteWriter::TRemoteWriter(
     , AliveHolderCount(addresses.ysize())
     , CurrentGroup(New<TGroup>(AliveHolderCount, 0, this))
     , BlockCount(0)
-    , ChunkSize(-1)
     , StartChunkTiming(0, 1000, 20)
     , PutBlocksTiming(0, 1000, 20)
     , SendBlocksTiming(0, 1000, 20)
@@ -472,11 +475,11 @@ void TRemoteWriter::Open()
 
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto holder, Holders) {
-        auto onSuccess = FromMethod(
+        auto onSuccess = BIND(
             &TRemoteWriter::OnChunkStarted, 
             TWeak(this), 
             holder);
-        auto onResponse = FromMethod(
+        auto onResponse = BIND(
             &TRemoteWriter::CheckResponse<TProxy::TRspStartChunk>,
             TWeak(this),
             holder,
@@ -484,7 +487,7 @@ void TRemoteWriter::Open()
             &StartChunkTiming);
         awaiter->Await(StartChunk(holder), onResponse);
     }
-    awaiter->Complete(FromMethod(&TRemoteWriter::OnSessionStarted, TWeak(this)));
+    awaiter->Complete(BIND(&TRemoteWriter::OnSessionStarted, TWeak(this)));
 
     IsOpen = true;
 }
@@ -517,12 +520,12 @@ void TRemoteWriter::ShiftWindow()
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto holder, Holders) {
         if (holder->IsAlive) {
-            auto onSuccess = FromMethod(
+            auto onSuccess = BIND(
                 &TRemoteWriter::OnBlockFlushed, 
                 TWeak(this), 
                 holder,
                 lastFlushableBlock);
-            auto onResponse = FromMethod(
+            auto onResponse = BIND(
                 &TRemoteWriter::CheckResponse<TProxy::TRspFlushBlock>,
                 TWeak(this), 
                 holder, 
@@ -532,7 +535,7 @@ void TRemoteWriter::ShiftWindow()
         }
     }
 
-    awaiter->Complete(FromMethod(
+    awaiter->Complete(BIND(
         &TRemoteWriter::OnWindowShifted, 
         TWeak(this),
         lastFlushableBlock));
@@ -548,12 +551,12 @@ TRemoteWriter::FlushBlock(THolderPtr holder, int blockIndex)
         ~holder->Address);
 
     auto req = holder->Proxy.FlushBlock();
-    req->set_chunk_id(ChunkId.ToProto());
+    *req->mutable_chunk_id() = ChunkId.ToProto();
     req->set_block_index(blockIndex);
     return req->Invoke();
 }
 
-void TRemoteWriter::OnBlockFlushed(TProxy::TRspFlushBlock::TPtr rsp, THolderPtr holder, int blockIndex)
+void TRemoteWriter::OnBlockFlushed(THolderPtr holder, int blockIndex, TProxy::TRspFlushBlock::TPtr rsp)
 {
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -638,16 +641,16 @@ void TRemoteWriter::OnHolderFailed(THolderPtr holder)
 
 template <class TResponse>
 void TRemoteWriter::CheckResponse(
-    TIntrusivePtr<TResponse> rsp,
     THolderPtr holder,
-    typename IParamAction< TIntrusivePtr<TResponse> >::TPtr onSuccess, 
-    TMetric* metric)
+    TCallback<void(TIntrusivePtr<TResponse>)> onSuccess, 
+    TMetric* metric,
+    TIntrusivePtr<TResponse> rsp)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     if (rsp->IsOK()) {
         metric->AddDelta(rsp->GetStartTime());
-        onSuccess->Do(rsp);
+        onSuccess.Run(rsp);
     } else {
         // TODO: retry?
         LOG_ERROR("Error reported by holder %s\n%s",
@@ -662,11 +665,11 @@ TRemoteWriter::TProxy::TInvStartChunk::TPtr TRemoteWriter::StartChunk(THolderPtr
     LOG_DEBUG("Starting chunk at %s", ~holder->Address);
 
     auto req = holder->Proxy.StartChunk();
-    req->set_chunk_id(ChunkId.ToProto());
+    *req->mutable_chunk_id() = ChunkId.ToProto();
     return req->Invoke();
 }
 
-void TRemoteWriter::OnChunkStarted(TProxy::TRspStartChunk::TPtr rsp, THolderPtr holder)
+void TRemoteWriter::OnChunkStarted(THolderPtr holder, TProxy::TRspStartChunk::TPtr rsp)
 {
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -709,11 +712,11 @@ void TRemoteWriter::CloseSession()
     auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
     FOREACH (auto holder, Holders) {
         if (holder->IsAlive) {
-            auto onSuccess = FromMethod(
+            auto onSuccess = BIND(
                 &TRemoteWriter::OnChunkFinished, 
                 TWeak(this), 
                 holder);
-            auto onResponse = FromMethod(
+            auto onResponse = BIND(
                 &TRemoteWriter::CheckResponse<TProxy::TRspFinishChunk>,
                 TWeak(this), 
                 holder, 
@@ -722,25 +725,32 @@ void TRemoteWriter::CloseSession()
             awaiter->Await(FinishChunk(holder), onResponse);
         }
     }
-    awaiter->Complete(FromMethod(&TRemoteWriter::OnSessionFinished, TWeak(this)));
+    awaiter->Complete(BIND(&TRemoteWriter::OnSessionFinished, TWeak(this)));
 }
 
-void TRemoteWriter::OnChunkFinished(TProxy::TRspFinishChunk::TPtr rsp, THolderPtr holder)
+void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    i64 size = rsp->size();
+    auto& chunkInfo = rsp->chunk_info();
     LOG_DEBUG("Chunk is finished (Address: %s, Size: %" PRId64 ")",
         ~holder->Address,
-        size);
+        chunkInfo.size());
 
-    if (ChunkSize >= 0 && ChunkSize != size) {
-        LOG_FATAL("Mismatched chunk size reported by holder (KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s)",
-            ChunkSize,
-            size,
+    // If ChunkInfo is set.
+    if (ChunkInfo.has_id() && (
+        ChunkInfo.meta_checksum() != chunkInfo.meta_checksum() ||
+        ChunkInfo.size() != chunkInfo.size())) 
+    {
+        Stroka knownInfo, newInfo;
+        TextFormat::PrintToString(ChunkInfo, &knownInfo);
+        TextFormat::PrintToString(chunkInfo, &newInfo);
+        LOG_FATAL("Mismatched chunk info reported by holder (KnownInfo: %s, NewInfo: %s, Address: %s)",
+            ~knownInfo,
+            ~newInfo,
             ~holder->Address);
     }
-    ChunkSize = size;
+    ChunkInfo = chunkInfo;
 }
 
 TRemoteWriter::TProxy::TInvFinishChunk::TPtr
@@ -751,7 +761,7 @@ TRemoteWriter::FinishChunk(THolderPtr holder)
     LOG_DEBUG("Finishing chunk at %s", ~holder->Address);
 
     auto req = holder->Proxy.FinishChunk();
-    req->set_chunk_id(ChunkId.ToProto());
+    *req->mutable_chunk_id() = ChunkId.ToProto();
     req->mutable_attributes()->CopyFrom(Attributes);
     return req->Invoke();
 }
@@ -780,7 +790,7 @@ void TRemoteWriter::PingSession(THolderPtr holder)
     LOG_DEBUG("Sending ping to %s", ~holder->Address);
 
     auto req = holder->Proxy.PingSession();
-    req->set_chunk_id(ChunkId.ToProto());
+    *req->mutable_chunk_id() = ChunkId.ToProto();
     req->Invoke();
 
     SchedulePing(holder);
@@ -796,11 +806,11 @@ void TRemoteWriter::SchedulePing(THolderPtr holder)
 
     TDelayedInvoker::CancelAndClear(holder->Cookie);
     holder->Cookie = TDelayedInvoker::Submit(
-        FromMethod(
+        BIND(
             &TRemoteWriter::PingSession,
             TWeak(this),
             holder)
-        ->Via(WriterThread->GetInvoker()),
+        .Via(WriterThread->GetInvoker()),
         Config->SessionPingInterval);
 }
 
@@ -820,7 +830,7 @@ void TRemoteWriter::CancelAllPings()
     }
 }
 
-TAsyncError::TPtr TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
+TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -834,7 +844,7 @@ TAsyncError::TPtr TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>&
 
     State.StartOperation();
 
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(FromMethod(
+    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
         &TRemoteWriter::DoWriteBlocks,
         TWeak(this),
         blocks));
@@ -842,7 +852,7 @@ TAsyncError::TPtr TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>&
     return State.GetOperationError();
 }
 
-void TRemoteWriter::DoWriteBlocks(TVoid, const std::vector<TSharedRef>& blocks)
+void TRemoteWriter::DoWriteBlocks(const std::vector<TSharedRef>& blocks, TVoid)
 {
     if (State.IsActive()) {
         AddBlocks(blocks);
@@ -860,7 +870,7 @@ void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
         ++BlockCount;
 
         if (CurrentGroup->GetSize() >= Config->GroupSize) {
-            WriterThread->GetInvoker()->Invoke(FromMethod(
+            WriterThread->GetInvoker()->Invoke(BIND(
                 &TRemoteWriter::AddGroup,
                 TWeak(this),
                 CurrentGroup));
@@ -872,7 +882,8 @@ void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
 
 void TRemoteWriter::DoClose(
     const std::vector<TSharedRef>& lastBlocks,
-    const TChunkAttributes& attributes)
+    const TChunkAttributes& attributes,
+    TVoid)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
     YASSERT(!IsCloseRequested);
@@ -898,7 +909,7 @@ void TRemoteWriter::DoClose(
     }
 }
 
-TAsyncError::TPtr TRemoteWriter::AsyncClose(
+TAsyncError TRemoteWriter::AsyncClose(
     const std::vector<TSharedRef>& lastBlocks,
     const TChunkAttributes& attributes)
 {
@@ -914,12 +925,12 @@ TAsyncError::TPtr TRemoteWriter::AsyncClose(
     LOG_DEBUG("Requesting writer to close.");
     State.StartOperation();
 
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(FromMethod(
+    // XXX(sandello): Do you realize, that lastBlocks and attributes are copied back and forth here?
+    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
         &TRemoteWriter::DoClose,
         TWeak(this),
         lastBlocks,
-        attributes)->ToParamAction<TVoid>()->Via(WriterThread->GetInvoker()));
-
+        attributes).Via(WriterThread->GetInvoker()));
 
     return State.GetOperationError();
 }
@@ -952,9 +963,15 @@ TChunkYPathProxy::TReqConfirm::TPtr TRemoteWriter::GetConfirmRequest()
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(State.IsClosed());
 
+    YASSERT(ChunkInfo.has_size());
+
     auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
-    req->set_size(ChunkSize);
-    *req->mutable_attributes() = Attributes;
+    req->set_size(ChunkInfo.size());
+
+    TBlob attributesBlob;
+    SerializeToProto(&Attributes, &attributesBlob);
+    req->set_attributes(Stroka(attributesBlob.begin(), attributesBlob.end()));
+
     FOREACH (auto holder, Holders) {
         if (holder->IsAlive) {
             req->add_holder_addresses(holder->Address);

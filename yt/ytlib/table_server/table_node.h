@@ -12,7 +12,7 @@ namespace NTableServer {
 class TTableNode
     : public NCypress::TCypressNodeBase
 {
-    DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkListId, ChunkListId);
+    DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
 
 public:
     explicit TTableNode(const NCypress::TVersionedNodeId& id);
@@ -22,7 +22,7 @@ public:
 
     virtual void Save(TOutputStream* output) const;
     
-    virtual void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
+    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

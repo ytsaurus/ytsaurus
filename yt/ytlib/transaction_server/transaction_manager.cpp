@@ -81,19 +81,17 @@ private:
 
         if (name == "nested_transaction_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* transaction)
-                    {
-                        fluent.Item().Scalar(transaction->GetId().ToString());
-                    });
+                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* transaction) {
+                    fluent.Item().Scalar(transaction->GetId().ToString());
+                });
             return true;
         }
 
         if (name == "created_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id)
-            {
-                fluent.Item().Scalar(id.ToString());
-            });
+                .DoListFor(transaction.CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id) {
+                    fluent.Item().Scalar(id.ToString());
+                });
             return true;
         }
 
@@ -175,7 +173,7 @@ private:
             objectManager->RefObject(objectId);
         }
 
-        response->set_object_id(objectId.ToProto());
+        *response->mutable_object_id() = objectId.ToProto();
 
         context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
 
@@ -269,17 +267,17 @@ TTransactionManager::TTransactionManager(
     auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "TransactionManager.Keys.1",
-        FromMethod(&TTransactionManager::LoadKeys, MakeStrong(this)));
+        BIND(&TTransactionManager::LoadKeys, MakeStrong(this)));
     metaState->RegisterLoader(
         "TransactionManager.Values.1",
-        FromMethod(&TTransactionManager::LoadValues, MakeStrong(this), context));
+        BIND(&TTransactionManager::LoadValues, MakeStrong(this), context));
     metaState->RegisterSaver(
         "TransactionManager.Keys.1",
-        FromMethod(&TTransactionManager::SaveKeys, MakeStrong(this)),
+        BIND(&TTransactionManager::SaveKeys, MakeStrong(this)),
         ESavePhase::Keys);
     metaState->RegisterSaver(
         "TransactionManager.Values.1",
-        FromMethod(&TTransactionManager::SaveValues, MakeStrong(this)),
+        BIND(&TTransactionManager::SaveValues, MakeStrong(this)),
         ESavePhase::Values);
 
     metaState->RegisterPart(this);
@@ -329,6 +327,10 @@ void TTransactionManager::Commit(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    if (transaction.GetState() != ETransactionState::Active) {
+        ythrow yexception() << "Cannot commit an inactive transaction";
+    }
+
     auto id = transaction.GetId();
 
     if (!transaction.NestedTransactions().empty()) {
@@ -352,12 +354,16 @@ void TTransactionManager::Abort(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    if (transaction.GetState() != ETransactionState::Active) {
+        ythrow yexception() << "Cannot abort an inactive transaction";
+    }
+
     auto id = transaction.GetId();
 
     // Make a copy, the set will be modified.
     auto nestedTransactions = transaction.NestedTransactions();
-    FOREACH (auto* transaction, nestedTransactions) {
-        Abort(*transaction);
+    FOREACH (auto* nestedTransaction, nestedTransactions) {
+        Abort(*nestedTransaction);
     }
     YASSERT(transaction.NestedTransactions().empty());
 
@@ -379,8 +385,8 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
     auto objectManager = Bootstrap->GetObjectManager();
     auto transactionId = transaction.GetId();
 
-    if (transaction.GetParent()) {
-        auto* parent = transaction.GetParent();
+    auto* parent = transaction.GetParent();
+    if (parent) {
         YVERIFY(parent->NestedTransactions().erase(&transaction) == 1);
         objectManager->UnrefObject(transactionId);
     }
@@ -423,11 +429,11 @@ void TTransactionManager::LoadKeys(TInputStream* input)
     TransactionMap.LoadKeys(input);
 }
 
-void TTransactionManager::LoadValues(TInputStream* input, TLoadContext context)
+void TTransactionManager::LoadValues(TLoadContext context, TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.LoadValues(input, context);
+    TransactionMap.LoadValues(context, input);
 }
 
 void TTransactionManager::Clear()
@@ -464,8 +470,8 @@ void TTransactionManager::CreateLease(const TTransaction& transaction, TTransact
     auto timeout = manifest->Timeout.Get(Config->DefaultTransactionTimeout);
     auto lease = TLeaseManager::CreateLease(
         timeout,
-        FromMethod(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
-        ->Via(
+        BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
+        .Via(
             Bootstrap->GetStateInvoker(),
             Bootstrap->GetMetaStateManager()->GetEpochContext()));
     YVERIFY(LeaseMap.insert(MakePair(transaction.GetId(), lease)).second);

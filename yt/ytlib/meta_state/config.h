@@ -157,11 +157,39 @@ struct TLeaderCommitterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChangeLogCacheConfig
+    : public TConfigurable
+{
+    //! Disables physical changelog flush.
+    /*!
+     *  Enabling this option can cause meta state corruption and inconsistency.
+     *  Don't switch it on unless you understand the consequences.
+     */
+    bool DisableFlush;
+
+    //! Maximum number of cached changelogs.
+    int MaxSize;
+
+    TChangeLogCacheConfig()
+    {
+        Register("disable_flush", DisableFlush)
+            .Default(false);
+        Register("max_size", MaxSize)
+            .GreaterThan(0)
+            .Default(4);
+    }
+};
+
+typedef TIntrusivePtr<TChangeLogCacheConfig> TChangeLogCacheConfigPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Describes a configuration of TMetaStateManager.
 struct TPersistentStateManagerConfig
     : public TConfigurable
 {
     //! A path where changelogs are stored.
+    // TODO(babenko): move to subconfig
     Stroka LogPath;
 
     //! A path where snapshots are stored.
@@ -198,6 +226,8 @@ struct TPersistentStateManagerConfig
 
     TSnapshotBuilderConfigPtr SnapshotBuilder;
 
+    TChangeLogCacheConfigPtr ChangeLogCache;
+
     TPersistentStateManagerConfig()
     {
         Register("log_path", LogPath)
@@ -224,6 +254,8 @@ struct TPersistentStateManagerConfig
         Register("leader_committer", LeaderCommitter)
             .DefaultNew();
         Register("snapshot_builder", SnapshotBuilder)
+            .DefaultNew();
+        Register("change_log_cache", ChangeLogCache)
             .DefaultNew();
     }
 };

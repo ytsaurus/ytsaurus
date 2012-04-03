@@ -133,7 +133,7 @@ struct TVersionedObjectId
     //! Formats the id to string (for debugging and logging purposes mainly).
     Stroka ToString() const;
 
-    static TVersionedObjectId FromString(const Stroka &s);
+    static TVersionedObjectId FromString(const Stroka& str);
 };
 
 //! Compares TVersionedNodeId s for equality.
@@ -154,8 +154,12 @@ DECLARE_PODTYPE(NYT::NObjectServer::TVersionedObjectId);
 template <>
 struct hash<NYT::NObjectServer::TVersionedObjectId>
 {
-    // TODO(roizner): Why is it not implemented?
-    i32 operator() (const NYT::NObjectServer::TVersionedObjectId& id) const;
+    i32 operator() (const NYT::NObjectServer::TVersionedObjectId& id) const
+    {
+        return
+            (i32) THash<NYT::TGuid>()(id.TransactionId) * 497 +
+            (i32) THash<NYT::TGuid>()(id.ObjectId);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

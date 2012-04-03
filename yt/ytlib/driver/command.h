@@ -29,11 +29,7 @@ struct TRequestBase
     {
         Register("do", Do);
     }
-
-    static IParamAction<const NYTree::INodePtr&>::TPtr StreamSpecIsValid;
 };
-
-Stroka ToStreamSpec(NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,15 +45,18 @@ struct TTransactedRequest
     }
 };
 
+typedef TIntrusivePtr<TTransactedRequest> TTransactedRequestPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IDriverImpl
+struct ICommandHost
 {
-    virtual ~IDriverImpl()
+    virtual ~ICommandHost()
     { }
 
-    virtual TDriver::TConfig* GetConfig() const = 0;
-    virtual NRpc::IChannel* GetMasterChannel() const = 0;
+    virtual TDriver::TConfig::TPtr GetConfig() const = 0;
+    virtual NRpc::IChannel::TPtr GetMasterChannel() const = 0;
+    virtual NRpc::IChannel::TPtr GetSchedulerChannel() const = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
     virtual TAutoPtr<TInputStream> CreateInputStream() = 0;
@@ -69,11 +68,13 @@ struct IDriverImpl
     virtual void ReplySuccess() = 0;
     virtual void ReplySuccess(const NYTree::TYson& yson) = 0;
 
-    virtual NChunkClient::IBlockCache* GetBlockCache() = 0;
-    virtual NTransactionClient::TTransactionManager* GetTransactionManager() = 0;
+    virtual NChunkClient::IBlockCache::TPtr GetBlockCache() = 0;
+    virtual NTransactionClient::TTransactionManager::TPtr GetTransactionManager() = 0;
 
-    virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequest* request, bool required = false) = 0;
-    virtual NTransactionClient::ITransaction::TPtr GetTransaction(TTransactedRequest* request, bool required = false) = 0;
+    virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequestPtr request, bool required = false) = 0;
+    virtual NTransactionClient::ITransaction::TPtr GetTransaction(TTransactedRequestPtr request, bool required = false) = 0;
+
+    virtual NYTree::TYPath PreprocessYPath(const NYTree::TYPath& ypath) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,36 +84,49 @@ struct ICommand
 {
     typedef TIntrusivePtr<ICommand> TPtr;
 
-    virtual void Execute(NYTree::INode* request) = 0;
+    virtual void Execute(NYTree::INodePtr request) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUntypedCommandBase
+    : public ICommand
+{
+protected:
+    ICommandHost* Host;
+
+    explicit TUntypedCommandBase(ICommandHost* host);
+
+    void PreprocessYPath(NYTree::TYPath* path);
+    void PreprocessYPaths(std::vector<NYTree::TYPath>* paths);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequest>
-class TCommandBase
-    : public ICommand
+class TTypedCommandBase
+    : public virtual TUntypedCommandBase
 {
 public:
-    virtual void Execute(NYTree::INode* request)
+    explicit TTypedCommandBase(ICommandHost* host)
+        : TUntypedCommandBase(host)
+    { }
+
+    virtual void Execute(NYTree::INodePtr request)
     {
         auto typedRequest = New<TRequest>();
         typedRequest->SetKeepOptions(true);
         try {
-            typedRequest->Load(request);
+            typedRequest->Load(~request);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing request\n%s", ex.what());
+            ythrow yexception() << Sprintf("Error parsing command request\n%s", ex.what());
         }
-        DoExecute(~typedRequest);
+        DoExecute(typedRequest);
     }
 
 protected:
-    IDriverImpl* DriverImpl;
+    virtual void DoExecute(TIntrusivePtr<TRequest> request) = 0;
 
-    TCommandBase(IDriverImpl* driverImpl)
-        : DriverImpl(driverImpl)
-    { }
-
-    virtual void DoExecute(TRequest* request) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

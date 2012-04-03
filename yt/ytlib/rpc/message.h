@@ -40,9 +40,6 @@ NBus::IMessage::TPtr SetResponseHeader(
     NBus::IMessage* message,
     const NProto::TResponseHeader& header);
 
-TError GetResponseError(const NProto::TResponseHeader& header);
-void SetResponseError(NProto::TResponseHeader& header, const TError& error);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRpc

@@ -1,5 +1,6 @@
 package NYT.NChunkServer.NProto;
 
+import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/chunk_holder/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,35 +16,35 @@ message THolderStatistics
 
 message TChunkAddInfo
 {
-    required bytes chunk_id = 1;
+    required NYT.NProto.TGuid chunk_id = 1;
     required bool cached = 2;
     required int64 size = 3;
 }
 
 message TChunkRemoveInfo
 {
-    required bytes chunk_id = 1;
+    required NYT.NProto.TGuid chunk_id = 1;
     required bool cached = 2;
 }
 
 message TJobInfo
 {
-    required bytes job_id = 1;
+    required NYT.NProto.TGuid job_id = 1;
     required int32 state = 2;
 }
 
 message TJobStartInfo
 {
     required int32 type = 1;
-    required bytes job_id = 2;
-    required bytes chunk_id = 3;
+    required NYT.NProto.TGuid job_id = 2;
+    required NYT.NProto.TGuid chunk_id = 3;
     repeated bytes target_addresses = 4;
     required uint64 start_time = 5;
 }
 
 message TJobStopInfo
 {
-    required bytes job_id = 1;
+    required NYT.NProto.TGuid job_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,7 +52,7 @@ message TJobStopInfo
 message TReqRegisterHolder
 {
     required bytes address = 1;
-    required bytes incarnation_id = 2;
+    required NYT.NProto.TGuid incarnation_id = 2;
     required THolderStatistics statistics = 3;
 }
 
@@ -95,7 +96,7 @@ message TRspIncrementalHeartbeat
 // TODO(babenko): deprecate
 message TReqCreateChunks
 {
-    required bytes transaction_id = 1;
+    required NYT.NProto.TGuid transaction_id = 1;
     required int32 chunk_count = 2;
     required int32 upload_replica_count = 3;
 }
@@ -104,7 +105,7 @@ message TRspCreateChunks
 {
     message TChunkInfo
     {
-        required bytes chunk_id = 1;
+        required NYT.NProto.TGuid chunk_id = 1;
         repeated bytes holder_addresses = 2;
     }
 

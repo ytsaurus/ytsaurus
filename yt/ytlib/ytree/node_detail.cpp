@@ -155,11 +155,15 @@ void TMapNodeMixin::SetRecursive(
         auto token = *it;
         if (it == tokens.end() - 1) {
             // Final step: append the given value.
-            YVERIFY(currentNode->AddChild(value, token));
+            // AppendChild may throw an exception, e.g. in case of a failed lock attempt.
+            bool appended = currentNode->AddChild(value, token);
+            YVERIFY(appended);
         } else {
             // Intermediate step: create and append a map.
             auto intermediateNode = factory->CreateMap();
-            YVERIFY(currentNode->AddChild(~intermediateNode, token));
+            // AppendChild may throw an exception, e.g. in case of a failed lock attempt.
+            bool appended  = currentNode->AddChild(~intermediateNode, token);
+            YVERIFY(appended);
             currentNode = intermediateNode;
         }
     }

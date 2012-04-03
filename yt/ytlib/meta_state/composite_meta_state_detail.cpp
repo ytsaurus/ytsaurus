@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "composite_meta_state_detail.h"
 
-#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -15,7 +15,7 @@ void DeserializeChangeHeader(
     TMsgChangeHeader* header)
 {
     auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
-    YVERIFY(DeserializeProtobuf(
+    YVERIFY(DeserializeFromProto(
         header,
         TRef(changeData.Begin() + sizeof (fixedHeader), fixedHeader->HeaderSize)));
 }
@@ -27,7 +27,7 @@ void DeserializeChange(
 {
     auto* fixedHeader = reinterpret_cast<TFixedChangeHeader*>(changeData.Begin());
 
-    YVERIFY(DeserializeProtobuf(
+    YVERIFY(DeserializeFromProto(
         header,
         TRef(changeData.Begin() + sizeof (TFixedChangeHeader), fixedHeader->HeaderSize)));
 

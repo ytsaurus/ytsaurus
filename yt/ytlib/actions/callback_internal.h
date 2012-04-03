@@ -12,8 +12,8 @@ $$ See bind.h for an extended commentary.
 $$==============================================================================
 */
 
-#include <ytlib/misc/intrusive_ptr.h>
-#include <ytlib/misc/ref_counted.h>
+#include <ytlib/misc/common.h>
+#include <ytlib/misc/source_location.h>
 
 namespace NYT {
 namespace NDetail {
@@ -32,9 +32,12 @@ class TBindStateBase
     : public TIntrinsicRefCounted
 {
 protected:
+    TBindStateBase(const ::NYT::TSourceLocation& location);
+
     friend class TIntrinsicRefCounted;
-    virtual ~TBindStateBase()
-    {}
+    virtual ~TBindStateBase();
+
+    ::NYT::TSourceLocation Location_;
 };
 
 //! Holds the TCallback methods that don't require specialization to reduce
@@ -48,6 +51,9 @@ public:
     //! Returns the #TCallback<> into an uninitialized state.
     void Reset();
 
+    //! Returns a magical handle.
+    void* Handle() const;
+
 protected:
     /*!
      * In C++, it is safe to cast function pointers to function pointers of
@@ -55,11 +61,19 @@ protected:
      * We create a TUntypedInvokeFunction type that can store our
      * function pointer, and then cast it back to the original type on usage.
      */
-    typedef void(*TUntypedInvokeFunction)(void);
+    typedef void(*TUntypedInvokeFunction)();
 
+    //! Swaps the state and the invoke function with other callback (without typechecking!).
+    void Swap(TCallbackBase& other);
+ 
     //! Returns true iff this callback equals to the other (which may be null).
     bool Equals(const TCallbackBase& other) const;
 
+    /*!
+     * Yup, out-of-line copy constructor. Yup, explicit.
+     */
+    explicit TCallbackBase(const TCallbackBase& other);
+ 
     /*!
      * We can efficiently move-construct callbacks avoiding extra interlocks
      * while moving reference counted #TBindStateBase.
@@ -79,11 +93,12 @@ protected:
      */
     ~TCallbackBase();
 
-    TCallbackBase& operator=(TCallbackBase& other);
-    TCallbackBase& operator=(TCallbackBase&& other);
-
     TIntrusivePtr<TBindStateBase> BindState;
     TUntypedInvokeFunction UntypedInvoke;
+
+private:
+    TCallbackBase& operator=(const TCallbackBase&);
+    TCallbackBase& operator=(TCallbackBase&&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

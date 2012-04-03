@@ -10,6 +10,7 @@
 #include <ytlib/cypress/cypress_manager.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <util/digest/murmur.h>
 
@@ -28,6 +29,7 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ObjectServer");
+static NProfiling::TProfiler Profiler("object_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,7 +141,7 @@ public:
         return UnderlyingContext->GetRequestInfo();
     }
 
-    virtual IAction::TPtr Wrap(IAction::TPtr action) 
+    virtual TClosure Wrap(TClosure action) 
     {
         return UnderlyingContext->Wrap(action);
     }
@@ -204,7 +206,7 @@ public:
             ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~objectId.ToString());
         }
 
-        return TResolveResult::There(~proxy, currentPath);
+        return TResolveResult::There(proxy, currentPath);
     }
 
     virtual void Invoke(IServiceContext* context)
@@ -265,30 +267,30 @@ TObjectManager::TObjectManager(
     auto metaState = bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "ObjectManager.Keys.1",
-        FromMethod(&TObjectManager::LoadKeys, MakeStrong(this)));
+        BIND(&TObjectManager::LoadKeys, MakeStrong(this)));
     metaState->RegisterLoader(
         "ObjectManager.Values.1",
-        FromMethod(&TObjectManager::LoadValues, MakeStrong(this), context));
+        BIND(&TObjectManager::LoadValues, MakeStrong(this), context));
     metaState->RegisterSaver(
         "ObjectManager.Keys.1",
-        FromMethod(&TObjectManager::SaveKeys, MakeStrong(this)),
+        BIND(&TObjectManager::SaveKeys, MakeStrong(this)),
         ESavePhase::Keys);
     metaState->RegisterSaver(
         "ObjectManager.Values.1",
-        FromMethod(&TObjectManager::SaveValues, MakeStrong(this)),
+        BIND(&TObjectManager::SaveValues, MakeStrong(this)),
         ESavePhase::Values);
 
     metaState->RegisterPart(this);
 
-    RegisterMethod(this, &TObjectManager::ReplayVerb);
+    RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
 
     LOG_INFO("Object Manager initialized (CellId: %d)",
         static_cast<int>(config->CellId));
 }
 
-IYPathService* TObjectManager::GetRootService()
+IYPathServicePtr TObjectManager::GetRootService()
 {
-    return ~RootService;
+    return RootService;
 }
 
 void TObjectManager::RegisterHandler(IObjectTypeHandler* handler)
@@ -420,13 +422,13 @@ void TObjectManager::LoadKeys(TInputStream* input)
     Attributes.LoadKeys(input);
 }
 
-void TObjectManager::LoadValues(TInputStream* input, TLoadContext context)
+void TObjectManager::LoadValues(TLoadContext context, TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     ::Load(input, TypeToCounter);
 
-    Attributes.LoadValues(input, context);
+    Attributes.LoadValues(context, input);
 }
 
 void TObjectManager::Clear()
@@ -525,26 +527,35 @@ void TObjectManager::ExecuteVerb(
     const TVersionedObjectId& id,
     bool isWrite,
     IServiceContext* context,
-    IParamAction<NRpc::IServiceContext*>::TPtr action)
+    TCallback<void(NRpc::IServiceContext*)> action)
 {
-    LOG_INFO_IF(!IsRecovery(), "Executing a %s request (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
-        isWrite ? "read-write" : "read-only",
-        ~context->GetPath(),
+    LOG_INFO_IF(!IsRecovery(), "Executing %s request with path %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
         ~context->GetVerb(),
+        ~context->GetPath().Quote(),
         ~id.ObjectId.ToString(),
-        ~id.TransactionId.ToString());
+        ~id.TransactionId.ToString(),
+        ~FormatBool(isWrite));
+
+    auto profilingPath = CombineYPaths(
+        "types",
+        TypeFromId(id.ObjectId).ToString(),
+        "verbs",
+        context->GetVerb(),
+        "time");
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
         !isWrite ||
         MetaStateManager->IsInCommit())
     {
-        action->Do(context);
+        PROFILE_TIMING (profilingPath) {
+            action.Run(context);
+        }
         return;
     }
 
     TMsgExecuteVerb message;
-    message.set_object_id(id.ObjectId.ToProto());
-    message.set_transaction_id(id.TransactionId.ToProto());
+    *message.mutable_object_id() = id.ObjectId.ToProto();
+    *message.mutable_transaction_id() = id.TransactionId.ToProto();
 
     auto requestMessage = context->GetRequestMessage();
     FOREACH (const auto& part, requestMessage->GetParts()) {
@@ -557,16 +568,18 @@ void TObjectManager::ExecuteVerb(
     auto change = CreateMetaChange(
         ~MetaStateManager,
         message,
-        FromFunctor([=] () -> TVoid {
-            action->Do(~wrappedContext);
+        BIND([=] () -> TVoid {
+            PROFILE_TIMING (profilingPath) {
+                action.Run(~wrappedContext);
+            }
             return TVoid();
         }));
 
     change
-        ->OnSuccess(FromFunctor([=] (TVoid) {
+        ->OnSuccess(BIND([=] (TVoid) {
             wrappedContext->Flush();
         }))
-        ->OnError(FromFunctor([=] () {
+        ->OnError(BIND([=] () {
             context_->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Error committing meta state changes"));
@@ -598,7 +611,7 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
         path,
         verb,
         "",
-        NULL);
+        NYTree::TYPathResponseHandler());
 
     auto proxy = GetProxy(id);
 

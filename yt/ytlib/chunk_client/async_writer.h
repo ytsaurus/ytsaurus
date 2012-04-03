@@ -38,7 +38,7 @@ struct IAsyncWriter
      *  (e.g. all chunk-holders are down).
      *  The client shouldn't retry writing the same block again.
      */
-    virtual TAsyncError::TPtr AsyncWriteBlocks(const std::vector<TSharedRef>& blocks) = 0;
+    virtual TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks) = 0;
 
     //! Called when the client has added all the blocks and is 
     //! willing to finalize the upload.
@@ -49,7 +49,7 @@ struct IAsyncWriter
      *  Should be called only once.
      *  Calling #AsyncWriteBlock afterwards is an error.
      */
-    virtual TAsyncError::TPtr AsyncClose(
+    virtual TAsyncError AsyncClose(
         const std::vector<TSharedRef>& lastBlocks,
         const NChunkHolder::NProto::TChunkAttributes& attributes) = 0;
 

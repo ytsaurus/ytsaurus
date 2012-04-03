@@ -110,7 +110,7 @@ public:
         LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
 
         auto invoker = chunk->GetLocation()->GetInvoker();
-        invoker->Invoke(FromMethod(
+        invoker->Invoke(BIND(
             &TStoreImpl::DoReadBlock,
             MakeStrong(this),
             chunk,

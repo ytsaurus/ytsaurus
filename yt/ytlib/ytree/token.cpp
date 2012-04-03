@@ -8,6 +8,8 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TToken TToken::EndOfStream;
+
 TToken::TToken()
     : Int64Value(0)
     , DoubleValue(0.0)

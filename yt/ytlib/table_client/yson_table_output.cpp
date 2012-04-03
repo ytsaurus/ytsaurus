@@ -8,10 +8,10 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////
 
-TYsonTableOutput::TYsonTableOutput(ISyncWriter* syncWriter)
+TYsonTableOutput::TYsonTableOutput(ISyncTableWriter* syncWriter)
     : Writer(syncWriter)
     , RowConsumer(new TRowConsumer(syncWriter))
-    , YsonParser(RowConsumer.Get(), true)
+    , YsonParser(RowConsumer.Get(), NYTree::TYsonParser::EMode::ListFragment)
 {
     Writer->Open();
 }
@@ -32,6 +32,7 @@ void TYsonTableOutput::DoWrite(const void* buf, size_t len)
 
 void TYsonTableOutput::DoFinish()
 {
+    YsonParser.Finish();
     Writer->Close();
 }
 

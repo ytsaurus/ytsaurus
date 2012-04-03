@@ -43,9 +43,9 @@ void TMetaChange<TResult>::DoCommit()
     MetaStateManager
         ->CommitChange(
             ChangeData,
-            FromMethod(&TThis::ChangeFuncThunk, MakeStrong(this)))
+            BIND(&TThis::ChangeFuncThunk, MakeStrong(this)))
         ->Subscribe(
-            FromMethod(&TThis::OnCommitted, MakeStrong(this)));
+            BIND(&TThis::OnCommitted, MakeStrong(this)));
 }
 
 template <class TResult>
@@ -58,43 +58,43 @@ typename TMetaChange<TResult>::TPtr TMetaChange<TResult>::SetRetriable(TDuration
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnSuccess(TIntrusivePtr< IParamAction<TResult> > onSuccess)
+TMetaChange<TResult>::OnSuccess(TCallback<void(TResult)> onSuccess)
 {
-    YASSERT(!OnSuccess_);
-    OnSuccess_ = onSuccess;
+    YASSERT(OnSuccess_.IsNull());
+    OnSuccess_ = MoveRV(onSuccess);
     return this;
 }
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnError(TIntrusivePtr<IAction> onError)
+TMetaChange<TResult>::OnError(TCallback<void()> onError)
 {
-    YASSERT(!OnError_);
-    OnError_ = onError;
+    YASSERT(OnError_.IsNull());
+    OnError_ = MoveRV(onError);
     return this;
 }
 
 template <class TResult>
 void TMetaChange<TResult>::ChangeFuncThunk()
 {
-    Result = Func->Do();
+    Result = Func.Run();
 }
 
 template <class TResult>
 void TMetaChange<TResult>::OnCommitted(ECommitResult result)
 {
     if (result == ECommitResult::Committed) {
-        if (OnSuccess_) {
-            OnSuccess_->Do(Result);
+        if (!OnSuccess_.IsNull()) {
+            OnSuccess_.Run(Result);
         }
     } else {
-        if (OnError_) {
-            OnError_->Do();
+        if (!OnError_.IsNull()) {
+            OnError_.Run();
         }
         if (Retriable) {
             TDelayedInvoker::Submit(
-                FromMethod(&TThis::DoCommit, MakeStrong(this))
-                ->Via(MetaStateManager->GetStateInvoker(), EpochContext),
+                BIND(&TThis::DoCommit, MakeStrong(this))
+                .Via(MetaStateManager->GetStateInvoker(), EpochContext),
                 BackoffTime);
         }
     }
@@ -120,11 +120,11 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
 
     auto changeData = SerializeChange(header, message);
 
-    auto changeFunc = FromMethod(func, target, message);
+    auto changeFunc = BIND(func, target, message);
 
     return New< TMetaChange<TResult> >(
         metaStateManager,
-        ~changeFunc,
+        changeFunc,
         TSharedRef(MoveRV(changeData)));
 }
 
@@ -132,10 +132,10 @@ template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
     IMetaStateManager* metaStateManager,
     const TMessage& message,
-    TIntrusivePtr< IFunc<TResult> > func)
+    TCallback<TResult()> func)
 {
     YASSERT(metaStateManager);
-    YASSERT(func);
+    YASSERT(!func.IsNull());
 
     NProto::TMsgChangeHeader header;
     header.set_change_type(message.GetTypeName());

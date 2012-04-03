@@ -5,7 +5,7 @@
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/metric.h>
-#include <ytlib/misc/serialize.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/bus/client.h>
 #include <ytlib/actions/future.h>
 #include <ytlib/ytree/attributes.h>
@@ -40,7 +40,7 @@ protected:
      */
     typedef NRpc::EErrorCode EErrorCode;
 
-    TProxyBase(IChannel* channel, const Stroka& serviceName);
+    TProxyBase(IChannel::TPtr channel, const Stroka& serviceName);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
 
@@ -94,7 +94,7 @@ protected:
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(
-        IChannel* channel,
+        IChannel::TPtr channel,
         const Stroka& path,
         const Stroka& verb,
         bool oneWay);
@@ -117,7 +117,7 @@ public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
 
     TTypedClientRequest(
-        IChannel* channel,
+        IChannel::TPtr channel,
         const Stroka& path,
         const Stroka& verb,
         bool oneWay)
@@ -144,9 +144,7 @@ private:
     {
         NLog::TLogger& Logger = RpcLogger;
         TBlob blob;
-        if (!SerializeProtobuf(this, &blob)) {
-            LOG_FATAL("Error serializing request body");
-        }
+        YVERIFY(SerializeToProto(this, &blob));
         return blob;
     }
 
@@ -240,7 +238,7 @@ private:
     virtual void OnAcknowledgement();
     virtual void OnResponse(NBus::IMessage* message);
 
-    void Deserialize(NBus::IMessage* responseMessage);
+    void Deserialize(NBus::IMessage::TPtr responseMessage);
 
 };
 
@@ -276,9 +274,7 @@ private:
     virtual void DeserializeBody(const TRef& data)
     {
         NLog::TLogger& Logger = RpcLogger;
-        if (!DeserializeProtobuf(this, data)) {
-            LOG_FATAL("Error deserializing response body");
-        }
+        YVERIFY(DeserializeFromProto(this, data));
     }
 };
 

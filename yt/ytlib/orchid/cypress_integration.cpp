@@ -69,7 +69,7 @@ public:
         requestHeader.set_path(path);
         auto innerRequestMessage = SetRequestHeader(~requestMessage, requestHeader);
 
-        auto outerRequest =proxy.Execute();
+        auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage->GetParts();
 
         LOG_INFO("Sending request to a remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
@@ -79,14 +79,14 @@ public:
             ~outerRequest->GetRequestId().ToString());
 
         outerRequest->Invoke()->Subscribe(
-            FromMethod(
+            BIND(
                 &TOrchidYPathService::OnResponse,
                 MakeStrong(this),
                 IServiceContext::TPtr(context),
                 manifest,
                 path,
                 verb)
-            ->Via(OrchidQueue->GetInvoker()));
+            .Via(OrchidQueue->GetInvoker()));
     }
 
     virtual Stroka GetLoggingCategory() const
@@ -118,11 +118,11 @@ private:
     }
 
     void OnResponse(
-        TOrchidServiceProxy::TRspExecute::TPtr response,
         NRpc::IServiceContext::TPtr context,
         TOrchidManifest::TPtr manifest,
         TYPath path,
-        const Stroka& verb)
+        const Stroka& verb,
+        TOrchidServiceProxy::TRspExecute::TPtr response)
     {
         LOG_INFO("Reply from a remote Orchid received (RequestId: %s): %s",
             ~response->GetRequestId().ToString(),
@@ -132,12 +132,12 @@ private:
             auto innerResponseMessage = CreateMessageFromParts(response->Attachments());
             context->Reply(~innerResponseMessage);
         } else {
-            context->Reply(TError(Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
+            context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
                 ~path,
                 ~verb,
                 ~manifest->RemoteAddress,
                 ~manifest->RemoteRoot,
-                ~response->GetError().ToString())));
+                ~response->GetError().ToString()));
         }
     }
 
@@ -152,7 +152,7 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::Orchid,
-        FromFunctor([=] (const TVersionedObjectId& id) -> IYPathServicePtr
+        BIND([=] (const TVersionedObjectId& id) -> IYPathServicePtr
             {
                 return New<TOrchidYPathService>(bootstrap, id);
             }));

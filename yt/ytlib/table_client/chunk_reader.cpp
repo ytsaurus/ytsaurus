@@ -3,8 +3,8 @@
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/sync.h>
-#include <ytlib/misc/serialize.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/misc/protobuf_helpers.h>
+#include <ytlib/actions/invoker.h>
 
 #include <algorithm>
 #include <limits>
@@ -125,9 +125,9 @@ public:
 
     void Initialize()
     {
-        AsyncReader->AsyncGetChunkInfo()->Subscribe(FromMethod(
+        AsyncReader->AsyncGetChunkInfo()->Subscribe(BIND(
             &TInitializer::OnGotMeta, 
-            MakeStrong(this))->Via(ReaderThread->GetInvoker()));
+            MakeStrong(this)).Via(ReaderThread->GetInvoker()));
     }
 
 private:
@@ -172,80 +172,84 @@ private:
         if (EndLimit.has_row_index())
             chunkReader->EndRowIndex = std::min(chunkReader->EndRowIndex, EndLimit.row_index());
 
-        if (StartLimit.has_key() || EndLimit.has_key()) {
-            // We expect sorted chunk here.
-            if (!Attributes.is_sorted()) {
-                LOG_WARNING("Received key range read request for an unsorted chunk");
-                OnFail(
-                    TError("Received key range read request for an unsorted chunk"), 
-                    chunkReader);
-                return;
-            }
-
+        {
             auto keyColumns = FromProto<TColumn>(Attributes.key_columns());
-            for (int i = 0; i < keyColumns.size(); ++i) {
-                const auto& column = keyColumns[i];
-                Channel.AddColumn(column);
-                auto& columnInfo = chunkReader->FixedColumns[column];
-                columnInfo.KeyIndex = i;
-                if (chunkReader->Channel.Contains(column))
-                    columnInfo.InChannel = true;
+            if (chunkReader->Options.ReadKey || StartLimit.has_key() || EndLimit.has_key()) {
+                for (int i = 0; i < keyColumns.size(); ++i) {
+                    const auto& column = keyColumns[i];
+                    Channel.AddColumn(column);
+                    auto& columnInfo = chunkReader->FixedColumns[column];
+                    columnInfo.KeyIndex = i;
+                    if (chunkReader->Channel.Contains(column))
+                        columnInfo.InChannel = true;
+                }
+
+                chunkReader->CurrentKey.resize(keyColumns.size());
             }
 
-            chunkReader->CurrentKey.resize(keyColumns.size());
+            if (StartLimit.has_key() || EndLimit.has_key()) {
+                // We expect sorted chunk here.
+                if (!Attributes.is_sorted()) {
+                    LOG_WARNING("Received key range read request for an unsorted chunk");
+                    OnFail(
+                        TError("Received key range read request for an unsorted chunk"), 
+                        chunkReader);
+                    return;
+                }
 
-            if (StartLimit.has_key()) {
-                TKey key = FromProto<Stroka>(StartLimit.key().values());
+                if (StartLimit.has_key()) {
+                    TKey key = FromProto<Stroka>(StartLimit.key().values());
 
-                // define start row
-                if (key.size() == 0) {
-                    // Do nothing - range starts from -inf.
-                } else if (keyColumns.size() == 0) {
-                    // Empty row set selected: requested finite or 
-                    // semifinite range on table with empty key.
-                    chunkReader->EndRowIndex = 0;
-                } else {
-                    StartValidator.Reset(new TGenericValidator< std::greater_equal<TKey> >(key));
+                    // define start row
+                    if (key.size() == 0) {
+                        // Do nothing - range starts from -inf.
+                    } else if (keyColumns.size() == 0) {
+                        // Empty row set selected: requested finite or 
+                        // semifinite range on table with empty key.
+                        chunkReader->EndRowIndex = 0;
+                    } else {
+                        StartValidator.Reset(new TGenericValidator< std::greater_equal<TKey> >(key));
 
-                    typedef decltype(Attributes.key_samples().begin()) TSampleIter;
-                    std::reverse_iterator<TSampleIter> rbegin(Attributes.key_samples().end());
-                    std::reverse_iterator<TSampleIter> rend(Attributes.key_samples().begin());
-                    auto it = std::upper_bound(
-                        rbegin, 
-                        rend, 
-                        key, 
-                        TProtoKeyCompare< std::greater<TKey> >());
+                        typedef decltype(Attributes.key_samples().begin()) TSampleIter;
+                        std::reverse_iterator<TSampleIter> rbegin(Attributes.key_samples().end());
+                        std::reverse_iterator<TSampleIter> rend(Attributes.key_samples().begin());
+                        auto it = std::upper_bound(
+                            rbegin, 
+                            rend, 
+                            key, 
+                            TProtoKeyCompare< std::greater<TKey> >());
 
-                    if (it != rend) {
-                        StartRowIndex = std::max(it->row_index() + 1, StartRowIndex);
+                        if (it != rend) {
+                            StartRowIndex = std::max(it->row_index() + 1, StartRowIndex);
+                        }
                     }
                 }
-            }
 
-            if (EndLimit.has_key()) {
-                auto key = FromProto<Stroka>(EndLimit.key().values());
+                if (EndLimit.has_key()) {
+                    auto key = FromProto<Stroka>(EndLimit.key().values());
 
-                // define end row
-                if (key.size() == 0) {
-                    // Do nothing - range ends at +inf.
-                } else if (keyColumns.size() == 0) {
-                    // Empty row set selected: requested finite or 
-                    // semifinite range on table with empty key.
-                    chunkReader->EndRowIndex = 0;
-                } else {
-                    chunkReader->EndValidator.Reset(
-                        new TGenericValidator< std::less<TKey> >(key));
+                    // define end row
+                    if (key.size() == 0) {
+                        // Do nothing - range ends at +inf.
+                    } else if (keyColumns.size() == 0) {
+                        // Empty row set selected: requested finite or 
+                        // semifinite range on table with empty key.
+                        chunkReader->EndRowIndex = 0;
+                    } else {
+                        chunkReader->EndValidator.Reset(
+                            new TGenericValidator< std::less<TKey> >(key));
 
-                    auto it = std::upper_bound(
-                        Attributes.key_samples().begin(), 
-                        Attributes.key_samples().end(), 
-                        key, 
-                        TProtoKeyCompare< std::less<TKey> >());
+                        auto it = std::upper_bound(
+                            Attributes.key_samples().begin(), 
+                            Attributes.key_samples().end(), 
+                            key, 
+                            TProtoKeyCompare< std::less<TKey> >());
 
-                    if (it != Attributes.key_samples().end()) {
-                        chunkReader->EndRowIndex = std::min(
-                            it->row_index(), 
-                            chunkReader->EndRowIndex);
+                        if (it != Attributes.key_samples().end()) {
+                            chunkReader->EndRowIndex = std::min(
+                                it->row_index(), 
+                                chunkReader->EndRowIndex);
+                        }
                     }
                 }
             }
@@ -281,10 +285,10 @@ private:
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
-        chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
+        chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(BIND(
             &TInitializer::OnFirstBlock,
             MakeWeak(this),
-            0)->Via(ReaderThread->GetInvoker()));
+            0).Via(ReaderThread->GetInvoker()));
     }
 
     void SelectChannels(TChunkReader::TPtr chunkReader)
@@ -408,7 +412,7 @@ private:
         return result;
     }
 
-    void OnFirstBlock(TError error, int selectedChannelIndex)
+    void OnFirstBlock(int selectedChannelIndex, TError error)
     {
         auto chunkReader = ChunkReader.Lock();
         if (!chunkReader) {
@@ -446,11 +450,11 @@ private:
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.size()) {
             auto anb = chunkReader->SequentialReader->AsyncNextBlock();
-            anb->Subscribe(FromMethod(
+            anb->Subscribe(BIND(
                     &TInitializer::OnFirstBlock, 
                     MakeWeak(this), 
                     selectedChannelIndex)
-                ->Via(ReaderThread->GetInvoker()));
+                .Via(ReaderThread->GetInvoker()));
         } else {
             // Create current row.
             LOG_DEBUG("All first blocks fetched.");
@@ -470,9 +474,9 @@ private:
 
         YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
         if (!StartValidator->IsValid(chunkReader->CurrentKey)) {
-            chunkReader->DoNextRow()->Subscribe(FromMethod(
+            chunkReader->DoNextRow()->Subscribe(BIND(
                 &TInitializer::ValidateRow,
-                MakeWeak(this))->Via(ReaderThread->GetInvoker()));
+                MakeWeak(this)).Via(ReaderThread->GetInvoker()));
             return;
         }
 
@@ -514,12 +518,15 @@ TChunkReader::TChunkReader(
     const TChannel& channel,
     NChunkClient::IAsyncReader* chunkReader,
     const NProto::TReadLimit& startLimit,
-    const NProto::TReadLimit& endLimit)
+    const NProto::TReadLimit& endLimit,
+    const NYTree::TYson& rowAttributes,
+    TChunkReader::TOptions options)
     : Codec(NULL)
     , SequentialReader(NULL)
     , Channel(channel)
     , CurrentRowIndex(-1)
     , EndRowIndex(0)
+    , Options(options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(chunkReader);
@@ -532,7 +539,7 @@ TChunkReader::TChunkReader(
         endLimit);
 }
 
-TAsyncError::TPtr TChunkReader::AsyncOpen()
+TAsyncError TChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
@@ -541,7 +548,7 @@ TAsyncError::TPtr TChunkReader::AsyncOpen()
     return State.GetOperationError();
 }
 
-TAsyncError::TPtr TChunkReader::AsyncNextRow()
+TAsyncError TChunkReader::AsyncNextRow()
 {
     // No thread affinity - called from SetCurrentChunk of TChunkSequenceReader.
     YASSERT(!State.HasRunningOperation());
@@ -550,7 +557,7 @@ TAsyncError::TPtr TChunkReader::AsyncNextRow()
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    DoNextRow()->Subscribe(FromFunctor([=](TError error) {
+    DoNextRow()->Subscribe(BIND([=](TError error) {
         if (error.IsOK()) {
             this_->State.FinishOperation();
         } else {
@@ -561,7 +568,7 @@ TAsyncError::TPtr TChunkReader::AsyncNextRow()
     return State.GetOperationError();
 }
 
-TAsyncError::TPtr TChunkReader::DoNextRow()
+TAsyncError TChunkReader::DoNextRow()
 {
     // NB: we have to use custom future here (not AsyncStreamState)
     // because DoNextRow could be called from AsyncOpen. (see Initializer::ValidateRow)
@@ -579,21 +586,18 @@ TAsyncError::TPtr TChunkReader::DoNextRow()
     CurrentRow.clear();
     CurrentKey.assign(CurrentKey.size(), Stroka());
 
-    auto result = successResult;
-    ContinueNextRow(TError(), -1, result);
-
-    return result;
+    return ContinueNextRow(-1, successResult, TError());
 }
 
-void TChunkReader::ContinueNextRow(
-    TError error,
+TAsyncError TChunkReader::ContinueNextRow(
     int channelIndex,
-    TAsyncError::TPtr& result)
+    TAsyncError result,
+    TError error)
 {
     if (!error.IsOK()) {
         YASSERT(!result->IsSet());
         result->Set(error);
-        return;
+        return result;
     }
 
     if (channelIndex >= 0) {
@@ -609,22 +613,26 @@ void TChunkReader::ContinueNextRow(
         if (!channel.NextRow()) {
             YASSERT(SequentialReader->HasNext());
 
-            if (result->IsSet())
-                result = New<TAsyncError>();
+            if (result->IsSet()) {
+                // Possible when called directly from DoNextRow
+                result = New< TFuture<TError> >();
+            }
 
-            SequentialReader->AsyncNextBlock()->Subscribe(FromMethod(
-                &TChunkReader::ContinueNextRow,
-                TWeakPtr<TChunkReader>(this),
+            SequentialReader->AsyncNextBlock()->Subscribe(BIND(
+                IgnoreResult(&TChunkReader::ContinueNextRow),
+                MakeWeak(this),
                 channelIndex,
                 result));
-            return;
+            return result;
         }
         ++channelIndex;
     }
 
     MakeCurrentRow();
+
     if (!result->IsSet())
         result->Set(TError());
+    return result;
 }
 
 void TChunkReader::MakeCurrentRow()
@@ -660,6 +668,17 @@ const TRow& TChunkReader::GetCurrentRow() const
     YASSERT(!Initializer);
 
     return CurrentRow;
+}
+
+const TKey& TChunkReader::GetCurrentKey() const
+{
+    VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
+    YASSERT(!Initializer);
+
+    YASSERT(Options.ReadKey);
+
+    return CurrentKey;
 }
 
 bool TChunkReader::IsValid() const

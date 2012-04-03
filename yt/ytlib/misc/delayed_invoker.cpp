@@ -5,7 +5,6 @@
 #include <ytlib/logging/log.h>
 #include <ytlib/actions/action_queue.h>
 
-#include <util/generic/set.h>
 #include <util/system/thread.h>
 #include <util/datetime/base.h>
 
@@ -34,40 +33,42 @@ public:
         Shutdown();
     }
 
-    TCookie Submit(IAction::TPtr action, TDuration delay)
+    TCookie Submit(TClosure action, TDuration delay)
     {
         return Submit(action, delay.ToDeadLine());
     }
 
-    TCookie Submit(IAction::TPtr action, TInstant deadline)
+    TCookie Submit(TClosure action, TInstant deadline)
     {
-        auto entry = New<TEntry>(action, deadline);
+        auto cookie = New<TEntry>(action, deadline);
 
-        LOG_TRACE("Submitted delayed action (Action: %p, Cookie: %p, Deadline: %s)",
-            ~action,
-            ~entry,
-            ~entry->Deadline.ToString());
+        TGuard<TSpinLock> guard(SpinLock);
+        cookie->Iterator = Entries.insert(MakePair(cookie->Deadline, cookie));
 
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (!Finished) {
-                Entries.insert(entry);
-            }
-        }
+        LOG_TRACE("Submitted delayed action (Action: %p, Cookie: %p, Deadline: %s, Count: %d)",
+            action.Handle(),
+            ~cookie,
+            ~cookie->Deadline.ToString(),
+            static_cast<int>(Entries.size()));
 
-        return entry;
+        return cookie;
     }
 
     bool Cancel(TCookie cookie)
     {
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (Entries.erase(cookie) == 0) {
-                return false;
-            }
+        TGuard<TSpinLock> guard(SpinLock);
+
+        if (!cookie->Valid) {
+            return false;
         }
 
-        LOG_TRACE("Canceled delayed action (Cookie: %p)", ~cookie);
+        Entries.erase(cookie->Iterator);
+        cookie->Valid = false;
+
+        LOG_TRACE("Canceled delayed action (Cookie: %p, Count: %d)",
+            ~cookie,
+            static_cast<int>(Entries.size()));
+
         return true;
     }
 
@@ -87,18 +88,7 @@ public:
     }
 
 private:
-    struct TEntryLess
-    {
-        bool operator()(TEntry::TPtr lhs, TEntry::TPtr rhs) const
-        {
-            return
-                lhs->Deadline < rhs->Deadline ||
-                lhs->Deadline == rhs->Deadline &&
-                lhs->Action < rhs->Action;
-        }
-    };
-
-    yset<TEntry::TPtr, TEntryLess> Entries;
+    TEntries Entries;
     TThread Thread;
     TSpinLock SpinLock;
     volatile bool Finished;
@@ -114,23 +104,31 @@ private:
     void ThreadMain()
     {
         while (!Finished) {
+            auto now = TInstant::Now();
+            LOG_TRACE("Iteration started at %s", ~ToString(now));
             while (true) {
-                TEntry::TPtr entry;
+                TCookie cookie;
                 {
-                    TInstant now = TInstant::Now();
                     TGuard<TSpinLock> guard(SpinLock);
                     if (Entries.empty()) {
+                        LOG_TRACE("Nothing to execute");
                         break;
                     }
-                    entry = *Entries.begin();
-                    if (entry->Deadline > now) {
+                    cookie = Entries.begin()->second;
+                    if (cookie->Deadline > now) {
+                        LOG_TRACE("Deadline is not reached yet (NextCookie: %p, NextDeadline: %s, Count: %d)",
+                            ~cookie,
+                            ~ToString(cookie->Deadline),
+                            static_cast<int>(Entries.size()));
                         break;
                     }
                     Entries.erase(Entries.begin());
+                    cookie->Valid = false;
                 }
 
-                LOG_TRACE("Running task %p", ~entry);
-                entry->Action->Do();
+                LOG_TRACE("Action started (Cookie: %p)", ~cookie);
+                cookie->Action.Run();
+                LOG_TRACE("Action completed (Cookie: %p)", ~cookie);
             }
             Sleep(SleepQuantum);
         }
@@ -139,29 +137,29 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction::TPtr action, TDuration delay)
+TDelayedInvoker::TCookie TDelayedInvoker::Submit(TClosure action, TDuration delay)
 {
-    return Singleton<TDelayedInvoker::TImpl>()->Submit(action, delay);
+    return Singleton<TImpl>()->Submit(action, delay);
 }
 
-TDelayedInvoker::TCookie TDelayedInvoker::Submit(IAction::TPtr action, TInstant deadline)
+TDelayedInvoker::TCookie TDelayedInvoker::Submit(TClosure action, TInstant deadline)
 {
-    return Singleton<TDelayedInvoker::TImpl>()->Submit(action, deadline);
+    return Singleton<TImpl>()->Submit(action, deadline);
 }
 
 bool TDelayedInvoker::Cancel(TCookie cookie)
 {
-    return Singleton<TDelayedInvoker::TImpl>()->Cancel(cookie);
+    return Singleton<TImpl>()->Cancel(cookie);
 }
 
 bool TDelayedInvoker::CancelAndClear(TCookie& cookie)
 {
-    return Singleton<TDelayedInvoker::TImpl>()->CancelAndClear(cookie);
+    return Singleton<TImpl>()->CancelAndClear(cookie);
 }
 
 void TDelayedInvoker::Shutdown()
 {
-    Singleton<TDelayedInvoker::TImpl>()->Shutdown();
+    Singleton<TImpl>()->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,7 @@
 #include "enum.h"
 #include "property.h"
 
+#include <ytlib/misc/error.pb.h>
 #include <ytlib/actions/future.h>
 
 namespace NYT {
@@ -18,50 +19,30 @@ class TError
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Message);
 
 public:
-    TError()
-        : Code_(OK)
-    { }
+    TError();
+    TError(const TError& other);
 
-    explicit TError(const Stroka& message)
-        : Code_(Fail)
-        , Message_(message)
-    { }
+    explicit TError(const Stroka& message);
+    TError(const char* format, ...);
 
-    TError(const TError& other)
-        : Code_(other.Code_)
-        , Message_(other.Message_)
-    { }
+    TError(int code, const Stroka& message);
+    TError(int code, const char* format, ...);
 
-    TError(int code, const Stroka& message)
-        : Code_(code)
-        , Message_(message)
-    { }
+    bool IsOK() const;
 
-    bool IsOK() const
-    {
-        return Code_ == OK;
-    }
+    Stroka ToString() const;
 
-    Stroka ToString() const
-    {
-        switch (Code_) {
-            case OK:
-                return "OK";
-            case Fail:
-                return Message_;
-            default:
-                return Sprintf("(%d): %s", Code_, ~Message_);
-        }
-    }
+    NProto::TError ToProto() const;
+    static TError FromProto(const NProto::TError& protoError);
 
     enum
     {
-        OK = 0,
+        OK = 0, 
         Fail = INT_MAX
     };
 };
 
-typedef TFuture<TError> TAsyncError;
+typedef TFuture<TError>::TPtr TAsyncError;
 
 ////////////////////////////////////////////////////////////////////////////////
 

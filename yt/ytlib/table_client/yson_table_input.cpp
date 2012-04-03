@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
-
 #include "yson_table_input.h"
+
+#include <ytlib/misc/foreach.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -8,7 +9,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////
 
 TYsonTableInput::TYsonTableInput(
-    ISyncReader* reader, 
+    ISyncTableReader* reader, 
     NYTree::EYsonFormat format,
     TOutputStream* outputStream)
     : Reader(reader)

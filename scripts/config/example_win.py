@@ -2,6 +2,7 @@
 from cfglib.ytremote import *
 from cfglib.ytwin import *
 import cfglib.opts as opts
+import socket
 
 build_dir = r'c:\Users\Max\Work\Yandex\YT\build'
 
@@ -40,7 +41,7 @@ Logging = {
 }
 
 MasterAddresses = opts.limit_iter('--masters',
-        ['localhost:%d' % port for port in xrange(8001, 8004)])
+        ['%s:%d' % (socket.getfqdn(), port) for port in xrange(8001, 8004)])
 
 class Base(AggrBase):
         path = opts.get_string('--name', 'control')
@@ -77,7 +78,7 @@ class Master(WinNode, Server):
         
 class Holder(WinNode, Server):
         address = Subclass(opts.limit_iter('--holders',
-                        [('localhost:%d' % p) for p in range(9000, 9100)]))
+            ['%s:%d' % (socket.getfqdn(), p) for p in range(9000, 9100)]))
         
         params = Template('--node --config %(config_path)s --port %(port)d')
         
@@ -94,6 +95,12 @@ class Holder(WinNode, Server):
                     'quota' : 10 * 1024 * 1024
                 },
             },
+            'exec_agent' : {
+                'job_manager': {
+                    'slot_location' : r'%(work_dir)s\slots',
+                    'scheduler_address' : 'locahost:7000'
+                }
+            },
             'logging' : Logging
         })
         
@@ -103,70 +110,5 @@ class Holder(WinNode, Server):
                 for location in cls.config['chunk_holder']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
                 print >>fd, 'rmdir /S /Q   %s' % cls.config['chunk_holder']['cache_location']['path']
-
-
-class Client(WinNode, Base):
-    bin_path = os.path.join(build_dir, r'bin\Debug\send_chunk.exe') 
-
-    params = Template('--config %(config_path)s')
-
-    config_base = { 
-        'replication_factor' : 2,
-        'block_size' : 2 ** 20,
-
-        'thread_pool' : {
-            'pool_size' : 1,
-            'task_count' : 1
-        },
-
-        'logging' : Logging,
-
-        'masters' : {
-            'addresses' : MasterAddresses
-        },
-
-        'chunk_writer' : {
-            'window_size' : 40,
-            'group_size' : 8 * (2 ** 20)
-        } 
-    }
-
-    def clean(cls, fd):
-        print >>fd, 'del %s' % cls.log_path
-        print >>fd, 'del %s' % cls.debug_log_path
-
-def client_config(d):
-    d.update(Client.config_base)
-    return d
-
-class PlainChunk(Client):
-    config = Template(client_config({
-        'ypath' : '/files/plain_chunk',
-        'input' : {
-            'type' : 'zero', # stream of zeros
-            'size' : (2 ** 20) * 256
-        }
-    }))
-
-class TableChunk(Client):
-    config = Template(client_config({ 
-        'schema' : '[["berlin"; "madrid"; ["xxx"; "zzz"]]; ["london"; "paris"; ["b"; "m"]]]',
-        'ypath' : '/files/table_chunk',
-        'input' : {
-            'type' : 'random_table',
-            'size' : (2 ** 20) * 20
-        }
-    }))
-
-class TableChunkSequence(Client):
-    config = Template(client_config({ 
-        'schema' : '[["berlin"; "madrid"; ["xxx"; "zzz"]]; ["london"; "paris"; ["b"; "m"]]]',
-        'chunk_size' : (2 ** 20) * 7,
-        'ypath' : '/table',
-        'input' : {
-            'type' : 'random_table',
-            'size' : (2 ** 20) * 20
-        }
-    }))
 
 configure(Base)

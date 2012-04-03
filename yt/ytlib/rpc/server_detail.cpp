@@ -14,7 +14,7 @@ using namespace NYTree;
 
 TServiceContextBase::TServiceContextBase(
     const TRequestHeader& header,
-    IMessage* requestMessage)
+    IMessage::TPtr requestMessage)
     : RequestId(header.has_request_id() ? TRequestId::FromProto(header.request_id()) : NullRequestId)
     , Path(header.path())
     , Verb(header.verb())
@@ -45,8 +45,8 @@ void TServiceContextBase::Reply(const TError& error)
     LogResponse(error);
 
     TResponseHeader header;
-    header.set_request_id(RequestId.ToProto());
-    SetResponseError(header, Error);
+    *header.mutable_request_id() = RequestId.ToProto();
+    *header.mutable_error() = Error.ToProto();
     ToProto(header.mutable_attributes(), *ResponseAttributes_);
 
     IMessage::TPtr responseMessage;
@@ -152,24 +152,23 @@ Stroka TServiceContextBase::GetResponseInfo()
     return ResponseInfo;
 }
 
-IAction::TPtr TServiceContextBase::Wrap(IAction::TPtr action)
+TClosure TServiceContextBase::Wrap(TClosure action)
 {
-    return FromMethod(
+    return BIND(
         &TServiceContextBase::WrapThunk,
         MakeStrong(this),
         action);
 }
 
-void TServiceContextBase::WrapThunk(IAction::TPtr action) throw()
+void TServiceContextBase::WrapThunk(TClosure action)
 {
     try {
-        action->Do();
+        action.Run();
     } catch (const TServiceException& ex) {
         Reply(ex.GetError());
     } catch (const std::exception& ex) {
         auto message = ex.what();
         Reply(TError(EErrorCode::ServiceError, message));
-        LogException(message);
     }
 }
 

@@ -43,14 +43,14 @@ public:
     virtual void SetResponseInfo(const Stroka& info);
     virtual Stroka GetResponseInfo();
 
-    virtual IAction::TPtr Wrap(IAction::TPtr action);
+    virtual TClosure Wrap(TClosure action);
 
 protected:
     TServiceContextBase(
         const NProto::TRequestHeader& header,
-        NBus::IMessage* requestMessage);
+        NBus::IMessage::TPtr requestMessage);
 
-    TServiceContextBase(NBus::IMessage* requestMessage);
+    TServiceContextBase(NBus::IMessage::TPtr requestMessage);
 
     TRequestId RequestId;
     Stroka Path;
@@ -71,16 +71,15 @@ protected:
     Stroka RequestInfo;
     Stroka ResponseInfo;
 
-    virtual void DoReply(const TError& error, NBus::IMessage* responseMessage) = 0;
+    virtual void DoReply(const TError& error, NBus::IMessage::TPtr responseMessage) = 0;
 
     virtual void LogRequest() = 0;
     virtual void LogResponse(const TError& error) = 0;
-    virtual void LogException(const Stroka& message) = 0;
 
     static void AppendInfo(Stroka& lhs, const Stroka& rhs);
 
 private:
-    void WrapThunk(IAction::TPtr action) throw();
+    void WrapThunk(TClosure action);
     void CheckRepliable() const;
 
 };

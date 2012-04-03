@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/actions/bind.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
@@ -20,7 +21,7 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction;
-class TTransactionManifest;
+struct TTransactionManifest;
 
 //! Manages client transactions.
 class TTransactionManager
@@ -99,7 +100,7 @@ private:
     void SaveKeys(TOutputStream* output);
     void SaveValues(TOutputStream* output);
     void LoadKeys(TInputStream* input);
-    void LoadValues(TInputStream* input, NCellMaster::TLoadContext context);
+    void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
     virtual void Clear();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

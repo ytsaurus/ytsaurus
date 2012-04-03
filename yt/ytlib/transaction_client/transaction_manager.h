@@ -46,8 +46,8 @@ public:
      * \param channel A channel used for communicating with masters.
      */
     TTransactionManager(
-        TConfig* config,
-        NRpc::IChannel* channel);
+        TConfig::TPtr config,
+        NRpc::IChannel::TPtr channel);
 
     //! Starts a new transaction.
     /*!
@@ -56,7 +56,7 @@ public:
      *  Thread affinity: any.
      */
     ITransaction::TPtr Start(
-        NYTree::INode* manifest = NULL,
+        NYTree::INodePtr manifest = NULL,
         const TTransactionId& parentId = NullTransactionId);
 
     ITransaction::TPtr Attach(const TTransactionId& id);
@@ -64,8 +64,8 @@ public:
 private:
     void PingTransaction(const TTransactionId& transactionId);
     void OnPingResponse(
-        NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp,
-        const TTransactionId& id);
+        const TTransactionId& id,
+        NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp);
 
     class TTransaction;
 

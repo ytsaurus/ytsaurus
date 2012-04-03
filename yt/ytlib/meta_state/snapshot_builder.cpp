@@ -8,7 +8,7 @@
 #include "change_log_cache.h"
 
 #include <ytlib/misc/serialize.h>
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/profiling/profiler.h>
 
 #include <util/system/fs.h>
@@ -62,17 +62,17 @@ public:
             Awaiter = New<TParallelAwaiter>(~Owner->EpochControlInvoker);
         }
 
-        Owner->EpochControlInvoker->Invoke(FromMethod(
+        Owner->EpochControlInvoker->Invoke(BIND(
             &TSession::DoSendRequests,
             MakeStrong(this)));
         
         if (CreateSnapshot) {
             Awaiter->Await(
                 Owner->CreateLocalSnapshot(Version),
-                FromMethod(&TSession::OnLocalSnapshotCreated, MakeStrong(this)));
+                BIND(&TSession::OnLocalSnapshotCreated, MakeStrong(this)));
 
             // The awaiter must be completed from the control thread.
-            Owner->EpochControlInvoker->Invoke(FromMethod(
+            Owner->EpochControlInvoker->Invoke(BIND(
                 &TSession::DoCompleteSession,
                 MakeStrong(this)));
         } else {
@@ -101,13 +101,13 @@ private:
                 ->SetTimeout(Owner->Config->RemoteTimeout);
             request->set_segment_id(Version.SegmentId);
             request->set_record_count(Version.RecordCount);
-            request->set_epoch(Owner->Epoch.ToProto());
+            *request->mutable_epoch() = Owner->Epoch.ToProto();
             request->set_create_snapshot(CreateSnapshot);
 
             auto responseHandler =
                 CreateSnapshot
-                ? FromMethod(&TSession::OnSnapshotCreated, MakeStrong(this), id)
-                : FromMethod(&TSession::OnChangeLogRotated, MakeStrong(this), id);
+                ? BIND(&TSession::OnSnapshotCreated, MakeStrong(this), id)
+                : BIND(&TSession::OnChangeLogRotated, MakeStrong(this), id);
             Awaiter->Await(
                 request->Invoke(),
                 Owner->CellManager->GetPeerAddress(id),
@@ -121,7 +121,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        Awaiter->Complete(FromMethod(&TSession::OnComplete, MakeStrong(this)));
+        Awaiter->Complete(BIND(&TSession::OnComplete, MakeStrong(this)));
     }
 
     void OnComplete()
@@ -159,7 +159,7 @@ private:
         Checksums[Owner->CellManager->SelfId()] = result.Checksum;
     }
 
-    void OnChangeLogRotated(TProxy::TRspAdvanceSegment::TPtr response, TPeerId id)
+    void OnChangeLogRotated(TPeerId id, TProxy::TRspAdvanceSegment::TPtr response)
     {
         if (!response->IsOK()) {
             LOG_WARNING("Error rotating the changelog at follower %d\n%s",
@@ -168,7 +168,7 @@ private:
         }
     }
 
-    void OnSnapshotCreated(TProxy::TRspAdvanceSegment::TPtr response, TPeerId id)
+    void OnSnapshotCreated(TPeerId id, TProxy::TRspAdvanceSegment::TPtr response)
     {
         if (!response->IsOK()) {
             LOG_WARNING("Error creating the snapshot at follower %d\n%s",
@@ -279,9 +279,9 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(
     } else {
         Profiler.TimingStop(forkTimer);
         LOG_INFO("Forked successfully, starting watchdog");
-        WatchdogQueue->GetInvoker()->Invoke(FromMethod(
+        WatchdogQueue->GetInvoker()->Invoke(BIND(
             &TSnapshotBuilder::WatchdogFork,
-            TWeakPtr<TSnapshotBuilder>(this),
+            MakeWeak(this),
             snapshotId,
             childPid));
     }

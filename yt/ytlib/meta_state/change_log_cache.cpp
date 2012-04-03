@@ -3,6 +3,7 @@
 #include "common.h"
 #include "meta_state_manager.h"
 #include "change_log.h"
+#include "config.h"
 
 #include <ytlib/misc/fs.h>
 
@@ -25,9 +26,11 @@ TCachedAsyncChangeLog::TCachedAsyncChangeLog(TChangeLog* changeLog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChangeLogCache::TChangeLogCache(const Stroka& path)
-    // TODO: introduce config
-    : TSizeLimitedCache<i32, TCachedAsyncChangeLog>(4)
+TChangeLogCache::TChangeLogCache(
+    const Stroka& path,
+    TChangeLogCacheConfigPtr config)
+    : TSizeLimitedCache<i32, TCachedAsyncChangeLog>(config->MaxSize)
+    , Config(config)
     , Path(path)
 { }
 
@@ -39,28 +42,36 @@ void TChangeLogCache::Start()
     NFS::CleanTempFiles(Path);
 }
 
-Stroka TChangeLogCache::GetChangeLogFileName(i32 changeLogId)
+Stroka TChangeLogCache::GetChangeLogFileName(i32 id)
 {
-    return NFS::CombinePaths(Path, Sprintf("%09d.%s", changeLogId, LogExtension));
+    return NFS::CombinePaths(Path, Sprintf("%09d.%s", id, LogExtension));
 }
 
-TChangeLogCache::TGetResult TChangeLogCache::Get(i32 changeLogId)
+TChangeLogPtr TChangeLogCache::CreateChangeLog(i32 id)
 {
-    TInsertCookie cookie(changeLogId);
+    return New<TChangeLog>(
+        GetChangeLogFileName(id),
+        id,
+        Config->DisableFlush);
+}
+
+TChangeLogCache::TGetResult TChangeLogCache::Get(i32 id)
+{
+    TInsertCookie cookie(id);
     if (BeginInsert(&cookie)) {
-        auto fileName = GetChangeLogFileName(changeLogId);
+        auto fileName = GetChangeLogFileName(id);
         if (!isexist(~fileName)) {
             cookie.Cancel(TError(
                 EErrorCode::NoSuchChangeLog,
-                Sprintf("No such changelog (ChangeLogId: %d)", changeLogId)));
+                Sprintf("No such changelog (ChangeLogId: %d)", id)));
         } else {
             try {
-                auto changeLog = New<TChangeLog>(fileName, changeLogId);
+                auto changeLog = CreateChangeLog(id);
                 changeLog->Open();
                 cookie.EndInsert(New<TCachedAsyncChangeLog>(~changeLog));
             } catch (const std::exception& ex) {
                 LOG_FATAL("Error opening changelog (ChangeLogId: %d)\n%s",
-                    changeLogId,
+                    id,
                     ex.what());
             }
         }
@@ -69,24 +80,24 @@ TChangeLogCache::TGetResult TChangeLogCache::Get(i32 changeLogId)
 }
 
 TCachedAsyncChangeLogPtr TChangeLogCache::Create(
-    i32 changeLogId,
+    i32 id,
     i32 prevRecordCount)
 {
-    TInsertCookie cookie(changeLogId);
+    TInsertCookie cookie(id);
     if (!BeginInsert(&cookie)) {
         LOG_FATAL("Trying to create an already existing changelog (ChangeLogId: %d)",
-            changeLogId);
+            id);
     }
 
-    auto fileName = GetChangeLogFileName(changeLogId);
+    auto fileName = GetChangeLogFileName(id);
 
     try {
-        auto changeLog = New<TChangeLog>(fileName, changeLogId);
+        auto changeLog = New<TChangeLog>(fileName, id, Config->DisableFlush);
         changeLog->Create(prevRecordCount);
         cookie.EndInsert(New<TCachedAsyncChangeLog>(~changeLog));
     } catch (const std::exception& ex) {
         LOG_FATAL("Error creating changelog (ChangeLogId: %d)\n%s",
-            changeLogId,
+            id,
             ex.what());
     }
 

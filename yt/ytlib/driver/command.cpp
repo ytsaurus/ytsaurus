@@ -8,47 +8,21 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void StreamSpecValidator(const INodePtr& node)
+TUntypedCommandBase::TUntypedCommandBase(ICommandHost* host)
+    : Host(host)
+{ }
+
+void TUntypedCommandBase::PreprocessYPath(TYPath* path)
 {
-    if (!node)
-        return;
-    auto type = node->GetType();
-    switch (type) {
-        case ENodeType::String:
-            if (node->GetValue<Stroka>().empty()) {
-                ythrow yexception() << "Empty stream specification";
-            }
-            break;
-
-        case ENodeType::Int64:
-            if (node->GetValue<i64>() < 0) {
-                ythrow yexception() << "Negative stream handles are forbidden";
-            }
-            break;
-
-        default:
-            ythrow yexception() << Sprintf("Invalid stream specification (Expected: String or Integer, Actual: %s)",
-                ~type.ToString());
-    }
+    *path = Host->PreprocessYPath(*path);
 }
 
-IParamAction<const INodePtr&>::TPtr TRequestBase::StreamSpecIsValid = FromMethod(&StreamSpecValidator);
-
-Stroka ToStreamSpec(INodePtr node)
+void TUntypedCommandBase::PreprocessYPaths(std::vector<NYTree::TYPath>* paths)
 {
-    if (!node) {
-        return "";
-    }
-    switch (node->GetType()) {
-        case NYTree::ENodeType::String:
-            return node->GetValue<Stroka>();
-        case NYTree::ENodeType::Int64:
-            return "&" + ToString(node->GetValue<i64>());
-        default:
-            YUNREACHABLE();
+    for (int index = 0; index < static_cast<int>(paths->size()); ++index) {
+        (*paths)[index] = Host->PreprocessYPath((*paths)[index]);
     }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

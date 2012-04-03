@@ -31,7 +31,7 @@ void TChunk::Save(TOutputStream* output) const
     SaveNullableSet(output, CachedLocations_);
 }
 
-void TChunk::Load(TInputStream* input, const TLoadContext& context)
+void TChunk::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectWithIdBase::Load(input);
@@ -82,7 +82,7 @@ TChunkAttributes TChunk::DeserializeAttributes() const
 {
     YASSERT(IsConfirmed());
     TChunkAttributes attributes;
-    if (!DeserializeProtobuf(&attributes, Attributes_)) {
+    if (!DeserializeFromProto(&attributes, Attributes_)) {
         LOG_FATAL("Error deserializing chunk attributes (ChunkId: %s)", ~Id_.ToString());
     }
     return attributes;

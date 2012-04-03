@@ -3,6 +3,7 @@
 #include "common.h"
 #include "block_store.h"
 #include "chunk_holder_service_proxy.h"
+#include "bootstrap.h"
 #include "config.h"
 
 #include <ytlib/rpc/channel_cache.h>
@@ -27,8 +28,8 @@ TPeerBlockUpdater::TPeerBlockUpdater(
     , Bootstrap(bootstrap)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        FromMethod(&TPeerBlockUpdater::Update, MakeStrong(this))
-        ->Via(bootstrap->GetControlInvoker()),
+        BIND(&TPeerBlockUpdater::Update, MakeWeak(this))
+        .Via(bootstrap->GetControlInvoker()),
         Config->PeerUpdatePeriod);
 }
 
@@ -68,7 +69,7 @@ void TPeerBlockUpdater::Update()
             }
             auto* block_id = request->add_block_ids();
             const auto& blockId = block->GetKey();
-            block_id->set_chunk_id(blockId.ChunkId.ToProto());
+            *block_id->mutable_chunk_id() = blockId.ChunkId.ToProto();
             block_id->set_block_index(blockId.BlockIndex);
         }
     }

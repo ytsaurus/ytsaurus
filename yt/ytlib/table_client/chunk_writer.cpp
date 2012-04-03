@@ -2,7 +2,6 @@
 #include "chunk_writer.h"
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/actions/action_util.h>
 #include <ytlib/chunk_client/writer_thread.h>
 #include <ytlib/misc/serialize.h>
 
@@ -37,7 +36,7 @@ TChunkWriter::TChunkWriter(
     Codec = GetCodec(ECodecId(Config->CodecId));
 }
 
-TAsyncError::TPtr TChunkWriter::AsyncOpen(
+TAsyncError TChunkWriter::AsyncOpen(
     const NProto::TTableChunkAttributes& attributes)
 {
     // No thread affinity check here - 
@@ -54,7 +53,7 @@ TAsyncError::TPtr TChunkWriter::AsyncOpen(
     return MakeFuture(TError());
 }
 
-TAsyncError::TPtr TChunkWriter::AsyncEndRow(
+TAsyncError TChunkWriter::AsyncEndRow(
     TKey& key,
     std::vector<TChannelWriter::TPtr>& channels)
 {
@@ -110,15 +109,14 @@ TSharedRef TChunkWriter::PrepareBlock(
 }
 
 TChunkWriter::~TChunkWriter()
-{
-}
+{ }
 
 i64 TChunkWriter::GetCurrentSize() const
 {
     return CurrentSize;
 }
 
-TAsyncError::TPtr TChunkWriter::AsyncClose(
+TAsyncError TChunkWriter::AsyncClose(
     TKey& lastKey,
     std::vector<TChannelWriter::TPtr>& channels)
 {

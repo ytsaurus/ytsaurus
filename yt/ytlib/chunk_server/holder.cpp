@@ -2,6 +2,7 @@
 #include "holder.h"
 
 #include <ytlib/misc/assert.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/cell_master/load_context.h>
 
@@ -43,7 +44,7 @@ void THolder::Save(TOutputStream* output) const
     ::Save(output, JobIds_);
 }
 
-void THolder::Load(TInputStream* input, const TLoadContext& context)
+void THolder::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     ::Load(input, Address_);

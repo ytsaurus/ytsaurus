@@ -29,14 +29,14 @@ public:
 #define IMPLEMENT_AS_METHODS(name) \
     virtual TIntrusivePtr<I##name##Node> As##name() \
     { \
-        ythrow yexception() << Sprintf("Invalid node type (Expected: %s, Actual: %s)", \
+        ythrow yexception() << Sprintf("Invalid node type: expected: %s, found %s", \
             #name, \
             ~GetType().ToString()); \
     } \
     \
     virtual TIntrusivePtr<const I##name##Node> As##name() const \
     { \
-        ythrow yexception() << Sprintf("Invalid node type (Expected: %s, Actual: %s)", \
+        ythrow yexception() << Sprintf("Invalid node type: expected %s, found %s", \
             #name, \
             ~GetType().ToString()); \
     }
@@ -59,7 +59,7 @@ protected:
         auto factory = CreateFactory();
         auto builder = CreateBuilderFromFactory(~factory);
         TStringInput input(value);
-        SetNodeFromProducer(node, ~ProducerFromYson(&input), ~builder);
+        SetNodeFromProducer(node, ProducerFromYson(&input), ~builder);
     }
     
     virtual void DoInvoke(NRpc::IServiceContext* context);

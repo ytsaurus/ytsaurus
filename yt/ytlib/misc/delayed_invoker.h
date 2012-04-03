@@ -1,9 +1,9 @@
 #pragma once
 
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback.h>
 
 namespace NYT {
-
+    
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages delayed action execution.
@@ -11,16 +11,23 @@ class TDelayedInvoker
     : private TNonCopyable
 {
 private:
+    struct TEntry;
+    typedef TIntrusivePtr<TEntry> TEntryPtr;
+    typedef ymultimap<TInstant, TEntryPtr> TEntries;
+
     struct TEntry
         : public TRefCounted
     {
         typedef TIntrusivePtr<TEntry> TPtr;
 
+        bool Valid;
         TInstant Deadline;
-        IAction::TPtr Action;
+        TClosure Action;
+        TEntries::iterator Iterator;
 
-        TEntry(IAction::TPtr action, TInstant deadline)
-            : Deadline(deadline)
+        TEntry(TClosure action, TInstant deadline)
+            : Valid(true)
+            , Deadline(deadline)
             , Action(action)
         { }
     };
@@ -30,10 +37,10 @@ public:
     typedef TEntry::TPtr TCookie;
 
     //! Submits an action for execution after a given delay.
-    static TCookie Submit(IAction::TPtr action, TDuration delay);
+    static TCookie Submit(TClosure action, TDuration delay);
 
     //! Submits an action for execution at a given deadline time.
-    static TCookie Submit(IAction::TPtr action, TInstant deadline);
+    static TCookie Submit(TClosure action, TInstant deadline);
 
     //! Cancels an earlier scheduled execution.
     /*!

@@ -4,6 +4,7 @@
 #include "guid.h"
 #include "enum.h"
 #include "string.h"
+#include "nullable.h"
 
 #include <ytlib/object_server/public.h>
 #include <ytlib/object_server/id.h>
@@ -15,32 +16,38 @@
 
 namespace TCLAP {
 
-template<>
+template <>
 struct ArgTraits<Stroka>
 {
     typedef StringLike ValueCategory;
 };
 
-template<>
+template <>
 struct ArgTraits<NYT::NObjectServer::TTransactionId>
 {
     typedef ValueLike ValueCategory;
 };
 
-template<>
+template <>
 struct ArgTraits<NYT::NCypress::ELockMode>
 {
     typedef ValueLike ValueCategory;
 };
 
-template<>
+template <>
 struct ArgTraits<NYT::NObjectServer::EObjectType>
 {
     typedef ValueLike ValueCategory;
 };
 
-template<>
+template <>
 struct ArgTraits<NYT::NYTree::EYsonFormat>
+{
+    typedef ValueLike ValueCategory;
+};
+
+template <class T>
+struct ArgTraits< NYT::TNullable<T> >
 {
     typedef ValueLike ValueCategory;
 };
@@ -57,12 +64,28 @@ inline std::istream& operator >> (std::istream& input, NYT::TGuid& guid)
     return input;
 }
 
-template<class T>
+template <class T>
 inline std::istream& operator >> (std::istream& input, NYT::TEnumBase<T>& mode)
 {
     std::string s;
     input >> s;
     mode = NYT::ParseEnum<T>(Stroka(s));
+    return input;
+}
+
+template <class T>
+inline std::istream& operator >> (std::istream& input, NYT::TNullable<T>& nullable)
+{
+    std::string s;
+    input >> s;
+    if (s.empty()) {
+        nullable = NYT::TNullable<T>();
+    } else {
+        std::stringstream stream(s);
+        T value;
+        stream >> value;
+        nullable = NYT::TNullable<T>(value);
+    }
     return input;
 }
 

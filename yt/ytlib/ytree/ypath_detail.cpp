@@ -4,7 +4,6 @@
 #include "serialize.h"
 #include <ytlib/rpc/rpc.pb.h>
 
-#include <ytlib/actions/action_util.h>
 #include <ytlib/bus/message.h>
 #include <ytlib/rpc/server_detail.h>
 #include <ytlib/rpc/message.h>
@@ -153,7 +152,7 @@ static TYson DoGetAttribute(
 {
     if (systemAttributeProvider) {
         TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
+        TYsonWriter writer(&stream);
         if (systemAttributeProvider->GetSystemAttribute(key, &writer)) {
             if (isSystem) {
                 *isSystem = true;
@@ -182,7 +181,7 @@ static void DoSetAttribute(
 {
     if (isSystem) {
         YASSERT(systemAttributeProvider);
-        if (!systemAttributeProvider->SetSystemAttribute(key, ~ProducerFromNode(value))) {
+        if (!systemAttributeProvider->SetSystemAttribute(key, ProducerFromNode(value))) {
             ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
         }
     } else {
@@ -200,7 +199,7 @@ static void DoSetAttribute(
     const TYson& value)
 {
     if (systemAttributeProvider) {
-        if (systemAttributeProvider->SetSystemAttribute(key, ~ProducerFromYson(value))) {
+        if (systemAttributeProvider->SetSystemAttribute(key, ProducerFromYson(value))) {
             return;
         }
 
@@ -248,7 +247,7 @@ void TSupportsAttributes::GetAttribute(
     
     if (IsFinalYPath(path)) {
         TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
+        TYsonWriter writer(&stream);
         
         writer.OnBeginMap();
 
@@ -499,7 +498,7 @@ void TNodeSetterBase::OnMyBeginAttributes()
 void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
 {
     AttributeKey = key;
-    ForwardNode(&AttributeWriter, FromMethod(&TThis::OnForwardingFinished, this));
+    ForwardNode(&AttributeWriter, BIND(&TThis::OnForwardingFinished, this));
 }
 
 void TNodeSetterBase::OnForwardingFinished()
@@ -532,12 +531,12 @@ protected:
     TYPathResponseHandler ResponseHandler;
     NLog::TLogger Logger;
 
-    virtual void DoReply(const TError& error, IMessage* responseMessage)
+    virtual void DoReply(const TError& error, IMessage::TPtr responseMessage)
     {
         UNUSED(error);
 
-        if (ResponseHandler) {
-            ResponseHandler->Do(responseMessage);
+        if (!ResponseHandler.IsNull()) {
+            ResponseHandler.Run(responseMessage);
         }
     }
 
@@ -560,17 +559,6 @@ protected:
             ~Verb,
             ~Path,
             ~str);
-    }
-
-    virtual void LogException(const Stroka& message)
-    {
-        Stroka str;
-        AppendInfo(str, Sprintf("Path: %s", ~Path));
-        AppendInfo(str, Sprintf("Verb: %s", ~Verb));
-        AppendInfo(str, ResponseInfo);
-        LOG_FATAL("Unhandled exception in YPath service method (%s)\n%s",
-            ~str,
-            ~message);
     }
 
 };
@@ -598,7 +586,7 @@ class TRootService
     : public IYPathService
 {
 public:
-    TRootService(IYPathService* underlyingService)
+    TRootService(IYPathServicePtr underlyingService)
         : UnderlyingService(underlyingService)
     { }
 
@@ -638,7 +626,7 @@ private:
 
 };
 
-IYPathServicePtr CreateRootService(IYPathService* underlyingService)
+IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService)
 {
     return New<TRootService>(underlyingService);
 }

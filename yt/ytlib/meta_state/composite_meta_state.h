@@ -21,16 +21,7 @@ protected:
     TCompositeMetaStatePtr MetaState;
 
     template <class TMessage, class TResult>
-    void RegisterMethod(TIntrusivePtr< IParamFunc<const TMessage&, TResult> > changeMethod);
-
-    // TODO: move to inl
-    template <class TThis, class TMessage, class TResult>
-    void RegisterMethod(
-        TThis* this_,
-        TResult (TThis::* changeMethod)(const TMessage&))
-    {
-        RegisterMethod(FromMethod(changeMethod, this_));
-    }
+    void RegisterMethod(TCallback<TResult(const TMessage&)> changeMethod);
 
     bool IsLeader() const;
     bool IsFolllower() const;
@@ -48,8 +39,8 @@ private:
 
     template <class TMessage, class TResult>
     void MethodThunk(
-        const TRef& changeData,
-        typename IParamFunc<const TMessage&, TResult>::TPtr changeMethod);
+        TCallback<TResult(const TMessage&)> changeMethod,
+        const TRef& changeData);
 
 };
 
@@ -66,23 +57,23 @@ class TCompositeMetaState
     : public IMetaState 
 {
 public:
-    typedef IParamAction<TOutputStream*> TSaver;
-    typedef IParamAction<TInputStream*> TLoader;
+    typedef TCallback<void(TOutputStream*)> TSaver;
+    typedef TCallback<void(TInputStream*)> TLoader;
 
     void RegisterPart(TMetaStatePartPtr part);
-    void RegisterLoader(const Stroka& name, TLoader::TPtr loader);
-    void RegisterSaver(const Stroka& name, TSaver::TPtr saver, ESavePhase phase);
+    void RegisterLoader(const Stroka& name, TLoader loader);
+    void RegisterSaver(const Stroka& name, TSaver saver, ESavePhase phase);
 
 private:
     friend class TMetaStatePart;
 
-    typedef yhash_map<Stroka, IParamAction<const TRef&>::TPtr> TMethodMap;
+    typedef yhash_map< Stroka, TCallback<void(const TRef&)> > TMethodMap;
     TMethodMap Methods;
 
     yvector<TMetaStatePartPtr> Parts;
 
-    typedef yhash_map<Stroka, TLoader::TPtr> TLoaderMap;
-    typedef yhash_map<Stroka, TPair<TSaver::TPtr, ESavePhase> > TSaverMap;
+    typedef yhash_map< Stroka, TLoader > TLoaderMap;
+    typedef yhash_map< Stroka, TPair<TSaver, ESavePhase> > TSaverMap;
 
     TLoaderMap Loaders;
     TSaverMap Savers;

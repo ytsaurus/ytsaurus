@@ -4,16 +4,14 @@
 #include "packet.h"
 #include "message_rearranger.h"
 
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/lease_manager.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/profiling/profiler.h>
 
-#include <util/generic/list.h>
-#include <util/generic/deque.h>
-#include <util/generic/utility.h>
+#include <util/thread/lfqueue.h>
 
 #include <quality/netliba_v6/udp_http.h>
 
@@ -151,13 +149,12 @@ public:
         const TSessionId& sessionId,
         const TUdpAddress& address)
         : Server(server)
-        , Requester(server->Requester)
         , SessionId(sessionId)
         , Address(address)
         , SequenceId(0)
         , MessageRearranger(New<TMessageRearranger>(
             SessionId,
-            FromMethod(&TSession::OnMessageDequeued, MakeWeak(this)),
+            BIND(&TSession::OnMessageDequeued, MakeWeak(this)),
             server->Config->MessageRearrangeTimeout))
     { }
 
@@ -168,7 +165,7 @@ public:
         SendPing();
         Lease = TLeaseManager::CreateLease(
             server->Config->SessionTimeout,
-            FromMethod(&TSession::OnLeaseExpired, MakeWeak(this)));
+            BIND(&TSession::OnLeaseExpired, MakeWeak(this)));
     }
 
     void OnUnregistered()
@@ -179,7 +176,6 @@ public:
             Lease.Reset();
         }
         Server.Reset();
-        Requester = NULL;
     }
 
     void EnqueueIncomingMessage(
@@ -256,7 +252,6 @@ private:
     typedef std::deque<IMessage::TPtr> TResponseMessages;
 
     TWeakPtr<TNLBusServer> Server;
-    ::TIntrusivePtr<IRequester> Requester;
     TSessionId SessionId;
     TUdpAddress Address;
     TGuid PingId;
@@ -268,18 +263,24 @@ private:
 
     void SendPing()
     {
+        auto server = Server.Lock();
+
+        YASSERT(server);
         YASSERT(PingId == TGuid());
 
         TBlob data;
         CreatePacket(SessionId, TPacketHeader::EType::Ping, &data);
-        PingId = Requester->SendRequest(Address, "", &data);
+        PingId = server->Requester->SendRequest(Address, "", &data);
     }
 
     void CancelPing()
     {
+        auto server = Server.Lock();
+
+        YASSERT(server);
         YASSERT(PingId != TGuid());
 
-        Requester->CancelRequest(PingId);
+        server->Requester->CancelRequest(PingId);
         PingId = TGuid();
     }
 
@@ -290,9 +291,10 @@ private:
 
     void OnMessageDequeued(IMessage* message)
     {
-        auto server_ = Server.Lock();
-        if (server_) {
-            server_->Handler->OnMessage(message, this);
+        auto server = Server.Lock();
+
+        if (server) {
+            server->Handler->OnMessage(message, this);
         }
     }
 

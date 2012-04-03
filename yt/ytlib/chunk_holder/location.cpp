@@ -8,6 +8,8 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/chunk_client/format.h>
 
+#include <util/folder/filelist.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -85,7 +87,7 @@ i64 TLocation::GetUsedSpace() const
 
 i64 TLocation::GetQuota() const
 {
-   return Config->Quota == 0 ? Max<i64>() : Config->Quota;
+    return Config->Quota.Get(Max<i64>());
 }
 
 double TLocation::GetLoadFactor() const
@@ -121,7 +123,7 @@ Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
     ui8 firstHashByte = static_cast<ui8>(chunkId.Parts[0] & 0xff);
     return NFS::CombinePaths(
         GetPath(),
-        Sprintf("%x/%s", firstHashByte, ~chunkId.ToString()));
+        Sprintf("%x%s%s", firstHashByte, LOCSLASH_S, ~chunkId.ToString()));
 }
 
 bool TLocation::IsFull() const
@@ -211,7 +213,7 @@ void TLocation::RemoveChunk(TChunkPtr chunk)
 {
     auto id = chunk->GetId();
     Stroka fileName = chunk->GetFileName();
-    GetInvoker()->Invoke(FromFunctor([=] ()
+    GetInvoker()->Invoke(BIND([=] ()
         {
             // TODO: retry on failure
             LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());

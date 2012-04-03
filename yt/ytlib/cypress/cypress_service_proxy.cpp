@@ -12,7 +12,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
-    IChannel* channel,
+    IChannel::TPtr channel,
     const Stroka& path,
     const Stroka& verb)
     : TClientRequest(channel, path, verb, false)
@@ -29,7 +29,7 @@ TCypressServiceProxy::TReqExecuteBatch::Invoke()
 
 TCypressServiceProxy::TReqExecuteBatch::TPtr
 TCypressServiceProxy::TReqExecuteBatch::AddRequest(
-    TYPathRequest* innerRequest,
+    TYPathRequestPtr innerRequest,
     const Stroka& key)
 {
     if (!key.empty()) {
@@ -54,7 +54,7 @@ int TCypressServiceProxy::TReqExecuteBatch::GetSize() const
 TBlob TCypressServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
     TBlob blob;
-    YVERIFY(SerializeProtobuf(&Body, &blob));
+    YVERIFY(SerializeToProto(&Body, &blob));
     return blob;
 }
 
@@ -82,7 +82,7 @@ void TCypressServiceProxy::TRspExecuteBatch::FireCompleted()
 
 void TCypressServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
-    YVERIFY(DeserializeProtobuf(&Body, data));
+    YVERIFY(DeserializeFromProto(&Body, data));
 
     int currentIndex = 0;
     BeginPartIndexes.reserve(Body.part_counts_size());
@@ -105,6 +105,11 @@ TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(int ind
 TYPathResponse::TPtr TCypressServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
 {
     return GetResponse<TYPathResponse>(key);
+}
+
+std::vector<NYTree::TYPathResponse::TPtr> TCypressServiceProxy::TRspExecuteBatch::GetResponses(const Stroka& key) const
+{
+    return GetResponses<TYPathResponse>(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

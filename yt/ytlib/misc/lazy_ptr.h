@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <ytlib/actions/action.h>
+#include <ytlib/actions/callback.h>
 
 #include <util/system/spinlock.h>
 
@@ -17,14 +17,14 @@ class TLazyPtr
     : public TPointerCommon<TLazyPtr<T, TLock>, T>
 {
 public:
-    typedef TIntrusivePtr< IFunc< TIntrusivePtr<T> > > TFactoryPtr;
+    typedef TCallback<TIntrusivePtr<T>()> TFactory;
 
-    TLazyPtr(TFactoryPtr factory)
-        : Factory(factory)
+    TLazyPtr(TFactory factory)
+        : Factory(MoveRV(factory))
     { }
 
     TLazyPtr()
-        : Factory(NULL)
+        : Factory()
     { }
 
     inline T* Get() const throw()
@@ -32,7 +32,7 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
-                Value = !Factory ? New<T>() : Factory->Do();
+                Value = Factory.IsNull() ? Factory.Run() : New<T>();
             }
         }
         return ~Value;
@@ -40,7 +40,7 @@ public:
 
 private:
     TLock Lock;
-    TFactoryPtr Factory;
+    TFactory Factory;
     mutable TIntrusivePtr<T> Value;
 };
 
@@ -59,29 +59,34 @@ template <class T, class TLock = TSpinLock>
 class TLazyHolder
     : public TPointerCommon<TLazyHolder<T, TLock>, T>
 {
-    TLock Lock;
-    typename IFunc<T*>::TPtr Fabric;
-    mutable TAutoPtr<T> Value;
-
 public:
-    TLazyHolder(typename IFunc<T*>::TPtr fabric)
-        : Fabric(fabric)
+    typedef TCallback<T*()> TFactory;
+
+    TLazyHolder(TFactory fabric)
+        : Factory(MoveRV(fabric))
     { }
 
     TLazyHolder()
-        : Fabric(NULL)
+        : Factory()
     { }
 
     inline T* Get() const throw()
     {
+        static_assert(!NMpl::TIsConvertible<T*, TExtrinsicRefCounted*>::Value, "No RC here.");
+        static_assert(!NMpl::TIsConvertible<T*, TIntrinsicRefCounted*>::Value, "No RC here.");
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
-                Value = !Fabric ? new T() : Fabric->Do();
+                Value = Factory.IsNull() ? new T() : Factory.Run();
             }
         }
         return ~Value;
     }
+
+private:
+    TLock Lock;
+    TFactory Factory;
+    mutable TAutoPtr<T> Value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

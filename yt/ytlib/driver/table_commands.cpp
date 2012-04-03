@@ -17,20 +17,22 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadCommand::DoExecute(TReadRequest* request)
+void TReadCommand::DoExecute(TReadRequestPtr request)
 {
-    auto stream = DriverImpl->CreateOutputStream();
+    PreprocessYPath(&request->Path);
+
+    auto stream = Host->CreateOutputStream();
 
     auto reader = New<TTableReader>(
-        ~DriverImpl->GetConfig()->TableReader,
-        DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(request),
-        DriverImpl->GetBlockCache(),
+        ~Host->GetConfig()->TableReader,
+        ~Host->GetMasterChannel(),
+        ~Host->GetTransaction(request),
+        ~Host->GetBlockCache(),
         request->Path);
 
     TYsonTableInput input(
         ~reader, 
-        DriverImpl->GetConfig()->OutputFormat, 
+        Host->GetConfig()->OutputFormat, 
         stream.Get());
 
     while (input.ReadRow())
@@ -39,13 +41,19 @@ void TReadCommand::DoExecute(TReadRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TWriteCommand::DoExecute(TWriteRequest* request)
+void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
+    TTableWriter::TOptions options;
+    options.Sorted = request->Sorted;
+
     auto writer = New<TTableWriter>(
-        ~DriverImpl->GetConfig()->TableWriter,
-        DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(request),
-        DriverImpl->GetTransactionManager(),
+        ~Host->GetConfig()->TableWriter,
+        options,
+        ~Host->GetMasterChannel(),
+        ~Host->GetTransaction(request),
+        ~Host->GetTransactionManager(),
         request->Path);
 
     writer->Open();
@@ -70,12 +78,12 @@ void TWriteCommand::DoExecute(TWriteRequest* request)
                 YUNREACHABLE();
         }
     } else {
-        auto stream = DriverImpl->CreateInputStream();
-        ParseYson(stream.Get(), &consumer, true);
+        auto stream = Host->CreateInputStream();
+        ParseYson(stream.Get(), &consumer, TYsonParser::EMode::ListFragment);
     }
 
     writer->Close();
-    DriverImpl->ReplySuccess();
+    Host->ReplySuccess();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

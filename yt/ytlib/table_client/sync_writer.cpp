@@ -10,26 +10,26 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSyncWriter::TSyncWriter(TValidatingWriter* writer)
+TSyncValidatingAdaptor::TSyncValidatingAdaptor(TValidatingWriter* writer)
     : ValidatingWriter(writer)
 { }
 
-void TSyncWriter::Open()
+void TSyncValidatingAdaptor::Open()
 {
     Sync(ValidatingWriter.Get(), &TValidatingWriter::AsyncOpen);
 }
 
-void TSyncWriter::Write(const TColumn& column, TValue value)
+void TSyncValidatingAdaptor::Write(const TColumn& column, TValue value)
 {
     ValidatingWriter->Write(column, value);
 }
 
-void TSyncWriter::EndRow()
+void TSyncValidatingAdaptor::EndRow()
 {
     Sync(ValidatingWriter.Get(), &TValidatingWriter::AsyncEndRow);
 }
 
-void TSyncWriter::Close()
+void TSyncValidatingAdaptor::Close()
 {
     Sync(ValidatingWriter.Get(), &TValidatingWriter::AsyncClose);
 }

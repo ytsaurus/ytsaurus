@@ -56,6 +56,11 @@ class Base(AggrBase):
     
 class Server(Base, RemoteServer):
     bin_path = '/home/yt/build/bin/ytserver'
+
+    def do_clean(cls, fd):
+        print >>fd, shebang
+        print >>fd, 'rm -f %s' % cls.log_path
+        print >>fd, 'rm -f %s' % cls.debug_log_path
     
 class Master(Server):
     base_dir = '/yt/disk2/data'
@@ -91,12 +96,6 @@ class Master(Server):
         'logging' : Logging
     })
     
-    def do_run(cls, fd):
-        print >>fd, shebang
-        print >>fd, ulimit
-        print >>fd, cls.export_ld_path
-        print >>fd, wrap_cmd(cls.run_tmpl)
-        
     def do_clean(cls, fd):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
@@ -104,6 +103,25 @@ class Master(Server):
         print >>fd, 'rm %s/*' % cls.config['meta_state']['snapshot_path']
         print >>fd, 'rm %s/*' % cls.config['meta_state']['log_path']
         
+class Scheduler(Server):
+    base_dir = '/yt/disk2/data'
+    address = MasterAddresses[1]
+    params = Template('--scheduler --config %(config_path)s')
+
+    log_disk = 'disk2'
+    log_path = "scheduler.log"
+    debug_log_path = "scheduler.debug.log"
+
+    config = Template({
+        'masters' : {
+            'addresses' : MasterAddresses
+        },
+        'scheduler' : {   
+            'strategy' : 'fifo'
+        },
+        'rpc_port' : 9092,
+        'logging' : Logging
+    })
 
 CleanCache = FileDescr('clean_cache', ('aggregate', 'exec'))
 DoCleanCache = FileDescr('do_clean_cache', ('remote', 'exec'))
@@ -126,6 +144,11 @@ class Holder(Server):
     
     port = Port
     params = Template('--node --config %(config_path)s --port %(port)d')
+
+    proxyLogging = deepcopy(Logging)
+    proxyLogging['writers']['raw']['file_name'] = 'raw.log'
+    proxyLogging['writers']['file']['file_name'] = 'file.log'
+    proxyLogging['rules'][0]['min_level'] = 'trace'
 
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
@@ -150,6 +173,19 @@ class Holder(Server):
             'max_cached_blocks_size' : 10 * 1024 * 1024 * 1024,
             'max_cached_readers' : 256,
             'response_throttling_size' : 500 * 1024 * 1024
+        },
+        'exec_agent' : {
+            'environment_manager' : {
+                'environments' : {
+                    'default' : {
+                        'type' : 'unsafe'
+                    }
+                }
+            },
+            'job_manager': {
+                'slot_location' : r'%(work_dir)s\slots',
+            },
+            'job_proxy_logging' : proxyLogging,
         },
         'logging' : Logging
     })

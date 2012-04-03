@@ -6,6 +6,7 @@
 #include "chunk.h"
 #include "block_store.h"
 #include "config.h"
+#include "bootstrap.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/serialize.h>
@@ -17,7 +18,6 @@
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/election/leader_channel.h>
-#include <ytlib/cell_node/bootstrap.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -27,7 +27,6 @@ using namespace NChunkServer;
 using namespace NElection;
 using namespace NRpc;
 using namespace NProto;
-using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +41,7 @@ public:
     typedef TWeightLimitedCache<TChunkId, TCachedChunk> TBase;
 
     TImpl(TChunkHolderConfigPtr config, TBootstrap* bootstrap)
-        : TBase(config->CacheLocation->Quota == 0 ? Max<i64>() : config->CacheLocation->Quota)
+        : TBase(config->CacheLocation->Quota.Get(Max<i64>()))
         , Config(config)
         , Bootstrap(bootstrap)
     { }
@@ -170,14 +169,14 @@ private:
             RemoteReader = CreateRemoteReader(
                 ~Owner->Config->CacheRemoteReader,
                 ~Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
-                ~Owner->Bootstrap->GetLeaderChannel(),
+                ~Owner->Bootstrap->GetMasterChannel(),
                 ChunkId,
                 SeedAddresses);
 
             LOG_INFO("Getting chunk info from holders");
             RemoteReader->AsyncGetChunkInfo()->Subscribe(
-                FromMethod(&TThis::OnGotChunkInfo, MakeStrong(this))
-                ->Via(Invoker));
+                BIND(&TThis::OnGotChunkInfo, MakeStrong(this))
+                .Via(Invoker));
         }
 
     private:
@@ -234,8 +233,8 @@ private:
                 BlockIndex);
 
             SequentialReader->AsyncNextBlock()->Subscribe(
-                FromMethod(&TThis::OnNextBlock, MakeStrong(this))
-                ->Via(Invoker));
+                BIND(&TThis::OnNextBlock, MakeStrong(this))
+                .Via(Invoker));
         }
 
         void OnNextBlock(TError error)

@@ -74,16 +74,16 @@ Stroka GetFileName(const Stroka& path)
 
 Stroka GetDirectoryName(const Stroka& path)
 {
-    auto fullPath = path;
-    if (fullPath[0] != '/') {
-        fullPath = GetCwd() + LOCSLASH_C + path;
-    }
 #ifdef _win_
     // May be mixed style of filename ('/' and '\')
-    Stroka path_loc = fullPath;
-    correctpath(path_loc);
-    return path_loc.substr(0, path_loc.find_last_of(LOCSLASH_C));
+    auto fullPath = path;
+    correctpath(fullPath);
+    return fullPath.substr(0, fullPath.find_last_of(LOCSLASH_C));
 #else
+    auto fullPath = path;
+    if (!fullPath.has_prefix(LOCSLASH_S)) {
+        fullPath = GetCwd() + LOCSLASH_C + path;
+    }
     return fullPath.substr(0, fullPath.find_last_of(LOCSLASH_C));
 #endif
 }
@@ -253,6 +253,31 @@ void SetExecutableMode(const Stroka& path, bool executable)
     UNUSED(path);
     UNUSED(executable);
     // TODO(babenko): implement this
+}
+
+void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
+{
+#ifdef _win_
+    // From MSDN: If the function succeeds, the return value is nonzero.
+    // If the function fails, the return value is zero. To get extended error information, call GetLastError.
+    auto res = !CreateSymbolicLink(~linkPath, ~filePath, (DWORD)0);
+    if (res == 0) {
+        ythrow yexception() << Sprintf(
+            "Failed to link %s to %s (Error: %d)",
+            ~filePath.Quote(),
+            ~linkPath.Quote(),
+            GetLastError());
+    }
+#else
+    auto res = symlink(~filePath, ~linkPath);
+    if (res != 0) {
+        ythrow yexception() << Sprintf(
+            "Failed to link %s to %s (Error: %d)",
+            ~filePath.Quote(),
+            ~linkPath.Quote(),
+            errno);
+    }
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

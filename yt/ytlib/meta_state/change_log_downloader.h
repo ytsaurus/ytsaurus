@@ -43,11 +43,11 @@ private:
         TAsyncChangeLog& changeLog);
 
     static void OnResponse(
-        TProxy::TRspGetChangeLogInfo::TPtr response,
         TParallelAwaiter::TPtr awaiter,
         TFuture<TPeerId>::TPtr asyncResult,
         TPeerId peerId,
-        TMetaVersion version);
+        TMetaVersion version,
+        TProxy::TRspGetChangeLogInfo::TPtr response);
     static void OnComplete(
         TFuture<TPeerId>::TPtr asyncResult);
 

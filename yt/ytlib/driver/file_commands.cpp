@@ -11,21 +11,23 @@ using namespace NFileClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDownloadCommand::DoExecute(TDownloadRequest* request)
+void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 {
-    auto config = DriverImpl->GetConfig()->FileReader;
+    PreprocessYPath(&request->Path);
+
+    auto config = Host->GetConfig()->FileReader;
 
     auto reader = New<TFileReader>(
         ~config,
-        DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(request),
-        DriverImpl->GetBlockCache(),
+        ~Host->GetMasterChannel(),
+        ~Host->GetTransaction(request),
+        ~Host->GetBlockCache(),
         request->Path);
     reader->Open();
 
     // TODO(babenko): use FileName and Executable values
 
-    auto output = DriverImpl->CreateOutputStream();
+    auto output = Host->CreateOutputStream();
 
     while (true) {
         auto block = reader->Read();
@@ -38,19 +40,21 @@ void TDownloadCommand::DoExecute(TDownloadRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUploadCommand::DoExecute(TUploadRequest* request)
+void TUploadCommand::DoExecute(TUploadRequestPtr request)
 {
-    auto config = DriverImpl->GetConfig()->FileWriter;
+    PreprocessYPath(&request->Path);
+
+    auto config = Host->GetConfig()->FileWriter;
 
     auto writer = New<TFileWriter>(
         ~config,
-        DriverImpl->GetMasterChannel(),
-        ~DriverImpl->GetTransaction(request),
-        DriverImpl->GetTransactionManager(),
+        ~Host->GetMasterChannel(),
+        ~Host->GetTransaction(request),
+        ~Host->GetTransactionManager(),
         request->Path);
     writer->Open();
 
-    auto input = DriverImpl->CreateInputStream();
+    auto input = Host->CreateInputStream();
     
     TBlob buffer(config->BlockSize);
     while (true) {
@@ -64,7 +68,7 @@ void TUploadCommand::DoExecute(TUploadRequest* request)
     writer->Close();
 
     auto id = writer->GetNodeId();
-    BuildYsonFluently(~DriverImpl->CreateOutputConsumer())
+    BuildYsonFluently(~Host->CreateOutputConsumer())
         .BeginMap()
             .Item("object_id").Scalar(id.ToString())
         .EndMap();

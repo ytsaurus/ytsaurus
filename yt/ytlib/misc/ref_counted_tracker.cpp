@@ -121,15 +121,14 @@ void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer)
 
     auto current = BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("statistics").DoListFor(items, [] (TFluentList fluent, TItem item)
-                {
-                    fluent
-                        .Item().BeginMap()
-                            .Item("name").Scalar(DemangleCxxName(item.Key->name()))
-                            .Item("created").Scalar(static_cast<i64>(item.CreatedObjects))
-                            .Item("alive").Scalar(static_cast<i64>(item.AliveObjects))
-                        .EndMap();
-                })
+            .Item("statistics").DoListFor(items, [] (TFluentList fluent, TItem item) {
+                fluent
+                    .Item().BeginMap()
+                        .Item("name").Scalar(DemangleCxxName(item.Key->name()))
+                        .Item("created").Scalar(static_cast<i64>(item.CreatedObjects))
+                        .Item("alive").Scalar(static_cast<i64>(item.AliveObjects))
+                    .EndMap();
+            })
             .Item("total").BeginMap()
                 .Item("created").Scalar(totalCreated)
                 .Item("alive").Scalar(totalAlive)
@@ -145,6 +144,13 @@ i64 TRefCountedTracker::GetAliveObjects(TKey key)
 i64 TRefCountedTracker::GetCreatedObjects(TKey key)
 {
     return GetCookie(key)->CreatedObjects;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void DumpRefCountedTracker(int sortByColumn)
+{
+    Cerr << TRefCountedTracker::Get()->GetDebugInfo(sortByColumn) << Endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

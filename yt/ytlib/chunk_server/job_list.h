@@ -31,7 +31,7 @@ public:
         ::Save(output, JobIds_);
     }
 
-    void Load(TInputStream* input, const NCellMaster::TLoadContext& context)
+    void Load(const NCellMaster::TLoadContext& context, TInputStream* input)
     {
         ::Load(input, JobIds_);
     }

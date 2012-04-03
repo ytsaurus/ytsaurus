@@ -33,9 +33,12 @@ TIntrusivePtr<TTypedResponse> TCypressServiceProxy::TRspExecuteBatch::GetRespons
     YASSERT(!key.empty());
     auto range = KeyToIndexes.equal_range(key);
     auto it = range.first;
+    // Failure here means that no responses with the given key are found.
+    YASSERT(range.first != range.second);
     int index = it->second;
+    // Failure here means that more than one response with the given key is found.
     YASSERT(++it == range.second);
-    return GetResponse(index);
+    return GetResponse<TTypedResponse>(index);
 }
 
 template <class TTypedResponse>
@@ -60,7 +63,7 @@ std::vector< TIntrusivePtr<TTypedResponse> > TCypressServiceProxy::TRspExecuteBa
 
 template <class TTypedRequest>
 TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-TCypressServiceProxy::Execute(TTypedRequest* innerRequest)
+TCypressServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
@@ -70,9 +73,8 @@ TCypressServiceProxy::Execute(TTypedRequest* innerRequest)
     outerRequest->add_part_counts(innerRequestMessage->GetParts().ysize());
     outerRequest->Attachments() = innerRequestMessage->GetParts();
 
-    return outerRequest->Invoke()->Apply(FromFunctor(
-        [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse>
-        {
+    return outerRequest->Invoke()->Apply(BIND(
+        [] (TRspExecute::TPtr outerResponse) -> TIntrusivePtr<TTypedResponse> {
             auto innerResponse = New<TTypedResponse>();
             auto error = outerResponse->GetError();
             if (error.IsOK()) {

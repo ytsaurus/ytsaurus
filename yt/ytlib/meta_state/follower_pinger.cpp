@@ -76,10 +76,10 @@ void TFollowerPinger::SendPing(TPeerId followerId)
         ->SetTimeout(Config->RpcTimeout);
     request->set_segment_id(version.SegmentId);
     request->set_record_count(version.RecordCount);
-    request->set_epoch(Epoch.ToProto());
+    *request->mutable_epoch() = Epoch.ToProto();
     request->Invoke()->Subscribe(
-        FromMethod(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
-        ->Via(EpochControlInvoker));       
+        BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
+        .Via(EpochControlInvoker));       
 }
 
 void TFollowerPinger::SchedulePing(TPeerId followerId)
@@ -87,12 +87,12 @@ void TFollowerPinger::SchedulePing(TPeerId followerId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     TDelayedInvoker::Submit(
-        FromMethod(&TFollowerPinger::SendPing, MakeStrong(this), followerId)
-        ->Via(EpochControlInvoker),
+        BIND(&TFollowerPinger::SendPing, MakeStrong(this), followerId)
+        .Via(EpochControlInvoker),
         Config->PingInterval);
 }
 
-void TFollowerPinger::OnPingResponse(TProxy::TRspPingFollower::TPtr response, TPeerId followerId)
+void TFollowerPinger::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollower::TPtr response)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

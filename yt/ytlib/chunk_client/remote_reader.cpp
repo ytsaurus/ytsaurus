@@ -14,6 +14,7 @@
 #include <ytlib/cypress/cypress_service_proxy.h>
 
 #include <util/random/shuffle.h>
+#include <util/system/hostname.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -79,7 +80,7 @@ public:
             LOG_INFO("Fresh chunk seeds are needed");
             GetSeedsResult = New<TAsyncGetSeedsResult>();
             TDelayedInvoker::Submit(
-                FromMethod(&TRemoteReader::DoFindChunk, TWeakPtr<TRemoteReader>(this)),
+                BIND(&TRemoteReader::DoFindChunk, MakeWeak(this)),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
 
@@ -125,8 +126,8 @@ private:
 
         auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
         CypressProxy
-            ->Execute(~req)
-            ->Subscribe(FromMethod(&TRemoteReader::OnChunkFetched, TWeakPtr<TRemoteReader>(this)));
+            ->Execute(req)
+            ->Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
     }
 
     void OnChunkFetched(TChunkYPathProxy::TRspFetch::TPtr rsp)
@@ -194,7 +195,7 @@ protected:
         LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
         GetSeedsResult = reader->AsyncGetSeeds();
-        GetSeedsResult->Subscribe(FromMethod(&TSessionBase::OnGetSeedsReply, MakeStrong(this)));
+        GetSeedsResult->Subscribe(BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this)));
     }
 
     void OnGetSeedsReply(TRemoteReader::TGetSeedsResult result)
@@ -207,9 +208,9 @@ protected:
                 OnGotSeeds();
             }
         } else {
-            OnSessionFailed(TError(Sprintf("Retries have been aborted due to master error (RetryIndex: %d)\n%s",
+            OnSessionFailed(TError("Retries have been aborted due to master error (RetryIndex: %d)\n%s",
                 RetryIndex,
-                ~result.ToString())));
+                ~result.ToString()));
         }
     }
 
@@ -231,8 +232,8 @@ protected:
             ++RetryIndex;
             NewRetry();
         } else {
-            OnSessionFailed(TError(Sprintf("All retries failed (RetryCount: %d)",
-                RetryIndex)));
+            OnSessionFailed(TError("All retries failed (RetryCount: %d)",
+                RetryIndex));
         }
     }
 
@@ -439,7 +440,7 @@ private:
                     OnRetryFailed(TError("Unable to fetch all chunk blocks"));
                 } else {
                     TDelayedInvoker::Submit(
-                        FromMethod(&TReadSession::NewPass, MakeStrong(this)),
+                        BIND(&TReadSession::NewPass, MakeStrong(this)),
                         reader->Config->PassBackoffTime);
                 }
                 return;
@@ -459,14 +460,14 @@ private:
                 proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
 
                 auto request = proxy.GetBlocks();
-                request->set_chunk_id(reader->ChunkId.ToProto());
+                *request->mutable_chunk_id() = reader->ChunkId.ToProto();
                 ToProto(request->mutable_block_indexes(), unfetchedBlockIndexes);
                 if (reader->Config->PublishPeer) {
                     request->set_peer_address(reader->Config->PeerAddress);
                     request->set_peer_expiration_time((TInstant::Now() + reader->Config->PeerExpirationTimeout).GetValue());
                 }
 
-                request->Invoke()->Subscribe(FromMethod(
+                request->Invoke()->Subscribe(BIND(
                     &TReadSession::OnGotBlocks,
                     MakeStrong(this),
                     address,
@@ -479,9 +480,9 @@ private:
     }
 
     void OnGotBlocks(
-        TChunkHolderServiceProxy::TRspGetBlocks::TPtr response,
         const Stroka& address,
-        TChunkHolderServiceProxy::TReqGetBlocks::TPtr request)
+        TChunkHolderServiceProxy::TReqGetBlocks::TPtr request,
+        TChunkHolderServiceProxy::TRspGetBlocks::TPtr response)
     {
         if (response->IsOK()) {
             ProcessReceivedBlocks(address, ~request, ~response);
@@ -624,8 +625,8 @@ private:
         proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
 
         auto request = proxy.GetChunkInfo();
-        request->set_chunk_id(reader->ChunkId.ToProto());
-        request->Invoke()->Subscribe(FromMethod(&TGetInfoSession::OnGotChunkInfo, MakeStrong(this)));
+        *request->mutable_chunk_id() = reader->ChunkId.ToProto();
+        request->Invoke()->Subscribe(BIND(&TGetInfoSession::OnGotChunkInfo, MakeStrong(this)));
     }
 
     void OnGotChunkInfo(TChunkHolderServiceProxy::TRspGetChunkInfo::TPtr response)

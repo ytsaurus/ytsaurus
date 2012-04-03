@@ -5,7 +5,6 @@
 #include <ytlib/misc/configurable.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
-#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -23,7 +22,7 @@ class TMasterConnector
 {
 public:
     //! Creates an instance.
-    TMasterConnector(TChunkHolderConfigPtr config, NCellNode::TBootstrap* bootstrap);
+    TMasterConnector(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
 
     //! Starts interaction with master.
     void Start();
@@ -37,7 +36,7 @@ private:
     static const int InvalidHolderId = -1;
 
     TChunkHolderConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap;
 
     DECLARE_ENUM(EState,
         // Not registered.

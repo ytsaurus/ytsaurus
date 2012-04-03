@@ -9,7 +9,7 @@
 #include "enum.h"
 #include "demangle.h"
 
-#include <ytlib/actions/action_util.h>
+#include <ytlib/actions/bind.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/yson_consumer.h>
@@ -214,9 +214,9 @@ template <class T>
 void TParameter<T>::Validate(const NYTree::TYPath& path) const
 {
     ValidateSubconfigs(&Parameter, path);
-    FOREACH (auto validator, Validators) {
+    FOREACH (const auto& validator, Validators) {
         try {
-            validator->Do(Parameter);
+            validator.Run(Parameter);
         } catch (const std::exception& ex) {
             ythrow yexception()
                 << Sprintf("Validation failed (Path: %s)\n%s",
@@ -227,17 +227,9 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
 }
 
 template <class T>
-void TParameter<T>::Save(NYTree::IYsonConsumer *consumer) const
+void TParameter<T>::Save(NYTree::IYsonConsumer* consumer) const
 {
-    if (IsPresent()) {
-        NYTree::Write(Parameter, consumer);
-    } else {
-        consumer->OnEntity(true);
-        consumer->OnBeginAttributes();
-        consumer->OnAttributesItem("type");
-        consumer->OnStringScalar(DemangleCxxName(typeid(T).name()));
-        consumer->OnEndAttributes();
-    }
+    NYTree::Write(Parameter, consumer);
 }
 
 template <class T>
@@ -245,7 +237,6 @@ bool TParameter<T>::IsPresent() const
 {
     return NConfig::IsPresent(&Parameter);
 }
-
 
 template <class T>
 TParameter<T>& TParameter<T>::Default(const T& defaultValue)
@@ -270,9 +261,9 @@ TParameter<T>& TParameter<T>::DefaultNew()
 }
 
 template <class T>
-TParameter<T>& TParameter<T>::CheckThat(TValidatorPtr validator)
+TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
 {
-    Validators.push_back(validator);
+    Validators.push_back(MoveRV(validator));
     return *this;
 }
 
@@ -283,7 +274,7 @@ TParameter<T>& TParameter<T>::CheckThat(TValidatorPtr validator)
     template <class T> \
     TParameter<T>& TParameter<T>::method \
     { \
-        return CheckThat(FromFunctor([=] (const T& parameter) \
+        return CheckThat(BIND([=] (const T& parameter) \
             { \
                 if (!(condition)) { \
                     ythrow (ex); \
@@ -294,43 +285,32 @@ TParameter<T>& TParameter<T>::CheckThat(TValidatorPtr validator)
 DEFINE_VALIDATOR(
     GreaterThan(T value),
     parameter > value,
-    yexception()
-        << "Validation failure (Expected: >"
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected >" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(T value),
     parameter >= value,
-    yexception()
-        << "Validation failure (Expected: >="
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected >=" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     LessThan(T value),
     parameter < value,
-    yexception()
-        << "Validation failure (Expected: <"
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected <" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(T value),
     parameter <= value,
-    yexception()
-        << "Validation failure (Expected: <="
-        << value << ", Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected <=" << value << ", found " << parameter)
 
 DEFINE_VALIDATOR(
     InRange(T lowerBound, T upperBound),
     lowerBound <= parameter && parameter <= upperBound,
-    yexception()
-        << "Validation failure (Expected: in range ["
-        << lowerBound << ", " << upperBound << "], Actual: " << parameter << ")")
+    yexception() << "Validation failure: expected in range ["<< lowerBound << ", " << upperBound << "], found " << parameter)
 
 DEFINE_VALIDATOR(
     NonEmpty(),
     parameter.size() > 0,
-    yexception()
-        << "Validation failure (Expected: non-empty)")
+    yexception() << "Validation failure: expected non-empty")
 
 #undef DEFINE_VALIDATOR
 

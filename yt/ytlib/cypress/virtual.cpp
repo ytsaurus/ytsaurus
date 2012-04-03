@@ -44,7 +44,7 @@ public:
         TBootstrap* bootstrap,
         const TTransactionId& transactionId,
         const TNodeId& nodeId,
-        IYPathService* service)
+        IYPathServicePtr service)
         : TBase(
             typeHandler,
             bootstrap,
@@ -59,7 +59,7 @@ public:
             return TBase::Resolve(path, verb);
         }
         auto redirectedPath = ChopYPathRedirectMarker(path);
-        return TResolveResult::There(~Service, redirectedPath);
+        return TResolveResult::There(Service, redirectedPath);
     }
 
 private:
@@ -86,13 +86,13 @@ public:
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
     {
-        auto service = Producer->Do(id);
+        auto service = Producer.Run(id);
         return New<TVirtualNodeProxy>(
             this,
             Bootstrap,
             id.TransactionId,
             id.ObjectId,
-            ~service);
+            service);
     }
 
     virtual EObjectType GetObjectType()
@@ -130,13 +130,13 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
-    IYPathService* service)
+    IYPathServicePtr service)
 {
     IYPathServicePtr service_ = service;
     return CreateVirtualTypeHandler(
         bootstrap,
         objectType,
-        FromFunctor([=] (const TVersionedNodeId& id) -> IYPathServicePtr {
+        BIND([=] (const TVersionedNodeId& id) -> IYPathServicePtr {
             UNUSED(id);
             return service_;
         }));

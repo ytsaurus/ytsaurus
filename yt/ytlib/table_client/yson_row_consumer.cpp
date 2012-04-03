@@ -6,7 +6,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRowConsumer::TRowConsumer(ISyncWriter* writer)
+TRowConsumer::TRowConsumer(ISyncTableWriter* writer)
     : Writer(writer)
     , RowIndex(0)
     , InsideRow(false)
@@ -50,7 +50,7 @@ void TRowConsumer::OnBeginList()
 
 void TRowConsumer::OnListItem()
 {
-    YUNREACHABLE();
+    // Represents separator between rows, do nothing.
 }
 
 void TRowConsumer::OnEndList(bool hasAttributes)

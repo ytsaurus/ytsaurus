@@ -130,29 +130,29 @@ public:
         YASSERT(config);
         YASSERT(bootstrap);
 
-        RegisterMethod(this, &TImpl::FullHeartbeat);
-        RegisterMethod(this, &TImpl::IncrementalHeartbeat);
-        RegisterMethod(this, &TImpl::UpdateJobs);
-        RegisterMethod(this, &TImpl::RegisterHolder);
-        RegisterMethod(this, &TImpl::UnregisterHolder);
-        RegisterMethod(this, &TImpl::CreateChunks);
+        RegisterMethod(BIND(&TImpl::FullHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::IncrementalHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::UpdateJobs, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::RegisterHolder, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::UnregisterHolder, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::CreateChunks, Unretained(this)));
 
         TLoadContext context(bootstrap);
 
         auto metaState = bootstrap->GetMetaState();
         metaState->RegisterLoader(
             "ChunkManager.Keys.1",
-            FromMethod(&TChunkManager::TImpl::LoadKeys, MakeStrong(this)));
+            BIND(&TImpl::LoadKeys, MakeStrong(this)));
         metaState->RegisterLoader(
             "ChunkManager.Values.1",
-            FromMethod(&TChunkManager::TImpl::LoadValues, MakeStrong(this), context));
+            BIND(&TImpl::LoadValues, MakeStrong(this), context));
         metaState->RegisterSaver(
             "ChunkManager.Keys.1",
-            FromMethod(&TChunkManager::TImpl::SaveKeys, MakeStrong(this)),
+            BIND(&TImpl::SaveKeys, MakeStrong(this)),
             ESavePhase::Keys);
         metaState->RegisterSaver(
             "ChunkManager.Values.1",
-            FromMethod(&TChunkManager::TImpl::SaveValues, MakeStrong(this)),
+            BIND(&TImpl::SaveValues, MakeStrong(this)),
             ESavePhase::Values);
 
         metaState->RegisterPart(this);
@@ -172,7 +172,7 @@ public:
             this);
     }
 
-    TMetaChange<TVoid>::TPtr  InitiateUnregisterHolder(
+    TMetaChange<TVoid>::TPtr InitiateUnregisterHolder(
         const TMsgUnregisterHolder& message)
     {
         return CreateMetaChange(
@@ -279,29 +279,29 @@ public:
     }
 
 
-    void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
+    void AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        FOREACH (const auto& childId, childrenIds) {
-            chunkList.ChildrenIds().push_back(childId);
-            SetChunkTreeParent(chunkList, childId);
-            objectManager->RefObject(childId);
+        FOREACH (const auto& childRef, children) {
+            chunkList.Children().push_back(childRef);
+            SetChunkTreeParent(chunkList, childRef);
+            objectManager->RefObject(childRef.GetId());
         }
     }
 
-    void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
+    void DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        yhash_set<TChunkTreeId> childrenIdsSet(childrenIds.begin(), childrenIds.end());
-        auto it = chunkList.ChildrenIds().begin();
-        while (it != chunkList.ChildrenIds().end()) {
+        yhash_set<TChunkTreeRef> childrenSet(children.begin(), children.end());
+        auto it = chunkList.Children().begin();
+        while (it != chunkList.Children().end()) {
             auto jt = it;
             ++jt;
-            const auto& childId = *it;
-            if (childrenIdsSet.find(childId) != childrenIdsSet.end()) {
-                chunkList.ChildrenIds().erase(it);
-                ResetChunkTreeParent(chunkList, childId, true);
-                objectManager->UnrefObject(childId);
+            const auto& childRef = *it;
+            if (childrenSet.find(childRef) != childrenSet.end()) {
+                chunkList.Children().erase(it);
+                ResetChunkTreeParent(chunkList, childRef, true);
+                objectManager->UnrefObject(childRef.GetId());
             }
             it = jt;
         }
@@ -373,6 +373,27 @@ public:
         return JobScheduler->IsEnabled();
     }
 
+    TChunkTreeRef GetChunkTree(const TChunkTreeId& id)
+    {
+        auto type = TypeFromId(id);
+        if (type == EObjectType::Chunk) {
+            auto* chunk = FindChunk(id);
+            if (!chunk) {
+                ythrow yexception() << Sprintf("No such chunk (ChunkId: %s)", ~id.ToString());
+            }
+            return TChunkTreeRef(chunk);
+        } else if (type == EObjectType::ChunkList) {
+            auto* chunkList = FindChunkList(id);
+            if (!chunkList) {
+                ythrow yexception() << Sprintf("No such chunkList (ChunkListId: %s)", ~id.ToString());
+            }
+            return TChunkTreeRef(chunkList);
+        } else {
+            ythrow yexception() << Sprintf("Invalid child type (ObjectId: %s)", ~id.ToString());
+        }
+    }
+
+
 private:
     typedef TImpl TThis;
     friend class TChunkTypeHandler;
@@ -441,12 +462,13 @@ private:
     }
 
 
-    TChunkStatistics GetChunkStatistics(const TChunk& chunk)
+    TChunkTreeStatistics GetChunkTreeStatistics(const TChunk& chunk)
     {
-        TChunkStatistics result;
+        TChunkTreeStatistics result;
 
         YASSERT(chunk.GetSize() != TChunk::UnknownSize);
         result.CompressedSize = chunk.GetSize();
+        result.ChunkCount = 1;
 
         auto attributes = chunk.DeserializeAttributes();
         switch (attributes.type()) {
@@ -470,16 +492,16 @@ private:
         return result;
     }
 
-    void UpdateStatistics(TChunkList& chunkList, const TChunkTreeId& childId, bool negate)
+    void UpdateStatistics(TChunkList& chunkList, const TChunkTreeRef& childRef, bool negate)
     {
         // Compute delta.
-        TChunkStatistics delta;
-        switch (TypeFromId(childId)) {
+        TChunkTreeStatistics delta;
+        switch (childRef.GetType()) {
             case EObjectType::Chunk:
-                delta = GetChunkStatistics(GetChunk(childId));
+                delta = GetChunkTreeStatistics(*childRef.AsChunk());
                 break;
             case EObjectType::ChunkList:
-                delta = GetChunkList(childId).Statistics();
+                delta = childRef.AsChunkList()->Statistics();
                 break;
             default:
                 YUNREACHABLE();
@@ -493,36 +515,41 @@ private:
         // Apply delta to the parent chunk list.
         chunkList.Statistics().Accumulate(delta);
 
-        // Run a DFS-like traversal upwards and apply delta.
-        // TODO(babenko): this only works correctly if upward paths are unique.
-        std::vector<TChunkListId> dfsStack(chunkList.ParentIds().begin(), chunkList.ParentIds().end());
-        while (!dfsStack.empty()) {
-            auto currentChunkListId = dfsStack.back();
-            dfsStack.pop_back();
-            auto& currentChunkList = GetChunkList(currentChunkListId);
-            currentChunkList.Statistics().Accumulate(delta);
-            dfsStack.insert(dfsStack.end(), currentChunkList.ParentIds().begin(), currentChunkList.ParentIds().end());
+        // Go upwards and apply delta.
+        // Also reset Sorted flags.
+        // Check that parents are unique along the way.
+        auto* current = &chunkList;
+        for (;;) {
+            current->Statistics().Accumulate(delta);
+            current->SetSorted(false);
+
+            const auto& parents = current->Parents();
+            if (parents.empty())
+                break;
+
+            YASSERT(parents.size() == 1);
+            current = *parents.begin();
         }
     }
 
 
-    void SetChunkTreeParent(TChunkList& parent, const TChunkTreeId& childId)
+    void SetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef)
     {
-        if (TypeFromId(childId) == EObjectType::ChunkList) {
-            auto& childChunkList = GetChunkList(childId);
-            YVERIFY(childChunkList.ParentIds().insert(parent.GetId()).second);
+        if (childRef.GetType() == EObjectType::ChunkList) {
+            auto* childChunkList = childRef.AsChunkList();
+            YVERIFY(childChunkList->Parents().insert(&parent).second);
         }
-        UpdateStatistics(parent, childId, false);
+        UpdateStatistics(parent, childRef, false);
     }
 
-    void ResetChunkTreeParent(TChunkList& parent, const TChunkTreeId& childId, bool updateStatistics)
+    void ResetChunkTreeParent(TChunkList& parent, const TChunkTreeRef& childRef, bool updateStatistics)
     {
-        if (TypeFromId(childId) == EObjectType::ChunkList) {
-            auto& childChunkList = GetChunkList(childId);
-            YVERIFY(childChunkList.ParentIds().erase(parent.GetId()) == 1);
+        if (childRef.GetType() == EObjectType::ChunkList) {
+            auto* childChunkList = childRef.AsChunkList();
+            YVERIFY(childChunkList->Parents().erase(&parent) == 1);
         }
         if (updateStatistics) {
-            UpdateStatistics(parent, childId, true);
+            UpdateStatistics(parent, childRef, true);
         }
     }
 
@@ -560,9 +587,9 @@ private:
     {
         auto objectManager = Bootstrap->GetObjectManager();
         // Drop references to children.
-        FOREACH (const auto& childId, chunkList.ChildrenIds()) {
-            ResetChunkTreeParent(chunkList, childId, false);
-            objectManager->UnrefObject(childId);
+        FOREACH (const auto& childRef, chunkList.Children()) {
+            ResetChunkTreeParent(chunkList, childRef, false);
+            objectManager->UnrefObject(childRef.GetId());
         }
     }
 
@@ -622,7 +649,7 @@ private:
         PROFILE_TIMING ("full_heartbeat_time") {
             TReqFullHeartbeat message;
             auto requestBody = TRef(const_cast<char*>(message2.request_body().data()), message2.request_body().length());
-            YVERIFY(DeserializeProtobuf(&message, requestBody));
+            YVERIFY(DeserializeFromProto(&message, requestBody));
 
             Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
 
@@ -732,7 +759,7 @@ private:
     }
 
 
-    void SaveKeys(TOutputStream* output)
+    void SaveKeys(TOutputStream* output) const
     {
         ChunkMap.SaveKeys(output);
         ChunkListMap.SaveKeys(output);
@@ -741,7 +768,7 @@ private:
         JobListMap.SaveKeys(output);
     }
 
-    void SaveValues(TOutputStream* output)
+    void SaveValues(TOutputStream* output) const
     {
         ::Save(output, HolderIdGenerator);
 
@@ -761,15 +788,15 @@ private:
         JobListMap.LoadKeys(input);
     }
 
-    void LoadValues(TInputStream* input, TLoadContext context)
+    void LoadValues(TLoadContext context, TInputStream* input)
     {
         ::Load(input, HolderIdGenerator);
 
-        ChunkMap.LoadValues(input, context);
-        ChunkListMap.LoadValues(input, context);
-        HolderMap.LoadValues(input, context);
-        JobMap.LoadValues(input, context);
-        JobListMap.LoadValues(input, context);
+        ChunkMap.LoadValues(context, input);
+        ChunkListMap.LoadValues(context, input);
+        HolderMap.LoadValues(context, input);
+        JobMap.LoadValues(context, input);
+        JobListMap.LoadValues(context, input);
 
         // Compute chunk replica count.
         ChunkReplicaCount = 0;
@@ -1399,12 +1426,7 @@ private:
             }
         }
 
-        TBlob blob;
-        if (!SerializeProtobuf(&request->attributes(), &blob)) {
-            LOG_FATAL("Error serializing chunk attributes (ChunkId: %s)", ~Id.ToString());
-        }
-
-        chunk.SetAttributes(TSharedRef(MoveRV(blob)));
+        chunk.SetAttributes(TSharedRef::FromString(request->attributes()));
 
         LOG_INFO_IF(!Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
 
@@ -1479,19 +1501,17 @@ private:
 
         if (name == "children_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList.ChildrenIds(), [=] (TFluentList fluent, TTransactionId id)
-                    {
-                        fluent.Item().Scalar(id.ToString());
-                    });
+                .DoListFor(chunkList.Children(), [=] (TFluentList fluent, TChunkTreeRef chunkRef) {
+                        fluent.Item().Scalar(chunkRef.GetId());
+                });
             return true;
         }
 
         if (name == "parent_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList.ParentIds(), [=] (TFluentList fluent, TTransactionId id)
-                    {
-                        fluent.Item().Scalar(id.ToString());
-                    });
+                .DoListFor(chunkList.Parents(), [=] (TFluentList fluent, TChunkList* chunkList) {
+                    fluent.Item().Scalar(chunkList->GetId());
+                });
             return true;
         }
 
@@ -1511,21 +1531,20 @@ private:
 
         auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
 
-        context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
+        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
 
         auto objectManager = Bootstrap->GetObjectManager();
+        yvector<TChunkTreeRef> children;
         FOREACH (const auto& childId, childrenIds) {
-            auto type = TypeFromId(childId);
-            if (type != EObjectType::Chunk && type != EObjectType::ChunkList) {
-                ythrow yexception() << Sprintf("Invalid child type (ObjectId: %s)", ~childId.ToString());
-            }
             if (!objectManager->ObjectExists(childId)) {
                 ythrow yexception() << Sprintf("Child does not exist (ObjectId: %s)", ~childId.ToString());
             }
+            auto chunkRef = Owner->GetChunkTree(childId);
+            children.push_back(chunkRef);
         }
 
         auto& chunkList = GetTypedImpl();
-        Owner->AttachToChunkList(chunkList, childrenIds);
+        Owner->AttachToChunkList(chunkList, children);
 
         context->Reply();
     }
@@ -1535,12 +1554,21 @@ private:
         UNUSED(response);
 
         auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
-        yhash_set<TChunkTreeId> childrenIdsSet(childrenIds.begin(), childrenIds.end());
 
-        context->SetRequestInfo("ChildrenIds: [%s]", ~JoinToString(childrenIds));
+        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        yvector<TChunkTreeRef> children;
+        FOREACH (const auto& childId, childrenIds) {
+            if (!objectManager->ObjectExists(childId)) {
+                ythrow yexception() << Sprintf("Child does not exist (ObjectId: %s)", ~childId.ToString());
+            }
+            auto chunkRef = Owner->GetChunkTree(childId);
+            children.push_back(chunkRef);
+        }
 
         auto& chunkList = GetTypedImpl();
-        Owner->DetachFromChunkList(chunkList, childrenIds);
+        Owner->DetachFromChunkList(chunkList, children);
 
         context->Reply();
     }
@@ -1650,14 +1678,14 @@ TChunkList& TChunkManager::CreateChunkList()
     return Impl->CreateChunkList();
 }
 
-void TChunkManager::AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
+void TChunkManager::AttachToChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
 {
-    Impl->AttachToChunkList(chunkList, childrenIds);
+    Impl->AttachToChunkList(chunkList, children);
 }
 
-void TChunkManager::DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeId>& childrenIds)
+void TChunkManager::DetachFromChunkList(TChunkList& chunkList, const yvector<TChunkTreeRef>& children)
 {
-    Impl->DetachFromChunkList(chunkList, childrenIds);
+    Impl->DetachFromChunkList(chunkList, children);
 }
 
 void TChunkManager::ScheduleJobs(

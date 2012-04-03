@@ -43,7 +43,7 @@ public:
     THolder(THolderId id);
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
+    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 
     void AddChunk(const TChunkId& chunkId, bool cached);
     void RemoveChunk(const TChunkId& chunkId, bool cached);

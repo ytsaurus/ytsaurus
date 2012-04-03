@@ -16,8 +16,10 @@ class TJobList;
 class THolder;
 class TReplicationSink;
 
-struct TChunkStatistics;
+struct TChunkTreeStatistics;
 struct TTotalHolderStatistics;
+
+class TChunkTreeRef;
 
 class TChunkManager;
 typedef TIntrusivePtr<TChunkManager> TChunkManagerPtr;

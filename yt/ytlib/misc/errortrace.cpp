@@ -5,6 +5,9 @@
 //
 
 #include "stdafx.h"
+#include <typeinfo>
+#include <exception>
+#include <util/system/platform.h>
 #include "errortrace.h"
 
 namespace NYT {
@@ -42,6 +45,7 @@ int SetupErrorHandler()
 #include <dlfcn.h>
 #include <cxxabi.h>
 #include <sys/time.h>
+#include <time.h>
 
 #if defined(_darwin_)
 #include <sys/ucontext.h>

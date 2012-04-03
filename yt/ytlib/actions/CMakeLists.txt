@@ -1,18 +1,13 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/actions )
 set( SRCS
-  ${BASE}/action.cpp
   ${BASE}/action_queue.cpp
   ${BASE}/callback_internal.cpp
   ${BASE}/cancelable_context.cpp
   ${BASE}/invoker_util.cpp
 )
 set( HDRS
-  ${BASE}/action-inl.h
-  ${BASE}/action.h
   ${BASE}/action_queue.h
-  ${BASE}/action_util-gen.h
-  ${BASE}/action_util.h
   ${BASE}/bind.h
   ${BASE}/bind_helpers.h
   ${BASE}/bind_internal.h
@@ -20,6 +15,7 @@ set( HDRS
   ${BASE}/callback.h
   ${BASE}/callback_forward.h
   ${BASE}/callback_internal.h
+  ${BASE}/callback_via.h
   ${BASE}/cancelable_context.h
   ${BASE}/common.h
   ${BASE}/future-inl.h
@@ -36,7 +32,7 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-PUMP( ${BASE}/action_util-gen.h.pump YT_SOURCE_FILES )
 PUMP( ${BASE}/bind.h.pump YT_SOURCE_FILES )
 PUMP( ${BASE}/bind_internal.h.pump YT_SOURCE_FILES )
 PUMP( ${BASE}/callback.h.pump YT_SOURCE_FILES )
+PUMP( ${BASE}/callback_via.h.pump YT_SOURCE_FILES )

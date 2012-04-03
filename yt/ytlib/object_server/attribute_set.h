@@ -22,7 +22,7 @@ public:
     TAttributeSet(const TVersionedObjectId&); // Just for meta map
 
     void Save(TOutputStream* output) const;
-    void Load(TInputStream* input, const NCellMaster::TLoadContext& context);
+    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "common.h"
-#include "action.h"
+#include "invoker.h"
+#include "callback.h"
 
 #include <ytlib/profiling/profiler.h>
 
@@ -15,6 +16,7 @@ namespace NYT {
 
 class TActionQueueBase;
 
+// TODO(sandello): Consider moving this into .cpp.
 class TQueueInvoker
     : public IInvoker
 {
@@ -24,7 +26,7 @@ public:
         TActionQueueBase* owner,
         bool enableLogging);
 
-    void Invoke(IAction::TPtr action);
+    void Invoke(const TClosure& action);
     bool IsEmpty() const;
     void Shutdown();
     bool DequeueAndExecute();
@@ -33,7 +35,7 @@ private:
     struct TItem
     {
         NProfiling::TCpuInstant StartInstant;
-        IAction::TPtr Action;
+        TClosure Action;
     };
 
     TActionQueueBase* Owner;
@@ -106,7 +108,7 @@ public:
 
     IInvoker* GetInvoker();
 
-    static IFunc<TPtr>::TPtr CreateFactory(const Stroka& threadName);
+    static TCallback<TPtr()> CreateFactory(const Stroka& threadName);
     
 protected:
     virtual bool DequeueAndExecute();

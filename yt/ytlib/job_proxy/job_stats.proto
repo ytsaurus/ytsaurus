@@ -1,0 +1,18 @@
+package NYT.NJobProxy.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTableStats
+{
+    optional int64 rows = 1;
+    optional int64 bytes = 2;
+    optional int32 chunks = 3;
+}
+
+message TJobStats 
+{
+    repeated TTableStats input_stats = 1;
+    repeated TTableStats output_stats = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

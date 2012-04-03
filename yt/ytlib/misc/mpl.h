@@ -190,7 +190,7 @@ template <class T>
 struct TIsClassImpl
 {
     template <class U>
-    static TYesType Test(void (U::*)(void));
+    static TYesType Test(void (U::*)());
     template <class U>
     static TNoType  Test(...);
 

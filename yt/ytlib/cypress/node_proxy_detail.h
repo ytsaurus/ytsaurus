@@ -217,7 +217,7 @@ protected:
 
         auto lockId = Bootstrap->GetCypressManager()->LockVersionedNode(NodeId, TransactionId, mode);
 
-        response->set_lock_id(lockId.ToProto());
+        *response->mutable_lock_id() = lockId.ToProto();
 
         context->SetResponseInfo("LockId: %s", ~lockId.ToString());
 
@@ -595,7 +595,7 @@ protected:
 
         CreateRecursive(context->GetPath(), ~proxy);
 
-        response->set_object_id(nodeId.ToProto());
+        *response->mutable_object_id() = nodeId.ToProto();
 
         context->Reply();
     }

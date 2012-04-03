@@ -42,9 +42,9 @@ void TFileNode::Save(TOutputStream* output) const
     ::Save(output, ChunkListId_);
 }
 
-void TFileNode::Load(TInputStream* input, const TLoadContext& context)
+void TFileNode::Load(const TLoadContext& context, TInputStream* input)
 {
-    TCypressNodeBase::Load(input, context);
+    TCypressNodeBase::Load(context, input);
     ::Load(input, ChunkListId_);
 }
 
@@ -103,9 +103,9 @@ public:
         auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
         proxy->Attributes().MergeFrom(~manifest->GetOptions());
         
-        yvector<TChunkTreeId> childrenIds;
-        childrenIds.push_back(chunkId);
-        chunkManager->AttachToChunkList(chunkList, childrenIds);
+        yvector<TChunkTreeRef> children;
+        children.push_back(TChunkTreeRef(chunk));
+        chunkManager->AttachToChunkList(chunkList, children);
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)

@@ -3,8 +3,6 @@
 #endif
 #undef MAP_INL_H_
 
-#include <ytlib/actions/action_util.h>
-
 namespace NYT {
 namespace NMetaState {
 
@@ -236,8 +234,8 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(TInputStream* input)
 template <class TKey, class TValue, class TTraits, class THash>
 template <class TContext>
 void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(
-    TInputStream* input,
-    const TContext& context)
+    const TContext& context,
+    TInputStream* input)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -251,7 +249,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(
     FOREACH (const auto& key, keys) {
         auto it = Map.find(key);
         YASSERT(it != Map.end());
-        it->second->Load(input, context);
+        it->second->Load(context, input);
     }
 }
 

@@ -16,14 +16,14 @@ struct IServer
 {
     typedef TIntrusivePtr<IServer> TPtr;
 
-    virtual void RegisterService(IService* service) = 0;
+    virtual void RegisterService(IService::TPtr service) = 0;
     
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
 };
 
-IServer::TPtr CreateRpcServer(NBus::IBusServer* busServer);
+IServer::TPtr CreateRpcServer(NBus::IBusServer::TPtr busServer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

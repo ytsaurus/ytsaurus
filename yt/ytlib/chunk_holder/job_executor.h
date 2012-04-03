@@ -63,7 +63,7 @@ private:
 
     void Start();
     void Stop();
-    void ReplicateBlock(TError error, int blockIndex);
+    void ReplicateBlock(int blockIndex, TError error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

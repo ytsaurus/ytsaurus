@@ -15,7 +15,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkSequenceReader
-    : public virtual TRefCounted
+    : public IAsyncReader
 {
 public:
     typedef TIntrusivePtr<TChunkSequenceReader> TPtr;
@@ -37,33 +37,33 @@ public:
 
     TChunkSequenceReader(
         TConfig* config,
-        const TChannel& channel,
-        const NObjectServer::TTransactionId& transactionId,
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache,
-        const std::vector<NProto::TFetchedChunk>& fetchedChunks);
+        const std::vector<NProto::TInputChunk>& inputChunks,
+        TChunkReader::TOptions options = TChunkReader::TOptions());
 
-    TAsyncError::TPtr AsyncOpen();
+    TAsyncError AsyncOpen();
 
-    TAsyncError::TPtr AsyncNextRow();
+    TAsyncError AsyncNextRow();
 
     bool IsValid() const;
 
     const TRow& GetCurrentRow() const;
 
+    // ToDo: consider removing from here.
+    const TKey& GetCurrentKey() const;
+
 private:
     void PrepareNextChunk();
-    void OnNextReaderOpened(
-        TError error, 
-        TChunkReader::TPtr reader);
+    void OnNextReaderOpened(TChunkReader::TPtr reader, TError error);
     void SetCurrentChunk(TChunkReader::TPtr nextReader);
     void OnNextRow(TError error);
 
     TConfig::TPtr Config;
-    TChannel Channel;
     NChunkClient::IBlockCache::TPtr BlockCache;
-    NObjectServer::TTransactionId TransactionId;
-    std::vector<NProto::TFetchedChunk> FetchedChunks;
+    std::vector<NProto::TInputChunk> InputChunks;
+
+    TChunkReader::TOptions Options;
 
     NRpc::IChannel::TPtr MasterChannel;
 

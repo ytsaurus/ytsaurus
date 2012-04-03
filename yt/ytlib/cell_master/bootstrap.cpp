@@ -37,8 +37,6 @@
 
 #include <ytlib/table_server/table_node.h>
 
-#include <ytlib/scheduler/redirector_service.h>
-
 #include <ytlib/ytree/yson_file_service.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_client.h>
@@ -62,18 +60,17 @@ using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NFileServer;
 using namespace NTableServer;
-using namespace NScheduler;
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("Server");
+static NLog::TLogger Logger("MasterBootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
     const Stroka& configFileName,
-    TCellMasterConfig* config)
+    TCellMasterConfigPtr config)
     : ConfigFileName(configFileName)
     , Config(config)
 { }
@@ -176,13 +173,13 @@ void TBootstrap::Run()
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
         "ref_counted",
-        FromMethod(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
+        BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
         "meta_state",
-        FromMethod(&IMetaStateManager::GetMonitoringInfo, MetaStateManager));
+        BIND(&IMetaStateManager::GetMonitoringInfo, MetaStateManager));
     monitoringManager->Register(
         "bus_server",
-        FromMethod(&IBusServer::GetMonitoringInfo, busServer));
+        BIND(&IBusServer::GetMonitoringInfo, busServer));
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
@@ -199,15 +196,12 @@ void TBootstrap::Run()
     SyncYPathSetNode(
         ~orchidRoot,
         "config",
-        ~CreateVirtualNode(~CreateYsonFileProducer(ConfigFileName)));
+        ~CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,
         ~GetControlInvoker());
     rpcServer->RegisterService(~orchidRpcService);
-
-    auto schedulerRedirectorService = CreateRedirectorService(this);
-    rpcServer->RegisterService(~schedulerRedirectorService);
 
     CypressManager->RegisterHandler(~CreateChunkMapTypeHandler(this));
     CypressManager->RegisterHandler(~CreateLostChunkMapTypeHandler(this));
@@ -232,10 +226,10 @@ void TBootstrap::Run()
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
-        ~NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~GetControlInvoker())));
+        NMonitoring::GetYPathHttpHandler(~orchidRoot->Via(~GetControlInvoker())));
     httpServer->Register(
         "/cypress",
-        ~NMonitoring::GetYPathHttpHandler(CypressManager->GetRootServiceProducer()));
+        NMonitoring::GetYPathHttpHandler(CypressManager->GetRootServiceProducer()));
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

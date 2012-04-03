@@ -89,12 +89,12 @@ public:
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError::TPtr AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
+    virtual TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
 
     /*!
      * \note Thread affinity: ClientThread.
      */
-    virtual TAsyncError::TPtr AsyncClose(
+    virtual TAsyncError AsyncClose(
         const std::vector<TSharedRef>& lastBlocks,
         const NChunkHolder::NProto::TChunkAttributes& attributes);
 
@@ -163,8 +163,8 @@ private:
     //! Number of blocks that are already added via #AddBlock. 
     int BlockCount;
 
-    //! Chunk uncompressed size (as reported by the holders on Finish).
-    i64 ChunkSize;
+    //! Returned from holder in Finish.
+    NChunkHolder::NProto::TChunkInfo ChunkInfo;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;
@@ -176,7 +176,8 @@ private:
 
     void DoClose(
         const std::vector<TSharedRef>& lastBlocks,
-        const NChunkHolder::NProto::TChunkAttributes& attributes);
+        const NChunkHolder::NProto::TChunkAttributes& attributes,
+        TVoid);
 
     void AddGroup(TGroupPtr group);
 
@@ -188,13 +189,13 @@ private:
 
     TProxy::TInvFlushBlock::TPtr FlushBlock(THolderPtr holder, int blockIndex);
 
-    void OnBlockFlushed(TProxy::TRspFlushBlock::TPtr rsp, THolderPtr holder, int blockIndex);
+    void OnBlockFlushed(THolderPtr holder, int blockIndex, TProxy::TRspFlushBlock::TPtr rsp);
 
     void OnWindowShifted(int blockIndex);
 
     TProxy::TInvStartChunk::TPtr StartChunk(THolderPtr holder);
 
-    void OnChunkStarted(TProxy::TRspStartChunk::TPtr rsp, THolderPtr holder);
+    void OnChunkStarted(THolderPtr holder, TProxy::TRspStartChunk::TPtr rsp);
 
     void OnSessionStarted();
 
@@ -202,7 +203,7 @@ private:
 
     TProxy::TInvFinishChunk::TPtr FinishChunk(THolderPtr holder);
 
-    void OnChunkFinished(TProxy::TRspFinishChunk::TPtr rsp, THolderPtr holder);
+    void OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::TPtr rsp);
 
     void OnSessionFinished();
 
@@ -213,13 +214,13 @@ private:
 
     template <class TResponse>
     void CheckResponse(
-        TIntrusivePtr<TResponse> rsp, 
         THolderPtr holder, 
-        typename IParamAction< TIntrusivePtr<TResponse> >::TPtr onSuccess,
-        TMetric* metric);
+        TCallback<void(TIntrusivePtr<TResponse>)> onSuccess,
+        TMetric* metric,
+        TIntrusivePtr<TResponse> rsp);
 
     void AddBlocks(const std::vector<TSharedRef>& blocks);
-    void DoWriteBlocks(TVoid, const std::vector<TSharedRef>& blocks);
+    void DoWriteBlocks(const std::vector<TSharedRef>& blocks, TVoid);
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);

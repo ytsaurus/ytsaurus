@@ -38,7 +38,7 @@ void TJob::Save(TOutputStream* output) const
     ::Save(output, StartTime_);
 }
 
-void TJob::Load(TInputStream* input, const TLoadContext& context)
+void TJob::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     ::Load(input, Type_);

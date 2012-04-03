@@ -32,7 +32,7 @@ namespace NTableClient {
  */
 class TTableReader
     : public NTransactionClient::TTransactionListener
-    , public ISyncReader
+    , public ISyncTableReader
 {
 public:
     typedef TIntrusivePtr<TTableReader> TPtr;
@@ -70,6 +70,7 @@ public:
     bool IsValid() const;
 
     const TRow& GetRow() const;
+    const TKey& GetKey() const;
 
 private:
     TConfig::TPtr Config;

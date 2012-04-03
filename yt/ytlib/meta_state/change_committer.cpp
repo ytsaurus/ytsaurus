@@ -80,7 +80,7 @@ public:
     void FlushChanges(bool rotateChangeLog)
     {
         Logger.AddTag(Sprintf("ChangeCount: %d", static_cast<int>(BatchedChanges.size())));
-        Committer->EpochControlInvoker->Invoke(FromMethod(
+        Committer->EpochControlInvoker->Invoke(BIND(
             &TBatch::DoFlushChanges,
             MakeStrong(this),
             rotateChangeLog));
@@ -116,7 +116,7 @@ private:
             Awaiter->Await(
                 LogResult,
                 cellManager->SelfAddress(),
-                FromMethod(&TBatch::OnLocalCommit, MakeStrong(this)));
+                BIND(&TBatch::OnLocalCommit, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched changes to followers");
             for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
@@ -130,18 +130,18 @@ private:
                     ->SetTimeout(Committer->Config->RpcTimeout);
                 request->set_segment_id(StartVersion.SegmentId);
                 request->set_record_count(StartVersion.RecordCount);
-                request->set_epoch(Committer->Epoch.ToProto());
+                *request->mutable_epoch() = Committer->Epoch.ToProto();
                 FOREACH (const auto& change, BatchedChanges) {
                     request->Attachments().push_back(change);
                 }
                 Awaiter->Await(
                     request->Invoke(),
                     cellManager->GetPeerAddress(id),
-                    FromMethod(&TBatch::OnRemoteCommit, MakeStrong(this), id));
+                    BIND(&TBatch::OnRemoteCommit, MakeStrong(this), id));
             }
             LOG_DEBUG("Batched changes sent");
 
-            Awaiter->Complete(FromMethod(&TBatch::OnCompleted, MakeStrong(this)));
+            Awaiter->Complete(BIND(&TBatch::OnCompleted, MakeStrong(this)));
 
         }
         
@@ -167,7 +167,7 @@ private:
         return true;
     }
 
-    void OnRemoteCommit(TProxy::TRspApplyChanges::TPtr response, TPeerId peerId)
+    void OnRemoteCommit(TPeerId peerId, TProxy::TRspApplyChanges::TPtr response)
     {
         VERIFY_THREAD_AFFINITY(Committer->ControlThread);
 
@@ -280,11 +280,11 @@ void TLeaderCommitter::Flush(bool rotateChangeLog)
 }
 
 TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
-    IAction::TPtr changeAction,
+    TClosure changeAction,
     const TSharedRef& changeData)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(changeAction);
+    YASSERT(!changeAction.IsNull());
 
     PROFILE_AGGREGATED_TIMING (CommitTimeCounter) {
         auto version = MetaState->GetVersion();
@@ -341,11 +341,11 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
         YASSERT(!BatchTimeoutCookie);
         CurrentBatch = New<TBatch>(MakeStrong(this), version);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
-            FromMethod(
+            BIND(
                 &TLeaderCommitter::OnBatchTimeout,
                 MakeStrong(this),
                 CurrentBatch)
-            ->Via(~EpochControlInvoker),
+            .Via(~EpochControlInvoker),
             Config->MaxBatchDelay);
     }
 
@@ -386,13 +386,13 @@ TCommitter::TResult::TPtr TFollowerCommitter::Commit(
         Profiler.Increment(BatchCommitCounter);
 
         return
-            FromMethod(
+            BIND(
                 &TFollowerCommitter::DoCommit,
                 MakeStrong(this),
                 expectedVersion,
                 changes)
-            ->AsyncVia(EpochStateInvoker)
-            ->Do();
+            .AsyncVia(EpochStateInvoker)
+            .Run();
     }
 }
 
@@ -428,7 +428,7 @@ TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
         ++currentVersion.RecordCount;
     }
 
-    return result->Apply(FromFunctor([] (TVoid) -> TCommitter::EResult {
+    return result->Apply(BIND([] (TVoid) -> TCommitter::EResult {
         return TCommitter::EResult::Committed;
     }));
 }

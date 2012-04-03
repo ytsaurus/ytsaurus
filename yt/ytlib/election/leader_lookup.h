@@ -28,8 +28,6 @@ public:
     struct TConfig
         : public TConfigurable
     {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
         //! List of peer addresses.
         yvector<Stroka> Addresses;
 
@@ -38,11 +36,15 @@ public:
 
         TConfig()
         {
-            Register("addresses", Addresses).NonEmpty();
-            Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
+            Register("addresses", Addresses)
+                .NonEmpty();
+            Register("rpc_timeout", RpcTimeout)
+                .Default(TDuration::Seconds(5));
         }
 
     };
+
+    typedef TIntrusivePtr<TConfig> TConfigPtr;
 
     //! Describes a lookup result.
     struct TResult
@@ -63,7 +65,7 @@ public:
     typedef TFuture<TResult> TAsyncResult;
 
     //! Initializes a new instance.
-    TLeaderLookup(TConfig* config);
+    TLeaderLookup(TConfigPtr config);
 
     //! Performs an asynchronous lookup.
     TAsyncResult::TPtr GetLeader();
@@ -71,7 +73,7 @@ public:
 private:
     typedef TElectionManagerProxy TProxy;
 
-    TConfig::TPtr Config;
+    TConfigPtr Config;
 
     //! Protects from simultaneously reporting conflicting results.
     /*! 
@@ -82,10 +84,10 @@ private:
     TSpinLock SpinLock;
     
     void OnResponse(
-        TProxy::TRspGetStatus::TPtr response,
         TParallelAwaiter::TPtr awaiter,
         TFuture<TResult>::TPtr asyncResult,
-        const Stroka& address);
+        const Stroka& address,
+        TProxy::TRspGetStatus::TPtr response);
     void OnComplete(TFuture<TResult>::TPtr asyncResult);
 };
 

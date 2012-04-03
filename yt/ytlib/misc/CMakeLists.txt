@@ -15,6 +15,7 @@ set( SRCS
   ${BASE}/guid.cpp
   ${BASE}/home.cpp
   ${BASE}/lease_manager.cpp
+  ${BASE}/linux.cpp
   ${BASE}/metric.cpp
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
@@ -24,6 +25,8 @@ set( SRCS
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
+  ${BASE}/protobuf_helpers.cpp
+  ${BASE}/source_location.cpp
   ${BASE}/thread.cpp
 )
 set( HDRS
@@ -55,6 +58,7 @@ set( HDRS
   ${BASE}/lazy_holder.h
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
+  ${BASE}/linux.h
   ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/new.h
@@ -70,7 +74,10 @@ set( HDRS
   ${BASE}/rvalue.h
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
+  ${BASE}/protobuf_helpers.h
+  ${BASE}/protobuf_helpers-inl.h
   ${BASE}/singleton.h
+  ${BASE}/source_location.h
   ${BASE}/string.h
   ${BASE}/sync.h
   ${BASE}/tclap_helpers.h
@@ -85,6 +92,8 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
+protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
+
 add_custom_command(
     OUTPUT  ${BASE}/preprocessor-gen.h
     COMMAND ${PYTHON_EXECUTABLE} ${BASE}/preprocessor-gen.py > ${BASE}/preprocessor-gen.h
@@ -92,9 +101,7 @@ add_custom_command(
     COMMENT "Regenerating preprocessor-gen.h..."
 )
 
-add_custom_command(
-    OUTPUT  ${BASE}/new.h
-    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pump.py ${BASE}/new.h.pump > ${BASE}/new.h
-    DEPENDS ${BASE}/new.h.pump
-    COMMENT "Regenerating new.h..."
-)
+PUMP( ${BASE}/new.h.pump YT_SOURCE_FILES )
+
+protoc( ${BASE}/error.proto YT_SOURCE_FILES )
+protoc( ${BASE}/extensions.proto YT_SOURCE_FILES )

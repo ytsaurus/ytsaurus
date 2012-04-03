@@ -7,7 +7,6 @@
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/chunk_client/file_reader.h>
-#include <ytlib/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -23,7 +22,7 @@ public:
     typedef yvector<TLocationPtr> TLocations;
 
     //! Constructs a new instance.
-    TChunkStore(TChunkHolderConfigPtr config, NCellNode::TBootstrap* bootstrap);
+    TChunkStore(TChunkHolderConfigPtr config, TBootstrap* bootstrap);
 
     //! Initializes the store.
     void Start();
@@ -64,7 +63,7 @@ public:
 
 private:
     TChunkHolderConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    TBootstrap* Bootstrap;
 
     typedef yhash_map<TChunkId, TStoredChunkPtr> TChunkMap;
     TChunkMap ChunkMap;

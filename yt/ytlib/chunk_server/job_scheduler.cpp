@@ -38,7 +38,7 @@ TJobScheduler::TJobScheduler(
     , Bootstrap(bootstrap)
     , ChunkPlacement(chunkPlacement)
     , HolderLeaseTracker(holderLeaseTracker)
-    , ChunkRefreshDelay(DurationToCycles(config->ChunkRefreshDelay))
+    , ChunkRefreshDelay(DurationToCpuDuration(config->ChunkRefreshDelay))
 {
     YASSERT(config);
     YASSERT(bootstrap);
@@ -123,7 +123,7 @@ void TJobScheduler::ProcessExistingJobs(
                 ~holder.GetAddress(),
                 holder.GetId());
             TJobStopInfo stopInfo;
-            stopInfo.set_job_id(jobId.ToProto());
+            *stopInfo.mutable_job_id() = jobId.ToProto();
             jobsToStop->push_back(stopInfo);
             continue;
         }
@@ -150,7 +150,7 @@ void TJobScheduler::ProcessExistingJobs(
 
                 if (TInstant::Now() - job->GetStartTime() > Config->Jobs->JobTimeout) {
                     TJobStopInfo stopInfo;
-                    stopInfo.set_job_id(jobId.ToProto());
+                    *stopInfo.mutable_job_id() = jobId.ToProto();
                     jobsToStop->push_back(stopInfo);
 
                     LOG_WARNING("Job timed out (JobId: %s, Address: %s, HolderId: %d, Duration: %d ms)",
@@ -164,7 +164,7 @@ void TJobScheduler::ProcessExistingJobs(
             case EJobState::Completed:
             case EJobState::Failed: {
                 TJobStopInfo stopInfo;
-                stopInfo.set_job_id(jobId.ToProto());
+                *stopInfo.mutable_job_id() = jobId.ToProto();
                 jobsToStop->push_back(stopInfo);
 
                 ScheduleChunkRefresh(job->GetChunkId());
@@ -186,7 +186,7 @@ void TJobScheduler::ProcessExistingJobs(
     FOREACH (auto jobId, holder.JobIds()) {
         if (runningJobIds.find(jobId) == runningJobIds.end()) {
             TJobStopInfo stopInfo;
-            stopInfo.set_job_id(jobId.ToProto());
+            *stopInfo.mutable_job_id() = jobId.ToProto();
             jobsToStop->push_back(stopInfo);
 
             LOG_WARNING("Job is missing (JobId: %s, Address: %s, HolderId: %d)",
@@ -265,9 +265,9 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
 
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
-    startInfo.set_job_id(jobId.ToProto());
+    *startInfo.mutable_job_id() = jobId.ToProto();
     startInfo.set_type(EJobType::Replicate);
-    startInfo.set_chunk_id(chunkId.ToProto());
+    *startInfo.mutable_chunk_id() = chunkId.ToProto();
     ToProto(startInfo.mutable_target_addresses(), targetAddresses);
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
@@ -319,9 +319,9 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
     
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
-    startInfo.set_job_id(jobId.ToProto());
+    *startInfo.mutable_job_id() = jobId.ToProto();
     startInfo.set_type(EJobType::Replicate);
-    startInfo.set_chunk_id(chunkId.ToProto());
+    *startInfo.mutable_chunk_id() = chunkId.ToProto();
     startInfo.add_target_addresses(targetHolder.GetAddress());
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
@@ -356,9 +356,9 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleRemovalJob(
 
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
-    startInfo.set_job_id(jobId.ToProto());
+    *startInfo.mutable_job_id() = jobId.ToProto();
     startInfo.set_type(EJobType::Remove);
-    startInfo.set_chunk_id(chunkId.ToProto());
+    *startInfo.mutable_chunk_id() = chunkId.ToProto();
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
@@ -636,8 +636,8 @@ void TJobScheduler::ScheduleNextRefresh()
     if (!context)
         return;
     TDelayedInvoker::Submit(
-        FromMethod(&TJobScheduler::OnRefresh, MakeStrong(this))
-        ->Via(
+        BIND(&TJobScheduler::OnRefresh, MakeStrong(this))
+        .Via(
             Bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh),
             context),
         Config->ChunkRefreshQuantum);

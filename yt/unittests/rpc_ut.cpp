@@ -194,6 +194,7 @@ public:
     virtual void TearDown()
     {
         RpcServer->Stop();
+        RpcServer.Reset();
     }
 
     // For services to signal when they processed incoming onewey rpc request
@@ -214,7 +215,7 @@ public:
 
     Event Event_;
 
-    void CheckReply(TMyProxy::TRspSomeCall::TPtr response, int expected)
+    void CheckReply(int expected, TMyProxy::TRspSomeCall::TPtr response)
     {
         EXPECT_IS_TRUE(response->IsOK());
         EXPECT_EQ(expected, response->b());
@@ -253,7 +254,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
     for (int i = 0; i < numSends; ++i) {
         auto request = proxy->SomeCall();
         request->set_a(i);
-        request->Invoke()->Subscribe(FromMethod(&TResponseHandler::CheckReply, handler, i + 100));
+        request->Invoke()->Subscribe(BIND(&TResponseHandler::CheckReply, handler, i + 100));
     }
 
     EXPECT_IS_TRUE(handler->Event_.WaitT(TDuration::Seconds(4))); // assert no timeout
