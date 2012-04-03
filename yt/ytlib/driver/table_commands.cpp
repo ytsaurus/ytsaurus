@@ -45,8 +45,12 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
     PreprocessYPath(&request->Path);
 
+    TTableWriter::TOptions options;
+    options.Sorted = request->Sorted;
+
     auto writer = New<TTableWriter>(
         ~Host->GetConfig()->TableWriter,
+        options,
         ~Host->GetMasterChannel(),
         ~Host->GetTransaction(request),
         ~Host->GetTransactionManager(),
