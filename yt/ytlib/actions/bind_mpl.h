@@ -219,6 +219,23 @@ struct TMaybeLockHelper
     }
 };
 
+template <bool IsMethod, class T>
+struct TMaybeLockHelper< IsMethod, T&& >
+{
+    T T_;
+    inline TMaybeLockHelper(T&& x)
+        : T_(MoveRV(x))
+    { }
+    inline TMaybeLockHelper& Lock() const
+    {
+        return *this;
+    }
+    inline T&& Get() const
+    {
+        return static_cast<T&&>(T_);
+    }
+};
+
 template <class U>
 struct TMaybeLockHelper< true, TIntrusivePtr<U> >
 {
