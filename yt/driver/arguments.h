@@ -238,7 +238,6 @@ public:
 
 private:
     TUnlabeledStringArg PathArg;
-    //TODO(panin):support value from stdin
     TUnlabeledStringArg ValueArg;
     TCLAP::SwitchArg SortedArg;
     
@@ -304,7 +303,7 @@ public:
 
 private:
     TCLAP::MultiArg<Stroka> InArg;
-    TUnlabeledStringArg OutArg;
+    TCLAP::ValueArg<Stroka> OutArg;
     TCLAP::SwitchArg SortedArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);

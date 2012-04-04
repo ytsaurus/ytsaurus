@@ -268,7 +268,7 @@ void TReadArgs::BuildCommand(IYsonConsumer* consumer)
 
 TWriteArgs::TWriteArgs()
     : PathArg("path", "path to a table in Cypress that must be written", true, "", "ypath")
-    , ValueArg("value", "row(s) to write", true, "", "yson")
+    , ValueArg("value", "row(s) to write", false, "", "yson")
     , SortedArg("s", "sorted", "create sorted table (table must initially be empty, input data must be sorted)")
 {
     CmdLine.add(PathArg);
@@ -288,10 +288,14 @@ TWriteArgs::TWriteArgs()
 
 void TWriteArgs::BuildCommand(IYsonConsumer* consumer)
 {
+    auto value = ValueArg.getValue();
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("write")
         .Item("path").Scalar(PathArg.getValue())
-        .Item("value").Node(ValueArg.getValue());
+        .DoIf(!value.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("value").Node(value);
+        });
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -362,7 +366,7 @@ void TMapArgs::BuildCommand(IYsonConsumer* consumer)
 
 TMergeArgs::TMergeArgs()
     : InArg("", "in", "input tables", false, "ypath")
-    , OutArg("", "out", "output table", false, "ypath")
+    , OutArg("", "out", "output table", false, "", "ypath")
     , SortedArg("s", "sorted", "produce sorted output (all input tables must be sorted)")
 {
     CmdLine.add(InArg);
