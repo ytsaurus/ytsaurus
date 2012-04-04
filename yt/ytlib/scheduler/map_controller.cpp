@@ -68,7 +68,7 @@ public:
 
         DumpStatistics();
 
-        if (JobCounter.GetRunning() == 0 && JobCounter.GetPending() == 0) {
+        if (JobCounter.GetRunning() == 0 && ChunkCounter.GetPending() == 0) {
             CompleteOperation();
         }
     }
