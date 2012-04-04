@@ -3,6 +3,7 @@
 #include <ytlib/misc/common.h>
 #include <ytlib/actions/future.h>
 #include <ytlib/election/common.h>
+#include <ytlib/election/public.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -14,9 +15,6 @@ typedef TIntrusivePtr<IMetaState> IMetaStatePtr;
 
 struct IMetaStateManager;
 typedef TIntrusivePtr<IMetaStateManager> IMetaStateManagerPtr;
-
-class TCellManager;
-typedef TIntrusivePtr<TCellManager> TCellManagerPtr;
 
 class TChangeLog;
 typedef TIntrusivePtr<TChangeLog> TChangeLogPtr;
@@ -46,9 +44,6 @@ class TMetaChange;
 
 struct TMetaVersion;
 
-struct TCellConfig;
-typedef TIntrusivePtr<TCellConfig> TCellConfigPtr;
-
 struct TChangeLogDownloaderConfig;
 typedef TIntrusivePtr<TChangeLogDownloaderConfig> TChangeLogDownloaderConfigPtr;
 
@@ -66,6 +61,9 @@ typedef TIntrusivePtr<TLeaderCommitterConfig> TLeaderCommitterConfigPtr;
 
 struct TSnapshotBuilderConfig;
 typedef TIntrusivePtr<TSnapshotBuilderConfig> TSnapshotBuilderConfigPtr;
+
+struct TChangeLogCacheConfig;
+typedef TIntrusivePtr<TChangeLogCacheConfig> TChangeLogCacheConfigPtr;
 
 struct TPersistentStateManagerConfig;
 typedef TIntrusivePtr<TPersistentStateManagerConfig> TPersistentStateManagerConfigPtr;

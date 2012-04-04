@@ -49,7 +49,7 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         Config->TotalReplicaCount);
 
     auto createChunksReq = ChunkProxy.CreateChunks();
-    createChunksReq->set_transaction_id(uploadTransactionId.ToProto());
+    *createChunksReq->mutable_transaction_id() = uploadTransactionId.ToProto();
     createChunksReq->set_chunk_count(1);
     createChunksReq->set_upload_replica_count(Config->UploadReplicaCount);
     auto createChunksRsp = createChunksReq->Invoke()->Get();
@@ -162,7 +162,7 @@ void TFileWriterBase::Close()
 
     LOG_INFO("Confirming chunk");
     auto confirmChunkReq = Writer->GetConfirmRequest();
-    auto confirmChunkRsp = CypressProxy.Execute(~confirmChunkReq)->Get();
+    auto confirmChunkRsp = CypressProxy.Execute(confirmChunkReq)->Get();
     if (!confirmChunkRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
             ~confirmChunkRsp->GetError().ToString());

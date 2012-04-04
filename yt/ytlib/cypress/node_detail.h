@@ -181,8 +181,8 @@ class TCypressNodeBase
     , public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, SubtreeLockIds);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLock*>, Locks);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLock*>, SubtreeLocks);
 
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
@@ -271,7 +271,7 @@ public:
 };
 
 typedef TScalarNode<Stroka> TStringNode;
-typedef TScalarNode<i64>    TInt64Node;
+typedef TScalarNode<i64>    TIntegerNode;
 typedef TScalarNode<double> TDoubleNode;
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -308,7 +308,7 @@ protected:
 };
 
 typedef TScalarNodeTypeHandler<Stroka> TStringNodeTypeHandler;
-typedef TScalarNodeTypeHandler<i64>    TInt64NodeTypeHandler;
+typedef TScalarNodeTypeHandler<i64>    TIntegerNodeTypeHandler;
 typedef TScalarNodeTypeHandler<double> TDoubleNodeTypeHandler;
 
 //////////////////////////////////////////////////////////////////////////////// 

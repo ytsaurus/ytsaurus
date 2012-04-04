@@ -1,11 +1,12 @@
 #pragma once
 
 #include "common.h"
+#include "public.h"
 #include "config.h"
 #include "leader_lookup.h"
 #include "election_manager_proxy.h"
+#include "cell_manager.h"
 
-#include <ytlib/meta_state/cell_manager.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/invoker.h>
@@ -42,7 +43,7 @@ public:
 
     TElectionManager(
         TElectionManagerConfig* config,
-        NMetaState::TCellManager* cellManager,
+        TCellManager* cellManager,
         IInvoker* controlInvoker,
         IElectionCallbacks* electionCallbacks);
 
@@ -96,7 +97,7 @@ private:
     TIntrusivePtr<TFollowerPinger> FollowerPinger;
 
     TElectionManagerConfigPtr Config;
-    NMetaState::TCellManagerPtr CellManager;
+    TCellManagerPtr CellManager;
     IInvoker::TPtr ControlInvoker;
     IElectionCallbacks::TPtr ElectionCallbacks;
 

@@ -3,6 +3,7 @@
 #include "common.h"
 #include "chunk_sequence_writer.h"
 #include "validating_writer.h"
+#include "sorted_validating_writer.h"
 #include "sync_writer.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -31,7 +32,7 @@ namespace NTableClient {
  */
 class TTableWriter
     : public NTransactionClient::TTransactionListener
-    , public ISyncWriter
+    , public ISyncTableWriter
 {   
 public:
     typedef TIntrusivePtr<TTableWriter> TPtr;
@@ -50,9 +51,19 @@ public:
         }
     };
 
+    struct TOptions
+    {
+        bool Sorted;
+
+        TOptions()
+            : Sorted(false)
+        { }
+    };
+
     //! Initializes an instance.
     TTableWriter(
         TConfig* config,
+        const TOptions& options,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         NTransactionClient::TTransactionManager* transactionManager,
@@ -72,12 +83,13 @@ public:
 
 private:
     TConfig::TPtr Config;
-
+    TOptions Options;
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NYTree::TYPath Path;
+
     bool IsOpen;
     bool IsClosed;
     NCypress::TCypressServiceProxy Proxy;

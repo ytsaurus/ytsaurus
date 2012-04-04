@@ -15,21 +15,20 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IAsyncWriter
+struct IAsyncBlockWriter
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IAsyncWriter> TPtr;
+    typedef TIntrusivePtr<IAsyncBlockWriter> TPtr;
 
-    virtual TAsyncError::TPtr AsyncOpen(
+    virtual TAsyncError AsyncOpen(
         const NProto::TTableChunkAttributes& attributes) = 0;
 
-    virtual TAsyncError::TPtr AsyncEndRow(
-        TKey& key,
-        std::vector<TChannelWriter::TPtr>& channels) = 0;
+    virtual TAsyncError AsyncEndRow(
+        const TKey& key,
+        const std::vector<TChannelWriter::TPtr>& channels) = 0;
 
-    virtual TAsyncError::TPtr AsyncClose(
-        TKey& lastKey,
-        std::vector<TChannelWriter::TPtr>& channels) = 0;
+    virtual TAsyncError AsyncClose(
+        const std::vector<TChannelWriter::TPtr>& channels) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,7 +55,7 @@ struct INode
 
     DECLARE_AS_METHODS(Composite)
     DECLARE_AS_METHODS(String)
-    DECLARE_AS_METHODS(Int64)
+    DECLARE_AS_METHODS(Integer)
     DECLARE_AS_METHODS(Double)
     DECLARE_AS_METHODS(List)
     DECLARE_AS_METHODS(Map)
@@ -105,7 +105,7 @@ struct IScalarNode
     virtual void SetValue(const TValue& value) = 0;
 };
 
-// Define the actual scalar node types: IStringNode, IInt64Node, IDoubleNode.
+// Define the actual scalar node types: IStringNode, IIntegerNode, IDoubleNode.
 #define DECLARE_SCALAR_TYPE(name, type, paramType) \
     struct I##name##Node \
         : IScalarNode<type> \
@@ -135,7 +135,7 @@ struct IScalarNode
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka, const Stroka&)
-DECLARE_SCALAR_TYPE(Int64, i64, i64)
+DECLARE_SCALAR_TYPE(Integer, i64, i64)
 DECLARE_SCALAR_TYPE(Double, double, double)
 
 #undef DECLARE_SCALAR_TYPE
@@ -291,7 +291,7 @@ struct INodeFactory
     //! Creates a string node.
     virtual IStringNodePtr CreateString() = 0;
     //! Creates an integer node.
-    virtual IInt64NodePtr CreateInt64() = 0;
+    virtual IIntegerNodePtr CreateInteger() = 0;
     //! Creates an FP number node.
     virtual IDoubleNodePtr CreateDouble() = 0;
     //! Creates a map node.

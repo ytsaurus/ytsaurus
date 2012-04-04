@@ -86,6 +86,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("uncompressed_size");
     attributes->push_back("compressed_size");
     attributes->push_back("row_count");
+    attributes->push_back("sorted");
     TBase::GetSystemAttributes(attributes);
 }
 
@@ -105,10 +106,9 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
         TraverseChunkTree(&chunkIds, tableNode.GetChunkList());
         BuildYsonFluently(consumer)
-            .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId)
-                {
-                    fluent.Item().Scalar(chunkId.ToString());
-                });
+            .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId) {
+                fluent.Item().Scalar(chunkId.ToString());
+            });
         return true;
     }
 
@@ -136,6 +136,12 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
         return true;
     }
 
+    if (name == "sorted") {
+        BuildYsonFluently(consumer)
+            .Scalar(chunkList.GetSorted());
+        return true;
+    }
+
     return TBase::GetSystemAttribute(name, consumer);
 }
 
@@ -144,7 +150,7 @@ void TTableNodeProxy::ParseYPath(
     NTableClient::TChannel* channel)
 {
     // Set defaults.
-    *channel = TChannel::Universal();
+    *channel = TChannel::CreateUniversal();
     
     // A simple shortcut.
     if (path.empty()) {
@@ -174,7 +180,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
     auto& impl = GetTypedImplForUpdate(ELockMode::Shared);
 
     const auto& chunkListId = impl.GetChunkList()->GetId();
-    response->set_chunk_list_id(chunkListId.ToProto());
+    *response->mutable_chunk_list_id() = chunkListId.ToProto();
 
     context->SetResponseInfo("ChunkListId: %s", ~chunkListId.ToString());
 
@@ -188,36 +194,55 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     yvector<TChunkId> chunkIds;
     TraverseChunkTree(&chunkIds, impl.GetChunkList());
 
+    auto channel = TChannel::CreateEmpty();
+    ParseYPath(context->GetPath(), &channel);
+
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& chunkId, chunkIds) {
-        auto* chunkInfo = response->add_chunks();
-        auto* slice = chunkInfo->mutable_slice();
+        auto* inputChunk = response->add_chunks();
+        auto* slice = inputChunk->mutable_slice();
 
-        slice->set_chunk_id(chunkId.ToProto());
+        *slice->mutable_chunk_id() = chunkId.ToProto();
         slice->mutable_start_limit();
         slice->mutable_end_limit();
 
-        const auto& chunk = chunkManager->GetChunk(chunkId);
-        if (chunk.IsConfirmed()) {
-            if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
-                chunkManager->FillHolderAddresses(chunkInfo->mutable_holder_addresses(), chunk);
-            }
+        *inputChunk->mutable_channel() = channel.ToProto();
 
-            if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
-                const auto& attributes = chunk.GetAttributes();
-                chunkInfo->set_attributes(attributes.Begin(), attributes.Size());
-            }
-        }   
+        const auto& chunk = chunkManager->GetChunk(chunkId);
+        if (!chunk.IsConfirmed()) {
+            ythrow yexception() << Sprintf("Attempt to fetch a table containing an unconfirmed chunk %s",
+                ~chunkId.ToString());
+        }
+
+        const auto& attributesBlob = chunk.GetAttributes();
+        NChunkHolder::NProto::TChunkAttributes attributes;
+        YVERIFY(DeserializeFromProto(&attributes, attributesBlob));
+        auto tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
+
+        inputChunk->set_approximate_row_count(tableAttributes.row_count());
+        inputChunk->set_approximate_data_size(chunk.GetSize());
+
+        if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
+            chunkManager->FillHolderAddresses(inputChunk->mutable_holder_addresses(), chunk);
+        }
+
+        if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
+            inputChunk->set_chunk_attributes(attributesBlob.Begin(), attributesBlob.Size());
+        }
     }
 
-    auto channel = TChannel::Empty();
-    ParseYPath(
-        context->GetPath(),
-        &channel);
+    context->SetResponseInfo("ChunkCount: %d", static_cast<int>(chunkIds.size()));
 
-    *response->mutable_channel() = channel.ToProto();
+    context->Reply();
+}
 
-    context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
+{
+    const auto& impl = GetTypedImplForUpdate();
+
+    auto* rootChunkList = impl.GetChunkList();
+    YASSERT(rootChunkList->Parents().empty());
+    rootChunkList->SetSorted(true);
 
     context->Reply();
 }

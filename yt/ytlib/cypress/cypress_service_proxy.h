@@ -21,7 +21,7 @@ public:
         return "CypressService";
     }
 
-    TCypressServiceProxy(NRpc::IChannel* channel)
+    TCypressServiceProxy(NRpc::IChannel::TPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
@@ -30,7 +30,7 @@ public:
     //! Executes a single Cypress request.
     template <class TTypedRequest>
     TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
-    Execute(TTypedRequest* innerRequest);
+    Execute(TIntrusivePtr<TTypedRequest> innerRequest);
 
     class TReqExecuteBatch;
     class TRspExecuteBatch;
@@ -44,7 +44,7 @@ public:
         typedef TIntrusivePtr<TReqExecuteBatch> TPtr;
 
         TReqExecuteBatch(
-            NRpc::IChannel* channel,
+            NRpc::IChannel::TPtr channel,
             const Stroka& path,
             const Stroka& verb);
 
@@ -64,7 +64,7 @@ public:
          *  (thus avoiding complicated and error-prone index calculations).
          */
         TIntrusivePtr<TReqExecuteBatch> AddRequest(
-            NYTree::TYPathRequest* innerRequest,
+            NYTree::TYPathRequestPtr innerRequest,
             const Stroka& key = "");
 
         //! Returns the current number of individual requests in the batch.

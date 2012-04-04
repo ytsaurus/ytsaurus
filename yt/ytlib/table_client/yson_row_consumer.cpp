@@ -6,7 +6,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRowConsumer::TRowConsumer(ISyncWriter* writer)
+TRowConsumer::TRowConsumer(ISyncTableWriter* writer)
     : Writer(writer)
     , RowIndex(0)
     , InsideRow(false)
@@ -20,7 +20,7 @@ void TRowConsumer::OnStringScalar(const Stroka& value, bool hasAttributes)
     Writer->Write(Column, TValue(value));
 }
 
-void TRowConsumer::OnInt64Scalar(i64 value, bool hasAttributes)
+void TRowConsumer::OnIntegerScalar(i64 value, bool hasAttributes)
 {
     CheckNoAttributes(hasAttributes);
     CheckInsideRow();
@@ -50,7 +50,7 @@ void TRowConsumer::OnBeginList()
 
 void TRowConsumer::OnListItem()
 {
-    YUNREACHABLE();
+    // Represents separator between rows, do nothing.
 }
 
 void TRowConsumer::OnEndList(bool hasAttributes)

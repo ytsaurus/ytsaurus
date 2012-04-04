@@ -142,7 +142,7 @@ public:
     TWriteBackService(
         const Stroka& fileName,
         INode* root,
-        IYPathService* underlyingService)
+        IYPathServicePtr underlyingService)
         : FileName(fileName)
         , Root(root)
         , UnderlyingService(underlyingService)
@@ -155,7 +155,7 @@ public:
             return TResolveResult::Here(result.GetPath());
         } else {
             return TResolveResult::There(
-                ~New<TWriteBackService>(FileName, ~Root, ~result.GetService()),
+                New<TWriteBackService>(FileName, ~Root, result.GetService()),
                 result.GetPath());
         }
     }

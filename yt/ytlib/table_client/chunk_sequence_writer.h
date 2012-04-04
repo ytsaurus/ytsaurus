@@ -18,7 +18,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkSequenceWriter
-    : public IAsyncWriter
+    : public IAsyncBlockWriter
 {
 public:
     typedef TIntrusivePtr<TChunkSequenceWriter> TPtr;
@@ -28,11 +28,7 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        i64 MaxChunkSize;
-
-        //! When current chunk size relative to #MaxChunkSize overcomes this threshold (given in percents)
-        //! the writer prepares the next chunk.
-        int NextChunkThreshold;
+        i64 DesiredChunkSize;
 
         int TotalReplicaCount;
         int UploadReplicaCount;
@@ -42,13 +38,9 @@ public:
 
         TConfig()
         {
-            Register("max_chunk_size", MaxChunkSize)
+            Register("desired_chunk_size", DesiredChunkSize)
                 .GreaterThan(0)
                 .Default(1024 * 1024 * 1024);
-            Register("next_chunk_threshold", NextChunkThreshold)
-                .GreaterThan(0)
-                .LessThan(100)
-                .Default(70);
             Register("total_replica_count", TotalReplicaCount)
                 .GreaterThanOrEqual(1)
                 .Default(3);
@@ -73,20 +65,20 @@ public:
         TConfig* config,
         NRpc::IChannel* masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkServer::TChunkListId& parentChunkList);
+        const NChunkServer::TChunkListId& parentChunkList,
+        i64 expectedRowCount = std::numeric_limits<i64>::max());
 
     ~TChunkSequenceWriter();
 
-    TAsyncError::TPtr AsyncOpen(
+    TAsyncError AsyncOpen(
         const NProto::TTableChunkAttributes& attributes);
 
-    TAsyncError::TPtr AsyncEndRow(
-        TKey& key,
-        std::vector<TChannelWriter::TPtr>& channels);
+    TAsyncError AsyncEndRow(
+        const TKey& key,
+        const std::vector<TChannelWriter::TPtr>& channels);
 
-    TAsyncError::TPtr AsyncClose(
-        TKey& lastKey,
-        std::vector<TChannelWriter::TPtr>& channels);
+    TAsyncError AsyncClose(
+        const std::vector<TChannelWriter::TPtr>& channels);
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -95,30 +87,36 @@ private:
     void InitCurrentChunk(TChunkWriter::TPtr nextChunk);
     void OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp);
 
-    bool IsNextChunkTime() const;
-
     void FinishCurrentChunk(
-        TKey& lastKey,
-        std::vector<TChannelWriter::TPtr>& channels);
+        const std::vector<TChannelWriter::TPtr>& channels);
 
     void OnChunkClosed(
         TChunkWriter::TPtr currentChunk,
-        TAsyncError::TPtr finishResult,
+        TAsyncError finishResult,
         TError error);
 
     void OnChunkRegistered(
         NChunkClient::TChunkId chunkId,
-        TAsyncError::TPtr finishResult,
+        TAsyncError finishResult,
         NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     void OnChunkFinished(
         NChunkClient::TChunkId chunkId,
         TError error);
 
-    void OnRowEnded(TError error);
+    void OnRowEnded(
+        const std::vector<TChannelWriter::TPtr>& channels,
+        TError error);
+
     void OnClose();
 
     TConfig::TPtr Config;
+
+    const i64 ExpectedRowCount;
+    i64 CurrentRowCount;
+
+    //! Total compressed size of data in the completed chunks.
+    i64 CompleteChunkSize;
 
     TProxy ChunkProxy;
     NCypress::TCypressServiceProxy CypressProxy;

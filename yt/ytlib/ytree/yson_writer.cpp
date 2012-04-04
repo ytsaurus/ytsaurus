@@ -99,10 +99,10 @@ void TYsonWriter::OnStringScalar(const Stroka& value, bool hasAttributes)
     }
 }
 
-void TYsonWriter::OnInt64Scalar(i64 value, bool hasAttributes)
+void TYsonWriter::OnIntegerScalar(i64 value, bool hasAttributes)
 {
     if (Format == EYsonFormat::Binary) {
-        Stream->Write(Int64Marker);
+        Stream->Write(IntegerMarker);
         WriteVarInt64(Stream, value);
     } else {
         Stream->Write(ToString(value));

@@ -213,7 +213,7 @@ public:
 
     void Deserialize()
     {
-        if (!DeserializeFromProtobuf(&Request_, Context->GetRequestBody())) {
+        if (!DeserializeFromProto(&Request_, Context->GetRequestBody())) {
             ythrow TServiceException(EErrorCode::ProtocolError) <<
                 "Error deserializing request body";
         }
@@ -307,9 +307,7 @@ public:
         NLog::TLogger& Logger = RpcLogger;
         if (error.IsOK()) {
             TBlob responseBlob;
-            if (!SerializeToProtobuf(&Response_, &responseBlob)) {
-                LOG_FATAL("Error serializing response");
-            }
+            YVERIFY(SerializeToProto(&Response_, &responseBlob));
             this->Context->SetResponseBody(MoveRV(responseBlob));
         }
         this->Context->Reply(error);
@@ -393,17 +391,7 @@ protected:
         //! Initializes the instance.
         TMethodDescriptor(
             const Stroka& verb,
-            THandler&& handler,
-            bool oneWay = false)
-            : Verb(verb)
-            , Handler(MoveRV(handler))
-            , OneWay(oneWay)
-        { }
-
-        //! Initializes the instance.
-        TMethodDescriptor(
-            const Stroka& verb,
-            const THandler& handler,
+            THandler handler,
             bool oneWay = false)
             : Verb(verb)
             , Handler(handler)
@@ -425,13 +413,15 @@ protected:
         : public TIntrinsicRefCounted
     {
         TRuntimeMethodInfo(
-            const TMethodDescriptor& info,
+            const TMethodDescriptor& descriptor,
             IInvoker* invoker,
-            const NYTree::TYPath& path);
+            const NYTree::TYPath& profilingPath);
 
         TMethodDescriptor Descriptor;
         //! Invoker that is used to handle all requests for this method.
-        TIntrusivePtr<IInvoker> Invoker;
+        IInvoker::TPtr Invoker;
+        //! Path prefix for all profiling information regarding this method.
+        NYTree::TYPath ProfilingPath;
         //! Increments with each method call.
         NProfiling::TRateCounter RequestCounter;
     };
@@ -496,7 +486,7 @@ protected:
     void RegisterMethod(const TMethodDescriptor& descriptor, IInvoker* invoker);
 
 private:
-    TIntrusivePtr<IInvoker> DefaultInvoker;
+    IInvoker::TPtr DefaultInvoker;
     Stroka ServiceName;
     Stroka LoggingCategory;
     NProfiling::TRateCounter RequestCounter;

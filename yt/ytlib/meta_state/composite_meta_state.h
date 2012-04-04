@@ -21,18 +21,7 @@ protected:
     TCompositeMetaStatePtr MetaState;
 
     template <class TMessage, class TResult>
-    void RegisterMethod(
-        TCallback<TResult(const TMessage&)> changeMethod);
-
-    // TODO: move to inl
-    template <class TThis, class TMessage, class TResult>
-    void RegisterMethod(
-        TThis* this_,
-        TResult (TThis::* changeMethod)(const TMessage&))
-    {
-        // XXX(sandello): Capture policy here?
-        RegisterMethod(BIND(changeMethod, this_));
-    }
+    void RegisterMethod(TCallback<TResult(const TMessage&)> changeMethod);
 
     bool IsLeader() const;
     bool IsFolllower() const;

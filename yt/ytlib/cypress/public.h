@@ -10,6 +10,8 @@ namespace NCypress {
 class TCypressManager;
 typedef TIntrusivePtr<TCypressManager> TCypressManagerPtr;
 
+class TLock;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NCypress

@@ -50,7 +50,7 @@ TEST_F(TTreeBuilderTest, NestedMaps)
         EXPECT_CALL(Mock, OnMapItem("b"));
             EXPECT_CALL(Mock, OnBeginMap());
             EXPECT_CALL(Mock, OnMapItem("c"));
-            EXPECT_CALL(Mock, OnInt64Scalar(42, false));
+            EXPECT_CALL(Mock, OnIntegerScalar(42, false));
             EXPECT_CALL(Mock, OnEndMap(false));
         EXPECT_CALL(Mock, OnEndMap(false));
     EXPECT_CALL(Mock, OnEndMap(false));
@@ -64,7 +64,7 @@ TEST_F(TTreeBuilderTest, NestedMaps)
         builder->OnMapItem("b");
             builder->OnBeginMap();
             builder->OnMapItem("c");
-            builder->OnInt64Scalar(42, false);
+            builder->OnIntegerScalar(42, false);
             builder->OnEndMap(false);
         builder->OnEndMap(false);
     builder->OnEndMap(false);
@@ -79,7 +79,7 @@ TEST_F(TTreeBuilderTest, MapWithAttributes)
     EXPECT_CALL(Mock, OnBeginMap());
 
     EXPECT_CALL(Mock, OnMapItem("mode"));
-        EXPECT_CALL(Mock, OnInt64Scalar(755, false));
+        EXPECT_CALL(Mock, OnIntegerScalar(755, false));
 
     EXPECT_CALL(Mock, OnMapItem("path"));
         EXPECT_CALL(Mock, OnStringScalar("/home/sandello", false));
@@ -118,7 +118,7 @@ TEST_F(TTreeBuilderTest, MapWithAttributes)
         builder->OnStringScalar("/home/sandello", false);
 
     builder->OnMapItem("mode");
-        builder->OnInt64Scalar(755, false);
+        builder->OnIntegerScalar(755, false);
 
     builder->OnEndMap(true);
 

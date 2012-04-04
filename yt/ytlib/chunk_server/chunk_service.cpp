@@ -78,7 +78,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
 
     TMsgRegisterHolder message;
     message.set_address(address);
-    message.set_incarnation_id(incarnationId.ToProto());
+    *message.mutable_incarnation_id() = incarnationId.ToProto();
     *message.mutable_statistics() = statistics;
     chunkManager
         ->InitiateRegisterHolder(message)
@@ -232,7 +232,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
     }
 
     TMsgCreateChunks message;
-    message.set_transaction_id(transactionId.ToProto());
+    *message.mutable_transaction_id() = transactionId.ToProto();
     message.set_chunk_count(chunkCount);
     chunkManager
         ->InitiateCreateChunks(message)
@@ -240,7 +240,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
             {
                 YASSERT(chunkIds.size() == chunkCount);
                 for (int index = 0; index < chunkCount; ++index) {
-                    response->mutable_chunks(index)->set_chunk_id(chunkIds[index].ToProto());
+                    *response->mutable_chunks(index)->mutable_chunk_id() = chunkIds[index].ToProto();
                 }
 
                 context->Reply();

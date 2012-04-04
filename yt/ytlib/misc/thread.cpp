@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "common.h"
 #include "thread.h"
 
 #include <util/system/thread.i>

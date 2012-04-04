@@ -12,9 +12,9 @@ class TSortedValidatingWriter
 public:
     TSortedValidatingWriter(
         const TSchema& schema,
-        IAsyncWriter* writer);
+        IAsyncBlockWriter* writer);
 
-    TAsyncError::TPtr AsyncEndRow();
+    TAsyncError AsyncEndRow();
 
 private:
     TKey PreviousKey;

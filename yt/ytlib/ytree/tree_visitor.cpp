@@ -27,17 +27,17 @@ public:
     /*!
      *  \param root A root from which to start.
      */
-    void Visit(INode* root);
+    void Visit(INodePtr root);
 
 private:
     IYsonConsumer* Consumer;
     bool VisitAttributes_;
 
-    void VisitAny(INode* node);
-    void VisitScalar(INode* node, bool hasAttributes);
-    void VisitEntity(INode* node, bool hasAttributes);
-    void VisitList(IListNode* node, bool hasAttributes);
-    void VisitMap(IMapNode* node, bool hasAttributes);
+    void VisitAny(INodePtr node);
+    void VisitScalar(INodePtr node, bool hasAttributes);
+    void VisitEntity(INodePtr node, bool hasAttributes);
+    void VisitList(IListNodePtr node, bool hasAttributes);
+    void VisitMap(IMapNodePtr node, bool hasAttributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,12 +47,12 @@ TTreeVisitor::TTreeVisitor(IYsonConsumer* consumer, bool visitAttributes)
     , VisitAttributes_(visitAttributes)
 { }
 
-void TTreeVisitor::Visit(INode* root)
+void TTreeVisitor::Visit(INodePtr root)
 {
     VisitAny(root);
 }
 
-void TTreeVisitor::VisitAny(INode* node)
+void TTreeVisitor::VisitAny(INodePtr node)
 {
     yhash_set<Stroka> attributeKeySet;
     if (VisitAttributes_) {
@@ -62,7 +62,7 @@ void TTreeVisitor::VisitAny(INode* node)
 
     switch (node->GetType()) {
         case ENodeType::String:
-        case ENodeType::Int64:
+        case ENodeType::Integer:
         case ENodeType::Double:
             VisitScalar(node, hasAttributes);
             break;
@@ -72,11 +72,11 @@ void TTreeVisitor::VisitAny(INode* node)
             break;
 
         case ENodeType::List:
-            VisitList(~node->AsList(), hasAttributes);
+            VisitList(node->AsList(), hasAttributes);
             break;
 
         case ENodeType::Map:
-            VisitMap(~node->AsMap(), hasAttributes);
+            VisitMap(node->AsMap(), hasAttributes);
             break;
 
         default:
@@ -96,15 +96,15 @@ void TTreeVisitor::VisitAny(INode* node)
     }
 }
 
-void TTreeVisitor::VisitScalar(INode* node, bool hasAttributes)
+void TTreeVisitor::VisitScalar(INodePtr node, bool hasAttributes)
 {
     switch (node->GetType()) {
         case ENodeType::String:
             Consumer->OnStringScalar(node->GetValue<Stroka>(), hasAttributes);
             break;
 
-        case ENodeType::Int64:
-            Consumer->OnInt64Scalar(node->GetValue<i64>(), hasAttributes);
+        case ENodeType::Integer:
+            Consumer->OnIntegerScalar(node->GetValue<i64>(), hasAttributes);
             break;
 
         case ENodeType::Double:
@@ -116,38 +116,38 @@ void TTreeVisitor::VisitScalar(INode* node, bool hasAttributes)
     }
 }
 
-void TTreeVisitor::VisitEntity(INode* node, bool hasAttributes)
+void TTreeVisitor::VisitEntity(INodePtr node, bool hasAttributes)
 {
     UNUSED(node);
     Consumer->OnEntity(hasAttributes);
 }
 
-void TTreeVisitor::VisitList(IListNode* node, bool hasAttributes)
+void TTreeVisitor::VisitList(IListNodePtr node, bool hasAttributes)
 {
     Consumer->OnBeginList();
     for (int i = 0; i < node->GetChildCount(); ++i) {
         auto child = node->GetChild(i);
         Consumer->OnListItem();
-        VisitAny(~child);
+        VisitAny(child);
     }
     Consumer->OnEndList(hasAttributes);
 }
 
-void TTreeVisitor::VisitMap(IMapNode* node, bool hasAttributes)
+void TTreeVisitor::VisitMap(IMapNodePtr node, bool hasAttributes)
 {
     Consumer->OnBeginMap();
     auto children = node->GetChildren();
     std::sort(children.begin(), children.end());
     FOREACH(const auto& pair, children) {
         Consumer->OnMapItem(pair.first);
-        VisitAny(~pair.second);
+        VisitAny(pair.second);
     }
     Consumer->OnEndMap(hasAttributes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void VisitTree(INode* root, IYsonConsumer* consumer, bool visitAttributes)
+void VisitTree(INodePtr root, IYsonConsumer* consumer, bool visitAttributes)
 {
     TTreeVisitor treeVisitor(consumer, visitAttributes);
     treeVisitor.Visit(root);

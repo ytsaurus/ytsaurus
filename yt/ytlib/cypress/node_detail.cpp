@@ -18,7 +18,7 @@ using namespace NCellMaster;
 namespace NDetail {
 
 const EObjectType::EDomain TCypressScalarTypeTraits<Stroka>::ObjectType = EObjectType::StringNode;
-const EObjectType::EDomain TCypressScalarTypeTraits<i64>::ObjectType = EObjectType::Int64Node;
+const EObjectType::EDomain TCypressScalarTypeTraits<i64>::ObjectType = EObjectType::IntegerNode;
 const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjectType::DoubleNode;
 
 } // namespace NDetail
@@ -27,13 +27,6 @@ const EObjectType::EDomain TCypressScalarTypeTraits<double>::ObjectType = EObjec
 
 } // namespace NCypress
 } // namespace NYT
-
-i32 hash<NYT::NCypress::TVersionedNodeId>::operator()(const NYT::NCypress::TVersionedNodeId& id) const
-{
-    return
-        static_cast<i32>(THash<NYT::TGuid>()(id.ObjectId)) * 497 +
-        static_cast<i32>(THash<NYT::TGuid>()(id.TransactionId));
-}
 
 namespace NYT {
 namespace NCypress {
@@ -83,8 +76,8 @@ i32 TCypressNodeBase::GetObjectRefCounter() const
 void TCypressNodeBase::Save(TOutputStream* output) const
 {
     TObjectBase::Save(output);
-    SaveSet(output, LockIds_);
-    SaveSet(output, SubtreeLockIds_);
+    SaveObjects(output, Locks_);
+    SaveObjects(output, SubtreeLocks_);
     ::Save(output, ParentId_);
     ::Save(output, LockMode_);
 }
@@ -93,8 +86,8 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectBase::Load(input);
-    LoadSet(input, LockIds_);
-    LoadSet(input, SubtreeLockIds_);
+    LoadObjects(input, Locks_, context);
+    LoadObjects(input, SubtreeLocks_, context);
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
 }

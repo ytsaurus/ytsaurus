@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include "scheduler_bootstrap.h"
 
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/errortrace.h>
@@ -7,19 +6,30 @@
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/chunk_holder/config.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
 #include <ytlib/cell_node/bootstrap.h>
 #include <ytlib/cell_node/config.h>
 #include <ytlib/cell_node/bootstrap.h>
-#include <ytlib/chunk_holder/config.h>
+#include <ytlib/cell_scheduler/config.h>
+#include <ytlib/cell_scheduler/bootstrap.h>
+#include <ytlib/scheduler/config.h>
+#include <ytlib/job_proxy/config.h>
+#include <ytlib/job_proxy/job_proxy.h>
 #include <ytlib/meta_state/async_change_log.h>
+
+#include <ytlib/misc/tclap_helpers.h>
+#include <tclap/CmdLine.h>
+
+#include <build.h>
 
 namespace NYT {
 
-using namespace NLastGetopt;
 using namespace NYTree;
 using namespace NElection;
+using namespace NScheduler;
+using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,46 +41,60 @@ DECLARE_ENUM(EExitCode,
     ((BootstrapError)(2))
 );
 
+struct TArgsParser
+{
+public:
+    TArgsParser()
+        : CmdLine("Command line", ' ', YT_VERSION)
+        , CellNode("", "node", "start cell node")
+        , CellMaster("", "master", "start cell master")
+        , Scheduler("", "scheduler", "start scheduler")
+        , JobProxy("", "job-proxy", "start job proxy")
+        , JobId("", "job-id", "job id (for job-proxy mode)", false, "", "ID")
+        , Port("", "port", "port to listen", false, -1, "PORT")
+        , Config("", "config", "configuration file", false, "", "FILE")
+        , ConfigTemplate("", "config-template", "print configuration file template")
+    {
+        CmdLine.add(CellNode);
+        CmdLine.add(CellMaster);
+        CmdLine.add(Scheduler);
+        CmdLine.add(JobProxy);
+        CmdLine.add(JobId);
+        CmdLine.add(Port);
+        CmdLine.add(Config);
+        CmdLine.add(ConfigTemplate);
+    }
+
+    TCLAP::CmdLine CmdLine;
+
+    TCLAP::SwitchArg CellNode;
+    TCLAP::SwitchArg CellMaster;
+    TCLAP::SwitchArg Scheduler;
+    TCLAP::SwitchArg JobProxy;
+
+    TCLAP::ValueArg<Stroka> JobId;
+    TCLAP::ValueArg<int> Port;
+    TCLAP::ValueArg<Stroka> Config;
+    TCLAP::SwitchArg ConfigTemplate;
+};
+
+
 EExitCode GuardedMain(int argc, const char* argv[])
 {
-    // Configure options parser.
-    TOpts opts;
+    TArgsParser parser;
 
-    opts.AddHelpOption();
+    parser.CmdLine.parse(argc, argv);
 
-    const auto& cellNodeOpt = opts.AddLongOption("node", "start cell node")
-        .NoArgument()
-        .Optional();
+    // Figure out the mode: cell master, cell node, scheduler or job proxy.
+    bool isCellMaster = parser.CellMaster.getValue();
+    bool isCellNode = parser.CellNode.getValue();
+    bool isScheduler = parser.Scheduler.getValue();
+    bool isJobProxy = parser.JobProxy.getValue();
 
-    const auto& cellMasterOpt = opts.AddLongOption("master", "start cell master")
-        .NoArgument()
-        .Optional();
+    bool printConfigTemplate = parser.ConfigTemplate.getValue();
 
-    const auto& schedulerOpt = opts.AddLongOption("scheduler", "start scheduler")
-        .NoArgument()
-        .Optional();
-
-    int port = -1;
-    opts.AddLongOption("port", "port to listen")
-        .Optional()
-        .RequiredArgument("PORT")
-        .StoreResult(&port);
-
-    Stroka configFileName;
-    opts.AddLongOption("config", "configuration file")
-        .RequiredArgument("FILE")
-        .StoreResult(&configFileName);
-
-    const auto& configTemplateOpt = opts.AddLongOption("config-template", "print configuration file template")
-        .NoArgument()
-        .Optional();
-
-    TOptsParseResult results(&opts, argc, argv);
-
-    // Figure out the mode: cell master or chunk holder.
-    bool isCellMaster = results.Has(&cellMasterOpt);
-    bool isCellNode = results.Has(&cellNodeOpt);
-    bool isScheduler = results.Has(&schedulerOpt);
+    Stroka configFileName = parser.Config.getValue();
+    int port = parser.Port.getValue();
 
     int modeCount = 0;
     if (isCellNode) {
@@ -84,28 +108,34 @@ EExitCode GuardedMain(int argc, const char* argv[])
         ++modeCount;
     }
 
+    if (isJobProxy) {
+        ++modeCount;
+    }
+
     if (modeCount != 1) {
-        opts.PrintUsage(results.GetProgramName());
+        TCLAP::StdOutput().usage(parser.CmdLine);
         return EExitCode::OptionsError;
     }
 
-    // Configure logging.
-    NLog::TLogManager::Get()->Configure(configFileName, "logging");
-
-    // Parse configuration file.
     INodePtr configNode;
-    try {
-        TIFStream configStream(configFileName);
-        configNode = DeserializeFromYson(&configStream);
-    } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error reading server configuration\n%s",
-            ex.what());
+    if (!printConfigTemplate) {
+        // Configure logging.
+        NLog::TLogManager::Get()->Configure(configFileName, "logging");
+
+        // Parse configuration file.
+        try {
+            TIFStream configStream(configFileName);
+            configNode = DeserializeFromYson(&configStream);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error reading server configuration\n%s",
+                ex.what());
+        }
     }
 
     // Start an appropriate server.
     if (isCellNode) {
         auto config = New<NCellNode::TCellNodeConfig>();
-        if (results.Has(&configTemplateOpt)) {
+        if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
@@ -115,13 +145,14 @@ EExitCode GuardedMain(int argc, const char* argv[])
             config->Load(~configNode, false);
 
             // Override RPC port.
+            // TODO(babenko): enable overriding arbitrary options from the command line
             if (port >= 0) {
                 config->RpcPort = port;
             }
 
             config->Validate();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing chunk holder configuration\n%s",
+            ythrow yexception() << Sprintf("Error parsing cell node configuration\n%s",
                 ex.what());
         }
 
@@ -132,7 +163,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (isCellMaster) {
         auto config = New<NCellMaster::TCellMasterConfig>();
-        if (results.Has(&configTemplateOpt)) {
+        if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
@@ -152,13 +183,13 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 ex.what());
         }
 
-        NCellMaster::TBootstrap bootstrap(configFileName, ~config);
+        NCellMaster::TBootstrap bootstrap(configFileName, config);
         bootstrap.Run();
     }
 
     if (isScheduler) {
-        auto config = New<TSchedulerBootstrap::TConfig>();
-        if (results.Has(&configTemplateOpt)) {
+        auto config = New<NCellScheduler::TCellSchedulerConfig>();
+        if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
@@ -167,12 +198,40 @@ EExitCode GuardedMain(int argc, const char* argv[])
         try {
             config->Load(~configNode);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
+            ythrow yexception() << Sprintf("Error parsing cell scheduler configuration\n%s",
                 ex.what());
         }
 
-        TSchedulerBootstrap schedulerBootstrap(configFileName, ~config);
-        schedulerBootstrap.Run();
+        NCellScheduler::TBootstrap bootstrap(configFileName, config);
+        bootstrap.Run();
+    }
+
+    if (isJobProxy) {
+        auto config = New<NJobProxy::TJobProxyConfig>();
+        if (printConfigTemplate) {
+            TYsonWriter writer(&Cout, EYsonFormat::Pretty);
+            config->Save(&writer);
+            return EExitCode::OK;
+        }
+
+        NJobProxy::TJobId jobId;
+        try {
+            jobId = TGuid::FromString(parser.JobId.getValue());
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Invalid job-id value: %s",
+                ex.what());
+            return EExitCode::OptionsError;
+        }
+
+        try {
+            config->Load(~configNode);
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Error parsing job-proxy configuration\n%s",
+                ex.what());
+        }
+
+        TJobProxy jobProxy(~config, jobId);
+        jobProxy.Start();
     }
 
     // Actually this will never happen.

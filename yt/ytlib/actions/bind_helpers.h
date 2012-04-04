@@ -293,33 +293,33 @@ struct TUnwrapTraits< TConstRefWrapper<T> >
 } // namespace NDetail
 
 template <class T>
-static inline NDetail::TUnretainedWrapper<T> Unretained(T* x)
+static inline NYT::NDetail::TUnretainedWrapper<T> Unretained(T* x)
 {
-    return NDetail::TUnretainedWrapper<T>(x);
+    return NYT::NDetail::TUnretainedWrapper<T>(x);
 }
 
 template <class T>
-static inline NDetail::TOwnedWrapper<T> Owned(T* x)
+static inline NYT::NDetail::TOwnedWrapper<T> Owned(T* x)
 {
-    return NDetail::TOwnedWrapper<T>(x);
+    return NYT::NDetail::TOwnedWrapper<T>(x);
 }
 
 template <class T>
-static inline NDetail::TPassedWrapper<T> Passed(T&& x)
+static inline NYT::NDetail::TPassedWrapper<T> Passed(T&& x)
 {
-    return NDetail::TPassedWrapper<T>(ForwardRV<T>(x));
+    return NYT::NDetail::TPassedWrapper<T>(ForwardRV<T>(x));
 }
 
 template <class T>
-static inline NDetail::TPassedWrapper<T> Passed(T* x)
+static inline NYT::NDetail::TPassedWrapper<T> Passed(T* x)
 {
-    return NDetail::TPassedWrapper<T>(MoveRV(*x));
+    return NYT::NDetail::TPassedWrapper<T>(MoveRV(*x));
 }
 
 template <class T>
-static inline NDetail::TConstRefWrapper<T> ConstRef(const T& x)
+static inline NYT::NDetail::TConstRefWrapper<T> ConstRef(const T& x)
 {
-    return NDetail::TConstRefWrapper<T>(x);
+    return NYT::NDetail::TConstRefWrapper<T>(x);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -350,17 +350,17 @@ struct TIgnoreResultWrapper< TCallback<T> >
 } // namespace NDetail
 
 template <class T>
-static inline NDetail::TIgnoreResultWrapper<T>
+static inline NYT::NDetail::TIgnoreResultWrapper<T>
 IgnoreResult(const T& x)
 {
-    return NDetail::TIgnoreResultWrapper< T >(x);
+    return NYT::NDetail::TIgnoreResultWrapper< T >(x);
 }
 
 template <class T>
-static inline NDetail::TIgnoreResultWrapper< TCallback<T> >
+static inline NYT::NDetail::TIgnoreResultWrapper< TCallback<T> >
 IgnoreResult(const TCallback<T>& x)
 {
-    return NDetail::TIgnoreResultWrapper< TCallback<T> >(x);
+    return NYT::NDetail::TIgnoreResultWrapper< TCallback<T> >(x);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

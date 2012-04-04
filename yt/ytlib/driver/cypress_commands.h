@@ -14,7 +14,6 @@ struct TGetRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
 
     TGetRequest()
     {
@@ -22,16 +21,19 @@ struct TGetRequest
     }
 };
 
+typedef TIntrusivePtr<TGetRequest> TGetRequestPtr;
+
 class TGetCommand
-    : public TCommandBase<TGetRequest>
+    : public TTypedCommandBase<TGetRequest>
 {
 public:
-    TGetCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
-    { }
+    explicit TGetCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
+   { }
 
 private:
-    virtual void DoExecute(TGetRequest* request);
+    virtual void DoExecute(TGetRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +43,6 @@ struct TSetRequest
 {
     NYTree::TYPath Path;
     NYTree::INodePtr Value;
-    NYTree::INodePtr Stream;
 
     TSetRequest()
     {
@@ -50,26 +51,22 @@ struct TSetRequest
     }
 
     virtual void DoValidate() const
-    {
-        if (!Value && !Stream) {
-            ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is given");
-        }
-        if (Value && Stream) {
-            ythrow yexception() << Sprintf("Both \"value\" and \"stream\" are given");
-        }
-    }
+    { }
 };
 
+typedef TIntrusivePtr<TSetRequest> TSetRequestPtr;
+
 class TSetCommand
-    : public TCommandBase<TSetRequest>
+    : public TTypedCommandBase<TSetRequest>
 {
 public:
-    TSetCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TSetCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
-    virtual void DoExecute(TSetRequest* request);
+    virtual void DoExecute(TSetRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,16 +82,19 @@ struct TRemoveRequest
     }
 };
 
+typedef TIntrusivePtr<TRemoveRequest> TRemoveRequestPtr;
+
 class TRemoveCommand
-    : public TCommandBase<TRemoveRequest>
+    : public TTypedCommandBase<TRemoveRequest>
 {
 public:
-    TRemoveCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TRemoveCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
-    virtual void DoExecute(TRemoveRequest* request);
+    virtual void DoExecute(TRemoveRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +103,6 @@ struct TListRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
 
     TListRequest()
     {
@@ -111,16 +110,19 @@ struct TListRequest
     }
 };
 
+typedef TIntrusivePtr<TListRequest> TListRequestPtr;
+
 class TListCommand
-    : public TCommandBase<TListRequest>
+    : public TTypedCommandBase<TListRequest>
 {
 public:
-    TListCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TListCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
-    virtual void DoExecute(TListRequest* request);
+    virtual void DoExecute(TListRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,16 +144,19 @@ struct TCreateRequest
     }
 };
 
+typedef TIntrusivePtr<TCreateRequest> TCreateRequestPtr;
+
 class TCreateCommand
-    : public TCommandBase<TCreateRequest>
+    : public TTypedCommandBase<TCreateRequest>
 {
 public:
-    TCreateCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
-    { }
+    explicit TCreateCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
+   { }
 
 private:
-    virtual void DoExecute(TCreateRequest* request);
+    virtual void DoExecute(TCreateRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,16 +175,19 @@ struct TLockRequest
     }
 };
 
+typedef TIntrusivePtr<TLockRequest> TLockRequestPtr;
+
 class TLockCommand
-    : public TCommandBase<TLockRequest>
+    : public TTypedCommandBase<TLockRequest>
 {
 public:
-    TLockCommand(ICommandHost* commandHost)
-        : TCommandBase(commandHost)
+    explicit TLockCommand(ICommandHost* host)
+        : TTypedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
-    virtual void DoExecute(TLockRequest* request);
+    virtual void DoExecute(TLockRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

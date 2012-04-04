@@ -1,10 +1,14 @@
 #include "stdafx.h"
 #include "follower_tracker.h"
 #include "common.h"
-#include "cell_manager.h"
+#include "config.h"
+
+#include <ytlib/election/cell_manager.h>
 
 namespace NYT {
 namespace NMetaState {
+
+using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 

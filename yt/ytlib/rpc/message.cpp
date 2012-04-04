@@ -1,14 +1,13 @@
 #include "stdafx.h"
 #include "message.h"
-#include <ytlib/rpc/rpc.pb.h>
 
-#include <ytlib/misc/serialize.h>
+#include <ytlib/rpc/rpc.pb.h>
+#include <ytlib/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,9 +23,7 @@ NBus::IMessage::TPtr CreateRequestMessage(
     yvector<TSharedRef> parts;
 
     TBlob headerBlob;
-    if (!SerializeToProtobuf(&header, &headerBlob)) {
-        LOG_FATAL("Could not serialize request header");
-    }
+    YVERIFY(SerializeToProto(&header, &headerBlob));
 
     parts.push_back(TSharedRef(MoveRV(headerBlob)));
     parts.push_back(TSharedRef(MoveRV(body)));
@@ -46,9 +43,7 @@ NBus::IMessage::TPtr CreateResponseMessage(
     yvector<TSharedRef> parts;
 
     TBlob headerBlob;
-    if (!SerializeToProtobuf(&header, &headerBlob)) {
-        LOG_FATAL("Error serializing response header");
-    }
+    YVERIFY(SerializeToProto(&header, &headerBlob));
 
     parts.push_back(TSharedRef(MoveRV(headerBlob)));
     parts.push_back(body);
@@ -61,10 +56,10 @@ NBus::IMessage::TPtr CreateResponseMessage(
 }
 
 NBus::IMessage::TPtr CreateErrorResponseMessage(
-    const TResponseHeader& header)
+    const NProto::TResponseHeader& header)
 {
     TBlob headerBlob;
-    if (!SerializeToProtobuf(&header, &headerBlob)) {
+    if (!SerializeToProto(&header, &headerBlob)) {
         LOG_FATAL("Error serializing error response header");
     }
 
@@ -75,45 +70,33 @@ NBus::IMessage::TPtr CreateErrorResponseMessage(
     const TRequestId& requestId,
     const TError& error)
 {
-    TResponseHeader header;
-    header.set_request_id(requestId.ToProto());
-    header.set_error_code(error.GetCode());
-    if (error.GetCode() != TError::OK) {
-        header.set_error_message(error.GetMessage());
-    }
-
+    NProto::TResponseHeader header;
+    *header.mutable_request_id() = requestId.ToProto();
+    *header.mutable_error() = error.ToProto();
     return CreateErrorResponseMessage(header);
 }
 
 NBus::IMessage::TPtr CreateErrorResponseMessage(
     const TError& error)
 {
-    TResponseHeader header;
-    header.set_error_code(error.GetCode());
-    header.set_error_message(error.GetMessage());
-
+    NProto::TResponseHeader header;
+    *header.mutable_error() = error.ToProto();
     return CreateErrorResponseMessage(header);
 }
 
-TRequestHeader GetRequestHeader(IMessage* message)
+NProto::TRequestHeader GetRequestHeader(IMessage* message)
 {
-    TRequestHeader header;
+    NProto::TRequestHeader header;
     const auto& parts = message->GetParts();
     YASSERT(!parts.empty());
-
-    if (!DeserializeFromProtobuf(&header, parts[0])) {
-        LOG_FATAL("Error deserializing request header");
-    }
-
+    YVERIFY(DeserializeFromProto(&header, parts[0]));
     return header;
 }
 
-IMessage::TPtr SetRequestHeader(IMessage* message, const TRequestHeader& header)
+IMessage::TPtr SetRequestHeader(IMessage* message, const NProto::TRequestHeader& header)
 {
     TBlob headerData;
-    if (!SerializeToProtobuf(&header, &headerData)) {
-        LOG_FATAL("Error serializing request header");
-    }
+    YVERIFY(SerializeToProto(&header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());
@@ -122,51 +105,25 @@ IMessage::TPtr SetRequestHeader(IMessage* message, const TRequestHeader& header)
     return CreateMessageFromParts(parts);
 }
 
-TResponseHeader GetResponseHeader(IMessage* message)
+NProto::TResponseHeader GetResponseHeader(IMessage* message)
 {
-    TResponseHeader header;
+    NProto::TResponseHeader header;
     const auto& parts = message->GetParts();
     YASSERT(parts.size() >= 1);
-
-    if (!DeserializeFromProtobuf(&header, parts[0])) {
-        LOG_FATAL("Error deserializing response header");
-    }
-
+    YVERIFY(DeserializeFromProto(&header, parts[0]));
     return header;
 }
 
-IMessage::TPtr SetResponseHeader(IMessage* message, const TResponseHeader& header)
+IMessage::TPtr SetResponseHeader(IMessage* message, const NProto::TResponseHeader& header)
 {
     TBlob headerData;
-    if (!SerializeToProtobuf(&header, &headerData)) {
-        LOG_FATAL("Error serializing response header");
-    }
+    YVERIFY(SerializeToProto(&header, &headerData));
 
     auto parts = message->GetParts();
     YASSERT(!parts.empty());
     parts[0] = TSharedRef(MoveRV(headerData));
 
     return CreateMessageFromParts(parts);
-}
-
-TError GetResponseError(const NProto::TResponseHeader& header)
-{
-    if (header.error_code() == TError::OK) {
-        return TError();
-    } else {
-        return TError(header.error_code(), header.error_message());
-    }
-}
-
-void SetResponseError(TResponseHeader& header, const TError& error)
-{
-    if (error.IsOK()) {
-        header.set_error_code(TError::OK);
-        header.clear_error_message();
-    } else {
-        header.set_error_code(error.GetCode());
-        header.set_error_message(error.GetMessage());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

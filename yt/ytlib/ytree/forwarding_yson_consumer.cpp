@@ -65,12 +65,12 @@ void TForwardingYsonConsumer::OnStringScalar(const Stroka& value, bool hasAttrib
     }
 }
 
-void TForwardingYsonConsumer::OnInt64Scalar(i64 value, bool hasAttributes)
+void TForwardingYsonConsumer::OnIntegerScalar(i64 value, bool hasAttributes)
 {
     if (!ForwardingConsumer) {
-        OnMyInt64Scalar(value, hasAttributes);
+        OnMyIntegerScalar(value, hasAttributes);
     } else {
-        ForwardingConsumer->OnInt64Scalar(value, hasAttributes);
+        ForwardingConsumer->OnIntegerScalar(value, hasAttributes);
         UpdateDepth(hasAttributes ? +1 : 0);
     }
 }
@@ -190,7 +190,7 @@ void TForwardingYsonConsumer::OnMyStringScalar(const Stroka& value, bool hasAttr
     YUNREACHABLE();
 }
 
-void TForwardingYsonConsumer::OnMyInt64Scalar(i64 value, bool hasAttributes)
+void TForwardingYsonConsumer::OnMyIntegerScalar(i64 value, bool hasAttributes)
 {
     UNUSED(value);
     UNUSED(hasAttributes);

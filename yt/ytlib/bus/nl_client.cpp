@@ -10,9 +10,7 @@
 
 #include <quality/netliba_v6/udp_http.h>
 
-#include <util/generic/singleton.h>
-#include <util/generic/list.h>
-#include <util/generic/utility.h>
+#include <util/thread/lfqueue.h>
 
 namespace NYT {
 namespace NBus {

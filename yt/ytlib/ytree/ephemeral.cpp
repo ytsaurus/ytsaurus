@@ -95,7 +95,7 @@ private:
     };
 
 DECLARE_SCALAR_TYPE(String, Stroka)
-DECLARE_SCALAR_TYPE(Int64, i64)
+DECLARE_SCALAR_TYPE(Integer, i64)
 DECLARE_SCALAR_TYPE(Double, double)
 
 #undef DECLARE_SCALAR_TYPE
@@ -429,9 +429,9 @@ public:
         return New<TStringNode>();
     }
 
-    virtual IInt64NodePtr CreateInt64()
+    virtual IIntegerNodePtr CreateInteger()
     {
-        return New<TInt64Node>();
+        return New<TIntegerNode>();
     }
 
     virtual IDoubleNodePtr CreateDouble()

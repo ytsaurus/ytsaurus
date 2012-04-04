@@ -52,9 +52,7 @@ TSession::~TSession()
 
 void TSession::Start()
 {
-    GetIOInvoker()->Invoke(BIND(
-        &TSession::DoOpenFile,
-        MakeStrong(this)));
+    GetIOInvoker()->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
 }
 
 void TSession::DoOpenFile()
@@ -173,7 +171,7 @@ void TSession::EnqueueWrites()
     while (IsInWindow(FirstUnwritten)) {
         i32 blockIndex = FirstUnwritten;
 
-        const TSlot& slot = GetSlot(blockIndex);
+        const auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Received)
             break;
 

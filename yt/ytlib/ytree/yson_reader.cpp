@@ -251,8 +251,8 @@ void TYsonReaderBase::ParseAny(int depth)
             ParseString(depth);
             break;
 
-        case Int64Marker:
-            ParseBinaryInt64(depth);
+        case IntegerMarker:
+            ParseBinaryInteger(depth);
             break;
 
         case DoubleMarker:
@@ -428,16 +428,16 @@ void TYsonReaderBase::ParseNumeric(int depth)
         try {
             value = FromString<i64>(str);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Failed to parse \"Int64\" literal %s in YSON %s",
+            ythrow yexception() << Sprintf("Failed to parse \"Integer\" literal %s in YSON %s",
                 ~str.Quote(),
                 ~GetPositionInfo());
         }
 
         if (HasAttributes(depth)) {
-            Consumer->OnInt64Scalar(value, true);
+            Consumer->OnIntegerScalar(value, true);
             ParseAttributes(depth);
         } else {
-            Consumer->OnInt64Scalar(value, false);
+            Consumer->OnIntegerScalar(value, false);
         }
     } else {
         double value;
@@ -458,9 +458,9 @@ void TYsonReaderBase::ParseNumeric(int depth)
     }
 }
 
-void TYsonReaderBase::ParseBinaryInt64(int depth)
+void TYsonReaderBase::ParseBinaryInteger(int depth)
 {
-    ExpectChar(Int64Marker);
+    ExpectChar(IntegerMarker);
     YASSERT(Lookahead == NoLookahead);
 
     i64 value;
@@ -469,10 +469,10 @@ void TYsonReaderBase::ParseBinaryInt64(int depth)
     Offset += bytesRead;
 
     if (HasAttributes(depth)) {
-        Consumer->OnInt64Scalar(value, true);
+        Consumer->OnIntegerScalar(value, true);
         ParseAttributes(depth);
     } else {
-        Consumer->OnInt64Scalar(value, false);
+        Consumer->OnIntegerScalar(value, false);
     }
 }
 

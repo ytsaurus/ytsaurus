@@ -28,8 +28,8 @@ public:
     typedef TIntrusivePtr<TTransaction> TPtr;
 
     TTransaction(
-        NRpc::IChannel* cellChannel,
-        INode* manifest,
+        NRpc::IChannel::TPtr cellChannel,
+        INodePtr manifest,
         const TTransactionId& parentId,
         TTransactionManager* owner)
         : Owner(owner)
@@ -43,7 +43,7 @@ public:
     }
 
     TTransaction(
-        NRpc::IChannel* cellChannel,
+        NRpc::IChannel::TPtr cellChannel,
         TTransactionManager* owner,
         const TTransactionId& id)
         : Owner(owner)
@@ -58,8 +58,6 @@ public:
 
     void Start()
     {
-        VERIFY_THREAD_AFFINITY(ClientThread);
-
         LOG_INFO("Starting transaction");
 
         auto transactionPath =
@@ -71,7 +69,7 @@ public:
         if (Manifest) {
             req->set_manifest(SerializeToYson(~Manifest));
         }
-        auto rsp = Proxy.Execute(~req)->Get();
+        auto rsp = Proxy.Execute(req)->Get();
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
             State = EState::Aborted;
@@ -79,10 +77,18 @@ public:
         }
         Id = TTransactionId::FromProto(rsp->object_id());
         State = EState::Active;
-        LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
+        LOG_INFO("Transaction %s started", ~Id.ToString());
 
         Owner->RegisterTransaction(this);
+        StartPingInvoker();
+    }
 
+    void Attach()
+    {
+        LOG_INFO("Transaction %s attached", ~Id.ToString());
+
+        State = EState::Active;
+        Owner->RegisterTransaction(this);
         StartPingInvoker();
     }
 
@@ -99,7 +105,9 @@ public:
     ~TTransaction()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        Owner->UnregisterTransaction(Id);
+        if (Owner) {
+            Owner->UnregisterTransaction(Id);
+        }
     }
 
     virtual TTransactionId GetId() const
@@ -135,13 +143,13 @@ public:
         LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
 
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
-        auto rsp = Proxy.Execute(~req)->Get();
+        auto rsp = Proxy.Execute(req)->Get();
         if (!rsp->IsOK()) {
             // Let's pretend the transaction was aborted.
             // No sync here, should be safe.
             State = EState::Aborted;
             
-            LOG_ERROR_AND_THROW(yexception(), "Error committing transaction (TransactionId: %s)\n%s",
+            LOG_ERROR_AND_THROW(yexception(), "Error committing transaction %s\n%s",
                 ~Id.ToString(),
                 ~rsp->GetError().ToString());
 
@@ -153,17 +161,54 @@ public:
             PingInvoker->Stop();
         }
 
-        LOG_INFO("Transaction committed (TransactionId: %s)", ~Id.ToString());
+        LOG_INFO("Transaction %s committed", ~Id.ToString());
     }
 
     virtual void Abort()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_INFO("Transaction aborted by client (TransactionId: %s)",  ~Id.ToString());
+        LOG_INFO("Transaction %s aborted by client",  ~Id.ToString());
 
         FireAbort();
         HandleAbort();
+    }
+
+    virtual void Detach()
+    {
+        VERIFY_THREAD_AFFINITY(ClientThread);
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            switch (State) {
+                case EState::Committed:
+                    ythrow yexception() << "Transaction is already committed";
+                    break;
+
+                case EState::Aborted:
+                    ythrow yexception() << "Transaction is already aborted";
+                    break;
+
+                case EState::Active:
+                    State = EState::Detached;
+                    break;
+
+                case EState::Detached:
+                    return;
+
+                default:
+                    YUNREACHABLE();
+            }
+        }
+
+        if (PingInvoker) {
+            PingInvoker->Stop();
+        }
+
+        Owner->UnregisterTransaction(Id);
+        Owner.Reset();
+
+        LOG_INFO("Transaction %s detached", ~Id.ToString());
     }
 
     virtual void SubscribeAborted(const TCallback<void()>& handler)
@@ -219,6 +264,7 @@ private:
         (Aborted)
         (Committing)
         (Committed)
+        (Detached)
     );
 
     TTransactionManager::TPtr Owner;
@@ -241,7 +287,7 @@ private:
     {
         // Fire and forget.
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
-        Proxy.Execute(~req);
+        Proxy.Execute(req);
     }
 
     void DoAbort()
@@ -258,8 +304,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
-    TConfig* config, 
-    NRpc::IChannel* channel)
+    TConfig::TPtr config, 
+    NRpc::IChannel::TPtr channel)
     : Config(config)
     , Channel(channel)
     , CypressProxy(channel)
@@ -268,7 +314,7 @@ TTransactionManager::TTransactionManager(
 }
 
 ITransaction::TPtr TTransactionManager::Start(
-    INode* manifest,
+    INodePtr manifest,
     const TTransactionId& parentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -293,12 +339,11 @@ ITransaction::TPtr TTransactionManager::Attach(const TTransactionId& id)
         }
     }
 
+    // Not found, create a new one.
     auto transaction = New<TTransaction>(~Channel, this, id);
-    RegisterTransaction(transaction);
-    transaction->StartPingInvoker();
+    transaction->Attach();
     return transaction;
 }
-
 
 void TTransactionManager::PingTransaction(const TTransactionId& id)
 {
@@ -310,27 +355,27 @@ void TTransactionManager::PingTransaction(const TTransactionId& id)
             return;
     }
 
-    LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
+    LOG_DEBUG("Renewing lease for transaction %s", ~id.ToString());
 
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
-    CypressProxy
-        .Execute(~req)
-        ->Subscribe(BIND(
-            &TTransactionManager::OnPingResponse,
-            MakeStrong(this), 
-            id));
+    CypressProxy.Execute(req)->Subscribe(BIND(
+        &TTransactionManager::OnPingResponse,
+        MakeStrong(this), 
+        id));
 }
 
 void TTransactionManager::RegisterTransaction(TTransaction::TPtr transaction)
 {
     TGuard<TSpinLock> guard(SpinLock);
     YVERIFY(TransactionMap.insert(MakePair(transaction->GetId(), ~transaction)).second);
+    LOG_DEBUG("Registered transaction %s", ~transaction->GetId().ToString());
 }
 
 void TTransactionManager::UnregisterTransaction(const TTransactionId& id)
 {
     TGuard<TSpinLock> guard(SpinLock);
     TransactionMap.erase(id);
+    LOG_DEBUG("Unregistered transaction %s", ~id.ToString());
 }
 
 void TTransactionManager::OnPingResponse(
@@ -351,18 +396,18 @@ void TTransactionManager::OnPingResponse(
 
     if (!rsp->IsOK()) {
         if (rsp->GetErrorCode() == EYPathErrorCode::ResolveError) {
-            LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
+            LOG_WARNING("Transaction %s has expired or was aborted",
                 ~id.ToString());
             transaction->HandleAbort();
         } else {
-            LOG_WARNING("Error renewing transaction lease (TransactionId: %s)\n%s",
+            LOG_WARNING("Error renewing lease for transaction %s\n%s",
                 ~id.ToString(),
                 ~rsp->GetError().ToString());
         }
         return;
     }
 
-    LOG_DEBUG("Transaction lease renewed (TransactionId: %s)", ~id.ToString());
+    LOG_DEBUG("Renewed lease for transaction %s", ~id.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,6 +12,8 @@
 
 #include <contrib/testing/framework.h>
 
+#include <util/string/vector.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -177,6 +179,34 @@ TEST_F(TYPathTest, Ls)
     expected.push_back("e");
 
     EXPECT_EQ(expected, result);
+}
+
+TEST_F(TYPathTest, LsOnUnsupportedNodes)
+{
+    EXPECT_ANY_THROW({
+        Set("list", "[1; 2; 3; 4]");
+        List("list");
+    });
+
+    EXPECT_ANY_THROW({
+        Set("str", "aaa");
+        List("str");
+    });
+
+    EXPECT_ANY_THROW({
+        Set("int", "42");
+        List("int");
+    });
+
+    EXPECT_ANY_THROW({
+        Set("double", "3.14");
+        List("double");
+    });
+
+    EXPECT_ANY_THROW({
+        Set("entity", "<>");
+        List("entity");
+    });
 }
 
 TEST_F(TYPathTest, Attributes)

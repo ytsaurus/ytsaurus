@@ -18,7 +18,7 @@ class TYsonParser::TImpl
         // ^ stands for current position
         (Start)                 // ^ (special value for empty stack)
         (StringEnd)             // "..." ^
-        (Int64End)              // 123...9 ^
+        (IntegerEnd)              // 123...9 ^
         (DoubleEnd)             // 0.123...9 ^
         (ListBeforeItem)        // [...; ^
         (ListAfterItem)         // [... ^
@@ -42,7 +42,7 @@ class TYsonParser::TImpl
     std::stack<EState> StateStack;
 
     Stroka CachedStringValue;
-    i64 CachedInt64Value;
+    i64 CachedIntegerValue;
     double CachedDoubleValue;
 
     // Diagnostics info
@@ -55,7 +55,7 @@ public:
     TImpl(IYsonConsumer* consumer, EMode mode)
         : Consumer(consumer)
         , Mode(mode)
-        , CachedInt64Value(0)
+        , CachedIntegerValue(0)
         , CachedDoubleValue(0.0)
         , Offset(0)
         , Line(1)
@@ -121,7 +121,7 @@ public:
         }
 
         YASSERT(CachedStringValue.empty());
-        YASSERT(CachedInt64Value == 0);
+        YASSERT(CachedIntegerValue == 0);
         YASSERT(CachedDoubleValue == 0.0);
     }
 
@@ -137,7 +137,7 @@ private:
                     break;
 
                 case EState::StringEnd:
-                case EState::Int64End:
+                case EState::IntegerEnd:
                 case EState::DoubleEnd:
                 case EState::ListEnd:
                 case EState::MapEnd:
@@ -186,9 +186,9 @@ private:
                 StateStack.push(EState::StringEnd);
                 break;
 
-            case ETokenType::Int64:
-                CachedInt64Value = token.GetInt64Value();
-                StateStack.push(EState::Int64End);
+            case ETokenType::Integer:
+                CachedIntegerValue = token.GetIntegerValue();
+                StateStack.push(EState::IntegerEnd);
                 break;
 
             case ETokenType::Double:
@@ -422,9 +422,9 @@ private:
                 CachedStringValue = Stroka();
                 break;
 
-            case EState::Int64End:
-                Consumer->OnInt64Scalar(CachedInt64Value, attributes);
-                CachedInt64Value = 0;
+            case EState::IntegerEnd:
+                Consumer->OnIntegerScalar(CachedIntegerValue, attributes);
+                CachedIntegerValue = 0;
                 break;
 
             case EState::DoubleEnd:

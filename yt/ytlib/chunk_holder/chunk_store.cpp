@@ -7,9 +7,9 @@
 #include "chunk_store.h"
 #include "reader_cache.h"
 #include "chunk_holder_service_proxy.h"
+#include "bootstrap.h"
 
 #include <ytlib/misc/foreach.h>
-#include <ytlib/cell_node/bootstrap.h>
 
 #include <utility>
 #include <limits>
@@ -18,7 +18,6 @@
 namespace NYT {
 namespace NChunkHolder {
 
-using namespace NCellNode;
 using namespace NChunkClient;
 using namespace NRpc;
 

@@ -10,6 +10,7 @@
 #include <ytlib/cypress/cypress_manager.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/cell_master/bootstrap.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <util/digest/murmur.h>
 
@@ -28,6 +29,7 @@ using namespace NTransactionServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ObjectServer");
+static NProfiling::TProfiler Profiler("object_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,7 +206,7 @@ public:
             ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~objectId.ToString());
         }
 
-        return TResolveResult::There(~proxy, currentPath);
+        return TResolveResult::There(proxy, currentPath);
     }
 
     virtual void Invoke(IServiceContext* context)
@@ -280,15 +282,15 @@ TObjectManager::TObjectManager(
 
     metaState->RegisterPart(this);
 
-    RegisterMethod(this, &TObjectManager::ReplayVerb);
+    RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
 
     LOG_INFO("Object Manager initialized (CellId: %d)",
         static_cast<int>(config->CellId));
 }
 
-IYPathService* TObjectManager::GetRootService()
+IYPathServicePtr TObjectManager::GetRootService()
 {
-    return ~RootService;
+    return RootService;
 }
 
 void TObjectManager::RegisterHandler(IObjectTypeHandler* handler)
@@ -527,24 +529,33 @@ void TObjectManager::ExecuteVerb(
     IServiceContext* context,
     TCallback<void(NRpc::IServiceContext*)> action)
 {
-    LOG_INFO_IF(!IsRecovery(), "Executing a %s request (Path: %s, Verb: %s, ObjectId: %s, TransactionId: %s)",
-        isWrite ? "read-write" : "read-only",
-        ~context->GetPath(),
+    LOG_INFO_IF(!IsRecovery(), "Executing %s request with path %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
         ~context->GetVerb(),
+        ~context->GetPath().Quote(),
         ~id.ObjectId.ToString(),
-        ~id.TransactionId.ToString());
+        ~id.TransactionId.ToString(),
+        ~FormatBool(isWrite));
+
+    auto profilingPath = CombineYPaths(
+        "types",
+        TypeFromId(id.ObjectId).ToString(),
+        "verbs",
+        context->GetVerb(),
+        "time");
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
         !isWrite ||
         MetaStateManager->IsInCommit())
     {
-        action.Run(context);
+        PROFILE_TIMING (profilingPath) {
+            action.Run(context);
+        }
         return;
     }
 
     TMsgExecuteVerb message;
-    message.set_object_id(id.ObjectId.ToProto());
-    message.set_transaction_id(id.TransactionId.ToProto());
+    *message.mutable_object_id() = id.ObjectId.ToProto();
+    *message.mutable_transaction_id() = id.TransactionId.ToProto();
 
     auto requestMessage = context->GetRequestMessage();
     FOREACH (const auto& part, requestMessage->GetParts()) {
@@ -558,7 +569,9 @@ void TObjectManager::ExecuteVerb(
         ~MetaStateManager,
         message,
         BIND([=] () -> TVoid {
-            action.Run(~wrappedContext);
+            PROFILE_TIMING (profilingPath) {
+                action.Run(~wrappedContext);
+            }
             return TVoid();
         }));
 

@@ -119,7 +119,7 @@ namespace NYT {
 template <class T>
 class TFuture;
 
-class IInvoker;
+struct IInvoker;
 class TCancelableContext;
 
 /*! \internal */
@@ -261,9 +261,9 @@ $for ARG ,
 
 
 $if ARITY == 0 [[
-    TCallback<typename NDetail::TFutureHelper<R>::TFuturePtrType()>
+    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFuturePtrType()>
 ]] $else [[
-    TCallback<typename NDetail::TFutureHelper<R>::TFuturePtrType($for ARG , [[A$(ARG)]])>
+    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFuturePtrType($for ARG , [[A$(ARG)]])>
 ]]
     
     AsyncVia(TIntrusivePtr<IInvoker> invoker);

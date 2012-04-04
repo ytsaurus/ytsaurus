@@ -202,18 +202,31 @@ struct TIsWeakMethodHelper<true, TConstRefWrapper< TWeakPtr<T> > >
 // XXX(sandello): The code is a little bit messy, but works fine.
 //
 
-#ifdef _win_
-#pragma warning(disable:4413)
-#endif
-
 template <bool IsMethod, class T>
 struct TMaybeLockHelper
 {
-    T&& T_;
-    inline TMaybeLockHelper(T&& x)
-        : T_(static_cast<T&&>(x))
+    const T& T_;
+    inline TMaybeLockHelper(const T& x)
+        : T_(x)
     { }
     inline const TMaybeLockHelper& Lock() const
+    {
+        return *this;
+    }
+    inline const T& Get() const
+    {
+        return T_;
+    }
+};
+
+template <bool IsMethod, class T>
+struct TMaybeLockHelper< IsMethod, T&& >
+{
+    T T_;
+    inline TMaybeLockHelper(T&& x)
+        : T_(MoveRV(x))
+    { }
+    inline TMaybeLockHelper& Lock() const
     {
         return *this;
     }
@@ -227,7 +240,7 @@ template <class U>
 struct TMaybeLockHelper< true, TIntrusivePtr<U> >
 {
     typedef TIntrusivePtr<U> T;
-    inline TMaybeLockHelper(T&& x)
+    inline TMaybeLockHelper(const T& x)
     {
         static_assert(U::False, "Current implementation should pass smart pointers by reference.");
     }
@@ -237,13 +250,13 @@ template <class U>
 struct TMaybeLockHelper< true, TIntrusivePtr<U>& >
 {
     typedef TIntrusivePtr<U>& T;
-    T&& T_;
-    inline TMaybeLockHelper(T&& x)
-        : T_(static_cast<T&&>(x))
+    T T_;
+    inline TMaybeLockHelper(const T& x)
+        : T_(x)
     { }
-    inline T&& Lock() const
+    inline T Lock() const
     {
-        return static_cast<T&&>(T_);
+        return T_;
     }
 };
 
@@ -251,13 +264,13 @@ template <class U>
 struct TMaybeLockHelper< true, const TIntrusivePtr<U>& >
 {
     typedef const TIntrusivePtr<U>& T;
-    T&& T_;
-    inline TMaybeLockHelper(T&& x)
-        : T_(static_cast<T&&>(x))
+    T T_;
+    inline TMaybeLockHelper(const T& x)
+        : T_(x)
     { }
-    inline T&& Lock() const
+    inline T Lock() const
     {
-        return static_cast<T&&>(T_);
+        return T_;
     }
 };
 
@@ -265,7 +278,7 @@ template <class U>
 struct TMaybeLockHelper< true, TWeakPtr<U> >
 {
     typedef TWeakPtr<U> T;
-    inline TMaybeLockHelper(T&& x)
+    inline TMaybeLockHelper(const T& x)
     {
         static_assert(U::False, "Current implementation should pass smart pointers by reference.");
     } 
@@ -275,9 +288,9 @@ template <class U>
 struct TMaybeLockHelper< true, TWeakPtr<U>& >
 {
     typedef TWeakPtr<U>& T;
-    T&& T_;
-    inline TMaybeLockHelper(T&& x)
-        : T_(static_cast<T&&>(x))
+    T T_;
+    inline TMaybeLockHelper(const T& x)
+        : T_(x)
     { }
     inline TIntrusivePtr<U> Lock() const
     {
@@ -289,19 +302,15 @@ template <class U>
 struct TMaybeLockHelper< true, const TWeakPtr<U>& >
 {
     typedef const TWeakPtr<U>& T;
-    T&& T_;
-    inline TMaybeLockHelper(T&& x) 
-        : T_(static_cast<T&&>(x))
+    T T_;
+    inline TMaybeLockHelper(const T& x) 
+        : T_(x)
     { }
     inline TIntrusivePtr<U> Lock() const 
     {
         return T_.Lock();
     }
 };
-
-#ifdef _win_
-#pragma warning(default:4413)
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //

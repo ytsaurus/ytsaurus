@@ -54,7 +54,7 @@ struct IAttributeDictionary
     IMapNodePtr ToMap() const;
 
     //! Adds more attributes from another map node.
-    void MergeFrom(const IMapNode* other);
+    void MergeFrom(const IMapNodePtr other);
 
     //! Adds more attributes from another attribute dictionary.
     void MergeFrom(const IAttributeDictionary& other);

@@ -1,5 +1,7 @@
 package NYT.NChunkHolder.NProto;
 
+import "yt/ytlib/misc/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TBlockInfo
@@ -19,7 +21,7 @@ message TChunkAttributes
 // TChunkMeta is stored in *.meta files on chunk holders.
 message TChunkMeta
 {
-    required bytes id = 1;
+    required NYT.NProto.TGuid id = 1;
     repeated TBlockInfo blocks = 2;
     required TChunkAttributes attributes = 3;
 }
@@ -27,12 +29,12 @@ message TChunkMeta
 // TChunkInfo is sent in reply to GetChunkInfo requests.
 message TChunkInfo
 {
-    required bytes id = 1;
+    required NYT.NProto.TGuid id = 1;
     // Full chunk size (including both data and meta).
     required int64 size = 2;
     required uint64 meta_checksum = 3;
     repeated TBlockInfo blocks = 4;
-    required TChunkAttributes attributes = 5;
+    optional TChunkAttributes attributes = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,13 +1,13 @@
 #include "stdafx.h"
 #include "persistent_state_manager.h"
-
+#include "common.h"
+#include "config.h"
 #include "change_log.h"
 #include "change_log_cache.h"
 #include "meta_state_manager_proxy.h"
 #include "snapshot.h"
 #include "snapshot_builder.h"
 #include "recovery.h"
-#include "cell_manager.h"
 #include "change_committer.h"
 #include "follower_tracker.h"
 #include "follower_pinger.h"
@@ -15,11 +15,14 @@
 #include "snapshot_store.h"
 #include "decorated_meta_state.h"
 
+#include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_manager.h>
 #include <ytlib/rpc/service.h>
 #include <ytlib/actions/bind.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/ytree/fluent.h>
+
+#include <util/folder/dirut.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -110,7 +113,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
 
-        ChangeLogCache = New<TChangeLogCache>(Config->LogPath);
+        ChangeLogCache = New<TChangeLogCache>(Config->LogPath, Config->ChangeLogCache);
 
         SnapshotStore = New<TSnapshotStore>(Config->SnapshotPath);
 
@@ -130,8 +133,8 @@ public:
         CellManager = New<TCellManager>(~Config->Cell);
 
         LOG_INFO("Self peer address is %s and peer id is %d",
-            ~CellManager->SelfAddress(),
-            CellManager->SelfId());
+            ~CellManager->GetSelfAddress(),
+            CellManager->GetSelfId());
 
         ElectionManager = New<TElectionManager>(
             ~Config->Election,
@@ -232,13 +235,14 @@ public:
                     {
                         fluent
                             .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
-                            .Item("active_followers").DoListFor(0, CellManager->GetPeerCount(),
-                                [=] (TFluentList fluent, TPeerId id)
-                                    {
-                                        if (tracker->IsFollowerActive(id)) {
-                                            fluent.Item().Scalar(id);
-                                        }
-                                    });
+                            .Item("active_followers").DoListFor(
+                                0,
+                                CellManager->GetPeerCount(),
+                                [=] (TFluentList fluent, TPeerId id) {
+                                    if (tracker->IsFollowerActive(id)) {
+                                        fluent.Item().Scalar(id);
+                                    }
+                                });
                     })
             .EndMap();
     }
@@ -842,7 +846,7 @@ public:
         LOG_INFO("Starting leader recovery");
 
         ControlStatus = EPeerStatus::LeaderRecovery;
-        LeaderId = CellManager->SelfId();
+        LeaderId = CellManager->GetSelfId();
 
         StartEpoch(epoch);
 
@@ -973,7 +977,7 @@ public:
 
         LOG_INFO("Stopped leading");
 
-        EpochStateInvoker->Invoke(BIND(
+        GetStateInvoker()->Invoke(BIND(
             &TThis::DoStateStopLeading,
             MakeStrong(this)));
 
@@ -1102,7 +1106,7 @@ public:
 
         LOG_INFO("Stopped following");
 
-        EpochStateInvoker->Invoke(BIND(
+        GetStateInvoker()->Invoke(BIND(
             &TThis::DoStateStopFollowing,
             MakeStrong(this)));
 

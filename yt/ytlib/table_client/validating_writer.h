@@ -15,16 +15,16 @@ class TValidatingWriter
 public:
     TValidatingWriter(
         const TSchema& schema, 
-        IAsyncWriter* writer);
+        IAsyncBlockWriter* writer);
 
-    virtual TAsyncError::TPtr AsyncOpen();
+    virtual TAsyncError AsyncOpen();
     void Write(const TColumn& column, TValue value);
 
-    virtual TAsyncError::TPtr AsyncEndRow();
-    virtual TAsyncError::TPtr AsyncClose();
+    virtual TAsyncError AsyncEndRow();
+    virtual TAsyncError AsyncClose();
 
 protected:
-    IAsyncWriter::TPtr Writer;
+    IAsyncBlockWriter::TPtr Writer;
     const TSchema Schema;
 
     // Stores mapping from all key columns and channel non-range columns to indexes.
@@ -35,7 +35,6 @@ protected:
     yhash_set<TColumn> UsedRangeColumns; // for columns without indexes.
 
     TKey CurrentKey;
-    bool RowStart;
 
     std::vector<TChannelWriter::TPtr> ChannelWriters;
     NProto::TTableChunkAttributes Attributes;

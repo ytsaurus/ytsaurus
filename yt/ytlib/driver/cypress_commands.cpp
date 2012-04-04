@@ -14,14 +14,16 @@ using namespace NCypress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetCommand::DoExecute(TGetRequest* request)
+void TGetCommand::DoExecute(TGetRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         TYson value = ypathResponse->value();
@@ -33,12 +35,13 @@ void TGetCommand::DoExecute(TGetRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSetCommand::DoExecute(TSetRequest* request)
+void TSetCommand::DoExecute(TSetRequestPtr request)
 {
-    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    PreprocessYPath(&request->Path);
 
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Set(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
@@ -51,7 +54,7 @@ void TSetCommand::DoExecute(TSetRequest* request)
     }
     ypathRequest->set_value(value);
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         Host->ReplySuccess();
@@ -62,14 +65,16 @@ void TSetCommand::DoExecute(TSetRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveCommand::DoExecute(TRemoveRequest* request)
+void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
@@ -81,23 +86,21 @@ void TRemoveCommand::DoExecute(TRemoveRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TListCommand::DoExecute(TListRequest* request)
+void TListCommand::DoExecute(TListRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
          auto consumer = Host->CreateOutputConsumer();
-         BuildYsonFluently(~consumer)
-             .DoListFor(ypathResponse->keys(), [=] (TFluentList fluent, Stroka key)
-                {
-                    fluent.Item().Scalar(key);
-                });
+         BuildYsonFluently(~consumer).List(ypathResponse->keys());
     } else {
         Host->ReplyError(ypathResponse->GetError());
     }
@@ -105,11 +108,13 @@ void TListCommand::DoExecute(TListRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCreateCommand::DoExecute(TCreateRequest* request)
+void TCreateCommand::DoExecute(TCreateRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
 
     ypathRequest->set_type(request->Type);
@@ -119,16 +124,13 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
         ypathRequest->set_manifest(serializedManifest);
     }
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
         auto consumer = Host->CreateOutputConsumer();
         auto id = TNodeId::FromProto(ypathResponse->object_id());
-        BuildYsonFluently(~consumer)
-            .BeginMap()
-                .Item("object_id").Scalar(id.ToString())
-            .EndMap();
+        BuildYsonFluently(~consumer).Scalar(id.ToString());
     } else {
         Host->ReplyError(ypathResponse->GetError());
     }
@@ -136,23 +138,22 @@ void TCreateCommand::DoExecute(TCreateRequest* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLockCommand::DoExecute(TLockRequest* request)
+void TLockCommand::DoExecute(TLockRequestPtr request)
 {
+    PreprocessYPath(&request->Path);
+
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
-        Host->PreprocessYPath(request->Path),
+        request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->set_mode(request->Mode);
 
-    auto ypathResponse = proxy.Execute(~ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
         auto lockId = TLockId::FromProto(ypathResponse->lock_id());
-        BuildYsonFluently(~Host->CreateOutputConsumer())
-            .BeginMap()
-                .Item("lock_id").Scalar(lockId.ToString())
-            .EndMap();
+        BuildYsonFluently(~Host->CreateOutputConsumer()).Scalar(lockId.ToString());
     } else {
         Host->ReplyError(ypathResponse->GetError());
     }

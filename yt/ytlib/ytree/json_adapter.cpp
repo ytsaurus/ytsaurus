@@ -23,7 +23,7 @@ void TJsonAdapter::OnMyStringScalar(const Stroka& value, bool hasAttributes)
     JsonWriter->Write(value);
 }
 
-void TJsonAdapter::OnMyInt64Scalar(i64 value, bool hasAttributes)
+void TJsonAdapter::OnMyIntegerScalar(i64 value, bool hasAttributes)
 {
     YASSERT(!hasAttributes);
     JsonWriter->Write(value);

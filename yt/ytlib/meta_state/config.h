@@ -10,33 +10,6 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCellConfig
-    : public TConfigurable
-{
-    //! RPC interface port number.
-    int RpcPort;
-
-    //! Master server addresses.
-    yvector<Stroka> Addresses;
-
-    TCellConfig()
-    {
-        Register("rpc_port", RpcPort)
-            .Default(9091);
-        Register("addresses", Addresses)
-            .NonEmpty();
-    }
-
-    virtual void DoValidate() const
-    {
-        if ((Addresses.ysize() % 2) != 1) {
-            ythrow yexception() << Sprintf("Cell should consist of odd number of masters");
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChangeLogDownloaderConfig
     : public TConfigurable
 {
@@ -157,11 +130,39 @@ struct TLeaderCommitterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChangeLogCacheConfig
+    : public TConfigurable
+{
+    //! Disables physical changelog flush.
+    /*!
+     *  Enabling this option can cause meta state corruption and inconsistency.
+     *  Don't switch it on unless you understand the consequences.
+     */
+    bool DisableFlush;
+
+    //! Maximum number of cached changelogs.
+    int MaxSize;
+
+    TChangeLogCacheConfig()
+    {
+        Register("disable_flush", DisableFlush)
+            .Default(false);
+        Register("max_size", MaxSize)
+            .GreaterThan(0)
+            .Default(4);
+    }
+};
+
+typedef TIntrusivePtr<TChangeLogCacheConfig> TChangeLogCacheConfigPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Describes a configuration of TMetaStateManager.
 struct TPersistentStateManagerConfig
     : public TConfigurable
 {
     //! A path where changelogs are stored.
+    // TODO(babenko): move to subconfig
     Stroka LogPath;
 
     //! A path where snapshots are stored.
@@ -182,7 +183,7 @@ struct TPersistentStateManagerConfig
     //! Default timeout for RPC requests.
     TDuration RpcTimeout;
 
-    TCellConfigPtr Cell;
+    NElection::TCellConfigPtr Cell;
 
     NElection::TElectionManagerConfigPtr Election;
 
@@ -197,6 +198,8 @@ struct TPersistentStateManagerConfig
     TLeaderCommitterConfigPtr LeaderCommitter;
 
     TSnapshotBuilderConfigPtr SnapshotBuilder;
+
+    TChangeLogCacheConfigPtr ChangeLogCache;
 
     TPersistentStateManagerConfig()
     {
@@ -224,6 +227,8 @@ struct TPersistentStateManagerConfig
         Register("leader_committer", LeaderCommitter)
             .DefaultNew();
         Register("snapshot_builder", SnapshotBuilder)
+            .DefaultNew();
+        Register("change_log_cache", ChangeLogCache)
             .DefaultNew();
     }
 };

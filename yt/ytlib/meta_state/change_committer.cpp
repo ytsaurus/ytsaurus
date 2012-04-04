@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "common.h"
+#include "config.h"
 #include "change_committer.h"
 #include "meta_version.h"
 #include "decorated_meta_state.h"
@@ -12,9 +14,11 @@
 namespace NYT {
 namespace NMetaState {
 
+using namespace NElection;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MetaState");
+static NLog::TLogger& Logger = MetaStateLogger;
 static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,12 +119,12 @@ private:
 
             Awaiter->Await(
                 LogResult,
-                cellManager->SelfAddress(),
+                cellManager->GetSelfAddress(),
                 BIND(&TBatch::OnLocalCommit, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched changes to followers");
             for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-                if (id == cellManager->SelfId()) continue;
+                if (id == cellManager->GetSelfId()) continue;
 
                 LOG_DEBUG("Sending changes to follower %d", id);
 
@@ -130,7 +134,7 @@ private:
                     ->SetTimeout(Committer->Config->RpcTimeout);
                 request->set_segment_id(StartVersion.SegmentId);
                 request->set_record_count(StartVersion.RecordCount);
-                request->set_epoch(Committer->Epoch.ToProto());
+                *request->mutable_epoch() = Committer->Epoch.ToProto();
                 FOREACH (const auto& change, BatchedChanges) {
                     request->Attachments().push_back(change);
                 }

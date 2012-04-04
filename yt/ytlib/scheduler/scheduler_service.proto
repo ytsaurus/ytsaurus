@@ -1,0 +1,100 @@
+package NYT.NScheduler.NProto;
+
+import "yt/ytlib/scheduler/job.proto";
+import "yt/ytlib/rpc/rpc.proto";
+import "yt/ytlib/misc/error.proto";
+import "yt/ytlib/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Starts a new operation.
+
+message TReqStartOperation
+{ 
+    // EOperationType value.
+    required int32 type = 1;
+    // User (typically top-level) transaction where the operation
+    // processing must happen.
+    required NYT.NProto.TGuid transaction_id = 2;
+    // Operation spec in YSON. 
+    required bytes spec = 3;
+}
+
+message TRspStartOperation
+{
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Aborts an existing operation.
+
+message TReqAbortOperation
+{ 
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspAbortOperation
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Waits until a given operation is finished.
+
+message TOperationResult
+{
+    required NYT.NProto.TError error = 1;
+}
+
+message TReqWaitForOperation
+{ 
+    required NYT.NProto.TGuid operation_id = 1;
+}
+
+message TRspWaitForOperation
+{
+    required TOperationResult result = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Informs the scheduler about exec node status and
+// requests orders.
+
+message TJobStatus
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required int32 state = 2;
+    required int32 progress = 3;
+    optional TJobResult result = 4;
+}
+
+message TNodeUtilization
+{
+    required int32 total_slot_count = 2;
+    required int32 free_slot_count = 3;
+    // TODO(babenko): report resource usage info
+}
+
+message TReqHeartbeat
+{
+    required string address = 1;
+    required TNodeUtilization utilization = 2;
+    repeated TJobStatus jobs = 3;
+}
+
+message TStartJobInfo
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required TJobSpec spec = 2;
+}
+
+message TRspHeartbeat
+{
+    repeated TStartJobInfo jobs_to_start = 1;
+    repeated NYT.NProto.TGuid jobs_to_abort = 2;
+    repeated NYT.NProto.TGuid jobs_to_remove = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

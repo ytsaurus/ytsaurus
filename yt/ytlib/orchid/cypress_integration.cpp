@@ -69,7 +69,7 @@ public:
         requestHeader.set_path(path);
         auto innerRequestMessage = SetRequestHeader(~requestMessage, requestHeader);
 
-        auto outerRequest =proxy.Execute();
+        auto outerRequest = proxy.Execute();
         outerRequest->Attachments() = innerRequestMessage->GetParts();
 
         LOG_INFO("Sending request to a remote Orchid (RemoteAddress: %s, Path: %s, Verb: %s, RequestId: %s)",
@@ -132,12 +132,12 @@ private:
             auto innerResponseMessage = CreateMessageFromParts(response->Attachments());
             context->Reply(~innerResponseMessage);
         } else {
-            context->Reply(TError(Sprintf("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
+            context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
                 ~path,
                 ~verb,
                 ~manifest->RemoteAddress,
                 ~manifest->RemoteRoot,
-                ~response->GetError().ToString())));
+                ~response->GetError().ToString()));
         }
     }
 

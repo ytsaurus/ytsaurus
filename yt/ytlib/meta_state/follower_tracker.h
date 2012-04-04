@@ -18,7 +18,7 @@ class TFollowerTracker
 public:
     TFollowerTracker(
         TFollowerTrackerConfig* config,
-        TCellManager* cellManager,
+        NElection::TCellManager* cellManager,
         IInvoker* epochControlInvoker);
 
     void Start();
@@ -39,7 +39,7 @@ private:
     void OnLeaseExpired(TPeerId followerId);
 
     TFollowerTrackerConfigPtr Config;
-    TCellManagerPtr CellManager;
+    NElection::TCellManagerPtr CellManager;
     IInvoker::TPtr EpochControlInvoker;
     yvector<TFollowerState> FollowerStates;
     int ActiveFollowerCount;

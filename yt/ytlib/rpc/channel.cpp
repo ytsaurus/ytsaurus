@@ -16,7 +16,6 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NProto;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,12 +205,11 @@ private:
             CompleteRequest(it);
         }
 
-        if (header.error_code() == TError::OK) {
+        auto error = TError::FromProto(header.error());
+        if (error.IsOK()) {
             responseHandler->OnResponse(~message);
         } else {
-            responseHandler->OnError(TError(
-                header.error_code(),
-                header.error_message()));
+            responseHandler->OnError(error);
         }
     }
 

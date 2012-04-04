@@ -11,7 +11,7 @@ namespace NYTree {
 const TToken TToken::EndOfStream;
 
 TToken::TToken()
-    : Int64Value(0)
+    : IntegerValue(0)
     , DoubleValue(0.0)
 { }
 
@@ -21,10 +21,10 @@ const Stroka& TToken::GetStringValue() const
     return StringValue;
 }
 
-i64 TToken::GetInt64Value() const
+i64 TToken::GetIntegerValue() const
 {
-    YASSERT(Type_ == ETokenType::Int64);
-    return Int64Value;
+    YASSERT(Type_ == ETokenType::Integer);
+    return IntegerValue;
 }
 
 double TToken::GetDoubleValue() const
@@ -36,8 +36,8 @@ double TToken::GetDoubleValue() const
 Stroka TToken::ToString() const
 {
     switch (Type_) {
-        case ETokenType::Int64:
-            return ::ToString(Int64Value);
+        case ETokenType::Integer:
+            return ::ToString(IntegerValue);
 
         case ETokenType::Double:
             return ::ToString(DoubleValue);

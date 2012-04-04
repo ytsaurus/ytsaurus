@@ -30,27 +30,29 @@ public:
     typedef TNullable<NYTree::EYsonFormat> TFormat;
     TFormat GetOutputFormat();
 
-    void ApplyConfigUpdates(NYTree::IYPathService* service);
+    void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
 
 protected:
-    //useful typedefs
-    typedef TCLAP::UnlabeledValueArg<Stroka> TFreeStringArg;
+    // useful typedefs
+    typedef TCLAP::UnlabeledValueArg<Stroka> TUnlabeledStringArg;
 
-    TCLAP::CmdLine Cmd;
+    TCLAP::CmdLine CmdLine;
 
     // config related
-    TCLAP::ValueArg<std::string> ConfigArg;
+    TCLAP::ValueArg<Stroka> ConfigArg;
 
-    typedef TCLAP::ValueArg< TFormat > TOutputFormatArg;
+    typedef TCLAP::ValueArg<TFormat> TOutputFormatArg;
     TOutputFormatArg OutputFormatArg;
 
     TCLAP::MultiArg<Stroka> ConfigUpdatesArg;
 
-    TCLAP::MultiArg<std::string> OptsArg;
+    TCLAP::MultiArg<Stroka> OptsArg;
 
-    void BuildOpts(NYTree::IYsonConsumer* consumer);
+    void BuildOptions(NYTree::IYsonConsumer* consumer, TCLAP::MultiArg<Stroka>& arg);
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
+
+typedef TIntrusivePtr<TArgsBase> TArgsBasePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +78,7 @@ public:
     TGetArgs();
 
 private:
-    TFreeStringArg PathArg;
+    TUnlabeledStringArg PathArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
@@ -90,8 +92,8 @@ public:
     TSetArgs();
 
 private:
-    TFreeStringArg PathArg;
-    TFreeStringArg ValueArg;
+    TUnlabeledStringArg PathArg;
+    TUnlabeledStringArg ValueArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
@@ -105,7 +107,7 @@ public:
     TRemoveArgs();
 
 private:
-    TFreeStringArg PathArg;
+    TUnlabeledStringArg PathArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
@@ -119,7 +121,7 @@ public:
     TListArgs();
 
 private:
-    TFreeStringArg PathArg;
+    TUnlabeledStringArg PathArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
@@ -133,10 +135,10 @@ public:
     TCreateArgs();
 
 private:
-    TFreeStringArg PathArg;
-
     typedef TCLAP::UnlabeledValueArg<NObjectServer::EObjectType> TTypeArg;
     TTypeArg TypeArg;
+
+    TUnlabeledStringArg PathArg;
 
     typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
     TManifestArg ManifestArg;
@@ -154,7 +156,7 @@ public:
     TLockArgs();
 
 private:
-    TFreeStringArg PathArg;
+    TUnlabeledStringArg PathArg;
 
     typedef TCLAP::ValueArg<NCypress::ELockMode> TModeArg;
     TModeArg ModeArg;
@@ -166,7 +168,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStartTxArgs
-    : public TArgsBase
+    : public TTransactedArgs
 {
 public:
     TStartTxArgs();
@@ -188,7 +190,6 @@ public:
     { }
 
 private:
-
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
@@ -197,10 +198,6 @@ private:
 class TAbortTxArgs
     : public TTransactedArgs
 {
-public:
-    TAbortTxArgs()
-    { }
-
 private:
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
@@ -214,7 +211,7 @@ public:
     TReadArgs();
 
 private:
-    TFreeStringArg PathArg;
+    TUnlabeledStringArg PathArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
@@ -240,11 +237,10 @@ public:
 //    }
 
 private:
-    TFreeStringArg PathArg;
-
-    //TODO(panin):support value from stdin
-    TFreeStringArg ValueArg;
-
+    TUnlabeledStringArg PathArg;
+    TUnlabeledStringArg ValueArg;
+    TCLAP::SwitchArg SortedArg;
+    
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
 };
@@ -258,7 +254,7 @@ public:
     TUploadArgs();
 
 private:
-    TFreeStringArg PathArg;
+    TUnlabeledStringArg PathArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
@@ -273,9 +269,45 @@ public:
     TDownloadArgs();
 
 private:
-    TFreeStringArg PathArg;
+    TUnlabeledStringArg PathArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapArgs
+    : public TTransactedArgs
+{
+public:
+    TMapArgs();
+
+private:
+    TCLAP::MultiArg<Stroka> InArg;
+    TCLAP::MultiArg<Stroka> OutArg;
+    TCLAP::MultiArg<Stroka> FilesArg;
+    TCLAP::ValueArg<Stroka> MapperArg;
+
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMergeArgs
+    : public TTransactedArgs
+{
+public:
+    TMergeArgs();
+
+private:
+    TCLAP::MultiArg<Stroka> InArg;
+    TCLAP::ValueArg<Stroka> OutArg;
+    TCLAP::SwitchArg SortedArg;
+
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

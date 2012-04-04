@@ -54,10 +54,10 @@ public:
         PushNode(~node);
     }
 
-    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes)
+    virtual void OnMyIntegerScalar(i64 value, bool hasAttributes)
     {
         UNUSED(hasAttributes);
-        auto node = Factory->CreateInt64();
+        auto node = Factory->CreateInteger();
         node->SetValue(value);
         PushNode(~node);
     }

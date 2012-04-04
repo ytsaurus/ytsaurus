@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "cancelable_context.h"
-
 #include "bind.h"
 #include "callback.h"
 
@@ -30,11 +29,12 @@ public:
         if (Context->Canceled)
             return;
 
+        auto context = Context;
         UnderlyingInvoker->Invoke(BIND([=] {
-                if (!Context->Canceled) {
-                    action.Run();
-                }
-            }));
+            if (!context->Canceled) {
+                action.Run();
+            }
+        }));
     }
 
     void Cancel();

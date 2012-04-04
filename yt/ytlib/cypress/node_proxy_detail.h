@@ -30,7 +30,7 @@ public:
     ~TNodeFactory();
 
     virtual NYTree::IStringNodePtr CreateString();
-    virtual NYTree::IInt64NodePtr CreateInt64();
+    virtual NYTree::IIntegerNodePtr CreateInteger();
     virtual NYTree::IDoubleNodePtr CreateDouble();
     virtual NYTree::IMapNodePtr CreateMap();
     virtual NYTree::IListNodePtr CreateList();
@@ -159,7 +159,7 @@ protected:
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
         const auto& node = GetImpl();
-        // NB: LockIds and SubtreeLockIds are only valid for originating nodes.
+        // NB: Locks and SubtreeLocks are only valid for originating nodes.
         const auto& origniatingNode = Bootstrap->GetCypressManager()->GetNode(Id);
 
         if (name == "parent_id") {
@@ -176,18 +176,18 @@ protected:
 
         if (name == "lock_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(origniatingNode.LockIds(), [=] (NYTree::TFluentList fluent, TLockId id)
+                .DoListFor(origniatingNode.Locks(), [=] (NYTree::TFluentList fluent, TLock* lock)
                     {
-                        fluent.Item().Scalar(id.ToString());
+                        fluent.Item().Scalar(lock->GetId().ToString());
                     });
             return true;
         }
 
         if (name == "subtree_lock_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(origniatingNode.SubtreeLockIds(), [=] (NYTree::TFluentList fluent, TLockId id)
+                .DoListFor(origniatingNode.SubtreeLocks(), [=] (NYTree::TFluentList fluent, TLock* lock)
                     {
-                        fluent.Item().Scalar(id.ToString());
+                        fluent.Item().Scalar(lock->GetId().ToString());
                     });
             return true;
         }
@@ -217,7 +217,7 @@ protected:
 
         auto lockId = Bootstrap->GetCypressManager()->LockVersionedNode(NodeId, TransactionId, mode);
 
-        response->set_lock_id(lockId.ToProto());
+        *response->mutable_lock_id() = lockId.ToProto();
 
         context->SetResponseInfo("LockId: %s", ~lockId.ToString());
 
@@ -487,7 +487,7 @@ public:
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka)
-DECLARE_SCALAR_TYPE(Int64, i64)
+DECLARE_SCALAR_TYPE(Integer, i64)
 DECLARE_SCALAR_TYPE(Double, double)
 
 #undef DECLARE_SCALAR_TYPE
@@ -595,7 +595,7 @@ protected:
 
         CreateRecursive(context->GetPath(), ~proxy);
 
-        response->set_object_id(nodeId.ToProto());
+        *response->mutable_object_id() = nodeId.ToProto();
 
         context->Reply();
     }

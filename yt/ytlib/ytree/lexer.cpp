@@ -18,7 +18,7 @@ class TLexer::TImpl
 public:
     DECLARE_ENUM(EInnerState,
         (None)
-        (InsideBinaryInt64)
+        (InsideBinaryInteger)
         (InsideBinaryDouble)
         (InsideBinaryString)
         (InsideUnquotedString)
@@ -74,8 +74,8 @@ public:
                     case EInnerState::InsideDouble:
                         return ConsumeDouble(ch);
 
-                    case EInnerState::InsideBinaryInt64:
-                        ConsumeBinaryInt64(ch);
+                    case EInnerState::InsideBinaryInteger:
+                        ConsumeBinaryInteger(ch);
                         return true;
 
                     case EInnerState::InsideBinaryDouble:
@@ -97,7 +97,7 @@ public:
         switch (State_) {
             case EState::InProgress:
                 switch (InnerState) {
-                    case EInnerState::InsideBinaryInt64:
+                    case EInnerState::InsideBinaryInteger:
                     case EInnerState::InsideBinaryDouble:
                     case EInnerState::InsideBinaryString:
                     case EInnerState::InsideQuotedString:
@@ -193,8 +193,8 @@ private:
                 break;
 
             case '\x02':
-                SetInProgressState(EInnerState::InsideBinaryInt64);
-                YASSERT(Token.Int64Value == 0);
+                SetInProgressState(EInnerState::InsideBinaryInteger);
+                YASSERT(Token.IntegerValue == 0);
                 YASSERT(BytesRead == 0);
                 break;
 
@@ -267,23 +267,23 @@ private:
         }
     }
 
-    void ConsumeBinaryInt64(char ch) {
+    void ConsumeBinaryInteger(char ch) {
         ui8 byte = static_cast<ui8>(ch);
 
         if (7 * BytesRead > 8 * sizeof(ui64) ) {
-            ythrow yexception() << Sprintf("The data is too long to read binary Int64");
+            ythrow yexception() << Sprintf("The data is too long to read binary Integer");
         }
 
-        ui64 ui64Value = static_cast<ui64>(Token.Int64Value);
+        ui64 ui64Value = static_cast<ui64>(Token.IntegerValue);
         ui64Value |= (static_cast<ui64> (byte & 0x7F)) << (7 * BytesRead);
         ++BytesRead;
 
         if ((byte & 0x80) == 0) {
-            Token.Int64Value = ZigZagDecode64(static_cast<ui64>(ui64Value));
-            ProduceToken(ETokenType::Int64);
+            Token.IntegerValue = ZigZagDecode64(static_cast<ui64>(ui64Value));
+            ProduceToken(ETokenType::Integer);
             BytesRead = 0;
         } else {
-            Token.Int64Value = static_cast<i64>(ui64Value);
+            Token.IntegerValue = static_cast<i64>(ui64Value);
         }
     }
 
@@ -293,10 +293,10 @@ private:
             Token.StringValue.append(ch);
             ++BytesRead;
         } else { // We are reading length
-            ConsumeBinaryInt64(ch);
+            ConsumeBinaryInteger(ch);
 
             if (State_ == EState::Terminal) {
-                i64 length = Token.GetInt64Value();
+                i64 length = Token.GetIntegerValue();
                 if (length < 0) {
                     ythrow yexception() << Sprintf("Error reading binary string: String cannot have negative length (Length: %" PRId64 ")",
                         length);
@@ -365,14 +365,14 @@ private:
     void FinishNumeric()
     {
         try {
-            Token.Int64Value = FromString<i64>(Token.StringValue);
+            Token.IntegerValue = FromString<i64>(Token.StringValue);
         } catch (const std::exception& ex) {
             // This exception is wrapped in parser
-            ythrow yexception() << Sprintf("Failed to parse Int64 literal %s",
+            ythrow yexception() << Sprintf("Failed to parse Integer literal %s",
                 ~Token.StringValue.Quote());
         }
         Token.StringValue = Stroka();
-        ProduceToken(ETokenType::Int64);
+        ProduceToken(ETokenType::Integer);
     }
 
     void FinishDouble()
@@ -412,7 +412,7 @@ private:
     TToken Token;
 
     /*
-     * BytesRead > 0 means we've read BytesRead bytes (in binary Int64)
+     * BytesRead > 0 means we've read BytesRead bytes (in binary Integer)
      * BytesRead < 0 means we are expecting -BytesRead bytes more (in binary doubles and strings)
      * BytesRead = 0 also means we don't the number of bytes yet
      */
@@ -483,15 +483,15 @@ Stroka ChopStringToken(const TStringBuf& data, TStringBuf* suffix)
     return token.GetStringValue();
 }
 
-i64 ChopInt64Token(const TStringBuf& data, TStringBuf* suffix)
+i64 ChopIntegerToken(const TStringBuf& data, TStringBuf* suffix)
 {
     auto token = ChopToken(data, suffix);
-    if (token.GetType() != ETokenType::Int64) {
-        ythrow yexception() << Sprintf("Expected Int64 token, but token %s of type %s found",
+    if (token.GetType() != ETokenType::Integer) {
+        ythrow yexception() << Sprintf("Expected Integer token, but token %s of type %s found",
             ~token.ToString().Quote(),
             ~token.GetType().ToString());
     }
-    return token.GetInt64Value();
+    return token.GetIntegerValue();
 }
 
 double ChopDoubleToken(const TStringBuf& data, TStringBuf* suffix)

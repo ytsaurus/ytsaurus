@@ -28,19 +28,23 @@ class TChangeLogCache
 public:
     typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
 
-    TChangeLogCache(const Stroka& path);
+    TChangeLogCache(
+        const Stroka& path,
+        TChangeLogCacheConfigPtr config);
 
     void Start();
 
     typedef TValueOrError<TCachedAsyncChangeLogPtr> TGetResult;
-    TGetResult Get(i32 changeLogId);
+    TGetResult Get(i32 id);
 
-    TCachedAsyncChangeLogPtr Create(i32 changeLogId, i32 prevRecordCount);
+    TCachedAsyncChangeLogPtr Create(i32 id, i32 prevRecordCount);
 
 private:
     Stroka Path;
+    TChangeLogCacheConfigPtr Config;
 
-    Stroka GetChangeLogFileName(i32 changeLogId);
+    Stroka GetChangeLogFileName(i32 id);
+    TChangeLogPtr CreateChangeLog(i32 id);
 
 };
 

@@ -37,7 +37,7 @@ class TBootstrap
 public:
     TBootstrap(
         const Stroka& configFileName,
-        TCellMasterConfig* config);
+        TCellMasterConfigPtr config);
 
     ~TBootstrap();
 

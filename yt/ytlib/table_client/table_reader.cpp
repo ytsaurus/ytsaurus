@@ -45,21 +45,20 @@ void TTableReader::Open()
 
     LOG_INFO("Fetching table info");
     auto fetchReq = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
-    auto fetchRsp = Proxy.Execute(~fetchReq)->Get();
+    auto fetchRsp = Proxy.Execute(fetchReq)->Get();
     if (!fetchRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error fetching table info\n%s",
             ~fetchRsp->GetError().ToString());
     }
 
-    auto channel = TChannel::FromProto(fetchRsp->channel());
+    std::vector<NProto::TInputChunk> inputChunks = 
+        FromProto<NProto::TInputChunk>(fetchRsp->chunks());
 
     Reader = New<TChunkSequenceReader>(
         ~Config->ChunkSequenceReader,
-        channel,
-        TransactionId,
         ~MasterChannel,
         ~BlockCache,
-        FromProto<NProto::TFetchedChunk>(fetchRsp->chunks()));
+        inputChunks);
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
     if (Transaction) {
@@ -97,6 +96,14 @@ const TRow& TTableReader::GetRow() const
     YASSERT(IsOpen);
 
     return Reader->GetCurrentRow();
+}
+
+const TKey& TTableReader::GetKey() const
+{
+    VERIFY_THREAD_AFFINITY(Client);
+    YASSERT(IsOpen);
+
+    return Reader->GetCurrentKey();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

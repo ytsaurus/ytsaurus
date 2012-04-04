@@ -23,12 +23,12 @@ struct IYsonConsumer
      */
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes = false) = 0;
 
-    //! The current item is an integer scalar (IInt64Node).
+    //! The current item is an integer scalar (IIntegerNode).
     /*!
      *  \param value A scalar value.
      *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
-    virtual void OnInt64Scalar(i64 value, bool hasAttributes = false) = 0;
+    virtual void OnIntegerScalar(i64 value, bool hasAttributes = false) = 0;
 
     //! The current item is an FP scalar (IDoubleNode).
     /*!
@@ -88,7 +88,7 @@ struct IYsonConsumer
 
     //! Starts an attribute map.
     /*!
-     *  This may only be called after #OnStringScalar, #OnInt64Scalar, #OnDoubleScalar, #OnEntity,
+     *  This may only be called after #OnStringScalar, #OnIntegerScalar, #OnDoubleScalar, #OnEntity,
      *  #OnEndList or #OnEndMap with "hasAttirubtes" flag set to True.
      *  
      *  The events describing attributes are raised as follows:

@@ -3,6 +3,7 @@ set( DIRS
   election
   cell_master
   cell_node
+  cell_scheduler
   chunk_holder
   chunk_client
   chunk_server
@@ -25,6 +26,8 @@ set( DIRS
   driver
   object_server
   scheduler
+  exec_agent
+  job_proxy
 )
 
 foreach( _d_ ${DIRS} )

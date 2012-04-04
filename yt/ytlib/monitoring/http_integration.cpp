@@ -9,6 +9,8 @@
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/serialize.h>
 
+#include <library/json/json_writer.h>
+
 namespace NYT {
 namespace NMonitoring {
     
@@ -90,9 +92,9 @@ TFuture<Stroka>::TPtr HandleRequest(IYPathServicePtr service, Stroka url)
 
 } // namespace <anonymous>
 
-TServer::TAsyncHandler GetYPathHttpHandler(IYPathService* service)
+TServer::TAsyncHandler GetYPathHttpHandler(IYPathServicePtr service)
 {
-    return BIND(&HandleRequest, MakeStrong(service));
+    return BIND(&HandleRequest, service);
 }
 
 TServer::TAsyncHandler GetYPathHttpHandler(TYPathServiceProducer producer)

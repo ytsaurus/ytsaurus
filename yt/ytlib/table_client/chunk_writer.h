@@ -21,7 +21,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class  TChunkWriter
-    : public IAsyncWriter
+    : public IAsyncBlockWriter
 {
 public:
     typedef TIntrusivePtr<TChunkWriter> TPtr;
@@ -42,8 +42,8 @@ public:
                 .GreaterThan(1024)
                 .Default(1024 * 1024);
             Register("sampling_size", SamplingSize)
-                .GreaterThanOrEqual(1024)
-                .Default(1024);
+                .GreaterThanOrEqual(1000)
+                .Default(100000);
             Register("codec_id", CodecId)
                 .Default(ECodecId::None);
         }
@@ -55,16 +55,15 @@ public:
 
     ~TChunkWriter();
 
-    TAsyncError::TPtr AsyncOpen(
+    TAsyncError AsyncOpen(
         const NProto::TTableChunkAttributes& attributes);
 
-    TAsyncError::TPtr AsyncEndRow(
-        TKey& key,
-        std::vector<TChannelWriter::TPtr>& channels);
+    TAsyncError AsyncEndRow(
+        const TKey& key,
+        const std::vector<TChannelWriter::TPtr>& channels);
 
-    TAsyncError::TPtr AsyncClose(
-        TKey& lastKey,
-        std::vector<TChannelWriter::TPtr>& channels);
+    TAsyncError AsyncClose(
+        const std::vector<TChannelWriter::TPtr>& channels);
 
     i64 GetCurrentSize() const;
     NChunkServer::TChunkId GetChunkId() const;
@@ -75,7 +74,7 @@ private:
         TChannelWriter::TPtr channel, 
         int channelIndex);
 
-    void AddKeySample(const TKey& key);
+    void AddKeySample();
 
 private:
     TConfig::TPtr Config;
@@ -96,10 +95,17 @@ private:
     i64 SentSize;
 
     //! Current size of written data.
+    /*!
+     *  1. This counter is updated every #AsyncEndRow call.
+     *  2. This is an upper bound approximation of the size of written data, because we take 
+     *  into account real size of complete blocks and uncompressed size of the incomplete blocks.
+     */
     i64 CurrentSize;
 
     //! Uncompressed size of completed blocks.
     i64 UncompressedSize;
+
+    TKey LastKey;
 
     NProto::TTableChunkAttributes Attributes;
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);

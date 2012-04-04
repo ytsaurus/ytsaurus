@@ -8,6 +8,8 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/chunk_client/format.h>
 
+#include <util/folder/filelist.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -121,7 +123,7 @@ Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
     ui8 firstHashByte = static_cast<ui8>(chunkId.Parts[0] & 0xff);
     return NFS::CombinePaths(
         GetPath(),
-        Sprintf("%x/%s", firstHashByte, ~chunkId.ToString()));
+        Sprintf("%x%s%s", firstHashByte, LOCSLASH_S, ~chunkId.ToString()));
 }
 
 bool TLocation::IsFull() const

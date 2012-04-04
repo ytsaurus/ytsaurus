@@ -170,17 +170,17 @@ TEST_F(TLexerTest, Strings)
 
 TEST_F(TLexerTest, Integers)
 {
-    TestToken("123", ETokenType::Int64, "123");
-    TestToken("0", ETokenType::Int64, "0");
-    TestToken("+1", ETokenType::Int64, "1");
-    TestToken("-1", ETokenType::Int64, "-1");
+    TestToken("123", ETokenType::Integer, "123");
+    TestToken("0", ETokenType::Integer, "0");
+    TestToken("+1", ETokenType::Integer, "1");
+    TestToken("-1", ETokenType::Integer, "-1");
 
-    TestToken(Stroka("\x02\x00", 2), ETokenType::Int64, "0");
-    TestToken("\x02\x01", ETokenType::Int64, "-1");
-    TestToken("\x02\x02", ETokenType::Int64, "1");
-    TestToken("\x02\x03", ETokenType::Int64, "-2");
-    TestToken("\x02\x04", ETokenType::Int64, "2");
-    TestToken("\x02\x80\x80\x80\x02", ETokenType::Int64, ToString(1ull << 21));
+    TestToken(Stroka("\x02\x00", 2), ETokenType::Integer, "0");
+    TestToken("\x02\x01", ETokenType::Integer, "-1");
+    TestToken("\x02\x02", ETokenType::Integer, "1");
+    TestToken("\x02\x03", ETokenType::Integer, "-2");
+    TestToken("\x02\x04", ETokenType::Integer, "2");
+    TestToken("\x02\x80\x80\x80\x02", ETokenType::Integer, ToString(1ull << 21));
 }
 
 TEST_F(TLexerTest, Doubles)

@@ -122,7 +122,7 @@ protected:
     virtual ENodeType GetExpectedType() = 0;
 
     virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
-    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnMyIntegerScalar(i64 value, bool hasAttributes);
     virtual void OnMyDoubleScalar(double value, bool hasAttributes);
     virtual void OnMyEntity(bool hasAttributes);
 
@@ -185,7 +185,7 @@ class TNodeSetter
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka);
-DECLARE_SCALAR_TYPE(Int64,  i64);
+DECLARE_SCALAR_TYPE(Integer,  i64);
 DECLARE_SCALAR_TYPE(Double, double);
 
 #undef DECLARE_SCALAR_TYPE
@@ -334,7 +334,7 @@ NRpc::IServiceContext::TPtr CreateYPathContext(
     const Stroka& loggingCategory,
     TYPathResponseHandler responseHandler);
 
-IYPathServicePtr CreateRootService(IYPathService* underlyingService);
+IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 
 ////////////////////////////////////////////////////////////////////////////////
 

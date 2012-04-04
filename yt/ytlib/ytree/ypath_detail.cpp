@@ -152,7 +152,7 @@ static TYson DoGetAttribute(
 {
     if (systemAttributeProvider) {
         TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
+        TYsonWriter writer(&stream);
         if (systemAttributeProvider->GetSystemAttribute(key, &writer)) {
             if (isSystem) {
                 *isSystem = true;
@@ -247,7 +247,7 @@ void TSupportsAttributes::GetAttribute(
     
     if (IsFinalYPath(path)) {
         TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
+        TYsonWriter writer(&stream);
         
         writer.OnBeginMap();
 
@@ -460,11 +460,11 @@ void TNodeSetterBase::OnMyStringScalar(const Stroka& value, bool hasAttributes)
     ThrowInvalidType(ENodeType::String);
 }
 
-void TNodeSetterBase::OnMyInt64Scalar(i64 value, bool hasAttributes)
+void TNodeSetterBase::OnMyIntegerScalar(i64 value, bool hasAttributes)
 {
     UNUSED(value);
     UNUSED(hasAttributes);
-    ThrowInvalidType(ENodeType::Int64);
+    ThrowInvalidType(ENodeType::Integer);
 }
 
 void TNodeSetterBase::OnMyDoubleScalar(double value, bool hasAttributes)
@@ -531,7 +531,7 @@ protected:
     TYPathResponseHandler ResponseHandler;
     NLog::TLogger Logger;
 
-    virtual void DoReply(const TError& error, IMessage* responseMessage)
+    virtual void DoReply(const TError& error, IMessage::TPtr responseMessage)
     {
         UNUSED(error);
 
@@ -561,17 +561,6 @@ protected:
             ~str);
     }
 
-    virtual void LogException(const Stroka& message)
-    {
-        Stroka str;
-        AppendInfo(str, Sprintf("Path: %s", ~Path));
-        AppendInfo(str, Sprintf("Verb: %s", ~Verb));
-        AppendInfo(str, ResponseInfo);
-        LOG_FATAL("Unhandled exception in YPath service method (%s)\n%s",
-            ~str,
-            ~message);
-    }
-
 };
 
 NRpc::IServiceContext::TPtr CreateYPathContext(
@@ -597,7 +586,7 @@ class TRootService
     : public IYPathService
 {
 public:
-    TRootService(IYPathService* underlyingService)
+    TRootService(IYPathServicePtr underlyingService)
         : UnderlyingService(underlyingService)
     { }
 
@@ -637,7 +626,7 @@ private:
 
 };
 
-IYPathServicePtr CreateRootService(IYPathService* underlyingService)
+IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService)
 {
     return New<TRootService>(underlyingService);
 }

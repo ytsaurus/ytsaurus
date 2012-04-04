@@ -81,19 +81,17 @@ private:
 
         if (name == "nested_transaction_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* transaction)
-                    {
-                        fluent.Item().Scalar(transaction->GetId().ToString());
-                    });
+                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* transaction) {
+                    fluent.Item().Scalar(transaction->GetId().ToString());
+                });
             return true;
         }
 
         if (name == "created_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id)
-            {
-                fluent.Item().Scalar(id.ToString());
-            });
+                .DoListFor(transaction.CreatedObjectIds(), [=] (TFluentList fluent, TTransactionId id) {
+                    fluent.Item().Scalar(id.ToString());
+                });
             return true;
         }
 
@@ -175,7 +173,7 @@ private:
             objectManager->RefObject(objectId);
         }
 
-        response->set_object_id(objectId.ToProto());
+        *response->mutable_object_id() = objectId.ToProto();
 
         context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
 
@@ -329,6 +327,10 @@ void TTransactionManager::Commit(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    if (transaction.GetState() != ETransactionState::Active) {
+        ythrow yexception() << "Cannot commit an inactive transaction";
+    }
+
     auto id = transaction.GetId();
 
     if (!transaction.NestedTransactions().empty()) {
@@ -352,12 +354,16 @@ void TTransactionManager::Abort(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    if (transaction.GetState() != ETransactionState::Active) {
+        ythrow yexception() << "Cannot abort an inactive transaction";
+    }
+
     auto id = transaction.GetId();
 
     // Make a copy, the set will be modified.
     auto nestedTransactions = transaction.NestedTransactions();
-    FOREACH (auto* transaction, nestedTransactions) {
-        Abort(*transaction);
+    FOREACH (auto* nestedTransaction, nestedTransactions) {
+        Abort(*nestedTransaction);
     }
     YASSERT(transaction.NestedTransactions().empty());
 
@@ -379,8 +385,8 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
     auto objectManager = Bootstrap->GetObjectManager();
     auto transactionId = transaction.GetId();
 
-    if (transaction.GetParent()) {
-        auto* parent = transaction.GetParent();
+    auto* parent = transaction.GetParent();
+    if (parent) {
         YVERIFY(parent->NestedTransactions().erase(&transaction) == 1);
         objectManager->UnrefObject(transactionId);
     }

@@ -7,6 +7,8 @@
 
 #include <ytlib/misc/cache.h>
 
+#include <util/folder/dirut.h>
+
 namespace NYT {
 namespace NChunkHolder {
 

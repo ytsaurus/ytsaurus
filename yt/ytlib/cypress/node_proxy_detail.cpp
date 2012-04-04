@@ -46,9 +46,9 @@ IStringNodePtr TNodeFactory::CreateString()
     return DoCreate(EObjectType::StringNode)->AsString();
 }
 
-IInt64NodePtr TNodeFactory::CreateInt64()
+IIntegerNodePtr TNodeFactory::CreateInteger()
 {
-    return DoCreate(EObjectType::Int64Node)->AsInt64();
+    return DoCreate(EObjectType::IntegerNode)->AsInteger();
 }
 
 IDoubleNodePtr TNodeFactory::CreateDouble()

@@ -20,11 +20,13 @@ using namespace NChunkServer;
 
 TTableWriter::TTableWriter(
     TConfig* config,
+    const TOptions& options,
     NRpc::IChannel* masterChannel,
     ITransaction* transaction,
     TTransactionManager* transactionManager,
     const TYPath& path)
     : Config(config)
+    , Options(options)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
@@ -109,9 +111,9 @@ void TTableWriter::Open()
         UploadTransaction->GetId(),
         chunkListId);
 
-    Writer.Reset(new TValidatingWriter(
-        schema, 
-        ~asyncWriter));
+    Writer.Reset(Options.Sorted
+        ? new TSortedValidatingWriter(schema, ~asyncWriter)
+        : new TValidatingWriter(schema, ~asyncWriter));
 
     Sync(~Writer, &TValidatingWriter::AsyncOpen);
 

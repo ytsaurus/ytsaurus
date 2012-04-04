@@ -2,6 +2,7 @@
 #include "file_reader.h"
 
 #include <ytlib/misc/serialize.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/fs.h>
 
 namespace NYT {
@@ -52,12 +53,12 @@ void TChunkFileReader::Open()
     }
 
     TChunkMeta chunkMeta;
-    if (!DeserializeFromProtobuf(&chunkMeta, chunkMetaRef)) {
+    if (!DeserializeFromProto(&chunkMeta, chunkMetaRef)) {
         ythrow yexception() << Sprintf("Failed to parse chunk meta (FileName: %s)",
             ~FileName); 
     }
 
-    ChunkInfo.set_id(chunkMeta.id());
+    *ChunkInfo.mutable_id() = chunkMeta.id();
     ChunkInfo.set_meta_checksum(checksum);
     ChunkInfo.mutable_blocks()->MergeFrom(chunkMeta.blocks());
     ChunkInfo.mutable_attributes()->CopyFrom(chunkMeta.attributes());

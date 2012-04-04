@@ -1,13 +1,14 @@
 package NYT.NChunkServer.NProto;
 
 import "yt/ytlib/chunk_server/chunk_service.proto";
+import "yt/ytlib/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TMsgRegisterHolder
 {
     required bytes address = 1;
-    required bytes incarnation_id = 2;
+    required NYT.NProto.TGuid incarnation_id = 2;
     required THolderStatistics statistics = 3;
 }
 
@@ -19,7 +20,7 @@ message TMsgUnregisterHolder
 // TODO(babenko): deprecate
 message TMsgCreateChunks
 {
-    required bytes transaction_id = 1;
+    required NYT.NProto.TGuid transaction_id = 1;
     required int32 chunk_count = 2;
 }
 

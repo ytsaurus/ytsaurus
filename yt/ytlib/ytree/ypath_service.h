@@ -9,7 +9,7 @@
 // TODO(babenko): move to rpc/public.h
 
 namespace NYT {
-    class IInvoker;
+    struct IInvoker;
     namespace NRpc {
         class IServiceContext;
     }
@@ -55,7 +55,7 @@ struct IYPathService
         }
 
         //! Creates a result indicating that resolution must proceed.
-        static TResolveResult There(IYPathService* service, const TYPath& path)
+        static TResolveResult There(IYPathServicePtr service, const TYPath& path)
         {
             YASSERT(service);
 

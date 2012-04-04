@@ -70,7 +70,7 @@ void TFileWriter::SpecificClose(const NChunkServer::TChunkId& ChunkId)
     auto manifest = New<TFileManifest>();
     manifest->ChunkId = ChunkId;
     createNodeReq->set_manifest(SerializeToYson(~manifest));
-    auto createNodeRsp = CypressProxy.Execute(~createNodeReq)->Get();
+    auto createNodeRsp = CypressProxy.Execute(createNodeReq)->Get();
     if (!createNodeRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
             ~createNodeRsp->GetError().ToString());

@@ -29,14 +29,14 @@ public:
 #define IMPLEMENT_AS_METHODS(name) \
     virtual TIntrusivePtr<I##name##Node> As##name() \
     { \
-        ythrow yexception() << Sprintf("Invalid node type (Expected: %s, Actual: %s)", \
+        ythrow yexception() << Sprintf("Invalid node type: expected: %s, found %s", \
             #name, \
             ~GetType().ToString()); \
     } \
     \
     virtual TIntrusivePtr<const I##name##Node> As##name() const \
     { \
-        ythrow yexception() << Sprintf("Invalid node type (Expected: %s, Actual: %s)", \
+        ythrow yexception() << Sprintf("Invalid node type: expected %s, found %s", \
             #name, \
             ~GetType().ToString()); \
     }
@@ -44,7 +44,7 @@ public:
     IMPLEMENT_AS_METHODS(Entity)
     IMPLEMENT_AS_METHODS(Composite)
     IMPLEMENT_AS_METHODS(String)
-    IMPLEMENT_AS_METHODS(Int64)
+    IMPLEMENT_AS_METHODS(Integer)
     IMPLEMENT_AS_METHODS(Double)
     IMPLEMENT_AS_METHODS(List)
     IMPLEMENT_AS_METHODS(Map)

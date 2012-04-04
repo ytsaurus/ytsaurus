@@ -183,78 +183,6 @@ void WritePadding(TFile& file, i64 recordSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-struct TProtoTraits
-{
-    static const T& ToProto(const T& value)
-    {
-        return value;
-    }
-
-    static const T& FromProto(const T& value)
-    {
-        return value;
-    }
-};
-
-// TODO: generify for other classes providing their own ToProto/FromProto methods
-template <>
-struct TProtoTraits<TGuid>
-{
-    static Stroka ToProto(const TGuid& value)
-    {
-        return value.ToProto();
-    }
-
-    static TGuid FromProto(const Stroka& value)
-    {
-        return TGuid::FromProto(value);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TArrayItem, class TProtoItem>
-inline void ToProto(
-    ::google::protobuf::RepeatedPtrField<TProtoItem>* proto,
-    const yvector<TArrayItem>& array,
-    bool clear = true)
-{
-    if (clear) {
-        proto->Clear();
-    }
-    for (int i = 0; i < array.ysize(); ++i) {
-        *proto->Add() = TProtoTraits<TArrayItem>::ToProto(array[i]);
-    }
-}
-
-template <class T>
-inline void ToProto(
-    ::google::protobuf::RepeatedField<T>* proto,
-    const yvector<T>& array,
-    bool clear = true)
-{
-    if (clear) {
-        proto->Clear();
-    }
-    for (int i = 0; i < array.ysize(); ++i) {
-        *proto->Add() = array[i];
-    }
-}
-
-template <class TArrayItem, class TProtoItem>
-inline yvector<TArrayItem> FromProto(
-    const ::google::protobuf::RepeatedPtrField<TProtoItem>& proto)
-{
-    yvector<TArrayItem> array(proto.size());
-    for (int i = 0; i < proto.size(); ++i) {
-        array[i] = TProtoTraits<TArrayItem>::FromProto(proto.Get(i));
-    }
-    return array;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Various functions that read/write varints from/to a stream.
 
 // Returns the number of bytes written.
@@ -266,26 +194,6 @@ int WriteVarInt64(TOutputStream* output, i64 value);
 int ReadVarUInt64(TInputStream* input, ui64* value);
 int ReadVarInt32(TInputStream* input, i32* value);
 int ReadVarInt64(TInputStream* input, i64* value);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Serializes a given protobuf message into a given blob.
-//! Return true iff everything was OK.
-bool SerializeToProtobuf(const google::protobuf::Message* message, TBlob* data);
-
-//! Deserializes a given chunk of memory into a given protobuf message.
-//! Return true iff everything was OK.
-bool DeserializeFromProtobuf(google::protobuf::Message* message, TRef data);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Serializes a given protobuf message into a given stream
-//! Throw yexception() in case of error
-void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message);
-
-//! Reads from a given stream protobuf message
-//! Throw yexception() in case of error
-void LoadProto(TInputStream* input, ::google::protobuf::Message& message);
 
 ////////////////////////////////////////////////////////////////////////////////
 

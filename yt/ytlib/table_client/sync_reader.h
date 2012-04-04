@@ -8,28 +8,35 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISyncReader 
+struct ISyncTableReader 
     : public virtual TRefCounted
 {
+    typedef TIntrusivePtr<ISyncTableReader> TPtr;
+
     virtual void Open() = 0;
     virtual void NextRow() = 0;
     virtual bool IsValid() const = 0;
     virtual const TRow& GetRow() const = 0;
+    virtual const TKey& GetKey() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IAsyncReader;
 
-class TSyncReader 
+class TSyncReaderAdapter 
+    : public ISyncTableReader
 {
 public:
-    TSyncReader(IAsyncReader* asyncReader);
+    typedef TIntrusivePtr<TSyncReaderAdapter> TPtr;
+
+    TSyncReaderAdapter(IAsyncReader* asyncReader);
 
     void Open();
     void NextRow();
     bool IsValid() const;
     const TRow& GetRow() const;
+    const TKey& GetKey() const;
 
 private:
     TIntrusivePtr<IAsyncReader> AsyncReader;

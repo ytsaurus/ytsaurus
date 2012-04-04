@@ -137,7 +137,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     objectManager->RegisterHandler(~New<TLockTypeHandler>(this));
 
     RegisterHandler(~New<TStringNodeTypeHandler>(Bootstrap));
-    RegisterHandler(~New<TInt64NodeTypeHandler>(Bootstrap));
+    RegisterHandler(~New<TIntegerNodeTypeHandler>(Bootstrap));
     RegisterHandler(~New<TDoubleNodeTypeHandler>(Bootstrap));
     RegisterHandler(~New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(~New<TListNodeTypeHandler>(Bootstrap));
@@ -309,7 +309,7 @@ const ICypressNode* TCypressManager::FindVersionedNode(
         }
 
         // Move to the parent transaction.
-        const auto& transaction = transactionManager->GetTransaction(transactionId);
+        const auto& transaction = transactionManager->GetTransaction(currentTransactionId);
         currentTransactionId = transaction.GetParentId();
     }
 }
@@ -372,7 +372,7 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
         }
 
         // Move to the parent transaction.
-        const auto& transaction = transactionManager->GetTransaction(transactionId);
+        const auto& transaction = transactionManager->GetTransaction(currentTransactionId);
         currentTransactionId = transaction.GetParentId();
     }
 }
@@ -453,16 +453,15 @@ void TCypressManager::ValidateLock(
     if (requestedMode != ELockMode::Snapshot) {
         // Examine existing locks in the subtree.
         const auto& lockedNode = NodeMap.Get(nodeId);
-        FOREACH (const auto& lockId, lockedNode.SubtreeLockIds()) {
-            const auto& lock = GetLock(lockId);
+        FOREACH (const auto& lock, lockedNode.SubtreeLocks()) {
             // Check for download conflict.
-            if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
-                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s a downward lock at node %s taken by transaction %s",
+            if (!AreCompetingLocksCompatible(lock->GetMode(), requestedMode)) {
+                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s downward lock at node %s taken by transaction %s",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
-                    ~FormatEnum(lock.GetMode()).Quote(),
-                    ~lock.GetNodeId().ToString(),
-                    ~lock.GetTransactionId().ToString());
+                    ~FormatEnum(lock->GetMode()).Quote(),
+                    ~lock->GetNodeId().ToString(),
+                    ~lock->GetTransactionId().ToString());
             }
         }
 
@@ -470,14 +469,13 @@ void TCypressManager::ValidateLock(
         auto currentNodeId = nodeId;
         while (currentNodeId != NullObjectId) {
             const auto& currentNode = NodeMap.Get(currentNodeId);
-            FOREACH (const auto& lockId, currentNode.LockIds()) {
-                const auto& lock = GetLock(lockId);
+            FOREACH (const auto& lock, currentNode.Locks()) {
                 // Check if this is lock was taken by the same transaction,
                 // is at least as strong as the requested one,
                 // and has a proper recursive behavior.
-                if (lock.GetTransactionId() == transactionId &&
-                    lock.GetMode() >= requestedMode &&
-                    (IsLockRecursive(lock.GetMode()) || currentNodeId == nodeId))
+                if (lock->GetTransactionId() == transactionId &&
+                    lock->GetMode() >= requestedMode &&
+                    (IsLockRecursive(lock->GetMode()) || currentNodeId == nodeId))
                 {
                     if (isMandatory) {
                         *isMandatory = false;
@@ -485,13 +483,13 @@ void TCypressManager::ValidateLock(
                     return;
                 }
                 // Check for upward conflict.
-                if (!AreCompetingLocksCompatible(lock.GetMode(), requestedMode)) {
+                if (!AreCompetingLocksCompatible(lock->GetMode(), requestedMode)) {
                     ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s upward lock at node %s taken by transaction %s",
                         ~FormatEnum(requestedMode).Quote(),
                         ~nodeId.ToString(),
-                        ~FormatEnum(lock.GetMode()).Quote(),
-                        ~lock.GetNodeId().ToString(),
-                        ~lock.GetTransactionId().ToString());
+                        ~FormatEnum(lock->GetMode()).Quote(),
+                        ~lock->GetNodeId().ToString(),
+                        ~lock->GetTransactionId().ToString());
                 }
             }
             currentNodeId = currentNode.GetParentId();
@@ -559,7 +557,7 @@ TLockId TCypressManager::AcquireLock(
 
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto& transaction = transactionManager->GetTransaction(transactionId);
-    transaction.LockIds().push_back(lock->GetId());
+    transaction.Locks().push_back(lock);
 
     LOG_INFO_IF(!IsRecovery(), "Node locked (LockId: %s, NodeId: %s, TransactionId: %s, Mode: %s)",
         ~lockId.ToString(),
@@ -569,14 +567,14 @@ TLockId TCypressManager::AcquireLock(
 
     // Assign the node to the node itself.
     auto& lockedNode = NodeMap.Get(nodeId);
-    YVERIFY(lockedNode.LockIds().insert(lockId).second);
+    YVERIFY(lockedNode.Locks().insert(lock).second);
 
     // For recursive locks, also assign this lock to every node on the upward path.
     if (IsLockRecursive(mode)) {
         auto currentNodeId = lockedNode.GetParentId();
         while (currentNodeId != NullObjectId) {
             auto& currentNode = NodeMap.Get(currentNodeId);
-            YVERIFY(currentNode.SubtreeLockIds().insert(lockId).second);
+            YVERIFY(currentNode.SubtreeLocks().insert(lock).second);
             currentNodeId = currentNode.GetParentId();
         }
     }
@@ -594,25 +592,23 @@ TLockId TCypressManager::AcquireLock(
     return lockId;
 }
 
-void TCypressManager::ReleaseLock(const TLockId& lockId)
+void TCypressManager::ReleaseLock(TLock* lock)
 {
-    const auto& lock = LockMap.Get(lockId);
-
     // Remove the lock from the node itself.
-    auto& lockedNode = NodeMap.Get(lock.GetNodeId());
-    YVERIFY(lockedNode.LockIds().erase(lockId) == 1);
+    auto& lockedNode = NodeMap.Get(lock->GetNodeId());
+    YVERIFY(lockedNode.Locks().erase(lock) == 1);
 
     // For recursive locks, also remove the lock from the nodes on the upward path.
-    if (IsLockRecursive(lock.GetMode())) {
+    if (IsLockRecursive(lock->GetMode())) {
         auto currentNodeId = lockedNode.GetParentId();
         while (currentNodeId != NullObjectId) {
             auto& node = NodeMap.Get(currentNodeId);
-            YVERIFY(node.SubtreeLockIds().erase(lockId) == 1);
+            YVERIFY(node.SubtreeLocks().erase(lock) == 1);
             currentNodeId = node.GetParentId();
         }
     }
 
-    Bootstrap->GetObjectManager()->UnrefObject(lockId);
+    Bootstrap->GetObjectManager()->UnrefObject(lock->GetId());
 }
 
 TLockId TCypressManager::LockVersionedNode(
@@ -832,7 +828,7 @@ void TCypressManager::ReleaseLocks(const TTransaction& transaction)
     auto transactionId = transaction.GetId();
 
     // Iterate over all locks created by the transaction.
-    FOREACH (const auto& lockId, transaction.LockIds()) {
+    FOREACH (const auto& lockId, transaction.Locks()) {
         ReleaseLock(lockId);
     }
 }

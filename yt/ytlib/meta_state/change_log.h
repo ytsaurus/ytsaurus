@@ -23,6 +23,7 @@ public:
     TChangeLog(
         const Stroka& fileName,
         i32 id,
+        bool disableFlush = false,
         i64 indexBlockSize = 1024 * 1024);
 
     void Open();
