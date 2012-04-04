@@ -18,6 +18,7 @@
 #include <ytlib/misc/home.h>
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/errortrace.h>
+#include <ytlib/misc/thread.h>
 
 #include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
@@ -176,6 +177,7 @@ public:
     int Main(int argc, const char* argv[])
     {
         NYT::SetupErrorHandler();
+        NYT::SetCurrentThreadName("DriverMain");
 
         try {
             if (argc < 2) {
