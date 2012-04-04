@@ -33,7 +33,7 @@ public:
     void Flush();
 
     virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
-    virtual void OnMyInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnMyIntegerScalar(i64 value, bool hasAttributes);
     virtual void OnMyDoubleScalar(double value, bool hasAttributes);
 
     virtual void OnMyEntity(bool hasAttributes);

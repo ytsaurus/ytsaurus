@@ -7,7 +7,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/chunk_holder/public.h>
-//ToDo: consider removing.
+// TODO(babenko): consider removing.
 #include <ytlib/chunk_holder/chunk_cache.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/ytree/public.h>
@@ -46,8 +46,7 @@ public:
     NScheduler::NProto::TJobResult GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
 
-    DEFINE_SIGNAL(void(), Started);
-    DECLARE_SIGNAL(void(NScheduler::NProto::TJobResult), Finished);
+    DECLARE_SIGNAL(void(), Finished);
 
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);

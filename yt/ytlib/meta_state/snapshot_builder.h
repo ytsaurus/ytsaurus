@@ -44,7 +44,7 @@ public:
 
     TSnapshotBuilder(
         TSnapshotBuilderConfig* config,
-        TCellManagerPtr cellManager,
+        NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr decoratedState,
         TChangeLogCachePtr changeLogCache,
         TSnapshotStorePtr snapshotStore,
@@ -93,7 +93,7 @@ private:
     void OnLocalSnapshotCreated(i32 snapshotId, const TChecksum& checksum);
 
     TSnapshotBuilderConfigPtr Config;
-    TCellManagerPtr CellManager;
+    NElection::TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;

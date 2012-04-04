@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "snapshot_builder.h"
+#include "common.h"
+#include "config.h"
 #include "meta_state_manager_proxy.h"
 #include "meta_version.h"
 #include "decorated_meta_state.h"
@@ -23,6 +25,8 @@
 
 namespace NYT {
 namespace NMetaState {
+
+using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +91,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
         for (TPeerId id = 0; id < Owner->CellManager->GetPeerCount(); ++id) {
-            if (id == Owner->CellManager->SelfId()) continue;
+            if (id == Owner->CellManager->GetSelfId()) continue;
 
             if (CreateSnapshot) {
                 LOG_DEBUG("Requesting follower %d to create a snapshot", id);
@@ -156,7 +160,7 @@ private:
             return;
         }
 
-        Checksums[Owner->CellManager->SelfId()] = result.Checksum;
+        Checksums[Owner->CellManager->GetSelfId()] = result.Checksum;
     }
 
     void OnChangeLogRotated(TPeerId id, TProxy::TRspAdvanceSegment::TPtr response)

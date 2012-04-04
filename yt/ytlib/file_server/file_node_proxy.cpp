@@ -67,6 +67,7 @@ void TFileNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes
 {
     attributes->push_back("size");
     attributes->push_back("compressed_size");
+    attributes->push_back("compression_ratio");
     attributes->push_back("codec_id");
     attributes->push_back("chunk_list_id");
     attributes->push_back("chunk_id");
@@ -78,6 +79,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto& fileNode = GetTypedImpl();
     const auto& chunkList = chunkManager->GetChunkList(fileNode.GetChunkListId());
+    const auto& statistics = chunkList.Statistics();
     YASSERT(chunkList.Children().size() == 1);
     auto chunkRef = chunkList.Children()[0];
     const auto& chunk = *chunkRef.AsChunk();
@@ -87,13 +89,22 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
 
     if (name == "size") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList.Statistics().UncompressedSize);
+            .Scalar(statistics.UncompressedSize);
         return true;
     }
 
     if (name == "compressed_size") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList.Statistics().CompressedSize);
+            .Scalar(statistics.CompressedSize);
+        return true;
+    }
+
+    if (name == "compression_ratio") {
+        double ratio = statistics.CompressedSize ?
+            static_cast<double>(statistics.UncompressedSize) / statistics.CompressedSize :
+            1.;
+        BuildYsonFluently(consumer)
+            .Scalar(ratio);
         return true;
     }
 

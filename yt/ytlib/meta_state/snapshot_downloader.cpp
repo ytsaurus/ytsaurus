@@ -1,10 +1,11 @@
 #include "stdafx.h"
 #include "snapshot_downloader.h"
 #include "common.h"
+#include "config.h"
 #include "snapshot.h"
 #include "meta_state_manager_proxy.h"
-#include "cell_manager.h"
 
+#include <ytlib/election/cell_manager.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/bind.h>
 #include <ytlib/actions/future.h>
@@ -13,6 +14,8 @@
 
 namespace NYT {
 namespace NMetaState {
+
+using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +58,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
 
     LOG_INFO("Getting snapshot %d info from peers", snapshotId);
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
-        if (peerId == CellManager->SelfId()) continue;
+        if (peerId == CellManager->GetSelfId()) continue;
 
         LOG_INFO("Requesting snapshot info from peer %d", peerId);
 

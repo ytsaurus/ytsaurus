@@ -6,7 +6,7 @@
 #include <ytlib/rpc/channel_cache.h>
 
 namespace NYT {
-namespace NMetaState {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,10 +14,10 @@ class TCellManager
     : public TRefCounted
 {
 public:
-    TCellManager(TCellConfig* config);
+    TCellManager(TCellConfigPtr config);
 
-    DEFINE_BYREF_RO_PROPERTY(TPeerId, SelfId);
-    DEFINE_BYREF_RO_PROPERTY(Stroka, SelfAddress);
+    DEFINE_BYVAL_RO_PROPERTY(TPeerId, SelfId);
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, SelfAddress);
 
     i32 GetQuorum() const;
     i32 GetPeerCount() const;
@@ -44,6 +44,6 @@ TAutoPtr<TProxy> TCellManager::GetMasterProxy(TPeerId id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMetaState
+} // namespace NElection
 } // namespace NYT
 

@@ -112,11 +112,10 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             environmentType,
             JobId,
             Slot->GetWorkingDirectory());
-
     } catch (const std::exception& ex) {
         Stroka msg = Sprintf(
-            "Failed to create proxy controller for environment \"%s\" (JobId: %s, Path: %s)", 
-            ~environmentType,
+            "Failed to create proxy controller for environment %s (JobId: %s)\n%s", 
+            ~environmentType.Quote(),
             ~JobId.ToString(), 
             ex.what());
 
@@ -136,18 +135,17 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         auto userSpec = JobSpec.GetExtension(NScheduler::NProto::TUserJobSpec::user_job_spec);
         FOREACH (const auto& fetchRsp, userSpec.files()) {
             auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
+            LOG_INFO("Downloading user file %s (JobId: %s, ChunkId: %s)", 
+                ~fetchRsp.file_name().Quote(),
+                ~JobId.ToString(),
+                ~chunkId.ToString());
             awaiter->Await(
                 ChunkCache->DownloadChunk(chunkId), 
-                BIND(
-                    &TJob::OnChunkDownloaded,
-                    MakeWeak(this),
-                    fetchRsp));
+                BIND(&TJob::OnChunkDownloaded, MakeWeak(this), fetchRsp));
         }
     }
 
-    awaiter->Complete(BIND(
-        &TJob::RunJobProxy,
-        MakeWeak(this)));
+    awaiter->Complete(BIND(&TJob::RunJobProxy, MakeWeak(this)));
 }
 
 void TJob::OnChunkDownloaded(
@@ -165,9 +163,9 @@ void TJob::OnChunkDownloaded(
 
     if (!result.IsOK()) {
         Stroka msg = Sprintf(
-            "Failed to download file (JobId: %s, FileName: %s, Error: %s)", 
+            "Failed to download user file %s (JobId: %s)\n%s", 
+            ~fileName.Quote(),
             ~JobId.ToString(),
-            ~fileName,
             ~result.GetMessage());
 
         LOG_WARNING("%s", ~msg);
@@ -185,7 +183,7 @@ void TJob::OnChunkDownloaded(
             fetchRsp.executable());
     } catch (yexception& ex) {
         Stroka msg = Sprintf(
-            "Failed to make symlink (JobId: %s, FileName: %s, Error: %s)", 
+            "Failed to make symlink (JobId: %s, FileName: %s)\n%s", 
             ~JobId.ToString(),
             ~fileName,
             ex.what());
@@ -196,9 +194,9 @@ void TJob::OnChunkDownloaded(
         return;
     }
 
-    LOG_DEBUG("Successfully downloaded file (JobId: %s, FileName: %s)", 
-        ~JobId.ToString(),
-        ~fileName);
+    LOG_INFO("User file %s downloaded successfully (JobId: %s)", 
+        ~fileName,
+        ~JobId.ToString());
 }
 
 void TJob::RunJobProxy()
@@ -342,12 +340,14 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
     JobState = resultState;
 }
 
-void TJob::SubscribeFinished(const TCallback<void(TJobResult)>& callback)
+void TJob::SubscribeFinished(const TCallback<void()>& callback)
 {
-    JobResult->Subscribe(callback);
+    JobResult->Subscribe(BIND([=] (TJobResult result) {
+        callback.Run();
+    }));
 }
 
-void TJob::UnsubscribeFinished(const TCallback<void(TJobResult)>& callback)
+void TJob::UnsubscribeFinished(const TCallback<void()>& callback)
 {
     YUNIMPLEMENTED();
 }

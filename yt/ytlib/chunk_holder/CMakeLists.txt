@@ -1,8 +1,8 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/chunk_holder )
 set( SRCS
-  ${BASE}/bootstrap.cpp
   ${BASE}/block_store.cpp
+  ${BASE}/bootstrap.cpp
   ${BASE}/chunk.cpp
   ${BASE}/chunk_cache.cpp
   ${BASE}/chunk_holder_service.cpp
@@ -19,9 +19,8 @@ set( SRCS
   ${BASE}/ytree_integration.cpp
 )
 set( HDRS
-  ${BASE}/public.h
-  ${BASE}/bootstrap.h
   ${BASE}/block_store.h
+  ${BASE}/bootstrap.h
   ${BASE}/chunk.h
   ${BASE}/chunk_cache.h
   ${BASE}/chunk_holder_service.h
@@ -35,6 +34,7 @@ set( HDRS
   ${BASE}/master_connector.h
   ${BASE}/peer_block_table.h
   ${BASE}/peer_block_updater.h
+  ${BASE}/public.h
   ${BASE}/reader_cache.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h

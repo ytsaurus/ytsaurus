@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "recovery.h"
+#include "common.h"
+#include "config.h"
 #include "snapshot_lookup.h"
 #include "snapshot_downloader.h"
 #include "change_log_downloader.h"
@@ -18,9 +20,11 @@
 namespace NYT {
 namespace NMetaState {
 
+using namespace NElection;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MetaState");
+static NLog::TLogger& Logger = MetaStateLogger;
 static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,7 +356,7 @@ TLeaderRecovery::TLeaderRecovery(
         changeLogCache,
         snapshotStore,
         epoch,
-        cellManager->SelfId(),
+        cellManager->GetSelfId(),
         epochControlInvoker,
         epochStateInvoker)
 { }

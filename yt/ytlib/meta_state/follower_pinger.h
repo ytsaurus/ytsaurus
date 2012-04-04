@@ -18,7 +18,7 @@ class TFollowerPinger
 public:
     TFollowerPinger(
         TFollowerPingerConfigPtr config,
-        TCellManagerPtr cellManager,
+        NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr decoratedState,
         TFollowerTrackerPtr followerTracker,
         const TEpoch& epoch,
@@ -36,7 +36,7 @@ private:
 
     TFollowerPingerConfigPtr Config;
     TPeriodicInvoker::TPtr PeriodicInvoker;
-    TCellManagerPtr CellManager;
+    NElection::TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
     TFollowerTrackerPtr FollowerTracker;
     TSnapshotStorePtr SnapshotStore;

@@ -37,12 +37,12 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TYsonParserTest, Int64)
+TEST_F(TYsonParserTest, Integer)
 {
     Input = "   100500  ";
 
     InSequence dummy;
-    EXPECT_CALL(Mock, OnInt64Scalar(100500, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(100500, false));
 
     Run();
 }
@@ -89,12 +89,12 @@ TEST_F(TYsonParserTest, EntityWithEmptyAttributes)
     Run();
 }
 
-TEST_F(TYsonParserTest, BinaryInt64)
+TEST_F(TYsonParserTest, BinaryInteger)
 {
-    Input = Stroka(" \x02\x80\x80\x80\x02  ", 1 + 5 + 2); //Int64Marker + (1 << 21) as VarInt ZigZagEncoded
+    Input = Stroka(" \x02\x80\x80\x80\x02  ", 1 + 5 + 2); //IntegerMarker + (1 << 21) as VarInt ZigZagEncoded
 
     InSequence dummy;
-    EXPECT_CALL(Mock, OnInt64Scalar(1ull << 21, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(1ull << 21, false));
 
     Run();
 }
@@ -159,7 +159,7 @@ TEST_F(TYsonParserTest, OneElementList)
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginList());
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnInt64Scalar(42, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(42, false));
     EXPECT_CALL(Mock, OnEndList(false));
 
     Run();
@@ -201,7 +201,7 @@ TEST_F(TYsonParserTest, SeveralElementsList)
     EXPECT_CALL(Mock, OnBeginList());
 
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnInt64Scalar(42, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(42, false));
 
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(1000), false));
@@ -234,7 +234,7 @@ TEST_F(TYsonParserTest, MapWithAttributes)
         EXPECT_CALL(Mock, OnStringScalar("/home/sandello", false));
 
     EXPECT_CALL(Mock, OnMapItem("mode"));
-        EXPECT_CALL(Mock, OnInt64Scalar(755, false));
+        EXPECT_CALL(Mock, OnIntegerScalar(755, false));
 
     EXPECT_CALL(Mock, OnEndMap(true));
 
@@ -314,15 +314,15 @@ TEST_F(TYsonParserTest, ListFragment)
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnInt64Scalar(1, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(1, false));
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnInt64Scalar(2, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(2, false));
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnInt64Scalar(3, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(3, false));
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnInt64Scalar(4, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(4, false));
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnInt64Scalar(5, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(5, false));
 
     Run();
 }
@@ -354,7 +354,7 @@ TEST_F(TYsonParserTest, OneListFragment)
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnInt64Scalar(100500, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(100500, false));
 
     Run();
 }
@@ -375,15 +375,15 @@ TEST_F(TYsonParserTest, MapFragment)
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnMapItem("a"));
-    EXPECT_CALL(Mock, OnInt64Scalar(1, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(1, false));
     EXPECT_CALL(Mock, OnMapItem("b"));
-    EXPECT_CALL(Mock, OnInt64Scalar(2, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(2, false));
     EXPECT_CALL(Mock, OnMapItem("c"));
-    EXPECT_CALL(Mock, OnInt64Scalar(3, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(3, false));
     EXPECT_CALL(Mock, OnMapItem("d"));
-    EXPECT_CALL(Mock, OnInt64Scalar(4, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(4, false));
     EXPECT_CALL(Mock, OnMapItem("e"));
-    EXPECT_CALL(Mock, OnInt64Scalar(5, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(5, false));
 
     Run();
 }
@@ -415,7 +415,7 @@ TEST_F(TYsonParserTest, OneMapFragment)
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnMapItem("1"));
-    EXPECT_CALL(Mock, OnInt64Scalar(100500, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(100500, false));
 
     Run();
 }

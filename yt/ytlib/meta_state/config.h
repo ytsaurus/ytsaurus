@@ -10,33 +10,6 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCellConfig
-    : public TConfigurable
-{
-    //! RPC interface port number.
-    int RpcPort;
-
-    //! Master server addresses.
-    yvector<Stroka> Addresses;
-
-    TCellConfig()
-    {
-        Register("rpc_port", RpcPort)
-            .Default(9091);
-        Register("addresses", Addresses)
-            .NonEmpty();
-    }
-
-    virtual void DoValidate() const
-    {
-        if ((Addresses.ysize() % 2) != 1) {
-            ythrow yexception() << Sprintf("Cell should consist of odd number of masters");
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TChangeLogDownloaderConfig
     : public TConfigurable
 {
@@ -210,7 +183,7 @@ struct TPersistentStateManagerConfig
     //! Default timeout for RPC requests.
     TDuration RpcTimeout;
 
-    TCellConfigPtr Cell;
+    NElection::TCellConfigPtr Cell;
 
     NElection::TElectionManagerConfigPtr Election;
 

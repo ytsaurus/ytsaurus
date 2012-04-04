@@ -135,10 +135,10 @@ public:
     TCreateArgs();
 
 private:
-    TUnlabeledStringArg PathArg;
-
     typedef TCLAP::UnlabeledValueArg<NObjectServer::EObjectType> TTypeArg;
     TTypeArg TypeArg;
+
+    TUnlabeledStringArg PathArg;
 
     typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
     TManifestArg ManifestArg;
@@ -238,10 +238,9 @@ public:
 
 private:
     TUnlabeledStringArg PathArg;
-
-    //TODO(panin):support value from stdin
     TUnlabeledStringArg ValueArg;
-
+    TCLAP::SwitchArg SortedArg;
+    
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
 };
@@ -304,7 +303,7 @@ public:
 
 private:
     TCLAP::MultiArg<Stroka> InArg;
-    TUnlabeledStringArg OutArg;
+    TCLAP::ValueArg<Stroka> OutArg;
     TCLAP::SwitchArg SortedArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);

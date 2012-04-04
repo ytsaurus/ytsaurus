@@ -132,9 +132,6 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response)
 {
-    // ToDo: why waiting 5 sec before first heartbeat?
-    ScheduleHeartbeat();
-
     if (!response->IsOK()) {
         Disconnect();
 
@@ -146,6 +143,8 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr respo
     State = EState::Registered;
 
     LOG_INFO("Successfully registered at master (HolderId: %d)", HolderId);
+
+    SendFullHeartbeat();
 }
 
 void TMasterConnector::SendFullHeartbeat()

@@ -1,13 +1,16 @@
 #include "stdafx.h"
+#include "config.h"
 #include "change_log_downloader.h"
 #include "async_change_log.h"
 #include "meta_version.h"
-#include "cell_manager.h"
 
+#include <ytlib/election/cell_manager.h>
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NMetaState {
+
+using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 

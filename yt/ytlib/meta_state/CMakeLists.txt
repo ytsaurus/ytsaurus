@@ -2,7 +2,6 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state )
 set( SRCS
   ${BASE}/async_change_log.cpp
-  ${BASE}/cell_manager.cpp
   ${BASE}/change_committer.cpp
   ${BASE}/change_log.cpp
   ${BASE}/change_log_cache.cpp
@@ -24,7 +23,6 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/async_change_log.h
-  ${BASE}/cell_manager.h
   ${BASE}/change_committer.h
   ${BASE}/change_log.h
   ${BASE}/change_log_cache.h

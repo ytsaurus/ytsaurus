@@ -14,7 +14,7 @@ class TMockYsonConsumer
 {
 public:
     MOCK_METHOD2(OnStringScalar, void(const Stroka& value, bool hasAttributes));
-    MOCK_METHOD2(OnInt64Scalar, void(i64 value, bool hasAttributes));
+    MOCK_METHOD2(OnIntegerScalar, void(i64 value, bool hasAttributes));
     MOCK_METHOD2(OnDoubleScalar, void(double value, bool hasAttributes));
     MOCK_METHOD1(OnEntity, void(bool hasAttributes));
 

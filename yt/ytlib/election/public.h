@@ -1,18 +1,19 @@
 #pragma once
 
-#include <ytlib/misc/common.h>
+#include "common.h"
 
 namespace NYT {
-namespace NCypress {
+namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager;
-typedef TIntrusivePtr<TCypressManager> TCypressManagerPtr;
+class TCellManager;
+typedef TIntrusivePtr<TCellManager> TCellManagerPtr;
 
-class TLock;
+struct TCellConfig;
+typedef TIntrusivePtr<TCellConfig> TCellConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
-} // namespace NCypress
+
+} // namespace NElection
 } // namespace NYT

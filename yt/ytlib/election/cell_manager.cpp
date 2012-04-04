@@ -4,11 +4,11 @@
 #include <util/system/hostname.h>
 
 namespace NYT {
-namespace NMetaState {
+namespace NElection {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = MetaStateLogger;
+static NLog::TLogger& Logger = ElectionLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,7 +16,7 @@ NRpc::TChannelCache TCellManager::ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellManager::TCellManager(TCellConfig* config)
+TCellManager::TCellManager(TCellConfigPtr config)
     : Config(config)
     , OrderedAddresses()
 {
@@ -51,5 +51,5 @@ Stroka TCellManager::GetPeerAddress(TPeerId id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NMetaState
+} // namespace NElection
 } // namespace NYT

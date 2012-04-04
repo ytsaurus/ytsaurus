@@ -8,11 +8,11 @@ set( SRCS
   ${BASE}/message.cpp
   ${BASE}/redirector_service.cpp
   ${BASE}/retriable_channel.cpp
+  ${BASE}/roaming_channel.cpp
   ${BASE}/rpc_manager.cpp
   ${BASE}/server.cpp
   ${BASE}/server_detail.cpp
   ${BASE}/service.cpp
-  ${BASE}/roaming_channel.cpp
 )
 set( HDRS
   ${BASE}/channel.h
@@ -23,11 +23,11 @@ set( HDRS
   ${BASE}/message.h
   ${BASE}/redirector_service.h
   ${BASE}/retriable_channel.h
+  ${BASE}/roaming_channel.h
   ${BASE}/rpc_manager.h
   ${BASE}/server.h
   ${BASE}/server_detail.h
   ${BASE}/service.h
-  ${BASE}/roaming_channel.h
 )
 
 list(APPEND YT_SOURCE_FILES

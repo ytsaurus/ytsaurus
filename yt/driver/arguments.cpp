@@ -164,12 +164,12 @@ void TListArgs::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateArgs::TCreateArgs()
-    : PathArg("path", "path for a new object in Cypress", true, "", "ypath")
-    , TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
+    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
+    , PathArg("path", "path for a new object in Cypress", true, "", "ypath")
     , ManifestArg("", "manifest", "manifest", false, "", "yson")
 {
-    CmdLine.add(PathArg);
     CmdLine.add(TypeArg);
+    CmdLine.add(PathArg);
     CmdLine.add(ManifestArg);
 }
 
@@ -268,7 +268,8 @@ void TReadArgs::BuildCommand(IYsonConsumer* consumer)
 
 TWriteArgs::TWriteArgs()
     : PathArg("path", "path to a table in Cypress that must be written", true, "", "ypath")
-    , ValueArg("value", "row(s) to write", true, "", "yson")
+    , ValueArg("value", "row(s) to write", false, "", "yson")
+    , SortedArg("s", "sorted", "create sorted table (table must initially be empty, input data must be sorted)")
 {
     CmdLine.add(PathArg);
     CmdLine.add(ValueArg);
@@ -287,10 +288,14 @@ TWriteArgs::TWriteArgs()
 
 void TWriteArgs::BuildCommand(IYsonConsumer* consumer)
 {
+    auto value = ValueArg.getValue();
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("write")
         .Item("path").Scalar(PathArg.getValue())
-        .Item("value").Node(ValueArg.getValue());
+        .DoIf(!value.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("value").Node(value);
+        });
 
     TTransactedArgs::BuildCommand(consumer);
 }
@@ -335,7 +340,7 @@ TMapArgs::TMapArgs()
     : InArg("", "in", "input tables", false, "ypath")
     , OutArg("", "out", "output tables", false, "ypath")
     , FilesArg("", "file", "additional files", false, "ypath")
-    , MapperArg("", "command", "shell command", true, "", "path")
+    , MapperArg("", "mapper", "mapper shell command", true, "", "command")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
@@ -361,7 +366,7 @@ void TMapArgs::BuildCommand(IYsonConsumer* consumer)
 
 TMergeArgs::TMergeArgs()
     : InArg("", "in", "input tables", false, "ypath")
-    , OutArg("", "out", "output table", false, "ypath")
+    , OutArg("", "out", "output table", false, "", "ypath")
     , SortedArg("s", "sorted", "produce sorted output (all input tables must be sorted)")
 {
     CmdLine.add(InArg);

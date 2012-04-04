@@ -70,7 +70,12 @@ private:
 
     virtual yvector<Stroka> GetKeys(size_t sizeLimit) const
     {
-        const auto& ids = Bootstrap->GetCypressManager()->GetLockIds(sizeLimit);
+        const auto& locks = Bootstrap->GetCypressManager()->GetLocks(sizeLimit);
+        std::vector<TLockId> ids;
+        ids.reserve(locks.size());
+        FOREACH (const auto& lock, locks) {
+            ids.push_back(lock->GetId());
+        }
         return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
     }
 

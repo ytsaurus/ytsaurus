@@ -1,6 +1,7 @@
 #pragma once
 
 #include "id.h"
+#include "public.h"
 
 #include <ytlib/cell_master/public.h>
 
@@ -47,14 +48,14 @@ struct ICypressNode
     virtual void SetParentId(TNodeId value) = 0;
 
     //! Gets an immutable reference to the node's locks.††
-    virtual const yhash_set<TLockId>& LockIds() const = 0;
+    virtual const yhash_set<TLock*>& Locks() const = 0;
     //! Gets an mutable reference to the node's locks.
-    virtual yhash_set<TLockId>& LockIds() = 0;
+    virtual yhash_set<TLock*>& Locks() = 0;
 
     //! Gets an immutable reference to the node's subtree locks.
-    virtual const yhash_set<TLockId>& SubtreeLockIds() const = 0;
+    virtual const yhash_set<TLock*>& SubtreeLocks() const = 0;
     //! Gets an mutable reference to the node's subtree locks.
-    virtual yhash_set<TLockId>& SubtreeLockIds() = 0;
+    virtual yhash_set<TLock*>& SubtreeLocks() = 0;
 
     //! Increments the reference counter, returns the incremented value.
     virtual i32 RefObject() = 0;

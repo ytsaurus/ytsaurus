@@ -20,7 +20,7 @@ void TRowConsumer::OnStringScalar(const Stroka& value, bool hasAttributes)
     Writer->Write(Column, TValue(value));
 }
 
-void TRowConsumer::OnInt64Scalar(i64 value, bool hasAttributes)
+void TRowConsumer::OnIntegerScalar(i64 value, bool hasAttributes)
 {
     CheckNoAttributes(hasAttributes);
     CheckInsideRow();
