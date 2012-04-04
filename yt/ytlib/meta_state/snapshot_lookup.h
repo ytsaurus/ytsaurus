@@ -18,7 +18,7 @@ class TSnapshotLookup
 public:
     TSnapshotLookup(
         TPersistentStateManagerConfigPtr config,
-        TCellManagerPtr cellManager);
+        NElection::TCellManagerPtr cellManager);
 
     i32 LookupLatestSnapshot(i32 maxSnapshotId);
 
@@ -27,7 +27,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TPersistentStateManagerConfigPtr Config;
-    TCellManagerPtr CellManager;
+    NElection::TCellManagerPtr CellManager;
     i32 CurrentSnapshotId;
     TFuture<i32>::TPtr ResultPromise;
 

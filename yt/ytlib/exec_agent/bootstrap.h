@@ -37,7 +37,7 @@ public:
 private:
     TExecAgentConfigPtr Config;
     NCellNode::TBootstrap* NodeBootstrap;
-    
+
     TJobManagerPtr JobManager;
     TEnvironmentManagerPtr EnvironmentManager;
     TSchedulerConnectorPtr SchedulerConnector;

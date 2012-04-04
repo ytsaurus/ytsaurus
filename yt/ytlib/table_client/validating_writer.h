@@ -35,7 +35,6 @@ protected:
     yhash_set<TColumn> UsedRangeColumns; // for columns without indexes.
 
     TKey CurrentKey;
-    bool RowStart;
 
     std::vector<TChannelWriter::TPtr> ChannelWriters;
     NProto::TTableChunkAttributes Attributes;

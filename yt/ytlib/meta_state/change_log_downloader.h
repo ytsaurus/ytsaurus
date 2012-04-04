@@ -24,7 +24,7 @@ public:
 
     TChangeLogDownloader(
         TChangeLogDownloaderConfig* config,
-        TCellManager* cellManager);
+        NElection::TCellManager* cellManager);
 
     EResult Download(TMetaVersion version, TAsyncChangeLog& changeLog);
 
@@ -33,7 +33,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TChangeLogDownloaderConfigPtr Config;
-    TCellManagerPtr CellManager;
+    NElection::TCellManagerPtr CellManager;
 
     TPeerId GetChangeLogSource(TMetaVersion version);
 

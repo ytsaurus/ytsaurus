@@ -130,10 +130,7 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
     if (ypathResponse->IsOK()) {
         auto consumer = Host->CreateOutputConsumer();
         auto id = TNodeId::FromProto(ypathResponse->object_id());
-        BuildYsonFluently(~consumer)
-            .BeginMap()
-                .Item("object_id").Scalar(id.ToString())
-            .EndMap();
+        BuildYsonFluently(~consumer).Scalar(id.ToString());
     } else {
         Host->ReplyError(ypathResponse->GetError());
     }
@@ -156,10 +153,7 @@ void TLockCommand::DoExecute(TLockRequestPtr request)
 
     if (ypathResponse->IsOK()) {
         auto lockId = TLockId::FromProto(ypathResponse->lock_id());
-        BuildYsonFluently(~Host->CreateOutputConsumer())
-            .BeginMap()
-                .Item("lock_id").Scalar(lockId.ToString())
-            .EndMap();
+        BuildYsonFluently(~Host->CreateOutputConsumer()).Scalar(lockId.ToString());
     } else {
         Host->ReplyError(ypathResponse->GetError());
     }

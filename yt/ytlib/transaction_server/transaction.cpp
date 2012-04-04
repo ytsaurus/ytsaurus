@@ -3,6 +3,7 @@
 
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/load_context.h>
+#include <ytlib/cypress/lock.h>
 
 #include <util/ysaveload.h>
 
@@ -25,7 +26,7 @@ void TTransaction::Save(TOutputStream* output) const
     SaveObjects(output, NestedTransactions_);
     SaveObject(output, Parent_);
     SaveSet(output, CreatedObjectIds_);
-    ::Save(output, LockIds_);
+    SaveObjects(output, Locks_);
     ::Save(output, BranchedNodeIds_);
     ::Save(output, CreatedNodeIds_);
 }
@@ -37,7 +38,7 @@ void TTransaction::Load(const TLoadContext& context, TInputStream* input)
     LoadObjects(input, NestedTransactions_, context);
     LoadObject(input, Parent_, context);
     LoadSet(input, CreatedObjectIds_);
-    ::Load(input, LockIds_);
+    LoadObjects(input, Locks_, context);
     ::Load(input, BranchedNodeIds_);
     ::Load(input, CreatedNodeIds_);
 }

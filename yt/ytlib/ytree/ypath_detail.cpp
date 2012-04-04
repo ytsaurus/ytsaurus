@@ -460,11 +460,11 @@ void TNodeSetterBase::OnMyStringScalar(const Stroka& value, bool hasAttributes)
     ThrowInvalidType(ENodeType::String);
 }
 
-void TNodeSetterBase::OnMyInt64Scalar(i64 value, bool hasAttributes)
+void TNodeSetterBase::OnMyIntegerScalar(i64 value, bool hasAttributes)
 {
     UNUSED(value);
     UNUSED(hasAttributes);
-    ThrowInvalidType(ENodeType::Int64);
+    ThrowInvalidType(ENodeType::Integer);
 }
 
 void TNodeSetterBase::OnMyDoubleScalar(double value, bool hasAttributes)

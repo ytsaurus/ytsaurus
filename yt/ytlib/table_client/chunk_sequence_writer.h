@@ -28,7 +28,7 @@ public:
     {
         typedef TIntrusivePtr<TConfig> TPtr;
 
-        i64 MaxChunkSize;
+        i64 DesiredChunkSize;
 
         int TotalReplicaCount;
         int UploadReplicaCount;
@@ -38,7 +38,7 @@ public:
 
         TConfig()
         {
-            Register("max_chunk_size", MaxChunkSize)
+            Register("desired_chunk_size", DesiredChunkSize)
                 .GreaterThan(0)
                 .Default(1024 * 1024 * 1024);
             Register("total_replica_count", TotalReplicaCount)
@@ -65,7 +65,8 @@ public:
         TConfig* config,
         NRpc::IChannel* masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkServer::TChunkListId& parentChunkList);
+        const NChunkServer::TChunkListId& parentChunkList,
+        i64 expectedRowCount = std::numeric_limits<i64>::max());
 
     ~TChunkSequenceWriter();
 
@@ -73,12 +74,11 @@ public:
         const NProto::TTableChunkAttributes& attributes);
 
     TAsyncError AsyncEndRow(
-        TKey& key,
-        std::vector<TChannelWriter::TPtr>& channels);
+        const TKey& key,
+        const std::vector<TChannelWriter::TPtr>& channels);
 
     TAsyncError AsyncClose(
-        TKey& lastKey,
-        std::vector<TChannelWriter::TPtr>& channels);
+        const std::vector<TChannelWriter::TPtr>& channels);
 
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
@@ -88,8 +88,7 @@ private:
     void OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp);
 
     void FinishCurrentChunk(
-        TKey& lastKey,
-        std::vector<TChannelWriter::TPtr>& channels);
+        const std::vector<TChannelWriter::TPtr>& channels);
 
     void OnChunkClosed(
         TChunkWriter::TPtr currentChunk,
@@ -105,14 +104,19 @@ private:
         NChunkClient::TChunkId chunkId,
         TError error);
 
-    void OnRowEnded(TError error);
+    void OnRowEnded(
+        const std::vector<TChannelWriter::TPtr>& channels,
+        TError error);
+
     void OnClose();
 
     TConfig::TPtr Config;
 
-    /*const i64 ExpectedRowCount;
+    const i64 ExpectedRowCount;
     i64 CurrentRowCount;
-    i64 */
+
+    //! Total compressed size of data in the completed chunks.
+    i64 CompleteChunkSize;
 
     TProxy ChunkProxy;
     NCypress::TCypressServiceProxy CypressProxy;

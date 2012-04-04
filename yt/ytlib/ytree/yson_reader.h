@@ -62,7 +62,7 @@ protected:
 
     void ParseString(int depth);
 
-    void ParseBinaryInt64(int depth);
+    void ParseBinaryInteger(int depth);
     void ParseBinaryDouble(int depth);
 
     static bool SeemsInteger(const Stroka& str);

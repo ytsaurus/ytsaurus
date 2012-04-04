@@ -14,7 +14,7 @@ using namespace NTransactionClient;
 void TStartTransactionCommand::DoExecute(TStartRequestPtr request)
 {
     auto transactionManager = Host->GetTransactionManager();
-    auto newTransaction = transactionManager->Start(~request->Manifest);
+    auto newTransaction = transactionManager->Start(~request->Manifest, request->TransactionId);
 
     BuildYsonFluently(~Host->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());
@@ -34,7 +34,7 @@ void TCommitTransactionCommand::DoExecute(TCommitRequestPtr request)
 void TAbortTransactionCommand::DoExecute(TAbortRequestPtr request)
 {
     auto transaction = Host->GetTransaction(request, true);
-    transaction->Commit();
+    transaction->Abort();
     Host->ReplySuccess();
 }
 

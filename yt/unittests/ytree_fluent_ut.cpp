@@ -59,7 +59,7 @@ TYPED_TEST_P(TYTreeFluentIntegerScalarTest, Ok)
     StrictMock<TMockYsonConsumer> mock;
     InSequence dummy;
 
-    EXPECT_CALL(mock, OnInt64Scalar(42, false));
+    EXPECT_CALL(mock, OnIntegerScalar(42, false));
 
     TypeParam passedScalar = 42;
     BuildYsonFluently(&mock)
@@ -131,9 +131,9 @@ TEST(TYTreeFluentMapTest, Simple)
 
     EXPECT_CALL(mock, OnBeginMap());
     EXPECT_CALL(mock, OnMapItem("foo"));
-    EXPECT_CALL(mock, OnInt64Scalar(10, false));
+    EXPECT_CALL(mock, OnIntegerScalar(10, false));
     EXPECT_CALL(mock, OnMapItem("bar"));
-    EXPECT_CALL(mock, OnInt64Scalar(20, false));
+    EXPECT_CALL(mock, OnIntegerScalar(20, false));
     EXPECT_CALL(mock, OnEndMap(false));
 
     BuildYsonFluently(&mock)
@@ -155,10 +155,10 @@ TEST(TYTreeFluentMapTest, Nested)
     EXPECT_CALL(mock, OnMapItem("foo"));
     EXPECT_CALL(mock, OnBeginMap());
     EXPECT_CALL(mock, OnMapItem("xxx"));
-    EXPECT_CALL(mock, OnInt64Scalar(17, false));
+    EXPECT_CALL(mock, OnIntegerScalar(17, false));
     EXPECT_CALL(mock, OnEndMap(false));
     EXPECT_CALL(mock, OnMapItem("bar"));
-    EXPECT_CALL(mock, OnInt64Scalar(42, false));
+    EXPECT_CALL(mock, OnIntegerScalar(42, false));
     EXPECT_CALL(mock, OnEndMap(false));
 
     BuildYsonFluently(&mock)
@@ -254,16 +254,16 @@ TEST(TYTreeFluentTest, Complex)
     EXPECT_CALL(mock, OnBeginList());
 
     EXPECT_CALL(mock, OnListItem());
-    EXPECT_CALL(mock, OnInt64Scalar(42, true));
+    EXPECT_CALL(mock, OnIntegerScalar(42, true));
     EXPECT_CALL(mock, OnBeginAttributes());
     EXPECT_CALL(mock, OnAttributesItem("attr1"));
-    EXPECT_CALL(mock, OnInt64Scalar(-1, false));
+    EXPECT_CALL(mock, OnIntegerScalar(-1, false));
     EXPECT_CALL(mock, OnAttributesItem("attr2"));
-    EXPECT_CALL(mock, OnInt64Scalar(-2, false));
+    EXPECT_CALL(mock, OnIntegerScalar(-2, false));
     EXPECT_CALL(mock, OnEndAttributes());
 
     EXPECT_CALL(mock, OnListItem());
-    EXPECT_CALL(mock, OnInt64Scalar(17, false));
+    EXPECT_CALL(mock, OnIntegerScalar(17, false));
 
     EXPECT_CALL(mock, OnListItem());
     EXPECT_CALL(mock, OnBeginList());
@@ -284,9 +284,9 @@ TEST(TYTreeFluentTest, Complex)
     EXPECT_CALL(mock, OnListItem());
     EXPECT_CALL(mock, OnBeginMap());
     EXPECT_CALL(mock, OnMapItem("aaa"));
-    EXPECT_CALL(mock, OnInt64Scalar(1, false));
+    EXPECT_CALL(mock, OnIntegerScalar(1, false));
     EXPECT_CALL(mock, OnMapItem("bbb"));
-    EXPECT_CALL(mock, OnInt64Scalar(2, false));
+    EXPECT_CALL(mock, OnIntegerScalar(2, false));
     EXPECT_CALL(mock, OnEndMap(false));
 
     EXPECT_CALL(mock, OnListItem());

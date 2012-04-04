@@ -7,9 +7,10 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/chunk_holder/public.h>
-//ToDo: consider removing.
+// TODO(babenko): consider removing.
 #include <ytlib/chunk_holder/chunk_cache.h>
 #include <ytlib/rpc/channel.h>
+#include <ytlib/ytree/public.h>
 
 #include <ytlib/file_server/file_ypath.pb.h>
 
@@ -25,6 +26,7 @@ public:
     TJob(
         const TJobId& jobId,
         const NScheduler::NProto::TJobSpec& jobSpec,
+        const NYTree::TYson& proxyConfig,
         NChunkHolder::TChunkCachePtr chunkCache,
         TSlotPtr slot);
     ~TJob();
@@ -43,10 +45,8 @@ public:
 
     NScheduler::NProto::TJobResult GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
-    void SetResult(const TError& error);
 
-    DEFINE_SIGNAL(void(), Started);
-    DECLARE_SIGNAL(void(NScheduler::NProto::TJobResult), Finished);
+    DECLARE_SIGNAL(void(), Finished);
 
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
@@ -55,6 +55,7 @@ private:
         NChunkHolder::TChunkCache::TDownloadResult result);
 
     void RunJobProxy();
+    void SetResult(const TError& error);
 
     //! Called by ProxyController when proxy process finishes.
     void OnJobExit(TError error);
@@ -66,6 +67,8 @@ private:
 
     NScheduler::EJobState JobState;
     NScheduler::EJobProgress JobProgress;
+
+    NYTree::TYson ProxyConfig;
 
     TSlotPtr Slot;
 

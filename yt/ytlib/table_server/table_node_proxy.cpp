@@ -215,10 +215,11 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }
 
         const auto& attributesBlob = chunk.GetAttributes();
-        NTableClient::NProto::TTableChunkAttributes attributes;
+        NChunkHolder::NProto::TChunkAttributes attributes;
         YVERIFY(DeserializeFromProto(&attributes, attributesBlob));
+        auto tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
 
-        inputChunk->set_approximate_row_count(attributes.row_count());
+        inputChunk->set_approximate_row_count(tableAttributes.row_count());
         inputChunk->set_approximate_data_size(chunk.GetSize());
 
         if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
@@ -230,7 +231,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }
     }
 
-    context->SetResponseInfo("ChunkCount: %d", chunkIds.ysize());
+    context->SetResponseInfo("ChunkCount: %d", static_cast<int>(chunkIds.size()));
 
     context->Reply();
 }

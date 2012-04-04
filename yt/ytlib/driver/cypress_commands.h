@@ -14,7 +14,6 @@ struct TGetRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
 
     TGetRequest()
     {
@@ -44,7 +43,6 @@ struct TSetRequest
 {
     NYTree::TYPath Path;
     NYTree::INodePtr Value;
-    NYTree::INodePtr Stream;
 
     TSetRequest()
     {
@@ -53,14 +51,7 @@ struct TSetRequest
     }
 
     virtual void DoValidate() const
-    {
-        if (!Value && !Stream) {
-            ythrow yexception() << Sprintf("Neither \"value\" nor \"stream\" is given");
-        }
-        if (Value && Stream) {
-            ythrow yexception() << Sprintf("Both \"value\" and \"stream\" are given");
-        }
-    }
+    { }
 };
 
 typedef TIntrusivePtr<TSetRequest> TSetRequestPtr;
@@ -112,7 +103,6 @@ struct TListRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
 
     TListRequest()
     {

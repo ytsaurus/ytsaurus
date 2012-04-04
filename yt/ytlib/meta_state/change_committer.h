@@ -55,7 +55,7 @@ public:
     //! Creates an instance.
     TLeaderCommitter(
         TLeaderCommitterConfig* config,
-        TCellManager* cellManager,
+        NElection::TCellManager* cellManager,
         TDecoratedMetaState* metaState,
         TChangeLogCache* changeLogCache,
         TFollowerTracker* followerTracker,
@@ -117,7 +117,7 @@ private:
     void FlushCurrentBatch(bool rotateChangeLog);
 
     TLeaderCommitterConfigPtr Config;
-    TCellManagerPtr CellManager;
+    NElection::TCellManagerPtr CellManager;
     TChangeLogCachePtr ChangeLogCache;
     TFollowerTrackerPtr FollowerTracker;
     TEpoch Epoch;

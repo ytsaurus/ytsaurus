@@ -120,7 +120,7 @@ private:
 
 
 TMapJobIO::TMapJobIO(
-    TJobIoConfigPtr config,
+    TJobIOConfigPtr config,
     NRpc::IChannel* masterChannel,
     const NScheduler::NProto::TMapJobSpec& ioSpec)
     : Config(config)

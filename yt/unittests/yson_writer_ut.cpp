@@ -47,16 +47,16 @@ TEST_F(TYsonWriterTest, BinaryString)
     Run();
 }
 
-TEST_F(TYsonWriterTest, BinaryInt64)
+TEST_F(TYsonWriterTest, BinaryInteger)
 {
     i64 value = 100500424242ll;
 
     InSequence dummy;
-    EXPECT_CALL(Mock, OnInt64Scalar(value, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(value, false));
 
     TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
-    writer.OnInt64Scalar(value, false);
+    writer.OnIntegerScalar(value, false);
 
     Run();
 }
@@ -104,7 +104,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
         EXPECT_CALL(Mock, OnStringScalar("/home/sandello", false));
 
     EXPECT_CALL(Mock, OnMapItem("mode"));
-        EXPECT_CALL(Mock, OnInt64Scalar(755, false));
+        EXPECT_CALL(Mock, OnIntegerScalar(755, false));
 
     EXPECT_CALL(Mock, OnEndMap(true));
 
@@ -139,7 +139,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
         writer.OnStringScalar("/home/sandello", false);
 
     writer.OnMapItem("mode");
-        writer.OnInt64Scalar(755, false);
+        writer.OnIntegerScalar(755, false);
 
     writer.OnEndMap(true);
 

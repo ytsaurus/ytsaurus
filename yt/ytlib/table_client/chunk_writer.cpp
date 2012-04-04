@@ -40,7 +40,7 @@ TAsyncError TChunkWriter::AsyncOpen(
     const NProto::TTableChunkAttributes& attributes)
 {
     // No thread affinity check here - 
-    // TChunkSequenceWriter may call it from any thread.
+    // TChunkSequenceWriter may call it from different threads.
     YASSERT(!IsOpen);
     YASSERT(!IsClosed);
 
@@ -54,8 +54,8 @@ TAsyncError TChunkWriter::AsyncOpen(
 }
 
 TAsyncError TChunkWriter::AsyncEndRow(
-    TKey& key,
-    std::vector<TChannelWriter::TPtr>& channels)
+    const TKey& key,
+    const std::vector<TChannelWriter::TPtr>& channels)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -76,12 +76,14 @@ TAsyncError TChunkWriter::AsyncEndRow(
         } 
     }
 
+    LastKey = key;
+
     // Keys sampling
     if (LastSampleSize == 0 || 
         (CurrentSize - LastSampleSize > Config->SamplingSize))
     {
         LastSampleSize = CurrentSize;
-        AddKeySample(key);
+        AddKeySample();
     }
 
     return ChunkWriter->AsyncWriteBlocks(MoveRV(completedBlocks));
@@ -117,8 +119,7 @@ i64 TChunkWriter::GetCurrentSize() const
 }
 
 TAsyncError TChunkWriter::AsyncClose(
-    TKey& lastKey,
-    std::vector<TChannelWriter::TPtr>& channels)
+    const std::vector<TChannelWriter::TPtr>& channels)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -131,16 +132,17 @@ TAsyncError TChunkWriter::AsyncClose(
         auto& channel = channels[channelIndex];
 
         if (channel->HasUnflushedData()) {
-            CurrentSize += channel->GetCurrentSize();
             auto block = PrepareBlock(channel, channelIndex);
             completedBlocks.push_back(block);
         } 
     }
 
+    CurrentSize = SentSize;
+
     // Sample last key (if it is not already sampled by coincidence).
     auto& lastSample = *(--Attributes.key_samples().end());
     if (Attributes.row_count() > lastSample.row_index() + 1) {
-        AddKeySample(lastKey);
+        AddKeySample();
     }
 
     Attributes.set_uncompressed_size(UncompressedSize);
@@ -156,13 +158,13 @@ TChunkId TChunkWriter::GetChunkId() const
     return ChunkWriter->GetChunkId();
 }
 
-void TChunkWriter::AddKeySample(const TKey& key)
+void TChunkWriter::AddKeySample()
 {
     auto* sample = Attributes.add_key_samples();
 
     //ToDo: use ToProto here when std::vector will be supported.
     auto* protoKey = sample->mutable_key();
-    FOREACH (auto& keyPart, key) {
+    FOREACH (auto& keyPart, LastKey) {
         protoKey->add_values(keyPart);
     }
 

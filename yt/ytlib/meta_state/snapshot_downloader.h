@@ -24,7 +24,7 @@ public:
 
     TSnapshotDownloader(
         TSnapshotDownloaderConfigPtr config,
-        TCellManagerPtr cellManager);
+        NElection::TCellManagerPtr cellManager);
 
     EResult DownloadSnapshot(i32 snapshotId, const Stroka& fileName);
 
@@ -47,7 +47,7 @@ private:
     typedef TProxy::EErrorCode EErrorCode;
 
     TSnapshotDownloaderConfigPtr Config;
-    TCellManagerPtr CellManager;
+    NElection::TCellManagerPtr CellManager;
 
     TSnapshotInfo GetSnapshotInfo(i32 snapshotId); // also finds snapshot source
     static void OnSnapshotInfoResponse(

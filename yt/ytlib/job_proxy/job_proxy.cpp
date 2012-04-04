@@ -85,14 +85,14 @@ void TJobProxy::Start()
 
         case EJobType::OrderedMerge:
             Job = new TOrderedMergeJob(
-                Config->JobIo, 
+                Config->JobIO, 
                 Config->Masters, 
                 jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
             break;
 
         case EJobType::SortedMerge:
             Job = new TSortedMergeJob(
-                Config->JobIo, 
+                Config->JobIO, 
                 Config->Masters, 
                 jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
 

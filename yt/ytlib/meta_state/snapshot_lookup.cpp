@@ -1,13 +1,16 @@
 #include "stdafx.h"
 #include "snapshot_lookup.h"
 #include "common.h"
+#include "config.h"
 #include "meta_state_manager_proxy.h"
-#include "cell_manager.h"
+#include <ytlib/election/cell_manager.h>
 
 #include <ytlib/misc/thread_affinity.h>
 
 namespace NYT {
 namespace NMetaState {
+
+using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 

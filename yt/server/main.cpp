@@ -19,11 +19,13 @@
 #include <ytlib/job_proxy/job_proxy.h>
 #include <ytlib/meta_state/async_change_log.h>
 
-#include <util/config/last_getopt.h>
+#include <ytlib/misc/tclap_helpers.h>
+#include <tclap/CmdLine.h>
+
+#include <build.h>
 
 namespace NYT {
 
-using namespace NLastGetopt;
 using namespace NYTree;
 using namespace NElection;
 using namespace NScheduler;
@@ -39,58 +41,60 @@ DECLARE_ENUM(EExitCode,
     ((BootstrapError)(2))
 );
 
+struct TArgsParser
+{
+public:
+    TArgsParser()
+        : CmdLine("Command line", ' ', YT_VERSION)
+        , CellNode("", "node", "start cell node")
+        , CellMaster("", "master", "start cell master")
+        , Scheduler("", "scheduler", "start scheduler")
+        , JobProxy("", "job-proxy", "start job proxy")
+        , JobId("", "job-id", "job id (for job-proxy mode)", false, "", "ID")
+        , Port("", "port", "port to listen", false, -1, "PORT")
+        , Config("", "config", "configuration file", false, "", "FILE")
+        , ConfigTemplate("", "config-template", "print configuration file template")
+    {
+        CmdLine.add(CellNode);
+        CmdLine.add(CellMaster);
+        CmdLine.add(Scheduler);
+        CmdLine.add(JobProxy);
+        CmdLine.add(JobId);
+        CmdLine.add(Port);
+        CmdLine.add(Config);
+        CmdLine.add(ConfigTemplate);
+    }
+
+    TCLAP::CmdLine CmdLine;
+
+    TCLAP::SwitchArg CellNode;
+    TCLAP::SwitchArg CellMaster;
+    TCLAP::SwitchArg Scheduler;
+    TCLAP::SwitchArg JobProxy;
+
+    TCLAP::ValueArg<Stroka> JobId;
+    TCLAP::ValueArg<int> Port;
+    TCLAP::ValueArg<Stroka> Config;
+    TCLAP::SwitchArg ConfigTemplate;
+};
+
+
 EExitCode GuardedMain(int argc, const char* argv[])
 {
-    // Configure options parser.
-    TOpts opts;
+    TArgsParser parser;
 
-    opts.AddHelpOption();
+    parser.CmdLine.parse(argc, argv);
 
-    const auto& cellNodeOpt = opts.AddLongOption("node", "start cell node")
-        .NoArgument()
-        .Optional();
+    // Figure out the mode: cell master, cell node, scheduler or job proxy.
+    bool isCellMaster = parser.CellMaster.getValue();
+    bool isCellNode = parser.CellNode.getValue();
+    bool isScheduler = parser.Scheduler.getValue();
+    bool isJobProxy = parser.JobProxy.getValue();
 
-    const auto& cellMasterOpt = opts.AddLongOption("master", "start cell master")
-        .NoArgument()
-        .Optional();
+    bool printConfigTemplate = parser.ConfigTemplate.getValue();
 
-    const auto& schedulerOpt = opts.AddLongOption("scheduler", "start scheduler")
-        .NoArgument()
-        .Optional();
-
-    const TOpt& jobProxyOpt = opts.AddLongOption("job-proxy", "start job proxy")
-        .NoArgument()
-        .Optional();
-
-    Stroka jobIdOpt;
-    opts.AddLongOption("job-id", "job id (for job-proxy mode)")
-        .Optional()
-        .RequiredArgument("ID")
-        .StoreResult(&jobIdOpt);
-
-    int port = -1;
-    opts.AddLongOption("port", "port to listen")
-        .Optional()
-        .RequiredArgument("PORT")
-        .StoreResult(&port);
-
-    Stroka configFileName;
-    opts.AddLongOption("config", "configuration file")
-        .Optional()
-        .RequiredArgument("FILE")
-        .StoreResult(&configFileName);
-
-    const auto& configTemplateOpt = opts.AddLongOption("config-template", "print configuration file template")
-        .NoArgument()
-        .Optional();
-
-    TOptsParseResult results(&opts, argc, argv);
-
-    // Figure out the mode: cell master or chunk holder.
-    bool isCellMaster = results.Has(&cellMasterOpt);
-    bool isCellNode = results.Has(&cellNodeOpt);
-    bool isScheduler = results.Has(&schedulerOpt);
-    bool isJobProxy = results.Has(&jobProxyOpt);
+    Stroka configFileName = parser.Config.getValue();
+    int port = parser.Port.getValue();
 
     int modeCount = 0;
     if (isCellNode) {
@@ -109,12 +113,12 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (modeCount != 1) {
-        opts.PrintUsage(results.GetProgramName());
+        TCLAP::StdOutput().usage(parser.CmdLine);
         return EExitCode::OptionsError;
     }
 
     INodePtr configNode;
-    if (!results.Has(&configTemplateOpt)) {
+    if (!printConfigTemplate) {
         // Configure logging.
         NLog::TLogManager::Get()->Configure(configFileName, "logging");
 
@@ -131,7 +135,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     // Start an appropriate server.
     if (isCellNode) {
         auto config = New<NCellNode::TCellNodeConfig>();
-        if (results.Has(&configTemplateOpt)) {
+        if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
@@ -159,7 +163,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (isCellMaster) {
         auto config = New<NCellMaster::TCellMasterConfig>();
-        if (results.Has(&configTemplateOpt)) {
+        if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
@@ -185,7 +189,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (isScheduler) {
         auto config = New<NCellScheduler::TCellSchedulerConfig>();
-        if (results.Has(&configTemplateOpt)) {
+        if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
@@ -204,7 +208,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     if (isJobProxy) {
         auto config = New<NJobProxy::TJobProxyConfig>();
-        if (results.Has(&configTemplateOpt)) {
+        if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
@@ -212,7 +216,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         NJobProxy::TJobId jobId;
         try {
-            jobId = TGuid::FromString(jobIdOpt);
+            jobId = TGuid::FromString(parser.JobId.getValue());
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Invalid job-id value: %s",
                 ex.what());

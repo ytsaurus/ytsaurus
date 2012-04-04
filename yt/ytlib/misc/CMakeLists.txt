@@ -20,12 +20,12 @@ set( SRCS
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
+  ${BASE}/protobuf_helpers.cpp
   ${BASE}/ref.cpp
   ${BASE}/ref_counted.cpp
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
-  ${BASE}/protobuf_helpers.cpp
   ${BASE}/source_location.cpp
   ${BASE}/thread.cpp
 )
@@ -68,14 +68,14 @@ set( HDRS
   ${BASE}/preprocessor-gen.h
   ${BASE}/preprocessor.h
   ${BASE}/property.h
+  ${BASE}/protobuf_helpers-inl.h
+  ${BASE}/protobuf_helpers.h
   ${BASE}/ref.h
   ${BASE}/ref_counted.h
   ${BASE}/ref_counted_tracker.h
   ${BASE}/rvalue.h
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
-  ${BASE}/protobuf_helpers.h
-  ${BASE}/protobuf_helpers-inl.h
   ${BASE}/singleton.h
   ${BASE}/source_location.h
   ${BASE}/string.h

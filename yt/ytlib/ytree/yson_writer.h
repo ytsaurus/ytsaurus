@@ -38,7 +38,7 @@ public:
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes = false);
-    virtual void OnInt64Scalar(i64 value, bool hasAttributes = false);
+    virtual void OnIntegerScalar(i64 value, bool hasAttributes = false);
     virtual void OnDoubleScalar(double value, bool hasAttributes = false);
     virtual void OnEntity(bool hasAttributes = false);
 

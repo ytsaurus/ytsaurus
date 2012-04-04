@@ -32,7 +32,7 @@ struct TOperationSpecBase
     : public TConfigurable
 {
     TNullable<int> JobCount;
-    NJobProxy::TJobIoConfigPtr JobIOConfig;
+    NJobProxy::TJobIOConfigPtr JobIOConfig;
 
     TOperationSpecBase()
     {

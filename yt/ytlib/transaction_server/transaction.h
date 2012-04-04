@@ -5,6 +5,7 @@
 #include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/cypress/id.h>
+#include <ytlib/cypress/public.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/object_server/object_detail.h>
 
@@ -32,7 +33,7 @@ class TTransaction
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectId>, CreatedObjectIds);
 
     // Cypress stuff
-    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TLockId>, LockIds);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NCypress::TLock*>, Locks);
     DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, BranchedNodeIds);
     DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, CreatedNodeIds);
 

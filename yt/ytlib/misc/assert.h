@@ -12,21 +12,11 @@ namespace NYT {
 //! In debug mode also throws an error if #expr is false.
 #define YVERIFY(expr) \
     do { \
-        try { \
-            if (EXPECT_FALSE( !(expr) )) { \
-                if (YaIsDebuggerPresent()) { \
-                    __debugbreak(); \
-                } else { \
-                    assert(0&&(expr)); \
-                } \
-            } \
-        } catch (const std::exception& ex) { \
+        if (EXPECT_FALSE( !(expr) )) { \
             if (YaIsDebuggerPresent()) { \
                 __debugbreak(); \
             } else { \
-                assert(0&&"Exception was thrown while evaluating YVERIFY: " \
-                    __FILE__ ":" PP_STRINGIZE(__LINE__) ":" PP_STRINGIZE(expr) \
-                ); \
+                assert(0&&(expr)); \
             } \
         } \
     } while (0)

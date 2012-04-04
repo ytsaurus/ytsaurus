@@ -38,7 +38,7 @@ public:
 
         auto& cellManager = ElectionManager->CellManager;
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id != cellManager->SelfId()) {
+            if (id != cellManager->GetSelfId()) {
                 SendPing(id);
             }
         }
@@ -71,7 +71,7 @@ private:
         auto request = proxy
             ->PingFollower()
             ->SetTimeout(ElectionManager->Config->RpcTimeout);
-        request->set_leader_id(ElectionManager->CellManager->SelfId());
+        request->set_leader_id(ElectionManager->CellManager->GetSelfId());
         *request->mutable_epoch() = ElectionManager->Epoch.ToProto();
         Awaiter->Await(
             request->Invoke(),
@@ -194,7 +194,7 @@ public:
             ~ElectionManager->VoteEpoch.ToString());
 
         ProcessVote(
-            cellManager->SelfId(),
+            cellManager->GetSelfId(),
             TStatus(
                 ElectionManager->State,
                 ElectionManager->VoteId,
@@ -202,7 +202,7 @@ public:
                 ElectionManager->VoteEpoch));
 
         for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-            if (id == cellManager->SelfId()) continue;
+            if (id == cellManager->GetSelfId()) continue;
 
             auto proxy = cellManager->GetMasterProxy<TProxy>(id);
             proxy->SetDefaultTimeout(ElectionManager->Config->RpcTimeout);
@@ -308,7 +308,7 @@ private:
         // Use the local one for self
         // (others may still be following with an outdated epoch).
         auto candidateEpoch =
-            candidateId == ElectionManager->CellManager->SelfId()
+            candidateId == ElectionManager->CellManager->GetSelfId()
             ? ElectionManager->VoteEpoch
             : candidateStatus.VoteEpoch;
 
@@ -337,7 +337,7 @@ private:
         Awaiter->Cancel();
 
         // Become a leader or a follower.
-        if (candidateId == ElectionManager->CellManager->SelfId()) {
+        if (candidateId == ElectionManager->CellManager->GetSelfId()) {
             EpochInvoker->Invoke(BIND(
                 &TElectionManager::StartLeading,
                 TElectionManager::TPtr(ElectionManager)));
@@ -375,7 +375,7 @@ private:
         if (candidateId != candidateStatus.VoteId)
             return false;
 
-        if (candidateId == ElectionManager->CellManager->SelfId()) {
+        if (candidateId == ElectionManager->CellManager->GetSelfId()) {
             // Check that we're voting.
             YASSERT(candidateStatus.State == TProxy::EState::Voting);
             return true;
@@ -431,7 +431,7 @@ private:
 
 TElectionManager::TElectionManager(
     TElectionManagerConfig *config,
-    NMetaState::TCellManager* cellManager,
+    TCellManager* cellManager,
     IInvoker* controlInvoker,
     IElectionCallbacks* electionCallbacks)
     : TServiceBase(
@@ -556,7 +556,7 @@ void TElectionManager::StartVoteForSelf()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     State = TProxy::EState::Voting;
-    VoteId = CellManager->SelfId();
+    VoteId = CellManager->GetSelfId();
     VoteEpoch = TGuid::Create();
 
     YASSERT(!ControlEpochContext);
@@ -611,7 +611,7 @@ void TElectionManager::StartLeading()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     UpdateState(TProxy::EState::Leading);
-    YASSERT(VoteId == CellManager->SelfId());
+    YASSERT(VoteId == CellManager->GetSelfId());
 
     // Initialize followers state.
     for (TPeerId i = 0; i < CellManager->GetPeerCount(); ++i) {
@@ -619,7 +619,7 @@ void TElectionManager::StartLeading()
         PotentialFollowers.insert(i);
     }
     
-    StartEpoch(CellManager->SelfId(), VoteEpoch);
+    StartEpoch(CellManager->GetSelfId(), VoteEpoch);
 
     // Send initial pings.
     YASSERT(!FollowerPinger);
@@ -768,7 +768,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetStatus)
     response->set_vote_id(VoteId);
     response->set_priority(priority);
     *response->mutable_vote_epoch() = VoteEpoch.ToProto();
-    response->set_self_id(CellManager->SelfId());
+    response->set_self_id(CellManager->GetSelfId());
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         response->add_peer_addresses(CellManager->GetPeerAddress(id));
     }

@@ -12,7 +12,6 @@ TValidatingWriter::TValidatingWriter(
     IAsyncBlockWriter* writer)
     : Writer(writer)
     , Schema(schema)
-    , RowStart(true)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -60,11 +59,6 @@ void TValidatingWriter::Write(const TColumn& column, TValue value)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
-    if (RowStart) {
-        CurrentKey.assign(Schema.KeyColumns().size(), Stroka());
-        RowStart = false;
-    }
-
     int columnIndex = TChannelWriter::UnknownIndex;
     auto it = ColumnIndexes.find(column);
 
@@ -99,10 +93,6 @@ TAsyncError TValidatingWriter::AsyncEndRow()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
-    if (RowStart) {
-        CurrentKey.assign(Schema.KeyColumns().size(), Stroka());
-    }
-
     for (int columnIndex = 0; columnIndex < Schema.KeyColumns().size(); ++columnIndex) {
         if (!IsColumnUsed[columnIndex]) {
             FOREACH(auto& channelWriter, ChannelWriters) {
@@ -118,17 +108,22 @@ TAsyncError TValidatingWriter::AsyncEndRow()
     for (int i = 0; i < IsColumnUsed.size(); ++i)
         IsColumnUsed[i] = false;
     UsedRangeColumns.clear();
-    RowStart = true;
 
-    return Writer->AsyncEndRow(CurrentKey, ChannelWriters);
+    TKey currentKey(Schema.KeyColumns().size());
+    currentKey.swap(CurrentKey);
+
+    return Writer->AsyncEndRow(currentKey, ChannelWriters);
 }
 
 TAsyncError TValidatingWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
-    YASSERT(RowStart);
 
-    return Writer->AsyncClose(CurrentKey, ChannelWriters);
+    YASSERT(UsedRangeColumns.empty());
+    for (int i = 0; i < IsColumnUsed.size(); ++i)
+        YASSERT(!IsColumnUsed[i]);
+
+    return Writer->AsyncClose(ChannelWriters);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

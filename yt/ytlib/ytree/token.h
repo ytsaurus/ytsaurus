@@ -13,7 +13,7 @@ DECLARE_ENUM(ETokenType,
     (None) // Empty or uninitialized token (used for EndOfStream)
 
     (String)
-    (Int64)
+    (Integer)
     (Double)
 
     // Special values:
@@ -49,14 +49,14 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(ETokenType, Type);
 
     const Stroka& GetStringValue() const;
-    i64 GetInt64Value() const;
+    i64 GetIntegerValue() const;
     double GetDoubleValue() const;
 
     Stroka ToString() const;
 
 private:
     Stroka StringValue;
-    i64 Int64Value;
+    i64 IntegerValue;
     double DoubleValue;
 };
 

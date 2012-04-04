@@ -29,7 +29,7 @@ public:
      */
     TRecovery(
         TPersistentStateManagerConfig* config,
-        TCellManager* cellManager,
+        NElection::TCellManager* cellManager,
         TDecoratedMetaState* decoratedState,
         TChangeLogCache* changeLogCache,
         TSnapshotStore* snapshotStore,
@@ -110,7 +110,7 @@ protected:
 
     // Any thread.
     TPersistentStateManagerConfigPtr Config;
-    TCellManagerPtr CellManager;
+    NElection::TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
     TChangeLogCachePtr ChangeLogCache;
     TSnapshotStorePtr SnapshotStore;
@@ -136,7 +136,7 @@ public:
      */
     TLeaderRecovery(
         TPersistentStateManagerConfig* config,
-        TCellManager* cellManager,
+        NElection::TCellManager* cellManager,
         TDecoratedMetaState* decoratedState,
         TChangeLogCache* changeLogCache,
         TSnapshotStore* snapshotStore,
@@ -168,7 +168,7 @@ public:
      */
     TFollowerRecovery(
         TPersistentStateManagerConfig* config,
-        TCellManager* cellManager,
+        NElection::TCellManager* cellManager,
         TDecoratedMetaState* decoratedState,
         TChangeLogCache* changeLogCache,
         TSnapshotStore* snapshotStore,

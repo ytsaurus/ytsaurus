@@ -64,7 +64,7 @@ private:
 
     static void WriteScalar(IYsonConsumer* consumer, i64 value, bool hasAttributes)
     {
-        consumer->OnInt64Scalar(value, hasAttributes);
+        consumer->OnIntegerScalar(value, hasAttributes);
     }
 
 public:

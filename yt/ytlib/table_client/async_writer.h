@@ -24,12 +24,11 @@ struct IAsyncBlockWriter
         const NProto::TTableChunkAttributes& attributes) = 0;
 
     virtual TAsyncError AsyncEndRow(
-        TKey& key,
-        std::vector<TChannelWriter::TPtr>& channels) = 0;
+        const TKey& key,
+        const std::vector<TChannelWriter::TPtr>& channels) = 0;
 
     virtual TAsyncError AsyncClose(
-        TKey& lastKey,
-        std::vector<TChannelWriter::TPtr>& channels) = 0;
+        const std::vector<TChannelWriter::TPtr>& channels) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

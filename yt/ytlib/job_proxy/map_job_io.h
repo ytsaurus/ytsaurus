@@ -20,7 +20,7 @@ class TMapJobIO
 {
 public:
     TMapJobIO(
-        TJobIoConfigPtr config,
+        TJobIOConfigPtr config,
         NRpc::IChannel* masterChannel,
         const NScheduler::NProto::TMapJobSpec& ioSpec);
 
@@ -34,7 +34,7 @@ public:
     TAutoPtr<TOutputStream> CreateErrorOutput() const;
 
 private:
-    TJobIoConfigPtr Config;
+    TJobIOConfigPtr Config;
 
     NScheduler::NProto::TMapJobSpec IoSpec;
     NRpc::IChannel::TPtr MasterChannel;
