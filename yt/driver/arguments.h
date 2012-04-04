@@ -168,7 +168,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStartTxArgs
-    : public TArgsBase
+    : public TTransactedArgs
 {
 public:
     TStartTxArgs();
