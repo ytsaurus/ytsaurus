@@ -86,7 +86,6 @@ struct TExecAgentConfig
     TEnvironmentManagerConfigPtr EnvironmentManager;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
-    NJobProxy::TJobIoConfigPtr JobIo;
     NYTree::INodePtr JobProxyLogging;
     TDuration SupervisorTimeout;
 
@@ -97,8 +96,6 @@ struct TExecAgentConfig
         Register("environment_manager", EnvironmentManager)
             .DefaultNew();
         Register("scheduler_connector", SchedulerConnector)
-            .DefaultNew();
-        Register("job_io", JobIo)
             .DefaultNew();
         Register("job_proxy_logging", JobProxyLogging)
             .Default(NULL);

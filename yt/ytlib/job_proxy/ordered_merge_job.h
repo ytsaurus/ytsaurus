@@ -17,7 +17,7 @@ class TOrderedMergeJob
 {
 public:
     TOrderedMergeJob(
-        const TJobIoConfigPtr& config,
+        const TJobIOConfigPtr& config,
         const NElection::TLeaderLookup::TConfigPtr& masterConfig,
         const NScheduler::NProto::TMergeJobSpec& mergeJobSpec);
 

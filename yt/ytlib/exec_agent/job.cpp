@@ -10,6 +10,9 @@
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/chunk_holder/chunk.h>
 #include <ytlib/chunk_holder/location.h>
+#include <ytlib/ytree/serialize.h>
+#include <ytlib/job_proxy/config.h>
+#include <ytlib/misc/fs.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -17,6 +20,8 @@ namespace NExecAgent {
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NRpc;
+using namespace NJobProxy;
+using namespace NYTree;
 
 using NChunkServer::TChunkId;
 
@@ -29,15 +34,17 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 TJob::TJob(
     const TJobId& jobId,
     const TJobSpec& jobSpec,
+    const TYson& proxyConfig,
     NChunkHolder::TChunkCachePtr chunkCache,
     TSlotPtr slot)
     : JobId(jobId)
     , JobSpec(jobSpec)
     , ChunkCache(chunkCache)
     , Slot(slot)
-    , JobState(NScheduler::EJobState::Running)
-    , JobProgress(NScheduler::EJobProgress::Created)
+    , JobState(EJobState::Running)
+    , JobProgress(EJobProgress::Created)
     , JobResult(New< TFuture<TJobResult> >())
+    , ProxyConfig(proxyConfig)
 {
     VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
     Slot->Acquire();
@@ -66,6 +73,34 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         return;
 
     YASSERT(JobProgress == EJobProgress::Created);
+
+    JobProgress = EJobProgress::Preparing—onfig;
+
+    {
+        auto ioConfig = New<TJobIOConfig>();
+        {
+            auto node = DeserializeFromYson(JobSpec.io_config());
+            ioConfig->Load(~node);
+            ioConfig->Validate();
+        }
+
+        auto proxyConfig = New<TJobProxyConfig>();
+        {
+            auto node = DeserializeFromYson(ProxyConfig);
+            proxyConfig->Load(~node);
+            proxyConfig->Validate();
+        }
+        proxyConfig->JobIO = ioConfig;
+
+        auto proxyConfigPath = NFS::CombinePaths(
+            Slot->GetWorkingDirectory(), 
+            ProxyConfigFileName);
+        TFileOutput output(proxyConfigPath);
+        NYTree::TYsonWriter writer(&output);
+
+        proxyConfig->Save(&writer);
+    }
+
     JobProgress = EJobProgress::PreparingProxy;
 
     Stroka environmentType = "default";

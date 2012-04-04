@@ -52,7 +52,7 @@ struct TJobProxyConfig
     TDuration RpcTimeout;
     TDuration HeartbeatPeriod;
 
-    TJobIoConfigPtr JobIo;
+    TJobIOConfigPtr JobIO;
     NYTree::INodePtr Logging;
 
     TJobProxyConfig()
@@ -62,7 +62,7 @@ struct TJobProxyConfig
         Register("masters", Masters);
         Register("rpc_timeout", RpcTimeout).Default(TDuration::Seconds(5));
         Register("heartbeat_period", HeartbeatPeriod).Default(TDuration::Seconds(5));
-        Register("job_io", JobIo).DefaultNew();
+        Register("job_io", JobIO).DefaultNew();
         Register("logging", Logging).Default(NULL);
     }
 };

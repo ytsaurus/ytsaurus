@@ -39,7 +39,6 @@ TBootstrap::~TBootstrap()
 void TBootstrap::Init()
 {
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
-    JobProxyConfig->JobIo = Config->JobIo;
     JobProxyConfig->RpcTimeout = Config->SupervisorTimeout;
     JobProxyConfig->Logging = Config->JobProxyLogging;
     JobProxyConfig->SandboxName = SandboxName;

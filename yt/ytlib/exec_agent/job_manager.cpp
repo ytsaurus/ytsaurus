@@ -7,7 +7,7 @@
 #include "private.h"
 #include "environment_manager.h"
 
-#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/serialize.h>
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/misc/fs.h>
 
@@ -16,6 +16,7 @@ namespace NExecAgent {
 
 using namespace NScheduler;
 using namespace NScheduler::NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,11 +39,6 @@ TJobManager::TJobManager(
         auto slotName = Sprintf("slot.%d", slotIndex);
         auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
         Slots.push_back(New<TSlot>(slotPath, slotName));
-
-        auto proxyConfigPath = NFS::CombinePaths(slotPath, ProxyConfigFileName);
-        TFileOutput output(proxyConfigPath);
-        NYTree::TYsonWriter writer(&output);
-        bootstrap->GetJobProxyConfig()->Save(&writer);
     }
 }
 
@@ -113,9 +109,16 @@ TJobPtr TJobManager::StartJob(
         ~jobId.ToString(),
         ~emptySlot->GetWorkingDirectory());
 
+    // As far as we don't have deep copying of configurables,
+    // we pass proxy config to job in serialized form.
+    TStringStream proxyConfig;
+    TYsonWriter writer(&proxyConfig);
+    Bootstrap->GetJobProxyConfig()->Save(&writer);
+
     auto job = New<TJob>(
         jobId,
         jobSpec,
+        proxyConfig.Str(),
         ~Bootstrap->GetChunkCache(),
         ~emptySlot);
 

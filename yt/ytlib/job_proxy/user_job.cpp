@@ -64,7 +64,7 @@ TUserJob::TUserJob(
     YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
 
     UserJobSpec = jobSpec.GetExtension(TUserJobSpec::user_job_spec);
-    JobIO = CreateUserJobIO(proxyConfig->JobIo, proxyConfig->Masters, jobSpec);
+    JobIO = CreateUserJobIO(proxyConfig->JobIO, proxyConfig->Masters, jobSpec);
 }
 
 #ifdef _linux_
