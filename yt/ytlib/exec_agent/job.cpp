@@ -74,7 +74,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     YASSERT(JobProgress == EJobProgress::Created);
 
-    JobProgress = EJobProgress::Preparing—onfig;
+    JobProgress = EJobProgress::PreparingConfig;
 
     {
         auto ioConfig = New<TJobIOConfig>();

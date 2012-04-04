@@ -46,7 +46,7 @@ DECLARE_ENUM(EJobState,
 
 DECLARE_ENUM(EJobProgress,
     ((Created)(0))
-    ((Preparing—onfig)(1))
+    ((PreparingConfig)(1))
     ((PreparingProxy)(2))
 
     ((PreparingSandbox)(10))
