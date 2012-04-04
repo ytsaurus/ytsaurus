@@ -1082,7 +1082,7 @@ private:
                             OnJobRunning(job);
                         } else {
                             LOG_WARNING("Unknown job is running, abort scheduled");
-                            *response->add_jobs_to_remove() = jobId.ToProto();
+                            *response->add_jobs_to_abort() = jobId.ToProto();
                         }
                         break;
 
