@@ -25,13 +25,17 @@ TChunkSequenceWriter::TChunkSequenceWriter(
     TConfig* config,
     NRpc::IChannel* masterChannel,
     const TTransactionId& transactionId,
-    const TChunkListId& parentChunkList)
+    const TChunkListId& parentChunkList,
+    i64 expectedRowCount)
     : Config(config)
     , ChunkProxy(masterChannel)
     , CypressProxy(masterChannel)
     , TransactionId(transactionId)
     , ParentChunkList(parentChunkList)
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
+    , ExpectedRowCount(expectedRowCount)
+    , CurrentRowCount(0)
+    , CompleteChunkSize(0)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(config);
@@ -139,43 +143,57 @@ void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
 }
 
 TAsyncError TChunkSequenceWriter::AsyncEndRow(
-    TKey& key,
-    std::vector<TChannelWriter::TPtr>& channels)
+    const TKey& key,
+    const std::vector<TChannelWriter::TPtr>& channels)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     State.StartOperation();
 
-    if (CurrentChunk->GetCurrentSize() > Config->MaxChunkSize) {
-        LOG_DEBUG("Switching to next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ")",
-            ~TransactionId.ToString(),
-            CurrentChunk->GetCurrentSize());
-        YASSERT(NextChunk);
-        // We're not waiting for chunk to be closed.
-        FinishCurrentChunk(key, channels);
-        NextChunk->Subscribe(BIND(
-            &TChunkSequenceWriter::InitCurrentChunk,
-            MakeWeak(this)));
-    } else {
-        // NB! Do not make functor here: action target should be 
-        // intrusive or weak pointer to 
-        CurrentChunk->AsyncEndRow(key, channels)->Subscribe(BIND(
-            &TChunkSequenceWriter::OnRowEnded,
-            MakeWeak(this)));
-    }
+    ++CurrentRowCount;
+
+    CurrentChunk->AsyncEndRow(key, channels)->Subscribe(BIND(
+        &TChunkSequenceWriter::OnRowEnded,
+        MakeWeak(this),
+        channels));
 
     return State.GetOperationError();
 }
 
-void TChunkSequenceWriter::OnRowEnded(TError error)
+void TChunkSequenceWriter::OnRowEnded(
+    const std::vector<TChannelWriter::TPtr>& channels,
+    TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (CurrentChunk->GetCurrentSize() > Config->DesiredChunkSize) {
+        auto expectedInputSize = 
+            (CompleteChunkSize + CurrentChunk->GetCurrentSize())
+            / static_cast<double>(CurrentRowCount) 
+            * (ExpectedRowCount - CurrentRowCount);
+
+        if (expectedInputSize > Config->DesiredChunkSize) {
+            LOG_DEBUG(
+                "Switching to next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ", ExpectedInputSize %f)",
+                ~TransactionId.ToString(),
+                CurrentChunk->GetCurrentSize(),
+                expectedInputSize);
+
+            YASSERT(NextChunk);
+            // We're not waiting for chunk to be closed.
+            FinishCurrentChunk(channels);
+            NextChunk->Subscribe(BIND(
+                &TChunkSequenceWriter::InitCurrentChunk,
+                MakeWeak(this)));
+            return;
+        }
+    }
+
     State.FinishOperation(error);
 }
 
 void TChunkSequenceWriter::FinishCurrentChunk(
-    TKey& lastKey,
-    std::vector<TChannelWriter::TPtr>& channels)
+    const std::vector<TChannelWriter::TPtr>& channels)
 {
     if (!CurrentChunk)
         return;
@@ -191,7 +209,7 @@ void TChunkSequenceWriter::FinishCurrentChunk(
                 MakeWeak(this),
                 CurrentChunk->GetChunkId()));
 
-        CurrentChunk->AsyncClose(lastKey, channels)->Subscribe(BIND(
+        CurrentChunk->AsyncClose(channels)->Subscribe(BIND(
             &TChunkSequenceWriter::OnChunkClosed,
             MakeWeak(this),
             CurrentChunk,
@@ -284,13 +302,12 @@ void TChunkSequenceWriter::OnChunkFinished(
 }
 
 TAsyncError TChunkSequenceWriter::AsyncClose(
-    TKey& lastKey,
-    std::vector<TChannelWriter::TPtr>& channels)
+    const std::vector<TChannelWriter::TPtr>& channels)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
     State.StartOperation();
-    FinishCurrentChunk(lastKey, channels);
+    FinishCurrentChunk(channels);
 
     CloseChunksAwaiter->Complete(BIND(
         &TChunkSequenceWriter::OnClose,
