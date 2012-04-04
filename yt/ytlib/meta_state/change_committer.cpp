@@ -119,12 +119,12 @@ private:
 
             Awaiter->Await(
                 LogResult,
-                cellManager->SelfAddress(),
+                cellManager->GetSelfAddress(),
                 BIND(&TBatch::OnLocalCommit, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched changes to followers");
             for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-                if (id == cellManager->SelfId()) continue;
+                if (id == cellManager->GetSelfId()) continue;
 
                 LOG_DEBUG("Sending changes to follower %d", id);
 
