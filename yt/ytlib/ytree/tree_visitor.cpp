@@ -62,7 +62,7 @@ void TTreeVisitor::VisitAny(INodePtr node)
 
     switch (node->GetType()) {
         case ENodeType::String:
-        case ENodeType::Int64:
+        case ENodeType::Integer:
         case ENodeType::Double:
             VisitScalar(node, hasAttributes);
             break;
@@ -103,8 +103,8 @@ void TTreeVisitor::VisitScalar(INodePtr node, bool hasAttributes)
             Consumer->OnStringScalar(node->GetValue<Stroka>(), hasAttributes);
             break;
 
-        case ENodeType::Int64:
-            Consumer->OnInt64Scalar(node->GetValue<i64>(), hasAttributes);
+        case ENodeType::Integer:
+            Consumer->OnIntegerScalar(node->GetValue<i64>(), hasAttributes);
             break;
 
         case ENodeType::Double:

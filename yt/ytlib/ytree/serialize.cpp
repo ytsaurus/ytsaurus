@@ -100,25 +100,25 @@ INodePtr CloneNode(INode* node, INodeFactory* factory)
 // i64
 void Read(i64& parameter, INode* node)
 {
-    parameter = node->AsInt64()->GetValue();
+    parameter = node->AsInteger()->GetValue();
 }
 
 // i32
 void Read(i32& parameter, INode* node)
 {
-    parameter = CheckedStaticCast<i32>(node->AsInt64()->GetValue());
+    parameter = CheckedStaticCast<i32>(node->AsInteger()->GetValue());
 }
 
 // ui32
 void Read(ui32& parameter, INode* node)
 {
-    parameter = CheckedStaticCast<ui32>(node->AsInt64()->GetValue());
+    parameter = CheckedStaticCast<ui32>(node->AsInteger()->GetValue());
 }
 
 // ui16
 void Read(ui16& parameter, INode* node)
 {
-    parameter = CheckedStaticCast<ui16>(node->AsInt64()->GetValue());
+    parameter = CheckedStaticCast<ui16>(node->AsInteger()->GetValue());
 }
 
 // double
@@ -143,7 +143,7 @@ void Read(bool& parameter, INode* node)
 // TDuration
 void Read(TDuration& parameter, INode* node)
 {
-    parameter = TDuration::MilliSeconds(node->AsInt64()->GetValue());
+    parameter = TDuration::MilliSeconds(node->AsInteger()->GetValue());
 }
 
 // TGuid
@@ -165,25 +165,25 @@ void Read(
 // i64
 void Write(i64 parameter, IYsonConsumer* consumer)
 {
-    consumer->OnInt64Scalar(parameter);
+    consumer->OnIntegerScalar(parameter);
 }
 
 // i32
 void Write(i32 parameter, IYsonConsumer* consumer)
 {
-    consumer->OnInt64Scalar(parameter);
+    consumer->OnIntegerScalar(parameter);
 }
 
 // ui32
 void Write(ui32 parameter, IYsonConsumer* consumer)
 {
-    consumer->OnInt64Scalar(parameter);
+    consumer->OnIntegerScalar(parameter);
 }
 
 // ui16
 void Write(ui16 parameter, IYsonConsumer* consumer)
 {
-    consumer->OnInt64Scalar(parameter);
+    consumer->OnIntegerScalar(parameter);
 }
 
 // double
@@ -207,7 +207,7 @@ void Write(bool parameter, IYsonConsumer* consumer)
 // TDuration
 void Write(TDuration parameter, IYsonConsumer* consumer)
 {
-    consumer->OnInt64Scalar(parameter.MilliSeconds());
+    consumer->OnIntegerScalar(parameter.MilliSeconds());
 }
 
 // TGuid

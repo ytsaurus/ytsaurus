@@ -271,7 +271,7 @@ public:
 };
 
 typedef TScalarNode<Stroka> TStringNode;
-typedef TScalarNode<i64>    TInt64Node;
+typedef TScalarNode<i64>    TIntegerNode;
 typedef TScalarNode<double> TDoubleNode;
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -308,7 +308,7 @@ protected:
 };
 
 typedef TScalarNodeTypeHandler<Stroka> TStringNodeTypeHandler;
-typedef TScalarNodeTypeHandler<i64>    TInt64NodeTypeHandler;
+typedef TScalarNodeTypeHandler<i64>    TIntegerNodeTypeHandler;
 typedef TScalarNodeTypeHandler<double> TDoubleNodeTypeHandler;
 
 //////////////////////////////////////////////////////////////////////////////// 

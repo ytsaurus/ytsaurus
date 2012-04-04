@@ -137,7 +137,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     objectManager->RegisterHandler(~New<TLockTypeHandler>(this));
 
     RegisterHandler(~New<TStringNodeTypeHandler>(Bootstrap));
-    RegisterHandler(~New<TInt64NodeTypeHandler>(Bootstrap));
+    RegisterHandler(~New<TIntegerNodeTypeHandler>(Bootstrap));
     RegisterHandler(~New<TDoubleNodeTypeHandler>(Bootstrap));
     RegisterHandler(~New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(~New<TListNodeTypeHandler>(Bootstrap));

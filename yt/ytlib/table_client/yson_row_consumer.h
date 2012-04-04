@@ -17,7 +17,7 @@ public:
 
 private:
     virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
-    virtual void OnInt64Scalar(i64 value, bool hasAttributes);
+    virtual void OnIntegerScalar(i64 value, bool hasAttributes);
     virtual void OnDoubleScalar(double value, bool hasAttributes);
     virtual void OnEntity(bool hasAttributes);
     virtual void OnBeginList();

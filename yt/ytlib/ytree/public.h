@@ -17,7 +17,7 @@ DECLARE_ENUM(ENodeType,
     // Node contains a string (Stroka).
     (String)
     // Node contains an integer number (i64).
-    (Int64)
+    (Integer)
     // Node contains an FP number (double).
     (Double)
     // Node contains a map from strings to other nodes.
@@ -37,8 +37,8 @@ typedef TIntrusivePtr<ICompositeNode> ICompositeNodePtr;
 struct IStringNode;
 typedef TIntrusivePtr<IStringNode> IStringNodePtr;
 
-struct IInt64Node;
-typedef TIntrusivePtr<IInt64Node> IInt64NodePtr;
+struct IIntegerNode;
+typedef TIntrusivePtr<IIntegerNode> IIntegerNodePtr;
 
 struct IDoubleNode;
 typedef TIntrusivePtr<IDoubleNode> IDoubleNodePtr;

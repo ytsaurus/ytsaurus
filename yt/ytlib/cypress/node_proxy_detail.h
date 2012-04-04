@@ -30,7 +30,7 @@ public:
     ~TNodeFactory();
 
     virtual NYTree::IStringNodePtr CreateString();
-    virtual NYTree::IInt64NodePtr CreateInt64();
+    virtual NYTree::IIntegerNodePtr CreateInteger();
     virtual NYTree::IDoubleNodePtr CreateDouble();
     virtual NYTree::IMapNodePtr CreateMap();
     virtual NYTree::IListNodePtr CreateList();
@@ -487,7 +487,7 @@ public:
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka)
-DECLARE_SCALAR_TYPE(Int64, i64)
+DECLARE_SCALAR_TYPE(Integer, i64)
 DECLARE_SCALAR_TYPE(Double, double)
 
 #undef DECLARE_SCALAR_TYPE

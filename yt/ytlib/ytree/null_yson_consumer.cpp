@@ -16,7 +16,7 @@ class TNullYsonConsumer
         UNUSED(hasAttributes);
     }
 
-    virtual void OnInt64Scalar(i64 value, bool hasAttributes = false)
+    virtual void OnIntegerScalar(i64 value, bool hasAttributes = false)
     {
         UNUSED(value);
         UNUSED(hasAttributes);

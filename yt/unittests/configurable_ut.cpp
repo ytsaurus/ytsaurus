@@ -218,7 +218,7 @@ TEST(TConfigTest, Options)
         const auto& name = pair.First();
         auto child = pair.Second();
         EXPECT_EQ("option", name);
-        EXPECT_EQ(1, child->AsInt64()->GetValue());
+        EXPECT_EQ(1, child->AsInteger()->GetValue());
     }
 }
 
