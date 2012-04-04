@@ -202,24 +202,32 @@ TEST_F(TLexerTest, SpecialValues)
     TestSpecialValue("}", ETokenType::RightBrace);
     TestSpecialValue("<", ETokenType::LeftAngle);
     TestSpecialValue(">", ETokenType::RightAngle);
+    TestSpecialValue("(", ETokenType::LeftParenthesis);
+    TestSpecialValue(")", ETokenType::RightParenthesis);
     TestSpecialValue("/", ETokenType::Slash);
     TestSpecialValue("@", ETokenType::At);
     TestSpecialValue("#", ETokenType::Hash);
     TestSpecialValue("!", ETokenType::Bang);
     TestSpecialValue("+", ETokenType::Plus);
     TestSpecialValue("^", ETokenType::Caret);
+    TestSpecialValue(":", ETokenType::Colon);
+    TestSpecialValue(",", ETokenType::Comma);
 }
 
 TEST_F(TLexerTest, IncorrectChars)
 {
     TestIncorrectInput("\x01\x03"); // Binary string with negative length
+    TestIncorrectInput("."); // unknown symbol
     TestIncorrectInput("|"); // unknown symbol
+    TestIncorrectInput("\\"); // unknown symbol
+    TestIncorrectInput("?"); // unknown symbol
+    TestIncorrectInput("'"); // unknown symbol
+    TestIncorrectInput("`"); // unknown symbol
+    TestIncorrectInput("$"); // unknown symbol
+    TestIncorrectInput("%"); // unknown symbol
     TestIncorrectInput("&"); // unknown symbol
     TestIncorrectInput("*"); // unknown symbol
-    TestIncorrectInput("."); // unknown symbol
-    TestIncorrectInput(","); // unknown symbol
-    TestIncorrectInput("("); // unknown symbol
-    TestIncorrectInput(")"); // unknown symbol
+    TestIncorrectInput("~"); // unknown symbol
 }
 
 TEST_F(TLexerTest, IncorrectFinish)

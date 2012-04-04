@@ -177,6 +177,14 @@ private:
                 ProduceToken(ETokenType::RightAngle, Stroka(ch));
                 break;
 
+            case '(':
+                ProduceToken(ETokenType::LeftParenthesis, Stroka(ch));
+                break;
+
+            case ')':
+                ProduceToken(ETokenType::RightParenthesis, Stroka(ch));
+                break;
+
             case '/':
                 ProduceToken(ETokenType::Slash, Stroka(ch));
                 break;
@@ -199,6 +207,14 @@ private:
 
             case '^':
                 ProduceToken(ETokenType::Caret, Stroka(ch));
+                break;
+
+            case ',':
+                ProduceToken(ETokenType::Comma, Stroka(ch));
+                break;
+
+            case ':':
+                ProduceToken(ETokenType::Colon, Stroka(ch));
                 break;
 
             case '\x01':

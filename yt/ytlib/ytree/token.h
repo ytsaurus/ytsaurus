@@ -27,12 +27,16 @@ DECLARE_ENUM(ETokenType,
     (LeftAngle) // <
     (RightAngle) // >
     // YPath
+    (LeftParenthesis) // (
+    (RightParenthesis) // )
     (Slash) // /
     (At) // @
     (Hash) // #
     (Bang) // !
     (Plus) // +
     (Caret) // ^
+    (Colon) // :
+    (Comma) // ,
 );
 
 ////////////////////////////////////////////////////////////////////////////////
