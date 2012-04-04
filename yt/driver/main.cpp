@@ -177,7 +177,7 @@ public:
     int Main(int argc, const char* argv[])
     {
         NYT::SetupErrorHandler();
-        NYT::SetCurrentThreadName("DriverMain");
+        NYT::NThread::SetCurrentThreadName("DriverMain");
 
         try {
             if (argc < 2) {
