@@ -171,7 +171,7 @@ private:
         const TTransactionId& transactionId,
         ELockMode mode);
 
-    void ReleaseLock(const TLockId& lockId);
+    void ReleaseLock(TLock *lock);
 
    ICypressNode& BranchNode(
        ICypressNode& node,

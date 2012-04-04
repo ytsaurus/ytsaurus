@@ -6,6 +6,7 @@
 #include <ytlib/object_server/id.h>
 #include <ytlib/transaction_server/public.h>
 #include <ytlib/chunk_server/public.h>
+#include <ytlib/cypress/public.h>
 
 #include <ytlib/misc/property.h>
 
@@ -33,6 +34,9 @@ NChunkServer::TChunkList* TLoadContext::Get(const NObjectServer::TObjectId& id) 
 
 template <>
 NChunkServer::TChunk* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
+
+template <>
+NCypress::TLock* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 

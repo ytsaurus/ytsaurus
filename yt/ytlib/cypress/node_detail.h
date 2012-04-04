@@ -181,8 +181,8 @@ class TCypressNodeBase
     , public ICypressNode
 {
     // This also overrides appropriate methods from ICypressNode.
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, LockIds);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLockId>, SubtreeLockIds);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLock*>, Locks);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLock*>, SubtreeLocks);
 
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);

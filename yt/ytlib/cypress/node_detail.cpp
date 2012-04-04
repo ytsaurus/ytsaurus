@@ -76,8 +76,8 @@ i32 TCypressNodeBase::GetObjectRefCounter() const
 void TCypressNodeBase::Save(TOutputStream* output) const
 {
     TObjectBase::Save(output);
-    SaveSet(output, LockIds_);
-    SaveSet(output, SubtreeLockIds_);
+    SaveObjects(output, Locks_);
+    SaveObjects(output, SubtreeLocks_);
     ::Save(output, ParentId_);
     ::Save(output, LockMode_);
 }
@@ -86,8 +86,8 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectBase::Load(input);
-    LoadSet(input, LockIds_);
-    LoadSet(input, SubtreeLockIds_);
+    LoadObjects(input, Locks_, context);
+    LoadObjects(input, SubtreeLocks_, context);
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
 }
