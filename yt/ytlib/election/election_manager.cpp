@@ -431,7 +431,7 @@ private:
 
 TElectionManager::TElectionManager(
     TElectionManagerConfig *config,
-    NMetaState::TCellManager* cellManager,
+    TCellManager* cellManager,
     IInvoker* controlInvoker,
     IElectionCallbacks* electionCallbacks)
     : TServiceBase(

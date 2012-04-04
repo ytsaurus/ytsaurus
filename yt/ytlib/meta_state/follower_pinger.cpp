@@ -1,17 +1,20 @@
 #include "stdafx.h"
 #include "follower_pinger.h"
 #include "common.h"
+#include "config.h"
 #include "decorated_meta_state.h"
 #include "snapshot_store.h"
 #include "follower_tracker.h"
 #include "decorated_meta_state.h"
-#include "cell_manager.h"
 
+#include <ytlib/election/cell_manager.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/bus/message.h>
 
 namespace NYT {
 namespace NMetaState {
+
+using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 

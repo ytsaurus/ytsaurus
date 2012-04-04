@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "snapshot_builder.h"
+#include "common.h"
+#include "config.h"
 #include "meta_state_manager_proxy.h"
 #include "meta_version.h"
 #include "decorated_meta_state.h"
@@ -23,6 +25,8 @@
 
 namespace NYT {
 namespace NMetaState {
+
+using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 

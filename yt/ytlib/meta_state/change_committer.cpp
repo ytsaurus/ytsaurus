@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "common.h"
+#include "config.h"
 #include "change_committer.h"
 #include "meta_version.h"
 #include "decorated_meta_state.h"
@@ -12,9 +14,11 @@
 namespace NYT {
 namespace NMetaState {
 
+using namespace NElection;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MetaState");
+static NLog::TLogger& Logger = MetaStateLogger;
 static NProfiling::TProfiler Profiler("meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////

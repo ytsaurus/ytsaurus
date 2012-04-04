@@ -1,11 +1,39 @@
 #pragma once
 
 #include "common.h"
+#include "public.h"
 
 #include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NElection {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellConfig
+    : public TConfigurable
+{
+    //! RPC interface port number.
+    int RpcPort;
+
+    //! Master server addresses.
+    yvector<Stroka> Addresses;
+
+    TCellConfig()
+    {
+        Register("rpc_port", RpcPort)
+            .Default(9091);
+        Register("addresses", Addresses)
+            .NonEmpty();
+    }
+
+    virtual void DoValidate() const
+    {
+        if ((Addresses.ysize() % 2) != 1) {
+            ythrow yexception() << Sprintf("Cell should consist of odd number of masters");
+        }
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
