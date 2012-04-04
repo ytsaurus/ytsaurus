@@ -5,6 +5,10 @@ set( SRCS
 add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )
 add_executable( ytserver ${SRCS} )
 
+include_directories(
+  ${CMAKE_SOURCE_DIR}/contrib/tclap
+)
+
 target_link_libraries( ytserver
   ytlib
 )
