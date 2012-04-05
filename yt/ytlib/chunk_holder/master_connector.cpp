@@ -63,17 +63,20 @@ void TMasterConnector::Start()
         &TMasterConnector::OnChunkRemoved,
         MakeWeak(this)));
 
-    OnHeartbeat();
-}
-
-void TMasterConnector::ScheduleHeartbeat()
-{
     // TODO(panin): think about specializing RandomNumber<TDuration>
     auto randomDelay = TDuration::MicroSeconds(RandomNumber(Config->HeartbeatSplay.MicroSeconds()));
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()),
-        Config->HeartbeatPeriod + randomDelay);
+        randomDelay);
+}
+
+void TMasterConnector::ScheduleHeartbeat()
+{
+    TDelayedInvoker::Submit(
+        BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()),
+        Config->HeartbeatPeriod);
 }
 
 void TMasterConnector::OnHeartbeat()
