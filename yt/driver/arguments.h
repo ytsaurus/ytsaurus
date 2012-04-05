@@ -15,13 +15,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TArgsBase
+class TArgsParserBase
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TArgsBase> TPtr;
+    typedef TIntrusivePtr<TArgsParserBase> TPtr;
 
-    TArgsBase();
+    TArgsParserBase();
 
     void Parse(std::vector<std::string>& args);
 
@@ -54,15 +54,15 @@ protected:
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
-typedef TIntrusivePtr<TArgsBase> TArgsBasePtr;
+typedef TIntrusivePtr<TArgsParserBase> TArgsBasePtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactedArgs
-    : public TArgsBase
+class TTransactedArgsParser
+    : public TArgsParserBase
 {
 public:
-    TTransactedArgs();
+    TTransactedArgsParser();
 
 protected:
     typedef TCLAP::ValueArg<NObjectServer::TTransactionId> TTxArg;
@@ -73,11 +73,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGetArgs
-    : public TTransactedArgs
+class TGetArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TGetArgs();
+    TGetArgsParser();
 
 private:
     TUnlabeledStringArg PathArg;
@@ -87,11 +87,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSetArgs
-    : public TTransactedArgs
+class TSetArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TSetArgs();
+    TSetArgsParser();
 
 private:
     TUnlabeledStringArg PathArg;
@@ -102,11 +102,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoveArgs
-    : public TTransactedArgs
+class TRemoveArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TRemoveArgs();
+    TRemoveArgsParser();
 
 private:
     TUnlabeledStringArg PathArg;
@@ -116,11 +116,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TListArgs
-    : public TTransactedArgs
+class TListArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TListArgs();
+    TListArgsParser();
 
 private:
     TUnlabeledStringArg PathArg;
@@ -130,11 +130,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCreateArgs
-    : public TTransactedArgs
+class TCreateArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TCreateArgs();
+    TCreateArgsParser();
 
 private:
     typedef TCLAP::UnlabeledValueArg<NObjectServer::EObjectType> TTypeArg;
@@ -151,11 +151,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLockArgs
-    : public TTransactedArgs
+class TLockArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TLockArgs();
+    TLockArgsParser();
 
 private:
     TUnlabeledStringArg PathArg;
@@ -169,11 +169,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStartTxArgs
-    : public TTransactedArgs
+class TStartTxArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TStartTxArgs();
+    TStartTxArgsParser();
 
 private:
     typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
@@ -184,11 +184,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCommitTxArgs
-    : public TTransactedArgs
+class TCommitTxArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TCommitTxArgs()
+    TCommitTxArgsParser()
     { }
 
 private:
@@ -197,8 +197,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAbortTxArgs
-    : public TTransactedArgs
+class TAbortTxArgsParser
+    : public TTransactedArgsParser
 {
 private:
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
@@ -206,11 +206,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadArgs
-    : public TTransactedArgs
+class TReadArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TReadArgs();
+    TReadArgsParser();
 
 private:
     TUnlabeledStringArg PathArg;
@@ -221,11 +221,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWriteArgs
-    : public TTransactedArgs
+class TWriteArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TWriteArgs();
+    TWriteArgsParser();
 
     // TODO(panin): validation?
 //    virtual void DoValidate() const
@@ -249,11 +249,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUploadArgs
-    : public TTransactedArgs
+class TUploadArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TUploadArgs();
+    TUploadArgsParser();
 
 private:
     TUnlabeledStringArg PathArg;
@@ -264,11 +264,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDownloadArgs
-    : public TTransactedArgs
+class TDownloadArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TDownloadArgs();
+    TDownloadArgsParser();
 
 private:
     TUnlabeledStringArg PathArg;
@@ -279,11 +279,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapArgs
-    : public TTransactedArgs
+class TMapArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TMapArgs();
+    TMapArgsParser();
 
 private:
     TCLAP::MultiArg<Stroka> InArg;
@@ -297,11 +297,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMergeArgs
-    : public TTransactedArgs
+class TMergeArgsParser
+    : public TTransactedArgsParser
 {
 public:
-    TMergeArgs();
+    TMergeArgsParser();
 
 private:
     TCLAP::MultiArg<Stroka> InArg;
