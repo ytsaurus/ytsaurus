@@ -18,10 +18,12 @@ yt get //map
 yt set //map/list []
 yt get //map
 
-yt set //map/list/+/a 1
+yt set //map/list/+ {}
+yt set //map/list/0/a 1
 yt get //map
 
-yt set //map/list/-/b 2
+yt set //map/list/^0 {}
+yt set //map/list/0/b 2
 yt get //map
 
 yt remove //map/hello
