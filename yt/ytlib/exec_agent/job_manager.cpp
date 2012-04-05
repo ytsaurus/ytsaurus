@@ -94,7 +94,7 @@ TJobPtr TJobManager::StartJob(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     TSlotPtr emptySlot;
-    FOREACH(auto slot, Slots) {
+    FOREACH (auto slot, Slots) {
         if (slot->IsFree()) {
             emptySlot = slot;
             break;
@@ -146,7 +146,7 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     VERIFY_THREAD_AFFINITY(ControlThread);
     YASSERT(GetJob(jobId)->GetProgress() > EJobProgress::Cleanup);
 
-    Jobs.erase(jobId);
+    YVERIFY(Jobs.erase(jobId) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
