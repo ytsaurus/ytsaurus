@@ -8,13 +8,13 @@ yt get //list
 yt set //list/+ 100
 yt get //list
 
-yt set //list/- 200
+yt set //list/^0 200
 yt get //list
 
-yt set //list/- 500
+yt set //list/^0 500
 yt get //list
 
-yt set //list/2+ 1000
+yt set //list/2^ 1000
 yt get //list
 
 yt set //list/3 777
@@ -32,5 +32,5 @@ yt get //list
 yt set //list/+ last
 yt get //list
 
-yt set //list/- first
+yt set //list/^0 first
 yt get //list

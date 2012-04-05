@@ -117,6 +117,7 @@ struct IScalarNode
     struct TScalarTypeTraits<type> \
     { \
         typedef I##name##Node TNode; \
+        typedef type TType; \
         typedef paramType TParamType; \
         \
         static const ENodeType::EDomain NodeType = ENodeType::name; \
@@ -128,13 +129,13 @@ struct IScalarNode
         \
         static void SetValue(INode* node, TParamType value) \
         { \
-            node->As##name()->SetValue(value); \
+            node->As##name()->SetValue(TType(value)); \
         } \
     }; \
     \
     }
 
-DECLARE_SCALAR_TYPE(String, Stroka, const Stroka&)
+DECLARE_SCALAR_TYPE(String, Stroka, const TStringBuf&)
 DECLARE_SCALAR_TYPE(Integer, i64, i64)
 DECLARE_SCALAR_TYPE(Double, double, double)
 
