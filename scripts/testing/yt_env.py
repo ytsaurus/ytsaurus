@@ -85,6 +85,7 @@ class YTEnv:
                 continue
             p.kill()
 
+            time.sleep(0.1)
             # now try to kill unkilled process
             p.poll()
             if p.returncode is None:
@@ -250,22 +251,14 @@ class YTEnv:
             current = os.path.join(self.path_to_run, 'holder', str(i))
             os.mkdir(current)
 
-            chunk_store = os.path.join(current, 'chunk_store')
             chunk_cache = os.path.join(current, 'chunk_cache')
-            slot_location = os.path.join(current, 'slots')
+            chunk_store = os.path.join(current, 'chunk_store')
+            slot_location = os.path.join(current, 'slot')
             logging_file_name = os.path.join(current, 'holder-' + str(i) + '.log')
 
             holder_config['chunk_holder']['cache_location']['path'] = chunk_cache
-            #holder_config['chunk_cache_location']['path'] = chunk_cache
-
-            store_location = holder_config['chunk_holder']['store_locations']
-            #store_location = holder_config['store_locations']
-            store_location = store_location[0:1]
-            store_location[0]['path'] = chunk_store
-            holder_config['chunk_holder']['store_locations'] = store_location
-            #holder_config['chunk_store_locations'] = store_location
-
-            #holder_config['job_manager']['slot_location'] = slot_location
+            holder_config['chunk_holder']['store_locations'].append( {'path': chunk_store})
+            holder_config['exec_agent']['job_manager']['slot_location'] = slot_location
 
             holder_config['logging']['writers']['file']['file_name'] = logging_file_name
 
