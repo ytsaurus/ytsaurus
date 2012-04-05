@@ -71,7 +71,7 @@ struct TChunkHolderConfig
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
-    //! Random delay after HeartbeatPeriod
+    //! Random delay before first heartbeat
     TDuration HeartbeatSplay;
 
     //! Timeout for FullHeartbeat requests.

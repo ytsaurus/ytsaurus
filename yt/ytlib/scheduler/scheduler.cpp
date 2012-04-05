@@ -488,7 +488,7 @@ private:
         LOG_INFO("Taking lock");
         {
             auto req = TCypressYPathProxy::Lock(WithTransaction(
-                "/sys/scheduler/lock",
+                "//sys/scheduler/lock",
                 BootstrapTransaction->GetId()));
             req->set_mode(ELockMode::Exclusive);
             auto rsp = CypressProxy.Execute(req)->Get();
@@ -501,7 +501,7 @@ private:
 
         LOG_INFO("Publishing scheduler address");
         {
-            auto req = TYPathProxy::Set("/sys/scheduler/runtime@address");
+            auto req = TYPathProxy::Set("//sys/scheduler/runtime@address");
             req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
             auto rsp = CypressProxy.Execute(req)->Get();
             if (!rsp->IsOK()) {
@@ -517,7 +517,7 @@ private:
         LOG_INFO("Requesting operations list");
         std::vector<TOperationId> operationIds;
         {
-            auto req = TYPathProxy::List("/sys/operations");
+            auto req = TYPathProxy::List("//sys/operations");
             auto rsp = CypressProxy.Execute(req)->Get();
             if (!rsp->IsOK()) {
                 ythrow yexception() << Sprintf("Failed to get operations list\n%s",
@@ -533,10 +533,7 @@ private:
         {
             auto batchReq = CypressProxy.ExecuteBatch();
             FOREACH (const auto& operationId, operationIds) {
-                auto req = TYPathProxy::Get(CombineYPaths(
-                    "/sys/operations",
-                    operationId.ToString(),
-                    "@"));
+                auto req = TYPathProxy::Get(GetOperationPath(operationId) + "@");
                 batchReq->AddRequest(req);
             }
             auto batchRsp = batchReq->Invoke()->Get();
@@ -672,7 +669,7 @@ private:
 
         // Get the list of online nodes from the master.
         LOG_INFO("Refreshing exec nodes");
-        auto req = TYPathProxy::Get("/sys/holders@online");
+        auto req = TYPathProxy::Get("//sys/holders@online");
         CypressProxy.Execute(req)->Subscribe(
             BIND(&TImpl::OnExecNodesRefreshed, MakeStrong(this))
             .Via(GetControlInvoker()));
@@ -719,17 +716,17 @@ private:
 
     static NYTree::TYPath GetOperationPath(const TOperationId& id)
     {
-        return CombineYPaths("/sys/operations", id.ToString());
+        return CombineYPaths("//sys/operations", EscapeYPath(id.ToString()));
     }
 
     IOperationControllerPtr CreateController(TOperation* operation)
     {
         switch (operation->GetType()) {
             case EOperationType::Map:
-                return CreateMapController(this, operation);
+                return CreateMapController(Config->Map, this, operation);
                 break;
             case EOperationType::Merge:
-                return CreateMergeController(this, operation);
+                return CreateMergeController(Config->Merge, this, operation);
                 break;
             default:
                 YUNREACHABLE();

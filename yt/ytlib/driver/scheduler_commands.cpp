@@ -2,7 +2,10 @@
 #include "scheduler_commands.h"
 
 #include <ytlib/scheduler/scheduler_proxy.h>
+#include <ytlib/scheduler/config.h>
+
 #include <ytlib/job_proxy/config.h>
+
 #include <ytlib/ytree/serialize.h>
 
 namespace NYT {
@@ -79,9 +82,9 @@ TMapCommand::TMapCommand(ICommandHost* host)
 
 void TMapCommand::DoExecute(TMapRequestPtr request)
 {
-    PreprocessYPaths(&request->Spec->In);
-    PreprocessYPaths(&request->Spec->Out);
-    PreprocessYPaths(&request->Spec->Files);
+    PreprocessYPaths(&request->Spec->InputTablePaths);
+    PreprocessYPaths(&request->Spec->OutputTablePaths);
+    PreprocessYPaths(&request->Spec->FilePaths);
 
     RunOperation(
         request,
@@ -100,8 +103,8 @@ TMergeCommand::TMergeCommand(ICommandHost* host)
 
 void TMergeCommand::DoExecute(TMergeRequestPtr request)
 {
-    PreprocessYPaths(&request->Spec->In);
-    PreprocessYPath(&request->Spec->Out);
+    PreprocessYPaths(&request->Spec->InputTablePaths);
+    PreprocessYPath(&request->Spec->OutputTablePath);
 
     RunOperation(
         request,

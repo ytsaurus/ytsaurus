@@ -8,14 +8,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYPath ObjectIdMarker = "#";
-const TYPath TransactionIdMarker = "!";
-
-////////////////////////////////////////////////////////////////////////////////
-
 TYPath FromObjectId(const TObjectId& id)
 {
-    return ObjectIdMarker + id.ToString();
+    return Stroka('#') + EscapeYPath(id.ToString());
 }
 
 TYPath WithTransaction(const TYPath& path, const TTransactionId& id)
@@ -23,7 +18,7 @@ TYPath WithTransaction(const TYPath& path, const TTransactionId& id)
     return
         id == NullTransactionId
         ? path
-        : TransactionIdMarker + id.ToString() + path;
+        : Stroka('!') + EscapeYPath(id.ToString()) + path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

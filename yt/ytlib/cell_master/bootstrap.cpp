@@ -172,30 +172,30 @@ void TBootstrap::Run()
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
-        "ref_counted",
+        "/ref_counted",
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
-        "meta_state",
+        "/meta_state",
         BIND(&IMetaStateManager::GetMonitoringInfo, MetaStateManager));
     monitoringManager->Register(
-        "bus_server",
+        "/bus_server",
         BIND(&IBusServer::GetMonitoringInfo, busServer));
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
     SyncYPathSetNode(
         ~orchidRoot,
-        "monitoring",
+        "/monitoring",
         ~CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "profiling",
+        "/profiling",
         ~CreateVirtualNode(
             ~TProfilingManager::Get()->GetRoot()
             ->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
         ~orchidRoot,
-        "config",
+        "/config",
         ~CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(

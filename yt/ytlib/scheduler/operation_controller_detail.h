@@ -15,173 +15,6 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(babenko): extract to a proper place
-class TOperationControllerBase
-    : public IOperationController
-{
-public:
-    TOperationControllerBase(IOperationHost* host, TOperation* operation);
-
-    virtual void Initialize();
-    virtual TFuture<TVoid>::TPtr Prepare();
-    virtual TFuture<TVoid>::TPtr Revive();
-
-    virtual void OnJobRunning(TJobPtr job);
-    virtual void OnJobCompleted(TJobPtr job);
-    virtual void OnJobFailed(TJobPtr job);
-
-
-    virtual void OnOperationAborted();
-
-    virtual void ScheduleJobs(
-        TExecNodePtr node,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort);
-
-protected:
-    typedef TOperationControllerBase TThis;
-
-    IOperationHost* Host;
-    TOperation* Operation;
-
-    NCypress::TCypressServiceProxy CypressProxy;
-    NLog::TTaggedLogger Logger;
-
-    // Fixed during init time, used to compute job count.
-    int ExecNodeCount;
-
-    // The primary transaction for the whole operation (nested inside operation's transaction).
-    NTransactionClient::ITransaction::TPtr PrimaryTransaction;
-    // The transaction for reading input tables (nested inside the primary one).
-    // These tables are locked with Snapshot mode.
-    NTransactionClient::ITransaction::TPtr InputTransaction;
-    // The transaction for writing output tables (nested inside the primary one).
-    // These tables are locked with Shared mode.
-    NTransactionClient::ITransaction::TPtr OutputTransaction;
-
-    // Input tables.
-    struct TInputTable
-    {
-        NYTree::TYPath Path;
-        NTableServer::TTableYPathProxy::TRspFetch::TPtr FetchResponse;
-    };
-
-    std::vector<TInputTable> InputTables;
-
-    // Output tables.
-    struct TOutputTable
-    {
-        NYTree::TYPath Path;
-        NYTree::TYson Schema;
-        // Chunk request for appending the output.
-        NChunkServer::TChunkListId OutputChunkListId;
-        // Chunk trees comprising the output (order matters!)
-        std::vector<NChunkServer::TChunkTreeId> ChunkTreeIds;
-    };
-
-    std::vector<TOutputTable> OutputTables;
-
-    // Files.
-    struct TFile
-    {
-        NYTree::TYPath Path;
-        NFileServer::TFileYPathProxy::TRspFetch::TPtr FetchResponse;
-    };
-
-    std::vector<TFile> Files;
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
-
-
-    void OnOperationFailed(const TError& error);
-
-    void OnOperationCompleted();
-
-
-    // TODO(babenko): YPath and RPC responses currently share no base class.
-    template <class TResponse>
-    void CheckResponse(TResponse response, const Stroka& failureMessage) 
-    {
-        if (response->IsOK())
-            return;
-
-        ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
-    }
-
-
-    // Here comes the preparation pipeline.
-
-    // Round 1:
-    // - Start primary transaction.
-
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr StartPrimaryTransaction(TVoid);
-
-    TVoid OnPrimaryTransactionStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
-
-    // Round 2:
-    // - Start input transaction.
-    // - Start output transaction.
-
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr StartSeconaryTransactions(TVoid);
-
-    TVoid OnSecondaryTransactionsStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
-
-    // Round 3:
-    // - Fetch input tables.
-    // - Lock input tables.
-    // - Lock output tables.
-    // - Fetch files.
-    // - Get output tables schemata.
-    // - Get output chunk lists.
-
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr RequestInputs(TVoid);
-
-    TVoid OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
-
-    virtual std::vector<NYTree::TYPath> GetInputTablePaths() = 0;
-    virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
-    virtual std::vector<NYTree::TYPath> GetFilePaths() = 0;
-
-
-    // Round 4.
-    // - (Custom)
-
-    TVoid CompletePreparation(TVoid);
-
-    virtual void DoCompletePreparation() = 0;
-
-
-    // Here comes the completion pipeline.
-
-    void CompleteOperation();
-
-    // Round 1.
-    // - Attach chunk trees.
-    // - Commit input transaction.
-    // - Commit output transaction.
-    // - Commit primary transaction.
-
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr CommitOutputs(TVoid);
-
-    TVoid OnOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
-
-
-    // Abort is not a pipeline really :)
-
-    virtual void AbortOperation();
-
-    void AbortTransactions();
-
-
-    // Unsorted helpers.
-
-    void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
-};
-
-////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): extract to a proper place
 class TChunkListPool
     : public TRefCounted
 {
@@ -243,6 +76,202 @@ private:
 };
 
 Stroka ToString(const TRunningCounter& counter);
+
+////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): extract to a proper place
+class TOperationControllerBase
+    : public IOperationController
+{
+public:
+    TOperationControllerBase(
+        TOperationControllerConfigBasePtr config,
+        IOperationHost* host,
+        TOperation* operation);
+
+    virtual void Initialize();
+    virtual TFuture<TVoid>::TPtr Prepare();
+    virtual TFuture<TVoid>::TPtr Revive();
+
+    virtual void OnJobRunning(TJobPtr job);
+    virtual void OnJobCompleted(TJobPtr job);
+    virtual void OnJobFailed(TJobPtr job);
+
+    virtual void OnOperationAborted();
+
+    virtual TJobPtr ScheduleJob(TExecNodePtr node);
+    virtual i64 GetPendingJobCount();
+
+private:
+    typedef TOperationControllerBase TThis;
+
+    TOperationControllerConfigBasePtr Config;
+
+protected:
+    IOperationHost* Host;
+    TOperation* Operation;
+
+    NCypress::TCypressServiceProxy CypressProxy;
+    NLog::TTaggedLogger Logger;
+
+    // Remains True as long as the operation is not failed, completed, or aborted.
+    bool Active;
+    // Remains True as long as the operation can schedule new jobs.
+    bool Running;
+
+    // Fixed during init time, used to compute job count.
+    int ExecNodeCount;
+
+    // Running counters.
+    TRunningCounter JobCounter;
+
+    TChunkListPoolPtr ChunkListPool;
+
+    // The primary transaction for the whole operation (nested inside operation's transaction).
+    NTransactionClient::ITransaction::TPtr PrimaryTransaction;
+    // The transaction for reading input tables (nested inside the primary one).
+    // These tables are locked with Snapshot mode.
+    NTransactionClient::ITransaction::TPtr InputTransaction;
+    // The transaction for writing output tables (nested inside the primary one).
+    // These tables are locked with Shared mode.
+    NTransactionClient::ITransaction::TPtr OutputTransaction;
+
+    // Input tables.
+    struct TInputTable
+    {
+        NYTree::TYPath Path;
+        NTableServer::TTableYPathProxy::TRspFetch::TPtr FetchResponse;
+    };
+
+    std::vector<TInputTable> InputTables;
+
+    // Output tables.
+    struct TOutputTable
+    {
+        NYTree::TYPath Path;
+        NYTree::TYson Schema;
+        // Chunk list for appending the output.
+        NChunkServer::TChunkListId OutputChunkListId;
+        // Chunk trees comprising the output (the order matters!)
+        std::vector<NChunkServer::TChunkTreeId> OutputChildrenIds;
+    };
+
+    std::vector<TOutputTable> OutputTables;
+
+    // Files.
+    struct TFile
+    {
+        NYTree::TYPath Path;
+        NFileServer::TFileYPathProxy::TRspFetch::TPtr FetchResponse;
+    };
+
+    std::vector<TFile> Files;
+
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
+
+
+    virtual void DoJobCompleted(TJobPtr job) = 0;
+    virtual void DoJobFailed(TJobPtr job) = 0;
+
+    virtual void DoInitialize() = 0;
+    virtual bool HasPendingJobs() = 0;
+    virtual void DumpProgress() = 0;
+
+    //! Performs the actual scheduling.
+    virtual TJobPtr DoScheduleJob(TExecNodePtr node) = 0;
+
+    bool CheckChunkListsPoolSize(int count);
+
+
+
+    // TODO(babenko): YPath and RPC responses currently share no base class.
+    template <class TResponse>
+    void CheckResponse(TResponse response, const Stroka& failureMessage) 
+    {
+        if (response->IsOK())
+            return;
+
+        ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
+    }
+
+
+    // Here comes the preparation pipeline.
+
+    // Round 1:
+    // - Start primary transaction.
+
+    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr StartPrimaryTransaction(TVoid);
+
+    TVoid OnPrimaryTransactionStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+
+    // Round 2:
+    // - Start input transaction.
+    // - Start output transaction.
+
+    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr StartSeconaryTransactions(TVoid);
+
+    TVoid OnSecondaryTransactionsStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+
+    // Round 3:
+    // - Fetch input tables.
+    // - Lock input tables.
+    // - Lock output tables.
+    // - Fetch files.
+    // - Get output tables schemata.
+    // - Get output chunk lists.
+
+    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr RequestInputs(TVoid);
+
+    TVoid OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+
+    virtual std::vector<NYTree::TYPath> GetInputTablePaths() = 0;
+    virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
+    virtual std::vector<NYTree::TYPath> GetFilePaths() = 0;
+
+
+    // Round 4.
+    // - (Custom)
+
+    TVoid CompletePreparation(TVoid);
+
+    virtual void DoCompletePreparation() = 0;
+
+
+    // Here comes the completion pipeline.
+
+    void FinalizeOperation();
+
+    // Round 1.
+    // - Attach chunk trees.
+    // - Commit input transaction.
+    // - Commit output transaction.
+    // - Commit primary transaction.
+
+    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr CommitOutputs(TVoid);
+
+    TVoid OnOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+
+
+    // Abort is not a pipeline really :)
+
+    virtual void AbortOperation();
+
+    void AbortTransactions();
+
+
+    void FailOperation(const TError& error);
+
+
+    // Unsorted helpers.
+
+    void ReleaseChunkList(const NChunkServer::TChunkListId& id);
+    void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
+    void OnChunkListsReleased(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    static i64 GetJobWeightThreshold(i64 pendingJobs, i64 pendingWeight);
+
+};
 
 ////////////////////////////////////////////////////////////////////
 

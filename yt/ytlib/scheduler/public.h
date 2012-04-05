@@ -93,11 +93,23 @@ struct IOperationHost;
 struct IOperationController;
 typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;
 
+struct TOperationSpecBase;
+typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
+
+struct TOperationControllerConfigBase;
+typedef TIntrusivePtr<TOperationControllerConfigBase> TOperationControllerConfigBasePtr;
+
 struct  TMapOperationSpec;
 typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
 
+struct TMapControllerConfig;
+typedef TIntrusivePtr<TMapControllerConfig> TMapControllerConfigPtr;
+
 struct TMergeOperationSpec;
 typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
+
+struct TMergeControllerConfig;
+typedef TIntrusivePtr<TMergeControllerConfig> TMergeControllerConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

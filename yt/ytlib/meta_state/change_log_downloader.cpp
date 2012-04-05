@@ -4,6 +4,7 @@
 #include "async_change_log.h"
 #include "meta_version.h"
 
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/profiling/profiler.h>
 
@@ -11,11 +12,12 @@ namespace NYT {
 namespace NMetaState {
 
 using namespace NElection;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("meta_state");
+static NProfiling::TProfiler Profiler("/meta_state");
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +69,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
         request->set_change_log_id(version.SegmentId);
         awaiter->Await(
             request->Invoke(),
-            CellManager->GetPeerAddress(id),
+            EscapeYPath(CellManager->GetPeerAddress(id)),
             BIND(
                 &TChangeLogDownloader::OnResponse,
                 awaiter,

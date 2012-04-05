@@ -20,7 +20,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Profiling");
-static TProfiler Profiler("self", true);
+static TProfiler Profiler("/self", true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,11 +220,12 @@ private:
             }
         }
 
-        LOG_INFO("Creating bucket %s", ~path.Quote());
+        LOG_INFO("Creating bucket %s", ~path);
         auto bucket = New<TBucket>();
-        PathToBucket[path] = bucket;
+        YVERIFY(PathToBucket.insert(MakePair(path, bucket)).second);
 
         auto node = CreateVirtualNode(~bucket);
+        ForceYPath(Root, path);
         SyncYPathSetNode(~Root, path, ~node);
 
         return bucket;

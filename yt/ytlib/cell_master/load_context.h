@@ -36,6 +36,9 @@ template <>
 NChunkServer::TChunk* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
 
 template <>
+NChunkServer::TJob* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
+
+template <>
 NCypress::TLock* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
 
 ////////////////////////////////////////////////////////////////////////////////

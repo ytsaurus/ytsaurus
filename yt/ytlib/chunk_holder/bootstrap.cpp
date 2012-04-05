@@ -82,11 +82,11 @@ void TBootstrap::Init()
 
     SyncYPathSetNode(
         ~NodeBootstrap->GetOrchidRoot(),
-        "stored_chunks",
+        "/stored_chunks",
         ~NYTree::CreateVirtualNode(~CreateStoredChunkMapService(~ChunkStore)));
     SyncYPathSetNode(
         ~NodeBootstrap->GetOrchidRoot(),
-        "cached_chunks",
+        "/cached_chunks",
         ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
 
     MasterConnector->Start();

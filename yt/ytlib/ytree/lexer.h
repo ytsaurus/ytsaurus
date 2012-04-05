@@ -44,11 +44,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TToken ChopToken(const TStringBuf& data, TStringBuf* suffix);
-Stroka ChopStringToken(const TStringBuf& data, TStringBuf* suffix);
-i64 ChopIntegerToken(const TStringBuf& data, TStringBuf* suffix);
-double ChopDoubleToken(const TStringBuf& data, TStringBuf* suffix);
-ETokenType ChopSpecialToken(const TStringBuf& data, TStringBuf* suffix);
+bool IsEmpty(const TStringBuf& data);
+TToken ChopToken(const TStringBuf& data, Stroka* suffix = NULL);
+Stroka ChopStringToken(const TStringBuf& data, Stroka* suffix = NULL);
+
+i64 ChopIntegerToken(const TStringBuf& data, Stroka* suffix);
+double ChopDoubleToken(const TStringBuf& data, Stroka* suffix);
+ETokenType ChopSpecialToken(const TStringBuf& data, Stroka* suffix);
 
 ////////////////////////////////////////////////////////////////////////////////
             

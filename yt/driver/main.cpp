@@ -15,12 +15,13 @@
 
 #include <ytlib/ytree/yson_parser.h>
 
+#include <ytlib/exec_agent/config.h>
+
 #include <ytlib/misc/home.h>
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/errortrace.h>
 #include <ytlib/misc/thread.h>
 
-#include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
 #include <util/folder/dirut.h>
 
@@ -153,25 +154,25 @@ public:
     TDriverProgram()
         : ExitCode(0)
     {
-        RegisterParser("start_tx", New<TStartTxArgs>());
-        RegisterParser("commit_tx", New<TCommitTxArgs>());
-        RegisterParser("abort_tx", New<TAbortTxArgs>());
+        RegisterParser("start_tx", New<TStartTxArgsParser>());
+        RegisterParser("commit_tx", New<TCommitTxArgsParser>());
+        RegisterParser("abort_tx", New<TAbortTxArgsParser>());
 
-        RegisterParser("get", New<TGetArgs>());
-        RegisterParser("set", New<TSetArgs>());
-        RegisterParser("remove", New<TRemoveArgs>());
-        RegisterParser("list", New<TListArgs>());
-        RegisterParser("create", New<TCreateArgs>());
-        RegisterParser("lock", New<TLockArgs>());
+        RegisterParser("get", New<TGetArgsParser>());
+        RegisterParser("set", New<TSetArgsParser>());
+        RegisterParser("remove", New<TRemoveArgsParser>());
+        RegisterParser("list", New<TListArgsParser>());
+        RegisterParser("create", New<TCreateArgsParser>());
+        RegisterParser("lock", New<TLockArgsParser>());
 
-        RegisterParser("download", New<TDownloadArgs>());
-        RegisterParser("upload", New<TUploadArgs>());
+        RegisterParser("download", New<TDownloadArgsParser>());
+        RegisterParser("upload", New<TUploadArgsParser>());
 
-        RegisterParser("read", New<TReadArgs>());
-        RegisterParser("write", New<TWriteArgs>());
+        RegisterParser("read", New<TReadArgsParser>());
+        RegisterParser("write", New<TWriteArgsParser>());
 
-        RegisterParser("map", New<TMapArgs>());
-        RegisterParser("merge", New<TMergeArgs>());
+        RegisterParser("map", New<TMapArgsParser>());
+        RegisterParser("merge", New<TMergeArgsParser>());
     }
 
     int Main(int argc, const char* argv[])
@@ -293,14 +294,14 @@ private:
     TStreamProvider StreamProvider;
     TAutoPtr<TDriver> Driver;
 
-    yhash_map<Stroka, TArgsBase::TPtr> ArgsParsers;
+    yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;
 
     void RegisterParser(const Stroka& name, TArgsBasePtr command)
     {
         YVERIFY(ArgsParsers.insert(MakePair(name, command)).second);
     }
 
-    TArgsBase::TPtr GetArgsParser(Stroka command) {
+    TArgsParserBase::TPtr GetArgsParser(Stroka command) {
         auto parserIt = ArgsParsers.find(command);
         if (parserIt == ArgsParsers.end()) {
             ythrow yexception() << Sprintf("Unknown command %s", ~command.Quote());

@@ -56,6 +56,8 @@ TEST(TVerifyDeathTest, CrashForFalseExpression)
     );
 }
 
+#if 0
+// XXX(sandello); This is not a requirement anymore (since 2012-04-05).
 TEST(TVerifyDeathTest, CrashForException)
 {
     NiceMock<TMockCallee> callee;
@@ -67,6 +69,7 @@ TEST(TVerifyDeathTest, CrashForException)
         "Assertion.*Exception was thrown while evaluating YVERIFY"
     );
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

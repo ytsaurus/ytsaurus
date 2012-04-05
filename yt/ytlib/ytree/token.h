@@ -27,10 +27,16 @@ DECLARE_ENUM(ETokenType,
     (LeftAngle) // <
     (RightAngle) // >
     // YPath
+    (LeftParenthesis) // (
+    (RightParenthesis) // )
     (Slash) // /
     (At) // @
     (Hash) // #
     (Bang) // !
+    (Plus) // +
+    (Caret) // ^
+    (Colon) // :
+    (Comma) // ,
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,6 +54,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(ETokenType, Type);
 
+    bool IsEmpty() const;
     const Stroka& GetStringValue() const;
     i64 GetIntegerValue() const;
     double GetDoubleValue() const;

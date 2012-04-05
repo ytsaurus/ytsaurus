@@ -63,17 +63,19 @@ void TMasterConnector::Start()
         &TMasterConnector::OnChunkRemoved,
         MakeWeak(this)));
 
-    OnHeartbeat();
+    auto randomDelay = RandomNumber(Config->HeartbeatSplay);
+    TDelayedInvoker::Submit(
+        BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
+        .Via(Bootstrap->GetControlInvoker()),
+        randomDelay);
 }
 
 void TMasterConnector::ScheduleHeartbeat()
 {
-    // TODO(panin): think about specializing RandomNumber<TDuration>
-    auto randomDelay = TDuration::MicroSeconds(RandomNumber(Config->HeartbeatSplay.MicroSeconds()));
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()),
-        Config->HeartbeatPeriod + randomDelay);
+        Config->HeartbeatPeriod);
 }
 
 void TMasterConnector::OnHeartbeat()
@@ -132,6 +134,8 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response)
 {
+    ScheduleHeartbeat();
+
     if (!response->IsOK()) {
         Disconnect();
 

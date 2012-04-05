@@ -72,10 +72,15 @@ struct TSchedulerConnectorConfig
     //! Period between consequent heartbeats.
     TDuration HeartbeatPeriod;
 
+    //! Random delay before first heartbeat
+    TDuration HeartbeatSplay;
+
     TSchedulerConnectorConfig()
     {
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+        Register("heartbeat_splay", HeartbeatSplay)
+            .Default(TDuration::Seconds(1));
     }
 };
 

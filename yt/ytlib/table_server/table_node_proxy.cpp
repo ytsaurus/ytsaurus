@@ -47,7 +47,7 @@ IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const TYPath& pa
 {
     // Resolve to self to handle channels and ranges.
     if (verb == "Fetch") {
-        return TResolveResult::Here(path);
+        return TResolveResult::Here("/" + path);
     }
     return TBase::ResolveRecursive(path, verb);
 }
@@ -85,6 +85,7 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_size");
     attributes->push_back("compressed_size");
+    attributes->push_back("compression_ratio");
     attributes->push_back("row_count");
     attributes->push_back("sorted");
     TBase::GetSystemAttributes(attributes);
@@ -94,6 +95,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 {
     const auto& tableNode = GetTypedImpl();
     const auto& chunkList = *tableNode.GetChunkList();
+    const auto& statistics = chunkList.Statistics();
 
     if (name == "chunk_list_id") {
         BuildYsonFluently(consumer)
@@ -114,19 +116,28 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
     if (name == "chunk_count") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList.Statistics().ChunkCount);
+            .Scalar(statistics.ChunkCount);
         return true;
     }
 
     if (name == "uncompressed_size") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList.Statistics().UncompressedSize);
+            .Scalar(statistics.UncompressedSize);
         return true;
     }
 
     if (name == "compressed_size") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList.Statistics().CompressedSize);
+            .Scalar(statistics.CompressedSize);
+        return true;
+    }
+
+    if (name == "compression_ratio") {
+        double ratio = statistics.CompressedSize > 0?
+            static_cast<double>(statistics.UncompressedSize) / statistics.CompressedSize :
+            1.0;
+        BuildYsonFluently(consumer)
+            .Scalar(ratio);
         return true;
     }
 
