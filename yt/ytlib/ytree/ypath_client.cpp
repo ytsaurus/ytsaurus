@@ -336,6 +336,51 @@ yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
     return NYT::FromProto<Stroka>(response->keys());
 }
 
+void ForceYPath(IMapNodePtr root, const TYPath& path)
+{
+    INodePtr currentNode = root;
+    auto currentPath = path;
+    while (true) {
+        auto slashToken = ChopToken(currentPath, &currentPath);
+        if (slashToken.IsEmpty()) {
+            break;
+        }
+        // TODO(babenko): extract code
+        if (slashToken.GetType() != ETokenType::Slash) {
+            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                ~slashToken.ToString().Quote(),
+                ~slashToken.GetType().ToString());
+        }
+        
+        INodePtr child;
+        auto keyToken = ChopToken(currentPath, &currentPath);
+        switch (keyToken.GetType()) {
+            case ETokenType::String: {
+                auto key = keyToken.GetStringValue();
+                child = currentNode->AsMap()->FindChild(key);
+                if (!child) {
+                    auto factory = currentNode->CreateFactory();
+                    child = factory->CreateMap();
+                    YVERIFY(currentNode->AsMap()->AddChild(~child, key));
+                }
+                break;
+            }
+
+            case ETokenType::Integer: {
+                child = currentNode->AsList()->GetChild(keyToken.GetIntegerValue());
+                break;
+            }
+
+            default:
+                // TODO(babenko): extract code
+                ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                    ~keyToken.ToString().Quote(),
+                    ~keyToken.GetType().ToString());
+        }
+        currentNode = child;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

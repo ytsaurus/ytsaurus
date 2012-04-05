@@ -190,6 +190,8 @@ void SyncYPathRemove(IYPathServicePtr service, const TYPath& path);
 //! Synchronously executes "List" verb. Throws if an error has occurred.
 yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
 
+void ForceYPath(IMapNodePtr root, const TYPath& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

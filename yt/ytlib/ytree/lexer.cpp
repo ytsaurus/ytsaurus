@@ -524,7 +524,8 @@ TToken ChopToken(const TStringBuf& data, Stroka* suffix)
     if (suffix) {
         *suffix = data.SubStr(position);
     }
-    return lexer.GetState() == TLexer::EState::Terminal ? lexer.GetToken() : TToken();
+    auto token = lexer.GetState() == TLexer::EState::Terminal ? lexer.GetToken() : TToken();
+    return token;
 }
 
 Stroka ChopStringToken(const TStringBuf& data, Stroka* suffix)

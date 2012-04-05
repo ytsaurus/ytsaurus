@@ -17,7 +17,7 @@ using namespace NTableClient::NProto;
 ////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger(OperationsLogger);
-static NProfiling::TProfiler Profiler("operations/merge");
+static NProfiling::TProfiler Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////
 

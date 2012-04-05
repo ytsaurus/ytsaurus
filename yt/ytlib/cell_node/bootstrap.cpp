@@ -108,7 +108,7 @@ void TBootstrap::Run()
             ->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
         ~OrchidRoot,
-        "config",
+        "/config",
         ~NYTree::CreateVirtualNode(NYTree::CreateYsonFileProducer(ConfigFileName)));
 
     auto orchidService = New<TOrchidService>(

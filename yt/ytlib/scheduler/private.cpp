@@ -8,7 +8,7 @@ namespace NScheduler {
 
 NLog::TLogger SchedulerLogger("Scheduler");
 NLog::TLogger OperationsLogger("Operations");
-NProfiling::TProfiler SchedulerProfiler("scheduler");
+NProfiling::TProfiler SchedulerProfiler("/scheduler");
 
 ////////////////////////////////////////////////////////////////////
 

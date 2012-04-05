@@ -110,14 +110,9 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     }
 
     if (verb == "Set" || verb == "SetNode" || verb == "Create") {
-        auto nextToken = ChopToken(suffixPath);
-        if (!nextToken.IsEmpty()) {
-            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                ~nextToken.ToString().Quote(),
-                ~nextToken.GetType().ToString());
+        if (IsEmpty(suffixPath)) {
+            return IYPathService::TResolveResult::Here("/" + path);
         }
-
-        return IYPathService::TResolveResult::Here("/" + path);
     }
 
     ythrow yexception() << Sprintf("Key %s is not found", ~token.Quote());
@@ -168,11 +163,11 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     switch (token1.GetType()) {
         case ETokenType::Plus:
             if (!token2.IsEmpty()) {
-    			ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                ythrow yexception() << Sprintf("Unexpected token %s of type %s",
                     ~token2.ToString().Quote(),
                     ~token2.GetType().ToString());
-    		}
-    		return IYPathService::TResolveResult::Here("/" + path);
+            }
+            return IYPathService::TResolveResult::Here("/" + path);
 
         case ETokenType::Integer: {
             YASSERT(token2.GetType() != ETokenType::Caret);
@@ -192,7 +187,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             }
             return IYPathService::TResolveResult::Here("/" + path);
         }
-    	default:
+        default:
             ythrow yexception() << Sprintf("Unexpected token %s of type %s",
                 ~token1.ToString().Quote(),
                 ~token1.GetType().ToString());

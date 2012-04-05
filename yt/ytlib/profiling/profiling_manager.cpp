@@ -222,9 +222,10 @@ private:
 
         LOG_INFO("Creating bucket %s", ~path);
         auto bucket = New<TBucket>();
-        PathToBucket[path] = bucket;
+        YVERIFY(PathToBucket.insert(MakePair(path, bucket)).second);
 
         auto node = CreateVirtualNode(~bucket);
+        ForceYPath(Root, path);
         SyncYPathSetNode(~Root, path, ~node);
 
         return bucket;

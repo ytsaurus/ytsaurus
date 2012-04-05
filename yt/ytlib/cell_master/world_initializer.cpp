@@ -84,28 +84,38 @@ private:
 
             SyncYPathSet(
                 service,
+                WithTransaction("//sys", transactionId),
+                "{}");
+
+            SyncYPathSet(
+                service,
                 WithTransaction("//sys/scheduler", transactionId),
                 "{}");
 
             SyncYPathSet(
                 service,
-                WithTransaction("/sys/scheduler/lock", transactionId),
+                WithTransaction("//sys/scheduler/lock", transactionId),
                 "{}");
 
             SyncYPathSet(
                 service,
-                WithTransaction("/sys/scheduler/runtime", transactionId),
+                WithTransaction("//sys/scheduler/runtime", transactionId),
                 "{}");
 
             SyncYPathSet(
                 service,
-                WithTransaction("/sys/operations", transactionId),
+                WithTransaction("//sys/operations", transactionId),
                 "{}");
 
             SyncYPathCreate(
                 service,
                 WithTransaction("//sys/holders", transactionId),
                 EObjectType::HolderMap);
+
+            SyncYPathSet(
+                service,
+                WithTransaction("//sys/masters", transactionId),
+                "{}");
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
                 SyncYPathSet(
@@ -162,6 +172,16 @@ private:
                 service,
                 WithTransaction("//sys/transactions", transactionId),
                 EObjectType::TransactionMap);
+
+            SyncYPathSet(
+                service,
+                WithTransaction("//tmp", transactionId),
+                "{}");
+
+            SyncYPathSet(
+                service,
+                WithTransaction("//home", transactionId),
+                "{}");
 
             CommitTransaction(transactionId);
         } catch (const std::exception& ex) {
