@@ -341,13 +341,15 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
 
     JobProgress = EJobProgress::Failed;
     JobState = resultState;
-    JobResult->Set(jobResult);
+    SetResult(error);
     JobFinished->Set(TVoid());
 }
 
 void TJob::SubscribeFinished(const TCallback<void()>& callback)
 {
-    JobFinished->Subscribe(callback);
+    JobFinished->Subscribe(BIND([=] (TVoid) {
+        callback.Run();
+    }));
 }
 
 void TJob::UnsubscribeFinished(const TCallback<void()>& callback)
