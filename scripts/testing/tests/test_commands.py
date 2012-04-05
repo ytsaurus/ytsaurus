@@ -224,7 +224,7 @@ class TestTableCommands(YTEnvSetup):
     NUM_HOLDERS = 5
 
     def test_simple(self):
-        expect_ok( create('//table', 'table'))
+        expect_ok( create('table', '//table'))
 
         assert_eq( read('//table'), '')
         assert_eq( get('//table@row_count'), '0')
