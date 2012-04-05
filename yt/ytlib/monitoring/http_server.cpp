@@ -188,12 +188,8 @@ bool TServer::TImpl::HandleNewRequest(TPendingRequest& request) const
         }
 
         Stroka prefix = path.substr(0, slashPosition);
-        Stroka suffix = path.substr(slashPosition + 1);
+        Stroka suffix = path.substr(slashPosition);
 
-        if (suffix.empty()) {
-            suffix = "/";
-        }
-        
         {
             auto it = SyncHandlers.find(prefix);
             if (it != SyncHandlers.end()) {
@@ -297,7 +293,7 @@ private:
                 }
 
                 Stroka prefix = request.Request.substr(0, slashPosition).ToString();
-                Stroka suffix = request.Request.substr(slashPosition + 1).ToString();
+                Stroka suffix = request.Request.substr(slashPosition).ToString();
                 
                 {
                     auto it = impl->SyncHandlers.find(prefix);
