@@ -172,7 +172,7 @@ class TestLockCommands(YTEnvSetup):
 
         types_to_check = """
         string_node
-        int64_node
+        integer_node
         double_node
         map_node
         list_node
@@ -194,27 +194,31 @@ class TestLockCommands(YTEnvSetup):
 
         # shared locks are available only on tables (as well as creation of different types)
         for object_type in types_to_check:
+            print object_type
             tx_id = start_transaction()
-            expect_ok( create('//some', object_type, tx = tx_id))
+            expect_ok( create(object_type, '//some', tx = tx_id))
             expect_error( lock('//some', mode = 'shared', tx = tx_id))
             expect_ok( abort_transaction(tx = tx_id))
 
 
     def test_lock_combinations(self):
-        expect_ok(set('//a/b/c', '42'))
+
+        expect_ok( set('//a', '{}'))
+        expect_ok( set('//a/b', '{}'))
+        expect_ok( set('//a/b/c', '42'))
 
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        expect_ok(lock('//a/b', tx = tx1))
+        expect_ok( lock('//a/b', tx = tx1))
 
         # now taking lock for any element in //a/b/c cause en error
-        expect_error(lock('//a', tx = tx2))
-        expect_error(lock('//a/b', tx = tx2))
-        expect_error(lock('//a/b/c', tx = tx2))
+        expect_error( lock('//a', tx = tx2))
+        expect_error( lock('//a/b', tx = tx2))
+        expect_error( lock('//a/b/c', tx = tx2))
 
-        expect_ok(abort_transaction(tx = tx1))
-        expect_ok(abort_transaction(tx = tx2))
+        expect_ok( abort_transaction(tx = tx1))
+        expect_ok( abort_transaction(tx = tx2))
 
         expect_ok(remove('//a'))
 
