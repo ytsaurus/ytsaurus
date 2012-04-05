@@ -218,7 +218,7 @@ private:
         Map->Clear();
     }
 
-    virtual void OnMyMapItem(const Stroka& key)
+    virtual void OnMyMapItem(const TStringBuf& key)
     {
         ItemKey = key;
         TreeBuilder->BeginTree();
