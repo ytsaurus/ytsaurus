@@ -153,8 +153,8 @@ private:
         FOREACH (const auto& chunk, extractedChunks) {
             *mergeJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
         }
-        auto chunkListId = ChunkListPool->Extract();
-        *mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = chunkListId.ToProto();
+        jobInfo->OutputChunkListId = ChunkListPool->Extract();
+        *mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = jobInfo->OutputChunkListId.ToProto();
 
         // Create job and job info.
         auto job = Host->CreateJob(
