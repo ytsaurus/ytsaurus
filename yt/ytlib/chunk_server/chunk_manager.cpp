@@ -551,26 +551,25 @@ private:
     }
 
 
-    void OnChunkDestroyed(TChunk& chunk)
+    void OnChunkDestroyed(TChunk* chunk)
     {
-        auto chunkId = chunk.GetId();
+        auto chunkId = chunk->GetId();
 
         // Unregister chunk replicas from all known locations.
-        FOREACH (auto holderId, chunk.StoredLocations()) {
+        FOREACH (auto holderId, chunk->StoredLocations()) {
             ScheduleChunkReplicaRemoval(holderId, chunk, false);
         }
-        if (~chunk.CachedLocations()) {
-            FOREACH (auto holderId, *chunk.CachedLocations()) {
+        if (~chunk->CachedLocations()) {
+            FOREACH (auto holderId, *chunk->CachedLocations()) {
                 ScheduleChunkReplicaRemoval(holderId, chunk, true);
             }
         }
 
         // Remove all associated jobs.
-        auto* jobList = FindJobList(chunk.GetId());
+        auto* jobList = FindJobList(chunkId);
         if (jobList) {
-            FOREACH (const auto& jobId, jobList->JobIds()) {
-                auto& job = GetJob(jobId);
-                auto* holder = FindHolder(job.GetRunnerAddress());
+            FOREACH (auto& job, jobList->Jobs()) {
+                auto* holder = FindHolder(job->GetRunnerAddress());
                 if (holder) {
                     RemoveJob(*holder, job, false);
                 }
@@ -675,8 +674,8 @@ private:
                 ~holder.GetAddress(),
                 holderId);
 
-            YASSERT(holder.StoredChunkIds().empty());
-            YASSERT(holder.CachedChunkIds().empty());
+            YASSERT(holder.StoredChunks().empty());
+            YASSERT(holder.CachedChunks().empty());
 
             FOREACH (const auto& chunkInfo, message.chunks()) {
                 ProcessAddedChunk(holder, chunkInfo, false);
@@ -719,11 +718,11 @@ private:
                 ProcessRemovedChunk(holder, chunkInfo);
             }
 
-            std::vector<TChunkId> unapprovedChunkIds(holder.UnapprovedChunkIds().begin(), holder.UnapprovedChunkIds().end());
-            FOREACH (const auto& chunkId, unapprovedChunkIds) {
-                RemoveChunkReplica(holder, GetChunk(chunkId), false, ERemoveReplicaReason::Unapproved);
+            std::vector<TChunk*> UnapprovedChunks(holder.UnapprovedChunks().begin(), holder.UnapprovedChunks().end());
+            FOREACH (auto& chunk, UnapprovedChunks) {
+                RemoveChunkReplica(holder, chunk, false, ERemoveReplicaReason::Unapproved);
             }
-            holder.UnapprovedChunkIds().clear();
+            holder.UnapprovedChunks().clear();
         }
         return TVoid();
     }
@@ -740,9 +739,9 @@ private:
 
             FOREACH (const auto& stopInfo, message.stopped_jobs()) {
                 auto jobId = TJobId::FromProto(stopInfo.job_id());
-                const auto* job = FindJob(jobId);
+                auto* job = FindJob(jobId);
                 if (job) {
-                    RemoveJob(holder, *job, false);
+                    RemoveJob(holder, job, false);
                 }
             }
 
@@ -799,8 +798,8 @@ private:
         ChunkReplicaCount = 0;
         FOREACH (const auto& pair, HolderMap) {
             const auto& holder = *pair.second;
-            ChunkReplicaCount += holder.StoredChunkIds().size();
-            ChunkReplicaCount += holder.CachedChunkIds().size();
+            ChunkReplicaCount += holder.StoredChunks().size();
+            ChunkReplicaCount += holder.CachedChunks().size();
         }
 
         // Reconstruct HolderAddressMap.
@@ -812,8 +811,8 @@ private:
 
         // Reconstruct ReplicationSinkMap.
         ReplicationSinkMap.clear();
-        FOREACH (const auto& pair, JobMap) {
-            RegisterReplicationSinks(*pair.second);
+        FOREACH (auto& pair, JobMap) {
+            RegisterReplicationSinks(pair.second);
         }
     }
 
@@ -898,18 +897,15 @@ private:
                 StopHolderTracking(holder);
             }
 
-            FOREACH (const auto& chunkId, holder.StoredChunkIds()) {
-                auto& chunk = GetChunk(chunkId);
+            FOREACH (auto& chunk, holder.StoredChunks()) {
                 RemoveChunkReplica(holder, chunk, false, ERemoveReplicaReason::Reset);
             }
 
-            FOREACH (const auto& chunkId, holder.CachedChunkIds()) {
-                auto& chunk = GetChunk(chunkId);
+            FOREACH (auto& chunk, holder.CachedChunks()) {
                 RemoveChunkReplica(holder, chunk, true, ERemoveReplicaReason::Reset);
             }
 
-            FOREACH (const auto& jobId, holder.JobIds()) {
-                auto& job = GetJob(jobId);
+            FOREACH (auto& job, holder.Jobs()) {
                 // Pass true to suppress removal of job ids from holder.
                 RemoveJob(holder, job, true);
             }
@@ -926,12 +922,12 @@ private:
         (Confirmation)
     );
 
-    void AddChunkReplica(THolder& holder, TChunk& chunk, bool cached, EAddReplicaReason reason)
+    void AddChunkReplica(THolder& holder, TChunk* chunk, bool cached, EAddReplicaReason reason)
     {
-        auto chunkId = chunk.GetId();
+        auto chunkId = chunk->GetId();
         auto holderId = holder.GetId();
 
-        if (holder.HasChunk(chunkId, cached)) {
+        if (holder.HasChunk(chunk, cached)) {
             LOG_DEBUG_IF(!IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
@@ -941,8 +937,8 @@ private:
             return;
         }
 
-        holder.AddChunk(chunkId, cached);
-        chunk.AddLocation(holderId, cached);
+        holder.AddChunk(chunk, cached);
+        chunk->AddLocation(holderId, cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(
@@ -956,7 +952,7 @@ private:
         }
 
         if (!cached && IsLeader()) {
-            JobScheduler->ScheduleChunkRefresh(chunk.GetId());
+            JobScheduler->ScheduleChunkRefresh(chunk->GetId());
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
@@ -964,11 +960,11 @@ private:
         }
     }
 
-    void ScheduleChunkReplicaRemoval(THolderId holderId, TChunk& chunk, bool cached)
+    void ScheduleChunkReplicaRemoval(THolderId holderId, TChunk* chunk, bool cached)
     {
-        auto chunkId = chunk.GetId();
+        auto chunkId = chunk->GetId();
         auto& holder = GetHolder(holderId);
-        holder.RemoveChunk(chunkId, cached);
+        holder.RemoveChunk(chunk, cached);
 
         if (!cached && IsLeader()) {
             JobScheduler->ScheduleChunkRemoval(holder, chunkId);
@@ -981,12 +977,12 @@ private:
         (Reset)
     );
 
-    void RemoveChunkReplica(THolder& holder, TChunk& chunk, bool cached, ERemoveReplicaReason reason)
+    void RemoveChunkReplica(THolder& holder, TChunk* chunk, bool cached, ERemoveReplicaReason reason)
     {
-        auto chunkId = chunk.GetId();
+        auto chunkId = chunk->GetId();
         auto holderId = holder.GetId();
 
-        if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !holder.HasChunk(chunkId, cached)) {
+        if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !holder.HasChunk(chunk, cached)) {
             LOG_DEBUG_IF(!IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
@@ -999,7 +995,7 @@ private:
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
             case ERemoveReplicaReason::Unapproved:
-                holder.RemoveChunk(chunk.GetId(), cached);
+                holder.RemoveChunk(chunk, cached);
                 break;
             case ERemoveReplicaReason::Reset:
                 // Do nothing.
@@ -1007,7 +1003,7 @@ private:
             default:
                 YUNREACHABLE();
         }
-        chunk.RemoveLocation(holder.GetId(), cached);
+        chunk->RemoveLocation(holder.GetId(), cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(
@@ -1022,7 +1018,7 @@ private:
         }
 
         if (!cached && IsLeader()) {
-            JobScheduler->ScheduleChunkRefresh(chunk.GetId());
+            JobScheduler->ScheduleChunkRefresh(chunkId);
         }
 
         Profiler.Increment(RemoveChunkReplicaCounter);
@@ -1047,11 +1043,11 @@ private:
         JobMap.Insert(jobId, job);
 
         auto& list = GetOrCreateJobList(chunkId);
-        list.AddJob(jobId);
+        list.AddJob(job);
 
-        holder.AddJob(jobId);
+        holder.AddJob(job);
 
-        RegisterReplicationSinks(*job);
+        RegisterReplicationSinks(job);
 
         LOG_INFO_IF(!IsRecovery(), "Job added (JobId: %s, Address: %s, HolderId: %d, JobType: %s, ChunkId: %s)",
             ~jobId.ToString(),
@@ -1061,25 +1057,25 @@ private:
             ~chunkId.ToString());
     }
 
-    void RemoveJob(THolder& holder, const TJob& job, bool holderDied)
+    void RemoveJob(THolder& holder, TJob* job, bool holderDied)
     {
-        auto jobId = job.GetJobId();
+        auto jobId = job->GetJobId();
 
-        auto& list = GetJobList(job.GetChunkId());
-        list.RemoveJob(jobId);
+        auto& list = GetJobList(job->GetChunkId());
+        list.RemoveJob(job);
         DropJobListIfEmpty(list);
 
         if (!holderDied) {
-            holder.RemoveJob(jobId);
+            holder.RemoveJob(job);
         }
 
         if (IsLeader()) {
-            JobScheduler->ScheduleChunkRefresh(job.GetChunkId());
+            JobScheduler->ScheduleChunkRefresh(job->GetChunkId());
         }
 
         UnregisterReplicationSinks(job);
 
-        JobMap.Remove(job.GetJobId());
+        JobMap.Remove(jobId);
 
         LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s, HolderId: %d)",
             ~jobId.ToString(),
@@ -1098,17 +1094,17 @@ private:
         i64 size = chunkInfo.size();
         bool cached = chunkInfo.cached();
 
-        if (!cached && holder.HasUnapprovedChunk(chunkId)) {
+        auto* chunk = FindChunk(chunkId);
+        if (!cached && holder.HasUnapprovedChunk(chunk)) {
             LOG_DEBUG_IF(!IsRecovery(), "Chunk approved (Address: %s, HolderId: %d, ChunkId: %s)",
                 ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString());
 
-            holder.ApproveChunk(chunkId);
+            holder.ApproveChunk(chunk);
             return;
         }
 
-        auto* chunk = FindChunk(chunkId);
         if (!chunk) {
             // Holders may still contain cached replicas of chunks that no longer exist.
             // Here we just silently ignore this case.
@@ -1144,7 +1140,7 @@ private:
 
         AddChunkReplica(
             holder,
-            *chunk,
+            chunk,
             cached,
             incremental ? EAddReplicaReason::IncrementalHeartbeat : EAddReplicaReason::FullHeartbeat);
     }
@@ -1169,7 +1165,7 @@ private:
 
         RemoveChunkReplica(
             holder,
-            *chunk,
+            chunk,
             cached,
             ERemoveReplicaReason::IncrementalHeartbeat);
     }
@@ -1187,19 +1183,19 @@ private:
 
     void DropJobListIfEmpty(const TJobList& list)
     {
-        if (list.JobIds().empty()) {
+        if (list.Jobs().empty()) {
             JobListMap.Remove(list.GetChunkId());
         }
     }
 
 
-    void RegisterReplicationSinks(const TJob& job)
+    void RegisterReplicationSinks(TJob* job)
     {
-        switch (job.GetType()) {
+        switch (job->GetType()) {
             case EJobType::Replicate: {
-                FOREACH (const auto& address, job.TargetAddresses()) {
+                FOREACH (const auto& address, job->TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YVERIFY(sink.JobIds().insert(job.GetJobId()).second);
+                    YVERIFY(sink.Jobs().insert(job).second);
                 }
                 break;
             }
@@ -1212,13 +1208,13 @@ private:
         }
     }
 
-    void UnregisterReplicationSinks(const TJob& job)
+    void UnregisterReplicationSinks(TJob* job)
     {
-        switch (job.GetType()) {
+        switch (job->GetType()) {
             case EJobType::Replicate: {
-                FOREACH (const auto& address, job.TargetAddresses()) {
+                FOREACH (const auto& address, job->TargetAddresses()) {
                     auto& sink = GetOrCreateReplicationSink(address);
-                    YVERIFY(sink.JobIds().erase(job.GetJobId()) == 1);
+                    YVERIFY(sink.Jobs().erase(job) == 1);
                     DropReplicationSinkIfEmpty(sink);
                 }
                 break;
@@ -1245,7 +1241,7 @@ private:
 
     void DropReplicationSinkIfEmpty(const TReplicationSink& sink)
     {
-        if (sink.JobIds().empty()) {
+        if (sink.Jobs().empty()) {
             // NB: Do not try to inline this variable! erase() will destroy the object
             // and will access the key afterwards.
             auto address = sink.GetAddress();
@@ -1413,13 +1409,13 @@ private:
                 continue;
             }
 
-            if (!holder->HasChunk(chunk.GetId(), false)) {
+            if (!holder->HasChunk(&chunk, false)) {
                 Owner->AddChunkReplica(
                     *holder,
-                    chunk,
+                    &chunk,
                     false,
                     TImpl::EAddReplicaReason::Confirmation);
-                holder->MarkChunkUnapproved(chunk.GetId());
+                holder->MarkChunkUnapproved(&chunk);
             }
         }
 
@@ -1458,7 +1454,7 @@ TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
 
 void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk& chunk)
 {
-    Owner->OnChunkDestroyed(chunk);
+    Owner->OnChunkDestroyed(&chunk);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

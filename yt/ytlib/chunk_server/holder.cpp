@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "holder.h"
+#include "job.h"
+#include "chunk.h"
 
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/protobuf_helpers.h>
@@ -38,10 +40,10 @@ void THolder::Save(TOutputStream* output) const
     ::Save(output, IncarnationId_);
     ::Save(output, State_);
     SaveProto(output, Statistics_);
-    SaveSet(output, StoredChunkIds_);
-    SaveSet(output, CachedChunkIds_);
-    SaveSet(output, UnapprovedChunkIds_);
-    ::Save(output, JobIds_);
+    SaveObjects(output, StoredChunks_);
+    SaveObjects(output, CachedChunks_);
+    SaveObjects(output, UnapprovedChunks_);
+//    SaveObjects(output, Jobs_);
 }
 
 void THolder::Load(const TLoadContext& context, TInputStream* input)
@@ -51,67 +53,67 @@ void THolder::Load(const TLoadContext& context, TInputStream* input)
     ::Load(input, IncarnationId_);
     ::Load(input, State_);
     LoadProto(input, Statistics_);
-    LoadSet(input, StoredChunkIds_);
-    LoadSet(input, CachedChunkIds_);
-    LoadSet(input, UnapprovedChunkIds_);
-    ::Load(input, JobIds_);
+    LoadObjects(input, StoredChunks_, context);
+    LoadObjects(input, CachedChunks_, context);
+    LoadObjects(input, UnapprovedChunks_, context);
+//    LoadObjects(input, Jobs_, context);
 }
 
-void THolder::AddJob(const TJobId& id)
+void THolder::AddJob(TJob* job)
 {
-    JobIds_.push_back(id);
+    Jobs_.push_back(job);
 }
 
-void THolder::RemoveJob(const TJobId& id)
+void THolder::RemoveJob(TJob* job)
 {
-    auto it = std::find(JobIds_.begin(), JobIds_.end(), id);
-    if (it != JobIds_.end()) {
-        JobIds_.erase(it);
+    auto it = std::find(Jobs_.begin(), Jobs_.end(), job);
+    if (it != Jobs_.end()) {
+        Jobs_.erase(it);
     }
 }
 
-void THolder::AddChunk(const TChunkId& chunkId, bool cached)
+void THolder::AddChunk(TChunk* chunk, bool cached)
 {
     if (cached) {
-        YVERIFY(CachedChunkIds_.insert(chunkId).second);
+        YVERIFY(CachedChunks_.insert(chunk).second);
     } else {
-        YVERIFY(StoredChunkIds_.insert(chunkId).second);
+        YVERIFY(StoredChunks_.insert(chunk).second);
     }
 }
 
-void THolder::RemoveChunk(const TChunkId& chunkId, bool cached)
+void THolder::RemoveChunk(TChunk* chunk, bool cached)
 {
     if (cached) {
-        YVERIFY(CachedChunkIds_.erase(chunkId) == 1);
+        YVERIFY(CachedChunks_.erase(chunk) == 1);
     } else {
-        YVERIFY(StoredChunkIds_.erase(chunkId) == 1);
+        YVERIFY(StoredChunks_.erase(chunk) == 1);
     }
 }
 
-bool THolder::HasChunk(const TChunkId& chunkId, bool cached) const
+bool THolder::HasChunk(TChunk* chunk, bool cached) const
 {
     if (cached) {
-        return CachedChunkIds_.find(chunkId) != CachedChunkIds_.end();
+        return CachedChunks_.find(chunk) != CachedChunks_.end();
     } else {
-        return StoredChunkIds_.find(chunkId) != StoredChunkIds_.end();
+        return StoredChunks_.find(chunk) != StoredChunks_.end();
     }
 }
 
-void THolder::MarkChunkUnapproved(const TChunkId& chunkId)
+void THolder::MarkChunkUnapproved(TChunk* chunk)
 {
-    YASSERT(HasChunk(chunkId, false));
-    YVERIFY(UnapprovedChunkIds_.insert(chunkId).second);
+    YASSERT(HasChunk(chunk, false));
+    YVERIFY(UnapprovedChunks_.insert(chunk).second);
 }
 
-bool THolder::HasUnapprovedChunk(const TChunkId& chunkId) const
+bool THolder::HasUnapprovedChunk(TChunk* chunk) const
 {
-    return UnapprovedChunkIds_.find(chunkId) != UnapprovedChunkIds_.end();
+    return UnapprovedChunks_.find(chunk) != UnapprovedChunks_.end();
 }
 
-void THolder::ApproveChunk(const TChunkId& chunkId)
+void THolder::ApproveChunk(TChunk* chunk)
 {
-    YASSERT(HasChunk(chunkId, false));
-    YVERIFY(UnapprovedChunkIds_.erase(chunkId) == 1);
+    YASSERT(HasChunk(chunk, false));
+    YVERIFY(UnapprovedChunks_.erase(chunk) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

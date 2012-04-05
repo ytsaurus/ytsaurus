@@ -80,8 +80,8 @@ void TJobScheduler::OnHolderRegistered(const THolder& holder)
 
     YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).second);
 
-    FOREACH(const auto& chunk, holder.StoredChunkIds()) {
-        ScheduleChunkRefresh(chunk);
+    FOREACH(auto& chunk, holder.StoredChunks()) {
+        ScheduleChunkRefresh(chunk->GetId());
     }
 }
 
@@ -183,7 +183,8 @@ void TJobScheduler::ProcessExistingJobs(
     }
 
     // Check for missing jobs
-    FOREACH (auto jobId, holder.JobIds()) {
+    FOREACH (auto job, holder.Jobs()) {
+        auto jobId = job->GetJobId();
         if (runningJobIds.find(jobId) == runningJobIds.end()) {
             TJobStopInfo stopInfo;
             *stopInfo.mutable_job_id() = jobId.ToProto();
@@ -292,7 +293,7 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
     yvector<TJobStartInfo>* jobsToStart)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto& chunk = chunkManager->GetChunk(chunkId);
+    auto* chunk = &chunkManager->GetChunk(chunkId);
 
     if (IsRefreshScheduled(chunkId)) {
         LOG_DEBUG("Postponed chunk balancing until another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
@@ -477,11 +478,10 @@ void TJobScheduler::GetReplicaStatistics(
             storedAddresses.insert(holder.GetAddress());
         }
 
-        FOREACH(const auto& jobId, jobList->JobIds()) {
-            const auto& job = chunkManager->GetJob(jobId);
-            switch (job.GetType()) {
+        FOREACH(auto& job, jobList->Jobs()) {
+            switch (job->GetType()) {
                 case EJobType::Replicate: {
-                    FOREACH(const auto& address, job.TargetAddresses()) {
+                    FOREACH(const auto& address, job->TargetAddresses()) {
                         if (storedAddresses.find(address) == storedAddresses.end()) {
                             ++*plusCount;
                         }
@@ -490,7 +490,7 @@ void TJobScheduler::GetReplicaStatistics(
                 }
 
                 case EJobType::Remove:
-                    if (storedAddresses.find(job.GetRunnerAddress()) != storedAddresses.end()) {
+                    if (storedAddresses.find(job->GetRunnerAddress()) != storedAddresses.end()) {
                         ++*minusCount;
                     }
                     break;

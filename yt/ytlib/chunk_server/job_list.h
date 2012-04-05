@@ -14,7 +14,7 @@ namespace NChunkServer {
 class TJobList
 {
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
-    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TJob*>, Jobs);
 public:
 
     TJobList(const TChunkId& chunkId)
@@ -23,29 +23,29 @@ public:
 
     TJobList(const TJobList& other)
         : ChunkId_(other.ChunkId_)
-        , JobIds_(other.JobIds_)
+        , Jobs_(other.Jobs_)
     { }
 
     void Save(TOutputStream* output) const
     {
-        ::Save(output, JobIds_);
+//        ::Save(output, Jobs_);
     }
 
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input)
     {
-        ::Load(input, JobIds_);
+//        ::Load(input, Jobs_);
     }
 
-    void AddJob(const TJobId& id)
+    void AddJob(TJob* job)
     {
-        JobIds_.push_back(id);
+        Jobs_.push_back(job);
     }
 
-    void RemoveJob(const TJobId& id)
+    void RemoveJob(TJob* job)
     {
-        auto it = std::find(JobIds_.begin(), JobIds_.end(), id);
-        if (it != JobIds_.end()) {
-            JobIds_.erase(it);
+        auto it = std::find(Jobs_.begin(), Jobs_.end(), job);
+        if (it != Jobs_.end()) {
+            Jobs_.erase(it);
         }
     }
     
