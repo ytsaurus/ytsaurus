@@ -85,6 +85,19 @@ class YTEnv:
                 continue
             p.kill()
 
+            # now try to kill unkilled process
+            p.poll()
+            if p.returncode is None:
+                print '%s, pid %d, wasnt killed by the kill command' %(name, p.pid)
+                for i in xrange(10):
+                    p.poll()
+                    if p.returncode is not None: break
+                    p.kill()
+                    time.sleep(0.1)
+                else:
+                    print 'ALARM!!!, %s want killed after 10 iterations' % (name)
+
+
     def _set_path(self, path_to_run):
         path_to_run = os.path.abspath(path_to_run)
         print 'Initializing at', path_to_run
