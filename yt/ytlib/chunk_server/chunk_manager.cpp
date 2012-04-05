@@ -512,9 +512,6 @@ private:
             delta.Negate();
         }
 
-        // Apply delta to the parent chunk list.
-        chunkList.Statistics().Accumulate(delta);
-
         // Go upwards and apply delta.
         // Also reset Sorted flags.
         // Check that parents are unique along the way.
