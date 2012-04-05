@@ -134,6 +134,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Start an appropriate server.
     if (isCellNode) {
+        NYT::NThread::SetCurrentThreadName("NodeMain");
         auto config = New<NCellNode::TCellNodeConfig>();
         if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
@@ -162,6 +163,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isCellMaster) {
+        NYT::NThread::SetCurrentThreadName("MasterMain");
         auto config = New<NCellMaster::TCellMasterConfig>();
         if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
@@ -188,6 +190,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isScheduler) {
+        NYT::NThread::SetCurrentThreadName("SchedulerMain");
         auto config = New<NCellScheduler::TCellSchedulerConfig>();
         if (printConfigTemplate) {
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
