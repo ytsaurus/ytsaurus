@@ -96,7 +96,8 @@ class YTEnv:
                     p.kill()
                     time.sleep(0.1)
                 else:
-                    print 'ALARM!!!, %s want killed after 10 iterations' % (name)
+                    assert False, 'ALARM!!!, %s wasnt killed after 10 iterations' % (name)
+
 
 
     def _set_path(self, path_to_run):
