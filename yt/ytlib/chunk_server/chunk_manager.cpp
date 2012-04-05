@@ -1059,7 +1059,7 @@ private:
 
     void RemoveJob(THolder& holder, TJob* job, bool holderDied)
     {
-        auto jobId = job->GetJobId();
+        auto jobId = job->GetId();
 
         auto& list = GetJobList(job->GetChunkId());
         list.RemoveJob(job);
@@ -1095,16 +1095,6 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunk(chunkId);
-        if (!cached && holder.HasUnapprovedChunk(chunk)) {
-            LOG_DEBUG_IF(!IsRecovery(), "Chunk approved (Address: %s, HolderId: %d, ChunkId: %s)",
-                ~holder.GetAddress(),
-                holderId,
-                ~chunkId.ToString());
-
-            holder.ApproveChunk(chunk);
-            return;
-        }
-
         if (!chunk) {
             // Holders may still contain cached replicas of chunks that no longer exist.
             // Here we just silently ignore this case.
@@ -1123,6 +1113,16 @@ private:
                 JobScheduler->ScheduleChunkRemoval(holder, chunkId);
             }
 
+            return;
+        }
+
+        if (!cached && holder.HasUnapprovedChunk(chunk)) {
+            LOG_DEBUG_IF(!IsRecovery(), "Chunk approved (Address: %s, HolderId: %d, ChunkId: %s)",
+                ~holder.GetAddress(),
+                holderId,
+                ~chunkId.ToString());
+
+            holder.ApproveChunk(chunk);
             return;
         }
 

@@ -184,7 +184,7 @@ void TJobScheduler::ProcessExistingJobs(
 
     // Check for missing jobs
     FOREACH (auto job, holder.Jobs()) {
-        auto jobId = job->GetJobId();
+        auto jobId = job->GetId();
         if (runningJobIds.find(jobId) == runningJobIds.end()) {
             TJobStopInfo stopInfo;
             *stopInfo.mutable_job_id() = jobId.ToProto();

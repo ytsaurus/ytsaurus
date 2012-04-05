@@ -43,6 +43,12 @@ TChunk* TLoadContext::Get(const TObjectId& id) const
 }
 
 template <>
+TJob* TLoadContext::Get(const TObjectId& id) const
+{
+    return &Bootstrap_->GetChunkManager()->GetJob(id);
+}
+
+template <>
 TLock* TLoadContext::Get(const TObjectId& id) const
 {
     return &Bootstrap_->GetCypressManager()->GetLock(id);
