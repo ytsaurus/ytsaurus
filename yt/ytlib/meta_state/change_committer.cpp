@@ -7,6 +7,7 @@
 #include "change_log_cache.h"
 #include "follower_tracker.h"
 
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/foreach.h>
 #include <ytlib/logging/tagged_logger.h>
@@ -15,11 +16,12 @@ namespace NYT {
 namespace NMetaState {
 
 using namespace NElection;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = MetaStateLogger;
-static NProfiling::TProfiler Profiler("meta_state");
+static NProfiling::TProfiler Profiler("/meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,7 +121,7 @@ private:
 
             Awaiter->Await(
                 LogResult,
-                cellManager->GetSelfAddress(),
+                EscapeYPath(cellManager->GetSelfAddress()),
                 BIND(&TBatch::OnLocalCommit, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched changes to followers");
@@ -140,7 +142,7 @@ private:
                 }
                 Awaiter->Await(
                     request->Invoke(),
-                    cellManager->GetPeerAddress(id),
+                    EscapeYPath(cellManager->GetPeerAddress(id)),
                     BIND(&TBatch::OnRemoteCommit, MakeStrong(this), id));
             }
             LOG_DEBUG("Batched changes sent");

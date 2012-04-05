@@ -1,5 +1,7 @@
 #include "arguments.h"
 
+#include <ytlib/ytree/lexer.h>
+
 #include <build.h>
 
 #include <ytlib/job_proxy/config.h>
@@ -52,10 +54,17 @@ TArgsBase::TFormat TArgsBase::GetOutputFormat()
 void TArgsBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
 {
     FOREACH (auto updateString, ConfigUpdatesArg.getValue()) {
-        int index = updateString.find_first_of('=');
-        auto ypath = updateString.substr(0, index);
-        auto yson = updateString.substr(index + 1);
-        SyncYPathSet(service, ypath, yson);
+        TYPath ypath;
+
+        TToken token;
+        while ((token = ChopToken(updateString, &updateString)).GetType() != ETokenType::Equals) {
+            if (token.GetType() == ETokenType::None) {
+                ythrow yexception() << "Incorrect option";
+            }
+            ypath += token.ToString();
+        }
+
+        SyncYPathSet(service, ypath, updateString);
     }
 }
 

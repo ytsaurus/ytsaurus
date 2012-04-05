@@ -5,14 +5,17 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/log.h>
 #include <ytlib/profiling/profiler.h>
+#include <ytlib/ytree/ypath_client.h>
 
 namespace NYT {
 namespace NElection {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ElectionLogger;
-static NProfiling::TProfiler Profiler("election/leader_lookup");
+static NProfiling::TProfiler Profiler("/election/leader_lookup");
 static NRpc::TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +40,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
         auto request = proxy.GetStatus();
         awaiter->Await(
             request->Invoke(),
-            address,
+            EscapeYPath(address),
             BIND(
                 &TLeaderLookup::OnResponse,
                 MakeStrong(this),

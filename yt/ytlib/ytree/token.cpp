@@ -15,6 +15,11 @@ TToken::TToken()
     , DoubleValue(0.0)
 { }
 
+bool TToken::IsEmpty() const
+{
+    return Type_ == ETokenType::None;
+}
+
 const Stroka& TToken::GetStringValue() const
 {
     YASSERT(Type_ == ETokenType::String);

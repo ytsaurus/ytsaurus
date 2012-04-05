@@ -55,11 +55,8 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
-        if (IsLocalYPath(path)) {
-            return TBase::Resolve(path, verb);
-        }
-        auto redirectedPath = ChopYPathRedirectMarker(path);
-        return TResolveResult::There(Service, redirectedPath);
+        // TODO(babenko): handle ugly face
+        return TResolveResult::There(~Service, path);
     }
 
 private:

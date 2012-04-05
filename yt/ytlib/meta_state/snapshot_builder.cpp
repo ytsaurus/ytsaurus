@@ -9,6 +9,7 @@
 #include "snapshot.h"
 #include "change_log_cache.h"
 
+#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/actions/bind.h>
 #include <ytlib/profiling/profiler.h>
@@ -27,11 +28,12 @@ namespace NYT {
 namespace NMetaState {
 
 using namespace NElection;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("MetaState");
-static NProfiling::TProfiler Profiler("meta_state");
+static NProfiling::TProfiler Profiler("/meta_state");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +116,7 @@ private:
                 : BIND(&TSession::OnChangeLogRotated, MakeStrong(this), id);
             Awaiter->Await(
                 request->Invoke(),
-                Owner->CellManager->GetPeerAddress(id),
+                EscapeYPath(Owner->CellManager->GetPeerAddress(id)),
                 responseHandler);
         }
 

@@ -115,20 +115,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern TYPath RootMarker;
-extern TYPath AttributeMarker;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ChopYPathToken(
-    const TYPath& path,
-    Stroka* token,
-    TYPath* suffixPath);
-
-TYPath ChopYPathAttributeMarker(const TYPath& path);
-
-TYPath ChopYPathRedirectMarker(const TYPath& path);
-
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
@@ -147,31 +133,16 @@ TYPath CombineYPaths(
     const TYPath& path2,
     const TYPath& path3,
     const TYPath& path4);
-
+  
 TYPath CombineYPaths(
     const TYPath& path1,
     const TYPath& path2,
     const TYPath& path3,
     const TYPath& path4,
     const TYPath& path5);
-
-//! Returns True if the path is empty.
-bool IsEmptyYPath(const TYPath& path);
-
-//! Returns True if the path is empty or equals to "/".
-bool IsFinalYPath(const TYPath& path);
-
-//! Returns True if the path starts with "@".
-bool IsAttributeYPath(const TYPath& path);
-
-//! Returns True if the path is empty or starts with "@".
-/*!
- *  The empty path is handled by the virtual node itself.
- *  All other paths (including "/") are forwarded to the service.
- *  Thus "virtual" denotes the virtual node while "virtual/" denotes its content.
- *  Same applies to the attributes (cf. "virtual@" vs "virtual/@").
- */
-bool IsLocalYPath(const TYPath& path);
+    
+TYPath EscapeYPath(const Stroka& value);
+TYPath EscapeYPath(i64 value);
 
 void ResolveYPath(
     IYPathServicePtr rootService,

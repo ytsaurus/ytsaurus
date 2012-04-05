@@ -6,6 +6,7 @@
 #include "ypath_detail.h"
 #include "ypath_client.h"
 #include "attribute_provider_detail.h"
+#include "lexer.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -22,7 +23,7 @@ IYPathService::TResolveResult TAttributedYPathServiceBase::ResolveAttributes(
 {
     UNUSED(path);
     UNUSED(verb);
-    return TResolveResult::Here(AttributeMarker + path);
+    return TResolveResult::Here("@" + path);
 }
 
 void TAttributedYPathServiceBase::DoInvoke(NRpc::IServiceContext* context)
@@ -51,8 +52,11 @@ void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqG
 {
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
-        
-    if (IsFinalYPath(path)) {
+
+    TYPath suffixPath;
+    auto token = ChopToken(path, &suffixPath);
+
+    if (token.GetType() == ETokenType::None) {
         std::vector<TAttributeInfo> systemAttributes;
         GetSystemAttributes(&systemAttributes);
 
@@ -70,22 +74,22 @@ void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqG
         writer.OnEndMap();
 
         response->set_value(stream.Str());
-    } else {
-        Stroka token;
-        TYPath suffixPath;
-        ChopYPathToken(path, &token, &suffixPath);
-
-        if (!GetSystemAttribute(token, &writer)) {
-            ythrow yexception() << Sprintf("Attribute %s is not found", ~token.Quote());
+    } else if (token.GetType() == ETokenType::String) {
+        if (!GetSystemAttribute(token.GetStringValue(), &writer)) {
+            ythrow yexception() << Sprintf("Attribute %s is not found", ~token.ToString().Quote());
         }
         
-        if (IsFinalYPath(suffixPath)) {
+        if (IsEmpty(suffixPath)) {
             response->set_value(stream.Str());
         } else {
             auto wholeValue = DeserializeFromYson(stream.Str());
             auto value = SyncYPathGet(wholeValue, suffixPath);
             response->set_value(value);
         }
+    } else {
+        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
     }
 
     context->Reply();
@@ -95,7 +99,10 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
 {
     yvector<Stroka> keys;
 
-    if (IsFinalYPath(path)) {
+    TYPath suffixPath;
+    auto token = ChopToken(path, &suffixPath);
+
+    if (token.GetType() == ETokenType::None) {
         std::vector<TAttributeInfo> systemAttributes;
         GetSystemAttributes(&systemAttributes);
         FOREACH (const auto& attribute, systemAttributes) {
@@ -103,19 +110,20 @@ void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReq
                 keys.push_back(attribute.Key);
             }
         }
-    } else {
-        Stroka token;
-        TYPath suffixPath;
-        ChopYPathToken(path, &token, &suffixPath);
-
+    } else if (token.GetType() == ETokenType::String) {
         TStringStream stream;
         TYsonWriter writer(&stream, EYsonFormat::Binary);
-        if (!GetSystemAttribute(token, &writer)) {
-            ythrow yexception() << Sprintf("Attribute %s is not found", ~token.Quote());
+        if (!GetSystemAttribute(token.GetStringValue(), &writer)) {
+            ythrow yexception() << Sprintf("Attribute %s is not found",
+                ~token.ToString().Quote());
         }
 
         auto wholeValue = DeserializeFromYson(stream.Str());
         keys = SyncYPathList(wholeValue, suffixPath);
+    } else {
+        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+            ~token.ToString().Quote(),
+            ~token.GetType().ToString());
     }
 
     NYT::ToProto(response->mutable_keys(), keys);
@@ -128,9 +136,8 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 {
     UNUSED(verb);
 
-    Stroka token;
     TYPath suffixPath;
-    ChopYPathToken(path, &token, &suffixPath);
+    auto token = ChopStringToken(path, &suffixPath);
 
     auto service = GetItemService(token);
     if (!service) {
@@ -142,7 +149,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
-    YASSERT(IsFinalYPath(context->GetPath()));
+    YASSERT(IsEmpty(context->GetPath()));
 
     int max_size = request->Attributes().Get<int>("max_size", Max<int>());
 
@@ -175,7 +182,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
 {
     UNUSED(request);
-    YASSERT(IsFinalYPath(context->GetPath()));
+    YASSERT(IsEmpty(context->GetPath()));
 
     auto keys = GetKeys();
     NYT::ToProto(response->mutable_keys(), keys);
@@ -232,7 +239,7 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
-        if (IsLocalYPath(path)) {
+        if (IsEmpty(path)) {
             return TNodeBase::Resolve(path, verb);
         } else {
             return TResolveResult::There(UnderlyingService, path);

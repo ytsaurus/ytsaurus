@@ -84,7 +84,7 @@ private:
 
             SyncYPathSet(
                 service,
-                WithTransaction("/sys/scheduler", transactionId),
+                WithTransaction("//sys/scheduler", transactionId),
                 "{}");
 
             SyncYPathSet(
@@ -104,18 +104,18 @@ private:
 
             SyncYPathCreate(
                 service,
-                WithTransaction("/sys/holders", transactionId),
+                WithTransaction("//sys/holders", transactionId),
                 EObjectType::HolderMap);
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
                 SyncYPathSet(
                     service,
-                    WithTransaction(CombineYPaths("/sys/masters", address), transactionId),
+                    WithTransaction(CombineYPaths("//sys/masters", EscapeYPath(address)), transactionId),
                     "{}");
 
                 SyncYPathCreate(
                     service,
-                    WithTransaction(CombineYPaths("/sys/masters", address, "orchid"), transactionId),
+                    WithTransaction(CombineYPaths("//sys/masters", EscapeYPath(address), "orchid"), transactionId),
                     EObjectType::Orchid,
                     BuildYsonFluently()
                         .BeginMap()
@@ -125,42 +125,42 @@ private:
 
             SyncYPathCreate(
                 service,
-                WithTransaction("/sys/chunks", transactionId),
+                WithTransaction("//sys/chunks", transactionId),
                 EObjectType::ChunkMap);
 
             SyncYPathCreate(
                 service,
-                WithTransaction("/sys/lost_chunks", transactionId),
+                WithTransaction("//sys/lost_chunks", transactionId),
                 EObjectType::LostChunkMap);
 
             SyncYPathCreate(
                 service,
-                WithTransaction("/sys/overreplicated_chunks", transactionId),
+                WithTransaction("//sys/overreplicated_chunks", transactionId),
                 EObjectType::OverreplicatedChunkMap);
 
             SyncYPathCreate(
                 service,
-                WithTransaction("/sys/underreplicated_chunks", transactionId),
+                WithTransaction("//sys/underreplicated_chunks", transactionId),
                 EObjectType::UnderreplicatedChunkMap);
 
             SyncYPathCreate(
                 service,
-                WithTransaction("/sys/chunk_lists", transactionId),
+                WithTransaction("//sys/chunk_lists", transactionId),
                 EObjectType::ChunkListMap);
 
             SyncYPathCreate(
                 service,
-                WithTransaction("/sys/nodes", transactionId),
+                WithTransaction("//sys/nodes", transactionId),
                 EObjectType::NodeMap);
 
             SyncYPathCreate(
                 service,
-                WithTransaction("/sys/locks", transactionId),
+                WithTransaction("//sys/locks", transactionId),
                 EObjectType::LockMap);
 
             SyncYPathCreate(
                 service,
-                WithTransaction("/sys/transactions", transactionId),
+                WithTransaction("//sys/transactions", transactionId),
                 EObjectType::TransactionMap);
 
             CommitTransaction(transactionId);

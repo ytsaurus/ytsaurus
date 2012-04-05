@@ -62,9 +62,6 @@ public:
     void Check(const TYPath& path, TYson expected)
     {
         TYson output = Get(path);
-//        Cout << Endl;
-//        Cout << "output:   " << output << Endl;
-//        Cout << "expected: " << expected << Endl;
         EXPECT_EQ(expected, output);
     }
 
@@ -83,91 +80,87 @@ public:
 
 TEST_F(TYPathTest, MapModification)
 {
-    Set("map", "{\"hello\"=\"world\"; \"list\"=[0;\"a\";{}]; \"n\"=1}");
+    Set("/map", "{\"hello\"=\"world\"; \"list\"=[0;\"a\";{}]; \"n\"=1}");
 
-    Set("map/hello", "not_world");
+    Set("/map/hello", "not_world");
     Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[0;\"a\";{}];\"n\"=1}}");
 
-    Set("map/list/2/some", "value");
+    Set("/map/list/2/some", "value");
     Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[0;\"a\";{\"some\"=\"value\"}];\"n\"=1}}");
 
-    Remove("map/n");
+    Remove("/map/n");
     Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[0;\"a\";{\"some\"=\"value\"}]}}");
 
-    Set("map/list", "[]");
+    Set("/map/list", "[]");
     Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[]}}");
 
-    Set("map/list/+/a", "1");
-    Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[{\"a\"=1}]}}");
+    Remove("/map/hello");
+    Check("", "{\"map\"={\"list\"=[]}}");
 
-    Set("map/list/-/b", "2");
-    Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[{\"b\"=2};{\"a\"=1}]}}");
-
-    Remove("map/hello");
-    Check("", "{\"map\"={\"list\"=[{\"b\"=2};{\"a\"=1}]}}");
-
-    Remove("map");
+    Remove("/map");
     Check("", "{}");
 }
 
 TEST_F(TYPathTest, ListModification)
 {
-    Set("list", "[1;2;3]");
+    Set("/list", "[1;2;3]");
+    Check("", "{\"list\"=[1;2;3]}");
+    Check("/list", "[1;2;3]");
+    Check("/list/0", "1");
+    Check("/list/1", "2");
+    Check("/list/2", "3");
+    Check("/list/-1", "3");
+    Check("/list/-2", "2");
+    Check("/list/-3", "1");
 
-    Set("list/+", "100");
-    Check("", "{\"list\"=[1;2;3;100]}");
+    Set("/list/+", "4");
+    Check("/list", "[1;2;3;4]");
 
-    Set("list/-", "200");
-    Check("", "{\"list\"=[200;1;2;3;100]}");
+    Set("/list/+", "5");
+    Check("/list", "[1;2;3;4;5]");
 
-    Set("list/-", "500");
-    Check("", "{\"list\"=[500;200;1;2;3;100]}");
+    Set("/list/2", "100");
+    Check("/list", "[1;2;100;4;5]");
 
-    Set("list/2+", "1000");
-    Check("", "{\"list\"=[500;200;1;1000;2;3;100]}");
+    Set("/list/-2", "3");
+    Check("/list", "[1;2;100;3;5]");
 
-    Set("list/3", "220");
-    Check("", "{\"list\"=[500;200;1;220;2;3;100]}");
-    Check("list/3", "220");
+    Remove("/list/4");
+    Check("/list", "[1;2;100;3]");
 
-    Remove("list/4");
-    Check("", "{\"list\"=[500;200;1;220;3;100]}");
-    CheckList("list", "500;200;1;220;3;100");
+    Remove("/list/2");
+    Check("/list", "[1;2;3]");
 
-    Remove("list/4");
-    Check("", "{\"list\"=[500;200;1;220;100]}");
-    CheckList("list", "500;200;1;220;100");
+    Remove("/list/-1");
+    Check("/list", "[1;2]");
 
-    Remove("list/0");
-    Check("", "{\"list\"=[200;1;220;100]}");
-    CheckList("list", "200;1;220;100");
+    Set("/list/^0", "0");
+    Check("/list", "[0;1;2]");
 
-    Set("list/+", "666");
-    Check("", "{\"list\"=[200;1;220;100;666]}");
-    CheckList("list", "200;1;220;100;666");
+    Set("/list/1^", "3");
+    Check("/list", "[0;1;3;2]");
 
-    Set("list/-", "777");
-    Check("", "{\"list\"=[777;200;1;220;100;666]}");
-    CheckList("list", "777;200;1;220;100;666");
+    Set("/list/-1^", "4");
+    Check("/list", "[0;1;3;2;4]");
+
+    Set("/list/^-1", "5");
+    Check("/list", "[0;1;3;2;5;4]");
 }
 
 TEST_F(TYPathTest, ListReassignment)
 {
-    Set("list", "[a;b;c]");
-    Set("list", "[1;2;3]");
+    Set("/list", "[a;b;c]");
+    Set("/list", "[1;2;3]");
 
     Check("", "{\"list\"=[1;2;3]}");
 }
 
 TEST_F(TYPathTest, Ls)
 {
-    Set("d/x4/y4", "4");
-    Set("c/x3/y3", "3");
-    Set("b/x2/y2", "2");
-    Set("a/x1/y1", "1");
+    Set("", "{a={x1={y1=1}};b={x2={y2=2}};c={x3={y3=3}};d={x4={y4=4}}}");
 
-    Remove("b");
-    Set("e", "5");
+    Remove("/b");
+    Set("/e", "5");
 
     auto result = List("");
     std::sort(result.begin(), result.end());
@@ -211,58 +204,54 @@ TEST_F(TYPathTest, LsOnUnsupportedNodes)
 
 TEST_F(TYPathTest, Attributes)
 {
-    Set("root", "{nodes=[\"1\"; \"2\"]} <attr=100;mode=\"rw\">");
-    Check("root@", "{\"attr\"=100;\"mode\"=\"rw\"}");
-    Check("root@attr", "100");
+    Set("/root", "{nodes=[\"1\"; \"2\"]} <attr=100;mode=\"rw\">");
+    Check("/root@", "{\"attr\"=100;\"mode\"=\"rw\"}");
+    Check("/root@attr", "100");
 
-    Set("root/value", "500<>");
-    Check("root/value", "500");
+    Set("/root/value", "500<>");
+    Check("/root/value", "500");
 
-    Remove("root@");
-    Check("root@", "{}");
+    Remove("/root@");
+    Check("/root@", "{}");
 
-    Remove("root/nodes");
-    Remove("root/value");
+    Remove("/root/nodes");
+    Remove("/root/value");
     Check("", "{\"root\"={}}");
 
-    Set("root/2", "<author=\"ignat\">");
+    Set("/root/\"2\"", "<author=\"ignat\">");
     Check("", "{\"root\"={\"2\"=<>}}");
-    Check("root/2@", "{\"author\"=\"ignat\"}");
-    Check("root/2@author", "\"ignat\"");
+    Check("/root/\"2\"@", "{\"author\"=\"ignat\"}");
+    Check("/root/\"2\"@author", "\"ignat\"");
 
     // note: empty attributes are shown when nested
-    Set("root/3", "<dir=<file=-100<>>>");
-    Check("root/3@", "{\"dir\"=<\"file\"=-100<>>}");
-    Check("root/3@dir@", "{\"file\"=-100<>}");
-    Check("root/3@dir@file", "-100<>");
-    Check("root/3@dir@file@", "{}");
+    Set("/root/\"3\"", "<dir=<file=-100<>>>");
+    Check("/root/\"3\"@", "{\"dir\"=<\"file\"=-100<>>}");
+    Check("/root/\"3\"@dir@", "{\"file\"=-100<>}");
+    Check("/root/\"3\"@dir@file", "-100<>");
+    Check("/root/\"3\"@dir@file@", "{}");
 }
 
 TEST_F(TYPathTest, InvalidCases)
 {
-    // empty path
-    EXPECT_ANY_THROW(Set("/a", "{}"));
+    Set("/root", "{}");
 
-    // change the type of root
-    EXPECT_ANY_THROW(Set("", "[]"));
-
-    // remove the root
-    EXPECT_ANY_THROW(Remove(""));
-
-    // get non-existent path
-    EXPECT_ANY_THROW(Get("b"));
+    EXPECT_ANY_THROW(Set("a", "{}")); // must start with '/'
+    EXPECT_ANY_THROW(Set("/root/", "{}")); // cannot end with '/'
+    EXPECT_ANY_THROW(Set("", "[]")); // change the type of root
+    EXPECT_ANY_THROW(Remove("")); // remove the root
+    EXPECT_ANY_THROW(Get("/b")); // get non-existent path
 
     // get non-existent attribute from non-existent node
-    EXPECT_ANY_THROW(Get("b@some"));
+    EXPECT_ANY_THROW(Get("/b@some"));
 
     // get non-existent attribute from existent node
     EXPECT_ANY_THROW({
-       Set("c", "{}");
-       Get("c@some");
+       Set("/c", "{}");
+       Get("/c@some");
    });
 
     // remove non-existing child
-    EXPECT_ANY_THROW(Remove("a"));
+    EXPECT_ANY_THROW(Remove("/a"));
 
 //    EXPECT_ANY_THROW(Set("/@/some", "{}"));
 }

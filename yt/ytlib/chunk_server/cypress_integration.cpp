@@ -377,13 +377,13 @@ private:
             // TODO(babenko): make a single transaction
 
             {
-                auto req = TCypressYPathProxy::Create(address);
+                auto req = TCypressYPathProxy::Create("/" + EscapeYPath(address));
                 req->set_type(EObjectType::Holder);
                 ExecuteVerb(~service, ~req);
             }
 
             {
-                auto req = TCypressYPathProxy::Create(CombineYPaths(address, "orchid"));
+                auto req = TCypressYPathProxy::Create(CombineYPaths("/" + EscapeYPath(address), "orchid"));
                 req->set_type(EObjectType::Orchid);     
                 auto manifest = New<TOrchidManifest>();
                 manifest->RemoteAddress = address;

@@ -267,7 +267,7 @@ void TUserJob::DoJobIO()
     }
 }
 
-#elif defined _win_
+#else
 
 // Streaming jobs are not supposed to work on windows for now.
 

@@ -22,7 +22,7 @@ using namespace NYTree;
 
 static NLog::TLogger Logger("Rpc");
 // TODO(babenko): consider using per-channel profiler
-static NProfiling::TProfiler Profiler("rpc/client");
+static NProfiling::TProfiler Profiler("/rpc/client");
 
 ////////////////////////////////////////////////////////////////////////////////
 

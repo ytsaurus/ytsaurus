@@ -69,7 +69,9 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
         request->set_snapshot_id(snapshotId);
         awaiter->Await(request->Invoke(), BIND(
             &TSnapshotDownloader::OnSnapshotInfoResponse,
-            awaiter, asyncResult, peerId));
+            awaiter,
+            asyncResult,
+            peerId));
     }
     LOG_INFO("Snapshot info requests sent");
 

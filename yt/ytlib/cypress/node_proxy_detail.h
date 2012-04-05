@@ -5,6 +5,7 @@
 #include <ytlib/cypress/cypress_ypath.pb.h>
 
 #include <ytlib/ytree/ytree.h>
+#include <ytlib/ytree/lexer.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_detail.h>
@@ -212,7 +213,8 @@ protected:
             mode != ELockMode::Shared &&
             mode != ELockMode::Exclusive)
         {
-            ythrow yexception() << Sprintf("Invalid lock mode (Mode: %s)", ~mode.ToString());
+            ythrow yexception() << Sprintf("Invalid lock mode %s",
+                ~CamelCaseToUnderscoreCase(mode.ToString()).Quote());
         }
 
         auto lockId = Bootstrap->GetCypressManager()->LockVersionedNode(NodeId, TransactionId, mode);
@@ -228,10 +230,6 @@ protected:
     {
         UNUSED(request);
         UNUSED(response);
-
-        if (NYTree::IsFinalYPath(context->GetPath())) {
-            ythrow yexception() << "Node already exists";
-        }
 
         context->Reply(NRpc::EErrorCode::NoSuchVerb, "Verb is not supported");
     }
@@ -564,10 +562,16 @@ protected:
 
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
-        if (NYTree::IsFinalYPath(context->GetPath())) {
-            // This should throw an exception.
-            TBase::Create(request, response, context);
-            return;
+        NYTree::TYPath suffixPath;
+        auto token = NYTree::ChopToken(context->GetPath(), &suffixPath);
+        if (token.IsEmpty()) {
+            ythrow yexception() << "Node already exists";
+        }
+
+        if (token.GetType() != NYTree::ETokenType::Slash) {
+            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                ~token.ToString().Quote(),
+                ~token.GetType().ToString());
         }
 
         NYTree::INodePtr manifestNode =
@@ -593,7 +597,7 @@ protected:
 
         auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, this->TransactionId);
 
-        CreateRecursive(context->GetPath(), ~proxy);
+        CreateRecursive(suffixPath, ~proxy);
 
         *response->mutable_object_id() = nodeId.ToProto();
 
@@ -669,11 +673,22 @@ public:
 protected:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
 
-    virtual void CreateRecursive(const NYTree::TYPath& path, INode* value);
-    virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
-    virtual void SetRecursive(const NYTree::TYPath& path, TReqSet* request, TRspSet* response, TCtxSet* context);
-    virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
-
+    virtual void CreateRecursive(
+        const NYTree::TYPath& path,
+        INode* value);
+    virtual IYPathService::TResolveResult ResolveRecursive(
+        const NYTree::TYPath& path,
+        const Stroka& verb);
+    virtual void SetRecursive(
+        const NYTree::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        TCtxSet* context);
+    virtual void SetNodeRecursive(
+        const NYTree::TYPath& path,
+        TReqSetNode* request,
+        TRspSetNode* response,
+        TCtxSetNode* context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

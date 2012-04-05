@@ -41,7 +41,7 @@ def assert_eq(result, expected):
     assert actual == expected
 
 def get_transactions(**kw):
-    yson_map = expect_ok(get('/sys/transactions/', **kw)).strip('\n')
+    yson_map = expect_ok(get('//sys/transactions/', **kw)).strip('\n')
     return yson_parser.parse_string(yson_map)
 
 #########################################
@@ -54,11 +54,14 @@ class TestCypressCommands(YTEnvSetup):
         # path not starting with /
         expect_error( set('a', '20'))
 
+        # path starting with single /
+        expect_error( set('/a', '20'))
+
         # empty path
         expect_error( set('', '20'))
 
         # empty token in path
-        expect_error( set('/a//b', '30'))
+        expect_error( set('//a//b', '30'))
 
         # change the type of root
         expect_error( set('/', '[]'))
@@ -70,10 +73,10 @@ class TestCypressCommands(YTEnvSetup):
         expect_error( remove('/'))
        
         # get non existent child
-        expect_error( get('/b'))
+        expect_error( get('//b'))
 
         # remove non existent child
-        expect_error( remove('/b'))
+        expect_error( remove('//b'))
 
 
 
@@ -112,19 +115,19 @@ class TestTxCommands(YTEnvSetup):
         assert get_transactions() == {}
 
     def test_changes_inside_tx(self):
-        expect_ok(set('/value', '42'))
+        expect_ok(set('//value', '42'))
 
         tx_id = start_transaction()
-        expect_ok( set('/value', '100', tx = tx_id))
-        assert_eq( get('/value',        tx = tx_id), '100')
-        assert_eq( get('/value'), '42')
+        expect_ok( set('//value', '100', tx = tx_id))
+        assert_eq( get('//value',        tx = tx_id), '100')
+        assert_eq( get('//value'), '42')
         commit_transaction(tx = tx_id)
-        assert_eq( get('/value'), '100')
+        assert_eq( get('//value'), '100')
 
         tx_id = start_transaction()
-        expect_ok( set('/value', '100500', tx = tx_id))
+        expect_ok( set('//value', '100500', tx = tx_id))
         abort_transaction(tx = tx_id)
-        assert_eq( get('/value'), '100')
+        assert_eq( get('//value'), '100')
 
 class TestLockCommands(YTEnvSetup):
     NUM_MASTERS = 1
@@ -137,7 +140,7 @@ class TestLockCommands(YTEnvSetup):
 
         # at non-existsing node
         tx_id = start_transaction()
-        expect_error(lock('/non_existent', tx = tx_id))
+        expect_error(lock('//non_existent', tx = tx_id))
 
         # error while parsing mode
         expect_error(lock('/', mode = 'invalid', tx = tx_id))
@@ -146,20 +149,20 @@ class TestLockCommands(YTEnvSetup):
         expect_error(lock('/', mode = 'None', tx = tx_id))
 
         # attributes do not have @lock_mode
-        expect_ok(set('/value', '42<attr=some>', tx = tx_id))
-        expect_error(lock('/value@attr@lock_mode', tx = tx_id))
+        expect_ok(set('//value', '42<attr=some>', tx = tx_id))
+        expect_error(lock('//value@attr@lock_mode', tx = tx_id))
        
         abort_transaction(tx = tx_id)
 
     def test_display_locks(self):
         tx_id = start_transaction()
         
-        expect_ok(set('/map', '{list = [1; 2; 3] <attr=some>}', tx = tx_id))
+        expect_ok(set('//map', '{list = [1; 2; 3] <attr=some>}', tx = tx_id))
 
         # check that lock is set on nested nodes
-        assert_eq( get('/map@lock_mode',        tx = tx_id), '"exclusive"')
-        assert_eq( get('/map/list@lock_mode',   tx = tx_id), '"exclusive"')
-        assert_eq( get('/map/list/0@lock_mode', tx = tx_id), '"exclusive"')
+        assert_eq( get('//map@lock_mode',        tx = tx_id), '"exclusive"')
+        assert_eq( get('//map/list@lock_mode',   tx = tx_id), '"exclusive"')
+        assert_eq( get('//map/list/0@lock_mode', tx = tx_id), '"exclusive"')
 
         abort_transaction(tx = tx_id)
 
@@ -190,28 +193,28 @@ class TestLockCommands(YTEnvSetup):
         # shared locks are available only on tables (as well as creation of different types)
         for object_type in types_to_check:
             tx_id = start_transaction()
-            expect_ok(create('/some', object_type, tx = tx_id))
-            expect_error(lock('/some', mode = 'shared', tx = tx_id))
+            expect_ok(create('//some', object_type, tx = tx_id))
+            expect_error(lock('//some', mode = 'shared', tx = tx_id))
             expect_ok(abort_transaction(tx = tx_id))
 
 
     def test_lock_combinations(self):
-        expect_ok(set('/a/b/c', '42'))
+        expect_ok(set('//a/b/c', '42'))
 
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        expect_ok(lock('/a/b', tx = tx1))
+        expect_ok(lock('//a/b', tx = tx1))
 
-        # now taking lock for any element in /a/b/c cause en error
-        expect_error(lock('/a', tx = tx2))
-        expect_error(lock('/a/b', tx = tx2))
-        expect_error(lock('/a/b/c', tx = tx2))
+        # now taking lock for any element in //a/b/c cause en error
+        expect_error(lock('//a', tx = tx2))
+        expect_error(lock('//a/b', tx = tx2))
+        expect_error(lock('//a/b/c', tx = tx2))
 
         expect_ok(abort_transaction(tx = tx1))
         expect_ok(abort_transaction(tx = tx2))
 
-        expect_ok(remove('/a'))
+        expect_ok(remove('//a'))
 
 
 class TestTableCommands(YTEnvSetup):
@@ -219,17 +222,17 @@ class TestTableCommands(YTEnvSetup):
     NUM_HOLDERS = 5
 
     def test_simple(self):
-        expect_ok( create('/table', 'table'))
+        expect_ok( create('//table', 'table'))
 
-        assert_eq( read('/table'), '')
-        assert_eq( get('/table@row_count'), '0')
+        assert_eq( read('//table'), '')
+        assert_eq( get('//table@row_count'), '0')
 
-        expect_ok( write('/table', '[{b="hello"}]'))
-        assert_eq( read('/table'), '{"b"="hello"}')
-        assert_eq( get('/table@row_count'), '1')
+        expect_ok( write('//table', '[{b="hello"}]'))
+        assert_eq( read('//table'), '{"b"="hello"}')
+        assert_eq( get('//table@row_count'), '1')
 
-        expect_ok( write('/table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
-        assert_eq( read('/table'), '{"b"="hello"};{"a"="1";"b"="2"};{"a"="30";"x"="10";"y"="20"}')
-        assert_eq( get('/table@row_count'), '3')
+        expect_ok( write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
+        assert_eq( read('//table'), '{"b"="hello"};{"a"="1";"b"="2"};{"a"="30";"x"="10";"y"="20"}')
+        assert_eq( get('//table@row_count'), '3')
 
-        expect_ok( remove('/table'))
+        expect_ok( remove('//table'))

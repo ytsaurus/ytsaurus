@@ -4,6 +4,7 @@
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/foreach.h>
 
 #include <contrib/testing/framework.h>
 
@@ -202,22 +203,32 @@ TEST_F(TLexerTest, SpecialValues)
     TestSpecialValue("}", ETokenType::RightBrace);
     TestSpecialValue("<", ETokenType::LeftAngle);
     TestSpecialValue(">", ETokenType::RightAngle);
+    TestSpecialValue("(", ETokenType::LeftParenthesis);
+    TestSpecialValue(")", ETokenType::RightParenthesis);
     TestSpecialValue("/", ETokenType::Slash);
     TestSpecialValue("@", ETokenType::At);
     TestSpecialValue("#", ETokenType::Hash);
     TestSpecialValue("!", ETokenType::Bang);
+    TestSpecialValue("+", ETokenType::Plus);
+    TestSpecialValue("^", ETokenType::Caret);
+    TestSpecialValue(":", ETokenType::Colon);
+    TestSpecialValue(",", ETokenType::Comma);
 }
 
 TEST_F(TLexerTest, IncorrectChars)
 {
     TestIncorrectInput("\x01\x03"); // Binary string with negative length
+    TestIncorrectInput("."); // unknown symbol
     TestIncorrectInput("|"); // unknown symbol
+    TestIncorrectInput("\\"); // unknown symbol
+    TestIncorrectInput("?"); // unknown symbol
+    TestIncorrectInput("'"); // unknown symbol
+    TestIncorrectInput("`"); // unknown symbol
+    TestIncorrectInput("$"); // unknown symbol
+    TestIncorrectInput("%"); // unknown symbol
     TestIncorrectInput("&"); // unknown symbol
     TestIncorrectInput("*"); // unknown symbol
-    TestIncorrectInput("."); // unknown symbol
-    TestIncorrectInput(","); // unknown symbol
-    TestIncorrectInput("("); // unknown symbol
-    TestIncorrectInput(")"); // unknown symbol
+    TestIncorrectInput("~"); // unknown symbol
 }
 
 TEST_F(TLexerTest, IncorrectFinish)
@@ -228,6 +239,7 @@ TEST_F(TLexerTest, IncorrectFinish)
     TestIncorrectFinish("\x01\x06YT"); // binary string shorter than the specified length
     TestIncorrectFinish("\x02\x80\x80"); // unfinished varint
     TestIncorrectFinish("\x03\x01\x01\x01\x01\x01\x01\x01"); // binary double too short
+    TestIncorrectFinish("-"); // numeric not finished
 }
 
 ////////////////////////////////////////////////////////////////////////////////
