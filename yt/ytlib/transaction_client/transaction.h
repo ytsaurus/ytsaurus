@@ -28,12 +28,13 @@ struct ITransaction
     //! Aborts the transaction.
     /*!
      *  
-     *  This call does not block and does not throw.
+     *  This call does not block (by default) and does not throw.
+     *  When calling with #wait = true this call is blocking
      *  Safe to call multiple times.
      * 
      *  \note Thread affinity: any
      */
-    virtual void Abort() = 0;
+    virtual void Abort(bool wait = false) = 0;
 
     //! Detaches the transaction, i.e. makes the manager forget about it.
     /*!

@@ -32,7 +32,7 @@ public:
     yvector<THolderId> GetRemovalTargets(const TChunk& chunk, int count);
     THolderId GetReplicationSource(const TChunk& chunk);
     yvector<TChunkId> GetBalancingChunks(const THolder& holder, int count);
-    THolderId GetBalancingTarget(const TChunk& chunk, double maxFillCoeff);
+    THolderId GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
    
 private:
     typedef ymultimap<double, THolderId> TLoadFactorMap;
@@ -48,7 +48,7 @@ private:
     bool IsFull(const THolder& holder) const;
     int GetSessionCount(const THolder& holder) const;
     bool IsValidUploadTarget(const THolder& targetHolder) const;
-    bool IsValidBalancingTarget(const THolder& targetHolder, const TChunk& chunk) const;
+    bool IsValidBalancingTarget(const THolder& targetHolder, TChunk *chunk) const;
 
 };
 

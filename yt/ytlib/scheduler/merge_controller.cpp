@@ -2,9 +2,7 @@
 #include "merge_controller.h"
 #include "operation_controller.h"
 #include "operation_controller_detail.h"
-#include "operation.h"
-#include "job.h"
-#include "exec_node.h"
+#include "chunk_pool.h"
 #include "private.h"
 
 namespace NYT {
@@ -19,7 +17,7 @@ using namespace NTableClient::NProto;
 ////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger(OperationsLogger);
-static NProfiling::TProfiler Profiler("operations/merge");
+static NProfiling::TProfiler Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////
 
@@ -27,14 +25,50 @@ class TMergeController
     : public TOperationControllerBase
 {
 public:
-    TMergeController(IOperationHost* host, TOperation* operation)
-        : TOperationControllerBase(host, operation)
+    TMergeController(
+        TMergeControllerConfigPtr config,
+        IOperationHost* host,
+        TOperation* operation)
+        : Config(config)
+        , TOperationControllerBase(config, host, operation)
     { }
 
-    virtual void Initialize()
-    {
-        TOperationControllerBase::Initialize();
+private:
+    TMergeControllerConfigPtr Config;
+    TMergeOperationSpecPtr Spec;
 
+    // Running counters.
+    TRunningCounter ChunkCounter;
+    TRunningCounter WeightCounter;
+
+    ::THolder<TUnorderedChunkPool> ChunkPool;
+
+    // The template for starting new jobs.
+    TJobSpec JobSpecTemplate;
+
+    // Job scheduled so far.
+    // TOOD(babenko): consider keeping this in job's attributes
+    struct TJobInfo
+        : public TIntrinsicRefCounted
+    {
+        // Chunks assigned to this job.
+        std::vector<TPooledChunkPtr> InputChunks;
+
+        // Total weight of allocated input chunks.
+        i64 InputWeight;
+
+        // Chunk list allocated to store the output.
+        TChunkListId OutputChunkListId;
+    };
+
+    typedef TIntrusivePtr<TJobInfo> TJobInfoPtr;
+    yhash_map<TJobPtr, TJobInfoPtr> JobInfos;
+
+
+    // Init/finish.
+
+    virtual void DoInitialize()
+    {
         Spec = New<TMergeOperationSpec>();
         try {
             Spec->Load(~Operation->GetSpec());
@@ -43,43 +77,131 @@ public:
         }
     }
 
-    virtual void OnJobCompleted(TJobPtr job)
+    virtual bool HasPendingJobs()
     {
+        // Use chunk counter not job counter since the latter one may be inaccurate.
+        return ChunkCounter.GetPending() > 0;
     }
 
-    virtual void OnJobFailed(TJobPtr job)
+
+    // Job scheduling and outcome handling.
+
+    virtual void DoJobCompleted(TJobPtr job)
     {
+        auto jobInfo = GetJobInfo(job);
+
+        OutputTables[0].OutputChildrenIds.push_back(jobInfo->OutputChunkListId);
+
+        ChunkCounter.Completed(jobInfo->InputChunks.size());
+        WeightCounter.Completed(jobInfo->InputWeight);
+
+        RemoveJobInfo(job);
+    }
+
+    virtual void DoJobFailed(TJobPtr job)
+    {
+        auto jobInfo = GetJobInfo(job);
+
+        LOG_DEBUG("%d chunks are back in the pool", static_cast<int>(jobInfo->InputChunks.size()));
+        ChunkPool->Put(jobInfo->InputChunks);
+
+        ChunkCounter.Failed(jobInfo->InputChunks.size());
+        WeightCounter.Failed(jobInfo->InputWeight);
+
+        ReleaseChunkList(jobInfo->OutputChunkListId);
+        RemoveJobInfo(job);
+    }
+
+    virtual TJobPtr DoScheduleJob(TExecNodePtr node)
+    {
+        // Check if we have enough chunk lists in the pool.
+        if (!CheckChunkListsPoolSize(1)) {
+            return NULL;
+        }
+
+        // We've got a job to do! :)
+
+        // Allocate chunks for the job.
+        auto jobInfo = New<TJobInfo>();
+        i64 weightThreshold = GetJobWeightThreshold(JobCounter.GetPending(), WeightCounter.GetPending());
+        auto& extractedChunks = jobInfo->InputChunks;
+        i64 extractedWeight;
+        int localCount;
+        int remoteCount;
+        ChunkPool->Extract(
+            node->GetAddress(),
+            weightThreshold,
+            false,
+            &extractedChunks,
+            &extractedWeight,
+            &localCount,
+            &remoteCount);
+        YASSERT(!extractedChunks.empty());
+        jobInfo->InputWeight = extractedWeight;
+
+        LOG_DEBUG("Extracted %d chunks for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ", LocalCount: %d, RemoteCount: %d)",
+            static_cast<int>(extractedChunks.size()),
+            ~node->GetAddress(),
+            extractedWeight,
+            weightThreshold,
+            localCount,
+            remoteCount);
+
+        // Make a copy of the generic spec and customize it.
+        auto jobSpec = JobSpecTemplate;
+        auto* mergeJobSpec = jobSpec.MutableExtension(TMergeJobSpec::merge_job_spec);
+        FOREACH (const auto& chunk, extractedChunks) {
+            *mergeJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
+        }
+        auto chunkListId = ChunkListPool->Extract();
+        *mergeJobSpec->mutable_output_spec()->mutable_chunk_list_id() = chunkListId.ToProto();
+
+        // Create job and job info.
+        auto job = Host->CreateJob(
+            Operation,
+            node,
+            jobSpec);
+        PutJobInfo(job, jobInfo);
+
+        // Update running counters.
+        ChunkCounter.Start(extractedChunks.size());
+        WeightCounter.Start(extractedWeight);
+
+        return job;
     }
 
 
-    virtual void ScheduleJobs(
-        TExecNodePtr node,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort)
+    // Scheduled jobs info management.
+
+    void PutJobInfo(TJobPtr job, TJobInfoPtr jobInfo)
     {
+        YVERIFY(JobInfos.insert(MakePair(job, jobInfo)).second);
     }
 
-    virtual i64 GetPendingJobCount()
+    TJobInfoPtr GetJobInfo(TJobPtr job)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return 0;
+        auto it = JobInfos.find(job);
+        YASSERT(it != JobInfos.end());
+        return it->second;
     }
 
-private:
-    TMergeOperationSpecPtr Spec;
+    void RemoveJobInfo(TJobPtr job)
+    {
+        YVERIFY(JobInfos.erase(job) == 1);
+    }
+
 
     // Custom bits of preparation pipeline.
 
     virtual std::vector<TYPath> GetInputTablePaths()
     {
-        return Spec->In;
+        return Spec->InputTablePaths;
     }
 
     virtual std::vector<TYPath> GetOutputTablePaths()
     {
         std::vector<TYPath> result;
-        result.push_back(Spec->Out);
+        result.push_back(Spec->OutputTablePath);
         return result;
     }
 
@@ -90,15 +212,149 @@ private:
 
     virtual void DoCompletePreparation()
     {
+        PROFILE_TIMING ("input_processing_time") {
+            LOG_INFO("Processing inputs");
+
+            // Compute statistics and populate the pool.
+            i64 totalRowCount = 0;
+            i64 mergeRowCount = 0;
+            i64 totalDataSize = 0;
+            i64 mergeDataSize = 0;
+            i64 totalChunkCount = 0;
+            i64 mergeChunkCount = 0;
+
+            ChunkPool.Reset(new TUnorderedChunkPool());
+
+            for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
+                const auto& table = InputTables[tableIndex];
+                auto fetchRsp = table.FetchResponse;
+                FOREACH (auto& inputChunk, *fetchRsp->mutable_chunks()) {
+                    auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+
+                    i64 rowCount = inputChunk.approximate_row_count();
+                    i64 dataSize = inputChunk.approximate_data_size();
+
+                    totalRowCount += rowCount;
+                    totalDataSize += dataSize;
+                    totalChunkCount += 1;
+
+                    if (IsMergableChunk(inputChunk)) {
+                        mergeRowCount += rowCount;
+                        mergeDataSize += dataSize;
+                        mergeChunkCount += 1;
+
+                        // Merge is IO-bound, use data size as weight.
+                        auto pooledChunk = New<TPooledChunk>(inputChunk, dataSize);
+                        ChunkPool->Put(pooledChunk);
+                    } else {
+                        // Chunks not requiring merge go directly to the output chunk list.
+                        OutputTables[0].OutputChildrenIds.push_back(chunkId);
+                    }
+                }
+            }
+
+            // Check for empty and trivial inputs.
+            if (totalRowCount == 0) {
+                LOG_INFO("Empty input");
+                FinalizeOperation();
+                return;
+            }
+
+            if (mergeRowCount == 0) {
+                LOG_INFO("Trivial merge");
+                FinalizeOperation();
+                return;
+            }
+
+            // Choose job count.
+            // TODO(babenko): refactor, generalize, and improve.
+            i64 jobCount = (i64) ceil((double) mergeDataSize / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize);
+            if (Spec->JobCount) {
+                jobCount = Spec->JobCount.Get();
+            }
+            jobCount = std::min(jobCount, static_cast<i64>(mergeChunkCount));
+            YASSERT(jobCount > 0);
+
+            // Init running counters.
+            JobCounter.Init(jobCount);
+            ChunkCounter.Init(mergeChunkCount);
+            WeightCounter.Init(mergeDataSize);
+
+            // Allocate some initial chunk lists.
+            // TOOD(babenko): make configurable
+            ChunkListPool->Allocate(jobCount + Config->SpareChunkListCount);
+
+            InitJobSpecTemplate();
+
+            LOG_INFO("Inputs processed (TotalRowCount: %" PRId64 ", MergeRowCount: %" PRId64 ", TotalDataSize: %" PRId64 ", MergeDataSize: %" PRId64 ", TotalChunkCount: %" PRId64 ", MergeChunkCount: %" PRId64 ", JobCount: %" PRId64 ")",
+                totalRowCount,
+                mergeRowCount,
+                totalDataSize,
+                mergeDataSize,
+                totalChunkCount,
+                mergeChunkCount,
+                jobCount);
+        }
+    }
+
+
+    // Unsorted helpers.
+
+    //! Returns True iff the chunk has nontrivial limits.
+    //! Such chunks are always pooled.
+    static bool IsCompleteChunk(const TInputChunk& chunk)
+    {
+        return
+            !chunk.slice().start_limit().has_row_index() &&
+            !chunk.slice().start_limit().has_key () &&
+            !chunk.slice().end_limit().has_row_index() &&
+            !chunk.slice().end_limit().has_key ();
+    }
+
+    //! Returns True iff the chunk must be pooled.
+    bool IsMergableChunk(const TInputChunk& chunk)
+    {
+        if (!IsCompleteChunk(chunk)) {
+            // Incomplete chunks are always pooled.
+            return true;
+        }
+
+        // Completed chunks are pooled depending on their sizes and the spec.
+        return
+            chunk.approximate_data_size() < Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize &&
+            Spec->CombineChunks;
+    }
+
+    virtual void DumpProgress()
+    {
+        LOG_DEBUG("Progress: Jobs = {%s}, Chunks = {%s}, Weight = {%s}",
+            ~ToString(JobCounter),
+            ~ToString(ChunkCounter),
+            ~ToString(WeightCounter));
+    }
+
+    void InitJobSpecTemplate()
+    {
+        JobSpecTemplate.set_type(Spec->Mode == EMergeMode::Sorted ? EJobType::SortedMerge : EJobType::OrderedMerge);
+
+        TMergeJobSpec mergeJobSpec;
+        *mergeJobSpec.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+
+        mergeJobSpec.mutable_output_spec()->set_schema(OutputTables[0].Schema);
+        *JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec) = mergeJobSpec;
+
+        JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
+
     }
 
 };
 
 IOperationControllerPtr CreateMergeController(
+    TMergeControllerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
-    return New<TMergeController>(host, operation);
+    return New<TMergeController>(config, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

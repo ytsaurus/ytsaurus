@@ -164,13 +164,13 @@ public:
         LOG_INFO("Transaction %s committed", ~Id.ToString());
     }
 
-    virtual void Abort()
+    virtual void Abort(bool wait)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         LOG_INFO("Transaction %s aborted by client",  ~Id.ToString());
 
-        FireAbort();
+        FireAbort(wait);
         HandleAbort();
     }
 
@@ -283,11 +283,14 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
-    void FireAbort()
+    void FireAbort(bool wait = false)
     {
-        // Fire and forget.
+        // Fire and forget in case of no wait.
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
-        Proxy.Execute(req);
+        auto result = Proxy.Execute(req);
+        if (wait) {
+            result->Get();
+        }
     }
 
     void DoAbort()

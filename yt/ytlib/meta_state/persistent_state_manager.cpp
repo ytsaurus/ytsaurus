@@ -977,7 +977,7 @@ public:
 
         LOG_INFO("Stopped leading");
 
-        EpochStateInvoker->Invoke(BIND(
+        GetStateInvoker()->Invoke(BIND(
             &TThis::DoStateStopLeading,
             MakeStrong(this)));
 
@@ -1106,7 +1106,7 @@ public:
 
         LOG_INFO("Stopped following");
 
-        EpochStateInvoker->Invoke(BIND(
+        GetStateInvoker()->Invoke(BIND(
             &TThis::DoStateStopFollowing,
             MakeStrong(this)));
 

@@ -40,7 +40,7 @@ inline void MoveNext(T& it)
     ++it;
 }
 
-// Provide a speciailization for TIntrusiveList, which has Begin/End instead of begin/end.
+// Provide a specialization for TIntrusiveList, which has Begin/End instead of begin/end.
 template <class T>
 inline auto Begin(TIntrusiveList<T>& collection) -> decltype(collection.Begin())
 {

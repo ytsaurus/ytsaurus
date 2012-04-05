@@ -38,29 +38,22 @@ public:
         // Try not to schedule more then a single job from an operation to a node (no guarantees, though).
         int freeCount = node->Utilization().free_slot_count();
         FOREACH (auto operation, Queue) {
-            if (freeCount == 0) {
-                break;
-            }
-
-            if (operation->GetState() != EOperationState::Running) {
-                continue;
-            }
+            while (freeCount > 0) {
+                if (operation->GetState() != EOperationState::Running) {
+                    break;
+                }
             
-            int startCountBefore = static_cast<int>(jobsToStart->size());
+                int startCountBefore = static_cast<int>(jobsToStart->size());
             
-            operation->GetController()->ScheduleJobs(
-                node,
-                jobsToStart,
-                jobsToAbort);
+                auto job = operation->GetController()->ScheduleJob(node);
+                if (!job) {
+                    break;
+                }
 
-            // Update utilization.
-            int startCountAfter = static_cast<int>(jobsToStart->size());
-            // Failure means that the controller has removed some of already scheduled jobs.
-            YASSERT(startCountAfter >= startCountBefore);
-            freeCount -= (startCountAfter - startCountBefore);
-            // Failure means that the controller has scheduled more jobs than we had slots.
-            YASSERT(freeCount >= 0);
-            node->Utilization().set_free_slot_count(freeCount);
+                jobsToStart->push_back(job);
+                --freeCount;
+                node->Utilization().set_free_slot_count(freeCount);
+            }
         }
     }
 

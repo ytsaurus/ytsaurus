@@ -5,6 +5,8 @@
 #include "job_manager.h"
 #include "job.h"
 
+#include <util/random/random.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -30,7 +32,11 @@ TSchedulerConnector::TSchedulerConnector(
 
 void TSchedulerConnector::Start()
 {
-    ScheduleHeartbeat(true);
+    auto randomDelay = RandomNumber(Config->HeartbeatSplay);
+    TDelayedInvoker::Submit(
+        BIND(&TSchedulerConnector::ScheduleHeartbeat, MakeStrong(this), true)
+        .Via(Bootstrap->GetControlInvoker()),
+        randomDelay);
 }
 
 void TSchedulerConnector::ScheduleHeartbeat(bool now)

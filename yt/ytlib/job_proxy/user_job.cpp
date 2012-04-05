@@ -60,6 +60,8 @@ TUserJob::TUserJob(
     const TJobProxyConfigPtr& proxyConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
     : Config(proxyConfig)
+    , ActivePipesCount(0)
+    , ProcessId(-1)
 {
     YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
 
@@ -265,7 +267,7 @@ void TUserJob::DoJobIO()
     }
 }
 
-#elif defined _win_
+#else
 
 // Streaming jobs are not supposed to work on windows for now.
 

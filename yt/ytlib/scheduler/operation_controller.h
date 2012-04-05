@@ -132,10 +132,8 @@ struct IOperationController
     virtual void OnOperationAborted() = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual void ScheduleJobs(
-        TExecNodePtr node,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort) = 0;
+    //! Returns a new job of NULL is no job must be started.
+    virtual TJobPtr ScheduleJob(TExecNodePtr node) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

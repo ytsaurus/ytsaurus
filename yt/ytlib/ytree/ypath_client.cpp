@@ -1,9 +1,11 @@
 #include "stdafx.h"
 #include "ypath_client.h"
+
 #include "ypath_proxy.h"
 #include "ypath_detail.h"
-#include <ytlib/rpc/rpc.pb.h>
+#include "lexer.h"
 
+#include <ytlib/rpc/rpc.pb.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/rpc/message.h>
 
@@ -12,11 +14,6 @@ namespace NYTree {
 
 using namespace NBus;
 using namespace NRpc;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TYPath RootMarker("/");
-TYPath AttributeMarker("@");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,49 +85,6 @@ void TYPathResponse::DeserializeBody(const TRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ChopYPathToken(
-    const TYPath& path,
-    Stroka* token,
-    TYPath* suffixPath)
-{
-    size_t index = path.find_first_of("/@[{");
-
-    if (index == TYPath::npos) {
-        *token = path;
-        *suffixPath = "";
-        return;
-    }
-
-    if (index == 0) {
-        ythrow yexception() << "Empty token in YPath";
-    }
-
-    switch (path[index]) {
-        case '/':
-            *token = path.substr(0, index);
-            if (index == path.length() - 1 ||
-                path[index + 1] == '@' ||
-                path[index + 1] == '[' ||
-                path[index + 1] == '{')
-            {
-                *suffixPath = path.substr(index);
-            } else {
-                *suffixPath = path.substr(index + 1);
-            }
-            break;
-
-        case '@':
-        case '[':
-        case '{':
-            *token = path.substr(0, index);
-            *suffixPath = path.substr(index);
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
-}
-
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath)
@@ -149,23 +103,16 @@ TYPath CombineYPaths(
     const TYPath& path1,
     const TYPath& path2)
 {
-    if (path2.has_prefix("@")) {
-        return path1 + path2;
-    }
+    auto token = ChopToken(path2);
+    switch (token.GetType()) {
+        case ETokenType::Slash:
+        case ETokenType::At:
+        case ETokenType::None:
+            return path1 + path2;
 
-    if (path1.empty() || path2.empty()) {
-        return path1 + path2;
+        default:
+            return path1 + '/' + path2;
     }
-
-    if (path1.back() == '/' && path2[0] == '/') {
-        return path1 + path2.substr(1);
-    }
-
-    if (path1.back() != '/' && path2[0] != '/') {
-        return path1 + '/' + path2;
-    }
-
-    return path1 + path2;
 }
 
 TYPath CombineYPaths(
@@ -194,39 +141,16 @@ TYPath CombineYPaths(
 {
     return CombineYPaths(CombineYPaths(CombineYPaths(CombineYPaths(path1, path2), path3), path4), path5);
 }
-
-bool IsEmptyYPath(const TYPath& path)
+   
+TYPath EscapeYPath(const Stroka& value)
 {
-    return path.empty();
+    // TODO(babenko,roizner): don't escape safe ids
+    return SerializeToYson(value, EYsonFormat::Text);
 }
 
-bool IsFinalYPath(const TYPath& path)
+TYPath EscapeYPath(i64 value)
 {
-    return path.empty() || path == RootMarker;
-}
-
-bool IsAttributeYPath(const TYPath& path)
-{
-    return path.has_prefix(AttributeMarker);
-}
-
-TYPath ChopYPathAttributeMarker(const TYPath& path)
-{
-    auto result = path.substr(AttributeMarker.length());
-    if (result.has_prefix(AttributeMarker)) {
-        ythrow yexception() << "Repeated attribute marker in YPath";
-    }
-    return result;
-}
-
-TYPath ChopYPathRedirectMarker(const TYPath& path)
-{
-    return path.has_prefix("/") ? path.substr(1) : path;
-}
-
-bool IsLocalYPath(const TYPath& path)
-{
-    return IsAttributeYPath(path);
+    return SerializeToYson(value, EYsonFormat::Text);
 }
 
 void ResolveYPath(
@@ -410,6 +334,51 @@ yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
     auto response = ExecuteVerb(service, ~request)->Get();
     response->ThrowIfError();
     return NYT::FromProto<Stroka>(response->keys());
+}
+
+void ForceYPath(IMapNodePtr root, const TYPath& path)
+{
+    INodePtr currentNode = root;
+    auto currentPath = path;
+    while (true) {
+        auto slashToken = ChopToken(currentPath, &currentPath);
+        if (slashToken.IsEmpty()) {
+            break;
+        }
+        // TODO(babenko): extract code
+        if (slashToken.GetType() != ETokenType::Slash) {
+            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                ~slashToken.ToString().Quote(),
+                ~slashToken.GetType().ToString());
+        }
+        
+        INodePtr child;
+        auto keyToken = ChopToken(currentPath, &currentPath);
+        switch (keyToken.GetType()) {
+            case ETokenType::String: {
+                auto key = keyToken.GetStringValue();
+                child = currentNode->AsMap()->FindChild(key);
+                if (!child) {
+                    auto factory = currentNode->CreateFactory();
+                    child = factory->CreateMap();
+                    YVERIFY(currentNode->AsMap()->AddChild(~child, key));
+                }
+                break;
+            }
+
+            case ETokenType::Integer: {
+                child = currentNode->AsList()->GetChild(keyToken.GetIntegerValue());
+                break;
+            }
+
+            default:
+                // TODO(babenko): extract code
+                ythrow yexception() << Sprintf("Unexpected token %s of type %s",
+                    ~keyToken.ToString().Quote(),
+                    ~keyToken.GetType().ToString());
+        }
+        currentNode = child;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -83,10 +83,10 @@ void TBootstrap::Run()
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
-        "ref_counted",
+        "/ref_counted",
         BIND(&TRefCountedTracker::GetMonitoringInfo, TRefCountedTracker::Get()));
     monitoringManager->Register(
-        "bus_server",
+        "/bus_server",
         BIND(&IBusServer::GetMonitoringInfo, BusServer));
     monitoringManager->Start();
 
@@ -94,21 +94,21 @@ void TBootstrap::Run()
     auto orchidRoot = orchidFactory->CreateMap();
     SyncYPathSetNode(
         ~orchidRoot,
-        "monitoring",
+        "/monitoring",
         ~NYTree::CreateVirtualNode(CreateMonitoringProducer(~monitoringManager)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "profiling",
+        "/profiling",
         ~CreateVirtualNode(
             ~TProfilingManager::Get()->GetRoot()
             ->Via(TProfilingManager::Get()->GetInvoker())));
     SyncYPathSetNode(
         ~orchidRoot,
-        "config",
+        "/config",
         ~NYTree::CreateVirtualNode(NYTree::CreateYsonFileProducer(ConfigFileName)));
     SyncYPathSetNode(
         ~orchidRoot,
-        "scheduler",
+        "/scheduler",
         ~NYTree::CreateVirtualNode(Scheduler->CreateOrchidProducer()));
 
     auto orchidService = New<TOrchidService>(

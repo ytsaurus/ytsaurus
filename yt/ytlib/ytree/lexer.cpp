@@ -25,6 +25,7 @@ public:
         (InsideQuotedString)
         (InsideNumeric)
         (InsideDouble)
+        (AfterPlus)
     );
 
     TImpl()
@@ -34,9 +35,8 @@ public:
 
     void Reset()
     {
-        YASSERT(InnerState == EInnerState::None);
-        YASSERT(State_ != EState::InProgress);
         State_ = EState::None;
+        InnerState = EInnerState::None;
         Token = TToken();
         BytesRead = 0;
     }
@@ -82,6 +82,9 @@ public:
                         ConsumeBinaryDouble(ch);
                         return true;
 
+                    case EInnerState::AfterPlus:
+                    	return ConsumePlus(ch);
+
                     default:
                         YUNREACHABLE();
                 }
@@ -117,6 +120,10 @@ public:
                         FinishDouble();
                         break;
 
+                    case EInnerState::AfterPlus:
+                    	FinishPlus();
+                    	break;
+
                     default:
                         YUNREACHABLE();
                 }
@@ -140,7 +147,7 @@ private:
         switch (ch) {
             case ';':
                 ProduceToken(ETokenType::Semicolon, Stroka(ch));
-                break;;
+                break;
 
             case '=':
                 ProduceToken(ETokenType::Equals, Stroka(ch));
@@ -170,6 +177,14 @@ private:
                 ProduceToken(ETokenType::RightAngle, Stroka(ch));
                 break;
 
+            case '(':
+                ProduceToken(ETokenType::LeftParenthesis, Stroka(ch));
+                break;
+
+            case ')':
+                ProduceToken(ETokenType::RightParenthesis, Stroka(ch));
+                break;
+
             case '/':
                 ProduceToken(ETokenType::Slash, Stroka(ch));
                 break;
@@ -184,6 +199,22 @@ private:
 
             case '!':
                 ProduceToken(ETokenType::Bang, Stroka(ch));
+                break;
+
+            case '+':
+            	SetInProgressState(EInnerState::AfterPlus);
+            	break;
+
+            case '^':
+                ProduceToken(ETokenType::Caret, Stroka(ch));
+                break;
+
+            case ',':
+                ProduceToken(ETokenType::Comma, Stroka(ch));
+                break;
+
+            case ':':
+                ProduceToken(ETokenType::Colon, Stroka(ch));
                 break;
 
             case '\x01':
@@ -214,7 +245,7 @@ private:
             default:
                 if (isspace(ch)) {
                     break;
-                } else if (isdigit(ch) || ch == '+' || ch == '-') {
+                } else if (isdigit(ch) || ch == '-') { // case of '+' is handled in AfterPlus state
                     Token.StringValue = Stroka(ch);
                     SetInProgressState(EInnerState::InsideNumeric);
                 } else if (isalpha(ch) || ch == '_') {
@@ -357,6 +388,20 @@ private:
         }
     }
 
+    bool ConsumePlus(char ch)
+    {
+    	if (!isdigit(ch)) {
+    		ProduceToken(ETokenType::Plus, "+");
+    		return false;
+    	}
+
+    	Reset();
+    	Token.StringValue.append('+');
+    	Token.StringValue.append(ch);
+    	SetInProgressState(EInnerState::InsideNumeric);
+    	return true;
+    }
+
     void FinishString()
     {
         ProduceToken(ETokenType::String);
@@ -386,6 +431,11 @@ private:
         }
         Token.StringValue = Stroka();
         ProduceToken(ETokenType::Double);
+    }
+
+    void FinishPlus()
+    {
+    	ProduceToken(ETokenType::Plus, "+");
     }
 
     void ProduceToken(ETokenType type, Stroka stringValue = Stroka())
@@ -455,8 +505,13 @@ const TToken& TLexer::GetToken() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsEmpty(const TStringBuf& data)
+{
+    return ChopToken(data).GetType() == ETokenType::None;
+}
+
 // TODO(roizner): Make suffix TStringBuf*
-TToken ChopToken(const TStringBuf& data, TStringBuf* suffix)
+TToken ChopToken(const TStringBuf& data, Stroka* suffix)
 {
     TLexer lexer;
     int position = 0;
@@ -469,10 +524,11 @@ TToken ChopToken(const TStringBuf& data, TStringBuf* suffix)
     if (suffix) {
         *suffix = data.SubStr(position);
     }
-    return lexer.GetState() == TLexer::EState::Terminal ? lexer.GetToken() : TToken();
+    auto token = lexer.GetState() == TLexer::EState::Terminal ? lexer.GetToken() : TToken();
+    return token;
 }
 
-Stroka ChopStringToken(const TStringBuf& data, TStringBuf* suffix)
+Stroka ChopStringToken(const TStringBuf& data, Stroka* suffix)
 {
     auto token = ChopToken(data, suffix);
     if (token.GetType() != ETokenType::String) {
@@ -483,7 +539,7 @@ Stroka ChopStringToken(const TStringBuf& data, TStringBuf* suffix)
     return token.GetStringValue();
 }
 
-i64 ChopIntegerToken(const TStringBuf& data, TStringBuf* suffix)
+i64 ChopIntegerToken(const TStringBuf& data, Stroka* suffix)
 {
     auto token = ChopToken(data, suffix);
     if (token.GetType() != ETokenType::Integer) {
@@ -494,7 +550,7 @@ i64 ChopIntegerToken(const TStringBuf& data, TStringBuf* suffix)
     return token.GetIntegerValue();
 }
 
-double ChopDoubleToken(const TStringBuf& data, TStringBuf* suffix)
+double ChopDoubleToken(const TStringBuf& data, Stroka* suffix)
 {
     auto token = ChopToken(data, suffix);
     if (token.GetType() != ETokenType::Double) {
@@ -505,7 +561,7 @@ double ChopDoubleToken(const TStringBuf& data, TStringBuf* suffix)
     return token.GetDoubleValue();
 }
 
-ETokenType ChopSpecialToken(const TStringBuf& data, TStringBuf* suffix)
+ETokenType ChopSpecialToken(const TStringBuf& data, Stroka* suffix)
 {
     auto token = ChopToken(data, suffix);
     if (token.GetType() <= ETokenType::Double) {

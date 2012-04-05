@@ -313,8 +313,7 @@ void TMapNodeProxy::DoInvoke(NRpc::IServiceContext* context)
 
 void TMapNodeProxy::CreateRecursive(const TYPath& path, INode* value)
 {
-    auto factory = CreateFactory();
-    TMapNodeMixin::SetRecursive(~factory, path, value);
+    TMapNodeMixin::SetRecursive(path, value);
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -345,9 +344,8 @@ void TMapNodeProxy::SetNodeRecursive(
 {
     UNUSED(response);
 
-    auto factory = CreateFactory();
     auto value = reinterpret_cast<INode*>(request->value_ptr());
-    TMapNodeMixin::SetRecursive(~factory, path, value);
+    TMapNodeMixin::SetRecursive(path, value);
     context->Reply();
 }
 
@@ -495,15 +493,7 @@ int TListNodeProxy::GetChildIndex(const INode* child)
 
 void TListNodeProxy::CreateRecursive(const TYPath& path, INode* value)
 {
-    auto factory = CreateFactory();
-    TListNodeMixin::SetRecursive(~factory, path, value);
-}
-
-IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
-    const TYPath& path,
-    const Stroka& verb)
-{
-    return TListNodeMixin::ResolveRecursive(path, verb);
+    TListNodeMixin::SetRecursive(path, value);
 }
 
 void TListNodeProxy::SetRecursive(
@@ -519,6 +509,13 @@ void TListNodeProxy::SetRecursive(
     context->Reply();
 }
 
+IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
+    const TYPath& path,
+    const Stroka& verb)
+{
+    return TListNodeMixin::ResolveRecursive(path, verb);
+}
+
 void TListNodeProxy::SetNodeRecursive(
     const TYPath& path,
     TReqSetNode* request,
@@ -527,9 +524,8 @@ void TListNodeProxy::SetNodeRecursive(
 {
     UNUSED(response);
 
-    auto factory = CreateFactory();
     auto value = reinterpret_cast<INode*>(request->value_ptr());
-    TListNodeMixin::SetRecursive(~factory, path, value);
+    TListNodeMixin::SetRecursive(path, value);
     context->Reply();
 }
 

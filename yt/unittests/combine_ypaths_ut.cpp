@@ -13,25 +13,19 @@ using namespace NYTree;
 TEST(TCombinePathsTest, SlashSlash)
 {
     TYPath result = CombineYPaths("/", "/some/value");
-    EXPECT_EQ("/some/value", result);
+    EXPECT_EQ("//some/value", result);
 }
 
 TEST(TCombinePathsTest, NoneSlash)
 {
-    TYPath result = CombineYPaths("root", "/some/value");
-    EXPECT_EQ("root/some/value", result);
-}
-
-TEST(TCombinePathsTest, SlashNone)
-{
-    TYPath result = CombineYPaths("/root/", "some/value");
-    EXPECT_EQ("/root/some/value", result);
+    TYPath result = CombineYPaths("//root", "/some/value");
+    EXPECT_EQ("//root/some/value", result);
 }
 
 TEST(TCombinePathsTest, NoneNone)
 {
-    TYPath result = CombineYPaths("/root", "some/value");
-    EXPECT_EQ("/root/some/value", result);
+    TYPath result = CombineYPaths("//root", "some/value");
+    EXPECT_EQ("//root/some/value", result);
 }
 
 TEST(TCombinePathsTest, AnyEmpty)
@@ -54,8 +48,8 @@ TEST(TCombinePathsTest, EmptyEmpty)
 
 TEST(TCombinePathsTest, AnyAttributes)
 {
-    TYPath result = CombineYPaths("/path/to/something", "@attr");
-    EXPECT_EQ("/path/to/something@attr", result);
+    TYPath result = CombineYPaths("//path/to/something", "@attr");
+    EXPECT_EQ("//path/to/something@attr", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

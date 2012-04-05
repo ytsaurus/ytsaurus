@@ -14,7 +14,7 @@ namespace NChunkServer {
 class TJob
 {
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
-    DEFINE_BYVAL_RO_PROPERTY(TJobId, JobId);
+    DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
     DEFINE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);

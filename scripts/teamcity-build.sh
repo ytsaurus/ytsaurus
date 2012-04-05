@@ -88,7 +88,7 @@ cmake \
     -DYT_BUILD_TAG=$(echo $BUILD_VCS_NUMBER | cut -c 1-7) \
     $CHECKOUT_DIRECTORY
 
-trap '(cd $WORKING_DIRECTORY ; make clean ; find . -name "default.log" -delete)' 0
+#trap '(cd $WORKING_DIRECTORY ; make clean ; find . -name "default.log" -delete)' 0
 
 tc "blockClosed name='CMake'"
 

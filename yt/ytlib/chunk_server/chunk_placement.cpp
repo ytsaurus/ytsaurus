@@ -129,10 +129,9 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
 
     const auto* jobList = chunkManager->FindJobList(chunk.GetId());
     if (jobList) {
-        FOREACH(const auto& jobId, jobList->JobIds()) {
-            const auto& job = chunkManager->GetJob(jobId);
-            if (job.GetType() == EJobType::Replicate && job.GetChunkId() == chunk.GetId()) {
-                forbiddenAddresses.insert(job.TargetAddresses().begin(), job.TargetAddresses().end());
+        FOREACH(auto job, jobList->Jobs()) {
+            if (job->GetType() == EJobType::Replicate && job->GetChunkId() == chunk.GetId()) {
+                forbiddenAddresses.insert(job->TargetAddresses().begin(), job->TargetAddresses().end());
             }
         }
     }
@@ -180,7 +179,7 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     return result;
 }
 
-THolderId TChunkPlacement::GetBalancingTarget(const TChunk& chunk, double maxFillCoeff)
+THolderId TChunkPlacement::GetBalancingTarget(TChunk* chunk, double maxFillCoeff)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& pair, LoadFactorMap) {
@@ -211,22 +210,21 @@ bool TChunkPlacement::IsValidUploadTarget(const THolder& targetHolder) const
     return true;
 }
 
-bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const TChunk& chunk) const
+bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, TChunk* chunk) const
 {
     if (!IsValidUploadTarget(targetHolder)) {
         // Balancing implies upload, after all.
         return false;
     }
 
-    if (targetHolder.StoredChunkIds().find(chunk.GetId()) != targetHolder.StoredChunkIds().end())  {
+    if (targetHolder.StoredChunks().find(chunk) != targetHolder.StoredChunks().end())  {
         // Do not balance to a holder already having the chunk.
         return false;
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& jobId, targetHolder.JobIds()) {
-        const auto& job = chunkManager->GetJob(jobId);
-        if (job.GetChunkId() == chunk.GetId()) {
+    FOREACH (const auto& job, targetHolder.Jobs()) {
+        if (job->GetChunkId() == chunk->GetId()) {
             // Do not balance to a holder already having a job associated with this chunk.
             return false;
         }
@@ -234,14 +232,13 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, const 
 
     auto* sink = chunkManager->FindReplicationSink(targetHolder.GetAddress());
     if (sink) {
-        if (static_cast<int>(sink->JobIds().size()) >= Config->Jobs->MaxReplicationFanIn) {
+        if (static_cast<int>(sink->Jobs().size()) >= Config->Jobs->MaxReplicationFanIn) {
             // Do not balance to a holder with too many incoming replication jobs.
             return false;
         }
 
-        FOREACH (const auto& jobId, sink->JobIds()) {
-            const auto& job = chunkManager->GetJob(jobId);
-            if (job.GetChunkId() == chunk.GetId()) {
+        FOREACH (auto& job, sink->Jobs()) {
+            if (job->GetChunkId() == chunk->GetId()) {
                 // Do not balance to a holder that is a replication target for the very same chunk.
                 return false;
             }
@@ -257,19 +254,18 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int
     // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& jobId, holder.JobIds()) {
-        const auto& job = chunkManager->GetJob(jobId);
-        forbiddenChunkIds.insert(job.GetChunkId());
+    FOREACH (const auto& job, holder.Jobs()) {
+        forbiddenChunkIds.insert(job->GetChunkId());
     }
 
     // Right now we just pick some (not even random!) chunks.
     yvector<TChunkId> result;
     result.reserve(count);
-    FOREACH (const auto& chunkId, holder.StoredChunkIds()) {
+    FOREACH (auto& chunk, holder.StoredChunks()) {
         if (result.ysize() >= count)
             break;
-        if (forbiddenChunkIds.find(chunkId) == forbiddenChunkIds.end()) {
-            result.push_back(chunkId);
+        if (forbiddenChunkIds.find(chunk->GetId()) == forbiddenChunkIds.end()) {
+            result.push_back(chunk->GetId());
         }
     }
 

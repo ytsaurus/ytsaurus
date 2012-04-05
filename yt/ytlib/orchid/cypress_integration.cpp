@@ -143,7 +143,7 @@ private:
 
     static Stroka GetRedirectPath(TOrchidManifest* manifest, const TYPath& path)
     {
-        return CombineYPaths(manifest->RemoteRoot, path);
+        return manifest->RemoteRoot + path;
     }
 };
 

@@ -71,6 +71,8 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(roizner): Add TSupports Get,GetNode,Set,SetNode,Remove,Create
+
 class TMapNodeMixin
     : public virtual IMapNode
     , public virtual TSupportsList
@@ -85,7 +87,6 @@ protected:
         const TYPath& path,
         NProto::TReqSet* request);
     void SetRecursive(
-        INodeFactory* factory,
         const TYPath& path,
         INode* value);
 
@@ -109,19 +110,10 @@ protected:
         const TYPath& path,
         NProto::TReqSet* request);
     void SetRecursive(
-        INodeFactory* factory,
         const TYPath& path,
         INode* value);
 
-private:
-    int ParseChildIndex(const TStringBuf& str);
-
-    void CreateChild(
-        INodeFactory* factory,
-        int beforeIndex,
-        const TYPath& path,
-        INode* value);
-
+    i64 NormalizeAndCheckIndex(i64 index) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

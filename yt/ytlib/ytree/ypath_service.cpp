@@ -45,7 +45,7 @@ private:
         Invoker->Invoke(BIND(
             &TViaYPathService::ExecuteRequest,
             MakeStrong(this),
-            context));
+            MakeStrong(context)));
     }
 
     void ExecuteRequest(NRpc::IServiceContext::TPtr context)

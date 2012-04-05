@@ -10,45 +10,21 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): move impl to cpp
 class TJobList
 {
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
-    DEFINE_BYREF_RO_PROPERTY(yvector<TJobId>, JobIds);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJob*>, Jobs);
 public:
 
-    TJobList(const TChunkId& chunkId)
-        : ChunkId_(chunkId)
-    { }
+    TJobList(const TChunkId& chunkId);
 
-    TJobList(const TJobList& other)
-        : ChunkId_(other.ChunkId_)
-        , JobIds_(other.JobIds_)
-    { }
+    TJobList(const TJobList& other);
 
-    void Save(TOutputStream* output) const
-    {
-        ::Save(output, JobIds_);
-    }
+    void Save(TOutputStream* output) const;
+    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 
-    void Load(const NCellMaster::TLoadContext& context, TInputStream* input)
-    {
-        ::Load(input, JobIds_);
-    }
-
-    void AddJob(const TJobId& id)
-    {
-        JobIds_.push_back(id);
-    }
-
-    void RemoveJob(const TJobId& id)
-    {
-        auto it = std::find(JobIds_.begin(), JobIds_.end(), id);
-        if (it != JobIds_.end()) {
-            JobIds_.erase(it);
-        }
-    }
-    
+    void AddJob(TJob* job);
+    void RemoveJob(TJob* job);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
