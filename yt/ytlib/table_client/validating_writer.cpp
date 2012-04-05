@@ -96,7 +96,7 @@ TAsyncError TValidatingWriter::AsyncEndRow()
     for (int columnIndex = 0; columnIndex < Schema.KeyColumns().size(); ++columnIndex) {
         if (!IsColumnUsed[columnIndex]) {
             FOREACH(auto& channelWriter, ChannelWriters) {
-                channelWriter->Write(columnIndex, Schema.KeyColumns()[columnIndex], Stroka());
+                channelWriter->Write(columnIndex, Schema.KeyColumns()[columnIndex], TStringBuf());
             }
         }
     }

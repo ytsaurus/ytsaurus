@@ -16,7 +16,7 @@ public:
     TRowConsumer(ISyncTableWriter* writer);
 
 private:
-    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes);
     virtual void OnIntegerScalar(i64 value, bool hasAttributes);
     virtual void OnDoubleScalar(double value, bool hasAttributes);
     virtual void OnEntity(bool hasAttributes);
@@ -24,10 +24,10 @@ private:
     virtual void OnListItem();
     virtual void OnEndList(bool hasAttributes);
     virtual void OnBeginMap();
-    virtual void OnMapItem(const Stroka& name);
+    virtual void OnMapItem(const TStringBuf& name);
     virtual void OnEndMap(bool hasAttributes);
     virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const Stroka& name);
+    virtual void OnAttributesItem(const TStringBuf& name);
     virtual void OnEndAttributes();
     void CheckNoAttributes(bool hasAttributes);
     void CheckInsideRow();

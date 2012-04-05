@@ -10,7 +10,7 @@ namespace NYTree {
 class TNullYsonConsumer
     : public IYsonConsumer
 {
-    virtual void OnStringScalar(const Stroka& value, bool hasAttributes = false)
+    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes = false)
     {
         UNUSED(value);
         UNUSED(hasAttributes);
@@ -47,7 +47,7 @@ class TNullYsonConsumer
     virtual void OnBeginMap()
     { }
     
-    virtual void OnMapItem(const Stroka& name)
+    virtual void OnMapItem(const TStringBuf& name)
     {
         UNUSED(name);
     }
@@ -60,7 +60,7 @@ class TNullYsonConsumer
     virtual void OnBeginAttributes()
     { }
 
-    virtual void OnAttributesItem(const Stroka& name)
+    virtual void OnAttributesItem(const TStringBuf& name)
     {
         UNUSED(name);
     }

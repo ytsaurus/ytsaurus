@@ -504,7 +504,7 @@ void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
         ~actualType.ToString().Quote());
 }
 
-void TNodeSetterBase::OnMyStringScalar(const Stroka& value, bool hasAttributes)
+void TNodeSetterBase::OnMyStringScalar(const TStringBuf& value, bool hasAttributes)
 {
     UNUSED(value);
     UNUSED(hasAttributes);
@@ -546,7 +546,7 @@ void TNodeSetterBase::OnMyBeginAttributes()
     Node->Attributes().Clear();
 }
 
-void TNodeSetterBase::OnMyAttributesItem(const Stroka& key)
+void TNodeSetterBase::OnMyAttributesItem(const TStringBuf& key)
 {
     AttributeKey = key;
     ForwardNode(&AttributeWriter, BIND(&TThis::OnForwardingFinished, this));

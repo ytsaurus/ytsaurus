@@ -21,7 +21,7 @@ struct IYsonConsumer
      *  \param value A scalar value.
      *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
-    virtual void OnStringScalar(const Stroka& value, bool hasAttributes = false) = 0;
+    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes = false) = 0;
 
     //! The current item is an integer scalar (IIntegerNode).
     /*!
@@ -78,7 +78,7 @@ struct IYsonConsumer
     /*!
      *  \param key Item key in the map.
      */
-    virtual void OnMapItem(const Stroka& key) = 0;
+    virtual void OnMapItem(const TStringBuf& key) = 0;
 
     //! Ends the current map.
     /*!
@@ -103,7 +103,7 @@ struct IYsonConsumer
     /*!
      *  \param key An attribute key.
      */
-    virtual void OnAttributesItem(const Stroka& key) = 0;
+    virtual void OnAttributesItem(const TStringBuf& key) = 0;
 
     //! Ends the current attribute map.
     virtual void OnEndAttributes() = 0;

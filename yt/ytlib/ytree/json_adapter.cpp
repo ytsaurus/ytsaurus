@@ -17,7 +17,7 @@ TJsonAdapter::TJsonAdapter(TOutputStream* output)
     : JsonWriter(new TJsonWriter(output, true))
 { }
 
-void TJsonAdapter::OnMyStringScalar(const Stroka& value, bool hasAttributes)
+void TJsonAdapter::OnMyStringScalar(const TStringBuf& value, bool hasAttributes)
 {
     YASSERT(!hasAttributes);
     JsonWriter->Write(value);
@@ -59,7 +59,7 @@ void TJsonAdapter::OnMyBeginMap()
     JsonWriter->OpenMap();
 }
 
-void TJsonAdapter::OnMyMapItem(const Stroka& name)
+void TJsonAdapter::OnMyMapItem(const TStringBuf& name)
 {
     JsonWriter->Write(name);
 }
@@ -74,7 +74,7 @@ void TJsonAdapter::OnMyBeginAttributes()
     ForwardAttributes(GetNullYsonConsumer(), TClosure());
 }
 
-void TJsonAdapter::OnMyAttributesItem(const Stroka& name)
+void TJsonAdapter::OnMyAttributesItem(const TStringBuf& name)
 {
     UNUSED(name);
     YUNREACHABLE();

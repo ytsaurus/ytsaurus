@@ -13,17 +13,17 @@ yt remove //root/nodes
 yt get //root
 
 echo 'changing attributes'
-yt set //root/2 '[] < author=ignat >'
-yt get //root/2
-yt get //root/2@
-yt get //root/2@author
+yt set //root/a '[] < author=ignat >'
+yt get //root/a
+yt get //root/a@
+yt get //root/a@author
 
-yt set //root/2@author not_ignat
-yt get //root/2@author 
+yt set //root/a@author not_ignat
+yt get //root/a@author 
 
 echo 'nested attributes'
-yt set //root/3 '[] <dir=<file=-100<>>>' 
-yt get //root/3@
-yt get //root/3@dir@
-yt get //root/3@dir@file
-yt get //root/3@dir@file@
+yt set //root/b '[] <dir=<file=-100<>>>' 
+yt get //root/b@
+yt get //root/b@dir@
+yt get //root/b@dir@file
+yt get //root/b@dir@file@

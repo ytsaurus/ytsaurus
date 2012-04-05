@@ -46,11 +46,11 @@ public:
         PushNode(node);
     }
 
-    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes)
+    virtual void OnMyStringScalar(const TStringBuf& value, bool hasAttributes)
     {
         UNUSED(hasAttributes);
         auto node = Factory->CreateString();
-        node->SetValue(value);
+        node->SetValue(Stroka(value));
         PushNode(~node);
     }
 
@@ -102,10 +102,10 @@ public:
         PushNode(NULL);
     }
 
-    virtual void OnMyMapItem(const Stroka& key)
+    virtual void OnMyMapItem(const TStringBuf& key)
     {
         AddToMap();
-        PushKey(key);
+        PushKey(Stroka(key));
     }
 
     virtual void OnMyEndMap(bool hasAttributes)
@@ -118,7 +118,7 @@ public:
     virtual void OnMyBeginAttributes()
     { }
 
-    virtual void OnMyAttributesItem(const Stroka& key)
+    virtual void OnMyAttributesItem(const TStringBuf& key)
     {
         AttributeKey = key;
         ForwardNode(&AttributeWriter, BIND([=]

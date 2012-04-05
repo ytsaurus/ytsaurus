@@ -19,7 +19,7 @@ class TValue
 public:
     TValue();
     TValue(TRef data);
-    TValue(const Stroka& data);
+    TValue(const TStringBuf& data);
 
     const char* GetData() const;
     size_t GetSize() const;
