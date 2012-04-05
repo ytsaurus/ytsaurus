@@ -19,11 +19,14 @@ namespace NYTree {
 //! thus enabling to transform YSON into JSON.
 /*!
  *  \note
- *  Attributes and entities are not supported.
+ *  Entities are translated to empty maps.
+ *  
+ *  Attributes are only supported for entities and maps.
+ *  They are written as an inner "$attributes" map.
  *  
  *  Explicit #Flush calls should be made when finished writing via the adapter.
  */
-// TODO: UTF8 strings
+// XXX(babenko): YSON strings vs JSON strings.
 class TJsonAdapter
     : public TForwardingYsonConsumer
 {
@@ -52,6 +55,7 @@ public:
 
 private:
     THolder<NJson::TJsonWriter> JsonWriter;
+    bool WriteAttributes;
 
 };
 
