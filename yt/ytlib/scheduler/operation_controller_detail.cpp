@@ -276,11 +276,14 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     JobCounter.Completed(1);
 
-    DoJobCompleted(job);
+    auto jobInProgress = GetJobHandlers(job);
+    jobInProgress->OnCompleted.Run();
+    
+    RemoveJobHandlers(job);
 
     DumpProgress();
 
-    if (JobCounter.GetRunning() == 0 && HasPendingJobs()) {
+    if (JobCounter.GetRunning() == 0 && !HasPendingJobs()) {
         FinalizeOperation();
     }
 }
@@ -295,7 +298,10 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     JobCounter.Failed(1);
 
-    DoJobFailed(job);
+    auto jobInProgress = GetJobHandlers(job);
+    jobInProgress->OnFailed.Run();
+
+    RemoveJobHandlers(job);
 
     DumpProgress();
 
@@ -750,6 +756,33 @@ i64 TOperationControllerBase::GetJobWeightThreshold(i64 pendingJobs, i64 pending
     YASSERT(pendingJobs > 0);
     YASSERT(pendingWeight > 0);
     return (i64) ceil((double) pendingWeight / pendingJobs);
+}
+
+TJobPtr TOperationControllerBase::CreateJob(
+    TOperationPtr operation,
+    TExecNodePtr node,
+    const NProto::TJobSpec& spec,
+    TClosure onCompleted,
+    TClosure onFailed)
+{
+    auto job = Host->CreateJob(operation, node, spec);
+    auto handlers = New<TJobHandlers>();
+    handlers->OnCompleted = onCompleted;
+    handlers->OnFailed = onFailed;
+    YVERIFY(JobHandlers.insert(MakePair(job, handlers)).second);
+    return job;
+}
+
+TOperationControllerBase::TJobHandlersPtr TOperationControllerBase::GetJobHandlers(TJobPtr job)
+{
+    auto it = JobHandlers.find(job);
+    YASSERT(it != JobHandlers.end());
+    return it->second;
+}
+
+void TOperationControllerBase::RemoveJobHandlers(TJobPtr job)
+{
+    YVERIFY(JobHandlers.erase(job) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -37,6 +37,8 @@ public:
     { }
 
 private:
+    typedef TMapController TThis;
+
     TMapControllerConfigPtr Config;
 
     TMapOperationSpecPtr Spec;
@@ -49,25 +51,6 @@ private:
 
     // The template for starting new jobs.
     TJobSpec JobSpecTemplate;
-
-    // Job scheduled so far.
-    // TOOD(babenko): consider keeping this in job's attributes
-    struct TJobInfo
-        : public TIntrinsicRefCounted
-    {
-        // Chunks assigned to this job.
-        std::vector<TPooledChunkPtr> InputChunks;
-
-        // Total weight of allocated input chunks.
-        i64 InputWeight;
-
-        // Chunk lists allocated to store the output (one per each output table).
-        std::vector<TChunkListId> OutputChunkListIds;
-    };
-
-    typedef TIntrusivePtr<TJobInfo> TJobInfoPtr;
-    yhash_map<TJobPtr, TJobInfoPtr> JobInfos;
-
 
     // Init/finish.
 
@@ -90,34 +73,15 @@ private:
 
     // Job scheduling and outcome handling.
 
-    virtual void DoJobCompleted(TJobPtr job)
+    struct TJobInProgress
+        : public TIntrinsicRefCounted
     {
-        auto jobInfo = GetJobInfo(job);
+        std::vector<TPooledChunkPtr> Chunks;
+        i64 Weight;
+        std::vector<TChunkListId> ChunkListIds;
+    };
 
-        for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
-            auto chunkListId = jobInfo->OutputChunkListIds[index];
-            OutputTables[index].OutputChildrenIds.push_back(chunkListId);
-        }
-
-        ChunkCounter.Completed(jobInfo->InputChunks.size());
-        WeightCounter.Completed(jobInfo->InputWeight);
-
-        RemoveJobInfo(job);
-    }
-
-    virtual void DoJobFailed(TJobPtr job)
-    {
-        auto jobInfo = GetJobInfo(job);
-
-        LOG_DEBUG("%d chunks are back in the pool", static_cast<int>(jobInfo->InputChunks.size()));
-        ChunkPool->Put(jobInfo->InputChunks);
-
-        ChunkCounter.Failed(jobInfo->InputChunks.size());
-        WeightCounter.Failed(jobInfo->InputWeight);
-
-        ReleaseChunkLists(jobInfo->OutputChunkListIds);
-        RemoveJobInfo(job);
-    }
+    typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
 
     virtual TJobPtr DoScheduleJob(TExecNodePtr node)
     {
@@ -129,9 +93,8 @@ private:
         // We've got a job to do! :)
 
         // Allocate chunks for the job.
-        auto jobInfo = New<TJobInfo>();
+        auto jip = New<TJobInProgress>();
         i64 weightThreshold = GetJobWeightThreshold(JobCounter.GetPending(), WeightCounter.GetPending());
-        auto& extractedChunks = jobInfo->InputChunks;
         i64 extractedWeight;
         int localCount;
         int remoteCount;
@@ -139,17 +102,16 @@ private:
             node->GetAddress(),
             weightThreshold,
             false,
-            &extractedChunks,
-            &extractedWeight,
+            &jip->Chunks,
+            &jip->Weight,
             &localCount,
             &remoteCount);
-        YASSERT(!extractedChunks.empty());
-        jobInfo->InputWeight = extractedWeight;
+        YASSERT(!jip->Chunks.empty());
 
         LOG_DEBUG("Extracted %d chunks for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ", LocalCount: %d, RemoteCount: %d)",
-            static_cast<int>(extractedChunks.size()),
+            static_cast<int>(jip->Chunks.size()),
             ~node->GetAddress(),
-            extractedWeight,
+            jip->Weight,
             weightThreshold,
             localCount,
             remoteCount);
@@ -157,50 +119,50 @@ private:
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
         auto* mapJobSpec = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
-        FOREACH (const auto& chunk, extractedChunks) {
+        FOREACH (const auto& chunk, jip->Chunks) {
             *mapJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
         }
         FOREACH (auto& outputSpec, *mapJobSpec->mutable_output_specs()) {
             auto chunkListId = ChunkListPool->Extract();
-            jobInfo->OutputChunkListIds.push_back(chunkListId);
+            jip->ChunkListIds.push_back(chunkListId);
             *outputSpec.mutable_chunk_list_id() = chunkListId.ToProto();
         }
 
-        // Create job and job info.
-        auto job = Host->CreateJob(
+        // Update running counters.
+        ChunkCounter.Start(jip->Chunks.size());
+        WeightCounter.Start(jip->Weight);
+
+        return CreateJob(
             Operation,
             node,
-            jobSpec);
-        PutJobInfo(job, jobInfo);
-
-        // Update running counters.
-        ChunkCounter.Start(extractedChunks.size());
-        WeightCounter.Start(extractedWeight);
-
-        return job;
+            jobSpec,
+            BIND(&TThis::OnJobCompleted, MakeWeak(this), jip),
+            BIND(&TThis::OnJobFailed, MakeWeak(this), jip));
     }
 
-    
-    // Scheduled jobs info management.
-
-    void PutJobInfo(TJobPtr job, TJobInfoPtr jobInfo)
+    void OnJobCompleted(TJobInProgressPtr jip)
     {
-        YVERIFY(JobInfos.insert(MakePair(job, jobInfo)).second);
+        for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
+            auto chunkListId = jip->ChunkListIds[index];
+            OutputTables[index].OutputChildrenIds.push_back(chunkListId);
+        }
+
+        ChunkCounter.Completed(jip->Chunks.size());
+        WeightCounter.Completed(jip->Weight);
     }
 
-    TJobInfoPtr GetJobInfo(TJobPtr job)
+    void OnJobFailed(TJobInProgressPtr jip)
     {
-        auto it = JobInfos.find(job);
-        YASSERT(it != JobInfos.end());
-        return it->second;
+        LOG_DEBUG("%d chunks are back in the pool", static_cast<int>(jip->Chunks.size()));
+        ChunkPool->Put(jip->Chunks);
+
+        ChunkCounter.Failed(jip->Chunks.size());
+        WeightCounter.Failed(jip->Weight);
+
+        ReleaseChunkLists(jip->ChunkListIds);
     }
 
-    void RemoveJobInfo(TJobPtr job)
-    {
-        YVERIFY(JobInfos.erase(job) == 1);
-    }
 
-    
     // Custom bits of preparation pipeline.
 
     virtual std::vector<TYPath> GetInputTablePaths()
