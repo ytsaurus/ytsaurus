@@ -41,7 +41,7 @@ def assert_eq(result, expected):
     assert actual == expected
 
 def get_transactions(**kw):
-    yson_map = expect_ok(get('//sys/transactions/', **kw)).strip('\n')
+    yson_map = expect_ok(get('//sys/transactions', **kw)).strip('\n')
     return yson_parser.parse_string(yson_map)
 
 #########################################
