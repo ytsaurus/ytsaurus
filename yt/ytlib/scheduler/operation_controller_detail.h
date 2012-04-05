@@ -167,23 +167,36 @@ protected:
 
     std::vector<TFile> Files;
 
+    struct TJobHandlers
+        : public TIntrinsicRefCounted
+    {
+        TClosure OnCompleted;
+        TClosure OnFailed;
+    };
+
+    typedef TIntrusivePtr<TJobHandlers> TJobHandlersPtr;
+
+    yhash_map<TJobPtr, TJobHandlersPtr> JobHandlers;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
-
-
-    virtual void DoJobCompleted(TJobPtr job) = 0;
-    virtual void DoJobFailed(TJobPtr job) = 0;
 
     virtual void DoInitialize() = 0;
     virtual bool HasPendingJobs() = 0;
     virtual void DumpProgress() = 0;
 
+    // Jobs handlers management.
+    TJobPtr CreateJob(
+        TOperationPtr operation,
+        TExecNodePtr node, 
+        const NProto::TJobSpec& spec,
+        TClosure onCompleted,
+        TClosure onFailed);
+    TJobHandlersPtr GetJobHandlers(TJobPtr job);
+    void RemoveJobHandlers(TJobPtr job);
+
     //! Performs the actual scheduling.
     virtual TJobPtr DoScheduleJob(TExecNodePtr node) = 0;
-
-    bool CheckChunkListsPoolSize(int count);
-
 
 
     // TODO(babenko): YPath and RPC responses currently share no base class.
@@ -265,7 +278,7 @@ protected:
 
 
     // Unsorted helpers.
-
+    bool CheckChunkListsPoolSize(int count);
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
     void OnChunkListsReleased(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
