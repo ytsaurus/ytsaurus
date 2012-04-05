@@ -167,7 +167,7 @@ void TJobScheduler::ProcessExistingJobs(
                 *stopInfo.mutable_job_id() = jobId.ToProto();
                 jobsToStop->push_back(stopInfo);
 
-                ScheduleChunkRefresh(job->GetChunkId());
+                ScheduleChunkRefresh(job->GetChunk()->GetId());
 
                 LOG_INFO("Job %s (JobId: %s, Address: %s, HolderId: %d)",
                     jobState == EJobState::Completed ? "completed" : "failed",
@@ -209,7 +209,7 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
     yvector<TJobStartInfo>* jobsToStart)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto* chunk = chunkManager->FindChunk(chunkId);
+    auto* chunk = chunkManager->FindChunk(chunkId);
     if (!chunk) {
         LOG_TRACE("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),
@@ -248,7 +248,7 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
         return EScheduleFlags::Purged;
     }
 
-    auto targets = ChunkPlacement->GetReplicationTargets(*chunk, requestedCount);
+    auto targets = ChunkPlacement->GetReplicationTargets(chunk, requestedCount);
     if (targets.empty()) {
         LOG_TRACE("No suitable target holders for replication (ChunkId: %s, Address: %s, HolderId: %d)",
             ~chunkId.ToString(),

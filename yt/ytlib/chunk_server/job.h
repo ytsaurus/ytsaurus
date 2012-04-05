@@ -15,7 +15,7 @@ class TJob
 {
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
-    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
+    DEFINE_BYVAL_RO_PROPERTY(TChunk*, Chunk);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
     DEFINE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
@@ -24,14 +24,14 @@ public:
     TJob(
         EJobType type,
         const TJobId& jobId,
-        const TChunkId& chunkId,
+        TChunk* chunk,
         const Stroka& runnerAddress,
         const yvector<Stroka>& targetAddresses,
         TInstant startTime);
 
     TJob(const TJobId& jobId);
 
-    void Save(TOutputStream* output) const;
+    void Save(TOutputStream* output);
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 
 };
