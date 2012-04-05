@@ -87,6 +87,7 @@ void THolder::RemoveChunk(TChunk* chunk, bool cached)
         YVERIFY(CachedChunks_.erase(chunk) == 1);
     } else {
         YVERIFY(StoredChunks_.erase(chunk) == 1);
+        UnapprovedChunks_.erase(chunk);
     }
 }
 
