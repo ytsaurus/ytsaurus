@@ -67,11 +67,74 @@ TObjectWithIdBase::TObjectWithIdBase(const TObjectWithIdBase& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TObjectProxyBase::TCombinedAttributeDictionary
+    : public IAttributeDictionary
+{
+public:
+    TCombinedAttributeDictionary(
+        IAttributeDictionary* userAttributes,
+        ISystemAttributeProvider* systemAttributeProvider)
+        : UserAttributes(userAttributes)
+        , SystemAttributeProvider(systemAttributeProvider)
+    { }
+
+    virtual yhash_set<Stroka> List() const
+    {
+        yhash_set<Stroka> keys;
+
+        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+        SystemAttributeProvider->GetSystemAttributes(&systemAttributes);
+        FOREACH (const auto& attribute, systemAttributes) {
+            if (attribute.IsPresent) {
+                keys.insert(attribute.Key);
+            }
+        }
+
+        FOREACH (const auto& key, UserAttributes->List()) {
+            keys.insert(key);
+        }
+
+        return keys;
+    }
+
+    virtual TNullable<TYson> FindYson(const Stroka& key) const
+    {
+        TStringStream output;
+        TYsonWriter writer(&output);
+        if (SystemAttributeProvider->GetSystemAttribute(key, &writer)) {
+            return output.Str();
+        }
+
+        return UserAttributes->FindYson(key);
+    }
+
+    virtual void SetYson(const Stroka& key, const TYson& value)
+    {
+        // TODO(babenko): check that this key is not reserved
+        UserAttributes->SetYson(key, value);
+    }
+
+    virtual bool Remove(const Stroka& key)
+    {
+        return UserAttributes->Remove(key);
+    }
+
+private:
+    IAttributeDictionary* UserAttributes;
+    ISystemAttributeProvider* SystemAttributeProvider;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
     const TObjectId& id)
     : Bootstrap(bootstrap)
     , Id(id)
+{ }
+
+TObjectProxyBase::~TObjectProxyBase()
 { }
 
 TObjectId TObjectProxyBase::GetId() const
@@ -81,7 +144,12 @@ TObjectId TObjectProxyBase::GetId() const
 
 IAttributeDictionary& TObjectProxyBase::Attributes()
 {
-    return *GetUserAttributes();
+    if (!CombinedAttributes) {
+        CombinedAttributes.Reset(new TCombinedAttributeDictionary(
+            GetUserAttributes(),
+            GetSystemAttributeProvider()));
+    }
+    return *CombinedAttributes;
 }
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const

@@ -39,9 +39,11 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     UNUSED(request);
     
+    auto withAttributes = request->Attributes().Get<bool>("with_attributes", false);
+
     TStringStream stream;
     TYsonWriter writer(&stream);
-    VisitTree(this, &writer, false);
+    VisitTree(this, &writer, withAttributes);
 
     response->set_value(stream.Str());
     context->Reply();

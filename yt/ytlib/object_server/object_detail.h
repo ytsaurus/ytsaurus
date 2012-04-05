@@ -78,6 +78,7 @@ public:
     typedef TIntrusivePtr<TObjectProxyBase> TPtr;
 
     TObjectProxyBase(NCellMaster::TBootstrap* bootstrap, const TObjectId& id);
+    ~TObjectProxyBase();
 
     // IObjectProxy members
     virtual TObjectId GetId() const;
@@ -126,6 +127,9 @@ protected:
         TObjectManager::TPtr ObjectManager;
         TObjectId ObjectId;
     };
+
+    class TCombinedAttributeDictionary;
+    THolder<TCombinedAttributeDictionary> CombinedAttributes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

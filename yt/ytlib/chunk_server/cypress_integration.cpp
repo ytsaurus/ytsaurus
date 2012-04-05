@@ -257,7 +257,7 @@ private:
         if (name == "state") {
             auto state = holder ? holder->GetState() : EHolderState(EHolderState::Offline);
             BuildYsonFluently(consumer)
-                .Scalar(state.ToString());
+                .Scalar(FormatEnum(state));
             return true;
         }
 
@@ -270,7 +270,7 @@ private:
 
             if (name == "incarnation_id") {
                 BuildYsonFluently(consumer)
-                    .Scalar(holder->GetIncarnationId().ToString());
+                    .Scalar(holder->GetIncarnationId());
                 return true;
             }
 
