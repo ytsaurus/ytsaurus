@@ -28,7 +28,7 @@ public:
 
     yvector<THolderId> GetUploadTargets(int count);
     yvector<THolderId> GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses);
-    yvector<THolderId> GetReplicationTargets(TChunk *chunk, int count);
+    yvector<THolderId> GetReplicationTargets(const TChunk& chunk, int count);
     yvector<THolderId> GetRemovalTargets(const TChunk& chunk, int count);
     THolderId GetReplicationSource(const TChunk& chunk);
     yvector<TChunkId> GetBalancingChunks(const THolder& holder, int count);

@@ -117,20 +117,20 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
     return holderIdsSample;
 }
 
-yvector<THolderId> TChunkPlacement::GetReplicationTargets(TChunk* chunk, int count)
+yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, int count)
 {
     yhash_set<Stroka> forbiddenAddresses;
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH(auto holderId, chunk->StoredLocations()) {
+    FOREACH(auto holderId, chunk.StoredLocations()) {
         const auto& holder = chunkManager->GetHolder(holderId);
         forbiddenAddresses.insert(holder.GetAddress());
     }
 
-    const auto* jobList = chunkManager->FindJobList(chunk->GetId());
+    const auto* jobList = chunkManager->FindJobList(chunk.GetId());
     if (jobList) {
         FOREACH(auto job, jobList->Jobs()) {
-            if (job->GetType() == EJobType::Replicate && job->GetChunk() == chunk) {
+            if (job->GetType() == EJobType::Replicate && job->GetChunkId() == chunk.GetId()) {
                 forbiddenAddresses.insert(job->TargetAddresses().begin(), job->TargetAddresses().end());
             }
         }
@@ -224,7 +224,7 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, TChunk
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& job, targetHolder.Jobs()) {
-        if (job->GetChunk() == chunk) {
+        if (job->GetChunkId() == chunk->GetId()) {
             // Do not balance to a holder already having a job associated with this chunk.
             return false;
         }
@@ -238,7 +238,7 @@ bool TChunkPlacement::IsValidBalancingTarget(const THolder& targetHolder, TChunk
         }
 
         FOREACH (auto& job, sink->Jobs()) {
-            if (job->GetChunk() == chunk) {
+            if (job->GetChunkId() == chunk->GetId()) {
                 // Do not balance to a holder that is a replication target for the very same chunk.
                 return false;
             }
@@ -255,7 +255,7 @@ yvector<TChunkId> TChunkPlacement::GetBalancingChunks(const THolder& holder, int
     yhash_set<TChunkId> forbiddenChunkIds;
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& job, holder.Jobs()) {
-        forbiddenChunkIds.insert(job->GetChunk()->GetId());
+        forbiddenChunkIds.insert(job->GetChunkId());
     }
 
     // Right now we just pick some (not even random!) chunks.
