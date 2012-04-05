@@ -121,7 +121,7 @@ protected:
     void ThrowInvalidType(ENodeType actualType);
     virtual ENodeType GetExpectedType() = 0;
 
-    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnMyStringScalar(const TStringBuf& value, bool hasAttributes);
     virtual void OnMyIntegerScalar(i64 value, bool hasAttributes);
     virtual void OnMyDoubleScalar(double value, bool hasAttributes);
     virtual void OnMyEntity(bool hasAttributes);
@@ -131,7 +131,7 @@ protected:
     virtual void OnMyBeginMap();
 
     virtual void OnMyBeginAttributes();
-    virtual void OnMyAttributesItem(const Stroka& key);
+    virtual void OnMyAttributesItem(const TStringBuf& key);
     virtual void OnMyEndAttributes();
 
 protected:

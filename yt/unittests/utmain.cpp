@@ -32,6 +32,16 @@ namespace testing {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Matcher<const TStringBuf&>::Matcher(const Stroka& s)
+{
+    *this = Eq(TStringBuf(s));
+}
+
+Matcher<const TStringBuf&>::Matcher(const char* s)
+{
+    *this = Eq(TStringBuf(s));
+}
+
 Matcher<const Stroka&>::Matcher(const Stroka& s)
 {
     *this = Eq(s);

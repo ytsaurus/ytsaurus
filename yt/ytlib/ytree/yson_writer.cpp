@@ -11,6 +11,107 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
     
+// copied from <util/string/escape.cpp
+namespace {
+
+static inline char HexDigit(char value) {
+    YASSERT(value < 16);
+    if (value < 10)
+        return '0' + value;
+    else
+        return 'A' + value - 10;
+}
+
+static inline char OctDigit(char value) {
+    YASSERT(value < 8);
+    return '0' + value;
+}
+
+static inline bool IsPrintable(char c) {
+    return c >= 32 && c <= 126;
+}
+
+static inline bool IsHexDigit(char c) {
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
+}
+
+static inline bool IsOctDigit(char c) {
+    return  c >= '0' && c <= '7';
+}
+
+static const size_t ESCAPE_C_BUFFER_SIZE = 4;
+
+static inline size_t EscapeC(unsigned char c, char next, char r[ESCAPE_C_BUFFER_SIZE]) {
+    // (1) Printable characters go as-is, except backslash and double quote.
+    // (2) Characters \r, \n, \t and \0 ... \7 replaced by their simple escape characters (if possible).
+    // (3) Otherwise, character is encoded using hexadecimal escape sequence (if possible), or octal.
+    if (c == '\"') {
+        r[0] = '\\';
+        r[1] = '\"';
+        return 2;
+    } else if (c == '\\') {
+        r[0] = '\\';
+        r[1] = '\\';
+        return 2;
+    } else if (IsPrintable(c)) {
+        r[0] = c;
+        return 1;
+    } else if (c == '\r') {
+        r[0] = '\\';
+        r[1] = 'r';
+        return 2;
+    } else if (c == '\n') {
+        r[0] = '\\';
+        r[1] = 'n';
+        return 2;
+    } else if (c == '\t') {
+        r[0] = '\\';
+        r[1] = 't';
+        return 2;
+   } else if (c < 8 && !IsOctDigit(next)) {
+        r[0] = '\\';
+        r[1] = OctDigit(c);
+        return 2;
+    } else if (!IsHexDigit(next)) {
+        r[0] = '\\';
+        r[1] = 'x';
+        r[2] = HexDigit((c & 0xF0) >> 4);
+        r[3] = HexDigit((c & 0x0F) >> 0);
+        return 4;
+    } else {
+        r[0] = '\\';
+        r[1] = OctDigit((c & 0700) >> 6);
+        r[2] = OctDigit((c & 0070) >> 3);
+        r[3] = OctDigit((c & 0007) >> 0);
+        return 4;
+    }
+}
+
+void EscapeC(const char* str, size_t len, TOutputStream& output) {
+    char buffer[ESCAPE_C_BUFFER_SIZE];
+
+    size_t i, j;
+    for (i = 0, j = 0; i < len; ++i) {
+        size_t rlen = EscapeC(str[i], (i + 1 < len ? str[i + 1] : 0), buffer);
+
+        if (rlen > 1) {
+            output.Write(str + j, i - j);
+            j = i + 1;
+            output.Write(buffer, rlen);
+        }
+    }
+
+    if (j > 0) {
+        output.Write(str + j, len - j);
+    } else {
+        output.Write(str, len);
+    }
+}
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TYsonWriter::TYsonWriter(TOutputStream* stream, EYsonFormat format)
     : Stream(stream)
     , IsFirstItem(true)
@@ -28,7 +129,7 @@ void TYsonWriter::WriteIndent()
     }
 }
 
-void TYsonWriter::WriteStringScalar(const Stroka& value)
+void TYsonWriter::WriteStringScalar(const TStringBuf& value)
 {
     if (Format == EYsonFormat::Binary) {
         Stream->Write(StringMarker);
@@ -36,12 +137,12 @@ void TYsonWriter::WriteStringScalar(const Stroka& value)
         Stream->Write(value.begin(), value.length());
     } else {
         Stream->Write('"');
-        Stream->Write(EscapeC(value));
+        EscapeC(value.data(), value.length(), *Stream);
         Stream->Write('"');
     }
 }
 
-void TYsonWriter::WriteMapItem(const Stroka& name)
+void TYsonWriter::WriteMapItem(const TStringBuf& name)
 {
     CollectionItem(ItemSeparator);
     WriteStringScalar(name);
@@ -91,7 +192,7 @@ void TYsonWriter::EndCollection(char closeBracket)
     IsFirstItem = false;
 }
 
-void TYsonWriter::OnStringScalar(const Stroka& value, bool hasAttributes)
+void TYsonWriter::OnStringScalar(const TStringBuf& value, bool hasAttributes)
 {
     WriteStringScalar(value);
     if (Format == EYsonFormat::Pretty && hasAttributes) {
@@ -156,7 +257,7 @@ void TYsonWriter::OnBeginMap()
     BeginCollection(BeginMapSymbol);
 }
 
-void TYsonWriter::OnMapItem(const Stroka& name)
+void TYsonWriter::OnMapItem(const TStringBuf& name)
 {
     WriteMapItem(name);
 }
@@ -174,7 +275,7 @@ void TYsonWriter::OnBeginAttributes()
     BeginCollection(BeginAttributesSymbol);
 }
 
-void TYsonWriter::OnAttributesItem(const Stroka& name)
+void TYsonWriter::OnAttributesItem(const TStringBuf& name)
 {
     WriteMapItem(name);
 }
@@ -184,7 +285,7 @@ void TYsonWriter::OnEndAttributes()
     EndCollection(EndAttributesSymbol);
 }
 
-void TYsonWriter::OnRaw(const TYson& yson)
+void TYsonWriter::OnRaw(const TStringBuf& yson)
 {
     Stream->Write(yson);
 }

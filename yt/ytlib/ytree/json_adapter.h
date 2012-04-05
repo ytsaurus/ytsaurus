@@ -32,7 +32,7 @@ public:
 
     void Flush();
 
-    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnMyStringScalar(const TStringBuf& value, bool hasAttributes);
     virtual void OnMyIntegerScalar(i64 value, bool hasAttributes);
     virtual void OnMyDoubleScalar(double value, bool hasAttributes);
 
@@ -43,11 +43,11 @@ public:
     virtual void OnMyEndList(bool hasAttributes);
 
     virtual void OnMyBeginMap();
-    virtual void OnMyMapItem(const Stroka& name);
+    virtual void OnMyMapItem(const TStringBuf& name);
     virtual void OnMyEndMap(bool hasAttributes);
 
     virtual void OnMyBeginAttributes();
-    virtual void OnMyAttributesItem(const Stroka& name);
+    virtual void OnMyAttributesItem(const TStringBuf& name);
     virtual void OnMyEndAttributes();
 
 private:

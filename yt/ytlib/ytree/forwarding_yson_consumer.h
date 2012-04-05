@@ -18,7 +18,7 @@ protected:
     void ForwardNode(IYsonConsumer* consumer, const TClosure& onForwardingFinished);
     void ForwardAttributes(IYsonConsumer* consumer, const TClosure& onForwardingFinished);
 
-    virtual void OnMyStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnMyStringScalar(const TStringBuf& value, bool hasAttributes);
     virtual void OnMyIntegerScalar(i64 value, bool hasAttributes);
     virtual void OnMyDoubleScalar(double value, bool hasAttributes);
     virtual void OnMyEntity(bool hasAttributes);
@@ -28,11 +28,11 @@ protected:
     virtual void OnMyEndList(bool hasAttributes);
 
     virtual void OnMyBeginMap();
-    virtual void OnMyMapItem(const Stroka& name);
+    virtual void OnMyMapItem(const TStringBuf& name);
     virtual void OnMyEndMap(bool hasAttributes);
 
     virtual void OnMyBeginAttributes();
-    virtual void OnMyAttributesItem(const Stroka& name);
+    virtual void OnMyAttributesItem(const TStringBuf& name);
     virtual void OnMyEndAttributes();
 
 private:
@@ -40,7 +40,7 @@ private:
     int ForwardingDepth;
     TClosure OnForwardingFinished;
 
-    virtual void OnStringScalar(const Stroka& value, bool hasAttributes);
+    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes);
     virtual void OnIntegerScalar(i64 value, bool hasAttributes);
     virtual void OnDoubleScalar(double value, bool hasAttributes);
     virtual void OnEntity(bool hasAttributes);
@@ -50,11 +50,11 @@ private:
     virtual void OnEndList(bool hasAttributes);
 
     virtual void OnBeginMap();
-    virtual void OnMapItem(const Stroka& name);
+    virtual void OnMapItem(const TStringBuf& name);
     virtual void OnEndMap(bool hasAttributes);
 
     virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const Stroka& name);
+    virtual void OnAttributesItem(const TStringBuf& name);
     virtual void OnEndAttributes();
 
     void DoForward(IYsonConsumer* consumer, const TClosure& onForwardingFinished, int depth);

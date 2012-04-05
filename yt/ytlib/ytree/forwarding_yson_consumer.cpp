@@ -55,7 +55,7 @@ void TForwardingYsonConsumer::UpdateDepth(int depthDelta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TForwardingYsonConsumer::OnStringScalar(const Stroka& value, bool hasAttributes)
+void TForwardingYsonConsumer::OnStringScalar(const TStringBuf& value, bool hasAttributes)
 {
     if (!ForwardingConsumer) {
         OnMyStringScalar(value, hasAttributes);
@@ -134,7 +134,7 @@ void TForwardingYsonConsumer::OnBeginMap()
     }
 }
 
-void TForwardingYsonConsumer::OnMapItem(const Stroka& name)
+void TForwardingYsonConsumer::OnMapItem(const TStringBuf& name)
 {
     if (!ForwardingConsumer) {
         OnMyMapItem(name);
@@ -162,7 +162,7 @@ void TForwardingYsonConsumer::OnBeginAttributes()
     }
 }
 
-void TForwardingYsonConsumer::OnAttributesItem(const Stroka& name)
+void TForwardingYsonConsumer::OnAttributesItem(const TStringBuf& name)
 {
     if (!ForwardingConsumer) {
         OnMyAttributesItem(name);
@@ -183,7 +183,7 @@ void TForwardingYsonConsumer::OnEndAttributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TForwardingYsonConsumer::OnMyStringScalar(const Stroka& value, bool hasAttributes)
+void TForwardingYsonConsumer::OnMyStringScalar(const TStringBuf& value, bool hasAttributes)
 {
     UNUSED(value);
     UNUSED(hasAttributes);
@@ -230,7 +230,7 @@ void TForwardingYsonConsumer::OnMyBeginMap()
     YUNREACHABLE();
 }
 
-void TForwardingYsonConsumer::OnMyMapItem(const Stroka& name)
+void TForwardingYsonConsumer::OnMyMapItem(const TStringBuf& name)
 {
     UNUSED(name);
     YUNREACHABLE();
@@ -247,7 +247,7 @@ void TForwardingYsonConsumer::OnMyBeginAttributes()
     YUNREACHABLE();
 }
 
-void TForwardingYsonConsumer::OnMyAttributesItem(const Stroka& name)
+void TForwardingYsonConsumer::OnMyAttributesItem(const TStringBuf& name)
 {
     UNUSED(name);
     YUNREACHABLE();

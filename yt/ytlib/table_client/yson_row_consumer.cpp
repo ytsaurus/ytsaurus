@@ -12,7 +12,7 @@ TRowConsumer::TRowConsumer(ISyncTableWriter* writer)
     , InsideRow(false)
 { }
 
-void TRowConsumer::OnStringScalar(const Stroka& value, bool hasAttributes)
+void TRowConsumer::OnStringScalar(const TStringBuf& value, bool hasAttributes)
 {
     CheckNoAttributes(hasAttributes);
     CheckInsideRow();
@@ -67,10 +67,10 @@ void TRowConsumer::OnBeginMap()
     InsideRow = true;
 }
 
-void TRowConsumer::OnMapItem(const Stroka& name)
+void TRowConsumer::OnMapItem(const TStringBuf& name)
 {
     YASSERT(InsideRow);
-    Column = name;
+    Column.assign(name);
 }
 
 void TRowConsumer::OnEndMap(bool hasAttributes)
@@ -87,7 +87,7 @@ void TRowConsumer::OnBeginAttributes()
     YUNREACHABLE();
 }
 
-void TRowConsumer::OnAttributesItem(const Stroka& name)
+void TRowConsumer::OnAttributesItem(const TStringBuf& name)
 {
     UNUSED(name);
     YUNREACHABLE();

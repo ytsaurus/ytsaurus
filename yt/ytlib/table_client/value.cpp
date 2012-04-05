@@ -12,8 +12,8 @@ TValue::TValue(TRef data)
     : Data(data)
 { }
 
-TValue::TValue(const Stroka& data)
-    : Data(const_cast<char*>(data.begin()), data.Size())
+TValue::TValue(const TStringBuf& data)
+    : Data(const_cast<char*>(data.data()), data.length())
 { }
 
 TValue::TValue()
