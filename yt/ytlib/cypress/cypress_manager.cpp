@@ -294,23 +294,29 @@ const ICypressNode* TCypressManager::FindVersionedNode(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // Walk up from the current transaction to the root.
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto currentTransactionId = transactionId;
+    auto currentTransaction = transactionManager->FindTransaction(transactionId);
+
+    // Check transactionId for validness. NullTransaction is OK here.
+    if (transactionId != NullTransactionId && !currentTransaction) {
+        return NULL;
+    }
+
     while (true) {
         auto* currentNode = FindNode(TVersionedNodeId(nodeId, currentTransactionId));
         if (currentNode) {
             return currentNode;
         }
 
-        if (currentTransactionId == NullTransactionId) {
+        if (!currentTransaction) {
             // Looks like there's no such node at all.
             return NULL;
         }
 
         // Move to the parent transaction.
-        const auto& transaction = transactionManager->GetTransaction(currentTransactionId);
-        currentTransactionId = transaction.GetParentId();
+        currentTransactionId = currentTransaction->GetParentId();
+        currentTransaction = currentTransaction->GetParent();
     }
 }
 
@@ -343,9 +349,16 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
         AcquireLock(nodeId, transactionId, requestedMode);
     }
 
-    // Walk up from the current transaction to the root.
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto currentTransactionId = transactionId;
+    auto currentTransaction = transactionManager->FindTransaction(transactionId);
+
+    // Check transactionId for validness.
+    if (transactionId != NullTransactionId && !currentTransaction) {
+        return NULL;
+    }
+
+    // Walk up from the current transaction to the root.
     while (true) {
         auto* currentNode = FindNode(TVersionedNodeId(nodeId, currentTransactionId));
         if (currentNode) {
@@ -366,14 +379,14 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
             }
         }
 
-        if (currentTransactionId == NullTransactionId) {
+        if (!currentTransaction) {
             // Looks like there's no such node at all.
             return NULL;
         }
 
         // Move to the parent transaction.
-        const auto& transaction = transactionManager->GetTransaction(currentTransactionId);
-        currentTransactionId = transaction.GetParentId();
+        currentTransactionId = currentTransaction->GetParentId();
+        currentTransaction = currentTransaction->GetParent();
     }
 }
 
@@ -446,6 +459,8 @@ void TCypressManager::ValidateLock(
                 return;
             }
         }
+
+        // Move to the parent transaction.
         const auto& transaction = transactionManager->GetTransaction(currentTransactionId);
         currentTransactionId = transaction.GetParentId();
     }
