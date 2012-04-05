@@ -16,5 +16,5 @@ yt download //file > downloaded_file.txt
 diff= `diff some_file.txt downloaded_file.txt`
 echo "Diff: $diff"
 
-yt remove /file
+yt remove //file
 yt get //sys/chunks@count
