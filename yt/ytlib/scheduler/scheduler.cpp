@@ -726,10 +726,10 @@ private:
     {
         switch (operation->GetType()) {
             case EOperationType::Map:
-                return CreateMapController(this, operation);
+                return CreateMapController(Config->Map, this, operation);
                 break;
             case EOperationType::Merge:
-                return CreateMergeController(this, operation);
+                return CreateMergeController(Config->Merge, this, operation);
                 break;
             default:
                 YUNREACHABLE();

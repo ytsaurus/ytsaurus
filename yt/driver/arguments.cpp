@@ -2,9 +2,12 @@
 
 #include <build.h>
 
+#include <ytlib/job_proxy/config.h>
+
 namespace NYT {
 
 using namespace NYTree;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +57,6 @@ void TArgsBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
         auto yson = updateString.substr(index + 1);
         SyncYPathSet(service, ypath, yson);
     }
-
 }
 
 void TArgsBase::BuildOptions(IYsonConsumer* consumer, TCLAP::MultiArg<Stroka>& arg)
@@ -354,8 +356,8 @@ void TMapArgs::BuildCommand(IYsonConsumer* consumer)
         .Item("do").Scalar("map")
         .Item("spec").BeginMap()
             .Item("mapper").Scalar(MapperArg.getValue())
-            .Item("in").List(InArg.getValue())
-            .Item("out").List(OutArg.getValue())
+            .Item("input_table_paths").List(InArg.getValue())
+            .Item("output_table_paths").List(OutArg.getValue())
             .Item("files").List(FilesArg.getValue())
         .EndMap();
 
@@ -367,11 +369,13 @@ void TMapArgs::BuildCommand(IYsonConsumer* consumer)
 TMergeArgs::TMergeArgs()
     : InArg("", "in", "input tables", false, "ypath")
     , OutArg("", "out", "output table", false, "", "ypath")
-    , SortedArg("s", "sorted", "produce sorted output (all input tables must be sorted)")
+    , ModeArg("", "mode", "merge mode", false, TMode(EMergeMode::Unordered), "unordered, ordered, sorted")
+    , CombineArg("", "combine", "combine small output chunks into larger ones")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
-    CmdLine.add(SortedArg);
+    CmdLine.add(ModeArg);
+    CmdLine.add(CombineArg);
 }
 
 void TMergeArgs::BuildCommand(IYsonConsumer* consumer)
@@ -379,9 +383,10 @@ void TMergeArgs::BuildCommand(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("merge")
         .Item("spec").BeginMap()
-            .Item("in").List(InArg.getValue())
-            .Item("out").List(OutArg.getValue())
-            .Item("sorted").Scalar(SortedArg.getValue())
+            .Item("input_table_paths").List(InArg.getValue())
+            .Item("output_table_path").Scalar(OutArg.getValue())
+            .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
+            .Item("combine_chunks").Scalar(CombineArg.getValue())
         .EndMap();
 
     TTransactedArgs::BuildCommand(consumer);

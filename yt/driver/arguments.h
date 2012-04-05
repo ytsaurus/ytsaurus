@@ -6,6 +6,8 @@
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_client.h>
 
+#include <ytlib/scheduler/config.h>
+
 #include <ytlib/misc/tclap_helpers.h>
 #include <tclap/CmdLine.h>
 
@@ -304,7 +306,12 @@ public:
 private:
     TCLAP::MultiArg<Stroka> InArg;
     TCLAP::ValueArg<Stroka> OutArg;
-    TCLAP::SwitchArg SortedArg;
+
+    typedef TNullable<NScheduler::EMergeMode> TMode;
+    typedef TCLAP::ValueArg<TMode> TModeArg;
+    TModeArg ModeArg;
+
+    TCLAP::SwitchArg CombineArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 

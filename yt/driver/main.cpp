@@ -15,6 +15,8 @@
 
 #include <ytlib/ytree/yson_parser.h>
 
+#include <ytlib/exec_agent/config.h>
+
 #include <ytlib/misc/home.h>
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/errortrace.h>

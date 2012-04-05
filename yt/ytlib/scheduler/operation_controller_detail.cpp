@@ -17,11 +17,184 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-TOperationControllerBase::TOperationControllerBase(IOperationHost* host, TOperation* operation)
-    : Host(host)
+TIntrusivePtr< TAsyncPipeline<TVoid> > StartAsyncPipeline(IInvoker::TPtr invoker)
+{
+    return New< TAsyncPipeline<TVoid> >(
+        invoker,
+        BIND([=] () -> TIntrusivePtr< TFuture< TValueOrError<TVoid> > > {
+            return MakeFuture(TValueOrError<TVoid>(TVoid()));
+    }));
+}
+
+////////////////////////////////////////////////////////////////////
+
+TChunkListPool::TChunkListPool(
+    NRpc::IChannel::TPtr masterChannel,
+    IInvoker::TPtr controlInvoker,
+    TOperationPtr operation,
+    const TTransactionId& transactionId)
+    : MasterChannel(masterChannel)
+    , ControlInvoker(controlInvoker)
+    , Operation(operation)
+    , TransactionId(transactionId)
+    , Logger(OperationsLogger)
+    , RequestInProgress(false)
+{
+    Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
+}
+
+int TChunkListPool::GetSize() const
+{
+    return static_cast<int>(Ids.size());
+}
+
+NYT::NChunkServer::TChunkListId TChunkListPool::Extract()
+{
+    YASSERT(!Ids.empty());
+    auto id = Ids.back();
+    Ids.pop_back();
+
+    LOG_DEBUG("Extracted chunk list %s from the pool, %d remaining",
+        ~id.ToString(),
+        static_cast<int>(Ids.size()));
+
+    return id;
+}
+
+void TChunkListPool::Allocate(int count)
+{
+    if (RequestInProgress) {
+        LOG_DEBUG("Cannot allocate more chunk lists, another request is in progress");
+        return;
+    }
+
+    LOG_INFO("Allocating %d chunk lists for pool", count);
+
+    TCypressServiceProxy cypressProxy(MasterChannel);
+    auto batchReq = cypressProxy.ExecuteBatch();
+
+    for (int index = 0; index < count; ++index) {
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
+        req->set_type(EObjectType::ChunkList);
+        batchReq->AddRequest(req);
+    }
+
+    batchReq->Invoke()->Subscribe(
+        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this))
+        .Via(ControlInvoker));
+
+    RequestInProgress = true;
+}
+
+void TChunkListPool::OnChunkListsCreated(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+{
+    YASSERT(RequestInProgress);
+    RequestInProgress = false;
+
+    if (!batchRsp->IsOK()) {
+        LOG_ERROR("Error allocating chunk lists\n%s", ~batchRsp->GetError().ToString());
+        // TODO(babenko): backoff time?
+        return;
+    }
+
+    LOG_INFO("Chunk lists allocated");
+
+    YASSERT(Ids.empty());
+
+    FOREACH (auto rsp, batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>()) {
+        Ids.push_back(TChunkListId::FromProto(rsp->object_id()));
+    }
+}
+
+////////////////////////////////////////////////////////////////////
+
+TRunningCounter::TRunningCounter()
+    : Total_(-1)
+    , Running_(-1)
+    , Done_(-1)
+    , Pending_(-1)
+    , Failed_(-1)
+{ }
+
+void TRunningCounter::Init(i64 total)
+{
+    Total_ = total;
+    Running_ = 0;
+    Done_ = 0;
+    Pending_ = total;
+    Failed_ = 0;
+}
+
+i64 TRunningCounter::GetTotal() const
+{
+    return Total_;
+}
+
+i64 TRunningCounter::GetRunning() const
+{
+    return Running_;
+}
+
+i64 TRunningCounter::GetDone() const
+{
+    return Done_;
+}
+
+i64 TRunningCounter::GetPending() const
+{
+    return Pending_;
+}
+
+i64 TRunningCounter::GetFailed() const
+{
+    return Failed_;
+}
+
+void TRunningCounter::Start(i64 count)
+{
+    YASSERT(Pending_ >= count);
+    Running_ += count;
+    Pending_ -= count;
+}
+
+void TRunningCounter::Completed(i64 count)
+{
+    YASSERT(Running_ >= count);
+    Running_ -= count;
+    Done_ += count;
+}
+
+void TRunningCounter::Failed(i64 count)
+{
+    YASSERT(Running_ >= count);
+    Running_ -= count;
+    Pending_ += count;
+    Failed_ += count;
+}
+
+Stroka ToString(const TRunningCounter& counter)
+{
+    return Sprintf("T: %" PRId64 ", R: %" PRId64 ", D: %" PRId64 ", P: %" PRId64 ", F: %" PRId64,
+        counter.GetTotal(),
+        counter.GetRunning(),
+        counter.GetDone(),
+        counter.GetPending(),
+        counter.GetFailed());
+}
+
+////////////////////////////////////////////////////////////////////
+
+TOperationControllerBase::TOperationControllerBase(
+    TOperationControllerConfigBasePtr config,
+    IOperationHost* host,
+    TOperation* operation)
+    : Config(config)
+    , Host(host)
     , Operation(operation)
     , CypressProxy(host->GetMasterChannel())
     , Logger(OperationsLogger)
+    , Active(false)
+    , Running(false)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }
@@ -30,7 +203,20 @@ void TOperationControllerBase::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     
+    LOG_INFO("Initializing operation");
+
+    Active = true;
     ExecNodeCount = Host->GetExecNodeCount();
+
+    try {
+        DoInitialize();
+    } catch (const std::exception& ex) {
+        LOG_INFO("Operation has failed to initialize\n%s", ex.what());
+        Active = false;
+        throw;
+    }
+
+    LOG_INFO("Operation initialized");
 }
 
 TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
@@ -49,9 +235,14 @@ TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
         ->Run()
         ->Apply(BIND([=] (TValueOrError<TVoid> result) -> TFuture<TVoid>::TPtr {
             if (result.IsOK()) {
+                if (this_->Active) {
+                    this_->Running = true;
+                }
                 return MakeFuture(TVoid());
             } else {
-                this_->OnOperationFailed(result);
+                LOG_WARNING("Operation preparation failed\n%s", ~result.ToString());
+                this_->Active = false;
+                this_->Host->OnOperationFailed(this_->Operation, result);
                 return New< TFuture<TVoid> >();
             }
         }));
@@ -62,7 +253,7 @@ TFuture<TVoid>::TPtr TOperationControllerBase::Revive()
     try {
         Initialize();
     } catch (const std::exception& ex) {
-        OnOperationFailed(TError("Operation has failed to initialize\n%s",
+        FailOperation(TError("Operation has failed to initialize\n%s",
             ex.what()));
         // This promise is never fulfilled.
         return New< TFuture<TVoid> >();
@@ -72,17 +263,46 @@ TFuture<TVoid>::TPtr TOperationControllerBase::Revive()
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
 {
-    UNUSED(job);
+    LOG_DEBUG("Job %s is running", ~job->GetId().ToString());
 }
 
 void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 {
-    UNUSED(job);
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LOG_INFO("Job %s completed\n%s",
+        ~job->GetId().ToString(),
+        ~TError::FromProto(job->Result().error()).ToString());
+
+    JobCounter.Completed(1);
+
+    DoJobCompleted(job);
+
+    DumpProgress();
+
+    if (JobCounter.GetRunning() == 0 && HasPendingJobs()) {
+        FinalizeOperation();
+    }
 }
 
 void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
-    UNUSED(job);
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LOG_INFO("Job %s failed\n%s",
+        ~job->GetId().ToString(),
+        ~TError::FromProto(job->Result().error()).ToString());
+
+    JobCounter.Failed(1);
+
+    DoJobFailed(job);
+
+    DumpProgress();
+
+    if (JobCounter.GetFailed() > Config->MaxFailedJobCount) {
+        FailOperation(TError("%d jobs failed, aborting operation",
+            JobCounter.GetFailed()));
+    }
 }
 
 void TOperationControllerBase::OnOperationAborted()
@@ -92,32 +312,47 @@ void TOperationControllerBase::OnOperationAborted()
     AbortOperation();
 }
 
-void TOperationControllerBase::ScheduleJobs(
-    TExecNodePtr node,
-    std::vector<TJobPtr>* jobsToStart,
-    std::vector<TJobPtr>* jobsToAbort)
+TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
 {
-    UNUSED(node);
-    UNUSED(jobsToStart);
-    UNUSED(jobsToAbort);
+    VERIFY_THREAD_AFFINITY(ControlThread);
+ 
+    if (!Running) {
+        LOG_DEBUG("Operation is not running, scheduling request ignored");
+        return NULL;
+    }
+
+    if (!HasPendingJobs()) {
+        LOG_DEBUG("No pending jobs left, scheduling request ignored");
+        return NULL;
+    }
+
+    auto job = DoScheduleJob(node);
+    if (job) {
+        LOG_INFO("Scheduled job %s", ~job->GetId().ToString());
+        JobCounter.Start(1);
+        DumpProgress();
+    }
+
+    return job;
 }
 
-void TOperationControllerBase::OnOperationFailed(const TError& error)
+i64 TOperationControllerBase::GetPendingJobCount()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return JobCounter.GetPending();
+}
+
+void TOperationControllerBase::FailOperation(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     LOG_INFO("Operation failed\n%s", ~error.ToString());
 
+    Running = false;
+    Active = false;
+
     Host->OnOperationFailed(Operation, error);
-}
-
-void TOperationControllerBase::OnOperationCompleted()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    LOG_INFO("Operation completed");
-
-    Host->OnOperationCompleted(Operation);
 }
 
 void TOperationControllerBase::AbortOperation()
@@ -127,6 +362,8 @@ void TOperationControllerBase::AbortOperation()
     LOG_INFO("Aborting operation");
 
     AbortTransactions();
+    Running = false;
+    Active = false;
 
     LOG_INFO("Operation aborted");
 }
@@ -143,11 +380,13 @@ void TOperationControllerBase::AbortTransactions()
     // No need to abort the others.
 }
 
-void TOperationControllerBase::CompleteOperation()
+void TOperationControllerBase::FinalizeOperation()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    LOG_INFO("Completing operation");
+    LOG_INFO("Finalizing operation");
+
+    Running = false;
 
     auto this_ = MakeStrong(this);
     StartAsyncPipeline(Host->GetBackgroundInvoker())
@@ -155,10 +394,13 @@ void TOperationControllerBase::CompleteOperation()
         ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
         ->Run()
         ->Subscribe(BIND([=] (TValueOrError<TVoid> result) {
+            Active = false;
             if (result.IsOK()) {
-                this_->OnOperationCompleted();
+                LOG_INFO("Operation finalized and completed");
+                this_->Host->OnOperationCompleted(this_->Operation);
             } else {
-                this_->OnOperationFailed(result);
+                LOG_WARNING("Operation has failed to finalize\n%s", ~result.ToString());
+                this_->Host->OnOperationFailed(this_->Operation, result);
             }
     }));
 }
@@ -167,11 +409,13 @@ TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::CommitOut
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
+    LOG_INFO("Committing outputs");
+
     auto batchReq = CypressProxy.ExecuteBatch();
 
     FOREACH (const auto& table, OutputTables) {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-        FOREACH (const auto& childId, table.ChunkTreeIds) {
+        FOREACH (const auto& childId, table.OutputChildrenIds) {
             *req->add_children_ids() = childId.ToProto();
         }
         batchReq->AddRequest(req, "attach_chunk_trees");
@@ -230,14 +474,14 @@ TVoid TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExe
 
     LOG_INFO("Outputs committed");
 
-    OnOperationCompleted();
-
     return TVoid();
 }
 
 TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::StartPrimaryTransaction(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    LOG_INFO("Starting primary transaction");
 
     auto batchReq = CypressProxy.ExecuteBatch();
 
@@ -254,11 +498,11 @@ TVoid TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    CheckResponse(batchRsp, "Error creating primary transaction");
+    CheckResponse(batchRsp, "Error starting primary transaction");
 
     {
         auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_primary_tx");
-        CheckResponse(rsp, "Error creating primary transaction");
+        CheckResponse(rsp, "Error starting primary transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Primary transaction is %s", ~id.ToString());
         PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
@@ -270,6 +514,8 @@ TVoid TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy
 TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::StartSeconaryTransactions(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    LOG_INFO("Starting secondary transactions");
 
     auto batchReq = CypressProxy.ExecuteBatch();
 
@@ -292,11 +538,11 @@ TVoid TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServicePr
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    CheckResponse(batchRsp, "Error creating secondary transactions");
+    CheckResponse(batchRsp, "Error starting secondary transactions");
 
     {
         auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_input_tx");
-        CheckResponse(rsp, "Error creating input transaction");
+        CheckResponse(rsp, "Error starting input transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Input transaction is %s", ~id.ToString());
         InputTransaction = Host->GetTransactionManager()->Attach(id);
@@ -304,7 +550,7 @@ TVoid TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServicePr
 
     {
         auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_output_tx");
-        CheckResponse(rsp, "Error creating output transaction");
+        CheckResponse(rsp, "Error starting output transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Output transaction is %s", ~id.ToString());
         OutputTransaction = Host->GetTransactionManager()->Attach(id);
@@ -442,9 +688,26 @@ TVoid TOperationControllerBase::CompletePreparation(TVoid)
 
     LOG_INFO("Completing preparation");
 
+    ChunkListPool = New<TChunkListPool>(
+        Host->GetMasterChannel(),
+        Host->GetControlInvoker(),
+        Operation,
+        PrimaryTransaction->GetId());
+
     DoCompletePreparation();
 
+    if (Active) {
+        LOG_INFO("Preparation completed");
+    }
+
     return TVoid();
+}
+
+void TOperationControllerBase::ReleaseChunkList(const TChunkListId& id)
+{
+    std::vector<TChunkListId> ids;
+    ids.push_back(id);
+    ReleaseChunkLists(ids);
 }
 
 void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>& ids)
@@ -455,174 +718,38 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
         *req->mutable_object_id() = id.ToProto();
         batchReq->AddRequest(req);
     }
+
     // Fire-and-forget.
-    // TODO(babenko): log result
-    batchReq->Invoke();
+    // The subscriber is only needed to log the outcome.
+    batchReq->Invoke()->Subscribe(BIND(&TThis::OnChunkListsReleased, MakeStrong(this)));
 }
 
-////////////////////////////////////////////////////////////////////
-
-TChunkListPool::TChunkListPool(
-    NRpc::IChannel::TPtr masterChannel,
-    IInvoker::TPtr controlInvoker,
-    TOperationPtr operation,
-    const TTransactionId& transactionId)
-    : MasterChannel(masterChannel)
-    , ControlInvoker(controlInvoker)
-    , Operation(operation)
-    , TransactionId(transactionId)
-    , Logger(OperationsLogger)
-    , RequestInProgress(false)
+void TOperationControllerBase::OnChunkListsReleased(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
-    Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
-}
-
-int TChunkListPool::GetSize() const
-{
-    return static_cast<int>(Ids.size());
-}
-
-NYT::NChunkServer::TChunkListId TChunkListPool::Extract()
-{
-    YASSERT(!Ids.empty());
-    auto id = Ids.back();
-    Ids.pop_back();
-
-    LOG_DEBUG("Extracted chunk list %s from the pool, %d remaining",
-        ~id.ToString(),
-        static_cast<int>(Ids.size()));
-
-    return id;
-}
-
-void TChunkListPool::Allocate(int count)
-{
-    if (RequestInProgress) {
-        LOG_DEBUG("Cannot allocate more chunk lists, another request is in progress");
-        return;
-    }
-
-    LOG_INFO("Allocating %d chunk lists for pool", count);
-
-    TCypressServiceProxy cypressProxy(MasterChannel);
-    auto batchReq = cypressProxy.ExecuteBatch();
-
-    for (int index = 0; index < count; ++index) {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
-        req->set_type(EObjectType::ChunkList);
-        batchReq->AddRequest(req);
-    }
-
-    batchReq->Invoke()->Subscribe(
-        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this))
-        .Via(ControlInvoker));
-
-    RequestInProgress = true;
-}
-
-void TChunkListPool::OnChunkListsCreated(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
-{
-    YASSERT(RequestInProgress);
-    RequestInProgress = false;
-
-    if (!batchRsp->IsOK()) {
-        LOG_ERROR("Error allocating chunk lists\n%s", ~batchRsp->GetError().ToString());
-        // TODO(babenko): backoff time?
-        return;
-    }
-
-    LOG_INFO("Chunk lists allocated");
-
-    YASSERT(Ids.empty());
-
-    FOREACH (auto rsp, batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>()) {
-        Ids.push_back(TChunkListId::FromProto(rsp->object_id()));
+    if (batchRsp->IsOK()) {
+        LOG_INFO("Chunk lists released successfully");
+    } else {
+        LOG_WARNING("Error releasing chunk lists\n%s", ~batchRsp->GetError().ToString());
     }
 }
 
-TIntrusivePtr< TAsyncPipeline<TVoid> > StartAsyncPipeline(IInvoker::TPtr invoker)
+bool TOperationControllerBase::CheckChunkListsPoolSize(int count)
 {
-    return New< TAsyncPipeline<TVoid> >(
-        invoker,
-        BIND([=] () -> TIntrusivePtr< TFuture< TValueOrError<TVoid> > > {
-            return MakeFuture(TValueOrError<TVoid>(TVoid()));
-    }));
+    if (ChunkListPool->GetSize() >= count) {
+        return true;
+    }
+
+    int allocateCount = count * Config->ChunkListAllocationMultiplier;
+    LOG_DEBUG("Insufficient pooled chunk lists left, allocating another %d", allocateCount);
+    ChunkListPool->Allocate(allocateCount);
+    return false;
 }
 
-////////////////////////////////////////////////////////////////////
-
-TRunningCounter::TRunningCounter()
-    : Total_(-1)
-    , Running_(-1)
-    , Done_(-1)
-    , Pending_(-1)
-    , Failed_(-1)
-{ }
-
-void TRunningCounter::Init(i64 total)
+i64 TOperationControllerBase::GetJobWeightThreshold(i64 pendingJobs, i64 pendingWeight)
 {
-    Total_ = total;
-    Running_ = 0;
-    Done_ = 0;
-    Pending_ = total;
-    Failed_ = 0;
-}
-
-i64 TRunningCounter::GetTotal() const
-{
-    return Total_;
-}
-
-i64 TRunningCounter::GetRunning() const
-{
-    return Running_;
-}
-
-i64 TRunningCounter::GetDone() const
-{
-    return Done_;
-}
-
-
-i64 TRunningCounter::GetPending() const
-{
-    return Pending_;
-}
-i64 TRunningCounter::GetFailed() const
-{
-    return Failed_;
-}
-
-void TRunningCounter::Start(i64 count)
-{
-    YASSERT(Pending_ >= count);
-    Running_ += count;
-    Pending_ -= count;
-}
-
-void TRunningCounter::Completed(i64 count)
-{
-    YASSERT(Running_ >= count);
-    Running_ -= count;
-    Done_ += count;
-}
-
-void TRunningCounter::Failed(i64 count)
-{
-    YASSERT(Running_ >= count);
-    Running_ -= count;
-    Pending_ += count;
-    Failed_ += count;
-}
-
-Stroka ToString(const TRunningCounter& counter)
-{
-    return Sprintf("T: %" PRId64 ", R: %" PRId64 ", D: %" PRId64 ", P: %" PRId64 ", F: %" PRId64,
-        counter.GetTotal(),
-        counter.GetRunning(),
-        counter.GetDone(),
-        counter.GetPending(),
-        counter.GetFailed());
+    YASSERT(pendingJobs > 0);
+    YASSERT(pendingWeight > 0);
+    return (i64) ceil((double) pendingWeight / pendingJobs);
 }
 
 ////////////////////////////////////////////////////////////////////

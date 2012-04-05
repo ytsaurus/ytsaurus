@@ -17,6 +17,7 @@
 
 #include <ytlib/chunk_client/client_block_cache.h>
 
+#include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/scheduler_channel.h>
 
 #include <ytlib/job_proxy/config.h>
