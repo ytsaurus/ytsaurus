@@ -430,7 +430,11 @@ void TObjectManager::Clear()
 
 bool TObjectManager::ObjectExists(const TObjectId& id)
 {
-    return GetHandler(id)->Exists(id);
+    auto handler = FindHandler(TypeFromId(id));
+    if (!handler) {
+        return false;
+    }
+    return handler->Exists(id);
 }
 
 IObjectProxy::TPtr TObjectManager::FindProxy(const TVersionedObjectId& id)
