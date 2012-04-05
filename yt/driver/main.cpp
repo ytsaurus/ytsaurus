@@ -22,7 +22,6 @@
 #include <ytlib/misc/errortrace.h>
 #include <ytlib/misc/thread.h>
 
-#include <util/config/last_getopt.h>
 #include <util/stream/pipe.h>
 #include <util/folder/dirut.h>
 
