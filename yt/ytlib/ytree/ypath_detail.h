@@ -168,6 +168,8 @@ class TNodeSetter
         { } \
     \
     private: \
+        typedef type TType; \
+        \
         I##name##NodePtr Node; \
         \
         virtual ENodeType GetExpectedType() \
@@ -180,7 +182,7 @@ class TNodeSetter
             bool hasAttributes) \
         { \
             UNUSED(hasAttributes); \
-            Node->SetValue(value); \
+            Node->SetValue(TType(value)); \
         } \
     }
 
