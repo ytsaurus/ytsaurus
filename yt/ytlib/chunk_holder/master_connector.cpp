@@ -134,6 +134,8 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response)
 {
+    ScheduleHeartbeat();
+
     if (!response->IsOK()) {
         Disconnect();
 
