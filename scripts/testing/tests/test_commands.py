@@ -70,8 +70,7 @@ class TestCypressCommands(YTEnvSetup):
         # expect_error( set('/', '{}'))
 
         # remove the root
-        expect_error( remove('/'))
-       
+        expect_error( remove('/'))       
         # get non existent child
         expect_error( get('//b'))
 
@@ -92,13 +91,14 @@ class TestTxCommands(YTEnvSetup):
         assert get_transactions() == {tx_id: None}
         assert get_transactions(tx = tx_id) == {tx_id: None}
 
-        commit_transaction(tx = tx_id)
-        # couldn't commit or abort commited transaction
-        expect_error(commit_transaction(tx = tx_id))
-        expect_error(abort_transaction(tx = tx_id))
-
+        expect_ok( commit_transaction(tx = tx_id))
         #check that transaction no longer exists
         assert get_transactions() == {}
+
+        #couldn't commit commited transaction
+        expect_error( commit_transaction(tx = tx_id))
+        #could (!) abort commited transaction
+        expect_ok( abort_transaction(tx = tx_id))
 
         ##############################################################3
         #check the same for abort
@@ -107,12 +107,14 @@ class TestTxCommands(YTEnvSetup):
         assert get_transactions() == {tx_id: None}
         assert get_transactions(tx = tx_id) == {tx_id: None}
         
-        abort_transaction(tx = tx_id)
-        # couldn't commit or abort aborted transaction
-        expect_error(commit_transaction(tx = tx_id))
-        expect_error(abort_transaction(tx = tx_id))
-
+        expect_ok( abort_transaction(tx = tx_id))
+        #check that transaction no longer exists
         assert get_transactions() == {}
+
+        #couldn't commit aborted transaction
+        expect_error( commit_transaction(tx = tx_id))
+        #could (!) abort aborted transaction
+        expect_ok( abort_transaction(tx = tx_id))
 
     def test_changes_inside_tx(self):
         expect_ok(set('//value', '42'))
@@ -136,28 +138,28 @@ class TestLockCommands(YTEnvSetup):
     #TODO(panin): check error messages
     def test_invalid_cases(self):
         # outside of transaction
-        expect_error(lock('/'))
+        expect_error( lock('/'))
 
         # at non-existsing node
         tx_id = start_transaction()
-        expect_error(lock('//non_existent', tx = tx_id))
+        expect_error( lock('//non_existent', tx = tx_id))
 
         # error while parsing mode
-        expect_error(lock('/', mode = 'invalid', tx = tx_id))
+        expect_error( lock('/', mode = 'invalid', tx = tx_id))
 
         #taking None lock is forbidden
-        expect_error(lock('/', mode = 'None', tx = tx_id))
+        expect_error( lock('/', mode = 'None', tx = tx_id))
 
         # attributes do not have @lock_mode
-        expect_ok(set('//value', '42<attr=some>', tx = tx_id))
-        expect_error(lock('//value@attr@lock_mode', tx = tx_id))
+        expect_ok( set('//value', '42<attr=some>', tx = tx_id))
+        expect_error( lock('//value@attr@lock_mode', tx = tx_id))
        
-        abort_transaction(tx = tx_id)
+        expect_ok( abort_transaction(tx = tx_id))
 
     def test_display_locks(self):
         tx_id = start_transaction()
         
-        expect_ok(set('//map', '{list = [1; 2; 3] <attr=some>}', tx = tx_id))
+        expect_ok( set('//map', '{list = [1; 2; 3] <attr=some>}', tx = tx_id))
 
         # check that lock is set on nested nodes
         assert_eq( get('//map@lock_mode',        tx = tx_id), '"exclusive"')
@@ -193,9 +195,9 @@ class TestLockCommands(YTEnvSetup):
         # shared locks are available only on tables (as well as creation of different types)
         for object_type in types_to_check:
             tx_id = start_transaction()
-            expect_ok(create('//some', object_type, tx = tx_id))
-            expect_error(lock('//some', mode = 'shared', tx = tx_id))
-            expect_ok(abort_transaction(tx = tx_id))
+            expect_ok( create('//some', object_type, tx = tx_id))
+            expect_error( lock('//some', mode = 'shared', tx = tx_id))
+            expect_ok( abort_transaction(tx = tx_id))
 
 
     def test_lock_combinations(self):
