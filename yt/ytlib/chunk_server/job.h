@@ -15,7 +15,7 @@ class TJob
 {
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
-    DEFINE_BYVAL_RO_PROPERTY(TChunk*, Chunk);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
     DEFINE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
@@ -24,7 +24,7 @@ public:
     TJob(
         EJobType type,
         const TJobId& jobId,
-        TChunk* chunk,
+        const TChunkId& chunkId,
         const Stroka& runnerAddress,
         const yvector<Stroka>& targetAddresses,
         TInstant startTime);

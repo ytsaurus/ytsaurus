@@ -1032,12 +1032,11 @@ private:
         auto targetAddresses = FromProto<Stroka>(jobInfo.target_addresses());
         auto jobType = EJobType(jobInfo.type());
         auto startTime = TInstant(jobInfo.start_time());
-        auto* chunk = FindChunk(chunkId);
 
         auto* job = new TJob(
             jobType,
             jobId,
-            chunk,
+            chunkId,
             holder.GetAddress(),
             targetAddresses,
             startTime);
@@ -1062,7 +1061,7 @@ private:
     {
         auto jobId = job->GetId();
 
-        auto& list = GetJobList(job->GetChunk()->GetId());
+        auto& list = GetJobList(job->GetChunkId());
         list.RemoveJob(job);
         DropJobListIfEmpty(list);
 
@@ -1071,7 +1070,7 @@ private:
         }
 
         if (IsLeader()) {
-            JobScheduler->ScheduleChunkRefresh(job->GetChunk()->GetId());
+            JobScheduler->ScheduleChunkRefresh(job->GetChunkId());
         }
 
         UnregisterReplicationSinks(job);
