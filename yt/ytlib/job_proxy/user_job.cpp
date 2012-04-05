@@ -183,7 +183,7 @@ void TUserJob::StartJob()
         exit(7);
     }
     catch (const std::exception& e) {
-        auto writeResult = :write(STDERR_FILENO, e.what(), strlen(e.what()));
+        auto writeResult = ::write(STDERR_FILENO, e.what(), strlen(e.what()));
     }
     // catch (...) {
     //     // Use some exotic error codes here to analyze errors later.
