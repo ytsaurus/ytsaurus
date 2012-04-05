@@ -44,6 +44,7 @@ TJob::TJob(
     , JobState(EJobState::Running)
     , JobProgress(EJobProgress::Created)
     , JobResult(New< TFuture<TJobResult> >())
+    , JobFinished(New< TFuture<TVoid> >())
     , ProxyConfig(proxyConfig)
 {
     VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
@@ -245,10 +246,13 @@ void TJob::OnJobExit(TError error)
 
         JobProgress = EJobProgress::Completed;
         
-        if (TError::FromProto(JobResult->Get().error()).IsOK())
+        if (TError::FromProto(JobResult->Get().error()).IsOK()) {
             JobState = EJobState::Completed;
-        else
+        } else {
             JobState = EJobState::Failed;
+        }
+
+        JobFinished->Set(TVoid());
     }
 }
 
@@ -317,7 +321,7 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
     LOG_DEBUG("Aborting job (JobId: %s)", 
         ~JobId.ToString());
 
-    if (jobProgress >= EJobProgress::StartedProxy)
+    if (jobProgress >= EJobProgress::StartedProxy) {
         try {
             LOG_DEBUG("Killing job (JobId: %s)", 
                 ~JobId.ToString());
@@ -327,6 +331,7 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
             LOG_FATAL("Failed to kill job (JobId: %s)", 
                 ~JobId.ToString());
         }
+    }
 
     if (jobProgress >= EJobProgress::PreparingSandbox) {
         LOG_DEBUG("Cleaning slot (JobId: %s)", 
@@ -335,16 +340,14 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
     }
 
     JobProgress = EJobProgress::Failed;
-
-    SetResult(error);
     JobState = resultState;
+    JobResult->Set(jobResult);
+    JobFinished->Set(TVoid());
 }
 
 void TJob::SubscribeFinished(const TCallback<void()>& callback)
 {
-    JobResult->Subscribe(BIND([=] (TJobResult result) {
-        callback.Run();
-    }));
+    JobFinished->Subscribe(callback);
 }
 
 void TJob::UnsubscribeFinished(const TCallback<void()>& callback)
