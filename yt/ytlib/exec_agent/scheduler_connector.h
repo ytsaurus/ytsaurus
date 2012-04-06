@@ -27,7 +27,10 @@ private:
     NScheduler::TSchedulerServiceProxy Proxy;
     TDelayedInvoker::TCookie HeartbeatCookie;
 
-    void ScheduleHeartbeat(bool now);
+    bool HeartbeatInProgress;
+    bool OutOfOrderHeartbeatNeeded;
+
+    void ScheduleNextHeartbeat();
     void SendHeartbeat();
     void OnHeartbeatResponse(NScheduler::TSchedulerServiceProxy::TRspHeartbeat::TPtr rsp);
 
