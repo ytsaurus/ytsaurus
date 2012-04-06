@@ -12,13 +12,11 @@ localhost = 'build01-01g'
 
 Logging = {
     'writers' : {
-        'raw' :
-        {
+        'raw' : {
             'type' : 'raw',
             'file_name' : "%(debug_log_path)s"
         },
-        'file' :
-        {
+        'file' : {
             'type' : "file",
             'file_name' : "%(log_path)s",
             'pattern' : "$(datetime) $(level) $(category) $(message)"
@@ -29,8 +27,7 @@ Logging = {
             'categories' : [ "*" ],
             'min_level' : "debug",
             'writers' : [ "raw" ]
-        },
-        {
+        }, {
             'categories' : [ "*" ],
             'min_level' : "info",
             'writers' : [ "file" ]

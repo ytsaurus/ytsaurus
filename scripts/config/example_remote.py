@@ -31,8 +31,7 @@ Logging = {
 }
 
 
-Port = 9091
-MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:%d' % (i, Port) for i in xrange(1, 4)])
+MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:9000' % i for i in xrange(1, 4)])
 
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
@@ -65,7 +64,7 @@ class Server(Base, RemoteServer):
 class Master(Server):
     base_dir = '/yt/disk2/data'
     address = Subclass(MasterAddresses)
-    params = Template('--master --config %(config_path)s --port %(port)d')
+    params = Template('--master --config %(config_path)s')
 
     log_disk = 'disk2'
     log_path = Template("master-%(__name__)s.log")
@@ -93,6 +92,8 @@ class Master(Server):
                 'max_lost_chunk_fraction' : 0.01
             }
         },
+        'rpc_port' : 9000,
+        'monitoring_port' : 10000, 
         'logging' : Logging
     })
     
@@ -119,7 +120,8 @@ class Scheduler(Server):
         'scheduler' : {   
             'strategy' : 'fifo'
         },
-        'rpc_port' : 9092,
+        'rpc_port' : 9001,
+        'monitoring_port' : 10001, 
         'logging' : Logging
     })
 
@@ -142,8 +144,7 @@ class Holder(Server):
     def host(cls):
         return 'n01-0%dg' % (400 + 30 * cls.groupid + cls.nodeid)
     
-    port = Port
-    params = Template('--node --config %(config_path)s --port %(port)d')
+    params = Template('--node --config %(config_path)s')
 
     proxyLogging = deepcopy(Logging)
     proxyLogging['writers']['raw']['file_name'] = 'raw.log'
@@ -187,6 +188,8 @@ class Holder(Server):
             },
             'job_proxy_logging' : proxyLogging,
         },
+        'rpc_port' : 9002,
+        'monitoring_port' : 10002, 
         'logging' : Logging
     })
     
