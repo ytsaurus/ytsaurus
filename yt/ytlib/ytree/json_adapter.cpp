@@ -14,7 +14,7 @@ using NJson::TJsonWriter;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJsonAdapter::TJsonAdapter(TOutputStream* output)
-    : JsonWriter(new TJsonWriter(output, true))
+    : JsonWriter(new TJsonWriter(output, false))
     , WriteAttributes(false)
 { }
 
@@ -38,8 +38,14 @@ void TJsonAdapter::OnMyDoubleScalar(double value, bool hasAttributes)
 
 void TJsonAdapter::OnMyEntity(bool hasAttributes)
 {
-    UNUSED(hasAttributes);
-    JsonWriter->WriteNull();
+    JsonWriter->OpenMap();
+    JsonWriter->Write("$type");
+    JsonWriter->Write("entity");
+    if (hasAttributes) {
+        WriteAttributes = true;
+    } else {
+        JsonWriter->CloseMap();
+    }
 }
 
 void TJsonAdapter::OnMyBeginList()
