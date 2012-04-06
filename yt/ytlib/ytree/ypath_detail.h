@@ -76,15 +76,15 @@ protected:
     class TCombinedAttributeDictionary;
     THolder<IAttributeDictionary> CombinedAttributes_;
 
+    //! Represents the combined attributes collection containing both
+    //! user and system attributes (see #GetUserAttributes and #GetSystemAttributeProvider).
     IAttributeDictionary& CombinedAttributes();
 
-    // TODO(roizner,babenko): support NULL user attribute dictionary to
-    // allow TVirtualMapBase to use this mix-in.
-    // Can be NULL.
-    virtual IAttributeDictionary* GetUserAttributes() = 0;
+    //! Can be NULL.
+    virtual IAttributeDictionary* GetUserAttributes();
 
-    // Can be NULL.
-    virtual ISystemAttributeProvider* GetSystemAttributeProvider() = 0;
+    //! Can be NULL.
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider();
 
     virtual TResolveResult ResolveAttributes(
         const NYTree::TYPath& path,

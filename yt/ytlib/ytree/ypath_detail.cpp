@@ -594,6 +594,16 @@ IAttributeDictionary& TSupportsAttributes::CombinedAttributes()
     return *CombinedAttributes_;
 }
 
+IAttributeDictionary* TSupportsAttributes::GetUserAttributes()
+{
+    return NULL;
+}
+
+ISystemAttributeProvider* TSupportsAttributes::GetSystemAttributeProvider()
+{
+    return NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeSetterBase::TNodeSetterBase(INode* node, ITreeBuilder* builder)

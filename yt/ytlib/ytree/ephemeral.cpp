@@ -47,11 +47,6 @@ protected:
         return &Attributes();
     }
 
-    virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
-    {
-        return NULL;
-    }
-
 private:
     ICompositeNode* Parent;
     TAutoPtr<IAttributeDictionary> Attributes_;

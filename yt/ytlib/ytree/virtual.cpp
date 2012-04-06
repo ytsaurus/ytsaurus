@@ -17,120 +17,12 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TAttributedYPathServiceBase::ResolveAttributes(
-    const TYPath& path,
-    const Stroka& verb)
-{
-    UNUSED(path);
-    UNUSED(verb);
-    return TResolveResult::Here("@" + path);
-}
-
-void TAttributedYPathServiceBase::DoInvoke(NRpc::IServiceContext* context)
+void TVirtualMapBase::DoInvoke(IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
-    TYPathServiceBase::DoInvoke(context);
+    TSupportsAttributes::DoInvoke(context);
 }
-
-void TAttributedYPathServiceBase::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
-{
-    UNUSED(attributes);
-}
-
-bool TAttributedYPathServiceBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
-{
-    return false;
-}
-
-bool TAttributedYPathServiceBase::SetSystemAttribute(const Stroka& key, TYsonProducer producer)
-{
-    return false;
-}
-
-void TAttributedYPathServiceBase::GetAttribute(const NYTree::TYPath& path, TReqGet* request, TRspGet* response, TCtxGet* context)
-{
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary);
-
-    TYPath suffixPath;
-    auto token = ChopToken(path, &suffixPath);
-
-    if (token.GetType() == ETokenType::None) {
-        std::vector<TAttributeInfo> systemAttributes;
-        GetSystemAttributes(&systemAttributes);
-
-        writer.OnBeginMap();
-        FOREACH (const auto& attribute, systemAttributes) {
-            if (attribute.IsPresent) {
-                writer.OnMapItem(attribute.Key);
-                if (attribute.IsOpaque) {
-                    writer.OnEntity();
-                } else {
-                    YVERIFY(GetSystemAttribute(attribute.Key, &writer));
-                }
-            }
-        }
-        writer.OnEndMap();
-
-        response->set_value(stream.Str());
-    } else if (token.GetType() == ETokenType::String) {
-        if (!GetSystemAttribute(token.GetStringValue(), &writer)) {
-            ythrow yexception() << Sprintf("Attribute %s is not found", ~token.ToString().Quote());
-        }
-        
-        if (IsEmpty(suffixPath)) {
-            response->set_value(stream.Str());
-        } else {
-            auto wholeValue = DeserializeFromYson(stream.Str());
-            auto value = SyncYPathGet(wholeValue, suffixPath);
-            response->set_value(value);
-        }
-    } else {
-        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-            ~token.ToString().Quote(),
-            ~token.GetType().ToString());
-    }
-
-    context->Reply();
-}
-
-void TAttributedYPathServiceBase::ListAttribute(const NYTree::TYPath& path, TReqList* request, TRspList* response, TCtxList* context)
-{
-    yvector<Stroka> keys;
-
-    TYPath suffixPath;
-    auto token = ChopToken(path, &suffixPath);
-
-    if (token.GetType() == ETokenType::None) {
-        std::vector<TAttributeInfo> systemAttributes;
-        GetSystemAttributes(&systemAttributes);
-        FOREACH (const auto& attribute, systemAttributes) {
-            if (attribute.IsPresent) {
-                keys.push_back(attribute.Key);
-            }
-        }
-    } else if (token.GetType() == ETokenType::String) {
-        TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
-        if (!GetSystemAttribute(token.GetStringValue(), &writer)) {
-            ythrow yexception() << Sprintf("Attribute %s is not found",
-                ~token.ToString().Quote());
-        }
-
-        auto wholeValue = DeserializeFromYson(stream.Str());
-        keys = SyncYPathList(wholeValue, suffixPath);
-    } else {
-        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-            ~token.ToString().Quote(),
-            ~token.GetType().ToString());
-    }
-
-    NYT::ToProto(response->mutable_keys(), keys);
-    context->Reply();
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
@@ -192,7 +84,6 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* 
 void TVirtualMapBase::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     attributes->push_back("count");
-    TAttributedYPathServiceBase::GetSystemAttributes(attributes);
 }
 
 bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -203,7 +94,19 @@ bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         return true;
     }
 
-    return TAttributedYPathServiceBase::GetSystemAttribute(key, consumer);
+    return false;
+}
+
+bool TVirtualMapBase::SetSystemAttribute(const Stroka& key, TYsonProducer producer)
+{
+    UNUSED(key);
+    UNUSED(producer);
+    return false;
+}
+
+ISystemAttributeProvider* TVirtualMapBase::GetSystemAttributeProvider()
+{
+    return this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -252,11 +155,6 @@ private:
     virtual IAttributeDictionary* GetUserAttributes()
     {
         return &Attributes();
-    }
-
-    virtual ISystemAttributeProvider* GetSystemAttributeProvider() 
-    {
-        return NULL;
     }
 };
 
