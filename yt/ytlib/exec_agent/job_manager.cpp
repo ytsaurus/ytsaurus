@@ -148,9 +148,13 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LOG_DEBUG("Job removal requested (JobId: %s)", ~jobId.ToString());
-    YASSERT(GetJob(jobId)->GetProgress() > EJobProgress::Cleanup);
-
-    YVERIFY(Jobs.erase(jobId) == 1);
+    auto job = FindJob(jobId);
+    if (job) {
+        YASSERT(job->GetProgress() > EJobProgress::Cleanup);
+        YVERIFY(Jobs.erase(jobId) == 1);
+    } else {
+        LOG_WARNING("Removed job does not exist (JobId: %s)", ~jobId.ToString());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
