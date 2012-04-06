@@ -239,11 +239,8 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
-        if (IsEmpty(path)) {
-            return TNodeBase::Resolve(path, verb);
-        } else {
-            return TResolveResult::There(UnderlyingService, path);
-        }
+        // TODO(babenko): handle ugly face
+        return TResolveResult::There(UnderlyingService, path);
     }
 
 private:
