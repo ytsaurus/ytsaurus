@@ -29,7 +29,7 @@ class TMapController
 {
 public:
     TMapController(
-        TMapControllerConfigPtr config,
+        TSchedulerConfigPtr config,
         IOperationHost* host,
         TOperation* operation)
         : Config(config)
@@ -39,7 +39,7 @@ public:
 private:
     typedef TMapController TThis;
 
-    TMapControllerConfigPtr Config;
+    TSchedulerConfigPtr Config;
 
     TMapOperationSpecPtr Spec;
 
@@ -47,7 +47,7 @@ private:
     TRunningCounter ChunkCounter;
     TRunningCounter WeightCounter;
 
-    ::THolder<TUnorderedChunkPool> ChunkPool;
+    TUnorderedChunkPool ChunkPool;
 
     // The template for starting new jobs.
     TJobSpec JobSpecTemplate;
@@ -98,7 +98,7 @@ private:
         i64 extractedWeight;
         int localCount;
         int remoteCount;
-        ChunkPool->Extract(
+        ChunkPool.Extract(
             node->GetAddress(),
             weightThreshold,
             false,
@@ -154,7 +154,7 @@ private:
     void OnJobFailed(TJobInProgressPtr jip)
     {
         LOG_DEBUG("%d chunks are back in the pool", static_cast<int>(jip->Chunks.size()));
-        ChunkPool->Put(jip->Chunks);
+        ChunkPool.Put(jip->Chunks);
 
         ChunkCounter.Failed(jip->Chunks.size());
         WeightCounter.Failed(jip->Weight);
@@ -191,8 +191,6 @@ private:
             i64 totalWeight = 0;
             i64 totalChunkCount = 0;
 
-            ChunkPool.Reset(new TUnorderedChunkPool());
-
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
 
@@ -226,7 +224,7 @@ private:
                     totalWeight += weight;
 
                     auto pooledChunk = New<TPooledChunk>(inputChunk, weight);
-                    ChunkPool->Put(pooledChunk);
+                    ChunkPool.Put(pooledChunk);
                 }
             }
 
@@ -303,7 +301,7 @@ private:
 };
 
 IOperationControllerPtr CreateMapController(
-    TMapControllerConfigPtr config,
+    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {

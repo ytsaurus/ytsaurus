@@ -185,7 +185,7 @@ Stroka ToString(const TRunningCounter& counter)
 ////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TOperationControllerBase(
-    TOperationControllerConfigBasePtr config,
+    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
     : Config(config)

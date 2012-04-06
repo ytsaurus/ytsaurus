@@ -22,8 +22,8 @@ DECLARE_ENUM(EOperationType,
 
 DECLARE_ENUM(EJobType,
     ((Map)(0))
-    ((OrderedMerge)(1))
-    ((SortedMerge)(2))
+    ((SortedMerge)(1))
+    ((OrderedMerge)(2))
 );
 
 DECLARE_ENUM(EOperationState,
@@ -96,20 +96,11 @@ typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;
 struct TOperationSpecBase;
 typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
 
-struct TOperationControllerConfigBase;
-typedef TIntrusivePtr<TOperationControllerConfigBase> TOperationControllerConfigBasePtr;
-
 struct  TMapOperationSpec;
 typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
 
-struct TMapControllerConfig;
-typedef TIntrusivePtr<TMapControllerConfig> TMapControllerConfigPtr;
-
 struct TMergeOperationSpec;
 typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
-
-struct TMergeControllerConfig;
-typedef TIntrusivePtr<TMergeControllerConfig> TMergeControllerConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,7 +8,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMergeController(
-    TMergeControllerConfigPtr config,
+    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation);
 

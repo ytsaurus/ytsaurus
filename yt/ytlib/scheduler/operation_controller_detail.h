@@ -85,7 +85,7 @@ class TOperationControllerBase
 {
 public:
     TOperationControllerBase(
-        TOperationControllerConfigBasePtr config,
+        TSchedulerConfigPtr config,
         IOperationHost* host,
         TOperation* operation);
 
@@ -105,9 +105,8 @@ public:
 private:
     typedef TOperationControllerBase TThis;
 
-    TOperationControllerConfigBasePtr Config;
-
 protected:
+    TSchedulerConfigPtr Config;
     IOperationHost* Host;
     TOperation* Operation;
 
