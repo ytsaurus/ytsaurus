@@ -465,7 +465,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
     return BIND(
                &TFollowerRecovery::ApplyPostponedChanges,
                MakeStrong(this),
-               Owned(changes.Release()))
+               Passed(MoveRV(changes)))
            .AsyncVia(~EpochStateInvoker)
            .Run();
 }
