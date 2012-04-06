@@ -163,7 +163,7 @@ IMPLEMENT_SUPPORTS_VERB(Remove)
 
 namespace {
 
-static TYson DoGetAttribute(
+TYson DoGetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
     const Stroka& key,
@@ -191,7 +191,35 @@ static TYson DoGetAttribute(
     return userAttributes->GetYson(key);
 }
 
-static void DoSetAttribute(
+TNullable<TYson> DoFindAttribute(
+    IAttributeDictionary* userAttributes,
+    ISystemAttributeProvider* systemAttributeProvider,
+    const Stroka& key,
+    bool* isSystem = NULL)
+{
+    if (systemAttributeProvider) {
+        TStringStream stream;
+        TYsonWriter writer(&stream);
+        if (systemAttributeProvider->GetSystemAttribute(key, &writer)) {
+            if (isSystem) {
+                *isSystem = true;
+            }
+            return stream.Str();
+        }
+    }
+
+    if (!userAttributes) {
+        return Null;
+    }
+
+    if (isSystem) {
+        *isSystem = false;
+    }
+
+    return userAttributes->FindYson(key);
+}
+
+void DoSetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
     const Stroka& key,
@@ -211,7 +239,7 @@ static void DoSetAttribute(
     }
 }
 
-static void DoSetAttribute(
+void DoSetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
     const Stroka& key,
@@ -232,12 +260,96 @@ static void DoSetAttribute(
             }
         }
     }
-        
+
+    if (!userAttributes) {
+        ythrow yexception() << "User attributes are not supported";
+    }
 
     userAttributes->SetYson(key, value);
 }
 
+std::vector<Stroka> DoListAttributes(
+    IAttributeDictionary* userAttributes,
+    ISystemAttributeProvider* systemAttributeProvider)
+{
+    std::vector<Stroka> keys;
+
+    if (systemAttributeProvider) {
+        yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+        systemAttributeProvider->GetSystemAttributes(&systemAttributes);
+        FOREACH (const auto& attribute, systemAttributes) {
+            if (attribute.IsPresent) {
+                keys.push_back(attribute.Key);
+            }
+        }
+    }
+
+    if (userAttributes) {
+        const auto& userKeys = userAttributes->List();
+        keys.insert(keys.end(), userKeys.begin(), userKeys.end());
+    }
+
+    return keys;
+}
+
+bool DoRemoveAttribute(
+    IAttributeDictionary* userAttributes,
+    ISystemAttributeProvider* systemAttributeProvider,
+    const Stroka& key)
+{
+    // System attributes do not support removal.
+    UNUSED(systemAttributeProvider);
+
+    if (!userAttributes) {
+        ythrow yexception() << "User attributes are not supported";
+    }
+
+    return userAttributes->Remove(key);
+}
+
 } // namespace <anonymous>
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSupportsAttributes::TCombinedAttributeDictionary
+    : public IAttributeDictionary
+{
+public:
+    TCombinedAttributeDictionary(
+        IAttributeDictionary* userAttributes,
+        ISystemAttributeProvider* systemAttributeProvider)
+        : UserAttributes(userAttributes)
+        , SystemAttributeProvider(systemAttributeProvider)
+    { }
+
+    virtual yhash_set<Stroka> List() const
+    {
+        auto keys = DoListAttributes(UserAttributes, SystemAttributeProvider);
+        return yhash_set<Stroka>(keys.begin(), keys.end());
+    }
+
+    virtual TNullable<TYson> FindYson(const Stroka& key) const
+    {
+        return DoFindAttribute(UserAttributes, SystemAttributeProvider, key);
+    }
+
+    virtual void SetYson(const Stroka& key, const TYson& value)
+    {
+        DoSetAttribute(UserAttributes, SystemAttributeProvider, key, value);
+    }
+
+    virtual bool Remove(const Stroka& key)
+    {
+        return DoRemoveAttribute(UserAttributes, SystemAttributeProvider, key);
+    }
+
+private:
+    IAttributeDictionary* UserAttributes;
+    ISystemAttributeProvider* SystemAttributeProvider;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const NYTree::TYPath& path,
@@ -332,23 +444,10 @@ void TSupportsAttributes::ListAttribute(
     TYPath suffixPath;
     auto token = ChopToken(path, &suffixPath);
     
-    yvector<Stroka> keys;
+    std::vector<Stroka> keys;
 
     if (token.GetType() == ETokenType::None) {
-        if (systemAttributeProvider) {
-            yvector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            systemAttributeProvider->GetSystemAttributes(&systemAttributes);
-            FOREACH (const auto& attribute, systemAttributes) {
-                if (attribute.IsPresent) {
-                    keys.push_back(attribute.Key);
-                }
-            }
-        }
-        
-        if (userAttributes) {
-            const auto& userKeys = userAttributes->List();
-            keys.insert(keys.end(), userKeys.begin(), userKeys.end());
-        }
+        keys = DoListAttributes(userAttributes, systemAttributeProvider);
     } else if (token.GetType() == ETokenType::String) {
         auto wholeValue = DeserializeFromYson(
             DoGetAttribute(
@@ -449,16 +548,14 @@ void TSupportsAttributes::RemoveAttribute(
     auto token = ChopToken(path, &suffixPath);
 
     if (token.GetType() == ETokenType::None) {
-        const auto& userKeys = userAttributes->List();
+        auto userKeys = userAttributes->List();
         FOREACH (const auto& key, userKeys) {
             YVERIFY(userAttributes->Remove(key));
         }
     } else if (token.GetType() == ETokenType::String) {
         if (IsEmpty(suffixPath)) {
-            if (!userAttributes) {
-                ythrow yexception() << "User attributes are not supported";
-            }
-            if (!userAttributes->Remove(token.GetStringValue())) {
+            auto key = token.GetStringValue();
+            if (!DoRemoveAttribute(userAttributes, systemAttributeProvider, key)) {
                 ythrow yexception() << Sprintf("User attribute %s is not found",
                     ~token.ToString().Quote());
             }
@@ -485,6 +582,16 @@ void TSupportsAttributes::RemoveAttribute(
     }
 
     context->Reply();
+}
+
+IAttributeDictionary& TSupportsAttributes::CombinedAttributes()
+{
+    if (!CombinedAttributes_) {
+        CombinedAttributes_.Reset(new TCombinedAttributeDictionary(
+            GetUserAttributes(),
+            GetSystemAttributeProvider()));
+    }
+    return *CombinedAttributes_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

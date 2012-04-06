@@ -127,9 +127,6 @@ protected:
         TObjectManager::TPtr ObjectManager;
         TObjectId ObjectId;
     };
-
-    class TCombinedAttributeDictionary;
-    THolder<TCombinedAttributeDictionary> CombinedAttributes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

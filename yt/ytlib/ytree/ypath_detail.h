@@ -73,6 +73,11 @@ class TSupportsAttributes
     , public virtual TSupportsRemove
 {
 protected:
+    class TCombinedAttributeDictionary;
+    THolder<IAttributeDictionary> CombinedAttributes_;
+
+    IAttributeDictionary& CombinedAttributes();
+
     // TODO(roizner,babenko): support NULL user attribute dictionary to
     // allow TVirtualMapBase to use this mix-in.
     // Can be NULL.
