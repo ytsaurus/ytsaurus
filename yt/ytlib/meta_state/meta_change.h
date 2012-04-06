@@ -9,6 +9,9 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This part of the infrastructure is kinda performance-critical so
+// we try to pass everything by const&.
+
 template <class TResult>
 class TMetaChange
     : public TRefCounted
@@ -18,15 +21,15 @@ public:
     typedef TCallback<TResult()> TChangeFunc;
 
     TMetaChange(
-        IMetaStateManager* metaStateManager,
-        TChangeFunc func,
+        const IMetaStateManagerPtr& metaStateManager,
+        const TChangeFunc& func,
         const TSharedRef& changeData);
 
     typename TFuture<TResult>::TPtr Commit();
 
     TPtr SetRetriable(TDuration backoffTime);
-    TPtr OnSuccess(TCallback<void(TResult)> onSuccess);
-    TPtr OnError(TCallback<void()> onError);
+    TPtr OnSuccess(const TCallback<void(TResult)>& onSuccess);
+    TPtr OnError(const TCallback<void()>& onError);
 
 private:
     typedef TMetaChange<TResult> TThis;
@@ -51,18 +54,18 @@ private:
 
 };
 
-template <class TTarget, class TMessage, class TResult>
+template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    IMetaStateManager* metaStateManager,
+    const IMetaStateManagerPtr& metaStateManager,
     const TMessage& message,
-    TResult (TTarget::* func)(const TMessage&),
-    TTarget* target);
+    const TCallback<TResult()>& func);
 
 template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    IMetaStateManager* metaStateManager,
+    const IMetaStateManagerPtr& metaStateManager,
+    TRef messageData,
     const TMessage& message,
-    TCallback<TResult()> func);
+    const TCallback<TResult()>& func);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -166,60 +166,55 @@ public:
         const TMsgRegisterHolder& message)
     {
         return CreateMetaChange(
-            ~MetaStateManager,
+            MetaStateManager,
             message,
-            &TThis::RegisterHolder,
-            this);
+            BIND(&TThis::RegisterHolder, Unretained(this), message));
     }
 
     TMetaChange<TVoid>::TPtr InitiateUnregisterHolder(
         const TMsgUnregisterHolder& message)
     {
         return CreateMetaChange(
-            ~MetaStateManager,
+            MetaStateManager,
             message,
-            &TThis::UnregisterHolder,
-            this);
+            BIND(&TThis::UnregisterHolder, Unretained(this), message));
     }
 
     TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(
-        const TMsgFullHeartbeat& message)
+        TCtxFullHeartbeat::TPtr context)
     {
         return CreateMetaChange(
-            ~MetaStateManager,
-            message,
-            &TThis::FullHeartbeat,
-            this);
+            MetaStateManager,
+            context->GetUntypedContext()->GetRequestBody(),
+            context->Request(),
+            BIND(&TThis::FullHeartbeatWithContext, Unretained(this), context));
     }
 
     TMetaChange<TVoid>::TPtr InitiateIncrementalHeartbeat(
         const TMsgIncrementalHeartbeat& message)
     {
         return CreateMetaChange(
-            ~MetaStateManager,
+            MetaStateManager,
             message,
-            &TThis::IncrementalHeartbeat,
-            this);
+            BIND(&TThis::IncrementalHeartbeat, Unretained(this), message));
     }
 
     TMetaChange<TVoid>::TPtr InitiateUpdateJobs(
         const TMsgUpdateJobs& message)
     {
         return CreateMetaChange(
-            ~MetaStateManager,
+            MetaStateManager,
             message,
-            &TThis::UpdateJobs,
-            this);
+            BIND(&TThis::UpdateJobs, Unretained(this), message));
     }
 
     TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
         const TMsgCreateChunks& message)
     {
         return CreateMetaChange(
-            ~MetaStateManager,
+            MetaStateManager,
             message,
-            &TThis::CreateChunks,
-            this);
+            BIND(&TThis::CreateChunks, Unretained(this), message));
     }
 
 
@@ -639,14 +634,14 @@ private:
         return TVoid();
     }
 
+    TVoid FullHeartbeatWithContext(TCtxFullHeartbeat::TPtr context)
+    {
+        return FullHeartbeat(context->Request());
+    }
 
-    TVoid FullHeartbeat(const TMsgFullHeartbeat& message2)
+    TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
     {
         PROFILE_TIMING ("full_heartbeat_time") {
-            TReqFullHeartbeat message;
-            auto requestBody = TRef(const_cast<char*>(message2.request_body().data()), message2.request_body().length());
-            YVERIFY(DeserializeFromProto(&message, requestBody));
-
             Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
 
             auto holderId = message.holder_id();
@@ -1668,9 +1663,9 @@ TMetaChange<TVoid>::TPtr TChunkManager::InitiateUnregisterHolder(
 }
 
 TMetaChange<TVoid>::TPtr TChunkManager::InitiateFullHeartbeat(
-    const TMsgFullHeartbeat& message)
+    TCtxFullHeartbeat::TPtr context)
 {
-    return Impl->InitiateFullHeartbeat(message);
+    return Impl->InitiateFullHeartbeat(context);
 }
 
 TMetaChange<TVoid>::TPtr TChunkManager::InitiateIncrementalHeartbeat(

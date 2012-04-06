@@ -14,8 +14,8 @@ namespace NMetaState {
 
 template <class TResult>
 TMetaChange<TResult>::TMetaChange(
-    IMetaStateManager* metaStateManager,
-    TChangeFunc func,
+    const IMetaStateManagerPtr& metaStateManager,
+    const TChangeFunc& func,
     const TSharedRef& changeData)
     : MetaStateManager(metaStateManager)
     , Func(func)
@@ -58,7 +58,7 @@ typename TMetaChange<TResult>::TPtr TMetaChange<TResult>::SetRetriable(TDuration
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnSuccess(TCallback<void(TResult)> onSuccess)
+TMetaChange<TResult>::OnSuccess(const TCallback<void(TResult)>& onSuccess)
 {
     YASSERT(OnSuccess_.IsNull());
     OnSuccess_ = MoveRV(onSuccess);
@@ -67,7 +67,7 @@ TMetaChange<TResult>::OnSuccess(TCallback<void(TResult)> onSuccess)
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnError(TCallback<void()> onError)
+TMetaChange<TResult>::OnError(const TCallback<void()>& onError)
 {
     YASSERT(OnError_.IsNull());
     OnError_ = MoveRV(onError);
@@ -104,35 +104,11 @@ void TMetaChange<TResult>::OnCommitted(ECommitResult result)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TTarget, class TMessage, class TResult>
-typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    IMetaStateManager* metaStateManager,
-    const TMessage& message,
-    TResult (TTarget::* func)(const TMessage&),
-    TTarget* target)
-{
-    YASSERT(metaStateManager);
-    YASSERT(func);
-    YASSERT(target);
-
-    NProto::TMsgChangeHeader header;
-    header.set_change_type(message.GetTypeName());
-
-    auto changeData = SerializeChange(header, message);
-
-    auto changeFunc = BIND(func, target, message);
-
-    return New< TMetaChange<TResult> >(
-        metaStateManager,
-        changeFunc,
-        TSharedRef(MoveRV(changeData)));
-}
-
 template <class TMessage, class TResult>
 typename TMetaChange<TResult>::TPtr CreateMetaChange(
-    IMetaStateManager* metaStateManager,
+    const IMetaStateManagerPtr& metaStateManager,
     const TMessage& message,
-    TCallback<TResult()> func)
+    const TCallback<TResult()>& func)
 {
     YASSERT(metaStateManager);
     YASSERT(!func.IsNull());
@@ -141,6 +117,27 @@ typename TMetaChange<TResult>::TPtr CreateMetaChange(
     header.set_change_type(message.GetTypeName());
 
     auto changeData = SerializeChange(header, message);
+
+    return New< TMetaChange<TResult> >(
+        metaStateManager,
+        func,
+        TSharedRef(MoveRV(changeData)));
+}
+
+template <class TMessage, class TResult>
+typename TMetaChange<TResult>::TPtr CreateMetaChange(
+    const IMetaStateManagerPtr& metaStateManager,
+    TRef messageData,
+    const TMessage& message,
+    const TCallback<TResult()>& func)
+{
+    YASSERT(metaStateManager);
+    YASSERT(!func.IsNull());
+
+    NProto::TMsgChangeHeader header;
+    header.set_change_type(message.GetTypeName());
+
+    auto changeData = SerializeChange(header, messageData);
 
     return New< TMetaChange<TResult> >(
         metaStateManager,

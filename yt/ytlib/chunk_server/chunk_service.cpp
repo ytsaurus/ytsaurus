@@ -109,24 +109,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
         return;
     }
 
-    TMsgFullHeartbeat heartbeatMsg;
-    auto requestBody = context->GetUntypedContext()->GetRequestBody();
-    heartbeatMsg.set_request_body(requestBody.Begin(), requestBody.Size());
-    //heartbeatMsg.set_holder_id(holderId);
-    //*heartbeatMsg.mutable_statistics() = request->statistics();
-    //FOREACH (const auto& info, request->chunks()) {
-    //    *heartbeatMsg.add_chunks() = info;
-    //}
-
-    auto x = chunkManager
-        ->InitiateFullHeartbeat(heartbeatMsg)
-        ->OnSuccess(BIND([=] (TVoid)
-            {
-                context->Reply();
-            }))
-        ->OnError(CreateErrorHandler(~context));
-
-        x->Commit();
+    chunkManager
+        ->InitiateFullHeartbeat(context)
+        ->OnSuccess(BIND([=] (TVoid) {
+            context->Reply();
+        }))
+        ->OnError(CreateErrorHandler(~context))
+        ->Commit();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)

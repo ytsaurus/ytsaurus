@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include <ytlib/chunk_server/chunk_manager.pb.h>
+#include "chunk_service_proxy.h"
 
+#include <ytlib/chunk_server/chunk_manager.pb.h>
 #include <ytlib/actions/signal.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/meta_change.h>
@@ -13,6 +14,10 @@ namespace NYT {
 namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+    typedef TReqFullHeartbeat TMsgFullHeartbeat;
+}
 
 class TChunkManager
     : public TRefCounted
@@ -32,8 +37,10 @@ public:
     NMetaState::TMetaChange<TVoid>::TPtr InitiateUnregisterHolder(
         const NProto::TMsgUnregisterHolder& message);
 
+    // Pass RPC service context to full heartbeat handler to avoid copying request message.
+    typedef NRpc::TTypedServiceContext<NProto::TReqFullHeartbeat, NProto::TRspFullHeartbeat> TCtxFullHeartbeat;
     NMetaState::TMetaChange<TVoid>::TPtr InitiateFullHeartbeat(
-        const NProto::TMsgFullHeartbeat & message);
+        TCtxFullHeartbeat::TPtr context);
 
     NMetaState::TMetaChange<TVoid>::TPtr InitiateIncrementalHeartbeat(
         const NProto::TMsgIncrementalHeartbeat& message);

@@ -10,6 +10,28 @@ using namespace NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TBlob SerializeChange(const NProto::TMsgChangeHeader& header, TRef messageData)
+{
+    TFixedChangeHeader fixedHeader;
+    fixedHeader.HeaderSize = header.ByteSize();
+    fixedHeader.MessageSize = messageData.Size();
+
+    TBlob data(sizeof (TFixedChangeHeader) + fixedHeader.HeaderSize + fixedHeader.MessageSize);
+
+    std::copy(
+        reinterpret_cast<ui8*>(&fixedHeader),
+        reinterpret_cast<ui8*>(&fixedHeader + 1),
+        data.begin());
+    YVERIFY(header.SerializeToArray(
+        data.begin() + sizeof (TFixedChangeHeader),
+        fixedHeader.HeaderSize));
+    std::copy(
+        messageData.Begin(),
+        messageData.End(),
+        data.begin() + sizeof (TFixedChangeHeader) + fixedHeader.HeaderSize);
+    return data;
+}
+
 void DeserializeChangeHeader(
     TRef changeData,
     TMsgChangeHeader* header)

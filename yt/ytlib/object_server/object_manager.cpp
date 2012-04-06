@@ -558,7 +558,7 @@ void TObjectManager::ExecuteVerb(
     auto wrappedContext = New<TServiceContextWrapper>(context);
 
     auto change = CreateMetaChange(
-        ~MetaStateManager,
+        MetaStateManager,
         message,
         BIND([=] () -> TVoid {
             PROFILE_TIMING (profilingPath) {
