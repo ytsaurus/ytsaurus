@@ -25,6 +25,8 @@ TSchedulerConnector::TSchedulerConnector(
     : Config(config)
     , Bootstrap(bootstrap)
     , Proxy(bootstrap->GetSchedulerChannel())
+    , HeartbeatInProgress(false)
+    , OutOfOrderHeartbeatNeeded(false)
 {
     YASSERT(config);
     YASSERT(bootstrap);
@@ -32,30 +34,35 @@ TSchedulerConnector::TSchedulerConnector(
 
 void TSchedulerConnector::Start()
 {
-    auto randomDelay = RandomNumber(Config->HeartbeatSplay);
+    // Send the first heartbeat with a random delay.
     TDelayedInvoker::Submit(
-        BIND(&TSchedulerConnector::ScheduleHeartbeat, MakeStrong(this), true)
+        BIND(&TSchedulerConnector::SendHeartbeat, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()),
-        randomDelay);
+        RandomNumber(Config->HeartbeatSplay));
 }
 
-void TSchedulerConnector::ScheduleHeartbeat(bool now)
+void TSchedulerConnector::ScheduleNextHeartbeat()
 {
-    auto heartbeatAction =
+    YASSERT(!HeartbeatInProgress);
+
+    auto callback =
         BIND(&TSchedulerConnector::SendHeartbeat, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker());
-    if (now) {
-        Bootstrap->GetControlInvoker()->Invoke(heartbeatAction);
+
+    if (OutOfOrderHeartbeatNeeded) {
+        OutOfOrderHeartbeatNeeded = false;
+        callback.Run();
     } else {
-        TDelayedInvoker::CancelAndClear(HeartbeatCookie);
-        HeartbeatCookie = TDelayedInvoker::Submit(
-            heartbeatAction,
-            Config->HeartbeatPeriod);
+        HeartbeatCookie = TDelayedInvoker::Submit(callback, Config->HeartbeatPeriod);
     }
 }
 
 void TSchedulerConnector::SendHeartbeat()
 {
+    YASSERT(!HeartbeatInProgress);
+    HeartbeatInProgress = true;
+    TDelayedInvoker::CancelAndClear(HeartbeatCookie);
+
     // Construct state snapshot.
     auto req = Proxy.Heartbeat();
     req->set_address(Bootstrap->GetPeerAddress());
@@ -86,7 +93,10 @@ void TSchedulerConnector::SendHeartbeat()
 
 void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartbeat::TPtr rsp)
 {
-    ScheduleHeartbeat(false);
+    YASSERT(HeartbeatInProgress);
+    HeartbeatInProgress = false;
+
+    ScheduleNextHeartbeat();
 
     if (!rsp->IsOK()) {
         LOG_ERROR("Error reporting heartbeat to scheduler\n%s", ~rsp->GetError().ToString());
@@ -95,7 +105,7 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
 
     LOG_INFO("Successfully reported heartbeat to scheduler");
 
-    // Handle actions.
+    // Handle actions requested by the scheduler.
     auto jobManager = Bootstrap->GetJobManager();
 
     FOREACH (const auto& protoJobId, rsp->jobs_to_remove()) {
@@ -119,9 +129,15 @@ void TSchedulerConnector::StartJob(const TStartJobInfo& info)
     const auto& spec = info.spec();
     auto job = Bootstrap->GetJobManager()->StartJob(jobId, spec);
     // Schedule an out-of-order heartbeat whenever a job finishes.
-    job->SubscribeFinished(BIND([=] () {
-        ScheduleHeartbeat(true);
-    }));
+    job->SubscribeFinished(
+        BIND([=] () {
+            if (HeartbeatInProgress) {
+                OutOfOrderHeartbeatNeeded = true;
+            } else {
+                SendHeartbeat();
+            }
+        })
+        .Via(Bootstrap->GetControlInvoker()));
 }
 
 void TSchedulerConnector::AbortJob(const TJobId& jobId)
