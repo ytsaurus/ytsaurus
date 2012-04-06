@@ -63,11 +63,10 @@ void TMasterConnector::Start()
         &TMasterConnector::OnChunkRemoved,
         MakeWeak(this)));
 
-    auto randomDelay = RandomNumber(Config->HeartbeatSplay);
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()),
-        randomDelay);
+        RandomNumber(Config->HeartbeatSplay));
 }
 
 void TMasterConnector::ScheduleHeartbeat()
@@ -134,10 +133,9 @@ NChunkServer::NProto::THolderStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterHolder::TPtr response)
 {
-    ScheduleHeartbeat();
-
     if (!response->IsOK()) {
         Disconnect();
+        ScheduleHeartbeat();
 
         LOG_WARNING("Error registering at master\n%s", ~response->GetError().ToString());
         return;
@@ -173,9 +171,7 @@ void TMasterConnector::SendFullHeartbeat()
         BIND(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()));
 
-    LOG_INFO("Full heartbeat sent (%s, Chunks: %d)",
-        ~ToString(request->statistics()),
-        static_cast<int>(request->chunks_size()));
+    LOG_INFO("Full heartbeat sent (%s)", ~ToString(request->statistics()));
 }
 
 void TMasterConnector::SendIncrementalHeartbeat()
