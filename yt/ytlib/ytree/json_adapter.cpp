@@ -105,6 +105,7 @@ void TJsonAdapter::OnMyEndAttributes()
 		// Has at least one attribute
 		JsonWriter->CloseMap();
 	}
+	WriteAttributes = false;
     JsonWriter->CloseMap();
 }
 
