@@ -25,6 +25,10 @@ TBlob SerializeChange(
     const NProto::TMsgChangeHeader& header,
     const TMessage& message);
 
+TBlob SerializeChange(
+    const NProto::TMsgChangeHeader& header,
+    TRef messageData);
+
 void DeserializeChangeHeader(
     TRef changeData,
     NProto::TMsgChangeHeader* header);

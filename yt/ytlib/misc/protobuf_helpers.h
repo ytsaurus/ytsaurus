@@ -48,28 +48,28 @@ struct TProtoTraits<TGuid>
 template <class TArrayItem, class TProtoItem>
 inline void ToProto(
     ::google::protobuf::RepeatedPtrField<TProtoItem>* proto,
-    const yvector<TArrayItem>& array,
+    const std::vector<TArrayItem>& array,
     bool clear = true)
 {
     if (clear) {
         proto->Clear();
     }
-    for (int i = 0; i < array.ysize(); ++i) {
-        *proto->Add() = TProtoTraits<TArrayItem>::ToProto(array[i]);
+    for (auto it = array.begin(); it != array.end(); ++it) {
+        *proto->Add() = TProtoTraits<TArrayItem>::ToProto(*it);
     }
 }
 
 template <class T>
 inline void ToProto(
     ::google::protobuf::RepeatedField<T>* proto,
-    const yvector<T>& array,
+    const std::vector<T>& array,
     bool clear = true)
 {
     if (clear) {
         proto->Clear();
     }
-    for (int i = 0; i < array.ysize(); ++i) {
-        *proto->Add() = array[i];
+    for (auto it = array.begin(); it != array.end(); ++it) {
+        *proto->Add() = *it;
     }
 }
 

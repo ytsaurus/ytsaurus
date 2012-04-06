@@ -24,13 +24,9 @@ message TMsgCreateChunks
     required int32 chunk_count = 2;
 }
 
-message TMsgFullHeartbeat
-{
-	required bytes request_body = 1;
-	//    required int32 holder_id = 1;
-    //required THolderStatistics statistics = 2;
-    //repeated TChunkAddInfo chunks = 3;
-}
+// Full heartbeat changes are typcially large and as passed as-is in
+// form of RPC requests. Hence we don't have any special
+// TMsgFullHeartbeat type here.
 
 message TMsgIncrementalHeartbeat
 {

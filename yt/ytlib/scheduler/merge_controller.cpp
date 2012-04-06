@@ -306,9 +306,7 @@ private:
         *JobSpecTemplate.MutableExtension(TMergeJobSpec::merge_job_spec) = mergeJobSpec;
 
         JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
-
     }
-
 };
 
 IOperationControllerPtr CreateMergeController(
