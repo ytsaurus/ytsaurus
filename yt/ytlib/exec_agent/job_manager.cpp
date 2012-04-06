@@ -137,6 +137,8 @@ void TJobManager::AbortJob(const TJobId& jobId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    LOG_DEBUG("Job abort requested (JobId: %s)", ~jobId.ToString());
+
     auto job = GetJob(jobId);
     job->Abort();
 }
@@ -144,6 +146,8 @@ void TJobManager::AbortJob(const TJobId& jobId)
 void TJobManager::RemoveJob(const TJobId& jobId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LOG_DEBUG("Job removal requested (JobId: %s)", ~jobId.ToString());
     YASSERT(GetJob(jobId)->GetProgress() > EJobProgress::Cleanup);
 
     YVERIFY(Jobs.erase(jobId) == 1);
