@@ -146,12 +146,11 @@ private:
             ~type.ToString(),
             ~transactionId.ToString());
 
-        // The operation owns the controller but not vice versa.
-        // Hence we use raw pointers inside controllers.
-        operation->SetController(CreateController(operation.Get()));
-
-        operation->SetState(EOperationState::Initializing);
         try {
+            // The operation owns the controller but not vice versa.
+            // Hence we use raw pointers inside controllers.
+            operation->SetController(CreateController(operation.Get()));
+            operation->SetState(EOperationState::Initializing);
             InitializeOperation(operation);
         } catch (const std::exception& ex) {
             return MakeFuture(TStartResult(TError("Operation failed to start\n%s", ex.what())));
@@ -723,10 +722,10 @@ private:
     {
         switch (operation->GetType()) {
             case EOperationType::Map:
-                return CreateMapController(Config->Map, this, operation);
+                return CreateMapController(Config, this, operation);
                 break;
             case EOperationType::Merge:
-                return CreateMergeController(Config->Merge, this, operation);
+                return CreateMergeController(Config, this, operation);
                 break;
             default:
                 YUNREACHABLE();

@@ -215,7 +215,7 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker*
 
 void TServiceBase::InvokeHandler(
     TRuntimeMethodInfo* runtimeInfo,
-    TClosure handler,
+    const TClosure& handler,
     IServiceContext* context)
 {
     UNUSED(context);

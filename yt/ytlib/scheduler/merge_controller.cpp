@@ -26,17 +26,14 @@ class TMergeController
 {
 public:
     TMergeController(
-        TMergeControllerConfigPtr config,
+        TSchedulerConfigPtr config,
         IOperationHost* host,
         TOperation* operation)
-        : Config(config)
-        , TOperationControllerBase(config, host, operation)
+        : TOperationControllerBase(config, host, operation)
     { }
 
 private:
     typedef TMergeController TThis;
-
-    TMergeControllerConfigPtr Config;
 
     TMergeOperationSpecPtr Spec;
 
@@ -310,7 +307,7 @@ private:
 };
 
 IOperationControllerPtr CreateMergeController(
-    TMergeControllerConfigPtr config,
+    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {

@@ -8,7 +8,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMapController(
-    TMapControllerConfigPtr config,
+    TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation);
 

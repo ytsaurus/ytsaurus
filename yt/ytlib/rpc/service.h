@@ -504,7 +504,7 @@ private:
 
     virtual void InvokeHandler(
         TRuntimeMethodInfo* runtimeInfo,
-        TClosure handler,
+        const TClosure& handler,
         IServiceContext* context);
 };
 
