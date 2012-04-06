@@ -68,10 +68,10 @@ void TArgsParserBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
     }
 }
 
-void TArgsParserBase::BuildOptions(IYsonConsumer* consumer, TCLAP::MultiArg<Stroka>& arg)
+void TArgsParserBase::BuildOptions(IYsonConsumer* consumer)
 {
     // TODO(babenko): think about a better way of doing this
-    FOREACH (const auto& opts, arg.getValue()) {
+    FOREACH (const auto& opts, OptsArg.getValue()) {
         NYTree::TYson yson = Stroka("{") + Stroka(opts) + "}";
         auto items = NYTree::DeserializeFromYson(yson)->AsMap();
         FOREACH (const auto& pair, items->GetChildren()) {
@@ -82,9 +82,7 @@ void TArgsParserBase::BuildOptions(IYsonConsumer* consumer, TCLAP::MultiArg<Stro
 }
 
 void TArgsParserBase::BuildCommand(IYsonConsumer* consumer)
-{
-    BuildOptions(consumer, OptsArg);
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,6 +96,7 @@ void TTransactedArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("transaction_id").Scalar(TxArg.getValue());
+
     TArgsParserBase::BuildCommand(consumer);
 }
 
@@ -116,6 +115,7 @@ void TGetArgsParser::BuildCommand(IYsonConsumer* consumer)
         .Item("path").Scalar(PathArg.getValue());
 
     TTransactedArgsParser::BuildCommand(consumer);
+    BuildOptions(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,6 +136,7 @@ void TSetArgsParser::BuildCommand(IYsonConsumer* consumer)
         .Item("value").Node(ValueArg.getValue());
 
     TTransactedArgsParser::BuildCommand(consumer);
+    BuildOptions(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,6 +154,7 @@ void TRemoveArgsParser::BuildCommand(IYsonConsumer* consumer)
         .Item("path").Scalar(PathArg.getValue());
 
     TTransactedArgsParser::BuildCommand(consumer);
+    BuildOptions(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,8 +170,9 @@ void TListArgsParser::BuildCommand(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("list")
         .Item("path").Scalar(PathArg.getValue());
-
+ 
     TTransactedArgsParser::BuildCommand(consumer);
+    BuildOptions(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -197,6 +200,7 @@ void TCreateArgsParser::BuildCommand(IYsonConsumer* consumer)
          });
 
     TTransactedArgsParser::BuildCommand(consumer);
+    BuildOptions(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,12 +234,15 @@ TStartTxArgsParser::TStartTxArgsParser()
 void TStartTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     auto manifestYson = ManifestArg.getValue();
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("start")
         .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
             fluent.Item("manifest").Node(manifestYson);
          });
+
     TArgsParserBase::BuildCommand(consumer);
+    BuildOptions(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -368,6 +375,7 @@ void TMapArgsParser::BuildCommand(IYsonConsumer* consumer)
             .Item("input_table_paths").List(InArg.getValue())
             .Item("output_table_paths").List(OutArg.getValue())
             .Item("files").List(FilesArg.getValue())
+            .Do(BIND(&TMapArgsParser::BuildOptions, Unretained(this)))
         .EndMap();
 
     TTransactedArgsParser::BuildCommand(consumer);
@@ -396,6 +404,7 @@ void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
             .Item("output_table_path").Scalar(OutArg.getValue())
             .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Scalar(CombineArg.getValue())
+            .Do(BIND(&TMergeArgsParser::BuildOptions, Unretained(this)))
         .EndMap();
 
     TTransactedArgsParser::BuildCommand(consumer);

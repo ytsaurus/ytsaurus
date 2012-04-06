@@ -50,7 +50,7 @@ protected:
 
     TCLAP::MultiArg<Stroka> OptsArg;
 
-    void BuildOptions(NYTree::IYsonConsumer* consumer, TCLAP::MultiArg<Stroka>& arg);
+    void BuildOptions(NYTree::IYsonConsumer* consumer);
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 
