@@ -215,7 +215,7 @@ public:
     {
         for (int index = 0; index < queueCount; ++index) {
             Queues[index].Invoker = New<TQueueInvoker>(
-                threadName + "." + ToString(index),
+                threadName + "_" + ToString(index),
                 this,
                 true);
         }
