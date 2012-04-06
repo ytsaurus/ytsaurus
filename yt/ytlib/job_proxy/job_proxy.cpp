@@ -51,7 +51,8 @@ void TJobProxy::SendHeartbeat()
         // Good user processes are supposed to die themselves 
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
-        LOG_FATAL("Failed to report progress for job %s", ~JobId.ToString());
+        LOG_ERROR("Failed to report progress for job %s", ~JobId.ToString());
+        exit(122);
     }
 }
 
@@ -127,9 +128,8 @@ void TJobProxy::ReportResult(
 
     auto rsp = req->Invoke()->Get();
     if (!rsp->IsOK()) {
-        LOG_FATAL("Failed to report result for job %s", ~JobId.ToString());
-        // log error, use some exotic exit status.
-        exit(1);
+        LOG_ERROR("Failed to report result for job %s", ~JobId.ToString());
+        exit(123);
     }
 }
 
