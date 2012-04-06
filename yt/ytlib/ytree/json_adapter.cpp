@@ -83,23 +83,28 @@ void TJsonAdapter::OnMyEndMap(bool hasAttributes)
 
 void TJsonAdapter::OnMyBeginAttributes()
 {
-    if (WriteAttributes) {
-        WriteAttributes = false;
-        JsonWriter->Write("$attributes");
-        JsonWriter->OpenMap();
-    } else {
+    if (!WriteAttributes) {
         ForwardAttributes(GetNullYsonConsumer(), TClosure());
     }
 }
 
 void TJsonAdapter::OnMyAttributesItem(const TStringBuf& name)
 {
+	if (WriteAttributes) {
+		// First attribute
+		WriteAttributes = false;
+		JsonWriter->Write("$attributes");
+		JsonWriter->OpenMap();
+	}
     JsonWriter->Write(name);
 }
 
 void TJsonAdapter::OnMyEndAttributes()
 {
-    JsonWriter->CloseMap();
+	if (!WriteAttributes) {
+		// Has at least one attribute
+		JsonWriter->CloseMap();
+	}
     JsonWriter->CloseMap();
 }
 
