@@ -13,7 +13,7 @@
 
 namespace NYT {
 namespace NMonitoring {
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYTree;
@@ -46,7 +46,8 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
     FOREACH (const auto& param, params) {
         auto eqIndex = param.find_first_of('=');
         if (eqIndex == Stroka::npos) {
-            ythrow yexception() << "Malformed query";
+            ythrow yexception() << Sprintf("Missing value of query parameter %s",
+                param.Quote());
         }
         if (eqIndex == 0) {
             ythrow yexception() << "Empty query parameter name";
