@@ -317,6 +317,12 @@ static inline NYT::NDetail::TPassedWrapper<T> Passed(T* x)
 }
 
 template <class T>
+static inline NYT::NDetail::TPassedWrapper<T*> Passed(THolder<T>&& x)
+{
+    return NYT::NDetail::TPassedWrapper<T*>(x.Release());
+}
+
+template <class T>
 static inline NYT::NDetail::TConstRefWrapper<T> ConstRef(const T& x)
 {
     return NYT::NDetail::TConstRefWrapper<T>(x);
