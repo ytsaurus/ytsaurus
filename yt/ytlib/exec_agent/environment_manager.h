@@ -13,7 +13,7 @@ class TEnvironmentManager
 public:
     TEnvironmentManager(TEnvironmentManagerConfigPtr config);
 
-    TAutoPtr<IProxyController> CreateProxyController(
+    IProxyControllerPtr CreateProxyController(
         const Stroka& envName,
         const TJobId& jobId,
         const Stroka& workingDirectory);

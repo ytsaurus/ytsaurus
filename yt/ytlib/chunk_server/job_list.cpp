@@ -15,17 +15,12 @@ TJobList::TJobList(const TChunkId& chunkId)
     : ChunkId_(chunkId)
 { }
 
-TJobList::TJobList(const TJobList& other)
-    : ChunkId_(other.ChunkId_)
-    , Jobs_(other.Jobs_)
-{ }
-
 void TJobList::Save(TOutputStream* output) const
 {
     SaveObjects(output, Jobs_);
 }
 
-void TJobList::Load(const NCellMaster::TLoadContext& context, TInputStream* input)
+void TJobList::Load(const TLoadContext& context, TInputStream* input)
 {
     LoadObjects(input, Jobs_, context);
 }

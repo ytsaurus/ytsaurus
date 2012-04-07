@@ -12,12 +12,12 @@ namespace NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IProxyController
-    : private TNonCopyable
+    : public virtual TRefCounted
 {
     /*!
      *  Runs job proxy.
      *  May throw exception. If no exception is thrown,
-     *  OnExit callback is guaranteed to be called.
+     *  Exited signal is guaranteed to be raised.
      */
     virtual void Run() = 0;
 
@@ -30,10 +30,7 @@ struct IProxyController
     virtual void Kill(const TError& error) throw() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TError), Exited);
-    
-    virtual ~IProxyController()
-    {}
-    
+
     // virtual void SubscribeOnMemoryLimit(IParamAction<i64>* callback) = 0;
     // virtual bool IsRunning() const = 0;
     // virtual TError GetError() const = 0;
@@ -51,7 +48,7 @@ struct IProxyController
 struct IEnvironmentBuilder
     : public virtual TRefCounted
 {
-    virtual TAutoPtr<IProxyController> CreateProxyController(
+    virtual IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
         const Stroka& workingDirectory) = 0;

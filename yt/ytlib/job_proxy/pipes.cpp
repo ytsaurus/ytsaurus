@@ -219,8 +219,8 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
 void TOutputPipe::Finish()
 {
     if (!IsFinished) {
-        OutputStream->Finish();
         IsFinished = true;
+        OutputStream->Finish();
     }
 }
 

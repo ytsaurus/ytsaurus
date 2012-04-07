@@ -59,9 +59,7 @@ public:
         , ProcessId(-1)
         , OnExit(New< TFuture<TError> >())
         , ControllerThread(ThreadFunc, this)
-    {
-        //VERIFY_THREAD_AFFINITY(JobThread);
-    }
+    { }
 
     void Run() 
     {
@@ -72,7 +70,7 @@ public:
             // ToDo: pass errors to parent process
             // cause logging doesn't work here.
             // Use unnamed pipes with CLOEXEC.
-            
+
             ChDir(WorkingDirectory);
 
             // redirect stderr and stdout to file
@@ -120,10 +118,8 @@ public:
     void Kill(const TError& error) throw() 
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
         LOG_DEBUG("Killing job, error: %s", ~error.GetMessage());
 
-        
         SetError(error);
 
         if (ProcessId < 0)
@@ -163,7 +159,7 @@ private:
 
     static void* ThreadFunc(void* param)
     {
-        auto* controller = (TUnsafeProxyController*) param;
+        auto controller = MakeStrong(static_cast<TUnsafeProxyController*>(param));
         controller->ThreadMain();
         return NULL;
     }
@@ -290,15 +286,15 @@ public:
     : ProxyPath(GetExecPath())
     { }
 
-    TAutoPtr<IProxyController> CreateProxyController(
+    IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr configuration, 
         const TJobId& jobId, 
         const Stroka& workingDirectory)
     {
 #ifndef _win_
-        return new TUnsafeProxyController(ProxyPath, jobId, workingDirectory);
+        return New<TUnsafeProxyController>(ProxyPath, jobId, workingDirectory);
 #else
-        return new TUnsafeProxyController(jobId);
+        return New<TUnsafeProxyController>(jobId);
 #endif
     }
 
