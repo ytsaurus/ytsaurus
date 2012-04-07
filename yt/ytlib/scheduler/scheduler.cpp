@@ -337,11 +337,11 @@ private:
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
         FOREACH (auto job, jobs) {
-            LOG_DEBUG("Aborting job %s on an offline node %s (OperationId: %s)",
+            LOG_INFO("Aborting job %s on an offline node %s (OperationId: %s)",
                 ~job->GetId().ToString(),
                 ~node->GetAddress(),
                 ~job->GetOperation()->GetOperationId().ToString());
-            UnregisterJob(job);
+            OnJobFailed(job, TError("Node has gone offline"));
         }
         YVERIFY(ExecNodes.erase(node->GetAddress()) == 1);
     }
