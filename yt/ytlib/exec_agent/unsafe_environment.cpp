@@ -257,7 +257,7 @@ public:
 private:
     static void* ThreadFunc(void* param)
     {
-        auto* controller = (TUnsafeProxyController*) param;
+        TIntrusivePtr<TUnsafeProxyController> controller(reinterpret_cast<TUnsafeProxyController*>(param));
         controller->ThreadMain();
         return NULL;
     }
