@@ -62,23 +62,28 @@ public:
     ITransaction::TPtr Attach(const TTransactionId& id);
 
 private:
-    void PingTransaction(const TTransactionId& transactionId);
+    class TTransaction;
+    typedef TIntrusivePtr<TTransaction> TTransactionPtr;
+
+    typedef TTransactionManager TThis;
+
+    void RegisterTransaction(TTransactionPtr transaction);
+    void UnregisterTransaction(const TTransactionId& id);
+    TTransactionPtr FindTransaction(const TTransactionId& id);
+
+    void SchedulePing(TTransactionPtr transaction);
+    void SendPing(const TTransactionId& id);
     void OnPingResponse(
         const TTransactionId& id,
         NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp);
-
-    class TTransaction;
-
-    void RegisterTransaction(TIntrusivePtr<TTransaction> transaction);
-    void UnregisterTransaction(const TTransactionId& id);
-
-    typedef yhash_map<TTransactionId, TTransaction*> TTransactionMap;
 
     TConfig::TPtr Config;
     NRpc::IChannel::TPtr Channel;
     NCypress::TCypressServiceProxy CypressProxy;
 
     TSpinLock SpinLock;
+
+    typedef yhash_map<TTransactionId, TWeakPtr<TTransaction> > TTransactionMap;
     TTransactionMap TransactionMap;
 
 };
