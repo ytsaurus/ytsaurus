@@ -1080,7 +1080,7 @@ private:
 
         JobMap.Remove(jobId);
 
-        LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s)", ~jobId.ToString(),);
+        LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s)", ~jobId.ToString());
     }
 
 
