@@ -227,7 +227,8 @@ public:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("state").Scalar(FormatEnum(ControlStatus))
+                // TODO(babenko): fixme, use FormatEnum
+                .Item("state").Scalar(ControlStatus.ToString())
                 .Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
                 .Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
                 .Item("elections").Do(BIND(&TElectionManager::GetMonitoringInfo, ElectionManager))
