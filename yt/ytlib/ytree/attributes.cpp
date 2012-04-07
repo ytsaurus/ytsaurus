@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "attributes.h"
-
 #include "ytree.h"
 #include "ephemeral.h"
 #include "serialize.h"
@@ -28,6 +27,15 @@ IMapNodePtr IAttributeDictionary::ToMap() const
         map->AddChild(~value, key);
     }
     return map;
+}
+
+TAutoPtr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr node)
+{
+    auto attributes = CreateEphemeralAttributes();
+    FOREACH (const auto& pair, node->GetChildren()) {
+        attributes->SetYson(pair.first, SerializeToYson(pair.second));
+    }
+    return attributes;
 }
 
 void IAttributeDictionary::MergeFrom(const IMapNodePtr other)
