@@ -69,7 +69,7 @@ private:
         
         if (name == "state") {
             BuildYsonFluently(consumer)
-                .Scalar(CamelCaseToUnderscoreCase(transaction.GetState().ToString()));
+                .Scalar(FormatEnum(transaction.GetState()));
             return true;
         }
 
