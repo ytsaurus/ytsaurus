@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -108,82 +109,6 @@ void TChunkListPool::OnChunkListsCreated(TCypressServiceProxy::TRspExecuteBatch:
 
 ////////////////////////////////////////////////////////////////////
 
-TRunningCounter::TRunningCounter()
-    : Total_(-1)
-    , Running_(-1)
-    , Done_(-1)
-    , Pending_(-1)
-    , Failed_(-1)
-{ }
-
-void TRunningCounter::Init(i64 total)
-{
-    Total_ = total;
-    Running_ = 0;
-    Done_ = 0;
-    Pending_ = total;
-    Failed_ = 0;
-}
-
-i64 TRunningCounter::GetTotal() const
-{
-    return Total_;
-}
-
-i64 TRunningCounter::GetRunning() const
-{
-    return Running_;
-}
-
-i64 TRunningCounter::GetDone() const
-{
-    return Done_;
-}
-
-i64 TRunningCounter::GetPending() const
-{
-    return Pending_;
-}
-
-i64 TRunningCounter::GetFailed() const
-{
-    return Failed_;
-}
-
-void TRunningCounter::Start(i64 count)
-{
-    YASSERT(Pending_ >= count);
-    Running_ += count;
-    Pending_ -= count;
-}
-
-void TRunningCounter::Completed(i64 count)
-{
-    YASSERT(Running_ >= count);
-    Running_ -= count;
-    Done_ += count;
-}
-
-void TRunningCounter::Failed(i64 count)
-{
-    YASSERT(Running_ >= count);
-    Running_ -= count;
-    Pending_ += count;
-    Failed_ += count;
-}
-
-Stroka ToString(const TRunningCounter& counter)
-{
-    return Sprintf("T: %" PRId64 ", R: %" PRId64 ", D: %" PRId64 ", P: %" PRId64 ", F: %" PRId64,
-        counter.GetTotal(),
-        counter.GetRunning(),
-        counter.GetDone(),
-        counter.GetPending(),
-        counter.GetFailed());
-}
-
-////////////////////////////////////////////////////////////////////
-
 TOperationControllerBase::TOperationControllerBase(
     TSchedulerConfigPtr config,
     IOperationHost* host,
@@ -281,7 +206,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     
     RemoveJobHandlers(job);
 
-    DumpProgress();
+    LogProgress();
 
     if (JobCounter.GetRunning() == 0 && !HasPendingJobs()) {
         FinalizeOperation();
@@ -303,7 +228,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     RemoveJobHandlers(job);
 
-    DumpProgress();
+    LogProgress();
 
     if (JobCounter.GetFailed() > Config->MaxFailedJobCount) {
         FailOperation(TError("%d jobs failed, aborting operation",
@@ -336,7 +261,7 @@ TJobPtr TOperationControllerBase::ScheduleJob(TExecNodePtr node)
     if (job) {
         LOG_INFO("Scheduled job %s", ~job->GetId().ToString());
         JobCounter.Start(1);
-        DumpProgress();
+        LogProgress();
     }
 
     return job;
@@ -783,6 +708,15 @@ TOperationControllerBase::TJobHandlersPtr TOperationControllerBase::GetJobHandle
 void TOperationControllerBase::RemoveJobHandlers(TJobPtr job)
 {
     YVERIFY(JobHandlers.erase(job) == 1);
+}
+
+void TOperationControllerBase::GetProgress( NYTree::IYsonConsumer* consumer )
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("jobs").Do(BIND(&TProgressCounter::ToYson, &JobCounter))
+            .Do(BIND(&TThis::DoGetProgress, Unretained(this)))
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////

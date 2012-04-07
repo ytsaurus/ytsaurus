@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_channel.cpp
+  ${BASE}/progress_counter.cpp
 )
 set( HDRS
   ${BASE}/chunk_pool.h
@@ -32,6 +33,7 @@ set( HDRS
   ${BASE}/scheduler_channel.h
   ${BASE}/scheduler_proxy.h
   ${BASE}/scheduler_strategy.h
+  ${BASE}/progress_counter.h
 )
 
 list(APPEND YT_SOURCE_FILES

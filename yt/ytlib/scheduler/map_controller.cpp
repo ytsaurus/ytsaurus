@@ -44,8 +44,8 @@ private:
     TMapOperationSpecPtr Spec;
 
     // Running counters.
-    TRunningCounter ChunkCounter;
-    TRunningCounter WeightCounter;
+    TProgressCounter ChunkCounter;
+    TProgressCounter WeightCounter;
 
     TUnorderedChunkPool ChunkPool;
 
@@ -265,15 +265,24 @@ private:
     }
 
 
-    // Unsorted helpers.
+    // Progress reporting.
 
-    virtual void DumpProgress()
+    virtual void LogProgress()
     {
         LOG_DEBUG("Progress: Jobs = {%s}, Chunks = {%s}, Weight = {%s}",
             ~ToString(JobCounter),
             ~ToString(ChunkCounter),
             ~ToString(WeightCounter));
     }
+
+    virtual void DoGetProgress(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &ChunkCounter))
+            .Item("weight").Do(BIND(&TProgressCounter::ToYson, &WeightCounter));
+    }
+
+    // Unsorted helpers.
 
     void InitJobSpecTemplate()
     {
