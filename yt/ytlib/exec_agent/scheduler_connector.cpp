@@ -59,7 +59,8 @@ void TSchedulerConnector::ScheduleNextHeartbeat()
 
 void TSchedulerConnector::SendHeartbeat()
 {
-    YASSERT(!HeartbeatInProgress);
+    if (HeartbeatInProgress)
+        return;
     HeartbeatInProgress = true;
     TDelayedInvoker::CancelAndClear(HeartbeatCookie);
 
