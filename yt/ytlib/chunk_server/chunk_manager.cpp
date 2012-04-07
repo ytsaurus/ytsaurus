@@ -563,12 +563,11 @@ private:
         // Remove all associated jobs.
         auto* jobList = FindJobList(chunkId);
         if (jobList) {
-            FOREACH (auto& job, jobList->Jobs()) {
-                auto* holder = FindHolder(job->GetRunnerAddress());
-                if (holder) {
-                    RemoveJob(*holder, job, false);
-                }
+            FOREACH (auto job, jobList->Jobs()) {
+                // Suppress removal from job list.
+                RemoveJob(job, true, false);
             }
+            JobListMap.Remove(chunkId);
         }
 
         Profiler.Increment(RemoveChunkCounter);
@@ -736,7 +735,8 @@ private:
                 auto jobId = TJobId::FromProto(stopInfo.job_id());
                 auto* job = FindJob(jobId);
                 if (job) {
-                    RemoveJob(holder, job, false);
+                    // Remove from both job list and holder.
+                    RemoveJob(job, true, true);
                 }
             }
 
@@ -901,8 +901,8 @@ private:
             }
 
             FOREACH (auto& job, holder.Jobs()) {
-                // Pass true to suppress removal of job ids from holder.
-                RemoveJob(holder, job, true);
+                // Suppress removal of job from holder.
+                RemoveJob(job, false, true);
             }
 
             YVERIFY(HolderAddressMap.erase(holder.GetAddress()) == 1);
@@ -1037,8 +1037,8 @@ private:
             startTime);
         JobMap.Insert(jobId, job);
 
-        auto& list = GetOrCreateJobList(chunkId);
-        list.AddJob(job);
+        auto& jobList = GetOrCreateJobList(chunkId);
+        jobList.AddJob(job);
 
         holder.AddJob(job);
 
@@ -1052,16 +1052,24 @@ private:
             ~chunkId.ToString());
     }
 
-    void RemoveJob(THolder& holder, TJob* job, bool holderDied)
+    void RemoveJob(
+        TJob* job,
+        bool removeFromHolder,
+        bool removeFromJobList)
     {
         auto jobId = job->GetId();
 
-        auto& list = GetJobList(job->GetChunkId());
-        list.RemoveJob(job);
-        DropJobListIfEmpty(list);
+        if (removeFromJobList) {
+            auto& jobList = GetJobList(job->GetChunkId());
+            jobList.RemoveJob(job);
+            DropJobListIfEmpty(jobList);
+        }
 
-        if (!holderDied) {
-            holder.RemoveJob(job);
+        if (removeFromHolder) {
+            auto* holder = FindHolder(job->GetRunnerAddress());
+            if (holder) {
+                holder->RemoveJob(job);
+            }
         }
 
         if (IsLeader()) {
@@ -1072,10 +1080,9 @@ private:
 
         JobMap.Remove(jobId);
 
-        LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s, HolderId: %d)",
+        LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s)",
             ~jobId.ToString(),
-            ~holder.GetAddress(),
-            holder.GetId());
+            ~job->GetRunnerAddress());
     }
 
 
@@ -1168,18 +1175,18 @@ private:
 
     TJobList& GetOrCreateJobList(const TChunkId& id)
     {
-        auto* list = FindJobList(id);
-        if (list)
-            return *list;
-
-        JobListMap.Insert(id, new TJobList(id));
-        return GetJobList(id);
+        auto* jobList = FindJobList(id);
+        if (!jobList) {
+            jobList = new TJobList(id);
+            JobListMap.Insert(id, jobList);
+        }
+        return *jobList;
     }
 
-    void DropJobListIfEmpty(const TJobList& list)
+    void DropJobListIfEmpty(const TJobList& jobList)
     {
-        if (list.Jobs().empty()) {
-            JobListMap.Remove(list.GetChunkId());
+        if (jobList.Jobs().empty()) {
+            JobListMap.Remove(jobList.GetChunkId());
         }
     }
 

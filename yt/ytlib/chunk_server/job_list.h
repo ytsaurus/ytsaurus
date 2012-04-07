@@ -14,11 +14,9 @@ class TJobList
 {
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TJob*>, Jobs);
+
 public:
-
     TJobList(const TChunkId& chunkId);
-
-    TJobList(const TJobList& other);
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
