@@ -47,8 +47,8 @@ void TMonitoringManager::Start()
 {
     YASSERT(!IsStarted);
 
-    // Update the root immediately to prevent GetRoot from returning NULL.
-    Update();
+    // Create an empty root immediately to prevent GetRoot from returning NULL.
+    Root = GetEphemeralNodeFactory()->CreateMap();
 
     PeriodicInvoker = New<TPeriodicInvoker>(
         ActionQueue->GetInvoker(),
@@ -72,22 +72,19 @@ void TMonitoringManager::Stop()
 void TMonitoringManager::Update()
 {
     PROFILE_TIMING("update_time") {
-        try {
-            auto newRoot = GetEphemeralNodeFactory()->CreateMap();
+        auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
-            FOREACH(const auto& pair, MonitoringMap) {
-                auto value = SerializeToYson(pair.second);
-                SyncYPathSet(newRoot, pair.first, value);
-            }
+        FOREACH(const auto& pair, MonitoringMap) {
+            auto value = SerializeToYson(pair.second);
+            SyncYPathSet(newRoot, pair.first, value);
+        }
 
-            if (IsStarted) {
-                Root = newRoot;
-            }
-        } catch (const std::exception& ex) {
-            LOG_FATAL("Error collecting monitoring data\n%s",
-                ex.what());
+        if (IsStarted) {
+            Root = newRoot;
         }
     }
+
+    PeriodicInvoker->ScheduleNext();
 }
 
 void TMonitoringManager::Visit(IYsonConsumer* consumer)
