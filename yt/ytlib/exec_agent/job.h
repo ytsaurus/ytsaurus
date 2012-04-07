@@ -75,7 +75,7 @@ private:
     NChunkHolder::TChunkCachePtr ChunkCache;
     std::vector<NChunkHolder::TCachedChunkPtr> CachedChunks;
 
-    TAutoPtr<IProxyController> ProxyController;
+    IProxyControllerPtr ProxyController;
 
     // Protects #JobResult.
     TSpinLock SpinLock;
