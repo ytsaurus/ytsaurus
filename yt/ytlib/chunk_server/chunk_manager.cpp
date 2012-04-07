@@ -1059,10 +1059,6 @@ private:
     {
         auto jobId = job->GetId();
 
-        LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s, Address: %s)",
-            ~jobId.ToString(),
-            ~job->GetRunnerAddress());
-
         if (removeFromJobList) {
             auto& jobList = GetJobList(job->GetChunkId());
             jobList.RemoveJob(job);
@@ -1083,6 +1079,8 @@ private:
         UnregisterReplicationSinks(job);
 
         JobMap.Remove(jobId);
+
+        LOG_INFO_IF(!IsRecovery(), "Job removed (JobId: %s)", ~jobId.ToString(),);
     }
 
 
