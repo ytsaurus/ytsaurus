@@ -141,7 +141,7 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
     }
 
     // TODO(babenko): refactor!
-    printf("%s", state.ToString());
+    printf("%s", ~state.ToString());
     if (state == EOperationState::Running) {
         int donePercentage  = (jobsCompleted * 100) / jobsTotal;
         printf(": %d%% jobs done (%" PRId64 " of %" PRId64 ")",

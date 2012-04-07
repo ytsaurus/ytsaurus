@@ -166,21 +166,10 @@ public:
         , OnTimeout(onTimeout)
         , Flag(0)
     {
-        auto this_ = MakeStrong(this);
-        
         promise->Subscribe(
-            BIND([this, this_] (T value) {
-                if (!AtomicAcquire())
-                    return;
-                OnResult.Run(value);
-            }));
-
+            BIND(&TPromiseWaiter::DoResult, MakeStrong(this)));
         TDelayedInvoker::Submit(
-            BIND([this, this_] () {
-                if (!AtomicAcquire())
-                    return;
-                OnTimeout.Run();
-            }),
+            BIND(&TPromiseWaiter::DoTimeout, MakeStrong(this)),
             timeout);
     }
 
@@ -190,9 +179,23 @@ private:
 
     TAtomic Flag;
 
-    bool AtomicAcquire()
+    bool AtomicAquire()
     {
         return AtomicCas(&Flag, 1, 0);
+    }
+
+    void DoResult(T value)
+    {
+        if (AtomicAquire()) {
+            OnResult.Run(value);
+        }
+    }
+
+    void DoTimeout()
+    {
+        if (AtomicAquire()) {
+            OnTimeout.Run();
+        }
     }
 };
 
