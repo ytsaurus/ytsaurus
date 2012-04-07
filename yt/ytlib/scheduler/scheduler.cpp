@@ -1008,8 +1008,8 @@ private:
             .WithAttributes().BeginMap()
             .EndMap()
             .BeginAttributes()
-                .Item("type").Scalar(CamelCaseToUnderscoreCase(EJobType(job->Spec().type()).ToString()))
-                .Item("state").Scalar(CamelCaseToUnderscoreCase(job->GetState().ToString()))
+                .Item("type").Scalar(FormatEnum(EJobType(job->Spec().type())))
+                .Item("state").Scalar(FormatEnum(job->GetState()))
                 //.DoIf(!job->Result().IsOK(), [=] (TFluentMap fluent) {
                 //    auto error = TError::FromProto(job->Result().error());
                 //    fluent.Item("result").BeginMap()
