@@ -333,7 +333,7 @@ private:
     }
 
     void UnregisterNode(TExecNodePtr node)
-    {
+        {
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
         FOREACH (auto job, jobs) {
