@@ -74,7 +74,7 @@ void TProfiler::Enqueue(const TYPath& path, TValue value)
 {
     TQueuedSample sample;
     sample.Time = GetCpuInstant();
-    sample.Path = CombineYPaths(PathPrefix, path);
+    sample.Path = PathPrefix + "/" + path;
     sample.Value = value;
     TProfilingManager::Get()->Enqueue(sample, SelfProfiling);
 }
@@ -100,7 +100,7 @@ void TProfiler::TimingStop(TTimer& timer)
 
         case ETimerMode::Sequential:
         case ETimerMode::Parallel:
-            Enqueue(CombineYPaths(timer.Path, "total"), value);
+            Enqueue(timer.Path +  "/total", value);
             break;
 
         default:
@@ -123,7 +123,7 @@ void TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
         timer.Mode = ETimerMode::Sequential;
     }
 
-    auto path = CombineYPaths(timer.Path, pathSuffix);
+    auto path = timer.Path + "/" + pathSuffix;
     switch (timer.Mode) {
         case ETimerMode::Sequential: {
             auto lastCheckpoint = timer.LastCheckpoint == 0 ? timer.Start : timer.LastCheckpoint;
@@ -177,9 +177,9 @@ void TProfiler::Aggregate(TAggregateCounter& counter, TValue value)
         TValue avg = counter.Sum / counter.SampleCount;
         switch (counter.Mode) {
             case EAggregateMode::All:
-                Enqueue(CombineYPaths(counter.Path, "min"), min);
-                Enqueue(CombineYPaths(counter.Path, "max"), max);
-                Enqueue(CombineYPaths(counter.Path, "avg"), avg);
+                Enqueue(counter.Path + "/min", min);
+                Enqueue(counter.Path + "/max", max);
+                Enqueue(counter.Path + "/avg", avg);
                 break;
 
             case EAggregateMode::Min:
