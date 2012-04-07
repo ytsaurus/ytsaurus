@@ -291,6 +291,12 @@ public:
             return TAny<TThis>(this->Consumer, *this, false);
         }
 
+        TList& Do(TYsonProducer producer)
+        {
+            producer.Run(this->Consumer);
+            return *this;
+        }
+
         template <class TFunc>
         TThis& Do(const TFunc& func)
         {
@@ -352,6 +358,12 @@ public:
         {
             this->Consumer->OnMapItem(key);
             return TAny<TThis>(this->Consumer, *this, false);
+        }
+
+        TMap& Do(TYsonProducer producer)
+        {
+            producer.Run(this->Consumer);
+            return *this;
         }
 
         template <class TFunc>

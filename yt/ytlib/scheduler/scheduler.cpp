@@ -328,6 +328,15 @@ private:
 
     void UnregisterNode(TExecNodePtr node)
     {
+        // Make a copy, the collection will be modified.
+        auto jobs = node->Jobs();
+        FOREACH (auto job, jobs) {
+            LOG_DEBUG("Aborting job %s on an offline node %s (OperationId: %s)",
+                ~job->GetId().ToString(),
+                ~node->GetAddress(),
+                ~job->GetOperation()->GetOperationId().ToString());
+            UnregisterJob(job);
+        }
         YVERIFY(ExecNodes.erase(node->GetAddress()) == 1);
     }
 
@@ -770,13 +779,12 @@ private:
 
         // The job does not get registered immediately.
         // Instead we wait until this job is returned back to us by the strategy.
-        auto job = New<TJob>(
+        return New<TJob>(
             TJobId::Create(),
             operation.Get(),
             node,
             spec,
             TInstant::Now());
-        return job;
     }
 
     virtual void OnOperationCompleted(
