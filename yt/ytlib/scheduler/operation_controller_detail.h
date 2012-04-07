@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "operation_controller.h"
+#include "progress_counter.h"
 
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -49,37 +50,6 @@ typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
 ////////////////////////////////////////////////////////////////////
 
 // TODO(babenko): extract to a proper place
-class TRunningCounter
-{
-public:
-    TRunningCounter();
-
-    void Init(i64 total);
-
-    i64 GetTotal() const;
-    i64 GetRunning() const;
-    i64 GetDone() const;
-    i64 GetPending() const;
-    i64 GetFailed() const;
-
-
-    void Start(i64 count);
-    void Completed(i64 count);
-    void Failed(i64 count);
-
-private:
-    i64 Total_;
-    i64 Running_;
-    i64 Done_;
-    i64 Pending_;
-    i64 Failed_;
-};
-
-Stroka ToString(const TRunningCounter& counter);
-
-////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): extract to a proper place
 class TOperationControllerBase
     : public IOperationController
 {
@@ -102,6 +72,9 @@ public:
     virtual TJobPtr ScheduleJob(TExecNodePtr node);
     virtual i64 GetPendingJobCount();
 
+    virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer);
+    virtual void BuildResultYson(NYTree::IYsonConsumer* consumer);
+
 private:
     typedef TOperationControllerBase TThis;
 
@@ -122,7 +95,7 @@ protected:
     int ExecNodeCount;
 
     // Running counters.
-    TRunningCounter JobCounter;
+    TProgressCounter JobCounter;
 
     TChunkListPoolPtr ChunkListPool;
 
@@ -182,7 +155,8 @@ protected:
 
     virtual void DoInitialize() = 0;
     virtual bool HasPendingJobs() = 0;
-    virtual void DumpProgress() = 0;
+    virtual void LogProgress() = 0;
+    virtual void DoGetProgress(NYTree::IYsonConsumer* consumer) = 0;
 
     // Jobs handlers management.
     TJobPtr CreateJob(

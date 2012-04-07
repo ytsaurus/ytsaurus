@@ -91,6 +91,13 @@ typename TFuture<T>::TPtr MakeFuture(const T& value)
     return New< TFuture<T> >(value);
 }
 
+template <class T>
+void WaitForPromise(
+    TIntrusivePtr< TFuture<T> > promise,
+    TDuration timeout,
+    TCallback<void(T)> onResult,
+    TCallback<void()> onTimeout);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

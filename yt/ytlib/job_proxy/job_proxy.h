@@ -40,7 +40,7 @@ private:
 
     const NScheduler::TJobId JobId;
 
-    TPeriodicInvoker::TPtr PingInvoker;
+    TPeriodicInvoker::TPtr HeartbeatInvoker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

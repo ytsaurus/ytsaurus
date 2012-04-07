@@ -5,6 +5,7 @@
 #include <ytlib/scheduler/job.pb.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -134,6 +135,12 @@ struct IOperationController
     //! Called during heartbeat processing to request actions the node must perform.
     //! Returns a new job of NULL is no job must be started.
     virtual TJobPtr ScheduleJob(TExecNodePtr node) = 0;
+
+    //! Called to construct a YSON representing the current progress.
+    virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer) = 0;
+
+    //! Called for finished operations to construct a YSON representing the result.
+    virtual void BuildResultYson(NYTree::IYsonConsumer* consumer) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

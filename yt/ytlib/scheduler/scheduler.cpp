@@ -112,7 +112,8 @@ private:
     NTransactionClient::ITransaction::TPtr BootstrapTransaction;
 
     TPeriodicInvoker::TPtr TransactionRefreshInvoker;
-    TPeriodicInvoker::TPtr NodesRefreshInvoker;
+    TPeriodicInvoker::TPtr ExecNodesRefreshInvoker;
+    TPeriodicInvoker::TPtr OperationNodesUpdateInvoker;
 
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
     TExecNodeMap ExecNodes;
@@ -156,10 +157,16 @@ private:
             return MakeFuture(TStartResult(TError("Operation failed to start\n%s", ex.what())));
         }
 
+        YASSERT(operation->GetState() == EOperationState::Initializing);
+        operation->SetState(EOperationState::Preparing);
+
         // Create a node in Cypress that will represent the operation.
         LOG_INFO("Creating operation node %s", ~operationId.ToString());
         auto setReq = TYPathProxy::Set(GetOperationPath(operationId));
-        setReq->set_value(SerializeToYson(BIND(&TImpl::BuildOperationYson, MakeStrong(this), operation)));
+        setReq->set_value(SerializeToYson(BIND(
+            &TImpl::BuildOperationYson,
+            MakeStrong(this),
+            operation)));
 
         return CypressProxy.Execute(setReq)->Apply(
             BIND(
@@ -204,9 +211,6 @@ private:
     void PrepareOperation(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YASSERT(operation->GetState() == EOperationState::Initializing);
-        operation->SetState(EOperationState::Preparing);
 
         // Run async preparation.
         LOG_INFO("Preparing operation %s", ~operation->GetOperationId().ToString());
@@ -369,10 +373,9 @@ private:
         EOperationState state,
         const TError& error)
     {
-        TOperationResult result;
-        *result.mutable_error() = error.ToProto();
-        operation->GetFinished()->Set(result);
+        *operation->Result().mutable_error() = error.ToProto();
         operation->SetState(state);
+        operation->GetFinished()->Set(TVoid());
     }
 
     void RemoveOperationNode(TOperationPtr operation)
@@ -571,26 +574,28 @@ private:
     void StartRefresh()
     {
         TransactionRefreshInvoker = New<TPeriodicInvoker>(
-            BIND(&TImpl::RefreshTransactions, MakeWeak(this))
-            .Via(GetControlInvoker()),
+            GetControlInvoker(),
+            BIND(&TImpl::RefreshTransactions, MakeWeak(this)),
             Config->TransactionsRefreshPeriod);
         TransactionRefreshInvoker->Start();
 
-        NodesRefreshInvoker = New<TPeriodicInvoker>(
-            BIND(&TImpl::RefreshExecNodes, MakeWeak(this))
-            .Via(GetControlInvoker()),
+        ExecNodesRefreshInvoker = New<TPeriodicInvoker>(
+            GetControlInvoker(),
+            BIND(&TImpl::RefreshExecNodes, MakeWeak(this)),
             Config->NodesRefreshPeriod);
-        NodesRefreshInvoker->Start();
+        ExecNodesRefreshInvoker->Start();
+
+        OperationNodesUpdateInvoker = New<TPeriodicInvoker>(
+            GetControlInvoker(),
+            BIND(&TImpl::UpdateOperationNodes, MakeWeak(this)),
+            Config->OperationsUpdatePeriod);
+        OperationNodesUpdateInvoker->Start();
     }
 
 
     void RefreshTransactions()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // Check if any operations are running.
-        if (Operations.empty())
-            return;
 
         // Collect all transactions that are used by currently running operations.
         yhash_set<TTransactionId> transactionIds;
@@ -618,6 +623,8 @@ private:
         NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        TransactionRefreshInvoker->ScheduleNext();
 
         if (!rsp->IsOK()) {
             LOG_ERROR("Error refreshing transactions\n%s", ~rsp->GetError().ToString());
@@ -687,6 +694,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        ExecNodesRefreshInvoker->ScheduleNext();
+
         if (!rsp->IsOK()) {
             LOG_ERROR("Error refreshing exec nodes\n%s", ~rsp->GetError().ToString());
             return;
@@ -719,6 +728,93 @@ private:
             LOG_INFO("Node %s is offline", ~node->GetAddress().Quote());
             UnregisterNode(node);
         }
+    }
+
+
+    void UpdateOperationNodes()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Updating operation nodes");
+
+        // Create a batch update for all operations.
+        auto batchReq = CypressProxy.ExecuteBatch();
+        FOREACH (const auto& pair, Operations) {
+            AddOperationUpdateRequests(pair.second, batchReq);
+        }
+        batchReq->Invoke()->Subscribe(
+            BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this), true)
+            .Via(GetControlInvoker()));
+    }
+
+    void UpdateOperationNode(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Updating operation node %s", ~operation->GetOperationId().ToString());
+
+        // Create a batch update for a single operation.
+        auto batchReq = CypressProxy.ExecuteBatch();
+        AddOperationUpdateRequests(operation, batchReq);
+        batchReq->Invoke()->Subscribe(
+            BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this), false)
+            .Via(GetControlInvoker()));
+    }
+
+    void AddOperationUpdateRequests(
+        TOperationPtr operation,
+        TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
+    {
+        auto operationPath = GetOperationPath(operation->GetOperationId());
+        
+        {
+            // Set state.
+            auto req = TYPathProxy::Set(CombineYPaths(operationPath, "@state"));
+            req->set_value(SerializeToYson(operation->GetState()));
+            batchReq->AddRequest(req);
+        }
+
+        {
+            // Set progress.
+            auto req = TYPathProxy::Set(CombineYPaths(operationPath, "@progress"));
+            req->set_value(SerializeToYson(BIND(&IOperationController::BuildProgressYson, operation->GetController())));
+            batchReq->AddRequest(req);
+        }
+
+        if (operation->GetState() == EOperationState::Completed ||
+            operation->GetState() == EOperationState::Failed)
+        {
+            // Set result.
+            auto req = TYPathProxy::Set(CombineYPaths(operationPath, "@result"));
+            req->set_value(SerializeToYson(BIND(&IOperationController::BuildResultYson, operation->GetController())));
+            batchReq->AddRequest(req);
+        }
+    }
+
+    void OnOperationNodesUpdated(
+        bool scheduleUpdate,
+        TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (scheduleUpdate) {
+            OperationNodesUpdateInvoker->ScheduleNext();
+        }
+
+        // Just check every response and log the errors.
+
+        if (!batchRsp->IsOK()) {
+            LOG_ERROR("Error updating operations\n%s", ~batchRsp->GetError().ToString());
+            return;
+        }
+
+        FOREACH (auto rsp, batchRsp->GetResponses()) {
+            if (!rsp->IsOK()) {
+                LOG_ERROR("Error updating operations\n%s", ~rsp->GetError().ToString());
+            }
+        }
+
+        LOG_INFO("Operation nodes updated successfully");
     }
 
 
@@ -807,14 +903,18 @@ private:
             return;
         }
 
-        LOG_INFO("Operation %s has completed",
-            ~operation->GetOperationId().ToString());
-
         SetOperationFinished(operation, EOperationState::Completed, TError());
+
+        // Initiate out-of-band update to the Cypress.
+        UpdateOperationNode(operation);
+
+        LOG_INFO("Operation %s completed",
+            ~operation->GetOperationId().ToString());
 
         // The operation will remain in this state until it is swept.
     }
 
+    
     virtual void OnOperationFailed(
         TOperationPtr operation,
         const TError& error)
@@ -837,11 +937,14 @@ private:
             return;
         }
 
-        LOG_INFO("Operation %s has failed\n%s",
+        SetOperationFinished(operation, EOperationState::Failed, error);
+
+        // Initiate out-of-band update to the Cypress.
+        UpdateOperationNode(operation);
+
+        LOG_INFO("Operation %s failed\n%s",
             ~operation->GetOperationId().ToString(),
             ~error.GetMessage());
-
-        SetOperationFinished(operation, EOperationState::Failed, error);
 
         // The operation will remain in this state until it is swept.
     }
@@ -877,6 +980,7 @@ private:
             .BeginAttributes()
                 .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
                 .Item("transaction_id").Scalar(operation->GetTransactionId())
+                .Item("state").Scalar(FormatEnum(operation->GetState()))
                 .Item("spec").Node(operation->GetSpec())
                 // TODO(babenko): serialize start time
             .EndAttributes();
@@ -976,15 +1080,28 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)
     {
         auto operationId = TTransactionId::FromProto(request->operation_id());
-
-        context->SetRequestInfo("OperationId: %s", ~operationId.ToString());
+        auto timeout = TDuration(request->timeout());
+        context->SetRequestInfo("OperationId: %s, Timeout: %s",
+            ~operationId.ToString(),
+            ~ToString(timeout));
 
         auto operation = GetOperation(operationId);
-        // TODO(babenko): const&
-        operation->GetFinished()->Subscribe(BIND([=] (TOperationResult result) {
-            *response->mutable_result() = result;
-            context->Reply();
-        }));
+        WaitForPromise(
+            operation->GetFinished(),
+            timeout,
+            BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, true),
+            BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, false, TVoid()));
+    }
+
+    void OnOperationWaitResult(
+        TCtxWaitForOperation::TPtr context,
+        TOperationPtr operation,
+        bool finished,
+        TVoid)
+    {
+        context->SetResponseInfo("Finished: %s", ~FormatBool(finished));
+        context->Response().set_finished(finished);
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
@@ -1145,6 +1262,8 @@ private:
     }
 
 };
+
+////////////////////////////////////////////////////////////////////
 
 TScheduler::TScheduler(
     TSchedulerConfigPtr config,

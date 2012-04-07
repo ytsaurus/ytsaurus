@@ -1,17 +1,23 @@
 #include "stdafx.h"
 #include "scheduler_commands.h"
 
+#include <ytlib/misc/configurable.h>
+
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/config.h>
 
+#include <ytlib/cypress/cypress_ypath_proxy.h>
+
 #include <ytlib/job_proxy/config.h>
 
+#include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NDriver {
 
 using namespace NScheduler;
+using namespace NCypress;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,9 +26,9 @@ TSchedulerCommandBase::TSchedulerCommandBase(ICommandHost* host)
     : TUntypedCommandBase(host)
 { }
 
-void TSchedulerCommandBase::RunOperation(
+void TSchedulerCommandBase::StartOperation(
     TTransactedRequestPtr request,
-    NScheduler::EOperationType type,
+    EOperationType type,
     const NYTree::TYson& spec)
 {
     auto transaction = Host->GetTransaction(request, true);
@@ -38,8 +44,7 @@ void TSchedulerCommandBase::RunOperation(
 
         auto startOpRsp = startOpReq->Invoke()->Get();
         if (!startOpRsp->IsOK()) {
-            Host->ReplyError(startOpRsp->GetError());
-            return;
+            ythrow yexception() << startOpRsp->GetError().ToString();
         }
 
         operationId = TOperationId::FromProto(startOpRsp->operation_id());
@@ -50,26 +55,133 @@ void TSchedulerCommandBase::RunOperation(
             .Item("operation_id").Scalar(operationId.ToString())
         .EndMap());
 
-    {
+    WaitForOperation(operationId);
+    DumpOperationResult(operationId);
+}
+
+void TSchedulerCommandBase::WaitForOperation(const TOperationId& operationId)
+{
+    auto config = Host->GetConfig();
+
+    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
+
+    while (true)  {
         auto waitOpReq = proxy.WaitForOperation();
         *waitOpReq->mutable_operation_id() = operationId.ToProto();
+        waitOpReq->set_timeout(config->OperationWaitTimeout.GetValue());
 
-        // Operation can run for a while, override the default timeout.
-        waitOpReq->SetTimeout(Null);
+        // Override default timeout.
+        waitOpReq->SetTimeout(config->OperationWaitTimeout * 2);
         auto waitOpRsp = waitOpReq->Invoke()->Get();
 
         if (!waitOpRsp->IsOK()) {
-            Host->ReplyError(waitOpRsp->GetError());
-            return;
+            ythrow yexception() << waitOpRsp->GetError().ToString();
         }
 
-        auto error = TError::FromProto(waitOpRsp->result().error());
-        if (error.IsOK()) {
-            Host->ReplySuccess();
-        } else {
-            Host->ReplyError(error);
-        }
+        if (waitOpRsp->finished())
+            break;
+
+        DumpOperationProgress(operationId);
+    } 
+}
+
+// TODO(babenko): refactor
+static NYTree::TYPath GetOperationPath(const TOperationId& id)
+{
+    return CombineYPaths("//sys/operations", EscapeYPath(id.ToString()));
+}
+
+// TODO(babenko): refactor
+// TODO(babenko): YPath and RPC responses currently share no base class.
+template <class TResponse>
+static void CheckResponse(TResponse response, const Stroka& failureMessage) 
+{
+    if (response->IsOK())
+        return;
+
+    ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
+}
+
+void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationId)
+{
+    auto operationPath = GetOperationPath(operationId);
+    
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    auto batchReq = proxy.ExecuteBatch();
+
+    {
+        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "@state"));
+        batchReq->AddRequest(req, "get_state");
     }
+
+    {
+        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "@progress"));
+        batchReq->AddRequest(req, "get_progress");
+    }
+
+    auto batchRsp = batchReq->Invoke()->Get();
+    CheckResponse(batchRsp, "Error getting operation progress");
+
+    EOperationState state;
+    i64 jobsTotal;
+    i64 jobsCompleted; 
+
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_state");
+        CheckResponse(rsp, "Error getting operation state");
+        state = DeserializeFromYson<EOperationState>(rsp->value());
+    }
+
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_progress");
+        CheckResponse(rsp, "Error getting operation progress");
+        auto yson = rsp->value();
+        jobsTotal = DeserializeFromYson<i64>(yson, "/jobs/total");
+        jobsCompleted = DeserializeFromYson<i64>(yson, "/jobs/completed");
+    }
+
+    // TODO(babenko): refactor!
+    printf("%s", state.ToString());
+    if (state == EOperationState::Running) {
+        int donePercentage  = (jobsCompleted * 100) / jobsTotal;
+        printf(": %d%% jobs done (%" PRId64 " of %" PRId64 ")",
+            donePercentage,
+            jobsCompleted,
+            jobsTotal);
+    }
+    printf("\n");
+}
+
+void TSchedulerCommandBase::DumpOperationResult(const TOperationId& operationId)
+{
+    // TODO(babenko): refactor!
+    Sleep(TDuration::Seconds(3));
+
+    auto operationPath = GetOperationPath(operationId);
+
+    TCypressServiceProxy proxy(Host->GetMasterChannel());
+    auto batchReq = proxy.ExecuteBatch();
+
+    {
+        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "@result"));
+        batchReq->AddRequest(req, "get_result");
+    }
+
+    auto batchRsp = batchReq->Invoke()->Get();
+    CheckResponse(batchRsp, "Error getting operation result");
+
+    TError error;
+
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_result");
+        CheckResponse(rsp, "Error getting operation result");
+        // TODO(babenko): refactor!
+        auto errorNode = DeserializeFromYson<INodePtr>(rsp->value(), "/error");
+        error = TError::FromYson(errorNode);
+    }
+
+    // TODO(babenko): refactor!
+    printf("%s\n", ~error.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +198,7 @@ void TMapCommand::DoExecute(TMapRequestPtr request)
     PreprocessYPaths(&request->Spec->OutputTablePaths);
     PreprocessYPaths(&request->Spec->FilePaths);
 
-    RunOperation(
+    StartOperation(
         request,
         EOperationType::Map,
         SerializeToYson(request->Spec));
@@ -106,7 +218,7 @@ void TMergeCommand::DoExecute(TMergeRequestPtr request)
     PreprocessYPaths(&request->Spec->InputTablePaths);
     PreprocessYPath(&request->Spec->OutputTablePath);
 
-    RunOperation(
+    StartOperation(
         request,
         EOperationType::Merge,
         SerializeToYson(request->Spec));

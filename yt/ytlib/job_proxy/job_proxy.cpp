@@ -6,11 +6,8 @@
 #include "sorted_merge_job.h"
 #include "ordered_merge_job.h"
 
-
 #include <ytlib/rpc/channel.h>
 #include <ytlib/scheduler/public.h>
-//#include <ytlib/misc/linux.h>
-
 
 namespace NYT {
 namespace NJobProxy {
@@ -31,20 +28,17 @@ TJobProxy::TJobProxy(
     , Proxy(~NRpc::CreateBusChannel(config->ExecAgentAddress))
     , JobId(jobId)
 {
-    PingInvoker = New<TPeriodicInvoker>(
-        BIND(&TJobProxy::SendHeartbeat, this), 
-        config->HeartbeatPeriod);
-
     Proxy.SetDefaultTimeout(config->RpcTimeout);
 }
 
 void TJobProxy::SendHeartbeat()
 {
+    HeartbeatInvoker->ScheduleNext();
+
     auto req = Proxy.OnProgress();
     *req->mutable_job_id() = JobId.ToProto();
 
     auto rsp = req->Invoke()->Get();
-
 
     if (!rsp->IsOK()) {
         // NB: user process is not killed here.
@@ -75,6 +69,12 @@ TJobSpec TJobProxy::GetJobSpec()
 
 void TJobProxy::Start()
 {
+    HeartbeatInvoker = New<TPeriodicInvoker>(
+        TSyncInvoker::Get(),
+        BIND(&TJobProxy::SendHeartbeat, this), 
+        Config->HeartbeatPeriod);
+    HeartbeatInvoker->Start();
+
     try {
         auto jobSpec = GetJobSpec();
 
@@ -120,7 +120,7 @@ void TJobProxy::Start()
 void TJobProxy::ReportResult(
     const NScheduler::NProto::TJobResult& result)
 {
-    PingInvoker->Stop();
+    HeartbeatInvoker->Stop();
 
     auto req = Proxy.OnJobFinished();
     *(req->mutable_result()) = result;

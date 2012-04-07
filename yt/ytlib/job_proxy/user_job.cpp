@@ -76,7 +76,6 @@ NScheduler::NProto::TJobResult TUserJob::Run()
     // ToDo(psushin): use tagged logger here.
     LOG_DEBUG("Running new user job");
     InitPipes();
-    LOG_DEBUG("Initialized pipes");
 
     ProcessId = fork();
     if (ProcessId < 0)
@@ -102,6 +101,8 @@ NScheduler::NProto::TJobResult TUserJob::Run()
 
 void TUserJob::InitPipes()
 {
+    LOG_DEBUG("Initializing pipes");
+
     // We use a special convention to numerate input and output file descriptors
     // in job processes:
     // fd == 3 * (N - 1) for the N-th input table (if exists)
@@ -154,6 +155,8 @@ void TUserJob::InitPipes()
     FOREACH(auto& fd, reservedDescriptors) {
         SafeClose(fd);
     }
+
+    LOG_DEBUG("Pipes initialized");
 }
 
 void TUserJob::StartJob()

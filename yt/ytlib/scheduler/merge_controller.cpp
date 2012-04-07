@@ -5,6 +5,8 @@
 #include "chunk_pool.h"
 #include "private.h"
 
+#include <ytlib/ytree/fluent.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -38,8 +40,8 @@ private:
     TMergeOperationSpecPtr Spec;
 
     // Running counters.
-    TRunningCounter ChunkCounter;
-    TRunningCounter WeightCounter;
+    TProgressCounter ChunkCounter;
+    TProgressCounter WeightCounter;
 
     ::THolder<TUnorderedChunkPool> ChunkPool;
 
@@ -257,6 +259,23 @@ private:
     }
 
 
+    // Progress reporting.
+
+    virtual void LogProgress()
+    {
+        LOG_DEBUG("Progress: Jobs = {%s}, Chunks = {%s}, Weight = {%s}",
+            ~ToString(JobCounter),
+            ~ToString(ChunkCounter),
+            ~ToString(WeightCounter));
+    }
+
+    virtual void DoGetProgress(IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("chunks").Do(BIND(&TProgressCounter::ToYson, &ChunkCounter))
+            .Item("weight").Do(BIND(&TProgressCounter::ToYson, &WeightCounter));
+    }
+
     // Unsorted helpers.
 
     //! Returns True iff the chunk has nontrivial limits.
@@ -282,14 +301,6 @@ private:
         return
             chunk.approximate_data_size() < Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize &&
             Spec->CombineChunks;
-    }
-
-    virtual void DumpProgress()
-    {
-        LOG_DEBUG("Progress: Jobs = {%s}, Chunks = {%s}, Weight = {%s}",
-            ~ToString(JobCounter),
-            ~ToString(ChunkCounter),
-            ~ToString(WeightCounter));
     }
 
     void InitJobSpecTemplate()

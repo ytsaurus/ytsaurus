@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/scheduler/scheduler_proxy.h>
-#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -21,16 +21,14 @@ public:
     void Start();
 
 private:
+    typedef TSchedulerConnector TThis;
+
     TSchedulerConnectorConfigPtr Config;
     TBootstrap* Bootstrap;
-    
+
     NScheduler::TSchedulerServiceProxy Proxy;
-    TDelayedInvoker::TCookie HeartbeatCookie;
+    TPeriodicInvoker::TPtr HeartbeatInvoker;
 
-    bool HeartbeatInProgress;
-    bool OutOfOrderHeartbeatNeeded;
-
-    void ScheduleNextHeartbeat();
     void SendHeartbeat();
     void OnHeartbeatResponse(NScheduler::TSchedulerServiceProxy::TRspHeartbeat::TPtr rsp);
 

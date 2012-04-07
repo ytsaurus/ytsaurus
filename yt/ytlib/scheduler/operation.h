@@ -34,7 +34,10 @@ class TOperation
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 
     //! Gets set when the operation is finished.
-    DEFINE_BYVAL_RO_PROPERTY(TFuture<NProto::TOperationResult>::TPtr, Finished);
+    DEFINE_BYVAL_RO_PROPERTY(TFuture<TVoid>::TPtr, Finished);
+
+    //! Operation result, becomes set when the operation finishes.
+    DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);
 
 public:
     TOperation(

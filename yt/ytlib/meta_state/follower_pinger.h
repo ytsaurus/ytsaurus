@@ -35,7 +35,6 @@ private:
     void OnPingResponse(TPeerId followerId, TProxy::TRspPingFollower::TPtr response);
 
     TFollowerPingerConfigPtr Config;
-    TPeriodicInvoker::TPtr PeriodicInvoker;
     NElection::TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
     TFollowerTrackerPtr FollowerTracker;

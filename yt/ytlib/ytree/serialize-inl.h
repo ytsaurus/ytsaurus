@@ -17,12 +17,34 @@ namespace NYTree {
 template <class T>
 typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson)
 {
-    typedef typename TDeserializeTraits<T>::TReturnType TResult;
     auto node = DeserializeFromYson(yson, GetEphemeralNodeFactory());
+    return DeserializeFromYson<T>(node);
+}
+
+template <class T>
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson, const TYPath& path)
+{
+    auto node = DeserializeFromYson(yson);
+    return DeserializeFromYson<T>(node, path);
+}
+
+template <class T>
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node)
+{
+    typedef typename TDeserializeTraits<T>::TReturnType TResult;
     TResult value;
     Read(value, ~node);
     return value;
 }
+
+template <class T>
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node, const TYPath& path)
+{
+    auto subnode = SyncYPathGetNode(node, path);
+    return DeserializeFromYson<T>(subnode);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 TYson SerializeToYson(
@@ -151,7 +173,7 @@ void Write(
     IYsonConsumer* consumer,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, TEnumBase<T>*>, int>::TType)
 {
-    consumer->OnStringScalar(parameter.ToString());
+    consumer->OnStringScalar(FormatEnum(parameter));
 }
 
 // TNullable

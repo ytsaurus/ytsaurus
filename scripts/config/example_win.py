@@ -99,6 +99,13 @@ class Holder(WinNode, Server):
                 'job_manager': {
                     'slot_location' : r'%(work_dir)s\slots',
                     'scheduler_address' : 'locahost:7000'
+                },
+                'environment_manager' : {
+                    'environments' : {
+                        'default' : {
+                            'type' : 'unsafe'
+                        }
+                    }
                 }
             },
             'logging' : Logging

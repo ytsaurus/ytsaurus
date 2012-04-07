@@ -16,6 +16,23 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T, class>
+struct TDeserializeTraits
+{
+    typedef T TReturnType;
+};
+
+template <class T>
+struct TDeserializeTraits<
+    T, 
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TRefCounted*> >::TType
+>
+{
+    typedef TIntrusivePtr<T> TReturnType;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 INodePtr CloneNode(
     INode* node,
     INodeFactory* factory = GetEphemeralNodeFactory());
@@ -32,6 +49,8 @@ void ValidateYson(TInputStream* input);
 //! Checks YSON string for correctness, throws exception on error.
 void ValidateYson(const TYson& yson);
 
+////////////////////////////////////////////////////////////////////////////////
+
 INodePtr DeserializeFromYson(
     TInputStream* input,
     INodeFactory* factory = GetEphemeralNodeFactory());
@@ -39,6 +58,20 @@ INodePtr DeserializeFromYson(
 INodePtr DeserializeFromYson(
     const TYson& yson,
     INodeFactory* factory = GetEphemeralNodeFactory());
+
+template <class T>
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson);
+
+template <class T>
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson, const TYPath& path);
+
+template <class T>
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node);
+
+template <class T>
+typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(INodePtr node, const TYPath& path);
+
+////////////////////////////////////////////////////////////////////////////////
 
 TOutputStream& SerializeToYson(
     INode* node,
@@ -53,26 +86,6 @@ template <class T>
 TYson SerializeToYson(
     const T& value,
     EYsonFormat format = EYsonFormat::Binary);
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T, class>
-struct TDeserializeTraits
-{
-    typedef T TReturnType;
-};
-
-template <class T>
-struct TDeserializeTraits<
-    T, 
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T*, TRefCounted*> >::TType
->
-{
-    typedef TIntrusivePtr<T> TReturnType;
-};
-
-template <class T>
-typename TDeserializeTraits<T>::TReturnType DeserializeFromYson(const TYson& yson);
 
 ////////////////////////////////////////////////////////////////////////////////
 

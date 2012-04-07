@@ -6,6 +6,7 @@
 
 #include <ytlib/misc/error.pb.h>
 #include <ytlib/actions/future.h>
+#include <ytlib/ytree/public.h>
 
 namespace NYT {
 
@@ -34,6 +35,9 @@ public:
 
     NProto::TError ToProto() const;
     static TError FromProto(const NProto::TError& protoError);
+
+    void ToYson(NYTree::IYsonConsumer* consumer) const;
+    static TError FromYson(NYTree::INodePtr node);
 
     enum
     {

@@ -42,6 +42,7 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
 
         NYTree::EYsonFormat OutputFormat;
+        TDuration OperationWaitTimeout;
         NElection::TLeaderLookup::TConfigPtr Masters;
         NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
         NFileClient::TFileReader::TConfig::TPtr FileReader;
@@ -54,6 +55,8 @@ public:
         {
             Register("output_format", OutputFormat)
                 .Default(NYTree::EYsonFormat::Text);
+            Register("operation_wait_timeout", OperationWaitTimeout)
+                .Default(TDuration::Seconds(10));
             Register("masters", Masters);
             Register("transaction_manager", TransactionManager)
                 .DefaultNew();

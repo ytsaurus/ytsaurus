@@ -2,17 +2,11 @@
 
 #include "delayed_invoker.h"
 
-#include <ytlib/actions/cancelable_context.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Performs action periodically.
-/*!
- *  \note
- *  Uses TDelayedInvoker. Consider wrapping actions with #TClosure::Via.
- */
+//! Helps to perform certain actions periodically.
 class TPeriodicInvoker
     : public TRefCounted
 {
@@ -24,32 +18,43 @@ public:
      *  \note
      *  We must call #Start to activate the instance.
      * 
-     *  \param action An action to call.
-     *  \param period An interval between consequent invocations.
+     *  \param invoker Invoker used for wrapping actions.
+     *  \param callback Callback to invoke periodically.
+     *  \param period Interval between usual consequent invocations.
+     *  \param splay First invocation splay time.
      */
-    TPeriodicInvoker(TClosure action, TDuration period);
+    TPeriodicInvoker(
+        IInvoker::TPtr invoker,
+        TClosure callback,
+        TDuration period,
+        TDuration splay = TDuration::Zero());
 
-    //! Starts invocations.
-    /*!
-     *  \note
-     *  The first invocation of the action happens immediately.
-     */
+    //! Starts the instance.
+    //! The first invocation happens with a random delay within splay time.
     void Start();
 
-    //! Stops invocations.
+    //! Stops the instance, cancels all subsequent invocations.
     void Stop();
 
-    //! Returns True iff the invoker is active.
-    bool IsActive() const;
+    //! Requests an immediate invocation.
+    void ScheduleOutOfBand();
+
+    //! Usually called from the callback to schedule the next invocation.
+    void ScheduleNext();
 
 private:
-    TClosure Action;
+    IInvoker::TPtr Invoker;
+    TClosure Callback;
     TDuration Period;
-    TDelayedInvoker::TCookie Cookie;
-    TCancelableContextPtr CancelableContext;
-    IInvoker::TPtr CancelableInvoker;
+    TDuration Splay;
 
-    void RunAction();
+    bool Started;
+    bool Busy;
+    bool OutOfBandRequested;
+    TDelayedInvoker::TCookie Cookie;
+
+    void PostDelayedCallback(TDuration delay);
+    void PostCallback();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

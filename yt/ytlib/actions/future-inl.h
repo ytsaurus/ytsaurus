@@ -4,6 +4,8 @@
 #undef FUTURE_INL_H_
 
 #include <ytlib/misc/foreach.h>
+#include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/actions/bind.h>
 
 namespace NYT {
 
@@ -146,6 +148,62 @@ template <class R>
 TIntrusivePtr< TFuture<R> > TFuture<T>::CastTo()
 {
     return Apply(BIND([] (T value) { return R(value); }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TPromiseWaiter
+    : public TRefCounted
+{
+public:
+    TPromiseWaiter(
+        TIntrusivePtr< TFuture<T> > promise,
+        TDuration timeout,
+        TCallback<void(T)> onResult,
+        TCallback<void()> onTimeout)
+        : OnResult(onResult)
+        , OnTimeout(onTimeout)
+        , Flag(0)
+    {
+        auto this_ = MakeStrong(this);
+        
+        promise->Subscribe(
+            BIND([this, this_] (T value) {
+                if (!AtomicAcquire())
+                    return;
+                OnResult.Run(value);
+            }));
+
+        TDelayedInvoker::Submit(
+            BIND([this, this_] () {
+                if (!AtomicAcquire())
+                    return;
+                OnTimeout.Run();
+            }),
+            timeout);
+    }
+
+private:
+    TCallback<void(T)> OnResult;
+    TCallback<void()> OnTimeout;
+
+    TAtomic Flag;
+
+    bool AtomicAcquire()
+    {
+        return AtomicCas(&Flag, 1, 0);
+    }
+};
+
+template <class T>
+void WaitForPromise(
+    TIntrusivePtr< TFuture<T> > promise,
+    TDuration timeout,
+    TCallback<void(T)> onResult,
+    TCallback<void()> onTimeout)
+{
+    New< TPromiseWaiter<T> >(promise, timeout, onResult, onTimeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
