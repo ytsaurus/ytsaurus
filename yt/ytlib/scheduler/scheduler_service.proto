@@ -49,11 +49,14 @@ message TOperationResult
 message TReqWaitForOperation
 { 
     required NYT.NProto.TGuid operation_id = 1;
+    // Specifies a timeout to wait for the operation to complete.
+    required int64 timeout = 4;
 }
 
 message TRspWaitForOperation
 {
-    required TOperationResult result = 1;
+    // True iff the operation has finished (either successfully or not).
+    required bool finished = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -710,12 +710,22 @@ void TOperationControllerBase::RemoveJobHandlers(TJobPtr job)
     YVERIFY(JobHandlers.erase(job) == 1);
 }
 
-void TOperationControllerBase::GetProgress( NYTree::IYsonConsumer* consumer )
+void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("jobs").Do(BIND(&TProgressCounter::ToYson, &JobCounter))
             .Do(BIND(&TThis::DoGetProgress, Unretained(this)))
+        .EndMap();
+}
+
+void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
+{
+    auto error = TError::FromProto(Operation->Result().error());
+    // TODO(babenko): refactor
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("error").Do(BIND(&TError::ToYson, &error))
         .EndMap();
 }
 

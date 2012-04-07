@@ -136,8 +136,11 @@ struct IOperationController
     //! Returns a new job of NULL is no job must be started.
     virtual TJobPtr ScheduleJob(TExecNodePtr node) = 0;
 
-    //! Called to construct a YSON node containing the current operation progress.
-    virtual void GetProgress(NYTree::IYsonConsumer* consumer) = 0;
+    //! Called to construct a YSON representing the current progress.
+    virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer) = 0;
+
+    //! Called for finished operations to construct a YSON representing the result.
+    virtual void BuildResultYson(NYTree::IYsonConsumer* consumer) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

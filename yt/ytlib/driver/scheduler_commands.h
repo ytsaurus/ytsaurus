@@ -14,12 +14,19 @@ class TSchedulerCommandBase
     : public virtual TUntypedCommandBase
 {
 protected:
+    typedef TSchedulerCommandBase TThis;
+
     explicit TSchedulerCommandBase(ICommandHost* host);
 
-    void RunOperation(
+    void StartOperation(
         TTransactedRequestPtr request,
         NScheduler::EOperationType type,
         const NYTree::TYson& spec);
+
+    void WaitForOperation(const NScheduler::TOperationId& operationId);
+
+    void DumpOperationProgress(const NScheduler::TOperationId& operationId);
+    void DumpOperationResult(const NScheduler::TOperationId& operationId);
 
 };
 

@@ -72,7 +72,8 @@ public:
     virtual TJobPtr ScheduleJob(TExecNodePtr node);
     virtual i64 GetPendingJobCount();
 
-    virtual void GetProgress(NYTree::IYsonConsumer* consumer);
+    virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer);
+    virtual void BuildResultYson(NYTree::IYsonConsumer* consumer);
 
 private:
     typedef TOperationControllerBase TThis;
