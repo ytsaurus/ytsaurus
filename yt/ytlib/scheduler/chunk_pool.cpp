@@ -7,88 +7,143 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-void TUnorderedChunkPool::Put(TPooledChunkPtr chunk)
-{
-    YASSERT(chunk->Weight > 0);
+////////////////////////////////////////////////////////////////////
 
-    FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-        YVERIFY(AddressToChunks[address].insert(chunk).second);
+class TUnorderedChunkPool
+    : public IChunkPool
+{
+public:
+    virtual void Add(TPooledChunkPtr chunk)
+    {
+        YASSERT(chunk->Weight > 0);
+
+        FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
+            YVERIFY(AddressToChunks[address].insert(chunk).second);
+        }
+        YVERIFY(Chunks.insert(chunk).second);
     }
-    YVERIFY(Chunks.insert(chunk).second);
-}
 
-void TUnorderedChunkPool::Put(const std::vector<TPooledChunkPtr>& chunks)
-{
-    FOREACH (const auto& chunk, chunks) {
-        Put(chunk);
-    }
-}
+    virtual TExtractResultPtr Extract(
+        const Stroka& address,
+        i64 weightThreshold,
+        int maxCount,
+        bool needLocal)
+    {
+        auto result = New<TExtractResult>();
+        int extractedCount = 0;
 
-void TUnorderedChunkPool::Extract(
-    const Stroka& address,
-    i64 weightThreshold,
-    bool needLocal,
-    std::vector<TPooledChunkPtr>* extractedChunks,
-    i64* extractedWeight,
-    int* localCount,
-    int* remoteCount)
-{
-    *extractedWeight = 0;
-    *localCount = 0;
-    *remoteCount = 0;
+        // Take local chunks first.
+        auto addressIt = AddressToChunks.find(address);
+        if (addressIt != AddressToChunks.end()) {
+            const auto& localChunks = addressIt->second;
+            FOREACH (const auto& chunk, localChunks) {
+                if (extractedCount >= maxCount || result->Weight >= weightThreshold) {
+                    break;
+                }
+                result->AddLocal(chunk);
+                ++extractedCount;
+            }
+        }
 
-    // Just to be sure.
-    extractedChunks->clear();
+        if (result->LocalCount == 0 && needLocal) {
+            // Could not find any local chunks but requested so.
+            // Don't look at remote ones.
+            return NULL;
+        }
 
-    // Take local chunks first.
-    auto addressIt = AddressToChunks.find(address);
-    if (addressIt != AddressToChunks.end()) {
-        const auto& localChunks = addressIt->second;
-        FOREACH (const auto& chunk, localChunks) {
-            if (*extractedWeight >= weightThreshold) {
+        // Unregister taken local chunks.
+        // We have to do this right away, otherwise we risk getting same chunks
+        // in the next phase.
+        for (int i = 0; i < result->LocalCount; ++i) {
+            Extract(result->Chunks[i]);
+        }
+
+        // Take remote chunks.
+        FOREACH (const auto& chunk, Chunks) {
+            if (extractedCount >= maxCount || result->Weight >= weightThreshold) {
                 break;
             }
-            extractedChunks->push_back(chunk);
-            ++*localCount;
-            *extractedWeight += chunk->Weight;
+            result->AddRemote(chunk);
+            ++extractedCount;
+        }
+
+        // Unregister taken remote chunks.
+        for (int i = result->LocalCount; i < result->LocalCount + result->RemoteCount; ++i) {
+            Extract(result->Chunks[i]);
+        }
+
+        return result;
+    }
+
+    void PutBack(TExtractResultPtr result)
+    {
+        FOREACH (const auto& chunk, result->Chunks) {
+            Add(chunk);
         }
     }
 
-    if (*localCount == 0 && needLocal) {
-        // Could not find any local chunks but requested so.
-        // Don't look at remote ones.
-        return;
-    }
-
-    // Unregister taken local chunks.
-    // We have to do this right away, otherwise we risk getting same chunks
-    // in the next phase.
-    for (int i = 0; i < *localCount; ++i) {
-        Extract((*extractedChunks)[i]);
-    }
-
-    // Take remote chunks.
-    FOREACH (const auto& chunk, Chunks) {
-        if (*extractedWeight >= weightThreshold) {
-            break;
+private:
+    yhash_map<Stroka, yhash_set<TPooledChunkPtr> > AddressToChunks;
+    yhash_set<TPooledChunkPtr> Chunks;
+    
+    void Extract(TPooledChunkPtr chunk)
+    {
+        FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
+            YVERIFY(AddressToChunks[address].erase(chunk) == 1);
         }
-        extractedChunks->push_back(chunk);
-        ++*remoteCount;
-        *extractedWeight += chunk->Weight;
+        YVERIFY(Chunks.erase(chunk) == 1);
     }
+};
 
-    // Unregister taken remote chunks.
-    for (int i = *localCount; i < *localCount + *remoteCount; ++i) {
-        Extract((*extractedChunks)[i]);
-    }
+TAutoPtr<IChunkPool> CreateUnorderedChunkPool()
+{
+    return new TUnorderedChunkPool();
 }
 
-void TUnorderedChunkPool::Extract(TPooledChunkPtr chunk)
+////////////////////////////////////////////////////////////////////
+
+class TAtomicChunkPool
+    : public IChunkPool
 {
-    FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
-        YVERIFY(AddressToChunks[address].erase(chunk) == 1);
+public:
+    virtual void Add(TPooledChunkPtr chunk)
+    {
+        Chunks.push_back(chunk);
     }
-    YVERIFY(Chunks.erase(chunk) == 1);
+
+    virtual TExtractResultPtr Extract(
+        const Stroka& address,
+        i64 weightThreshold,
+        int maxCount,
+        bool needLocal)
+    {
+        UNUSED(address);
+        UNUSED(weightThreshold);
+        UNUSED(maxCount);
+        UNUSED(needLocal);
+        auto result = New<TExtractResult>();
+        FOREACH (const auto& chunk, Chunks) {
+            result->AddRemote(chunk);
+        }
+        return result;
+    }
+
+    virtual void PutBack(TExtractResultPtr result)
+    {
+        YASSERT(Chunks.empty());
+        FOREACH (const auto& chunk, result->Chunks) {
+            Add(chunk);
+        }
+    }
+
+private:
+    std::vector<TPooledChunkPtr> Chunks;
+
+};
+
+TAutoPtr<IChunkPool> CreateAtomicChunkPool()
+{
+    return new TAtomicChunkPool();
 }
 
 ////////////////////////////////////////////////////////////////////
