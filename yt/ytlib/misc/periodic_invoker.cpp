@@ -3,54 +3,82 @@
 
 #include <ytlib/actions/invoker_util.h>
 #include <ytlib/actions/bind.h>
-#include <ytlib/logging/log.h>
+
+#include <util/random/random.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger ("PeriodicInvoker");
-
-////////////////////////////////////////////////////////////////////////////////
-
-TPeriodicInvoker::TPeriodicInvoker(TClosure action, TDuration period)
-    : Action(action)
+TPeriodicInvoker::TPeriodicInvoker(
+    IInvoker::TPtr invoker,
+    TClosure callback,
+    TDuration period,
+    TDuration splay)
+    : Invoker(invoker)
+    , Callback(callback)
     , Period(period)
-    , CancelableContext(New<TCancelableContext>())
-    , CancelableInvoker(CancelableContext->CreateInvoker(TSyncInvoker::Get()))
+    , Splay(splay)
+    , Started(false)
+    , Busy(false)
+    , OutOfBandRequested(false)
 { }
-
-bool TPeriodicInvoker::IsActive() const
-{
-    return CancelableContext->IsCanceled();
-}
 
 void TPeriodicInvoker::Start()
 {
-    YASSERT(!IsActive());
-
-    LOG_TRACE("Instance %p started", this);
-    RunAction();
+    YASSERT(!Started);
+    Started = true;
+    PostDelayedCallback(RandomNumber(Splay));
 }
 
 void TPeriodicInvoker::Stop()
 {
-    CancelableContext->Cancel();
+    Started = false;
+    Busy = false;
     TDelayedInvoker::CancelAndClear(Cookie);
-
-    LOG_TRACE("Instance %p stopped", this);
 }
 
-void TPeriodicInvoker::RunAction()
+void TPeriodicInvoker::ScheduleOutOfBand()
 {
-    LOG_TRACE("Action started in instance %p", this);
-    Action.Run();
-    LOG_TRACE("Action completed in instance %p", this);
+    YASSERT(Started);
+    if (Busy) {
+        OutOfBandRequested = true;
+    } else {
+        PostCallback();
+    }
+}
 
+void TPeriodicInvoker::ScheduleNext()
+{
+    YASSERT(Started);
+    YASSERT(Busy);
+    Busy = false;
+    if (OutOfBandRequested) {
+        OutOfBandRequested = false;
+        PostCallback();
+    } else {
+        PostDelayedCallback(Period);
+    }
+}
+
+void TPeriodicInvoker::PostDelayedCallback(TDuration delay)
+{
+    TDelayedInvoker::CancelAndClear(Cookie);
     Cookie = TDelayedInvoker::Submit(
-        BIND(&TPeriodicInvoker::RunAction, MakeStrong(this)).Via(CancelableInvoker),
-        Period);
-    LOG_TRACE("New cookie for instance %p is %p", this, ~Cookie);
+        BIND(&TPeriodicInvoker::PostCallback, MakeStrong(this)),
+        delay);
+}
+
+void TPeriodicInvoker::PostCallback()
+{
+    auto this_ = MakeStrong(this);
+    Invoker->Invoke(BIND([this, this_] () {
+        if (Started && !Busy) {
+            Busy = true;
+            TDelayedInvoker::CancelAndClear(Cookie);
+            Callback.Run();
+        }
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

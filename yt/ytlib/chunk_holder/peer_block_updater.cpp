@@ -28,8 +28,8 @@ TPeerBlockUpdater::TPeerBlockUpdater(
     , Bootstrap(bootstrap)
 {
     PeriodicInvoker = New<TPeriodicInvoker>(
-        BIND(&TPeerBlockUpdater::Update, MakeWeak(this))
-        .Via(bootstrap->GetControlInvoker()),
+        bootstrap->GetControlInvoker(),
+        BIND(&TPeerBlockUpdater::Update, MakeWeak(this)),
         Config->PeerUpdatePeriod);
 }
 
@@ -45,6 +45,8 @@ void TPeerBlockUpdater::Stop()
 
 void TPeerBlockUpdater::Update()
 {
+    PeriodicInvoker->ScheduleNext();
+
     LOG_INFO("Updating peer blocks");
 
     auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();

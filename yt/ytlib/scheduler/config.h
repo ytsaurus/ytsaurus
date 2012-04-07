@@ -15,6 +15,8 @@ struct TSchedulerConfig
 {
     TDuration TransactionsRefreshPeriod;
     TDuration NodesRefreshPeriod;
+    TDuration OperationsUpdatePeriod;
+
     ESchedulerStrategy Strategy;
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -28,9 +30,11 @@ struct TSchedulerConfig
     TSchedulerConfig()
     {
         Register("transactions_refresh_period", TransactionsRefreshPeriod)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(3));
         Register("nodes_refresh_period", NodesRefreshPeriod)
             .Default(TDuration::Seconds(15));
+        Register("operations_update_period", OperationsUpdatePeriod)
+            .Default(TDuration::Seconds(3));
         Register("strategy", Strategy)
             .Default(ESchedulerStrategy::Null);
         Register("max_failed_job_count", MaxFailedJobCount)

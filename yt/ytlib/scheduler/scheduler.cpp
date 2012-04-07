@@ -112,7 +112,8 @@ private:
     NTransactionClient::ITransaction::TPtr BootstrapTransaction;
 
     TPeriodicInvoker::TPtr TransactionRefreshInvoker;
-    TPeriodicInvoker::TPtr NodesRefreshInvoker;
+    TPeriodicInvoker::TPtr ExecNodesRefreshInvoker;
+    TPeriodicInvoker::TPtr OperationsUpdateInvoker;
 
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
     TExecNodeMap ExecNodes;
@@ -571,16 +572,22 @@ private:
     void StartRefresh()
     {
         TransactionRefreshInvoker = New<TPeriodicInvoker>(
-            BIND(&TImpl::RefreshTransactions, MakeWeak(this))
-            .Via(GetControlInvoker()),
+            GetControlInvoker(),
+            BIND(&TImpl::RefreshTransactions, MakeWeak(this)),
             Config->TransactionsRefreshPeriod);
         TransactionRefreshInvoker->Start();
 
-        NodesRefreshInvoker = New<TPeriodicInvoker>(
-            BIND(&TImpl::RefreshExecNodes, MakeWeak(this))
-            .Via(GetControlInvoker()),
+        ExecNodesRefreshInvoker = New<TPeriodicInvoker>(
+            GetControlInvoker(),
+            BIND(&TImpl::RefreshExecNodes, MakeWeak(this)),
             Config->NodesRefreshPeriod);
-        NodesRefreshInvoker->Start();
+        ExecNodesRefreshInvoker->Start();
+
+        OperationsUpdateInvoker = New<TPeriodicInvoker>(
+            GetControlInvoker(),
+            BIND(&TImpl::UpdateOperations, MakeWeak(this)),
+            Config->OperationsUpdatePeriod);
+        OperationsUpdateInvoker->Start();
     }
 
 
@@ -618,6 +625,8 @@ private:
         NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        TransactionRefreshInvoker->ScheduleNext();
 
         if (!rsp->IsOK()) {
             LOG_ERROR("Error refreshing transactions\n%s", ~rsp->GetError().ToString());
@@ -687,6 +696,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        ExecNodesRefreshInvoker->ScheduleNext();
+
         if (!rsp->IsOK()) {
             LOG_ERROR("Error refreshing exec nodes\n%s", ~rsp->GetError().ToString());
             return;
@@ -718,6 +729,55 @@ private:
         FOREACH (auto node, deadNodes) {
             LOG_INFO("Node %s is offline", ~node->GetAddress().Quote());
             UnregisterNode(node);
+        }
+    }
+
+
+    void UpdateOperations()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Create a batch update for all operations.
+        auto batchReq = CypressProxy.ExecuteBatch();
+        FOREACH (const auto& pair, Operations) {
+            auto operation = pair.second;
+            auto operationPath = GetOperationPath(operation->GetOperationId());
+            {
+                // Set state.
+                auto req = TYPathProxy::Set(CombineYPaths(operationPath, "@state"));
+                req->set_value(SerializeToYson(operation->GetState()));
+                batchReq->AddRequest(req);
+            }
+            {
+                // Set progress.
+                auto req = TYPathProxy::Set(CombineYPaths(operationPath, "@progress"));
+                req->set_value(SerializeToYson(BIND(&IOperationController::GetProgress, operation->GetController())));
+                batchReq->AddRequest(req);
+            }
+        }
+
+        batchReq->Invoke()->Subscribe(
+            BIND(&TImpl::OnOperationsUpdated, MakeStrong(this))
+            .Via(GetControlInvoker()));
+    }
+
+    void OnOperationsUpdated(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        OperationsUpdateInvoker->ScheduleNext();
+
+        // Just check every response and log the errors.
+
+        if (!batchRsp->IsOK()) {
+            LOG_ERROR("Error updating operations\n%s", ~batchRsp->GetError().ToString());
+            return;
+        }
+
+        FOREACH (auto rsp, batchRsp->GetResponses()) {
+            if (!rsp->IsOK()) {
+                LOG_ERROR("Error updating operations\n%s", ~rsp->GetError().ToString());
+            }
         }
     }
 
@@ -877,6 +937,7 @@ private:
             .BeginAttributes()
                 .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
                 .Item("transaction_id").Scalar(operation->GetTransactionId())
+                .Item("state").Scalar(FormatEnum(operation->GetState()))
                 .Item("spec").Node(operation->GetSpec())
                 // TODO(babenko): serialize start time
             .EndAttributes();
