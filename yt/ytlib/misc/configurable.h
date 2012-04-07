@@ -41,7 +41,7 @@ public:
 
     virtual void Load(NYTree::INode* node, const NYTree::TYPath& path);
     virtual void Validate(const NYTree::TYPath& path) const;
-    virtual void Save(NYTree::IYsonConsumer *consumer) const;
+    virtual void Save(NYTree::IYsonConsumer* consumer) const;
     virtual bool IsPresent() const;
 
 public: // for users
