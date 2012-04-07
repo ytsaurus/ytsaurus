@@ -92,7 +92,7 @@ typename TFuture<T>::TPtr MakeFuture(const T& value)
 }
 
 template <class T>
-void WaitForPromise(
+void WaitForFuture(
     TIntrusivePtr< TFuture<T> > promise,
     TDuration timeout,
     TCallback<void(T)> onResult,

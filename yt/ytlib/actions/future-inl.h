@@ -153,11 +153,11 @@ TIntrusivePtr< TFuture<R> > TFuture<T>::CastTo()
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-class TPromiseWaiter
+class TFutureAwaiter
     : public TRefCounted
 {
 public:
-    TPromiseWaiter(
+    TFutureAwaiter(
         TIntrusivePtr< TFuture<T> > promise,
         TDuration timeout,
         TCallback<void(T)> onResult,
@@ -167,9 +167,9 @@ public:
         , Flag(0)
     {
         promise->Subscribe(
-            BIND(&TPromiseWaiter::DoResult, MakeStrong(this)));
+            BIND(&TFutureAwaiter::DoResult, MakeStrong(this)));
         TDelayedInvoker::Submit(
-            BIND(&TPromiseWaiter::DoTimeout, MakeStrong(this)),
+            BIND(&TFutureAwaiter::DoTimeout, MakeStrong(this)),
             timeout);
     }
 
@@ -200,13 +200,13 @@ private:
 };
 
 template <class T>
-void WaitForPromise(
+void WaitForFuture(
     TIntrusivePtr< TFuture<T> > promise,
     TDuration timeout,
     TCallback<void(T)> onResult,
     TCallback<void()> onTimeout)
 {
-    New< TPromiseWaiter<T> >(promise, timeout, onResult, onTimeout);
+    New< TFutureAwaiter<T> >(promise, timeout, onResult, onTimeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

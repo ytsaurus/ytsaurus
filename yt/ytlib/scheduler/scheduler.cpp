@@ -1086,7 +1086,7 @@ private:
             ~ToString(timeout));
 
         auto operation = GetOperation(operationId);
-        WaitForPromise(
+        WaitForFuture(
             operation->GetFinished(),
             timeout,
             BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, true),
