@@ -23,22 +23,19 @@ const TDuration TMonitoringManager::Period = TDuration::Seconds(3);
 
 TMonitoringManager::TMonitoringManager()
     : IsStarted(false)
-{
-    PeriodicInvoker = New<TPeriodicInvoker>(
-        BIND(&TMonitoringManager::Update, MakeStrong(this)),
-        Period);
-}
+    , ActionQueue(New<TActionQueue>("Monitoring"))
+{ }
 
 void TMonitoringManager::Register(const TYPath& path, TYsonProducer producer)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YVERIFY(MonitoringMap.insert(MakePair(path, MoveRV(producer))).second);
+    YVERIFY(MonitoringMap.insert(MakePair(path, producer)).second);
 }
 
 void TMonitoringManager::Unregister(const TYPath& path)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YVERIFY(MonitoringMap.erase(Stroka(path)));
+    YVERIFY(MonitoringMap.erase(path) == 1);
 }
 
 INodePtr TMonitoringManager::GetRoot() const
@@ -50,10 +47,16 @@ void TMonitoringManager::Start()
 {
     YASSERT(!IsStarted);
 
-    IsStarted = true;
-    // Update the root right away to prevent GetRoot from returning NULL.
+    // Update the root immediately to prevent GetRoot from returning NULL.
     Update();
+
+    PeriodicInvoker = New<TPeriodicInvoker>(
+        ActionQueue->GetInvoker(),
+        BIND(&TMonitoringManager::Update, MakeStrong(this)),
+        Period);
     PeriodicInvoker->Start();
+
+    IsStarted = true;
 }
 
 void TMonitoringManager::Stop()
@@ -73,11 +76,8 @@ void TMonitoringManager::Update()
             auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
             FOREACH(const auto& pair, MonitoringMap) {
-                TStringStream output;
-                TYsonWriter writer(&output, EYsonFormat::Binary);
-                pair.second.Run(&writer);
-
-                SyncYPathSet(~newRoot, pair.first, output.Str());
+                auto value = SerializeToYson(pair.second);
+                SyncYPathSet(newRoot, pair.first, value);
             }
 
             if (IsStarted) {
@@ -93,7 +93,7 @@ void TMonitoringManager::Update()
 void TMonitoringManager::Visit(IYsonConsumer* consumer)
 {
     PROFILE_TIMING("visit_time") {
-        VisitTree(~GetRoot(), consumer);
+        VisitTree(GetRoot(), consumer);
     }
 }
 

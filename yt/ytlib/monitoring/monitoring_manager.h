@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/actions/action_queue.h>
 #include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
@@ -58,6 +59,7 @@ private:
     static const TDuration Period; // TODO: make configurable
 
     bool IsStarted;
+    TActionQueue::TPtr ActionQueue;
     TPeriodicInvoker::TPtr PeriodicInvoker;
 
     //! Protects #MonitoringMap.
