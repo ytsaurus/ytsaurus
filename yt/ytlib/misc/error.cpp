@@ -1,7 +1,12 @@
 #include "stdafx.h"
 #include "error.h"
 
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/attributes.h>
+
 namespace NYT {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,9 +59,9 @@ Stroka TError::ToString() const
     }
 }
 
-NProto::TError TError::ToProto() const
+NYT::NProto::TError TError::ToProto() const
 {
-    NProto::TError protoError;
+    NYT::NProto::TError protoError;
     protoError.set_code(Code_);
     if (!Message_.empty()) {
         protoError.set_message(Message_);
@@ -65,7 +70,7 @@ NProto::TError TError::ToProto() const
 
 }
 
-TError TError::FromProto(const NProto::TError& protoError)
+TError TError::FromProto(const NYT::NProto::TError& protoError)
 {
     TError error;
     error.Code_ = protoError.code();
@@ -76,6 +81,27 @@ TError TError::FromProto(const NProto::TError& protoError)
 bool TError::IsOK() const
 {
     return Code_ == OK;
+}
+
+void TError::ToYson(IYsonConsumer* consumer) const
+{
+    // TODO(babenko): refactor
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .DoIf(Code_ != TError::Fail, [=] (TFluentMap fluent) {
+                fluent.Item("code").Scalar(Code_);
+            })
+            .Item("message").Scalar(Message_)
+        .EndMap();
+}
+
+TError TError::FromYson(INodePtr node)
+{
+    // TODO(babenko): refactor
+    auto attributes = IAttributeDictionary::FromMap(node->AsMap());
+    return TError(
+        attributes->Get<int>("code", Fail),
+        attributes->Get<Stroka>("message"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
