@@ -226,6 +226,7 @@ class TUnsafeProxyController
 public:
     TUnsafeProxyController(const TJobId& jobId)
         : JobId(jobId)
+        , OnExit(New< TFuture<TError> >())
         , ControllerThread(ThreadFunc, this)
     { }
 
