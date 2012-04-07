@@ -50,11 +50,9 @@ void TSchedulerCommandBase::StartOperation(
         operationId = TOperationId::FromProto(startOpRsp->operation_id());
     }
 
-    Host->ReplySuccess(BuildYsonFluently()
-        .BeginMap()
-            .Item("operation_id").Scalar(operationId.ToString())
-        .EndMap());
+    Host->ReplySuccess(BuildYsonFluently().Scalar(operationId.ToString()));
 
+    // TODO: move the rest to the console wrapper
     WaitForOperation(operationId);
     DumpOperationResult(operationId);
 }
@@ -141,22 +139,27 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
     }
 
     // TODO(babenko): refactor!
-    printf("%s", ~state.ToString());
-    if (state == EOperationState::Running) {
-        int donePercentage  = (jobsCompleted * 100) / jobsTotal;
-        printf(": %d%% jobs done (%" PRId64 " of %" PRId64 ")",
-            donePercentage,
-            jobsCompleted,
-            jobsTotal);
+    switch (state) {
+        case EOperationState::Initializing:
+        case EOperationState::Preparing:
+        case EOperationState::Reviving:
+            printf("%s\n", ~state.ToString());
+            break;
+
+        case EOperationState::Running: {
+            int donePercentage  = (jobsCompleted * 100) / jobsTotal;
+            printf("%s: %3d%% jobs done (%" PRId64 " of %" PRId64 ")\n",
+                ~state.ToString(),
+                donePercentage,
+                jobsCompleted,
+                jobsTotal);
+            break;
+        }
     }
-    printf("\n");
 }
 
 void TSchedulerCommandBase::DumpOperationResult(const TOperationId& operationId)
 {
-    // TODO(babenko): refactor!
-    Sleep(TDuration::Seconds(3));
-
     auto operationPath = GetOperationPath(operationId);
 
     TCypressServiceProxy proxy(Host->GetMasterChannel());

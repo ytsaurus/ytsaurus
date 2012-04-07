@@ -56,7 +56,7 @@ public:
             Register("output_format", OutputFormat)
                 .Default(NYTree::EYsonFormat::Text);
             Register("operation_wait_timeout", OperationWaitTimeout)
-                .Default(TDuration::Seconds(10));
+                .Default(TDuration::Seconds(3));
             Register("masters", Masters);
             Register("transaction_manager", TransactionManager)
                 .DefaultNew();

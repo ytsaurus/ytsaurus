@@ -230,8 +230,8 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     LogProgress();
 
-    if (JobCounter.GetFailed() > Config->MaxFailedJobCount) {
-        FailOperation(TError("%d jobs failed, aborting operation",
+    if (JobCounter.GetFailed() >= Config->FailedJobsLimit) {
+        FailOperation(TError("Failed jobs limit %d has been reached",
             JobCounter.GetFailed()));
     }
 }

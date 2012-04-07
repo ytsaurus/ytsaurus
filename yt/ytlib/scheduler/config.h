@@ -19,7 +19,7 @@ struct TSchedulerConfig
 
     ESchedulerStrategy Strategy;
     //! Once this limit is reached the operation fails.
-    int MaxFailedJobCount;
+    int FailedJobsLimit;
     //! The additional number of chunk lists to preallocate during preparation phase.
     //! These chunk lists are used in case of job failures.
     int SpareChunkListCount;
@@ -37,7 +37,7 @@ struct TSchedulerConfig
             .Default(TDuration::Seconds(3));
         Register("strategy", Strategy)
             .Default(ESchedulerStrategy::Null);
-        Register("max_failed_job_count", MaxFailedJobCount)
+        Register("failed_jobs_limit", FailedJobsLimit)
             .Default(10)
             .GreaterThanOrEqual(0);
         Register("spare_chunk_list_count", SpareChunkListCount)

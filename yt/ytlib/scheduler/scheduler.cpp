@@ -284,10 +284,12 @@ private:
                 ~reason.ToString());
                 
             operation->GetController()->OnOperationAborted();
-            SetOperationFinished(
-                operation,
-                EOperationState::Aborted,
-                TError("Operation aborted (Reason: %s)", ~reason.ToString()));
+
+            operation->SetState(EOperationState::Aborted);
+            TError error("Operation aborted (Reason: %s)", ~reason.ToString());
+            *operation->Result().mutable_error() = error.ToProto();
+
+            FinalizeOperationNode(operation);
         }
     }
 
@@ -368,46 +370,7 @@ private:
         LOG_DEBUG("Unregistered operation %s", ~operation->GetOperationId().ToString());
     }
 
-    void SetOperationFinished(
-        TOperationPtr operation,
-        EOperationState state,
-        const TError& error)
-    {
-        *operation->Result().mutable_error() = error.ToProto();
-        operation->SetState(state);
-        operation->GetFinished()->Set(TVoid());
-    }
 
-    void RemoveOperationNode(TOperationPtr operation)
-    {
-        // Remove information about the operation from Cypress.
-        auto id = operation->GetOperationId();
-        LOG_INFO("Removing operation node %s", ~id.ToString());
-        auto req = TYPathProxy::Remove(GetOperationPath(id));
-        CypressProxy.Execute(req)->Subscribe(
-            BIND(&TImpl::OnOperationNodeRemoved, MakeStrong(this), operation)
-            .Via(GetControlInvoker()));
-    }
-
-    void OnOperationNodeRemoved(
-        TOperationPtr operation,
-        TYPathProxy::TRspRemove::TPtr rsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // TODO(babenko): retry failed attempts
-        if (!rsp->IsOK()) {
-            LOG_WARNING("Error removing operation node %s\n%s",
-                ~operation->GetOperationId().ToString(),
-                ~rsp->GetError().ToString());
-            return;
-        }
-
-        LOG_INFO("Operation node %s removed successfully",
-            ~operation->GetOperationId().ToString());
-    }
-
-    
     void RegisterJob(TJobPtr job)
     {
         YVERIFY(Jobs.insert(MakePair(job->GetId(), job)).second);
@@ -743,21 +706,7 @@ private:
             AddOperationUpdateRequests(pair.second, batchReq);
         }
         batchReq->Invoke()->Subscribe(
-            BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this), true)
-            .Via(GetControlInvoker()));
-    }
-
-    void UpdateOperationNode(TOperationPtr operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Updating operation node %s", ~operation->GetOperationId().ToString());
-
-        // Create a batch update for a single operation.
-        auto batchReq = CypressProxy.ExecuteBatch();
-        AddOperationUpdateRequests(operation, batchReq);
-        batchReq->Invoke()->Subscribe(
-            BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this), false)
+            BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this))
             .Via(GetControlInvoker()));
     }
 
@@ -791,15 +740,9 @@ private:
         }
     }
 
-    void OnOperationNodesUpdated(
-        bool scheduleUpdate,
-        TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    void OnOperationNodesUpdated(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (scheduleUpdate) {
-            OperationNodesUpdateInvoker->ScheduleNext();
-        }
 
         // Just check every response and log the errors.
 
@@ -815,6 +758,8 @@ private:
         }
 
         LOG_INFO("Operation nodes updated successfully");
+
+        OperationNodesUpdateInvoker->ScheduleNext();
     }
 
 
@@ -883,6 +828,73 @@ private:
             TInstant::Now());
     }
 
+
+    void RemoveOperationNode(TOperationPtr operation)
+    {
+        // Remove information about the operation from Cypress.
+        auto id = operation->GetOperationId();
+        LOG_INFO("Removing operation node %s", ~id.ToString());
+        auto req = TYPathProxy::Remove(GetOperationPath(id));
+        CypressProxy.Execute(req)->Subscribe(
+            BIND(&TImpl::OnOperationNodeRemoved, MakeStrong(this), operation)
+            .Via(GetControlInvoker()));
+    }
+
+    void OnOperationNodeRemoved(
+        TOperationPtr operation,
+        TYPathProxy::TRspRemove::TPtr rsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // TODO(babenko): retry failed attempts
+        if (!rsp->IsOK()) {
+            LOG_WARNING("Error removing operation node %s\n%s",
+                ~operation->GetOperationId().ToString(),
+                ~rsp->GetError().ToString());
+            return;
+        }
+
+        LOG_INFO("Operation node %s removed successfully",
+            ~operation->GetOperationId().ToString());
+    }
+
+
+    void FinalizeOperationNode(TOperationPtr operation)
+    {
+        LOG_INFO("Finalizing operation node %s", ~operation->GetOperationId().ToString());
+
+        auto batchReq = CypressProxy.ExecuteBatch();
+        AddOperationUpdateRequests(operation, batchReq);
+
+        return batchReq->Invoke()->Subscribe(BIND(
+            &TThis::OnOperationNodeFinalized,
+            MakeStrong(this),
+            operation));
+    }
+
+    void OnOperationNodeFinalized(
+        TOperationPtr operation,
+        TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        // TODO(babenko): add retries
+        if (!batchRsp->IsOK()) {
+            LOG_ERROR("Error finalizing operation node\n%s", ~batchRsp->GetError().ToString());
+            return;
+        }
+
+        FOREACH (auto rsp, batchRsp->GetResponses()) {
+            if (!rsp->IsOK()) {
+                LOG_ERROR("Error finalizing operation node\n%s", ~batchRsp->GetError().ToString());
+                return;
+            }
+        }
+
+        LOG_INFO("Operation node %s finalized", ~operation->GetOperationId().ToString());
+
+        operation->GetFinished()->Set(TVoid());
+    }
+
+
     virtual void OnOperationCompleted(
         TOperationPtr operation)
     {
@@ -903,18 +915,16 @@ private:
             return;
         }
 
-        SetOperationFinished(operation, EOperationState::Completed, TError());
+        operation->SetState(EOperationState::Completed);
 
-        // Initiate out-of-band update to the Cypress.
-        UpdateOperationNode(operation);
+        LOG_INFO("Operation %s completed", ~operation->GetOperationId().ToString());
 
-        LOG_INFO("Operation %s completed",
-            ~operation->GetOperationId().ToString());
+        FinalizeOperationNode(operation);
 
         // The operation will remain in this state until it is swept.
     }
-
     
+
     virtual void OnOperationFailed(
         TOperationPtr operation,
         const TError& error)
@@ -937,18 +947,17 @@ private:
             return;
         }
 
-        SetOperationFinished(operation, EOperationState::Failed, error);
-
-        // Initiate out-of-band update to the Cypress.
-        UpdateOperationNode(operation);
+        operation->SetState(EOperationState::Failed);
+        *operation->Result().mutable_error() = error.ToProto();
 
         LOG_INFO("Operation %s failed\n%s",
             ~operation->GetOperationId().ToString(),
             ~error.GetMessage());
 
+        FinalizeOperationNode(operation);
+
         // The operation will remain in this state until it is swept.
     }
-
 
 
     void BuildOrchidYson(IYsonConsumer* consumer)
@@ -981,6 +990,8 @@ private:
                 .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
                 .Item("transaction_id").Scalar(operation->GetTransactionId())
                 .Item("state").Scalar(FormatEnum(operation->GetState()))
+                .Item("progress").BeginMap()
+                .EndMap()
                 .Item("spec").Node(operation->GetSpec())
                 // TODO(babenko): serialize start time
             .EndAttributes();
