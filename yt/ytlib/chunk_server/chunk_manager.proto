@@ -17,13 +17,6 @@ message TMsgUnregisterHolder
     required int32 holder_id = 1;
 }
 
-// TODO(babenko): deprecate
-message TMsgCreateChunks
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required int32 chunk_count = 2;
-}
-
 // Full heartbeat changes are typcially large and as passed as-is in
 // form of RPC requests. Hence we don't have any special
 // TMsgFullHeartbeat type here.

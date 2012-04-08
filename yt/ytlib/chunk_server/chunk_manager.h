@@ -28,9 +28,6 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    NMetaState::TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
-        const NProto::TMsgCreateChunks& message);
-
     NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const NProto::TMsgRegisterHolder& message);
 

@@ -40,7 +40,6 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
         RPC_SERVICE_METHOD_DESC(FullHeartbeat),
         ~bootstrap->GetStateInvoker(EStateThreadQueue::ChunkRefresh));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunks));
 }
 
  void TChunkService::ValidateHolderId(THolderId holderId)
@@ -183,51 +182,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
                 static_cast<int>(response->jobs_to_stop_size()));
             context->Reply();
         }))
-        ->OnError(CreateErrorHandler(~context))
-        ->Commit();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TChunkService, CreateChunks)
-{
-    auto transactionId = TTransactionId::FromProto(request->transaction_id());
-    int chunkCount = request->chunk_count();
-    int uploadReplicaCount = request->upload_replica_count();
-
-    context->SetRequestInfo("TransactionId: %s, ChunkCount: %d, UploadReplicaCount: %d",
-        ~transactionId.ToString(),
-        chunkCount,
-        uploadReplicaCount);
-
-    ValidateTransactionId(transactionId);
-
-    auto chunkManager = Bootstrap->GetChunkManager();
-    for (int index = 0; index < chunkCount; ++index) {
-        auto holderIds = chunkManager->AllocateUploadTargets(uploadReplicaCount);
-        if (holderIds.ysize() < uploadReplicaCount) {
-            ythrow TServiceException(EErrorCode::NotEnoughHolders) <<
-                "Not enough holders available";
-        }
-        auto* chunkInfo = response->add_chunks();
-        FOREACH(auto holderId, holderIds) {
-            const THolder& holder = chunkManager->GetHolder(holderId);
-            chunkInfo->add_holder_addresses(holder.GetAddress());
-        }
-    }
-
-    TMsgCreateChunks message;
-    *message.mutable_transaction_id() = transactionId.ToProto();
-    message.set_chunk_count(chunkCount);
-    chunkManager
-        ->InitiateCreateChunks(message)
-        ->OnSuccess(BIND([=] (yvector<TChunkId> chunkIds)
-            {
-                YASSERT(chunkIds.size() == chunkCount);
-                for (int index = 0; index < chunkCount; ++index) {
-                    *response->mutable_chunks(index)->mutable_chunk_id() = chunkIds[index].ToProto();
-                }
-
-                context->Reply();
-            }))
         ->OnError(CreateErrorHandler(~context))
         ->Commit();
 }

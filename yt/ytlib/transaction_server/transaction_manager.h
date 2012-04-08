@@ -64,7 +64,7 @@ public:
 
     NObjectServer::IObjectProxy::TPtr GetRootTransactionProxy();
 
-    TTransaction& Start(TTransaction* parent, TTransactionManifest* manifest);
+    TTransaction& Start(TTransaction* parent, TNullable<TDuration> timeout);
     void Commit(TTransaction& transaction);
     void Abort(TTransaction& transaction);
     void RenewLease(const TTransactionId& id);
@@ -92,7 +92,7 @@ private:
 
     void OnTransactionExpired(const TTransactionId& id);
 
-    void CreateLease(const TTransaction& transaction, TTransactionManifest* manifest);
+    void CreateLease(const TTransaction& transaction, TNullable<TDuration> timeout);
     void CloseLease(const TTransaction& transaction);
     void FinishTransaction(TTransaction& transaction);
 

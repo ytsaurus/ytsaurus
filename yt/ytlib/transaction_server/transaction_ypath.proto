@@ -1,6 +1,7 @@
 package NYT.NTransactionServer.NProto;
 
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/ytree/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,12 +32,15 @@ message TRspRenewLease
 message TReqCreateObject
 {
     required int32 type = 1;
-    optional bytes manifest = 2;
+
+    extensions 100 to max;
 }
 
 message TRspCreateObject
 {
     required NYT.NProto.TGuid object_id = 1;
+
+    extensions 100 to max;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,20 +15,6 @@ extern NYTree::TYPath RootTransactionPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTransactionManifest
-    : public TConfigurable
-{
-    TNullable<TDuration> Timeout;
-
-    TTransactionManifest()
-    {
-        Register("timeout", Timeout)
-            .Default();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTransactionYPathProxy
     : public NObjectServer::TObjectYPathProxy
 {

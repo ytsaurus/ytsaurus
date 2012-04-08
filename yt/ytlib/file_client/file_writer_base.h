@@ -11,7 +11,6 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/chunk_client/remote_writer.h>
-#include <ytlib/chunk_server/chunk_service_proxy.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -67,8 +66,8 @@ public:
 
     //! Initializes an instance.
     TFileWriterBase(
-        TConfig* config,
-        NRpc::IChannel* masterChannel);
+        TConfig::TPtr config,
+        NRpc::IChannel::TPtr masterChannel);
 
     //! Opens the writer.
     void Open(NObjectServer::TTransactionId);
@@ -87,27 +86,22 @@ public:
     void Close();
 
 protected:
-    virtual void SpecificClose(const NChunkServer::TChunkId&);
+    NRpc::IChannel::TPtr MasterChannel;
+    NLog::TTaggedLogger Logger;
+
+    virtual void DoClose(const NChunkServer::TChunkId& chunkId);
 
 private:
     TConfig::TPtr Config;
     bool IsOpen;
     i64 Size;
     i32 BlockCount;
-    NChunkServer::TChunkServiceProxy ChunkProxy;
-
-protected:
-    NCypress::TCypressServiceProxy CypressProxy;
-
-    NLog::TTaggedLogger Logger;
-
-private:
     NChunkClient::TRemoteWriter::TPtr Writer;
     NChunkServer::TChunkId ChunkId;
     ICodec* Codec;
     TBlob Buffer;
 
-    void FlushBlock();
+        void FlushBlock();
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 

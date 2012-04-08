@@ -4,6 +4,9 @@
 #include "object_proxy.h"
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/transaction_server/public.h>
+#include <ytlib/transaction_server/transaction_ypath.pb.h>
+#include <ytlib/rpc/service.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -30,15 +33,23 @@ struct IObjectTypeHandler
     //! The object with the given id must exist.
     virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id) = 0;
 
+    typedef NRpc::TTypedServiceRequest<NTransactionServer::NProto::TReqCreateObject> TReqCreateObject;
+    typedef NRpc::TTypedServiceResponse<NTransactionServer::NProto::TRspCreateObject> TRspCreateObject;
     //! Creates a new object instance.
     /*!
-     *  \param transactionId Id of the transaction that becomes the owner of the newly created object.
-     *  \param manifest Manifest containing additional creation parameters. 
-     *  \returns the id of the created object.
+     *  \param transaction Transaction that becomes the owner of the newly created object.
+     *  May be NULL if #IsTransactionRequired returns False.
+     *  \param request Creation request (possibly containing additional parameters).
+     *  \param response Creation response (which may also hold some additional result).
+     *  \returns the id of the newly created object.
+     *  
+     *  Once #Create is completed, all request attributes are copied to object attributes.
+     *  The handler may alter the request appropriately to control this process.
      */
-    virtual TObjectId CreateFromManifest(
-        const TTransactionId& transactionId,
-        NYTree::IMapNode* manifest) = 0;
+    virtual TObjectId Create(
+        NTransactionServer::TTransaction* transaction,
+        TReqCreateObject* request,
+        TRspCreateObject* response) = 0;
 
     //! Indicates if a valid transaction is required to create a instance.
     virtual bool IsTransactionRequired() const = 0;

@@ -65,9 +65,10 @@ public:
         return EObjectType::Chunk;
     }
 
-    virtual TObjectId CreateFromManifest(
-        const TTransactionId& transactionId,
-        IMapNode* manifest);
+    virtual TObjectId Create(
+        TTransaction* transaction,
+        TReqCreateObject* request,
+        TRspCreateObject* response);
 
     virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
 
@@ -91,9 +92,10 @@ public:
         return EObjectType::ChunkList;
     }
 
-    virtual TObjectId CreateFromManifest(
-        const TTransactionId& transactionId,
-        IMapNode* manifest);
+    virtual TObjectId Create(
+        TTransaction* transaction,
+        TReqCreateObject* request,
+        TRspCreateObject* response);
 
     virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
 
@@ -135,7 +137,6 @@ public:
         RegisterMethod(BIND(&TImpl::UpdateJobs, Unretained(this)));
         RegisterMethod(BIND(&TImpl::RegisterHolder, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UnregisterHolder, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::CreateChunks, Unretained(this)));
 
         TLoadContext context(bootstrap);
 
@@ -206,15 +207,6 @@ public:
             MetaStateManager,
             message,
             BIND(&TThis::UpdateJobs, Unretained(this), message));
-    }
-
-    TMetaChange< yvector<TChunkId> >::TPtr InitiateCreateChunks(
-        const TMsgCreateChunks& message)
-    {
-        return CreateMetaChange(
-            MetaStateManager,
-            message,
-            BIND(&TThis::CreateChunks, Unretained(this), message));
     }
 
 
@@ -423,38 +415,6 @@ private:
     TMetaStateMap<TJobId, TJob> JobMap;
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
-
-
-    yvector<TChunkId> CreateChunks(const TMsgCreateChunks& message)
-    {
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        auto transactionId = TTransactionId::FromProto(message.transaction_id());
-        int chunkCount = message.chunk_count();
-
-        yvector<TChunkId> chunkIds;
-        chunkIds.reserve(chunkCount);
-        for (int index = 0; index < chunkCount; ++index) {
-            auto chunkId = objectManager->GenerateId(EObjectType::Chunk);
-            auto* chunk = new TChunk(chunkId);
-            ChunkMap.Insert(chunkId, chunk);
-
-            // The newly created chunk is referenced from the transaction.
-            auto& transaction = transactionManager->GetTransaction(transactionId);
-            YVERIFY(transaction.CreatedObjectIds().insert(chunkId).second);
-            objectManager->RefObject(chunkId);
-
-            chunkIds.push_back(chunkId);
-        }
-
-        Profiler.Increment(AddChunkCounter, chunkCount);
-
-        LOG_INFO_IF(!IsRecovery(), "Chunks created (ChunkIds: [%s], TransactionId: %s)",
-            ~JoinToString(chunkIds),
-            ~transactionId.ToString());
-
-        return chunkIds;
-    }
 
 
     TChunkTreeStatistics GetChunkTreeStatistics(const TChunk& chunk)
@@ -1439,17 +1399,36 @@ IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::GetProxy(const TVersionedOb
     return New<TChunkProxy>(Owner, id.ObjectId);
 }
 
-TObjectId TChunkManager::TChunkTypeHandler::CreateFromManifest(
-    const TTransactionId& transactionId,
-    IMapNode* manifest)
+TObjectId TChunkManager::TChunkTypeHandler::Create(
+    TTransaction* transaction,
+    TReqCreateObject* request,
+    TRspCreateObject* response)
 {
-    UNUSED(transactionId);
-    UNUSED(manifest);
+    UNUSED(transaction);
 
-    auto id = Owner->CreateChunk().GetId();
-    auto proxy = Bootstrap->GetObjectManager()->GetProxy(id);
-    proxy->Attributes().MergeFrom(manifest);
-    return id;
+    auto& chunk = Owner->CreateChunk();
+
+    if (Owner->IsLeader() && request->HasExtension(TReqCreateChunk::create_chunk)) {
+        const auto* requestExt = &request->GetExtension(TReqCreateChunk::create_chunk);
+        auto* responseExt = response->MutableExtension(TRspCreateChunk::create_chunk);
+
+        int holderCount = requestExt->holder_count();
+        auto holderIds = Owner->AllocateUploadTargets(holderCount);
+        if (holderIds.ysize() < holderCount) {
+            ythrow yexception() << "Not enough holders available";
+        }
+
+        FOREACH(auto holderId, holderIds) {
+            const THolder& holder = Owner->GetHolder(holderId);
+            responseExt->add_holder_addresses(holder.GetAddress());
+        }
+
+        LOG_INFO("Allocated holders [%s] for chunk %s",
+            ~JoinToString(responseExt->holder_addresses()),
+            ~chunk.GetId().ToString());
+    }
+
+    return chunk.GetId();
 }
 
 void TChunkManager::TChunkTypeHandler::OnObjectDestroyed(TChunk& chunk)
@@ -1609,17 +1588,17 @@ IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::GetProxy(const TVersion
     return New<TChunkListProxy>(Owner, id.ObjectId);
 }
 
-TObjectId TChunkManager::TChunkListTypeHandler::CreateFromManifest(
-    const TTransactionId& transactionId,
-    IMapNode* manifest)
+TObjectId TChunkManager::TChunkListTypeHandler::Create(
+    TTransaction* transaction,
+    TReqCreateObject* request,
+    TRspCreateObject* response)
 {
-    UNUSED(transactionId);
-    UNUSED(manifest);
+    UNUSED(transaction);
+    UNUSED(request);
+    UNUSED(response);
 
-    auto id = Owner->CreateChunkList().GetId();
-    auto proxy = Bootstrap->GetObjectManager()->GetProxy(id);
-    proxy->Attributes().MergeFrom(manifest);
-    return id;
+    auto& chunkList = Owner->CreateChunkList();
+    return chunkList.GetId();
 }
 
 void TChunkManager::TChunkListTypeHandler::OnObjectDestroyed(TChunkList& chunkList)
@@ -1683,12 +1662,6 @@ TMetaChange<TVoid>::TPtr TChunkManager::InitiateUpdateJobs(
     const TMsgUpdateJobs& message)
 {
     return Impl->InitiateUpdateJobs(message);
-}
-
-TMetaChange< yvector<TChunkId> >::TPtr TChunkManager::InitiateCreateChunks(
-    const TMsgCreateChunks& message)
-{
-    return Impl->InitiateCreateChunks(message);
 }
 
 TChunk& TChunkManager::CreateChunk()

@@ -9,15 +9,7 @@ namespace NDriver {
 
 struct TStartTransactionRequest
     : public TTransactedRequest
-{
-    NYTree::INodePtr Manifest;
-
-    TStartTransactionRequest()
-    {
-        Register("manifest", Manifest)
-            .Default();
-    }
-};
+{ };
 
 typedef TIntrusivePtr<TStartTransactionRequest> TStartRequestPtr;
 

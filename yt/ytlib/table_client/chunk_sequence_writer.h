@@ -9,8 +9,9 @@
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
 #include <ytlib/chunk_client/remote_writer.h>
-#include <ytlib/transaction_client/transaction.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
+#include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -62,8 +63,8 @@ public:
     };
 
     TChunkSequenceWriter(
-        TConfig* config,
-        NRpc::IChannel* masterChannel,
+        TConfig::TPtr config,
+        NRpc::IChannel::TPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkServer::TChunkListId& parentChunkList,
         i64 expectedRowCount = std::numeric_limits<i64>::max());
@@ -81,11 +82,10 @@ public:
         const std::vector<TChannelWriter::TPtr>& channels);
 
 private:
-    typedef NChunkServer::TChunkServiceProxy TProxy;
-
     void CreateNextChunk();
     void InitCurrentChunk(TChunkWriter::TPtr nextChunk);
-    void OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp);
+    void OnChunkCreated(
+        NTransactionServer::TTransactionYPathProxy::TRspCreateObject::TPtr rsp);
 
     void FinishCurrentChunk(
         const std::vector<TChannelWriter::TPtr>& channels);
@@ -111,15 +111,13 @@ private:
     void OnClose();
 
     TConfig::TPtr Config;
+    NRpc::IChannel::TPtr MasterChannel;
 
     const i64 ExpectedRowCount;
     i64 CurrentRowCount;
 
     //! Total compressed size of data in the completed chunks.
     i64 CompleteChunkSize;
-
-    TProxy ChunkProxy;
-    NCypress::TCypressServiceProxy CypressProxy;
 
     const NObjectServer::TTransactionId TransactionId;
     const NChunkServer::TChunkListId ParentChunkList;

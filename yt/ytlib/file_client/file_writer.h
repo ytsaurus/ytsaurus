@@ -8,7 +8,7 @@
 
 namespace NYT {
 namespace NFileClient {
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A client-side facade for writing files.
@@ -24,10 +24,10 @@ public:
 
     //! Initializes an instance.
     TFileWriter(
-        TConfig* config,
-        NRpc::IChannel* masterChannel,
-        NTransactionClient::ITransaction* transaction,
-        NTransactionClient::TTransactionManager* transactionManager,
+        TConfig::TPtr config,
+        NRpc::IChannel::TPtr masterChannel,
+        NTransactionClient::ITransaction::TPtr transaction,
+        NTransactionClient::TTransactionManager::TPtr transactionManager,
         const NYTree::TYPath& path);
 
     //! Opens the writer.
@@ -39,7 +39,7 @@ public:
     NCypress::TNodeId GetNodeId() const;
 
 protected:
-    virtual void SpecificClose(const NChunkServer::TChunkId&);
+    virtual void DoClose(const NChunkServer::TChunkId& chunkId);
 
 private:
     NTransactionClient::ITransaction::TPtr Transaction;
