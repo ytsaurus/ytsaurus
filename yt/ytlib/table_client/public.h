@@ -1,0 +1,16 @@
+﻿#pragma once
+
+#include <ytlib/misc/intrusive_ptr.h>
+
+namespace NYT {
+namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IAsyncBlockWriter;
+typedef TIntrusivePtr<IAsyncBlockWriter> IAsyncBlockWriterPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTableClient
+} // namespace NYT
