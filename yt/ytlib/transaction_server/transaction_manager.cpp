@@ -2,8 +2,8 @@
 #include "transaction_manager.h"
 #include "transaction.h"
 #include "transaction_ypath_proxy.h"
-#include <ytlib/transaction_server/transaction_ypath.pb.h>
 
+#include <ytlib/transaction_server/transaction_ypath.pb.h>
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/cell_master/config.h>
@@ -143,40 +143,47 @@ private:
             ~GetId().ToString(),
             ~type.ToString());
 
+        auto* transaction = GetId() == NullTransactionId ? NULL : &GetTypedImpl();
+
         auto objectManager = Owner->Bootstrap->GetObjectManager();
         auto handler = objectManager->FindHandler(type);
         if (!handler) {
-            ythrow yexception() << "Unknown object type";
-        }
-
-        NYTree::INodePtr manifestNode =
-            request->has_manifest()
-            ? DeserializeFromYson(request->manifest())
-            : GetEphemeralNodeFactory()->CreateMap();
-
-        if (manifestNode->GetType() != NYTree::ENodeType::Map) {
-            ythrow yexception() << "Manifest must be a map";
+            ythrow yexception() << Sprintf("Unknown object type %s", ~type.ToString());
         }
 
         if (handler->IsTransactionRequired() && GetId() == NullTransactionId) {
-            ythrow yexception() << Sprintf("Cannot create an instance outside of a transaction (Type: %s)",
-                ~type.ToString());
+            ythrow yexception() << Sprintf("Cannot create an instance of %s outside",
+                ~FormatEnum(type));
         }
 
-        auto objectId = handler->CreateFromManifest(
-            GetId(),
-            ~manifestNode->AsMap());
-
-        if (GetId() != NullTransactionId) {
-            auto& transaction = GetTypedImpl();
-            YVERIFY(transaction.CreatedObjectIds().insert(objectId).second);
-            objectManager->RefObject(objectId);
-        }
+        auto objectId = handler->Create(
+            transaction,
+            request,
+            response);
 
         *response->mutable_object_id() = objectId.ToProto();
 
-        context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
+        auto attributeKeys = request->Attributes().List();
+        if (!attributeKeys.empty()) {
+            // Copy attributes. Quick and dirty.
+            auto* attributeSet = objectManager->FindAttributes(objectId);
+            if (!attributeSet) {
+                attributeSet = objectManager->CreateAttributes(objectId);
+            }
+            
+            FOREACH (const auto& key, attributeKeys) {
+                YVERIFY(attributeSet->Attributes().insert(MakePair(
+                    key,
+                    request->Attributes().GetYson(key))).second);
+            }
+        }
 
+        if (transaction) {
+            YVERIFY(transaction->CreatedObjectIds().insert(objectId).second);
+            objectManager->RefObject(objectId);
+        }
+
+        context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
         context->Reply();
     }
 
@@ -190,7 +197,7 @@ private:
 
         auto& transaction = GetTypedImpl();
         if (transaction.CreatedObjectIds().erase(objectId) != 1) {
-            ythrow yexception() << Sprintf("Transaction does not own the object (ObjectId: %s)", ~objectId.ToString());
+            ythrow yexception() << "Transaction does not own the object";
         }
 
         auto objectManager = Owner->Bootstrap->GetObjectManager();
@@ -216,22 +223,16 @@ public:
         return EObjectType::Transaction;
     }
 
-    virtual TObjectId CreateFromManifest(
-        const TTransactionId& transactionId,
-        IMapNode* manifestNode)
+    virtual TObjectId Create(
+        TTransaction* parent,
+        TReqCreateObject* request,
+        TRspCreateObject* response)
     {
-        auto manifest = New<TTransactionManifest>();
-        manifest->Load(manifestNode);
+        UNUSED(response);
 
-        auto* parent =
-            transactionId == NullTransactionId
-            ? NULL
-            : &Owner->GetTransaction(transactionId);
-
-        auto id = Owner->Start(parent, ~manifest).GetId();
-        auto proxy = Bootstrap->GetObjectManager()->GetProxy(id);
-        proxy->Attributes().MergeFrom(manifestNode);
-        return id;
+        auto timeout = request->Attributes().Find<TDuration>("timeout");
+        auto& transaction = Owner->Start(parent, timeout);
+        return transaction.GetId();
     }
 
     virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id)
@@ -288,10 +289,9 @@ TTransactionManager::TTransactionManager(
     VERIFY_INVOKER_AFFINITY(bootstrap->GetStateInvoker(), StateThread);
 }
 
-TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManifest* manifest)
+TTransaction& TTransactionManager::Start(TTransaction* parent, TNullable<TDuration> timeout)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(manifest);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto id = objectManager->GenerateId(EObjectType::Transaction);
@@ -309,7 +309,7 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TTransactionManif
     }
 
     if (IsLeader()) {
-        CreateLease(*transaction, manifest);
+        CreateLease(*transaction, timeout);
     }
 
     transaction->SetState(ETransactionState::Active);
@@ -450,10 +450,8 @@ void TTransactionManager::OnLeaderRecoveryComplete()
         const auto& id = pair.first;
         const auto& transaction = *pair.second;
         auto proxy = objectManager->GetProxy(id);
-        auto manifestNode = proxy->Attributes().ToMap();
-        auto manifest = New<TTransactionManifest>();
-        manifest->Load(~manifestNode);
-        CreateLease(transaction, ~manifest);
+        auto timeout = proxy->Attributes().Find<TDuration>("timeout");
+        CreateLease(transaction, timeout);
     }
 }
 
@@ -465,11 +463,11 @@ void TTransactionManager::OnStopLeading()
     LeaseMap.clear();
 }
 
-void TTransactionManager::CreateLease(const TTransaction& transaction, TTransactionManifest* manifest)
+void TTransactionManager::CreateLease(const TTransaction& transaction, TNullable<TDuration> timeout)
 {
-    auto timeout = manifest->Timeout.Get(Config->DefaultTransactionTimeout);
     auto lease = TLeaseManager::CreateLease(
-        timeout,
+        // TODO(babenko): upper-bound the limit
+        timeout.Get(Config->DefaultTransactionTimeout),
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction.GetId())
         .Via(
             Bootstrap->GetStateInvoker(),

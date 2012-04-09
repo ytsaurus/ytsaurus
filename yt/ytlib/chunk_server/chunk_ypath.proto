@@ -1,6 +1,7 @@
 package NYT.NChunkServer.NProto;
 
 import "yt/ytlib/chunk_holder/chunk.proto";
+import "yt/ytlib/transaction_server/transaction_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,5 +24,29 @@ message TReqConfirm
 
 message TRspConfirm
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// CreateObject extension.
+
+message TReqCreateChunk
+{
+    extend NYT.NTransactionServer.NProto.TReqCreateObject
+    {
+        optional TReqCreateChunk create_chunk = 100;
+    }
+
+    required int32 holder_count = 1;
+}
+
+message TRspCreateChunk
+{
+    extend NYT.NTransactionServer.NProto.TRspCreateObject
+    {
+        optional TRspCreateChunk create_chunk = 100;
+    }
+
+    repeated bytes holder_addresses = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -248,7 +248,7 @@ private:
                 } else if (isdigit(ch) || ch == '-') { // case of '+' is handled in AfterPlus state
                     Token.StringValue = Stroka(ch);
                     SetInProgressState(EInnerState::InsideNumeric);
-                } else if (isalpha(ch) || ch == '_') {
+                } else if (isalpha(ch) || ch == '_' || ch == '%') {
                     Token.StringValue = Stroka(ch);
                     SetInProgressState(EInnerState::InsideUnquotedString);
                 } else {
@@ -261,7 +261,7 @@ private:
 
     bool ConsumeUnquotedString(char ch)
     {
-        if (isalpha(ch) || isdigit(ch) || ch == '_') {
+        if (isalpha(ch) || isdigit(ch) || ch == '_' || ch == '-' || ch == '%') {
             Token.StringValue.append(ch);
             return true;
         } else {
@@ -354,6 +354,10 @@ private:
             Token.StringValue.append(ch);
             InnerState = EInnerState::InsideDouble;
             return true;
+        } else if (isalpha(ch)) {
+            ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %d, Token: %s)",
+                ~Stroka(ch).Quote(),
+                ~Token.StringValue);
         } else {
             FinishNumeric();
             return false;
@@ -369,6 +373,10 @@ private:
         {
             Token.StringValue.append(ch);
             return true;
+        } else if (isalpha(ch)) {
+            ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %d, Token: %s)",
+                ~Stroka(ch).Quote(),
+                ~Token.StringValue);
         } else {
             FinishDouble();
             return false;

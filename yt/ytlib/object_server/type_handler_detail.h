@@ -61,14 +61,17 @@ public:
         return New< TUnversionedObjectProxyBase<TObject> >(Bootstrap, id.ObjectId, Map);
     }
 
-    virtual TObjectId CreateFromManifest(
-        const NObjectServer::TTransactionId& transactionId,
-        NYTree::IMapNode* manifest)
+    virtual TObjectId Create(
+        NTransactionServer::TTransaction* transaction,
+        TReqCreateObject* request,
+        TRspCreateObject* response)
     {
-        UNUSED(transactionId);
-        UNUSED(manifest);
-        ythrow yexception() << Sprintf("Object cannot be created from a manifest (Type: %s)",
-            ~GetType().ToString());
+        UNUSED(transaction);
+        UNUSED(request);
+        UNUSED(response);
+
+        ythrow yexception() << Sprintf("Cannot create an instance of %s directly",
+            ~FormatEnum(GetType()));
     }
 
     virtual bool IsTransactionRequired() const

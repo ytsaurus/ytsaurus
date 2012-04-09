@@ -13,8 +13,11 @@ using namespace NTransactionClient;
 
 void TStartTransactionCommand::DoExecute(TStartRequestPtr request)
 {
+    auto attributes = IAttributeDictionary::FromMap(request->GetOptions());
     auto transactionManager = Host->GetTransactionManager();
-    auto newTransaction = transactionManager->Start(~request->Manifest, request->TransactionId);
+    auto newTransaction = transactionManager->Start(
+        ~attributes,
+        request->TransactionId);
 
     BuildYsonFluently(~Host->CreateOutputConsumer())
         .Scalar(newTransaction->GetId().ToString());

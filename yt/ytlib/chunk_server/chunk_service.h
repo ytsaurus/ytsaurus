@@ -28,7 +28,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, RegisterHolder);
     DECLARE_RPC_SERVICE_METHOD(NProto, FullHeartbeat);
     DECLARE_RPC_SERVICE_METHOD(NProto, IncrementalHeartbeat);
-    DECLARE_RPC_SERVICE_METHOD(NProto, CreateChunks);
 
 };
 

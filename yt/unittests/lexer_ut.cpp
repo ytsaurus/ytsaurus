@@ -159,7 +159,10 @@ TEST_F(TLexerTest, States)
 
 TEST_F(TLexerTest, Strings)
 {
-    TestToken("abc_123", ETokenType::String, "abc_123");
+    TestToken("abc_123-%", ETokenType::String, "abc_123-%");
+    TestToken("%0-0-0-0", ETokenType::String, "%0-0-0-0"); // guids
+    TestToken("_", ETokenType::String, "_");
+    TestToken("%", ETokenType::String, "%");
 
     TestToken("\"abc_123\"", ETokenType::String, "abc_123");
     TestToken("\" abc_123\\t\\\\\\\"\"", ETokenType::String, " abc_123\t\\\"");
@@ -218,17 +221,21 @@ TEST_F(TLexerTest, SpecialValues)
 TEST_F(TLexerTest, IncorrectChars)
 {
     TestIncorrectInput("\x01\x03"); // Binary string with negative length
-    TestIncorrectInput("."); // unknown symbol
-    TestIncorrectInput("|"); // unknown symbol
-    TestIncorrectInput("\\"); // unknown symbol
-    TestIncorrectInput("?"); // unknown symbol
-    TestIncorrectInput("'"); // unknown symbol
-    TestIncorrectInput("`"); // unknown symbol
-    TestIncorrectInput("$"); // unknown symbol
-    TestIncorrectInput("%"); // unknown symbol
-    TestIncorrectInput("&"); // unknown symbol
-    TestIncorrectInput("*"); // unknown symbol
-    TestIncorrectInput("~"); // unknown symbol
+
+    TestIncorrectInput("1a"); // Alpha after numeric
+    TestIncorrectInput("1.1e-1a"); // Alpha after numeric
+
+    // Unknown symbols
+    TestIncorrectInput(".");
+    TestIncorrectInput("|");
+    TestIncorrectInput("\\");
+    TestIncorrectInput("?");
+    TestIncorrectInput("'");
+    TestIncorrectInput("`");
+    TestIncorrectInput("$");
+    TestIncorrectInput("&");
+    TestIncorrectInput("*");
+    TestIncorrectInput("~");
 }
 
 TEST_F(TLexerTest, IncorrectFinish)

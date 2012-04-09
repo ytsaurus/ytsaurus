@@ -91,13 +91,17 @@ public:
         return Owner->GetVersionedNodeProxy(id.ObjectId, id.TransactionId);
     }
 
-    virtual TObjectId CreateFromManifest(
-        const TTransactionId& transactionId,
-        IMapNode* manifest)
+    virtual TObjectId Create(
+        TTransaction* transaction,
+        TReqCreateObject* request,
+        TRspCreateObject* response)
     {
-        UNUSED(transactionId);
-        UNUSED(manifest);
-        ythrow yexception() << "Cannot create a node outside Cypress";
+        UNUSED(transaction);
+        UNUSED(request);
+        UNUSED(response);
+
+        ythrow yexception() << Sprintf("Cannot create an instance of %s outside Cypress",
+            ~FormatEnum(GetType()));
     }
 
     virtual bool IsTransactionRequired() const

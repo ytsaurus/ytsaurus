@@ -66,7 +66,7 @@ void TMasterConnector::Start()
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()),
-        RandomNumber(Config->HeartbeatSplay));
+        RandomDuration(Config->HeartbeatSplay));
 }
 
 void TMasterConnector::ScheduleHeartbeat()

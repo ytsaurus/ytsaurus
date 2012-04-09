@@ -8,6 +8,7 @@
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
+#include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -15,22 +16,22 @@ namespace NFileClient {
 using namespace NYTree;
 using namespace NChunkServer;
 using namespace NChunkClient;
-using namespace NFileServer;
-using namespace NProto;
+using namespace NTransactionServer;
+using namespace NCypress;
+using namespace NFileClient::NProto;
 using namespace NChunkHolder::NProto;
-using namespace NTransactionClient;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileWriterBase::TFileWriterBase(
-    TConfig* config,
-    NRpc::IChannel* masterChannel)
+    TConfig::TPtr config,
+    NRpc::IChannel::TPtr masterChannel)
     : Config(config)
+    , MasterChannel(masterChannel)
     , IsOpen(false)
     , Size(0)
     , BlockCount(0)
-    , ChunkProxy(masterChannel)
-    , CypressProxy(masterChannel)
     , Logger(FileClientLogger)
 {
     YASSERT(config);
@@ -48,20 +49,25 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         Config->UploadReplicaCount,
         Config->TotalReplicaCount);
 
-    auto createChunksReq = ChunkProxy.CreateChunks();
-    *createChunksReq->mutable_transaction_id() = uploadTransactionId.ToProto();
-    createChunksReq->set_chunk_count(1);
-    createChunksReq->set_upload_replica_count(Config->UploadReplicaCount);
-    auto createChunksRsp = createChunksReq->Invoke()->Get();
-    if (!createChunksRsp->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error allocating file chunk\n%s",
-            ~createChunksRsp->GetError().ToString());
+
+    LOG_INFO("Creating chunk");
+    yvector<Stroka> holderAddresses;
+    {
+        TCypressServiceProxy cypressProxy(MasterChannel);
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(uploadTransactionId));
+        req->set_type(EObjectType::Chunk);
+        auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
+        reqExt->set_holder_count(Config->UploadReplicaCount);
+        auto rsp = cypressProxy.Execute(req)->Get();
+        if (!rsp->IsOK()) {
+            LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
+                ~rsp->GetError().ToString());
+        }
+        ChunkId = TChunkId::FromProto(rsp->object_id());
+        const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
+        holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
     }
-    YASSERT(createChunksRsp->chunks_size() == 1);
-    const auto& chunkInfo = createChunksRsp->chunks(0);
-    ChunkId = TChunkId::FromProto(chunkInfo.chunk_id());
-    auto holderAddresses = FromProto<Stroka>(chunkInfo.holder_addresses());
-    LOG_INFO("Chunk allocated (ChunkId: %s, HolderAddresses: [%s])",
+    LOG_INFO("Chunk created (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
         ~JoinToString(holderAddresses));
 
@@ -121,7 +127,7 @@ void TFileWriterBase::Cancel()
     LOG_INFO("File writer canceled");
 }
 
-void TFileWriterBase::SpecificClose(const NChunkServer::TChunkId&)
+void TFileWriterBase::DoClose(const NChunkServer::TChunkId&)
 {
 }
 
@@ -142,34 +148,39 @@ void TFileWriterBase::Close()
     FlushBlock();
 
     LOG_INFO("Closing chunk");
-    // Construct chunk attributes.
-    TChunkAttributes attributes;
-    attributes.set_type(EChunkType::File);
-    auto* fileAttributes = attributes.MutableExtension(TFileChunkAttributes::file_attributes);
-    fileAttributes->set_uncompressed_size(Size);
-    fileAttributes->set_codec_id(Config->CodecId);
-    try {
-        Sync(
-            ~Writer, 
-            &TRemoteWriter::AsyncClose, 
-            std::vector<TSharedRef>(), 
-            attributes);
-    } catch (const std::exception& ex) {
-        LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s", 
-            ex.what());
+    {
+        // Construct chunk attributes.
+        TChunkAttributes attributes;
+        attributes.set_type(EChunkType::File);
+        auto* fileAttributes = attributes.MutableExtension(TFileChunkAttributes::file_attributes);
+        fileAttributes->set_uncompressed_size(Size);
+        fileAttributes->set_codec_id(Config->CodecId);
+        try {
+            Sync(
+                ~Writer, 
+                &TRemoteWriter::AsyncClose, 
+                std::vector<TSharedRef>(), 
+                attributes);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s", 
+                ex.what());
+        }
     }
     LOG_INFO("Chunk closed");
 
     LOG_INFO("Confirming chunk");
-    auto confirmChunkReq = Writer->GetConfirmRequest();
-    auto confirmChunkRsp = CypressProxy.Execute(confirmChunkReq)->Get();
-    if (!confirmChunkRsp->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
-            ~confirmChunkRsp->GetError().ToString());
+    {
+        TCypressServiceProxy cypressProxy(MasterChannel);
+        auto req = Writer->GetConfirmRequest();
+        auto rsp = cypressProxy.Execute(req)->Get();
+        if (!rsp->IsOK()) {
+            LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
+                ~rsp->GetError().ToString());
+        }
     }
     LOG_INFO("Chunk confirmed");
 
-    SpecificClose(ChunkId);
+    DoClose(ChunkId);
 
     LOG_INFO("File writer closed");
 }

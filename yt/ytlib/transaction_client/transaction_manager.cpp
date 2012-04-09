@@ -6,7 +6,6 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/actions/signal.h>
-#include <ytlib/ytree/serialize.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -27,13 +26,11 @@ class TTransactionManager::TTransaction
 public:
     TTransaction(
         NRpc::IChannel::TPtr cellChannel,
-        INodePtr manifest,
         const TTransactionId& parentId,
         TTransactionManager::TPtr owner)
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
-        , Manifest(manifest)
         , ParentId(parentId)
     {
         YASSERT(cellChannel);
@@ -54,7 +51,7 @@ public:
         YASSERT(owner);
     }
 
-    void Start()
+    void Start(IAttributeDictionary* attributes)
     {
         LOG_INFO("Starting transaction");
 
@@ -64,8 +61,8 @@ public:
             : FromObjectId(ParentId);
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);
         req->set_type(EObjectType::Transaction);
-        if (Manifest) {
-            req->set_manifest(SerializeToYson(~Manifest));
+        if (attributes) {
+            req->Attributes().MergeFrom(*attributes);
         }
         auto rsp = Proxy.Execute(req)->Get();
         if (!rsp->IsOK()) {
@@ -240,10 +237,9 @@ private:
     //! Protects state transitions.
     TSpinLock SpinLock;
     EState State;
+    TTransactionId ParentId;
 
     TTransactionId Id;
-    INodePtr Manifest;
-    TTransactionId ParentId;
     TCallbackList<void()> Aborted;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
@@ -280,17 +276,16 @@ TTransactionManager::TTransactionManager(
 }
 
 ITransaction::TPtr TTransactionManager::Start(
-    INodePtr manifest,
+    IAttributeDictionary* attributes,
     const TTransactionId& parentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction>(
         Channel,
-        manifest,
         parentId,
         this);
-    transaction->Start();
+    transaction->Start(attributes);
 
     RegisterTransaction(transaction);
     SchedulePing(transaction);

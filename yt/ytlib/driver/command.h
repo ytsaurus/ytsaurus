@@ -27,6 +27,7 @@ struct TRequestBase
 
     TRequestBase()
     {
+        SetKeepOptions(true);
         Register("do", Do);
     }
 };
@@ -115,7 +116,6 @@ public:
     virtual void Execute(NYTree::INodePtr request)
     {
         auto typedRequest = New<TRequest>();
-        typedRequest->SetKeepOptions(true);
         try {
             typedRequest->Load(~request);
         } catch (const std::exception& ex) {

@@ -363,7 +363,7 @@ TEST(TConfigTest, Save)
 
     Stroka subconfigYson;
     subconfigYson += "{\"my_bool\"=\"false\";";
-    subconfigYson += "\"my_enum\"=\"Value1\";";
+    subconfigYson += "\"my_enum\"=\"value1\";";
     subconfigYson += "\"my_int\"=100;";
     subconfigYson += "\"my_string_list\"=[]}";
 

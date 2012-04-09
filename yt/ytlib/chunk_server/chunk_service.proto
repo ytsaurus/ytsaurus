@@ -92,24 +92,3 @@ message TRspIncrementalHeartbeat
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): deprecate
-message TReqCreateChunks
-{
-    required NYT.NProto.TGuid transaction_id = 1;
-    required int32 chunk_count = 2;
-    required int32 upload_replica_count = 3;
-}
-
-message TRspCreateChunks
-{
-    message TChunkInfo
-    {
-        required NYT.NProto.TGuid chunk_id = 1;
-        repeated bytes holder_addresses = 2;
-    }
-
-    repeated TChunkInfo chunks = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////

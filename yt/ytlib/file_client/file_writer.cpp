@@ -23,10 +23,10 @@ using namespace NTransactionClient;
 // TODO(babenko): use totalReplicaCount
 
 TFileWriter::TFileWriter(
-    TConfig* config,
-    NRpc::IChannel* masterChannel,
-    ITransaction* transaction,
-    TTransactionManager* transactionManager,
+    TConfig::TPtr config,
+    NRpc::IChannel::TPtr masterChannel,
+    ITransaction::TPtr transaction,
+    TTransactionManager::TPtr transactionManager,
     const TYPath& path)
     : TFileWriterBase(config, masterChannel)
     , Transaction(transaction)
@@ -36,7 +36,8 @@ TFileWriter::TFileWriter(
     YASSERT(transactionManager);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-                          ~Path, transaction ? ~transaction->GetId().ToString() : ~NullTransactionId.ToString()));
+        ~Path,
+        transaction ? ~transaction->GetId().ToString() : "None"));
 }
 
 void TFileWriter::Open()
@@ -62,20 +63,25 @@ void TFileWriter::Open()
     LOG_INFO("File writer opened");
 }
 
-void TFileWriter::SpecificClose(const NChunkServer::TChunkId& ChunkId)
+void TFileWriter::DoClose(const NChunkServer::TChunkId& chunkId)
 {
     LOG_INFO("Creating file node");
-    auto createNodeReq = TCypressYPathProxy::Create(WithTransaction(Path, Transaction ? Transaction->GetId() : NullTransactionId ));
-    createNodeReq->set_type(EObjectType::File);
-    auto manifest = New<TFileManifest>();
-    manifest->ChunkId = ChunkId;
-    createNodeReq->set_manifest(SerializeToYson(~manifest));
-    auto createNodeRsp = CypressProxy.Execute(createNodeReq)->Get();
-    if (!createNodeRsp->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
-            ~createNodeRsp->GetError().ToString());
+    {
+        TCypressServiceProxy cypressProxy(MasterChannel);
+        auto req = TCypressYPathProxy::Create(WithTransaction(
+            Path,
+            Transaction ? Transaction->GetId() : NullTransactionId ));
+        req->set_type(EObjectType::File);
+        auto manifest = New<TFileManifest>();
+        manifest->ChunkId = chunkId;
+        req->set_manifest(SerializeToYson(~manifest));
+        auto rsp = cypressProxy.Execute(req)->Get();
+        if (!rsp->IsOK()) {
+            LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
+                ~rsp->GetError().ToString());
+        }
+        NodeId = TNodeId::FromProto(rsp->object_id());
     }
-    NodeId = TNodeId::FromProto(createNodeRsp->object_id());
     LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
 
     LOG_INFO("Committing upload transaction");

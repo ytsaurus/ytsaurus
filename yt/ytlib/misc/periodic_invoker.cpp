@@ -28,7 +28,7 @@ void TPeriodicInvoker::Start()
 {
     YASSERT(!Started);
     Started = true;
-    PostDelayedCallback(RandomNumber(Splay));
+    PostDelayedCallback(RandomDuration(Splay));
 }
 
 void TPeriodicInvoker::Stop()

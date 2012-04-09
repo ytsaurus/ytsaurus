@@ -14,6 +14,7 @@ using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NCypress;
 using namespace NTransactionServer;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,14 +23,13 @@ static NLog::TLogger& Logger = TableClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkSequenceWriter::TChunkSequenceWriter(
-    TConfig* config,
-    NRpc::IChannel* masterChannel,
+    TConfig::TPtr config,
+    NRpc::IChannel::TPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkList,
     i64 expectedRowCount)
     : Config(config)
-    , ChunkProxy(masterChannel)
-    , CypressProxy(masterChannel)
+    , MasterChannel(masterChannel)
     , TransactionId(transactionId)
     , ParentChunkList(parentChunkList)
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
@@ -57,24 +57,17 @@ void TChunkSequenceWriter::CreateNextChunk()
         ~TransactionId.ToString(),
         Config->UploadReplicaCount);
 
-    /*
-    ToDo: create chunks through TTransactionYPathProxy.
-
-    auto req = TTransactionYPathProxy::CreateObject();
+    TCypressServiceProxy cypressProxy(MasterChannel);
+    auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
     req->set_type(EObjectType::Chunk);
-    */
-
-    auto req = ChunkProxy.CreateChunks();
-    req->set_chunk_count(1);
-    req->set_upload_replica_count(Config->UploadReplicaCount);
-    *req->mutable_transaction_id() = TransactionId.ToProto();
-
-    req->Invoke()->Subscribe(
+    auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
+    reqExt->set_holder_count(Config->UploadReplicaCount);
+    cypressProxy.Execute(req)->Subscribe(
         BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
             .Via(WriterThread->GetInvoker()));
 }
 
-void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
+void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObject::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(NextChunk);
@@ -88,11 +81,9 @@ void TChunkSequenceWriter::OnChunkCreated(TProxy::TRspCreateChunks::TPtr rsp)
         return;
     }
 
-    YASSERT(rsp->chunks_size() == 1);
-    const auto& chunkInfo = rsp->chunks(0);
-
-    auto addresses = FromProto<Stroka>(chunkInfo.holder_addresses());
-    auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
+    auto chunkId = TChunkId::FromProto(rsp->object_id());
+    const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
+    auto addresses = FromProto<Stroka>(rspExt.holder_addresses());
 
     LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
         ~JoinToString(addresses),
@@ -238,7 +229,8 @@ void TChunkSequenceWriter::OnChunkClosed(
     LOG_DEBUG("Chunk successfully closed (ChunkId: %s).",
         ~currentChunk->GetChunkId().ToString());
 
-    auto batchReq = CypressProxy.ExecuteBatch();
+    TCypressServiceProxy cypressProxy(MasterChannel);
+    auto batchReq = cypressProxy.ExecuteBatch();
     batchReq->AddRequest(~currentChunk->GetConfirmRequest());
     {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkList));

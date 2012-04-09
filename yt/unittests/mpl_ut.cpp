@@ -400,6 +400,19 @@ TEST(TMetaProgrammingTest, IsClass)
     EXPECT_IS_FALSE(( NMpl::TIsClass<TSomeEnum>::Value ));
 }
 
+TEST(TMetaProgrammingTest, IsPod)
+{
+    EXPECT_IS_TRUE (( NMpl::TIsPod<char>::Value ));
+    EXPECT_IS_TRUE (( NMpl::TIsPod<int>::Value ));
+    EXPECT_IS_TRUE (( NMpl::TIsPod<short>::Value ));
+    EXPECT_IS_TRUE (( NMpl::TIsPod<long>::Value ));
+    EXPECT_IS_TRUE (( NMpl::TIsPod<float>::Value ));
+    EXPECT_IS_TRUE (( NMpl::TIsPod<double>::Value ));
+
+    EXPECT_IS_FALSE(( NMpl::TIsPod<TSomeStruct>::Value ));
+    EXPECT_IS_FALSE(( NMpl::TIsPod<TSomeClass>::Value ));
+}
+
 TEST(TMetaProgrammingTest, EnableIf)
 {
     EXPECT_EQ(17, TWrapped<int>().CleverTemplateFunction());

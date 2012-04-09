@@ -56,7 +56,7 @@ public:
      *  Thread affinity: any.
      */
     ITransaction::TPtr Start(
-        NYTree::INodePtr manifest = NULL,
+        NYTree::IAttributeDictionary* attributes = NULL,
         const TTransactionId& parentId = NullTransactionId);
 
     ITransaction::TPtr Attach(const TTransactionId& id);
