@@ -77,6 +77,7 @@ set( HDRS
   ${BASE}/semaphore.h
   ${BASE}/serialize.h
   ${BASE}/singleton.h
+  ${BASE}/small_vector.h
   ${BASE}/source_location.h
   ${BASE}/string.h
   ${BASE}/sync.h

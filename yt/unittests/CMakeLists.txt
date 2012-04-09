@@ -40,6 +40,7 @@ set( SRCS
   table_client_ut.cpp
   lexer_ut.cpp
   guid_ut.cpp
+  small_vector_ut.cpp
 )
 
 protoc( rpc_ut.proto PROTO_SRC )
