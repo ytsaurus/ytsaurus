@@ -44,6 +44,10 @@ using std::string; // hack for guid.h to work
 // various insightful information on memory usage and object creation patterns.
 #define ENABLE_REF_COUNTED_TRACKING
 
+// This define enormous amount of debugging information on stderr.
+// Use when you really have to.
+#define ENABLE_REF_COUNTED_DEBUGGING
+
 // This define enables thread affinity check -- a user-defined verification ensuring
 // that some functions are called from particular threads.
 #ifndef NDEBUG

@@ -127,7 +127,7 @@ $range ARG 1..ARITY
 
 template <class R, class T[[]]
 $if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
-class TCallableAdapter<T, R(T::*)($for ARG , [[A$(ARG)]]) const>
+class TCallableAdapter<T, R(T::*)($for ARG , [[A$(ARG)]])>
 {
 public:
     typedef NMpl::TTrueType IsCallable;
@@ -149,6 +149,32 @@ public:
 
 private:
     T Functor;
+};
+
+template <class R, class T[[]]
+$if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
+class TCallableAdapter<T, R(T::*)($for ARG , [[A$(ARG)]]) const>
+{
+public:
+    typedef NMpl::TTrueType IsCallable;
+
+    typedef R (Signature)($for ARG , [[A$(ARG)]]);
+
+    explicit TCallableAdapter(const T& functor)
+        : Functor(functor)
+    { }
+
+    explicit TCallableAdapter(T&& functor)
+        : Functor(MoveRV(functor))
+    { }
+
+    R Run($for ARG , [[A$(ARG)&& a$(ARG)]])
+    {
+        return Functor($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+    }
+
+private:
+    const T Functor;
 };
 
 ]] $$ for ARITY

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "probe.h"
 
 #include <ytlib/misc/common.h>
 #include <ytlib/actions/bind.h>
@@ -169,227 +170,6 @@ int UnwrapNoRefParentPtr(NoRefParent* p)
 int UnwrapNoRefParentConstRef(const NoRefParent& p)
 {
     return p.Value;
-}
-
-// Below there is a serie of probe classes.
-
-// A state for probes that keeps various calls counts.
-struct TProbeState
-{
-    int Constructors;
-    int Destructors;
-    int CopyConstructors;
-    int CopyAssignments;
-    int MoveConstructors;
-    int MoveAssignments;
-
-    TProbeState()
-        : Constructors(0)
-        , Destructors(0)
-        , CopyConstructors(0)
-        , CopyAssignments(0)
-        , MoveConstructors(0)
-        , MoveAssignments(0)
-    { }
-
-    void Reset()
-    {
-        ::memset(this, 0, sizeof(*this));
-    }
-};
-
-// Used for probing the number of copies that occur if a type must be coerced
-// during argument forwarding in the Run() methods.
-class TCoercibleToProbe
-{
-public:
-    TProbeState* State;
-
-public:
-    explicit TCoercibleToProbe(TProbeState* state)
-        : State(state)
-    { }
-
-private:
-    TCoercibleToProbe(const TCoercibleToProbe&);
-    TCoercibleToProbe(TCoercibleToProbe&&);
-    TCoercibleToProbe& operator=(const TCoercibleToProbe&);
-    TCoercibleToProbe& operator=(TCoercibleToProbe&&);
-};
-
-// Used for probing the number of copies in an argument.
-class TProbe
-{
-public:
-    TProbeState* State;
-
-public:
-    static TProbe ExplicitlyCreateInvalidProbe()
-    {
-        return TProbe();
-    }
-
-    explicit TProbe(TProbeState* state)
-        : State(state)
-    {
-        YASSERT(State);
-        ++State->Constructors;
-    }
-
-    ~TProbe()
-    {
-        if (State) {
-            ++State->Destructors;
-        }
-    }
-
-    TProbe(const TProbe& other)
-        : State(other.State)
-    {
-        YASSERT(State);
-        ++State->CopyConstructors;
-    }
-
-    TProbe(TProbe&& other)
-        : State(other.State)
-    {
-        YASSERT(State);
-        other.State = NULL;
-        ++State->MoveConstructors;
-    }
-
-    TProbe(const TCoercibleToProbe& other)
-        : State(other.State)
-    {
-        YASSERT(State);
-        ++State->CopyConstructors;
-    }
-
-    TProbe(TCoercibleToProbe&& other)
-        : State(other.State)
-    {
-        YASSERT(State);
-        other.State = NULL;
-        ++State->MoveConstructors;
-    }
-
-    TProbe& operator=(const TProbe& other)
-    {
-        State = other.State;
-        YASSERT(State);
-        ++State->CopyAssignments;
-        return *this;
-    }
-
-    TProbe& operator=(TProbe&& other)
-    {
-        State = other.State;
-        YASSERT(State);
-        other.State = NULL;
-        ++State->MoveAssignments;
-        return *this;
-    }
-
-    void Tackle() const
-    {
-        (void)0;
-    }
-
-    bool IsValid() const
-    {
-        return State != NULL;
-    }
-
-private:
-    TProbe()
-        : State(NULL)
-    { }
-};
-
-void Tackle(const TProbe& probe)
-{
-    probe.Tackle();
-}
-
-// A helper functor which extracts from probe-like objectss their state.
-struct TProbableTraits
-{
-    static const TProbeState& ExtractState(const TProbeState& arg)
-    {
-        return arg;
-    }
-
-    static const TProbeState& ExtractState(const TProbeState* arg)
-    {
-        return *arg;
-    }
-
-    static const TProbeState& ExtractState(const TProbe& arg)
-    {
-        return *arg.State;
-    }
-
-    static const TProbeState& ExtractState(const TCoercibleToProbe& arg)
-    {
-        return *arg.State;
-    }
-};
-
-MATCHER_P2(HasCopyMoveCounts, copyCount, moveCount, "" + \
-    ::testing::PrintToString(copyCount) + " copy constructors and " + \
-    ::testing::PrintToString(moveCount) + " move constructors were called")
-{
-    UNUSED(result_listener);
-    const TProbeState& state = TProbableTraits::ExtractState(arg);
-    return
-        state.CopyConstructors == copyCount &&
-        state.MoveConstructors == moveCount;
-}
-
-MATCHER(NoCopies, "no copies were made")
-{
-    UNUSED(result_listener);
-    const TProbeState& state = TProbableTraits::ExtractState(arg);
-    return state.CopyConstructors == 0 && state.CopyAssignments == 0;
-}
-
-MATCHER(NoMoves, "no moves were made")
-{
-    UNUSED(result_listener);
-    const TProbeState& state = TProbableTraits::ExtractState(arg);
-    return state.MoveConstructors == 0 && state.MoveAssignments == 0;
-}
-
-MATCHER(NoAssignments, "no assignments were made")
-{
-    UNUSED(result_listener);
-    const TProbeState& state = TProbableTraits::ExtractState(arg);
-    return state.CopyAssignments == 0 && state.MoveAssignments == 0;
-}
-
-void PrintTo(const TProbeState& state, ::std::ostream* os)
-{
-    int copies = state.CopyConstructors + state.CopyAssignments;
-    int moves = state.MoveConstructors + state.MoveAssignments;
-
-    *os << Sprintf(
-        "%d ctors, %d dtors; "
-        "copyable semantics: %d = %d + %d; "
-         "movable semantics: %d = %d + %d",
-         state.Constructors, state.Destructors,
-         copies, state.CopyConstructors, state.CopyAssignments,
-         moves, state.MoveConstructors, state.MoveAssignments
-    ).c_str();
-}
-
-void PrintTo(const TProbe& arg, ::std::ostream* os)
-{
-    PrintTo(TProbableTraits::ExtractState(arg), os);
-}
-
-void PrintTo(const TCoercibleToProbe& arg, ::std::ostream* os)
-{
-    PrintTo(TProbableTraits::ExtractState(arg), os);
 }
 
 // Various functions for testing purposes.
@@ -1040,6 +820,7 @@ TEST_F(TBindTest, DISABLED_PassedWrapper)
     // Tests the Passed() function's support for pointers.
 #if 0
     {
+        TProbeScoper scoper(&state);
         TProbe probe(&state);
 
         TCallback<TProbe()> cb =
@@ -1059,11 +840,10 @@ TEST_F(TBindTest, DISABLED_PassedWrapper)
     }
 #endif
 
-    state.Reset();
-
     // Tests the Passed() function's support for rvalues.
 #if 0
     {
+        TProbeScoper scoper(&state);
         TProbe probe(&state);
 
         TCallback<TProbe()> cb =
@@ -1095,10 +875,10 @@ TEST_F(TBindTest, DISABLED_PassedWrapper)
     }
 #endif
 
-    state.Reset();
-
     // Yet another test for movable semantics.
     {
+        TProbeScoper scoper(&state);
+
         TProbe sender(&state);
         TProbe receiver(TProbe::ExplicitlyCreateInvalidProbe());
 
@@ -1282,17 +1062,20 @@ TEST_F(TBindTest, LambdaSupport)
     closure.Run();
     EXPECT_EQ(3, n);
 
-    TCallback<int()> cb1 = BIND([  ] () -> int { return 42; });
-    EXPECT_EQ(42, cb1.Run());
-
+    TCallback<int()> cb1 = BIND([  ] () -> int { return 42;  });
     TCallback<int()> cb2 = BIND([&n] () -> int { return ++n; });
+
+    EXPECT_EQ(42, cb1.Run());
     EXPECT_EQ( 4, cb2.Run());
     EXPECT_EQ( 4, n);
     EXPECT_EQ( 5, cb2.Run());
     EXPECT_EQ( 5, n);
 
-    TCallback<int(int)> plus5 = BIND([] (int a) -> int { return a + 5; });
-    EXPECT_EQ(10, plus5.Run(5));
+    TCallback<int(int, int)> plus  = BIND([] (int a, int b) -> int { return a + b; });
+    TCallback<int(int)>      plus5 = BIND([] (int a, int b) -> int { return a + b; }, 5);
+    
+    EXPECT_EQ(3, plus. Run(1, 2));
+    EXPECT_EQ(6, plus5.Run(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,14 +55,6 @@ public:
     void* Handle() const;
 
 protected:
-    /*!
-     * In C++, it is safe to cast function pointers to function pointers of
-     * another type. It is not okay to use void*.
-     * We create a TUntypedInvokeFunction type that can store our
-     * function pointer, and then cast it back to the original type on usage.
-     */
-    typedef void(*TUntypedInvokeFunction)();
-
     //! Swaps the state and the invoke function with other callback (without typechecking!).
     void Swap(TCallbackBase& other);
  
@@ -92,6 +84,15 @@ protected:
      * Avoids more template bloat.
      */
     ~TCallbackBase();
+
+protected:
+    /*!
+     * In C++, it is safe to cast function pointers to function pointers of
+     * another type. It is not okay to use void*.
+     * We create a TUntypedInvokeFunction type that can store our
+     * function pointer, and then cast it back to the original type on usage.
+     */
+    typedef void(*TUntypedInvokeFunction)();
 
     TIntrusivePtr<TBindStateBase> BindState;
     TUntypedInvokeFunction UntypedInvoke;
