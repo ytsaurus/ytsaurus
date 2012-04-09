@@ -111,6 +111,11 @@ private:
 
     THolder<IValidator> EndValidator;
 
+    /*! 
+     *  See DoNextRow for usage.
+     */
+    const TAsyncError SuccessResult;
+
     std::vector<TChannelReader> ChannelReaders;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);

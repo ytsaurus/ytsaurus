@@ -527,6 +527,7 @@ TChunkReader::TChunkReader(
     , CurrentRowIndex(-1)
     , EndRowIndex(0)
     , Options(options)
+    , SuccessResult(New< TFuture<TError> >())
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(chunkReader);
@@ -570,14 +571,10 @@ TAsyncError TChunkReader::AsyncNextRow()
 
 TAsyncError TChunkReader::DoNextRow()
 {
-    // NB: we have to use custom future here (not AsyncStreamState)
-    // because DoNextRow could be called from AsyncOpen. (see Initializer::ValidateRow)
-
-    static auto successResult = MakeFuture(TError());
     CurrentRowIndex = std::min(CurrentRowIndex + 1, EndRowIndex);
 
     if (CurrentRowIndex == EndRowIndex)
-        return successResult;
+        return SuccessResult;
 
     UsedRangeColumns.clear();
     FOREACH (auto& it, FixedColumns) {
@@ -586,7 +583,7 @@ TAsyncError TChunkReader::DoNextRow()
     CurrentRow.clear();
     CurrentKey.assign(CurrentKey.size(), Stroka());
 
-    return ContinueNextRow(-1, successResult, TError());
+    return ContinueNextRow(-1, SuccessResult, TError());
 }
 
 TAsyncError TChunkReader::ContinueNextRow(
