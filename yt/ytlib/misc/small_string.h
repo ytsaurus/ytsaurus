@@ -108,7 +108,10 @@ public:
   /// compare - Compare two strings; the result is -1, 0, or 1 if this string
   /// is lexicographically less than, equal to, or greater than the \arg RHS.
   int compare(TStringBuf RHS) const {
-    return str().compare(RHS);
+    int result = str().compare(RHS);
+    if (result > 0) return 1;
+    else if (result == 0) return 0;
+    else return -1;
   }
 
 //  /// compare_lower - Compare two strings, ignoring case.
@@ -247,19 +250,19 @@ public:
     return str().substr(Start, N);
   }
 
-  /// slice - Return a reference to the substring from [Start, End).
-  ///
-  /// \param Start - The index of the starting character in the substring; if
-  /// the index is npos or greater than the length of the string then the
-  /// empty substring will be returned.
-  ///
-  /// \param End - The index following the last character to include in the
-  /// substring. If this is npos, or less than \arg Start, or exceeds the
-  /// number of characters remaining in the string, the string suffix
-  /// (starting with \arg Start) will be returned.
-  TStringBuf slice(size_t Start, size_t End) const {
-    return str().substr(Start, End);
-  }
+//  /// slice - Return a reference to the substring from [Start, End).
+//  ///
+//  /// \param Start - The index of the starting character in the substring; if
+//  /// the index is npos or greater than the length of the string then the
+//  /// empty substring will be returned.
+//  ///
+//  /// \param End - The index following the last character to include in the
+//  /// substring. If this is npos, or less than \arg Start, or exceeds the
+//  /// number of characters remaining in the string, the string suffix
+//  /// (starting with \arg Start) will be returned.
+//  TStringBuf slice(size_t Start, size_t End) const {
+//        return str().substr(Start, End - Start);
+//  }
 
   // Extra methods.
 
