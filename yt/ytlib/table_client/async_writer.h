@@ -1,34 +1,28 @@
 ﻿#pragma once
 
-#include "common.h"
+#include "public.h"
 #include "value.h"
 #include "schema.h"
 #include "channel_writer.h"
-#include <ytlib/table_client/table_chunk_meta.pb.h>
+
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 #include <ytlib/misc/ref_counted.h>
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IAsyncBlockWriter
+typedef std::map<TStringBuf, TStringBuf> TRow;
+
+struct IAsyncWriter
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IAsyncBlockWriter> TPtr;
-
-    virtual TAsyncError AsyncOpen(
-        const NProto::TTableChunkAttributes& attributes) = 0;
-
-    virtual TAsyncError AsyncEndRow(
-        const TKey& key,
-        const std::vector<TChannelWriter::TPtr>& channels) = 0;
-
-    virtual TAsyncError AsyncClose(
-        const std::vector<TChannelWriter::TPtr>& channels) = 0;
+    virtual TAsyncError AsyncOpen() = 0;
+    virtual TAsyncError AsyncWriteRow(const TRow& row) = 0;
+    virtual TAsyncError AsyncSwitchChunk(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
+    virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

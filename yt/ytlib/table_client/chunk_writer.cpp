@@ -21,7 +21,8 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 TChunkWriter::TChunkWriter(
     TConfig* config, 
-    NChunkClient::IAsyncWriter* chunkWriter)
+    NChunkClient::IAsyncWriter* chunkWriter,
+    const TSchema& schema)
     : Config(config)
     , ChunkWriter(chunkWriter)
     , IsOpen(false)

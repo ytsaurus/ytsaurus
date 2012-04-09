@@ -1,6 +1,7 @@
 package NYT.NChunkHolder.NProto;
 
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/misc/extensions.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,30 +12,33 @@ message TBlockInfo
     required uint64 checksum = 3;
 }
 
-message TChunkAttributes
+message TBlocks
 {
-    extensions 100 to max;
-
-    required int32 type = 1;
+    repeated TBlockInfo blocks = 1;
 }
 
-// TChunkMeta is stored in *.meta files on chunk holders.
+message TInfo
+{
+    required int64 size = 1;
+    required uint64 meta_checksum = 2;
+}
+
+message TMisc
+{
+    optional int64 uncompressed_size = 1 [default = 0];
+    optional int64 row_count = 2 [default = 0];
+    optional int32 codec_id = 3 [default = 0];
+}
+
+// TChunkMeta is stored in *.meta files on chunk holders
+// and passed around with different extension subset among
+// client, holder, master and scheduler.
 message TChunkMeta
 {
     required NYT.NProto.TGuid id = 1;
-    repeated TBlockInfo blocks = 2;
-    required TChunkAttributes attributes = 3;
-}
+    required int32 type = 2;
 
-// TChunkInfo is sent in reply to GetChunkInfo requests.
-message TChunkInfo
-{
-    required NYT.NProto.TGuid id = 1;
-    // Full chunk size (including both data and meta).
-    required int64 size = 2;
-    required uint64 meta_checksum = 3;
-    repeated TBlockInfo blocks = 4;
-    optional TChunkAttributes attributes = 5;
+    required NYT.NProto.TExtensionSet extensions = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

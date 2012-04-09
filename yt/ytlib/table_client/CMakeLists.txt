@@ -7,7 +7,7 @@ set( SRCS
   ${BASE}/chunk_sequence_reader.cpp
   ${BASE}/chunk_sequence_writer.cpp
   ${BASE}/chunk_writer.cpp
-  ${BASE}/common.cpp
+  ${BASE}/private.cpp
   ${BASE}/schema.cpp
   ${BASE}/sorted_validating_writer.cpp
   ${BASE}/sync_reader.cpp
@@ -29,7 +29,8 @@ set( HDRS
   ${BASE}/chunk_sequence_reader.h
   ${BASE}/chunk_sequence_writer.h
   ${BASE}/chunk_writer.h
-  ${BASE}/common.h
+  ${BASE}/private.h
+  ${BASE}/public.h
   ${BASE}/schema.h
   ${BASE}/sorted_validating_writer.h
   ${BASE}/sync_reader.h

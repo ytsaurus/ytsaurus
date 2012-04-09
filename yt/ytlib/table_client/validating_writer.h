@@ -15,7 +15,7 @@ class TValidatingWriter
 public:
     TValidatingWriter(
         const TSchema& schema, 
-        IAsyncBlockWriter* writer);
+        IAsyncWriter* writer);
 
     virtual TAsyncError AsyncOpen();
     void Write(const TColumn& column, TValue value);
@@ -24,7 +24,7 @@ public:
     virtual TAsyncError AsyncClose();
 
 protected:
-    IAsyncBlockWriter::TPtr Writer;
+    IAsyncWriter::TPtr Writer;
     const TSchema Schema;
 
     // Stores mapping from all key columns and channel non-range columns to indexes.
