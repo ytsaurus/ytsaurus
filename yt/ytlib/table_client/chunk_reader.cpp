@@ -527,7 +527,7 @@ TChunkReader::TChunkReader(
     , CurrentRowIndex(-1)
     , EndRowIndex(0)
     , Options(options)
-    , SuccessResult(New< TFuture<TError> >())
+    , SuccessResult(MakeFuture(TError()))
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(chunkReader);
