@@ -354,6 +354,10 @@ private:
             Token.StringValue.append(ch);
             InnerState = EInnerState::InsideDouble;
             return true;
+        } else if (isalpha(ch)) {
+            ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %d, Token: %s)",
+                ~Stroka(ch).Quote(),
+                ~Token.StringValue);
         } else {
             FinishNumeric();
             return false;
@@ -369,6 +373,10 @@ private:
         {
             Token.StringValue.append(ch);
             return true;
+        } else if (isalpha(ch)) {
+            ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %d, Token: %s)",
+                ~Stroka(ch).Quote(),
+                ~Token.StringValue);
         } else {
             FinishDouble();
             return false;
