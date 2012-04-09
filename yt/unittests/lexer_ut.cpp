@@ -221,17 +221,21 @@ TEST_F(TLexerTest, SpecialValues)
 TEST_F(TLexerTest, IncorrectChars)
 {
     TestIncorrectInput("\x01\x03"); // Binary string with negative length
-    TestIncorrectInput("."); // unknown symbol
-    TestIncorrectInput("|"); // unknown symbol
-    TestIncorrectInput("\\"); // unknown symbol
-    TestIncorrectInput("?"); // unknown symbol
-    TestIncorrectInput("'"); // unknown symbol
-    TestIncorrectInput("`"); // unknown symbol
-    TestIncorrectInput("$"); // unknown symbol
-    TestIncorrectInput("%"); // unknown symbol
-    TestIncorrectInput("&"); // unknown symbol
-    TestIncorrectInput("*"); // unknown symbol
-    TestIncorrectInput("~"); // unknown symbol
+
+    TestIncorrectInput("1a"); // Alpha after numeric
+    TestIncorrectInput("1.1e-1a"); // Alpha after numeric
+
+    // Unknown symbols
+    TestIncorrectInput(".");
+    TestIncorrectInput("|");
+    TestIncorrectInput("\\");
+    TestIncorrectInput("?");
+    TestIncorrectInput("'");
+    TestIncorrectInput("`");
+    TestIncorrectInput("$");
+    TestIncorrectInput("&");
+    TestIncorrectInput("*");
+    TestIncorrectInput("~");
 }
 
 TEST_F(TLexerTest, IncorrectFinish)
