@@ -1,5 +1,7 @@
 #pragma once
 
+#include <util/generic/typetraits.h>
+
 // See the following references for an inspiration:
 //   * http://llvm.org/viewvc/llvm-project/libcxx/trunk/include/type_traits?revision=HEAD&view=markup
 //   * http://www.boost.org/doc/libs/1_48_0/libs/type_traits/doc/html/index.html
@@ -241,6 +243,13 @@ struct TEnableIfC<false, TResult>
 template <class TCondition, class TResult = void>
 struct TEnableIf
     : public TEnableIfC<TCondition::Value, TResult>
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TIsPod
+    : TIntegralConstant<bool, ::TTypeTraits<T>::IsPod>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
