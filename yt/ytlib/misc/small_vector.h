@@ -11,11 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_ADT_SMALLVECTOR_H
-#define LLVM_ADT_SMALLVECTOR_H
+#pragma once
 
-//#include "llvm/Support/type_traits.h"
-#include "mpl.h" // we have IsPod here
+#include "mpl.h"
 
 #include <algorithm>
 #include <cassert>
@@ -74,7 +72,6 @@ public:
 
   bool empty() const { return BeginX == EndX; }
 };
-
 
 template <typename T>
 class SmallVectorTemplateCommon : public SmallVectorBase {
@@ -747,5 +744,3 @@ namespace std {
     LHS.swap(RHS);
   }
 }
-
-#endif
