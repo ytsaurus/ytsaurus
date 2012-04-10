@@ -153,7 +153,7 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     typedef TPair<THolderId, double> TCandidatePair;
     yvector<TCandidatePair> candidates;
     auto chunkManager = Bootstrap->GetChunkManager();
-    candidates.reserve(chunk.StoredLocations().ysize());
+    candidates.reserve(chunk.StoredLocations().size());
     FOREACH(auto holderId, chunk.StoredLocations()) {
         const auto& holder = chunkManager->GetHolder(holderId);
         double loadFactor = GetLoadFactor(holder);

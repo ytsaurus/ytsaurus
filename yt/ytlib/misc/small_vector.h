@@ -23,6 +23,7 @@
 #include <iterator>
 #include <memory>
 
+#include <util/ysaveload.h>
 
 namespace NYT {
 
@@ -744,3 +745,8 @@ namespace std {
     LHS.swap(RHS);
   }
 }
+
+// Hook-up with Arcadia serialization stuff.
+template <class T, unsigned N>
+class TSerializer< NYT::TSmallVector<T, N> >: public TVectorSerializer< NYT::TSmallVector<T, N> >
+{ };

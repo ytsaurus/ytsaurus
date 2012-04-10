@@ -460,7 +460,7 @@ void TJobScheduler::GetReplicaStatistics(
     int* minusCount)
 {
     *desiredCount = GetDesiredReplicaCount(chunk);
-    *storedCount = chunk.StoredLocations().ysize();
+    *storedCount = static_cast<int>(chunk.StoredLocations().size());
     *cachedCount = !~chunk.CachedLocations() ? 0 : static_cast<int>(chunk.CachedLocations()->size());
     *plusCount = 0;
     *minusCount = 0;

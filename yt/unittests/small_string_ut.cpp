@@ -111,14 +111,16 @@ TEST_F(TSmallStringTest, Substr) {
   EXPECT_EQ("o", theString.substr(4, 10));
 }
 
-TEST_F(TSmallStringTest, Slice) {
-  theString = "hello";
-  EXPECT_EQ("l", theString.slice(2, 3));
-  EXPECT_EQ("ell", theString.slice(1, 4));
-  EXPECT_EQ("llo", theString.slice(2, 100));
-  EXPECT_EQ("", theString.slice(2, 1));
-  EXPECT_EQ("", theString.slice(10, 20));
-}
+
+// slice is not supported
+//TEST_F(TSmallStringTest, Slice) {
+//  theString = "hello";
+//  EXPECT_EQ("l", theString.slice(2, 3));
+//  EXPECT_EQ("ell", theString.slice(1, 4));
+//  EXPECT_EQ("llo", theString.slice(2, 100));
+//  EXPECT_EQ("", theString.slice(2, 1));
+//  EXPECT_EQ("", theString.slice(10, 20));
+//}
 
 TEST_F(TSmallStringTest, Find) {
   theString = "hello";
@@ -134,6 +136,7 @@ TEST_F(TSmallStringTest, Find) {
 
   EXPECT_EQ(3U, theString.rfind('l'));
   EXPECT_EQ(std::string::npos, theString.rfind('z'));
+// rfind is not supported
 //  EXPECT_EQ(std::string::npos, theString.rfind("helloworld"));
 //  EXPECT_EQ(0U, theString.rfind("hello"));
 //  EXPECT_EQ(1U, theString.rfind("ello"));
@@ -154,6 +157,7 @@ TEST_F(TSmallStringTest, Find) {
   EXPECT_EQ(0U, theString.find(""));
 }
 
+// count is not supported
 //TEST_F(TSmallStringTest, Count) {
 //  theString = "hello";
 //  EXPECT_EQ(2U, theString.count('l'));
@@ -165,7 +169,7 @@ TEST_F(TSmallStringTest, Find) {
 //  EXPECT_EQ(0U, theString.count("zz"));
 //}
 
-TEST(StringRefTest, Comparisons) {
+TEST(TStringRefTest, Comparisons) {
   EXPECT_EQ(-1, TSmallString<10>("aab").compare("aad"));
   EXPECT_EQ( 0, TSmallString<10>("aab").compare("aab"));
   EXPECT_EQ( 1, TSmallString<10>("aab").compare("aaa"));
@@ -173,6 +177,7 @@ TEST(StringRefTest, Comparisons) {
   EXPECT_EQ( 1, TSmallString<10>("aab").compare("aa"));
   EXPECT_EQ( 1, TSmallString<10>("\xFF").compare("\1"));
 
+// compare lower is not supported
 //  EXPECT_EQ(-1, TSmallString<10>("AaB").compare_lower("aAd"));
 //  EXPECT_EQ( 0, TSmallString<10>("AaB").compare_lower("aab"));
 //  EXPECT_EQ( 1, TSmallString<10>("AaB").compare_lower("AAA"));
