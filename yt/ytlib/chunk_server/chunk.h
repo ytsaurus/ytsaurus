@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include <ytlib/chunk_holder/chunk.pb.h>
 
-#include <ytlib/cell_master/public.h>
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/small_vector.h>
+#include <ytlib/cell_master/public.h>
 #include <ytlib/object_server/object_detail.h>
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -18,7 +19,8 @@ class TChunk
     DEFINE_BYVAL_RW_PROPERTY(i64, Size);
     DEFINE_BYVAL_RW_PROPERTY(TSharedRef, Attributes);
     // Usually small, e.g. 3 replicas.
-    DEFINE_BYREF_RO_PROPERTY(yvector<THolderId>, StoredLocations);
+    typedef TSmallVector<THolderId, 3> TStoredLocations;
+    DEFINE_BYREF_RO_PROPERTY(TStoredLocations, StoredLocations);
     // Usually empty.
     DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<THolderId> >, CachedLocations);
 

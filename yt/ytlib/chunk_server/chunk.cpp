@@ -71,7 +71,7 @@ void TChunk::RemoveLocation(THolderId holderId, bool cached)
 
 yvector<THolderId> TChunk::GetLocations() const
 {
-    yvector<THolderId> result(StoredLocations_);
+    yvector<THolderId> result(StoredLocations_.begin(), StoredLocations_.end());
     if (~CachedLocations_) {
         result.insert(result.end(), CachedLocations_->begin(), CachedLocations_->end());
     }
