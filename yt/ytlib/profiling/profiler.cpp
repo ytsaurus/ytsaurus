@@ -74,7 +74,7 @@ void TProfiler::Enqueue(const TYPath& path, TValue value)
 {
     TQueuedSample sample;
     sample.Time = GetCpuInstant();
-    sample.Path = PathPrefix + "/" + path;
+    sample.Path = PathPrefix + path;
     sample.Value = value;
     TProfilingManager::Get()->Enqueue(sample, SelfProfiling);
 }

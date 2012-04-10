@@ -528,12 +528,11 @@ void TObjectManager::ExecuteVerb(
         ~id.TransactionId.ToString(),
         ~FormatBool(isWrite));
 
-    auto profilingPath = CombineYPaths(
-        "types",
-        TypeFromId(id.ObjectId).ToString(),
-        "verbs",
-        context->GetVerb(),
-        "time");
+    auto profilingPath = "/types/" +
+        TypeFromId(id.ObjectId).ToString() +
+        "/verbs/" +
+        context->GetVerb() +
+        "/time";
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
         !isWrite ||

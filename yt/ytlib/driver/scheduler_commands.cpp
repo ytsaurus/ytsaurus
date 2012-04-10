@@ -86,7 +86,7 @@ void TSchedulerCommandBase::WaitForOperation(const TOperationId& operationId)
 // TODO(babenko): refactor
 static NYTree::TYPath GetOperationPath(const TOperationId& id)
 {
-    return CombineYPaths("//sys/operations", EscapeYPath(id.ToString()));
+    return "//sys/operations/" + EscapeYPath(id.ToString());
 }
 
 // TODO(babenko): refactor
@@ -108,12 +108,12 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "/@state"));
+        auto req = TYPathProxy::Get(operationPath + "/@state");
         batchReq->AddRequest(req, "get_state");
     }
 
     {
-        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "/@progress"));
+        auto req = TYPathProxy::Get(operationPath + "/@progress");
         batchReq->AddRequest(req, "get_progress");
     }
 
@@ -166,7 +166,7 @@ void TSchedulerCommandBase::DumpOperationResult(const TOperationId& operationId)
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "/@result"));
+        auto req = TYPathProxy::Get(operationPath + "/@result");
         batchReq->AddRequest(req, "get_result");
     }
 

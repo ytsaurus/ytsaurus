@@ -32,7 +32,6 @@ set( SRCS
   schema_ut.cpp
   rpc_ut.cpp
   ypath_ut.cpp
-  combine_ypaths_ut.cpp
   mpl_ut.cpp
   weak_ptr_ut.cpp
   callback_ut.cpp

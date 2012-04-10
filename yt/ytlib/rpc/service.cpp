@@ -49,7 +49,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     : Descriptor(descriptor)
     , Invoker(invoker)
     , ProfilingPath(profilingPath)
-    , RequestCounter(CombineYPaths(profilingPath, "request_rate"))
+    , RequestCounter(profilingPath + "/request_rate")
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ TServiceBase::TServiceBase(
     : DefaultInvoker(defaultInvoker)
     , ServiceName(serviceName)
     , LoggingCategory(loggingCategory)
-    , RequestCounter(CombineYPaths(ServiceName, "request_rate"))
+    , RequestCounter("/" + ServiceName + "/request_rate")
 {
     YASSERT(defaultInvoker);
 }
@@ -122,7 +122,7 @@ void TServiceBase::OnBeginRequest(IServiceContext* context)
     }
 
     Profiler.Increment(runtimeInfo->RequestCounter);
-    auto timer = Profiler.TimingStart(CombineYPaths(runtimeInfo->ProfilingPath, "time"));
+    auto timer = Profiler.TimingStart(runtimeInfo->ProfilingPath + "/time");
 
     auto activeRequest = New<TActiveRequest>(runtimeInfo, timer);
 
@@ -205,10 +205,11 @@ void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor, IInvoker*
     YASSERT(invoker);
 
     TGuard<TSpinLock> guard(SpinLock);
+    auto path = "/services/" + ServiceName + "/methods/" +  descriptor.Verb;
     auto info = New<TRuntimeMethodInfo>(
         descriptor,
         invoker,
-        CombineYPaths("services", ServiceName, "methods", descriptor.Verb));
+        path);
     // Failure here means that such verb is already registered.
     YVERIFY(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
 }

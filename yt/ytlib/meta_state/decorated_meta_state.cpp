@@ -130,7 +130,7 @@ void TDecoratedMetaState::Load(
     CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(segmentId, 0));
 
-    PROFILE_TIMING ("snapshot_load_time") {
+    PROFILE_TIMING ("/snapshot_load_time") {
         State->Load(input);
     }
 

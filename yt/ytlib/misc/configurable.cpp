@@ -38,7 +38,7 @@ void TConfigurable::Load(NYTree::INode* node, bool validate, const NYTree::TYPat
     }
     FOREACH (const auto& pair, Parameters) {
         auto name = pair.first;
-        auto childPath = CombineYPaths(path, name);
+        auto childPath = path + "/" + name;
         auto child = mapNode->FindChild(name); // can be NULL
         pair.second->Load(~child, childPath);
     }
@@ -62,7 +62,7 @@ void TConfigurable::Load(NYTree::INode* node, bool validate, const NYTree::TYPat
 void TConfigurable::Validate(const NYTree::TYPath& path) const
 {
     FOREACH (auto pair, Parameters) {
-        pair.second->Validate(CombineYPaths(path, pair.first));
+        pair.second->Validate(path + "/" + pair.first);
     }
     try {
         DoValidate();

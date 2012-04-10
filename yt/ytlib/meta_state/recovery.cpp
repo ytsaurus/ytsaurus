@@ -322,7 +322,7 @@ void TRecovery::ReplayChangeLog(
     LOG_INFO("Applying %d changes to meta state", recordCount);
     Profiler.Enqueue("replay_change_count", recordCount);
 
-    PROFILE_TIMING ("replay_time") {
+    PROFILE_TIMING ("/replay_time") {
         FOREACH (const auto& changeData, records)  {
             auto version = DecoratedState->GetVersion();
             try {

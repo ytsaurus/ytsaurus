@@ -70,9 +70,7 @@ void TTableWriter::Open()
     auto getChunkListIdReq = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, TransactionId));
     getInfoReq->AddRequest(~getChunkListIdReq);
 
-    auto getSchemaReq = TCypressYPathProxy::Get(CombineYPaths(
-        WithTransaction(Path, TransactionId),
-        "/@schema"));
+    auto getSchemaReq = TCypressYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@schema");
     getInfoReq->AddRequest(~getSchemaReq);
 
     auto getInfoRsp = getInfoReq->Invoke()->Get();
