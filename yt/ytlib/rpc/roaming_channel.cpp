@@ -62,10 +62,7 @@ public:
         TChannelProducer producer)
         : DefaultTimeout(defaultTimeout)
         , Producer(producer)
-        , ChannelPromise()
-    {
-        ChannelPromise.Reset(); // XXX(sandello): Null-promise.
-    }
+    { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const
     {
