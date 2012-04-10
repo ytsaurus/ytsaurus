@@ -449,9 +449,9 @@ private:
     {
         // TODO(babenko): Currently we use succeed-or-die strategy. Add retries later.
 
-        // Take the lock to prevent multiple instances of scheduler from running simultaneously.
-        // To this aim, we create an auxiliary transaction that takes care of this lock.
-        // We never commit or commit this transaction, so it gets aborted (and the lock gets released)
+        // Take a lock to prevent multiple instances of scheduler from running simultaneously.
+        // To this aim, create an auxiliary transaction that takes care of this lock.
+        // We never commit or abort this transaction, so it gets aborted (and the lock gets released)
         // when the scheduler dies.
         try {
             BootstrapTransaction = Bootstrap->GetTransactionManager()->Start();
