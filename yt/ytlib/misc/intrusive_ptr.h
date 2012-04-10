@@ -138,7 +138,7 @@ public:
         : T_(p)
     {
         static_assert(
-            NDetail::THasRefAndUnrefMethods<T>::Value,
+            NYT::NDetail::THasRefAndUnrefMethods<T>::Value,
             "T must have Ref() and UnRef() methods");
 
         if (T_) {
@@ -151,7 +151,7 @@ public:
         : T_(p)
     {
         static_assert(
-            NDetail::THasRefAndUnrefMethods<T>::Value,
+            NYT::NDetail::THasRefAndUnrefMethods<T>::Value,
             "T must have Ref() and UnRef() methods");
 
         if (T_ && addReference) {

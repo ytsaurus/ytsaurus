@@ -17,7 +17,7 @@ ExecuteVerb(IYPathServicePtr service, TTypedRequest* request)
     auto requestMessage = request->Serialize();
     return
         ExecuteVerb(service, ~requestMessage)
-        .Apply(BIND([] (NBus::IMessage::TPtr responseMessage) {
+        .Apply(BIND([] (NBus::IMessage::TPtr responseMessage) -> TIntrusivePtr<TTypedResponse> {
             auto response = New<TTypedResponse>();
             response->Deserialize(~responseMessage);
             return response;
