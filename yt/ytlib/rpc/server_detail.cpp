@@ -165,10 +165,19 @@ void TServiceContextBase::WrapThunk(TClosure action)
     try {
         action.Run();
     } catch (const TServiceException& ex) {
-        Reply(ex.GetError());
+        OnException(ex.GetError());
     } catch (const std::exception& ex) {
-        auto message = ex.what();
-        Reply(TError(EErrorCode::ServiceError, message));
+        OnException(TError(EErrorCode::ServiceError, ex.what()));
+    }
+}
+
+void TServiceContextBase::OnException(const TError& error)
+{
+    if (IsOneWay()) {
+        // We are unable to send a reply but let's just log something.
+        LogResponse(error);
+    } else {
+        Reply(error);
     }
 }
 

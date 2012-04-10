@@ -80,6 +80,7 @@ protected:
 
 private:
     void WrapThunk(TClosure action);
+    void OnException(const TError& error);
     void CheckRepliable() const;
 
 };
