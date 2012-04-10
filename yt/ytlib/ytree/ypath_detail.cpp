@@ -119,7 +119,7 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContext* context) const
                 TYPath nextSuffixPath; \
                 auto nextToken = ChopToken(suffixPath, &nextSuffixPath); \
                 if (nextToken.GetType() == ETokenType::At) { \
-                    verb##Attribute(suffixPath, request, response, ~context); \
+                    verb##Attribute(nextSuffixPath, request, response, ~context); \
                 } else { \
                     verb##Recursive(suffixPath, request, response, ~context); \
                 } \
