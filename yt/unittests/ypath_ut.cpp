@@ -205,14 +205,14 @@ TEST_F(TYPathTest, LsOnUnsupportedNodes)
 TEST_F(TYPathTest, Attributes)
 {
     Set("/root", "{nodes=[\"1\"; \"2\"]} <attr=100;mode=\"rw\">");
-    Check("/root@", "{\"attr\"=100;\"mode\"=\"rw\"}");
-    Check("/root@attr", "100");
+    Check("/root/@", "{\"attr\"=100;\"mode\"=\"rw\"}");
+    Check("/root/@attr", "100");
 
     Set("/root/value", "500<>");
     Check("/root/value", "500");
 
-    Remove("/root@");
-    Check("/root@", "{}");
+    Remove("/root/@");
+    Check("/root/@", "{}");
 
     Remove("/root/nodes");
     Remove("/root/value");
@@ -220,15 +220,15 @@ TEST_F(TYPathTest, Attributes)
 
     Set("/root/\"2\"", "<author=\"ignat\">");
     Check("", "{\"root\"={\"2\"=<>}}");
-    Check("/root/\"2\"@", "{\"author\"=\"ignat\"}");
-    Check("/root/\"2\"@author", "\"ignat\"");
+    Check("/root/\"2\"/@", "{\"author\"=\"ignat\"}");
+    Check("/root/\"2\"/@author", "\"ignat\"");
 
     // note: empty attributes are shown when nested
     Set("/root/\"3\"", "<dir=<file=-100<>>>");
-    Check("/root/\"3\"@", "{\"dir\"=<\"file\"=-100<>>}");
-    Check("/root/\"3\"@dir@", "{\"file\"=-100<>}");
-    Check("/root/\"3\"@dir@file", "-100<>");
-    Check("/root/\"3\"@dir@file@", "{}");
+    Check("/root/\"3\"/@", "{\"dir\"=<\"file\"=-100<>>}");
+    Check("/root/\"3\"/@dir/@", "{\"file\"=-100<>}");
+    Check("/root/\"3\"/@dir/@file", "-100<>");
+    Check("/root/\"3\"/@dir/@file/@", "{}");
 }
 
 TEST_F(TYPathTest, InvalidCases)
@@ -242,18 +242,18 @@ TEST_F(TYPathTest, InvalidCases)
     EXPECT_ANY_THROW(Get("/b")); // get non-existent path
 
     // get non-existent attribute from non-existent node
-    EXPECT_ANY_THROW(Get("/b@some"));
+    EXPECT_ANY_THROW(Get("/b/@some"));
 
     // get non-existent attribute from existent node
     EXPECT_ANY_THROW({
        Set("/c", "{}");
-       Get("/c@some");
+       Get("/c/@some");
    });
 
     // remove non-existing child
     EXPECT_ANY_THROW(Remove("/a"));
 
-//    EXPECT_ANY_THROW(Set("/@/some", "{}"));
+//    EXPECT_ANY_THROW(Set("//@/some", "{}"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

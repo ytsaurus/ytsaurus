@@ -61,7 +61,7 @@ public:
 
         TAppendResult::TPtr result;
 
-        PROFILE_TIMING("changelog_flush_append_time") {
+        PROFILE_TIMING ("/changelog_flush_append_time") {
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(FlushQueue.empty());
@@ -79,7 +79,7 @@ public:
             Result = New<TAppendResult>();
         }
 
-        PROFILE_TIMING("changelog_flush_io_time") {
+        PROFILE_TIMING ("/changelog_flush_io_time") {
             ChangeLog->Append(FlushedRecordCount, FlushQueue);
             ChangeLog->Flush();
         }
@@ -97,7 +97,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        PROFILE_TIMING("changelog_flush_wait_time") {
+        PROFILE_TIMING ("/changelog_flush_wait_time") {
             TAppendResult::TPtr result;
             {
                 TGuard<TSpinLock> guard(SpinLock);
@@ -133,7 +133,7 @@ public:
 
         i32 flushedRecordCount;
 
-        PROFILE_TIMING ("changelog_read_copy_time") {
+        PROFILE_TIMING ("/changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
             flushedRecordCount = FlushedRecordCount;            
             
@@ -152,7 +152,7 @@ public:
                 result);
         }
 
-        PROFILE_TIMING ("changelog_read_io_time") {
+        PROFILE_TIMING ("/changelog_read_io_time") {
             if (firstRecordId < flushedRecordCount) {
                 yvector<TSharedRef> buffer;
                 i32 neededRecordCount = Min(
@@ -275,7 +275,7 @@ public:
             queue->Read(firstRecordId, recordCount, result);
             AtomicDecrement(queue->UseCount);
         } else {
-            PROFILE_TIMING ("changelog_read_io_time") {
+            PROFILE_TIMING ("/changelog_read_io_time") {
                 changeLog->Read(firstRecordId, recordCount, result);
             }
         }
@@ -289,7 +289,7 @@ public:
             AtomicDecrement(queue->UseCount);
         }
 
-        PROFILE_TIMING("changelog_flush_io_time") {
+        PROFILE_TIMING ("/changelog_flush_io_time") {
             changeLog->Flush();
         }
     }
@@ -310,7 +310,7 @@ public:
     {
         Flush(changeLog);
 
-        PROFILE_TIMING("changelog_finalize_time") {
+        PROFILE_TIMING ("/changelog_finalize_time") {
             changeLog->Finalize();
         }
 
@@ -323,7 +323,7 @@ public:
         // getting rid of explicit synchronization.
         Flush(changeLog);
 
-        PROFILE_TIMING ("changelog_truncate_time") {
+        PROFILE_TIMING ("/changelog_truncate_time") {
             changeLog->Truncate(atRecordId);
         }
     }

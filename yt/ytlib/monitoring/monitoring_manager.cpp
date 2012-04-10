@@ -71,7 +71,7 @@ void TMonitoringManager::Stop()
 
 void TMonitoringManager::Update()
 {
-    PROFILE_TIMING("update_time") {
+    PROFILE_TIMING ("/update_time") {
         auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
         FOREACH(const auto& pair, MonitoringMap) {
@@ -89,7 +89,7 @@ void TMonitoringManager::Update()
 
 void TMonitoringManager::Visit(IYsonConsumer* consumer)
 {
-    PROFILE_TIMING("visit_time") {
+    PROFILE_TIMING ("/visit_time") {
         VisitTree(GetRoot(), consumer);
     }
 }

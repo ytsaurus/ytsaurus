@@ -40,8 +40,8 @@ class TestTransactions(YTEnvSetup):
 
         execute_cmd('{do=set; path = "//root/a"; value = 42}', yt1)
 
-        assert do_get("//root/a@lock_mode", yt1) == '"exclusive"'
-        assert do_get("//root/a@lock_mode", yt2) == '"none"'
+        assert do_get("//root/a/@lock_mode", yt1) == '"exclusive"'
+        assert do_get("//root/a/@lock_mode", yt2) == '"none"'
 
         # TODO: check error message
         execute_error_cmd('{do=set; path = "//root/a"; value = 100}', yt2)
@@ -51,7 +51,7 @@ class TestTransactions(YTEnvSetup):
 
         execute_cmd('{do=commit_transaction}', yt1)
 
-        assert do_get("//root/a@lock_mode", yt1) == '"none"'
+        assert do_get("//root/a/@lock_mode", yt1) == '"none"'
 
         assert do_get("//root", yt1) == '{"a"=42}'
         assert do_get("//root", yt2) == '{"a"=42}'

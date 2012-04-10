@@ -19,10 +19,6 @@
 // Avoid circular references.
 namespace NYT {
 namespace NYTree {
-    TYPath CombineYPaths(
-        const TYPath& path1,
-        const TYPath& path2);
-
     TYPath EscapeYPath(const Stroka& value);
     TYPath EscapeYPath(i64 value);
 }
@@ -84,7 +80,7 @@ struct TLoadHelper<yvector<T>, void>
             TLoadHelper<T>::Load(
                 parameter[i],
                 ~listNode->GetChild(i),
-                NYTree::CombineYPaths(path, NYTree::EscapeYPath(i)));
+                path + "/" + NYTree::EscapeYPath(i));
         }
     }
 };
@@ -102,7 +98,7 @@ struct TLoadHelper<yhash_set<T>, void>
             TLoadHelper<T>::Load(
                 value,
                 ~listNode->GetChild(i),
-                NYTree::CombineYPaths(path, NYTree::EscapeYPath(i)));
+                path + "/" +  NYTree::EscapeYPath(i));
             parameter.insert(MoveRV(value));
         }
     }
@@ -121,7 +117,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
             TLoadHelper<T>::Load(
                 value,
                 ~pair.second,
-                NYTree::CombineYPaths(path, NYTree::SerializeToYson(key)));
+                path + "/" + NYTree::SerializeToYson(key));
             parameter.insert(MakePair(key, MoveRV(value)));
         }
     }
@@ -156,7 +152,7 @@ inline void ValidateSubconfigs(
     for (int i = 0; i < parameter->ysize(); ++i) {
         ValidateSubconfigs(
             &(*parameter)[i],
-            NYTree::CombineYPaths(path, NYTree::EscapeYPath(i)));
+            path + "/" + NYTree::EscapeYPath(i));
     }
 }
 
@@ -169,7 +165,7 @@ inline void ValidateSubconfigs(
     FOREACH (const auto& pair, *parameter) {
         ValidateSubconfigs(
             &pair.second,
-            NYTree::CombineYPaths(path, NYTree::EscapeYPath(pair.first)));
+            path + "/" + NYTree::EscapeYPath(pair.first));
     }
 }
 

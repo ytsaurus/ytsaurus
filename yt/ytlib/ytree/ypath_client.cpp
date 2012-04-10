@@ -99,49 +99,6 @@ TYPath ComputeResolvedYPath(
         : wholePath.substr(0, resolvedLength);
 }
 
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2)
-{
-    auto token = ChopToken(path2);
-    switch (token.GetType()) {
-        case ETokenType::Slash:
-        case ETokenType::At:
-        case ETokenType::None:
-            return path1 + path2;
-
-        default:
-            return path1 + '/' + path2;
-    }
-}
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3)
-{
-    return CombineYPaths(CombineYPaths(path1, path2), path3);
-}
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3,
-    const TYPath& path4)
-{
-    return CombineYPaths(CombineYPaths(CombineYPaths(path1, path2), path3), path4);
-}
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3,
-    const TYPath& path4,
-    const TYPath& path5)
-{
-    return CombineYPaths(CombineYPaths(CombineYPaths(CombineYPaths(path1, path2), path3), path4), path5);
-}
-   
 TYPath EscapeYPath(const Stroka& value)
 {
     // TODO(babenko,roizner): don't escape safe ids

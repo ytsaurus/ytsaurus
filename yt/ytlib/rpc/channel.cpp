@@ -60,10 +60,9 @@ public:
         TActiveRequest activeRequest;
         activeRequest.ClientRequest = request;
         activeRequest.ResponseHandler = responseHandler;
-        activeRequest.Timer = Profiler.TimingStart(CombineYPaths(
-            request->GetPath(),
-            request->GetVerb(),
-            "time"));
+        activeRequest.Timer = Profiler.TimingStart("/" + request->GetPath() +
+            "/" + request->GetVerb() +
+            "/time");
 
         if (timeout) {
             activeRequest.TimeoutCookie = TDelayedInvoker::Submit(

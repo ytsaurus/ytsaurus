@@ -119,28 +119,6 @@ TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
 
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3);
-
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3,
-    const TYPath& path4);
-  
-TYPath CombineYPaths(
-    const TYPath& path1,
-    const TYPath& path2,
-    const TYPath& path3,
-    const TYPath& path4,
-    const TYPath& path5);
-    
 TYPath EscapeYPath(const Stroka& value);
 TYPath EscapeYPath(i64 value);
 

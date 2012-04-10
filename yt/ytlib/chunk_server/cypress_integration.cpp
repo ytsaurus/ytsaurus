@@ -383,7 +383,7 @@ private:
             }
 
             {
-                auto req = TCypressYPathProxy::Create(CombineYPaths("/" + EscapeYPath(address), "orchid"));
+                auto req = TCypressYPathProxy::Create("//" + EscapeYPath(address) + "/orchid");
                 req->set_type(EObjectType::Orchid);     
                 auto manifest = New<TOrchidManifest>();
                 manifest->RemoteAddress = address;

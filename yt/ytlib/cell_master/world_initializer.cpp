@@ -120,14 +120,15 @@ private:
                 "{}");
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
+                auto addressPath = "/" + EscapeYPath(address);
                 SyncYPathSet(
                     service,
-                    WithTransaction(CombineYPaths("//sys/masters", EscapeYPath(address)), transactionId),
+                    WithTransaction("//sys/masters" + addressPath, transactionId),
                     "{}");
 
                 SyncYPathCreate(
                     service,
-                    WithTransaction(CombineYPaths("//sys/masters", EscapeYPath(address), "orchid"), transactionId),
+                    WithTransaction("//sys/masters" + addressPath + "/orchid", transactionId),
                     EObjectType::Orchid,
                     BuildYsonFluently()
                         .BeginMap()

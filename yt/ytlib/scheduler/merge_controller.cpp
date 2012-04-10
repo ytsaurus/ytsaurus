@@ -173,7 +173,7 @@ private:
 
     virtual void DoCompletePreparation()
     {
-        PROFILE_TIMING ("input_processing_time") {
+        PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
             // Compute statistics and populate the pool.

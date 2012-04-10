@@ -32,11 +32,15 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, con
         case ETokenType::None:
             return ResolveSelf(suffixPath, verb);
 
-        case ETokenType::Slash:
-            return ResolveRecursive(suffixPath, verb);
-
-        case ETokenType::At:
-            return ResolveAttributes(suffixPath, verb);
+        case ETokenType::Slash: {
+            TYPath nextSuffixPath;
+            auto nextToken = ChopToken(suffixPath, &nextSuffixPath);
+            if (nextToken.GetType() == ETokenType::At) {
+                return ResolveAttributes(nextSuffixPath, verb);
+            } else {
+                return ResolveRecursive(suffixPath, verb);
+            }
+        }
 
         default:
             ythrow yexception() << Sprintf("Unexpected token %s of type %s",
@@ -111,12 +115,16 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContext* context) const
             case ETokenType::None: \
                 verb##Self(request, response, ~context); \
                 break; \
-            case ETokenType::Slash: \
-                verb##Recursive(suffixPath, request, response, ~context); \
+            case ETokenType::Slash: { \
+                TYPath nextSuffixPath; \
+                auto nextToken = ChopToken(suffixPath, &nextSuffixPath); \
+                if (nextToken.GetType() == ETokenType::At) { \
+                    verb##Attribute(nextSuffixPath, request, response, ~context); \
+                } else { \
+                    verb##Recursive(suffixPath, request, response, ~context); \
+                } \
                 break; \
-            case ETokenType::At: \
-                verb##Attribute(suffixPath, request, response, ~context); \
-                break; \
+            } \
             default: \
                 ythrow yexception() << Sprintf("Unexpected token %s of type %s", \
                     ~token.ToString().Quote(), \
@@ -364,7 +372,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
         ythrow TServiceException(EErrorCode::NoSuchVerb) <<
             "Verb is not supported";
     }
-    return TResolveResult::Here("@" + path);
+    return TResolveResult::Here("/@" + path);
 }
 
 void TSupportsAttributes::GetAttribute(
