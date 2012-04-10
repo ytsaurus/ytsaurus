@@ -627,8 +627,10 @@ TAsyncError TChunkReader::ContinueNextRow(
 
     MakeCurrentRow();
 
-    if (!result->IsSet())
+    if (!result->IsSet()) {
         result->Set(TError());
+    }
+
     return result;
 }
 
