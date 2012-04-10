@@ -127,7 +127,7 @@ struct TAsyncViaHelper<W, U($for ARG , [[A$(ARG)]])>
         typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
         typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
 
-        auto inner = BIND([=] (/*PR*/ typename NYT::NDetail::TFutureHelper<U>::TPromiseType promise[[]]
+        auto inner = BIND([=] (PR promise[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG) a$(ARG)]]) -> void {
             promise.Set(this_.Run([[]]
@@ -138,7 +138,7 @@ $if ARITY != 0 [[
 $for ARG ,
                 [[ForwardRV<A$(ARG)>(a$(ARG))]]));
         });
-        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> /* FR*/ typename NYT::NDetail::TFutureHelper<U>::TFutureType {
+        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
             /*PR*/ typename NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
             invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
@@ -177,7 +177,10 @@ struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
         typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
         typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
 
-        auto inner = BIND([=] (/*PR*/ typename NYT::NDetail::TFutureHelper<U>::TPromiseType promise[[]]
+        auto promiseSetter = BIND([] (PR promise, R value) mutable {
+            promise.Set(MoveRV(value));
+        });
+        auto inner = BIND([=] (PR promise[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG) a$(ARG)]]) {
             this_.Run([[]]
@@ -187,11 +190,9 @@ $if ARITY != 0 [[
 ]]
 $for ARG ,
                 [[ForwardRV<A$(ARG)>(a$(ARG))]])
-                .Subscribe(BIND([=] (/*R*/ typename NYT::NDetail::TFutureHelper<U>::TValueType value) mutable {
-                    promise.Set(MoveRV(value));
-                }));
+                .Subscribe(BIND(promiseSetter, promise));
         });
-        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> /*FR*/ typename NYT::NDetail::TFutureHelper<U>::TFutureType {
+        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
             /*PR*/ typename NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
             invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
