@@ -26,9 +26,9 @@ set( SRCS
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
+  ${BASE}/small_vector.cpp
   ${BASE}/source_location.cpp
   ${BASE}/thread.cpp
-  ${BASE}/small_vector.cpp
 )
 set( HDRS
   ${BASE}/arcadia_helper.h
