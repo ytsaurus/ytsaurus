@@ -23,7 +23,7 @@ TChunkSequenceReader::TChunkSequenceReader(
     , InputChunks(fetchedChunks)
     , MasterChannel(masterChannel)
     , NextChunkIndex(-1)
-    , NextReader()
+    , NextReader(New< TFuture<TChunkReader::TPtr> >())
     , Options(options)
 {
     PrepareNextChunk();
@@ -31,13 +31,13 @@ TChunkSequenceReader::TChunkSequenceReader(
 
 void TChunkSequenceReader::PrepareNextChunk()
 {
-    YASSERT(!NextReader.IsSet());
+    YASSERT(!NextReader->IsSet());
     int chunkSlicesSize = static_cast<int>(InputChunks.size());
     YASSERT(NextChunkIndex < chunkSlicesSize);
 
     ++NextChunkIndex;
     if (NextChunkIndex == chunkSlicesSize) {
-        NextReader.Set(TIntrusivePtr<TChunkReader>());
+        NextReader->Set(NULL);
         return;
     }
 
@@ -59,7 +59,7 @@ void TChunkSequenceReader::PrepareNextChunk()
         "", // ToDo(psushin): pass row attributes here.
         Options);
 
-    chunkReader->AsyncOpen().Subscribe(BIND(
+    chunkReader->AsyncOpen()->Subscribe(BIND(
         &TChunkSequenceReader::OnNextReaderOpened,
         MakeWeak(this),
         chunkReader));
@@ -69,15 +69,15 @@ void TChunkSequenceReader::OnNextReaderOpened(
     TChunkReader::TPtr reader,
     TError error)
 {
-    YASSERT(!NextReader.IsSet());
+    YASSERT(!NextReader->IsSet());
 
     if (error.IsOK()) {
-        NextReader.Set(reader);
+        NextReader->Set(reader);
         return;
     }
 
     State.Fail(error);
-    NextReader.Set(TIntrusivePtr<TChunkReader>());
+    NextReader->Set(NULL);
 }
 
 TAsyncError TChunkSequenceReader::AsyncOpen()
@@ -87,7 +87,7 @@ TAsyncError TChunkSequenceReader::AsyncOpen()
 
     if (InputChunks.size() != 0) {
         State.StartOperation();
-        NextReader.ToFuture().Subscribe(BIND(
+        NextReader->Subscribe(BIND(
             &TChunkSequenceReader::SetCurrentChunk,
             MakeWeak(this)));
     }
@@ -99,11 +99,11 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
 {
     CurrentReader = nextReader;
     if (nextReader) {
-        NextReader = TPromise<TChunkReader::TPtr>();
+        NextReader = New< TFuture<TChunkReader::TPtr> >();
         PrepareNextChunk();
 
         if (!CurrentReader->IsValid()) {
-            NextReader.ToFuture().Subscribe(BIND(
+            NextReader->Subscribe(BIND(
                 &TChunkSequenceReader::SetCurrentChunk,
                 MakeWeak(this)));
             return;
@@ -122,7 +122,7 @@ void TChunkSequenceReader::OnNextRow(TError error)
     }
 
     if (!CurrentReader->IsValid()) {
-        NextReader.ToFuture().Subscribe(BIND(
+        NextReader->Subscribe(BIND(
             &TChunkSequenceReader::SetCurrentChunk,
             MakeWeak(this)));
         return;
@@ -165,7 +165,7 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
 
     State.StartOperation();
     
-    CurrentReader->AsyncNextRow().Subscribe(BIND(
+    CurrentReader->AsyncNextRow()->Subscribe(BIND(
         &TChunkSequenceReader::OnNextRow,
         MakeWeak(this)));
 

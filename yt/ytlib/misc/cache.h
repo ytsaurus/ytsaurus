@@ -45,7 +45,7 @@ public:
     typedef TIntrusivePtr<TValue> TValuePtr;
     typedef TIntrusivePtr< TCacheBase<TKey, TValue, THash> > TPtr;
     typedef TValueOrError<TValuePtr> TValuePtrOrError;
-    typedef TFuture<TValuePtrOrError> TAsyncValuePtrOrError;
+    typedef typename TFuture<TValuePtrOrError>::TPtr TFuturePtr;
 
     void Clear();
     i32 GetSize() const;
@@ -59,7 +59,7 @@ protected:
         TInsertCookie(const TKey& key);
         ~TInsertCookie();
 
-        TAsyncValuePtrOrError GetAsyncResult() const;
+        TFuturePtr GetAsyncResult() const;
         TKey GetKey() const;
         bool IsActive() const;
         void Cancel(const TError& error);
@@ -70,14 +70,14 @@ protected:
 
         TKey Key;
         TPtr Cache;
-        TAsyncValuePtrOrError AsyncResult;
+        TFuturePtr AsyncResult;
         bool Active;
 
     };
 
     TCacheBase();
 
-    TAsyncValuePtrOrError Lookup(const TKey& key);
+    TFuturePtr Lookup(const TKey& key);
     bool BeginInsert(TInsertCookie* cookie);
     void Touch(const TKey& key);
     bool Remove(const TKey& key);
@@ -94,22 +94,14 @@ private:
         : TIntrusiveListItem<TItem>
     {
         TItem()
-            : AsyncResult()
+            : AsyncResult(New< TFuture<TValuePtrOrError> >())
         { }
 
         explicit TItem(const TValuePtr& value)
-            : AsyncResult()
-        {
-            AsyncResult.Set(TValuePtrOrError(value));
-        }
+            : AsyncResult(New< TFuture<TValuePtrOrError> >(value))
+        { }
 
-        explicit TItem(TValuePtr&& value)
-            : AsyncResult()
-        {
-            AsyncResult.Set(TValuePtrOrError(MoveRV(value)));
-        }
-
-        TPromise<TValuePtrOrError> AsyncResult;
+        TFuturePtr AsyncResult;
 
     };
 

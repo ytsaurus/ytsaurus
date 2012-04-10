@@ -125,7 +125,7 @@ public:
 
     void Initialize()
     {
-        AsyncReader->AsyncGetChunkInfo().Subscribe(BIND(
+        AsyncReader->AsyncGetChunkInfo()->Subscribe(BIND(
             &TInitializer::OnGotMeta, 
             MakeStrong(this)).Via(ReaderThread->GetInvoker()));
     }
@@ -285,7 +285,7 @@ private:
 
         chunkReader->ChannelReaders.reserve(SelectedChannels.size());
 
-        chunkReader->SequentialReader->AsyncNextBlock().Subscribe(BIND(
+        chunkReader->SequentialReader->AsyncNextBlock()->Subscribe(BIND(
             &TInitializer::OnFirstBlock,
             MakeWeak(this),
             0).Via(ReaderThread->GetInvoker()));
@@ -449,8 +449,8 @@ private:
 
         ++selectedChannelIndex;
         if (selectedChannelIndex < SelectedChannels.size()) {
-            chunkReader->SequentialReader->AsyncNextBlock()
-                .Subscribe(BIND(
+            auto anb = chunkReader->SequentialReader->AsyncNextBlock();
+            anb->Subscribe(BIND(
                     &TInitializer::OnFirstBlock, 
                     MakeWeak(this), 
                     selectedChannelIndex)
@@ -474,11 +474,9 @@ private:
 
         YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
         if (!StartValidator->IsValid(chunkReader->CurrentKey)) {
-            chunkReader->DoNextRow()
-                .Subscribe(BIND(
-                    &TInitializer::ValidateRow,
-                    MakeWeak(this))
-                .Via(ReaderThread->GetInvoker()));
+            chunkReader->DoNextRow()->Subscribe(BIND(
+                &TInitializer::ValidateRow,
+                MakeWeak(this)).Via(ReaderThread->GetInvoker()));
             return;
         }
 
@@ -529,7 +527,7 @@ TChunkReader::TChunkReader(
     , CurrentRowIndex(-1)
     , EndRowIndex(0)
     , Options(options)
-    , SuccessResult(MakePromise(TError()))
+    , SuccessResult(MakeFuture(TError()))
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(chunkReader);
@@ -560,7 +558,7 @@ TAsyncError TChunkReader::AsyncNextRow()
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    DoNextRow().Subscribe(BIND([=](TError error) {
+    DoNextRow()->Subscribe(BIND([=](TError error) {
         if (error.IsOK()) {
             this_->State.FinishOperation();
         } else {
@@ -590,12 +588,12 @@ TAsyncError TChunkReader::DoNextRow()
 
 TAsyncError TChunkReader::ContinueNextRow(
     int channelIndex,
-    TAsyncErrorPromise result,
+    TAsyncError result,
     TError error)
 {
     if (!error.IsOK()) {
-        YASSERT(!result.IsSet());
-        result.Set(error);
+        YASSERT(!result->IsSet());
+        result->Set(error);
         return result;
     }
 
@@ -612,12 +610,12 @@ TAsyncError TChunkReader::ContinueNextRow(
         if (!channel.NextRow()) {
             YASSERT(SequentialReader->HasNext());
 
-            if (result.IsSet()) {
+            if (result->IsSet()) {
                 // Possible when called directly from DoNextRow
-                result = TAsyncErrorPromise();
+                result = New< TFuture<TError> >();
             }
 
-            SequentialReader->AsyncNextBlock().Subscribe(BIND(
+            SequentialReader->AsyncNextBlock()->Subscribe(BIND(
                 IgnoreResult(&TChunkReader::ContinueNextRow),
                 MakeWeak(this),
                 channelIndex,
@@ -629,10 +627,8 @@ TAsyncError TChunkReader::ContinueNextRow(
 
     MakeCurrentRow();
 
-    if (!result.IsSet()) {
-        result.Set(TError());
-    }
-
+    if (!result->IsSet())
+        result->Set(TError());
     return result;
 }
 

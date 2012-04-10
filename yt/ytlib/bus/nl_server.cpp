@@ -203,12 +203,12 @@ public:
     }
 
     // IBus implementation.
-    virtual TSendResult Send(IMessage::TPtr message)
+    virtual TSendResult::TPtr Send(IMessage::TPtr message)
     {
         auto server = Server.Lock();
         if (!server) {
             LOG_WARNING("Attempt to reply via a detached bus");
-            return TSendResult();
+            return NULL;
         }
 
         RenewLease();
@@ -227,7 +227,7 @@ public:
             ~response,
             dataSize);
 
-        return TSendResult();
+        return NULL;
     }
 
     void EnqueueResponse(TOutcomingResponse* response)

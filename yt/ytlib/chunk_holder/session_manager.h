@@ -51,7 +51,7 @@ public:
      * when the actual flush happens. Once a block is flushed, the next block becomes
      * the first one in the window.
      */
-    TFuture<TVoid> FlushBlock(i32 blockIndex);
+    TFuture<TVoid>::TPtr FlushBlock(i32 blockIndex);
 
     //! Renews the lease.
     void RenewLease();
@@ -74,12 +74,12 @@ private:
         TSlot()
             : State(ESlotState::Empty)
             , Block(NULL)
-            , IsWritten()
+            , IsWritten(New< TFuture<TVoid> >())
         { }
 
         ESlotState State;
         TCachedBlockPtr Block;
-        TPromise<TVoid> IsWritten;
+        TFuture<TVoid>::TPtr IsWritten;
     };
 
     typedef yvector<TSlot> TWindow;
@@ -100,7 +100,7 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    TFuture<TChunkPtr> Finish(const TChunkAttributes& attributes);
+    TFuture<TChunkPtr>::TPtr Finish(const TChunkAttributes& attributes);
     void Cancel(const TError& error);
 
     void SetLease(TLeaseManager::TLease lease);
@@ -116,11 +116,11 @@ private:
     void OpenFile();
     void DoOpenFile();
 
-    TFuture<TVoid> DeleteFile(const TError& error);
+    TFuture<TVoid>::TPtr DeleteFile(const TError& error);
     TVoid DoDeleteFile(const TError& error);
     TVoid OnFileDeleted(TVoid);
 
-    TFuture<TVoid> CloseFile(const TChunkAttributes& attributes);
+    TFuture<TVoid>::TPtr CloseFile(const TChunkAttributes& attributes);
     TVoid DoCloseFile(const TChunkAttributes& attributes);
     TChunkPtr OnFileClosed(TVoid);
 
@@ -156,7 +156,7 @@ public:
     /*!
      * The call returns a result that gets set when the session is finished.
      */
-    TFuture<TChunkPtr> FinishSession(
+    TFuture<TChunkPtr>::TPtr FinishSession(
         TSessionPtr session,
         const NChunkHolder::NProto::TChunkAttributes& attributes);
 

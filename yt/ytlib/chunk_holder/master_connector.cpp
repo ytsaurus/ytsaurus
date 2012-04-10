@@ -100,7 +100,7 @@ void TMasterConnector::SendRegister()
     *request->mutable_statistics() = ComputeStatistics();
     request->set_address(Bootstrap->GetPeerAddress());
     *request->mutable_incarnation_id() = Bootstrap->GetIncarnationId().ToProto();
-    request->Invoke().Subscribe(
+    request->Invoke()->Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()));
 
@@ -167,7 +167,7 @@ void TMasterConnector::SendFullHeartbeat()
         *request->add_chunks() = GetAddInfo(~chunk);
     }
 
-    request->Invoke().Subscribe(
+    request->Invoke()->Subscribe(
         BIND(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()));
 
@@ -199,7 +199,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
         info->set_state(job->GetState());
     }
 
-    request->Invoke().Subscribe(
+    request->Invoke()->Subscribe(
         BIND(&TMasterConnector::OnIncrementalHeartbeatResponse, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()));
 

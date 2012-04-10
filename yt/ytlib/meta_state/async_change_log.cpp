@@ -33,10 +33,10 @@ public:
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
-        , Promise()
+        , Result(New<TAppendResult>())
     { }
 
-    TAppendResult Append(i32 recordId, const TSharedRef& data)
+    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -52,14 +52,14 @@ public:
         AppendQueue.push_back(data);
         Profiler.Enqueue("changelog_queue_size", AppendQueue.size());
 
-        return Promise;
+        return Result;
     }
 
     void Flush()
     {
         VERIFY_THREAD_AFFINITY(Flush);
 
-        TAppendPromise promise;
+        TAppendResult::TPtr result;
 
         PROFILE_TIMING ("/changelog_flush_append_time") {
             TGuard<TSpinLock> guard(SpinLock);
@@ -75,8 +75,8 @@ public:
 
             FlushQueue.swap(AppendQueue);
 
-            promise = Promise;
-            Promise = TAppendPromise();
+            result = Result;
+            Result = New<TAppendResult>();
         }
 
         PROFILE_TIMING ("/changelog_flush_io_time") {
@@ -84,7 +84,7 @@ public:
             ChangeLog->Flush();
         }
 
-        promise.Set(TVoid());
+        result->Set(TVoid());
 
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -98,15 +98,15 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         PROFILE_TIMING ("/changelog_flush_wait_time") {
-            TAppendPromise promise;
+            TAppendResult::TPtr result;
             {
                 TGuard<TSpinLock> guard(SpinLock);
                 if (FlushQueue.empty() && AppendQueue.empty()) {
                     return;
                 }
-                promise = Promise;
+                result = Result;
             }
-            promise.ToFuture().Get();
+            result->Get();
         }
     }
 
@@ -206,7 +206,7 @@ private:
     i32 FlushedRecordCount;
     yvector<TSharedRef> AppendQueue;
     yvector<TSharedRef> FlushQueue;
-    TAppendPromise Promise;
+    TAppendResult::TPtr Result;
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);
 };
@@ -238,7 +238,7 @@ public:
         Shutdown();
     }
 
-    TAppendResult Append(
+    TAppendResult::TPtr Append(
         TChangeLogPtr changeLog,
         i32 recordId,
         const TSharedRef& data)
@@ -464,7 +464,7 @@ TAsyncChangeLog::TAsyncChangeLog(TChangeLogPtr changeLog)
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
-TAsyncChangeLog::TAppendResult TAsyncChangeLog::Append(
+TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)
 {

@@ -77,7 +77,7 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-        GetChannel().Subscribe(BIND(
+        GetChannel()->Subscribe(BIND(
             &TRoamingChannel::OnGotChannel,
             MakeStrong(this),
             MakeStrong(request),
@@ -92,29 +92,28 @@ public:
         // TODO(babenko): this does not look correct
         // but we should get rid of Terminate soon anyway.
     
-        auto currentChannel = ChannelPromise.ToFuture().TryGet();
-        if (currentChannel && currentChannel->IsOK()) {
-            currentChannel->Value()->Terminate();
+        TValueOrError<IChannel::TPtr> currentChannel;
+        if (ChannelPromise->TryGet(&currentChannel) && currentChannel.IsOK()) {
+            currentChannel.Value()->Terminate();
         }
-
         ChannelPromise.Reset();
     }
 
 private:
     friend class TResponseHandlerWrapper;
 
-    TFuture< TValueOrError<IChannel::TPtr> > GetChannel()
+    TFuture< TValueOrError<IChannel::TPtr> >::TPtr GetChannel()
     {
         TGuard<TSpinLock> guard(SpinLock);
         
-        if (!ChannelPromise.IsNull()) {
+        if (ChannelPromise) {
             return ChannelPromise;
         }
 
-        auto promisedChannel = ChannelPromise = TPromise< TValueOrError<IChannel::TPtr> >();
+        auto promisedChannel = ChannelPromise = New< TFuture< TValueOrError<IChannel::TPtr> > >();
         guard.Release();
 
-        Producer.Run().Subscribe(BIND(
+        Producer.Run()->Subscribe(BIND(
             &TRoamingChannel::OnEndpointDiscovered,
             MakeStrong(this),
             promisedChannel));
@@ -122,12 +121,12 @@ private:
     }
 
     void OnEndpointDiscovered(
-        TPromise< TValueOrError<IChannel::TPtr> > channelPromise,
+        TFuture< TValueOrError<IChannel::TPtr> >::TPtr channelPromise,
         TValueOrError<IChannel::TPtr> result)
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (ChannelPromise == channelPromise) {
-            channelPromise.Set(result);
+            channelPromise->Set(result);
             if (!result.IsOK()) {
                 ChannelPromise.Reset();
             }
@@ -154,15 +153,13 @@ private:
     void OnChannelFailed(IChannel::TPtr failedChannel)
     {
         TGuard<TSpinLock> guard(SpinLock);
-
-        if (!ChannelPromise.IsNull()) {
-            auto currentChannel = ChannelPromise.ToFuture().TryGet();
-            if (
-                currentChannel && currentChannel->IsOK() &&
-                currentChannel->Value() == failedChannel)
-            {
-                ChannelPromise.Reset();
-            }
+        TValueOrError<IChannel::TPtr> currentChannel;
+        if (ChannelPromise &&
+            ChannelPromise->TryGet(&currentChannel) &&
+            currentChannel.IsOK() &&
+            currentChannel.Value() == failedChannel)
+        {
+            ChannelPromise.Reset();
         }
     }
 
@@ -170,7 +167,7 @@ private:
     TChannelProducer Producer;
 
     TSpinLock SpinLock;
-    TPromise< TValueOrError<IChannel::TPtr> > ChannelPromise;
+    TFuture< TValueOrError<IChannel::TPtr> >::TPtr ChannelPromise;
 
 };
 

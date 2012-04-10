@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "probe.h"
 
 #include <ytlib/misc/common.h>
 #include <ytlib/actions/bind.h>
@@ -10,8 +11,6 @@ using ::testing::Mock;
 using ::testing::Return;
 using ::testing::AllOf;
 using ::testing::StrictMock;
-
-#include "probe.h"
 
 namespace NYT {
 namespace {

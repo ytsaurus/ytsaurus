@@ -56,7 +56,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
 
 TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
-    auto promise = TPromise<TPeerId>();
+    auto asyncResult = New< TFuture<TPeerId> >();
     auto awaiter = New<TParallelAwaiter>(&Profiler, "changelog_source_lookup_time");
 
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
@@ -73,14 +73,14 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
             BIND(
                 &TChangeLogDownloader::OnResponse,
                 awaiter,
-                promise,
+                asyncResult,
                 id,
                 version));
     }
 
-    awaiter->Complete(BIND(&TChangeLogDownloader::OnComplete, promise));
+    awaiter->Complete(BIND(&TChangeLogDownloader::OnComplete, asyncResult));
 
-    return promise.ToFuture().Get();
+    return asyncResult->Get();
 }
 
 TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
@@ -111,7 +111,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             downloadedRecordCount,
             downloadedRecordCount + desiredChunkSize - 1);
 
-        auto response = request->Invoke().Get();
+        auto response = request->Invoke()->Get();
 
         if (!response->IsOK()) {
             auto error = response->GetError();
@@ -171,7 +171,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 
 void TChangeLogDownloader::OnResponse(
     TParallelAwaiter::TPtr awaiter,
-    TPromise<TPeerId> promise,
+    TFuture<TPeerId>::TPtr asyncResult,
     TPeerId peerId,
     TMetaVersion version,
     TProxy::TRspGetChangeLogInfo::TPtr response)
@@ -197,16 +197,16 @@ void TChangeLogDownloader::OnResponse(
         peerId,
         recordCount);
 
-    promise.Set(peerId);
+    asyncResult->Set(peerId);
     awaiter->Cancel();
 }
 
 void TChangeLogDownloader::OnComplete(
-    TPromise<TPeerId> promise)
+    TFuture<TPeerId>::TPtr asyncResult)
 {
     LOG_INFO("Unable to find requested records at any peer");
 
-    promise.Set(NElection::InvalidPeerId);
+    asyncResult->Set(NElection::InvalidPeerId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

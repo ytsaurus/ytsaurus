@@ -58,7 +58,7 @@ void TSchedulerConnector::SendHeartbeat()
         }
     }
 
-    req->Invoke().Subscribe(
+    req->Invoke()->Subscribe(
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
         .Via(Bootstrap->GetControlInvoker()));
 

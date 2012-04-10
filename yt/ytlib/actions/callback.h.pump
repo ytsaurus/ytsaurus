@@ -119,9 +119,6 @@ namespace NYT {
 template <class T>
 class TFuture;
 
-template <class T>
-class TPromise;
-
 struct IInvoker;
 class TCancelableContext;
 
@@ -147,24 +144,23 @@ namespace NDetail {
     template <class Runnable, class Signature, class BoundArgs>
     struct TBindState;
 
-    // TODO(sandello): Move these somewhere closer to TFuture & TPromise.
     template <class R>
     struct TFutureHelper
     {
         typedef TFuture<R> TFutureType;
-        typedef TPromise<R> TPromiseType;
-        typedef R TValueType;
+        typedef TIntrusivePtr<TFutureType> TFuturePtrType;
+        typedef R TPromisedType;
         enum {
             WrappedInFuture = 0
         };
     };
 
     template <class R>
-    struct TFutureHelper< TFuture<R> >
+    struct TFutureHelper< TIntrusivePtr< TFuture<R> > >
     {
         typedef TFuture<R> TFutureType;
-        typedef TPromise<R> TPromiseType;
-        typedef R TValueType;
+        typedef TIntrusivePtr<TFutureType> TFuturePtrType;
+        typedef R TPromisedType;
         enum {
             WrappedInFuture = 1
         };
@@ -174,8 +170,8 @@ namespace NDetail {
     struct TFutureHelper<void>
     {
         typedef void TFutureType;
-        typedef void TPromiseType;
-        typedef void TValueType;
+        typedef void TFuturePtrType;
+        typedef void TPromisedType;
         enum {
             WrappedInFuture = 0
         };
@@ -265,9 +261,9 @@ $for ARG ,
 
 
 $if ARITY == 0 [[
-    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType()>
+    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFuturePtrType()>
 ]] $else [[
-    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFutureType($for ARG , [[A$(ARG)]])>
+    TCallback<typename NYT::NDetail::TFutureHelper<R>::TFuturePtrType($for ARG , [[A$(ARG)]])>
 ]]
     
     AsyncVia(TIntrusivePtr<IInvoker> invoker);

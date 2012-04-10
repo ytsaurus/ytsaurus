@@ -51,7 +51,7 @@ public:
      * (i.e. requires no context switch). Fetching an uncached block
      * enqueues a disk-read action to the appropriate IO queue.
      */
-    TAsyncGetBlockResult GetBlock(const TBlockId& blockId);
+    TAsyncGetBlockResult::TPtr GetBlock(const TBlockId& blockId);
 
     //! Tries to find a block in the cache.
     /*!

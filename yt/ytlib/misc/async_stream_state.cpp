@@ -10,8 +10,8 @@ namespace NYT {
 TAsyncStreamState::TAsyncStreamState()
     : IsOperationFinished(true)
     , IsActive_(true)
-    , StaticError(MakePromise(TError()))
-    , CurrentError()
+    , StaticError(MakeFuture(TError()))
+    , CurrentError(NULL)
 { }
 
 void TAsyncStreamState::Cancel(const TError& error)
@@ -29,7 +29,7 @@ void TAsyncStreamState::Fail(const TError& error)
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (!IsActive_) {
-        YASSERT(!StaticError.ToFuture().Get().IsOK());
+        YASSERT(!StaticError->Get().IsOK());
         return;
     }
 
@@ -40,13 +40,13 @@ void TAsyncStreamState::DoFail(const TError& error)
 {
     YASSERT(!error.IsOK());
     IsActive_ = false;
-    if (!CurrentError.IsNull()) {
+    if (CurrentError) {
         StaticError = CurrentError;
         CurrentError.Reset();
     } else {
-        StaticError = TAsyncErrorPromise();
+        StaticError = New< TFuture<TError> >();
     }
-    StaticError.Set(error);
+    StaticError->Set(error);
 }
 
 void TAsyncStreamState::Close()
@@ -55,11 +55,11 @@ void TAsyncStreamState::Close()
     YASSERT(IsActive_);
 
     IsActive_ = false;
-    if (!CurrentError.IsNull()) {
+    if (CurrentError) {
         auto result = CurrentError;
         CurrentError.Reset();
         guard.Release();
-        result.Set(TError());
+        result->Set(TError());
     }
 }
 
@@ -72,7 +72,7 @@ bool TAsyncStreamState::IsActive() const
 bool TAsyncStreamState::IsClosed() const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    return !IsActive_ && StaticError.ToFuture().Get().IsOK();
+    return !IsActive_ && StaticError->Get().IsOK();
 }
 
 bool TAsyncStreamState::HasRunningOperation() const
@@ -92,7 +92,7 @@ void TAsyncStreamState::Finish(const TError& error)
 
 TError TAsyncStreamState::GetCurrentError()
 {
-    return StaticError.ToFuture().Get();
+    return StaticError->Get();
 }
 
 void TAsyncStreamState::StartOperation()
@@ -108,8 +108,8 @@ TAsyncError TAsyncStreamState::GetOperationError()
     if (IsOperationFinished || !IsActive_) {
         return StaticError;
     } else {
-        YASSERT(!CurrentError.IsNull());
-        CurrentError = TAsyncErrorPromise();
+        YASSERT(!CurrentError);
+        CurrentError = New< TFuture<TError> >();
         return CurrentError;
     }
 }
@@ -120,14 +120,14 @@ void TAsyncStreamState::FinishOperation(const TError& error)
     YASSERT(!IsOperationFinished);
     IsOperationFinished = true;
     if (error.IsOK()) {
-        if (IsActive_ && !CurrentError.IsNull()) {
+        if (IsActive_ && CurrentError) {
             auto currentError = CurrentError;
             CurrentError.Reset();
             // Always release guard before setting future with 
             // unknown subscribers.
             guard.Release();
 
-            currentError.Set(TError());
+            currentError->Set(TError());
         }
     } else {
         DoFail(error);

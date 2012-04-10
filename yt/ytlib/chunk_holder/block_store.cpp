@@ -67,7 +67,7 @@ public:
                 return block;
             }
 
-            auto result = cookie.GetAsyncResult().Get();
+            auto result = cookie.GetAsyncResult()->Get();
             if (!result.IsOK()) {
                 // Looks like a parallel Get request has completed unsuccessfully.
                 continue;
@@ -91,7 +91,7 @@ public:
         }
     }
 
-    TAsyncGetBlockResult Get(const TBlockId& blockId)
+    TAsyncGetBlockResult::TPtr Get(const TBlockId& blockId)
     {
         TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
@@ -123,15 +123,10 @@ public:
     TCachedBlockPtr Find(const TBlockId& blockId)
     {
         auto asyncResult = Lookup(blockId);
-        if (!asyncResult.IsNull()) {
-            LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
-            return NULL;            
-        }
-
-        TNullable<TGetBlockResult> maybeResult = asyncResult.TryGet();
-        if (maybeResult && maybeResult->IsOK()) {
+        TGetBlockResult result;
+        if (asyncResult && asyncResult->TryGet(&result) && result.IsOK()) {
             LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
-            return maybeResult->Value();
+            return result.Value();
         } else {
             LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
             return NULL;
@@ -239,7 +234,7 @@ TBlockStore::TBlockStore(
     , CacheImpl(New<TCacheImpl>(~StoreImpl))
 { }
 
-TBlockStore::TAsyncGetBlockResult TBlockStore::GetBlock(const TBlockId& blockId)
+TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& blockId)
 {
     return StoreImpl->Get(blockId);
 }

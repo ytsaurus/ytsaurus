@@ -38,7 +38,7 @@ Stroka TChunk::GetFileName() const
     return Location_->GetChunkFileName(Id_);
 }
 
-TChunk::TAsyncGetInfoResult TChunk::GetInfo()
+TChunk::TAsyncGetInfoResult::TPtr TChunk::GetInfo()
 {
     {
         TGuard<TSpinLock> guard(SpinLock);

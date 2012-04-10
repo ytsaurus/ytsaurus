@@ -294,7 +294,7 @@ public:
     {
 #ifdef ENABLE_REF_COUNTED_DEBUGGING
         auto rc = NDetail::AtomicallyFetch(&RefCounter);
-        ::std::fprintf(stderr, "=== %p === Ref(): %"PRId64" -> %"PRId64, this, rc, rc + 1);
+        ::std::fprintf(stderr, "=== %p === Ref(): %d -> %d", this, rc, rc + 1);
 #endif
         YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
         NDetail::AtomicallyIncrement(&RefCounter);
@@ -305,7 +305,7 @@ public:
     {
 #ifdef ENABLE_REF_COUNTED_DEBUGGING
         auto rc = NDetail::AtomicallyFetch(&RefCounter);
-        ::std::fprintf(stderr, "=== %p === Unref(): %"PRId64" -> %"PRId64, this, rc, rc - 1);
+        ::std::fprintf(stderr, "=== %p === Unref(): %d -> %d", this, rc, rc - 1);
 #endif
         YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
         if (NDetail::AtomicallyDecrement(&RefCounter) == 1) {

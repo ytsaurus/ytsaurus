@@ -181,19 +181,19 @@ private:
 
     void AddGroup(TGroupPtr group);
 
-    void RegisterReadyEvent(TFuture<TVoid> windowReady);
+    void RegisterReadyEvent(TFuture<TVoid>::TPtr windowReady);
 
     void OnHolderFailed(THolderPtr holder);
 
     void ShiftWindow();
 
-    TProxy::TInvFlushBlock FlushBlock(THolderPtr holder, int blockIndex);
+    TProxy::TInvFlushBlock::TPtr FlushBlock(THolderPtr holder, int blockIndex);
 
     void OnBlockFlushed(THolderPtr holder, int blockIndex, TProxy::TRspFlushBlock::TPtr rsp);
 
     void OnWindowShifted(int blockIndex);
 
-    TProxy::TInvStartChunk StartChunk(THolderPtr holder);
+    TProxy::TInvStartChunk::TPtr StartChunk(THolderPtr holder);
 
     void OnChunkStarted(THolderPtr holder, TProxy::TRspStartChunk::TPtr rsp);
 
@@ -201,7 +201,7 @@ private:
 
     void CloseSession();
 
-    TProxy::TInvFinishChunk FinishChunk(THolderPtr holder);
+    TProxy::TInvFinishChunk::TPtr FinishChunk(THolderPtr holder);
 
     void OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::TPtr rsp);
 

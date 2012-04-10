@@ -22,7 +22,6 @@ public:
     );
 
     typedef TFuture<EResult> TAsyncResult;
-    typedef TPromise<EResult> TAsyncPromise;
 
     //! Constructs an instance.
     /*!
@@ -39,7 +38,7 @@ public:
         IInvoker* epochControlInvoker,
         IInvoker* epochStateInvoker);
 
-    virtual TAsyncResult Run() = 0;
+    virtual TAsyncResult::TPtr Run() = 0;
 
 protected:
     friend class TLeaderRecovery;
@@ -61,7 +60,7 @@ protected:
      *  
      *  \note Thread affinity: StateThread
      */
-    TAsyncResult RecoverToState(
+    TAsyncResult::TPtr RecoverToState(
         const TMetaVersion& targetVersion);
 
     //! Recovers to the desired state by first loading the given snapshot
@@ -73,7 +72,7 @@ protected:
      *  
      *  \note Thread affinity: StateThread
      */
-    TAsyncResult RecoverToState(
+    TAsyncResult::TPtr RecoverToState(
         const TMetaVersion& targetVersion,
         i32 snapshotId);
 
@@ -88,7 +87,7 @@ protected:
      * 
      *  \note Thread affinity: StateThread
      */
-    TAsyncResult ReplayChangeLogs(
+    TAsyncResult::TPtr ReplayChangeLogs(
         const TMetaVersion& targetVersion,
         i32 expectedPrevRecordCount);
 
@@ -149,7 +148,7 @@ public:
     /*!
      * \note Thread affinity: ControlThread
      */
-    virtual TAsyncResult Run();
+    virtual TAsyncResult::TPtr Run();
 
 private:
     virtual bool IsLeader() const;
@@ -183,7 +182,7 @@ public:
     /*!
      * \note Thread affinity: ControlThread
      */
-    virtual TAsyncResult Run();
+    virtual TAsyncResult::TPtr Run();
 
     //! Postpones an incoming request for advancing the current segment.
     /*!
@@ -237,16 +236,16 @@ private:
     typedef yvector<TPostponedChange> TPostponedChanges;
 
     // Any thread.
-    TAsyncPromise Promise;
+    TAsyncResult::TPtr Result;
     TMetaVersion TargetVersion;
 
     // Control thread
     TPostponedChanges PostponedChanges;
     TMetaVersion PostponedVersion;
     
-    TAsyncResult OnSyncReached(EResult result);
-    TAsyncResult CapturePostponedChanges();
-    TAsyncResult ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
+    TAsyncResult::TPtr OnSyncReached(EResult result);
+    TAsyncResult::TPtr CapturePostponedChanges();
+    TAsyncResult::TPtr ApplyPostponedChanges(TAutoPtr<TPostponedChanges> changes);
 
     virtual bool IsLeader() const;
 

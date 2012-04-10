@@ -9,7 +9,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedRequest>
-TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
+TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteVerb(IYPathServicePtr service, TTypedRequest* request)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
@@ -17,11 +17,12 @@ ExecuteVerb(IYPathServicePtr service, TTypedRequest* request)
     auto requestMessage = request->Serialize();
     return
         ExecuteVerb(service, ~requestMessage)
-        .Apply(BIND([] (NBus::IMessage::TPtr responseMessage) {
-            auto response = New<TTypedResponse>();
-            response->Deserialize(~responseMessage);
-            return response;
-        }));
+        ->Apply(BIND([] (NBus::IMessage::TPtr responseMessage) -> TIntrusivePtr<TTypedResponse>
+            {
+                auto response = New<TTypedResponse>();
+                response->Deserialize(~responseMessage);
+                return response;
+            }));
 }
 
 
@@ -29,7 +30,7 @@ template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TTypedRequest* request)
 {
-    auto response = ExecuteVerb(service, request).Get();
+    auto response = ExecuteVerb(service, request)->Get();
     response->ThrowIfError();
     return response;
 }

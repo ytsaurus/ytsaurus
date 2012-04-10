@@ -101,7 +101,7 @@ private:
     ICodec* Codec;
     TBlob Buffer;
 
-    void FlushBlock();
+        void FlushBlock();
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 

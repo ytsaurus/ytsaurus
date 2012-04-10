@@ -8,7 +8,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Custom semaphore class with async acquire operation.
+//! Custom semaphore class with async aquire operation.
 /*!
  *  Can be used by a single acquire thread and possibly multiple 
  *  release threads. The acquirer must not call AsyncAquire again, 
@@ -30,7 +30,7 @@ public:
      *  The client must not call AsyncAquire again, until returned
      *  future is set.
      */
-    TFuture<TVoid> AsyncAcquire(i64 slots = 1);
+    TFuture<TVoid>::TPtr AsyncAcquire(i64 slots = 1);
 
 private:
     TSpinLock SpinLock;
@@ -39,8 +39,8 @@ private:
     i64 FreeSlotCount;
     i64 RequestedSlots;
 
-    TPromise<TVoid> AcquireEvent;
-    TPromise<TVoid> StaticResult;
+    TFuture<TVoid>::TPtr AcquireEvent;
+    TFuture<TVoid>::TPtr StaticResult;
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
 

@@ -84,7 +84,7 @@ public:
             bus = Bus;
         }
 
-        bus->Send(requestMessage).Subscribe(BIND(
+        bus->Send(requestMessage)->Subscribe(BIND(
             &TChannel::OnAcknowledgement,
             MakeStrong(this),
             requestId));

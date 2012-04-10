@@ -24,11 +24,11 @@ TLeaderLookup::TLeaderLookup(TConfigPtr config)
     : Config(config)
 { }
 
-TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
+TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TPromise<TResult> promisedResult;
+    auto asyncResult = New<TFuture<TResult> >();
     auto awaiter = New<TParallelAwaiter>(&Profiler, "time");
 
     FOREACH(Stroka address, Config->Addresses) {
@@ -45,21 +45,21 @@ TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
                 &TLeaderLookup::OnResponse,
                 MakeStrong(this),
                 awaiter,
-                promisedResult,
+                asyncResult,
                 address));
     }
     
     awaiter->Complete(BIND(
         &TLeaderLookup::OnComplete,
         MakeStrong(this),
-        promisedResult));
+        asyncResult));
 
-    return promisedResult;
+    return asyncResult;
 }
 
 void TLeaderLookup::OnResponse(
     TParallelAwaiter::TPtr awaiter,
-    TPromise<TResult> promisedResult,
+    TFuture<TResult>::TPtr asyncResult,
     const Stroka& address,
     TProxy::TRspGetStatus::TPtr response)
 {
@@ -87,7 +87,7 @@ void TLeaderLookup::OnResponse(
         return;
 
     TGuard<TSpinLock> guard(SpinLock);    
-    if (promisedResult.IsSet())
+    if (asyncResult->IsSet())
         return;
 
     YASSERT(voteId == response->self_id());
@@ -96,7 +96,7 @@ void TLeaderLookup::OnResponse(
     result.Address = address;
     result.Id = voteId;
     result.Epoch = epoch;
-    promisedResult.Set(result);
+    asyncResult->Set(result);
 
     awaiter->Cancel();
 
@@ -106,19 +106,19 @@ void TLeaderLookup::OnResponse(
         ~epoch.ToString());
 }
 
-void TLeaderLookup::OnComplete(TPromise<TResult> promisedResult)
+void TLeaderLookup::OnComplete(TFuture<TResult>::TPtr asyncResult)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(SpinLock);    
-    if (promisedResult.IsSet())
+    if (asyncResult->IsSet())
         return;
 
     TResult result;
     result.Address = "";
     result.Id = InvalidPeerId;
     result.Epoch = TEpoch();
-    promisedResult.Set(result);
+    asyncResult->Set(result);
 
     LOG_INFO("No leader is found");
 }

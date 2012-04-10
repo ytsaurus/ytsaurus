@@ -73,7 +73,7 @@ TCacheBase<TKey, TValue, THash>::GetAll()
 }
 
 template <class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrError
+typename TCacheBase<TKey, TValue, THash>::TFuturePtr
 TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     while (true) {
@@ -88,20 +88,18 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 
             auto valueIt = ValueMap.find(key);
             if (valueIt == ValueMap.end()) {
-                return TAsyncValuePtrOrError();
+                return NULL;
             }
 
             auto value = TRefCounted::DangerousGetPtr(valueIt->second);
             if (value) {
                 auto* item = new TItem();
-                // This holds an extra reference to the promise state...
                 auto asyncResult = item->AsyncResult;
                 LruList.PushFront(item);
                 ++Size;
                 ItemMap.insert(MakePair(key, item));
                 guard.Release();
 
-                // ...since the item can be dead at this moment.
                 TrimIfNeeded();
 
                 return asyncResult;
@@ -184,7 +182,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         YASSERT(it != ItemMap.end());
 
         auto* item = it->second;
-        item->AsyncResult.Set(value);
+        item->AsyncResult->Set(value);
 
         YVERIFY(ValueMap.insert(MakePair(key, ~value)).second);
     
@@ -207,7 +205,7 @@ void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError
     YASSERT(it != ItemMap.end());
     
     auto* item = it->second;
-    item->AsyncResult.Set(error);
+    item->AsyncResult->Set(error);
     
     ItemMap.erase(it);
     
@@ -243,12 +241,10 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 
     auto* item = it->second;
 
-    TNullable<TValuePtrOrError> maybeValueOrError;
-    maybeValueOrError = item->AsyncResult.ToFuture().TryGet();
-
-    YVERIFY(maybeValueOrError);
-    YASSERT(maybeValueOrError->IsOK());
-    auto value = maybeValueOrError->Value();
+    TValuePtrOrError valueOrError;
+    YVERIFY(item->AsyncResult->TryGet(&valueOrError));
+    YASSERT(valueOrError.IsOK());
+    auto value = valueOrError.Value();
 
     item->Unlink();
 
@@ -295,12 +291,10 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         YASSERT(Size > 0);
         auto* item = LruList.PopBack();
 
-        auto maybeValueOrError = item->AsyncResult.ToFuture().TryGet();
-
-        YVERIFY(maybeValueOrError);
-        YASSERT(maybeValueOrError->IsOK());
-
-        auto value = maybeValueOrError->Value();
+        TValuePtrOrError valueOrError;
+        YVERIFY(item->AsyncResult->TryGet(&valueOrError));
+        YASSERT(valueOrError.IsOK());
+        auto value = valueOrError.Value();
 
         --Size;
         OnRemoved(~value);
@@ -345,7 +339,7 @@ void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
 }
 
 template <class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrError
+typename TCacheBase<TKey, TValue, THash>::TFuturePtr
 TCacheBase<TKey, TValue, THash>::TInsertCookie::GetAsyncResult() const
 {
     return AsyncResult;

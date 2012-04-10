@@ -190,7 +190,7 @@ TCachedAsyncChangeLogPtr TDecoratedMetaState::GetCurrentChangeLog()
     return CurrentChangeLog;
 }
 
-TAsyncChangeLog::TAppendResult TDecoratedMetaState::LogChange(
+TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
     const TMetaVersion& version,
     const TSharedRef& changeData)
 {

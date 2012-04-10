@@ -130,7 +130,7 @@ void ResolveYPath(
     TYPath* suffixPath);
 
 //! Asynchronously executes an untyped YPath verb against the given service.
-TFuture<NBus::IMessage::TPtr>
+TFuture<NBus::IMessage::TPtr>::TPtr
 ExecuteVerb(IYPathServicePtr service, NBus::IMessage* requestMessage);
 
 //! Asynchronously executes a request against the given service.
@@ -138,7 +138,7 @@ void ExecuteVerb(IYPathServicePtr service, NRpc::IServiceContext* context);
 
 //! Asynchronously executes a typed YPath requested against a given service.
 template <class TTypedRequest>
-TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
+TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
 ExecuteVerb(IYPathServicePtr service, TTypedRequest* request);
 
 //! Synchronously executes a typed YPath requested against a given service.
@@ -148,7 +148,7 @@ TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TTypedRequest* request);
 
 //! Asynchronously executes "Get" verb. 
-TFuture< TValueOrError<TYson> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path);
+TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathServicePtr service, const TYPath& path);
 
 //! Synchronously executes "Get" verb. Throws if an error has occurred.
 TYson SyncYPathGet(IYPathServicePtr service, const TYPath& path);

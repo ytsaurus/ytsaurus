@@ -51,7 +51,7 @@ public:
     /*!
      *  The info is fetched asynchronously and is cached.
      */
-    TAsyncGetInfoResult GetInfo();
+    TAsyncGetInfoResult::TPtr GetInfo();
 
 private:
     mutable TSpinLock SpinLock;
