@@ -572,11 +572,11 @@ TLockId TCypressManager::AcquireLock(
     auto lockId = objectManager ->GenerateId(EObjectType::Lock);
     auto* lock = new TLock(lockId, nodeId, transactionId, mode);
     LockMap.Insert(lockId, lock);
-    objectManager->RefObject(lockId);
 
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto& transaction = transactionManager->GetTransaction(transactionId);
     transaction.Locks().push_back(lock);
+    objectManager->RefObject(lockId);
 
     LOG_INFO_IF(!IsRecovery(), "Node locked (LockId: %s, NodeId: %s, TransactionId: %s, Mode: %s)",
         ~lockId.ToString(),

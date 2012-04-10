@@ -151,7 +151,7 @@ private:
             ythrow yexception() << Sprintf("Unknown object type %s", ~type.ToString());
         }
 
-        if (handler->IsTransactionRequired() && GetId() == NullTransactionId) {
+        if (handler->IsTransactionRequired() && !transaction) {
             ythrow yexception() << Sprintf("Cannot create an instance of %s outside",
                 ~FormatEnum(type));
         }
