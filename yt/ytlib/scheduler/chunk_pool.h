@@ -76,8 +76,13 @@ struct IChunkPool
 
 ////////////////////////////////////////////////////////////////////
 
+//! Unordered chunk pool may return an arbitrary subset of pooled chunks.
 TAutoPtr<IChunkPool> CreateUnorderedChunkPool();
+
+//! Atomic chunk pool always returns all chunks in the order of their insertion.
 TAutoPtr<IChunkPool> CreateAtomicChunkPool();
+
+// TODO(babenko): doc
 TAutoPtr<IChunkPool> CreateMergeChunkPool();
 
 ////////////////////////////////////////////////////////////////////

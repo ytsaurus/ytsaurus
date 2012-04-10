@@ -43,7 +43,7 @@ private:
     TProgressCounter ChunkCounter;
     TProgressCounter WeightCounter;
 
-    ::THolder<TUnorderedChunkPool> ChunkPool;
+    ::THolder<IChunkPool> ChunkPool;
 
     // The template for starting new jobs.
     TJobSpec JobSpecTemplate;

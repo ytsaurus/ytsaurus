@@ -7,8 +7,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////
-
 class TUnorderedChunkPool
     : public IChunkPool
 {
@@ -106,9 +104,16 @@ class TAtomicChunkPool
     : public IChunkPool
 {
 public:
+    TAtomicChunkPool()
+        : Extracted(false)
+        , Initialized(false)
+        , ExtractResult(New<TExtractResult>())
+    { }
+
     virtual void Add(TPooledChunkPtr chunk)
     {
-        Chunks.push_back(chunk);
+        YASSERT(!Initialized);
+        ExtractResult->AddRemote(chunk);
     }
 
     virtual TExtractResultPtr Extract(
@@ -121,23 +126,32 @@ public:
         UNUSED(weightThreshold);
         UNUSED(maxCount);
         UNUSED(needLocal);
-        auto result = New<TExtractResult>();
-        FOREACH (const auto& chunk, Chunks) {
-            result->AddRemote(chunk);
-        }
-        return result;
+        
+        Initialized = true;
+        YASSERT(!Extracted);
+
+        return ExtractResult;
     }
 
     virtual void PutBack(TExtractResultPtr result)
     {
-        YASSERT(Chunks.empty());
-        FOREACH (const auto& chunk, result->Chunks) {
-            Add(chunk);
-        }
+        YASSERT(result == ExtractResult);
+        YASSERT(Initialized);
+        YASSERT(Extracted);
+        Extracted = false;
     }
 
 private:
-    std::vector<TPooledChunkPtr> Chunks;
+    //! Cached extraction result.
+    /*!
+     *  Pooled chunks are appended here.
+     *  In #Extract this result is returned as-is.
+     */
+    TExtractResultPtr ExtractResult;
+    //! Is pending #Extract is progress?
+    bool Extracted;
+    //! Has any #Extract call been made already?
+    bool Initialized;
 
 };
 
