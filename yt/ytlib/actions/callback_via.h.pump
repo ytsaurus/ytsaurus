@@ -139,7 +139,7 @@ $for ARG ,
                 [[ForwardRV<A$(ARG)>(a$(ARG))]]));
         });
         auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
-            /*PR*/ typename NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
+            /*PR*/ NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
             invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
                 [[]]
@@ -193,7 +193,7 @@ $for ARG ,
                 .Subscribe(BIND(promiseSetter, promise));
         });
         auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
-            /*PR*/ typename NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
+            /*PR*/ NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
             invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
                 [[]]
