@@ -167,7 +167,7 @@ public:
     void SetUp()
     {
         TSortedValidatingWriter sortedWriter(
-            TSchema::Default(),
+            TSchema::CreateDefault(),
             ~CreateAsyncWriter());
 
         Test.Write(&sortedWriter);
@@ -277,7 +277,7 @@ public:
 
     void SetUp()
     {
-        auto schema = TSchema::Default();
+        auto schema = TSchema::CreateDefault();
         {
             auto channel = TChannel::CreateEmpty();
             channel.AddColumn("a");
@@ -401,7 +401,7 @@ public:
 
     void SetUp()
     {
-        auto schema = TSchema::Default();
+        auto schema = TSchema::CreateDefault();
         {
             auto channel = TChannel::CreateEmpty();
             channel.AddColumn("bing");
@@ -528,7 +528,7 @@ public:
 
     void SetUp()
     {
-        auto schema = TSchema::Default();
+        auto schema = TSchema::CreateDefault();
         {
             auto channel = TChannel::CreateEmpty();
             channel.AddColumn("bing");

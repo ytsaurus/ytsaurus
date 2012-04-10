@@ -88,7 +88,7 @@ class TSchema
     DEFINE_BYREF_RW_PROPERTY(std::vector<TColumn>, KeyColumns);
 
 public:
-    static TSchema Default();
+    static TSchema CreateDefault();
 
     void AddChannel(const TChannel& channel);
 

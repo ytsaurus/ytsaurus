@@ -62,11 +62,11 @@ public:
 
     //! Initializes an instance.
     TTableWriter(
-        TConfig* config,
+        TConfig::TPtr config,
         const TOptions& options,
-        NRpc::IChannel* masterChannel,
-        NTransactionClient::ITransaction* transaction,
-        NTransactionClient::TTransactionManager* transactionManager,
+        NRpc::IChannel::TPtr masterChannel,
+        NTransactionClient::ITransaction::TPtr transaction,
+        NTransactionClient::TTransactionManager::TPtr transactionManager,
         const NYTree::TYPath& path);
 
     //! Opens the writer.
@@ -92,8 +92,9 @@ private:
 
     bool IsOpen;
     bool IsClosed;
-    NCypress::TCypressServiceProxy Proxy;
+    NCypress::TCypressServiceProxy CypressProxy;
     NLog::TTaggedLogger Logger;
+    NYTree::TYPath PathWithTransaction;
 
     NTransactionClient::ITransaction::TPtr UploadTransaction;
     NChunkServer::TChunkListId ChunkListId;

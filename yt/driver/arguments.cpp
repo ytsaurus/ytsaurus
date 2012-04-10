@@ -291,6 +291,7 @@ TWriteArgsParser::TWriteArgsParser()
 {
     CmdLine.add(PathArg);
     CmdLine.add(ValueArg);
+    CmdLine.add(SortedArg);
 }
 
     // TODO(panin): validation?
@@ -312,6 +313,7 @@ void TWriteArgsParser::BuildCommand(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("write")
         .Item("path").Scalar(path)
+        .Item("sorted").Scalar(SortedArg.getValue())
         .DoIf(!value.empty(), [=] (TFluentMap fluent) {
                 fluent.Item("value").Node(value);
         });
