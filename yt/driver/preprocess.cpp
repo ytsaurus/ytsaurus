@@ -11,7 +11,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath PreprocessYPath(const TYPath& path) {
+TYPath PreprocessYPath(const TYPath& path)
+{
     Stroka suffix;
     auto token = ChopToken(path, &suffix);
     if (token.GetType() == ETokenType::Tilde) {
@@ -22,12 +23,14 @@ TYPath PreprocessYPath(const TYPath& path) {
     return path;
 }
 
-std::vector<TYPath> PreprocessYPaths(const std::vector<TYPath>& paths) {
+std::vector<TYPath> PreprocessYPaths(const std::vector<TYPath>& paths)
+{
     std::vector<TYPath> result;
     result.reserve(paths.size());
     FOREACH (const auto& path, paths) {
         result.push_back(PreprocessYPath(path));
     }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
