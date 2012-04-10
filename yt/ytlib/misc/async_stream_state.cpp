@@ -12,7 +12,9 @@ TAsyncStreamState::TAsyncStreamState()
     , IsActive_(true)
     , StaticError(MakePromise(TError()))
     , CurrentError()
-{ }
+{
+    CurrentError.Reset();
+}
 
 void TAsyncStreamState::Cancel(const TError& error)
 {
@@ -108,7 +110,7 @@ TAsyncError TAsyncStreamState::GetOperationError()
     if (IsOperationFinished || !IsActive_) {
         return StaticError;
     } else {
-        YASSERT(!CurrentError.IsNull());
+        YASSERT(CurrentError.IsNull());
         CurrentError = TAsyncErrorPromise();
         return CurrentError;
     }
