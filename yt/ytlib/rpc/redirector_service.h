@@ -24,7 +24,7 @@ protected:
     };
 
     typedef TValueOrError<TRedirectParams> TRedirectResult;
-    typedef TFuture<TRedirectResult>::TPtr TAsyncRedirectResult;
+    typedef TFuture<TRedirectResult> TAsyncRedirectResult;
 
     virtual TAsyncRedirectResult HandleRedirect(IServiceContext* context) = 0;
 

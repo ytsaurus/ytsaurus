@@ -52,12 +52,12 @@ private:
     TSnapshotInfo GetSnapshotInfo(i32 snapshotId); // also finds snapshot source
     static void OnSnapshotInfoResponse(
         TParallelAwaiter::TPtr awaiter,
-        TFuture<TSnapshotInfo>::TPtr asyncResult,
+        TPromise<TSnapshotInfo> promise,
         TPeerId peerId,
         TProxy::TRspGetSnapshotInfo::TPtr response);
     static void OnSnapshotInfoComplete(
         i32 snapshotId,
-        TFuture<TSnapshotInfo>::TPtr asyncResult);
+        TPromise<TSnapshotInfo> promise);
 
     EResult DownloadSnapshot(
         const Stroka& fileName,

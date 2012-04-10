@@ -47,7 +47,7 @@ private:
 const void* GetInstructionPointer();
 
 //! Define a macro to record the current source location.
-#define FROM_HERE FROM_HERE_WITH_EXPLICIT_FUNCTION(__FUNCTION__)
+#define FROM_HERE FROM_HERE_WITH_EXPLICIT_FUNCTION(__PRETTY_FUNCTION__)
 #define FROM_HERE_WITH_EXPLICIT_FUNCTION(functionName) \
     ::NYT::TSourceLocation(::NYT::GetInstructionPointer(), \
         functionName, \

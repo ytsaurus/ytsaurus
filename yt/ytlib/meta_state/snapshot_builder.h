@@ -41,6 +41,7 @@ public:
     };
 
     typedef TFuture<TLocalResult> TAsyncLocalResult;
+    typedef TPromise<TLocalResult> TAsyncLocalPromise;
 
     TSnapshotBuilder(
         TSnapshotBuilderConfig* config,
@@ -68,7 +69,7 @@ public:
     /*!
      *  \note Thread affinity: StateThread
      */
-    TAsyncLocalResult::TPtr CreateLocalSnapshot(const TMetaVersion& version);
+    TAsyncLocalResult CreateLocalSnapshot(const TMetaVersion& version);
 
     /*!
      *  \note Thread affinity: StateThread
@@ -101,7 +102,7 @@ private:
     IInvoker::TPtr EpochControlInvoker;
     IInvoker::TPtr EpochStateInvoker;
 
-    TAsyncLocalResult::TPtr LocalResult;
+    TAsyncLocalPromise LocalPromise;
 
 #if defined(_unix_)
     static void WatchdogFork(

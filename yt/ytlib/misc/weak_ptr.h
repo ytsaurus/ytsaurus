@@ -125,7 +125,9 @@ public:
     template <class U>
     TWeakPtr& operator=(const TIntrusivePtr<U>& p) // noexcept
     {
-        static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
+        static_assert(
+            NMpl::TIsConvertible<U*, T*>::Value,
+            "U* have to be convertible to T*");
         TWeakPtr(p).Swap(*this);
         return *this;
     }
@@ -141,7 +143,9 @@ public:
     template <class U>
     TWeakPtr& operator=(const TWeakPtr<U>& other) // noexcept
     {
-        static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
+        static_assert(
+            NMpl::TIsConvertible<U*, T*>::Value,
+            "U* have to be convertible to T*");
         TWeakPtr(other).Swap(*this);
         return *this;
     }
@@ -178,7 +182,9 @@ public:
     template <class U>
     void Reset(const TIntrusivePtr<U>& p) // noexcept
     {
-        static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
+        static_assert(
+            NMpl::TIsConvertible<U*, T*>::Value,
+            "U* have to be convertible to T*");
         TWeakPtr(p).Swap(*this);
     }
 
@@ -208,12 +214,8 @@ private:
     template <class U>
     friend class TWeakPtr;
 
-    template <class U>
-    friend class TActionTargetTraits;
-
     T* T_;
     NYT::NDetail::TRefCounter* RefCounter;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,6 +238,7 @@ TWeakPtr<T> MakeWeak(const TIntrusivePtr<T>& p)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(sandello): Kill comparsions.
 template <class T>
 bool operator<(const TWeakPtr<T>& lhs, const TWeakPtr<T>& rhs)
 {
@@ -251,12 +254,18 @@ bool operator>(const TWeakPtr<T>& lhs, const TWeakPtr<T>& rhs)
 template <class T, class U>
 bool operator==(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
 {
+    static_assert(
+        NMpl::TIsConvertible<U*, T*>::Value,
+        "U* have to be convertible to T*");
     return lhs.Lock().Get() == rhs.Lock().Get();
 }
 
 template <class T, class U>
 bool operator!=(const TWeakPtr<T>& lhs, const TWeakPtr<U>& rhs)
 {
+    static_assert(
+        NMpl::TIsConvertible<U*, T*>::Value,
+        "U* have to be convertible to T*");
     return lhs.Lock().Get() != rhs.Lock().Get();
 }
 

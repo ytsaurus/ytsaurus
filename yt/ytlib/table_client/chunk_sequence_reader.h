@@ -70,7 +70,7 @@ private:
     TAsyncStreamState State;
 
     int NextChunkIndex;
-    TFuture<TChunkReader::TPtr>::TPtr NextReader;
+    TPromise<TChunkReader::TPtr> NextReader;
     TChunkReader::TPtr CurrentReader;
 };
 

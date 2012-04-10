@@ -9,9 +9,11 @@ TAsyncSemaphore::TAsyncSemaphore(i64 maxFreeSlots)
     : MaxFreeSlots(maxFreeSlots)
     , FreeSlotCount(maxFreeSlots)
     , RequestedSlots(0)
-    , AcquireEvent(NULL)
-    , StaticResult(MakeFuture(TVoid()))
-{ }
+    , AcquireEvent()
+    , StaticResult(MakePromise(TVoid()))
+{
+    AcquireEvent.Reset();
+}
 
 void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 {
@@ -19,18 +21,18 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
     FreeSlotCount += slots;
     YASSERT(FreeSlotCount <= MaxFreeSlots);
 
-    if (AcquireEvent && FreeSlotCount > 0) {
+    if (!AcquireEvent.IsNull() && FreeSlotCount > 0) {
         FreeSlotCount -= RequestedSlots;
         RequestedSlots = 0;
         auto event = AcquireEvent;
         AcquireEvent.Reset();
 
         guard.Release();
-        event->Set(TVoid());
+        event.Set(TVoid());
     }
 }
 
-TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire(i64 slots /* = 1 */)
+TFuture<TVoid> TAsyncSemaphore::AsyncAcquire(i64 slots /* = 1 */)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 
@@ -40,8 +42,8 @@ TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire(i64 slots /* = 1 */)
         return StaticResult;
     }
 
-    YASSERT(!AcquireEvent);
-    AcquireEvent = New< TFuture<TVoid> >();
+    YASSERT(AcquireEvent.IsNull());
+    AcquireEvent = TPromise<TVoid>();
     RequestedSlots = slots;
     return AcquireEvent;
 }
