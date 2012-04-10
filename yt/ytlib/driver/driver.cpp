@@ -35,7 +35,6 @@ using namespace NScheduler;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DriverLogger;
-const char UserDirectoryMarker = '~';
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,17 +261,6 @@ public:
             return NULL;
         }
         return TransactionManager->Attach(transactionId);
-    }
-
-    virtual TYPath PreprocessYPath(const TYPath& ypath)
-    {
-        // TODO(babenko): use tokenizer
-        if (ypath[0] == UserDirectoryMarker) {
-            auto userName = Stroka(getenv("USERNAME"));
-            TYPath userDirectory = Stroka("/home/") + userName;
-            return userDirectory + ypath.substr(1);
-        }
-        return ypath;
     }
 
 private:

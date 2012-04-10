@@ -1,4 +1,5 @@
 #include "arguments.h"
+#include "preprocess.h"
 
 #include <ytlib/ytree/lexer.h>
 
@@ -110,9 +111,11 @@ TGetArgsParser::TGetArgsParser()
 
 void TGetArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("get")
-        .Item("path").Scalar(PathArg.getValue());
+        .Item("path").Scalar(path);
 
     TTransactedArgsParser::BuildCommand(consumer);
     BuildOptions(consumer);
@@ -130,9 +133,11 @@ TSetArgsParser::TSetArgsParser()
 
 void TSetArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("set")
-        .Item("path").Scalar(PathArg.getValue())
+        .Item("path").Scalar(path)
         .Item("value").Node(ValueArg.getValue());
 
     TTransactedArgsParser::BuildCommand(consumer);
@@ -149,9 +154,11 @@ TRemoveArgsParser::TRemoveArgsParser()
 
 void TRemoveArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("remove")
-        .Item("path").Scalar(PathArg.getValue());
+        .Item("path").Scalar(path);
 
     TTransactedArgsParser::BuildCommand(consumer);
     BuildOptions(consumer);
@@ -167,9 +174,11 @@ TListArgsParser::TListArgsParser()
 
 void TListArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("list")
-        .Item("path").Scalar(PathArg.getValue());
+        .Item("path").Scalar(path);
  
     TTransactedArgsParser::BuildCommand(consumer);
     BuildOptions(consumer);
@@ -189,11 +198,12 @@ TCreateArgsParser::TCreateArgsParser()
 
 void TCreateArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
     auto manifestYson = ManifestArg.getValue();
 
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("create")
-        .Item("path").Scalar(PathArg.getValue())
+        .Item("path").Scalar(path)
         .Item("type").Scalar(TypeArg.getValue().ToString())
         .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
             fluent.Item("manifest").Node(manifestYson);
@@ -215,9 +225,11 @@ TLockArgsParser::TLockArgsParser()
 
 void TLockArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("lock")
-        .Item("path").Scalar(PathArg.getValue())
+        .Item("path").Scalar(path)
         .Item("mode").Scalar(ModeArg.getValue().ToString());
 
     TTransactedArgsParser::BuildCommand(consumer);
@@ -275,9 +287,11 @@ TReadArgsParser::TReadArgsParser()
 
 void TReadArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("read")
-        .Item("path").Scalar(PathArg.getValue());
+        .Item("path").Scalar(path);
 
     TTransactedArgsParser::BuildCommand(consumer);
 }
@@ -306,11 +320,12 @@ TWriteArgsParser::TWriteArgsParser()
 
 void TWriteArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
     auto value = ValueArg.getValue();
 
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("write")
-        .Item("path").Scalar(PathArg.getValue())
+        .Item("path").Scalar(path)
         .DoIf(!value.empty(), [=] (TFluentMap fluent) {
                 fluent.Item("value").Node(value);
         });
@@ -328,9 +343,11 @@ TUploadArgsParser::TUploadArgsParser()
 
 void TUploadArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("upload")
-        .Item("path").Scalar(PathArg.getValue());
+        .Item("path").Scalar(path);
 
     TTransactedArgsParser::BuildCommand(consumer);
 }
@@ -345,9 +362,11 @@ TDownloadArgsParser::TDownloadArgsParser()
 
 void TDownloadArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto path = PreprocessYPath(PathArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("download")
-        .Item("path").Scalar(PathArg.getValue());
+        .Item("path").Scalar(path);
 
     TTransactedArgsParser::BuildCommand(consumer);
 }
@@ -368,13 +387,17 @@ TMapArgsParser::TMapArgsParser()
 
 void TMapArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto input = PreprocessYPaths(InArg.getValue());
+    auto output = PreprocessYPaths(OutArg.getValue());
+    auto files = PreprocessYPaths(FilesArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("map")
         .Item("spec").BeginMap()
             .Item("mapper").Scalar(MapperArg.getValue())
-            .Item("input_table_paths").List(InArg.getValue())
-            .Item("output_table_paths").List(OutArg.getValue())
-            .Item("files").List(FilesArg.getValue())
+            .Item("input_table_paths").List(input)
+            .Item("output_table_paths").List(output)
+            .Item("files").List(files)
             .Do(BIND(&TMapArgsParser::BuildOptions, Unretained(this)))
         .EndMap();
 
@@ -397,11 +420,14 @@ TMergeArgsParser::TMergeArgsParser()
 
 void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
+    auto input = PreprocessYPaths(InArg.getValue());
+    auto output = PreprocessYPath(OutArg.getValue());
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("merge")
         .Item("spec").BeginMap()
-            .Item("input_table_paths").List(InArg.getValue())
-            .Item("output_table_path").Scalar(OutArg.getValue())
+            .Item("input_table_paths").List(input)
+            .Item("output_table_path").Scalar(output)
             .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
             .Item("combine_chunks").Scalar(CombineArg.getValue())
             .Do(BIND(&TMergeArgsParser::BuildOptions, Unretained(this)))
