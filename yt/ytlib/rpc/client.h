@@ -268,7 +268,6 @@ private:
     virtual void FireCompleted()
     {
         AsyncResult.Set(this);
-        AsyncResult.Reset();
     }
 
     virtual void DeserializeBody(const TRef& data)
