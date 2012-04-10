@@ -71,17 +71,17 @@ TSharedRef CreateSharedRef(ui32 data)
 TEST_F(TAsyncChangeLogTest, ReadLastOnes)
 {
     ui32 recordCount = 10000;
-    TFuture<TVoid>::TPtr result;
+    TFuture<TVoid> result;
     for (ui32 recordId = 0; recordId < recordCount; ++recordId) {
         auto flushResult = AsyncChangeLog->Append(recordId, CreateSharedRef(recordId));
         if (recordId % 1000 == 0) {
-            flushResult->Get();
+            flushResult.Get();
         }
         if (recordId % 10 == 0) {
             result = BIND(&ReadRecord, ~AsyncChangeLog, recordId).AsyncVia(Invoker).Run();
         }
     }
-    result->Get();
+    result.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

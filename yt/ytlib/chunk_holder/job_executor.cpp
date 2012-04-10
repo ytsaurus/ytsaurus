@@ -93,7 +93,7 @@ void TJob::Start()
 
             Chunk
                 ->GetInfo()
-                ->Subscribe(BIND([=] (IAsyncReader::TGetInfoResult result) {
+                .Subscribe(BIND([=] (IAsyncReader::TGetInfoResult result) {
                     if (!result.IsOK()) {
                         LOG_WARNING("Error getting chunk info (ChunkId: %s)\n%s",
                             ~Chunk->GetId().ToString(),
@@ -146,7 +146,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 
         Writer
             ->AsyncClose(std::vector<TSharedRef>(), ChunkInfo.attributes())
-            ->Subscribe(BIND([=] (TError error) {
+            .Subscribe(BIND([=] (TError error) {
                 if (error.IsOK()) {
                     LOG_DEBUG("Replication job completed");
 
@@ -165,33 +165,32 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 
     TBlockId blockId(Chunk->GetId(), blockIndex);
 
-    LOG_DEBUG("Retrieving block for replication (BlockIndex: %d)",
-        blockIndex);
+    LOG_DEBUG("Retrieving block for replication (BlockIndex: %d)", blockIndex);
 
     Owner
         ->BlockStore
         ->GetBlock(blockId)
-        ->Subscribe(
-            BIND([=] (TBlockStore::TGetBlockResult result) {
-                if (!result.IsOK()) {
-                    LOG_WARNING("Error getting block for replication (BlockIndex: %d)\n%s",
-                        blockIndex,
-                        ~result.ToString());
+        .Subscribe(BIND([=] (TBlockStore::TGetBlockResult result) {
+            if (!result.IsOK()) {
+                LOG_WARNING("Error getting block for replication (BlockIndex: %d)\n%s",
+                    blockIndex,
+                    ~result.ToString());
 
-                    this_->State = EJobState::Failed;
-                    return;
-                } 
+                this_->State = EJobState::Failed;
+                return;
+            } 
 
-                std::vector<TSharedRef> blocks;
-                blocks.push_back(result.Value()->GetData());
-                this_->Writer->AsyncWriteBlocks(MoveRV(blocks))->Subscribe(
-                    BIND(
-                        &TJob::ReplicateBlock,
-                        this_,
-                        blockIndex + 1)
-                    .Via(CancelableInvoker));
-            })
-            .Via(CancelableInvoker));
+            std::vector<TSharedRef> blocks;
+            blocks.push_back(result.Value()->GetData());
+            this_->Writer
+                ->AsyncWriteBlocks(MoveRV(blocks))
+                .Subscribe(BIND(
+                    &TJob::ReplicateBlock,
+                    this_,
+                    blockIndex + 1)
+                .Via(CancelableInvoker));
+        })
+        .Via(CancelableInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

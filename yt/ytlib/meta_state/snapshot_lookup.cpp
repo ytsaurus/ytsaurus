@@ -31,7 +31,7 @@ TSnapshotLookup::TSnapshotLookup(
 i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
 {
     CurrentSnapshotId = NonexistingSnapshotId;
-    ResultPromise = New< TFuture<i32> >();
+    Promise = TPromise<i32>();
     auto awaiter = New<TParallelAwaiter>();
 
     LOG_INFO("Looking up for the latest snapshot <= %d", maxSnapshotId);
@@ -56,7 +56,7 @@ i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
         &TSnapshotLookup::OnLookupSnapshotComplete,
         this));
 
-    return ResultPromise->Get();
+    return Promise.ToFuture().Get();
 }
 
 void TSnapshotLookup::OnLookupSnapshotResponse(
@@ -93,7 +93,7 @@ void TSnapshotLookup::OnLookupSnapshotComplete()
         LOG_INFO("Snapshot lookup complete, the latest snapshot is %d", CurrentSnapshotId);
     }
 
-    ResultPromise->Set(CurrentSnapshotId);
+    Promise.Set(CurrentSnapshotId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

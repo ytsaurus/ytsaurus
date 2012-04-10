@@ -75,7 +75,7 @@ void TTableWriter::Open()
         "@schema"));
     getInfoReq->AddRequest(~getSchemaReq);
 
-    auto getInfoRsp = getInfoReq->Invoke()->Get();
+    auto getInfoRsp = getInfoReq->Invoke().Get();
     if (!getInfoRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error requesting table info\n%s",
             ~getInfoRsp->GetError().ToString());

@@ -1,5 +1,6 @@
 #pragma once
 
+namespace NYT {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +26,7 @@ struct TProbeState
 
     void Reset()
     {
-        ::memset(this, 0, sizeof(*this));
+        memset(this, 0, sizeof(*this));
     }
 };
 
@@ -259,3 +260,4 @@ void PrintTo(const TCoercibleToProbe& arg, ::std::ostream* os)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace <anonymous>
+} // namespace NYT

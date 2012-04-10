@@ -78,7 +78,7 @@ public:
             ~verb,
             ~outerRequest->GetRequestId().ToString());
 
-        outerRequest->Invoke()->Subscribe(
+        outerRequest->Invoke().Subscribe(
             BIND(
                 &TOrchidYPathService::OnResponse,
                 MakeStrong(this),

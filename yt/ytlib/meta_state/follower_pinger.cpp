@@ -80,7 +80,7 @@ void TFollowerPinger::SendPing(TPeerId followerId)
     request->set_segment_id(version.SegmentId);
     request->set_record_count(version.RecordCount);
     *request->mutable_epoch() = Epoch.ToProto();
-    request->Invoke()->Subscribe(
+    request->Invoke().Subscribe(
         BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
         .Via(EpochControlInvoker));       
 }
