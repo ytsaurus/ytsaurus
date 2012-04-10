@@ -72,7 +72,7 @@ void TTableWriter::Open()
 
     auto getSchemaReq = TCypressYPathProxy::Get(CombineYPaths(
         WithTransaction(Path, TransactionId),
-        "@schema"));
+        "/@schema"));
     getInfoReq->AddRequest(~getSchemaReq);
 
     auto getInfoRsp = getInfoReq->Invoke()->Get();

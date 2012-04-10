@@ -48,8 +48,8 @@ TEST(TCombinePathsTest, EmptyEmpty)
 
 TEST(TCombinePathsTest, AnyAttributes)
 {
-    TYPath result = CombineYPaths("//path/to/something", "@attr");
-    EXPECT_EQ("//path/to/something@attr", result);
+    TYPath result = CombineYPaths("//path/to/something", "/@attr");
+    EXPECT_EQ("//path/to/something/@attr", result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

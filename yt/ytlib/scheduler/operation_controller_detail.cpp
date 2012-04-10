@@ -535,7 +535,7 @@ TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::RequestIn
         {
             auto req = TYPathProxy::Get(CombineYPaths(
                 WithTransaction(path, Operation->GetTransactionId()),
-                "@schema"));
+                "/@schema"));
             batchReq->AddRequest(req, "get_out_tables_schemata");
         }
         {

@@ -372,7 +372,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
         ythrow TServiceException(EErrorCode::NoSuchVerb) <<
             "Verb is not supported";
     }
-    return TResolveResult::Here("@" + path);
+    return TResolveResult::Here("/@" + path);
 }
 
 void TSupportsAttributes::GetAttribute(

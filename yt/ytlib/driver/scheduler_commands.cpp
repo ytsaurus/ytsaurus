@@ -108,12 +108,12 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "@state"));
+        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "/@state"));
         batchReq->AddRequest(req, "get_state");
     }
 
     {
-        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "@progress"));
+        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "/@progress"));
         batchReq->AddRequest(req, "get_progress");
     }
 
@@ -166,7 +166,7 @@ void TSchedulerCommandBase::DumpOperationResult(const TOperationId& operationId)
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "@result"));
+        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "/@result"));
         batchReq->AddRequest(req, "get_result");
     }
 
