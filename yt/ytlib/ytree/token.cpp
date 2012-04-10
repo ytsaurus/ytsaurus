@@ -52,7 +52,27 @@ Stroka TToken::ToString() const
     }
 }
 
+const TToken& TToken::CheckType(ETokenType expectedType) const
+{
+    if (Type_ != expectedType) {
+        ythrow yexception() << Sprintf("Unexpected token (Token: %s, TokenType: %s, ExpectedType: %s)",
+            ~ToString().Quote(),
+            ~Type_.ToString(),
+            ~expectedType.ToString());
+    }
+    return *this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-            
+
+void ThrowIncorrectType(const TToken& token)
+{
+    ythrow yexception() << Sprintf("Unexpected token (Token: %s, TokenType: %s)",
+        ~token.ToString().Quote(),
+        ~token.GetType().ToString());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYtree
 } // namespace NYT
