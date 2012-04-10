@@ -24,11 +24,6 @@ namespace NDetail {
     struct TAsyncViaHelper;
 };
 
-#ifdef __GNUC__
-#define GCC_ONLY_TYPENAME typename
-#else
-#define GCC_ONLY_TYPENAME
-#endif
 
 $for ARITY [[
 $range ARG 1..ARITY
@@ -144,8 +139,7 @@ $for ARG ,
                 [[ForwardRV<A$(ARG)>(a$(ARG))]]));
         });
         auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
-            GCC_ONLY_TYPENAME /*PR*/
-            NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
+            /*PR*/ NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
             invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
                 [[]]
@@ -199,8 +193,7 @@ $for ARG ,
                 .Subscribe(BIND(promiseSetter, promise));
         });
         auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
-            GCC_ONLY_TYPENAME /*PR*/
-            NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
+            /*PR*/ NYT::NDetail::TFutureHelper<U>::TPromiseType promise;
             invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
                 [[]]
