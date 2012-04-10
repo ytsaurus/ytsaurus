@@ -128,10 +128,10 @@ public:
     TFuture<R> Apply(const TCallback<TFuture<R>(T)>& mutator);
 
 private:
-    explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state);
-    explicit TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state);
+    explicit TFuture(const TIntrusivePtr< NDetail::TPromiseState<T> >& state);
+    explicit TFuture(TIntrusivePtr< NDetail::TPromiseState<T> >&& state);
 
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl;
+    TIntrusivePtr< NDetail::TPromiseState<T> > Impl;
 
 private:
     friend class TPromise<T>;
@@ -167,9 +167,9 @@ private:
     friend class TPromise<void>;
     friend TFuture<void> MakeFuture();
 
-    explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& impl);
+    explicit TFuture(const TIntrusivePtr< NDetail::TPromiseState<void> >& impl);
 
-    TIntrusivePtr< NYT::NDetail::TPromiseState<void> > Impl;
+    TIntrusivePtr< NDetail::TPromiseState<void> > Impl;
 
 };
 #endif
@@ -219,10 +219,10 @@ public:
     operator TFuture<T>() const;
 
 private:
-    explicit TPromise(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state);
-    explicit TPromise(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state);
+    explicit TPromise(const TIntrusivePtr< NDetail::TPromiseState<T> >& state);
+    explicit TPromise(TIntrusivePtr< NDetail::TPromiseState<T> >&& state);
 
-    TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl;
+    TIntrusivePtr< NDetail::TPromiseState<T> > Impl;
 
 private:
     friend class TFuture<T>;

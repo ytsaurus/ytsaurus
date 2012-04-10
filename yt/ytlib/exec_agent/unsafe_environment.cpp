@@ -246,7 +246,7 @@ public:
 
     void SubscribeExited(const TCallback<void(TError)>& callback) 
     {
-        OnExit.ToFuture().Subscribe(callback);
+        OnExit.Subscribe(callback);
     }
 
     void UnsubscribeExited(const TCallback<void(TError)>& callback) 
@@ -267,7 +267,7 @@ private:
         Sleep(TDuration::Seconds(5));
         LOG_DEBUG("Job finished (JobId: %s)", ~JobId.ToString());
 
-        OnExit.Set(TError("This is dummy job!"));
+        OnExit->Set(TError("This is dummy job!"));
     }
 
     TJobId JobId;

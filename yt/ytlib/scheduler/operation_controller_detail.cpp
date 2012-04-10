@@ -232,7 +232,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     if (JobCounter.GetFailed() >= Config->FailedJobsLimit) {
         FailOperation(TError("Failed jobs limit %d has been reached",
-            Config->FailedJobsLimit));
+            Config->FailedJobsLimit);
     }
 }
 

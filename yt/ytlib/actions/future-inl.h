@@ -162,7 +162,7 @@ private:
 };
 
 template <class T>
-void TPromiseState<T>::Subscribe(const typename TPromiseState<T>::TListener& listener)
+void TPromiseState<T>::Subscribe(const TPromiseState<T>::TListener& listener)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -415,21 +415,21 @@ TFuture<R> TFuture<T>::Apply(const TCallback<TFuture<R>(T)>& mutator)
 {
     TPromise<R> mutated;
     // TODO(sandello): Make cref here.
-    //Subscribe(BIND([mutated, mutator] (T outerValue) mutable {
-    //    mutator.Run(outerValue).Subscribe(BIND([mutated] (R innerValue) mutable {
-    //        mutated.Set(MoveRV(innerValue));
-    //    }));
-    //}));
+    Subscribe(BIND([mutated, mutator] (T outerValue) mutable {
+        mutator.Run(outerValue).Subscribe(BIND([mutated] (R innerValue) mutable {
+            mutated.Set(MoveRV(innerValue));
+        }));
+    }));
     return mutated;
 }
 
 template <class T>
-TFuture<T>::TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state)
+TFuture<T>::TFuture(const TIntrusivePtr< NDetail::TPromiseState<T> >& state)
     : Impl(state)
 { }
 
 template <class T>
-TFuture<T>::TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
+TFuture<T>::TFuture(TIntrusivePtr< NDetail::TPromiseState<T> >&& state)
     : Impl(MoveRV(state))
 { }
 
@@ -465,13 +465,13 @@ template <class T>
 TFuture< typename NMpl::TDecay<T>::TType > MakeFuture(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
-    return TFuture<U>(New< NYT::NDetail::TPromiseState<U> >(ForwardRV<T>(value)));
+    return TFuture<U>(New< NDetail::TPromiseState<U> >(ForwardRV<T>(value)));
 }
 
 #if 0
 TFuture<void> MakeFuture()
 {
-    return TFuture<void>(New< NYT::NDetail::TPromiseState<void> >(true));
+    return TFuture<void>(New< NDetail::TPromiseState<void> >(true));
 }
 #endif
 
@@ -479,7 +479,7 @@ TFuture<void> MakeFuture()
 
 template <class T>
 TPromise<T>::TPromise()
-    : Impl(New< NYT::NDetail::TPromiseState<T> >())
+    : Impl(New< NDetail::TPromiseState<T> >())
 { }
 
 template <class T>
@@ -559,12 +559,12 @@ TPromise<T>::operator TFuture<T>() const
 }
 
 template <class T>
-TPromise<T>::TPromise(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state)
+TPromise<T>::TPromise(const TIntrusivePtr< NDetail::TPromiseState<T> >& state)
     : Impl(state)
 { }
 
 template <class T>
-TPromise<T>::TPromise(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
+TPromise<T>::TPromise(TIntrusivePtr< NDetail::TPromiseState<T> >&& state)
     : Impl(MoveRV(state))
 { }
 
@@ -584,7 +584,7 @@ bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs)
 
 #if 0
 TPromise<void>::TPromise()
-    : Impl(New< NYT::NDetail::TPromiseState<void> >())
+    : Impl(New< NDetail::TPromiseState<void> >())
 { }
 
 void TPromise<void>::Set()
@@ -602,7 +602,7 @@ template <class T>
 TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
-    return TPromise<U>(New< NYT::NDetail::TPromiseState<U> >(ForwardRV<T>(value)));
+    return TPromise<U>(New< NDetail::TPromiseState<U> >(ForwardRV<T>(value)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

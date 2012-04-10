@@ -417,7 +417,6 @@ TRecovery::TAsyncResult TFollowerRecovery::Run()
     PostponedVersion = TargetVersion;
     YASSERT(PostponedChanges.empty());
 
-    auto this_ = MakeStrong(this);
     BIND(
         (TAsyncResult (TRecovery::*)(const TMetaVersion&))&TRecovery::RecoverToState,
         MakeStrong(this),
@@ -427,11 +426,10 @@ TRecovery::TAsyncResult TFollowerRecovery::Run()
     .Apply(BIND(
         &TFollowerRecovery::OnSyncReached,
         MakeStrong(this)))
-    // TODO(sandello): Remove a lambda here when listeners accept
+    // TODO(sandello): Remove a lambda here when listeners will accept
     // const-reference.
-    .Subscribe(BIND([this, this_] (EResult result) mutable {
-        Promise.Set(MoveRV(result));
-    }));
+    .Subscribe(BIND([Promise] (EResult result) mutable {
+        Promise.Set(MoveRV(result)); }));
 
     return Promise;
 }
