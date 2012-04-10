@@ -218,7 +218,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     , Epoch(epoch)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
-    , LocalPromise()
+    , LocalPromise(MakePromise(TLocalResult()))
 #if defined(_unix_)
     , WatchdogQueue(New<TActionQueue>("SnapshotWDog"))
 #endif
