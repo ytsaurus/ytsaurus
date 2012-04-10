@@ -16,8 +16,8 @@ TYPath PreprocessYPath(const TYPath& path) {
     auto token = ChopToken(path, &suffix);
     if (token.GetType() == ETokenType::Tilde) {
         auto userName = Stroka(getenv("USERNAME"));
-        TYPath userDirectory = Stroka("//home/") + userName;
-        return CombineYPaths(userDirectory, suffix);
+        TYPath userDirectory = Stroka("//home/") + EscapeYPath(userName);
+        return userDirectory + suffix;
     }
     return path;
 }
