@@ -12,7 +12,6 @@ set( SRCS
   ${BASE}/operation_controller_detail.cpp
   ${BASE}/private.cpp
   ${BASE}/progress_counter.cpp
-  ${BASE}/redirector_service.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_channel.cpp
 )
