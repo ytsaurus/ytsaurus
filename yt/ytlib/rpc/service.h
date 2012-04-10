@@ -93,16 +93,16 @@ struct IServiceContext
     //! Sets the response body.
     virtual void SetResponseBody(const TSharedRef& responseBody) = 0;
 
-    //! Returns an immutable vector of request attachments.
-    virtual const yvector<TSharedRef>& RequestAttachments() const = 0;
+    //! Returns a vector of request attachments.
+    virtual yvector<TSharedRef>& RequestAttachments() = 0;
 
-    //! Returns immutable request attributes.
-    virtual const NYTree::IAttributeDictionary& RequestAttributes() const = 0;
+    //! Returns request attributes.
+    virtual NYTree::IAttributeDictionary& RequestAttributes() = 0;
 
-    //! Returns a mutable vector of response attachments.
+    //! Returns a vector of response attachments.
     virtual yvector<TSharedRef>& ResponseAttachments() = 0;
 
-    //! Returns immutable request attributes.
+    //! Returns response attributes.
     virtual NYTree::IAttributeDictionary& ResponseAttributes() = 0;
 
     //! Sets and immediately logs the request logging info.
@@ -146,12 +146,12 @@ public:
         : Context(context)
     { }
 
-    const yvector<TSharedRef>& Attachments()
+    yvector<TSharedRef>& Attachments()
     {
         return Context->RequestAttachments();
     }
 
-    const NYTree::IAttributeDictionary& Attributes() const
+    NYTree::IAttributeDictionary& Attributes() const
     {
         return Context->RequestAttributes();
     }

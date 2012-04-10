@@ -167,7 +167,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     metaState->RegisterPart(this);
 }
 
-void TCypressManager::RegisterHandler(INodeTypeHandler* handler)
+void TCypressManager::RegisterHandler(INodeTypeHandler::TPtr handler)
 {
     // No thread affinity is given here.
     // This will be called during init-time only.
@@ -182,16 +182,28 @@ void TCypressManager::RegisterHandler(INodeTypeHandler* handler)
     Bootstrap->GetObjectManager()->RegisterHandler(~New<TNodeTypeHandler>(this, type));
 }
 
-INodeTypeHandler* TCypressManager::GetHandler(EObjectType type)
+INodeTypeHandler::TPtr TCypressManager::FindHandler(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto handler = TypeToHandler[static_cast<int>(type)];
-    YASSERT(handler);
-    return ~handler;
+    int typeValue = type.ToValue();
+    if (typeValue < 0 || typeValue >= MaxObjectType) {
+        return NULL;
+    }
+
+    return TypeToHandler[typeValue];
 }
 
-INodeTypeHandler* TCypressManager::GetHandler(const ICypressNode& node)
+INodeTypeHandler::TPtr TCypressManager::GetHandler(EObjectType type)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto handler = FindHandler(type);
+    YASSERT(handler);
+    return handler;
+}
+
+INodeTypeHandler::TPtr TCypressManager::GetHandler(const ICypressNode& node)
 {
     return GetHandler(node.GetObjectType());
 }
@@ -646,51 +658,16 @@ TLockId TCypressManager::LockVersionedNode(
     return AcquireLock(nodeId, transactionId, requestedMode);
 }
 
-TNodeId TCypressManager::CreateNode(
-    EObjectType type,
-    const TTransactionId& transactionId)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto handler = GetHandler(type);
-
-    auto nodeId = Bootstrap->GetObjectManager()->GenerateId(type);
-
-    TAutoPtr<ICypressNode> node = handler->Create(nodeId);
-    RegisterNode(transactionId, node.Release());
-
-    return nodeId;
-}
-
-TNodeId TCypressManager::CreateDynamicNode(
-    const TTransactionId& transactionId,
-    EObjectType type,
-    IMapNode* manifest)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto handler = GetHandler(type);
-    auto nodeId = Bootstrap->GetObjectManager()->GenerateId(type);
-    handler->CreateFromManifest(nodeId, transactionId, manifest);
-
-    if (IsLeader()) {
-        CreateNodeBehavior(nodeId);
-    }
-
-    return nodeId;
-}
-
 void TCypressManager::RegisterNode(
-    const TTransactionId& transactionId,
+    NTransactionServer::TTransaction* transaction,
     TAutoPtr<ICypressNode> node)
 {
     auto nodeId = node->GetId().ObjectId;
     YASSERT(node->GetId().TransactionId == NullTransactionId);
 
     // If there's a transaction then append this node's id to the list.
-    if (transactionId != NullTransactionId) {
-        auto& transaction = Bootstrap->GetTransactionManager()->GetTransaction(transactionId);
-        transaction.CreatedNodeIds().push_back(nodeId);
+    if (transaction) {
+        transaction->CreatedNodeIds().push_back(nodeId);
     }
 
     NodeMap.Insert(nodeId, node.Release());
@@ -698,7 +675,11 @@ void TCypressManager::RegisterNode(
     LOG_INFO_IF(!IsRecovery(), "Node registered (Type: %s, NodeId: %s, TransactionId: %s)",
         ~TypeFromId(nodeId).ToString(),
         ~nodeId.ToString(),
-        ~transactionId.ToString());
+        transaction ? ~transaction->GetId().ToString() : "None");
+
+    if (IsLeader()) {
+        CreateNodeBehavior(nodeId);
+    }
 }
 
 ICypressNode& TCypressManager::BranchNode(

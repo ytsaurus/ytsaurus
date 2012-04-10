@@ -16,9 +16,9 @@ using namespace NCellMaster;
 
 TNodeFactory::TNodeFactory(
     NCellMaster::TBootstrap* bootstrap,
-    const TTransactionId& transactionId)
+    NTransactionServer::TTransaction* transaction)
     : Bootstrap(bootstrap)
-    , TransactionId(transactionId)
+    , Transaction(transaction)
 {
     YASSERT(bootstrap);
 }
@@ -35,10 +35,21 @@ ICypressNodeProxy::TPtr TNodeFactory::DoCreate(EObjectType type)
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     auto objectManager = Bootstrap->GetObjectManager();
-    auto id = cypressManager->CreateNode(type, TransactionId);
-    objectManager->RefObject(id);
-    CreatedNodeIds.push_back(id);
-    return cypressManager->GetVersionedNodeProxy(id, TransactionId);
+    auto transactionManager = Bootstrap->GetTransactionManager();
+    
+    auto nodeId = Bootstrap->GetObjectManager()->GenerateId(type);
+
+    auto handler = cypressManager->GetHandler(type);
+    
+    TAutoPtr<ICypressNode> node(handler->Create(nodeId));
+    cypressManager->RegisterNode(Transaction, node);
+    
+    objectManager->RefObject(nodeId);
+    CreatedNodeIds.push_back(nodeId);
+    
+    return cypressManager->GetVersionedNodeProxy(
+        nodeId,
+        Transaction == NULL ? NullTransactionId : Transaction->GetId());
 }
 
 IStringNodePtr TNodeFactory::CreateString()

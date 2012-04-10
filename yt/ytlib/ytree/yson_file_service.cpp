@@ -82,7 +82,7 @@ public:
         UnderlyingContext->SetResponseBody(responseBody);
     }
 
-    virtual const yvector<TSharedRef>& RequestAttachments() const
+    virtual yvector<TSharedRef>& RequestAttachments()
     {
         return UnderlyingContext->RequestAttachments();
     }
@@ -92,7 +92,7 @@ public:
         return UnderlyingContext->ResponseAttachments();
     }
 
-    virtual const IAttributeDictionary& RequestAttributes() const
+    virtual IAttributeDictionary& RequestAttributes()
     {
         return UnderlyingContext->RequestAttributes();
     }

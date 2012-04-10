@@ -73,15 +73,16 @@ public:
             mode == ELockMode::Snapshot;
     }
 
-    virtual void CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        IMapNode* manifest)
+    virtual TNodeId CreateDynamic(
+        NTransactionServer::TTransaction* transaction,
+        TReqCreate* request,
+        TRspCreate* response)
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
+        auto nodeId = objectManager->GenerateId(EObjectType::Table);
         TAutoPtr<TTableNode> node(new TTableNode(nodeId));
 
         // Create an empty chunk list and reference it from the node.
@@ -90,10 +91,10 @@ public:
 
         auto chunkListId = chunkList.GetId();
         objectManager->RefObject(chunkListId);
-        cypressManager->RegisterNode(transactionId, node.Release());
 
-        auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
-        proxy->Attributes().MergeFrom(manifest);
+        cypressManager->RegisterNode(transaction, node.Release());
+
+        return nodeId;
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)

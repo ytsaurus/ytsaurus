@@ -2,7 +2,10 @@
 
 #include "id.h"
 
+#include <ytlib/cypress/cypress_ypath.pb.h>
+#include <ytlib/rpc/service.h>
 #include <ytlib/ytree/public.h>
+#include <ytlib/transaction_server/public.h>
 
 namespace NYT {
 namespace NCypress {
@@ -59,14 +62,16 @@ struct INodeTypeHandler
      */
     virtual TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) = 0;
 
-    //! Creates and registers dynamic node with a given manifest.
+    typedef NRpc::TTypedServiceRequest<NCypress::NProto::TReqCreate> TReqCreate;
+    typedef NRpc::TTypedServiceResponse<NCypress::NProto::TRspCreate> TRspCreate;
+    //! Creates and registers a dynamic node.
     /*!
-     *  This is called during <tt>Create<tt> verb execution.
+     *  This is called during |Create|.
      */
-    virtual void CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        NYTree::IMapNode* manifest) = 0;
+    virtual TNodeId CreateDynamic(
+        NTransactionServer::TTransaction* transaction,
+        TReqCreate* request,
+        TRspCreate* response) = 0;
 
     //! Performs cleanup on node destruction.
     /*!

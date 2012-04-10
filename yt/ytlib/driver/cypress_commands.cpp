@@ -106,13 +106,7 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
-
     ypathRequest->set_type(request->Type);
-
-    if (request->Manifest) {
-        auto serializedManifest = SerializeToYson(~request->Manifest, EYsonFormat::Binary);
-        ypathRequest->set_manifest(serializedManifest);
-    }
 
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());

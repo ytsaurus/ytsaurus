@@ -133,14 +133,11 @@ struct TCreateRequest
     NYTree::TYPath Path;
     NYTree::INodePtr Stream;
     NObjectServer::EObjectType Type;
-    NYTree::INodePtr Manifest;
 
     TCreateRequest()
     {
         Register("path", Path);
         Register("type", Type);
-        Register("manifest", Manifest)
-            .Default();
     }
 };
 

@@ -67,17 +67,23 @@ public:
         return new TImpl(id);
     }
 
-    virtual void CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        NYTree::IMapNode* manifest)
+    virtual TNodeId CreateDynamic(
+        NTransactionServer::TTransaction* transaction,
+        TReqCreate* request,
+        TRspCreate* response)
     {
-        UNUSED(manifest);
-        auto node = Create(nodeId);
+        UNUSED(transaction);
+        UNUSED(request);
+        UNUSED(response);
+
+        auto objectManager = Bootstrap->GetObjectManager();
         auto cypressManager = Bootstrap->GetCypressManager();
-        cypressManager->RegisterNode(transactionId, node);
-        auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, transactionId);
-        proxy->Attributes().MergeFrom(manifest);
+
+        auto nodeId = objectManager->GenerateId(GetObjectType());
+        auto node = Create(nodeId);
+        cypressManager->RegisterNode(transaction, node);
+
+        return nodeId;
     }
 
     virtual void Destroy(ICypressNode& node)

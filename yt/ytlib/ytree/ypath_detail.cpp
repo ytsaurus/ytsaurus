@@ -787,7 +787,7 @@ public:
 
     virtual Stroka GetLoggingCategory() const
     {
-        YUNREACHABLE();
+        return UnderlyingService->GetLoggingCategory();
     }
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
