@@ -102,10 +102,10 @@ protected:
   void assertEmpty(VectorType & v) {
     // Size tests
     EXPECT_EQ(0u, v.size());
-    EXPECT_TRUE(v.empty());
+    EXPECT_IS_TRUE(v.empty());
 
     // Iterator tests
-    EXPECT_TRUE(v.begin() == v.end());
+    EXPECT_IS_TRUE(v.begin() == v.end());
   }
 
   // Assert that theVector contains the specified values, in order.
@@ -134,7 +134,7 @@ protected:
 TEST_F(TSmallVectorTest, EmptyVectorTest) {
   SCOPED_TRACE("EmptyVectorTest");
   assertEmpty(theVector);
-  EXPECT_TRUE(theVector.rbegin() == theVector.rend());
+  EXPECT_IS_TRUE(theVector.rbegin() == theVector.rend());
   EXPECT_EQ(0, Constructable::getNumConstructorCalls());
   EXPECT_EQ(0, Constructable::getNumDestructorCalls());
 }
@@ -148,8 +148,8 @@ TEST_F(TSmallVectorTest, PushPopTest) {
 
   // Size tests
   assertValuesInOrder(theVector, 1u, 1);
-  EXPECT_FALSE(theVector.begin() == theVector.end());
-  EXPECT_FALSE(theVector.empty());
+  EXPECT_IS_FALSE(theVector.begin() == theVector.end());
+  EXPECT_IS_FALSE(theVector.empty());
 
   // Push another element
   theVector.push_back(Constructable(2));
@@ -245,36 +245,36 @@ TEST_F(TSmallVectorTest, IterationTest) {
 
   // Forward Iteration
   VectorType::iterator it = theVector.begin();
-  EXPECT_TRUE(*it == theVector.front());
-  EXPECT_TRUE(*it == theVector[0]);
+  EXPECT_IS_TRUE(*it == theVector.front());
+  EXPECT_IS_TRUE(*it == theVector[0]);
   EXPECT_EQ(1, it->getValue());
   ++it;
-  EXPECT_TRUE(*it == theVector[1]);
-  EXPECT_TRUE(*it == theVector.back());
+  EXPECT_IS_TRUE(*it == theVector[1]);
+  EXPECT_IS_TRUE(*it == theVector.back());
   EXPECT_EQ(2, it->getValue());
   ++it;
-  EXPECT_TRUE(it == theVector.end());
+  EXPECT_IS_TRUE(it == theVector.end());
   --it;
-  EXPECT_TRUE(*it == theVector[1]);
+  EXPECT_IS_TRUE(*it == theVector[1]);
   EXPECT_EQ(2, it->getValue());
   --it;
-  EXPECT_TRUE(*it == theVector[0]);
+  EXPECT_IS_TRUE(*it == theVector[0]);
   EXPECT_EQ(1, it->getValue());
 
   // Reverse Iteration
   VectorType::reverse_iterator rit = theVector.rbegin();
-  EXPECT_TRUE(*rit == theVector[1]);
+  EXPECT_IS_TRUE(*rit == theVector[1]);
   EXPECT_EQ(2, rit->getValue());
   ++rit;
-  EXPECT_TRUE(*rit == theVector[0]);
+  EXPECT_IS_TRUE(*rit == theVector[0]);
   EXPECT_EQ(1, rit->getValue());
   ++rit;
-  EXPECT_TRUE(rit == theVector.rend());
+  EXPECT_IS_TRUE(rit == theVector.rend());
   --rit;
-  EXPECT_TRUE(*rit == theVector[0]);
+  EXPECT_IS_TRUE(*rit == theVector[0]);
   EXPECT_EQ(1, rit->getValue());
   --rit;
-  EXPECT_TRUE(*rit == theVector[1]);
+  EXPECT_IS_TRUE(*rit == theVector[1]);
   EXPECT_EQ(2, rit->getValue());
 }
 
@@ -371,14 +371,14 @@ TEST_F(TSmallVectorTest, ComparisonTest) {
   makeSequence(theVector, 1, 3);
   makeSequence(otherVector, 1, 3);
 
-  EXPECT_TRUE(theVector == otherVector);
-  EXPECT_FALSE(theVector != otherVector);
+  EXPECT_IS_TRUE(theVector == otherVector);
+  EXPECT_IS_FALSE(theVector != otherVector);
 
   otherVector.clear();
   makeSequence(otherVector, 2, 4);
 
-  EXPECT_FALSE(theVector == otherVector);
-  EXPECT_TRUE(theVector != otherVector);
+  EXPECT_IS_FALSE(theVector == otherVector);
+  EXPECT_IS_TRUE(theVector != otherVector);
 }
 
 // Constant vector tests.
@@ -386,8 +386,8 @@ TEST_F(TSmallVectorTest, ConstVectorTest) {
   VectorType constVector;
 
   EXPECT_EQ(0u, constVector.size());
-  EXPECT_TRUE(constVector.empty());
-  EXPECT_TRUE(constVector.begin() == constVector.end());
+  EXPECT_IS_TRUE(constVector.empty());
+  EXPECT_IS_TRUE(constVector.begin() == constVector.end());
 }
 
 // Direct array access.

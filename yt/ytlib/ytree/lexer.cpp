@@ -217,6 +217,10 @@ private:
                 ProduceToken(ETokenType::Colon, Stroka(ch));
                 break;
 
+            case '~':
+                ProduceToken(ETokenType::Tilde, Stroka(ch));
+                break;
+
             case '\x01':
                 SetInProgressState(EInnerState::InsideBinaryString);
                 YASSERT(Token.StringValue.empty());

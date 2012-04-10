@@ -49,7 +49,7 @@ public:
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
      */
-    TAsyncDownloadResult::TPtr DownloadChunk(
+    TAsyncDownloadResult DownloadChunk(
         const TChunkId& chunkId,
         const yvector<Stroka>& seedAddresses = yvector<Stroka>());
 

@@ -42,7 +42,7 @@ void TSchedulerCommandBase::StartOperation(
         *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
         startOpReq->set_spec(spec);
 
-        auto startOpRsp = startOpReq->Invoke()->Get();
+        auto startOpRsp = startOpReq->Invoke().Get();
         if (!startOpRsp->IsOK()) {
             ythrow yexception() << startOpRsp->GetError().ToString();
         }
@@ -70,7 +70,7 @@ void TSchedulerCommandBase::WaitForOperation(const TOperationId& operationId)
 
         // Override default timeout.
         waitOpReq->SetTimeout(config->OperationWaitTimeout * 2);
-        auto waitOpRsp = waitOpReq->Invoke()->Get();
+        auto waitOpRsp = waitOpReq->Invoke().Get();
 
         if (!waitOpRsp->IsOK()) {
             ythrow yexception() << waitOpRsp->GetError().ToString();
@@ -117,7 +117,7 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
         batchReq->AddRequest(req, "get_progress");
     }
 
-    auto batchRsp = batchReq->Invoke()->Get();
+    auto batchRsp = batchReq->Invoke().Get();
     CheckResponse(batchRsp, "Error getting operation progress");
 
     EOperationState state;
@@ -170,7 +170,7 @@ void TSchedulerCommandBase::DumpOperationResult(const TOperationId& operationId)
         batchReq->AddRequest(req, "get_result");
     }
 
-    auto batchRsp = batchReq->Invoke()->Get();
+    auto batchRsp = batchReq->Invoke().Get();
     CheckResponse(batchRsp, "Error getting operation result");
 
     TError error;
@@ -197,10 +197,6 @@ TMapCommand::TMapCommand(ICommandHost* host)
 
 void TMapCommand::DoExecute(TMapRequestPtr request)
 {
-    PreprocessYPaths(&request->Spec->InputTablePaths);
-    PreprocessYPaths(&request->Spec->OutputTablePaths);
-    PreprocessYPaths(&request->Spec->FilePaths);
-
     StartOperation(
         request,
         EOperationType::Map,
@@ -218,9 +214,6 @@ TMergeCommand::TMergeCommand(ICommandHost* host)
 
 void TMergeCommand::DoExecute(TMergeRequestPtr request)
 {
-    PreprocessYPaths(&request->Spec->InputTablePaths);
-    PreprocessYPath(&request->Spec->OutputTablePath);
-
     StartOperation(
         request,
         EOperationType::Merge,

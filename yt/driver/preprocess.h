@@ -1,0 +1,14 @@
+#pragma once
+
+#include <ytlib/ytree/public.h>
+
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYTree::TYPath PreprocessYPath(const NYTree::TYPath& path);
+std::vector<NYTree::TYPath> PreprocessYPaths(const std::vector<NYTree::TYPath>& paths);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT

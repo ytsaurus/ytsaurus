@@ -68,7 +68,7 @@ public:
     TLeaderLookup(TConfigPtr config);
 
     //! Performs an asynchronous lookup.
-    TAsyncResult::TPtr GetLeader();
+    TAsyncResult GetLeader();
 
 private:
     typedef TElectionManagerProxy TProxy;
@@ -85,10 +85,10 @@ private:
     
     void OnResponse(
         TParallelAwaiter::TPtr awaiter,
-        TFuture<TResult>::TPtr asyncResult,
+        TPromise<TResult> asyncResult,
         const Stroka& address,
         TProxy::TRspGetStatus::TPtr response);
-    void OnComplete(TFuture<TResult>::TPtr asyncResult);
+    void OnComplete(TPromise<TResult> asyncResult);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

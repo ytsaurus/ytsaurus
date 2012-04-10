@@ -16,14 +16,12 @@ using namespace NCypress;
 
 void TGetCommand::DoExecute(TGetRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Get(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest).Get();
 
     if (ypathResponse->IsOK()) {
         TYson value = ypathResponse->value();
@@ -37,8 +35,6 @@ void TGetCommand::DoExecute(TGetRequestPtr request)
 
 void TSetCommand::DoExecute(TSetRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Set(WithTransaction(
         request->Path,
@@ -54,7 +50,7 @@ void TSetCommand::DoExecute(TSetRequestPtr request)
     }
     ypathRequest->set_value(value);
 
-    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest).Get();
 
     if (ypathResponse->IsOK()) {
         Host->ReplySuccess();
@@ -67,14 +63,12 @@ void TSetCommand::DoExecute(TSetRequestPtr request)
 
 void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::Remove(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
 
-    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest).Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
@@ -88,14 +82,12 @@ void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
 
 void TListCommand::DoExecute(TListRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TYPathProxy::List(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
 
-    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest).Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
@@ -110,8 +102,6 @@ void TListCommand::DoExecute(TListRequestPtr request)
 
 void TCreateCommand::DoExecute(TCreateRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
         request->Path,
@@ -124,7 +114,7 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
         ypathRequest->set_manifest(serializedManifest);
     }
 
-    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest).Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
@@ -140,15 +130,13 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
 
 void TLockCommand::DoExecute(TLockRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     TCypressServiceProxy proxy(Host->GetMasterChannel());
     auto ypathRequest = TCypressYPathProxy::Lock(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->set_mode(request->Mode);
 
-    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
+    auto ypathResponse = proxy.Execute(ypathRequest).Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {

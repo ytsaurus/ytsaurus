@@ -111,7 +111,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
-    TProxy::TInvPutBlocks::TPtr PutBlocks(THolderPtr holder);
+    TProxy::TInvPutBlocks PutBlocks(THolderPtr holder);
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -126,7 +126,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
-    TProxy::TInvSendBlocks::TPtr SendBlocks(THolderPtr srcHolder, THolderPtr dstHolder);
+    TProxy::TInvSendBlocks SendBlocks(THolderPtr srcHolder, THolderPtr dstHolder);
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -223,7 +223,7 @@ void TRemoteWriter::TGroup::PutGroup()
         MakeWeak(this)));
 }
 
-TRemoteWriter::TProxy::TInvPutBlocks::TPtr
+TRemoteWriter::TProxy::TInvPutBlocks
 TRemoteWriter::TGroup::PutBlocks(THolderPtr holder)
 {
     auto writer = Writer.Lock();
@@ -286,7 +286,7 @@ void TRemoteWriter::TGroup::SendGroup(THolderPtr srcHolder)
     }
 }
 
-TRemoteWriter::TProxy::TInvSendBlocks::TPtr
+TRemoteWriter::TProxy::TInvSendBlocks
 TRemoteWriter::TGroup::SendBlocks(
     THolderPtr srcHolder, 
     THolderPtr dstHolder)
@@ -541,7 +541,7 @@ void TRemoteWriter::ShiftWindow()
         lastFlushableBlock));
 }
 
-TRemoteWriter::TProxy::TInvFlushBlock::TPtr
+TRemoteWriter::TProxy::TInvFlushBlock
 TRemoteWriter::FlushBlock(THolderPtr holder, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -660,7 +660,8 @@ void TRemoteWriter::CheckResponse(
     }
 }
 
-TRemoteWriter::TProxy::TInvStartChunk::TPtr TRemoteWriter::StartChunk(THolderPtr holder)
+TRemoteWriter::TProxy::TInvStartChunk
+TRemoteWriter::StartChunk(THolderPtr holder)
 {
     LOG_DEBUG("Starting chunk at %s", ~holder->Address);
 
@@ -753,7 +754,7 @@ void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::
     ChunkInfo = chunkInfo;
 }
 
-TRemoteWriter::TProxy::TInvFinishChunk::TPtr
+TRemoteWriter::TProxy::TInvFinishChunk
 TRemoteWriter::FinishChunk(THolderPtr holder)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -844,7 +845,7 @@ TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& block
 
     State.StartOperation();
 
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
+    WindowSlots.AsyncAcquire(sumSize).Subscribe(BIND(
         &TRemoteWriter::DoWriteBlocks,
         TWeak(this),
         blocks));
@@ -926,11 +927,13 @@ TAsyncError TRemoteWriter::AsyncClose(
     State.StartOperation();
 
     // XXX(sandello): Do you realize, that lastBlocks and attributes are copied back and forth here?
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
-        &TRemoteWriter::DoClose,
-        TWeak(this),
-        lastBlocks,
-        attributes).Via(WriterThread->GetInvoker()));
+    WindowSlots.AsyncAcquire(sumSize)
+        .Subscribe(BIND(
+            &TRemoteWriter::DoClose,
+            TWeak(this),
+            lastBlocks,
+            attributes)
+        .Via(WriterThread->GetInvoker()));
 
     return State.GetOperationError();
 }

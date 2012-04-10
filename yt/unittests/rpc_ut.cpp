@@ -238,7 +238,7 @@ TEST_F(TRpcTest, Send)
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->SomeCall();
     request->set_a(42);
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     EXPECT_IS_TRUE(response->IsOK());
     EXPECT_EQ(142, response->b());
@@ -254,7 +254,8 @@ TEST_F(TRpcTest, ManyAsyncSends)
     for (int i = 0; i < numSends; ++i) {
         auto request = proxy->SomeCall();
         request->set_a(i);
-        request->Invoke()->Subscribe(BIND(&TResponseHandler::CheckReply, handler, i + 100));
+        request->Invoke().Subscribe(
+            BIND(&TResponseHandler::CheckReply, handler, i + 100));
     }
 
     EXPECT_IS_TRUE(handler->Event_.WaitT(TDuration::Seconds(4))); // assert no timeout
@@ -282,7 +283,7 @@ TEST_F(TRpcTest, Attachments)
     request->Attachments().push_back(SharedRefFromString("from"));
     request->Attachments().push_back(SharedRefFromString("TMyProxy"));
 
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     const auto& attachments = response->Attachments();
     EXPECT_EQ(3, attachments.ysize());
@@ -317,7 +318,7 @@ TEST_F(TRpcTest, Attributes)
     request->Attributes().SetYson("value2", "stroka2");
     request->Attributes().SetYson("value3", "stroka3");
 
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
     const auto& attributes = response->Attributes();
 
     EXPECT_IS_FALSE(attributes.FindYson("value1").IsInitialized());
@@ -333,7 +334,7 @@ TEST_F(TRpcTest, OK)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->ReplyingCall();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     EXPECT_EQ(TError::OK, response->GetErrorCode());
 }
@@ -342,7 +343,7 @@ TEST_F(TRpcTest, TransportError)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:9999"));
     auto request = proxy->EmptyCall();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::TransportError, response->GetErrorCode());
 }
@@ -351,7 +352,7 @@ TEST_F(TRpcTest, NoService)
 {
     TAutoPtr<TNonExistingServiceProxy> proxy = new TNonExistingServiceProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->EmptyCall();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::NoSuchService, response->GetErrorCode());
 }
@@ -360,7 +361,7 @@ TEST_F(TRpcTest, NoMethod)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->NotRegistredCall();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetErrorCode());
 }
@@ -371,7 +372,7 @@ TEST_F(TRpcTest, Timeout)
     proxy.SetDefaultTimeout(TDuration::Seconds(1));
 
     auto request = proxy.EmptyCall();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::Timeout, response->GetErrorCode());
 }
@@ -380,7 +381,7 @@ TEST_F(TRpcTest, CustomErrorMessage)
 {
     TMyProxy proxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy.CustomMessageError();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     EXPECT_EQ(42, response->GetErrorCode());
     EXPECT_EQ("Some Error", response->GetError().GetMessage());
@@ -427,7 +428,7 @@ TEST_F(TRpcTest, OneWaySend)
     request->Attributes().SetYson("hello", "world");
     request->Attributes().SetYson("value", "42");
 
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
     EXPECT_EQ(TError::OK, response->GetErrorCode());
 
     EXPECT_IS_TRUE(ReadyEvent.WaitT(TDuration::Seconds(4))); // assert no timeout
@@ -441,7 +442,7 @@ TEST_F(TRpcTest, OneWayOK)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->OneWay();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     EXPECT_EQ(TError::OK, response->GetErrorCode());
 }
@@ -450,7 +451,7 @@ TEST_F(TRpcTest, OneWayTransportError)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:9999"));
     auto request = proxy->OneWay();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::TransportError, response->GetErrorCode());
 }
@@ -459,7 +460,7 @@ TEST_F(TRpcTest, OneWayNoService)
 {
     TAutoPtr<TNonExistingServiceProxy> proxy = new TNonExistingServiceProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->OneWay();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     // In this case we receive OK instead of NoSuchService
     EXPECT_EQ(TError::OK, response->GetErrorCode());
@@ -469,7 +470,7 @@ TEST_F(TRpcTest, OneWayNoMethod)
 {
     TAutoPtr<TMyProxy> proxy = new TMyProxy(~CreateBusChannel("localhost:2000"));
     auto request = proxy->NotRegistredOneWay();
-    auto response = request->Invoke()->Get();
+    auto response = request->Invoke().Get();
 
     // In this case we receive OK instead of NoSuchVerb
     EXPECT_EQ(TError::OK, response->GetErrorCode());

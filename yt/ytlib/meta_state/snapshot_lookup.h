@@ -29,7 +29,7 @@ private:
     TPersistentStateManagerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     i32 CurrentSnapshotId;
-    TFuture<i32>::TPtr ResultPromise;
+    TPromise<i32> Promise;
 
     void OnLookupSnapshotResponse(
         TPeerId peerId,

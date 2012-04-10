@@ -44,12 +44,12 @@ private:
 
     static void OnResponse(
         TParallelAwaiter::TPtr awaiter,
-        TFuture<TPeerId>::TPtr asyncResult,
+        TPromise<TPeerId> asyncResult,
         TPeerId peerId,
         TMetaVersion version,
         TProxy::TRspGetChangeLogInfo::TPtr response);
     static void OnComplete(
-        TFuture<TPeerId>::TPtr asyncResult);
+        TPromise<TPeerId> asyncResult);
 
 };
 

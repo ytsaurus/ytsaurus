@@ -216,6 +216,7 @@ TEST_F(TLexerTest, SpecialValues)
     TestSpecialValue("^", ETokenType::Caret);
     TestSpecialValue(":", ETokenType::Colon);
     TestSpecialValue(",", ETokenType::Comma);
+    TestSpecialValue("~", ETokenType::Tilde);
 }
 
 TEST_F(TLexerTest, IncorrectChars)
@@ -235,7 +236,6 @@ TEST_F(TLexerTest, IncorrectChars)
     TestIncorrectInput("$");
     TestIncorrectInput("&");
     TestIncorrectInput("*");
-    TestIncorrectInput("~");
 }
 
 TEST_F(TLexerTest, IncorrectFinish)

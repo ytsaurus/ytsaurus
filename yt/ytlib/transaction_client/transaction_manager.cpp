@@ -64,7 +64,7 @@ public:
         if (attributes) {
             req->Attributes().MergeFrom(*attributes);
         }
-        auto rsp = Proxy.Execute(req)->Get();
+        auto rsp = Proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
             State = EState::Aborted;
@@ -115,7 +115,7 @@ public:
         LOG_INFO("Committing transaction %s", ~Id.ToString());
 
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
-        auto rsp = Proxy.Execute(req)->Get();
+        auto rsp = Proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             // Let's pretend the transaction was aborted.
             // No sync here, should be safe.
@@ -251,7 +251,7 @@ private:
         auto req = TTransactionYPathProxy::Abort(FromObjectId(Id));
         auto result = Proxy.Execute(req);
         if (wait) {
-            result->Get();
+            result.Get();
         }
     }
 
@@ -355,7 +355,7 @@ void TTransactionManager::SendPing(const TTransactionId& id)
     LOG_DEBUG("Renewing lease for transaction %s", ~id.ToString());
 
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
-    CypressProxy.Execute(req)->Subscribe(BIND(
+    CypressProxy.Execute(req).Subscribe(BIND(
         &TThis::OnPingResponse,
         MakeStrong(this),
         id));

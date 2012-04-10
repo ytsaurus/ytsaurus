@@ -43,8 +43,8 @@ TJob::TJob(
     , Slot(slot)
     , JobState(EJobState::Running)
     , JobProgress(EJobProgress::Created)
-    , JobResult(New< TFuture<TJobResult> >())
-    , JobFinished(New< TFuture<TVoid> >())
+    , JobResult()
+    , JobFinished()
     , ProxyConfig(proxyConfig)
 {
     VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
@@ -236,7 +236,7 @@ void TJob::OnJobExit(TError error)
         return;
     }
 
-    if (!JobResult->IsSet()) {
+    if (!JobResult.IsSet()) {
         DoAbort(TError(
             "Job proxy successfully exited but job result has not been set."),
             EJobState::Failed);
@@ -246,13 +246,13 @@ void TJob::OnJobExit(TError error)
 
         JobProgress = EJobProgress::Completed;
         
-        if (TError::FromProto(JobResult->Get().error()).IsOK()) {
+        if (TError::FromProto(JobResult.ToFuture().Get().error()).IsOK()) {
             JobState = EJobState::Completed;
         } else {
             JobState = EJobState::Failed;
         }
 
-        JobFinished->Set(TVoid());
+        JobFinished.Set(TVoid());
     }
 }
 
@@ -268,15 +268,15 @@ const TJobSpec& TJob::GetSpec()
 
 void TJob::SetResult(const NScheduler::NProto::TJobResult& jobResult)
 {
-    if (!JobResult->IsSet()) {
-        JobResult->Set(jobResult);
+    if (!JobResult.IsSet()) {
+        JobResult.Set(jobResult);
     }
 }
 
 NScheduler::NProto::TJobResult TJob::GetResult() const
 {
-    YASSERT(JobResult->IsSet());
-    return JobResult->Get();
+    YASSERT(JobResult.IsSet());
+    return JobResult.ToFuture().Get();
 }
 
 void TJob::SetResult(const TError& error)
@@ -342,12 +342,12 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
     JobProgress = EJobProgress::Failed;
     JobState = resultState;
     SetResult(error);
-    JobFinished->Set(TVoid());
+    JobFinished.Set(TVoid());
 }
 
 void TJob::SubscribeFinished(const TCallback<void()>& callback)
 {
-    JobFinished->Subscribe(BIND([=] (TVoid) {
+    JobFinished.ToFuture().Subscribe(BIND([=] (TVoid) {
         callback.Run();
     }));
 }

@@ -1,6 +1,7 @@
 set( SRCS
   main.cpp
   arguments.cpp
+  preprocess.cpp
 )
 
 add_executable( yt ${SRCS} )

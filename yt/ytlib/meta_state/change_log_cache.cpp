@@ -76,7 +76,7 @@ TChangeLogCache::TGetResult TChangeLogCache::Get(i32 id)
             }
         }
     }
-    return cookie.GetAsyncResult()->Get();
+    return cookie.GetAsyncResult().Get();
 }
 
 TCachedAsyncChangeLogPtr TChangeLogCache::Create(
@@ -101,7 +101,7 @@ TCachedAsyncChangeLogPtr TChangeLogCache::Create(
             ex.what());
     }
 
-    return cookie.GetAsyncResult()->Get().Value();
+    return cookie.GetAsyncResult().Get().Value();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

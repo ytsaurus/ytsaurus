@@ -19,8 +19,6 @@ using namespace NTableClient;
 
 void TReadCommand::DoExecute(TReadRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     auto stream = Host->CreateOutputStream();
 
     auto reader = New<TTableReader>(
@@ -43,8 +41,6 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
 
 void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     TTableWriter::TOptions options;
     options.Sorted = request->Sorted;
 

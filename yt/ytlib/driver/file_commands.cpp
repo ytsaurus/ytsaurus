@@ -13,8 +13,6 @@ using namespace NFileClient;
 
 void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     auto config = Host->GetConfig()->FileReader;
 
     auto reader = New<TFileReader>(
@@ -42,8 +40,6 @@ void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 
 void TUploadCommand::DoExecute(TUploadRequestPtr request)
 {
-    PreprocessYPath(&request->Path);
-
     auto config = Host->GetConfig()->FileWriter;
 
     auto writer = New<TFileWriter>(

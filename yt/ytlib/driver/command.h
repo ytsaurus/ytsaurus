@@ -75,7 +75,6 @@ struct ICommandHost
     virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequestPtr request, bool required = false) = 0;
     virtual NTransactionClient::ITransaction::TPtr GetTransaction(TTransactedRequestPtr request, bool required = false) = 0;
 
-    virtual NYTree::TYPath PreprocessYPath(const NYTree::TYPath& ypath) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,9 +96,6 @@ protected:
     ICommandHost* Host;
 
     explicit TUntypedCommandBase(ICommandHost* host);
-
-    void PreprocessYPath(NYTree::TYPath* path);
-    void PreprocessYPaths(std::vector<NYTree::TYPath>* paths);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
