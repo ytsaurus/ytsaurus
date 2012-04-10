@@ -107,9 +107,9 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
         request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->set_type(request->Type);
+    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     auto ypathResponse = proxy.Execute(ypathRequest)->Get();
-    ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
         auto consumer = Host->CreateOutputConsumer();

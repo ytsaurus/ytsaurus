@@ -588,7 +588,7 @@ protected:
         }
 
         auto transaction =
-            TransactionId == NullTransactionId
+            this->TransactionId == NullTransactionId
             ? NULL
             : &transactionManager->GetTransaction(TransactionId);
 

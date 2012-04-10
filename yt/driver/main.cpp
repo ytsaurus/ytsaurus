@@ -259,7 +259,6 @@ public:
 
             auto command = argsParser->GetCommand();
             RunCommand(command);
-
         } catch (const std::exception& ex) {
             Cerr << "Error occured: " << ex.what() << Endl;
             ExitCode = 1;

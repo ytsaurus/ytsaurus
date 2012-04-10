@@ -142,9 +142,6 @@ private:
 
     TUnlabeledStringArg PathArg;
 
-    typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
-    TManifestArg ManifestArg;
-
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 
 };
@@ -176,9 +173,6 @@ public:
     TStartTxArgsParser();
 
 private:
-    typedef TCLAP::ValueArg<NYTree::TYson> TManifestArg;
-    TManifestArg ManifestArg;
-
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
 

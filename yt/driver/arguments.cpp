@@ -189,25 +189,19 @@ void TListArgsParser::BuildCommand(IYsonConsumer* consumer)
 TCreateArgsParser::TCreateArgsParser()
     : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
     , PathArg("path", "path for a new object in Cypress", true, "", "ypath")
-    , ManifestArg("", "manifest", "manifest", false, "", "yson")
 {
     CmdLine.add(TypeArg);
     CmdLine.add(PathArg);
-    CmdLine.add(ManifestArg);
 }
 
 void TCreateArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
-    auto manifestYson = ManifestArg.getValue();
 
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("create")
         .Item("path").Scalar(path)
-        .Item("type").Scalar(TypeArg.getValue().ToString())
-        .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
-            fluent.Item("manifest").Node(manifestYson);
-         });
+        .Item("type").Scalar(TypeArg.getValue().ToString());
 
     TTransactedArgsParser::BuildCommand(consumer);
     BuildOptions(consumer);
@@ -238,20 +232,12 @@ void TLockArgsParser::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TStartTxArgsParser::TStartTxArgsParser()
-    : ManifestArg("", "manifest", "manifest", false, "", "yson")
-{
-    CmdLine.add(ManifestArg);
-}
+{ }
 
 void TStartTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
-    auto manifestYson = ManifestArg.getValue();
-
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("start")
-        .DoIf(!manifestYson.empty(), [=] (TFluentMap fluent) {
-            fluent.Item("manifest").Node(manifestYson);
-         });
+        .Item("do").Scalar("start");
 
     TArgsParserBase::BuildCommand(consumer);
     BuildOptions(consumer);
