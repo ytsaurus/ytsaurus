@@ -3,8 +3,6 @@
 #include "public.h"
 #include "lexer.h"
 
-#include <ytlib/misc/small_vector.h>
-
 namespace NYT {
 namespace NYTree {
 
@@ -12,7 +10,7 @@ namespace NYTree {
 
 class TTokenizer {
 public:
-    TTokenizer(const Stroka& input);
+    TTokenizer(const TStringBuf& input);
 
     const TToken& operator[](size_t index);
     TStringBuf GetSuffix(size_t index);
@@ -27,7 +25,7 @@ private:
     void ChopTo(size_t index);
     void ChopToken(size_t position);
 
-    const Stroka& Input;
+    TStringBuf Input;
     TLexer Lexer;
     std::vector<TToken> Tokens;
     std::vector<size_t> SuffixPositions;

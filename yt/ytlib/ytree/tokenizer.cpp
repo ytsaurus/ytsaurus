@@ -6,7 +6,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTokenizer::TTokenizer(const Stroka &input)
+TTokenizer::TTokenizer(const TStringBuf& input)
     : Input(input)
 { }
 
@@ -21,7 +21,7 @@ TStringBuf TTokenizer::GetSuffix(size_t index)
 {
     ChopTo(index);
     YASSERT(SuffixPositions.size() > index);
-    return TStringBuf(Input.begin() + SuffixPositions[index], Input.end());
+    return Input.SubStr(SuffixPositions[index]);
 }
 
 void TTokenizer::ChopTo(size_t index)
