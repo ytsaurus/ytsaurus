@@ -94,7 +94,6 @@ private:
     bool IsClosed;
     NCypress::TCypressServiceProxy CypressProxy;
     NLog::TTaggedLogger Logger;
-    NYTree::TYPath PathWithTransaction;
 
     NTransactionClient::ITransaction::TPtr UploadTransaction;
     NChunkServer::TChunkListId ChunkListId;

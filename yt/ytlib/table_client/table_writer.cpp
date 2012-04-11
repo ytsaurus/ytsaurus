@@ -36,7 +36,6 @@ TTableWriter::TTableWriter(
     , IsClosed(false)
     , CypressProxy(masterChannel)
     , Logger(TableClientLogger)
-    , PathWithTransaction(WithTransaction(Path, TransactionId))
 {
     YASSERT(config);
     YASSERT(masterChannel);
@@ -77,7 +76,7 @@ void TTableWriter::Open()
                 batchReq->AddRequest(req, "lock");
             }
             {
-                auto req = TYPathProxy::Get(PathWithTransaction + "/@row_count");
+                auto req = TYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@row_count");
                 batchReq->AddRequest(req, "get_row_count");
             }
         }
@@ -87,7 +86,7 @@ void TTableWriter::Open()
             batchReq->AddRequest(req, "get_chunk_list_for_update");
         }
         {
-            auto req = TCypressYPathProxy::Get(PathWithTransaction + "/@schema");
+            auto req = TCypressYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@schema");
             batchReq->AddRequest(req, "get_schema");
         }
 
