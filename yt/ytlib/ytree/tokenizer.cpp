@@ -48,6 +48,8 @@ void TTokenizer::ChopToken(size_t position)
         Lexer.GetState() == TLexer::EState::Terminal
             ? Lexer.GetToken() // TODO(roizner): Fix this once TToken contains TStringBuf instead of Stroka
             : TToken::EndOfStream);
+    Lexer.Reset();
+
     SuffixPositions.push_back(position);
     YASSERT(Tokens.size() == SuffixPositions.size());
 }
