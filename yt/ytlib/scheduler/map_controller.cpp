@@ -237,7 +237,7 @@ private:
 
             // Choose job count.
             // TODO(babenko): refactor, generalize, and improve.
-            i64 jobCount = ExecNodeCount;
+            i64 jobCount = ExecNodeCount * 8;
             if (Spec->JobCount) {
                 jobCount = Spec->JobCount.Get();
             }
