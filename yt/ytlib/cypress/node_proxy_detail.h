@@ -590,7 +590,7 @@ protected:
         auto transaction =
             this->TransactionId == NullTransactionId
             ? NULL
-            : &transactionManager->GetTransaction(TransactionId);
+            : &transactionManager->GetTransaction(this->TransactionId);
 
         auto nodeId = handler->CreateDynamic(
             transaction,
