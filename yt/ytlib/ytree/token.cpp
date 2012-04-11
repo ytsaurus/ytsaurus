@@ -65,7 +65,7 @@ const TToken& TToken::CheckType(ETokenType expectedType) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowIncorrectType(const TToken& token)
+void ThrowUnexpectedToken(const TToken& token)
 {
     ythrow yexception() << Sprintf("Unexpected token (Token: %s, TokenType: %s)",
         ~token.ToString().Quote(),

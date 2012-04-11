@@ -1,8 +1,9 @@
 #include "stdafx.h"
 #include "ypath_detail.h"
+
 #include "ypath_client.h"
 #include "serialize.h"
-#include "lexer.h"
+#include "tokenizer.h"
 
 #include <ytlib/rpc/rpc.pb.h>
 
@@ -26,26 +27,21 @@ TYPathServiceBase::TYPathServiceBase(const Stroka& loggingCategory)
 
 IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, const Stroka& verb)
 {
-    TYPath suffixPath;
-    auto token = ChopToken(path, &suffixPath);
-    switch (token.GetType()) {
+    TTokenizer tokens(path);
+    switch (tokens[0].GetType()) {
         case ETokenType::None:
-            return ResolveSelf(suffixPath, verb);
+            return ResolveSelf(TYPath(tokens.GetSuffix(0)), verb);
 
-        case ETokenType::Slash: {
-            TYPath nextSuffixPath;
-            auto nextToken = ChopToken(suffixPath, &nextSuffixPath);
-            if (nextToken.GetType() == ETokenType::At) {
-                return ResolveAttributes(nextSuffixPath, verb);
+        case ETokenType::Slash:
+            if (tokens[1].GetType() == ETokenType::At) {
+                return ResolveAttributes(TYPath(tokens.GetSuffix(1)), verb);
             } else {
-                return ResolveRecursive(suffixPath, verb);
+                return ResolveRecursive(TYPath(tokens.GetSuffix(0)), verb);
             }
-        }
 
         default:
-            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                ~token.ToString().Quote(),
-                ~token.GetType().ToString());
+            ThrowUnexpectedToken(tokens[0]);
+            YUNREACHABLE();
     }
 }
 
@@ -109,26 +105,23 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContext* context) const
 #define IMPLEMENT_SUPPORTS_VERB(verb) \
     DEFINE_RPC_SERVICE_METHOD(TSupports##verb, verb) \
     { \
-        TYPath suffixPath; \
-        auto token = ChopToken(context->GetPath(), &suffixPath); \
-        switch (token.GetType()) { \
+        TTokenizer tokens(context->GetPath()); \
+        switch (tokens[0].GetType()) { \
             case ETokenType::None: \
                 verb##Self(request, response, ~context); \
                 break; \
-            case ETokenType::Slash: { \
-                TYPath nextSuffixPath; \
-                auto nextToken = ChopToken(suffixPath, &nextSuffixPath); \
-                if (nextToken.GetType() == ETokenType::At) { \
-                    verb##Attribute(nextSuffixPath, request, response, ~context); \
+            \
+            case ETokenType::Slash: \
+                if (tokens[1].GetType() == ETokenType::At) { \
+                    verb##Attribute(TYPath(tokens.GetSuffix(1)), request, response, ~context); \
                 } else { \
-                    verb##Recursive(suffixPath, request, response, ~context); \
+                    verb##Recursive(TYPath(tokens.GetSuffix(0)), request, response, ~context); \
                 } \
                 break; \
-            } \
+            \
             default: \
-                ythrow yexception() << Sprintf("Unexpected token %s of type %s", \
-                    ~token.ToString().Quote(), \
-                    ~token.GetType().ToString()); \
+                ThrowUnexpectedToken(tokens[0]); \
+                YUNREACHABLE(); \
         } \
     } \
     \
