@@ -33,7 +33,7 @@ message TRspFetch
 ////////////////////////////////////////////////////////////////////////////////
 
 // Raises Sets "Sorted" flag for the root chunk list of the table.
-// No checks are done, it's caller's responsibility to ensure proper ordering.
+// No checks are done, it's caller's responsibility to ensure proper row order.
 message TReqSetSorted
 { }
 

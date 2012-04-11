@@ -386,7 +386,7 @@ TSchema::TSchema()
     Channels.push_back(trashChannel);
 }
 
-TSchema TSchema::Default()
+TSchema TSchema::CreateDefault()
 {
     return TSchema();
 }

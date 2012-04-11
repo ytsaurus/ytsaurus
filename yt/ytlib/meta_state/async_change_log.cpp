@@ -33,10 +33,10 @@ public:
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
-        , Promise()
+        , Result(New<TAppendResult>())
     { }
 
-    TAppendResult Append(i32 recordId, const TSharedRef& data)
+    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -52,16 +52,16 @@ public:
         AppendQueue.push_back(data);
         Profiler.Enqueue("changelog_queue_size", AppendQueue.size());
 
-        return Promise;
+        return Result;
     }
 
     void Flush()
     {
         VERIFY_THREAD_AFFINITY(Flush);
 
-        TAppendPromise promise;
+        TAppendResult::TPtr result;
 
-        PROFILE_TIMING("changelog_flush_append_time") {
+        PROFILE_TIMING ("/changelog_flush_append_time") {
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(FlushQueue.empty());
@@ -75,16 +75,16 @@ public:
 
             FlushQueue.swap(AppendQueue);
 
-            promise = Promise;
-            Promise = TAppendPromise();
+            result = Result;
+            Result = New<TAppendResult>();
         }
 
-        PROFILE_TIMING("changelog_flush_io_time") {
+        PROFILE_TIMING ("/changelog_flush_io_time") {
             ChangeLog->Append(FlushedRecordCount, FlushQueue);
             ChangeLog->Flush();
         }
 
-        promise.Set(TVoid());
+        result->Set(TVoid());
 
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -97,16 +97,16 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        PROFILE_TIMING("changelog_flush_wait_time") {
-            TAppendPromise promise;
+        PROFILE_TIMING ("/changelog_flush_wait_time") {
+            TAppendResult::TPtr result;
             {
                 TGuard<TSpinLock> guard(SpinLock);
                 if (FlushQueue.empty() && AppendQueue.empty()) {
                     return;
                 }
-                promise = Promise;
+                result = Result;
             }
-            promise.ToFuture().Get();
+            result->Get();
         }
     }
 
@@ -133,7 +133,7 @@ public:
 
         i32 flushedRecordCount;
 
-        PROFILE_TIMING ("changelog_read_copy_time") {
+        PROFILE_TIMING ("/changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
             flushedRecordCount = FlushedRecordCount;            
             
@@ -152,7 +152,7 @@ public:
                 result);
         }
 
-        PROFILE_TIMING ("changelog_read_io_time") {
+        PROFILE_TIMING ("/changelog_read_io_time") {
             if (firstRecordId < flushedRecordCount) {
                 yvector<TSharedRef> buffer;
                 i32 neededRecordCount = Min(
@@ -206,7 +206,7 @@ private:
     i32 FlushedRecordCount;
     yvector<TSharedRef> AppendQueue;
     yvector<TSharedRef> FlushQueue;
-    TAppendPromise Promise;
+    TAppendResult::TPtr Result;
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);
 };
@@ -238,7 +238,7 @@ public:
         Shutdown();
     }
 
-    TAppendResult Append(
+    TAppendResult::TPtr Append(
         TChangeLogPtr changeLog,
         i32 recordId,
         const TSharedRef& data)
@@ -275,7 +275,7 @@ public:
             queue->Read(firstRecordId, recordCount, result);
             AtomicDecrement(queue->UseCount);
         } else {
-            PROFILE_TIMING ("changelog_read_io_time") {
+            PROFILE_TIMING ("/changelog_read_io_time") {
                 changeLog->Read(firstRecordId, recordCount, result);
             }
         }
@@ -289,7 +289,7 @@ public:
             AtomicDecrement(queue->UseCount);
         }
 
-        PROFILE_TIMING("changelog_flush_io_time") {
+        PROFILE_TIMING ("/changelog_flush_io_time") {
             changeLog->Flush();
         }
     }
@@ -310,7 +310,7 @@ public:
     {
         Flush(changeLog);
 
-        PROFILE_TIMING("changelog_finalize_time") {
+        PROFILE_TIMING ("/changelog_finalize_time") {
             changeLog->Finalize();
         }
 
@@ -323,7 +323,7 @@ public:
         // getting rid of explicit synchronization.
         Flush(changeLog);
 
-        PROFILE_TIMING ("changelog_truncate_time") {
+        PROFILE_TIMING ("/changelog_truncate_time") {
             changeLog->Truncate(atRecordId);
         }
     }
@@ -464,7 +464,7 @@ TAsyncChangeLog::TAsyncChangeLog(TChangeLogPtr changeLog)
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
-TAsyncChangeLog::TAppendResult TAsyncChangeLog::Append(
+TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)
 {

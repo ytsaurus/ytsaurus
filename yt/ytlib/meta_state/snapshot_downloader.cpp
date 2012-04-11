@@ -53,7 +53,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
 
 TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snapshotId)
 {
-    auto promise = TPromise<TSnapshotInfo>();
+    auto asyncResult = New< TFuture<TSnapshotInfo> >();
     auto awaiter = New<TParallelAwaiter>();
 
     LOG_INFO("Getting snapshot %d info from peers", snapshotId);
@@ -70,7 +70,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
         awaiter->Await(request->Invoke(), BIND(
             &TSnapshotDownloader::OnSnapshotInfoResponse,
             awaiter,
-            promise,
+            asyncResult,
             peerId));
     }
     LOG_INFO("Snapshot info requests sent");
@@ -78,14 +78,14 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
     awaiter->Complete(BIND(
         &TSnapshotDownloader::OnSnapshotInfoComplete,
         snapshotId,
-        promise));
+        asyncResult));
 
-    return promise.ToFuture().Get();
+    return asyncResult->Get();
 }
 
 void TSnapshotDownloader::OnSnapshotInfoResponse(
     TParallelAwaiter::TPtr awaiter,
-    TPromise<TSnapshotInfo> promise,
+    TFuture<TSnapshotInfo>::TPtr asyncResult,
     TPeerId peerId,
     TProxy::TRspGetSnapshotInfo::TPtr response)
 {
@@ -104,17 +104,17 @@ void TSnapshotDownloader::OnSnapshotInfoResponse(
         peerId,
         length);
 
-    promise.Set(TSnapshotInfo(peerId, length));
+    asyncResult->Set(TSnapshotInfo(peerId, length));
     awaiter->Cancel();
 }
 
 void TSnapshotDownloader::OnSnapshotInfoComplete(
     i32 snapshotId,
-    TPromise<TSnapshotInfo> promise)
+    TFuture<TSnapshotInfo>::TPtr asyncResult)
 {
     LOG_INFO("Could not get snapshot %d info from peers", snapshotId);
 
-    promise.Set(TSnapshotInfo(NElection::InvalidPeerId, -1));
+    asyncResult->Set(TSnapshotInfo(NElection::InvalidPeerId, -1));
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
@@ -177,7 +177,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         request->set_offset(downloadedLength);
         i32 blockSize = Min(Config->BlockSize, (i32)(snapshotLength - downloadedLength));
         request->set_length(blockSize);
-        auto response = request->Invoke().Get();
+        auto response = request->Invoke()->Get();
 
         if (!response->IsOK()) {
             auto error = response->GetError();

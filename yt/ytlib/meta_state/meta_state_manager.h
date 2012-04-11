@@ -75,7 +75,7 @@ struct IMetaStateManager
      *
      *  \note Thread affinity: StateThread
      */
-    virtual TAsyncCommitResult CommitChange(
+    virtual TAsyncCommitResult::TPtr CommitChange(
         const TSharedRef& changeData,
         TClosure changeAction) = 0;
 

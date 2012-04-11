@@ -35,8 +35,9 @@ public:
 
     TCypressManager(NCellMaster::TBootstrap* bootstrap);
 
-    void RegisterHandler(INodeTypeHandler* handler);
-    INodeTypeHandler* GetHandler(EObjectType type);
+    void RegisterHandler(INodeTypeHandler::TPtr handler);
+    INodeTypeHandler::TPtr FindHandler(EObjectType type);
+    INodeTypeHandler::TPtr GetHandler(EObjectType type);
 
     //! Returns the id of the root node.
     /*!
@@ -84,17 +85,8 @@ public:
         const TTransactionId& transactionId,
         ELockMode requestedMode = ELockMode::Exclusive);
 
-    TNodeId CreateNode(
-        EObjectType type,
-        const TTransactionId& transactionId);
-
-    TNodeId CreateDynamicNode(
-        const TTransactionId& transactionId,
-        NObjectServer::EObjectType type,
-        NYTree::IMapNode* manifest);
-
     void RegisterNode(
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         TAutoPtr<ICypressNode> node);
 
     DECLARE_METAMAP_ACCESSORS(Lock, TLock, TLockId);
@@ -130,8 +122,8 @@ private:
     i32 UnrefNode(const TNodeId& nodeId);
     i32 GetNodeRefCounter(const TNodeId& nodeId);
 
-    void SaveKeys(TOutputStream* output) const; // TODO(roizner): make const once new actions are ready
-    void SaveValues(TOutputStream* output) const; // TODO(roizner): make const once new actions are ready
+    void SaveKeys(TOutputStream* output) const;
+    void SaveValues(TOutputStream* output) const;
     void LoadKeys(TInputStream* input);
     void LoadValues(const NCellMaster::TLoadContext& context, TInputStream* input);
     virtual void Clear();
@@ -150,7 +142,7 @@ private:
     void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
     void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
 
-    INodeTypeHandler* GetHandler(const ICypressNode& node);
+    INodeTypeHandler::TPtr GetHandler(const ICypressNode& node);
 
     void CreateNodeBehavior(const TNodeId& id);
     void DestroyNodeBehavior(const TNodeId& id);
@@ -177,11 +169,6 @@ private:
        ICypressNode& node,
        const TTransactionId& transactionId,
        ELockMode mode);
-
-    template <class TImpl, class TProxy>
-    TNodeId CreateNode(
-        const TTransactionId& transactionId,
-        EObjectType type);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

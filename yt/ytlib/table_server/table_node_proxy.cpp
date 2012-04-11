@@ -40,6 +40,7 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
     DISPATCH_YPATH_SERVICE_METHOD(Fetch);
+    DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
     TBase::DoInvoke(context);
 }
 
@@ -55,6 +56,7 @@ IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const TYPath& pa
 bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(GetChunkListForUpdate);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(SetSorted);
     return TBase::IsWriteRequest(context);
 }
 

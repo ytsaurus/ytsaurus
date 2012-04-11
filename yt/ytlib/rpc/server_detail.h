@@ -31,10 +31,10 @@ public:
     virtual TSharedRef GetRequestBody() const;
     virtual void SetResponseBody(const TSharedRef& responseBody);
 
-    virtual const yvector<TSharedRef>& RequestAttachments() const;
+    virtual yvector<TSharedRef>& RequestAttachments();
     virtual yvector<TSharedRef>& ResponseAttachments();
 
-    virtual const NYTree::IAttributeDictionary& RequestAttributes() const;
+    virtual NYTree::IAttributeDictionary& RequestAttributes();
     virtual NYTree::IAttributeDictionary& ResponseAttributes();
 
     virtual void SetRequestInfo(const Stroka& info);

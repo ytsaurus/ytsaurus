@@ -383,11 +383,9 @@ private:
             }
 
             {
-                auto req = TCypressYPathProxy::Create(CombineYPaths("/" + EscapeYPath(address), "orchid"));
-                req->set_type(EObjectType::Orchid);     
-                auto manifest = New<TOrchidManifest>();
-                manifest->RemoteAddress = address;
-                req->set_manifest(SerializeToYson(~manifest));
+                auto req = TCypressYPathProxy::Create("//" + EscapeYPath(address) + "/orchid");
+                req->set_type(EObjectType::Orchid);
+                req->Attributes().Set("remote_address", address);
                 ExecuteVerb(~service, ~req);
             }
         })

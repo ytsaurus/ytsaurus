@@ -40,7 +40,7 @@ void TFileReader::Open()
 
     LOG_INFO("Fetching file info");
     auto fetchReq = TFileYPathProxy::Fetch(WithTransaction(Path, Transaction ? Transaction->GetId() : NullTransactionId));
-    auto fetchRsp = Proxy.Execute(fetchReq).Get();
+    auto fetchRsp = Proxy.Execute(fetchReq)->Get();
     if (!fetchRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error fetching file info\n%s",
             ~fetchRsp->GetError().ToString());

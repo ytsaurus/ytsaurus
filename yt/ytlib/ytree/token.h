@@ -62,6 +62,8 @@ public:
 
     Stroka ToString() const;
 
+    const TToken& CheckType(ETokenType expectedType) const;
+
 private:
     Stroka StringValue;
     i64 IntegerValue;
@@ -69,6 +71,11 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
+// TODO(roizner): Add specifier
+void ThrowUnexpectedToken(const TToken& token);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT

@@ -19,11 +19,11 @@ using namespace NChunkServer;
 // TODO(babenko): use totalReplicaCount
 
 TTableWriter::TTableWriter(
-    TConfig* config,
+    TConfig::TPtr config,
     const TOptions& options,
-    NRpc::IChannel* masterChannel,
-    ITransaction* transaction,
-    TTransactionManager* transactionManager,
+    NRpc::IChannel::TPtr masterChannel,
+    ITransaction::TPtr transaction,
+    TTransactionManager::TPtr transactionManager,
     const TYPath& path)
     : Config(config)
     , Options(options)
@@ -34,7 +34,7 @@ TTableWriter::TTableWriter(
     , Path(path)
     , IsOpen(false)
     , IsClosed(false)
-    , Proxy(masterChannel)
+    , CypressProxy(masterChannel)
     , Logger(TableClientLogger)
 {
     YASSERT(config);
@@ -65,42 +65,80 @@ void TTableWriter::Open()
     LOG_INFO("Upload transaction created (TransactionId: %s)", ~UploadTransaction->GetId().ToString());
 
     LOG_INFO("Requesting table info");
-    auto getInfoReq = Proxy.ExecuteBatch();
-
-    auto getChunkListIdReq = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, TransactionId));
-    getInfoReq->AddRequest(~getChunkListIdReq);
-
-    auto getSchemaReq = TCypressYPathProxy::Get(CombineYPaths(
-        WithTransaction(Path, TransactionId),
-        "@schema"));
-    getInfoReq->AddRequest(~getSchemaReq);
-
-    auto getInfoRsp = getInfoReq->Invoke().Get();
-    if (!getInfoRsp->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error requesting table info\n%s",
-            ~getInfoRsp->GetError().ToString());
-    }
-
-    auto getChunkListIdRsp = getInfoRsp->GetResponse<TTableYPathProxy::TRspGetChunkListForUpdate>(0);
-    if (!getChunkListIdRsp->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
-            ~getChunkListIdRsp->GetError().ToString());
-    }
-    auto chunkListId = TChunkListId::FromProto(getChunkListIdRsp->chunk_list_id());
-
-    auto getSchemaRsp = getInfoRsp->GetResponse<TCypressYPathProxy::TRspGet>(1);
-    auto schema = TSchema::Default();
-    if (getSchemaRsp->IsOK()) {
-        try {
-            schema = TSchema::FromYson(getSchemaRsp->value());
+    TChunkListId chunkListId;
+    auto schema = TSchema::CreateDefault();
+    {
+        auto batchReq = CypressProxy.ExecuteBatch();
+        if (Options.Sorted) {
+            {
+                auto req = TCypressYPathProxy::Lock(WithTransaction(Path, UploadTransaction->GetId()));
+                req->set_mode(ELockMode::Exclusive);
+                batchReq->AddRequest(req, "lock");
+            }
+            {
+                auto req = TYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@row_count");
+                batchReq->AddRequest(req, "get_row_count");
+            }
         }
-        catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing table schema (Path: %s)\n%s",
-                ~Path,
-                ex.what());
+
+        {
+            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, UploadTransaction->GetId()));
+            batchReq->AddRequest(req, "get_chunk_list_for_update");
+        }
+        {
+            auto req = TCypressYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@schema");
+            batchReq->AddRequest(req, "get_schema");
+        }
+
+        auto batchRsp = batchReq->Invoke()->Get();
+        if (!batchRsp->IsOK()) {
+            LOG_ERROR_AND_THROW(yexception(), "Error requesting table info\n%s",
+                ~batchRsp->GetError().ToString());
+        }
+
+        if (Options.Sorted) {
+            {
+                auto rsp = batchRsp->GetResponse("lock");
+                if (!rsp->IsOK()) {
+                    LOG_ERROR_AND_THROW(yexception(), "Error locking table for sorted write\n%s",
+                        ~rsp->GetError().ToString());
+                }
+            }
+            {
+                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_row_count");
+                if (!rsp->IsOK()) {
+                    LOG_ERROR_AND_THROW(yexception(), "Error getting table row count\n%s",
+                        ~rsp->GetError().ToString());
+                }
+                auto rowCount = DeserializeFromYson<i64>(rsp->value());
+                if (rowCount > 0) {
+                    LOG_ERROR_AND_THROW(yexception(), "Cannot perform sorted write to a nonempty table");
+                }
+            }
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspGetChunkListForUpdate>("get_chunk_list_for_update");
+            if (!rsp->IsOK()) {
+                LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
+                    ~rsp->GetError().ToString());
+            }
+            chunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspGet>("get_schema");
+            schema = TSchema::CreateDefault();
+            if (rsp->IsOK()) {
+                try {
+                    schema = TSchema::FromYson(rsp->value());
+                }
+                catch (const std::exception& ex) {
+                    ythrow yexception() << Sprintf("Error parsing table schema\n%s", ex.what());
+                }
+            }
         }
     }
-
     LOG_INFO("Table info received (ChunkListId: %s, ChannelCount: %d)",
         ~chunkListId.ToString(),
         static_cast<int>(schema.GetChannels().size()));
@@ -161,6 +199,17 @@ void TTableWriter::Close()
     LOG_INFO("Closing chunk writer");
     Sync(~Writer, &TValidatingWriter::AsyncClose);
     LOG_INFO("Chunk writer closed");
+
+    if (Options.Sorted) {
+        LOG_INFO("Marking table as sorted");
+        auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
+        auto rsp = CypressProxy.Execute(req)->Get();
+        if (!rsp->IsOK()) {
+            LOG_ERROR_AND_THROW(yexception(), "Error marking table as sorted\n%s",
+                ~rsp->GetError().ToString());
+        }
+        LOG_INFO("Table is marked as sorted");
+    }
 
     LOG_INFO("Committing upload transaction");
     try {

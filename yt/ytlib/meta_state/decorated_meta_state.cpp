@@ -130,7 +130,7 @@ void TDecoratedMetaState::Load(
     CurrentChangeLog.Reset();
     UpdateVersion(TMetaVersion(segmentId, 0));
 
-    PROFILE_TIMING ("snapshot_load_time") {
+    PROFILE_TIMING ("/snapshot_load_time") {
         State->Load(input);
     }
 
@@ -190,7 +190,7 @@ TCachedAsyncChangeLogPtr TDecoratedMetaState::GetCurrentChangeLog()
     return CurrentChangeLog;
 }
 
-TAsyncChangeLog::TAppendResult TDecoratedMetaState::LogChange(
+TAsyncChangeLog::TAppendResult::TPtr TDecoratedMetaState::LogChange(
     const TMetaVersion& version,
     const TSharedRef& changeData)
 {

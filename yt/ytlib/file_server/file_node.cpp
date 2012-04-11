@@ -14,6 +14,8 @@ using namespace NCellMaster;
 using namespace NYTree;
 using namespace NCypress;
 using namespace NChunkServer;
+using namespace NTransactionServer;
+using namespace NCypress::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,42 +72,42 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual void CreateFromManifest(
-        const TNodeId& nodeId,
-        const TTransactionId& transactionId,
-        IMapNode* manifestNode)
+    virtual TNodeId CreateDynamic(
+        NTransactionServer::TTransaction* transaction,
+        TReqCreate* request,
+        TRspCreate* response)
     {
-        auto manifest = New<TFileManifest>();
-        manifest->SetKeepOptions(true);
-        manifest->Load(manifestNode);
-
         auto chunkManager = Bootstrap->GetChunkManager();
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
-        auto chunkId = manifest->ChunkId;
+        // TODO(babenko): use extensions
+        auto chunkId = TNodeId::FromString(request->Attributes().Get<Stroka>("chunk_id"));
+        request->Attributes().Remove("chunk_id");
+
         auto* chunk = chunkManager->FindChunk(chunkId);
         if (!chunk) {
-            ythrow yexception() << Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString());
+            ythrow yexception() << Sprintf("No such chunk %s", ~chunkId.ToString());
         }
 
         if (!chunk->IsConfirmed()) {
-            ythrow yexception() << Sprintf("Chunk is not confirmed (ChunkId: %s)", ~chunkId.ToString());
+            ythrow yexception() << Sprintf("Chunk %s is not confirmed", ~chunkId.ToString());
         }
 
-        TAutoPtr<TFileNode> node = new TFileNode(nodeId);
+        auto nodeId = objectManager->GenerateId(EObjectType::File);
+        TAutoPtr<TFileNode> node(new TFileNode(nodeId));
         auto& chunkList = chunkManager->CreateChunkList();
         auto chunkListId = chunkList.GetId();
         node->SetChunkListId(chunkListId);
         objectManager->RefObject(chunkListId);
-        cypressManager->RegisterNode(transactionId, node.Release());
 
-        auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, NullTransactionId);
-        proxy->Attributes().MergeFrom(~manifest->GetOptions());
-        
         yvector<TChunkTreeRef> children;
         children.push_back(TChunkTreeRef(chunk));
         chunkManager->AttachToChunkList(chunkList, children);
+
+        cypressManager->RegisterNode(transaction, node.Release());
+
+        return nodeId;
     }
 
     virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)

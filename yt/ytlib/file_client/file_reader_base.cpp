@@ -50,7 +50,7 @@ void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<
         holderAddresses);
 
     LOG_INFO("Requesting chunk info");
-    auto getInfoResult = remoteReader->AsyncGetChunkInfo().Get();
+    auto getInfoResult = remoteReader->AsyncGetChunkInfo()->Get();
     if (!getInfoResult.IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info\n%s",
             ~getInfoResult.ToString());

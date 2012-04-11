@@ -215,7 +215,7 @@ public:
     {
 #ifdef ENABLE_REF_COUNTED_DEBUGGING
         auto rc = RefCounter->GetRefCount();
-        ::std::fprintf(stderr, "=== %p === Ref(): %d -> %d", this, rc, rc + 1);
+        ::std::fprintf(stderr, "=== %p === Ref(): %"PRId32" -> %"PRId32, this, rc, rc + 1);
 #endif
         RefCounter->Ref();
     }
@@ -225,7 +225,7 @@ public:
     {
 #ifdef ENABLE_REF_COUNTED_DEBUGGING
         auto rc = RefCounter->GetRefCount();
-        ::std::fprintf(stderr, "=== %p === Unref(): %d -> %d", this, rc, rc - 1);
+        ::std::fprintf(stderr, "=== %p === Unref(): %"PRId32" -> %"PRId32, this, rc, rc - 1);
 #endif
         RefCounter->Unref();
     }

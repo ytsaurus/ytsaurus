@@ -182,7 +182,7 @@ private:
 
     virtual void DoCompletePreparation()
     {
-        PROFILE_TIMING ("input_processing_time") {
+        PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
             
             // Compute statistics and populate the pool.
@@ -237,7 +237,7 @@ private:
 
             // Choose job count.
             // TODO(babenko): refactor, generalize, and improve.
-            i64 jobCount = ExecNodeCount;
+            i64 jobCount = ExecNodeCount * 8;
             if (Spec->JobCount) {
                 jobCount = Spec->JobCount.Get();
             }

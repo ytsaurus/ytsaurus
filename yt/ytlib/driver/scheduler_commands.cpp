@@ -42,7 +42,7 @@ void TSchedulerCommandBase::StartOperation(
         *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
         startOpReq->set_spec(spec);
 
-        auto startOpRsp = startOpReq->Invoke().Get();
+        auto startOpRsp = startOpReq->Invoke()->Get();
         if (!startOpRsp->IsOK()) {
             ythrow yexception() << startOpRsp->GetError().ToString();
         }
@@ -70,7 +70,7 @@ void TSchedulerCommandBase::WaitForOperation(const TOperationId& operationId)
 
         // Override default timeout.
         waitOpReq->SetTimeout(config->OperationWaitTimeout * 2);
-        auto waitOpRsp = waitOpReq->Invoke().Get();
+        auto waitOpRsp = waitOpReq->Invoke()->Get();
 
         if (!waitOpRsp->IsOK()) {
             ythrow yexception() << waitOpRsp->GetError().ToString();
@@ -86,7 +86,7 @@ void TSchedulerCommandBase::WaitForOperation(const TOperationId& operationId)
 // TODO(babenko): refactor
 static NYTree::TYPath GetOperationPath(const TOperationId& id)
 {
-    return CombineYPaths("//sys/operations", EscapeYPath(id.ToString()));
+    return "//sys/operations/" + EscapeYPath(id.ToString());
 }
 
 // TODO(babenko): refactor
@@ -108,16 +108,16 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "@state"));
+        auto req = TYPathProxy::Get(operationPath + "/@state");
         batchReq->AddRequest(req, "get_state");
     }
 
     {
-        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "@progress"));
+        auto req = TYPathProxy::Get(operationPath + "/@progress");
         batchReq->AddRequest(req, "get_progress");
     }
 
-    auto batchRsp = batchReq->Invoke().Get();
+    auto batchRsp = batchReq->Invoke()->Get();
     CheckResponse(batchRsp, "Error getting operation progress");
 
     EOperationState state;
@@ -166,11 +166,11 @@ void TSchedulerCommandBase::DumpOperationResult(const TOperationId& operationId)
     auto batchReq = proxy.ExecuteBatch();
 
     {
-        auto req = TYPathProxy::Get(CombineYPaths(operationPath, "@result"));
+        auto req = TYPathProxy::Get(operationPath + "/@result");
         batchReq->AddRequest(req, "get_result");
     }
 
-    auto batchRsp = batchReq->Invoke().Get();
+    auto batchRsp = batchReq->Invoke()->Get();
     CheckResponse(batchRsp, "Error getting operation result");
 
     TError error;

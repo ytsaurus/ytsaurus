@@ -57,7 +57,7 @@ public:
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
         , ProcessId(-1)
-        , OnExit()
+        , OnExit(New< TFuture<TError> >())
         , ControllerThread(ThreadFunc, this)
     { }
 
@@ -140,7 +140,7 @@ public:
 
     void SubscribeExited(const TCallback<void(TError)>& callback)
     {
-        OnExit.ToFuture().Subscribe(callback);
+        OnExit->Subscribe(callback);
     }
 
     void UnsubscribeExited(const TCallback<void(TError)>& callback) 
@@ -197,7 +197,7 @@ private:
             }
         }
 
-        OnExit.Set(Error);
+        OnExit->Set(Error);
     }
 
 
@@ -210,7 +210,7 @@ private:
     TSpinLock SpinLock;
     TError Error;
 
-    TPromise<TError> OnExit;
+    TFuture<TError>::TPtr OnExit;
 
     TThread ControllerThread;
 
@@ -226,7 +226,7 @@ class TUnsafeProxyController
 public:
     TUnsafeProxyController(const TJobId& jobId)
         : JobId(jobId)
-        , OnExit()
+        , OnExit(New< TFuture<TError> >())
         , ControllerThread(ThreadFunc, this)
     { }
 
@@ -241,12 +241,12 @@ public:
     void Kill(const TError& error) 
     {
         LOG_DEBUG("Kill job /dummy stub/ (JobId: %s)", ~JobId.ToString());
-        OnExit.ToFuture().Get();
+        OnExit->Get();
     }
 
     void SubscribeExited(const TCallback<void(TError)>& callback) 
     {
-        OnExit.Subscribe(callback);
+        OnExit->Subscribe(callback);
     }
 
     void UnsubscribeExited(const TCallback<void(TError)>& callback) 
@@ -271,8 +271,7 @@ private:
     }
 
     TJobId JobId;
-    TPromise<TError> OnExit;
-
+    TFuture<TError>::TPtr OnExit;
     TThread ControllerThread;
 };
 

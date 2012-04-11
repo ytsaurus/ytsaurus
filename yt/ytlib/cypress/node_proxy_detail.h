@@ -27,7 +27,7 @@ class TNodeFactory
 public:
     TNodeFactory(
         NCellMaster::TBootstrap* bootstrap,
-        const TTransactionId& transactionId);
+        NTransactionServer::TTransaction* transaction);
     ~TNodeFactory();
 
     virtual NYTree::IStringNodePtr CreateString();
@@ -39,7 +39,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* Bootstrap;
-    TTransactionId TransactionId;
+    NTransactionServer::TTransaction* Transaction;
     yvector<TNodeId> CreatedNodeIds;
 
     ICypressNodeProxy::TPtr DoCreate(EObjectType type);
@@ -77,7 +77,11 @@ public:
 
     NYTree::INodeFactoryPtr CreateFactory() const
     {
-        return New<TNodeFactory>(Bootstrap, TransactionId);
+        return New<TNodeFactory>(
+            Bootstrap,
+            TransactionId == NullTransactionId
+            ? NULL
+            : &Bootstrap->GetTransactionManager()->GetTransaction(TransactionId));
     }
 
     virtual TTransactionId GetTransactionId() const
@@ -574,28 +578,30 @@ protected:
                 ~token.GetType().ToString());
         }
 
-        NYTree::INodePtr manifestNode =
-            request->has_manifest()
-            ? NYTree::DeserializeFromYson(request->manifest())
-            : NYTree::GetEphemeralNodeFactory()->CreateMap();
-
-        if (manifestNode->GetType() != NYTree::ENodeType::Map) {
-            ythrow yexception() << "Manifest must be a map";
-        }
-
         auto objectManager = this->Bootstrap->GetObjectManager();
         auto cypressManager = this->Bootstrap->GetCypressManager();
-        auto handler = objectManager->FindHandler(type);
+        auto transactionManager = this->Bootstrap->GetTransactionManager();
+
+        auto handler = cypressManager->FindHandler(type);
         if (!handler) {
             ythrow yexception() << "Unknown object type";
         }
 
-        auto nodeId = cypressManager->CreateDynamicNode(
-            this->TransactionId,
-            EObjectType(request->type()),
-            ~manifestNode->AsMap());
+        auto transaction =
+            this->TransactionId == NullTransactionId
+            ? NULL
+            : &transactionManager->GetTransaction(this->TransactionId);
 
-        auto proxy = cypressManager->GetVersionedNodeProxy(nodeId, this->TransactionId);
+        auto nodeId = handler->CreateDynamic(
+            transaction,
+            request,
+            response);
+
+        auto proxy = cypressManager->GetVersionedNodeProxy(
+            nodeId,
+            this->TransactionId);
+
+        proxy->Attributes().MergeFrom(request->Attributes());
 
         CreateRecursive(suffixPath, ~proxy);
 

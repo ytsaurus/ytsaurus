@@ -92,12 +92,12 @@ private:
 
     void OnChunkClosed(
         TChunkWriter::TPtr currentChunk,
-        TAsyncErrorPromise finishResult,
+        TAsyncError finishResult,
         TError error);
 
     void OnChunkRegistered(
         NChunkClient::TChunkId chunkId,
-        TAsyncErrorPromise finishResult,
+        TAsyncError finishResult,
         NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     void OnChunkFinished(
@@ -126,7 +126,7 @@ private:
 
     //! Protects #CurrentChunk.
     TChunkWriter::TPtr CurrentChunk;
-    TPromise<TChunkWriter::TPtr> NextChunk;
+    TFuture<TChunkWriter::TPtr>::TPtr NextChunk;
 
     TParallelAwaiter::TPtr CloseChunksAwaiter;
     NProto::TTableChunkAttributes Attributes;

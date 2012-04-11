@@ -218,7 +218,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     , Epoch(epoch)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
-    , LocalPromise()
+    , LocalResult(MakeFuture(TLocalResult()))
 #if defined(_unix_)
     , WatchdogQueue(New<TActionQueue>("SnapshotWDog"))
 #endif
@@ -250,7 +250,7 @@ void TSnapshotBuilder::RotateChangeLog()
     New<TSession>(MakeStrong(this), version, false)->Run();
 }
 
-TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const TMetaVersion& version)
+TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(const TMetaVersion& version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -259,8 +259,7 @@ TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const 
             ~version.ToString());
         return MakeFuture(TLocalResult(EResultCode::AlreadyInProgress));
     }
-
-    LocalPromise = TAsyncLocalPromise();
+    LocalResult = New<TAsyncLocalResult>();
 
     LOG_INFO("Creating a local snapshot at version %s", ~version.ToString());
 
@@ -279,7 +278,7 @@ TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const 
     pid_t childPid = fork();
     if (childPid == -1) {
         LOG_ERROR("Could not fork while creating local snapshot %d", snapshotId);
-        LocalPromise.Set(TLocalResult(EResultCode::ForkError));
+        LocalResult->Set(TLocalResult(EResultCode::ForkError));
     } else if (childPid == 0) {
         DoCreateLocalSnapshot(version);
         _exit(0);
@@ -298,7 +297,7 @@ TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const 
 #endif
         
     DecoratedState->RotateChangeLog();
-    return LocalPromise;
+    return LocalResult;
 }
 
 TChecksum TSnapshotBuilder::DoCreateLocalSnapshot(TMetaVersion version)
@@ -319,7 +318,7 @@ void TSnapshotBuilder::OnLocalSnapshotCreated(i32 snapshotId, const TChecksum& c
         snapshotId,
         checksum);
 
-    LocalPromise.Set(TLocalResult(EResultCode::OK, checksum));
+    LocalResult->Set(TLocalResult(EResultCode::OK, checksum));
 }
 
 #if defined(_unix_)
@@ -329,7 +328,7 @@ void TSnapshotBuilder::WatchdogFork(
     pid_t childPid)
 {
     TInstant deadline;
-    TAsyncLocalPromise localPromise;
+    TAsyncLocalResult::TPtr localResult;
     {
         auto snapshotBuilder = weakSnapshotBuilder.Lock();
         if (!snapshotBuilder) {
@@ -337,7 +336,7 @@ void TSnapshotBuilder::WatchdogFork(
             return;
         }
         deadline = snapshotBuilder->Config->LocalTimeout.ToDeadLine();
-        localPromise = snapshotBuilder->LocalPromise;
+        localResult = snapshotBuilder->LocalResult;
     }
 
     LOG_DEBUG("Waiting for child process (ChildPid: %d)", childPid);
@@ -361,7 +360,7 @@ void TSnapshotBuilder::WatchdogFork(
                     childPid,
                     killResult);
             }
-            localPromise.Set(TLocalResult(EResultCode::TimeoutExceeded));
+            localResult->Set(TLocalResult(EResultCode::TimeoutExceeded));
             return;
         }
     }
@@ -370,7 +369,7 @@ void TSnapshotBuilder::WatchdogFork(
         LOG_ERROR("Snapshot child process has terminated abnormally with status %d (SnapshotId: %d)",
             status,
             snapshotId);
-        localPromise.Set(TLocalResult(EResultCode::ForkError));
+        localResult->Set(TLocalResult(EResultCode::ForkError));
         return;
     }
 
@@ -391,7 +390,7 @@ void TSnapshotBuilder::WatchdogFork(
         LOG_ERROR("Cannot open snapshot %d\n%s",
             snapshotId,
             ~result.ToString());
-        localPromise.Set(TLocalResult(EResultCode::ForkError));
+        localResult->Set(TLocalResult(EResultCode::ForkError));
         return;
     }
 
@@ -407,14 +406,14 @@ void TSnapshotBuilder::WaitUntilFinished()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LocalPromise.ToFuture().Get();
+    LocalResult->Get();
 }
 
 bool TSnapshotBuilder::IsInProgress() const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    return !LocalPromise.IsSet();
+    return !LocalResult->IsSet();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

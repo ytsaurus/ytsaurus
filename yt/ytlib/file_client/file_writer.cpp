@@ -72,10 +72,9 @@ void TFileWriter::DoClose(const NChunkServer::TChunkId& chunkId)
             Path,
             Transaction ? Transaction->GetId() : NullTransactionId ));
         req->set_type(EObjectType::File);
-        auto manifest = New<TFileManifest>();
-        manifest->ChunkId = chunkId;
-        req->set_manifest(SerializeToYson(~manifest));
-        auto rsp = cypressProxy.Execute(req).Get();
+        // TODO(babenko): use extensions
+        req->Attributes().Set("chunk_id", chunkId.ToString());
+        auto rsp = cypressProxy.Execute(req)->Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
                 ~rsp->GetError().ToString());

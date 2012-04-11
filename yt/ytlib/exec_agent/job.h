@@ -79,8 +79,8 @@ private:
 
     // Protects #JobResult.
     TSpinLock SpinLock;
-    TPromise<NScheduler::NProto::TJobResult> JobResult;
-    TPromise<TVoid> JobFinished;
+    TFuture<NScheduler::NProto::TJobResult>::TPtr JobResult;
+    TFuture<TVoid>::TPtr JobFinished;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 };

@@ -246,8 +246,8 @@ public:
         // default configuration (default level etc.).
         , ConfigVersion(-1)
         , Config(TLogConfig::CreateDefault())
-        , EnqueueCounter("enqueue_rate")
-        , WriteCounter("write_rate")
+        , EnqueueCounter("/enqueue_rate")
+        , WriteCounter("/write_rate")
     {
         SystemWriters.push_back(New<TStdErrLogWriter>(SystemPattern));
         Start();

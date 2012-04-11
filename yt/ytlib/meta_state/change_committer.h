@@ -30,9 +30,7 @@ public:
         (LateChanges)
         (OutOfOrderChanges)
     );
-
-    typedef TFuture<EResult> TCommitResult;
-    typedef TPromise<EResult> TCommitPromise;
+    typedef TFuture<EResult> TResult;
 
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -90,7 +88,7 @@ public:
      *  
      *  \note Thread affinity: StateThread
      */
-    TCommitResult Commit(
+    TResult::TPtr Commit(
         TClosure changeAction,
         const TSharedRef& changeData);
 
@@ -112,10 +110,10 @@ private:
 
     void OnBatchTimeout(TBatchPtr batch);
     TIntrusivePtr<TBatch> GetOrCreateBatch(const TMetaVersion& version);
-    TCommitResult BatchChange(
+    TResult::TPtr BatchChange(
         const TMetaVersion& version,
         const TSharedRef& changeData,
-        TFuture<TVoid> changeLogResult);
+        TFuture<TVoid>::TPtr changeLogResult);
     void FlushCurrentBatch(bool rotateChangeLog);
 
     TLeaderCommitterConfigPtr Config;
@@ -154,12 +152,12 @@ public:
      *  
      *  \note Thread affinity: ControlThread
      */
-    TCommitResult Commit(
+    TResult::TPtr Commit(
         const TMetaVersion& expectedVersion,
         const std::vector<TSharedRef>& changes);
 
 private:
-    TCommitResult DoCommit(
+    TResult::TPtr DoCommit(
         const TMetaVersion& expectedVersion,
         const std::vector<TSharedRef>& changes);
 

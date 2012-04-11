@@ -141,10 +141,10 @@ yvector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t sizeLi
     keys.reserve(Min(static_cast<size_t>(Size), sizeLimit));
 
     FOREACH (const auto& pair, Map) {
-        keys.push_back(pair.first);
         if (keys.size() == sizeLimit) {
             break;
         }
+        keys.push_back(pair.first);
     }
 
     YASSERT(keys.ysize() == Min(static_cast<size_t>(Size), sizeLimit));

@@ -58,48 +58,47 @@ public:
             ~ToString(Config->PublishPeer));
 
         if (!seedAddresses.empty()) {
-            GetSeedsPromise = MakePromise(TGetSeedsResult(seedAddresses));
+            GetSeedsResult = MakeFuture(TGetSeedsResult(seedAddresses));
         }
 
         ChunkProxy = new TChunkServiceProxy(masterChannel);
         CypressProxy = new TCypressServiceProxy(masterChannel);
     }
 
-    TAsyncReadResult AsyncReadBlocks(const yvector<int>& blockIndexes);
-    TAsyncGetInfoResult AsyncGetChunkInfo();
+    TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+    TAsyncGetInfoResult::TPtr AsyncGetChunkInfo();
 
     typedef TValueOrError< yvector<Stroka> > TGetSeedsResult;
     typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
-    typedef TPromise<TGetSeedsResult> TAsyncGetSeedsPromise;
 
-    TAsyncGetSeedsResult AsyncGetSeeds()
+    TAsyncGetSeedsResult::TPtr AsyncGetSeeds()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock);
-        if (GetSeedsPromise.IsNull()) {
+        if (!GetSeedsResult) {
             LOG_INFO("Fresh chunk seeds are needed");
-            GetSeedsPromise = TAsyncGetSeedsPromise();
+            GetSeedsResult = New<TAsyncGetSeedsResult>();
             TDelayedInvoker::Submit(
                 BIND(&TRemoteReader::DoFindChunk, MakeWeak(this)),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
 
-        return GetSeedsPromise;
+        return GetSeedsResult;
     }
 
-    void DiscardSeeds(TAsyncGetSeedsResult result)
+    void DiscardSeeds(TAsyncGetSeedsResult* result)
     {
-        YASSERT(!result.IsNull());
-        YASSERT(result.IsSet());
+        YASSERT(result);
+        YASSERT(result->IsSet());
 
         TGuard<TSpinLock> guard(SpinLock);
 
-        if (GetSeedsPromise.ToFuture() != result)
+        if (GetSeedsResult != result)
             return;
 
-        YASSERT(GetSeedsPromise.IsSet());
-        GetSeedsPromise.Reset();
+        YASSERT(GetSeedsResult->IsSet());
+        GetSeedsResult.Reset();
     }
 
 private:
@@ -116,7 +115,7 @@ private:
     TAutoPtr<TCypressServiceProxy> CypressProxy;
 
     TSpinLock SpinLock;
-    TAsyncGetSeedsPromise GetSeedsPromise;
+    TAsyncGetSeedsResult::TPtr GetSeedsResult;
     TInstant SeedsTimestamp;
 
     void DoFindChunk()
@@ -128,13 +127,13 @@ private:
         auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
         CypressProxy
             ->Execute(req)
-            .Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
+            ->Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
     }
 
     void OnChunkFetched(TChunkYPathProxy::TRspFetch::TPtr rsp)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(!GetSeedsPromise.IsNull());
+        YASSERT(GetSeedsResult);
 
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -153,15 +152,12 @@ private:
                 LOG_INFO("Chunk seeds found (SeedAddresses: [%s])", ~JoinToString(seedAddresses));
             }
 
-            YASSERT(!GetSeedsPromise.IsSet());
-            GetSeedsPromise.Set(seedAddresses);
+            GetSeedsResult->Set(seedAddresses);
         } else {
             auto message = Sprintf("Error requesting chunk seeds from master\n%s",
                 ~rsp->GetError().ToString());
             LOG_WARNING("%s", ~message);
-
-            YASSERT(!GetSeedsPromise.IsSet());
-            GetSeedsPromise.Set(TError(message));
+            GetSeedsResult->Set(TError(message));
         }
     }
 };
@@ -176,7 +172,7 @@ protected:
 
     TWeakPtr<TRemoteReader> Reader;
     int RetryIndex;
-    TRemoteReader::TAsyncGetSeedsResult GetSeedsResult;
+    TRemoteReader::TAsyncGetSeedsResult::TPtr GetSeedsResult;
     NLog::TTaggedLogger Logger;
     yvector<Stroka> SeedAddresses;
 
@@ -194,12 +190,12 @@ protected:
         if (!reader)
             return;
 
-        YASSERT(GetSeedsResult.IsNull());
+        YASSERT(!GetSeedsResult);
 
         LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
         GetSeedsResult = reader->AsyncGetSeeds();
-        GetSeedsResult.Subscribe(BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this)));
+        GetSeedsResult->Subscribe(BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this)));
     }
 
     void OnGetSeedsReply(TRemoteReader::TGetSeedsResult result)
@@ -228,8 +224,8 @@ protected:
             RetryIndex,
             ~error.ToString());
 
-        YASSERT(!GetSeedsResult.IsNull());
-        reader->DiscardSeeds(GetSeedsResult);
+        YASSERT(GetSeedsResult);
+        reader->DiscardSeeds(~GetSeedsResult);
         GetSeedsResult.Reset();
 
         if (RetryIndex < reader->Config->RetryCount) {
@@ -273,7 +269,7 @@ public:
 
     TReadSession(TRemoteReader* reader, const yvector<int>& blockIndexes)
         : TSessionBase(reader)
-        , AsyncPromise()
+        , AsyncResult(New<IAsyncReader::TAsyncReadResult>())
         , BlockIndexes(blockIndexes)
     {
         Logger.AddTag(Sprintf("ReadSession: %p", this));
@@ -289,14 +285,14 @@ public:
         NewRetry();
     }
 
-    IAsyncReader::TAsyncReadResult GetAsyncResult() const
+    IAsyncReader::TAsyncReadResult::TPtr GetAsyncResult() const
     {
-        return AsyncPromise;
+        return AsyncResult;
     }
 
 private:
-    //! Promise representing the session.
-    IAsyncReader::TAsyncReadPromise AsyncPromise;
+    //! Async result representing the session.
+    IAsyncReader::TAsyncReadResult::TPtr AsyncResult;
 
     //! Block indexes to read during the session.
     yvector<int> BlockIndexes;
@@ -471,7 +467,7 @@ private:
                     request->set_peer_expiration_time((TInstant::Now() + reader->Config->PeerExpirationTimeout).GetValue());
                 }
 
-                request->Invoke().Subscribe(BIND(
+                request->Invoke()->Subscribe(BIND(
                     &TReadSession::OnGotBlocks,
                     MakeStrong(this),
                     address,
@@ -563,7 +559,7 @@ private:
             YASSERT(block);
             blocks.push_back(block);
         }
-        AsyncPromise.Set(IAsyncReader::TReadResult(blocks));
+        AsyncResult->Set(IAsyncReader::TReadResult(blocks));
     }
 
     virtual void OnSessionFailed(const TError& error)
@@ -573,11 +569,11 @@ private:
 
         LOG_ERROR("%s", ~wrappedError.ToString());
 
-        AsyncPromise.Set(wrappedError);
+        AsyncResult->Set(wrappedError);
     }
 };
 
-TRemoteReader::TAsyncReadResult TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
+TRemoteReader::TAsyncReadResult::TPtr TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return New<TReadSession>(this, blockIndexes)->GetAsyncResult();
@@ -593,7 +589,7 @@ public:
 
     TGetInfoSession(TRemoteReader* reader)
         : TSessionBase(reader)
-        , AsyncPromise()
+        , AsyncResult(New<IAsyncReader::TAsyncGetInfoResult>())
         , SeedIndex(0)
     {
         Logger.AddTag(Sprintf("GetInfoSession: %p", this));
@@ -601,14 +597,14 @@ public:
         NewRetry();
     }
 
-    IAsyncReader::TAsyncGetInfoResult GetAsyncResult() const
+    IAsyncReader::TAsyncGetInfoResult::TPtr GetAsyncResult() const
     {
-        return AsyncPromise;
+        return AsyncResult;
     }
 
 private:
-    //! Promise representing the session.
-    IAsyncReader::TAsyncGetInfoPromise AsyncPromise;
+    //! Async result representing the session.
+    IAsyncReader::TAsyncGetInfoResult::TPtr AsyncResult;
 
     //! Current index in #SeedAddresses.
     int SeedIndex;
@@ -630,7 +626,7 @@ private:
 
         auto request = proxy.GetChunkInfo();
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
-        request->Invoke().Subscribe(BIND(&TGetInfoSession::OnGotChunkInfo, MakeStrong(this)));
+        request->Invoke()->Subscribe(BIND(&TGetInfoSession::OnGotChunkInfo, MakeStrong(this)));
     }
 
     void OnGotChunkInfo(TChunkHolderServiceProxy::TRspGetChunkInfo::TPtr response)
@@ -658,7 +654,7 @@ private:
     void OnSessionSucceeded(const TChunkInfo& info)
     {
         LOG_INFO("Chunk info is obtained");
-        AsyncPromise.Set(IAsyncReader::TGetInfoResult(info));
+        AsyncResult->Set(IAsyncReader::TGetInfoResult(info));
     }
 
     virtual void OnSessionFailed(const TError& error)
@@ -668,11 +664,11 @@ private:
 
         LOG_ERROR("%s", ~wrappedError.ToString());
 
-        AsyncPromise.Set(wrappedError);
+        AsyncResult->Set(wrappedError);
     }
 };
 
-TRemoteReader::TAsyncGetInfoResult TRemoteReader::AsyncGetChunkInfo()
+TRemoteReader::TAsyncGetInfoResult::TPtr TRemoteReader::AsyncGetChunkInfo()
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return New<TGetInfoSession>(this)->GetAsyncResult();

@@ -25,15 +25,15 @@ TMetaChange<TResult>::TMetaChange(
 { }
 
 template <class TResult>
-TFuture<TResult> TMetaChange<TResult>::Commit()
+typename TFuture<TResult>::TPtr TMetaChange<TResult>::Commit()
 {
     YASSERT(!Started);
     Started = true;
 
-    Promise = TPromise<TResult>();
+    AsyncResult = New< TFuture<TResult> >();
     EpochContext = MetaStateManager->GetEpochContext();
     DoCommit();
-    return Promise;
+    return AsyncResult;
 }
 
 template <class TResult>
@@ -44,7 +44,7 @@ void TMetaChange<TResult>::DoCommit()
         ->CommitChange(
             ChangeData,
             BIND(&TThis::ChangeFuncThunk, MakeStrong(this)))
-        .Subscribe(
+        ->Subscribe(
             BIND(&TThis::OnCommitted, MakeStrong(this)));
 }
 
@@ -61,16 +61,16 @@ typename TMetaChange<TResult>::TPtr
 TMetaChange<TResult>::OnSuccess(const TCallback<void(TResult)>& onSuccess)
 {
     YASSERT(OnSuccess_.IsNull());
-    OnSuccess_ = onSuccess;
+    OnSuccess_ = MoveRV(onSuccess);
     return this;
 }
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnError(const TClosure& onError)
+TMetaChange<TResult>::OnError(const TCallback<void()>& onError)
 {
     YASSERT(OnError_.IsNull());
-    OnError_ = onError;
+    OnError_ = MoveRV(onError);
     return this;
 }
 

@@ -21,7 +21,7 @@ void TGetCommand::DoExecute(TGetRequestPtr request)
         request->Path,
         Host->GetTransactionId(request)));
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         TYson value = ypathResponse->value();
@@ -50,7 +50,7 @@ void TSetCommand::DoExecute(TSetRequestPtr request)
     }
     ypathRequest->set_value(value);
 
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         Host->ReplySuccess();
@@ -68,7 +68,7 @@ void TRemoveCommand::DoExecute(TRemoveRequestPtr request)
         request->Path,
         Host->GetTransactionId(request)));
 
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
@@ -87,7 +87,7 @@ void TListCommand::DoExecute(TListRequestPtr request)
         request->Path,
         Host->GetTransactionId(request)));
 
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {
@@ -106,16 +106,10 @@ void TCreateCommand::DoExecute(TCreateRequestPtr request)
     auto ypathRequest = TCypressYPathProxy::Create(WithTransaction(
         request->Path,
         Host->GetTransactionId(request)));
-
     ypathRequest->set_type(request->Type);
-
-    if (request->Manifest) {
-        auto serializedManifest = SerializeToYson(~request->Manifest, EYsonFormat::Binary);
-        ypathRequest->set_manifest(serializedManifest);
-    }
-
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
+
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
 
     if (ypathResponse->IsOK()) {
         auto consumer = Host->CreateOutputConsumer();
@@ -136,7 +130,7 @@ void TLockCommand::DoExecute(TLockRequestPtr request)
         Host->GetTransactionId(request)));
     ypathRequest->set_mode(request->Mode);
 
-    auto ypathResponse = proxy.Execute(ypathRequest).Get();
+    auto ypathResponse = proxy.Execute(ypathRequest)->Get();
     ypathRequest->Attributes().MergeFrom(~request->GetOptions());
 
     if (ypathResponse->IsOK()) {

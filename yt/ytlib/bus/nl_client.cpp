@@ -90,7 +90,7 @@ public:
         Handler->OnMessage(message, this);
     }
 
-    virtual TSendResult Send(IMessage::TPtr message);
+    virtual TSendResult::TPtr Send(IMessage::TPtr message);
     virtual void Terminate();
 
 
@@ -149,7 +149,7 @@ class TClientDispatcher
             TSequenceId sequenceId)
             : SessionId(sessionId)
             , Message(message)
-            , Promise()
+            , Result(New<IBus::TSendResult>())
             , SequenceId(sequenceId)
         {
             // TODO(babenko): replace with movement ctor
@@ -159,7 +159,7 @@ class TClientDispatcher
         TSessionId SessionId;
         TGuid RequestId;
         IMessage::TPtr Message;
-        IBus::TSendPromise Promise;
+        IBus::TSendResult::TPtr Result;
         TBlob Data;
         TSequenceId SequenceId;
     };
@@ -334,7 +334,7 @@ class TClientDispatcher
             ~sessionId.ToString(),
             ~requestId.ToString());
 
-        request->Promise.Set(ESendResult::Failed);
+        request->Result->Set(ESendResult::Failed);
 
         YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         RequestMap.erase(requestIt);
@@ -399,7 +399,7 @@ class TClientDispatcher
         auto& bus = busIt->second; 
         auto& request = requestIt->second;
 
-        request->Promise.Set(ESendResult::OK);
+        request->Result->Set(ESendResult::OK);
 
         YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         RequestMap.erase(requestIt);
@@ -661,7 +661,7 @@ public:
         // NB: cannot use log here
     }
 
-    IBus::TSendResult EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)
+    IBus::TSendResult::TPtr EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)
     {
         auto sequenceId = bus->GenerateSequenceId();
         const auto& sessionId = bus->GetSessionId();
@@ -681,7 +681,7 @@ public:
             sequenceId,
             dataSize);
 
-        return request->Promise;
+        return request->Result;
     }
 
     void EnqueueBusRegister(const TNLBusClient::TBus::TPtr& bus)
@@ -756,7 +756,7 @@ IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBus::TSendResult TNLBusClient::TBus::Send(IMessage::TPtr message)
+IBus::TSendResult::TPtr TNLBusClient::TBus::Send(IMessage::TPtr message)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     // NB: We may actually need a barrier here but

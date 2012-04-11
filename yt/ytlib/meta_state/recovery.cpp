@@ -60,7 +60,7 @@ TRecovery::TRecovery(
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
 }
 
-TRecovery::TAsyncResult TRecovery::RecoverToState(const TMetaVersion& targetVersion)
+TRecovery::TAsyncResult::TPtr TRecovery::RecoverToState(const TMetaVersion& targetVersion)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -71,7 +71,7 @@ TRecovery::TAsyncResult TRecovery::RecoverToState(const TMetaVersion& targetVers
     return RecoverToState(targetVersion, lastestSnapshotId);
 }
 
-TRecovery::TAsyncResult TRecovery::RecoverToState(
+TRecovery::TAsyncResult::TPtr TRecovery::RecoverToState(
     const TMetaVersion& targetVersion,
     i32 snapshotId)
 {
@@ -106,7 +106,7 @@ TRecovery::TAsyncResult TRecovery::RecoverToState(
                 LOG_ERROR("Error downloading snapshot %d\n%s",
                     snapshotId,
                     ~downloadResult.ToString());
-                return MakeFuture(EResult(EResult::Failed));
+                return New<TAsyncResult>(EResult::Failed);
             }
 
             try {
@@ -146,7 +146,7 @@ TRecovery::TAsyncResult TRecovery::RecoverToState(
     }
 }
 
-TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
+TRecovery::TAsyncResult::TPtr TRecovery::ReplayChangeLogs(
     const TMetaVersion& targetVersion,
     i32 expectedPrevRecordCount)
 {
@@ -197,12 +197,12 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
                 ->SetTimeout(Config->RpcTimeout);
             request->set_change_log_id(segmentId);
 
-            auto response = request->Invoke().Get();
+            auto response = request->Invoke()->Get();
             if (!response->IsOK()) {
                 LOG_ERROR("Error getting changelog %d info from leader\n%s",
                     segmentId,
                     ~response->GetError().ToString());
-                return MakeFuture(EResult(EResult::Failed));
+                return New<TAsyncResult>(EResult::Failed);
             }
 
             i32 localRecordCount = changeLog->GetRecordCount();
@@ -262,7 +262,7 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
                     LOG_ERROR("Error downloading changelog %d\n%s",
                         segmentId,
                         ~changeLogResult.ToString());
-                    return MakeFuture(EResult(EResult::Failed));
+                    return New<TAsyncResult>(EResult::Failed);
                 }
             }
         }
@@ -287,7 +287,7 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
 
     YASSERT(DecoratedState->GetVersion() == targetVersion);
 
-    return MakeFuture(EResult(EResult::OK));
+    return New<TAsyncResult>(EResult::OK);
 }
 
 void TRecovery::ReplayChangeLog(
@@ -322,7 +322,7 @@ void TRecovery::ReplayChangeLog(
     LOG_INFO("Applying %d changes to meta state", recordCount);
     Profiler.Enqueue("replay_change_count", recordCount);
 
-    PROFILE_TIMING ("replay_time") {
+    PROFILE_TIMING ("/replay_time") {
         FOREACH (const auto& changeData, records)  {
             auto version = DecoratedState->GetVersion();
             try {
@@ -361,14 +361,14 @@ TLeaderRecovery::TLeaderRecovery(
         epochStateInvoker)
 { }
 
-TRecovery::TAsyncResult TLeaderRecovery::Run()
+TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto version = DecoratedState->GetReachableVersionAsync();
     i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
     return BIND(
-               (TAsyncResult (TRecovery::*)(const TMetaVersion&, i32))&TRecovery::RecoverToState,
+               (TAsyncResult::TPtr (TRecovery::*)(const TMetaVersion&, i32))&TRecovery::RecoverToState,
                MakeStrong(this),
                version,
                maxSnapshotId)
@@ -406,11 +406,11 @@ TFollowerRecovery::TFollowerRecovery(
         leaderId,
         epochControlInvoker,
         epochStateInvoker)
-    , Promise()
+    , Result(New<TAsyncResult>())
     , TargetVersion(targetVersion)
 { }
 
-TRecovery::TAsyncResult TFollowerRecovery::Run()
+TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -418,28 +418,27 @@ TRecovery::TAsyncResult TFollowerRecovery::Run()
     YASSERT(PostponedChanges.empty());
 
     BIND(
-        (TAsyncResult (TRecovery::*)(const TMetaVersion&))&TRecovery::RecoverToState,
+        (TAsyncResult::TPtr (TRecovery::*)(const TMetaVersion&))&TRecovery::RecoverToState,
         MakeStrong(this),
         TargetVersion)
     .AsyncVia(~EpochStateInvoker)
     .Run()
-    .Apply(BIND(
+    ->Apply(BIND(
         &TFollowerRecovery::OnSyncReached,
         MakeStrong(this)))
-    // TODO(sandello): Remove a lambda here when listeners will accept
-    // const-reference.
-    .Subscribe(BIND([Promise] (EResult result) mutable {
-        Promise.Set(MoveRV(result)); }));
+    ->Subscribe(BIND(
+        &TAsyncResult::Set,
+        Result));
 
-    return Promise;
+    return Result;
 }
 
-TRecovery::TAsyncResult TFollowerRecovery::OnSyncReached(EResult result)
+TRecovery::TAsyncResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (result != EResult::OK) {
-        return MakeFuture(result);
+        return New<TAsyncResult>(result);
     }
 
     LOG_INFO("Sync reached");
@@ -449,13 +448,13 @@ TRecovery::TAsyncResult TFollowerRecovery::OnSyncReached(EResult result)
            .Run();
 }
 
-TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedChanges()
+TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (PostponedChanges.empty()) {
         LOG_INFO("No postponed changes left");
-        return MakeFuture(EResult(EResult::OK));
+        return New<TAsyncResult>(EResult::OK);
     }
 
     THolder<TPostponedChanges> changes(new TPostponedChanges());
@@ -471,7 +470,7 @@ TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedChanges()
            .Run();
 }
 
-TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedChanges(
+TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
     TAutoPtr<TPostponedChanges> changes)
 {
     VERIFY_THREAD_AFFINITY(StateThread);

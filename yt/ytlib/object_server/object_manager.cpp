@@ -103,7 +103,7 @@ public:
         UnderlyingContext->SetResponseBody(responseBody);
     }
 
-    virtual const yvector<TSharedRef>& RequestAttachments() const
+    virtual yvector<TSharedRef>& RequestAttachments()
     {
         return UnderlyingContext->RequestAttachments();
     }
@@ -113,7 +113,7 @@ public:
         return UnderlyingContext->ResponseAttachments();
     }
 
-    virtual const IAttributeDictionary& RequestAttributes() const
+    virtual IAttributeDictionary& RequestAttributes()
     {
         return UnderlyingContext->RequestAttributes();
     }
@@ -528,12 +528,11 @@ void TObjectManager::ExecuteVerb(
         ~id.TransactionId.ToString(),
         ~FormatBool(isWrite));
 
-    auto profilingPath = CombineYPaths(
-        "types",
-        TypeFromId(id.ObjectId).ToString(),
-        "verbs",
-        context->GetVerb(),
-        "time");
+    auto profilingPath = "/types/" +
+        TypeFromId(id.ObjectId).ToString() +
+        "/verbs/" +
+        context->GetVerb() +
+        "/time";
 
     if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
         !isWrite ||

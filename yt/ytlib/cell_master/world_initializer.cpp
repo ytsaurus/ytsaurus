@@ -120,14 +120,15 @@ private:
                 "{}");
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
+                auto addressPath = "/" + EscapeYPath(address);
                 SyncYPathSet(
                     service,
-                    WithTransaction(CombineYPaths("//sys/masters", EscapeYPath(address)), transactionId),
+                    WithTransaction("//sys/masters" + addressPath, transactionId),
                     "{}");
 
                 SyncYPathCreate(
                     service,
-                    WithTransaction(CombineYPaths("//sys/masters", EscapeYPath(address), "orchid"), transactionId),
+                    WithTransaction("//sys/masters" + addressPath + "/orchid", transactionId),
                     EObjectType::Orchid,
                     BuildYsonFluently()
                         .BeginMap()
@@ -211,11 +212,15 @@ private:
     }
 
     // TODO(babenko): consider moving somewhere
-    static TObjectId SyncYPathCreate(IYPathServicePtr service, const TYPath& path, EObjectType type, const TYson& manifest = "{}")
+    static TObjectId SyncYPathCreate(
+        IYPathServicePtr service,
+        const TYPath& path,
+        EObjectType type,
+        const TYson& attributes = "{}")
     {
         auto req = TCypressYPathProxy::Create(path);
         req->set_type(type);
-        req->set_manifest(manifest);
+        req->Attributes().MergeFrom(DeserializeFromYson(attributes)->AsMap());
         auto rsp = SyncExecuteVerb(service, ~req);
         return TObjectId::FromProto(rsp->object_id());
     }

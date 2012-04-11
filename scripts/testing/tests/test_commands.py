@@ -154,7 +154,7 @@ class TestLockCommands(YTEnvSetup):
 
         # attributes do not have @lock_mode
         expect_ok( set('//value', '42<attr=some>', tx = tx_id))
-        expect_error( lock('//value@attr@lock_mode', tx = tx_id))
+        expect_error( lock('//value/@attr/@lock_mode', tx = tx_id))
        
         expect_ok( abort_transaction(tx = tx_id))
 
@@ -164,9 +164,9 @@ class TestLockCommands(YTEnvSetup):
         expect_ok( set('//map', '{list = [1; 2; 3] <attr=some>}', tx = tx_id))
 
         # check that lock is set on nested nodes
-        assert_eq( get('//map@lock_mode',        tx = tx_id), '"exclusive"')
-        assert_eq( get('//map/list@lock_mode',   tx = tx_id), '"exclusive"')
-        assert_eq( get('//map/list/0@lock_mode', tx = tx_id), '"exclusive"')
+        assert_eq( get('//map/@lock_mode',        tx = tx_id), '"exclusive"')
+        assert_eq( get('//map/list/@lock_mode',   tx = tx_id), '"exclusive"')
+        assert_eq( get('//map/list/0/@lock_mode', tx = tx_id), '"exclusive"')
 
         abort_transaction(tx = tx_id)
 
@@ -235,14 +235,14 @@ class TestTableCommands(YTEnvSetup):
         expect_ok( create('table', '//table'))
 
         assert_eq( read('//table'), '')
-        assert_eq( get('//table@row_count'), '0')
+        assert_eq( get('//table/@row_count'), '0')
 
         expect_ok( write('//table', '[{b="hello"}]'))
         assert_eq( read('//table'), '{"b"="hello"}')
-        assert_eq( get('//table@row_count'), '1')
+        assert_eq( get('//table/@row_count'), '1')
 
         expect_ok( write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
         assert_eq( read('//table'), '{"b"="hello"};{"a"="1";"b"="2"};{"a"="30";"x"="10";"y"="20"}')
-        assert_eq( get('//table@row_count'), '3')
+        assert_eq( get('//table/@row_count'), '3')
 
         expect_ok( remove('//table'))

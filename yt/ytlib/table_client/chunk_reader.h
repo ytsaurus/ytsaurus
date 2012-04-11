@@ -70,7 +70,7 @@ private:
 
     TAsyncError ContinueNextRow(
         int channelIndex, 
-        TAsyncErrorPromise result,
+        TAsyncError result,
         TError error);
 
     void MakeCurrentRow();
@@ -97,9 +97,9 @@ private:
         bool Used;
 
         TColumnInfo()
-            : KeyIndex(-1)
-            , InChannel(false)
-            , Used(false)
+        : KeyIndex(-1)
+        , InChannel(false)
+        , Used(false)
         { }
     };
 
@@ -114,7 +114,7 @@ private:
     /*! 
      *  See DoNextRow for usage.
      */
-    const TAsyncErrorPromise SuccessResult;
+    const TAsyncError SuccessResult;
 
     std::vector<TChannelReader> ChannelReaders;
 

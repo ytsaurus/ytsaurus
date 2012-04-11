@@ -600,7 +600,7 @@ private:
 
     TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
     {
-        PROFILE_TIMING ("full_heartbeat_time") {
+        PROFILE_TIMING ("/full_heartbeat_time") {
             Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
 
             auto holderId = message.holder_id();
@@ -642,7 +642,7 @@ private:
     {
         Profiler.Enqueue("incremental_heartbeat_added_chunks", message.added_chunks_size());
         Profiler.Enqueue("incremental_heartbeat_removed_chunks", message.removed_chunks_size());
-        PROFILE_TIMING ("incremental_heartbeat_time") {
+        PROFILE_TIMING ("/incremental_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
 
@@ -683,7 +683,7 @@ private:
 
     TVoid UpdateJobs(const TMsgUpdateJobs& message)
     {
-        PROFILE_TIMING ("update_jobs_time") {
+        PROFILE_TIMING ("/update_jobs_time") {
             auto holderId = message.holder_id();
             auto& holder = GetHolder(holderId);
 
@@ -800,7 +800,7 @@ private:
             StartHolderTracking(*pair.second, true);
         }
 
-        PROFILE_TIMING ("full_chunk_refresh_time") {
+        PROFILE_TIMING ("/full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
             JobScheduler->RefreshAllChunks();
             LOG_INFO("Full chunk refresh completed");
@@ -841,7 +841,7 @@ private:
 
     void DoUnregisterHolder(THolder& holder)
     { 
-        PROFILE_TIMING("holder_unregistration_time") {
+        PROFILE_TIMING ("/holder_unregistration_time") {
             auto holderId = holder.GetId();
 
             LOG_INFO_IF(!IsRecovery(), "Holder unregistered (Address: %s, HolderId: %d)",

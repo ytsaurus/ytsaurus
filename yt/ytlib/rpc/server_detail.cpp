@@ -83,12 +83,12 @@ TSharedRef TServiceContextBase::GetRequestBody() const
     return RequestBody;
 }
 
-const yvector<TSharedRef>& TServiceContextBase::RequestAttachments() const
+yvector<TSharedRef>& TServiceContextBase::RequestAttachments()
 {
     return RequestAttachments_;
 }
 
-const IAttributeDictionary& TServiceContextBase::RequestAttributes() const
+IAttributeDictionary& TServiceContextBase::RequestAttributes()
 {
     return *RequestAttributes_;
 }
