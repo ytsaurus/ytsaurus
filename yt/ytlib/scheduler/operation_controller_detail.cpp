@@ -579,20 +579,20 @@ TVoid TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecu
     {
         auto lockOutTablesRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_out_tables");
         auto getChunkListsRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_chunk_lists");
-        auto getOutTablesSchemataRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_tables_schemata");
+        auto getOutTablesSchemataRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_tables_schemata");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto lockOutTablesRsp = lockOutTablesRsps[index];
-            CheckResponse(lockOutTablesRsp, "Error fetching input input table");
+            CheckResponse(lockOutTablesRsp, "Error fetching input table");
 
             auto getChunkListRsp = getChunkListsRsps[index];
             CheckResponse(getChunkListRsp, "Error getting output chunk list");
 
             auto getOutTableSchemaRsp = getOutTablesSchemataRsps[index];
+            CheckResponse(getOutTableSchemaRsp, "Error getting output table schema");
 
             auto& table = OutputTables[index];
             table.OutputChunkListId = TChunkListId::FromProto(getChunkListRsp->chunk_list_id());
-            // TODO(babenko): fill output schema
-            table.Schema = "{}";
+            table.Schema = getOutTableSchemaRsp->value();
         }
     }
 
