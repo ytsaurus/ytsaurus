@@ -292,5 +292,50 @@ void TYsonWriter::OnRaw(const TStringBuf& yson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYsonFragmentWriter::TYsonFragmentWriter(TOutputStream* stream, EYsonFormat format)
+    : TYsonWriter(stream, format)
+    , NestedCount(0)
+{
+    // this is a hack for not making an indent before first tokens (in pretty mode)
+    Indent = -1;
+}
+
+void TYsonFragmentWriter::BeginCollection(char openBracket)
+{
+    ++NestedCount;
+    TYsonWriter::BeginCollection(openBracket);
+}
+
+void TYsonFragmentWriter::CollectionItem(char separator)
+{
+    if (IsFirstItem) {
+        if (Format == EYsonFormat::Pretty) {
+            if (NestedCount != 0) {
+                Stream->Write('\n');
+            }
+            ++Indent;
+        }
+    } else {
+        Stream->Write(separator);
+        if (Format == EYsonFormat::Pretty ||
+           (Format == EYsonFormat::Text && NestedCount == 0))
+        {
+            Stream->Write('\n');
+        }
+    }
+    if (Format == EYsonFormat::Pretty) {
+        WriteIndent();
+    }
+    IsFirstItem = false;
+}
+
+void TYsonFragmentWriter::EndCollection(char closeBracket)
+{
+    TYsonWriter::EndCollection(closeBracket);
+    --NestedCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT

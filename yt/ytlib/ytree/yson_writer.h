@@ -57,7 +57,7 @@ public:
     //! Inserts a portion of raw YSON into the stream.
     void OnRaw(const TStringBuf& yson);
 
-private:
+protected:
     TOutputStream* Stream;
     bool IsFirstItem;
     bool IsEmptyEntity;
@@ -70,10 +70,30 @@ private:
     void WriteStringScalar(const TStringBuf& value);
     void WriteMapItem(const TStringBuf& name);
 
-    void BeginCollection(char openBracket);
-    void CollectionItem(char separator);
-    void EndCollection(char closeBracket);
+    virtual void BeginCollection(char openBracket);
+    virtual void CollectionItem(char separator);
+    virtual void EndCollection(char closeBracket);
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYsonFragmentWriter
+    : public TYsonWriter
+{
+public:
+    //! Initializes an instance.
+    /*!
+     *  \param stream A stream for outputting the YSON data.
+     *  \param format A format used for encoding the data.
+     */
+    TYsonFragmentWriter(TOutputStream* stream, EYsonFormat format = EYsonFormat::Binary);
+
+    virtual void BeginCollection(char openBracket);
+    virtual void CollectionItem(char separator);
+    virtual void EndCollection(char closeBracket);
+private:
+    int NestedCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

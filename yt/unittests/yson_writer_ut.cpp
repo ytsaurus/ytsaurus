@@ -233,6 +233,89 @@ TEST_F(TYsonWriterTest, SerializeToYson)
     EXPECT_EQ(outputStream.Str(), output);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYsonFragmentWriterTest, NewLinesInList)
+{
+    TStringStream outputStream;
+
+    TYsonFragmentWriter writer(&outputStream, EYsonFormat::Text);
+    writer.OnListItem();
+        writer.OnIntegerScalar(200, false);
+    writer.OnListItem();
+        writer.OnBeginMap();
+            writer.OnMapItem("key");
+            writer.OnIntegerScalar(42, false);
+            writer.OnMapItem("yek");
+            writer.OnIntegerScalar(24, false);
+            writer.OnMapItem("list");
+            writer.OnBeginList();
+            writer.OnEndList();
+        writer.OnEndMap(false);
+    writer.OnListItem();
+        writer.OnStringScalar("aaa", false);
+
+    Stroka output =
+        "200;\n"
+        "{\"key\"=42;\"yek\"=24;\"list\"=[]};\n"
+        "\"aaa\"";
+
+    EXPECT_EQ(outputStream.Str(), output);
+}
+
+
+TEST(TYsonFragmentWriterTest, NewLinesInMap)
+{
+    TStringStream outputStream;
+
+    TYsonFragmentWriter writer(&outputStream, EYsonFormat::Text);
+    writer.OnMapItem("a");
+        writer.OnIntegerScalar(100);
+    writer.OnMapItem("b");
+        writer.OnBeginList();
+            writer.OnListItem();
+            writer.OnBeginMap();
+                writer.OnMapItem("key");
+                writer.OnIntegerScalar(42, false);
+                writer.OnMapItem("yek");
+                writer.OnIntegerScalar(24, false);
+            writer.OnEndMap();
+            writer.OnListItem();
+            writer.OnIntegerScalar(-1);
+        writer.OnEndList();
+    writer.OnMapItem("c");
+        writer.OnStringScalar("word");
+
+    Stroka output =
+        "\"a\"=100;\n"
+        "\"b\"=[{\"key\"=42;\"yek\"=24};-1];\n"
+        "\"c\"=\"word\"";
+
+    EXPECT_EQ(outputStream.Str(), output);
+}
+
+TEST(TYsonFragmentWriter, NoFirstIndent)
+{
+    TStringStream outputStream;
+
+    TYsonFragmentWriter writer(&outputStream, EYsonFormat::Pretty);
+    writer.OnMapItem("a1");
+        writer.OnBeginMap();
+            writer.OnMapItem("key");
+            writer.OnIntegerScalar(42, false);
+        writer.OnEndMap(false);
+    writer.OnMapItem("a2");
+        writer.OnIntegerScalar(0, false);
+
+    Stroka output =
+        "\"a1\" = {\n"
+        "    \"key\" = 42\n"
+        "};\n"
+        "\"a2\" = 0";
+
+    EXPECT_EQ(outputStream.Str(), output);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
