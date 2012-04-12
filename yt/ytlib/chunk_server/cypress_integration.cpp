@@ -375,9 +375,10 @@ private:
             if (node->FindChild(address))
                 return;
 
-            auto service = cypressManager->GetVersionedNodeProxy(NodeId, NULL);
+            auto service = cypressManager->GetVersionedNodeProxy(NodeId);
 
             // TODO(babenko): make a single transaction
+            // TODO(babenko): check for errors and retry
 
             {
                 auto req = TCypressYPathProxy::Create("/" + EscapeYPath(address));
@@ -386,7 +387,7 @@ private:
             }
 
             {
-                auto req = TCypressYPathProxy::Create("//" + EscapeYPath(address) + "/orchid");
+                auto req = TCypressYPathProxy::Create("/" + EscapeYPath(address) + "/orchid");
                 req->set_type(EObjectType::Orchid);
                 req->Attributes().Set("remote_address", address);
                 ExecuteVerb(~service, ~req);
