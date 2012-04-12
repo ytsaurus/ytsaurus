@@ -68,7 +68,7 @@ void SaveSet(TOutputStream* output, const TSet& set)
     typedef typename TSet::key_type TKey;
     auto iterators = GetSortedIterators(set);
     ::SaveSize(output, iterators.size());
-    FOREACH(const auto& ptr, iterators) {
+    FOREACH (const auto& ptr, iterators) {
         ::Save(output, *ptr);
     }
 }
@@ -138,7 +138,7 @@ void SaveMap(TOutputStream* output, const TMap& map)
 {
     auto iterators = GetSortedIterators(map);
     ::SaveSize(output, iterators.size());
-    FOREACH(const auto& it, iterators) {
+    FOREACH (const auto& it, iterators) {
         ::Save(output, it->first);
         ::Save(output, it->second);
     }

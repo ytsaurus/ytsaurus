@@ -119,11 +119,11 @@ void TChannel::AddRange(const TColumn& begin, const TColumn& end)
 NProto::TChannel TChannel::ToProto() const
 {
     NProto::TChannel protoChannel;
-    FOREACH(auto column, Columns) {
+    FOREACH (auto column, Columns) {
         protoChannel.add_columns(~column);
     }
 
-    FOREACH(const auto& range, Ranges) {
+    FOREACH (const auto& range, Ranges) {
         *protoChannel.add_ranges() = range.ToProto();
     }
     return protoChannel;
@@ -144,7 +144,7 @@ NYT::NTableClient::TChannel TChannel::FromProto(const NProto::TChannel& protoCha
 
 bool TChannel::Contains(const TColumn& column) const
 {
-    FOREACH(auto& oldColumn, Columns) {
+    FOREACH (auto& oldColumn, Columns) {
         if (oldColumn == column) {
             return true;
         }
@@ -154,7 +154,7 @@ bool TChannel::Contains(const TColumn& column) const
 
 bool TChannel::Contains(const TRange& range) const
 {
-    FOREACH(auto& currentRange, Ranges) {
+    FOREACH (auto& currentRange, Ranges) {
         if (currentRange.Contains(range)) {
             return true;
         }
@@ -164,13 +164,13 @@ bool TChannel::Contains(const TRange& range) const
 
 bool TChannel::Contains(const TChannel& channel) const
 {
-    FOREACH(auto& column, channel.Columns) {
+    FOREACH (auto& column, channel.Columns) {
         if (!Contains(column)) {
             return false;
         }
     }
 
-    FOREACH(auto& range, channel.Ranges) {
+    FOREACH (auto& range, channel.Ranges) {
         if (!Contains(range)) {
             return false;
         }
@@ -181,7 +181,7 @@ bool TChannel::Contains(const TChannel& channel) const
 
 bool TChannel::ContainsInRanges(const TColumn& column) const
 {
-    FOREACH(auto& range, Ranges) {
+    FOREACH (auto& range, Ranges) {
         if (range.Contains(column)) {
             return true;
         }
@@ -191,13 +191,13 @@ bool TChannel::ContainsInRanges(const TColumn& column) const
 
 bool TChannel::Overlaps(const TRange& range) const
 {
-    FOREACH(auto& column, Columns) {
+    FOREACH (auto& column, Columns) {
         if (range.Contains(column)) {
             return true;
         }
     }
 
-    FOREACH(auto& currentRange, Ranges) {
+    FOREACH (auto& currentRange, Ranges) {
         if (currentRange.Overlaps(range)) {
             return true;
         }
@@ -208,13 +208,13 @@ bool TChannel::Overlaps(const TRange& range) const
 
 bool TChannel::Overlaps(const TChannel& channel) const
 {
-    FOREACH(auto& column, channel.Columns) {
+    FOREACH (auto& column, channel.Columns) {
         if (Contains(column)) {
             return true;
         }
     }
 
-    FOREACH(auto& range, channel.Ranges) {
+    FOREACH (auto& range, channel.Ranges) {
         if (Overlaps(range)) {
             return true;
         }
@@ -311,7 +311,7 @@ TChannel TChannel::FromNode(INode* node)
 void operator-= (TChannel& lhs, const TChannel& rhs)
 {
     std::vector<TColumn> newColumns;
-    FOREACH(auto column, lhs.Columns) {
+    FOREACH (auto column, lhs.Columns) {
         if (!rhs.Contains(column)) {
             newColumns.push_back(column);
         }
@@ -319,7 +319,7 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
     lhs.Columns.swap(newColumns);
 
     std::vector<TRange> rhsRanges(rhs.Ranges);
-    FOREACH(auto column, rhs.Columns) {
+    FOREACH (auto column, rhs.Columns) {
         // Add single columns as ranges.
         TColumn rangeEnd;
         rangeEnd.reserve(column.Size() + 1);
@@ -329,8 +329,8 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
     }
 
     std::vector<TRange> newRanges;
-    FOREACH(auto& rhsRange, rhsRanges) {
-        FOREACH(auto& lhsRange, lhs.Ranges) {
+    FOREACH (auto& rhsRange, rhsRanges) {
+        FOREACH (auto& lhsRange, lhs.Ranges) {
             if (!lhsRange.Overlaps(rhsRange)) {
                 newRanges.push_back(lhsRange);
                 continue;

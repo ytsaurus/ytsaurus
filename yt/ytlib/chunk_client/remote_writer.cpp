@@ -691,7 +691,7 @@ void TRemoteWriter::OnSessionStarted()
     LOG_DEBUG("Writer is ready");
 
     IsInitComplete = true;
-    FOREACH(auto& group, Window) {
+    FOREACH (auto& group, Window) {
         group->Process();
     }
 
@@ -838,7 +838,7 @@ TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& block
     YASSERT(!State.IsClosed());
 
     i64 sumSize = 0;
-    FOREACH(auto& block, blocks) {
+    FOREACH (auto& block, blocks) {
         sumSize += block.Size();
     }
 
@@ -918,7 +918,7 @@ TAsyncError TRemoteWriter::AsyncClose(
     YASSERT(!State.IsClosed());
 
     i64 sumSize = 0;
-    FOREACH(auto& block, lastBlocks) {
+    FOREACH (auto& block, lastBlocks) {
         sumSize += block.Size();
     }
 

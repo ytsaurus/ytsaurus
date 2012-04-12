@@ -160,7 +160,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
     auto session = GetSession(chunkId);
 
     i32 blockIndex = startBlockIndex;
-    FOREACH(const auto& attachment, request->Attachments()) {
+    FOREACH (const auto& attachment, request->Attachments()) {
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
         auto data = attachment.ToBlob();

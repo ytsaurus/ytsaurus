@@ -31,7 +31,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
     auto asyncResult = New<TFuture<TResult> >();
     auto awaiter = New<TParallelAwaiter>(&Profiler, "time");
 
-    FOREACH(Stroka address, Config->Addresses) {
+    FOREACH (Stroka address, Config->Addresses) {
         LOG_DEBUG("Requesting leader from peer %s", ~address);
 
         TProxy proxy(~ChannelCache.GetChannel(address));

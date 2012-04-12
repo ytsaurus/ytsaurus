@@ -95,7 +95,7 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
     holders.reserve(LoadFactorMap.size());
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH(const auto& pair, LoadFactorMap) {
+    FOREACH (const auto& pair, LoadFactorMap) {
         const auto& holder = chunkManager->GetHolder(pair.second);
         if (IsValidUploadTarget(holder) &&
             forbiddenAddresses.find(holder.GetAddress()) == forbiddenAddresses.end()) {
@@ -144,14 +144,14 @@ yvector<THolderId> TChunkPlacement::GetReplicationTargets(const TChunk& chunk, i
     yhash_set<Stroka> forbiddenAddresses;
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH(auto holderId, chunk.StoredLocations()) {
+    FOREACH (auto holderId, chunk.StoredLocations()) {
         const auto& holder = chunkManager->GetHolder(holderId);
         forbiddenAddresses.insert(holder.GetAddress());
     }
 
     const auto* jobList = chunkManager->FindJobList(chunk.GetId());
     if (jobList) {
-        FOREACH(auto job, jobList->Jobs()) {
+        FOREACH (auto job, jobList->Jobs()) {
             if (job->GetType() == EJobType::Replicate && job->GetChunkId() == chunk.GetId()) {
                 forbiddenAddresses.insert(job->TargetAddresses().begin(), job->TargetAddresses().end());
             }
@@ -176,7 +176,7 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     yvector<TCandidatePair> candidates;
     auto chunkManager = Bootstrap->GetChunkManager();
     candidates.reserve(chunk.StoredLocations().size());
-    FOREACH(auto holderId, chunk.StoredLocations()) {
+    FOREACH (auto holderId, chunk.StoredLocations()) {
         const auto& holder = chunkManager->GetHolder(holderId);
         double loadFactor = GetLoadFactor(holder);
         candidates.push_back(MakePair(holderId, loadFactor));
@@ -192,7 +192,7 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     // Take first count holders.
     yvector<THolderId> result;
     result.reserve(count);
-    FOREACH(auto pair, candidates) {
+    FOREACH (auto pair, candidates) {
         if (result.ysize() >= count) {
             break;
         }

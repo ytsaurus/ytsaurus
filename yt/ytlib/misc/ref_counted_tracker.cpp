@@ -37,7 +37,7 @@ yvector<TRefCountedTracker::TItem> TRefCountedTracker::GetItems()
 {
     TGuard<TSpinLock> guard(SpinLock);
     yvector<TItem> result;
-    FOREACH(auto pair, Statistics) {
+    FOREACH (auto pair, Statistics) {
         result.push_back(pair.second);
     }
     return result;
@@ -89,7 +89,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
     stream << "================================================================================\n";
     stream << Sprintf("%10s %10s %s", "Alive", "Created", "Name") << "\n";
     stream << "--------------------------------------------------------------------------------\n";
-    FOREACH(const auto& item, items) {
+    FOREACH (const auto& item, items) {
         totalAlive += item.AliveObjects;
         totalCreated += item.CreatedObjects;
 

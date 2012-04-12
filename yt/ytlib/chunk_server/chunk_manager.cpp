@@ -1425,7 +1425,7 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
             ythrow yexception() << "Not enough holders available";
         }
 
-        FOREACH(auto holderId, holderIds) {
+        FOREACH (auto holderId, holderIds) {
             const THolder& holder = Owner->GetHolder(holderId);
             responseExt->add_holder_addresses(holder.GetAddress());
         }

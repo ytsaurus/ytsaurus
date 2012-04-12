@@ -477,7 +477,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
 
     LOG_INFO("Applying %d postponed changes", changes->ysize());
     
-    FOREACH(const auto& change, *changes) {
+    FOREACH (const auto& change, *changes) {
         switch (change.Type) {
             case TPostponedChange::EType::Change: {
                 auto version = DecoratedState->GetVersion();

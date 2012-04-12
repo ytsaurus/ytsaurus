@@ -248,7 +248,7 @@ class TClientDispatcher
             ~sessionId.ToString(),
             bus);
 
-        FOREACH(const auto& requestId, bus->PendingRequestIds()) {
+        FOREACH (const auto& requestId, bus->PendingRequestIds()) {
             Requester->CancelRequest((TGUID) requestId);
             RequestMap.erase(requestId);
         }
@@ -257,7 +257,7 @@ class TClientDispatcher
         TBlob ackData;
         CreatePacket(sessionId, TPacketHeader::EType::Ack, &ackData);
 
-        FOREACH(const auto& requestId, bus->PingIds()) {
+        FOREACH (const auto& requestId, bus->PingIds()) {
             Requester->SendResponse(requestId, &ackData);
         }
         bus->PingIds().clear();

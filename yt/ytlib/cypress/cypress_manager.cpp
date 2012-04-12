@@ -743,7 +743,7 @@ void TCypressManager::Clear()
 void TCypressManager::OnLeaderRecoveryComplete()
 {
     YASSERT(NodeBehaviors.empty());
-    FOREACH(const auto& pair, NodeMap) {
+    FOREACH (const auto& pair, NodeMap) {
         if (!pair.first.IsBranched()) {
             CreateNodeBehavior(pair.first.ObjectId);
         }
@@ -752,7 +752,7 @@ void TCypressManager::OnLeaderRecoveryComplete()
 
 void TCypressManager::OnStopLeading()
 {
-    FOREACH(const auto& pair, NodeBehaviors) {
+    FOREACH (const auto& pair, NodeBehaviors) {
         pair.second->Destroy();
     }
     NodeBehaviors.clear();

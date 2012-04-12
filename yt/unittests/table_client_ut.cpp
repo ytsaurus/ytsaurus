@@ -21,7 +21,7 @@ namespace NTableClient {
 TRow FilterRow(const TRow& row, const TChannel& channel)
 {
     TRow result;
-    FOREACH(auto& pair, row) {
+    FOREACH (auto& pair, row) {
         if (channel.Contains(pair.first))
             result.push_back(pair);
     }
@@ -43,8 +43,8 @@ public:
     {
         EXPECT_IS_TRUE(writer->AsyncOpen()->Get().IsOK());
 
-        FOREACH(auto& row, Rows) {
-            FOREACH(auto& pair, row) {
+        FOREACH (auto& row, Rows) {
+            FOREACH (auto& pair, row) {
                 writer->Write(pair.first, pair.second);
             }
             EXPECT_IS_TRUE(writer->AsyncEndRow()->Get().IsOK());

@@ -18,7 +18,7 @@ TValidatingWriter::TValidatingWriter(
     YASSERT(writer);
     {
         int columnIndex = 0;
-        FOREACH(auto& keyColumn, Schema.KeyColumns()) {
+        FOREACH (auto& keyColumn, Schema.KeyColumns()) {
             Attributes.add_key_columns(keyColumn);
 
             auto res = ColumnIndexes.insert(MakePair(keyColumn, columnIndex));
@@ -26,8 +26,8 @@ TValidatingWriter::TValidatingWriter(
             ++columnIndex;
         }
 
-        FOREACH(auto& channel, Schema.GetChannels()) {
-            FOREACH(auto& column, channel.GetColumns()) {
+        FOREACH (auto& channel, Schema.GetChannels()) {
+            FOREACH (auto& column, channel.GetColumns()) {
                 auto res = ColumnIndexes.insert(MakePair(column, columnIndex));
                 if (res.Second()) {
                     ++columnIndex;
@@ -41,7 +41,7 @@ TValidatingWriter::TValidatingWriter(
     CurrentKey.resize(Schema.KeyColumns().size());
 
     // Fill protobuf chunk meta.
-    FOREACH(auto channel, Schema.GetChannels()) {
+    FOREACH (auto channel, Schema.GetChannels()) {
         *Attributes.add_chunk_channels()->mutable_channel() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel, ColumnIndexes));
     }
@@ -84,7 +84,7 @@ void TValidatingWriter::Write(const TColumn& column, TValue value)
         }
     }
 
-    FOREACH(auto& channelWriter, ChannelWriters) {
+    FOREACH (auto& channelWriter, ChannelWriters) {
         channelWriter->Write(columnIndex, column, value);
     }
 }
@@ -95,13 +95,13 @@ TAsyncError TValidatingWriter::AsyncEndRow()
 
     for (int columnIndex = 0; columnIndex < Schema.KeyColumns().size(); ++columnIndex) {
         if (!IsColumnUsed[columnIndex]) {
-            FOREACH(auto& channelWriter, ChannelWriters) {
+            FOREACH (auto& channelWriter, ChannelWriters) {
                 channelWriter->Write(columnIndex, Schema.KeyColumns()[columnIndex], TStringBuf());
             }
         }
     }
 
-    FOREACH(auto& channelWriter, ChannelWriters) {
+    FOREACH (auto& channelWriter, ChannelWriters) {
         channelWriter->EndRow();
     }
 

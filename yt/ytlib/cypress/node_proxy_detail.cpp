@@ -379,7 +379,7 @@ void TListNodeProxy::Clear()
 {
     auto& impl = GetTypedImplForUpdate();
 
-    FOREACH(auto& nodeId, impl.IndexToChild()) {
+    FOREACH (auto& nodeId, impl.IndexToChild()) {
         auto& childImpl = GetImplForUpdate(nodeId);
         DetachChild(childImpl);
     }

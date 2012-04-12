@@ -88,7 +88,7 @@ TJobResult TSortedMergeJob::Run()
 {
     while (!ChunkReaders.empty()) {
         std::pop_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
-        FOREACH(auto& pair, ChunkReaders.back()->GetRow()) {
+        FOREACH (auto& pair, ChunkReaders.back()->GetRow()) {
             Writer->Write(pair.first, pair.second);
         }
         Writer->EndRow();

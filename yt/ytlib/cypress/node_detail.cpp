@@ -117,7 +117,7 @@ void TMapNode::Load(const TLoadContext& context, TInputStream* input)
     TCypressNodeBase::Load(context, input);
     ::Load(input, ChildCountDelta_);
     LoadMap(input, KeyToChild());
-    FOREACH(const auto& pair, KeyToChild()) {
+    FOREACH (const auto& pair, KeyToChild()) {
         if (pair.second != NullObjectId) {
             ChildToKey().insert(MakePair(pair.second, pair.first));
         }

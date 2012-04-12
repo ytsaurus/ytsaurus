@@ -80,7 +80,7 @@ void TJobScheduler::OnHolderRegistered(const THolder& holder)
 
     YVERIFY(HolderInfoMap.insert(MakePair(holder.GetId(), THolderInfo())).second);
 
-    FOREACH(auto& chunk, holder.StoredChunks()) {
+    FOREACH (auto& chunk, holder.StoredChunks()) {
         ScheduleChunkRefresh(chunk->GetId());
     }
 }
@@ -112,7 +112,7 @@ void TJobScheduler::ProcessExistingJobs(
     yhash_set<TJobId> runningJobIds;
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH(const auto& jobInfo, runningJobs) {
+    FOREACH (const auto& jobInfo, runningJobs) {
         auto jobId = TJobId::FromProto(jobInfo.job_id());
         runningJobIds.insert(jobId);
         const auto* job = chunkManager->FindJob(jobId);
@@ -473,15 +473,15 @@ void TJobScheduler::GetReplicaStatistics(
     const auto* jobList = chunkManager->FindJobList(chunk.GetId());
     if (jobList) {
         yhash_set<Stroka> storedAddresses(*storedCount);
-        FOREACH(auto holderId, chunk.StoredLocations()) {
+        FOREACH (auto holderId, chunk.StoredLocations()) {
             const auto& holder = chunkManager->GetHolder(holderId);
             storedAddresses.insert(holder.GetAddress());
         }
 
-        FOREACH(auto& job, jobList->Jobs()) {
+        FOREACH (auto& job, jobList->Jobs()) {
             switch (job->GetType()) {
                 case EJobType::Replicate: {
-                    FOREACH(const auto& address, job->TargetAddresses()) {
+                    FOREACH (const auto& address, job->TargetAddresses()) {
                         if (storedAddresses.find(address) == storedAddresses.end()) {
                             ++*plusCount;
                         }
@@ -530,7 +530,7 @@ void TJobScheduler::Refresh(const TChunk& chunk)
         plusCount,
         minusCount);
 
-    FOREACH(auto holderId, chunk.StoredLocations()) {
+    FOREACH (auto holderId, chunk.StoredLocations()) {
         auto* holderInfo = FindHolderInfo(holderId);
         if (holderInfo) {
             holderInfo->ChunksToReplicate.erase(chunk.GetId());
@@ -563,13 +563,13 @@ void TJobScheduler::Refresh(const TChunk& chunk)
         }
 
         auto holderIds = ChunkPlacement->GetRemovalTargets(chunk, storedCount - minusCount - desiredCount);
-        FOREACH(auto holderId, holderIds) {
+        FOREACH (auto holderId, holderIds) {
             auto& holderInfo = GetHolderInfo(holderId);
             holderInfo.ChunksToRemove.insert(chunk.GetId());
         }
 
         yvector<Stroka> holderAddresses;
-        FOREACH(auto holderId, holderIds) {
+        FOREACH (auto holderId, holderIds) {
             const auto& holder = chunkManager->GetHolder(holderId);
             holderAddresses.push_back(holder.GetAddress());
         }

@@ -112,14 +112,14 @@ public:
             return it->second;
     
         yhash_set<Stroka> writerIds;
-        FOREACH(auto& rule, Rules) {
+        FOREACH (auto& rule, Rules) {
             if (rule->IsApplicable(event.Category, event.Level)) {
                 writerIds.insert(rule->Writers.begin(), rule->Writers.end());
             }
         }
 
         TLogWriters writers;
-        FOREACH(const Stroka& writerId, writerIds) {
+        FOREACH (const Stroka& writerId, writerIds) {
             auto writerIt = Writers.find(writerId);
             YASSERT(writerIt != Writers.end());
             writers.push_back(writerIt->second);
@@ -143,7 +143,7 @@ public:
 
     TVoid FlushWriters()
     {
-        FOREACH(auto& pair, Writers) {
+        FOREACH (auto& pair, Writers) {
             pair.second->Flush();
         }
         return TVoid();
@@ -197,7 +197,7 @@ private:
 
     void CreateWriters()
     {
-        FOREACH(const auto& pair, WriterConfigs) {
+        FOREACH (const auto& pair, WriterConfigs) {
             const auto& name = pair.first;
             const auto& config = pair.second;
             const auto& pattern = config->Pattern;
