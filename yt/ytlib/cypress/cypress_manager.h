@@ -74,11 +74,11 @@ public:
 
     TIntrusivePtr<ICypressNodeProxy> FindVersionedNodeProxy(
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transactionId);
+        NTransactionServer::TTransaction* transaction = NULL);
 
     TIntrusivePtr<ICypressNodeProxy> GetVersionedNodeProxy(
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transactionId);
+        NTransactionServer::TTransaction* transaction = NULL);
 
     TLockId LockVersionedNode(
         const TNodeId& nodeId,

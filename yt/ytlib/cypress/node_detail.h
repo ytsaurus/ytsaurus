@@ -43,7 +43,7 @@ protected:
 
     TIntrusivePtr<TProxy> GetProxy()
     {
-        auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(NodeId, NULL);
+        auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(NodeId);
         auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
         YASSERT(typedProxy);
         return typedProxy;
