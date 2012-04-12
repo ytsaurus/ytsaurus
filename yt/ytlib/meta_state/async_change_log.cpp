@@ -43,10 +43,10 @@ public:
         TGuard<TSpinLock> guard(SpinLock);
 
         if (recordId != DoGetRecordCount()) {
-            LOG_FATAL("Unexpected record id in changelog: expected %d, got %d (ChangeLogId: %d)",
+            LOG_FATAL("Unexpected record id in changelog %d: expected %d, got %d",
+                ChangeLog->GetId(),
                 DoGetRecordCount(),
-                recordId,
-                ChangeLog->GetId());
+                recordId);
         }
 
         AppendQueue.push_back(data);
@@ -65,23 +65,20 @@ public:
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(FlushQueue.empty());
-
-            // In addition to making this code run a tiny bit faster,
-            // this check also prevents from calling TChangeLog::Append for an already finalized changelog 
-            // (its queue may still be present in the map).
-            if (AppendQueue.empty()) {
-                return;
-            }
-
             FlushQueue.swap(AppendQueue);
 
             result = Result;
             Result = New<TAppendResult>();
         }
 
-        PROFILE_TIMING ("/changelog_flush_io_time") {
-            ChangeLog->Append(FlushedRecordCount, FlushQueue);
-            ChangeLog->Flush();
+        // In addition to making this code run a tiny bit faster,
+        // this check also prevents from calling TChangeLog::Append for an already finalized changelog 
+        // (its queue may still be present in the map).
+        if (FlushQueue.empty()) {
+            PROFILE_TIMING ("/changelog_flush_io_time") {
+                ChangeLog->Append(FlushedRecordCount, FlushQueue);
+                ChangeLog->Flush();
+            }
         }
 
         result->Set(TVoid());
@@ -123,7 +120,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock);
-        return AppendQueue.ysize() == 0 && FlushQueue.ysize() == 0;
+        return AppendQueue.empty() && FlushQueue.empty();
     }
 
     // Can return less records than recordCount
@@ -243,7 +240,7 @@ public:
         i32 recordId,
         const TSharedRef& data)
     {
-        LOG_TRACE("Async changelog record is enqueued (Version: %s)",
+        LOG_TRACE("Async changelog record is enqueued at version %s",
             ~TMetaVersion(changeLog->GetId(), recordId).ToString());
 
         auto queue = GetQueueAndLock(changeLog);
@@ -287,7 +284,7 @@ public:
         auto queue = FindQueueAndLock(changeLog);
         if (queue) {
             queue->WaitFlush();
-            AtomicDecrement(queue->UseCount);
+            UnlockQueue(queue);
         }
 
         PROFILE_TIMING ("/changelog_flush_io_time") {
@@ -315,7 +312,7 @@ public:
             changeLog->Finalize();
         }
 
-        LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
+        LOG_DEBUG("Async changelog %d is finalized", changeLog->GetId());
     }
 
     void Truncate(const TChangeLogPtr& changeLog, i32 atRecordId)
@@ -341,11 +338,11 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
         auto it = ChangeLogQueues.find(changeLog);
-        if (it == ChangeLogQueues.end())
+        if (it == ChangeLogQueues.end()) {
             return NULL;
-
+        }
         auto& queue = it->second;
-        ++queue->UseCount;
+        AtomicIncrement(queue->UseCount);
         return queue;
     }
 
@@ -385,18 +382,18 @@ private:
                 return;
             }
 
-            FOREACH(const auto& it, ChangeLogQueues) {
+            FOREACH (const auto& it, ChangeLogQueues) {
                 queues.push_back(it.second);
             }
         }
 
         // Flush the queues.
-        FOREACH(auto& queue, queues) {
+        FOREACH (auto& queue, queues) {
             queue->Flush();
         }
     }
 
-    // Returns if there are any unswept queues left in the map.
+    // Returns True if there is any unswept queue left in the map.
     bool CleanQueues()
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -406,7 +403,7 @@ private:
             jt = it++;
             auto queue = jt->second;
             if (queue->UseCount == 0 && queue->IsEmpty()) {
-                LOG_DEBUG("Async changelog queue was swept (ChangeLogId: %d)", jt->first->GetId());
+                LOG_DEBUG("Async changelog queue %d was swept", jt->first->GetId());
                 ChangeLogQueues.erase(jt);
             }
         }
@@ -414,7 +411,7 @@ private:
         return !ChangeLogQueues.empty();
     }
 
-    // Returns True if there are any queues in the map.
+    // Returns True if there are any left queues in the map.
     bool FlushAndClean()
     {
         FlushQueues();
