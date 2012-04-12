@@ -80,7 +80,6 @@ class TestCypressCommands(YTEnvSetup):
         expect_error( remove('//b'))
 
 
-
 class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_HOLDERS = 0
@@ -242,7 +241,15 @@ class TestTableCommands(YTEnvSetup):
         assert_eq( get('//table/@row_count'), '1')
 
         expect_ok( write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
-        assert_eq( read('//table'), '{"b"="hello"};{"a"="1";"b"="2"};{"a"="30";"x"="10";"y"="20"}')
+        assert_eq( read('//table'), '{"b"="hello"};\n{"a"="1";"b"="2"};\n{"a"="30";"x"="10";"y"="20"}')
         assert_eq( get('//table/@row_count'), '3')
 
         expect_ok( remove('//table'))
+
+
+class TestOrchid(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_HOLDERS = 5
+
+    def test_simple(self):
+        pass        
