@@ -588,7 +588,10 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
     auto transactionId = TTransactionId::FromProto(message.transaction_id());
 
     auto transactionManager = Bootstrap->GetTransactionManager();
-    auto& transaction = transactionManager->GetTransaction(transactionId);
+    auto* transaction =
+        transactionId == NullTransactionId
+        ?  NULL
+        : &transactionManager->GetTransaction(transactionId);
 
     yvector<TSharedRef> parts(message.request_parts_size());
     for (int partIndex = 0; partIndex < static_cast<int>(message.request_parts_size()); ++partIndex) {
@@ -610,7 +613,7 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
         "",
         NYTree::TYPathResponseHandler());
 
-    auto proxy = GetProxy(objectId, &transaction);
+    auto proxy = GetProxy(objectId, transaction);
 
     proxy->Invoke(~context);
 
