@@ -249,12 +249,12 @@ protected:
 
     const TImpl& GetTypedImpl() const
     {
-        return dynamic_cast<const TImpl&>(GetImpl(NodeId));
+        return static_cast<const TImpl&>(GetImpl(NodeId));
     }
 
     TImpl& GetTypedImplForUpdate(ELockMode requestedMode = ELockMode::Exclusive)
     {
-        return dynamic_cast<TImpl&>(GetImplForUpdate(NodeId, requestedMode));
+        return static_cast<TImpl&>(GetImplForUpdate(NodeId, requestedMode));
     }
 
 
