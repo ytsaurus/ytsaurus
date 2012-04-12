@@ -72,7 +72,7 @@ public:
         }
 
         // In addition to making this code run a tiny bit faster,
-        // this check also prevents from calling TChangeLog::Append for an already finalized changelog 
+        // this check also prevents us from calling TChangeLog::Append for an already finalized changelog 
         // (its queue may still be present in the map).
         if (FlushQueue.empty()) {
             PROFILE_TIMING ("/changelog_flush_io_time") {
@@ -371,17 +371,9 @@ private:
     void FlushQueues()
     {
         // Take a snapshot.
-        yvector<TChangeLogQueuePtr> queues;
+        std::vector<TChangeLogQueuePtr> queues;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            
-            if (ChangeLogQueues.empty()) {
-                // Hash map from arcadia/util does not support iteration over
-                // the empty map with iterators. It crashes with a dump assertion
-                // deeply within implementation details.
-                return;
-            }
-
             FOREACH (const auto& it, ChangeLogQueues) {
                 queues.push_back(it.second);
             }
@@ -398,9 +390,9 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
         
-        TChangeLogQueueMap::iterator it, jt;
-        for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/) {
-            jt = it++;
+        auto it = ChangeLogQueues.begin();
+        while (it != ChangeLogQueues.end()) {
+            auto jt = it++;
             auto queue = jt->second;
             if (queue->UseCount == 0 && queue->IsEmpty()) {
                 LOG_DEBUG("Async changelog queue %d was swept", jt->first->GetId());
