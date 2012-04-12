@@ -21,18 +21,19 @@ using namespace NRpc;
 using namespace NObjectServer;
 using namespace NTableClient;
 using namespace NCellMaster;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandler* typeHandler,
     TBootstrap* bootstrap,
-    const TTransactionId& transactionId,
+    TTransaction* transaction,
     const TNodeId& nodeId)
     : TCypressNodeProxyBase<IEntityNode, TTableNode>(
         typeHandler,
         bootstrap,
-        transactionId,
+        transaction,
         nodeId)
 { }
 

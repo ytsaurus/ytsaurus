@@ -11,6 +11,7 @@ namespace NCypress {
 
 using namespace NYTree;
 using namespace NObjectServer;
+using namespace NTransactionServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,7 +165,7 @@ void TMapNodeTypeHandler::DoMerge(
     auto objectManager = Bootstrap->GetObjectManager();
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto cypressManager = Bootstrap->GetCypressManager();
-    const auto& id = originatingNode.GetId();
+    const auto& originatingId = originatingNode.GetId();
     FOREACH (const auto& pair, branchedNode.KeyToChild()) {
         auto it = originatingNode.KeyToChild().find(pair.first);
         if (it == originatingNode.KeyToChild().end()) {
@@ -177,13 +178,17 @@ void TMapNodeTypeHandler::DoMerge(
             it->second = pair.second;
             
             if (pair.second == NullObjectId) {
-                const auto& transactionIds = transactionManager->GetTransactionPath(id.TransactionId);
+                auto originatingTransaction =
+                    originatingId.TransactionId == NullTransactionId
+                    ? NULL
+                    : &transactionManager->GetTransaction(originatingId.TransactionId);
+                const auto& transactions = transactionManager->GetTransactionPath(originatingTransaction);
                 bool contains = false;
-                FOREACH (const auto& transactionId, transactionIds) {
-                    if (transactionId == id.TransactionId) continue;
-                    const auto& node = cypressManager->GetVersionedNode(
-                        id.ObjectId,
-                        transactionId);
+                FOREACH (const auto& currentTransaction, transactions) {
+                    if (currentTransaction == originatingTransaction) {
+                        continue;
+                    }
+                    const auto& node = cypressManager->GetVersionedNode(originatingId.ObjectId, currentTransaction);
                     const auto& map = static_cast<const TMapNode&>(node).KeyToChild();
                     auto innerIt = map.find(pair.first);
                     if (innerIt != map.end()) {
@@ -206,13 +211,15 @@ void TMapNodeTypeHandler::DoMerge(
     originatingNode.ChildCountDelta() += branchedNode.ChildCountDelta();
 }
 
-ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
+ICypressNodeProxy::TPtr TMapNodeTypeHandler::GetProxy(
+    const TNodeId& nodeId,
+    TTransaction* transaction)
 {
     return New<TMapNodeProxy>(
         this,
         Bootstrap,
-        id.TransactionId,
-        id.ObjectId);
+        transaction,
+        nodeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,13 +266,15 @@ ENodeType TListNodeTypeHandler::GetNodeType()
     return ENodeType::List;
 }
 
-ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(const TVersionedNodeId& id)
+ICypressNodeProxy::TPtr TListNodeTypeHandler::GetProxy(
+    const TNodeId& nodeId,
+    TTransaction* transaction)
 {
     return New<TListNodeProxy>(
         this,
         Bootstrap,
-        id.TransactionId,
-        id.ObjectId);
+        transaction,
+        nodeId);
 }
 
 void TListNodeTypeHandler::DoDestroy(TListNode& node)

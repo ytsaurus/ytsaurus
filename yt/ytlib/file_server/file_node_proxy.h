@@ -23,7 +23,7 @@ public:
     TFileNodeProxy(
         NCypress::INodeTypeHandler* typeHandler,
         NCellMaster::TBootstrap* bootstrap,
-        const NObjectServer::TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         const NCypress::TNodeId& nodeId);
 
     bool IsExecutable();

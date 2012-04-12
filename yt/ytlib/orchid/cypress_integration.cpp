@@ -21,9 +21,8 @@ using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
 using namespace NCypress;
-using namespace NProto;
-using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NOrchid::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,9 +38,9 @@ class TOrchidYPathService
 public:
     typedef TIntrusivePtr<TOrchidYPathService> TPtr;
 
-    explicit TOrchidYPathService(
+    TOrchidYPathService(
         TBootstrap* bootstrap,
-        const TVersionedObjectId& id)
+        const TNodeId& id)
         : Bootstrap(bootstrap)
         , Id(id)
     { }
@@ -102,7 +101,7 @@ public:
 
 private:
     TBootstrap* Bootstrap;
-    TVersionedObjectId Id;
+    TNodeId Id;
 
     TOrchidManifest::TPtr LoadManifest()
     {
@@ -152,10 +151,9 @@ INodeTypeHandler::TPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::Orchid,
-        BIND([=] (const TVersionedObjectId& id) -> IYPathServicePtr
-            {
-                return New<TOrchidYPathService>(bootstrap, id);
-            }));
+        BIND([=] (const TNodeId& id) -> IYPathServicePtr {
+            return New<TOrchidYPathService>(bootstrap, id);
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

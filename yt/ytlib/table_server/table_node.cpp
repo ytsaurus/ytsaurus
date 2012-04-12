@@ -111,13 +111,15 @@ public:
         return nodeId;
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction)
     {
         return New<TTableNodeProxy>(
             this,
             Bootstrap,
-            id.TransactionId,
-            id.ObjectId);
+            transaction,
+            nodeId);
     }
 
 protected:

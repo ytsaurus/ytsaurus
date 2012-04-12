@@ -31,7 +31,9 @@ struct IObjectTypeHandler
 
     //! Given a versioned object id, constructs a proxy for it.
     //! The object with the given id must exist.
-    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id) = 0;
+    virtual IObjectProxy::TPtr GetProxy(
+        const TObjectId& id,
+        NTransactionServer::TTransaction* transaction) = 0;
 
     typedef NRpc::TTypedServiceRequest<NTransactionServer::NProto::TReqCreateObject> TReqCreateObject;
     typedef NRpc::TTypedServiceResponse<NTransactionServer::NProto::TRspCreateObject> TRspCreateObject;

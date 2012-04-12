@@ -17,18 +17,20 @@ using namespace NRpc;
 using namespace NFileClient::NProto;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NTransactionServer;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileNodeProxy::TFileNodeProxy(
     INodeTypeHandler* typeHandler,
     TBootstrap* bootstrap,
-    const TTransactionId& transactionId,
+    TTransaction* transaction,
     const TNodeId& nodeId)
     : TCypressNodeProxyBase<IEntityNode, TFileNode>(
         typeHandler,
         bootstrap,
-        transactionId,
+        transaction,
         nodeId)
 { }
 

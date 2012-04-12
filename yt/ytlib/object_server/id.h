@@ -102,6 +102,13 @@ extern TTransactionId NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class T>
+TObjectId GetObjectId(T* object) {
+    return object ? object->GetId() : NullObjectId;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Identifies a node possibly branched by a transaction.
 struct TVersionedObjectId
 {

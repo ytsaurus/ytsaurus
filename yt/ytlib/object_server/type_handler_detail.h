@@ -56,9 +56,12 @@ public:
         return obj.GetObjectRefCounter();
     }
 
-    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id)
+    virtual IObjectProxy::TPtr GetProxy(
+        const TObjectId& id,
+        NTransactionServer::TTransaction* transaction)
     {
-        return New< TUnversionedObjectProxyBase<TObject> >(Bootstrap, id.ObjectId, Map);
+        UNUSED(transaction);
+        return New< TUnversionedObjectProxyBase<TObject> >(Bootstrap, id, Map);
     }
 
     virtual TObjectId Create(

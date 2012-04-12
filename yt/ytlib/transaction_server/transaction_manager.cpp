@@ -213,7 +213,7 @@ class TTransactionManager::TTransactionTypeHandler
     : public TObjectTypeHandlerBase<TTransaction>
 {
 public:
-    TTransactionTypeHandler(TTransactionManager* owner)
+    explicit TTransactionTypeHandler(TTransactionManager* owner)
         : TObjectTypeHandlerBase(owner->Bootstrap, &owner->TransactionMap)
         , Owner(owner)
     { }
@@ -235,9 +235,12 @@ public:
         return transaction.GetId();
     }
 
-    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id)
+    virtual IObjectProxy::TPtr GetProxy(
+        const TObjectId& id,
+        NTransactionServer::TTransaction* transaction)
     {
-        return New<TTransactionProxy>(Owner, id.ObjectId);
+        UNUSED(transaction);
+        return New<TTransactionProxy>(Owner, id);
     }
 
     virtual bool IsTransactionRequired() const
@@ -449,7 +452,7 @@ void TTransactionManager::OnLeaderRecoveryComplete()
     FOREACH (const auto& pair, TransactionMap) {
         const auto& id = pair.first;
         const auto& transaction = *pair.second;
-        auto proxy = objectManager->GetProxy(id);
+        auto proxy = objectManager->GetProxy(id, NULL);
         auto timeout = proxy->Attributes().Find<TDuration>("timeout");
         CreateLease(transaction, timeout);
     }
@@ -505,15 +508,14 @@ IObjectProxy::TPtr TTransactionManager::GetRootTransactionProxy()
 
 DEFINE_METAMAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, TransactionMap)
 
-std::vector<TTransactionId> TTransactionManager::GetTransactionPath(const TTransactionId& transactionId) const
+std::vector<TTransaction*> TTransactionManager::GetTransactionPath(TTransaction* transaction) const
 {
-    std::vector<TTransactionId> path;
-    path.push_back(transactionId);
-    auto currentId = transactionId;
-    while (currentId != NullTransactionId) {
-        const auto& transaction = GetTransaction(currentId);
-        currentId = transaction.GetParentId();
-        path.push_back(currentId);
+    std::vector<TTransaction*> path;
+    path.push_back(transaction);
+    auto current = transaction;
+    while (current != NULL) {
+        current = current->GetParent();
+        path.push_back(current);
     }
     return path;
 }

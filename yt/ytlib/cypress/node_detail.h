@@ -2,13 +2,13 @@
 
 #include "node.h"
 #include "cypress_manager.h"
-#include <ytlib/ytree/ypath.pb.h>
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/ytree/node_detail.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/tree_builder.h>
+#include <ytlib/ytree/ypath.pb.h>
 #include <ytlib/object_server/object_detail.h>
 #include <ytlib/cell_master/bootstrap.h>
 
@@ -43,7 +43,7 @@ protected:
 
     TIntrusivePtr<TProxy> GetProxy()
     {
-        auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(NodeId, NullTransactionId);
+        auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(NodeId, NULL);
         auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
         YASSERT(typedProxy);
         return typedProxy;
@@ -106,13 +106,13 @@ public:
 
     virtual TAutoPtr<ICypressNode> Branch(
         const ICypressNode& originatingNode,
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         ELockMode mode)
     {
         const auto& typedOriginatingNode = dynamic_cast<const TImpl&>(originatingNode);
 
         auto originatingId = originatingNode.GetId();
-        auto branchedId = TVersionedNodeId(originatingId.ObjectId, transactionId);
+        auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
 
         // Create a branched copy.
         TAutoPtr<TImpl> branchedNode = new TImpl(branchedId, typedOriginatingNode);
@@ -256,6 +256,7 @@ class TScalarNode
 public:
     explicit TScalarNode(const TVersionedNodeId& id)
         : TCypressNodeBase(id)
+        , Value_()
     { }
 
     TScalarNode(const TVersionedNodeId& id, const TThis& other)
@@ -301,7 +302,9 @@ public:
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction);
 
 protected:
     virtual void DoMerge(
@@ -348,7 +351,9 @@ public:
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction);
 
 private:
     typedef TMapNodeTypeHandler TThis;
@@ -395,7 +400,9 @@ public:
     virtual EObjectType GetObjectType();
     virtual NYTree::ENodeType GetNodeType();
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id);
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction);
 
 private:
     typedef TListNodeTypeHandler TThis;

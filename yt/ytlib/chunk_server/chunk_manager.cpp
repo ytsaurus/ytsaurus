@@ -58,7 +58,7 @@ class TChunkManager::TChunkTypeHandler
     : public TObjectTypeHandlerBase<TChunk>
 {
 public:
-    TChunkTypeHandler(TImpl* owner);
+    explicit TChunkTypeHandler(TImpl* owner);
 
     virtual EObjectType GetType()
     {
@@ -70,7 +70,9 @@ public:
         TReqCreateObject* request,
         TRspCreateObject* response);
 
-    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
+    virtual IObjectProxy::TPtr GetProxy(
+        const TObjectId& id,
+        NTransactionServer::TTransaction* transaction);
 
 private:
     TImpl* Owner;
@@ -85,7 +87,7 @@ class TChunkManager::TChunkListTypeHandler
     : public TObjectTypeHandlerBase<TChunkList>
 {
 public:
-    TChunkListTypeHandler(TImpl* owner);
+    explicit TChunkListTypeHandler(TImpl* owner);
 
     virtual EObjectType GetType()
     {
@@ -97,7 +99,9 @@ public:
         TReqCreateObject* request,
         TRspCreateObject* response);
 
-    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
+    virtual IObjectProxy::TPtr GetProxy(
+        const TObjectId& id,
+        NTransactionServer::TTransaction* transaction);
 
 private:
     TImpl* Owner;
@@ -1394,9 +1398,12 @@ TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::GetProxy(const TVersionedObjectId& id)
+IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::GetProxy(
+    const TObjectId& id,
+    NTransactionServer::TTransaction* transaction)
 {
-    return New<TChunkProxy>(Owner, id.ObjectId);
+    UNUSED(transaction);
+    return New<TChunkProxy>(Owner, id);
 }
 
 TObjectId TChunkManager::TChunkTypeHandler::Create(
@@ -1583,9 +1590,12 @@ TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::GetProxy(const TVersionedObjectId& id)
+IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::GetProxy(
+    const TObjectId& id,
+    NTransactionServer::TTransaction* transaction)
 {
-    return New<TChunkListProxy>(Owner, id.ObjectId);
+    UNUSED(transaction);
+    return New<TChunkListProxy>(Owner, id);
 }
 
 TObjectId TChunkManager::TChunkListTypeHandler::Create(

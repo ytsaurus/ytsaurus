@@ -46,7 +46,9 @@ struct INodeTypeHandler
      *  is being created (possibly #NullTransactionId).
      *  \return The constructed proxy.
      */
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id) = 0;
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction) = 0;
 
     //! Returns the (dynamic) node type.
     virtual EObjectType GetObjectType() = 0;
@@ -90,12 +92,12 @@ struct INodeTypeHandler
     //! Branches a node into a given transaction.
     /*!
      *  \param node The originating node.
-     *  \param transactionId The id of the transaction that needs a copy of the node.
+     *  \param transaction* Transaction that needs a copy of the node.
      *  \returns The branched node.
      */
     virtual TAutoPtr<ICypressNode> Branch(
         const ICypressNode& node,
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         ELockMode mode) = 0;
 
     //! Merges the changes made in the branched node back into the committed one.
