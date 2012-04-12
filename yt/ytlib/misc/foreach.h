@@ -89,7 +89,7 @@ inline auto End(TIntrusiveList<T>& collection) -> decltype(collection.End())
  *  - using FOREACH incurs a small overhead due to manipulations with the flag,
  *    hence one should avoid using at hotspots
  */
-#define FOREACH (var, collection) \
+#define FOREACH(var, collection) \
     auto&& PP_CONCAT(foreach_collection_, __LINE__) = collection; \
     auto   PP_CONCAT(foreach_current_,    __LINE__) = ::NYT::NForeach::Begin(PP_CONCAT(foreach_collection_, __LINE__)); \
     auto   PP_CONCAT(foreach_end_,        __LINE__) = ::NYT::NForeach::End(  PP_CONCAT(foreach_collection_, __LINE__)); \
