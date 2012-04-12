@@ -587,7 +587,7 @@ protected:
         }
 
         auto nodeId = handler->CreateDynamic(
-            Transaction,
+            this->Transaction,
             request,
             response);
 
