@@ -267,18 +267,19 @@ public:
         YASSERT(recordCount >= 0);
         YASSERT(result);
 
-        if (recordCount == 0)
+        if (recordCount == 0) {
             return;
-        
+        }
+
         auto queue = FindQueueAndLock(changeLog);
         if (queue) {
             queue->Read(firstRecordId, recordCount, result);
+            UnlockQueue(queue);
         } else {
             PROFILE_TIMING ("/changelog_read_io_time") {
                 changeLog->Read(firstRecordId, recordCount, result);
             }
         }
-        UnlockQueue(queue);
     }
 
     void Flush(const TChangeLogPtr& changeLog)
