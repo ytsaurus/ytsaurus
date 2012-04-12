@@ -1,43 +1,53 @@
 ﻿#pragma once
 
-#include "value.h"
+#include "public.h"
+#include "key.h"
+
 #include <ytlib/misc/ref_counted.h>
+#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISyncTableWriter
+struct ISyncWriter
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<ISyncTableWriter> TPtr;
-
     virtual void Open() = 0;
-    virtual void Write(const TColumn& column, TValue value) = 0;
-    virtual void EndRow() = 0;
+
+    /*! 
+     *  \param key - is used only if table is sorted, e.g. GetKeyColumns
+     *  returns not null.
+     */
+    virtual void WriteRow(const TRow& row, const TKey& key) = 0;
     virtual void Close() = 0;
+
+    virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
+
+    //! Current row count.
+    virtual i64 GetRowCount() const = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TValidatingWriter;
-
-class TSyncValidatingAdaptor
-    : public ISyncTableWriter
+class TSyncWriterAdapter
+    : public ISyncWriter
 {
 public:
-    typedef TIntrusivePtr<TSyncValidatingAdaptor> TPtr;
-
-    TSyncValidatingAdaptor(TValidatingWriter* writer);
+    TSyncWriterAdapter(IAsyncWriterPtr writer);
 
     void Open();
-    void Write(const TColumn& column, TValue value);
-    void EndRow();
+    void WriteRow(const TRow& row, const TKey& key = TKey());
     void Close();
 
+    const TNullable<TKeyColumns>& GetKeyColumns() const;
+
+    i64 GetRowCount() const ;
+
 private:
-    TAutoPtr<TValidatingWriter> ValidatingWriter;
+    IAsyncWriterPtr Writer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

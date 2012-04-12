@@ -28,6 +28,7 @@ message TMisc
     optional int64 uncompressed_size = 1 [default = 0];
     optional int64 row_count = 2 [default = 0];
     optional int32 codec_id = 3 [default = 0];
+    optional bool sorted = 4 [default = false];
 }
 
 // TChunkMeta is stored in *.meta files on chunk holders

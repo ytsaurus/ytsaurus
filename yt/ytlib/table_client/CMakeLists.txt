@@ -14,14 +14,16 @@ set( SRCS
   ${BASE}/sync_writer.cpp
   ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
-  ${BASE}/validating_writer.cpp
+  ${BASE}/table_consumer.cpp
   ${BASE}/value.cpp
-  ${BASE}/yson_row_consumer.cpp
+  ${BASE}/key.cpp
+  ${BASE}/value_consumer.cpp
   ${BASE}/yson_table_input.cpp
   ${BASE}/yson_table_output.cpp
 )
 set( HDRS
   ${BASE}/async_reader.h
+  ${BASE}/config.h
   ${BASE}/async_writer.h
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
@@ -37,9 +39,10 @@ set( HDRS
   ${BASE}/sync_writer.h
   ${BASE}/table_reader.h
   ${BASE}/table_writer.h
-  ${BASE}/validating_writer.h
+  ${BASE}/table_consumer.h
   ${BASE}/value.h
-  ${BASE}/yson_row_consumer.h
+  ${BASE}/key.h
+  ${BASE}/value_consumer.h
   ${BASE}/yson_table_input.h
   ${BASE}/yson_table_output.h
 )

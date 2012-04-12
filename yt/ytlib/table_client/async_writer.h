@@ -1,28 +1,28 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "value.h"
-#include "schema.h"
-#include "channel_writer.h"
-
-#include <ytlib/chunk_holder/chunk.pb.h>
+#include "key.h"
 
 #include <ytlib/misc/ref_counted.h>
+#include <ytlib/misc/nullable.h>
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::map<TStringBuf, TStringBuf> TRow;
-
 struct IAsyncWriter
     : public virtual TRefCounted
 {
     virtual TAsyncError AsyncOpen() = 0;
-    virtual TAsyncError AsyncWriteRow(const TRow& row) = 0;
-    virtual TAsyncError AsyncSwitchChunk(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
-    virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta) = 0;
+    virtual TAsyncError AsyncWriteRow(const TRow& row, const TKey& key = TKey()) = 0;
+    virtual TAsyncError AsyncClose() = 0;
+
+    virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
+
+    //! Current row count.
+    virtual i64 GetRowCount() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

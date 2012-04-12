@@ -1,7 +1,7 @@
 ﻿#include "stdafx.h"
 
 #include "sync_writer.h"
-#include "validating_writer.h"
+#include "async_writer.h"
 
 #include <ytlib/misc/sync.h>
 
@@ -10,28 +10,33 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSyncValidatingAdaptor::TSyncValidatingAdaptor(TValidatingWriter* writer)
-    : ValidatingWriter(writer)
+TSyncWriterAdapter::TSyncWriterAdapter(IAsyncWriterPtr writer)
+    : Writer(writer)
 { }
 
-void TSyncValidatingAdaptor::Open()
+void TSyncWriterAdapter::Open()
 {
-    Sync(ValidatingWriter.Get(), &TValidatingWriter::AsyncOpen);
+    Sync(~Writer, &IAsyncWriter::AsyncOpen);
 }
 
-void TSyncValidatingAdaptor::Write(const TColumn& column, TValue value)
+void TSyncWriterAdapter::WriteRow(const TRow& row, const TKey& key)
 {
-    ValidatingWriter->Write(column, value);
+    Sync(~Writer, &IAsyncWriter::AsyncWriteRow, row, key);
 }
 
-void TSyncValidatingAdaptor::EndRow()
+void TSyncWriterAdapter::Close()
 {
-    Sync(ValidatingWriter.Get(), &TValidatingWriter::AsyncEndRow);
+    Sync(~Writer, &IAsyncWriter::AsyncClose);
 }
 
-void TSyncValidatingAdaptor::Close()
+const TNullable<TKeyColumns>& TSyncWriterAdapter::GetKeyColumns() const
 {
-    Sync(ValidatingWriter.Get(), &TValidatingWriter::AsyncClose);
+    return Writer->GetKeyColumns();
+}
+
+i64 TSyncWriterAdapter::GetRowCount() const
+{
+    return Writer->GetRowCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

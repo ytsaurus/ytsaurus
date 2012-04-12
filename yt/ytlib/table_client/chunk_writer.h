@@ -1,11 +1,11 @@
 ﻿#pragma once
 
-#include "common.h"
-
+#include "public.h"
 #include "async_writer.h"
-#include "value.h"
+
 #include "schema.h"
 #include "channel_writer.h"
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/async_writer.h>
@@ -13,7 +13,6 @@
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/configurable.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -24,47 +23,22 @@ class  TChunkWriter
     : public IAsyncWriter
 {
 public:
-    typedef TIntrusivePtr<TChunkWriter> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-        
-        i64 BlockSize;
-        i64 SamplingSize;
-        int CodecId;
-
-        TConfig()
-        {
-            // Block less than 1Kb is a nonsense.
-            Register("block_size", BlockSize)
-                .GreaterThan(1024)
-                .Default(1024 * 1024);
-            Register("sampling_size", SamplingSize)
-                .GreaterThanOrEqual(1000)
-                .Default(100000);
-            Register("codec_id", CodecId)
-                .Default(ECodecId::None);
-        }
-    };
-
     TChunkWriter(
-        TConfig* config, 
-        NChunkClient::IAsyncWriter* chunkWriter);
+        const TChunkWriterConfigPtr& config,
+        NChunkClient::IAsyncWriter* chunkWriter,
+        const TSchema& schema,
+        const TNullable<TKeyColumns>& keyColumns);
 
     ~TChunkWriter();
 
-    TAsyncError AsyncOpen(
-        const NProto::TTableChunkAttributes& attributes);
+    TAsyncError AsyncOpen();
 
-    TAsyncError AsyncEndRow(
-        const TKey& key,
-        const std::vector<TChannelWriter::TPtr>& channels);
+    TAsyncError AsyncWriteRow(const TRow& row, const TKey& key);
 
-    TAsyncError AsyncClose(
-        const std::vector<TChannelWriter::TPtr>& channels);
+    TAsyncError AsyncClose();
 
+    const TNullable<TKeyColumns>& GetKeyColumns() const;
+    virtual i64 GetRowCount() const;
     i64 GetCurrentSize() const;
     NChunkServer::TChunkId GetChunkId() const;
     NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest();
@@ -77,14 +51,20 @@ private:
     void AddKeySample();
 
 private:
-    TConfig::TPtr Config;
+    const TSchema Schema;
+    TChunkWriterConfigPtr Config;
 
     ICodec* Codec;
 
     NChunkClient::IAsyncWriter::TPtr ChunkWriter;
 
+    std::vector<TChannelWriter::TPtr> ChannelWriters;
+
     bool IsOpen;
     bool IsClosed;
+
+    //! Stores mapping from all key columns and channel non-range columns to indexes.
+    yhash_map<TStringBuf, int> ColumnIndexes;
 
     int CurrentBlockIndex;
 

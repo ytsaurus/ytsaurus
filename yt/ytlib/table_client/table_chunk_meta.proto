@@ -1,11 +1,61 @@
 package NYT.NTableClient.NProto;
 
-import "yt/ytlib/chunk_holder/chunk.proto";
-import "yt/ytlib/table_client/schema.proto";
-
-//option optimize_for = SPEED;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+message TRange
+{
+    required bytes begin = 1;
+    required bytes end = 2;
+    required bool is_infinite = 3;
+}
+
+message TChannel 
+{
+    repeated bytes columns = 1;
+    repeated TRange ranges = 2;
+}
+
+message TKeyPart
+{
+    required int32 type = 1;
+    optional bytes str_value = 2;
+    optional int64 int_value = 3;
+    optional double double_value = 4;
+}
+
+message TKey
+{
+    repeated TKeyPart key_parts = 1;
+}
+
+message TSample
+{
+    required bytes column = 1;
+    required TKeyPart key_part = 2;
+}
+
+message TSamples
+{
+    repeated TSample values = 1;
+}
+
+message TIndexRow
+{
+    required TKey key = 1;
+    required int64 row_index = 2;
+}
+
+message TIndex 
+{
+    repeated bytes key_columns = 1;
+    repeated TIndexRow index_rows = 2;
+}
+
+message TBoundaryKeys
+{
+    required TKey first = 1;
+    required TKey last = 2;
+}
 
 message TBlockInfo
 {
@@ -17,37 +67,6 @@ message TChunkChannel
 {
     required TChannel channel = 1;
     repeated TBlockInfo blocks = 2;
-}
-
-message TKeySample
-{
-    required TKey key = 1;
-    required int64 row_index = 2;
-}
-
-message TTableChunkAttributes
-{
-    extend NYT.NChunkHolder.NProto.TChunkAttributes
-    {
-        required TTableChunkAttributes table_attributes = 101;
-    }
-
-    repeated TChunkChannel chunk_channels = 1;
-
-    // Id of the codec using for compressing blocks.
-    required int32 codec_id = 2;
-
-    // Number of table rows in the chunk.
-    required int64 row_count = 3;
-
-    // Uncompressed data size.
-    // This has no exact meaning and depends on the physical layout of the data.
-    required int64 uncompressed_size = 4;
-
-    repeated bytes key_columns = 5;
-    repeated TKeySample key_samples = 6;
-
-    required bool is_sorted = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
