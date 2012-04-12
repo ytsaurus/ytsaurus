@@ -4,7 +4,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/ytree/json_adapter.h>
 #include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/serialize.h>
@@ -31,9 +31,7 @@ Stroka OnResponse(TYPathProxy::TRspGet::TPtr rsp)
     // TODO(babenko): maybe extract method
     TStringStream output;
     TJsonAdapter adapter(&output);
-    TStringInput input(rsp->value());
-    TYsonReader reader(&adapter, &input);
-    reader.Read();
+    ParseYson(rsp->value(), &adapter);
     adapter.Flush();
 
     return FormatOKResponse(output.Str());

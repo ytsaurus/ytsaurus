@@ -2,8 +2,7 @@
 
 #include "public.h"
 #include "yson_consumer.h"
-#include "yson_reader.h"
-#include "yson_writer.h"
+#include "yson_parser.h"
 #include "tree_visitor.h"
 #include "serialize.h"
 
@@ -22,49 +21,49 @@ class TFluentYsonBuilder
     : private TNonCopyable
 {
 private:
-    static void WriteScalar(IYsonConsumer* consumer, const char* value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, const char* value)
     {
-        WriteScalar(consumer, Stroka(value), hasAttributes);
+        WriteScalar(consumer, Stroka(value));
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, i32 value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, i32 value)
     {
-        WriteScalar(consumer, static_cast<i64>(value), hasAttributes);
+        WriteScalar(consumer, static_cast<i64>(value));
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, ui32 value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, ui32 value)
     {
-        WriteScalar(consumer, static_cast<i64>(value), hasAttributes);
+        WriteScalar(consumer, static_cast<i64>(value));
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, float value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, float value)
     {
-        WriteScalar(consumer, static_cast<double>(value), hasAttributes);
+        WriteScalar(consumer, static_cast<double>(value));
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, bool value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, bool value)
     {
-        WriteScalar(consumer, FormatBool(value), hasAttributes);
+        WriteScalar(consumer, FormatBool(value));
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, const TGuid& value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, const TGuid& value)
     {
-        WriteScalar(consumer, value.ToString(), hasAttributes);
+        WriteScalar(consumer, value.ToString());
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, const Stroka& value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, const Stroka& value)
     {
-        consumer->OnStringScalar(value, hasAttributes);
+        consumer->OnStringScalar(value);
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, double value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, double value)
     {
-        consumer->OnDoubleScalar(value, hasAttributes);
+        consumer->OnDoubleScalar(value);
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, i64 value, bool hasAttributes)
+    static void WriteScalar(IYsonConsumer* consumer, i64 value)
     {
-        consumer->OnIntegerScalar(value, hasAttributes);
+        consumer->OnIntegerScalar(value);
     }
 
 public:
@@ -97,29 +96,26 @@ public:
     };
 
     template <class TParent>
-    class TAny
+    class TAnyWithoutAttributes
         : public TFluentBase<TParent>
     {
     public:
-        typedef TAny<TParent> TThis;
+        typedef TAnyWithoutAttributes<TParent> TThis;
 
-        TAny(IYsonConsumer* consumer, const TParent& parent, bool hasAttributes)
+        TAnyWithoutAttributes(IYsonConsumer* consumer, const TParent& parent)
             : TFluentBase<TParent>(consumer, parent)
-            , HasAttributes(hasAttributes)
         { }
 
         template <class T>
         TParent Scalar(T value)
         {
-            WriteScalar(this->Consumer, value, HasAttributes);
+            WriteScalar(this->Consumer, value);
             return this->Parent;
         }
 
         TParent Node(const TYson& value)
         {
-            TStringInput stream(value);
-            TYsonReader reader(this->Consumer, &stream);
-            reader.Read();
+            ParseYson(value, this->Consumer);
             return this->Parent;
         }
 
@@ -131,7 +127,7 @@ public:
 
         TParent Entity()
         {
-            this->Consumer->OnEntity(HasAttributes);
+            this->Consumer->OnEntity();
             return this->Parent;
         }
 
@@ -141,16 +137,16 @@ public:
             this->Consumer->OnBeginList();
             FOREACH (const auto& item, collection) {
                 this->Consumer->OnListItem();
-                WriteScalar(this->Consumer, item, false);
+                WriteScalar(this->Consumer, item);
             }
-            this->Consumer->OnEndList(HasAttributes);
+            this->Consumer->OnEndList();
             return this->Parent;
         }
 
         TList<TParent> BeginList()
         {
             this->Consumer->OnBeginList();
-            return TList<TParent>(this->Consumer, this->Parent, HasAttributes);
+            return TList<TParent>(this->Consumer, this->Parent);
         }
 
         template <class TFunc>
@@ -187,7 +183,7 @@ public:
         TMap<TParent> BeginMap()
         {
             this->Consumer->OnBeginMap();
-            return TMap<TParent>(this->Consumer, this->Parent, HasAttributes);
+            return TMap<TParent>(this->Consumer, this->Parent);
         }
 
         template <class TFunc>
@@ -220,32 +216,26 @@ public:
             this->Consumer->OnEndMap();
             return this->Parent;
         }
-
-        TAny< TToAttributes<TParent> > WithAttributes()
-        {
-            return TAny< TToAttributes<TParent> >(
-                this->Consumer,
-                TToAttributes<TParent>(this->Consumer, this->Parent),
-                true);
-        }
-
-        bool HasAttributes;
-
     };
 
     template <class TParent>
-    class TToAttributes
-        : public TFluentBase<TParent>
+    class TAny
+        : public TAnyWithoutAttributes<TParent>
     {
     public:
-        TToAttributes(IYsonConsumer* consumer, const TParent& parent)
-            : TFluentBase<TParent>(consumer, parent)
+        typedef TAny<TParent> TThis;
+        typedef TAnyWithoutAttributes<TParent> TBase;
+
+        TAny(IYsonConsumer* consumer, const TParent& parent)
+            : TAnyWithoutAttributes<TParent>(consumer, parent)
         { }
 
-        TAttributes<TParent> BeginAttributes()
+        TAttributes<TBase> BeginAttributes()
         {
             this->Consumer->OnBeginAttributes();
-            return TAttributes<TParent>(this->Consumer, this->Parent);
+            return TAttributes<TBase>(
+                this->Consumer,
+                TBase(this->Consumer, this->Parent));
         }
     };
 
@@ -263,7 +253,7 @@ public:
         TAny<TThis> Item(const Stroka& key)
         {
             this->Consumer->OnAttributesItem(key);
-            return TAny<TThis>(this->Consumer, *this, false);
+            return TAny<TThis>(this->Consumer, *this);
         }
 
         TParent EndAttributes()
@@ -280,15 +270,14 @@ public:
     public:
         typedef TList<TParent> TThis;
 
-        TList(IYsonConsumer* consumer, const TParent& parent = TParent(), bool hasAttributes = false)
+        TList(IYsonConsumer* consumer, const TParent& parent = TParent())
             : TFluentBase<TParent>(consumer, parent)
-            , HasAttributes(hasAttributes)
         { }
 
         TAny<TThis> Item()
         {
             this->Consumer->OnListItem();
-            return TAny<TThis>(this->Consumer, *this, false);
+            return TAny<TThis>(this->Consumer, *this);
         }
 
         TList& Do(TYsonProducer producer)
@@ -333,13 +322,9 @@ public:
 
         TParent EndList()
         {
-            this->Consumer->OnEndList(HasAttributes);
+            this->Consumer->OnEndList();
             return this->Parent;
         }
-
-    private:
-        bool HasAttributes;
-
     };
 
     template <class TParent = TVoid>
@@ -349,15 +334,14 @@ public:
     public:
         typedef TMap<TParent> TThis;
 
-        TMap(IYsonConsumer* consumer, const TParent& parent = TParent(), bool hasAttributes = false)
+        TMap(IYsonConsumer* consumer, const TParent& parent = TParent())
             : TFluentBase<TParent>(consumer, parent)
-            , HasAttributes(hasAttributes)
         { }
 
         TAny<TThis> Item(const Stroka& key)
         {
             this->Consumer->OnMapItem(key);
-            return TAny<TThis>(this->Consumer, *this, false);
+            return TAny<TThis>(this->Consumer, *this);
         }
 
         TMap& Do(TYsonProducer producer)
@@ -403,13 +387,9 @@ public:
         //TODO(panin): forbid this call for TParent = TVoid
         TParent EndMap()
         {
-            this->Consumer->OnEndMap(HasAttributes);
+            this->Consumer->OnEndMap();
             return this->Parent;
         }
-    
-    private:
-        bool HasAttributes;
-
     };
 
 };
@@ -421,7 +401,7 @@ typedef TFluentYsonBuilder::TMap<TVoid>   TFluentMap;
 
 inline TFluentYsonBuilder::TAny<TVoid> BuildYsonFluently(IYsonConsumer* consumer)
 {
-    return TFluentYsonBuilder::TAny<TVoid>(consumer, TVoid(), false);
+    return TFluentYsonBuilder::TAny<TVoid>(consumer, TVoid());
 }
 
 inline TFluentList BuildYsonListFluently(IYsonConsumer* consumer)
@@ -484,8 +464,7 @@ inline TFluentYsonBuilder::TAny<TFluentYsonHolder> BuildYsonFluently(
     TFluentYsonHolder holder(consumer);
     return TFluentYsonBuilder::TAny<TFluentYsonHolder>(
         consumer->GetConsumer(),
-        holder,
-        false);
+        holder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,7 +10,7 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
-#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/ephemeral.h>
 
 #include <ytlib/election/leader_channel.h>
@@ -199,9 +199,7 @@ public:
     virtual void ReplySuccess(const TYson& yson)
     {
         auto consumer = CreateOutputConsumer();
-        TStringInput input(yson);
-        TYsonReader reader(~consumer, &input);
-        reader.Read();
+        ParseYson(yson, ~consumer);
     }
 
     // Simplified version for unconditional success (yes, it's empty output).
@@ -213,8 +211,7 @@ public:
     {
         auto stream = CreateInputStream();
         return BIND([=] (IYsonConsumer* consumer) {
-            TYsonReader reader(consumer, ~stream);
-            reader.Read();
+            ParseYson(~stream, consumer);
         });
     }
 

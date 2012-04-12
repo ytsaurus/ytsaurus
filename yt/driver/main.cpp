@@ -11,8 +11,6 @@
 #include <ytlib/rpc/rpc_manager.h>
 
 #include <ytlib/ytree/serialize.h>
-#include <ytlib/ytree/yson_reader.h>
-
 #include <ytlib/ytree/yson_parser.h>
 
 #include <ytlib/exec_agent/config.h>

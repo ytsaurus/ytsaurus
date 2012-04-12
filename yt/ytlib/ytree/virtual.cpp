@@ -52,20 +52,20 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 
     // TODO(MRoizner): use fluent
     BuildYsonFluently(&writer);
-    writer.OnBeginMap();
-    FOREACH (const auto& key, keys) {
-        writer.OnMapItem(key);
-        writer.OnEntity(false);
-    }
 
-    bool incomplete = keys.ysize() != size;
-    writer.OnEndMap(incomplete);
-    if (incomplete) {
+    if (keys.ysize() != size) {
         writer.OnBeginAttributes();
         writer.OnAttributesItem("incomplete");
         writer.OnStringScalar("true");
         writer.OnEndAttributes();
     }
+
+    writer.OnBeginMap();
+    FOREACH (const auto& key, keys) {
+        writer.OnMapItem(key);
+        writer.OnEntity();
+    }
+    writer.OnEndMap();
 
     response->set_value(stream.Str());
     context->Reply();

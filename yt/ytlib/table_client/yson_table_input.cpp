@@ -27,9 +27,9 @@ bool TYsonTableInput::ReadRow()
     YsonWriter.OnBeginMap();
     FOREACH(auto& pair, Reader->GetRow()) {
         YsonWriter.OnMapItem(pair.first);
-        YsonWriter.OnStringScalar(pair.second.ToString(), false);
+        YsonWriter.OnStringScalar(pair.second.ToString());
     }
-    YsonWriter.OnEndMap(false);
+    YsonWriter.OnEndMap();
 
     Reader->NextRow();
     return true;

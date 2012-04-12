@@ -12,11 +12,13 @@ DECLARE_ENUM(EYsonFormat,
     // Binary.
     // Most compact but not human-readable.
     (Binary)
+
     // Text.
     // Not so compact but human-readable.
     // Does not use indentation.
     // Uses escaping for non-text characters.
     (Text)
+
     // Text with indentation.
     // Extremely verbose but human-readable.
     // Uses escaping for non-text characters.
@@ -37,18 +39,18 @@ public:
     TYsonWriter(TOutputStream* stream, EYsonFormat format = EYsonFormat::Binary);
 
     // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes = false);
-    virtual void OnIntegerScalar(i64 value, bool hasAttributes = false);
-    virtual void OnDoubleScalar(double value, bool hasAttributes = false);
-    virtual void OnEntity(bool hasAttributes = false);
+    virtual void OnStringScalar(const TStringBuf& value);
+    virtual void OnIntegerScalar(i64 value);
+    virtual void OnDoubleScalar(double value);
+    virtual void OnEntity();
 
     virtual void OnBeginList();
     virtual void OnListItem();
-    virtual void OnEndList(bool hasAttributes = false);
+    virtual void OnEndList();
 
     virtual void OnBeginMap();
     virtual void OnMapItem(const TStringBuf& name);
-    virtual void OnEndMap(bool hasAttributes = false);
+    virtual void OnEndMap();
 
     virtual void OnBeginAttributes();
     virtual void OnAttributesItem(const TStringBuf& name);

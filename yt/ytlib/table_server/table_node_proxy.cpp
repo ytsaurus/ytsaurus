@@ -3,9 +3,9 @@
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/serialize.h>
-#include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/yson_parser.h>
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -175,11 +175,13 @@ void TTableNodeProxy::ParseYPath(
     // Parse channel.
     auto channelBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     channelBuilder->BeginTree();
-    TStringInput channelInput(currentPath);
-    TYsonFragmentReader channelReader(~channelBuilder, &channelInput);
-    if (channelReader.HasNext()) {
-        channelReader.ReadNext();
-        *channel = TChannel::FromNode(~channelBuilder->EndTree());
+    channelBuilder->OnBeginList();
+    ParseYson(currentPath, ~channelBuilder, TYsonParser::EMode::ListFragment);
+    channelBuilder->OnEndList();
+    auto node = channelBuilder->EndTree()->AsList();
+    if (node->GetChildCount() > 0) {
+        YASSERT(node->GetChildCount() == 1);
+        *channel = TChannel::FromNode(~node->GetChild(0));
     }
 
     // TODO(babenko): parse range.

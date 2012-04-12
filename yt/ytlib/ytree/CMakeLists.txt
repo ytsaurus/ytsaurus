@@ -20,7 +20,6 @@ set( SRCS
   ${BASE}/ypath_service.cpp
   ${BASE}/yson_file_service.cpp
   ${BASE}/yson_parser.cpp
-  ${BASE}/yson_reader.cpp
   ${BASE}/yson_writer.cpp
 )
 set( HDRS
@@ -53,7 +52,6 @@ set( HDRS
   ${BASE}/yson_file_service.h
   ${BASE}/yson_format.h
   ${BASE}/yson_parser.h
-  ${BASE}/yson_reader.h
   ${BASE}/yson_writer.h
   ${BASE}/ytree.h
 )

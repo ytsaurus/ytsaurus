@@ -1,5 +1,5 @@
 #include "ytree.h"
-#include "yson_reader.h"
+#include "yson_parser.h"
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "serialize.h"
@@ -15,17 +15,14 @@ namespace NYTree {
 TYsonProducer ProducerFromYson(TInputStream* input)
 {
     return BIND([=] (IYsonConsumer* consumer) {
-        TYsonReader reader(consumer, input);
-        reader.Read();
+        ParseYson(input, consumer);
     });
 }
 
 TYsonProducer ProducerFromYson(const TYson& data)
 {
     return BIND([=] (IYsonConsumer* consumer) {
-        TStringInput input(data);
-        TYsonReader reader(consumer, &input);
-        reader.Read();
+        ParseYson(data, consumer);
     });
 }
 
@@ -38,23 +35,19 @@ TYsonProducer ProducerFromNode(INode* node)
 
 void ValidateYson(TInputStream* input)
 {
-    TYsonReader reader(GetNullYsonConsumer(), input);
-    reader.Read();
+    ParseYson(input, GetNullYsonConsumer());
 }
 
 void ValidateYson(const TYson& yson)
 {
-    TStringInput input(yson);
-    TYsonReader reader(GetNullYsonConsumer(), &input);
-    reader.Read();
+    ParseYson(yson, GetNullYsonConsumer());
 }
 
 INodePtr DeserializeFromYson(TInputStream* input, INodeFactory* factory)
 {
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
-    TYsonReader reader(~builder, input);
-    reader.Read();
+    ParseYson(input, ~builder);
     return builder->EndTree();
 }
 
