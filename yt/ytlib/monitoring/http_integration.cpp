@@ -2,6 +2,7 @@
 #include "http_integration.h"
 
 #include <ytlib/misc/foreach.h>
+#include <ytlib/misc/url.h>
 #include <ytlib/ytree/json_adapter.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/yson_reader.h>
@@ -74,14 +75,15 @@ TFuture<Stroka>::TPtr HandleRequest(IYPathServicePtr service, Stroka url)
 {
     try {
         // TODO(babenko): rewrite using some standard URL parser
-        auto queryIndex = url.find_first_of('?');
+        auto unescapedUrl = UnescapeUrl(url);
+        auto queryIndex = unescapedUrl.find_first_of('?');
         auto req = TYPathProxy::Get();
         TYPath path;
         if (queryIndex == Stroka::npos) {
-            path = url;
+            path = unescapedUrl;
         } else {
-            path = url.substr(0, queryIndex);
-            ParseQuery(&req->Attributes(), url.substr(queryIndex + 1));
+            path = unescapedUrl.substr(0, queryIndex);
+            ParseQuery(&req->Attributes(), unescapedUrl.substr(queryIndex + 1));
         }
         req->SetPath(path);
         return ExecuteVerb(service, ~req)->Apply(BIND(&OnResponse));
