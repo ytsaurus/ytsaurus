@@ -63,7 +63,7 @@ message TBlockInfo
     required int32 row_count = 2;
 }
 
-message TChunkChannel
+message TChannels
 {
     required TChannel channel = 1;
     repeated TBlockInfo blocks = 2;
