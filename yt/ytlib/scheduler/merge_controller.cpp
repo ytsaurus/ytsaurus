@@ -22,7 +22,7 @@ static NLog::TLogger& Logger(OperationsLogger);
 static NProfiling::TProfiler Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////
-
+/*
 class TMergeController
     : public TOperationControllerBase
 {
@@ -316,13 +316,14 @@ private:
         JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
     }
 };
-
+*/
 IOperationControllerPtr CreateMergeController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
-    return New<TMergeController>(config, host, operation);
+    YUNREACHABLE();
+    //return New<TMergeController>(config, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////
