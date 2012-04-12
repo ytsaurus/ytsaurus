@@ -12,7 +12,7 @@ namespace NScheduler {
 struct TPooledChunk
     : public TIntrinsicRefCounted
 {
-    TPooledChunk(NTableClient::NProto::TInputChunk& inputChunk, i64 weight)
+    TPooledChunk(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight)
         : InputChunk(inputChunk)
         , Weight(weight)
     { }
@@ -72,6 +72,10 @@ struct IChunkPool
         bool needLocal) = 0;
 
     virtual void PutBack(TExtractResultPtr result) = 0;
+
+    virtual i64 GetTotalWeight() const = 0;
+    virtual bool HasPendingChunks() const = 0;
+    virtual bool HasPendingLocalChunksFor(const Stroka& address) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////

@@ -409,7 +409,7 @@ private:
         return !ChangeLogQueues.empty();
     }
 
-    // Returns True if there are any left queues in the map.
+    // Returns True if there is any unswept queue left in the map.
     bool FlushAndClean()
     {
         FlushQueues();

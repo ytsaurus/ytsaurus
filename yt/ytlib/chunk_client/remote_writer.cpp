@@ -236,7 +236,7 @@ TRemoteWriter::TGroup::PutBlocks(THolderPtr holder)
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
 
-    LOG_DEBUG("Putting blocks (Blocks: %d-%d, Address: %s)",
+    LOG_DEBUG("Putting blocks %d-%d to %s",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~holder->Address);
@@ -255,7 +255,7 @@ void TRemoteWriter::TGroup::OnPutBlocks(THolderPtr holder, TProxy::TRspPutBlocks
 
     IsSent[holder->Index] = true;
 
-    LOG_DEBUG("Blocks are put (Blocks, %d-%d, Address: %s)",
+    LOG_DEBUG("Blocks %d-%d are put to %s",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~holder->Address);
@@ -296,7 +296,7 @@ TRemoteWriter::TGroup::SendBlocks(
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    LOG_DEBUG("Sending blocks (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
+    LOG_DEBUG("Sending blocks %d-%d from %s to %s",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~srcHolder->Address,

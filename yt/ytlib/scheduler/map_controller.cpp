@@ -94,9 +94,6 @@ private:
         // Allocate chunks for the job.
         auto jip = New<TJobInProgress>();
         i64 weightThreshold = GetJobWeightThreshold(JobCounter.GetPending(), WeightCounter.GetPending());
-        i64 extractedWeight;
-        int localCount;
-        int remoteCount;
         jip->ExtractResult = ChunkPool->Extract(
             node->GetAddress(),
             weightThreshold,
@@ -104,13 +101,12 @@ private:
             false);
         YASSERT(jip->ExtractResult);
 
-        LOG_DEBUG("Extracted %d chunks for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ", LocalCount: %d, RemoteCount: %d)",
+        LOG_DEBUG("Extracted %d chunks, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
             static_cast<int>(jip->ExtractResult->Chunks.size()),
+            jip->ExtractResult->LocalCount,
             ~node->GetAddress(),
             jip->ExtractResult->Weight,
-            weightThreshold,
-            jip->ExtractResult->LocalCount,
-            jip->ExtractResult->RemoteCount);
+            weightThreshold);
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
@@ -152,7 +148,7 @@ private:
         ChunkCounter.Failed(jip->ExtractResult->Chunks.size());
         WeightCounter.Failed(jip->ExtractResult->Weight);
 
-        LOG_DEBUG("%d chunks are back in the pool",
+        LOG_DEBUG("Returned %d chunks into the pool",
             static_cast<int>(jip->ExtractResult->Chunks.size()));
         ChunkPool->PutBack(jip->ExtractResult);
 
@@ -198,7 +194,7 @@ private:
                     // TODO(babenko): think of a proper name
                     rowAttributes = BuildYsonFluently()
                         .BeginMap()
-                        .Item("table_index").Scalar(tableIndex)
+                            .Item("table_index").Scalar(tableIndex)
                         .EndMap();
                 }
 

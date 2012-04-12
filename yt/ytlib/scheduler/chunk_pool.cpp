@@ -11,6 +11,10 @@ class TUnorderedChunkPool
     : public IChunkPool
 {
 public:
+    TUnorderedChunkPool()
+        : TotalWeight(0)
+    { }
+
     virtual void Add(TPooledChunkPtr chunk)
     {
         YASSERT(chunk->Weight > 0);
@@ -73,14 +77,34 @@ public:
         return result;
     }
 
-    void PutBack(TExtractResultPtr result)
+    virtual void PutBack(TExtractResultPtr result)
     {
         FOREACH (const auto& chunk, result->Chunks) {
             Add(chunk);
         }
     }
 
+    virtual i64 GetTotalWeight() const
+    {
+        return TotalWeight;
+    }
+
+    virtual bool HasChunks() const
+    {
+        return !Chunks.empty();
+    }
+
+    virtual bool HasLocalChunksFor(const Stroka& address) const
+    {
+        auto it = AddressToChunks.find(address);
+        return
+            it == AddressToChunks.end()
+            ? false
+            : !it->second.empty();
+    }
+
 private:
+    i64 TotalWeight;
     yhash_map<Stroka, yhash_set<TPooledChunkPtr> > AddressToChunks;
     yhash_set<TPooledChunkPtr> Chunks;
     
@@ -105,7 +129,8 @@ class TAtomicChunkPool
 {
 public:
     TAtomicChunkPool()
-        : Extracted(false)
+        : TotalWeight(0)
+        , Extracted(false)
         , Initialized(false)
         , ExtractResult(New<TExtractResult>())
     { }
@@ -114,6 +139,9 @@ public:
     {
         YASSERT(!Initialized);
         ExtractResult->AddRemote(chunk);
+        FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
+            Addresses.insert(address);
+        }
     }
 
     virtual TExtractResultPtr Extract(
@@ -141,14 +169,36 @@ public:
         Extracted = false;
     }
 
+    virtual i64 GetTotalWeight() const
+    {
+        return TotalWeight;
+    }
+
+    virtual bool HasPendingChunks() const
+    {
+        return !Extracted && !ExtractResult->Chunks.empty();
+    }
+
+    virtual bool HasPendingLocalChunksFor(const Stroka& address) const
+    {
+        return
+            Extracted
+            ? false
+            : Addresses.find(address) != Addresses.end();
+    }
+
 private:
+    //! The sum of weights of all chunks.
+    i64 TotalWeight;
     //! Cached extraction result.
     /*!
      *  Pooled chunks are appended here.
      *  In #Extract this result is returned as-is.
      */
     TExtractResultPtr ExtractResult;
-    //! Is pending #Extract is progress?
+    //! Addresses of added chunks.
+    yhash_set<Stroka> Addresses;
+    //! Have the chunks been #Extract'ed?
     bool Extracted;
     //! Has any #Extract call been made already?
     bool Initialized;
