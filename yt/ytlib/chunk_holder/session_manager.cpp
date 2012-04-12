@@ -349,6 +349,7 @@ void TSession::ReleaseBlocks(i32 flushedBlockIndex)
 
     while (WindowStart <= flushedBlockIndex) {
         auto& slot = GetSlot(WindowStart);
+        YASSERT(slot.State == ESlotState::Written);
         slot.Block.Reset();
         slot.IsWritten.Reset();
         ++WindowStart;
@@ -378,7 +379,7 @@ TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 {
     YASSERT(IsInWindow(blockIndex));
     while (Window.size() <= blockIndex) {
-        Window.resize(blockIndex + 1);
+        Window.push_back();
     }
 
     return Window[blockIndex];
