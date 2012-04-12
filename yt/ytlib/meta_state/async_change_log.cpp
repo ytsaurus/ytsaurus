@@ -29,7 +29,7 @@ public:
     // Guarded by TImpl::SpinLock
     TAtomic UseCount;
 
-    TChangeLogQueue(TChangeLogPtr changeLog)
+    TChangeLogQueue(const TChangeLogPtr& changeLog)
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
@@ -239,7 +239,7 @@ public:
     }
 
     TAppendResult::TPtr Append(
-        TChangeLogPtr changeLog,
+        const TChangeLogPtr& changeLog,
         i32 recordId,
         const TSharedRef& data)
     {
@@ -248,7 +248,7 @@ public:
 
         auto queue = GetQueueAndLock(changeLog);
         auto result = queue->Append(recordId, data);
-        AtomicDecrement(queue->UseCount);
+        UnlockQueue(queue);
         WakeupEvent.Signal();
 
         Profiler.Increment(RecordCounter);
@@ -258,7 +258,7 @@ public:
     }
 
     void Read(
-        TChangeLogPtr changeLog,
+        const TChangeLogPtr& changeLog,
         i32 firstRecordId,
         i32 recordCount,
         yvector<TSharedRef>* result)
@@ -270,20 +270,20 @@ public:
         if (recordCount == 0)
             return;
         
-        auto queue = FindQueue(changeLog);
+        auto queue = FindQueueAndLock(changeLog);
         if (queue) {
             queue->Read(firstRecordId, recordCount, result);
-            AtomicDecrement(queue->UseCount);
         } else {
             PROFILE_TIMING ("/changelog_read_io_time") {
                 changeLog->Read(firstRecordId, recordCount, result);
             }
         }
+        UnlockQueue(queue);
     }
 
-    void Flush(TChangeLogPtr changeLog)
+    void Flush(const TChangeLogPtr& changeLog)
     {
-        auto queue = FindQueue(changeLog);
+        auto queue = FindQueueAndLock(changeLog);
         if (queue) {
             queue->WaitFlush();
             AtomicDecrement(queue->UseCount);
@@ -294,9 +294,9 @@ public:
         }
     }
 
-    i32 GetRecordCount(TChangeLogPtr changeLog)
+    i32 GetRecordCount(const TChangeLogPtr& changeLog)
     {
-        auto queue = FindQueue(changeLog);
+        auto queue = FindQueueAndLock(changeLog);
         if (queue) {
             auto result = queue->GetRecordCount();
             AtomicDecrement(queue->UseCount);
@@ -306,7 +306,7 @@ public:
         }
     }
 
-    void Finalize(TChangeLogPtr changeLog)
+    void Finalize(const TChangeLogPtr& changeLog)
     {
         Flush(changeLog);
 
@@ -317,7 +317,7 @@ public:
         LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
     }
 
-    void Truncate(TChangeLogPtr changeLog, i32 atRecordId)
+    void Truncate(const TChangeLogPtr& changeLog, i32 atRecordId)
     {
         // TODO: Later on this can be improved to asynchronous behavior by
         // getting rid of explicit synchronization.
@@ -336,7 +336,7 @@ public:
     }
 
 private:
-    TChangeLogQueuePtr FindQueue(TChangeLogPtr changeLog) const
+    TChangeLogQueuePtr FindQueueAndLock(const TChangeLogPtr& changeLog) const
     {
         TGuard<TSpinLock> guard(SpinLock);
         auto it = ChangeLogQueues.find(changeLog);
@@ -348,7 +348,7 @@ private:
         return queue;
     }
 
-    TChangeLogQueuePtr GetQueueAndLock(TChangeLogPtr changeLog)
+    TChangeLogQueuePtr GetQueueAndLock(const TChangeLogPtr& changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
         TChangeLogQueuePtr queue;
@@ -363,6 +363,11 @@ private:
 
         ++queue->UseCount;
         return queue;
+    }
+
+    void UnlockQueue(const TChangeLogQueuePtr& queue)
+    {
+        AtomicDecrement(queue->UseCount);
     }
 
     void FlushQueues()
@@ -390,7 +395,7 @@ private:
         }
     }
 
-    // Returns if there are any queues in the map
+    // Returns if there are any unswept queues left in the map.
     bool CleanQueues()
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -408,7 +413,7 @@ private:
         return !ChangeLogQueues.empty();
     }
 
-    // Returns if there are any queues in the map
+    // Returns True if there are any queues in the map.
     bool FlushAndClean()
     {
         FlushQueues();
@@ -455,7 +460,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncChangeLog::TAsyncChangeLog(TChangeLogPtr changeLog)
+TAsyncChangeLog::TAsyncChangeLog(const TChangeLogPtr& changeLog)
     : ChangeLog(changeLog)
 {
     YASSERT(changeLog);
