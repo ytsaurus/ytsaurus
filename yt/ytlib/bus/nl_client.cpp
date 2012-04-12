@@ -622,10 +622,10 @@ public:
     TClientDispatcher()
         : Thread(ThreadFunc, (void*) this)
         , Terminated(false)
-        , InCounter("in_rate")
-        , InSizeCounter("in_throughput")
-        , OutCounter("out_rate")
-        , OutSizeCounter("out_throughput")
+        , InCounter("/in_rate")
+        , InSizeCounter("/in_throughput")
+        , OutCounter("/out_rate")
+        , OutSizeCounter("/out_throughput")
     {
         Requester = CreateHttpUdpRequester(0);
         if (!Requester) {

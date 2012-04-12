@@ -122,12 +122,12 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , ChunkReplicaCount(0)
-        , AddChunkCounter("add_chunk_rate")
-        , RemoveChunkCounter("remove_chunk_rate")
-        , AddChunkReplicaCounter("add_chunk_replica_rate")
-        , RemoveChunkReplicaCounter("remove_chunk_replica_rate")
-        , StartJobCounter("start_job_rate")
-        , StopJobCounter("stop_job_rate")
+        , AddChunkCounter("/add_chunk_rate")
+        , RemoveChunkCounter("/remove_chunk_rate")
+        , AddChunkReplicaCounter("/add_chunk_replica_rate")
+        , RemoveChunkReplicaCounter("/remove_chunk_replica_rate")
+        , StartJobCounter("/start_job_rate")
+        , StopJobCounter("/stop_job_rate")
     {
         YASSERT(config);
         YASSERT(bootstrap);
@@ -601,7 +601,7 @@ private:
     TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
     {
         PROFILE_TIMING ("/full_heartbeat_time") {
-            Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
+            Profiler.Enqueue("/full_heartbeat_chunks", message.chunks_size());
 
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
@@ -640,8 +640,8 @@ private:
 
     TVoid IncrementalHeartbeat(const TMsgIncrementalHeartbeat& message)
     {
-        Profiler.Enqueue("incremental_heartbeat_added_chunks", message.added_chunks_size());
-        Profiler.Enqueue("incremental_heartbeat_removed_chunks", message.removed_chunks_size());
+        Profiler.Enqueue("/incremental_heartbeat_added_chunks", message.added_chunks_size());
+        Profiler.Enqueue("/incremental_heartbeat_removed_chunks", message.removed_chunks_size());
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();

@@ -34,7 +34,7 @@ class TNLBusServer
 public:
     typedef TIntrusivePtr<TNLBusServer> TPtr;
 
-    TNLBusServer(TNLBusServerConfig* config);
+    explicit TNLBusServer(TNLBusServerConfig* config);
     virtual ~TNLBusServer();
 
     virtual void Start(IMessageHandler* handler);
@@ -321,10 +321,10 @@ TNLBusServer::TNLBusServer(TNLBusServerConfig* config)
     , Started(false)
     , Stopped(false)
     , Thread(ThreadFunc, (void*) this)
-    , InCounter("in_rate")
-    , InSizeCounter("in_throughput")
-    , OutCounter("out_rate")
-    , OutSizeCounter("out_throughput")
+    , InCounter("/in_rate")
+    , InSizeCounter("/in_throughput")
+    , OutCounter("/out_rate")
+    , OutSizeCounter("/out_throughput")
     , SessionCount(0)
 {
     YASSERT(config->Port >= 0);

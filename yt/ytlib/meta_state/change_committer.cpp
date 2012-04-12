@@ -111,7 +111,7 @@ private:
         IsSent = true;
 
         if (!BatchedChanges.empty()) {
-            Profiler.Enqueue("commit_batch_size", BatchedChanges.size());
+            Profiler.Enqueue("/commit_batch_size", BatchedChanges.size());
 
 
             YASSERT(LogResult);

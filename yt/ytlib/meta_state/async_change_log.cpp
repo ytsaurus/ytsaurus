@@ -50,7 +50,7 @@ public:
         }
 
         AppendQueue.push_back(data);
-        Profiler.Enqueue("changelog_queue_size", AppendQueue.size());
+        Profiler.Enqueue("/changelog_queue_size", AppendQueue.size());
 
         return Result;
     }
@@ -170,7 +170,7 @@ public:
             }
         }
 
-        Profiler.Enqueue("changelog_read_record_count", result->size());
+        Profiler.Enqueue("/changelog_read_record_count", result->size());
     }
 
 private:
@@ -227,8 +227,8 @@ public:
         : Thread(ThreadFunc, static_cast<void*>(this))
         , WakeupEvent(Event::rManual)
         , Finished(false)
-        , RecordCounter("record_rate")
-        , SizeCounter("record_throughput")
+        , RecordCounter("/record_rate")
+        , SizeCounter("/record_throughput")
     {
         Thread.Start();    
     }
