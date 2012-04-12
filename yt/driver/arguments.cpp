@@ -294,17 +294,6 @@ TWriteArgsParser::TWriteArgsParser()
     CmdLine.add(SortedArg);
 }
 
-    // TODO(panin): validation?
-//    virtual void DoValidate() const
-//    {
-//        if (Value) {
-//            auto type = Value->GetType();
-//            if (type != NYTree::ENodeType::List && type != NYTree::ENodeType::Map) {
-//                ythrow yexception() << "\"value\" must be a list or a map";
-//            }
-//        }
-//    }
-
 void TWriteArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());

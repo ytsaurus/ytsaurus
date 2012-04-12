@@ -255,6 +255,17 @@ class TestTableCommands(YTEnvSetup):
 
         expect_ok( remove('//table'))
 
+    def test_invalid_cases(self):
+        # we can write only list or maps
+        expect_ok( create('table', '//table'))
+
+        expect_error( write('//table', 'string'))
+        expect_error( write('//table', '100'))
+        expect_error( write('//table', '3.14'))
+        expect_error( write('//table', '<>'))
+
+        expect_ok( remove('//table'))
+
 
 class TestOrchid(YTEnvSetup):
     NUM_MASTERS = 3
