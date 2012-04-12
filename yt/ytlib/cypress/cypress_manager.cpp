@@ -10,7 +10,6 @@
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/cell_master/bootstrap.h>
 #include <ytlib/misc/singleton.h>
-#include <ytlib/ytree/yson_reader.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/ypath_detail.h>

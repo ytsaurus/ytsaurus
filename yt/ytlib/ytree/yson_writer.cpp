@@ -192,15 +192,12 @@ void TYsonWriter::EndCollection(char closeBracket)
     IsFirstItem = false;
 }
 
-void TYsonWriter::OnStringScalar(const TStringBuf& value, bool hasAttributes)
+void TYsonWriter::OnStringScalar(const TStringBuf& value)
 {
     WriteStringScalar(value);
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
-void TYsonWriter::OnIntegerScalar(i64 value, bool hasAttributes)
+void TYsonWriter::OnIntegerScalar(i64 value)
 {
     if (Format == EYsonFormat::Binary) {
         Stream->Write(IntegerMarker);
@@ -208,12 +205,9 @@ void TYsonWriter::OnIntegerScalar(i64 value, bool hasAttributes)
     } else {
         Stream->Write(ToString(value));
     }
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
-void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
+void TYsonWriter::OnDoubleScalar(double value)
 {
     if (Format == EYsonFormat::Binary) {
         Stream->Write(DoubleMarker);
@@ -221,17 +215,11 @@ void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
     } else {
         Stream->Write(ToString(value));
     }
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
-void TYsonWriter::OnEntity(bool hasAttributes)
+void TYsonWriter::OnEntity()
 {
-    if (!hasAttributes) {
-        Stream->Write(BeginAttributesSymbol);
-        Stream->Write(EndAttributesSymbol);
-    }
+    Stream->Write('#');
 }
 
 void TYsonWriter::OnBeginList()
@@ -244,12 +232,9 @@ void TYsonWriter::OnListItem()
     CollectionItem(ItemSeparator);
 }
 
-void TYsonWriter::OnEndList(bool hasAttributes)
+void TYsonWriter::OnEndList()
 {
     EndCollection(EndListSymbol);
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
 void TYsonWriter::OnBeginMap()
@@ -262,12 +247,9 @@ void TYsonWriter::OnMapItem(const TStringBuf& name)
     WriteMapItem(name);
 }
 
-void TYsonWriter::OnEndMap(bool hasAttributes)
+void TYsonWriter::OnEndMap()
 {
     EndCollection(EndMapSymbol);
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
 void TYsonWriter::OnBeginAttributes()
@@ -283,6 +265,9 @@ void TYsonWriter::OnAttributesItem(const TStringBuf& name)
 void TYsonWriter::OnEndAttributes()
 {
     EndCollection(EndAttributesSymbol);
+    if (Format == EYsonFormat::Pretty) {
+        Stream->Write(' ');
+    }
 }
 
 void TYsonWriter::OnRaw(const TStringBuf& yson)

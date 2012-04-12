@@ -1007,8 +1007,6 @@ private:
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
-            .WithAttributes().BeginMap()
-            .EndMap()
             .BeginAttributes()
                 .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
                 .Item("transaction_id").Scalar(operation->GetTransactionId())
@@ -1017,7 +1015,9 @@ private:
                 .EndMap()
                 .Item("spec").Node(operation->GetSpec())
                 // TODO(babenko): serialize start time
-            .EndAttributes();
+            .EndAttributes()
+            .BeginMap()
+            .EndMap();
     }
 
     TOperationPtr ParseOperationYson(const TOperationId& operationId, const TYson& yson)
@@ -1039,8 +1039,6 @@ private:
     void BuildJobYson(TJobPtr job, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
-            .WithAttributes().BeginMap()
-            .EndMap()
             .BeginAttributes()
                 .Item("type").Scalar(FormatEnum(EJobType(job->Spec().type())))
                 .Item("state").Scalar(FormatEnum(job->GetState()))
@@ -1051,7 +1049,9 @@ private:
                 //        .Item("message").Scalar(error.GetMessage())
                 //    .EndMap();
                 //})
-            .EndAttributes();
+            .EndAttributes()
+            .BeginMap()
+            .EndMap();
     }
 
     void BuildExecNodeYson(TExecNodePtr node, IYsonConsumer* consumer)

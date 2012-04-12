@@ -1,7 +1,7 @@
 ﻿#include "stdafx.h"
 #include "pipes.h"
 
-#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_parser.h>
 #include <ytlib/table_client/yson_row_consumer.h>
 
 #include <util/system/file.h>

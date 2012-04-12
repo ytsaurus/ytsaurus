@@ -7,7 +7,7 @@
 #include <ytlib/misc/configurable.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_consumer.h>
-#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/rpc/channel.h>

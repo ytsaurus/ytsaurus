@@ -21,27 +21,27 @@ struct IYsonConsumer
      *  \param value A scalar value.
      *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
-    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes = false) = 0;
+    virtual void OnStringScalar(const TStringBuf& value) = 0;
 
     //! The current item is an integer scalar (IIntegerNode).
     /*!
      *  \param value A scalar value.
      *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
-    virtual void OnIntegerScalar(i64 value, bool hasAttributes = false) = 0;
+    virtual void OnIntegerScalar(i64 value) = 0;
 
     //! The current item is an FP scalar (IDoubleNode).
     /*!
      *  \param value A scalar value.
      *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
-    virtual void OnDoubleScalar(double value, bool hasAttributes = false) = 0;
+    virtual void OnDoubleScalar(double value) = 0;
     
     //! The current item is an entity (IEntityNode).
     /*!
      *  \param hasAttributes Tells if the entity is followed by the description of its attributes.
      */
-    virtual void OnEntity(bool hasAttributes = false) = 0;
+    virtual void OnEntity() = 0;
 
     //! Starts a list (IListNode).
     /*!
@@ -61,7 +61,7 @@ struct IYsonConsumer
     /*!
      *  \param hasAttributes Tells if the list is followed by the description of its attributes.
      */
-    virtual void OnEndList(bool hasAttributes = false) = 0;
+    virtual void OnEndList() = 0;
 
     //! Starts a map (IMapNode).
     /*!
@@ -84,7 +84,7 @@ struct IYsonConsumer
     /*!
      *  \param hasAttributes Tells if the map is followed by the description of its attributes.
      */
-    virtual void OnEndMap(bool hasAttributes = false) = 0;
+    virtual void OnEndMap() = 0;
 
     //! Starts an attribute map.
     /*!

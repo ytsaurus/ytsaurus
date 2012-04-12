@@ -35,23 +35,23 @@ public:
 
     void Flush();
 
-    virtual void OnMyStringScalar(const TStringBuf& value, bool hasAttributes);
-    virtual void OnMyIntegerScalar(i64 value, bool hasAttributes);
-    virtual void OnMyDoubleScalar(double value, bool hasAttributes);
+    virtual void OnMyStringScalar(const TStringBuf& value);
+    virtual void OnMyIntegerScalar(i64 value);
+    virtual void OnMyDoubleScalar(double value);
 
-    virtual void OnMyEntity(bool hasAttributes);
+    virtual void OnMyEntity();
 
     virtual void OnMyBeginList();
     virtual void OnMyListItem();
-    virtual void OnMyEndList(bool hasAttributes);
+    virtual void OnMyEndList();
 
     virtual void OnMyBeginMap();
     virtual void OnMyMapItem(const TStringBuf& name);
-    virtual void OnMyEndMap(bool hasAttributes);
+    virtual void OnMyEndMap();
 
     virtual void OnMyBeginAttributes();
-    virtual void OnMyAttributesItem(const TStringBuf& name);
-    virtual void OnMyEndAttributes();
+    //virtual void OnMyAttributesItem(const TStringBuf& name);
+    //virtual void OnMyEndAttributes();
 
 private:
     THolder<NJson::TJsonWriter> JsonWriter;

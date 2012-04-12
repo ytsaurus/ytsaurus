@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/ytree/yson_writer.h>
-#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/ytree/yson_consumer-mock.h>
 
@@ -26,8 +26,8 @@ public:
     void Run()
     {
         Stream.Flush();
-        TYsonReader reader(&Mock, &Stream);
-        reader.Read();
+
+        ParseYson(&Stream, &Mock);
     }
 };
 
@@ -38,11 +38,11 @@ TEST_F(TYsonWriterTest, BinaryString)
     Stroka value = "YSON";
 
     InSequence dummy;
-    EXPECT_CALL(Mock, OnStringScalar(value, false));
+    EXPECT_CALL(Mock, OnStringScalar(value));
 
     TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
-    writer.OnStringScalar(value, false);
+    writer.OnStringScalar(value);
 
     Run();
 }
@@ -52,11 +52,11 @@ TEST_F(TYsonWriterTest, BinaryInteger)
     i64 value = 100500424242ll;
 
     InSequence dummy;
-    EXPECT_CALL(Mock, OnIntegerScalar(value, false));
+    EXPECT_CALL(Mock, OnIntegerScalar(value));
 
     TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
-    writer.OnIntegerScalar(value, false);
+    writer.OnIntegerScalar(value);
 
     Run();
 }
@@ -66,12 +66,12 @@ TEST_F(TYsonWriterTest, EmptyMap)
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginMap());
-    EXPECT_CALL(Mock, OnEndMap(false));
+    EXPECT_CALL(Mock, OnEndMap());
 
     TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
     writer.OnBeginMap();
-    writer.OnEndMap(false);
+    writer.OnEndMap();
 
     Run();
 }
@@ -82,15 +82,15 @@ TEST_F(TYsonWriterTest, OneItemMap)
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnMapItem("hello"));
-    EXPECT_CALL(Mock, OnStringScalar("world", false));
-    EXPECT_CALL(Mock, OnEndMap(false));
+    EXPECT_CALL(Mock, OnStringScalar("world"));
+    EXPECT_CALL(Mock, OnEndMap());
 
     TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
     writer.OnBeginMap();
     writer.OnMapItem("hello");
-    writer.OnStringScalar("world", false);
-    writer.OnEndMap(false);
+    writer.OnStringScalar("world");
+    writer.OnEndMap();
 
     Run();
 }
@@ -101,12 +101,12 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
     EXPECT_CALL(Mock, OnBeginMap());
 
     EXPECT_CALL(Mock, OnMapItem("path"));
-        EXPECT_CALL(Mock, OnStringScalar("/home/sandello", false));
+        EXPECT_CALL(Mock, OnStringScalar("/home/sandello"));
 
     EXPECT_CALL(Mock, OnMapItem("mode"));
-        EXPECT_CALL(Mock, OnIntegerScalar(755, false));
+        EXPECT_CALL(Mock, OnIntegerScalar(755));
 
-    EXPECT_CALL(Mock, OnEndMap(true));
+    EXPECT_CALL(Mock, OnEndMap());
 
     EXPECT_CALL(Mock, OnBeginAttributes());
     EXPECT_CALL(Mock, OnAttributesItem("acl"));
@@ -115,19 +115,19 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
         EXPECT_CALL(Mock, OnMapItem("read"));
         EXPECT_CALL(Mock, OnBeginList());
         EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnStringScalar("*", false));
-        EXPECT_CALL(Mock, OnEndList(false));
+        EXPECT_CALL(Mock, OnStringScalar("*"));
+        EXPECT_CALL(Mock, OnEndList());
 
         EXPECT_CALL(Mock, OnMapItem("write"));
         EXPECT_CALL(Mock, OnBeginList());
         EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnStringScalar("sandello", false));
-        EXPECT_CALL(Mock, OnEndList(false));
+        EXPECT_CALL(Mock, OnStringScalar("sandello"));
+        EXPECT_CALL(Mock, OnEndList());
 
-        EXPECT_CALL(Mock, OnEndMap(false));
+        EXPECT_CALL(Mock, OnEndMap());
 
     EXPECT_CALL(Mock, OnAttributesItem("lock_scope"));
-        EXPECT_CALL(Mock, OnStringScalar("mytables", false));
+        EXPECT_CALL(Mock, OnStringScalar("mytables"));
 
     EXPECT_CALL(Mock, OnEndAttributes());
 
@@ -136,12 +136,12 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
     writer.OnBeginMap();
 
     writer.OnMapItem("path");
-        writer.OnStringScalar("/home/sandello", false);
+        writer.OnStringScalar("/home/sandello");
 
     writer.OnMapItem("mode");
-        writer.OnIntegerScalar(755, false);
+        writer.OnIntegerScalar(755);
 
-    writer.OnEndMap(true);
+    writer.OnEndMap();
 
     writer.OnBeginAttributes();
     writer.OnAttributesItem("acl");
@@ -150,19 +150,19 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
         writer.OnMapItem("read");
         writer.OnBeginList();
         writer.OnListItem();
-        writer.OnStringScalar("*", false);
-        writer.OnEndList(false);
+        writer.OnStringScalar("*");
+        writer.OnEndList();
 
         writer.OnMapItem("write");
         writer.OnBeginList();
         writer.OnListItem();
-        writer.OnStringScalar("sandello", false);
-        writer.OnEndList(false);
+        writer.OnStringScalar("sandello");
+        writer.OnEndList();
 
-        writer.OnEndMap(false);
+        writer.OnEndMap();
 
     writer.OnAttributesItem("lock_scope");
-        writer.OnStringScalar("mytables", false);
+        writer.OnStringScalar("mytables");
 
     writer.OnEndAttributes();
 
@@ -179,7 +179,7 @@ TEST_F(TYsonWriterTest, Escaping)
         input.push_back(char(i));
     }
 
-    writer.OnStringScalar(input, false);
+    writer.OnStringScalar(input);
 
     Stroka output =
         "\"\\0\\1\\2\\3\\4\\5\\6\\7\\x08\\t\\n\\x0B\\x0C\\r\\x0E\\x0F"
@@ -211,7 +211,7 @@ TEST_F(TYsonWriterTest, SerializeToYson)
         input.push_back(char(i));
     }
 
-    writer.OnStringScalar(input, false);
+    writer.OnStringScalar(input);
 
     Stroka output =
         "\"\\0\\1\\2\\3\\4\\5\\6\\7\\x08\\t\\n\\x0B\\x0C\\r\\x0E\\x0F"

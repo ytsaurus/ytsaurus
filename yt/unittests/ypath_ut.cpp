@@ -6,7 +6,7 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/tree_visitor.h>
 
-#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/ephemeral.h>
 
@@ -33,9 +33,7 @@ public:
     {
         TStringStream outputStream;
         TYsonWriter writer(&outputStream, EYsonFormat::Text);
-        TStringInput input(data);
-        TYsonReader reader(&writer, &input);
-        reader.Read();
+        ParseYson(data, &writer);
         return outputStream.Str();
     }
 

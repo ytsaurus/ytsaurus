@@ -126,10 +126,10 @@ protected:
     void ThrowInvalidType(ENodeType actualType);
     virtual ENodeType GetExpectedType() = 0;
 
-    virtual void OnMyStringScalar(const TStringBuf& value, bool hasAttributes);
-    virtual void OnMyIntegerScalar(i64 value, bool hasAttributes);
-    virtual void OnMyDoubleScalar(double value, bool hasAttributes);
-    virtual void OnMyEntity(bool hasAttributes);
+    virtual void OnMyStringScalar(const TStringBuf& value);
+    virtual void OnMyIntegerScalar(i64 value);
+    virtual void OnMyDoubleScalar(double value);
+    virtual void OnMyEntity();
 
     virtual void OnMyBeginList();
 
@@ -183,10 +183,8 @@ class TNodeSetter
         } \
         \
         virtual void On##name##Scalar( \
-            NDetail::TScalarTypeTraits<type>::TParamType value, \
-            bool hasAttributes) \
+            NDetail::TScalarTypeTraits<type>::TParamType value) \
         { \
-            UNUSED(hasAttributes); \
             Node->SetValue(TType(value)); \
         } \
     }
@@ -238,9 +236,9 @@ private:
         ItemKey.clear();
     }
 
-    virtual void OnMyEndMap(bool hasAttributes)
+    virtual void OnMyEndMap()
     {
-        UNUSED(hasAttributes);
+
         // Just do nothing.
     }
 };
@@ -283,9 +281,9 @@ private:
         List->AddChild(~TreeBuilder->EndTree());
     }
 
-    virtual void OnMyEndList(bool hasAttributes)
+    virtual void OnMyEndList()
     {
-        UNUSED(hasAttributes);
+
         // Just do nothing.
     }
 };
@@ -307,9 +305,9 @@ private:
         return ENodeType::Entity;
     }
 
-    virtual void OnMyEntity(bool hasAttributes)
+    virtual void OnMyEntity()
     {
-        UNUSED(hasAttributes);
+
         // Just do nothing.
     }
 };

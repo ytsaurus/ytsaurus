@@ -46,33 +46,33 @@ public:
         PushNode(node);
     }
 
-    virtual void OnMyStringScalar(const TStringBuf& value, bool hasAttributes)
+    virtual void OnMyStringScalar(const TStringBuf& value)
     {
-        UNUSED(hasAttributes);
+
         auto node = Factory->CreateString();
         node->SetValue(Stroka(value));
         PushNode(~node);
     }
 
-    virtual void OnMyIntegerScalar(i64 value, bool hasAttributes)
+    virtual void OnMyIntegerScalar(i64 value)
     {
-        UNUSED(hasAttributes);
+
         auto node = Factory->CreateInteger();
         node->SetValue(value);
         PushNode(~node);
     }
 
-    virtual void OnMyDoubleScalar(double value, bool hasAttributes)
+    virtual void OnMyDoubleScalar(double value)
     {
-        UNUSED(hasAttributes);
+
         auto node = Factory->CreateDouble();
         node->SetValue(value);
         PushNode(~node);
     }
 
-    virtual void OnMyEntity(bool hasAttributes)
+    virtual void OnMyEntity()
     {
-        UNUSED(hasAttributes);
+
         PushNode(~Factory->CreateEntity());
     }
 
@@ -88,9 +88,9 @@ public:
         AddToList();
     }
 
-    virtual void OnMyEndList(bool hasAttributes)
+    virtual void OnMyEndList()
     {
-        UNUSED(hasAttributes);
+
         AddToList();
     }
 
@@ -108,9 +108,9 @@ public:
         PushKey(Stroka(key));
     }
 
-    virtual void OnMyEndMap(bool hasAttributes)
+    virtual void OnMyEndMap()
     {
-        UNUSED(hasAttributes);
+
         AddToMap();
     }
 

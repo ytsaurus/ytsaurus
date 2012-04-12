@@ -622,30 +622,30 @@ void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
         ~actualType.ToString().Quote());
 }
 
-void TNodeSetterBase::OnMyStringScalar(const TStringBuf& value, bool hasAttributes)
+void TNodeSetterBase::OnMyStringScalar(const TStringBuf& value)
 {
     UNUSED(value);
-    UNUSED(hasAttributes);
+
     ThrowInvalidType(ENodeType::String);
 }
 
-void TNodeSetterBase::OnMyIntegerScalar(i64 value, bool hasAttributes)
+void TNodeSetterBase::OnMyIntegerScalar(i64 value)
 {
     UNUSED(value);
-    UNUSED(hasAttributes);
+
     ThrowInvalidType(ENodeType::Integer);
 }
 
-void TNodeSetterBase::OnMyDoubleScalar(double value, bool hasAttributes)
+void TNodeSetterBase::OnMyDoubleScalar(double value)
 {
     UNUSED(value);
-    UNUSED(hasAttributes);
+
     ThrowInvalidType(ENodeType::Double);
 }
 
-void TNodeSetterBase::OnMyEntity(bool hasAttributes)
+void TNodeSetterBase::OnMyEntity()
 {
-    UNUSED(hasAttributes);
+
     ThrowInvalidType(ENodeType::Entity);
 }
 
