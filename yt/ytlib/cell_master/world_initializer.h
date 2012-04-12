@@ -14,6 +14,8 @@ class TWorldInitializer
 public:
     TWorldInitializer(TBootstrap* bootstrap);
 
+    ~TWorldInitializer();
+
     //! Returns True iff the world is already initialized.
     bool IsInitialized() const;
 

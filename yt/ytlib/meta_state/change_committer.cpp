@@ -43,6 +43,9 @@ TCommitter::TCommitter(
     VERIFY_INVOKER_AFFINITY(epochStateInvoker, StateThread);
 }
 
+TCommitter::~TCommitter()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderCommitter::TBatch
@@ -252,6 +255,9 @@ TLeaderCommitter::TLeaderCommitter(
     YASSERT(followerTracker);
 }
 
+TLeaderCommitter::~TLeaderCommitter()
+{ }
+
 void TLeaderCommitter::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -378,6 +384,9 @@ TFollowerCommitter::TFollowerCommitter(
     IInvoker* epochControlInvoker,
     IInvoker* epochStateInvoker)
     : TCommitter(metaState, epochControlInvoker, epochStateInvoker)
+{ }
+
+TFollowerCommitter::~TFollowerCommitter()
 { }
 
 TCommitter::TResult::TPtr TFollowerCommitter::Commit(

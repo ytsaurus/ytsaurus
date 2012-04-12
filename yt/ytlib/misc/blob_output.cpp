@@ -8,7 +8,7 @@ namespace NYT {
 TBlobOutput::TBlobOutput()
 { }
 
-TBlobOutput::TBlobOutput(size_t size = 0)
+TBlobOutput::TBlobOutput(size_t size)
 {
     Blob.reserve(size);
 }

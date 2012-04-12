@@ -16,7 +16,10 @@ TBlob SerializeChange(
     fixedHeader.HeaderSize = header.ByteSize();
     fixedHeader.MessageSize = message.ByteSize();
 
-    TBlob data(sizeof (TFixedChangeHeader) + fixedHeader.HeaderSize + fixedHeader.MessageSize);
+    const size_t allocatedSize = sizeof(TFixedChangeHeader) + fixedHeader.HeaderSize + fixedHeader.MessageSize;
+    TBlob data(allocatedSize);
+
+    YASSERT(data.max_size() >= allocatedSize);
 
     std::copy(
         reinterpret_cast<ui8*>(&fixedHeader),

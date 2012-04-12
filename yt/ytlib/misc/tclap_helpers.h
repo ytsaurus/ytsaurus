@@ -23,25 +23,25 @@ struct ArgTraits<Stroka>
 };
 
 template <>
-struct ArgTraits<NYT::NObjectServer::TTransactionId>
+struct ArgTraits< ::NYT::NObjectServer::TTransactionId >
 {
     typedef ValueLike ValueCategory;
 };
 
 template <>
-struct ArgTraits<NYT::NCypress::ELockMode>
+struct ArgTraits< ::NYT::NCypress::ELockMode >
 {
     typedef ValueLike ValueCategory;
 };
 
 template <>
-struct ArgTraits<NYT::NObjectServer::EObjectType>
+struct ArgTraits< ::NYT::NObjectServer::EObjectType >
 {
     typedef ValueLike ValueCategory;
 };
 
 template <>
-struct ArgTraits<NYT::NYTree::EYsonFormat>
+struct ArgTraits< ::NYT::NYTree::EYsonFormat >
 {
     typedef ValueLike ValueCategory;
 };
@@ -56,16 +56,18 @@ struct ArgTraits< NYT::TNullable<T> >
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline std::istream& operator >> (std::istream& input, NYT::TGuid& guid)
+namespace NYT {
+
+inline std::istream& operator >> (std::istream& input, TGuid& guid)
 {
     std::string s;
     input >> s;
-    guid = NYT::TGuid::FromString(Stroka(s));
+    guid = TGuid::FromString(Stroka(s));
     return input;
 }
 
 template <class T>
-inline std::istream& operator >> (std::istream& input, NYT::TEnumBase<T>& mode)
+inline std::istream& operator >> (std::istream& input, TEnumBase<T>& mode)
 {
     std::string s;
     input >> s;
@@ -74,7 +76,7 @@ inline std::istream& operator >> (std::istream& input, NYT::TEnumBase<T>& mode)
 }
 
 template <class T>
-inline std::istream& operator >> (std::istream& input, NYT::TNullable<T>& nullable)
+inline std::istream& operator >> (std::istream& input, TNullable<T>& nullable)
 {
     std::string s;
     input >> s;
@@ -88,6 +90,8 @@ inline std::istream& operator >> (std::istream& input, NYT::TNullable<T>& nullab
     }
     return input;
 }
+
+} // namespace NYT
 
 ////////////////////////////////////////////////////////////////////////////////
 

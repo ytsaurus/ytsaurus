@@ -232,6 +232,9 @@ TWorldInitializer::TWorldInitializer(TBootstrap* bootstrap)
     : Impl(New<TImpl>(bootstrap))
 { }
 
+TWorldInitializer::~TWorldInitializer()
+{ }
+
 bool TWorldInitializer::IsInitialized() const
 {
     return Impl->IsInitialized();

@@ -29,6 +29,8 @@ public:
     
     TChunk(const TChunkId& id);
 
+    ~TChunk();
+
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
 

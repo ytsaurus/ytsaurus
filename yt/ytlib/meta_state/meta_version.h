@@ -42,7 +42,7 @@ inline bool TMetaVersion::operator < (const TMetaVersion& other) const
 {
     return
         SegmentId < other.SegmentId ||
-        SegmentId == other.SegmentId && RecordCount < other.RecordCount;
+        (SegmentId == other.SegmentId && RecordCount < other.RecordCount);
 }
 
 inline bool TMetaVersion::operator == (const TMetaVersion& other) const

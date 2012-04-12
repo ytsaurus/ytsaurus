@@ -125,6 +125,7 @@ class TMultiActionQueue
 {
 public:
     TMultiActionQueue(int queueCount, const Stroka& threadName);
+    virtual ~TMultiActionQueue();
 
     void Shutdown();
 

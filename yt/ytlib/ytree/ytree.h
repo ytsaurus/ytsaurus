@@ -120,7 +120,7 @@ struct IScalarNode
         typedef type TType; \
         typedef paramType TParamType; \
         \
-        static const ENodeType::EDomain NodeType = ENodeType::name; \
+        static const ENodeType::EDomain NodeType; \
         \
         static type GetValue(const INode* node) \
         { \
@@ -135,6 +135,7 @@ struct IScalarNode
     \
     }
 
+// Don't forget to define a #TScalarTypeTraits<>::NodeType constant in "ytree.cpp".
 DECLARE_SCALAR_TYPE(String, Stroka, const TStringBuf&)
 DECLARE_SCALAR_TYPE(Integer, i64, i64)
 DECLARE_SCALAR_TYPE(Double, double, double)

@@ -26,6 +26,8 @@ public:
         bool disableFlush = false,
         i64 indexBlockSize = 1024 * 1024);
 
+    ~TChangeLog();
+
     void Open();
     void Create(i32 prevRecordCount);
     void Finalize();

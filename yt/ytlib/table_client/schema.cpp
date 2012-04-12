@@ -80,9 +80,9 @@ bool TRange::Contains(const TRange& range) const
 bool TRange::Overlaps(const TRange& range) const
 {
     return 
-        Begin_ <= range.Begin_ && (IsInfinite() || range.Begin_ < End_) || 
-        Begin_ < range.End_ && (IsInfinite() || range.End_ <= End_) ||
-        range.Begin_ <= Begin_ && (range.IsInfinite() || Begin_ < range.End_);
+        ( Begin_ <= range.Begin_ && (IsInfinite() || range.Begin_ <  End_) ) || 
+        ( Begin_ <  range.End_   && (IsInfinite() || range.End_   <= End_) ) ||
+        ( Begin_ >= range.Begin_ && (range.IsInfinite() || range.End_ > Begin_) );
 }
 
 bool TRange::IsInfinite() const

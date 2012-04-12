@@ -574,7 +574,7 @@ private:
             statistics);
 
         HolderMap.Insert(holderId, newHolder);
-        HolderAddressMap.insert(MakePair(address, holderId)).second;
+        HolderAddressMap.insert(MakePair(address, holderId));
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder, false);
@@ -1612,6 +1612,9 @@ TChunkManager::TChunkManager(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
+{ }
+
+TChunkManager::~TChunkManager()
 { }
 
 const THolder* TChunkManager::FindHolder(const Stroka& address) const

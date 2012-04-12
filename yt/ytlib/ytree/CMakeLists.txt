@@ -22,6 +22,7 @@ set( SRCS
   ${BASE}/yson_parser.cpp
   ${BASE}/yson_reader.cpp
   ${BASE}/yson_writer.cpp
+  ${BASE}/ytree.cpp
 )
 set( HDRS
   ${BASE}/attribute_provider.h

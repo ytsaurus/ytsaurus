@@ -80,6 +80,9 @@ TReaderCache::TReaderCache(TChunkHolderConfigPtr config)
     : Impl(New<TImpl>(config))
 { }
 
+TReaderCache::~TReaderCache()
+{ }
+
 TReaderCache::TGetReaderResult TReaderCache::GetReader(TChunkPtr chunk)
 {
     return Impl->Get(chunk);

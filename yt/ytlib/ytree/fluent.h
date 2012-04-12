@@ -8,7 +8,6 @@
 #include "serialize.h"
 
 #include <ytlib/actions/callback.h>
-#include <ytlib/actions/bind_helpers.h> // For TVoid
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/string.h>
@@ -74,6 +73,9 @@ public:
     template <class TParent> class TAttributes;
     template <class TParent> class TList;
     template <class TParent> class TMap;
+
+    struct TNoParentTag
+    { };
 
     template <class TParent>
     class TFluentBase
@@ -157,7 +159,7 @@ public:
         TParent DoList(const TFunc& func)
         {
             this->Consumer->OnBeginList();
-            func(TList<TVoid>(this->Consumer));
+            func(TList<TNoParentTag>(this->Consumer));
             this->Consumer->OnEndList();
             return this->Parent;
         }
@@ -167,7 +169,7 @@ public:
         {
             this->Consumer->OnBeginList();
             for (auto current = begin; current != end; ++current) {
-                func(TList<TVoid>(this->Consumer), current);
+                func(TList<TNoParentTag>(this->Consumer), current);
             }
             this->Consumer->OnEndList();
             return this->Parent;
@@ -178,7 +180,7 @@ public:
         {
             this->Consumer->OnBeginList();
             FOREACH (const auto& item, collection) {
-                func(TList<TVoid>(this->Consumer), item);
+                func(TList<TNoParentTag>(this->Consumer), item);
             }
             this->Consumer->OnEndList();
             return this->Parent;
@@ -194,7 +196,7 @@ public:
         TParent DoMap(const TFunc& func)
         {
             this->Consumer->OnBeginMap();
-            func(TMap<TVoid>(this->Consumer));
+            func(TMap<TNoParentTag>(this->Consumer));
             this->Consumer->OnEndMap();
             return this->Parent;
         }
@@ -204,7 +206,7 @@ public:
         {
             this->Consumer->OnBeginMap();
             for (auto current = begin; current != end; ++current) {
-                func(TMap<TVoid>(this->Consumer), current);
+                func(TMap<TNoParentTag>(this->Consumer), current);
             }
             this->Consumer->OnEndMap();
             return this->Parent;
@@ -215,7 +217,7 @@ public:
         {
             this->Consumer->OnBeginMap();
             FOREACH (const auto& item, collection) {
-                func(TMap<TVoid>(this->Consumer), item);
+                func(TMap<TNoParentTag>(this->Consumer), item);
             }
             this->Consumer->OnEndMap();
             return this->Parent;
@@ -273,7 +275,7 @@ public:
         }
     };
 
-    template <class TParent = TVoid>
+    template <class TParent = TNoParentTag>
     class TList
         : public TFluentBase<TParent>
     {
@@ -317,7 +319,7 @@ public:
         TThis& DoFor(const TIterator& begin, const TIterator& end, const TFunc& func)
         {
             for (auto current = begin; current != end; ++current) {
-                func(TList<TVoid>(this->Consumer), current);
+                func(TList<TNoParentTag>(this->Consumer), current);
             }
             return *this;
         }
@@ -342,7 +344,7 @@ public:
 
     };
 
-    template <class TParent = TVoid>
+    template <class TParent = TNoParentTag>
     class TMap
         : public TFluentBase<TParent>
     {
@@ -400,7 +402,7 @@ public:
             return *this;
         }
 
-        //TODO(panin): forbid this call for TParent = TVoid
+        //TODO(panin): forbid this call for TParent = TNoParentTag
         TParent EndMap()
         {
             this->Consumer->OnEndMap(HasAttributes);
@@ -414,22 +416,22 @@ public:
 
 };
 
-typedef TFluentYsonBuilder::TList<TVoid>  TFluentList;
-typedef TFluentYsonBuilder::TMap<TVoid>   TFluentMap;
+typedef TFluentYsonBuilder::TList<TFluentYsonBuilder::TNoParentTag> TFluentList;
+typedef TFluentYsonBuilder::TMap<TFluentYsonBuilder::TNoParentTag> TFluentMap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TFluentYsonBuilder::TAny<TVoid> BuildYsonFluently(IYsonConsumer* consumer)
+static inline TFluentYsonBuilder::TAny<TFluentYsonBuilder::TNoParentTag> BuildYsonFluently(IYsonConsumer* consumer)
 {
-    return TFluentYsonBuilder::TAny<TVoid>(consumer, TVoid(), false);
+    return TFluentYsonBuilder::TAny<TFluentYsonBuilder::TNoParentTag>(consumer, TFluentYsonBuilder::TNoParentTag(), false);
 }
 
-inline TFluentList BuildYsonListFluently(IYsonConsumer* consumer)
+static inline TFluentList BuildYsonListFluently(IYsonConsumer* consumer)
 {
     return TFluentList(consumer);
 }
 
-inline TFluentMap BuildYsonMapFluently(IYsonConsumer* consumer)
+static inline TFluentMap BuildYsonMapFluently(IYsonConsumer* consumer)
 {
     return TFluentMap(consumer);
 }

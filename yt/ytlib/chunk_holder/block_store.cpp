@@ -234,6 +234,9 @@ TBlockStore::TBlockStore(
     , CacheImpl(New<TCacheImpl>(~StoreImpl))
 { }
 
+TBlockStore::~TBlockStore()
+{ }
+
 TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& blockId)
 {
     return StoreImpl->Get(blockId);

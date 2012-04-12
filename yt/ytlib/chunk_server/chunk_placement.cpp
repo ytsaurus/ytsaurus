@@ -22,6 +22,28 @@ static NLog::TLogger Logger("ChunkServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TForwardIterator, class TOutputIterator, class TDistance>
+TOutputIterator RandomSampleN(
+    TForwardIterator begin, TForwardIterator end,
+    TOutputIterator output, const TDistance n)
+{
+    TDistance remaining = std::distance(begin, end);
+    TDistance m = Min(n, remaining);
+
+    while (m > 0) {
+        if ((std::rand() % remaining) < m) {
+            *output = *begin;
+            ++output;
+            --m;
+        }
+
+        --remaining;
+        ++begin;
+    }
+
+    return output;
+}
+
 TChunkPlacement::TChunkPlacement(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
@@ -99,7 +121,7 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
         }
 
         int sampleCount = Min(count, groupSize);
-        std::random_sample_n(
+        RandomSampleN(
             beginGroupIt,
             endGroupIt,
             std::back_inserter(holdersSample),

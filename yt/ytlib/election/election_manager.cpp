@@ -457,6 +457,9 @@ TElectionManager::TElectionManager(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 }
 
+TElectionManager::~TElectionManager()
+{ }
+
 void TElectionManager::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();

@@ -22,7 +22,9 @@ public:
     TValue GetValue() const;
 
 private:
-    const TChannel Channel;
+    // TODO(sandello): This was stored as (const T) hence prohibiting 
+    // copy assignment. What is the proper way to constify the Channel?
+    TChannel Channel;
 
     TSharedRef CurrentBlock;
 

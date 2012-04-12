@@ -158,7 +158,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::ReplayChangeLogs(
          ++segmentId)
     {
         bool isFinal = segmentId == targetVersion.SegmentId;
-        bool mayBeMissing = isFinal && targetVersion.RecordCount == 0 || !IsLeader();
+        bool mayBeMissing = (isFinal && targetVersion.RecordCount == 0) || !IsLeader();
 
         TCachedAsyncChangeLogPtr changeLog;
         auto changeLogResult = ChangeLogCache->Get(segmentId);

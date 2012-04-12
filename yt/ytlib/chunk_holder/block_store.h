@@ -41,6 +41,8 @@ public:
         TChunkRegistryPtr chunkRegistry,
         TReaderCachePtr readerCache);
 
+    ~TBlockStore();
+
     typedef TValueOrError<TCachedBlockPtr> TGetBlockResult;
     typedef TFuture<TGetBlockResult> TAsyncGetBlockResult;
 
@@ -84,6 +86,7 @@ private:
     friend class TStoreImpl;
 
     class TCacheImpl;
+    friend class TCacheImpl;
 
     TIntrusivePtr<TStoreImpl> StoreImpl;
     TIntrusivePtr<TCacheImpl> CacheImpl;

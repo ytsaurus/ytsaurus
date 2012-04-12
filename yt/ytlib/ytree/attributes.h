@@ -12,9 +12,8 @@ namespace NYTree {
 
 struct IAttributeDictionary
 {
-    ~IAttributeDictionary()
-    { }
-
+    virtual ~IAttributeDictionary();
+    
     // Returns the list of all attribute names.
     virtual yhash_set<Stroka> List() const = 0;
 

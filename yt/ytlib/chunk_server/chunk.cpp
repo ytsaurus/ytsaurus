@@ -22,6 +22,9 @@ TChunk::TChunk(const TChunkId& id)
     , Size_(UnknownSize)
 { }
 
+TChunk::~TChunk()
+{ }
+
 void TChunk::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
