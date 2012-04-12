@@ -22,7 +22,7 @@ struct TCellConfig
     TCellConfig()
     {
         Register("rpc_port", RpcPort)
-            .Default(9091);
+            .Default(9000);
         Register("addresses", Addresses)
             .NonEmpty();
     }
