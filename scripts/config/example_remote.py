@@ -31,7 +31,7 @@ Logging = {
 }
 
 
-MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg.yt.yandex.net:9000' % i for i in xrange(1, 4)])
+MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg:9000' % i for i in xrange(1, 4)])
 
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
