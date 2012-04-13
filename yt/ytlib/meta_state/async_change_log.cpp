@@ -33,7 +33,7 @@ public:
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
-        , Result(New<TAppendResult>())
+        , FlushResult(New<TAppendResult>())
     { }
 
     TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data)
@@ -52,7 +52,7 @@ public:
         AppendQueue.push_back(data);
         Profiler.Enqueue("/changelog_queue_size", AppendQueue.size());
 
-        return Result;
+        return FlushResult;
     }
 
     void Flush()
@@ -67,8 +67,8 @@ public:
             YASSERT(FlushQueue.empty());
             FlushQueue.swap(AppendQueue);
 
-            result = Result;
-            Result = New<TAppendResult>();
+            result = FlushResult;
+            FlushResult = New<TAppendResult>();
         }
 
         // In addition to making this code run a tiny bit faster,
@@ -90,7 +90,7 @@ public:
         }
     }
 
-    void WaitFlush()
+    void WaitUntilFlushed()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -101,7 +101,7 @@ public:
                 if (FlushQueue.empty() && AppendQueue.empty()) {
                     return;
                 }
-                result = Result;
+                result = FlushResult;
             }
             result->Get();
         }
@@ -203,7 +203,7 @@ private:
     i32 FlushedRecordCount;
     yvector<TSharedRef> AppendQueue;
     yvector<TSharedRef> FlushQueue;
-    TAppendResult::TPtr Result;
+    TAppendResult::TPtr FlushResult;
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);
 };
@@ -281,10 +281,9 @@ public:
 
     void Flush(const TChangeLogPtr& changeLog)
     {
-        auto queue = FindQueueAndLock(changeLog);
+        auto queue = FindQueue(changeLog);
         if (queue) {
-            queue->WaitFlush();
-            UnlockQueue(queue);
+            queue->WaitUntilFlushed();
         }
 
         PROFILE_TIMING ("/changelog_flush_io_time") {
@@ -297,7 +296,7 @@ public:
         auto queue = FindQueueAndLock(changeLog);
         if (queue) {
             auto result = queue->GetRecordCount();
-            AtomicDecrement(queue->UseCount);
+            UnlockQueue(queue);
             return result;
         } else {
             return changeLog->GetRecordCount();
@@ -334,6 +333,13 @@ public:
     }
 
 private:
+    TChangeLogQueuePtr FindQueue(const TChangeLogPtr& changeLog) const
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        auto it = ChangeLogQueues.find(changeLog);
+        return it == ChangeLogQueues.end() ? NULL : it->second;
+    }
+
     TChangeLogQueuePtr FindQueueAndLock(const TChangeLogPtr& changeLog) const
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -359,7 +365,7 @@ private:
             YVERIFY(ChangeLogQueues.insert(MakePair(changeLog, queue)).second);
         }
 
-        ++queue->UseCount;
+        AtomicIncrement(queue->UseCount);
         return queue;
     }
 
