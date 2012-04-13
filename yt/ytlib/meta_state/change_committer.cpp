@@ -32,9 +32,9 @@ TCommitter::TCommitter(
     : MetaState(metaState)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
-    , CommitCounter("commit_rate")
-    , BatchCommitCounter("commit_batch_rate")
-    , CommitTimeCounter("commit_time")
+    , CommitCounter("/commit_rate")
+    , BatchCommitCounter("/commit_batch_rate")
+    , CommitTimeCounter("/commit_time")
 {
     YASSERT(metaState);
     YASSERT(epochControlInvoker);

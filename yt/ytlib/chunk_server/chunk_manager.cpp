@@ -644,8 +644,8 @@ private:
 
     TVoid IncrementalHeartbeat(const TMsgIncrementalHeartbeat& message)
     {
-        Profiler.Enqueue("/incremental_heartbeat_added_chunks", message.added_chunks_size());
-        Profiler.Enqueue("/incremental_heartbeat_removed_chunks", message.removed_chunks_size());
+        Profiler.Enqueue("/incremental_heartbeat_chunks_added", message.added_chunks_size());
+        Profiler.Enqueue("/incremental_heartbeat_chunks_removed", message.removed_chunks_size());
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
