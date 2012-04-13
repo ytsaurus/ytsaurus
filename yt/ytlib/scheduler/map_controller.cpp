@@ -241,9 +241,9 @@ private:
             YASSERT(jobCount > 0);
 
             // Init running counters.
-            JobCounter.Init(jobCount);
-            ChunkCounter.Init(totalChunkCount);
-            WeightCounter.Init(totalWeight);
+            JobCounter.Set(jobCount);
+            ChunkCounter.Set(totalChunkCount);
+            WeightCounter.Set(totalWeight);
 
             // Allocate some initial chunk lists.
             ChunkListPool->Allocate(OutputTables.size() * jobCount + Config->SpareChunkListCount);

@@ -22,7 +22,7 @@ static NLog::TLogger& Logger(OperationsLogger);
 static NProfiling::TProfiler Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////
-/*
+
 class TMergeController
     : public TOperationControllerBase
 {
@@ -72,16 +72,30 @@ private:
     typedef TIntrusivePtr<TMergeGroup> TMergeGroupPtr;
 
     std::vector<TMergeGroupPtr> Groups;
+    TMergeGroupPtr CurrentGroup;
 
-    TMergeGroupPtr AddGroup()
+    TMergeGroupPtr GetCurrentGroup()
     {
+        return CurrentGroup;
+    }
+
+    TMergeGroupPtr BeginGroup()
+    {
+        YASSERT(!CurrentGroup);
         auto group = New<TMergeGroup>();
         group->Index = static_cast<int>(Groups.size());
         Groups.push_back(group);
         return group;
     }
 
-    // Chunk pools and locality management.
+    void EndGroup()
+    {
+        YASSERT(CurrentGroup);
+        CurrentGroup.Reset();
+    }
+
+
+    // Chunk pools and locality.
 
     yhash_map<Stroka, yhash_set<TMergeGroupPtr> > AddressToGroupsWithPendingChunks;
     yhash_set<TMergeGroupPtr> GroupsWithPendingChunks;
@@ -252,8 +266,8 @@ private:
 
     virtual void OnJobFailed(TJobInProgressPtr jip)
     {
-        //LOG_DEBUG("Returned %d chunks back into the pool", static_cast<int>(jip->ExtractResult->Chunks.size()));
-        //ChunkPool->PutBack(jip->ExtractResult);
+        LOG_DEBUG("Returned %d chunks back into the pool", static_cast<int>(jip->ExtractResult->Chunks.size()));
+        jip->Group->ChunkPool->PutBack(jip->ExtractResult);
 
         ChunkCounter.Failed(jip->ExtractResult->Chunks.size());
         WeightCounter.Failed(jip->ExtractResult->Weight);
@@ -367,18 +381,18 @@ private:
     {
         auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
 
-        if (!IsMergableChunk(inputChunk)) {
+        if (!IsLargeCompleteChunk(inputChunk)) {
             // Chunks not requiring merge go directly to the output chunk list.
             OutputTables[0].OutputChildrenIds.push_back(chunkId);
             return false;
         }
 
         // Create a merge group if none exists.
-        if (Groups.empty()) {
-            auto uniqueGroup = AddGroup();
-            uniqueGroup->ChunkPool = CreateUnorderedChunkPool();
+        auto group = GetCurrentGroup();
+        if (!group) {
+            group = BeginGroup();
+            group->ChunkPool = CreateUnorderedChunkPool();
         }
-        auto group = Groups.back();
 
         // Merge is IO-bound, use data size as weight.
         auto chunk = New<TPooledChunk>(
@@ -400,7 +414,7 @@ private:
     {
         switch (Spec->Mode) {
             case EMergeMode::Unordered:
-                ChooseJobCountOrdered();
+                ChooseJobCountUnordered();
                 break;
             case EMergeMode::Ordered:
                 ChooseJobCountOrdered();
@@ -460,15 +474,14 @@ private:
             !chunk.slice().end_limit().has_key ();
     }
 
-    //! Returns True iff the chunk must be pooled.
-    bool IsMergableChunk(const TInputChunk& chunk)
+    //! Returns True iff the chunk is complete and is large enough to be included to the output as-is.
+    //! When |CombineChunks| is off all complete chunks are considered large.
+    bool IsLargeCompleteChunk(const TInputChunk& chunk)
     {
         if (!IsCompleteChunk(chunk)) {
-            // Incomplete chunks are always pooled.
             return true;
         }
 
-        // Completed chunks are pooled depending on their sizes and the spec.
         return
             chunk.approximate_data_size() < Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize &&
             Spec->CombineChunks;
@@ -487,14 +500,13 @@ private:
         JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
     }
 };
-*/
+
 IOperationControllerPtr CreateMergeController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
-    YUNREACHABLE();
-    //return New<TMergeController>(config, host, operation);
+    return New<TMergeController>(config, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

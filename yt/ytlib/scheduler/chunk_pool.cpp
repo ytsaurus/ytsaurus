@@ -11,10 +11,6 @@ class TUnorderedChunkPool
     : public IChunkPool
 {
 public:
-    TUnorderedChunkPool()
-        : TotalWeight(0)
-    { }
-
     virtual void Add(TPooledChunkPtr chunk)
     {
         YASSERT(chunk->Weight > 0);
@@ -84,17 +80,12 @@ public:
         }
     }
 
-    virtual i64 GetTotalWeight() const
-    {
-        return TotalWeight;
-    }
-
-    virtual bool HasChunks() const
+    virtual bool HasPendingChunks() const
     {
         return !Chunks.empty();
     }
 
-    virtual bool HasLocalChunksFor(const Stroka& address) const
+    virtual bool HasPendingLocalChunksFor(const Stroka& address) const
     {
         auto it = AddressToChunks.find(address);
         return
@@ -104,7 +95,6 @@ public:
     }
 
 private:
-    i64 TotalWeight;
     yhash_map<Stroka, yhash_set<TPooledChunkPtr> > AddressToChunks;
     yhash_set<TPooledChunkPtr> Chunks;
     
@@ -129,16 +119,14 @@ class TAtomicChunkPool
 {
 public:
     TAtomicChunkPool()
-        : TotalWeight(0)
-        , Extracted(false)
+        : Extracted(false)
         , Initialized(false)
-        , ExtractResult(New<TExtractResult>())
     { }
 
     virtual void Add(TPooledChunkPtr chunk)
     {
         YASSERT(!Initialized);
-        ExtractResult->AddRemote(chunk);
+        Chunks.push_back(chunk);
         FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
             Addresses.insert(address);
         }
@@ -158,25 +146,28 @@ public:
         Initialized = true;
         YASSERT(!Extracted);
 
-        return ExtractResult;
+        auto result = New<TExtractResult>();
+        FOREACH (const auto& chunk, Chunks) {
+            if (IsChunkLocal(chunk, address)) {
+                result->AddLocal(chunk);
+            } else {
+                result->AddRemote(chunk);
+            }
+        }
+        Extracted = true;
+        return result;
     }
 
     virtual void PutBack(TExtractResultPtr result)
     {
-        YASSERT(result == ExtractResult);
         YASSERT(Initialized);
         YASSERT(Extracted);
         Extracted = false;
     }
 
-    virtual i64 GetTotalWeight() const
-    {
-        return TotalWeight;
-    }
-
     virtual bool HasPendingChunks() const
     {
-        return !Extracted && !ExtractResult->Chunks.empty();
+        return !Extracted && !Chunks.empty();
     }
 
     virtual bool HasPendingLocalChunksFor(const Stroka& address) const
@@ -188,14 +179,8 @@ public:
     }
 
 private:
-    //! The sum of weights of all chunks.
-    i64 TotalWeight;
-    //! Cached extraction result.
-    /*!
-     *  Pooled chunks are appended here.
-     *  In #Extract this result is returned as-is.
-     */
-    TExtractResultPtr ExtractResult;
+    //! Pooled chunks (order matters!)
+    std::vector<TPooledChunkPtr> Chunks;
     //! Addresses of added chunks.
     yhash_set<Stroka> Addresses;
     //! Have the chunks been #Extract'ed?
@@ -203,6 +188,15 @@ private:
     //! Has any #Extract call been made already?
     bool Initialized;
 
+    static bool IsChunkLocal(TPooledChunkPtr chunk, const Stroka& address)
+    {
+        FOREACH (const auto& chunkAddress, chunk->InputChunk.holder_addresses()) {
+            if (chunkAddress == address) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
 TAutoPtr<IChunkPool> CreateAtomicChunkPool()
