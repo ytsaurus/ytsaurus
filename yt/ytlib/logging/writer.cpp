@@ -134,7 +134,7 @@ void TRawFileLogWriter::EnsureInitialized()
 void TRawFileLogWriter::Write(const TLogEvent& event)
 {
     EnsureInitialized();
-    if (FileOutput) {
+    if (~FileOutput) {
         *FileOutput
             << FormatDateTime(event.DateTime) << "\t"
             << FormatLevel(event.Level) << "\t"
@@ -150,7 +150,7 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
 
 void TRawFileLogWriter::Flush()
 {
-    if (FileOutput) {
+    if (~FileOutput) {
         FileOutput->Flush();
     }
 }
