@@ -889,7 +889,7 @@ private:
             }
         }
 
-        LOG_INFO("Operation node %s finalized", ~operation->GetOperationId().ToString());
+        LOG_INFO("Operation node %s finalized successfully", ~operation->GetOperationId().ToString());
 
         operation->GetFinished()->Set(TVoid());
     }
