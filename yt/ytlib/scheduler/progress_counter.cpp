@@ -26,6 +26,7 @@ void TProgressCounter::Set(i64 value)
     YASSERT(Pending_ == 0);
     YASSERT(Failed_ == 0);
     Total_ = value;
+    Pending_ = value;
 }
 
 void TProgressCounter::Add(i64 value)
