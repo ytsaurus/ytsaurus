@@ -74,7 +74,7 @@ public:
         // In addition to making this code run a tiny bit faster,
         // this check also prevents us from calling TChangeLog::Append for an already finalized changelog 
         // (its queue may still be present in the map).
-        if (FlushQueue.empty()) {
+        if (!FlushQueue.empty()) {
             PROFILE_TIMING ("/changelog_flush_io_time") {
                 ChangeLog->Append(FlushedRecordCount, FlushQueue);
                 ChangeLog->Flush();
@@ -107,7 +107,7 @@ public:
         }
     }
 
-    int GetRecordCount()
+    i32 GetRecordCount()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -171,7 +171,7 @@ public:
     }
 
 private:
-    int DoGetRecordCount() const
+    i32 DoGetRecordCount() const
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
         return FlushedRecordCount + FlushQueue.ysize() + AppendQueue.ysize();
