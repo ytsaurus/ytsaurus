@@ -50,8 +50,6 @@ public:
         }
 
         AppendQueue.push_back(data);
-        Profiler.Enqueue("/changelog_queue_size", AppendQueue.size());
-
         return FlushResult;
     }
 
