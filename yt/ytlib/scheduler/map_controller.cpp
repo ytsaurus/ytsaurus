@@ -136,7 +136,7 @@ private:
     {
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto chunkListId = jip->ChunkListIds[index];
-            OutputTables[index].PartitionIds.push_back(chunkListId);
+            OutputTables[index].PartitionTreeIds.push_back(chunkListId);
         }
 
         ChunkCounter.Completed(jip->ExtractResult->Chunks.size());

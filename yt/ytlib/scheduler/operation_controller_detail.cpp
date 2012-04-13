@@ -346,7 +346,7 @@ TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::CommitOut
 
     FOREACH (const auto& table, OutputTables) {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-        FOREACH (const auto& childId, table.PartitionIds) {
+        FOREACH (const auto& childId, table.PartitionTreeIds) {
             *req->add_children_ids() = childId.ToProto();
         }
         batchReq->AddRequest(req, "attach_chunk_trees");
