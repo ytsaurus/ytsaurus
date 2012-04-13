@@ -2,6 +2,7 @@
 #include "lock.h"
 
 #include <ytlib/transaction_server/transaction.h>
+#include <ytlib/cell_master/load_context.h>
 
 namespace NYT {
 
