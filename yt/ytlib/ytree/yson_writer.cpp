@@ -11,7 +11,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
     
-// copied from <util/string/escape.cpp
+// Copied from <util/string/escape.cpp>
 namespace {
 
 static inline char HexDigit(char value) {
