@@ -6,7 +6,6 @@
 #include "chunk_list.h"
 #include "job.h"
 #include "job_list.h"
-#include <ytlib/chunk_server/chunk_manager.pb.h>
 #include "chunk_placement.h"
 #include "job_scheduler.h"
 #include "holder_lease_tracker.h"
@@ -14,27 +13,38 @@
 #include "chunk_service_proxy.h"
 #include "holder_authority.h"
 #include "holder_statistics.h"
+
 #include <ytlib/chunk_server/chunk_manager.pb.h>
 #include <ytlib/chunk_server/chunk_ypath.pb.h>
 #include <ytlib/chunk_server/chunk_list_ypath.pb.h>
+#include <ytlib/chunk_server/chunk_manager.pb.h>
+
 #include <ytlib/file_client/file_chunk_meta.pb.h>
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/cell_master/load_context.h>
+#include <ytlib/cell_master/bootstrap.h>
+
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/cell_master/bootstrap.h>
+
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
+
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
+
 #include <ytlib/object_server/type_handler_detail.h>
+
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/logging/log.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -628,7 +638,7 @@ private:
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
-            LOG_INFO("Holder online (Address: %s, HolderId: %d)",
+            LOG_INFO_IF(!IsRecovery(), "Holder online (Address: %s, HolderId: %d)",
                 ~holder.GetAddress(),
                 holderId);
 
