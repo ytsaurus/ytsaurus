@@ -11,10 +11,14 @@ class TUnorderedChunkPool
     : public IChunkPool
 {
 public:
+    TUnorderedChunkPool()
+        : TotalWeight(0)
+    { }
+
     virtual void Add(TPooledChunkPtr chunk)
     {
         YASSERT(chunk->Weight > 0);
-
+        TotalWeight += chunk->Weight;
         FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
             YVERIFY(AddressToChunks[address].insert(chunk).second);
         }
@@ -80,6 +84,11 @@ public:
         }
     }
 
+    virtual i64 GetTotalWeight() const
+    {
+        return TotalWeight;
+    }
+
     virtual bool HasPendingChunks() const
     {
         return !Chunks.empty();
@@ -95,6 +104,7 @@ public:
     }
 
 private:
+    i64 TotalWeight;
     yhash_map<Stroka, yhash_set<TPooledChunkPtr> > AddressToChunks;
     yhash_set<TPooledChunkPtr> Chunks;
     
@@ -119,13 +129,15 @@ class TAtomicChunkPool
 {
 public:
     TAtomicChunkPool()
-        : Extracted(false)
+        : TotalWeight(0)
+        , Extracted(false)
         , Initialized(false)
     { }
 
     virtual void Add(TPooledChunkPtr chunk)
     {
         YASSERT(!Initialized);
+        TotalWeight += chunk->Weight;
         Chunks.push_back(chunk);
         FOREACH (const auto& address, chunk->InputChunk.holder_addresses()) {
             Addresses.insert(address);
@@ -165,6 +177,11 @@ public:
         Extracted = false;
     }
 
+    virtual i64 GetTotalWeight() const
+    {
+        return TotalWeight;
+    }
+
     virtual bool HasPendingChunks() const
     {
         return !Extracted && !Chunks.empty();
@@ -179,7 +196,7 @@ public:
     }
 
 private:
-    //! Pooled chunks (order matters!)
+    i64 TotalWeight;
     std::vector<TPooledChunkPtr> Chunks;
     //! Addresses of added chunks.
     yhash_set<Stroka> Addresses;

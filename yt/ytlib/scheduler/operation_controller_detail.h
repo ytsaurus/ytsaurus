@@ -125,7 +125,7 @@ protected:
         // Chunk list for appending the output.
         NChunkServer::TChunkListId OutputChunkListId;
         // Chunk trees comprising the output (the order matters!)
-        std::vector<NChunkServer::TChunkTreeId> OutputChildrenIds;
+        std::vector<NChunkServer::TChunkTreeId> PartitionTreeIds;
     };
 
     std::vector<TOutputTable> OutputTables;

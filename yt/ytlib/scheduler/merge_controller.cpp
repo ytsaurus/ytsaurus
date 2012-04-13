@@ -53,20 +53,16 @@ private:
         : public TIntrinsicRefCounted
     {
         TMergeGroup()
-            : Index(-1)
-            , OutputChildIndex(-1)
+            : PartitionIndex(-1)
         { }
-
-        //! Sequential index in group list, 0 for unordered merge.
-        int Index;
 
         TAutoPtr<IChunkPool> ChunkPool;
 
-        //! The position in |TOutputTable::OutputChildrenIds| where the 
+        //! The position in |TOutputTable::PartitionIds| where the 
         //! output of this group must be placed.
         //! -1 indicates that no position was reallocated, so the output
         //! is just appended to the end.
-        int OutputChildIndex;
+        int PartitionIndex;
     };
 
     typedef TIntrusivePtr<TMergeGroup> TMergeGroupPtr;
@@ -83,7 +79,7 @@ private:
     {
         YASSERT(!CurrentGroup);
         auto group = New<TMergeGroup>();
-        group->Index = static_cast<int>(Groups.size());
+        LOG_DEBUG("Created group %d", static_cast<int>(Groups.size()));
         Groups.push_back(group);
         return group;
     }
@@ -91,6 +87,9 @@ private:
     void EndGroup()
     {
         YASSERT(CurrentGroup);
+        LOG_DEBUG("Finished group %d (DataSize: %" PRId64 ")",
+            static_cast<int>(Groups.size()) - 1,
+            CurrentGroup->ChunkPool->GetTotalWeight());
         CurrentGroup.Reset();
     }
 
@@ -254,10 +253,10 @@ private:
     {
         auto group = jip->Group;
         auto& table = OutputTables[0];
-        if (group->OutputChildIndex >= 0) {
-            table.OutputChildrenIds[group->OutputChildIndex] = jip->ChunkListId;
+        if (group->PartitionIndex >= 0) {
+            table.PartitionTreeIds[group->PartitionIndex] = jip->ChunkListId;
         } else {
-            table.OutputChildrenIds.push_back(jip->ChunkListId);
+            table.PartitionTreeIds.push_back(jip->ChunkListId);
         }
 
         ChunkCounter.Completed(jip->ExtractResult->Chunks.size());
@@ -300,7 +299,6 @@ private:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            // Compute statistics and populate the pool.
             i64 totalRowCount = 0;
             i64 mergeRowCount = 0;
             i64 totalDataSize = 0;
@@ -327,6 +325,11 @@ private:
                 }
             }
 
+            // Close the last group, if any.
+            if (GetCurrentGroup()) {
+                EndGroup();
+            }
+
             // Check for empty and trivial inputs.
             if (totalRowCount == 0) {
                 LOG_INFO("Empty input");
@@ -334,7 +337,7 @@ private:
                 return;
             }
 
-            if (mergeRowCount == 0) {
+            if (mergeChunkCount == 0) {
                 LOG_INFO("Trivial merge");
                 FinalizeOperation();
                 return;
@@ -380,14 +383,16 @@ private:
     bool ProcessInputChunkUnordered(const TInputChunk& inputChunk)
     {
         auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+        auto& table = OutputTables[0];
 
         if (!IsLargeCompleteChunk(inputChunk)) {
             // Chunks not requiring merge go directly to the output chunk list.
-            OutputTables[0].OutputChildrenIds.push_back(chunkId);
+            LOG_DEBUG("Chunk %s is large and complete, using as-is", ~chunkId.ToString());
+            table.PartitionTreeIds.push_back(chunkId);
             return false;
         }
 
-        // Create a merge group if none exists.
+        // Create a merge group if not exists.
         auto group = GetCurrentGroup();
         if (!group) {
             group = BeginGroup();
@@ -399,12 +404,55 @@ private:
             inputChunk,
             inputChunk.approximate_data_size());
         AddChunkToPool(group, chunk);
+        
+        LOG_DEBUG("Chunk %s is pooled (DataSize: %" PRId64 ")",
+            ~chunkId.ToString(),
+            inputChunk.approximate_data_size());
+
         return true;
     }
 
     bool ProcessInputChunkOrdered(const TInputChunk& inputChunk)
     {
-        YUNREACHABLE();
+        auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+        auto group = GetCurrentGroup();
+        auto& table = OutputTables[0];
+
+        if (IsLargeCompleteChunk(inputChunk) && !group) {
+            // Merge is not required and no current group is active.
+            // Copy the chunk directly to the output.
+            LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
+                ~chunkId.ToString(),
+                static_cast<int>(table.PartitionTreeIds.size()));
+            table.PartitionTreeIds.push_back(chunkId);
+            return false;
+        }
+
+        // Ensure that the current group exists.
+        if (!group) {
+            group = BeginGroup();
+            group->ChunkPool = CreateAtomicChunkPool();
+            group->PartitionIndex = static_cast<int>(table.PartitionTreeIds.size());
+            table.PartitionTreeIds.push_back(NullChunkListId);
+        }
+        
+        // Merge is IO-bound, use data size as weight.
+        auto chunk = New<TPooledChunk>(
+            inputChunk,
+            inputChunk.approximate_data_size());
+        AddChunkToPool(group, chunk);
+
+        LOG_DEBUG("Chunk %s is pooled in partition %d (DataSize: %" PRId64 ")",
+            ~chunkId.ToString(),
+            group->PartitionIndex,
+            inputChunk.approximate_data_size());
+
+        // Finish the group if the size is large enough.
+        if (group->ChunkPool->GetTotalWeight() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+            EndGroup();
+        }
+
+        return true;
     }
 
 
@@ -439,7 +487,9 @@ private:
 
     void ChooseJobCountOrdered()
     {
-
+        // Each group corresponds to a unique job.
+        i64 jobCount = Groups.size();
+        JobCounter.Set(jobCount);
     }
 
 
