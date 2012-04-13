@@ -246,13 +246,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                 FOREACH (const auto& peer, peers) {
                     blockInfo->add_peer_addresses(peer.Address);
                 }
-                LOG_DEBUG("GetBlocks: Peers suggested (BlockIndex: %d, PeerCount: %d)",
-                    blockIndex,
-                    peers.ysize());
+                LOG_DEBUG("GetBlocks: %d peers suggested for block %d",
+                    peers.ysize(),
+                    blockIndex);
             }
         } else {
             // Fetch the actual data (either from cache or from disk).
-            LOG_DEBUG("GetBlocks: Fetching block (BlockIndex: %d)", blockIndex);
+            LOG_DEBUG("GetBlocks: Fetching block %d", blockIndex);
             awaiter->Await(
                 Bootstrap->GetBlockStore()->GetBlock(blockId),
                 BIND([=] (TBlockStore::TGetBlockResult result) {

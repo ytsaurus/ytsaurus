@@ -120,7 +120,7 @@ private:
             Awaiter = New<TParallelAwaiter>(
                 ~Committer->EpochControlInvoker,
                 &Profiler,
-                "commit_batch_time");
+                "/commit_batch_time");
 
             Awaiter->Await(
                 LogResult,

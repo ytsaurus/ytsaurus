@@ -61,7 +61,7 @@ public:
             Awaiter = New<TParallelAwaiter>(
                 ~Owner->EpochControlInvoker,
                 &Profiler,
-                "snapshot_build_time");
+                "/snapshot_build_time");
         } else {
             LOG_INFO("Rotating changelog at version %s", ~Version.ToString());
 

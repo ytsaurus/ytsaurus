@@ -29,7 +29,7 @@ TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto asyncResult = New<TFuture<TResult> >();
-    auto awaiter = New<TParallelAwaiter>(&Profiler, "time");
+    auto awaiter = New<TParallelAwaiter>(&Profiler, "/time");
 
     FOREACH (Stroka address, Config->Addresses) {
         LOG_DEBUG("Requesting leader from peer %s", ~address);
