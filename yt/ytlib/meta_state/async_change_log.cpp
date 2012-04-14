@@ -50,6 +50,8 @@ public:
         }
 
         AppendQueue.push_back(data);
+
+        YASSERT(FlushResult);
         return FlushResult;
     }
 
@@ -58,13 +60,13 @@ public:
         VERIFY_THREAD_AFFINITY(Flush);
 
         TAppendResult::TPtr result;
-
-        PROFILE_TIMING ("/changelog_flush_append_time") {
+        {
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(FlushQueue.empty());
             FlushQueue.swap(AppendQueue);
 
+            YASSERT(FlushResult);
             result = FlushResult;
             FlushResult = New<TAppendResult>();
         }
@@ -113,12 +115,26 @@ public:
         return DoGetRecordCount();
     }
 
-    bool IsEmpty()
+    bool TrySweep()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock);
-        return AppendQueue.empty() && FlushQueue.empty();
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+
+            if (!AppendQueue.empty() || !FlushQueue.empty()) {
+                return false;
+            }
+
+            if (UseCount != 0) {
+                return false;
+            }
+        }
+
+        FlushResult->Set(TVoid());
+        FlushResult.Reset();
+
+        return true;
     }
 
     // Can return less records than recordCount
@@ -130,8 +146,8 @@ public:
 
         PROFILE_TIMING ("/changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
-            flushedRecordCount = FlushedRecordCount;            
-            
+            flushedRecordCount = FlushedRecordCount; 
+
             CopyRecords(
                 FlushedRecordCount,
                 FlushQueue,
@@ -398,7 +414,7 @@ private:
         while (it != ChangeLogQueues.end()) {
             auto jt = it++;
             auto queue = jt->second;
-            if (queue->UseCount == 0 && queue->IsEmpty()) {
+            if (queue->TrySweep()) {
                 LOG_DEBUG("Async changelog queue %d was swept", jt->first->GetId());
                 ChangeLogQueues.erase(jt);
             }
@@ -440,13 +456,13 @@ private:
         }
     }
 
-    typedef yhash_map<TChangeLogPtr, TChangeLogQueuePtr> TChangeLogQueueMap;
-
-    TChangeLogQueueMap ChangeLogQueues;
     TSpinLock SpinLock;
+    yhash_map<TChangeLogPtr, TChangeLogQueuePtr> ChangeLogQueues;
+
     TThread Thread;
     Event WakeupEvent;
     volatile bool Finished;
+
     NProfiling::TRateCounter RecordCounter;
     NProfiling::TRateCounter SizeCounter;
 
