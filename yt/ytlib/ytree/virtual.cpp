@@ -19,6 +19,8 @@ using namespace NRpc;
 
 const int DefaultMaxSize = 1000;
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TVirtualMapBase::DoInvoke(IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
