@@ -4,6 +4,7 @@
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/misc/enum.h>
+#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NProfiling {
@@ -144,9 +145,15 @@ class TProfiler
 {
 public:
     //! Constructs a new profiler for a given prefix.
+    /*!
+     *  By default the profiler is enabled.
+     */
     TProfiler(
         const NYTree::TYPath& pathPrefix,
         bool selfProfiling = false);
+
+    //! Controls if the profiler is enabled.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
 
     //! Enqueues a new sample.
     void Enqueue(const NYTree::TYPath& path, TValue value);

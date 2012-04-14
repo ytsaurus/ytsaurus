@@ -68,10 +68,14 @@ void TAggregateCounter::Reset()
 TProfiler::TProfiler(const TYPath& pathPrefix, bool selfProfiling)
     : PathPrefix(pathPrefix)
     , SelfProfiling(selfProfiling)
+    , Enabled_(true)
 { }
 
 void TProfiler::Enqueue(const TYPath& path, TValue value)
 {
+    if (!Enabled_)
+        return;
+
     TQueuedSample sample;
     sample.Time = GetCpuInstant();
     sample.Path = PathPrefix + path;
