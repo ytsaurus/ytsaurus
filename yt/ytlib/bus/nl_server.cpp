@@ -51,7 +51,6 @@ private:
     friend class TSession;
 
     typedef yhash_map<TSessionId, TSessionPtr> TSessionMap;
-    typedef yhash_map<TGuid, TSessionPtr> TPingMap;
 
     TNLBusServerConfig::TPtr Config;
     bool Started;
@@ -66,7 +65,6 @@ private:
     IMessageHandler::TPtr Handler;
     ::TIntrusivePtr<IRequester> Requester;
     TSessionMap SessionMap;
-    TPingMap PingMap;
     TLockFreeQueue<TSessionPtr> SessionsWithPendingResponses;
     TLockFreeQueue<TSessionId> ExpiredSessionIds;
 
@@ -95,7 +93,6 @@ private:
 
     void ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest);
     void ProcessMessage(TPacketHeader* header, TUdpHttpResponse* nlResponse);
-    void ProcessPing(TPacketHeader* header, TUdpHttpRequest* nlRequest);
     void ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse);
 
     TSessionPtr DoProcessMessage(
@@ -161,7 +158,6 @@ public:
     {
         auto server = Server.Lock();
         YASSERT(server);
-        SendPing();
         Lease = TLeaseManager::CreateLease(
             server->Config->SessionTimeout,
             BIND(&TSession::OnLeaseExpired, MakeWeak(this)));
@@ -169,7 +165,6 @@ public:
 
     void OnUnregistered()
     {
-        CancelPing();
         if (Lease) {
             TLeaseManager::CloseLease(Lease);
             Lease.Reset();
@@ -189,11 +184,6 @@ public:
     TSessionId GetSessionId() const
     {
         return SessionId;
-    }
-
-    TGuid GetPingId() const
-    {
-        return PingId;
     }
 
     TUdpAddress GetAddress() const
@@ -253,35 +243,11 @@ private:
     TWeakPtr<TNLBusServer> Server;
     TSessionId SessionId;
     TUdpAddress Address;
-    TGuid PingId;
     TAtomic SequenceId;
     TMessageRearranger::TPtr MessageRearranger;
     TLeaseManager::TLease Lease;
 
     TLockFreeQueue<TOutcomingResponse::TPtr> PendingResponses;
-
-    void SendPing()
-    {
-        auto server = Server.Lock();
-
-        YASSERT(server);
-        YASSERT(PingId == TGuid());
-
-        TBlob data;
-        CreatePacket(SessionId, TPacketHeader::EType::Ping, &data);
-        PingId = server->Requester->SendRequest(Address, "", &data);
-    }
-
-    void CancelPing()
-    {
-        auto server = Server.Lock();
-
-        YASSERT(server);
-        YASSERT(PingId != TGuid());
-
-        server->Requester->CancelRequest(PingId);
-        PingId = TGuid();
-    }
 
     TSequenceId GenerateSequenceId()
     {
@@ -364,8 +330,6 @@ void TNLBusServer::Stop()
     Requester = NULL;
 
     SessionMap.clear();
-
-    PingMap.clear();
 
     Handler.Reset();
 
@@ -480,17 +444,8 @@ void TNLBusServer::ProcessIncomingNLResponse(TUdpHttpResponse* nlResponse)
 
 void TNLBusServer::ProcessFailedNLResponse(TUdpHttpResponse* nlResponse)
 {
-    auto pingIt = PingMap.find(nlResponse->ReqId);
-    if (pingIt == PingMap.end()) {
-        LOG_DEBUG("Request failed (RequestId: %s)",
-            ~((TGuid) nlResponse->ReqId).ToString());
-    } else {
-        LOG_DEBUG("Ping failed (RequestId: %s)",
-            ~((TGuid) nlResponse->ReqId).ToString());
-
-        auto session = pingIt->second;
-        UnregisterSession(MoveRV(session));
-    }
+    TGuid requestId = nlResponse->ReqId;
+    LOG_DEBUG("Request failed (RequestId: %s)", ~requestId.ToString());
 }
 
 bool TNLBusServer::ProcessOutcomingResponses()
@@ -550,18 +505,9 @@ void TNLBusServer::ProcessExpiredSession(TSessionPtr session)
 void TNLBusServer::ProcessAck(TPacketHeader* header, TUdpHttpResponse* nlResponse)
 {
     TGuid requestId = nlResponse->ReqId;
-    auto pingIt = PingMap.find(requestId);
-    if (pingIt == PingMap.end()) {
-        LOG_DEBUG("Ack received (SessionId: %s, RequestId: %s)",
-            ~header->SessionId.ToString(),
-            ~requestId.ToString());
-    } else {
-        LOG_DEBUG("Ping ack received (RequestId: %s)",
-            ~requestId.ToString());
-
-        auto session = pingIt->second;
-        UnregisterSession(MoveRV(session));
-    }
+    LOG_DEBUG("Ack received (SessionId: %s, RequestId: %s)",
+        ~header->SessionId.ToString(),
+        ~requestId.ToString());
 }
 
 void TNLBusServer::ProcessMessage(TPacketHeader* header, TUdpHttpRequest* nlRequest)
@@ -690,15 +636,11 @@ TNLBusServer::TSessionPtr TNLBusServer::RegisterSession(
 
     AtomicIncrement(SessionCount);
 
-    auto pingId = session->GetPingId();
-
     SessionMap.insert(MakePair(sessionId, session));
-    PingMap.insert(MakePair(pingId, session));
 
-    LOG_DEBUG("Session registered (SessionId: %s, Address: %s, PingId: %s)",
+    LOG_DEBUG("Session registered (SessionId: %s, Address: %s)",
         ~sessionId.ToString(),
-        ~GetAddressAsString(address),
-        ~pingId.ToString());
+        ~GetAddressAsString(address));
 
     return session;
 }
@@ -708,7 +650,6 @@ void TNLBusServer::UnregisterSession(TSessionPtr session)
     LOG_DEBUG("Session unregistered (SessionId: %s)", ~session->GetSessionId().ToString());
 
     YVERIFY(SessionMap.erase(session->GetSessionId()) == 1);
-    YVERIFY(PingMap.erase(session->GetPingId()) == 1);
 
     session->OnUnregistered();
 
