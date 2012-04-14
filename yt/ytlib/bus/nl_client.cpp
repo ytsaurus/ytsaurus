@@ -6,6 +6,7 @@
 
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/thread.h>
 #include <ytlib/profiling/profiler.h>
 
 #include <quality/netliba_v6/udp_http.h>
@@ -190,6 +191,7 @@ class TClientDispatcher
 
     void ThreadMain()
     {
+        NThread::SetCurrentThreadName("BusClient");
         while (!Terminated) {
             // NB: "&", not "&&" since we want every type of processing to happen on each iteration.
             if (!ProcessBusRegistrations() &

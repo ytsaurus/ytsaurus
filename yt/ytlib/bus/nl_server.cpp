@@ -9,6 +9,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/lease_manager.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/misc/thread.h>
 #include <ytlib/profiling/profiler.h>
 
 #include <util/thread/lfqueue.h>
@@ -387,6 +388,7 @@ Event& TNLBusServer::GetEvent()
 
 void TNLBusServer::ThreadMain()
 {
+    NThread::SetCurrentThreadName("BusServer");
     while (!Stopped) {
         // NB: "&", not "&&" since we want every type of processing to happen on each iteration.
         if (!ProcessIncomingNLRequests() &
