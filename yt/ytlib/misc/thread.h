@@ -1,18 +1,4 @@
 #pragma once
 
-namespace NYT {
-namespace NThread {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void SetCurrentThreadName(const char* name);
-
-typedef size_t TThreadId;
-const size_t InvalidThreadId = 0;
-
-TThreadId GetCurrentThreadId();
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NThread
-} // namespace NYT
+// Our code currently resides in util/system/thread.h
+#include <util/system/thread.h>
