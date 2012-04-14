@@ -274,7 +274,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(
 
 #if defined(_unix_)
     LOG_INFO("Going to fork");
-    auto forkTimer = Profiler.TimingStart("fork_time");
+    auto forkTimer = Profiler.TimingStart("/fork_time");
     pid_t childPid = fork();
     if (childPid == -1) {
         LOG_ERROR("Could not fork while creating local snapshot %d", snapshotId);
