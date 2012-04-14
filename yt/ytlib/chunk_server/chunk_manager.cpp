@@ -1367,7 +1367,7 @@ private:
 
         // Use the size reported by the client, but check it for consistency first.
         if (chunk.GetSize() != TChunk::UnknownSize && chunk.GetSize() != size) {
-            LOG_FATAL("Mismatched chunk size reported by client (ChunkId: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ")",
+            LOG_FATAL("Mismatched size of chunk %s reported by client: expected %" PRId64 ", received %" PRId64,
                 ~Id.ToString(),
                 chunk.GetSize(),
                 size);
@@ -1377,9 +1377,17 @@ private:
         FOREACH (const auto& address, holderAddresses) {
             auto* holder = Owner->FindHolder(address);
             if (!holder) {
-                LOG_WARNING_IF(!Owner->IsRecovery(), "Tried to confirm a chunk at unknown holder (ChunkId: %s, HolderAddress: %s)",
+                LOG_DEBUG_IF(!Owner->IsRecovery(), "Tried to confirm chunk %s at an unknown holder %s",
                     ~Id.ToString(),
                     ~address);
+                continue;
+            }
+
+            if (holder->GetState() != EHolderState::Online) {
+                LOG_DEBUG_IF(!Owner->IsRecovery(), "Tried to confirm chunk %s at holder %s with invalid state %s",
+                    ~Id.ToString(),
+                    ~address,
+                    ~FormatEnum(holder->GetState()));
                 continue;
             }
 
