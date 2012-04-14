@@ -265,7 +265,7 @@ public:
 
     TChunk& CreateChunk()
     {
-        Profiler.Increment(RemoveChunkCounter);
+        Profiler.Increment(AddChunkCounter);
         auto id = Bootstrap->GetObjectManager()->GenerateId(EObjectType::Chunk);
         auto* chunk = new TChunk(id);
         ChunkMap.Insert(id, chunk);
