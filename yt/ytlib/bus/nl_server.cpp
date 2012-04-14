@@ -33,9 +33,7 @@ class TNLBusServer
     : public IBusServer
 {
 public:
-    typedef TIntrusivePtr<TNLBusServer> TPtr;
-
-    explicit TNLBusServer(TNLBusServerConfig* config);
+    explicit TNLBusServer(TNLBusServerConfig::TPtr config);
     virtual ~TNLBusServer();
 
     virtual void Start(IMessageHandler* handler);
@@ -117,7 +115,7 @@ private:
     void ProfileOut(int size);
 };
 
-IBusServer::TPtr CreateNLBusServer(TNLBusServerConfig* config)
+IBusServer::TPtr CreateNLBusServer(TNLBusServerConfig::TPtr config)
 {
     return New<TNLBusServer>(config);
 }
@@ -317,7 +315,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNLBusServer::TNLBusServer(TNLBusServerConfig* config)
+TNLBusServer::TNLBusServer(TNLBusServerConfig::TPtr config)
     : Config(config)
     , Started(false)
     , Stopped(false)
@@ -680,7 +678,7 @@ void TNLBusServer::EnqueueOutcomingResponse(TSessionPtr session, TOutcomingRespo
     GetEvent().Signal();
 }
 
-TIntrusivePtr<TNLBusServer::TSession> TNLBusServer::RegisterSession(
+TNLBusServer::TSessionPtr TNLBusServer::RegisterSession(
     const TSessionId& sessionId,
     const TUdpAddress& address)
 {
