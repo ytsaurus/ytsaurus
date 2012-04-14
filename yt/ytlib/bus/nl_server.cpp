@@ -737,9 +737,9 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
                 fluent.Item("response_count").Scalar(statistics.ResponseCount);
                 fluent.Item("response_data_size").Scalar(statistics.ResponseDataSize);
             })
-//            .DoIf(Requester.Get(), [=] (TFluentMap fluent) {
-//                fluent.Item("debug_info").Scalar(Requester->GetDebugInfo());
-//            })
+            .DoIf(Requester.Get(), [=] (TFluentMap fluent) {
+                fluent.Item("debug_info").Scalar(Requester->GetDebugInfo());
+            })
             .Item("session_count").Scalar(static_cast<i64>(SessionCount))
          .EndMap();
 }
