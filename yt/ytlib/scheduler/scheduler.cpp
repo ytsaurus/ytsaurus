@@ -768,8 +768,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Just check every response and log the errors.
+        OperationNodesUpdateInvoker->ScheduleNext();
 
+        // Just check every response and log the errors.
         if (!batchRsp->IsOK()) {
             LOG_ERROR("Error updating operations\n%s", ~batchRsp->GetError().ToString());
             return;
@@ -782,8 +783,6 @@ private:
         }
 
         LOG_INFO("Operation nodes updated successfully");
-
-        OperationNodesUpdateInvoker->ScheduleNext();
     }
 
 
