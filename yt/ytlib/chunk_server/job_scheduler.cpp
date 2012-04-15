@@ -118,10 +118,9 @@ void TJobScheduler::ProcessExistingJobs(
         const auto* job = chunkManager->FindJob(jobId);
 
         if (!job) {
-            LOG_WARNING("Stopping unknown or obsolete job (JobId: %s, Address: %s, HolderId: %d)",
+            LOG_WARNING("Stopping unknown or obsolete job %s on %s",
                 ~jobId.ToString(),
-                ~holder.GetAddress(),
-                holder.GetId());
+                ~holder.GetAddress());
             TJobStopInfo stopInfo;
             *stopInfo.mutable_job_id() = jobId.ToProto();
             jobsToStop->push_back(stopInfo);
@@ -143,21 +142,19 @@ void TJobScheduler::ProcessExistingJobs(
                     default:
                         YUNREACHABLE();
                 }
-                LOG_INFO("Job is running (JobId: %s, Address: %s, HolderId: %d)",
+                LOG_INFO("Job %s is running on %s",
                     ~jobId.ToString(),
-                    ~holder.GetAddress(),
-                    holder.GetId());
+                    ~holder.GetAddress());
 
                 if (TInstant::Now() - job->GetStartTime() > Config->Jobs->JobTimeout) {
                     TJobStopInfo stopInfo;
                     *stopInfo.mutable_job_id() = jobId.ToProto();
                     jobsToStop->push_back(stopInfo);
 
-                    LOG_WARNING("Job timed out (JobId: %s, Address: %s, HolderId: %d, Duration: %d ms)",
+                    LOG_WARNING("Job %s has timed out on %s after %s",
                         ~jobId.ToString(),
                         ~holder.GetAddress(),
-                        holder.GetId(),
-                        static_cast<i32>((TInstant::Now() - job->GetStartTime()).MilliSeconds()));
+                        ~ToString(TInstant::Now() - job->GetStartTime()));
                 }
                 break;
 
@@ -169,11 +166,10 @@ void TJobScheduler::ProcessExistingJobs(
 
                 ScheduleChunkRefresh(job->GetChunkId());
 
-                LOG_INFO("Job %s (JobId: %s, Address: %s, HolderId: %d)",
-                    jobState == EJobState::Completed ? "completed" : "failed",
+                LOG_INFO("Job %s has %s on %s",
                     ~jobId.ToString(),
-                    ~holder.GetAddress(),
-                    holder.GetId());
+                    jobState == EJobState::Completed ? "completed" : "failed",
+                    ~holder.GetAddress());
                 break;
             }
 
@@ -190,10 +186,9 @@ void TJobScheduler::ProcessExistingJobs(
             *stopInfo.mutable_job_id() = jobId.ToProto();
             jobsToStop->push_back(stopInfo);
 
-            LOG_WARNING("Job is missing (JobId: %s, Address: %s, HolderId: %d)",
+            LOG_WARNING("Job %s is missing on %s",
                 ~jobId.ToString(),
-                ~holder.GetAddress(),
-                holder.GetId());
+                ~holder.GetAddress());
         }
     }
 }
@@ -211,18 +206,15 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto* chunk = chunkManager->FindChunk(chunkId);
     if (!chunk) {
-        LOG_TRACE("Chunk we're about to replicate is missing (ChunkId: %s, Address: %s, HolderId: %d)",
+        LOG_TRACE("Chunk %s we're about to replicate is missing on %s",
             ~chunkId.ToString(),
-            ~sourceHolder.GetAddress(),
-            sourceHolder.GetId());
+            ~sourceHolder.GetAddress());
         return EScheduleFlags::Purged;
     }
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_TRACE("Chunk we're about to replicate is scheduled for another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
-            ~chunkId.ToString(),
-            ~sourceHolder.GetAddress(),
-            sourceHolder.GetId());
+        LOG_TRACE("Chunk %s we're about to replicate is scheduled for another refresh",
+            ~chunkId.ToString());
         return EScheduleFlags::Purged;
     }
 
@@ -241,19 +233,15 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
 
     int requestedCount = desiredCount - (storedCount + plusCount);
     if (requestedCount <= 0) {
-        LOG_TRACE("Chunk we're about to replicate has enough replicas (ChunkId: %s, Address: %s, HolderId: %d)",
-            ~chunkId.ToString(),
-            ~sourceHolder.GetAddress(),
-            sourceHolder.GetId());
+        LOG_TRACE("Chunk %s we're about to replicate has enough replicas",
+            ~chunkId.ToString());
         return EScheduleFlags::Purged;
     }
 
     auto targets = ChunkPlacement->GetReplicationTargets(*chunk, requestedCount);
     if (targets.empty()) {
-        LOG_TRACE("No suitable target holders for replication (ChunkId: %s, Address: %s, HolderId: %d)",
-            ~chunkId.ToString(),
-            ~sourceHolder.GetAddress(),
-            sourceHolder.GetId());
+        LOG_TRACE("No suitable target holders for replication of chunk %s",
+            ~chunkId.ToString());
         return EScheduleFlags::None;
     }
 
@@ -273,11 +261,10 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
-    LOG_DEBUG("Chunk replication scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddresses: [%s])",
-        ~chunkId.ToString(),
-        ~sourceHolder.GetAddress(),
-        sourceHolder.GetId(),
+    LOG_DEBUG("Job %s is scheduled on %s: replicate chunk %s to [%s]",
         ~jobId.ToString(),
+        ~sourceHolder.GetAddress(),
+        ~chunkId.ToString(),
         ~JoinToString(targetAddresses));
 
     return
@@ -296,10 +283,8 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
     auto* chunk = &chunkManager->GetChunk(chunkId);
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_DEBUG("Postponed chunk balancing until another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
-            ~chunkId.ToString(),
-            ~sourceHolder.GetAddress(),
-            sourceHolder.GetId());
+        LOG_DEBUG("Chunk %s we're about to balance is scheduled for another refresh",
+            ~chunkId.ToString());
         return EScheduleFlags::None;
     }
 
@@ -308,10 +293,8 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
         Config->Jobs->MinBalancingFillCoeffDiff;
     auto targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetHolderId == InvalidHolderId) {
-        LOG_DEBUG("No suitable target holders for balancing (ChunkId: %s, Address: %s, HolderId: %d)",
-            ~chunkId.ToString(),
-            ~sourceHolder.GetAddress(),
-            sourceHolder.GetId());
+        LOG_DEBUG("No suitable target holders for balancing of chunk %s",
+            ~chunkId.ToString());
         return EScheduleFlags::None;
     }
 
@@ -327,11 +310,10 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
-    LOG_DEBUG("Chunk balancing scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s, TargetAddress: %s)",
-        ~chunkId.ToString(),
-        ~sourceHolder.GetAddress(),
-        sourceHolder.GetId(),
+    LOG_DEBUG("Job %s is scheduled on %s: balance chunk %s to [%s]",
         ~jobId.ToString(),
+        ~sourceHolder.GetAddress(),
+        ~chunkId.ToString(),
         ~targetHolder.GetAddress());
 
     // TODO: flagged enums
@@ -344,10 +326,8 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleRemovalJob(
     yvector<TJobStartInfo>* jobsToStart)
 {
     if (IsRefreshScheduled(chunkId)) {
-        LOG_DEBUG("Postponed chunk removal until another refresh (ChunkId: %s, Address: %s, HolderId: %d)",
-            ~chunkId.ToString(),
-            ~holder.GetAddress(),
-            holder.GetId());
+        LOG_DEBUG("Chunk %s we're about to remove is scheduled for another refresh",
+            ~chunkId.ToString());
         return EScheduleFlags::None;
     }
     
@@ -363,11 +343,10 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleRemovalJob(
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
-    LOG_DEBUG("Removal job scheduled (ChunkId: %s, Address: %s, HolderId: %d, JobId: %s)",
-        ~chunkId.ToString(),
+    LOG_DEBUG("Job %s is scheduled on %s: chunk %s will be removed",
+        ~jobId.ToString(),
         ~holder.GetAddress(),
-        holder.GetId(),
-        ~jobId.ToString());
+        ~chunkId.ToString());
 
     // TODO: flagged enums
     return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
@@ -411,10 +390,9 @@ void TJobScheduler::ScheduleNewJobs(
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(holder, maxReplicationJobsToStart);
         if (!chunksToBalance.empty()) {
-            LOG_DEBUG("Holder is eligible for balancing (Address: %s, HolderId: %d, ChunkIds: [%s])",
-                ~holder.GetAddress(),
-                holder.GetId(),
-                ~JoinToString(chunksToBalance));
+            LOG_DEBUG("Balancing chunks [%s] on %s",
+                ~JoinToString(chunksToBalance),
+                ~holder.GetAddress());
 
             FOREACH (const auto& chunkId, chunksToBalance) {
                 if (maxReplicationJobsToStart == 0) {
@@ -546,16 +524,16 @@ void TJobScheduler::Refresh(const TChunk& chunk)
     if (storedCount == 0) {
         LostChunkIds_.insert(chunkId);
 
-        LOG_TRACE("Chunk is lost (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+        LOG_TRACE("Chunk %s is lost: %d replicas needed but only %s exist",
             ~chunk.GetId().ToString(),
-            ~replicaCountStr,
-            desiredCount);
+            desiredCount,
+            ~replicaCountStr);
     } else if (storedCount - minusCount > desiredCount) {
         OverreplicatedChunkIds_.insert(chunkId);
 
         // NB: Never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
         if (plusCount > 0) {
-            LOG_WARNING("Chunk is over-replicated, waiting for pending replications to complete (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+            LOG_WARNING("Chunk %s is over-replicated: %s replicas exist but only %d needed, waiting for pending replications to complete",
                 ~chunk.GetId().ToString(),
                 ~replicaCountStr,
                 desiredCount);
@@ -574,17 +552,17 @@ void TJobScheduler::Refresh(const TChunk& chunk)
             holderAddresses.push_back(holder.GetAddress());
         }
 
-        LOG_DEBUG("Chunk is over-replicated, removal is scheduled at [%s] (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
-            ~JoinToString(holderAddresses),
+        LOG_DEBUG("Chunk %s is over-replicated: %s replicas exist but only %d needed, removal is scheduled on [%s]",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
-            desiredCount);
+            desiredCount,
+            ~JoinToString(holderAddresses));
     } else if (storedCount + plusCount < desiredCount) {
         UnderreplicatedChunkIds_.insert(chunkId);
 
         // NB: Never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
         if (minusCount > 0) {
-            LOG_WARNING("Chunk is under-replicated, waiting for pending removals to complete (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+            LOG_WARNING("Chunk %s is under-replicated: %s replicas exist but %d needed, waiting for pending removals to complete",
                 ~chunk.GetId().ToString(),
                 ~replicaCountStr,
                 desiredCount);
@@ -597,13 +575,13 @@ void TJobScheduler::Refresh(const TChunk& chunk)
 
         holderInfo.ChunksToReplicate.insert(chunk.GetId());
 
-        LOG_DEBUG("Chunk is under-replicated, replication is scheduled at %s (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
-            ~holder.GetAddress(),
+        LOG_DEBUG("Chunk %s is under-replicated: %s replicas exist but %d needed, replication is scheduled on %s",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
-            desiredCount);
+            desiredCount,
+            ~holder.GetAddress());
     } else {
-        LOG_TRACE("Chunk is OK (ChunkId: %s, ReplicaCount: %s, DesiredReplicaCount: %d)",
+        LOG_TRACE("Chunk %s is OK: %s replicas exist and %d needed",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
             desiredCount);
@@ -694,7 +672,7 @@ bool TJobScheduler::IsEnabled()
         int gotOnline = HolderLeaseTracker->GetOnlineHolderCount();
         if (gotOnline < needOnline) {
             if (!LastEnabled || LastEnabled.Get()) {
-                LOG_INFO("Too few online holders, job scheduler disabled: needed >= %d but got %d",
+                LOG_INFO("Job scheduler disabled: too few online holders, needed >= %d but got %d",
                     needOnline,
                     gotOnline);
                 LastEnabled = false;
@@ -710,7 +688,7 @@ bool TJobScheduler::IsEnabled()
         double gotFraction = (double) chunkManager->LostChunkIds().size() / chunkManager->GetChunkCount();
         if (gotFraction > needFraction) {
             if (!LastEnabled || LastEnabled.Get()) {
-                LOG_INFO("Too many lost chunks, job scheduler disabled: needed <= %lf but got %lf",
+                LOG_INFO("Job scheduler disabled: too many lost chunks, needed <= %lf but got %lf",
                     needFraction,
                     gotFraction);
                 LastEnabled = false;
