@@ -89,7 +89,7 @@ void LoadSet(TInputStream* input, TSet& set)
 template <class TSet>
 void SaveNullableSet(TOutputStream* output, const THolder<TSet>& set)
 {
-    if (!set) {
+    if (set) {
         SaveSet(output, *set);
     } else {
         ::SaveSize(output, 0);
