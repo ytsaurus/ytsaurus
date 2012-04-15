@@ -4,8 +4,6 @@
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/thread.h>
 
-#include <util/system/thread.h>
-
 namespace NYT {
 namespace NLog {
 

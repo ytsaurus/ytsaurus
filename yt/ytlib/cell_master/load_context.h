@@ -43,23 +43,19 @@ NCypress::TLock* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SaveObject(TOutputStream* output, const NObjectServer::TObjectWithIdBase* object);
+template <class T>
+void SaveObject(TOutputStream* output, T object);
 
 template <class T>
-void LoadObject(TInputStream* input, T*& object, const TLoadContext& context);
+void LoadObject(TInputStream* input, T& object, const TLoadContext& context);
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveObjects(TOutputStream* output, const T& objects);
+void SaveObjects(TOutputStream* output, const T& object);
 
 template <class T>
-void LoadObjects(TInputStream* input, std::vector<T*>& objects, const TLoadContext& context);
-
-template <class T>
-void LoadObjects(TInputStream* input, yhash_set<T*>& objects, const TLoadContext& context);
-
-template <>
-void SaveObjects(TOutputStream* output, const std::vector<NChunkServer::TChunkTreeRef>& objects);
-void LoadObjects(TInputStream* input, std::vector<NChunkServer::TChunkTreeRef>& objects, const TLoadContext& context);
+void LoadObjects(TInputStream* input, T& object, const TLoadContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

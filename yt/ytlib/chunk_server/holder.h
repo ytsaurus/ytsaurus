@@ -40,7 +40,7 @@ public:
         EHolderState state,
         const NProto::THolderStatistics& statistics);
 
-    THolder(THolderId id);
+    explicit THolder(THolderId id);
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

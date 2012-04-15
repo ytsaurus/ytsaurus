@@ -187,7 +187,7 @@ void TListArgsParser::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateArgsParser::TCreateArgsParser()
-    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
+    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Null, "object type")
     , PathArg("path", "path for a new object in Cypress", true, "", "ypath")
 {
     CmdLine.add(TypeArg);
