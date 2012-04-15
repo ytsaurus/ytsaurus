@@ -602,8 +602,11 @@ private:
     { 
         auto holderId = message.holder_id();
 
-        auto& holder = GetHolder(holderId);
-        DoUnregisterHolder(holder);
+        // Allow holderId to be invalid, just ignore such obsolete requests.
+        auto* holder = FindHolder(holderId);
+        if (holder) {
+            DoUnregisterHolder(holder);
+        }
 
         return TVoid();
     }
