@@ -151,14 +151,14 @@ struct TObjectCollectionSerializerTraits< yhash_set<V, E, A> >
 template <class T>
 void SaveObjects(TOutputStream* output, const T& objects)
 {
-    typedef TObjectCollectionSerializerTraits<T>::TSerializer TSerializer;
+    typedef typename TObjectCollectionSerializerTraits<T>::TSerializer TSerializer;
     TSerializer::Save(output, objects);
 }
 
 template <class T>
 void LoadObjects(TInputStream* input, T& objects, const TLoadContext& context)
 {
-    typedef TObjectCollectionSerializerTraits<T>::TSerializer TSerializer;
+    typedef typename TObjectCollectionSerializerTraits<T>::TSerializer TSerializer;
     TSerializer::Load(input, objects, context);
 }
 
