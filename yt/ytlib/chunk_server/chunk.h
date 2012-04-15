@@ -22,7 +22,7 @@ class TChunk
     // This is usually small, e.g. has the length of 3.
     // typedef TSmallVector<THolderId, 3> TStoredLocations;
     // TODO(babenko): switch to small vector when it's ready
-    typedef std::vector<THolderId> TStoredLocations;
+    typedef yvector<THolderId> TStoredLocations;
     DEFINE_BYREF_RO_PROPERTY(TStoredLocations, StoredLocations);
 
     // This list is usually empty.
