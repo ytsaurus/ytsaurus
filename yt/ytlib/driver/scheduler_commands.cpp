@@ -121,21 +121,17 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
     CheckResponse(batchRsp, "Error getting operation progress");
 
     EOperationState state;
-    i64 jobsTotal;
-    i64 jobsCompleted; 
-
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_state");
         CheckResponse(rsp, "Error getting operation state");
         state = DeserializeFromYson<EOperationState>(rsp->value());
     }
 
+    TYson progress;
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_progress");
         CheckResponse(rsp, "Error getting operation progress");
-        auto yson = rsp->value();
-        jobsTotal = DeserializeFromYson<i64>(yson, "/jobs/total");
-        jobsCompleted = DeserializeFromYson<i64>(yson, "/jobs/completed");
+        progress = rsp->value();
     }
 
     // TODO(babenko): refactor!
@@ -147,6 +143,8 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
             break;
 
         case EOperationState::Running: {
+            i64 jobsTotal = DeserializeFromYson<i64>(progress, "/jobs/total");
+            i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/jobs/completed");
             int donePercentage  = (jobsCompleted * 100) / jobsTotal;
             printf("%s: %3d%% jobs done (%" PRId64 " of %" PRId64 ")\n",
                 ~state.ToString(),
