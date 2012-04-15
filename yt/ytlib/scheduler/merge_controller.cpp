@@ -81,6 +81,7 @@ private:
         auto group = New<TMergeGroup>();
         LOG_DEBUG("Created group %d", static_cast<int>(Groups.size()));
         Groups.push_back(group);
+        CurrentGroup = group;
         return group;
     }
 
