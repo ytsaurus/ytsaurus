@@ -40,10 +40,10 @@ void THolder::Save(TOutputStream* output) const
     ::Save(output, IncarnationId_);
     ::Save(output, State_);
     SaveProto(output, Statistics_);
-    SaveObjects(output, StoredChunks_);
-    SaveObjects(output, CachedChunks_);
-    SaveObjects(output, UnapprovedChunks_);
-    SaveObjects(output, Jobs_);
+    SaveObjectRefs(output, StoredChunks_);
+    SaveObjectRefs(output, CachedChunks_);
+    SaveObjectRefs(output, UnapprovedChunks_);
+    SaveObjectRefs(output, Jobs_);
 }
 
 void THolder::Load(const TLoadContext& context, TInputStream* input)
@@ -53,10 +53,10 @@ void THolder::Load(const TLoadContext& context, TInputStream* input)
     ::Load(input, IncarnationId_);
     ::Load(input, State_);
     LoadProto(input, Statistics_);
-    LoadObjects(input, StoredChunks_, context);
-    LoadObjects(input, CachedChunks_, context);
-    LoadObjects(input, UnapprovedChunks_, context);
-    LoadObjects(input, Jobs_, context);
+    LoadObjectRefs(input, StoredChunks_, context);
+    LoadObjectRefs(input, CachedChunks_, context);
+    LoadObjectRefs(input, UnapprovedChunks_, context);
+    LoadObjectRefs(input, Jobs_, context);
 }
 
 void THolder::AddJob(TJob* job)

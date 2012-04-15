@@ -36,13 +36,13 @@ EObjectType TTableNode::GetObjectType() const
 void TTableNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
-    SaveObject(output, ChunkList_);
+    SaveObjectRef(output, ChunkList_);
 }
 
 void TTableNode::Load(const TLoadContext& context, TInputStream* input)
 {
     TCypressNodeBase::Load(context, input);
-    LoadObject(input, ChunkList_, context);
+    LoadObjectRef(input, ChunkList_, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

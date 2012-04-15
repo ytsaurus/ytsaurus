@@ -44,18 +44,18 @@ NCypress::TLock* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveObject(TOutputStream* output, T object);
+void SaveObjectRef(TOutputStream* output, T object);
 
 template <class T>
-void LoadObject(TInputStream* input, T& object, const TLoadContext& context);
+void LoadObjectRef(TInputStream* input, T& object, const TLoadContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveObjects(TOutputStream* output, const T& object);
+void SaveObjectRefs(TOutputStream* output, const T& object);
 
 template <class T>
-void LoadObjects(TInputStream* input, T& object, const TLoadContext& context);
+void LoadObjectRefs(TInputStream* input, T& object, const TLoadContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
