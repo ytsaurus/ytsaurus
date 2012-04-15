@@ -343,11 +343,10 @@ private:
                 return;
             }
 
-            ChooseJobCount();
-
-            // Init progress counters.
+            // Init counters.
             ChunkCounter.Set(mergeChunkCount);
             WeightCounter.Set(mergeDataSize);
+            ChooseJobCount();
 
             // Allocate some initial chunk lists.
             ChunkListPool->Allocate(JobCounter.GetPending() + Config->SpareChunkListCount);

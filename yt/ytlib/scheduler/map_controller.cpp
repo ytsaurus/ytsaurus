@@ -191,7 +191,6 @@ private:
 
                 TNullable<TYson> rowAttributes;
                 if (InputTables.size() > 1) {
-                    // TODO(babenko): think of a proper name
                     rowAttributes = BuildYsonFluently()
                         .BeginMap()
                             .Item("table_index").Scalar(tableIndex)
@@ -230,23 +229,13 @@ private:
                 return;
             }
 
-            // Choose job count.
-            // TODO(babenko): refactor, generalize, and improve.
-            i64 jobCount = ExecNodeCount * 8;
-            if (Spec->JobCount) {
-                jobCount = Spec->JobCount.Get();
-            }
-            jobCount = std::min(jobCount, static_cast<i64>(totalChunkCount));
-            YASSERT(totalWeight > 0);
-            YASSERT(jobCount > 0);
-
-            // Init running counters.
-            JobCounter.Set(jobCount);
+            // Init counters.
             ChunkCounter.Set(totalChunkCount);
             WeightCounter.Set(totalWeight);
+            ChooseJobCount();
 
             // Allocate some initial chunk lists.
-            ChunkListPool->Allocate(OutputTables.size() * jobCount + Config->SpareChunkListCount);
+            ChunkListPool->Allocate(OutputTables.size() * JobCounter.GetPending() + Config->SpareChunkListCount);
 
             InitJobSpecTemplate();
 
@@ -255,10 +244,23 @@ private:
                 totalDataSize,
                 totalWeight,
                 totalChunkCount,
-                jobCount);
+                JobCounter.GetPending());
         }
     }
 
+    void ChooseJobCount()
+    {
+        // Choose job count.
+        // TODO(babenko): refactor, generalize, and improve.
+        // TODO(babenko): this currently assumes that weight is just size
+        i64 jobCount = (i64) ceil((double) WeightCounter.GetPending() / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize);
+        if (Spec->JobCount) {
+            jobCount = Spec->JobCount.Get();
+        }
+        jobCount = std::min(jobCount, ChunkCounter.GetPending());
+        YASSERT(jobCount > 0);
+        JobCounter.Set(jobCount);
+    }
 
     // Progress reporting.
 
