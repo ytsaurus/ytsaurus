@@ -90,9 +90,9 @@ template <class TSet>
 void SaveNullableSet(TOutputStream* output, const THolder<TSet>& set)
 {
     if (!set) {
-        ::SaveSize(output, 0);
-    } else {
         SaveSet(output, *set);
+    } else {
+        ::SaveSize(output, 0);
     }
 }
 
@@ -100,6 +100,7 @@ template <class TSet>
 void LoadNullableSet(TInputStream* input, THolder<TSet>& set)
 {
     typedef typename TSet::key_type TKey;
+
     size_t size = ::LoadSize(input);
     if (size == 0) {
         set.Destroy();
