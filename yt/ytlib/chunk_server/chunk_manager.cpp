@@ -605,7 +605,7 @@ private:
         // Allow holderId to be invalid, just ignore such obsolete requests.
         auto* holder = FindHolder(holderId);
         if (holder) {
-            DoUnregisterHolder(holder);
+            DoUnregisterHolder(*holder);
         }
 
         return TVoid();
