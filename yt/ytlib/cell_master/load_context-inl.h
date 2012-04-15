@@ -94,6 +94,7 @@ struct TObjectRefVectorSerializer
         typedef typename T::value_type V;
 
         auto size = ::LoadSize(input);
+        objects.clear();
         objects.reserve(size);
         for (size_t i = 0; i < size; ++i) {
             V object;
@@ -131,6 +132,7 @@ struct TObjectRefSetSerializer
         typedef typename T::value_type V;
 
         auto size = ::LoadSize(input);
+        objects.clear();
         for (size_t i = 0; i < size; ++i) {
             V object;
             LoadObjectRef(input, object, context);
