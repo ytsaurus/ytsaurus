@@ -82,8 +82,8 @@ public:
 
     void Start()
     {
+        Register();
         InitStrategy();
-        RegisterAtMaster();
         StartRefresh();
         LoadOperations();
     }
@@ -445,45 +445,69 @@ private:
     }
 
 
-    void RegisterAtMaster()
+    void Register()
     {
-        // TODO(babenko): Currently we use succeed-or-die strategy. Add retries later.
+        while (true) {
+            try {
+                TryRegister();
+                // Registration was successful, bail out.
+                return;
+            } catch (const std::exception& ex) {
+                LOG_WARNING("Registration failed, will retry in %s\n%s",
+                    ex.what(),
+                    ~ToString(Config->StartupRetryPeriod));
+                Sleep(Config->StartupRetryPeriod);
+            }
+        }
+    }
 
+    void TryRegister()
+    {
         // Take a lock to prevent multiple instances of scheduler from running simultaneously.
         // To this aim, create an auxiliary transaction that takes care of this lock.
-        // We never commit or abort this transaction, so it gets aborted (and the lock gets released)
+        // We never commit this transaction, so it gets aborted (and the lock gets released)
         // when the scheduler dies.
+        
         try {
             BootstrapTransaction = Bootstrap->GetTransactionManager()->Start();
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Failed to start bootstrap transaction\n%s", ex.what());
         }
 
-        LOG_INFO("Taking lock");
-        {
-            auto req = TCypressYPathProxy::Lock(WithTransaction(
-                "//sys/scheduler/lock",
-                BootstrapTransaction->GetId()));
-            req->set_mode(ELockMode::Exclusive);
-            auto rsp = CypressProxy.Execute(req)->Get();
-            if (!rsp->IsOK()) {
-                ythrow yexception() << Sprintf("Failed to take scheduler lock, check for another running scheduler instances\n%s",
-                    ~rsp->GetError().ToString());
+        try {
+            LOG_INFO("Taking lock");
+            {
+                auto req = TCypressYPathProxy::Lock(WithTransaction(
+                    "//sys/scheduler/lock",
+                    BootstrapTransaction->GetId()));
+                req->set_mode(ELockMode::Exclusive);
+                auto rsp = CypressProxy.Execute(req)->Get();
+                if (!rsp->IsOK()) {
+                    ythrow yexception() << Sprintf("Failed to take scheduler lock, check for another running scheduler instances\n%s",
+                        ~rsp->GetError().ToString());
+                }
             }
-        }
-        LOG_INFO("Lock taken");
+            LOG_INFO("Lock taken");
 
-        LOG_INFO("Publishing scheduler address");
-        {
-            auto req = TYPathProxy::Set("//sys/scheduler/runtime/@address");
-            req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
-            auto rsp = CypressProxy.Execute(req)->Get();
-            if (!rsp->IsOK()) {
-                ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
-                    ~rsp->GetError().ToString());
+            // TODO(babenko): listen to bootstrap transaction to make it is alive
+
+            LOG_INFO("Publishing scheduler address");
+            {
+                auto req = TYPathProxy::Set("//sys/scheduler/runtime/@address");
+                req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
+                auto rsp = CypressProxy.Execute(req)->Get();
+                if (!rsp->IsOK()) {
+                    ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
+                        ~rsp->GetError().ToString());
+                }
             }
+            LOG_INFO("Scheduler address published");
+        } catch (...) {
+            // Abort the bootstrap transaction (will need a new one anyway).
+            BootstrapTransaction->Abort();
+            BootstrapTransaction.Reset();
+            throw;
         }
-        LOG_INFO("Scheduler address published");
     }
 
     void LoadOperations()

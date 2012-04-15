@@ -13,6 +13,7 @@ namespace NScheduler {
 struct TSchedulerConfig
     : public TConfigurable
 {
+    TDuration StartupRetryPeriod;
     TDuration TransactionsRefreshPeriod;
     TDuration NodesRefreshPeriod;
     TDuration OperationsUpdatePeriod;
@@ -29,6 +30,8 @@ struct TSchedulerConfig
 
     TSchedulerConfig()
     {
+        Register("startup_retry_period", StartupRetryPeriod)
+            .Default(TDuration::Seconds(15));
         Register("transactions_refresh_period", TransactionsRefreshPeriod)
             .Default(TDuration::Seconds(3));
         Register("nodes_refresh_period", NodesRefreshPeriod)
