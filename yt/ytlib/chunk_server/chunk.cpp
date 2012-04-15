@@ -61,6 +61,9 @@ void TChunk::RemoveLocation(THolderId holderId, bool cached)
     if (cached) {
         YASSERT(~CachedLocations_);
         YVERIFY(CachedLocations_->erase(holderId) == 1);
+        if (CachedLocations_->empty()) {
+            CachedLocations_.Reset(NULL);
+        }
     } else {
         for (auto it = StoredLocations_.begin(); it != StoredLocations_.end(); ++it) {
             if (*it == holderId) {
