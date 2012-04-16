@@ -41,7 +41,11 @@ private:
     virtual IYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TVersionedNodeId::FromString(key);
-        return Bootstrap->GetCypressManager()->FindVersionedNodeProxy(id.ObjectId, id.TransactionId);
+        auto transaction = Bootstrap->GetTransactionManager()->FindTransaction(id.TransactionId);
+        if (!transaction) {
+            return NULL;
+        }
+        return Bootstrap->GetCypressManager()->FindVersionedNodeProxy(id.ObjectId, transaction);
     }
 };
 
@@ -94,10 +98,12 @@ private:
 
         return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer)
             {
+                auto transaction = lock->GetTransaction();
+                auto transactionId = transaction ? transaction->GetId() : NullTransactionId;
                 BuildYsonFluently(consumer)
                     .BeginMap()
                         .Item("node_id").Scalar(lock->GetNodeId().ToString())
-                        .Item("transaction_id").Scalar(lock->GetTransactionId().ToString())
+                        .Item("transaction_id").Scalar(transactionId.ToString())
                         .Item("mode").Scalar(lock->GetMode().ToString())
                     .EndMap();
             }));

@@ -4,6 +4,8 @@ from yt_env_setup import YTEnvSetup
 from yt_env_util import *
 
 import yson_parser
+import yson
+
 
 def expect_error(result):
     stdout, stderr, exitcode = result
@@ -21,8 +23,9 @@ def lock(path, **kw): return command('lock', path, **kw)
 def get(path, **kw): return command('get', path, **kw)
 def remove(path, **kw): return command('remove', path, **kw)
 def set(path, value, **kw): return command('set', path, value, **kw)
+def ls(path, **kw): return command('list', path, **kw)
 
-def create(path, object_type, **kw): return command('create', path, object_type, **kw)
+def create(object_type, path, **kw): return command('create', object_type, path, **kw)
 def read(path, **kw): return command('read', path, **kw)
 def write(path, value, **kw): return command('write', path, value, **kw)
 
@@ -45,6 +48,12 @@ def assert_eq(result, expected):
 def get_transactions(**kw):
     yson_map = expect_ok(get('//sys/transactions', **kw)).strip('\n')
     return yson_parser.parse_string(yson_map)
+
+def sort_list(value):
+    result = yson_parser.parse_string(value)
+    result.sort()
+    return yson.dumps(result)
+
 
 #########################################
 
@@ -78,7 +87,6 @@ class TestCypressCommands(YTEnvSetup):
 
         # remove non existent child
         expect_error( remove('//b'))
-
 
 
 class TestTxCommands(YTEnvSetup):
@@ -242,7 +250,58 @@ class TestTableCommands(YTEnvSetup):
         assert_eq( get('//table/@row_count'), '1')
 
         expect_ok( write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
-        assert_eq( read('//table'), '{"b"="hello"};{"a"="1";"b"="2"};{"a"="30";"x"="10";"y"="20"}')
+        assert_eq( read('//table'), '{"b"="hello"};\n{"a"="1";"b"="2"};\n{"a"="30";"x"="10";"y"="20"}')
         assert_eq( get('//table/@row_count'), '3')
 
         expect_ok( remove('//table'))
+
+    def test_invalid_cases(self):
+        # we can write only list or maps
+        expect_ok( create('table', '//table'))
+
+        expect_error( write('//table', 'string'))
+        expect_error( write('//table', '100'))
+        expect_error( write('//table', '3.14'))
+        expect_error( write('//table', '<>'))
+
+        expect_ok( remove('//table'))
+
+
+class TestOrchid(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_HOLDERS = 5
+
+    def test_on_masters(self):
+        result = expect_ok( ls('//sys/masters'))
+        masters = yson_parser.parse_string(result)
+        assert len(masters) == self.NUM_MASTERS
+
+        q = '"'
+        for master in masters:
+            path = '//sys/masters/'  + q + master + q + '/orchid/value'
+            some_map = '{"a"=1;"b"=2}'
+
+            expect_ok( set(path, some_map))
+            assert_eq( get(path), some_map)
+            result = expect_ok( ls(path))
+            assert sort_list(result) == '["a";"b";]'
+            expect_ok( remove(path))
+            expect_error( get(path))
+
+
+    def test_on_holders(self):
+        result = expect_ok( ls('//sys/holders'))
+        holders = yson_parser.parse_string(result)
+        assert len(holders) == self.NUM_HOLDERS
+
+        q = '"'
+        for holder in holders:
+            path = '//sys/holders/'  + q + holder + q + '/orchid/value'
+            some_map = '{"a"=1;"b"=2}'
+
+            expect_ok( set(path, some_map))
+            assert_eq( get(path), some_map)
+            result = expect_ok( ls(path))
+            assert sort_list(result) == '["a";"b";]'
+            expect_ok( remove(path))
+            expect_error( get(path))

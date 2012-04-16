@@ -9,6 +9,9 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IAttributeDictionary::~IAttributeDictionary()
+{ }
+
 TYson IAttributeDictionary::GetYson(const Stroka& key) const
 {
     const auto& result = FindYson(key);

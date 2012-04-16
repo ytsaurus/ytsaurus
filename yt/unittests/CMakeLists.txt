@@ -41,6 +41,7 @@ set( SRCS
   guid_ut.cpp
   small_vector_ut.cpp
   small_string_ut.cpp
+  url_ut.cpp
 )
 
 protoc( rpc_ut.proto PROTO_SRC )

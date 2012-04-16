@@ -333,8 +333,8 @@ private:
         PeerIndex = 0;
 
         // Mark the seeds as having all blocks.
-        FOREACH(const auto& address, SeedAddresses) {
-            FOREACH(int blockIndex, BlockIndexes) {
+        FOREACH (const auto& address, SeedAddresses) {
+            FOREACH (int blockIndex, BlockIndexes) {
                 AddPeer(address, blockIndex);
             }
         }
@@ -385,7 +385,7 @@ private:
 
         const auto& blocksInfo = peerBlocksMapIt->second;
 
-        FOREACH(int blockIndex, indexesToFetch) {
+        FOREACH (int blockIndex, indexesToFetch) {
             if (blocksInfo.BlockIndexes.find(blockIndex) != blocksInfo.BlockIndexes.end()) {
                 result.push_back(blockIndex);
             }

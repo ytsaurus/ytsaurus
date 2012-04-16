@@ -60,8 +60,7 @@ protected:
      *  
      *  \note Thread affinity: StateThread
      */
-    TAsyncResult::TPtr RecoverToState(
-        const TMetaVersion& targetVersion);
+    TAsyncResult::TPtr RecoverToState(const TMetaVersion& targetVersion);
 
     //! Recovers to the desired state by first loading the given snapshot
     //! and then applying changelogs, if necessary.
@@ -72,7 +71,7 @@ protected:
      *  
      *  \note Thread affinity: StateThread
      */
-    TAsyncResult::TPtr RecoverToState(
+    TAsyncResult::TPtr RecoverToStateWithChangeLog(
         const TMetaVersion& targetVersion,
         i32 snapshotId);
 

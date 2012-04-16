@@ -61,7 +61,7 @@ public:
             Awaiter = New<TParallelAwaiter>(
                 ~Owner->EpochControlInvoker,
                 &Profiler,
-                "snapshot_build_time");
+                "/snapshot_build_time");
         } else {
             LOG_INFO("Rotating changelog at version %s", ~Version.ToString());
 
@@ -274,7 +274,7 @@ TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(
 
 #if defined(_unix_)
     LOG_INFO("Going to fork");
-    auto forkTimer = Profiler.TimingStart("fork_time");
+    auto forkTimer = Profiler.TimingStart("/fork_time");
     pid_t childPid = fork();
     if (childPid == -1) {
         LOG_ERROR("Could not fork while creating local snapshot %d", snapshotId);

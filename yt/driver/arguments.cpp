@@ -187,7 +187,7 @@ void TListArgsParser::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateArgsParser::TCreateArgsParser()
-    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
+    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Null, "object type")
     , PathArg("path", "path for a new object in Cypress", true, "", "ypath")
 {
     CmdLine.add(TypeArg);
@@ -293,17 +293,6 @@ TWriteArgsParser::TWriteArgsParser()
     CmdLine.add(ValueArg);
     CmdLine.add(SortedArg);
 }
-
-    // TODO(panin): validation?
-//    virtual void DoValidate() const
-//    {
-//        if (Value) {
-//            auto type = Value->GetType();
-//            if (type != NYTree::ENodeType::List && type != NYTree::ENodeType::Map) {
-//                ythrow yexception() << "\"value\" must be a list or a map";
-//            }
-//        }
-//    }
 
 void TWriteArgsParser::BuildCommand(IYsonConsumer* consumer)
 {

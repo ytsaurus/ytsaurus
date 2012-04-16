@@ -28,6 +28,8 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
+    ~TChunkManager();
+
     NMetaState::TMetaChange<THolderId>::TPtr InitiateRegisterHolder(
         const NProto::TMsgRegisterHolder& message);
 

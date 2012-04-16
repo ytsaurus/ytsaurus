@@ -24,6 +24,8 @@ public:
         IInvoker* epochControlInvoker,
         IInvoker* epochStateInvoker);
 
+    ~TCommitter();
+
     DECLARE_ENUM(EResult,
         (Committed)
         (MaybeCommitted)
@@ -62,6 +64,8 @@ public:
         const TEpoch& epoch,
         IInvoker* epochControlInvoker,
         IInvoker* epochStateInvoker);
+
+    ~TLeaderCommitter();
 
     //! Initializes the instance.
     /*!
@@ -140,6 +144,8 @@ public:
         TDecoratedMetaState* metaState,
         IInvoker* epochControlInvoker,
         IInvoker* epochStateInvoker);
+
+    ~TFollowerCommitter();
 
     //! Commits a bunch of changes at a follower.
     /*!

@@ -68,10 +68,10 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverToState(const TMetaVersion& targ
     i32 lastestSnapshotId = snapshotLookup.LookupLatestSnapshot(targetVersion.SegmentId);
     YASSERT(lastestSnapshotId <= targetVersion.SegmentId);
 
-    return RecoverToState(targetVersion, lastestSnapshotId);
+    return RecoverToStateWithChangeLog(targetVersion, lastestSnapshotId);
 }
 
-TRecovery::TAsyncResult::TPtr TRecovery::RecoverToState(
+TRecovery::TAsyncResult::TPtr TRecovery::RecoverToStateWithChangeLog(
     const TMetaVersion& targetVersion,
     i32 snapshotId)
 {
@@ -158,7 +158,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::ReplayChangeLogs(
          ++segmentId)
     {
         bool isFinal = segmentId == targetVersion.SegmentId;
-        bool mayBeMissing = isFinal && targetVersion.RecordCount == 0 || !IsLeader();
+        bool mayBeMissing = (isFinal && targetVersion.RecordCount == 0) || !IsLeader();
 
         TCachedAsyncChangeLogPtr changeLog;
         auto changeLogResult = ChangeLogCache->Get(segmentId);
@@ -235,13 +235,11 @@ TRecovery::TAsyncResult::TPtr TRecovery::ReplayChangeLogs(
             // Check if the current state contains some changes that are not present in the remote changelog.
             // If so, clear the state and restart recovery.
             if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
-                LOG_INFO("Current version is %s while only %d changes are expected, performing clear restart",
+                LOG_INFO("Current version is %s while only %d changes are expected, forcing clear restart",
                     ~currentVersion.ToString(),
                     remoteRecordCount);
                 DecoratedState->Clear();
-                return BIND(&TRecovery::Run, MakeStrong(this))
-                        .AsyncVia(~EpochControlInvoker)
-                        .Run();
+                return New<TAsyncResult>(EResult::Failed);
             }
 
             // Do not download more than actually needed.
@@ -320,7 +318,7 @@ void TRecovery::ReplayChangeLog(
     }
 
     LOG_INFO("Applying %d changes to meta state", recordCount);
-    Profiler.Enqueue("replay_change_count", recordCount);
+    Profiler.Enqueue("/replay_change_count", recordCount);
 
     PROFILE_TIMING ("/replay_time") {
         FOREACH (const auto& changeData, records)  {
@@ -367,13 +365,14 @@ TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
 
     auto version = DecoratedState->GetReachableVersionAsync();
     i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
-    return BIND(
-               (TAsyncResult::TPtr (TRecovery::*)(const TMetaVersion&, i32))&TRecovery::RecoverToState,
-               MakeStrong(this),
-               version,
-               maxSnapshotId)
-           .AsyncVia(~EpochStateInvoker)
-           .Run();
+    return
+        BIND(
+            &TRecovery::RecoverToStateWithChangeLog,
+            MakeStrong(this),
+            version,
+            maxSnapshotId)
+        .AsyncVia(~EpochStateInvoker)
+        .Run();
 }
 
 bool TLeaderRecovery::IsLeader() const
@@ -418,7 +417,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
     YASSERT(PostponedChanges.empty());
 
     BIND(
-        (TAsyncResult::TPtr (TRecovery::*)(const TMetaVersion&))&TRecovery::RecoverToState,
+        &TRecovery::RecoverToState,
         MakeStrong(this),
         TargetVersion)
     .AsyncVia(~EpochStateInvoker)
@@ -477,7 +476,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
 
     LOG_INFO("Applying %d postponed changes", changes->ysize());
     
-    FOREACH(const auto& change, *changes) {
+    FOREACH (const auto& change, *changes) {
         switch (change.Type) {
             case TPostponedChange::EType::Change: {
                 auto version = DecoratedState->GetVersion();

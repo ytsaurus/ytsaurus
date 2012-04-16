@@ -18,6 +18,8 @@ public:
     //! Constructs a new instance.
     TReaderCache(TChunkHolderConfigPtr config);
 
+    ~TReaderCache();
+
     typedef TValueOrError<NChunkClient::TChunkFileReader::TPtr> TGetReaderResult;
     typedef TChunkHolderServiceProxy::EErrorCode EErrorCode;
 

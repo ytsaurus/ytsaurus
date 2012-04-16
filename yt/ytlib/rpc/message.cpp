@@ -28,7 +28,7 @@ NBus::IMessage::TPtr CreateRequestMessage(
     parts.push_back(TSharedRef(MoveRV(headerBlob)));
     parts.push_back(TSharedRef(MoveRV(body)));
 
-    FOREACH(const auto& attachment, attachments) {
+    FOREACH (const auto& attachment, attachments) {
         parts.push_back(attachment);
     }
 
@@ -48,7 +48,7 @@ NBus::IMessage::TPtr CreateResponseMessage(
     parts.push_back(TSharedRef(MoveRV(headerBlob)));
     parts.push_back(body);
 
-    FOREACH(const auto& attachment, attachments) {
+    FOREACH (const auto& attachment, attachments) {
         parts.push_back(attachment);
     }
 

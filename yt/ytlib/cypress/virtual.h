@@ -11,7 +11,7 @@ namespace NCypress {
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef
-    TCallback< NYTree::IYPathServicePtr(const TVersionedNodeId&) >
+    TCallback< NYTree::IYPathServicePtr(const TNodeId&) >
     TYPathServiceProducer;
 
 INodeTypeHandler::TPtr CreateVirtualTypeHandler(

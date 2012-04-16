@@ -69,10 +69,14 @@ public:
     bool ObjectExists(const TObjectId& id);
 
     //! Returns a proxy for the object with the given versioned id or NULL if there's no such object.
-    IObjectProxy::TPtr FindProxy(const TVersionedObjectId& id);
+    IObjectProxy::TPtr FindProxy(
+        const TObjectId& id,
+        NTransactionServer::TTransaction* transaction = NULL);
 
     //! Returns a proxy for the object with the given versioned id or NULL. Fails if there's no such object.
-    IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
+    IObjectProxy::TPtr GetProxy(
+        const TObjectId& id,
+        NTransactionServer::TTransaction* transaction = NULL);
 
     //! Creates a new empty attribute set.
     TAttributeSet* CreateAttributes(const TVersionedObjectId& id);

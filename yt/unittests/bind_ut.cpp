@@ -957,7 +957,7 @@ TEST_F(TBindTest, ArgumentProbing)
         EXPECT_THAT(probe, HasCopyMoveCounts(2, 2));
         forward.Run(probeConstRef);
         EXPECT_THAT(probe, HasCopyMoveCounts(3, 3));
-        forward.Run(static_cast<TProbe&&>(TProbe(&state)));
+        forward.Run(TProbe(&state));
         EXPECT_THAT(probe, HasCopyMoveCounts(3, 4));
 
         EXPECT_THAT(probe, NoAssignments());
@@ -992,7 +992,7 @@ TEST_F(TBindTest, ArgumentProbing)
         // Bind T&&
         state.Reset();
         TClosure boundRvRef =
-            BIND(&VoidPolymorphic1<const TProbe&>, static_cast<TProbe&&>(TProbe(&state)));
+            BIND(&VoidPolymorphic1<const TProbe&>, TProbe(&state));
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(0, 1), NoAssignments()));
         boundRvRef.Run();
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(0, 1), NoAssignments()));
@@ -1037,7 +1037,7 @@ TEST_F(TBindTest, CoercibleArgumentProbing)
     EXPECT_THAT(state, HasCopyMoveCounts(2, 2));
     forward.Run(probeConstRef);
     EXPECT_THAT(state, HasCopyMoveCounts(3, 3));
-    forward.Run(static_cast<TProbe&&>(TProbe(&state)));
+    forward.Run(TProbe(&state));
     EXPECT_THAT(state, HasCopyMoveCounts(3, 4));
 
     EXPECT_THAT(state, NoAssignments());

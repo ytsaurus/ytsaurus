@@ -494,7 +494,7 @@ TSessionManager::TSessions TSessionManager::GetSessions() const
 {
     TSessions result;
     result.reserve(SessionMap.ysize());
-    FOREACH(const auto& pair, SessionMap) {
+    FOREACH (const auto& pair, SessionMap) {
         result.push_back(pair.second);
     }
     return result;

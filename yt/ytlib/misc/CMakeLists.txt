@@ -29,6 +29,7 @@ set( SRCS
   ${BASE}/small_vector.cpp
   ${BASE}/source_location.cpp
   ${BASE}/thread.cpp
+  ${BASE}/url.cpp
 )
 set( HDRS
   ${BASE}/arcadia_helper.h
@@ -87,6 +88,7 @@ set( HDRS
   ${BASE}/tclap_helpers.h
   ${BASE}/thread.h
   ${BASE}/thread_affinity.h
+  ${BASE}/url.h
   ${BASE}/weak_ptr.h
   ${BASE}/zigzag.h
 )

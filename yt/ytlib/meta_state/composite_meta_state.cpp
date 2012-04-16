@@ -96,7 +96,7 @@ void TCompositeMetaState::Save(TOutputStream* output)
                 return lhs.first.first < rhs.first.first;
             });
 
-    FOREACH(auto pair, savers) {
+    FOREACH (auto pair, savers) {
         Stroka name = pair.first.second;
         ::Save(output, name);
         auto saver = pair.second;
@@ -141,7 +141,7 @@ void TCompositeMetaState::ApplyChange(const TRef& changeData)
 
 void TCompositeMetaState::Clear()
 {
-    FOREACH(auto& part, Parts) {
+    FOREACH (auto& part, Parts) {
         part->Clear();
     }
 }

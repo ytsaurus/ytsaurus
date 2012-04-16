@@ -74,7 +74,7 @@ void TMonitoringManager::Update()
     PROFILE_TIMING ("/update_time") {
         auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
-        FOREACH(const auto& pair, MonitoringMap) {
+        FOREACH (const auto& pair, MonitoringMap) {
             auto value = SerializeToYson(pair.second);
             SyncYPathSet(newRoot, pair.first, value);
         }

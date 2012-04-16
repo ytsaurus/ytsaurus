@@ -33,6 +33,9 @@ TChunk::TChunk(TLocation* location, const TChunkDescriptor& descriptor)
     , HasInfo(false)
 { }
 
+TChunk::~TChunk()
+{ }
+
 Stroka TChunk::GetFileName() const
 {
     return Location_->GetChunkFileName(Id_);
@@ -78,6 +81,9 @@ TStoredChunk::TStoredChunk(TLocation* location, const TChunkInfo& info)
 
 TStoredChunk::TStoredChunk(TLocation* location, const TChunkDescriptor& descriptor)
     : TChunk(location, descriptor)
+{ }
+
+TStoredChunk::~TStoredChunk()
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

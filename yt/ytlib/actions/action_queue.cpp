@@ -298,6 +298,9 @@ TMultiActionQueue::TMultiActionQueue(int queueCount, const Stroka& threadName)
     : Impl(New<TImpl>(queueCount, threadName))
 { }
 
+TMultiActionQueue::~TMultiActionQueue()
+{ }
+
 IInvoker* TMultiActionQueue::GetInvoker(int queueIndex)
 {
     return Impl->GetInvoker(queueIndex);

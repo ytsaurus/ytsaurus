@@ -27,7 +27,7 @@ class TAsyncChangeLog
     : private TNonCopyable
 {
 public:
-    TAsyncChangeLog(TChangeLogPtr changeLog);
+    TAsyncChangeLog(const TChangeLogPtr& changeLog);
     ~TAsyncChangeLog();
 
     typedef TFuture<TVoid> TAppendResult;

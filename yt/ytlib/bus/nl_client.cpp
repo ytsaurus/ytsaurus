@@ -6,6 +6,7 @@
 
 #include <ytlib/logging/log.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/thread.h>
 #include <ytlib/profiling/profiler.h>
 
 #include <quality/netliba_v6/udp_http.h>
@@ -190,6 +191,7 @@ class TClientDispatcher
 
     void ThreadMain()
     {
+        NThread::SetCurrentThreadName("BusClient");
         while (!Terminated) {
             // NB: "&", not "&&" since we want every type of processing to happen on each iteration.
             if (!ProcessBusRegistrations() &
@@ -248,7 +250,7 @@ class TClientDispatcher
             ~sessionId.ToString(),
             bus);
 
-        FOREACH(const auto& requestId, bus->PendingRequestIds()) {
+        FOREACH (const auto& requestId, bus->PendingRequestIds()) {
             Requester->CancelRequest((TGUID) requestId);
             RequestMap.erase(requestId);
         }
@@ -257,7 +259,7 @@ class TClientDispatcher
         TBlob ackData;
         CreatePacket(sessionId, TPacketHeader::EType::Ack, &ackData);
 
-        FOREACH(const auto& requestId, bus->PingIds()) {
+        FOREACH (const auto& requestId, bus->PingIds()) {
             Requester->SendResponse(requestId, &ackData);
         }
         bus->PingIds().clear();
@@ -622,10 +624,10 @@ public:
     TClientDispatcher()
         : Thread(ThreadFunc, (void*) this)
         , Terminated(false)
-        , InCounter("in_rate")
-        , InSizeCounter("in_throughput")
-        , OutCounter("out_rate")
-        , OutSizeCounter("out_throughput")
+        , InCounter("/in_rate")
+        , InSizeCounter("/in_throughput")
+        , OutCounter("/out_rate")
+        , OutSizeCounter("/out_throughput")
     {
         Requester = CreateHttpUdpRequester(0);
         if (!Requester) {

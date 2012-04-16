@@ -71,7 +71,7 @@ struct TBlockInfo
     {
         return
             LastRow > rhs.LastRow || 
-            LastRow == rhs.LastRow && ChannelIndex > rhs.ChannelIndex;
+            (LastRow == rhs.LastRow && ChannelIndex > rhs.ChannelIndex);
     }
 
     TBlockInfo(

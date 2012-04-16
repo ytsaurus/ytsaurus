@@ -346,7 +346,7 @@ TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::CommitOut
 
     FOREACH (const auto& table, OutputTables) {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-        FOREACH (const auto& childId, table.OutputChildrenIds) {
+        FOREACH (const auto& childId, table.PartitionTreeIds) {
             *req->add_children_ids() = childId.ToProto();
         }
         batchReq->AddRequest(req, "attach_chunk_trees");
@@ -533,8 +533,7 @@ TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::RequestIn
 
     FOREACH (const auto& path, outPaths) {
         {
-            auto req = TYPathProxy::Get(WithTransaction(path, Operation->GetTransactionId()) +
-                "/@schema");
+            auto req = TYPathProxy::Get(WithTransaction(path, Operation->GetTransactionId()) + "/@schema");
             batchReq->AddRequest(req, "get_out_tables_schemata");
         }
         {

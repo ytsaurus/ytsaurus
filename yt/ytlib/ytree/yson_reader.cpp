@@ -188,7 +188,7 @@ Stroka TYsonReaderBase::ReadLetterStartingString()
         int ch = PeekChar();
         if (!(IsLetter(ch) ||
               ch == '_' ||
-              IsDigit(ch) && !result.Empty()))
+              (IsDigit(ch) && !result.Empty())))
               break;
         ReadChar();
         result.append(static_cast<char>(ch));

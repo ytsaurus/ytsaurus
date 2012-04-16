@@ -22,6 +22,7 @@ using namespace NCypress;
 using namespace NMetaState;
 using namespace NOrchid;
 using namespace NObjectServer;
+using namespace NTransactionServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,7 +170,7 @@ private:
     virtual IYPathServicePtr GetItemService(const Stroka& key) const
     {
         auto id = TChunkListId::FromString(key);
-        return Bootstrap->GetObjectManager()->GetProxy(id);
+        return Bootstrap->GetObjectManager()->GetProxy(id, NULL);
     }
 };
 
@@ -220,12 +221,12 @@ public:
     THolderProxy(
         INodeTypeHandler* typeHandler,
         TBootstrap* bootstrap,
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
-            transactionId,
+            transaction,
             nodeId)
     { }
 
@@ -322,13 +323,15 @@ public:
         return EObjectType::Holder;
     }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const TNodeId& nodeId,
+        TTransaction* transaction)
     {
         return New<THolderProxy>(
             this,
             Bootstrap,
-            id.TransactionId,
-            id.ObjectId);
+            transaction,
+            nodeId);
     }
 };
 
@@ -372,9 +375,10 @@ private:
             if (node->FindChild(address))
                 return;
 
-            auto service = cypressManager->GetVersionedNodeProxy(NodeId, NullTransactionId);
+            auto service = cypressManager->GetVersionedNodeProxy(NodeId);
 
             // TODO(babenko): make a single transaction
+            // TODO(babenko): check for errors and retry
 
             {
                 auto req = TCypressYPathProxy::Create("/" + EscapeYPath(address));
@@ -383,7 +387,7 @@ private:
             }
 
             {
-                auto req = TCypressYPathProxy::Create("//" + EscapeYPath(address) + "/orchid");
+                auto req = TCypressYPathProxy::Create("/" + EscapeYPath(address) + "/orchid");
                 req->set_type(EObjectType::Orchid);
                 req->Attributes().Set("remote_address", address);
                 ExecuteVerb(~service, ~req);
@@ -404,12 +408,12 @@ public:
     THolderMapProxy(
         INodeTypeHandler* typeHandler,
         TBootstrap* bootstrap,
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
-            transactionId,
+            transaction,
             nodeId)
     { }
 
@@ -516,13 +520,15 @@ public:
         return EObjectType::HolderMap;
     }
     
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const TNodeId& nodeId,
+        TTransaction* transaction)
     {
         return New<THolderMapProxy>(
             this,
             Bootstrap,
-            id.TransactionId,
-            id.ObjectId);
+            transaction,
+            nodeId);
     }
 
     virtual INodeBehavior::TPtr CreateBehavior(const TNodeId& nodeId)

@@ -21,7 +21,7 @@
         };
         "full_heartbeat_timeout" = 60000;
         "heartbeat_period" = 5000;
-        "heartbeat_splay" = 1000;
+        "heartbeat_splay" = 5000;
         "holder_rpc_timeout" = 15000;
         "max_cached_blocks_size" = 1048576;
         "max_cached_readers" = 10;

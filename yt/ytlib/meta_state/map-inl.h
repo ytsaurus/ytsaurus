@@ -117,7 +117,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    FOREACH(const auto& pair, Map) {
+    FOREACH (const auto& pair, Map) {
         delete pair.second;
     }
     Map.clear();
@@ -267,7 +267,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TOutputStream* output
     }
     std::sort(keys.begin(), keys.end());
 
-    FOREACH(const auto& key, keys) {
+    FOREACH (const auto& key, keys) {
         ::Save(output, key);
     }
 }
@@ -280,7 +280,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(TOutputStream* outp
     yvector<TItem> items(Map.begin(), Map.end());
     std::sort(items.begin(), items.end());
 
-    FOREACH(const auto& item, items) {
+    FOREACH (const auto& item, items) {
         item.second->Save(output);
     }
 }

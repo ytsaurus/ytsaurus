@@ -41,6 +41,8 @@ public:
         TLocation* location,
         const TChunkDescriptor& descriptor);
 
+    ~TChunk();
+
     //! Returns the full path to the chunk data file.
     Stroka GetFileName() const;
 
@@ -74,6 +76,8 @@ public:
     TStoredChunk(
         TLocation* location,
         const TChunkDescriptor& descriptor);
+
+    ~TStoredChunk();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

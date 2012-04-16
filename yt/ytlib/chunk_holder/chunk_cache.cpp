@@ -324,6 +324,9 @@ void TChunkCache::Start()
     Impl->Start();
 }
 
+TChunkCache::~TChunkCache()
+{ }
+
 TCachedChunkPtr TChunkCache::FindChunk(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();

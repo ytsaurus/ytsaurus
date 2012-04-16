@@ -107,12 +107,12 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
         map.LoadValues(context, &input);
 
         // assert checkMap \subseteq map
-        FOREACH(const auto& pair, checkMap) {
+        FOREACH (const auto& pair, checkMap) {
             EXPECT_EQ(map.Find(pair.first)->Value, pair.second);
         }
 
         // assert map \subseteq checkMap
-        FOREACH(const auto& pair, map) {
+        FOREACH (const auto& pair, map) {
             EXPECT_EQ(checkMap.find(pair.first)->second, pair.second->Value);
         }
     }

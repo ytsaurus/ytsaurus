@@ -59,9 +59,7 @@ void TFileLogWriter::EnsureInitialized()
         return;
 
     try {
-
-        // TODO(babenko): need an absolute path here
-        //NFS::ForcePath(NFS::GetDirectoryName(FileName));
+        NFS::ForcePath(NFS::GetDirectoryName(FileName));
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
         FileOutput->SetFinishPropagateMode(true);
@@ -112,9 +110,9 @@ void TRawFileLogWriter::EnsureInitialized()
         return;
 
     try {
+        NFS::ForcePath(NFS::GetDirectoryName(FileName));
         File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
-        //FileOutput->SetFlushPropagateMode(true);
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
@@ -136,7 +134,7 @@ void TRawFileLogWriter::EnsureInitialized()
 void TRawFileLogWriter::Write(const TLogEvent& event)
 {
     EnsureInitialized();
-    if (Initialized) {
+    if (~FileOutput) {
         *FileOutput
             << FormatDateTime(event.DateTime) << "\t"
             << FormatLevel(event.Level) << "\t"
@@ -152,7 +150,7 @@ void TRawFileLogWriter::Write(const TLogEvent& event)
 
 void TRawFileLogWriter::Flush()
 {
-    if (Initialized) {
+    if (~FileOutput) {
         FileOutput->Flush();
     }
 }

@@ -23,10 +23,10 @@ void TTransaction::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
     ::Save(output, State_);
-    SaveObjects(output, NestedTransactions_);
-    SaveObject(output, Parent_);
+    SaveObjectRefs(output, NestedTransactions_);
+    SaveObjectRef(output, Parent_);
     SaveSet(output, CreatedObjectIds_);
-    SaveObjects(output, Locks_);
+    SaveObjectRefs(output, Locks_);
     ::Save(output, BranchedNodeIds_);
     ::Save(output, CreatedNodeIds_);
 }
@@ -35,10 +35,10 @@ void TTransaction::Load(const TLoadContext& context, TInputStream* input)
 {
     TObjectWithIdBase::Load(input);
     ::Load(input, State_);
-    LoadObjects(input, NestedTransactions_, context);
-    LoadObject(input, Parent_, context);
+    LoadObjectRefs(input, NestedTransactions_, context);
+    LoadObjectRef(input, Parent_, context);
     LoadSet(input, CreatedObjectIds_);
-    LoadObjects(input, Locks_, context);
+    LoadObjectRefs(input, Locks_, context);
     ::Load(input, BranchedNodeIds_);
     ::Load(input, CreatedNodeIds_);
 }

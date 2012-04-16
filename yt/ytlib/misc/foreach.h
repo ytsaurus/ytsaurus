@@ -70,7 +70,7 @@ inline auto End(TIntrusiveList<T>& collection) -> decltype(collection.End())
  *  
  *  Briefly speaking, the code like
  *  \code
- *  FOREACH(int var, collection)
+ *  FOREACH (int var, collection)
  *  \endcode
  *  causes iterating over 'collection' and capturing the copy
  *  of every its element into 'var'. The macro calls begin() and end()

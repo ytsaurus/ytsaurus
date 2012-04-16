@@ -249,7 +249,7 @@ TJobPtr TJobExecutor::FindJob(const TJobId& jobId)
 yvector<TJobPtr> TJobExecutor::GetAllJobs()
 {
     yvector<TJobPtr> result;
-    FOREACH(const auto& pair, Jobs) {
+    FOREACH (const auto& pair, Jobs) {
         result.push_back(pair.second);
     }
     return result;
@@ -257,7 +257,7 @@ yvector<TJobPtr> TJobExecutor::GetAllJobs()
 
 void TJobExecutor::StopAllJobs()
 {
-    FOREACH(auto& pair, Jobs) {
+    FOREACH (auto& pair, Jobs) {
         pair.second->Stop();
     }
     Jobs.clear();

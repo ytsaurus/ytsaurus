@@ -46,7 +46,7 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
 {
     if (!Bootstrap->GetChunkManager()->FindHolder(holderId)) {
         ythrow TServiceException(EErrorCode::NoSuchHolder) <<
-            Sprintf("Invalid or expired holder id (HolderId: %d)", holderId);
+            Sprintf("Invalid or expired holder id %d", holderId);
     }
 }
 
@@ -54,7 +54,7 @@ void TChunkService::ValidateTransactionId(const TTransactionId& transactionId)
 {
     if (!Bootstrap->GetTransactionManager()->FindTransaction(transactionId)) {
         ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
-            Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
+            Sprintf("No such transaction %s", ~transactionId.ToString());
     }
 }
 
@@ -81,12 +81,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterHolder)
     *message.mutable_statistics() = statistics;
     chunkManager
         ->InitiateRegisterHolder(message)
-        ->OnSuccess(BIND([=] (THolderId id)
-            {
-                response->set_holder_id(id);
-                context->SetResponseInfo("HolderId: %d", id);
-                context->Reply();
-            }))
+        ->OnSuccess(BIND([=] (THolderId id) {
+            response->set_holder_id(id);
+            context->SetResponseInfo("HolderId: %d", id);
+            context->Reply();
+        }))
         ->OnError(CreateErrorHandler(~context))
         ->Commit();
 }

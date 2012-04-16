@@ -17,6 +17,10 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const int DefaultMaxSize = 1000;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TVirtualMapBase::DoInvoke(IServiceContext* context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -43,7 +47,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 {
     YASSERT(IsEmpty(context->GetPath()));
 
-    int max_size = request->Attributes().Get<int>("max_size", Max<int>());
+    int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);

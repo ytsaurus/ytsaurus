@@ -171,7 +171,7 @@ public:
             ythrow yexception() << "YPath cannot be empty";
         }
 
-        auto transactionId = NullTransactionId;
+        TTransaction* transaction = NULL;
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
         auto transactionManager = Bootstrap->GetTransactionManager();
@@ -181,12 +181,16 @@ public:
         auto token = ChopToken(path, &currentPath);
 
         if (token.GetType() == ETokenType::Bang) {
-            Stroka transactionToken = ChopStringToken(currentPath, &currentPath);
+            auto transactionToken = ChopStringToken(currentPath, &currentPath);
+            TTransactionId transactionId;
             if (!TObjectId::FromString(transactionToken, &transactionId)) {
-                ythrow yexception() << Sprintf("Error parsing transaction id (Value: %s)", ~transactionToken);
+                ythrow yexception() << Sprintf("Error parsing transaction id %s", ~transactionToken.Quote());
             }
-            if (transactionId != NullTransactionId && !transactionManager->FindTransaction(transactionId)) {
-                ythrow yexception() <<  Sprintf("No such transaction (TransactionId: %s)", ~transactionId.ToString());
+            if (transactionId != NullTransactionId) {
+                transaction = transactionManager->FindTransaction(transactionId);
+                if (!transaction) {
+                    ythrow yexception() <<  Sprintf("No such transaction %s", ~transactionId.ToString());
+                }
             }
             token = ChopToken(currentPath, &currentPath);
         }
@@ -194,19 +198,19 @@ public:
         if (token.GetType() == ETokenType::Slash) {
             objectId = cypressManager->GetRootNodeId();
         } else if (token.GetType() == ETokenType::Hash) {
-            Stroka objectToken = ChopStringToken(currentPath, &currentPath);
+            auto objectToken = ChopStringToken(currentPath, &currentPath);
             if (!TObjectId::FromString(objectToken, &objectId)) {
-                ythrow yexception() << Sprintf("Error parsing object id (Value: %s)", ~objectToken);
+                ythrow yexception() << Sprintf("Error parsing object id %s", ~objectToken.Quote());
             }
             currentPath = currentPath;
             token = ChopToken(currentPath, &currentPath);
         } else {
-            ythrow yexception() << Sprintf("Invalid YPath syntax (Path: %s)", ~currentPath);
+            ythrow yexception() << "Invalid YPath syntax";
         }
 
-        auto proxy = objectManager->FindProxy(TVersionedObjectId(objectId, transactionId));
+        auto proxy = objectManager->FindProxy(objectId, transaction);
         if (!proxy) {
-            ythrow yexception() << Sprintf("No such object (ObjectId: %s)", ~objectId.ToString());
+            ythrow yexception() << Sprintf("No such object %s", ~objectId.ToString());
         }
 
         return TResolveResult::There(proxy, currentPath);
@@ -437,34 +441,34 @@ bool TObjectManager::ObjectExists(const TObjectId& id)
     return handler->Exists(id);
 }
 
-IObjectProxy::TPtr TObjectManager::FindProxy(const TVersionedObjectId& id)
+IObjectProxy::TPtr TObjectManager::FindProxy(
+    const TObjectId& id,
+    TTransaction* transaction)
 {
-    // (NullObjectId, NullTransactionId) means the root transaction.
-    if (id.ObjectId == NullObjectId && id.TransactionId == NullTransactionId) {
+    // (NullObjectId, NullTransaction) means the root transaction.
+    if (id == NullObjectId && !transaction) {
         return Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
     }
 
-    auto type = TypeFromId(id.ObjectId);
-    int typeValue = type.ToValue();
-    if (typeValue < 0 || typeValue >= MaxObjectType) {
-        return NULL;
-    }
+    auto type = TypeFromId(id);
 
-    auto handler = TypeToHandler[typeValue];
+    auto handler = FindHandler(type);
     if (!handler) {
         return NULL;
     }
 
-    if (!handler->Exists(id.ObjectId)) {
+    if (!handler->Exists(id)) {
         return NULL;
     }
 
-    return handler->GetProxy(id);
+    return handler->GetProxy(id, transaction);
 }
 
-IObjectProxy::TPtr TObjectManager::GetProxy(const TVersionedObjectId& id)
+IObjectProxy::TPtr TObjectManager::GetProxy(
+    const TObjectId& id,
+    TTransaction* transaction)
 {
-    auto proxy = FindProxy(id);
+    auto proxy = FindProxy(id, transaction);
     YASSERT(proxy);
     return proxy;
 }
@@ -580,9 +584,14 @@ void TObjectManager::ExecuteVerb(
 
 TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
 {
-    TVersionedObjectId id(
-        TObjectId::FromProto(message.object_id()),
-        TTransactionId::FromProto(message.transaction_id()));
+    auto objectId = TObjectId::FromProto(message.object_id());
+    auto transactionId = TTransactionId::FromProto(message.transaction_id());
+
+    auto transactionManager = Bootstrap->GetTransactionManager();
+    auto* transaction =
+        transactionId == NullTransactionId
+        ?  NULL
+        : &transactionManager->GetTransaction(transactionId);
 
     yvector<TSharedRef> parts(message.request_parts_size());
     for (int partIndex = 0; partIndex < static_cast<int>(message.request_parts_size()); ++partIndex) {
@@ -604,7 +613,7 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
         "",
         NYTree::TYPathResponseHandler());
 
-    auto proxy = GetProxy(id);
+    auto proxy = GetProxy(objectId, transaction);
 
     proxy->Invoke(~context);
 

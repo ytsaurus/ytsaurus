@@ -40,7 +40,8 @@ protected:
   // the space, which guarantee maximal alignment.
   union U {
     double D;
-    long double LD;
+    // XXX(babenko): the following is commented out since hopefully we never need 16 bytes alignment
+    // long double LD;
     long long L;
     void *P;
   } FirstEl;

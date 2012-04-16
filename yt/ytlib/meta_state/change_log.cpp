@@ -764,6 +764,9 @@ TChangeLog::TChangeLog(
         indexBlockSize))
 { }
 
+TChangeLog::~TChangeLog()
+{ }
+
 i32 TChangeLog::GetId() const
 {
     return Impl->GetId();

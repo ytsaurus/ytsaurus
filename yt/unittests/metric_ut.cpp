@@ -3,6 +3,7 @@
 #include <ytlib/misc/metric.h>
 
 #include <contrib/testing/framework.h>
+#include <cmath>
 
 namespace NYT {
 
@@ -66,11 +67,11 @@ TEST_F(TMetricTest, ManyValues)
         sumDeltaSq += delta * delta;
     }
 
-    double std = sqrt(sumDeltaSq / x.size());
+    double std = std::sqrt(sumDeltaSq / x.size());
 
     double eps = 1e-10;
-    EXPECT_IS_TRUE(fabs(metric.GetMean()- mean) < eps);
-    EXPECT_IS_TRUE(fabs(metric.GetStd() - std) < eps);
+    EXPECT_NEAR(mean, metric.GetMean(), eps);
+    EXPECT_NEAR(std, metric.GetStd(), eps);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

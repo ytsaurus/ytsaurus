@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "metric.h"
 
+#include <cmath>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +54,7 @@ double TMetric::GetStd() const
         return 0;
     }
     double mean = GetMean();
-    return sqrt(abs(SumSquares / ValueCount - mean * mean));
+    return std::sqrt(std::fabs(SumSquares / ValueCount - mean * mean));
 }
 
 Stroka TMetric::GetDebugInfo() const

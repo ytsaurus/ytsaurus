@@ -57,7 +57,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
 TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
     auto asyncResult = New< TFuture<TPeerId> >();
-    auto awaiter = New<TParallelAwaiter>(&Profiler, "changelog_source_lookup_time");
+    auto awaiter = New<TParallelAwaiter>(&Profiler, "/changelog_source_lookup_time");
 
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         LOG_INFO("Requesting changelog info from peer %d", id);

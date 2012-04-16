@@ -4,6 +4,7 @@
 #include "public.h"
 
 #include <ytlib/cell_master/public.h>
+#include <ytlib/transaction_server/public.h>
 
 namespace NYT {
 namespace NCypress {
@@ -26,7 +27,7 @@ struct ICypressNode
     //! Loads the node from the snapshot stream.
     virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) = 0;
 
-    //! Returns the id of the node (which is the key in the respective meta-map).
+    //! Returns the composite (versioned) id of the node.
     virtual TVersionedObjectId GetId() const = 0;
 
     //! Gets the lock mode.

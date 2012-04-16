@@ -100,7 +100,7 @@ void TSequentialReader::OnGotBlocks(
         readResult.Value().ysize());
 
     int sequenceIndex = firstSequenceIndex;
-    FOREACH(auto& block, readResult.Value()) {
+    FOREACH (auto& block, readResult.Value()) {
         Window[sequenceIndex].AsyncBlock->Set(block);
         ++sequenceIndex;
     }

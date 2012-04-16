@@ -27,7 +27,7 @@ TChannelWriter::TChannelWriter(
         ColumnIndexMapping[it->second] = i;
     }
 
-    FOREACH(auto& item, chunkColumnIndexes) {
+    FOREACH (auto& item, chunkColumnIndexes) {
         if ((ColumnIndexMapping[item.Second()] < 0) &&
             Channel.ContainsInRanges(item.First()))
         {
@@ -94,11 +94,11 @@ TSharedRef TChannelWriter::FlushBlock()
 {
     TBlobOutput blockStream(CurrentSize);
 
-    FOREACH(const auto& column, FixedColumns) {
+    FOREACH (const auto& column, FixedColumns) {
         WriteVarUInt64(&blockStream, column.GetSize());
     }
 
-    FOREACH(auto& column, FixedColumns) {
+    FOREACH (auto& column, FixedColumns) {
         blockStream.Write(column.Begin(), column.GetSize());
         column.Clear();
     }

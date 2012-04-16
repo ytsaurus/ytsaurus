@@ -47,6 +47,8 @@ public:
         IInvoker* controlInvoker,
         IElectionCallbacks* electionCallbacks);
 
+    ~TElectionManager();
+
     /*!
      * \note Thread affinity: any.
      */

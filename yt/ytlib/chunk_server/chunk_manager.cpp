@@ -6,7 +6,6 @@
 #include "chunk_list.h"
 #include "job.h"
 #include "job_list.h"
-#include <ytlib/chunk_server/chunk_manager.pb.h>
 #include "chunk_placement.h"
 #include "job_scheduler.h"
 #include "holder_lease_tracker.h"
@@ -14,27 +13,38 @@
 #include "chunk_service_proxy.h"
 #include "holder_authority.h"
 #include "holder_statistics.h"
+
 #include <ytlib/chunk_server/chunk_manager.pb.h>
 #include <ytlib/chunk_server/chunk_ypath.pb.h>
 #include <ytlib/chunk_server/chunk_list_ypath.pb.h>
+#include <ytlib/chunk_server/chunk_manager.pb.h>
+
 #include <ytlib/file_client/file_chunk_meta.pb.h>
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/cell_master/load_context.h>
+#include <ytlib/cell_master/bootstrap.h>
+
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/cell_master/bootstrap.h>
+
 #include <ytlib/transaction_server/transaction_manager.h>
 #include <ytlib/transaction_server/transaction.h>
+
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
+
 #include <ytlib/object_server/type_handler_detail.h>
+
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/logging/log.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -58,7 +68,7 @@ class TChunkManager::TChunkTypeHandler
     : public TObjectTypeHandlerBase<TChunk>
 {
 public:
-    TChunkTypeHandler(TImpl* owner);
+    explicit TChunkTypeHandler(TImpl* owner);
 
     virtual EObjectType GetType()
     {
@@ -70,7 +80,9 @@ public:
         TReqCreateObject* request,
         TRspCreateObject* response);
 
-    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
+    virtual IObjectProxy::TPtr GetProxy(
+        const TObjectId& id,
+        NTransactionServer::TTransaction* transaction);
 
 private:
     TImpl* Owner;
@@ -85,7 +97,7 @@ class TChunkManager::TChunkListTypeHandler
     : public TObjectTypeHandlerBase<TChunkList>
 {
 public:
-    TChunkListTypeHandler(TImpl* owner);
+    explicit TChunkListTypeHandler(TImpl* owner);
 
     virtual EObjectType GetType()
     {
@@ -97,7 +109,9 @@ public:
         TReqCreateObject* request,
         TRspCreateObject* response);
 
-    virtual IObjectProxy::TPtr GetProxy(const TVersionedObjectId& id);
+    virtual IObjectProxy::TPtr GetProxy(
+        const TObjectId& id,
+        NTransactionServer::TTransaction* transaction);
 
 private:
     TImpl* Owner;
@@ -122,12 +136,12 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , ChunkReplicaCount(0)
-        , AddChunkCounter("add_chunk_rate")
-        , RemoveChunkCounter("remove_chunk_rate")
-        , AddChunkReplicaCounter("add_chunk_replica_rate")
-        , RemoveChunkReplicaCounter("remove_chunk_replica_rate")
-        , StartJobCounter("start_job_rate")
-        , StopJobCounter("stop_job_rate")
+        , AddChunkCounter("/add_chunk_rate")
+        , RemoveChunkCounter("/remove_chunk_rate")
+        , AddChunkReplicaCounter("/add_chunk_replica_rate")
+        , RemoveChunkReplicaCounter("/remove_chunk_replica_rate")
+        , StartJobCounter("/start_job_rate")
+        , StopJobCounter("/stop_job_rate")
     {
         YASSERT(config);
         YASSERT(bootstrap);
@@ -251,6 +265,7 @@ public:
 
     TChunk& CreateChunk()
     {
+        Profiler.Increment(AddChunkCounter);
         auto id = Bootstrap->GetObjectManager()->GenerateId(EObjectType::Chunk);
         auto* chunk = new TChunk(id);
         ChunkMap.Insert(id, chunk);
@@ -574,7 +589,7 @@ private:
             statistics);
 
         HolderMap.Insert(holderId, newHolder);
-        HolderAddressMap.insert(MakePair(address, holderId)).second;
+        HolderAddressMap.insert(MakePair(address, holderId));
 
         if (IsLeader()) {
             StartHolderTracking(*newHolder, false);
@@ -587,8 +602,11 @@ private:
     { 
         auto holderId = message.holder_id();
 
-        auto& holder = GetHolder(holderId);
-        DoUnregisterHolder(holder);
+        // Allow holderId to be invalid, just ignore such obsolete requests.
+        auto* holder = FindHolder(holderId);
+        if (holder) {
+            DoUnregisterHolder(*holder);
+        }
 
         return TVoid();
     }
@@ -601,7 +619,7 @@ private:
     TVoid FullHeartbeat(const TMsgFullHeartbeat& message)
     {
         PROFILE_TIMING ("/full_heartbeat_time") {
-            Profiler.Enqueue("full_heartbeat_chunks", message.chunks_size());
+            Profiler.Enqueue("/full_heartbeat_chunks", message.chunks_size());
 
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
@@ -624,7 +642,7 @@ private:
                 ChunkPlacement->OnHolderUpdated(holder);
             }
 
-            LOG_INFO("Holder online (Address: %s, HolderId: %d)",
+            LOG_INFO_IF(!IsRecovery(), "Holder online (Address: %s, HolderId: %d)",
                 ~holder.GetAddress(),
                 holderId);
 
@@ -640,8 +658,8 @@ private:
 
     TVoid IncrementalHeartbeat(const TMsgIncrementalHeartbeat& message)
     {
-        Profiler.Enqueue("incremental_heartbeat_added_chunks", message.added_chunks_size());
-        Profiler.Enqueue("incremental_heartbeat_removed_chunks", message.removed_chunks_size());
+        Profiler.Enqueue("/incremental_heartbeat_chunks_added", message.added_chunks_size());
+        Profiler.Enqueue("/incremental_heartbeat_chunks_removed", message.removed_chunks_size());
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             auto holderId = message.holder_id();
             const auto& statistics = message.statistics();
@@ -1353,7 +1371,7 @@ private:
 
         // Use the size reported by the client, but check it for consistency first.
         if (chunk.GetSize() != TChunk::UnknownSize && chunk.GetSize() != size) {
-            LOG_FATAL("Mismatched chunk size reported by client (ChunkId: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ")",
+            LOG_FATAL("Mismatched size of chunk %s reported by client: expected %" PRId64 ", received %" PRId64,
                 ~Id.ToString(),
                 chunk.GetSize(),
                 size);
@@ -1363,9 +1381,17 @@ private:
         FOREACH (const auto& address, holderAddresses) {
             auto* holder = Owner->FindHolder(address);
             if (!holder) {
-                LOG_WARNING_IF(!Owner->IsRecovery(), "Tried to confirm a chunk at unknown holder (ChunkId: %s, HolderAddress: %s)",
+                LOG_DEBUG_IF(!Owner->IsRecovery(), "Tried to confirm chunk %s at an unknown holder %s",
                     ~Id.ToString(),
                     ~address);
+                continue;
+            }
+
+            if (holder->GetState() != EHolderState::Online) {
+                LOG_DEBUG_IF(!Owner->IsRecovery(), "Tried to confirm chunk %s at holder %s with invalid state %s",
+                    ~Id.ToString(),
+                    ~address,
+                    ~FormatEnum(holder->GetState()));
                 continue;
             }
 
@@ -1394,9 +1420,12 @@ TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::GetProxy(const TVersionedObjectId& id)
+IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::GetProxy(
+    const TObjectId& id,
+    NTransactionServer::TTransaction* transaction)
 {
-    return New<TChunkProxy>(Owner, id.ObjectId);
+    UNUSED(transaction);
+    return New<TChunkProxy>(Owner, id);
 }
 
 TObjectId TChunkManager::TChunkTypeHandler::Create(
@@ -1418,7 +1447,7 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
             ythrow yexception() << "Not enough holders available";
         }
 
-        FOREACH(auto holderId, holderIds) {
+        FOREACH (auto holderId, holderIds) {
             const THolder& holder = Owner->GetHolder(holderId);
             responseExt->add_holder_addresses(holder.GetAddress());
         }
@@ -1583,9 +1612,12 @@ TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::GetProxy(const TVersionedObjectId& id)
+IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::GetProxy(
+    const TObjectId& id,
+    NTransactionServer::TTransaction* transaction)
 {
-    return New<TChunkListProxy>(Owner, id.ObjectId);
+    UNUSED(transaction);
+    return New<TChunkListProxy>(Owner, id);
 }
 
 TObjectId TChunkManager::TChunkListTypeHandler::Create(
@@ -1612,6 +1644,9 @@ TChunkManager::TChunkManager(
     TChunkManagerConfigPtr config,
     TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
+{ }
+
+TChunkManager::~TChunkManager()
 { }
 
 const THolder* TChunkManager::FindHolder(const Stroka& address) const

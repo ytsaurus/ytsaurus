@@ -24,7 +24,7 @@ public:
 private:
 
     TIntrusivePtr<ISyncTableReader> Reader;
-    NYTree::TYsonWriter YsonWriter;
+    NYTree::TYsonFragmentWriter YsonWriter;
 };
 
 ////////////////////////////////////////////////////////////////////

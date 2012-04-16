@@ -152,7 +152,7 @@ void TUserJob::InitPipes()
     }
 
     // Close reserved descriptors.
-    FOREACH(auto& fd, reservedDescriptors) {
+    FOREACH (auto& fd, reservedDescriptors) {
         SafeClose(fd);
     }
 
@@ -162,7 +162,7 @@ void TUserJob::InitPipes()
 void TUserJob::StartJob()
 {
     try {
-        FOREACH(auto& pipe, DataPipes) {
+        FOREACH (auto& pipe, DataPipes) {
             pipe->PrepareJobDescriptors();
         }
 
@@ -197,7 +197,7 @@ void TUserJob::StartJob()
 void TUserJob::DoJobIO()
 {
     try {
-        FOREACH(auto& pipe, DataPipes) {
+        FOREACH (auto& pipe, DataPipes) {
             pipe->PrepareProxyDescriptors();
         }
 
@@ -207,7 +207,7 @@ void TUserJob::DoJobIO()
             ythrow yexception() << "epoll_create failed with errno: " << errno;
         }
 
-        FOREACH(auto& pipe, DataPipes) {
+        FOREACH (auto& pipe, DataPipes) {
             epoll_event ev_add;
             ev_add.data.u64 = 0ULL;
             ev_add.events = pipe->GetEpollFlags();
@@ -251,7 +251,7 @@ void TUserJob::DoJobIO()
 
         JobExitStatus = StatusToError(status);
 
-        FOREACH(auto& pipe, DataPipes) {
+        FOREACH (auto& pipe, DataPipes) {
             pipe->Finish();
         }
 
@@ -259,7 +259,7 @@ void TUserJob::DoJobIO()
     } catch (...) {
         // Try to close all pipes despite any other errors.
         // It is safe to call Finish multiple times.
-        FOREACH(auto& pipe, DataPipes) {
+        FOREACH (auto& pipe, DataPipes) {
             try {
                 pipe->Finish();
             } catch (...) 

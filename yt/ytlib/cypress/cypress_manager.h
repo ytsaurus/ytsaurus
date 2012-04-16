@@ -54,35 +54,35 @@ public:
      */
     NYTree::TYPathServiceProducer GetRootServiceProducer();
 
-    const ICypressNode* FindVersionedNode(
+    ICypressNode* FindVersionedNode(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId) const;
+        NTransactionServer::TTransaction* transaction);
 
-    const ICypressNode& GetVersionedNode(
+    ICypressNode& GetVersionedNode(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId) const;
+        NTransactionServer::TTransaction* transaction);
 
     ICypressNode* FindVersionedNodeForUpdate(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode = ELockMode::Exclusive);
 
     ICypressNode& GetVersionedNodeForUpdate(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode = ELockMode::Exclusive);
 
     TIntrusivePtr<ICypressNodeProxy> FindVersionedNodeProxy(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        NTransactionServer::TTransaction* transaction = NULL);
 
     TIntrusivePtr<ICypressNodeProxy> GetVersionedNodeProxy(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId);
+        NTransactionServer::TTransaction* transaction = NULL);
 
     TLockId LockVersionedNode(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode = ELockMode::Exclusive);
 
     void RegisterNode(
@@ -149,7 +149,7 @@ private:
 
     void ValidateLock(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode,
         bool* isMandatory = NULL);
 
@@ -160,14 +160,14 @@ private:
    
     TLockId AcquireLock(
         const TNodeId& nodeId,
-        const TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         ELockMode mode);
 
     void ReleaseLock(TLock *lock);
 
    ICypressNode& BranchNode(
        ICypressNode& node,
-       const TTransactionId& transactionId,
+       NTransactionServer::TTransaction* transaction,
        ELockMode mode);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

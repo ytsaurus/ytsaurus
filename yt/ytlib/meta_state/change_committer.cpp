@@ -32,9 +32,9 @@ TCommitter::TCommitter(
     : MetaState(metaState)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
-    , CommitCounter("commit_rate")
-    , BatchCommitCounter("commit_batch_rate")
-    , CommitTimeCounter("commit_time")
+    , CommitCounter("/commit_rate")
+    , BatchCommitCounter("/commit_batch_rate")
+    , CommitTimeCounter("/commit_time")
 {
     YASSERT(metaState);
     YASSERT(epochControlInvoker);
@@ -42,6 +42,9 @@ TCommitter::TCommitter(
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(epochStateInvoker, StateThread);
 }
+
+TCommitter::~TCommitter()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +111,7 @@ private:
         IsSent = true;
 
         if (!BatchedChanges.empty()) {
-            Profiler.Enqueue("commit_batch_size", BatchedChanges.size());
+            Profiler.Enqueue("/commit_batch_size", BatchedChanges.size());
 
 
             YASSERT(LogResult);
@@ -117,7 +120,7 @@ private:
             Awaiter = New<TParallelAwaiter>(
                 ~Committer->EpochControlInvoker,
                 &Profiler,
-                "commit_batch_time");
+                "/commit_batch_time");
 
             Awaiter->Await(
                 LogResult,
@@ -252,6 +255,9 @@ TLeaderCommitter::TLeaderCommitter(
     YASSERT(followerTracker);
 }
 
+TLeaderCommitter::~TLeaderCommitter()
+{ }
+
 void TLeaderCommitter::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -378,6 +384,9 @@ TFollowerCommitter::TFollowerCommitter(
     IInvoker* epochControlInvoker,
     IInvoker* epochStateInvoker)
     : TCommitter(metaState, epochControlInvoker, epochStateInvoker)
+{ }
+
+TFollowerCommitter::~TFollowerCommitter()
 { }
 
 TCommitter::TResult::TPtr TFollowerCommitter::Commit(

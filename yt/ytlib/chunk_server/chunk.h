@@ -18,16 +18,23 @@ class TChunk
 {
     DEFINE_BYVAL_RW_PROPERTY(i64, Size);
     DEFINE_BYVAL_RW_PROPERTY(TSharedRef, Attributes);
-    // Usually small, e.g. 3 replicas.
-    typedef TSmallVector<THolderId, 3> TStoredLocations;
+
+    // This is usually small, e.g. has the length of 3.
+    // typedef TSmallVector<THolderId, 3> TStoredLocations;
+    // TODO(babenko): switch to small vector when it's ready
+    typedef yvector<THolderId> TStoredLocations;
     DEFINE_BYREF_RO_PROPERTY(TStoredLocations, StoredLocations);
-    // Usually empty.
+
+    // This list is usually empty.
+    // Keeping a holder is very space efficient (takes just 8 bytes).
     DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<THolderId> >, CachedLocations);
 
 public:
     static const i64 UnknownSize = -1;
     
     TChunk(const TChunkId& id);
+
+    ~TChunk();
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

@@ -42,7 +42,7 @@ void TFuture<T>::Set(T value)
         Subscribers.swap(subscribers);
     }
 
-    FOREACH(auto& subscriber, subscribers) {
+    FOREACH (auto& subscriber, subscribers) {
         subscriber.Run(Value);
     }
 }

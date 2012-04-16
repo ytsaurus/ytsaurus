@@ -15,7 +15,8 @@ class TProgressCounter
 public:
     TProgressCounter();
 
-    void Init(i64 total);
+    void Set(i64 value);
+    void Add(i64 value);
 
     i64 GetTotal() const;
     i64 GetRunning() const;

@@ -10,6 +10,7 @@ namespace NCypress {
 
 using namespace NYTree;
 using namespace NCellMaster;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,13 +43,13 @@ public:
     TVirtualNodeProxy(
         INodeTypeHandler* typeHandler,
         TBootstrap* bootstrap,
-        const TTransactionId& transactionId,
+        TTransaction* transaction,
         const TNodeId& nodeId,
         IYPathServicePtr service)
         : TBase(
             typeHandler,
             bootstrap,
-            transactionId,
+            transaction,
             nodeId)
         , Service(service)
     { }
@@ -81,14 +82,16 @@ public:
         , ObjectType(objectType)
     { }
 
-    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(const TVersionedNodeId& id)
+    virtual TIntrusivePtr<ICypressNodeProxy> GetProxy(
+        const TNodeId& id,
+        TTransaction* transaction)
     {
         auto service = Producer.Run(id);
         return New<TVirtualNodeProxy>(
             this,
             Bootstrap,
-            id.TransactionId,
-            id.ObjectId,
+            transaction,
+            id,
             service);
     }
 
@@ -133,7 +136,7 @@ INodeTypeHandler::TPtr CreateVirtualTypeHandler(
     return CreateVirtualTypeHandler(
         bootstrap,
         objectType,
-        BIND([=] (const TVersionedNodeId& id) -> IYPathServicePtr {
+        BIND([=] (const TNodeId& id) -> IYPathServicePtr {
             UNUSED(id);
             return service_;
         }));

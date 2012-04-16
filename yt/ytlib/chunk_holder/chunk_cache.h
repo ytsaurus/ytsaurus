@@ -32,6 +32,8 @@ public:
     //! Initializes the cache.
     void Start();
 
+    ~TChunkCache();
+
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TCachedChunkPtr FindChunk(const TChunkId& chunkId);
 

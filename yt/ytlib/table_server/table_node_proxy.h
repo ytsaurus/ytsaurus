@@ -22,7 +22,7 @@ public:
     TTableNodeProxy(
         NCypress::INodeTypeHandler* typeHandler,
         NCellMaster::TBootstrap* bootstrap,
-        const NObjectServer::TTransactionId& transactionId,
+        NTransactionServer::TTransaction* transaction,
         const NCypress::TNodeId& nodeId);
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
