@@ -78,10 +78,14 @@ class Master(Server):
             'cell' : {
                 'addresses' : MasterAddresses
             },
-            'snapshot_path' : '/yt/disk2/data/snapshots',
-            'log_path' : '/yt/disk1/data/changelogs',
+            'snapshots' : {
+                'path' : '/yt/disk2/data/snapshots',
+            },
+            'changelogs' : {
+                'path' : '/yt/disk1/data/changelogs',
+            },
             'max_changes_between_snapshots' : 1000000,
-            'change_log_downloader' : {
+            'changelog_downloader' : {
                 'records_per_request' : 10240
             },
         },
@@ -101,8 +105,8 @@ class Master(Server):
         print >>fd, shebang
         print >>fd, 'rm -f %s' % cls.log_path
         print >>fd, 'rm -f %s' % cls.debug_log_path
-        print >>fd, 'rm %s/*' % cls.config['meta_state']['snapshot_path']
-        print >>fd, 'rm %s/*' % cls.config['meta_state']['log_path']
+        print >>fd, 'rm %s/*' % cls.config['meta_state']['snapshots']['path']
+        print >>fd, 'rm %s/*' % cls.config['meta_state']['changelogs']['path']
         
 class Scheduler(Server):
     base_dir = '/yt/disk2/data'

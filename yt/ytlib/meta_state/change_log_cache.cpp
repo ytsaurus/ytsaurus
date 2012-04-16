@@ -19,32 +19,31 @@ static const char* LogExtension = "log";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedAsyncChangeLog::TCachedAsyncChangeLog(TChangeLog* changeLog)
+TCachedAsyncChangeLog::TCachedAsyncChangeLog(TChangeLogPtr changeLog)
     : TCacheValueBase<i32, TCachedAsyncChangeLog>(changeLog->GetId())
     , TAsyncChangeLog(changeLog)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChangeLogCache::TChangeLogCache(
-    const Stroka& path,
-    TChangeLogCacheConfigPtr config)
+TChangeLogCache::TChangeLogCache(TChangeLogCacheConfigPtr config)
     : TSizeLimitedCache<i32, TCachedAsyncChangeLog>(config->MaxSize)
     , Config(config)
-    , Path(path)
 { }
 
 void TChangeLogCache::Start()
 {
-    LOG_DEBUG("Preparing changelog directory %s", ~Path.Quote());
+    auto path = Config->Path;
 
-    NFS::ForcePath(Path);
-    NFS::CleanTempFiles(Path);
+    LOG_DEBUG("Preparing changelog directory %s", ~path.Quote());
+
+    NFS::ForcePath(path);
+    NFS::CleanTempFiles(path);
 }
 
 Stroka TChangeLogCache::GetChangeLogFileName(i32 id)
 {
-    return NFS::CombinePaths(Path, Sprintf("%09d.%s", id, LogExtension));
+    return NFS::CombinePaths(Config->Path, Sprintf("%09d.%s", id, LogExtension));
 }
 
 TChangeLogPtr TChangeLogCache::CreateChangeLog(i32 id)

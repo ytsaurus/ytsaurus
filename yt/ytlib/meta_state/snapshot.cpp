@@ -47,7 +47,7 @@ struct TSnapshotHeader
         , Checksum(0)
     { }
 
-    explicit TSnapshotHeader(i32 segmentId, i32 prevRecordCount)
+    TSnapshotHeader(i32 segmentId, i32 prevRecordCount)
         : Signature(CurrentSignature)
         , SegmentId(segmentId)
         , PrevRecordCount(prevRecordCount)
@@ -69,9 +69,13 @@ struct TSnapshotHeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotReader::TSnapshotReader(const Stroka& fileName, i32 segmentId)
+TSnapshotReader::TSnapshotReader(
+    const Stroka& fileName,
+    i32 segmentId,
+    bool enableCompression)
     : FileName(fileName)
     , SnapshotId(segmentId)
+    , EnableCompression(enableCompression)
 { }
 
 void TSnapshotReader::Open()
@@ -92,14 +96,19 @@ void TSnapshotReader::Open()
     YASSERT(header.DataLength + sizeof(header) == static_cast<ui64>(File->GetLength()));
 
     FileInput.Reset(new TBufferedFileInput(*File));
-    DecompressedInput.Reset(new TDecompressedInput(~FileInput));
-    ChecksummableInput.Reset(new TChecksummableInput(*DecompressedInput));
+
+    if (EnableCompression) {
+        DecompressedInput.Reset(new TDecompressedInput(~FileInput));
+        ChecksummableInput.Reset(new TChecksummableInput(~DecompressedInput));
+    } else {
+        ChecksummableInput.Reset(new TChecksummableInput(~FileInput));
+    }
 }
 
-TInputStream& TSnapshotReader::GetStream() const
+TInputStream* TSnapshotReader::GetStream() const
 {
     YASSERT(~ChecksummableInput);
-    return *ChecksummableInput;
+    return ~ChecksummableInput;
 }
 
 i64 TSnapshotReader::GetLength() const
@@ -120,10 +129,14 @@ i32 TSnapshotReader::GetPrevRecordCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotWriter::TSnapshotWriter(const Stroka& fileName, i32 segmentId)
+TSnapshotWriter::TSnapshotWriter(
+    const Stroka& fileName,
+    i32 segmentId,
+    bool enableCompression)
     : FileName(fileName)
     , TempFileName(fileName + NFS::TempFileSuffix)
     , SnapshotId(segmentId)
+    , EnableCompression(enableCompression)
     , PrevRecordCount(0)
     , Checksum(0)
 { }
@@ -139,16 +152,20 @@ void TSnapshotWriter::Open(i32 prevRecordCount)
     TSnapshotHeader header(SnapshotId, PrevRecordCount);
     Write(*FileOutput, header);
 
-    CompressedOutput.Reset(new TCompressedOutput(~FileOutput));
-    ChecksummableOutput.Reset(new TChecksummableOutput(*CompressedOutput));
+    if (EnableCompression) {
+        CompressedOutput.Reset(new TCompressedOutput(~FileOutput));
+        ChecksummableOutput.Reset(new TChecksummableOutput(~CompressedOutput));
+    } else {
+        ChecksummableOutput.Reset(new TChecksummableOutput(~FileOutput));
+    }
     
     Checksum = 0;
 }
 
-TOutputStream& TSnapshotWriter::GetStream() const
+TOutputStream* TSnapshotWriter::GetStream() const
 {
     YASSERT(~ChecksummableOutput);
-    return *ChecksummableOutput;
+    return ~ChecksummableOutput;
 }
 
 void TSnapshotWriter::Close()

@@ -113,9 +113,9 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
 
-        ChangeLogCache = New<TChangeLogCache>(Config->LogPath, Config->ChangeLogCache);
+        ChangeLogCache = New<TChangeLogCache>(Config->ChangeLogs);
 
-        SnapshotStore = New<TSnapshotStore>(Config->SnapshotPath);
+        SnapshotStore = New<TSnapshotStore>(Config->Snapshots);
 
         DecoratedState = New<TDecoratedMetaState>(
             metaState,

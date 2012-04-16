@@ -127,7 +127,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverToStateWithChangeLog(
 
         auto snapshotReader = readerResult.Value();
         snapshotReader->Open();
-        DecoratedState->Load(snapshotId, &snapshotReader->GetStream());
+        DecoratedState->Load(snapshotId, snapshotReader->GetStream());
 
         // The reader reference is being held by the closure action.
         return ReplayChangeLogs(    

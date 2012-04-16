@@ -15,10 +15,13 @@ class TSnapshotReader
     : public TRefCounted
 {
 public:
-    TSnapshotReader(const Stroka& fileName, i32 snapshotId);
+    TSnapshotReader(
+        const Stroka& fileName,
+        i32 snapshotId,
+        bool enableCompression);
 
     void Open();
-    TInputStream& GetStream() const;
+    TInputStream* GetStream() const;
     i64 GetLength() const;
     TChecksum GetChecksum() const;
     i32 GetPrevRecordCount() const;
@@ -26,6 +29,7 @@ public:
 private:
     Stroka FileName;
     i32 SnapshotId;
+    bool EnableCompression;
     TChecksum Checksum;
     i32 PrevRecordCount;
 
@@ -42,11 +46,14 @@ class TSnapshotWriter
     : public TRefCounted
 {
 public:
-    TSnapshotWriter(const Stroka& fileName, i32 snapshotId);
+    TSnapshotWriter(
+        const Stroka& fileName,
+        i32 snapshotId,
+        bool enableCompression);
 
     void Open(i32 prevRecordCount);
     
-    TOutputStream& GetStream() const;
+    TOutputStream* GetStream() const;
     void Close();
     TChecksum GetChecksum() const;
 
@@ -54,6 +61,7 @@ private:
     Stroka FileName;
     Stroka TempFileName;
     i32 SnapshotId;
+    bool EnableCompression;
     i32 PrevRecordCount;
     TChecksum Checksum;
 

@@ -35,14 +35,18 @@ TEST_F(TSnapshotTest, EmptySnapshot)
     // TODO: Add checksums.
     ASSERT_NO_THROW({
         TSnapshotWriterPtr writer = New<TSnapshotWriter>(
-            TemporaryFile->Name(), 0);
+            TemporaryFile->Name(),
+            0,
+            true);
         writer->Open(NonexistingPrevRecordCount);
         writer->Close();
     });
 
     ASSERT_NO_THROW({
         TSnapshotReaderPtr reader = New<TSnapshotReader>(
-            TemporaryFile->Name(), 0);
+            TemporaryFile->Name(),
+            0,
+            true);
         reader->Open();
     });
 }
@@ -53,25 +57,29 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
     const i32 recordCount = 1024;
 
     TSnapshotWriterPtr writer = New<TSnapshotWriter>(
-        TemporaryFile->Name(), 0);
+        TemporaryFile->Name(),
+        0,
+        true);
     writer->Open(NonexistingPrevRecordCount);
-    TOutputStream& outputStream = writer->GetStream();
+    auto* outputStream = writer->GetStream();
 
     for (i32 i = 0; i < recordCount; ++i) {
-        outputStream.Write(&i, sizeof(i32));
+        outputStream->Write(&i, sizeof(i32));
     }
 
     writer->Close();
     writer.Reset();
 
     TSnapshotReaderPtr reader = New<TSnapshotReader>(
-        TemporaryFile->Name(), 0);
+        TemporaryFile->Name(),
+        0,
+        true);
     reader->Open();
-    TInputStream& inputStream = reader->GetStream();
+    auto* inputStream = reader->GetStream();
 
     for (i32 i = 0; i < recordCount; ++i) {
         i32 data;
-        i32 bytesRead = inputStream.Load(&data, sizeof(i32));
+        i32 bytesRead = inputStream->Load(&data, sizeof(i32));
 
         EXPECT_EQ(static_cast<i32>(sizeof(i32)), bytesRead);
         EXPECT_EQ(i, data);

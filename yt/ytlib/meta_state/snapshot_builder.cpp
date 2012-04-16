@@ -304,8 +304,7 @@ TChecksum TSnapshotBuilder::DoCreateLocalSnapshot(TMetaVersion version)
 {
     auto writer = SnapshotStore->GetWriter(version.SegmentId + 1);
     writer->Open(version.RecordCount);
-    auto* stream = &writer->GetStream();
-    DecoratedState->Save(stream);
+    DecoratedState->Save(writer->GetStream());
     writer->Close();
     return writer->GetChecksum();
 }
