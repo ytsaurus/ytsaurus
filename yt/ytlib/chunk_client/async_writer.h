@@ -51,22 +51,15 @@ struct IAsyncWriter
      */
     virtual TAsyncError AsyncClose(
         const std::vector<TSharedRef>& lastBlocks,
-        const NChunkHolder::NProto::TChunkAttributes& attributes) = 0;
+        const NChunkHolder::NProto::TChunkMeta& chunkMeta) = 0;
 
-    //! Returns the id of the chunk being written.
-    virtual TChunkId GetChunkId() const = 0;
-
-    //! Returns the confirmation request for the uploaded chunk.
     /*!
-     *  This method call only be called when the writer is successfully closed.
+     *  This method can only be called when the writer is successfully closed.
      *  
      * \note Thread affinity: ClientThread.
      */
-    virtual NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest()
-    {
-        // Implement in descendants that imply remote writer semantics.
-        YUNIMPLEMENTED();
-    }
+    virtual const NChunkHolder::NProto::TChunkMeta& GetChunkMeta() const = 0;
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////

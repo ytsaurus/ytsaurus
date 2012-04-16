@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/enum.h>
 
@@ -36,7 +37,7 @@ public:
     Stroka ToString() const;
     size_t GetSize() const;
 
-    //ToProto()
+    NProto::TKeyPart ToProto() const;
     //FromProto();
 
 private:
@@ -67,7 +68,7 @@ public:
 
     Stroka ToString() const;
 
-    // ToProto
+    NProto::TKey ToProto() const;
     // FromProto
 
     bool operator<(const TKey& other) const;

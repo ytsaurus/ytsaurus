@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿
+#pragma once
 
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/configurable.h>
@@ -9,6 +10,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTableConsumerConfig
+    : public TConfigurable
 {
     i64 MaxColumnNameSize;
     i64 MaxRowSize;
@@ -17,13 +19,13 @@ struct TTableConsumerConfig
     TTableConsumerConfig() 
     {
         Register("max_column_name_size", MaxColumnNameSize)
-            .LessOrEqual(256)
+            .LessThanOrEqual(256)
             .Default(256);
         Register("max_row_size", MaxRowSize)
-            .LessOrEqual(16 * 1024 * 1024)
+            .LessThanOrEqual(16 * 1024 * 1024)
             .Default(16 * 1024 * 1024);
         Register("max_key_size", MaxKeySize)
-            .LessOrEqual(4 * 1024)
+            .LessThanOrEqual(4 * 1024)
             .Default(4 * 1024);
     }
 };
@@ -50,14 +52,13 @@ struct TChunkWriterConfig
             .Default(1024 * 1024);
         Register("codec_id", CodecId)
             .Default(ECodecId::Snappy);
-
         Register("sample_rate", SampleRate)
             .GreaterThan(0)
-            .LessThan(1)
+            .LessThan(0.1)
             .Default(0.01);
         Register("index_rate", IndexRate)
             .GreaterThan(0)
-            .LessThan(1)
+            .LessThan(0.1)
             .Default(0.01);
         
     }

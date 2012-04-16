@@ -44,7 +44,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, FlushBlock);
     DEFINE_RPC_PROXY_METHOD(NProto, GetBlocks);
     DEFINE_RPC_PROXY_METHOD(NProto, PingSession);
-    DEFINE_RPC_PROXY_METHOD(NProto, GetChunkInfo);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetChunkMeta);
     DEFINE_RPC_PROXY_METHOD(NProto, PrecacheChunk);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, UpdatePeer);
 

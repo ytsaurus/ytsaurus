@@ -124,7 +124,8 @@ message TMergeJobResult
         optional TMergeJobResult merge_job_result = 101;
     }
 
-    repeated NYT.NChunkHolder.NProto.TChunkInfo chunks = 1;
+    // XXX(psushin): I didn't understand what is this?
+    // repeated NYT.NChunkHolder.NProto.TChunkInfo chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

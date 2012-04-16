@@ -96,7 +96,7 @@ public:
      */
     virtual TAsyncError AsyncClose(
         const std::vector<TSharedRef>& lastBlocks,
-        const NChunkHolder::NProto::TChunkAttributes& attributes);
+        const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
     ~TRemoteWriter();
 
@@ -105,23 +105,10 @@ public:
      */
     Stroka GetDebugInfo();
 
-    //! Returns the id of the chunk being uploaded.
-    /*!
-     * \note Thread affinity: any.
-     */
-    TChunkId GetChunkId() const;
-
-    //! Returns the confirmation request for the uploaded chunk.
-    /*!
-     *  This method call only be called when the writer is successfully closed.
-     *  
-     * \note Thread affinity: any.
-     */
-    NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest();
+    const NChunkHolder::NProto::TChunkMeta& GetChunkMeta() const;
+    const std::vector<Stroka> GetHolders() const;
 
 private:
-    typedef TWeakPtr<TRemoteWriter> TWeak;
-
     //! A group is a bunch of blocks that is sent in a single RPC request.
     class TGroup;
     typedef TIntrusivePtr<TGroup> TGroupPtr;
@@ -146,7 +133,7 @@ private:
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool IsCloseRequested;
-    NChunkHolder::NProto::TChunkAttributes Attributes;
+    NChunkHolder::NProto::TChunkMeta ChunkMeta;
 
     TWindow Window;
     TAsyncSemaphore WindowSlots;
@@ -164,7 +151,7 @@ private:
     int BlockCount;
 
     //! Returned from holder in Finish.
-    NChunkHolder::NProto::TChunkInfo ChunkInfo;
+    NChunkHolder::NProto::TInfo ChunkInfo;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;
@@ -176,7 +163,6 @@ private:
 
     void DoClose(
         const std::vector<TSharedRef>& lastBlocks,
-        const NChunkHolder::NProto::TChunkAttributes& attributes,
         TVoid);
 
     void AddGroup(TGroupPtr group);

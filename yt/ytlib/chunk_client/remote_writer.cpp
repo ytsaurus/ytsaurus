@@ -2,19 +2,16 @@
 #include "remote_writer.h"
 #include "holder_channel_cache.h"
 #include "writer_thread.h"
+
+#include <ytlib/chunk_holder/extensions.h>
 #include <ytlib/chunk_holder/chunk_holder_service.pb.h>
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/actions/parallel_awaiter.h>
-#include <ytlib/cypress/cypress_service_proxy.h>
 
-#include <util/random/random.h>
 #include <util/generic/yexception.h>
-#include <util/datetime/base.h>
-#include <util/datetime/cputimer.h>
-#include <util/stream/str.h>
 
 #include <contrib/libs/protobuf/text_format.h>
 
@@ -24,10 +21,8 @@ namespace NChunkClient {
 using namespace NRpc;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer;
-using namespace NCypress;
 
 using namespace google::protobuf;
-
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -99,7 +94,7 @@ private:
 
     int Size;
 
-    TRemoteWriter::TWeak Writer;
+    TWeakPtr<TRemoteWriter> Writer;
 
     NLog::TTaggedLogger& Logger;
 
@@ -477,17 +472,17 @@ void TRemoteWriter::Open()
     FOREACH (auto holder, Holders) {
         auto onSuccess = BIND(
             &TRemoteWriter::OnChunkStarted, 
-            TWeak(this), 
+            MakeWeak(this), 
             holder);
         auto onResponse = BIND(
             &TRemoteWriter::CheckResponse<TProxy::TRspStartChunk>,
-            TWeak(this),
+            MakeWeak(this),
             holder,
             onSuccess,
             &StartChunkTiming);
         awaiter->Await(StartChunk(holder), onResponse);
     }
-    awaiter->Complete(BIND(&TRemoteWriter::OnSessionStarted, TWeak(this)));
+    awaiter->Complete(BIND(&TRemoteWriter::OnSessionStarted, MakeWeak(this)));
 
     IsOpen = true;
 }
@@ -522,12 +517,12 @@ void TRemoteWriter::ShiftWindow()
         if (holder->IsAlive) {
             auto onSuccess = BIND(
                 &TRemoteWriter::OnBlockFlushed, 
-                TWeak(this), 
+                MakeWeak(this), 
                 holder,
                 lastFlushableBlock);
             auto onResponse = BIND(
                 &TRemoteWriter::CheckResponse<TProxy::TRspFlushBlock>,
-                TWeak(this), 
+                MakeWeak(this), 
                 holder, 
                 onSuccess,
                 &FlushBlockTiming);
@@ -537,7 +532,7 @@ void TRemoteWriter::ShiftWindow()
 
     awaiter->Complete(BIND(
         &TRemoteWriter::OnWindowShifted, 
-        TWeak(this),
+        MakeWeak(this),
         lastFlushableBlock));
 }
 
@@ -714,18 +709,18 @@ void TRemoteWriter::CloseSession()
         if (holder->IsAlive) {
             auto onSuccess = BIND(
                 &TRemoteWriter::OnChunkFinished, 
-                TWeak(this), 
+                MakeWeak(this), 
                 holder);
             auto onResponse = BIND(
                 &TRemoteWriter::CheckResponse<TProxy::TRspFinishChunk>,
-                TWeak(this), 
+                MakeWeak(this), 
                 holder, 
                 onSuccess, 
                 &FinishChunkTiming);
             awaiter->Await(FinishChunk(holder), onResponse);
         }
     }
-    awaiter->Complete(BIND(&TRemoteWriter::OnSessionFinished, TWeak(this)));
+    awaiter->Complete(BIND(&TRemoteWriter::OnSessionFinished, MakeWeak(this)));
 }
 
 void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::TPtr rsp)
@@ -738,19 +733,21 @@ void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::
         chunkInfo.size());
 
     // If ChunkInfo is set.
-    if (ChunkInfo.has_id() && (
-        ChunkInfo.meta_checksum() != chunkInfo.meta_checksum() ||
-        ChunkInfo.size() != chunkInfo.size())) 
-    {
-        Stroka knownInfo, newInfo;
-        TextFormat::PrintToString(ChunkInfo, &knownInfo);
-        TextFormat::PrintToString(chunkInfo, &newInfo);
-        LOG_FATAL("Mismatched chunk info reported by holder (KnownInfo: %s, NewInfo: %s, Address: %s)",
-            ~knownInfo,
-            ~newInfo,
-            ~holder->Address);
+    if (ChunkInfo.has_size()) {
+        if (ChunkInfo.meta_checksum() != chunkInfo.meta_checksum() ||
+            ChunkInfo.size() != chunkInfo.size()) 
+        {
+            Stroka knownInfo, newInfo;
+            TextFormat::PrintToString(ChunkInfo, &knownInfo);
+            TextFormat::PrintToString(chunkInfo, &newInfo);
+            LOG_FATAL("Mismatched chunk info reported by holder (KnownInfo: %s, NewInfo: %s, Address: %s)",
+                ~knownInfo,
+                ~newInfo,
+                ~holder->Address);
+        }
+    } else {
+        ChunkInfo = chunkInfo;
     }
-    ChunkInfo = chunkInfo;
 }
 
 TRemoteWriter::TProxy::TInvFinishChunk::TPtr
@@ -761,8 +758,7 @@ TRemoteWriter::FinishChunk(THolderPtr holder)
     LOG_DEBUG("Finishing chunk at %s", ~holder->Address);
 
     auto req = holder->Proxy.FinishChunk();
-    *req->mutable_chunk_id() = ChunkId.ToProto();
-    req->mutable_attributes()->CopyFrom(Attributes);
+    req->mutable_chunk_meta()->CopyFrom(ChunkMeta);
     return req->Invoke();
 }
 
@@ -778,6 +774,7 @@ void TRemoteWriter::OnSessionFinished()
 
     CancelAllPings();
 
+    SetProtoExtension(ChunkMeta.mutable_extensions(), ChunkInfo);
     LOG_DEBUG("Writer closed");
 
     State.FinishOperation();
@@ -808,7 +805,7 @@ void TRemoteWriter::SchedulePing(THolderPtr holder)
     holder->Cookie = TDelayedInvoker::Submit(
         BIND(
             &TRemoteWriter::PingSession,
-            TWeak(this),
+            MakeWeak(this),
             holder)
         .Via(WriterThread->GetInvoker()),
         Config->SessionPingInterval);
@@ -846,7 +843,7 @@ TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& block
 
     WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
         &TRemoteWriter::DoWriteBlocks,
-        TWeak(this),
+        MakeWeak(this),
         blocks));
 
     return State.GetOperationError();
@@ -872,7 +869,7 @@ void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
         if (CurrentGroup->GetSize() >= Config->GroupSize) {
             WriterThread->GetInvoker()->Invoke(BIND(
                 &TRemoteWriter::AddGroup,
-                TWeak(this),
+                MakeWeak(this),
                 CurrentGroup));
             // Construct a new (empty) group.
             CurrentGroup = New<TGroup>(Holders.ysize(), BlockCount, this);
@@ -882,7 +879,6 @@ void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
 
 void TRemoteWriter::DoClose(
     const std::vector<TSharedRef>& lastBlocks,
-    const TChunkAttributes& attributes,
     TVoid)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -894,7 +890,7 @@ void TRemoteWriter::DoClose(
         State.FinishOperation();
         return;
     }
-    
+
     AddBlocks(MoveRV(lastBlocks));
 
     if (CurrentGroup->GetSize() > 0) {
@@ -902,7 +898,6 @@ void TRemoteWriter::DoClose(
     }
 
     IsCloseRequested = true;
-    Attributes.CopyFrom(attributes);
 
     if (Window.empty() && IsInitComplete) {
         CloseSession();
@@ -911,7 +906,7 @@ void TRemoteWriter::DoClose(
 
 TAsyncError TRemoteWriter::AsyncClose(
     const std::vector<TSharedRef>& lastBlocks,
-    const TChunkAttributes& attributes)
+    const NChunkHolder::NProto::TChunkMeta& chunkMeta)
 {
     YASSERT(IsOpen);
     YASSERT(!State.HasRunningOperation());
@@ -922,15 +917,17 @@ TAsyncError TRemoteWriter::AsyncClose(
         sumSize += block.Size();
     }
 
+    ChunkMeta.CopyFrom(chunkMeta);
+    *ChunkMeta.mutable_id() = ChunkId.ToProto();
+
     LOG_DEBUG("Requesting writer to close.");
     State.StartOperation();
 
-    // XXX(sandello): Do you realize, that lastBlocks and attributes are copied back and forth here?
+    // XXX(sandello): Do you realize, that lastBlocks and meta are copied back and forth here?
     WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
         &TRemoteWriter::DoClose,
-        TWeak(this),
-        lastBlocks,
-        attributes).Via(WriterThread->GetInvoker()));
+        MakeWeak(this),
+        lastBlocks).Via(WriterThread->GetInvoker()));
 
     return State.GetOperationError();
 }
@@ -952,33 +949,22 @@ Stroka TRemoteWriter::GetDebugInfo()
         ~FlushBlockTiming.GetDebugInfo());
 }
 
-TChunkId TRemoteWriter::GetChunkId() const
+const NChunkHolder::NProto::TChunkMeta& TRemoteWriter::GetChunkMeta() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return ChunkId;
+    return ChunkMeta;
 }
 
-TChunkYPathProxy::TReqConfirm::TPtr TRemoteWriter::GetConfirmRequest()
+const std::vector<Stroka> TRemoteWriter::GetHolders() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(State.IsClosed());
-
-    YASSERT(ChunkInfo.has_size());
-
-    auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
-    req->set_size(ChunkInfo.size());
-
-    TBlob attributesBlob;
-    SerializeToProto(&Attributes, &attributesBlob);
-    req->set_attributes(Stroka(attributesBlob.begin(), attributesBlob.end()));
-
+    std::vector<Stroka> addresses;
     FOREACH (auto holder, Holders) {
         if (holder->IsAlive) {
-            req->add_holder_addresses(holder->Address);
+            addresses.push_back(holder->Address);
         }
     }
-
-    return req;
+    return addresses;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

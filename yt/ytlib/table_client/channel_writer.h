@@ -1,7 +1,6 @@
 #pragma once
 
-#include "common.h"
-#include "value.h"
+#include "public.h"
 #include "schema.h"
 
 #include <ytlib/misc/blob_output.h>
@@ -19,18 +18,19 @@ public:
 
     TChannelWriter(
         const TChannel& channel,
-        const yhash_map<TColumn, int>& columnIndexes);
+        const yhash_map<TStringBuf, int>& columnIndexes);
 
     void Write(
         int chunkColumnIndex,
-        const TColumn& column,
-        TValue value);
+        const TStringBuf& column,
+        const TStringBuf& value);
 
     void EndRow();
 
     size_t GetCurrentSize() const;
+
+    //! Number of rows in the current unflushed buffer.
     int GetCurrentRowCount() const;
-    bool HasUnflushedData() const;
 
     TSharedRef FlushBlock();
 
@@ -51,13 +51,13 @@ private:
     std::vector<int> ColumnIndexMapping;
 
     //! Current buffers for fixed columns.
-    yvector<TBlobOutput> FixedColumns;
+    std::vector<TBlobOutput> FixedColumns;
 
     //! Current buffer for range columns.
     TBlobOutput RangeColumns;
 
     //! Is fixed column with corresponding index already set in the current row.
-    yvector<bool> IsColumnUsed;
+    std::vector<bool> IsColumnUsed;
 
     //! Overall size of current buffers.
     size_t CurrentSize;

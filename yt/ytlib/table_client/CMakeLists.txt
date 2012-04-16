@@ -45,6 +45,7 @@ set( HDRS
   ${BASE}/value_consumer.h
   ${BASE}/yson_table_input.h
   ${BASE}/yson_table_output.h
+  ${BASE}/extensions.h
 )
 
 list(APPEND YT_SOURCE_FILES

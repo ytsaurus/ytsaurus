@@ -4,14 +4,14 @@
 #include "async_writer.h"
 
 #include "schema.h"
-#include "channel_writer.h"
+#include "key.h"
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/misc/codec.h>
-#include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/thread_affinity.h>
 
 namespace NYT {
@@ -26,39 +26,43 @@ public:
     TChunkWriter(
         const TChunkWriterConfigPtr& config,
         NChunkClient::IAsyncWriter* chunkWriter,
-        const TSchema& schema,
-        const TNullable<TKeyColumns>& keyColumns);
+        const std::vector<TChannel>& channels,
+        const TNullable<TKeyColumns>& keyColumns,
+        TKey& lastKey);
 
     ~TChunkWriter();
 
     TAsyncError AsyncOpen();
 
-    TAsyncError AsyncWriteRow(const TRow& row, const TKey& key);
+    TAsyncError AsyncWriteRow(TRow& row, TKey& key);
 
     TAsyncError AsyncClose();
 
+    TKey& GetLastKey();
     const TNullable<TKeyColumns>& GetKeyColumns() const;
-    virtual i64 GetRowCount() const;
+    i64 GetRowCount() const;
+
     i64 GetCurrentSize() const;
     NChunkServer::TChunkId GetChunkId() const;
     NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest();
 
 private:
-    TSharedRef PrepareBlock(
-        TChannelWriter::TPtr channel, 
-        int channelIndex);
+    TSharedRef PrepareBlock(int channelIndex);
 
-    void AddKeySample();
+    static NProto::TSample MakeSample(TRow& row);
 
 private:
-    const TSchema Schema;
     TChunkWriterConfigPtr Config;
+    std::vector<TChannel> Channels;
 
     ICodec* Codec;
 
     NChunkClient::IAsyncWriter::TPtr ChunkWriter;
 
-    std::vector<TChannelWriter::TPtr> ChannelWriters;
+    //! If not null chunk is expected to be sorted.
+    TNullable<TKeyColumns> KeyColumns;
+
+    std::vector<TChannelWriterPtr> ChannelWriters;
 
     bool IsOpen;
     bool IsClosed;
@@ -67,9 +71,6 @@ private:
     yhash_map<TStringBuf, int> ColumnIndexes;
 
     int CurrentBlockIndex;
-
-    //! Data size written before last sample.
-    i64 LastSampleSize;
 
     //! Total size of completed and sent blocks.
     i64 SentSize;
@@ -87,7 +88,15 @@ private:
 
     TKey LastKey;
 
-    NProto::TTableChunkAttributes Attributes;
+    // Different chunk meta extensions.
+    NChunkHolder::NProto::TMisc ProtoMisc;
+    NProto::TSamples ProtoSamples;
+    NProto::TChannels ProtoChannels;
+
+    // These are used only for sorted.
+    NProto::TBoundaryKeys ProtoBoundaryKeys;
+    NProto::TIndex ProtoIndex;
+
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };
 

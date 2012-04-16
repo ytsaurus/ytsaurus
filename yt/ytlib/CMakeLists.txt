@@ -5,7 +5,7 @@ set( DIRS
   cell_node
   cell_scheduler
   chunk_holder
-  chunk_client
+#  chunk_client
   chunk_server
   transaction_server
   transaction_client
@@ -18,16 +18,16 @@ set( DIRS
   cypress
   orchid
   file_server
-  file_client
+#  file_client
   table_server
-  table_client
+#  table_client
   monitoring
   profiling
-  driver
+#  driver
   object_server
   scheduler
   exec_agent
-  job_proxy
+#  job_proxy
 )
 
 foreach( _d_ ${DIRS} )

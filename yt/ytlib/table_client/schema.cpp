@@ -13,7 +13,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRange::TRange(const TColumn& begin, const TColumn& end)
+TRange::TRange(const Stroka& begin, const Stroka& end)
     : IsInfinite_(false)
     , Begin_(begin)
     , End_(end)
@@ -21,18 +21,18 @@ TRange::TRange(const TColumn& begin, const TColumn& end)
     YASSERT(begin < end);
 }
 
-TRange::TRange(const TColumn& begin)
+TRange::TRange(const Stroka& begin)
     : IsInfinite_(true)
     , Begin_(begin)
     , End_("")
 { }
 
-TColumn TRange::Begin() const
+Stroka TRange::Begin() const
 {
     return Begin_;
 }
 
-TColumn TRange::End() const
+Stroka TRange::End() const
 {
     return End_;
 }
@@ -55,7 +55,7 @@ TRange TRange::FromProto(const NProto::TRange& protoRange)
     }
 }
 
-bool TRange::Contains(const TColumn& value) const
+bool TRange::Contains(const TStringBuf& value) const
 {
     if (value < Begin_)
         return false;
@@ -95,7 +95,7 @@ bool TRange::IsInfinite() const
 TChannel::TChannel()
 { }
 
-void TChannel::AddColumn(const TColumn& column)
+void TChannel::AddColumn(const Stroka& column)
 {
     FOREACH (const auto& existingColumn, Columns) {
         if (existingColumn == column) {
@@ -111,7 +111,7 @@ void TChannel::AddRange(const TRange& range)
     Ranges.push_back(range);
 }
 
-void TChannel::AddRange(const TColumn& begin, const TColumn& end)
+void TChannel::AddRange(const Stroka& begin, const Stroka& end)
 {
     Ranges.push_back(TRange(begin, end));
 }
@@ -142,7 +142,7 @@ NYT::NTableClient::TChannel TChannel::FromProto(const NProto::TChannel& protoCha
     return result;
 }
 
-bool TChannel::Contains(const TColumn& column) const
+bool TChannel::Contains(const TStringBuf& column) const
 {
     FOREACH(auto& oldColumn, Columns) {
         if (oldColumn == column) {
@@ -179,7 +179,7 @@ bool TChannel::Contains(const TChannel& channel) const
     return true;
 }
 
-bool TChannel::ContainsInRanges(const TColumn& column) const
+bool TChannel::ContainsInRanges(const TStringBuf& column) const
 {
     FOREACH(auto& range, Ranges) {
         if (range.Contains(column)) {
@@ -223,7 +223,7 @@ bool TChannel::Overlaps(const TChannel& channel) const
     return false;
 }
 
-const std::vector<TColumn>& TChannel::GetColumns() const
+const std::vector<Stroka>& TChannel::GetColumns() const
 {
     return Columns;
 }
@@ -310,7 +310,7 @@ TChannel TChannel::FromNode(INode* node)
 
 void operator-= (TChannel& lhs, const TChannel& rhs)
 {
-    std::vector<TColumn> newColumns;
+    std::vector<Stroka> newColumns;
     FOREACH(auto column, lhs.Columns) {
         if (!rhs.Contains(column)) {
             newColumns.push_back(column);
@@ -321,7 +321,7 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
     std::vector<TRange> rhsRanges(rhs.Ranges);
     FOREACH(auto column, rhs.Columns) {
         // Add single columns as ranges.
-        TColumn rangeEnd;
+        Stroka rangeEnd;
         rangeEnd.reserve(column.Size() + 1);
         rangeEnd.append(column);
         rangeEnd.append('\0');
@@ -353,76 +353,6 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
         lhs.Ranges.swap(newRanges);
         newRanges.clear();
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSchema::TConfig
-    : public TConfigurable
-{
-    TConfig()
-    {
-        Register("channels", Channels)
-            .Default();
-        Register("key_columns", KeyColumns)
-            .Default();
-    }
-
-    // ToDo(psushin): yvector -> std::vector.
-    yvector<INodePtr> Channels;
-    yvector<TColumn> KeyColumns;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSchema::TSchema()
-{
-    auto trashChannel = TChannel::CreateEmpty();
-    // Initially the schema consists of a single trash channel,
-    // i.e. [epsilon, infinity).
-    // This "trash" channel is expected to be present in any chunk
-    // (this is how table writer works now). 
-    trashChannel.AddRange(TRange(""));
-    Channels.push_back(trashChannel);
-}
-
-TSchema TSchema::CreateDefault()
-{
-    return TSchema();
-}
-
-void TSchema::AddChannel(const TChannel& channel)
-{
-    // Trash channel always goes first.
-    Channels.front() -= channel; 
-    Channels.push_back(channel);
-}
-
-const std::vector<TChannel>& TSchema::GetChannels() const
-{
-    return Channels;
-}
-
-TSchema TSchema::FromYson(const NYTree::TYson& yson)
-{
-    return FromNode(~DeserializeFromYson(yson));
-}
-
-TSchema TSchema::FromNode(INode* node)
-{
-    TSchema schema;
-
-    auto config = New<TConfig>();
-    config->Load(node);
-
-    FOREACH (const auto& channelNode, config->Channels) {
-        auto channel = TChannel::FromNode(~channelNode);
-        schema.AddChannel(channel);
-    }
-
-    schema.KeyColumns() = config->KeyColumns;
-
-    return schema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

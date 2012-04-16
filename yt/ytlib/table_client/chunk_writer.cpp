@@ -1,5 +1,13 @@
 #include "stdafx.h"
 #include "chunk_writer.h"
+
+#include "private.h"
+#include "config.h"
+#include "channel_writer.h"
+#include "extensions.h"
+
+#include <ytlib/ytree/lexer.h>
+#include <ytlib/chunk_holder/extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 #include <ytlib/chunk_client/writer_thread.h>
@@ -11,7 +19,7 @@ namespace NTableClient {
 using namespace std;
 using namespace NChunkServer;
 using namespace NChunkClient;
-using namespace NChunkHolder::NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,25 +28,65 @@ static NLog::TLogger& Logger = TableClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkWriter::TChunkWriter(
-    TConfig* config, 
+    const TChunkWriterConfigPtr& config,
     NChunkClient::IAsyncWriter* chunkWriter,
-    const TSchema& schema)
+    const std::vector<TChannel>& channels,
+    const TNullable<TKeyColumns>& keyColumns,
+    TKey& lastKey)
     : Config(config)
+    , Channels(channels)
     , ChunkWriter(chunkWriter)
+    , KeyColumns(keyColumns)
     , IsOpen(false)
     , IsClosed(false)
     , CurrentBlockIndex(0)
-    , LastSampleSize(0)
-    , SentSize(0)
     , CurrentSize(0)
     , UncompressedSize(0)
+    , LastKey(lastKey)
 {
     YASSERT(chunkWriter);
     Codec = GetCodec(ECodecId(Config->CodecId));
+    ProtoMisc.set_codec_id(Config->CodecId);
+
+    {
+        int columnIndex = 0;
+
+        if (KeyColumns) {
+            ProtoMisc.set_sorted(true);
+
+            FOREACH(auto& column, KeyColumns.Get()) {
+                ProtoIndex.add_key_columns(column);
+                auto res = ColumnIndexes.insert(MakePair(column, columnIndex));
+                if (res.Second())
+                    ++columnIndex;
+            }
+        } else {
+            ProtoMisc.set_sorted(false);
+        }
+
+        auto trashChannel = TChannel::CreateUniversal();
+
+        FOREACH(auto& channel, Channels) {
+            trashChannel -= channel;
+            FOREACH(auto& column, channel.GetColumns()) {
+                auto res = ColumnIndexes.insert(MakePair(column, columnIndex));
+                if (res.Second()) {
+                    ++columnIndex;
+                }
+            }
+        }
+
+        Channels.push_back(trashChannel);
+    }
+
+    // Fill protobuf chunk meta.
+    FOREACH(auto channel, Channels) {
+        *ProtoChannels.add_items()->mutable_channel() = channel.ToProto();
+        ChannelWriters.push_back(New<TChannelWriter>(channel, ColumnIndexes));
+    }
 }
 
-TAsyncError TChunkWriter::AsyncOpen(
-    const NProto::TTableChunkAttributes& attributes)
+TAsyncError TChunkWriter::AsyncOpen()
 {
     // No thread affinity check here - 
     // TChunkSequenceWriter may call it from different threads.
@@ -46,57 +94,72 @@ TAsyncError TChunkWriter::AsyncOpen(
     YASSERT(!IsClosed);
 
     IsOpen = true;
-
-    Attributes = attributes;
-    Attributes.set_codec_id(Config->CodecId);
-    Attributes.set_row_count(0);
-
     return MakeFuture(TError());
 }
 
-TAsyncError TChunkWriter::AsyncEndRow(
-    const TKey& key,
-    const std::vector<TChannelWriter::TPtr>& channels)
+TAsyncError TChunkWriter::AsyncWriteRow(TRow& row, TKey& key)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
     YASSERT(!IsClosed);
 
-    CurrentSize = SentSize;
+    FOREACH(const auto& pair, row) {
+        auto it = ColumnIndexes.find(pair.first);
+        auto columnIndex = it == ColumnIndexes.end() 
+            ? TChannelWriter::UnknownIndex 
+            : it->Second();
 
-    Attributes.set_row_count(Attributes.row_count() + 1);
+        FOREACH(auto& channelWriter, ChannelWriters) {
+            channelWriter->Write(columnIndex, pair.first, pair.second);
+        }
+    }
+
+    FOREACH(auto& channelWriter, ChannelWriters) {
+        channelWriter->EndRow();
+    }
+
+    CurrentSize = SentSize;
+    ProtoMisc.set_row_count(ProtoMisc.row_count() + 1);
 
     std::vector<TSharedRef> completedBlocks;
-    for (int channelIndex = 0; channelIndex < channels.size(); ++channelIndex) {
-        auto& channel = channels[channelIndex];
+    for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++channelIndex) {
+        auto& channel = ChannelWriters[channelIndex];
         CurrentSize += channel->GetCurrentSize();
 
         if (channel->GetCurrentSize() > static_cast<size_t>(Config->BlockSize)) {
-            auto block = PrepareBlock(channel, channelIndex);
+            auto block = PrepareBlock(channelIndex);
             completedBlocks.push_back(block);
         } 
     }
 
-    LastKey = key;
+    LastKey.Swap(key);
 
-    // Keys sampling
-    if (LastSampleSize == 0 || 
-        (CurrentSize - LastSampleSize > Config->SamplingSize))
-    {
-        LastSampleSize = CurrentSize;
-        AddKeySample();
+    if (ProtoSamples.ByteSize() < Config->SampleRate * CurrentSize) {
+        *ProtoSamples.add_items() = MakeSample(row);
     }
 
-    return ChunkWriter->AsyncWriteBlocks(MoveRV(completedBlocks));
+    if (KeyColumns) {
+        if (ProtoMisc.row_count() == 1) {
+            *ProtoBoundaryKeys.mutable_first() = key.ToProto();
+        }
+
+        if (ProtoIndex.ByteSize() < Config->IndexRate * CurrentSize) {
+            auto* indexRow = ProtoIndex.add_index_rows();
+            *indexRow->mutable_key() = key.ToProto();
+            indexRow->set_row_index(ProtoMisc.row_count() - 1);
+        }
+    }
+
+    return ChunkWriter->AsyncWriteBlocks(completedBlocks);
 }
 
-TSharedRef TChunkWriter::PrepareBlock(
-    TChannelWriter::TPtr channel, 
-    int channelIndex)
+TSharedRef TChunkWriter::PrepareBlock(int channelIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    NProto::TBlockInfo* blockInfo = Attributes.mutable_chunk_channels(channelIndex)->add_blocks();
+    auto channel = ChannelWriters[channelIndex];
+
+    auto* blockInfo = ProtoChannels.mutable_items(channelIndex)->add_blocks();
     blockInfo->set_block_index(CurrentBlockIndex);
     blockInfo->set_row_count(channel->GetCurrentRowCount());
 
@@ -119,8 +182,22 @@ i64 TChunkWriter::GetCurrentSize() const
     return CurrentSize;
 }
 
-TAsyncError TChunkWriter::AsyncClose(
-    const std::vector<TChannelWriter::TPtr>& channels)
+TKey& TChunkWriter::GetLastKey()
+{
+    return LastKey;
+}
+
+const TNullable<TKeyColumns>& TChunkWriter::GetKeyColumns() const
+{
+    return KeyColumns;
+}
+
+i64 TChunkWriter::GetRowCount() const
+{
+    return ProtoMisc.row_count();
+}
+
+TAsyncError TChunkWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(IsOpen);
@@ -129,29 +206,42 @@ TAsyncError TChunkWriter::AsyncClose(
     IsClosed = true;
 
     std::vector<TSharedRef> completedBlocks;
-    for (int channelIndex = 0; channelIndex < channels.size(); ++channelIndex) {
-        auto& channel = channels[channelIndex];
+    for (int channelIndex = 0; channelIndex < ChannelWriters.size(); ++channelIndex) {
+        auto& channel = ChannelWriters[channelIndex];
 
-        if (channel->HasUnflushedData()) {
-            auto block = PrepareBlock(channel, channelIndex);
+        if (channel->GetCurrentRowCount()) {
+            auto block = PrepareBlock(channelIndex);
             completedBlocks.push_back(block);
         } 
     }
 
     CurrentSize = SentSize;
 
-    // Sample last key (if it is not already sampled by coincidence).
-    auto& lastSample = *(--Attributes.key_samples().end());
-    if (Attributes.row_count() > lastSample.row_index() + 1) {
-        AddKeySample();
+    NChunkHolder::NProto::TChunkMeta chunkMeta;
+    *chunkMeta.mutable_id() = ChunkWriter->GetChunkId().ToProto();
+    chunkMeta.set_type(EChunkType::Table);
+
+    ProtoMisc.set_uncompressed_size(UncompressedSize);
+
+    SetProtoExtension(chunkMeta.mutable_extensions(), ProtoMisc);
+    SetProtoExtension(chunkMeta.mutable_extensions(), ProtoSamples);
+    SetProtoExtension(chunkMeta.mutable_extensions(), ProtoChannels);
+
+    if (KeyColumns) {
+        *ProtoBoundaryKeys.mutable_last() = LastKey.ToProto();
+
+        const auto lastIndexRow = --ProtoIndex.index_rows().end();
+        if (ProtoMisc.row_count() > lastIndexRow->row_index() + 1) {
+            auto* indexRow = ProtoIndex.add_index_rows();
+            *indexRow->mutable_key() = LastKey.ToProto();
+            indexRow->set_row_index(ProtoMisc.row_count() - 1);
+        }
+
+        SetProtoExtension(chunkMeta.mutable_extensions(), ProtoIndex);
+        SetProtoExtension(chunkMeta.mutable_extensions(), ProtoBoundaryKeys);
     }
 
-    Attributes.set_uncompressed_size(UncompressedSize);
-    TChunkAttributes attributes;
-    attributes.set_type(EChunkType::Table);
-    *attributes.MutableExtension(NProto::TTableChunkAttributes::table_attributes) = Attributes;
-
-    return ChunkWriter->AsyncClose(MoveRV(completedBlocks), attributes);
+    return ChunkWriter->AsyncClose(MoveRV(completedBlocks), chunkMeta);
 }
 
 TChunkId TChunkWriter::GetChunkId() const
@@ -159,19 +249,37 @@ TChunkId TChunkWriter::GetChunkId() const
     return ChunkWriter->GetChunkId();
 }
 
-void TChunkWriter::AddKeySample()
+NProto::TSample TChunkWriter::MakeSample(TRow& row)
 {
-    auto* sample = Attributes.add_key_samples();
+    std::sort(row.begin(), row.end());
 
-    //ToDo: use ToProto here when std::vector will be supported.
-    auto* protoKey = sample->mutable_key();
-    FOREACH (auto& keyPart, LastKey) {
-        protoKey->add_values(keyPart);
+    NProto::TSample sample;
+    FOREACH(const auto& pair, row) {
+        auto* part = sample.add_parts();
+        part->set_column(pair.first.begin(), pair.first.size());
+
+        auto token = ChopToken(pair.second);
+        switch (token.GetType()) {
+        case ETokenType::Integer:
+            *(part->mutable_key_part()) = TKeyPart(token.GetIntegerValue()).ToProto();
+            break;
+
+        case ETokenType::String:
+            *(part->mutable_key_part()) = TKeyPart(token.GetStringValue()).ToProto();
+            break;
+
+        case ETokenType::Double:
+            *(part->mutable_key_part()) = TKeyPart(token.GetDoubleValue()).ToProto();
+            break;
+
+        default:
+            *(part->mutable_key_part()) = TKeyPart::CreateComposite().ToProto();
+            break;
+
+        }
     }
 
-    sample->set_row_index(Attributes.row_count() - 1);
-
-    YASSERT(Attributes.key_samples_size() <= Attributes.row_count());
+    return sample;
 }
 
 NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr 

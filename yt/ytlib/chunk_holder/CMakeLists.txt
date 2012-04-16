@@ -38,6 +38,7 @@ set( HDRS
   ${BASE}/reader_cache.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h
+  ${BASE}/extensions.h
 )
 
 list(APPEND YT_SOURCE_FILES

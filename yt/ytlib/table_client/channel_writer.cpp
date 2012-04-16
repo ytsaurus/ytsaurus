@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "channel_writer.h"
+#include "value.h"
 
 #include <ytlib/misc/serialize.h>
 
@@ -10,7 +11,7 @@ namespace NTableClient {
 
 TChannelWriter::TChannelWriter(
     const TChannel& channel,
-    const yhash_map<TColumn, int>& chunkColumnIndexes)
+    const yhash_map<TStringBuf, int>& chunkColumnIndexes)
     : Channel(channel)
     , FixedColumns(Channel.GetColumns().size())
     , IsColumnUsed(Channel.GetColumns().size())
@@ -39,8 +40,8 @@ TChannelWriter::TChannelWriter(
 
 void TChannelWriter::Write(
     int chunkColumnIndex, 
-    const TColumn& column, 
-    TValue value)
+    const TStringBuf& column, 
+    const TStringBuf& value)
 {
     if (chunkColumnIndex > UnknownIndex) {
         int columnIndex = ColumnIndexMapping[chunkColumnIndex];
@@ -49,22 +50,22 @@ void TChannelWriter::Write(
 
         if (columnIndex == RangeIndex) {
             CurrentSize += TValue(column).Save(&RangeColumns);
-            CurrentSize += value.Save(&RangeColumns);
+            CurrentSize += TValue(value).Save(&RangeColumns);
         } else {
             YASSERT(columnIndex > UnknownIndex);
             auto& columnOutput = FixedColumns[columnIndex];
-            CurrentSize += value.Save(&columnOutput);
+            CurrentSize += TValue(value).Save(&columnOutput);
             IsColumnUsed[columnIndex] = true;
         }
     } else if (Channel.ContainsInRanges(column)) {
         CurrentSize += TValue(column).Save(&RangeColumns);
-        CurrentSize += value.Save(&RangeColumns);
+        CurrentSize += TValue(value).Save(&RangeColumns);
     }
 }
 
 void TChannelWriter::EndRow()
 {
-    for(int columnIdx = 0; columnIdx < IsColumnUsed.ysize(); ++columnIdx) {
+    for(int columnIdx = 0; columnIdx < IsColumnUsed.size(); ++columnIdx) {
         if (IsColumnUsed[columnIdx]) {
             // Clean flags
             IsColumnUsed[columnIdx] = false;
@@ -87,11 +88,6 @@ size_t TChannelWriter::GetCurrentSize() const
 size_t TChannelWriter::GetEmptySize() const
 {
     return FixedColumns.size() * sizeof(i32);
-}
-
-bool TChannelWriter::HasUnflushedData() const
-{
-    return CurrentSize > GetEmptySize();
 }
 
 TSharedRef TChannelWriter::FlushBlock()

@@ -18,15 +18,12 @@ message TRspStartChunk
 
 message TReqFinishChunk
 {
-    required NYT.NProto.TGuid chunk_id = 1;
-    required TChunkAttributes attributes = 2;
+    required TChunkMeta chunk_meta = 1;
 }
 
 message TRspFinishChunk
 {
-    // Returned chunk_info never contains attributes field - 
-    // it doesn't make sense cause client sent it in request.
-    required TChunkInfo chunk_info = 1;
+    required TInfo chunk_info = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,14 +94,15 @@ message TRspPingSession
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetChunkInfo
+message TReqGetChunkMeta
 {
     required NYT.NProto.TGuid chunk_id = 1;
+    repeated int32 extension_tags = 2;
 }
 
-message TRspGetChunkInfo
+message TRspGetChunkMeta
 {
-    required TChunkInfo chunk_info = 1;
+    required TChunkMeta chunk_meta = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

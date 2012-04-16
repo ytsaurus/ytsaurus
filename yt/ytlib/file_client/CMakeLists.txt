@@ -20,5 +20,3 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/file_chunk_meta.proto YT_SOURCE_FILES )
-

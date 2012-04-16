@@ -24,6 +24,9 @@ typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 class TChunkWriter;
 typedef TIntrusivePtr<TChunkWriter> TChunkWriterPtr;
 
+class TChannelWriter;
+typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;
+
 typedef std::vector< std::pair<TStringBuf, TStringBuf> > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 

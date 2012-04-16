@@ -151,3 +151,4 @@ void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value);
 #define PROTOBUF_HELPERS_INL_H_
 #include "protobuf_helpers-inl.h"
 #undef PROTOBUF_HELPERS_INL_H_
+

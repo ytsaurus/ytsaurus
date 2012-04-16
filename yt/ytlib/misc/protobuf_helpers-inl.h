@@ -37,8 +37,8 @@ template <class T>
 void SetProtoExtension(NProto::TExtensionSet* extensions, const T& value)
 {
     i32 tag = GetProtoExtensionTag<T>();
-    NProto::TExtension* extension = NULL;
-    FOREACH (const auto& currentExtension, extensions->extensions()) {
+    NYT::NProto::TExtension* extension = NULL;
+    FOREACH (auto& currentExtension, *extensions->mutable_extensions()) {
         if (currentExtension.tag() == tag) {
             extension = &currentExtension;
             break;

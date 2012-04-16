@@ -25,18 +25,23 @@ message TKeyPart
 
 message TKey
 {
-    repeated TKeyPart key_parts = 1;
+    repeated TKeyPart parts = 1;
 }
 
-message TSample
+message TSamplePart
 {
     required bytes column = 1;
     required TKeyPart key_part = 2;
 }
 
+message TSample
+{
+    repeated TSamplePart parts = 1;
+}
+
 message TSamples
 {
-    repeated TSample values = 1;
+    repeated TSample items = 1;
 }
 
 message TIndexRow
@@ -63,10 +68,15 @@ message TBlockInfo
     required int32 row_count = 2;
 }
 
-message TChannels
+message TChunkChannel
 {
     required TChannel channel = 1;
     repeated TBlockInfo blocks = 2;
+}
+
+message TChannels
+{
+    repeated TChunkChannel items = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

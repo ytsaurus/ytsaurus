@@ -1,11 +1,7 @@
 ﻿#pragma once
 
-#include "common.h"
-#include "value.h"
-#include <ytlib/table_client/schema.pb.h>
-
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/ytree/public.h>
-#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -16,18 +12,18 @@ namespace NTableClient {
 class TRange
 {
 public:
-    TRange(const TColumn& begin, const TColumn& end);
+    TRange(const Stroka& begin, const Stroka& end);
 
     //! Creates infinite range.
-    TRange(const TColumn& begin);
+    explicit TRange(const Stroka& begin);
 
-    TColumn Begin() const;
-    TColumn End() const;
+    Stroka Begin() const;
+    Stroka End() const;
 
     NProto::TRange ToProto() const;
     static TRange FromProto(const NProto::TRange& protoRange);
 
-    bool Contains(const TColumn& value) const;
+    bool Contains(const TStringBuf& value) const;
     bool Contains(const TRange& range) const;
     bool Overlaps(const TRange& range) const;
 
@@ -35,8 +31,8 @@ public:
 
 private:
     bool IsInfinite_;
-    TColumn Begin_;
-    TColumn End_;
+    Stroka Begin_;
+    Stroka End_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,14 +41,14 @@ private:
 class TChannel
 {
 public:
-    void AddColumn(const TColumn& column);
+    void AddColumn(const Stroka& column);
     void AddRange(const TRange& range);
-    void AddRange(const TColumn& begin, const TColumn& end);
+    void AddRange(const Stroka& begin, const Stroka& end);
 
-    bool Contains(const TColumn& column) const;
+    bool Contains(const TStringBuf& column) const;
     bool Contains(const TChannel& channel) const;
     bool Contains(const TRange& range) const;
-    bool ContainsInRanges(const TColumn& column) const;
+    bool ContainsInRanges(const TStringBuf& column) const;
 
     bool Overlaps(const TChannel& channel) const;
     bool Overlaps(const TRange& range) const;
@@ -65,7 +61,7 @@ public:
     static TChannel FromYson(const NYTree::TYson& yson);
     static TChannel FromNode(NYTree::INode* node);
 
-    const std::vector<TColumn>& GetColumns() const;
+    const std::vector<Stroka>& GetColumns() const;
 
     //! Returns the channel containing all possible columns.
     static TChannel CreateUniversal();
@@ -77,32 +73,8 @@ private:
 
     friend void operator -= (TChannel& lhs, const TChannel& rhs);
 
-    std::vector<TColumn> Columns;
+    std::vector<Stroka> Columns;
     std::vector<TRange> Ranges;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchema
-{
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TColumn>, KeyColumns);
-
-public:
-    static TSchema CreateDefault();
-
-    void AddChannel(const TChannel& channel);
-
-    const std::vector<TChannel>& GetChannels() const;
-
-    static TSchema FromYson(const NYTree::TYson& yson);
-    static TSchema FromNode(NYTree::INode* node);
-
-private:
-    class TConfig;
-
-    TSchema();
-
-    std::vector<TChannel> Channels;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
