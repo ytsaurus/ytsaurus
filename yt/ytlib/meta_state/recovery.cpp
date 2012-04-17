@@ -197,7 +197,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::ReplayChangeLogs(
                 ->SetTimeout(Config->RpcTimeout);
             request->set_change_log_id(segmentId);
 
-            auto response = request->Invoke()->Get();
+            auto response = request->Invoke().Get();
             if (!response->IsOK()) {
                 LOG_ERROR("Error getting changelog %d info from leader\n%s",
                     segmentId,
@@ -422,7 +422,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
         TargetVersion)
     .AsyncVia(~EpochStateInvoker)
     .Run()
-    ->Apply(BIND(
+    .Apply(BIND(
         &TFollowerRecovery::OnSyncReached,
         MakeStrong(this)))
     ->Subscribe(BIND(

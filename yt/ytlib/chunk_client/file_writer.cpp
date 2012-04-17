@@ -72,7 +72,7 @@ TAsyncError TChunkFileWriter::AsyncClose(
 
     {
         auto res = AsyncWriteBlocks(MoveRV(blocks));
-        if (!res->Get().IsOK())
+        if (!res.Get().IsOK())
             return res;
     }
 

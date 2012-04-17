@@ -177,7 +177,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         request->set_offset(downloadedLength);
         i32 blockSize = Min(Config->BlockSize, (i32)(snapshotLength - downloadedLength));
         request->set_length(blockSize);
-        auto response = request->Invoke()->Get();
+        auto response = request->Invoke().Get();
 
         if (!response->IsOK()) {
             auto error = response->GetError();

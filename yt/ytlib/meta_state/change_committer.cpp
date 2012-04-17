@@ -443,7 +443,7 @@ TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
         ++currentVersion.RecordCount;
     }
 
-    return result->Apply(BIND([] (TVoid) -> TCommitter::EResult {
+    return result.Apply(BIND([] (TVoid) -> TCommitter::EResult {
         return TCommitter::EResult::Committed;
     }));
 }

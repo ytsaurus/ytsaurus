@@ -26,7 +26,7 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
         AcquireEvent.Reset();
 
         guard.Release();
-        event->Set(TVoid());
+        event.Set(TVoid());
     }
 }
 

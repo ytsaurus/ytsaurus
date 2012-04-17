@@ -31,7 +31,7 @@ TChunkSequenceReader::TChunkSequenceReader(
 
 void TChunkSequenceReader::PrepareNextChunk()
 {
-    YASSERT(!NextReader->IsSet());
+    YASSERT(!NextReader.IsSet());
     int chunkSlicesSize = static_cast<int>(InputChunks.size());
     YASSERT(NextChunkIndex < chunkSlicesSize);
 
@@ -59,7 +59,7 @@ void TChunkSequenceReader::PrepareNextChunk()
         "", // ToDo(psushin): pass row attributes here.
         Options);
 
-    chunkReader->AsyncOpen()->Subscribe(BIND(
+    chunkReader->AsyncOpen().Subscribe(BIND(
         &TChunkSequenceReader::OnNextReaderOpened,
         MakeWeak(this),
         chunkReader));
@@ -69,10 +69,10 @@ void TChunkSequenceReader::OnNextReaderOpened(
     TChunkReader::TPtr reader,
     TError error)
 {
-    YASSERT(!NextReader->IsSet());
+    YASSERT(!NextReader.IsSet());
 
     if (error.IsOK()) {
-        NextReader->Set(reader);
+        NextReader.Set(reader);
         return;
     }
 
@@ -87,7 +87,7 @@ TAsyncError TChunkSequenceReader::AsyncOpen()
 
     if (InputChunks.size() != 0) {
         State.StartOperation();
-        NextReader->Subscribe(BIND(
+        NextReader.Subscribe(BIND(
             &TChunkSequenceReader::SetCurrentChunk,
             MakeWeak(this)));
     }
@@ -103,7 +103,7 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
         PrepareNextChunk();
 
         if (!CurrentReader->IsValid()) {
-            NextReader->Subscribe(BIND(
+            NextReader.Subscribe(BIND(
                 &TChunkSequenceReader::SetCurrentChunk,
                 MakeWeak(this)));
             return;
@@ -122,7 +122,7 @@ void TChunkSequenceReader::OnNextRow(TError error)
     }
 
     if (!CurrentReader->IsValid()) {
-        NextReader->Subscribe(BIND(
+        NextReader.Subscribe(BIND(
             &TChunkSequenceReader::SetCurrentChunk,
             MakeWeak(this)));
         return;
@@ -165,7 +165,7 @@ TAsyncError TChunkSequenceReader::AsyncNextRow()
 
     State.StartOperation();
     
-    CurrentReader->AsyncNextRow()->Subscribe(BIND(
+    CurrentReader->AsyncNextRow().Subscribe(BIND(
         &TChunkSequenceReader::OnNextRow,
         MakeWeak(this)));
 

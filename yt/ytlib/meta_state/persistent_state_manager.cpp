@@ -285,7 +285,7 @@ public:
         auto result =
             LeaderCommitter
             ->Commit(actualChangeAction, changeData)
-            ->Apply(BIND(&TThis::OnChangeCommitted, MakeStrong(this)));
+            .Apply(BIND(&TThis::OnChangeCommitted, MakeStrong(this)));
 
         InCommit = false;
 
@@ -533,7 +533,7 @@ public:
 
                 FollowerCommitter
                     ->Commit(version, request->Attachments())
-                    ->Subscribe(BIND(&TThis::OnFollowerCommitted, MakeStrong(this), context));
+                    .Subscribe(BIND(&TThis::OnFollowerCommitted, MakeStrong(this), context));
                 break;
             }
 
@@ -647,7 +647,7 @@ public:
                         ~EpochStateInvoker,
                         version);
 
-                    FollowerRecovery->Run()->Subscribe(
+                    FollowerRecovery->Run().Subscribe(
                         BIND(&TThis::OnControlFollowerRecoveryFinished, MakeStrong(this))
                         .Via(~EpochControlInvoker));
                 }
@@ -699,7 +699,7 @@ public:
                     BIND(&TSnapshotBuilder::CreateLocalSnapshot, SnapshotBuilder, version)
                         .AsyncVia(EpochStateInvoker)
                         .Run()
-                        ->Subscribe(BIND(
+                        .Subscribe(BIND(
                             &TThis::OnCreateLocalSnapshot,
                             MakeStrong(this),
                             context));
@@ -910,7 +910,7 @@ public:
         BIND(&TLeaderRecovery::Run, LeaderRecovery)
             .AsyncVia(EpochControlInvoker)
             .Run()
-            ->Subscribe(
+            .Subscribe(
                 BIND(&TThis::OnStateLeaderRecoveryFinished, MakeStrong(this))
                 .Via(~EpochStateInvoker));
     }

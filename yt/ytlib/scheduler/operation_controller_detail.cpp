@@ -82,7 +82,7 @@ void TChunkListPool::Allocate(int count)
         batchReq->AddRequest(req);
     }
 
-    batchReq->Invoke()->Subscribe(
+    batchReq->Invoke().Subscribe(
         BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this))
         .Via(ControlInvoker));
 
@@ -160,7 +160,7 @@ TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
         ->Run()
-        ->Apply(BIND([=] (TValueOrError<TVoid> result) -> TFuture<TVoid>::TPtr {
+        .Apply(BIND([=] (TValueOrError<TVoid> result) -> TFuture<TVoid>::TPtr {
             if (result.IsOK()) {
                 if (this_->Active) {
                     this_->Running = true;
@@ -326,7 +326,7 @@ void TOperationControllerBase::FinalizeOperation()
         ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
         ->Run()
-        ->Subscribe(BIND([=] (TValueOrError<TVoid> result) {
+        .Subscribe(BIND([=] (TValueOrError<TVoid> result) {
             Active = false;
             if (result.IsOK()) {
                 LOG_INFO("Operation finalized and completed");
@@ -652,7 +652,8 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
 
     // Fire-and-forget.
     // The subscriber is only needed to log the outcome.
-    batchReq->Invoke()->Subscribe(BIND(&TThis::OnChunkListsReleased, MakeStrong(this)));
+    batchReq->Invoke().Subscribe(
+        BIND(&TThis::OnChunkListsReleased, MakeStrong(this)));
 }
 
 void TOperationControllerBase::OnChunkListsReleased(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)

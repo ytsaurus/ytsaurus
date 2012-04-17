@@ -44,7 +44,7 @@ void TMetaChange<TResult>::DoCommit()
         ->CommitChange(
             ChangeData,
             BIND(&TThis::ChangeFuncThunk, MakeStrong(this)))
-        ->Subscribe(
+        .Subscribe(
             BIND(&TThis::OnCommitted, MakeStrong(this)));
 }
 

@@ -309,7 +309,7 @@ private:
                 {
                     auto it = impl->AsyncHandlers.find(prefix);
                     if (it != impl->AsyncHandlers.end()) {
-                        Output() << it->second.Run(suffix)->Get();
+                        Output() << it->second.Run(suffix).Get();
                         return true;
                     }
                 }

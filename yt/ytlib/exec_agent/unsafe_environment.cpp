@@ -140,7 +140,7 @@ public:
 
     void SubscribeExited(const TCallback<void(TError)>& callback)
     {
-        OnExit->Subscribe(callback);
+        OnExit.Subscribe(callback);
     }
 
     void UnsubscribeExited(const TCallback<void(TError)>& callback) 
@@ -197,7 +197,7 @@ private:
             }
         }
 
-        OnExit->Set(Error);
+        OnExit.Set(Error);
     }
 
 
@@ -241,12 +241,12 @@ public:
     void Kill(const TError& error) 
     {
         LOG_DEBUG("Kill job /dummy stub/ (JobId: %s)", ~JobId.ToString());
-        OnExit->Get();
+        OnExit.Get();
     }
 
     void SubscribeExited(const TCallback<void(TError)>& callback) 
     {
-        OnExit->Subscribe(callback);
+        OnExit.Subscribe(callback);
     }
 
     void UnsubscribeExited(const TCallback<void(TError)>& callback) 
@@ -267,7 +267,7 @@ private:
         Sleep(TDuration::Seconds(5));
         LOG_DEBUG("Job finished (JobId: %s)", ~JobId.ToString());
 
-        OnExit->Set(TError("This is dummy job!"));
+        OnExit.Set(TError("This is dummy job!"));
     }
 
     TJobId JobId;

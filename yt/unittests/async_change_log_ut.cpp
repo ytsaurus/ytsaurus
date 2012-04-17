@@ -75,13 +75,13 @@ TEST_F(TAsyncChangeLogTest, ReadLastOnes)
     for (ui32 recordId = 0; recordId < recordCount; ++recordId) {
         auto flushResult = AsyncChangeLog->Append(recordId, CreateSharedRef(recordId));
         if (recordId % 1000 == 0) {
-            flushResult->Get();
+            flushResult.Get();
         }
         if (recordId % 10 == 0) {
             result = BIND(&ReadRecord, ~AsyncChangeLog, recordId).AsyncVia(Invoker).Run();
         }
     }
-    result->Get();
+    result.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

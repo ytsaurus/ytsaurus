@@ -29,7 +29,7 @@ void TAsyncStreamState::Fail(const TError& error)
 {
     TGuard<TSpinLock> guard(SpinLock);
     if (!IsActive_) {
-        YASSERT(!StaticError->Get().IsOK());
+        YASSERT(!StaticError.Get().IsOK());
         return;
     }
 
@@ -46,7 +46,7 @@ void TAsyncStreamState::DoFail(const TError& error)
     } else {
         StaticError = New< TFuture<TError> >();
     }
-    StaticError->Set(error);
+    StaticError.Set(error);
 }
 
 void TAsyncStreamState::Close()
@@ -59,7 +59,7 @@ void TAsyncStreamState::Close()
         auto result = CurrentError;
         CurrentError.Reset();
         guard.Release();
-        result->Set(TError());
+        result.Set(TError());
     }
 }
 
@@ -72,7 +72,7 @@ bool TAsyncStreamState::IsActive() const
 bool TAsyncStreamState::IsClosed() const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    return !IsActive_ && StaticError->Get().IsOK();
+    return !IsActive_ && StaticError.Get().IsOK();
 }
 
 bool TAsyncStreamState::HasRunningOperation() const
@@ -92,7 +92,7 @@ void TAsyncStreamState::Finish(const TError& error)
 
 TError TAsyncStreamState::GetCurrentError()
 {
-    return StaticError->Get();
+    return StaticError.Get();
 }
 
 void TAsyncStreamState::StartOperation()
@@ -127,7 +127,7 @@ void TAsyncStreamState::FinishOperation(const TError& error)
             // unknown subscribers.
             guard.Release();
 
-            currentError->Set(TError());
+            currentError.Set(TError());
         }
     } else {
         DoFail(error);

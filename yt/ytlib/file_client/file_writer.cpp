@@ -74,7 +74,7 @@ void TFileWriter::DoClose(const NChunkServer::TChunkId& chunkId)
         req->set_type(EObjectType::File);
         // TODO(babenko): use extensions
         req->Attributes().Set("chunk_id", chunkId.ToString());
-        auto rsp = cypressProxy.Execute(req)->Get();
+        auto rsp = cypressProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
                 ~rsp->GetError().ToString());

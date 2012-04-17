@@ -77,7 +77,7 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-        GetChannel()->Subscribe(BIND(
+        GetChannel().Subscribe(BIND(
             &TRoamingChannel::OnGotChannel,
             MakeStrong(this),
             MakeStrong(request),
@@ -113,7 +113,7 @@ private:
         auto promisedChannel = ChannelPromise = New< TFuture< TValueOrError<IChannel::TPtr> > >();
         guard.Release();
 
-        Producer.Run()->Subscribe(BIND(
+        Producer.Run().Subscribe(BIND(
             &TRoamingChannel::OnEndpointDiscovered,
             MakeStrong(this),
             promisedChannel));
@@ -126,7 +126,7 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (ChannelPromise == channelPromise) {
-            channelPromise->Set(result);
+            channelPromise.Set(result);
             if (!result.IsOK()) {
                 ChannelPromise.Reset();
             }

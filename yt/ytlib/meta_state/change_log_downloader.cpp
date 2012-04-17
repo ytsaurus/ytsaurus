@@ -111,7 +111,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             downloadedRecordCount,
             downloadedRecordCount + desiredChunkSize - 1);
 
-        auto response = request->Invoke()->Get();
+        auto response = request->Invoke().Get();
 
         if (!response->IsOK()) {
             auto error = response->GetError();

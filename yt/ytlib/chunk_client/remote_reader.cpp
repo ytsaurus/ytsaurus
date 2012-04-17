@@ -90,7 +90,7 @@ public:
     void DiscardSeeds(TAsyncGetSeedsResult* result)
     {
         YASSERT(result);
-        YASSERT(result->IsSet());
+        YASSERT(result.IsSet());
 
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -127,7 +127,7 @@ private:
         auto req = TChunkYPathProxy::Fetch(FromObjectId(ChunkId));
         CypressProxy
             ->Execute(req)
-            ->Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
+            .Subscribe(BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this)));
     }
 
     void OnChunkFetched(TChunkYPathProxy::TRspFetch::TPtr rsp)
@@ -195,7 +195,7 @@ protected:
         LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
         GetSeedsResult = reader->AsyncGetSeeds();
-        GetSeedsResult->Subscribe(BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this)));
+        GetSeedsResult.Subscribe(BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this)));
     }
 
     void OnGetSeedsReply(TRemoteReader::TGetSeedsResult result)
@@ -467,7 +467,7 @@ private:
                     request->set_peer_expiration_time((TInstant::Now() + reader->Config->PeerExpirationTimeout).GetValue());
                 }
 
-                request->Invoke()->Subscribe(BIND(
+                request->Invoke().Subscribe(BIND(
                     &TReadSession::OnGotBlocks,
                     MakeStrong(this),
                     address,
@@ -626,7 +626,7 @@ private:
 
         auto request = proxy.GetChunkInfo();
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
-        request->Invoke()->Subscribe(BIND(&TGetInfoSession::OnGotChunkInfo, MakeStrong(this)));
+        request->Invoke().Subscribe(BIND(&TGetInfoSession::OnGotChunkInfo, MakeStrong(this)));
     }
 
     void OnGotChunkInfo(TChunkHolderServiceProxy::TRspGetChunkInfo::TPtr response)

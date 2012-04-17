@@ -152,11 +152,13 @@ void TSequentialReader::FetchNextGroup()
         FirstUnfetchedIndex, 
         groupIndexes.ysize());
 
-    ChunkReader->AsyncReadBlocks(groupIndexes)->Subscribe(BIND(
-        &TSequentialReader::OnGotBlocks, 
-        MakeWeak(this),
-        FirstUnfetchedIndex)
-            .Via(ReaderThread->GetInvoker()));
+    ChunkReader
+        ->AsyncReadBlocks(groupIndexes)
+        .Subscribe(BIND(
+            &TSequentialReader::OnGotBlocks, 
+            MakeWeak(this),
+            FirstUnfetchedIndex)
+        .Via(ReaderThread->GetInvoker()));
 
     FreeSlots -= groupIndexes.ysize();
     FirstUnfetchedIndex += groupIndexes.ysize();

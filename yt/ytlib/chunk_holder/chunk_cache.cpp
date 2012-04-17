@@ -174,7 +174,7 @@ private:
                 SeedAddresses);
 
             LOG_INFO("Getting chunk info from holders");
-            RemoteReader->AsyncGetChunkInfo()->Subscribe(
+            RemoteReader->AsyncGetChunkInfo().Subscribe(
                 BIND(&TThis::OnGotChunkInfo, MakeStrong(this))
                 .Via(Invoker));
         }
@@ -232,7 +232,7 @@ private:
             LOG_INFO("Asking for another block (BlockIndex: %d)",
                 BlockIndex);
 
-            SequentialReader->AsyncNextBlock()->Subscribe(
+            SequentialReader->AsyncNextBlock().Subscribe(
                 BIND(&TThis::OnNextBlock, MakeStrong(this))
                 .Via(Invoker));
         }
@@ -248,7 +248,7 @@ private:
             // NB: This is always done synchronously.
             std::vector<TSharedRef> blocks;
             blocks.push_back(SequentialReader->GetBlock());
-            auto writeResult = FileWriter->AsyncWriteBlocks(MoveRV(blocks))->Get();
+            auto writeResult = FileWriter->AsyncWriteBlocks(MoveRV(blocks)).Get();
             if (!writeResult.IsOK()) {
                 OnError(writeResult);
                 return;
@@ -265,7 +265,7 @@ private:
             // NB: This is always done synchronously.
             auto closeResult = FileWriter->AsyncClose(
                 std::vector<TSharedRef>(),
-                ChunkInfo.attributes())->Get();
+                ChunkInfo.attributes()).Get();
 
             if (!closeResult.IsOK()) {
                 OnError(closeResult);

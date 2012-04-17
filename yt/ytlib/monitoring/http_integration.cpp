@@ -86,7 +86,7 @@ TFuture<Stroka>::TPtr HandleRequest(IYPathServicePtr service, Stroka url)
             ParseQuery(&req->Attributes(), unescapedUrl.substr(queryIndex + 1));
         }
         req->SetPath(path);
-        return ExecuteVerb(service, ~req)->Apply(BIND(&OnResponse));
+        return ExecuteVerb(service, ~req).Apply(BIND(&OnResponse));
     } catch (const std::exception& ex) {
         // TODO(sandello): Proper JSON escaping here.
         return MakeFuture(FormatInternalServerErrorResponse(Stroka(ex.what()).Quote()));

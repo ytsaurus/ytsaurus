@@ -62,7 +62,7 @@ public:
     {
         auto asyncResult = Lookup(id);
         if (asyncResult) {
-            auto result = asyncResult->Get();
+            auto result = asyncResult.Get();
             YASSERT(result.IsOK());
             auto block = result.Value();
 

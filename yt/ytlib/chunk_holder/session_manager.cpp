@@ -182,7 +182,7 @@ void TSession::EnqueueWrites()
             blockIndex)
         .AsyncVia(GetIOInvoker())
         .Run()
-        ->Subscribe(BIND(
+        .Subscribe(BIND(
             &TSession::OnBlockWritten,
             MakeStrong(this),
             blockIndex)
@@ -218,7 +218,7 @@ void TSession::OnBlockWritten(i32 blockIndex, TVoid)
     auto& slot = GetSlot(blockIndex);
     YASSERT(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
-    slot.IsWritten->Set(TVoid());
+    slot.IsWritten.Set(TVoid());
 }
 
 TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
@@ -239,7 +239,7 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
     }
 
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
-    return slot.IsWritten->Apply(BIND(
+    return slot.IsWritten.Apply(BIND(
         &TSession::OnBlockFlushed,
         MakeStrong(this),
         blockIndex));
@@ -266,16 +266,16 @@ TFuture<TChunkPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
         }
     }
 
-    return CloseFile(attributes)->Apply(
-        BIND(&TSession::OnFileClosed, MakeStrong(this))
+    return CloseFile(attributes)
+        .Apply(BIND(&TSession::OnFileClosed, MakeStrong(this))
         .AsyncVia(SessionManager->ServiceInvoker));
 }
 
 void TSession::Cancel(const TError& error)
 {
     CloseLease();
-    DeleteFile(error)->Apply(
-        BIND(&TSession::OnFileDeleted, MakeStrong(this))
+    DeleteFile(error)
+        .Apply(BIND(&TSession::OnFileDeleted, MakeStrong(this))
         .AsyncVia(SessionManager->ServiceInvoker));
 }
 
@@ -465,10 +465,12 @@ TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return session->Finish(attributes)->Apply(BIND(
-        &TSessionManager::OnSessionFinished,
-        MakeStrong(this),
-        session));
+    return session
+        ->Finish(attributes)
+        .Apply(BIND(
+            &TSessionManager::OnSessionFinished,
+            MakeStrong(this),
+            session));
 }
 
 TChunkPtr TSessionManager::OnSessionFinished(TSessionPtr session, TChunkPtr chunk)

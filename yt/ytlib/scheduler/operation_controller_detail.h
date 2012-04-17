@@ -290,8 +290,8 @@ public:
                 return MakeFuture(TValueOrError<T2>(TError(x)));
             }
             try {
-                auto y = func.Run(x.Value());
-                return MakeFuture(TValueOrError<T2>(y));
+                auto&& y = func.Run(x.Value());
+                return MakeFuture(TValueOrError<T2>(ForwardRV<T2>(y)));
             } catch (const std::exception& ex) {
                 return MakeFuture(TValueOrError<T2>(TError(ex.what())));
             }
@@ -303,7 +303,7 @@ public:
 
         auto lazy = Lazy;
         auto newLazy = BIND([=] () {
-            return lazy.Run()->Apply(wrappedFunc);
+            return lazy.Run().Apply(wrappedFunc);
         });
 
         return New< TAsyncPipeline<T2> >(Invoker, newLazy);
@@ -321,8 +321,8 @@ public:
                 return MakeFuture(TValueOrError<T2>(TError(x)));
             }
             try {
-                auto y = func.Run(x.Value());
-                return y->Apply(toValueOrError);
+                auto&& y = func.Run(x.Value());
+                return y.Apply(toValueOrError);
             } catch (const std::exception& ex) {
                 return MakeFuture(TValueOrError<T2>(TError(ex.what())));
             }
@@ -334,7 +334,7 @@ public:
 
         auto lazy = Lazy;
         auto newLazy = BIND([=] () {
-            return lazy.Run()->Apply(wrappedFunc);
+            return lazy.Run().Apply(wrappedFunc);
         });
 
         return New< TAsyncPipeline<T2> >(Invoker, newLazy);

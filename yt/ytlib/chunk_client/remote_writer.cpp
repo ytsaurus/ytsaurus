@@ -844,7 +844,7 @@ TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& block
 
     State.StartOperation();
 
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
+    WindowSlots.AsyncAcquire(sumSize).Subscribe(BIND(
         &TRemoteWriter::DoWriteBlocks,
         TWeak(this),
         blocks));
@@ -926,11 +926,13 @@ TAsyncError TRemoteWriter::AsyncClose(
     State.StartOperation();
 
     // XXX(sandello): Do you realize, that lastBlocks and attributes are copied back and forth here?
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
-        &TRemoteWriter::DoClose,
-        TWeak(this),
-        lastBlocks,
-        attributes).Via(WriterThread->GetInvoker()));
+    WindowSlots.AsyncAcquire(sumSize)
+        .Subscribe(BIND(
+            &TRemoteWriter::DoClose,
+            TWeak(this),
+            lastBlocks,
+            attributes)
+        .Via(WriterThread->GetInvoker()));
 
     return State.GetOperationError();
 }

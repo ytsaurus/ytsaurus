@@ -62,9 +62,10 @@ void TChunkSequenceWriter::CreateNextChunk()
     req->set_type(EObjectType::Chunk);
     auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
     reqExt->set_holder_count(Config->UploadReplicaCount);
-    cypressProxy.Execute(req)->Subscribe(
-        BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
-            .Via(WriterThread->GetInvoker()));
+    cypressProxy.Execute(req)
+        .Subscribe(
+            BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
+        .Via(WriterThread->GetInvoker()));
 }
 
 void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObject::TPtr rsp)
@@ -103,7 +104,7 @@ void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObje
     // See TChunkWriter for details.
     chunkWriter->AsyncOpen(Attributes);
 
-    NextChunk->Set(chunkWriter);
+    NextChunk.Set(chunkWriter);
 }
 
 TAsyncError TChunkSequenceWriter::AsyncOpen(
@@ -115,7 +116,7 @@ TAsyncError TChunkSequenceWriter::AsyncOpen(
     CreateNextChunk();
 
     State.StartOperation();
-    NextChunk->Subscribe(BIND(
+    NextChunk.Subscribe(BIND(
         &TChunkSequenceWriter::InitCurrentChunk,
         MakeWeak(this)));
 
@@ -143,7 +144,7 @@ TAsyncError TChunkSequenceWriter::AsyncEndRow(
 
     ++CurrentRowCount;
 
-    CurrentChunk->AsyncEndRow(key, channels)->Subscribe(BIND(
+    CurrentChunk->AsyncEndRow(key, channels).Subscribe(BIND(
         &TChunkSequenceWriter::OnRowEnded,
         MakeWeak(this),
         channels));
@@ -173,7 +174,7 @@ void TChunkSequenceWriter::OnRowEnded(
             YASSERT(NextChunk);
             // We're not waiting for chunk to be closed.
             FinishCurrentChunk(channels);
-            NextChunk->Subscribe(BIND(
+            NextChunk.Subscribe(BIND(
                 &TChunkSequenceWriter::InitCurrentChunk,
                 MakeWeak(this)));
             return;
@@ -200,7 +201,7 @@ void TChunkSequenceWriter::FinishCurrentChunk(
                 MakeWeak(this),
                 CurrentChunk->GetChunkId()));
 
-        CurrentChunk->AsyncClose(channels)->Subscribe(BIND(
+        CurrentChunk->AsyncClose(channels).Subscribe(BIND(
             &TChunkSequenceWriter::OnChunkClosed,
             MakeWeak(this),
             CurrentChunk,
@@ -222,7 +223,7 @@ void TChunkSequenceWriter::OnChunkClosed(
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!error.IsOK()) {
-        finishResult->Set(error);
+        finishResult.Set(error);
         return;
     }
 
@@ -245,7 +246,7 @@ void TChunkSequenceWriter::OnChunkClosed(
         batchReq->AddRequest(~req);
     }
 
-    batchReq->Invoke()->Subscribe(BIND(
+    batchReq->Invoke().Subscribe(BIND(
         &TChunkSequenceWriter::OnChunkRegistered,
         MakeWeak(this),
         currentChunk->GetChunkId(),
@@ -260,7 +261,7 @@ void TChunkSequenceWriter::OnChunkRegistered(
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!batchRsp->IsOK()) {
-        finishResult->Set(batchRsp->GetError());
+        finishResult.Set(batchRsp->GetError());
         return;
     }
 
@@ -270,12 +271,12 @@ void TChunkSequenceWriter::OnChunkRegistered(
     for (int i = 0; i < batchRsp->GetSize(); ++i) {
         auto rsp = batchRsp->GetResponse(i);
         if (!rsp->IsOK()) {
-            finishResult->Set(rsp->GetError());
+            finishResult.Set(rsp->GetError());
             return;
         }
     }
 
-    finishResult->Set(TError());
+    finishResult.Set(TError());
 }
 
 void TChunkSequenceWriter::OnChunkFinished(
