@@ -28,7 +28,7 @@ TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto asyncResult = New<TFuture<TResult> >();
+    auto promise = NewPromise<TResult>();
     auto awaiter = New<TParallelAwaiter>(&Profiler, "/time");
 
     FOREACH (Stroka address, Config->Addresses) {
@@ -45,21 +45,21 @@ TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
                 &TLeaderLookup::OnResponse,
                 MakeStrong(this),
                 awaiter,
-                asyncResult,
+                promise,
                 address));
     }
     
     awaiter->Complete(BIND(
         &TLeaderLookup::OnComplete,
         MakeStrong(this),
-        asyncResult));
+        promise));
 
-    return asyncResult;
+    return promise;
 }
 
 void TLeaderLookup::OnResponse(
     TParallelAwaiter::TPtr awaiter,
-    TFuture<TResult>::TPtr asyncResult,
+    TPromise<TResult> promise,
     const Stroka& address,
     TProxy::TRspGetStatus::TPtr response)
 {
@@ -87,7 +87,7 @@ void TLeaderLookup::OnResponse(
         return;
 
     TGuard<TSpinLock> guard(SpinLock);    
-    if (asyncResult->IsSet())
+    if (promise.IsSet())
         return;
 
     YASSERT(voteId == response->self_id());
@@ -96,7 +96,7 @@ void TLeaderLookup::OnResponse(
     result.Address = address;
     result.Id = voteId;
     result.Epoch = epoch;
-    asyncResult->Set(result);
+    promise.Set(result);
 
     awaiter->Cancel();
 
@@ -111,14 +111,14 @@ void TLeaderLookup::OnComplete(TPromise<TResult> promise)
     VERIFY_THREAD_AFFINITY_ANY();
 
     TGuard<TSpinLock> guard(SpinLock);    
-    if (asyncResult->IsSet())
+    if (promise.IsSet())
         return;
 
     TResult result;
     result.Address = "";
     result.Id = InvalidPeerId;
     result.Epoch = TEpoch();
-    asyncResult->Set(result);
+    promise.Set(result);
 
     LOG_INFO("No leader is found");
 }

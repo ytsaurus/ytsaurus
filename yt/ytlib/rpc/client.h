@@ -254,21 +254,21 @@ public:
 
     TTypedClientResponse(const TRequestId& requestId)
         : TClientResponse(requestId)
-        , AsyncResult(NYT::New< TFuture<TPtr> >())
+        , Promise(NewPromise<TPtr>())
     { }
 
     TFuture<TPtr> GetAsyncResult()
     {
-        return AsyncResult;
+        return Promise;
     }
 
 private:
-    typename TFuture<TPtr>::TPtr AsyncResult;
+    TPromise<TPtr> Promise;
 
     virtual void FireCompleted()
     {
-        AsyncResult->Set(this);
-        AsyncResult.Reset();
+        Promise.Set(this);
+        Promise.Reset();
     }
 
     virtual void DeserializeBody(const TRef& data)
@@ -292,7 +292,7 @@ public:
     TFuture<TPtr> GetAsyncResult();
 
 private:
-    TFuture<TPtr>::TPtr AsyncResult;
+    TPromise<TPtr> Promise;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement();

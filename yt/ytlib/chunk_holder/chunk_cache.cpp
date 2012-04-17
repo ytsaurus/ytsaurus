@@ -106,7 +106,7 @@ public:
             LOG_INFO("Chunk is already cached (ChunkId: %s)", ~chunkId.ToString());
         }
 
-        return cookie->GetAsyncResult();
+        return cookie->GetValue();
     }
 
 private:

@@ -53,7 +53,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
 
 TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snapshotId)
 {
-    auto asyncResult = New< TFuture<TSnapshotInfo> >();
+    auto promise = NewPromise<TSnapshotInfo>();
     auto awaiter = New<TParallelAwaiter>();
 
     LOG_INFO("Getting snapshot %d info from peers", snapshotId);
@@ -70,7 +70,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
         awaiter->Await(request->Invoke(), BIND(
             &TSnapshotDownloader::OnSnapshotInfoResponse,
             awaiter,
-            asyncResult,
+            promise,
             peerId));
     }
     LOG_INFO("Snapshot info requests sent");
@@ -78,14 +78,14 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
     awaiter->Complete(BIND(
         &TSnapshotDownloader::OnSnapshotInfoComplete,
         snapshotId,
-        asyncResult));
+        promise));
 
-    return asyncResult->Get();
+    return promise.Get();
 }
 
 void TSnapshotDownloader::OnSnapshotInfoResponse(
     TParallelAwaiter::TPtr awaiter,
-    TFuture<TSnapshotInfo>::TPtr asyncResult,
+    TPromise<TSnapshotInfo> promise,
     TPeerId peerId,
     TProxy::TRspGetSnapshotInfo::TPtr response)
 {
@@ -104,17 +104,17 @@ void TSnapshotDownloader::OnSnapshotInfoResponse(
         peerId,
         length);
 
-    asyncResult->Set(TSnapshotInfo(peerId, length));
+    promise.Set(TSnapshotInfo(peerId, length));
     awaiter->Cancel();
 }
 
 void TSnapshotDownloader::OnSnapshotInfoComplete(
     i32 snapshotId,
-    TFuture<TSnapshotInfo>::TPtr asyncResult)
+    TPromise<TSnapshotInfo> promise)
 {
     LOG_INFO("Could not get snapshot %d info from peers", snapshotId);
 
-    asyncResult->Set(TSnapshotInfo(NElection::InvalidPeerId, -1));
+    promise.Set(TSnapshotInfo(NElection::InvalidPeerId, -1));
 }
 
 TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(

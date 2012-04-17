@@ -239,7 +239,7 @@ TFuture<TVoid> TSession::FlushBlock(i32 blockIndex)
     }
 
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
-    return slot.IsWritten.Apply(BIND(
+    return slot.IsWritten.ToFuture().Apply(BIND(
         &TSession::OnBlockFlushed,
         MakeStrong(this),
         blockIndex));

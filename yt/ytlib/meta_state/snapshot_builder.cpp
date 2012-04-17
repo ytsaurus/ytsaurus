@@ -218,7 +218,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     , Epoch(epoch)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
-    , LocalResult(MakeFuture(TLocalResult()))
+    , LocalPromise(MakePromise(TLocalResult()))
 #if defined(_unix_)
     , WatchdogQueue(New<TActionQueue>("SnapshotWDog"))
 #endif
@@ -259,7 +259,8 @@ TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const 
             ~version.ToString());
         return MakeFuture(TLocalResult(EResultCode::AlreadyInProgress));
     }
-    LocalResult = New<TAsyncLocalResult>();
+
+    LocalPromise = NewPromise<TLocalResult>();
 
     LOG_INFO("Creating a local snapshot at version %s", ~version.ToString());
 
@@ -278,7 +279,7 @@ TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const 
     pid_t childPid = fork();
     if (childPid == -1) {
         LOG_ERROR("Could not fork while creating local snapshot %d", snapshotId);
-        LocalResult->Set(TLocalResult(EResultCode::ForkError));
+        LocalPromise.Set(TLocalResult(EResultCode::ForkError));
     } else if (childPid == 0) {
         DoCreateLocalSnapshot(version);
         _exit(0);
@@ -297,7 +298,7 @@ TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const 
 #endif
         
     DecoratedState->RotateChangeLog();
-    return LocalResult;
+    return LocalPromise;
 }
 
 TChecksum TSnapshotBuilder::DoCreateLocalSnapshot(TMetaVersion version)
@@ -317,7 +318,7 @@ void TSnapshotBuilder::OnLocalSnapshotCreated(i32 snapshotId, const TChecksum& c
         snapshotId,
         checksum);
 
-    LocalResult->Set(TLocalResult(EResultCode::OK, checksum));
+    LocalPromise.Set(TLocalResult(EResultCode::OK, checksum));
 }
 
 #if defined(_unix_)
@@ -327,7 +328,7 @@ void TSnapshotBuilder::WatchdogFork(
     pid_t childPid)
 {
     TInstant deadline;
-    TAsyncLocalResult::TPtr localResult;
+    TAsyncLocalPromise localPromise(Null);
     {
         auto snapshotBuilder = weakSnapshotBuilder.Lock();
         if (!snapshotBuilder) {
@@ -335,7 +336,7 @@ void TSnapshotBuilder::WatchdogFork(
             return;
         }
         deadline = snapshotBuilder->Config->LocalTimeout.ToDeadLine();
-        localResult = snapshotBuilder->LocalResult;
+        localPromise = snapshotBuilder->LocalPromise;
     }
 
     LOG_DEBUG("Waiting for child process (ChildPid: %d)", childPid);
@@ -359,7 +360,7 @@ void TSnapshotBuilder::WatchdogFork(
                     childPid,
                     killResult);
             }
-            localResult->Set(TLocalResult(EResultCode::TimeoutExceeded));
+            localPromise.Set(TLocalResult(EResultCode::TimeoutExceeded));
             return;
         }
     }
@@ -368,7 +369,7 @@ void TSnapshotBuilder::WatchdogFork(
         LOG_ERROR("Snapshot child process has terminated abnormally with status %d (SnapshotId: %d)",
             status,
             snapshotId);
-        localResult->Set(TLocalResult(EResultCode::ForkError));
+        localPromise.Set(TLocalResult(EResultCode::ForkError));
         return;
     }
 
@@ -389,7 +390,7 @@ void TSnapshotBuilder::WatchdogFork(
         LOG_ERROR("Cannot open snapshot %d\n%s",
             snapshotId,
             ~result.ToString());
-        localResult->Set(TLocalResult(EResultCode::ForkError));
+        localPromise.Set(TLocalResult(EResultCode::ForkError));
         return;
     }
 
@@ -405,14 +406,14 @@ void TSnapshotBuilder::WaitUntilFinished()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LocalResult->Get();
+    LocalPromise.Get();
 }
 
 bool TSnapshotBuilder::IsInProgress() const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    return !LocalResult->IsSet();
+    return !LocalPromise.IsSet();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

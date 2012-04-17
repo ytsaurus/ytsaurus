@@ -43,8 +43,8 @@ TJob::TJob(
     , Slot(slot)
     , JobState(EJobState::Running)
     , JobProgress(EJobProgress::Created)
-    , JobResult(New< TFuture<TJobResult> >())
-    , JobFinished(New< TFuture<TVoid> >())
+    , JobResult(NewPromise<NScheduler::NProto::TJobResult>())
+    , JobFinished(NewPromise<TVoid>())
     , ProxyConfig(proxyConfig)
 {
     VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);

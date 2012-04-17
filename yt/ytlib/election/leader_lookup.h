@@ -85,10 +85,10 @@ private:
     
     void OnResponse(
         TParallelAwaiter::TPtr awaiter,
-        TFuture<TResult>::TPtr asyncResult,
+        TPromise<TResult> promise,
         const Stroka& address,
         TProxy::TRspGetStatus::TPtr response);
-    void OnComplete(TFuture<TResult>::TPtr asyncResult);
+    void OnComplete(TPromise<TResult> promise);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

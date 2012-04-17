@@ -42,10 +42,12 @@ class TCacheBase
     : public virtual TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TValue> TValuePtr;
     typedef TIntrusivePtr< TCacheBase<TKey, TValue, THash> > TPtr;
+
+    typedef TIntrusivePtr<TValue> TValuePtr;
     typedef TValueOrError<TValuePtr> TValuePtrOrError;
-    typedef typename TFuture<TValuePtrOrError>::TPtr TFuturePtr;
+    typedef TFuture<TValuePtrOrError> TAsyncValuePtrOrErrorResult;
+    typedef TPromise<TValuePtrOrError> TAsyncValuePtrOrErrorPromise;
 
     void Clear();
     i32 GetSize() const;
@@ -59,9 +61,10 @@ protected:
         TInsertCookie(const TKey& key);
         ~TInsertCookie();
 
-        TFuturePtr GetAsyncResult() const;
-        TKey GetKey() const;
-        bool IsActive() const;
+        inline TKey GetKey() const;
+        inline TAsyncValuePtrOrErrorResult GetValue() const;
+        inline bool IsActive() const;
+
         void Cancel(const TError& error);
         void EndInsert(TValuePtr value);
 
@@ -70,14 +73,14 @@ protected:
 
         TKey Key;
         TPtr Cache;
-        TFuturePtr AsyncResult;
+        TAsyncValuePtrOrErrorResult ValueOrError;
         bool Active;
 
     };
 
     TCacheBase();
 
-    TFuturePtr Lookup(const TKey& key);
+    TAsyncValuePtrOrErrorResult Lookup(const TKey& key);
     bool BeginInsert(TInsertCookie* cookie);
     void Touch(const TKey& key);
     bool Remove(const TKey& key);
@@ -94,15 +97,18 @@ private:
         : TIntrusiveListItem<TItem>
     {
         TItem()
-            : AsyncResult(New< TFuture<TValuePtrOrError> >())
+            : ValueOrError(NewPromise<TValuePtrOrError>())
         { }
 
         explicit TItem(const TValuePtr& value)
-            : AsyncResult(New< TFuture<TValuePtrOrError> >(value))
+            : ValueOrError(MakePromise(TValuePtrOrError(value)))
         { }
 
-        TFuturePtr AsyncResult;
+        explicit TItem(TValuePtr&& value)
+            : ValueOrError(MakePromise(TValuePtrOrError(MoveRV(value))))
+        { }
 
+        TAsyncValuePtrOrErrorPromise ValueOrError;
     };
 
     TSpinLock SpinLock;

@@ -10,8 +10,8 @@ namespace NYT {
 TAsyncStreamState::TAsyncStreamState()
     : IsOperationFinished(true)
     , IsActive_(true)
-    , StaticError(MakeFuture(TError()))
-    , CurrentError(NULL)
+    , StaticError(MakePromise(TError()))
+    , CurrentError(Null)
 { }
 
 void TAsyncStreamState::Cancel(const TError& error)
@@ -40,11 +40,11 @@ void TAsyncStreamState::DoFail(const TError& error)
 {
     YASSERT(!error.IsOK());
     IsActive_ = false;
-    if (CurrentError) {
+    if (!CurrentError.IsNull()) {
         StaticError = CurrentError;
         CurrentError.Reset();
     } else {
-        StaticError = New< TFuture<TError> >();
+        StaticError = NewPromise<TError>();
     }
     StaticError.Set(error);
 }
@@ -55,7 +55,7 @@ void TAsyncStreamState::Close()
     YASSERT(IsActive_);
 
     IsActive_ = false;
-    if (CurrentError) {
+    if (!CurrentError.IsNull()) {
         auto result = CurrentError;
         CurrentError.Reset();
         guard.Release();
@@ -108,8 +108,8 @@ TAsyncError TAsyncStreamState::GetOperationError()
     if (IsOperationFinished || !IsActive_) {
         return StaticError;
     } else {
-        YASSERT(!CurrentError);
-        CurrentError = New< TFuture<TError> >();
+        YASSERT(CurrentError.IsNull());
+        CurrentError = NewPromise<TError>();
         return CurrentError;
     }
 }
@@ -120,7 +120,7 @@ void TAsyncStreamState::FinishOperation(const TError& error)
     YASSERT(!IsOperationFinished);
     IsOperationFinished = true;
     if (error.IsOK()) {
-        if (IsActive_ && CurrentError) {
+        if (IsActive_ && !CurrentError.IsNull()) {
             auto currentError = CurrentError;
             CurrentError.Reset();
             // Always release guard before setting future with 

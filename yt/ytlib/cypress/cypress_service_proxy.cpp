@@ -65,19 +65,19 @@ TCypressServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     const std::multimap<Stroka, int>& keyToIndexes)
     : TClientResponse(requestId)
     , KeyToIndexes(keyToIndexes)
-    , AsyncResult(New< TFuture<TPtr> >())
+    , Promise(NewPromise<TPtr>())
 { }
 
 TFuture<TCypressServiceProxy::TRspExecuteBatch::TPtr>
 TCypressServiceProxy::TRspExecuteBatch::GetAsyncResult()
 {
-    return AsyncResult;
+    return Promise;
 }
 
 void TCypressServiceProxy::TRspExecuteBatch::FireCompleted()
 {
-    AsyncResult->Set(this);
-    AsyncResult.Reset();
+    Promise.Set(this);
+    Promise.Reset();
 }
 
 void TCypressServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)

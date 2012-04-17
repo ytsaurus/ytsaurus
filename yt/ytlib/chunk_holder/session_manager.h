@@ -74,12 +74,12 @@ private:
         TSlot()
             : State(ESlotState::Empty)
             , Block(NULL)
-            , IsWritten(New< TFuture<TVoid> >())
+            , IsWritten(NewPromise<TVoid>())
         { }
 
         ESlotState State;
         TCachedBlockPtr Block;
-        TFuture<TVoid>::TPtr IsWritten;
+        TPromise<TVoid> IsWritten;
     };
 
     typedef yvector<TSlot> TWindow;

@@ -62,6 +62,7 @@ public:
         TChannelProducer producer)
         : DefaultTimeout(defaultTimeout)
         , Producer(producer)
+        , ChannelPromise(Null)
     { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const
@@ -92,10 +93,11 @@ public:
         // TODO(babenko): this does not look correct
         // but we should get rid of Terminate soon anyway.
     
-        TValueOrError<IChannel::TPtr> currentChannel;
-        if (ChannelPromise->TryGet(&currentChannel) && currentChannel.IsOK()) {
-            currentChannel.Value()->Terminate();
+        auto currentChannel = ChannelPromise.TryGet();
+        if (currentChannel && currentChannel->IsOK()) {
+            currentChannel->Value()->Terminate();
         }
+
         ChannelPromise.Reset();
     }
 
@@ -106,11 +108,11 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
         
-        if (ChannelPromise) {
+        if (!ChannelPromise.IsNull()) {
             return ChannelPromise;
         }
 
-        auto promisedChannel = ChannelPromise = New< TFuture< TValueOrError<IChannel::TPtr> > >();
+        auto promisedChannel = ChannelPromise = NewPromise< TValueOrError<IChannel::TPtr> >();
         guard.Release();
 
         Producer.Run().Subscribe(BIND(
@@ -153,13 +155,15 @@ private:
     void OnChannelFailed(IChannel::TPtr failedChannel)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        TValueOrError<IChannel::TPtr> currentChannel;
-        if (ChannelPromise &&
-            ChannelPromise->TryGet(&currentChannel) &&
-            currentChannel.IsOK() &&
-            currentChannel.Value() == failedChannel)
-        {
-            ChannelPromise.Reset();
+
+        if (!ChannelPromise.IsNull()) {
+            auto currentChannel = ChannelPromise.TryGet();
+            if (
+                currentChannel && currentChannel->IsOK() &&
+                currentChannel->Value() == failedChannel)
+            {
+                ChannelPromise.Reset();
+            }
         }
     }
 
@@ -167,7 +171,7 @@ private:
     TChannelProducer Producer;
 
     TSpinLock SpinLock;
-    TFuture< TValueOrError<IChannel::TPtr> >::TPtr ChannelPromise;
+    TPromise< TValueOrError<IChannel::TPtr> > ChannelPromise;
 
 };
 

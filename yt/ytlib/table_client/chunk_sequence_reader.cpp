@@ -23,7 +23,7 @@ TChunkSequenceReader::TChunkSequenceReader(
     , InputChunks(fetchedChunks)
     , MasterChannel(masterChannel)
     , NextChunkIndex(-1)
-    , NextReader(New< TFuture<TChunkReader::TPtr> >())
+    , NextReader(NewPromise<TChunkReader::TPtr>())
     , Options(options)
 {
     PrepareNextChunk();
@@ -37,7 +37,7 @@ void TChunkSequenceReader::PrepareNextChunk()
 
     ++NextChunkIndex;
     if (NextChunkIndex == chunkSlicesSize) {
-        NextReader->Set(NULL);
+        NextReader.Set(TIntrusivePtr<TChunkReader>());
         return;
     }
 
@@ -77,7 +77,7 @@ void TChunkSequenceReader::OnNextReaderOpened(
     }
 
     State.Fail(error);
-    NextReader->Set(NULL);
+    NextReader.Set(TIntrusivePtr<TChunkReader>());
 }
 
 TAsyncError TChunkSequenceReader::AsyncOpen()
@@ -99,7 +99,7 @@ void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
 {
     CurrentReader = nextReader;
     if (nextReader) {
-        NextReader = New< TFuture<TChunkReader::TPtr> >();
+        NextReader = NewPromise<TChunkReader::TPtr>();
         PrepareNextChunk();
 
         if (!CurrentReader->IsValid()) {

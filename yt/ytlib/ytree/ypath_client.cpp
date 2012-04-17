@@ -202,7 +202,7 @@ ExecuteVerb(
     requestHeader.set_path(suffixPath);
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
-    auto asyncResponseMessage = New< TFuture<IMessage::TPtr> >();
+    auto asyncResponseMessage = NewPromise<IMessage::TPtr>();
     auto context = CreateYPathContext(
         ~updatedRequestMessage,
         suffixPath,

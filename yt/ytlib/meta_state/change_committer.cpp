@@ -56,7 +56,7 @@ public:
         TLeaderCommitterPtr committer,
         const TMetaVersion& startVersion)
         : Committer(committer)
-        , Result(New<TResult>())
+        , Promise(NewPromise<TCommitPromise::TValueType>())
         , StartVersion(startVersion)
         // The local commit is also counted.
         , CommitCount(0)
@@ -78,7 +78,7 @@ public:
 
         LOG_DEBUG("Change is added to batch (Version: %s)", ~currentVersion.ToString());
 
-        return Result;
+        return Promise;
     }
 
     void SetLastChangeLogResult(TFuture<TVoid> result)
@@ -113,8 +113,7 @@ private:
         if (!BatchedChanges.empty()) {
             Profiler.Enqueue("/commit_batch_size", BatchedChanges.size());
 
-
-            YASSERT(LogResult);
+            YASSERT(!LogResult.IsNull());
             auto cellManager = Committer->CellManager;
 
             Awaiter = New<TParallelAwaiter>(
@@ -168,7 +167,7 @@ private:
         if (CommitCount < Committer->CellManager->GetQuorum())
             return false;
 
-        Result->Set(EResult::Committed);
+        Promise.Set(EResult::Committed);
         Awaiter->Cancel();
         
         LOG_DEBUG("Changes are committed by quorum");
@@ -215,11 +214,11 @@ private:
 
         LOG_WARNING("Changes are uncertain (CommitCount: %d)", CommitCount);
 
-        Result->Set(EResult::MaybeCommitted);
+        Promise.Set(EResult::MaybeCommitted);
     }
 
     TLeaderCommitterPtr Committer;
-    TResult::TPtr Result;
+    TCommitPromise Promise;
     TMetaVersion StartVersion;
     int CommitCount;
     volatile bool IsSent;

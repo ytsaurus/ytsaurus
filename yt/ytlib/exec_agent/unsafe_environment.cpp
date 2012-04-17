@@ -57,7 +57,7 @@ public:
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
         , ProcessId(-1)
-        , OnExit(New< TFuture<TError> >())
+        , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
     { }
 
@@ -210,7 +210,7 @@ private:
     TSpinLock SpinLock;
     TError Error;
 
-    TFuture<TError>::TPtr OnExit;
+    TPromise<TError> OnExit;
 
     TThread ControllerThread;
 
@@ -226,7 +226,7 @@ class TUnsafeProxyController
 public:
     TUnsafeProxyController(const TJobId& jobId)
         : JobId(jobId)
-        , OnExit(New< TFuture<TError> >())
+        , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
     { }
 
@@ -271,7 +271,8 @@ private:
     }
 
     TJobId JobId;
-    TFuture<TError>::TPtr OnExit;
+    TPromise<TError> OnExit;
+
     TThread ControllerThread;
 };
 

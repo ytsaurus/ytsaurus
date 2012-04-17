@@ -50,7 +50,7 @@ void TParallelAwaiter::Await(
     const NYTree::TYPath& timerPathSuffix,
     TCallback<void(T)> onResult)
 {
-    YASSERT(result);
+    YASSERT(!result.IsNull());
 
     TCallback<void(T)> wrappedOnResult;
     {

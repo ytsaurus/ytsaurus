@@ -202,7 +202,7 @@ const IAttributeDictionary& TClientResponse::Attributes() const
 
 TOneWayClientResponse::TOneWayClientResponse(const TRequestId& requestId)
     : TClientResponseBase(requestId)
-    , AsyncResult(New< TFuture<TPtr> >())
+    , Promise(NewPromise<TPtr>())
 { }
 
 void TOneWayClientResponse::OnAcknowledgement()
@@ -227,15 +227,15 @@ void TOneWayClientResponse::OnResponse(IMessage* message)
     YUNREACHABLE();
 }
 
-TFuture<TOneWayClientResponse::TPtr>::TPtr TOneWayClientResponse::GetAsyncResult()
+TFuture<TOneWayClientResponse::TPtr> TOneWayClientResponse::GetAsyncResult()
 {
-    return AsyncResult;
+    return Promise;
 }
 
 void TOneWayClientResponse::FireCompleted()
 {
-    AsyncResult->Set(this);
-    AsyncResult.Reset();
+    Promise.Set(this);
+    Promise.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

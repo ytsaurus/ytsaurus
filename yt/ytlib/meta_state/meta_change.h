@@ -45,7 +45,7 @@ private:
     TDuration BackoffTime;
     TCallback<void(TResult)> OnSuccess_;
     TClosure OnError_;
-    typename TFuture<TResult>::TPtr AsyncResult;
+    TPromise<TResult> Promise;
     TResult Result;
 
     void DoCommit();

@@ -528,7 +528,7 @@ TChunkReader::TChunkReader(
     , CurrentRowIndex(-1)
     , EndRowIndex(0)
     , Options(options)
-    , SuccessResult(MakeFuture(TError()))
+    , SuccessResult(MakePromise(TError()))
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(chunkReader);
@@ -589,7 +589,7 @@ TAsyncError TChunkReader::DoNextRow()
 
 TAsyncError TChunkReader::ContinueNextRow(
     int channelIndex,
-    TAsyncError result,
+    TAsyncErrorPromise result,
     TError error)
 {
     if (!error.IsOK()) {
@@ -612,7 +612,7 @@ TAsyncError TChunkReader::ContinueNextRow(
 
             if (result.IsSet()) {
                 // Possible when called directly from DoNextRow
-                result = New< TFuture<TError> >();
+                result = NewPromise<TError>();
             }
 
             SequentialReader->AsyncNextBlock().Subscribe(BIND(

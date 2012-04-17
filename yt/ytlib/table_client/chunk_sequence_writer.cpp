@@ -36,6 +36,7 @@ TChunkSequenceWriter::TChunkSequenceWriter(
     , ExpectedRowCount(expectedRowCount)
     , CurrentRowCount(0)
     , CompleteChunkSize(0)
+    , NextChunk(Null)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(config);
@@ -49,9 +50,9 @@ TChunkSequenceWriter::~TChunkSequenceWriter()
 
 void TChunkSequenceWriter::CreateNextChunk()
 {
-    YASSERT(!NextChunk);
+    YASSERT(NextChunk.IsNull());
 
-    NextChunk = New< TFuture<TChunkWriter::TPtr> >();
+    NextChunk = NewPromise<TChunkWriter::TPtr>();
 
     LOG_DEBUG("Creating chunk (TransactionId: %s; UploadReplicaCount: %d)",
         ~TransactionId.ToString(),
@@ -71,7 +72,7 @@ void TChunkSequenceWriter::CreateNextChunk()
 void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObject::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(NextChunk);
+    YASSERT(!NextChunk.IsNull());
 
     if (!State.IsActive()) {
         return;
@@ -171,7 +172,7 @@ void TChunkSequenceWriter::OnRowEnded(
                 CurrentChunk->GetCurrentSize(),
                 expectedInputSize);
 
-            YASSERT(NextChunk);
+            YASSERT(!NextChunk.IsNull());
             // We're not waiting for chunk to be closed.
             FinishCurrentChunk(channels);
             NextChunk.Subscribe(BIND(
@@ -194,8 +195,8 @@ void TChunkSequenceWriter::FinishCurrentChunk(
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
             ~CurrentChunk->GetChunkId().ToString());
 
-        auto finishResult = New< TFuture<TError> >();
-        CloseChunksAwaiter->Await(finishResult, 
+        auto finishResult = NewPromise<TError>();
+        CloseChunksAwaiter->Await(finishResult.ToFuture(),
             BIND(
                 &TChunkSequenceWriter::OnChunkFinished, 
                 MakeWeak(this),
@@ -217,7 +218,7 @@ void TChunkSequenceWriter::FinishCurrentChunk(
 
 void TChunkSequenceWriter::OnChunkClosed(
     TChunkWriter::TPtr currentChunk,
-    TAsyncError finishResult,
+    TAsyncErrorPromise finishResult,
     TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -255,7 +256,7 @@ void TChunkSequenceWriter::OnChunkClosed(
 
 void TChunkSequenceWriter::OnChunkRegistered(
     TChunkId chunkId,
-    TAsyncError finishResult,
+    TAsyncErrorPromise finishResult,
     TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();

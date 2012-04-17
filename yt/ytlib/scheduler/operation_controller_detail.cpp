@@ -170,7 +170,7 @@ TFuture<TVoid> TOperationControllerBase::Prepare()
                 LOG_WARNING("Operation preparation failed\n%s", ~result.ToString());
                 this_->Active = false;
                 this_->Host->OnOperationFailed(this_->Operation, result);
-                return New< TFuture<TVoid> >();
+                return TFuture<TVoid>();
             }
         }));
 }
@@ -183,7 +183,7 @@ TFuture<TVoid> TOperationControllerBase::Revive()
         FailOperation(TError("Operation has failed to initialize\n%s",
             ex.what()));
         // This promise is never fulfilled.
-        return New< TFuture<TVoid> >();
+        return TFuture<TVoid>();
     }
     return Prepare();
 }

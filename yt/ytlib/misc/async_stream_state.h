@@ -92,10 +92,10 @@ private:
 
     //! Result returned from #GetOperationResult when operation is
     //! already completed, or the stream has failed.
-    TAsyncError StaticError;
+    TAsyncErrorPromise StaticError;
 
     //! Last unset future created via #GetOperationResult
-    TAsyncError CurrentError;
+    TAsyncErrorPromise CurrentError;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

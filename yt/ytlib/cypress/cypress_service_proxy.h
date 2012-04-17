@@ -134,7 +134,7 @@ public:
 
     private:
         TKeyToIndexMultimap KeyToIndexes;
-        TFuture<TPtr>::TPtr AsyncResult;
+        TPromise<TPtr> Promise;
         NProto::TRspExecute Body;
         yvector<int> BeginPartIndexes;
 

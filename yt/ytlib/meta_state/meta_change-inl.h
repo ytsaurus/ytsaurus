@@ -22,6 +22,7 @@ TMetaChange<TResult>::TMetaChange(
     , ChangeData(changeData)
     , Started(false)
     , Retriable(false)
+    , Promise(Null)
 { }
 
 template <class TResult>
@@ -30,10 +31,10 @@ TFuture<TResult> TMetaChange<TResult>::Commit()
     YASSERT(!Started);
     Started = true;
 
-    AsyncResult = New< TFuture<TResult> >();
+    Promise = NewPromise<TResult>();
     EpochContext = MetaStateManager->GetEpochContext();
     DoCommit();
-    return AsyncResult;
+    return Promise;
 }
 
 template <class TResult>

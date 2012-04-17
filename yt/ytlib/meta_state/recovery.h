@@ -236,7 +236,7 @@ private:
     typedef yvector<TPostponedChange> TPostponedChanges;
 
     // Any thread.
-    TAsyncResult::TPtr Result;
+    TAsyncPromise Promise;
     TMetaVersion TargetVersion;
 
     // Control thread
