@@ -79,7 +79,7 @@ void TParallelAwaiter::Await(
     TFuture<T> result,
     TCallback<void(T)> onResult)
 {
-    Await(result, "", MoveRV(onResult));
+    Await(MoveRV(result), "", MoveRV(onResult));
 }
 
 template <class T>

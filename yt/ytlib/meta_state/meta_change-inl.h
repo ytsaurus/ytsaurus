@@ -62,7 +62,7 @@ typename TMetaChange<TResult>::TPtr
 TMetaChange<TResult>::OnSuccess(const TCallback<void(TResult)>& onSuccess)
 {
     YASSERT(OnSuccess_.IsNull());
-    OnSuccess_ = MoveRV(onSuccess);
+    OnSuccess_ = onSuccess;
     return this;
 }
 
@@ -71,7 +71,7 @@ typename TMetaChange<TResult>::TPtr
 TMetaChange<TResult>::OnError(const TClosure& onError)
 {
     YASSERT(OnError_.IsNull());
-    OnError_ = MoveRV(onError);
+    OnError_ = onError;
     return this;
 }
 
