@@ -27,6 +27,7 @@ TChunk::~TChunk()
 
 void TChunk::Save(TOutputStream* output) const
 {
+    ::Save(output, Id_);
     TObjectWithIdBase::Save(output);
     ::Save(output, Size_);
     ::Save(output, Attributes_);
@@ -36,6 +37,9 @@ void TChunk::Save(TOutputStream* output) const
 
 void TChunk::Load(const TLoadContext& context, TInputStream* input)
 {
+    TGuid id;
+    ::Load(input, id);
+    YASSERT(id == Id_);
     UNUSED(context);
     TObjectWithIdBase::Load(input);
     ::Load(input, Size_);
