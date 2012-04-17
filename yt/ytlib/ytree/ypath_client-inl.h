@@ -9,7 +9,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedRequest>
-TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
 ExecuteVerb(IYPathServicePtr service, TTypedRequest* request)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;

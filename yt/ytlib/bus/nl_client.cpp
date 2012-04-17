@@ -91,7 +91,7 @@ public:
         Handler->OnMessage(message, this);
     }
 
-    virtual TSendResult::TPtr Send(IMessage::TPtr message);
+    virtual TSendResult Send(IMessage::TPtr message);
     virtual void Terminate();
 
 
@@ -154,7 +154,7 @@ class TClientDispatcher
         TSessionId SessionId;
         TGuid RequestId;
         IMessage::TPtr Message;
-        IBus::TSendResult::TPtr Result;
+        IBus::TSendPromise Promise;
         TBlob Data;
         TSequenceId SequenceId;
     };
@@ -625,7 +625,7 @@ public:
         // NB: cannot use log here
     }
 
-    IBus::TSendResult::TPtr EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)
+    IBus::TSendResult EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)
     {
         auto sequenceId = bus->GenerateSequenceId();
         const auto& sessionId = bus->GetSessionId();
@@ -720,7 +720,7 @@ IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBus::TSendResult::TPtr TNLBusClient::TBus::Send(IMessage::TPtr message)
+IBus::TSendResult TNLBusClient::TBus::Send(IMessage::TPtr message)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     // NB: We may actually need a barrier here but

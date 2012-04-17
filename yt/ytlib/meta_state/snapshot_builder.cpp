@@ -250,7 +250,7 @@ void TSnapshotBuilder::RotateChangeLog()
     New<TSession>(MakeStrong(this), version, false)->Run();
 }
 
-TSnapshotBuilder::TAsyncLocalResult::TPtr TSnapshotBuilder::CreateLocalSnapshot(const TMetaVersion& version)
+TSnapshotBuilder::TAsyncLocalResult TSnapshotBuilder::CreateLocalSnapshot(const TMetaVersion& version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

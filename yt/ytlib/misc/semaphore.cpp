@@ -30,7 +30,7 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
     }
 }
 
-TFuture<TVoid>::TPtr TAsyncSemaphore::AsyncAcquire(i64 slots /* = 1 */)
+TFuture<TVoid> TAsyncSemaphore::AsyncAcquire(i64 slots /* = 1 */)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
 

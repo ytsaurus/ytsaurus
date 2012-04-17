@@ -36,7 +36,7 @@ public:
         , FlushResult(New<TAppendResult>())
     { }
 
-    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data)
+    TAppendResult Append(i32 recordId, const TSharedRef& data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -249,7 +249,7 @@ public:
         Shutdown();
     }
 
-    TAppendResult::TPtr Append(
+    TAppendResult Append(
         const TChangeLogPtr& changeLog,
         i32 recordId,
         const TSharedRef& data)
@@ -479,7 +479,7 @@ TAsyncChangeLog::TAsyncChangeLog(const TChangeLogPtr& changeLog)
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
-TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
+TAsyncChangeLog::TAppendResult TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)
 {

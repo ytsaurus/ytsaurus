@@ -29,7 +29,7 @@ public:
 
     //! Executes a single Cypress request.
     template <class TTypedRequest>
-    TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+    TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
     Execute(TIntrusivePtr<TTypedRequest> innerRequest);
 
     class TReqExecuteBatch;
@@ -48,7 +48,7 @@ public:
             const Stroka& path,
             const Stroka& verb);
 
-        TFuture< TIntrusivePtr<TRspExecuteBatch> >::TPtr Invoke();
+        TFuture< TIntrusivePtr<TRspExecuteBatch> > Invoke();
 
         // Overrides base method for fluent use.
         TIntrusivePtr<TReqExecuteBatch> SetTimeout(TNullable<TDuration> timeout)
@@ -104,7 +104,7 @@ public:
             const NRpc::TRequestId& requestId,
             const TKeyToIndexMultimap& keyToIndexes);
 
-        TFuture<TPtr>::TPtr GetAsyncResult();
+        TFuture<TPtr> GetAsyncResult();
 
         //! Returns the number of individual responses in the batch.
         int GetSize() const;

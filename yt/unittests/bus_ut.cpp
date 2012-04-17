@@ -120,7 +120,7 @@ void TestReplies(int numRequests, int numParts)
     auto bus = client->CreateBus(~handler);
     auto message = CreateMessage(numParts);
 
-    IBus::TSendResult::TPtr result;
+    IBus::TSendResult result;
     for (int i = 0; i < numRequests; ++i) {
         result = bus->Send(message);
     }

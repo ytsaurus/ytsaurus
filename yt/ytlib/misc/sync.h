@@ -10,7 +10,7 @@ namespace NYT {
 template <class TTarget>
 void Sync(
     TTarget* target,
-    TIntrusivePtr< TFuture<TError> > (TTarget::*method)())
+    TFuture<TError>(TTarget::*method)())
 {
     auto result = (target->*method)().Get();
     if (!result.IsOK()) {
@@ -21,7 +21,7 @@ void Sync(
 template <class TTarget, class TArg1, class TArg1_>
 void Sync(
     TTarget* target,
-    TIntrusivePtr< TFuture<TError> > (TTarget::*method)(TArg1),
+    TFuture<TError>(TTarget::*method)(TArg1),
     TArg1_&& arg1)
 {
     auto result = (target->*method)(ForwardRV<TArg1>(arg1)).Get();
@@ -33,7 +33,7 @@ void Sync(
 template <class TTarget, class TArg1, class TArg1_, class TArg2, class TArg2_>
 void Sync(
     TTarget* target,
-    TIntrusivePtr< TFuture<TError> > (TTarget::*method)(TArg1, TArg2),
+    TFuture<TError>(TTarget::*method)(TArg1, TArg2),
     TArg1_&& arg1,
     TArg2_&& arg2)
 {

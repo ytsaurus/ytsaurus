@@ -192,7 +192,7 @@ public:
     }
 
     // IBus implementation.
-    virtual TSendResult::TPtr Send(IMessage::TPtr message)
+    virtual TSendResult Send(IMessage::TPtr message)
     {
         auto server = Server.Lock();
         if (!server) {

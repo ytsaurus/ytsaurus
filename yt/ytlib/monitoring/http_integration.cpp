@@ -71,7 +71,7 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
 }
 
 // TOOD(babenko): use const&
-TFuture<Stroka>::TPtr HandleRequest(IYPathServicePtr service, Stroka url)
+TFuture<Stroka> HandleRequest(IYPathServicePtr service, Stroka url)
 {
     try {
         // TODO(babenko): rewrite using some standard URL parser

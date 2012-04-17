@@ -24,7 +24,7 @@ TIntrusivePtr< TAsyncPipeline<TVoid> > StartAsyncPipeline(IInvoker::TPtr invoker
 {
     return New< TAsyncPipeline<TVoid> >(
         invoker,
-        BIND([=] () -> TIntrusivePtr< TFuture< TValueOrError<TVoid> > > {
+        BIND([=] () -> TFuture< TValueOrError<TVoid> > {
             return MakeFuture(TValueOrError<TVoid>(TVoid()));
     }));
 }
@@ -146,7 +146,7 @@ void TOperationControllerBase::Initialize()
     LOG_INFO("Operation initialized");
 }
 
-TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
+TFuture<TVoid> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -160,7 +160,7 @@ TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
         ->Run()
-        .Apply(BIND([=] (TValueOrError<TVoid> result) -> TFuture<TVoid>::TPtr {
+        .Apply(BIND([=] (TValueOrError<TVoid> result) -> TFuture<TVoid> {
             if (result.IsOK()) {
                 if (this_->Active) {
                     this_->Running = true;
@@ -175,7 +175,7 @@ TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
         }));
 }
 
-TFuture<TVoid>::TPtr TOperationControllerBase::Revive()
+TFuture<TVoid> TOperationControllerBase::Revive()
 {
     try {
         Initialize();
@@ -338,7 +338,7 @@ void TOperationControllerBase::FinalizeOperation()
     }));
 }
 
-TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::CommitOutputs(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -410,7 +410,7 @@ TVoid TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExe
     return TVoid();
 }
 
-TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::StartPrimaryTransaction(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTransaction(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -444,7 +444,7 @@ TVoid TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy
     return TVoid();
 }
 
-TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::StartSeconaryTransactions(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTransactions(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -492,7 +492,7 @@ TVoid TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServicePr
     return TVoid();
 }
 
-TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::RequestInputs(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 

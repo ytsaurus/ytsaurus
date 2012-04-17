@@ -91,7 +91,7 @@ public:
         }
     }
 
-    TAsyncGetBlockResult::TPtr Get(const TBlockId& blockId)
+    TAsyncGetBlockResult Get(const TBlockId& blockId)
     {
         TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
@@ -237,7 +237,7 @@ TBlockStore::TBlockStore(
 TBlockStore::~TBlockStore()
 { }
 
-TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& blockId)
+TBlockStore::TAsyncGetBlockResult TBlockStore::GetBlock(const TBlockId& blockId)
 {
     return StoreImpl->Get(blockId);
 }

@@ -30,7 +30,7 @@ public:
      *  The client must not call AsyncAquire again, until returned
      *  future is set.
      */
-    TFuture<TVoid>::TPtr AsyncAcquire(i64 slots = 1);
+    TFuture<TVoid> AsyncAcquire(i64 slots = 1);
 
 private:
     TSpinLock SpinLock;

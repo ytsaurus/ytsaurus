@@ -60,7 +60,7 @@ TRecovery::TRecovery(
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
 }
 
-TRecovery::TAsyncResult::TPtr TRecovery::RecoverToState(const TMetaVersion& targetVersion)
+TRecovery::TAsyncResult TRecovery::RecoverToState(const TMetaVersion& targetVersion)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -71,7 +71,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverToState(const TMetaVersion& targ
     return RecoverToStateWithChangeLog(targetVersion, lastestSnapshotId);
 }
 
-TRecovery::TAsyncResult::TPtr TRecovery::RecoverToStateWithChangeLog(
+TRecovery::TAsyncResult TRecovery::RecoverToStateWithChangeLog(
     const TMetaVersion& targetVersion,
     i32 snapshotId)
 {
@@ -146,7 +146,7 @@ TRecovery::TAsyncResult::TPtr TRecovery::RecoverToStateWithChangeLog(
     }
 }
 
-TRecovery::TAsyncResult::TPtr TRecovery::ReplayChangeLogs(
+TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
     const TMetaVersion& targetVersion,
     i32 expectedPrevRecordCount)
 {
@@ -359,7 +359,7 @@ TLeaderRecovery::TLeaderRecovery(
         epochStateInvoker)
 { }
 
-TRecovery::TAsyncResult::TPtr TLeaderRecovery::Run()
+TRecovery::TAsyncResult TLeaderRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -409,7 +409,7 @@ TFollowerRecovery::TFollowerRecovery(
     , TargetVersion(targetVersion)
 { }
 
-TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
+TRecovery::TAsyncResult TFollowerRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -432,7 +432,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::Run()
     return Result;
 }
 
-TRecovery::TAsyncResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
+TRecovery::TAsyncResult TFollowerRecovery::OnSyncReached(EResult result)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -447,7 +447,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::OnSyncReached(EResult result)
            .Run();
 }
 
-TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
+TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedChanges()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -469,7 +469,7 @@ TRecovery::TAsyncResult::TPtr TFollowerRecovery::CapturePostponedChanges()
            .Run();
 }
 
-TRecovery::TAsyncResult::TPtr TFollowerRecovery::ApplyPostponedChanges(
+TRecovery::TAsyncResult TFollowerRecovery::ApplyPostponedChanges(
     TAutoPtr<TPostponedChanges> changes)
 {
     VERIFY_THREAD_AFFINITY(StateThread);

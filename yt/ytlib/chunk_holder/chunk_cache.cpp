@@ -89,7 +89,7 @@ public:
         Register(chunk);
     }
 
-    TAsyncDownloadResult::TPtr Download(
+    TAsyncDownloadResult Download(
         const TChunkId& chunkId,
         const yvector<Stroka>& seedAddresses)
     {
@@ -345,7 +345,7 @@ int TChunkCache::GetChunkCount()
     return Impl->GetSize();
 }
 
-TChunkCache::TAsyncDownloadResult::TPtr TChunkCache::DownloadChunk(
+TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(
     const TChunkId& chunkId,
     const yvector<Stroka>& seedAddresses)
 {

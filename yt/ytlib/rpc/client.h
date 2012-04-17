@@ -124,7 +124,7 @@ public:
         : TClientRequest(channel, path, verb, oneWay)
     { }
 
-    typename TFuture< TIntrusivePtr<TResponse> >::TPtr Invoke()
+    TFuture< TIntrusivePtr<TResponse> > Invoke()
     {
         auto response = NYT::New<TResponse>(GetRequestId());
         auto asyncResult = response->GetAsyncResult();
@@ -257,7 +257,7 @@ public:
         , AsyncResult(NYT::New< TFuture<TPtr> >())
     { }
 
-    typename TFuture<TPtr>::TPtr GetAsyncResult()
+    TFuture<TPtr> GetAsyncResult()
     {
         return AsyncResult;
     }
@@ -289,7 +289,7 @@ public:
 
     TOneWayClientResponse(const TRequestId& requestId);
 
-    TFuture<TPtr>::TPtr GetAsyncResult();
+    TFuture<TPtr> GetAsyncResult();
 
 private:
     TFuture<TPtr>::TPtr AsyncResult;

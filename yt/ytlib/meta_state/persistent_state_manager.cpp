@@ -254,7 +254,7 @@ public:
     DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
 
-    virtual TAsyncCommitResult::TPtr CommitChange(
+    virtual TAsyncCommitResult CommitChange(
         const TSharedRef& changeData,
         TClosure changeAction)
     {

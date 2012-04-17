@@ -18,7 +18,7 @@ TCypressServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     : TClientRequest(channel, path, verb, false)
 { }
 
-TFuture<TCypressServiceProxy::TRspExecuteBatch::TPtr>::TPtr
+TFuture<TCypressServiceProxy::TRspExecuteBatch::TPtr>
 TCypressServiceProxy::TReqExecuteBatch::Invoke()
 {
     auto response = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
@@ -68,7 +68,7 @@ TCypressServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     , AsyncResult(New< TFuture<TPtr> >())
 { }
 
-TFuture<TCypressServiceProxy::TRspExecuteBatch::TPtr>::TPtr
+TFuture<TCypressServiceProxy::TRspExecuteBatch::TPtr>
 TCypressServiceProxy::TRspExecuteBatch::GetAsyncResult()
 {
     return AsyncResult;

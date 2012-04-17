@@ -68,7 +68,7 @@ public:
     TLeaderLookup(TConfigPtr config);
 
     //! Performs an asynchronous lookup.
-    TAsyncResult::TPtr GetLeader();
+    TAsyncResult GetLeader();
 
 private:
     typedef TElectionManagerProxy TProxy;

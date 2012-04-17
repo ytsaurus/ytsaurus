@@ -25,7 +25,7 @@ TMetaChange<TResult>::TMetaChange(
 { }
 
 template <class TResult>
-typename TFuture<TResult>::TPtr TMetaChange<TResult>::Commit()
+TFuture<TResult> TMetaChange<TResult>::Commit()
 {
     YASSERT(!Started);
     Started = true;
@@ -67,7 +67,7 @@ TMetaChange<TResult>::OnSuccess(const TCallback<void(TResult)>& onSuccess)
 
 template <class TResult>
 typename TMetaChange<TResult>::TPtr
-TMetaChange<TResult>::OnError(const TCallback<void()>& onError)
+TMetaChange<TResult>::OnError(const TClosure& onError)
 {
     YASSERT(OnError_.IsNull());
     OnError_ = MoveRV(onError);

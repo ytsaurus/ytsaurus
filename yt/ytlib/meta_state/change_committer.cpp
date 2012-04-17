@@ -66,7 +66,7 @@ public:
         Logger.AddTag(Sprintf("StartVersion: %s", ~StartVersion.ToString()));
     }
 
-    TResult::TPtr AddChange(const TSharedRef& changeData)
+    TCommitResult AddChange(const TSharedRef& changeData)
     {
         VERIFY_THREAD_AFFINITY(Committer->StateThread);
         YASSERT(!IsSent);
@@ -81,7 +81,7 @@ public:
         return Result;
     }
 
-    void SetLastChangeLogResult(TFuture<TVoid>::TPtr result)
+    void SetLastChangeLogResult(TFuture<TVoid> result)
     {
         LogResult = result;
     }
@@ -226,7 +226,7 @@ private:
     NLog::TTaggedLogger Logger;
 
     TParallelAwaiter::TPtr Awaiter;
-    TFuture<TVoid>::TPtr LogResult;
+    TFuture<TVoid> LogResult;
     std::vector<TSharedRef> BatchedChanges;
 
 };
@@ -291,7 +291,7 @@ void TLeaderCommitter::Flush(bool rotateChangeLog)
     }
 }
 
-TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
+TLeaderCommitter::TCommitResult TLeaderCommitter::Commit(
     TClosure changeAction,
     const TSharedRef& changeData)
 {
@@ -317,10 +317,10 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     }
 }
 
-TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
+TLeaderCommitter::TCommitResult TLeaderCommitter::BatchChange(
     const TMetaVersion& version,
     const TSharedRef& changeData,
-    TFuture<TVoid>::TPtr changeLogResult)
+    TFuture<TVoid> changeLogResult)
 {
     TGuard<TSpinLock> guard(BatchSpinLock);
     auto batch = GetOrCreateBatch(version);
@@ -389,7 +389,7 @@ TFollowerCommitter::TFollowerCommitter(
 TFollowerCommitter::~TFollowerCommitter()
 { }
 
-TCommitter::TResult::TPtr TFollowerCommitter::Commit(
+TCommitter::TCommitResult TFollowerCommitter::Commit(
     const TMetaVersion& expectedVersion,
     const std::vector<TSharedRef>& changes)
 {
@@ -411,7 +411,7 @@ TCommitter::TResult::TPtr TFollowerCommitter::Commit(
     }
 }
 
-TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
+TCommitter::TCommitResult TFollowerCommitter::DoCommit(
     const TMetaVersion& expectedVersion,
     const std::vector<TSharedRef>& changes)
 {
@@ -436,7 +436,7 @@ TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
         static_cast<int>(changes.size()),
         ~currentVersion.ToString());
 
-    TAsyncChangeLog::TAppendResult::TPtr result;
+    TAsyncChangeLog::TAppendResult result;
     FOREACH (const auto& change, changes) {
         result = MetaState->LogChange(currentVersion, change);
         MetaState->ApplyChange(change);

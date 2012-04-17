@@ -148,7 +148,7 @@ void ResolveYPath(
 }
 
 void OnYPathResponse(
-    TFuture<IMessage::TPtr>::TPtr asyncResponseMessage,
+    TPromise<IMessage::TPtr> asyncResponseMessage,
     const TYPath& path,
     const Stroka& verb,
     const TYPath& resolvedPath,
@@ -172,7 +172,7 @@ void OnYPathResponse(
     }
 }
 
-TFuture<IMessage::TPtr>::TPtr
+TFuture<IMessage::TPtr>
 ExecuteVerb(
     IYPathServicePtr service,
     NBus::IMessage* requestMessage)
@@ -231,7 +231,7 @@ void ExecuteVerb(IYPathServicePtr service, IServiceContext* context)
         }));
 }
 
-TFuture< TValueOrError<TYson> >::TPtr AsyncYPathGet(IYPathServicePtr service, const TYPath& path)
+TFuture< TValueOrError<TYson> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Get(path);
     return

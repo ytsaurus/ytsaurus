@@ -126,7 +126,7 @@ private:
 
     typedef TValueOrError<TOperationPtr> TStartResult;
 
-    TFuture< TStartResult >::TPtr StartOperation(
+    TFuture< TStartResult > StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
         const NYTree::IMapNodePtr spec)

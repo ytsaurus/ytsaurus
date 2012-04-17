@@ -65,7 +65,7 @@ private:
         SOCKET Socket;
         Stroka Path;
         i64 StartTime;
-        TFuture<Stroka>::TPtr Future;
+        TFuture<Stroka> Future;
     };
 
 private:

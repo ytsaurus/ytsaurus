@@ -24,7 +24,7 @@ TLeaderLookup::TLeaderLookup(TConfigPtr config)
     : Config(config)
 { }
 
-TLeaderLookup::TAsyncResult::TPtr TLeaderLookup::GetLeader()
+TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -106,7 +106,7 @@ void TLeaderLookup::OnResponse(
         ~epoch.ToString());
 }
 
-void TLeaderLookup::OnComplete(TFuture<TResult>::TPtr asyncResult)
+void TLeaderLookup::OnComplete(TPromise<TResult> promise)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

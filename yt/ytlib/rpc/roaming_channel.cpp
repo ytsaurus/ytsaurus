@@ -102,7 +102,7 @@ public:
 private:
     friend class TResponseHandlerWrapper;
 
-    TFuture< TValueOrError<IChannel::TPtr> >::TPtr GetChannel()
+    TFuture< TValueOrError<IChannel::TPtr> > GetChannel()
     {
         TGuard<TSpinLock> guard(SpinLock);
         
@@ -121,7 +121,7 @@ private:
     }
 
     void OnEndpointDiscovered(
-        TFuture< TValueOrError<IChannel::TPtr> >::TPtr channelPromise,
+        TPromise< TValueOrError<IChannel::TPtr> > channelPromise,
         TValueOrError<IChannel::TPtr> result)
     {
         TGuard<TSpinLock> guard(SpinLock);

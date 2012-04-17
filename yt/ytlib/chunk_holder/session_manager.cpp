@@ -221,7 +221,7 @@ void TSession::OnBlockWritten(i32 blockIndex, TVoid)
     slot.IsWritten.Set(TVoid());
 }
 
-TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
+TFuture<TVoid> TSession::FlushBlock(i32 blockIndex)
 {
     // TODO: verify monotonicity of blockIndex
 
@@ -251,7 +251,7 @@ TVoid TSession::OnBlockFlushed(i32 blockIndex, TVoid)
     return TVoid();
 }
 
-TFuture<TChunkPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
+TFuture<TChunkPtr> TSession::Finish(const TChunkAttributes& attributes)
 {
     CloseLease();
 
@@ -279,7 +279,7 @@ void TSession::Cancel(const TError& error)
         .AsyncVia(SessionManager->ServiceInvoker));
 }
 
-TFuture<TVoid>::TPtr TSession::DeleteFile(const TError& error)
+TFuture<TVoid> TSession::DeleteFile(const TError& error)
 {
     return
         BIND(
@@ -306,7 +306,7 @@ TVoid TSession::OnFileDeleted(TVoid)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
+TFuture<TVoid> TSession::CloseFile(const TChunkAttributes& attributes)
 {
     return
         BIND(
@@ -457,7 +457,7 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
         ~error.ToString());
 }
 
-TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
+TFuture<TChunkPtr> TSessionManager::FinishSession(
     TSessionPtr session, 
     const TChunkAttributes& attributes)
 {

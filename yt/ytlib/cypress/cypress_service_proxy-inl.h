@@ -62,7 +62,7 @@ std::vector< TIntrusivePtr<TTypedResponse> > TCypressServiceProxy::TRspExecuteBa
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedRequest>
-TIntrusivePtr< TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> > >
+TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
 TCypressServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;

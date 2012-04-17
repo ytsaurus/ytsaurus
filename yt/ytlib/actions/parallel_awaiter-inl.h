@@ -46,7 +46,7 @@ inline void TParallelAwaiter::Init(
 
 template <class T>
 void TParallelAwaiter::Await(
-    TIntrusivePtr< TFuture<T> > result,
+    TFuture<T> result,
     const NYTree::TYPath& timerPathSuffix,
     TCallback<void(T)> onResult)
 {
@@ -76,7 +76,7 @@ void TParallelAwaiter::Await(
 
 template <class T>
 void TParallelAwaiter::Await(
-    TIntrusivePtr< TFuture<T> > result,
+    TFuture<T> result,
     TCallback<void(T)> onResult)
 {
     Await(result, "", MoveRV(onResult));

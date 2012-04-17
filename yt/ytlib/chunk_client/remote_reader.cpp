@@ -39,6 +39,10 @@ public:
     typedef TIntrusivePtr<TRemoteReader> TPtr;
     typedef TRemoteReaderConfig TConfig;
 
+    typedef TValueOrError< yvector<Stroka> > TGetSeedsResult;
+    typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
+    typedef TPromise<TGetSeedsResult> TAsyncGetSeedsPromise;
+
     TRemoteReader(
         TRemoteReaderConfig* config,
         IBlockCache* blockCache,
@@ -65,13 +69,10 @@ public:
         CypressProxy = new TCypressServiceProxy(masterChannel);
     }
 
-    TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
-    TAsyncGetInfoResult::TPtr AsyncGetChunkInfo();
+    TAsyncReadResult AsyncReadBlocks(const yvector<int>& blockIndexes);
+    TAsyncGetInfoResult AsyncGetChunkInfo();
 
-    typedef TValueOrError< yvector<Stroka> > TGetSeedsResult;
-    typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
-
-    TAsyncGetSeedsResult::TPtr AsyncGetSeeds()
+    TAsyncGetSeedsResult AsyncGetSeeds()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -115,7 +116,7 @@ private:
     TAutoPtr<TCypressServiceProxy> CypressProxy;
 
     TSpinLock SpinLock;
-    TAsyncGetSeedsResult::TPtr GetSeedsResult;
+    TAsyncGetSeedsPromise GetSeedsPromise;
     TInstant SeedsTimestamp;
 
     void DoFindChunk()
@@ -172,7 +173,7 @@ protected:
 
     TWeakPtr<TRemoteReader> Reader;
     int RetryIndex;
-    TRemoteReader::TAsyncGetSeedsResult::TPtr GetSeedsResult;
+    TRemoteReader::TAsyncGetSeedsResult GetSeedsResult;
     NLog::TTaggedLogger Logger;
     yvector<Stroka> SeedAddresses;
 
@@ -285,14 +286,14 @@ public:
         NewRetry();
     }
 
-    IAsyncReader::TAsyncReadResult::TPtr GetAsyncResult() const
+    IAsyncReader::TAsyncReadResult GetAsyncResult() const
     {
         return AsyncResult;
     }
 
 private:
-    //! Async result representing the session.
-    IAsyncReader::TAsyncReadResult::TPtr AsyncResult;
+    //! Promise representing the session.
+    IAsyncReader::TAsyncReadPromise Promise;
 
     //! Block indexes to read during the session.
     yvector<int> BlockIndexes;
@@ -573,7 +574,7 @@ private:
     }
 };
 
-TRemoteReader::TAsyncReadResult::TPtr TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
+TRemoteReader::TAsyncReadResult TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return New<TReadSession>(this, blockIndexes)->GetAsyncResult();
@@ -597,7 +598,7 @@ public:
         NewRetry();
     }
 
-    IAsyncReader::TAsyncGetInfoResult::TPtr GetAsyncResult() const
+    IAsyncReader::TAsyncGetInfoResult GetAsyncResult() const
     {
         return AsyncResult;
     }
@@ -668,7 +669,7 @@ private:
     }
 };
 
-TRemoteReader::TAsyncGetInfoResult::TPtr TRemoteReader::AsyncGetChunkInfo()
+TRemoteReader::TAsyncGetInfoResult TRemoteReader::AsyncGetChunkInfo()
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return New<TGetInfoSession>(this)->GetAsyncResult();
