@@ -24,7 +24,7 @@ void Load(TInputStream* input, NYT::TSharedRef& ref)
     } else {
         YASSERT(size >= 0);
         NYT::TBlob blob(static_cast<size_t>(size));
-        input->Read(blob.begin(), blob.size());
+        YVERIFY(input->Load(blob.begin(), size) == size);
         ref = NYT::TSharedRef(NYT::MoveRV(blob));
     }
 }

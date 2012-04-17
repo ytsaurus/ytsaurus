@@ -31,7 +31,7 @@ void LoadProto(TInputStream* input, ::google::protobuf::Message& message)
 {
     size_t size = ::LoadSize(input);
     TBlob blob(size);
-    input->Read(blob.begin(), size);
+    YVERIFY(input->Load(blob.begin(), size) == size);
     YVERIFY(DeserializeFromProto(&message, TRef::FromBlob(blob)));
 }
 
