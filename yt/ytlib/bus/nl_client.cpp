@@ -118,11 +118,6 @@ public:
         return PendingRequestIds_;
     }
 
-    TRequestIdSet& PingIds()
-    {
-        return PingIds_;
-    }
-
 private:
     TUdpAddress Address;
     IMessageHandler::TPtr Handler;
@@ -130,7 +125,6 @@ private:
     TSequenceId SequenceId;
     TSessionId SessionId;
     TRequestIdSet PendingRequestIds_;
-    TRequestIdSet PingIds_;
 
 };
 
@@ -259,11 +253,6 @@ class TClientDispatcher
         TBlob ackData;
         CreatePacket(sessionId, TPacketHeader::EType::Ack, &ackData);
 
-        FOREACH (const auto& requestId, bus->PingIds()) {
-            Requester->SendResponse(requestId, &ackData);
-        }
-        bus->PingIds().clear();
-
         YVERIFY(BusMap.erase(sessionId) == 1);
     }
 
@@ -365,10 +354,6 @@ class TClientDispatcher
             return;
 
         switch (header->Type) {
-            case TPacketHeader::EType::Ping:
-                ProcessPing(header, nlRequest);
-                break;
-
             case TPacketHeader::EType::Message:
                 ProcessMessage(header, nlRequest);
                 break;
@@ -532,31 +517,6 @@ class TClientDispatcher
         }
     }
 
-    void ProcessPing(TPacketHeader* header, TUdpHttpRequest* nlRequest)
-    {
-        TGuid requestId = nlRequest->ReqId;
-        auto busIt = BusMap.find(header->SessionId);
-        if (busIt == BusMap.end()) {
-            LOG_DEBUG("Ping for an obsolete session received (SessionId: %s, RequestId: %s)",
-                ~header->SessionId.ToString(),
-                ~requestId.ToString());
-
-            TBlob data;
-            CreatePacket(header->SessionId, TPacketHeader::EType::Ack, &data);
-            Requester->SendResponse(nlRequest->ReqId, &data);
-
-            return;
-        }
-
-        LOG_DEBUG("Ping received (SessionId: %s, RequestId: %s)",
-            ~header->SessionId.ToString(),
-            ~requestId.ToString());
-
-        // Don't reply to a ping, just register it.
-        auto& bus = busIt->second;
-        bus->PingIds().insert(requestId);
-    }
-
     bool ProcessOutcomingRequests()
     {
         LOG_TRACE("Processing outcoming client NetLiba requests");
@@ -655,7 +615,9 @@ public:
         Thread.Join();
 
         // NB: This doesn't actually stop NetLiba threads.
-        Requester->StopNoWait();
+        // XXX(babenko): just drop the reference, this should force the requester
+        // to send all pending packets.
+        Requester = NULL:
 
         // TODO: Consider moving somewhere else.
         StopAllNetLibaThreads();
