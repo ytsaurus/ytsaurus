@@ -241,19 +241,19 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
 
     TYsonFragmentWriter writer(&outputStream, EYsonFormat::Text);
     writer.OnListItem();
-        writer.OnIntegerScalar(200, false);
+        writer.OnIntegerScalar(200);
     writer.OnListItem();
         writer.OnBeginMap();
             writer.OnMapItem("key");
-            writer.OnIntegerScalar(42, false);
+            writer.OnIntegerScalar(42);
             writer.OnMapItem("yek");
-            writer.OnIntegerScalar(24, false);
+            writer.OnIntegerScalar(24);
             writer.OnMapItem("list");
             writer.OnBeginList();
             writer.OnEndList();
-        writer.OnEndMap(false);
+        writer.OnEndMap();
     writer.OnListItem();
-        writer.OnStringScalar("aaa", false);
+        writer.OnStringScalar("aaa");
 
     Stroka output =
         "200;\n"
@@ -276,9 +276,9 @@ TEST(TYsonFragmentWriterTest, NewLinesInMap)
             writer.OnListItem();
             writer.OnBeginMap();
                 writer.OnMapItem("key");
-                writer.OnIntegerScalar(42, false);
+                writer.OnIntegerScalar(42);
                 writer.OnMapItem("yek");
-                writer.OnIntegerScalar(24, false);
+                writer.OnIntegerScalar(24);
             writer.OnEndMap();
             writer.OnListItem();
             writer.OnIntegerScalar(-1);
@@ -302,10 +302,10 @@ TEST(TYsonFragmentWriter, NoFirstIndent)
     writer.OnMapItem("a1");
         writer.OnBeginMap();
             writer.OnMapItem("key");
-            writer.OnIntegerScalar(42, false);
-        writer.OnEndMap(false);
+            writer.OnIntegerScalar(42);
+        writer.OnEndMap();
     writer.OnMapItem("a2");
-        writer.OnIntegerScalar(0, false);
+        writer.OnIntegerScalar(0);
 
     Stroka output =
         "\"a1\" = {\n"
