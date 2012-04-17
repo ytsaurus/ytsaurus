@@ -196,7 +196,7 @@ ExecuteVerb(
         auto responseMessage = NRpc::CreateErrorResponseMessage(TError(
             EYPathErrorCode(EYPathErrorCode::ResolveError),
             ex.what()));
-        return New< TFuture<IMessage::TPtr> >(responseMessage);
+        return MakeFuture(responseMessage);
     }
 
     requestHeader.set_path(suffixPath);

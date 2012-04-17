@@ -262,17 +262,17 @@ public:
         YASSERT(!InCommit);
 
         if (GetStateStatus() != EPeerStatus::Leading) {
-            return New<TAsyncCommitResult>(ECommitResult::InvalidStatus);
+            return MakeFuture(ECommitResult(ECommitResult::InvalidStatus));
         }
 
         if (ReadOnly) {
-            return New<TAsyncCommitResult>(ECommitResult::ReadOnly);
+            return MakeFuture(ECommitResult(ECommitResult::ReadOnly));
         }
 
         // FollowerTracker is modified concurrently from the ControlThread.
         auto followerTracker = FollowerTracker;
         if (!followerTracker || !followerTracker->HasActiveQuorum()) {
-            return New<TAsyncCommitResult>(ECommitResult::NotCommitted);
+            return MakeFuture(ECommitResult(ECommitResult::NotCommitted));
         }
 
         InCommit = true;

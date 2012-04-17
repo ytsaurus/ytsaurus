@@ -106,7 +106,7 @@ TRecovery::TAsyncResult TRecovery::RecoverToStateWithChangeLog(
                 LOG_ERROR("Error downloading snapshot %d\n%s",
                     snapshotId,
                     ~downloadResult.ToString());
-                return New<TAsyncResult>(EResult::Failed);
+                return MakeFuture(EResult(EResult::Failed));
             }
 
             try {
@@ -202,7 +202,7 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
                 LOG_ERROR("Error getting changelog %d info from leader\n%s",
                     segmentId,
                     ~response->GetError().ToString());
-                return New<TAsyncResult>(EResult::Failed);
+                return MakeFuture(EResult(EResult::Failed));
             }
 
             i32 localRecordCount = changeLog->GetRecordCount();
@@ -239,7 +239,7 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
                     ~currentVersion.ToString(),
                     remoteRecordCount);
                 DecoratedState->Clear();
-                return New<TAsyncResult>(EResult::Failed);
+                return MakeFuture(EResult(EResult::Failed));
             }
 
             // Do not download more than actually needed.
@@ -260,7 +260,7 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
                     LOG_ERROR("Error downloading changelog %d\n%s",
                         segmentId,
                         ~changeLogResult.ToString());
-                    return New<TAsyncResult>(EResult::Failed);
+                    return MakeFuture(EResult(EResult::Failed));
                 }
             }
         }
@@ -285,7 +285,7 @@ TRecovery::TAsyncResult TRecovery::ReplayChangeLogs(
 
     YASSERT(DecoratedState->GetVersion() == targetVersion);
 
-    return New<TAsyncResult>(EResult::OK);
+    return MakeFuture(EResult(EResult::OK));
 }
 
 void TRecovery::ReplayChangeLog(
@@ -440,7 +440,7 @@ TRecovery::TAsyncResult TFollowerRecovery::OnSyncReached(EResult result)
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (result != EResult::OK) {
-        return New<TAsyncResult>(result);
+        return MakeFuture(result);
     }
 
     LOG_INFO("Sync reached");
@@ -456,7 +456,7 @@ TRecovery::TAsyncResult TFollowerRecovery::CapturePostponedChanges()
 
     if (PostponedChanges.empty()) {
         LOG_INFO("No postponed changes left");
-        return New<TAsyncResult>(EResult::OK);
+        return MakeFuture(EResult(EResult::OK));
     }
 
     THolder<TPostponedChanges> changes(new TPostponedChanges());

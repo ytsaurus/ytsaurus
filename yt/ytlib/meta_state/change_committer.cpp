@@ -421,14 +421,14 @@ TCommitter::TCommitResult TFollowerCommitter::DoCommit(
         LOG_WARNING("Late changes received by follower, ignored: expected %s but got %s",
             ~currentVersion.ToString(),
             ~expectedVersion.ToString());
-        return New<TResult>(EResult::LateChanges);
+        return MakeFuture(EResult(EResult::LateChanges));
     }
 
     if (currentVersion != expectedVersion) {
         LOG_WARNING("Out-of-order changes received by follower, restarting: expected %s but got %s",
             ~currentVersion.ToString(),
             ~expectedVersion.ToString());
-        return New<TResult>(EResult::OutOfOrderChanges);
+        return MakeFuture(EResult(EResult::OutOfOrderChanges));
     }
 
     LOG_DEBUG("Applying %d changes at version %s",
