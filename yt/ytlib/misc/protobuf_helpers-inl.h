@@ -14,7 +14,7 @@ template <class T>
 TAutoPtr<T> GetProtoExtension(const NProto::TExtensionSet& extensions)
 {
     auto result = FindProtoExtension<T>(extensions);
-    YASSERT(result);
+    YASSERT(~result);
     return result;
 }
 

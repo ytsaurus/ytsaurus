@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "file_node_proxy.h"
-#include <ytlib/file_client/file_chunk_meta.pb.h>
+#include <ytlib/chunk_holder/extensions.h>
+#include <ytlib/chunk_holder/chunk.pb.h>
 
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
@@ -14,7 +15,7 @@ using namespace NChunkServer;
 using namespace NCypress;
 using namespace NYTree;
 using namespace NRpc;
-using namespace NFileClient::NProto;
+using namespace NChunkHolder::NProto;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
@@ -85,10 +86,8 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     YASSERT(chunkList.Children().size() == 1);
     auto chunkRef = chunkList.Children()[0];
     const auto& chunk = *chunkRef.AsChunk();
-    auto attributes = chunk
-        .DeserializeAttributes()
-        .GetExtension(TFileChunkAttributes::file_attributes);
 
+    auto misc = GetProtoExtension<TMisc>(chunk.ChunkMeta().extensions());
     if (name == "size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.UncompressedSize);
@@ -112,7 +111,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     }
 
     if (name == "codec_id") {
-        auto codecId = ECodecId(attributes.codec_id());
+        auto codecId = ECodecId(misc->codec_id());
         BuildYsonFluently(consumer)
             .Scalar(CamelCaseToUnderscoreCase(codecId.ToString()));
         return true;

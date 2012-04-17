@@ -19,8 +19,12 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 TChunk::TChunk(const TChunkId& id)
     : TObjectWithIdBase(id)
-    , Size_(UnknownSize)
-{ }
+{
+    // We must set required proto fields to ensure successful work of #Save
+    ChunkInfo_.set_meta_checksum(0);
+    ChunkInfo_.set_size(UnknownSize);
+    ChunkMeta_.set_type(EChunkType::Unknown);
+}
 
 TChunk::~TChunk()
 { }
@@ -28,8 +32,8 @@ TChunk::~TChunk()
 void TChunk::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
-    ::Save(output, Size_);
-    ::Save(output, Attributes_);
+    YVERIFY(ChunkInfo_.SerializeToStream(output));
+    YVERIFY(ChunkMeta_.SerializeToStream(output));
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
 }
@@ -38,8 +42,8 @@ void TChunk::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectWithIdBase::Load(input);
-    ::Load(input, Size_);
-    ::Load(input, Attributes_);
+    YVERIFY(ChunkInfo_.ParseFromStream(input));
+    YVERIFY(ChunkMeta_.ParseFromStream(input));
     ::Load(input, StoredLocations_);
     LoadNullableSet(input, CachedLocations_);
 }
@@ -84,20 +88,21 @@ yvector<THolderId> TChunk::GetLocations() const
     return result;
 }
 
-TChunkAttributes TChunk::DeserializeAttributes() const
-{
-    YASSERT(IsConfirmed());
-    TChunkAttributes attributes;
-    if (!DeserializeFromProto(&attributes, Attributes_)) {
-        LOG_FATAL("Error deserializing chunk attributes (ChunkId: %s)", ~Id_.ToString());
-    }
-    return attributes;
-}
-
 bool TChunk::IsConfirmed() const
 {
-    return Attributes_;
+    return ChunkMeta_.type() != EChunkType::Unknown;
 }
+
+bool TChunk::ValidateChunkInfo(const NChunkHolder::NProto::TChunkInfo& chunkInfo) const
+{
+    if (ChunkInfo_.size() == UnknownSize)
+        return true;
+
+    return (ChunkInfo_.size() == chunkInfo.size()) && 
+        (ChunkInfo_.meta_checksum() == chunkInfo.meta_checksum());
+}
+
+const i64 TChunk::UnknownSize = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

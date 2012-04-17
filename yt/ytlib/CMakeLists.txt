@@ -2,8 +2,8 @@ set( DIRS
   actions
   election
   cell_master
-  cell_node
-  cell_scheduler
+#  cell_node
+#  cell_scheduler
   chunk_holder
 #  chunk_client
   chunk_server
@@ -19,14 +19,14 @@ set( DIRS
   orchid
   file_server
 #  file_client
-  table_server
+#  table_server
 #  table_client
   monitoring
   profiling
 #  driver
   object_server
-  scheduler
-  exec_agent
+#  scheduler
+#  exec_agent
 #  job_proxy
 )
 

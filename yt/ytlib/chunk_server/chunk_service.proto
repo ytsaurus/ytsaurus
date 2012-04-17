@@ -18,7 +18,7 @@ message TChunkAddInfo
 {
     required NYT.NProto.TGuid chunk_id = 1;
     required bool cached = 2;
-    required int64 size = 3;
+    required NYT.NChunkHolder.NProto.TChunkInfo chunk_info = 3;
 }
 
 message TChunkRemoveInfo

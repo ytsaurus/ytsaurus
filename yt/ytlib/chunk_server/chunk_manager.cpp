@@ -14,12 +14,12 @@
 #include "holder_authority.h"
 #include "holder_statistics.h"
 
+#include <ytlib/chunk_holder/extensions.h>
+
 #include <ytlib/chunk_server/chunk_manager.pb.h>
 #include <ytlib/chunk_server/chunk_ypath.pb.h>
 #include <ytlib/chunk_server/chunk_list_ypath.pb.h>
 #include <ytlib/chunk_server/chunk_manager.pb.h>
-
-#include <ytlib/file_client/file_chunk_meta.pb.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
@@ -56,6 +56,7 @@ using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NYTree;
 using namespace NCellMaster;
+using namespace NChunkHolder::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -436,29 +437,14 @@ private:
     {
         TChunkTreeStatistics result;
 
-        YASSERT(chunk.GetSize() != TChunk::UnknownSize);
-        result.CompressedSize = chunk.GetSize();
+        YASSERT(chunk.ChunkInfo().size() != TChunk::UnknownSize);
+        result.CompressedSize = chunk.ChunkInfo().size();
         result.ChunkCount = 1;
 
-        auto attributes = chunk.DeserializeAttributes();
-        switch (attributes.type()) {
-            case EChunkType::File: {
-                const auto& fileAttributes = attributes.GetExtension(NFileClient::NProto::TFileChunkAttributes::file_attributes);
-                result.UncompressedSize = fileAttributes.uncompressed_size();
-                break;
-            }
-
-            case EChunkType::Table: {
-                const auto& tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
-                result.RowCount = tableAttributes.row_count();
-                result.UncompressedSize = tableAttributes.uncompressed_size();
-                break;
-            }
-
-            default:
-                YUNREACHABLE();
-        }
-
+        // Every chunk must have TMisc extension in meta.
+        auto misc = GetProtoExtension<TMisc>(chunk.ChunkMeta().extensions());
+        result.UncompressedSize = misc->uncompressed_size();
+        result.RowCount = misc->row_count();
         return result;
     }
 
@@ -1064,13 +1050,12 @@ private:
 
     void ProcessAddedChunk(
         THolder& holder,
-        const TChunkAddInfo& chunkInfo,
+        const TChunkAddInfo& chunkAddInfo,
         bool incremental)
     {
         auto holderId = holder.GetId();
-        auto chunkId = TChunkId::FromProto(chunkInfo.chunk_id());
-        i64 size = chunkInfo.size();
-        bool cached = chunkInfo.cached();
+        auto chunkId = TChunkId::FromProto(chunkAddInfo.chunk_id());
+        bool cached = chunkAddInfo.cached();
 
         auto* chunk = FindChunk(chunkId);
         if (!chunk) {
@@ -1080,12 +1065,11 @@ private:
                 return;
             }
 
-            LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s, Size: %" PRId64 ")",
+            LOG_DEBUG_IF(!IsRecovery(), "Unknown chunk added at holder, removal scheduled (Address: %s, HolderId: %d, ChunkId: %s, Cached: %s)",
                 ~holder.GetAddress(),
                 holderId,
                 ~chunkId.ToString(),
-                ~FormatBool(cached),
-                size);
+                ~FormatBool(cached));
 
             if (IsLeader()) {
                 JobScheduler->ScheduleChunkRemoval(holder, chunkId);
@@ -1105,16 +1089,16 @@ private:
         }
 
         // Use the size reported by the holder, but check it for consistency first.
-        if (chunk->GetSize() != TChunk::UnknownSize && chunk->GetSize() != size) {
-            LOG_FATAL("Mismatched chunk size reported by holder (ChunkId: %s, Cached: %s, KnownSize: %" PRId64 ", NewSize: %" PRId64 ", Address: %s, HolderId: %d)",
+        if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
+            LOG_FATAL("Mismatched chunk size reported by holder (ChunkId: %s, Cached: %s, ExpectedInfo: %s, ReceivedInfo: %s, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~ToString(cached),
-                chunk->GetSize(),
-                size,
+                ~chunk->ChunkInfo().DebugString(),
+                ~chunkAddInfo.chunk_info().DebugString(),
                 ~holder.GetAddress(),
                 holder.GetId());
         }
-        chunk->SetSize(size);
+        chunk->ChunkInfo() = chunkAddInfo.chunk_info();
 
         AddChunkReplica(
             holder,
@@ -1312,13 +1296,12 @@ private:
         if (chunk.IsConfirmed()) {
             if (name == "size") {
                 BuildYsonFluently(consumer)
-                    .Scalar(chunk.GetSize());
+                    .Scalar(chunk.ChunkInfo().size());
                 return true;
             }
 
             if (name == "chunk_type") {
-                auto attributes = chunk.DeserializeAttributes();
-                auto type = EChunkType(attributes.type());
+                auto type = EChunkType(chunk.ChunkMeta().type());
                 BuildYsonFluently(consumer)
                     .Scalar(CamelCaseToUnderscoreCase(type.ToString()));
                 return true;
@@ -1352,12 +1335,11 @@ private:
     {
         UNUSED(response);
 
-        i64 size = request->size();
         auto& holderAddresses = request->holder_addresses();
         YASSERT(holderAddresses.size() != 0);
 
         context->SetRequestInfo("Size: %" PRId64 ", HolderAddresses: [%s]",
-            size,
+            request->chunk_info().size(),
             ~JoinToString(holderAddresses));
 
         auto& chunk = GetTypedImpl();
@@ -1370,14 +1352,14 @@ private:
         }
 
         // Use the size reported by the client, but check it for consistency first.
-        if (chunk.GetSize() != TChunk::UnknownSize && chunk.GetSize() != size) {
-            LOG_FATAL("Mismatched size of chunk %s reported by client: expected %" PRId64 ", received %" PRId64,
+        if (!chunk.ValidateChunkInfo(request->chunk_info())) {
+            LOG_FATAL("Mismatched chunk %s info reported by client: expected %s, received %s",
                 ~Id.ToString(),
-                chunk.GetSize(),
-                size);
+                ~chunk.ChunkInfo().DebugString(),
+                ~request->chunk_info().DebugString());
         }
-        chunk.SetSize(size);
-        
+        chunk.ChunkInfo().CopyFrom(request->chunk_info());
+
         FOREACH (const auto& address, holderAddresses) {
             auto* holder = Owner->FindHolder(address);
             if (!holder) {
@@ -1405,8 +1387,7 @@ private:
             }
         }
 
-        chunk.SetAttributes(TSharedRef::FromString(request->attributes()));
-
+        chunk.ChunkMeta().CopyFrom(request->chunk_meta());
         LOG_INFO_IF(!Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
 
         context->Reply();

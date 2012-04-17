@@ -17,7 +17,7 @@ message TBlocks
     repeated TBlockInfo blocks = 1;
 }
 
-message TInfo
+message TChunkInfo
 {
     required int64 size = 1;
     required uint64 meta_checksum = 2;
@@ -36,10 +36,8 @@ message TMisc
 // client, holder, master and scheduler.
 message TChunkMeta
 {
-    required NYT.NProto.TGuid id = 1;
-    required int32 type = 2;
-
-    required NYT.NProto.TExtensionSet extensions = 3;
+    required int32 type = 1;
+    required NYT.NProto.TExtensionSet extensions = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

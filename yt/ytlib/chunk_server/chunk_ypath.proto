@@ -17,9 +17,9 @@ message TRspFetch
 
 message TReqConfirm
 {
-    required int64 size = 1;
-    repeated bytes holder_addresses = 2;
-    required bytes attributes = 3;
+    repeated bytes holder_addresses = 1;
+    required NYT.NChunkHolder.NProto.TChunkMeta chunk_meta = 2;
+    required NYT.NChunkHolder.NProto.TChunkInfo chunk_info = 3;
 }
 
 message TRspConfirm

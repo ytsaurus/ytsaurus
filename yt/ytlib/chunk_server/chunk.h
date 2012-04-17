@@ -16,8 +16,8 @@ namespace NChunkServer {
 class TChunk
     : public NObjectServer::TObjectWithIdBase
 {
-    DEFINE_BYVAL_RW_PROPERTY(i64, Size);
-    DEFINE_BYVAL_RW_PROPERTY(TSharedRef, Attributes);
+    DEFINE_BYREF_RW_PROPERTY(NChunkHolder::NProto::TChunkMeta, ChunkMeta);
+    DEFINE_BYREF_RW_PROPERTY(NChunkHolder::NProto::TChunkInfo, ChunkInfo);
 
     // This is usually small, e.g. has the length of 3.
     // typedef TSmallVector<THolderId, 3> TStoredLocations;
@@ -30,8 +30,8 @@ class TChunk
     DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<THolderId> >, CachedLocations);
 
 public:
-    static const i64 UnknownSize = -1;
-    
+    static const i64 UnknownSize;
+
     TChunk(const TChunkId& id);
 
     ~TChunk();
@@ -43,9 +43,8 @@ public:
     void RemoveLocation(THolderId holderId, bool cached);
     yvector<THolderId> GetLocations() const;
 
+    bool ValidateChunkInfo(const NChunkHolder::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;
-
-    NChunkHolder::NProto::TChunkAttributes DeserializeAttributes() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
