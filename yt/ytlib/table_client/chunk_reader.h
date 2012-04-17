@@ -97,9 +97,9 @@ private:
         bool Used;
 
         TColumnInfo()
-        : KeyIndex(-1)
-        , InChannel(false)
-        , Used(false)
+            : KeyIndex(-1)
+            , InChannel(false)
+            , Used(false)
         { }
     };
 

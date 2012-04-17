@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "chunk_sequence_writer.h"
 
 #include <ytlib/chunk_client/writer_thread.h>
