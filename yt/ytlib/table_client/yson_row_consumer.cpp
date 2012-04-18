@@ -61,7 +61,7 @@ void TRowConsumer::OnBeginMap()
     InsideRow = true;
 }
 
-void TRowConsumer::OnMapItem(const TStringBuf& name)
+void TRowConsumer::OnKeyedItem(const TStringBuf& name)
 {
     YASSERT(InsideRow);
     Column.assign(name);
@@ -77,12 +77,6 @@ void TRowConsumer::OnEndMap()
 
 void TRowConsumer::OnBeginAttributes() 
 {
-    YUNREACHABLE();
-}
-
-void TRowConsumer::OnAttributesItem(const TStringBuf& name)
-{
-    UNUSED(name);
     YUNREACHABLE();
 }
 

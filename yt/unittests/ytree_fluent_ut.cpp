@@ -132,9 +132,9 @@ TEST(TYTreeFluentMapTest, Simple)
     InSequence dummy;
 
     EXPECT_CALL(mock, OnBeginMap());
-    EXPECT_CALL(mock, OnMapItem("foo"));
+    EXPECT_CALL(mock, OnKeyedItem("foo"));
     EXPECT_CALL(mock, OnIntegerScalar(10));
-    EXPECT_CALL(mock, OnMapItem("bar"));
+    EXPECT_CALL(mock, OnKeyedItem("bar"));
     EXPECT_CALL(mock, OnIntegerScalar(20));
     EXPECT_CALL(mock, OnEndMap());
 
@@ -154,12 +154,12 @@ TEST(TYTreeFluentMapTest, Nested)
     InSequence dummy;
 
     EXPECT_CALL(mock, OnBeginMap());
-    EXPECT_CALL(mock, OnMapItem("foo"));
+    EXPECT_CALL(mock, OnKeyedItem("foo"));
     EXPECT_CALL(mock, OnBeginMap());
-    EXPECT_CALL(mock, OnMapItem("xxx"));
+    EXPECT_CALL(mock, OnKeyedItem("xxx"));
     EXPECT_CALL(mock, OnIntegerScalar(17));
     EXPECT_CALL(mock, OnEndMap());
-    EXPECT_CALL(mock, OnMapItem("bar"));
+    EXPECT_CALL(mock, OnKeyedItem("bar"));
     EXPECT_CALL(mock, OnIntegerScalar(42));
     EXPECT_CALL(mock, OnEndMap());
 
@@ -257,9 +257,9 @@ TEST(TYTreeFluentTest, Complex)
 
     EXPECT_CALL(mock, OnListItem());
     EXPECT_CALL(mock, OnBeginAttributes());
-    EXPECT_CALL(mock, OnAttributesItem("attr1"));
+    EXPECT_CALL(mock, OnKeyedItem("attr1"));
     EXPECT_CALL(mock, OnIntegerScalar(-1));
-    EXPECT_CALL(mock, OnAttributesItem("attr2"));
+    EXPECT_CALL(mock, OnKeyedItem("attr2"));
     EXPECT_CALL(mock, OnIntegerScalar(-2));
     EXPECT_CALL(mock, OnEndAttributes());
     EXPECT_CALL(mock, OnIntegerScalar(42));
@@ -273,7 +273,7 @@ TEST(TYTreeFluentTest, Complex)
 
     EXPECT_CALL(mock, OnListItem());
     EXPECT_CALL(mock, OnBeginAttributes());
-    EXPECT_CALL(mock, OnAttributesItem("hot"));
+    EXPECT_CALL(mock, OnKeyedItem("hot"));
     EXPECT_CALL(mock, OnStringScalar("chocolate"));
     EXPECT_CALL(mock, OnEndAttributes());
     EXPECT_CALL(mock, OnBeginList());
@@ -285,15 +285,15 @@ TEST(TYTreeFluentTest, Complex)
 
     EXPECT_CALL(mock, OnListItem());
     EXPECT_CALL(mock, OnBeginMap());
-    EXPECT_CALL(mock, OnMapItem("aaa"));
+    EXPECT_CALL(mock, OnKeyedItem("aaa"));
     EXPECT_CALL(mock, OnIntegerScalar(1));
-    EXPECT_CALL(mock, OnMapItem("bbb"));
+    EXPECT_CALL(mock, OnKeyedItem("bbb"));
     EXPECT_CALL(mock, OnIntegerScalar(2));
     EXPECT_CALL(mock, OnEndMap());
 
     EXPECT_CALL(mock, OnListItem());
     EXPECT_CALL(mock, OnBeginAttributes());
-    EXPECT_CALL(mock, OnAttributesItem("type"));
+    EXPECT_CALL(mock, OnKeyedItem("type"));
     EXPECT_CALL(mock, OnStringScalar("extra"));
     EXPECT_CALL(mock, OnEndAttributes());
     EXPECT_CALL(mock, OnEntity());

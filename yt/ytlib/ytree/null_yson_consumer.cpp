@@ -13,25 +13,20 @@ class TNullYsonConsumer
     virtual void OnStringScalar(const TStringBuf& value)
     {
         UNUSED(value);
-
     }
 
     virtual void OnIntegerScalar(i64 value)
     {
         UNUSED(value);
-
     }
 
     virtual void OnDoubleScalar(double value)
     {
         UNUSED(value);
-
     }
     
     virtual void OnEntity()
-    {
-
-    }
+    { }
 
     virtual void OnBeginList()
     { }
@@ -40,33 +35,30 @@ class TNullYsonConsumer
     { }
     
     virtual void OnEndList()
-    {
-
-    }
+    { }
 
     virtual void OnBeginMap()
     { }
     
-    virtual void OnMapItem(const TStringBuf& name)
+    virtual void OnKeyedItem(const TStringBuf& name)
     {
         UNUSED(name);
     }
 
     virtual void OnEndMap()
-    {
-
-    }
+    { }
 
     virtual void OnBeginAttributes()
     { }
 
-    virtual void OnAttributesItem(const TStringBuf& name)
-    {
-        UNUSED(name);
-    }
-
     virtual void OnEndAttributes()
     { }
+
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type)
+    {
+        UNUSED(yson);
+        UNUSED(type);
+    }
 };
 
 IYsonConsumer* GetNullYsonConsumer()

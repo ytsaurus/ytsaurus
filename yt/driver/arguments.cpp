@@ -76,7 +76,7 @@ void TArgsParserBase::BuildOptions(IYsonConsumer* consumer)
         NYTree::TYson yson = Stroka("{") + Stroka(opts) + "}";
         auto items = NYTree::DeserializeFromYson(yson)->AsMap();
         FOREACH (const auto& pair, items->GetChildren()) {
-            consumer->OnMapItem(pair.first);
+            consumer->OnKeyedItem(pair.first);
             VisitTree(pair.second, consumer, true);
         }
     }

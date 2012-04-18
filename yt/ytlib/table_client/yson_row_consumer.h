@@ -10,7 +10,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRowConsumer
-    : public NYTree::IYsonConsumer
+    : public NYTree::TYsonConsumerBase
 {
 public:
     TRowConsumer(ISyncTableWriter* writer);
@@ -24,10 +24,9 @@ private:
     virtual void OnListItem();
     virtual void OnEndList();
     virtual void OnBeginMap();
-    virtual void OnMapItem(const TStringBuf& name);
+    virtual void OnKeyedItem(const TStringBuf& name);
     virtual void OnEndMap();
     virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const TStringBuf& name);
     virtual void OnEndAttributes();
     void CheckInsideRow();
 

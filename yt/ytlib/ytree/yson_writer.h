@@ -27,7 +27,7 @@ DECLARE_ENUM(EYsonFormat,
 
 //! Creates a YSON data stream from a sequence of YSON events.
 class TYsonWriter
-    : public IYsonConsumer
+    : public TYsonConsumerBase
     , private TNonCopyable
 {
 public:
@@ -36,7 +36,10 @@ public:
      *  \param stream A stream for outputting the YSON data.
      *  \param format A format used for encoding the data.
      */
-    TYsonWriter(TOutputStream* stream, EYsonFormat format = EYsonFormat::Binary);
+    TYsonWriter(
+        TOutputStream* stream,
+        EYsonFormat format = EYsonFormat::Binary,
+        bool formatRaw = false);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value);
@@ -49,15 +52,14 @@ public:
     virtual void OnEndList();
 
     virtual void OnBeginMap();
-    virtual void OnMapItem(const TStringBuf& name);
+    virtual void OnKeyedItem(const TStringBuf& key);
     virtual void OnEndMap();
 
     virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const TStringBuf& name);
     virtual void OnEndAttributes();
 
     //! Inserts a portion of raw YSON into the stream.
-    void OnRaw(const TStringBuf& yson);
+    void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
 
 protected:
     TOutputStream* Stream;
@@ -65,6 +67,7 @@ protected:
     bool IsEmptyEntity;
     int Indent;
     EYsonFormat Format;
+    bool FormatRaw;
 
     static const int IndentSize = 4;
 
@@ -89,7 +92,10 @@ public:
      *  \param stream A stream for outputting the YSON data.
      *  \param format A format used for encoding the data.
      */
-    TYsonFragmentWriter(TOutputStream* stream, EYsonFormat format = EYsonFormat::Binary);
+    TYsonFragmentWriter(
+        TOutputStream* stream,
+        EYsonFormat format = EYsonFormat::Binary,
+        bool formatRaw = false);
 
     virtual void BeginCollection(char openBracket);
     virtual void CollectionItem(char separator);

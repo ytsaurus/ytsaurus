@@ -81,14 +81,14 @@ TEST_F(TYsonWriterTest, OneItemMap)
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginMap());
-    EXPECT_CALL(Mock, OnMapItem("hello"));
+    EXPECT_CALL(Mock, OnKeyedItem("hello"));
     EXPECT_CALL(Mock, OnStringScalar("world"));
     EXPECT_CALL(Mock, OnEndMap());
 
     TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
     writer.OnBeginMap();
-    writer.OnMapItem("hello");
+    writer.OnKeyedItem("hello");
     writer.OnStringScalar("world");
     writer.OnEndMap();
 
@@ -100,25 +100,25 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginMap());
 
-    EXPECT_CALL(Mock, OnMapItem("path"));
+    EXPECT_CALL(Mock, OnKeyedItem("path"));
         EXPECT_CALL(Mock, OnStringScalar("/home/sandello"));
 
-    EXPECT_CALL(Mock, OnMapItem("mode"));
+    EXPECT_CALL(Mock, OnKeyedItem("mode"));
         EXPECT_CALL(Mock, OnIntegerScalar(755));
 
     EXPECT_CALL(Mock, OnEndMap());
 
     EXPECT_CALL(Mock, OnBeginAttributes());
-    EXPECT_CALL(Mock, OnAttributesItem("acl"));
+    EXPECT_CALL(Mock, OnKeyedItem("acl"));
         EXPECT_CALL(Mock, OnBeginMap());
 
-        EXPECT_CALL(Mock, OnMapItem("read"));
+        EXPECT_CALL(Mock, OnKeyedItem("read"));
         EXPECT_CALL(Mock, OnBeginList());
         EXPECT_CALL(Mock, OnListItem());
         EXPECT_CALL(Mock, OnStringScalar("*"));
         EXPECT_CALL(Mock, OnEndList());
 
-        EXPECT_CALL(Mock, OnMapItem("write"));
+        EXPECT_CALL(Mock, OnKeyedItem("write"));
         EXPECT_CALL(Mock, OnBeginList());
         EXPECT_CALL(Mock, OnListItem());
         EXPECT_CALL(Mock, OnStringScalar("sandello"));
@@ -126,7 +126,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
 
         EXPECT_CALL(Mock, OnEndMap());
 
-    EXPECT_CALL(Mock, OnAttributesItem("lock_scope"));
+    EXPECT_CALL(Mock, OnKeyedItem("lock_scope"));
         EXPECT_CALL(Mock, OnStringScalar("mytables"));
 
     EXPECT_CALL(Mock, OnEndAttributes());
@@ -135,25 +135,25 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
 
     writer.OnBeginMap();
 
-    writer.OnMapItem("path");
+    writer.OnKeyedItem("path");
         writer.OnStringScalar("/home/sandello");
 
-    writer.OnMapItem("mode");
+    writer.OnKeyedItem("mode");
         writer.OnIntegerScalar(755);
 
     writer.OnEndMap();
 
     writer.OnBeginAttributes();
-    writer.OnAttributesItem("acl");
+    writer.OnKeyedItem("acl");
         writer.OnBeginMap();
 
-        writer.OnMapItem("read");
+        writer.OnKeyedItem("read");
         writer.OnBeginList();
         writer.OnListItem();
         writer.OnStringScalar("*");
         writer.OnEndList();
 
-        writer.OnMapItem("write");
+        writer.OnKeyedItem("write");
         writer.OnBeginList();
         writer.OnListItem();
         writer.OnStringScalar("sandello");
@@ -161,7 +161,7 @@ TEST_F(TYsonWriterTest, MapWithAttributes)
 
         writer.OnEndMap();
 
-    writer.OnAttributesItem("lock_scope");
+    writer.OnKeyedItem("lock_scope");
         writer.OnStringScalar("mytables");
 
     writer.OnEndAttributes();
@@ -244,11 +244,11 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
         writer.OnIntegerScalar(200);
     writer.OnListItem();
         writer.OnBeginMap();
-            writer.OnMapItem("key");
+            writer.OnKeyedItem("key");
             writer.OnIntegerScalar(42);
-            writer.OnMapItem("yek");
+            writer.OnKeyedItem("yek");
             writer.OnIntegerScalar(24);
-            writer.OnMapItem("list");
+            writer.OnKeyedItem("list");
             writer.OnBeginList();
             writer.OnEndList();
         writer.OnEndMap();
@@ -269,21 +269,21 @@ TEST(TYsonFragmentWriterTest, NewLinesInMap)
     TStringStream outputStream;
 
     TYsonFragmentWriter writer(&outputStream, EYsonFormat::Text);
-    writer.OnMapItem("a");
+    writer.OnKeyedItem("a");
         writer.OnIntegerScalar(100);
-    writer.OnMapItem("b");
+    writer.OnKeyedItem("b");
         writer.OnBeginList();
             writer.OnListItem();
             writer.OnBeginMap();
-                writer.OnMapItem("key");
+                writer.OnKeyedItem("key");
                 writer.OnIntegerScalar(42);
-                writer.OnMapItem("yek");
+                writer.OnKeyedItem("yek");
                 writer.OnIntegerScalar(24);
             writer.OnEndMap();
             writer.OnListItem();
             writer.OnIntegerScalar(-1);
         writer.OnEndList();
-    writer.OnMapItem("c");
+    writer.OnKeyedItem("c");
         writer.OnStringScalar("word");
 
     Stroka output =
@@ -299,12 +299,12 @@ TEST(TYsonFragmentWriter, NoFirstIndent)
     TStringStream outputStream;
 
     TYsonFragmentWriter writer(&outputStream, EYsonFormat::Pretty);
-    writer.OnMapItem("a1");
+    writer.OnKeyedItem("a1");
         writer.OnBeginMap();
-            writer.OnMapItem("key");
+            writer.OnKeyedItem("key");
             writer.OnIntegerScalar(42);
         writer.OnEndMap();
-    writer.OnMapItem("a2");
+    writer.OnKeyedItem("a2");
         writer.OnIntegerScalar(0);
 
     Stroka output =

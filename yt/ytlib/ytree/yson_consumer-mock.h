@@ -10,7 +10,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMockYsonConsumer
-    : public IYsonConsumer
+    : public TYsonConsumerBase
 {
 public:
     MOCK_METHOD1(OnStringScalar, void(const TStringBuf& value));
@@ -23,11 +23,10 @@ public:
     MOCK_METHOD0(OnEndList, void());
 
     MOCK_METHOD0(OnBeginMap, void());
-    MOCK_METHOD1(OnMapItem, void(const TStringBuf& name));
+    MOCK_METHOD1(OnKeyedItem, void(const TStringBuf& name));
     MOCK_METHOD0(OnEndMap, void());
 
     MOCK_METHOD0(OnBeginAttributes, void());
-    MOCK_METHOD1(OnAttributesItem, void(const TStringBuf& name));
     MOCK_METHOD0(OnEndAttributes, void());
 };
 

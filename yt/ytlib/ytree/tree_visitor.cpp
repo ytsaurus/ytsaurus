@@ -90,7 +90,7 @@ void TTreeVisitor::VisitAttributes(INodePtr node) {
         std::sort(attributeKeyList.begin(), attributeKeyList.end());
         Consumer->OnBeginAttributes();
         FOREACH (const auto& key, attributeKeyList) {
-            Consumer->OnAttributesItem(key);
+            Consumer->OnKeyedItem(key);
             auto value = node->Attributes().GetYson(key);
             ProducerFromYson(value).Run(Consumer);
         }
@@ -141,7 +141,7 @@ void TTreeVisitor::VisitMap(IMapNodePtr node)
     auto children = node->GetChildren();
     std::sort(children.begin(), children.end());
     FOREACH (const auto& pair, children) {
-        Consumer->OnMapItem(pair.first);
+        Consumer->OnKeyedItem(pair.first);
         VisitAny(pair.second);
     }
     Consumer->OnEndMap();

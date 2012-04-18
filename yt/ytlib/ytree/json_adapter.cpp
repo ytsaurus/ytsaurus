@@ -65,7 +65,7 @@ void TJsonAdapter::OnMyBeginMap()
     // TODO(roizner): support attributes
 }
 
-void TJsonAdapter::OnMyMapItem(const TStringBuf& name)
+void TJsonAdapter::OnMyKeyedItem(const TStringBuf& name)
 {
     JsonWriter->Write(name);
 }
@@ -78,7 +78,7 @@ void TJsonAdapter::OnMyEndMap()
 void TJsonAdapter::OnMyBeginAttributes()
 {
     // TODO(roizner): support attributes
-    ForwardAttributes(GetNullYsonConsumer(), TClosure());
+    ForwardFragment(GetNullYsonConsumer(), TClosure());
 }
 
 //void TJsonAdapter::OnMyAttributesItem(const TStringBuf& name)
@@ -92,10 +92,10 @@ void TJsonAdapter::OnMyBeginAttributes()
 //    JsonWriter->Write(name);
 //}
 
-//void TJsonAdapter::OnMyEndAttributes()
-//{
-//	JsonWriter->CloseMap();
-//}
+void TJsonAdapter::OnMyEndAttributes()
+{
+    //
+}
 
 void TJsonAdapter::Flush()
 {

@@ -5,6 +5,8 @@
 #include "token.h"
 #include "lexer.h"
 
+#include <ytlib/misc/foreach.h>
+
 #include <stack>
 
 namespace NYT {
@@ -32,7 +34,7 @@ class TYsonParser::TImpl
     );
 
     IYsonConsumer* Consumer;
-    EMode Mode;
+    EYsonType Type;
 
     TLexer Lexer;
     std::stack<EState> StateStack;
@@ -44,20 +46,20 @@ class TYsonParser::TImpl
     int Fragment;
 
 public:
-    TImpl(IYsonConsumer* consumer, EMode mode)
+    TImpl(IYsonConsumer* consumer, EYsonType type)
         : Consumer(consumer)
-        , Mode(mode)
+        , Type(type)
         , Offset(0)
         , Line(1)
         , Position(1)
         , Fragment(0)
     {
-        switch (mode) {
-            case EMode::ListFragment:
+        switch (type) {
+            case EYsonType::ListFragment:
                 StateStack.push(EState::ListBeforeItem);
                 break;
 
-            case EMode::MapFragment:
+            case EYsonType::KeyedFragment:
                 StateStack.push(EState::MapBeforeKey);
                 break;
 
@@ -208,7 +210,7 @@ private:
 
     void ConsumeList(const TToken& token)
     {
-        bool inFragment = Mode == EMode::ListFragment && StateStack.size() == 1;
+        bool inFragment = Type == EYsonType::ListFragment && StateStack.size() == 1;
         auto tokenType = token.GetType();
         switch (tokenType) {
             case ETokenType::None:
@@ -255,7 +257,7 @@ private:
         auto tokenType = token.GetType();
         auto currentState = CurrentState();
 
-        if (Mode == EMode::MapFragment && StateStack.size() == 1 &&
+        if (Type == EYsonType::KeyedFragment && StateStack.size() == 1 &&
             (currentState == EState::MapBeforeKey || currentState == EState::MapAfterValue))
         {
             if (tokenType == ETokenType::None) {
@@ -276,7 +278,7 @@ private:
                     StateStack.pop();
                     OnItemConsumed();
                 } else if (tokenType == ETokenType::String) {
-                    Consumer->OnMapItem(token.GetStringValue());
+                    Consumer->OnKeyedItem(token.GetStringValue());
                     StateStack.top() = EState::MapAfterKey;  
                 } else {
                     ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
@@ -340,7 +342,7 @@ private:
         switch (currentState) {
             case EState::AttributesBeforeKey:
                 if (tokenType == ETokenType::String) {
-                    Consumer->OnAttributesItem(token.GetStringValue());
+                    Consumer->OnKeyedItem(token.GetStringValue());
                     StateStack.top() = EState::AttributesAfterKey;  
                 } else {
                     ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
@@ -427,7 +429,7 @@ private:
 
     Stroka GetPositionInfo() const
     {
-        if (Mode == EMode::Node) {
+        if (Type == EYsonType::Node) {
             return Sprintf("Offset: %d, Line: %d, Position: %d",
                 Offset,
                 Line,
@@ -444,8 +446,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonParser::TYsonParser(IYsonConsumer *consumer, EMode mode)
-    : Impl(new TImpl(consumer, mode))
+TYsonParser::TYsonParser(IYsonConsumer *consumer, EYsonType type)
+    : Impl(new TImpl(consumer, type))
 { }
 
 
@@ -464,9 +466,9 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYson(TInputStream* input, IYsonConsumer* consumer, TYsonParser::EMode mode)
+void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 {
-    TYsonParser parser(consumer, mode);
+    TYsonParser parser(consumer, type);
     char ch;
     while (input->ReadChar(ch)) {
         parser.Consume(ch);
@@ -474,10 +476,14 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, TYsonParser::EMode 
     parser.Finish();
 }
 
-void ParseYson(const TYson& yson, IYsonConsumer* consumer, TYsonParser::EMode mode)
+void ParseYson(const TStringBuf& yson, IYsonConsumer* consumer, EYsonType type)
 {
-    TStringInput input(yson);
-    ParseYson(&input, consumer, mode);
+    // TODO(roizner): improve
+    TYsonParser parser(consumer, type);
+    FOREACH (char ch, yson) {
+        parser.Consume(ch);
+    }
+    parser.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

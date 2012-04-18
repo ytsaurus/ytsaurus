@@ -391,7 +391,7 @@ void TSupportsAttributes::GetAttribute(
             systemAttributeProvider->GetSystemAttributes(&systemAttributes);
             FOREACH (const auto& attribute, systemAttributes) {
                 if (attribute.IsPresent) {
-                    writer.OnMapItem(attribute.Key);
+                    writer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {
                         writer.OnEntity();
                     } else {
@@ -406,7 +406,7 @@ void TSupportsAttributes::GetAttribute(
             std::vector<Stroka> userAttributeList(userAttributeSet.begin(), userAttributeSet.end());
             std::sort(userAttributeList.begin(), userAttributeList.end());
             FOREACH (const auto& key, userAttributeList) {
-                writer.OnMapItem(key);
+                writer.OnKeyedItem(key);
                 writer.OnRaw(userAttributes->GetYson(key));
             }
         }

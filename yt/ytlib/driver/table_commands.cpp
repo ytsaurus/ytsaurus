@@ -75,7 +75,7 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
         }
     } else {
         auto stream = Host->CreateInputStream();
-        ParseYson(stream.Get(), &consumer, TYsonParser::EMode::ListFragment);
+        ParseYson(stream.Get(), &consumer, EYsonType::ListFragment);
     }
 
     writer->Close();

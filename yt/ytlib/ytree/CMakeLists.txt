@@ -18,6 +18,7 @@ set( SRCS
   ${BASE}/ypath_client.cpp
   ${BASE}/ypath_detail.cpp
   ${BASE}/ypath_service.cpp
+  ${BASE}/yson_consumer.cpp
   ${BASE}/yson_file_service.cpp
   ${BASE}/yson_parser.cpp
   ${BASE}/yson_writer.cpp

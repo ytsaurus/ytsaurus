@@ -1,13 +1,53 @@
 #include "stdafx.h"
 #include "tree_builder.h"
+
 #include "attributes.h"
 #include "forwarding_yson_consumer.h"
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/misc/assert.h>
 
+#include <stack>
+
 namespace NYT {
 namespace NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAttributeConsumer
+    : public TForwardingYsonConsumer
+{
+public:
+    TAttributeConsumer()
+        : Attributes(~CreateEphemeralAttributes())
+        , Output(Value)
+        , Writer(&Output)
+    { }
+
+    const IAttributeDictionary& GetAttributes() const
+    {
+        return *Attributes;
+    }
+
+    virtual void OnMyKeyedItem(const TStringBuf& key)
+    {
+        Key = key;
+        ForwardNode(&Writer, BIND([=]
+            {
+                Attributes->SetYson(Key, Value);
+                Key.clear();
+                Value.clear();
+            }));
+    }
+
+private:
+    THolder<IAttributeDictionary> Attributes;
+
+    Stroka Key;
+    TYson Value;
+    TStringOutput Output;
+    TYsonWriter Writer;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,40 +58,32 @@ class TTreeBuilder
 public:
     TTreeBuilder(INodeFactory* factory)
         : Factory(factory)
-        , AttributeOutput(AttributeValue)
-        , AttributeWriter(&AttributeOutput)
     { }
-
 
     virtual void BeginTree()
     {
-        NodeStack.clear();
-        NameStack.clear();
+        YASSERT(NodeStack.size() == 0);
     }
 
     virtual INodePtr EndTree()
     {
         // Failure here means that the tree is not fully constructed yet.
-        YASSERT(NodeStack.ysize() == 1);
-        YASSERT(NameStack.ysize() == 0);
+        YASSERT(NodeStack.size() == 0);
+        YASSERT(ResultNode);
 
-        auto node = NodeStack[0];
-        NodeStack.clear();
-        return node;
+        return ResultNode;
     }
-
 
     virtual void OnNode(INode* node)
     {
-        PushNode(node);
+        AddNode(node, false);
     }
 
     virtual void OnMyStringScalar(const TStringBuf& value)
     {
-
         auto node = Factory->CreateString();
         node->SetValue(Stroka(value));
-        PushNode(~node);
+        AddNode(~node, false);
     }
 
     virtual void OnMyIntegerScalar(i64 value)
@@ -59,145 +91,95 @@ public:
 
         auto node = Factory->CreateInteger();
         node->SetValue(value);
-        PushNode(~node);
+        AddNode(~node, false);
     }
 
     virtual void OnMyDoubleScalar(double value)
     {
-
         auto node = Factory->CreateDouble();
         node->SetValue(value);
-        PushNode(~node);
+        AddNode(~node, false);
     }
 
     virtual void OnMyEntity()
     {
-
-        PushNode(~Factory->CreateEntity());
+        AddNode(~Factory->CreateEntity(), false);
     }
 
 
     virtual void OnMyBeginList()
     {
-        PushNode(~Factory->CreateList());
-        PushNode(NULL);
+        AddNode(~Factory->CreateList(), true);
     }
 
     virtual void OnMyListItem()
     {
-        AddToList();
+        YASSERT(!Key);
     }
 
     virtual void OnMyEndList()
     {
-
-        AddToList();
+        NodeStack.pop();
     }
 
 
     virtual void OnMyBeginMap()
     {
-        PushNode(~Factory->CreateMap());
-        PushKey("");
-        PushNode(NULL);
+        AddNode(~Factory->CreateMap(), true);
     }
 
-    virtual void OnMyMapItem(const TStringBuf& key)
+    virtual void OnMyKeyedItem(const TStringBuf& key)
     {
-        AddToMap();
-        PushKey(Stroka(key));
+        Key = Stroka(key);
     }
 
     virtual void OnMyEndMap()
     {
-
-        AddToMap();
+        NodeStack.pop();
     }
 
-
     virtual void OnMyBeginAttributes()
-    { }
-
-    virtual void OnMyAttributesItem(const TStringBuf& key)
     {
-        AttributeKey = key;
-        ForwardNode(&AttributeWriter, BIND([=]
-            {
-                auto node = PeekNode();
-                node->Attributes().SetYson(AttributeKey, AttributeValue);
-                AttributeKey.clear();
-                AttributeValue.clear();
-            }));
+        YASSERT(!AttributeConsumer);
+        AttributeConsumer.Reset(new TAttributeConsumer());
+        ForwardFragment(~AttributeConsumer);
     }
 
     virtual void OnMyEndAttributes()
-    { }
+    {
+        YASSERT(AttributeConsumer.Get());
+    }
 
 private:
     INodeFactory* Factory;
     //! Contains nodes forming the current path in the tree.
-    yvector<INodePtr> NodeStack;
-    //! Contains names of the currently active map children.
-    yvector<Stroka> NameStack;
+    std::stack<INodePtr> NodeStack;
+    TNullable<Stroka> Key;
+    INodePtr ResultNode;
+    THolder<TAttributeConsumer> AttributeConsumer;
 
-    Stroka AttributeKey;
-    TYson AttributeValue;
-    TStringOutput AttributeOutput;
-    TYsonWriter AttributeWriter;
+    void AddNode(INode* node, bool push) {
+        if (AttributeConsumer.Get()) {
+            node->Attributes().MergeFrom(AttributeConsumer->GetAttributes());
+            AttributeConsumer.Reset(NULL);
+        }
 
-    void AddToList()
-    {
-        auto child = PopNode();
-        auto list = PeekNode()->AsList();
-        if (child) {
-            list->AddChild(~child);
+        if (NodeStack.empty()) {
+            ResultNode = node;
+        } else {
+            auto collectionNode = NodeStack.top();
+            if (Key) {
+                YVERIFY(collectionNode->AsMap()->AddChild(node, *Key));
+                Key.Reset();
+            } else {
+                collectionNode->AsList()->AddChild(node);
+            }
+        }
+
+        if (push) {
+            NodeStack.push(node);
         }
     }
-
-    void AddToMap()
-    {
-        auto child = PopNode();
-        auto name = PopKey();
-        auto map = PeekNode()->AsMap();
-        if (child) {
-            YVERIFY(map->AddChild(~child, name));
-        }
-    }
-
-
-    void PushKey(const Stroka& name)
-    {
-        NameStack.push_back(name);
-    }
-
-    Stroka PopKey()
-    {
-        YASSERT(!NameStack.empty());
-        auto result = NameStack.back();
-        NameStack.pop_back();
-        return result;
-    }
-
-
-    void PushNode(INode* node)
-    {
-        NodeStack.push_back(node);
-    }
-
-    INodePtr PopNode()
-    {
-        YASSERT(!NodeStack.empty());
-        auto result = NodeStack.back();
-        NodeStack.pop_back();
-        return result;
-    }
-
-    INodePtr PeekNode()
-    {
-        YASSERT(!NodeStack.empty());
-        return NodeStack.back();
-    }
-
 };
 
 TAutoPtr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)

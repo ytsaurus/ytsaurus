@@ -59,14 +59,14 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 
     if (keys.ysize() != size) {
         writer.OnBeginAttributes();
-        writer.OnAttributesItem("incomplete");
+        writer.OnKeyedItem("incomplete");
         writer.OnStringScalar("true");
         writer.OnEndAttributes();
     }
 
     writer.OnBeginMap();
     FOREACH (const auto& key, keys) {
-        writer.OnMapItem(key);
+        writer.OnKeyedItem(key);
         writer.OnEntity();
     }
     writer.OnEndMap();

@@ -46,12 +46,11 @@ public:
     virtual void OnMyEndList();
 
     virtual void OnMyBeginMap();
-    virtual void OnMyMapItem(const TStringBuf& name);
+    virtual void OnMyKeyedItem(const TStringBuf& key);
     virtual void OnMyEndMap();
 
     virtual void OnMyBeginAttributes();
-    //virtual void OnMyAttributesItem(const TStringBuf& name);
-    //virtual void OnMyEndAttributes();
+    virtual void OnMyEndAttributes();
 
 private:
     THolder<NJson::TJsonWriter> JsonWriter;

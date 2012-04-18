@@ -112,12 +112,16 @@ void EscapeC(const char* str, size_t len, TOutputStream& output) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonWriter::TYsonWriter(TOutputStream* stream, EYsonFormat format)
+TYsonWriter::TYsonWriter(
+    TOutputStream* stream,
+    EYsonFormat format,
+    bool formatRaw)
     : Stream(stream)
     , IsFirstItem(true)
     , IsEmptyEntity(false)
     , Indent(0)
     , Format(format)
+    , FormatRaw(formatRaw)
 {
     YASSERT(stream);
 }
@@ -242,9 +246,9 @@ void TYsonWriter::OnBeginMap()
     BeginCollection(BeginMapSymbol);
 }
 
-void TYsonWriter::OnMapItem(const TStringBuf& name)
+void TYsonWriter::OnKeyedItem(const TStringBuf& type)
 {
-    WriteMapItem(name);
+    WriteMapItem(type);
 }
 
 void TYsonWriter::OnEndMap()
@@ -257,11 +261,6 @@ void TYsonWriter::OnBeginAttributes()
     BeginCollection(BeginAttributesSymbol);
 }
 
-void TYsonWriter::OnAttributesItem(const TStringBuf& name)
-{
-    WriteMapItem(name);
-}
-
 void TYsonWriter::OnEndAttributes()
 {
     EndCollection(EndAttributesSymbol);
@@ -270,15 +269,22 @@ void TYsonWriter::OnEndAttributes()
     }
 }
 
-void TYsonWriter::OnRaw(const TStringBuf& yson)
+void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    Stream->Write(yson);
+    if (FormatRaw) {
+        TYsonConsumerBase::OnRaw(yson, type);
+    } else {
+        Stream->Write(yson);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonFragmentWriter::TYsonFragmentWriter(TOutputStream* stream, EYsonFormat format)
-    : TYsonWriter(stream, format)
+TYsonFragmentWriter::TYsonFragmentWriter(
+    TOutputStream* stream,
+    EYsonFormat format,
+    bool formatRaw)
+    : TYsonWriter(stream, format, formatRaw)
     , NestedCount(0)
 {
     // this is a hack for not making an indent before first tokens (in pretty mode)

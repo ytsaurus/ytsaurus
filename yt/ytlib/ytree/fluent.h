@@ -254,7 +254,7 @@ public:
 
         TAny<TThis> Item(const Stroka& key)
         {
-            this->Consumer->OnAttributesItem(key);
+            this->Consumer->OnKeyedItem(key);
             return TAny<TThis>(this->Consumer, *this);
         }
 
@@ -342,7 +342,7 @@ public:
 
         TAny<TThis> Item(const Stroka& key)
         {
-            this->Consumer->OnMapItem(key);
+            this->Consumer->OnKeyedItem(key);
             return TAny<TThis>(this->Consumer, *this);
         }
 

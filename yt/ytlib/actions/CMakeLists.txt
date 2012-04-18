@@ -8,6 +8,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/action_queue.h
+  ${BASE}/action_util-gen.h
   ${BASE}/bind.h
   ${BASE}/bind_helpers.h
   ${BASE}/bind_internal.h

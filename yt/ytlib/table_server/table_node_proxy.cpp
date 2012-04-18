@@ -177,7 +177,7 @@ void TTableNodeProxy::ParseYPath(
     auto channelBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     channelBuilder->BeginTree();
     channelBuilder->OnBeginList();
-    ParseYson(currentPath, ~channelBuilder, TYsonParser::EMode::ListFragment);
+    ParseYson(currentPath, ~channelBuilder, EYsonType::ListFragment);
     channelBuilder->OnEndList();
     auto node = channelBuilder->EndTree()->AsList();
     if (node->GetChildCount() > 0) {

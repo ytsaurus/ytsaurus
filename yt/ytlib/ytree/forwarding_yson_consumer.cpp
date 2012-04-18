@@ -11,45 +11,60 @@ namespace NYTree {
 TForwardingYsonConsumer::TForwardingYsonConsumer()
     : ForwardingConsumer(NULL)
     , ForwardingDepth(0)
+    , ForwardingFragment(false)
 { }
 
 void TForwardingYsonConsumer::ForwardNode(
     IYsonConsumer* consumer,
     const TClosure& onForwardingFinished)
 {
-    DoForward(consumer, onForwardingFinished, 0);
+    StartForwarding(consumer, onForwardingFinished, false);
 }
 
-void TForwardingYsonConsumer::ForwardAttributes(
+void TForwardingYsonConsumer::ForwardFragment(
     IYsonConsumer* consumer,
     const TClosure& onForwardingFinished)
 {
-    DoForward(consumer, onForwardingFinished, 1);
+    StartForwarding(consumer, onForwardingFinished, true);
 }
 
-void TForwardingYsonConsumer::DoForward(
+void TForwardingYsonConsumer::StartForwarding(
     IYsonConsumer* consumer,
     const TClosure& onForwardingFinished,
-    int depth)
+    bool forwardingFragment)
 {
     YASSERT(!ForwardingConsumer);
     YASSERT(consumer);
+    YASSERT(ForwardingDepth == 0);
 
     ForwardingConsumer = consumer;
-    ForwardingDepth = depth;
     OnForwardingFinished = onForwardingFinished;
+    ForwardingFragment = forwardingFragment;
+}
+
+bool TForwardingYsonConsumer::CheckForwarding(int depthDelta)
+{
+    if (ForwardingDepth + depthDelta < 0) {
+        FinishForwarding();
+    }
+    return ForwardingConsumer;
 }
 
 void TForwardingYsonConsumer::UpdateDepth(int depthDelta, bool checkFinish)
 {
     ForwardingDepth += depthDelta;
     YASSERT(ForwardingDepth >= 0);
-    if (checkFinish && ForwardingDepth == 0) {
-        ForwardingConsumer = NULL;
-        if (!OnForwardingFinished.IsNull()) {
-            OnForwardingFinished.Run();
-            OnForwardingFinished.Reset();
-        }
+    if (checkFinish && !ForwardingFragment && ForwardingDepth == 0) {
+        FinishForwarding();
+    }
+}
+
+void TForwardingYsonConsumer::FinishForwarding()
+{
+    ForwardingConsumer = NULL;
+    if (!OnForwardingFinished.IsNull()) {
+        OnForwardingFinished.Run();
+        OnForwardingFinished.Reset();
     }
 }
 
@@ -57,7 +72,7 @@ void TForwardingYsonConsumer::UpdateDepth(int depthDelta, bool checkFinish)
 
 void TForwardingYsonConsumer::OnStringScalar(const TStringBuf& value)
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding()) {
         OnMyStringScalar(value);
     } else {
         ForwardingConsumer->OnStringScalar(value);
@@ -67,7 +82,7 @@ void TForwardingYsonConsumer::OnStringScalar(const TStringBuf& value)
 
 void TForwardingYsonConsumer::OnIntegerScalar(i64 value)
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding()) {
         OnMyIntegerScalar(value);
     } else {
         ForwardingConsumer->OnIntegerScalar(value);
@@ -77,7 +92,7 @@ void TForwardingYsonConsumer::OnIntegerScalar(i64 value)
 
 void TForwardingYsonConsumer::OnDoubleScalar(double value)
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding()) {
         OnMyDoubleScalar(value);
     } else {
         ForwardingConsumer->OnDoubleScalar(value);
@@ -87,7 +102,7 @@ void TForwardingYsonConsumer::OnDoubleScalar(double value)
 
 void TForwardingYsonConsumer::OnEntity()
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding()) {
         OnMyEntity();
     } else {
         ForwardingConsumer->OnEntity();
@@ -97,7 +112,7 @@ void TForwardingYsonConsumer::OnEntity()
 
 void TForwardingYsonConsumer::OnBeginList()
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding(+1)) {
         OnMyBeginList();
     } else {
         ForwardingConsumer->OnBeginList();
@@ -107,7 +122,7 @@ void TForwardingYsonConsumer::OnBeginList()
 
 void TForwardingYsonConsumer::OnListItem()
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding()) {
         OnMyListItem();
     } else {
         ForwardingConsumer->OnListItem();
@@ -116,7 +131,7 @@ void TForwardingYsonConsumer::OnListItem()
 
 void TForwardingYsonConsumer::OnEndList()
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding(-1)) {
         OnMyEndList();
     } else {
         ForwardingConsumer->OnEndList();
@@ -126,7 +141,7 @@ void TForwardingYsonConsumer::OnEndList()
 
 void TForwardingYsonConsumer::OnBeginMap()
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding(+1)) {
         OnMyBeginMap();
     } else {
         ForwardingConsumer->OnBeginMap();
@@ -134,18 +149,18 @@ void TForwardingYsonConsumer::OnBeginMap()
     }
 }
 
-void TForwardingYsonConsumer::OnMapItem(const TStringBuf& name)
+void TForwardingYsonConsumer::OnKeyedItem(const TStringBuf& name)
 {
-    if (!ForwardingConsumer) {
-        OnMyMapItem(name);
+    if (!CheckForwarding()) {
+        OnMyKeyedItem(name);
     } else {
-        ForwardingConsumer->OnMapItem(name);
+        ForwardingConsumer->OnKeyedItem(name);
     }
 }
 
 void TForwardingYsonConsumer::OnEndMap()
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding(-1)) {
         OnMyEndMap();
     } else {
         ForwardingConsumer->OnEndMap();
@@ -153,9 +168,18 @@ void TForwardingYsonConsumer::OnEndMap()
     }
 }
 
+void TForwardingYsonConsumer::OnRaw(const TStringBuf &yson, EYsonType type)
+{
+    if (!CheckForwarding()) {
+        OnMyRaw(yson, type);
+    } else {
+        YUNIMPLEMENTED();
+    }
+}
+
 void TForwardingYsonConsumer::OnBeginAttributes()
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding()) {
         OnMyBeginAttributes();
     } else {
         ForwardingConsumer->OnBeginAttributes();
@@ -163,18 +187,9 @@ void TForwardingYsonConsumer::OnBeginAttributes()
     }
 }
 
-void TForwardingYsonConsumer::OnAttributesItem(const TStringBuf& name)
-{
-    if (!ForwardingConsumer) {
-        OnMyAttributesItem(name);
-    } else {
-        ForwardingConsumer->OnAttributesItem(name);
-    }
-}
-
 void TForwardingYsonConsumer::OnEndAttributes()
 {
-    if (!ForwardingConsumer) {
+    if (!CheckForwarding()) {
         OnMyEndAttributes();
     } else {
         ForwardingConsumer->OnEndAttributes();
@@ -231,7 +246,7 @@ void TForwardingYsonConsumer::OnMyBeginMap()
     YUNREACHABLE();
 }
 
-void TForwardingYsonConsumer::OnMyMapItem(const TStringBuf& name)
+void TForwardingYsonConsumer::OnMyKeyedItem(const TStringBuf& name)
 {
     UNUSED(name);
     YUNREACHABLE();
@@ -248,15 +263,14 @@ void TForwardingYsonConsumer::OnMyBeginAttributes()
     YUNREACHABLE();
 }
 
-void TForwardingYsonConsumer::OnMyAttributesItem(const TStringBuf& name)
-{
-    UNUSED(name);
-    YUNREACHABLE();
-}
-
 void TForwardingYsonConsumer::OnMyEndAttributes()
 {
     YUNREACHABLE();
+}
+
+void TForwardingYsonConsumer::OnMyRaw(const TStringBuf& yson, EYsonType type)
+{
+    TYsonConsumerBase::OnRaw(yson, type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
