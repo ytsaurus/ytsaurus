@@ -49,14 +49,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAbortRequest
+struct TAbortTransactionRequest
     : public TTransactedRequest
 { };
 
-typedef TIntrusivePtr<TAbortRequest> TAbortRequestPtr;
+typedef TIntrusivePtr<TAbortTransactionRequest> TAbortRequestPtr;
 
 class TAbortTransactionCommand
-    : public TTypedCommandBase<TAbortRequest>
+    : public TTypedCommandBase<TAbortTransactionRequest>
 {
 public:
     explicit TAbortTransactionCommand(ICommandHost* host)
