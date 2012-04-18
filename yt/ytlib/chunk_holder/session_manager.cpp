@@ -379,7 +379,7 @@ TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 {
     YASSERT(IsInWindow(blockIndex));
     if (Window.size() <= blockIndex) {
-        Window.resize(blockIndex);
+        Window.resize(1 + blockIndex);
     }
 
     return Window[blockIndex];
