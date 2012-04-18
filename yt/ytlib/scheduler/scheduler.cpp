@@ -1305,6 +1305,9 @@ TScheduler::TScheduler(
     : Impl(New<TImpl>(config, bootstrap))
 { }
 
+TScheduler::~TScheduler()
+{ }
+
 void TScheduler::Start()
 {
     Impl->Start();

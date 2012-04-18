@@ -5,6 +5,8 @@
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -678,7 +680,7 @@ i64 TOperationControllerBase::GetJobWeightThreshold(i64 pendingJobs, i64 pending
 {
     YASSERT(pendingJobs > 0);
     YASSERT(pendingWeight > 0);
-    return (i64) ceil((double) pendingWeight / pendingJobs);
+    return (i64) std::ceil((double) pendingWeight / pendingJobs);
 }
 
 TJobPtr TOperationControllerBase::CreateJob(

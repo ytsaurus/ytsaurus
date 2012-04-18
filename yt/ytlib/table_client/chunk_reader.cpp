@@ -256,7 +256,7 @@ private:
         }
 
         LOG_DEBUG(
-            "Defined row limits (StartRowIndex: %"PRId64", EndRowIndex: %"PRId64")",
+            "Defined row limits (StartRowIndex: %" PRId64 ", EndRowIndex: %" PRId64 ")",
             StartRowIndex,
             chunkReader->EndRowIndex);
 
@@ -470,7 +470,7 @@ private:
         if (!chunkReader)
             return;
 
-        LOG_TRACE("Validating row %"PRId64, chunkReader->CurrentRowIndex);
+        LOG_TRACE("Validating row %" PRId64, chunkReader->CurrentRowIndex);
 
         YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
         if (!StartValidator->IsValid(chunkReader->CurrentKey)) {

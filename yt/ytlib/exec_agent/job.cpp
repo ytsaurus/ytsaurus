@@ -210,7 +210,7 @@ void TJob::RunJobProxy()
     YASSERT(JobProgress == EJobProgress::PreparingSandbox);
 
     try {
-        JobProgress == EJobProgress::StartedProxy;
+        JobProgress = EJobProgress::StartedProxy;
         ProxyController->Run();
     } catch (const std::exception& ex) {
         DoAbort(TError(ex.what()), NScheduler::EJobState::Failed);
