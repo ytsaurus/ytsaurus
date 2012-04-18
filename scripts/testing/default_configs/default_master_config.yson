@@ -7,8 +7,12 @@
         "meta01-003g:9091";
       ];
     };
-    "log_path" = "/yt/disk1/data/control/server/master/0/logs";
-    "snapshot_path" = "/yt/disk1/data/control/server/master/0/snapshots";
+    "changelogs" = {
+        "path" = "/yt/disk1/data/control/server/master/0/logs";
+    };
+    "snapshots" = {
+        "path" = "/yt/disk1/data/control/server/master/0/snapshots";
+    };
     "max_changes_between_snapshots" = 1000000;
   };
   transactions = {

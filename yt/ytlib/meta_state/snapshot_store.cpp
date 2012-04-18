@@ -2,6 +2,7 @@
 #include "common.h"
 #include "snapshot_store.h"
 #include "snapshot.h"
+#include "config.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -19,8 +20,8 @@ static const char* const SnapshotExtension = "snapshot";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSnapshotStore::TSnapshotStore(const Stroka& path)
-    : Path(path)
+TSnapshotStore::TSnapshotStore(TSnapshotStoreConfigPtr config)
+    : Config(config)
     , Started(false)
 { }
 
@@ -28,15 +29,17 @@ void TSnapshotStore::Start()
 {
     YASSERT(!Started);
 
-    LOG_INFO("Preparing snapshot directory %s", ~Path.Quote());
+    auto path = Config->Path;
 
-    NFS::ForcePath(Path);
-    NFS::CleanTempFiles(Path);
+    LOG_INFO("Preparing snapshot directory %s", ~path.Quote());
 
-    LOG_INFO("Looking for snapshots in %s", ~Path.Quote());
+    NFS::ForcePath(path);
+    NFS::CleanTempFiles(path);
+
+    LOG_INFO("Looking for snapshots in %s", ~path.Quote());
 
     TFileList fileList;
-    fileList.Fill(Path);
+    fileList.Fill(path);
 
     i32 maxSnapshotId = NonexistingSnapshotId;
     Stroka fileName;
@@ -62,7 +65,7 @@ Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return NFS::CombinePaths(Path, Sprintf("%09d.%s", snapshotId, SnapshotExtension));
+    return NFS::CombinePaths(Config->Path, Sprintf("%09d.%s", snapshotId, SnapshotExtension));
 }
 
 TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
@@ -77,7 +80,7 @@ TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
             EErrorCode::NoSuchSnapshot,
             Sprintf("No such snapshot %d", snapshotId));
     }
-    return New<TSnapshotReader>(fileName, snapshotId);
+    return New<TSnapshotReader>(fileName, snapshotId, Config->EnableCompression);
 }
 
 TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
@@ -87,7 +90,7 @@ TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
     YASSERT(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
-    return New<TSnapshotWriter>(fileName, snapshotId);
+    return New<TSnapshotWriter>(fileName, snapshotId, Config->EnableCompression);
 }
 
 i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)

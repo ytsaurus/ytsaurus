@@ -51,8 +51,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
         ~verb);
 
     ExecuteVerb(~RootService, ~requestMessage)
-    ->Subscribe(BIND([=] (IMessage::TPtr responseMessage)
-        {
+        .Subscribe(BIND([=] (IMessage::TPtr responseMessage) {
             auto responseHeader = GetResponseHeader(~responseMessage);
             auto error = TError::FromProto(responseHeader.error());
 

@@ -38,7 +38,7 @@ void TJobProxy::SendHeartbeat()
     auto req = Proxy.OnProgress();
     *req->mutable_job_id() = JobId.ToProto();
 
-    auto rsp = req->Invoke()->Get();
+    auto rsp = req->Invoke().Get();
 
     if (!rsp->IsOK()) {
         // NB: user process is not killed here.
@@ -56,7 +56,7 @@ TJobSpec TJobProxy::GetJobSpec()
     auto req = Proxy.GetJobSpec();
     *req->mutable_job_id() = JobId.ToProto();
 
-    auto rsp = req->Invoke()->Get();
+    auto rsp = req->Invoke().Get();
 
     if (!rsp->IsOK()) {
         ythrow yexception() << Sprintf("Failed to get job spec (JobId: %s, Error: %s)",
@@ -126,7 +126,7 @@ void TJobProxy::ReportResult(
     *(req->mutable_result()) = result;
     *(req->mutable_job_id()) = JobId.ToProto();
 
-    auto rsp = req->Invoke()->Get();
+    auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
         LOG_ERROR("Failed to report result for job %s", ~JobId.ToString());
         exit(123);

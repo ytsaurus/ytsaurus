@@ -24,6 +24,11 @@ namespace NDetail {
     struct TAsyncViaHelper;
 };
 
+#ifdef __GNUC__
+#define GCC_ONLY_TYPENAME typename
+#else
+#define GCC_ONLY_TYPENAME
+#endif
 
 $for ARITY [[
 $range ARG 1..ARITY
@@ -110,7 +115,7 @@ struct TAsyncViaHelper<W, U($for ARG , [[A$(ARG)]])>
 {
     typedef TCallback<U($for ARG , [[A$(ARG)]])> TSourceCallback;
     typedef TCallback<
-        typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType
+        typename NYT::NDetail::TFutureHelper<U>::TFutureType
         ($for ARG , [[A$(ARG)]])> TTargetCallback;
 
     static inline TTargetCallback Do(
@@ -120,15 +125,18 @@ struct TAsyncViaHelper<W, U($for ARG , [[A$(ARG)]])>
         static_assert(!NMpl::TIsVoid<U>::Value,
             "AsyncVia() can be used with non-void callbacks only.");
 
-        // XXX(babenko): due to VC bug in lambda scope resolution the following
-        // typedefs are essentially useless and we have to write full type names inside lambdas.
+        // XXX(babenko): Due to MSVC bug in lambda scope resolution
+        // the following typedefs are essentially useless and we have to
+        // write full type names inside lambdas.
+        // XXX(sandello): Burn, MSVC!
+        typedef typename NYT::NDetail::TFutureHelper<U>::TValueType R;
         typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
-        typedef typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType FRP;
+        typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
 
-        auto inner = BIND([=] (/*FRP*/ typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType result[[]]
+        auto inner = BIND([=] (PR promise[[]]
 $if ARITY != 0 [[, ]]
-$for ARG , [[A$(ARG) a$(ARG)]]) {
-            result->Set(this_.Run([[]]
+$for ARG , [[A$(ARG) a$(ARG)]]) -> void {
+            promise.Set(this_.Run([[]]
 $if ARITY != 0 [[
 
                 [[]]
@@ -136,15 +144,17 @@ $if ARITY != 0 [[
 $for ARG ,
                 [[ForwardRV<A$(ARG)>(a$(ARG))]]));
         });
-        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> /*FRP*/ typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType {
-            auto result = New< /*FR*/ typename NYT::NDetail::TFutureHelper<U>::TFutureType >();
-            invoker->Invoke(BIND(inner, result[[]]
+        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
+            auto promise = NewPromise<
+                typename NYT::NDetail::TFutureHelper<U>::TValueType
+            >();
+            invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
                 [[]]
 ]]
 $for ARG , 
                 [[ForwardRV<A$(ARG)>(a$(ARG))]]));
-            return result;
+            return promise.ToFuture();
         });
         return outer;
     }
@@ -157,7 +167,7 @@ struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
 {
     typedef TCallback<U($for ARG , [[A$(ARG)]])> TSourceCallback;
     typedef TCallback<
-        typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType
+        typename NYT::NDetail::TFutureHelper<U>::TFutureType
         ($for ARG , [[A$(ARG)]])> TTargetCallback;
 
     static inline TTargetCallback Do(
@@ -167,12 +177,18 @@ struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
         static_assert(!NMpl::TIsVoid<U>::Value,
             "AsyncVia() can be used with non-void callbacks only.");
 
-        // XXX(babenko): due to VC bug in lambda scope resolution the following
-        // typedefs are essentially useless and we have to write full type names inside lambdas.
+        // XXX(babenko): Due to MSVC bug in lambda scope resolution
+        // the following typedefs are essentially useless and we have to
+        // write full type names inside lambdas.
+        // XXX(sandello): Burn, MSVC!
+        typedef typename NYT::NDetail::TFutureHelper<U>::TValueType R;
         typedef typename NYT::NDetail::TFutureHelper<U>::TFutureType FR;
-        typedef typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType FRP;
+        typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
 
-        auto inner = BIND([=] (/*FRP*/ typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType result[[]]
+        auto promiseSetter = BIND([] (PR promise, R value) mutable {
+            promise.Set(MoveRV(value));
+        });
+        auto inner = BIND([=] (PR promise[[]]
 $if ARITY != 0 [[, ]]
 $for ARG , [[A$(ARG) a$(ARG)]]) {
             this_.Run([[]]
@@ -182,17 +198,19 @@ $if ARITY != 0 [[
 ]]
 $for ARG ,
                 [[ForwardRV<A$(ARG)>(a$(ARG))]])
-                ->Subscribe(BIND(&/*FR*/ NYT::NDetail::TFutureHelper<U>::TFutureType::Set, MoveRV(result)));
+                .Subscribe(BIND(promiseSetter, promise));
         });
-        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> /*FRP*/ typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType {
-            auto result = New< /*FR*/ typename NYT::NDetail::TFutureHelper<U>::TFutureType >();
-            invoker->Invoke(BIND(inner, result[[]]
+        auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
+            auto promise = NewPromise<
+                typename NYT::NDetail::TFutureHelper<U>::TValueType
+            >();
+            invoker->Invoke(BIND(inner, promise[[]]
 $if ARITY != 0 [[,
                 [[]]
 ]]
 $for ARG , 
                 [[ForwardRV<A$(ARG)>(a$(ARG))]]));
-            return result;
+            return promise;
         });
         return outer;
     }
@@ -202,12 +220,12 @@ $for ARG ,
 
 $if ARITY == 0 [[
 template <class U>
-TCallback<typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType()>
+TCallback<typename NYT::NDetail::TFutureHelper<U>::TFutureType()>
 TCallback<U()>::AsyncVia(TIntrusivePtr<IInvoker> invoker)
 ]] $else [[
 template <class U, $for ARG , [[class A$(ARG)]]>
 TCallback<
-    typename NYT::NDetail::TFutureHelper<U>::TFuturePtrType
+    typename NYT::NDetail::TFutureHelper<U>::TFutureType
     ($for ARG , [[A$(ARG)]])>
 TCallback<U($for ARG , [[A$(ARG)]])>::AsyncVia(
     TIntrusivePtr<IInvoker> invoker)

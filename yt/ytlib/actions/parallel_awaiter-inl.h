@@ -46,11 +46,11 @@ inline void TParallelAwaiter::Init(
 
 template <class T>
 void TParallelAwaiter::Await(
-    TIntrusivePtr< TFuture<T> > result,
+    TFuture<T> result,
     const NYTree::TYPath& timerPathSuffix,
     TCallback<void(T)> onResult)
 {
-    YASSERT(result);
+    YASSERT(!result.IsNull());
 
     TCallback<void(T)> wrappedOnResult;
     {
@@ -67,7 +67,7 @@ void TParallelAwaiter::Await(
         }
     }
 
-    result->Subscribe(BIND(
+    result.Subscribe(BIND(
         &TParallelAwaiter::OnResult<T>,
         MakeStrong(this),
         timerPathSuffix,
@@ -76,10 +76,10 @@ void TParallelAwaiter::Await(
 
 template <class T>
 void TParallelAwaiter::Await(
-    TIntrusivePtr< TFuture<T> > result,
+    TFuture<T> result,
     TCallback<void(T)> onResult)
 {
-    Await(result, "", MoveRV(onResult));
+    Await(MoveRV(result), "", MoveRV(onResult));
 }
 
 template <class T>

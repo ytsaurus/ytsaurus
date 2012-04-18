@@ -48,7 +48,7 @@ class TServer
 {
 public:
     typedef TCallback<Stroka(Stroka)> TSyncHandler;
-    typedef TCallback<TFuture<Stroka>::TPtr(Stroka)> TAsyncHandler;
+    typedef TCallback<TFuture<Stroka>(Stroka)> TAsyncHandler;
 
 public:
     TServer(int port);

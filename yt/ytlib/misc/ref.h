@@ -154,7 +154,7 @@ public:
         : Blob(sharedRef.Blob)
         , Ref(ref)
     {
-        YASSERT(Ref.Begin() >= Blob->begin() && Ref.End() <= Blob->end());
+        YASSERT(Ref.Begin() >= &*Blob->begin() && Ref.End() <= &*Blob->end());
     }
 
     operator TRef() const

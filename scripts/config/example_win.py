@@ -58,22 +58,26 @@ class Master(WinNode, Server):
                                 'cell' : {
                                 'addresses' : MasterAddresses
                         },
-                        'snapshot_path' : r'%(work_dir)s\snapshots',
-                        'log_path' : r'%(work_dir)s\logs',
+                        'snapshots' : {
+                            'path' : r'%(work_dir)s\snapshots'
+                        },
+                        'changelogs' : {
+                            'path' : r'%(work_dir)s\changelogs'
+                        }
                 },                      
                 'logging' : Logging
         })
         
         def run(cls, fd):
-                print >>fd, 'mkdir %s' % cls.config['meta_state']['snapshot_path']
-                print >>fd, 'mkdir %s' % cls.config['meta_state']['log_path']
+                print >>fd, 'mkdir %s' % cls.config['meta_state']['snapshots']['path']
+                print >>fd, 'mkdir %s' % cls.config['meta_state']['changelogs']['path']
                 print >>fd, cls.run_tmpl
                 
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
-                print >>fd, r'del /Q %s\*' % cls.config['meta_state']['snapshot_path']
-                print >>fd, r'del /Q %s\*' % cls.config['meta_state']['log_path']
+                print >>fd, r'del /Q %s\*' % cls.config['meta_state']['snapshots']['path']
+                print >>fd, r'del /Q %s\*' % cls.config['meta_state']['changelogs']['path']
         
         
 class Holder(WinNode, Server):

@@ -101,7 +101,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
             << "\n";
     }
     stream << "--------------------------------------------------------------------------------\n";
-    stream << Sprintf("%10"PRId64" %10"PRId64" %s", totalAlive, totalCreated, "Total") << "\n";
+    stream << Sprintf("%10" PRId64 " %10" PRId64 " %s", totalAlive, totalCreated, "Total") << "\n";
     stream << "================================================================================\n";
 
     return stream;

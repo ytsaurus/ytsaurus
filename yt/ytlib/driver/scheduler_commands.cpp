@@ -42,7 +42,7 @@ void TSchedulerCommandBase::StartOperation(
         *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
         startOpReq->set_spec(spec);
 
-        auto startOpRsp = startOpReq->Invoke()->Get();
+        auto startOpRsp = startOpReq->Invoke().Get();
         if (!startOpRsp->IsOK()) {
             ythrow yexception() << startOpRsp->GetError().ToString();
         }
@@ -70,7 +70,7 @@ void TSchedulerCommandBase::WaitForOperation(const TOperationId& operationId)
 
         // Override default timeout.
         waitOpReq->SetTimeout(config->OperationWaitTimeout * 2);
-        auto waitOpRsp = waitOpReq->Invoke()->Get();
+        auto waitOpRsp = waitOpReq->Invoke().Get();
 
         if (!waitOpRsp->IsOK()) {
             ythrow yexception() << waitOpRsp->GetError().ToString();
@@ -117,7 +117,7 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
         batchReq->AddRequest(req, "get_progress");
     }
 
-    auto batchRsp = batchReq->Invoke()->Get();
+    auto batchRsp = batchReq->Invoke().Get();
     CheckResponse(batchRsp, "Error getting operation progress");
 
     EOperationState state;
@@ -134,25 +134,17 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
         progress = rsp->value();
     }
 
-    // TODO(babenko): refactor!
-    switch (state) {
-        case EOperationState::Initializing:
-        case EOperationState::Preparing:
-        case EOperationState::Reviving:
-            printf("%s\n", ~state.ToString());
-            break;
-
-        case EOperationState::Running: {
-            i64 jobsTotal = DeserializeFromYson<i64>(progress, "/jobs/total");
-            i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/jobs/completed");
-            int donePercentage  = (jobsCompleted * 100) / jobsTotal;
-            printf("%s: %3d%% jobs done (%" PRId64 " of %" PRId64 ")\n",
-                ~state.ToString(),
-                donePercentage,
-                jobsCompleted,
-                jobsTotal);
-            break;
-        }
+    if (state == EOperationState::Running) {
+        i64 jobsTotal = DeserializeFromYson<i64>(progress, "/jobs/total");
+        i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/jobs/completed");
+        int donePercentage  = (jobsCompleted * 100) / jobsTotal;
+        printf("%s: %3d%% jobs done (%" PRId64 " of %" PRId64 ")\n",
+            ~state.ToString(),
+            donePercentage,
+            jobsCompleted,
+            jobsTotal);
+    } else {
+        printf("%s\n", ~state.ToString());
     }
 }
 
@@ -168,7 +160,7 @@ void TSchedulerCommandBase::DumpOperationResult(const TOperationId& operationId)
         batchReq->AddRequest(req, "get_result");
     }
 
-    auto batchRsp = batchReq->Invoke()->Get();
+    auto batchRsp = batchReq->Invoke().Get();
     CheckResponse(batchRsp, "Error getting operation result");
 
     TError error;

@@ -46,7 +46,8 @@ public:
     };
 };
 
-typedef TFuture<TError>::TPtr TAsyncError;
+typedef TFuture<TError> TAsyncError;
+typedef TPromise<TError> TAsyncErrorPromise;
 
 ////////////////////////////////////////////////////////////////////////////////
 

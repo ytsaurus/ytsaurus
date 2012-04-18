@@ -260,7 +260,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TOutputStream* output
 
     ::SaveSize(output, Map.size());
 
-    yvector<TKey> keys;
+    std::vector<TKey> keys;
     keys.reserve(Map.size());
     FOREACH (const auto& pair, Map) {
         keys.push_back(pair.first);
@@ -277,8 +277,13 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(TOutputStream* outp
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    yvector<TItem> items(Map.begin(), Map.end());
-    std::sort(items.begin(), items.end());
+    std::vector<TItem> items(Map.begin(), Map.end());
+    std::sort(
+        items.begin(),
+        items.end(),
+        [] (const TItem& lhs, const TItem& rhs) {
+            return lhs.first < rhs.first;
+        });
 
     FOREACH (const auto& item, items) {
         item.second->Save(output);

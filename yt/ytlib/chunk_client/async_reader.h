@@ -23,19 +23,21 @@ struct IAsyncReader
     //! Describes a result of #AsyncReadBlocks.
     typedef TValueOrError< yvector<TSharedRef> > TReadResult;
     typedef TFuture<TReadResult> TAsyncReadResult;
+    typedef TPromise<TReadResult> TAsyncReadPromise;
 
     //! Describes a result of #AsyncGetChunkInfo.
     typedef TValueOrError<NChunkHolder::NProto::TChunkInfo> TGetInfoResult;
     typedef TFuture<TGetInfoResult> TAsyncGetInfoResult;
+    typedef TPromise<TGetInfoResult> TAsyncGetInfoPromise;
 
     //! Reads (asynchronously) a given set of blocks.
     /*!
      *  Negative indexes indicate that blocks are numbered from the end.
      *  I.e. -1 means the last block.
      */
-    virtual TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes) = 0;
+    virtual TAsyncReadResult AsyncReadBlocks(const yvector<int>& blockIndexes) = 0;
 
-    virtual TAsyncGetInfoResult::TPtr AsyncGetChunkInfo() = 0;
+    virtual TAsyncGetInfoResult AsyncGetChunkInfo() = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

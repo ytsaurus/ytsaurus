@@ -16,7 +16,7 @@ class TCachedAsyncChangeLog
     , public TAsyncChangeLog
 {
 public:
-    TCachedAsyncChangeLog(TChangeLog* changeLog);
+    TCachedAsyncChangeLog(TChangeLogPtr changeLog);
 
 };
 
@@ -28,9 +28,7 @@ class TChangeLogCache
 public:
     typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
 
-    TChangeLogCache(
-        const Stroka& path,
-        TChangeLogCacheConfigPtr config);
+    TChangeLogCache(TChangeLogCacheConfigPtr config);
 
     void Start();
 
@@ -40,7 +38,6 @@ public:
     TCachedAsyncChangeLogPtr Create(i32 id, i32 prevRecordCount);
 
 private:
-    Stroka Path;
     TChangeLogCacheConfigPtr Config;
 
     Stroka GetChangeLogFileName(i32 id);

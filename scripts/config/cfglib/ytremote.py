@@ -146,7 +146,7 @@ class RemoteServer(RemoteNode, ServerNode):
 
 def configure(root):
     make_files(root)
-    make_aggregate(root, lambda x:x + '&', 'wait')
+    make_aggregate(root, lambda x:x + '&', 'wait', 3)
     
     hosts = set()
     def append_hosts(node):

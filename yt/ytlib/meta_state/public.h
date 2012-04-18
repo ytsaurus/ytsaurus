@@ -65,6 +65,9 @@ typedef TIntrusivePtr<TSnapshotBuilderConfig> TSnapshotBuilderConfigPtr;
 struct TChangeLogCacheConfig;
 typedef TIntrusivePtr<TChangeLogCacheConfig> TChangeLogCacheConfigPtr;
 
+struct TSnapshotStoreConfig;
+typedef TIntrusivePtr<TSnapshotStoreConfig> TSnapshotStoreConfigPtr;
+
 struct TPersistentStateManagerConfig;
 typedef TIntrusivePtr<TPersistentStateManagerConfig> TPersistentStateManagerConfigPtr;
 

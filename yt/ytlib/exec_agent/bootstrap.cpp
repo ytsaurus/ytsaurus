@@ -2,12 +2,14 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "private.h"
+#include "job.h"
 #include "job_manager.h"
 #include "supervisor_service.h"
 #include "environment.h"
 #include "environment_manager.h"
 #include "unsafe_environment.h"
 #include "scheduler_connector.h"
+#include "slot.h"
 
 #include <ytlib/cell_node/bootstrap.h>
 #include <ytlib/cell_node/config.h>

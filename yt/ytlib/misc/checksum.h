@@ -19,14 +19,14 @@ class TChecksummableInput
     : public TInputStream
 {
 public:
-    TChecksummableInput(TInputStream& input);
+    explicit TChecksummableInput(TInputStream* input);
     TChecksum GetChecksum() const;
 
 protected:
     virtual size_t DoRead(void* buf, size_t len);
     
 private:
-    TInputStream& Input;
+    TInputStream* Input;
     TChecksum Checksum;
 };
 
@@ -36,7 +36,7 @@ class TChecksummableOutput
     : public TOutputStream
 {
 public:
-    TChecksummableOutput(TOutputStream& output);
+    explicit TChecksummableOutput(TOutputStream* output);
     TChecksum GetChecksum() const;
 
 protected:
@@ -45,7 +45,7 @@ protected:
     virtual void DoFinish();
 
 private:
-    TOutputStream& Output;
+    TOutputStream* Output;
     TChecksum Checksum;
 };
 

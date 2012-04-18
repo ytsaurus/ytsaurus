@@ -52,7 +52,7 @@ TSharedRef TSequentialReader::GetBlock()
 
     YASSERT(!State.HasRunningOperation());
     YASSERT(NextSequenceIndex > 0);
-    return Window[NextSequenceIndex - 1].AsyncBlock->Get();
+    return Window[NextSequenceIndex - 1].Promise.Get();
 }
 
 TAsyncError TSequentialReader::AsyncNextBlock()
@@ -66,7 +66,7 @@ TAsyncError TSequentialReader::AsyncNextBlock()
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    Window[NextSequenceIndex].AsyncBlock->Subscribe(
+    Window[NextSequenceIndex].Promise.Subscribe(
         BIND([=] (TSharedRef) {
             this_->State.FinishOperation();
         }));
@@ -101,7 +101,7 @@ void TSequentialReader::OnGotBlocks(
 
     int sequenceIndex = firstSequenceIndex;
     FOREACH (auto& block, readResult.Value()) {
-        Window[sequenceIndex].AsyncBlock->Set(block);
+        Window[sequenceIndex].Promise.Set(block);
         ++sequenceIndex;
     }
 }
@@ -138,6 +138,7 @@ void TSequentialReader::FetchNextGroup()
 
     auto groupBegin = BlockIndexSequence.begin() + FirstUnfetchedIndex;
     auto groupEnd = BlockIndexSequence.end();
+
     if (BlockIndexSequence.ysize() - FirstUnfetchedIndex > Config->GroupSize) {
         groupEnd = groupBegin + Config->GroupSize;
     }
@@ -147,16 +148,19 @@ void TSequentialReader::FetchNextGroup()
     }
 
     yvector<int> groupIndexes(groupBegin, groupEnd);
+
     LOG_DEBUG(
         "Requesting block group (firstIndex: %d, blockCount: %d)", 
         FirstUnfetchedIndex, 
         groupIndexes.ysize());
 
-    ChunkReader->AsyncReadBlocks(groupIndexes)->Subscribe(BIND(
-        &TSequentialReader::OnGotBlocks, 
-        MakeWeak(this),
-        FirstUnfetchedIndex)
-            .Via(ReaderThread->GetInvoker()));
+    ChunkReader
+        ->AsyncReadBlocks(groupIndexes)
+        .Subscribe(BIND(
+            &TSequentialReader::OnGotBlocks, 
+            MakeWeak(this),
+            FirstUnfetchedIndex)
+        .Via(ReaderThread->GetInvoker()));
 
     FreeSlots -= groupIndexes.ysize();
     FirstUnfetchedIndex += groupIndexes.ysize();

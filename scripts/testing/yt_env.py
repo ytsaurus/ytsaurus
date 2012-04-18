@@ -228,8 +228,8 @@ class YTEnv:
             snapshot_path = os.path.join(current, 'snapshots')
             logging_file_name = os.path.join(current, 'master-' + str(i) + '.log')
 
-            master_config['meta_state']['log_path'] = log_path
-            master_config['meta_state']['snapshot_path'] = snapshot_path
+            master_config['meta_state']['changelogs']['path'] = log_path
+            master_config['meta_state']['snapshots']['path'] = snapshot_path
             master_config['logging']['writers']['file']['file_name'] = logging_file_name
 
             self.modify_master_config(master_config)

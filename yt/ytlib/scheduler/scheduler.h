@@ -19,6 +19,8 @@ public:
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap);
 
+    ~TScheduler();
+
     void Start();
 
     NRpc::IService::TPtr GetService();

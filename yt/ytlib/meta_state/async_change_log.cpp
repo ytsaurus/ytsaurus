@@ -33,10 +33,10 @@ public:
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
-        , FlushResult(New<TAppendResult>())
+        , Promise(NewPromise<TAppendPromise::TValueType>())
     { }
 
-    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data)
+    TAppendResult Append(i32 recordId, const TSharedRef& data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -51,24 +51,25 @@ public:
 
         AppendQueue.push_back(data);
 
-        YASSERT(FlushResult);
-        return FlushResult;
+        YASSERT(!Promise.IsNull());
+        return Promise;
     }
 
     void Flush()
     {
         VERIFY_THREAD_AFFINITY(Flush);
 
-        TAppendResult::TPtr result;
+        TAppendPromise promise(Null);
+
         {
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(FlushQueue.empty());
             FlushQueue.swap(AppendQueue);
 
-            YASSERT(FlushResult);
-            result = FlushResult;
-            FlushResult = New<TAppendResult>();
+            YASSERT(!Promise.IsNull());
+            promise = Promise;
+            Promise = NewPromise<TAppendPromise::TValueType>();
         }
 
         // In addition to making this code run a tiny bit faster,
@@ -81,7 +82,7 @@ public:
             }
         }
 
-        result->Set(TVoid());
+        promise.Set(TVoid());
 
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -95,15 +96,15 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         PROFILE_TIMING ("/changelog_flush_wait_time") {
-            TAppendResult::TPtr result;
+            TAppendPromise promise(Null);
             {
                 TGuard<TSpinLock> guard(SpinLock);
                 if (FlushQueue.empty() && AppendQueue.empty()) {
                     return;
                 }
-                result = FlushResult;
+                promise = Promise;
             }
-            result->Get();
+            promise.Get();
         }
     }
 
@@ -131,8 +132,8 @@ public:
             }
         }
 
-        FlushResult->Set(TVoid());
-        FlushResult.Reset();
+        Promise.Set(TVoid());
+        Promise.Reset();
 
         return true;
     }
@@ -217,7 +218,7 @@ private:
     i32 FlushedRecordCount;
     yvector<TSharedRef> AppendQueue;
     yvector<TSharedRef> FlushQueue;
-    TAppendResult::TPtr FlushResult;
+    TAppendPromise Promise;
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);
 };
@@ -249,7 +250,7 @@ public:
         Shutdown();
     }
 
-    TAppendResult::TPtr Append(
+    TAppendResult Append(
         const TChangeLogPtr& changeLog,
         i32 recordId,
         const TSharedRef& data)
@@ -479,7 +480,7 @@ TAsyncChangeLog::TAsyncChangeLog(const TChangeLogPtr& changeLog)
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
-TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
+TAsyncChangeLog::TAppendResult TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)
 {

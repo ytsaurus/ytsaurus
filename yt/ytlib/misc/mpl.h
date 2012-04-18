@@ -16,6 +16,8 @@ namespace NMpl {
 struct TEmpty
 { };
 
+typedef int TEmpty::* TNothing;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Base metaprogramming class which represents integral constant.

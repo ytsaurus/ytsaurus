@@ -126,7 +126,7 @@ private:
 
     typedef TValueOrError<TOperationPtr> TStartResult;
 
-    TFuture< TStartResult >::TPtr StartOperation(
+    TFuture< TStartResult > StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
         const NYTree::IMapNodePtr spec)
@@ -168,8 +168,9 @@ private:
             MakeStrong(this),
             operation)));
 
-        return CypressProxy.Execute(setReq)->Apply(
-            BIND(
+        return CypressProxy
+            .Execute(setReq)
+            .Apply(BIND(
                 &TImpl::OnOperationNodeCreated,
                 MakeStrong(this),
                 operation)
@@ -214,8 +215,9 @@ private:
 
         // Run async preparation.
         LOG_INFO("Preparing operation %s", ~operation->GetOperationId().ToString());
-        operation ->GetController()->Prepare()->Subscribe(
-            BIND(&TImpl::OnOperationPrepared, MakeStrong(this), operation)
+        operation->GetController()->Prepare()
+            .Subscribe(
+                BIND(&TImpl::OnOperationPrepared, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
@@ -248,8 +250,9 @@ private:
 
         // Run async revival.
         LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
-        operation ->GetController()->Revive()->Subscribe(
-            BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
+        operation ->GetController()->Revive()
+            .Subscribe(
+                BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
@@ -481,7 +484,7 @@ private:
                     "//sys/scheduler/lock",
                     BootstrapTransaction->GetId()));
                 req->set_mode(ELockMode::Exclusive);
-                auto rsp = CypressProxy.Execute(req)->Get();
+                auto rsp = CypressProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
                     ythrow yexception() << Sprintf("Failed to take scheduler lock, check for another running scheduler instances\n%s",
                         ~rsp->GetError().ToString());
@@ -495,7 +498,7 @@ private:
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/runtime/@address");
                 req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
-                auto rsp = CypressProxy.Execute(req)->Get();
+                auto rsp = CypressProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
                     ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
                         ~rsp->GetError().ToString());
@@ -516,7 +519,7 @@ private:
         std::vector<TOperationId> operationIds;
         {
             auto req = TYPathProxy::List("//sys/operations");
-            auto rsp = CypressProxy.Execute(req)->Get();
+            auto rsp = CypressProxy.Execute(req).Get();
             if (!rsp->IsOK()) {
                 ythrow yexception() << Sprintf("Failed to get operations list\n%s",
                     ~rsp->GetError().ToString());
@@ -534,7 +537,7 @@ private:
                 auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
                 batchReq->AddRequest(req);
             }
-            auto batchRsp = batchReq->Invoke()->Get();
+            auto batchRsp = batchReq->Invoke().Get();
             if (!batchRsp->IsOK()) {
                 ythrow yexception() << Sprintf("Failed to get operations info\n%s",
                     ~batchRsp->GetError().ToString());
@@ -600,8 +603,10 @@ private:
         }
 
         LOG_INFO("Refreshing %d transactions", batchReq->GetSize());
-        batchReq->Invoke()->Subscribe(
-            BIND(&TImpl::OnTransactionsRefreshed, MakeStrong(this), Passed(MoveRV(transactionIdsList)))
+        batchReq->Invoke().Subscribe(BIND(
+                &TImpl::OnTransactionsRefreshed,
+                MakeStrong(this),
+                Passed(MoveRV(transactionIdsList)))
             .Via(GetControlInvoker()));
     }
 
@@ -672,7 +677,7 @@ private:
         // Get the list of online nodes from the master.
         LOG_INFO("Refreshing exec nodes");
         auto req = TYPathProxy::Get("//sys/holders/@online");
-        CypressProxy.Execute(req)->Subscribe(
+        CypressProxy.Execute(req).Subscribe(
             BIND(&TImpl::OnExecNodesRefreshed, MakeStrong(this))
             .Via(GetControlInvoker()));
     }
@@ -729,7 +734,7 @@ private:
         FOREACH (const auto& pair, Operations) {
             AddOperationUpdateRequests(pair.second, batchReq);
         }
-        batchReq->Invoke()->Subscribe(
+        batchReq->Invoke().Subscribe(
             BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this))
             .Via(GetControlInvoker()));
     }
@@ -858,7 +863,7 @@ private:
         auto id = operation->GetOperationId();
         LOG_INFO("Removing operation node %s", ~id.ToString());
         auto req = TYPathProxy::Remove(GetOperationPath(id));
-        CypressProxy.Execute(req)->Subscribe(
+        CypressProxy.Execute(req).Subscribe(
             BIND(&TImpl::OnOperationNodeRemoved, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
@@ -889,7 +894,7 @@ private:
         auto batchReq = CypressProxy.ExecuteBatch();
         AddOperationUpdateRequests(operation, batchReq);
 
-        return batchReq->Invoke()->Subscribe(BIND(
+        return batchReq->Invoke().Subscribe(BIND(
             &TThis::OnOperationNodeFinalized,
             MakeStrong(this),
             operation));
@@ -914,7 +919,7 @@ private:
 
         LOG_INFO("Operation node %s finalized successfully", ~operation->GetOperationId().ToString());
 
-        operation->GetFinished()->Set(TVoid());
+        operation->SetFinished();
     }
 
 
@@ -1088,7 +1093,7 @@ private:
             type,
             transactionId,
             spec)
-        ->Subscribe(BIND([=] (TValueOrError<TOperationPtr> result) {
+        .Subscribe(BIND([=] (TValueOrError<TOperationPtr> result) {
             if (!result.IsOK()) {
                 context->Reply(result);
                 return;
@@ -1120,8 +1125,7 @@ private:
             ~ToString(timeout));
 
         auto operation = GetOperation(operationId);
-        WaitForFuture(
-            operation->GetFinished(),
+        operation->GetFinished().Subscribe(
             timeout,
             BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, true),
             BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, false, TVoid()));
@@ -1303,6 +1307,9 @@ TScheduler::TScheduler(
     TSchedulerConfigPtr config,
     TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
+{ }
+
+TScheduler::~TScheduler()
 { }
 
 void TScheduler::Start()

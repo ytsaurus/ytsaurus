@@ -25,7 +25,7 @@ public:
         const TChangeFunc& func,
         const TSharedRef& changeData);
 
-    typename TFuture<TResult>::TPtr Commit();
+    TFuture<TResult> Commit();
 
     TPtr SetRetriable(TDuration backoffTime);
     TPtr OnSuccess(const TCallback<void(TResult)>& onSuccess);
@@ -45,7 +45,7 @@ private:
     TDuration BackoffTime;
     TCallback<void(TResult)> OnSuccess_;
     TClosure OnError_;
-    typename TFuture<TResult>::TPtr AsyncResult;
+    TPromise<TResult> Promise;
     TResult Result;
 
     void DoCommit();

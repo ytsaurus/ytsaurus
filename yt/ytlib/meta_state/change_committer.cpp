@@ -56,7 +56,7 @@ public:
         TLeaderCommitterPtr committer,
         const TMetaVersion& startVersion)
         : Committer(committer)
-        , Result(New<TResult>())
+        , Promise(NewPromise<TCommitPromise::TValueType>())
         , StartVersion(startVersion)
         // The local commit is also counted.
         , CommitCount(0)
@@ -66,7 +66,7 @@ public:
         Logger.AddTag(Sprintf("StartVersion: %s", ~StartVersion.ToString()));
     }
 
-    TResult::TPtr AddChange(const TSharedRef& changeData)
+    TCommitResult AddChange(const TSharedRef& changeData)
     {
         VERIFY_THREAD_AFFINITY(Committer->StateThread);
         YASSERT(!IsSent);
@@ -78,10 +78,10 @@ public:
 
         LOG_DEBUG("Change is added to batch (Version: %s)", ~currentVersion.ToString());
 
-        return Result;
+        return Promise;
     }
 
-    void SetLastChangeLogResult(TFuture<TVoid>::TPtr result)
+    void SetLastChangeLogResult(TFuture<TVoid> result)
     {
         LogResult = result;
     }
@@ -113,8 +113,7 @@ private:
         if (!BatchedChanges.empty()) {
             Profiler.Enqueue("/commit_batch_size", BatchedChanges.size());
 
-
-            YASSERT(LogResult);
+            YASSERT(!LogResult.IsNull());
             auto cellManager = Committer->CellManager;
 
             Awaiter = New<TParallelAwaiter>(
@@ -168,7 +167,7 @@ private:
         if (CommitCount < Committer->CellManager->GetQuorum())
             return false;
 
-        Result->Set(EResult::Committed);
+        Promise.Set(EResult::Committed);
         Awaiter->Cancel();
         
         LOG_DEBUG("Changes are committed by quorum");
@@ -215,18 +214,18 @@ private:
 
         LOG_WARNING("Changes are uncertain (CommitCount: %d)", CommitCount);
 
-        Result->Set(EResult::MaybeCommitted);
+        Promise.Set(EResult::MaybeCommitted);
     }
 
     TLeaderCommitterPtr Committer;
-    TResult::TPtr Result;
+    TCommitPromise Promise;
     TMetaVersion StartVersion;
     int CommitCount;
     volatile bool IsSent;
     NLog::TTaggedLogger Logger;
 
     TParallelAwaiter::TPtr Awaiter;
-    TFuture<TVoid>::TPtr LogResult;
+    TFuture<TVoid> LogResult;
     std::vector<TSharedRef> BatchedChanges;
 
 };
@@ -291,7 +290,7 @@ void TLeaderCommitter::Flush(bool rotateChangeLog)
     }
 }
 
-TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
+TLeaderCommitter::TCommitResult TLeaderCommitter::Commit(
     TClosure changeAction,
     const TSharedRef& changeData)
 {
@@ -317,10 +316,10 @@ TLeaderCommitter::TResult::TPtr TLeaderCommitter::Commit(
     }
 }
 
-TLeaderCommitter::TResult::TPtr TLeaderCommitter::BatchChange(
+TLeaderCommitter::TCommitResult TLeaderCommitter::BatchChange(
     const TMetaVersion& version,
     const TSharedRef& changeData,
-    TFuture<TVoid>::TPtr changeLogResult)
+    TFuture<TVoid> changeLogResult)
 {
     TGuard<TSpinLock> guard(BatchSpinLock);
     auto batch = GetOrCreateBatch(version);
@@ -389,7 +388,7 @@ TFollowerCommitter::TFollowerCommitter(
 TFollowerCommitter::~TFollowerCommitter()
 { }
 
-TCommitter::TResult::TPtr TFollowerCommitter::Commit(
+TCommitter::TCommitResult TFollowerCommitter::Commit(
     const TMetaVersion& expectedVersion,
     const std::vector<TSharedRef>& changes)
 {
@@ -411,7 +410,7 @@ TCommitter::TResult::TPtr TFollowerCommitter::Commit(
     }
 }
 
-TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
+TCommitter::TCommitResult TFollowerCommitter::DoCommit(
     const TMetaVersion& expectedVersion,
     const std::vector<TSharedRef>& changes)
 {
@@ -422,28 +421,28 @@ TCommitter::TResult::TPtr TFollowerCommitter::DoCommit(
         LOG_WARNING("Late changes received by follower, ignored: expected %s but got %s",
             ~currentVersion.ToString(),
             ~expectedVersion.ToString());
-        return New<TResult>(EResult::LateChanges);
+        return MakeFuture(EResult(EResult::LateChanges));
     }
 
     if (currentVersion != expectedVersion) {
         LOG_WARNING("Out-of-order changes received by follower, restarting: expected %s but got %s",
             ~currentVersion.ToString(),
             ~expectedVersion.ToString());
-        return New<TResult>(EResult::OutOfOrderChanges);
+        return MakeFuture(EResult(EResult::OutOfOrderChanges));
     }
 
     LOG_DEBUG("Applying %d changes at version %s",
         static_cast<int>(changes.size()),
         ~currentVersion.ToString());
 
-    TAsyncChangeLog::TAppendResult::TPtr result;
+    TAsyncChangeLog::TAppendResult result;
     FOREACH (const auto& change, changes) {
         result = MetaState->LogChange(currentVersion, change);
         MetaState->ApplyChange(change);
         ++currentVersion.RecordCount;
     }
 
-    return result->Apply(BIND([] (TVoid) -> TCommitter::EResult {
+    return result.Apply(BIND([] (TVoid) -> TCommitter::EResult {
         return TCommitter::EResult::Committed;
     }));
 }
