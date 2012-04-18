@@ -76,7 +76,8 @@ class Master(Server):
                 'max_batch_delay': 50
             },
             'cell' : {
-                'addresses' : MasterAddresses
+                'addresses' : MasterAddresses,
+                'rpc_port' : 9000
             },
             'snapshots' : {
                 'path' : '/yt/disk2/data/snapshots',
@@ -96,7 +97,6 @@ class Master(Server):
                 'max_lost_chunk_fraction' : 0.01
             }
         },
-        'rpc_port' : 9000,
         'monitoring_port' : 10000, 
         'logging' : Logging
     })
@@ -140,7 +140,7 @@ class Holder(Server):
     groupid = Subclass(xrange(9))
     nodeid = Subclass(xrange(30), 1)
 
-    log_disk = 'disk1'
+    log_disk = 'disk2'
     log_path = Template("holder-%(groupid)d-%(nodeid)d.log")
     debug_log_path = Template("holder-%(groupid)d-%(nodeid)d.debug.log")
     
@@ -151,9 +151,8 @@ class Holder(Server):
     params = Template('--node --config %(config_path)s')
 
     proxyLogging = deepcopy(Logging)
-    proxyLogging['writers']['raw']['file_name'] = 'raw.log'
-    proxyLogging['writers']['file']['file_name'] = 'file.log'
-    proxyLogging['rules'][0]['min_level'] = 'trace'
+    proxyLogging['writers']['raw']['file_name'] = 'job_proxy.log'
+    proxyLogging['writers']['file']['file_name'] = 'job_proxy.debug.log'
 
     storeQuota = 1700 * 1024 * 1024 * 1024 # the actual limit is ~1740
     cacheQuota = 1 * 1024 * 1024 * 1024
@@ -188,7 +187,7 @@ class Holder(Server):
                 }
             },
             'job_manager': {
-                'slot_location' : r'%(work_dir)s\slots',
+                'slot_location' : '%(work_dir)s/slots',
             },
             'job_proxy_logging' : proxyLogging,
         },
@@ -209,6 +208,53 @@ class Holder(Server):
         print >>fd, shebang
         print >>fd, 'rm -rf %s' % cls.config['chunk_holder']['cache_location']['path']
 
+
+class Driver(Base, RemoteNode):
+    bin_path = '/home/yt/build/bin/yt'
+
+    nodeid = Subclass(xrange(400, 700))
+    host = Template('n01-0%(nodeid)dg')
+
+    params = Template('--config %(config_path)s')
+
+    log_disk = 'disk2'
+    log_path = Template("driver-%(nodeid)d.log")
+    debug_log_path = Template("driver-%(nodeid)d.debug.log")
+
+    stderr_path = Template('%(work_dir)s/driver.err')
+
+    config = Template({ 
+        'masters' : { 'addresses' : MasterAddresses },
+        'logging' : Logging
+    })
+
+    def run(cls, fd):
+        print >>fd, shebang
+        print >>fd, cmd_ssh % (cls.host, 
+            'start-stop-daemon -d ./ -b --exec %s --pidfile %s/pid -m -S' % (cls.do_run_path, cls.work_dir))
+
+    def do_run(cls, fd):
+        print >>fd, shebang
+        print >>fd, ulimit
+        print >>fd, cls.export_ld_path
+        suffix = '%s 2>&1 1>%s' % (cls.params, cls.stderr_path)
+        prefix = '%s/%s' % (cls.work_dir, cls.binary)
+        path = '//tmp/table%d' % cls.nodeid
+        print >>fd, ' '.join([prefix, 'create table', path, suffix])
+        print >>fd, 'for i in {1..3000}'
+        print >>fd, 'do'
+        print >>fd, ' '.join([prefix, 'write', path, '{hello=world}', suffix])
+        print >>fd, 'done'
+
+#    def do_stop(cls, fd):
+#        print >>fd, shebang
+#        print >>fd, 'killall yt'
+    
+    def do_clean(cls, fd):
+        print >>fd, shebang
+        print >>fd, 'rm -f %s' % cls.log_path
+        print >>fd, 'rm -f %s' % cls.debug_log_path
+        print >>fd, 'rm -f %s' % cls.stderr_path
 
 configure(Base)
     
