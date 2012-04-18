@@ -134,25 +134,17 @@ void TSchedulerCommandBase::DumpOperationProgress(const TOperationId& operationI
         progress = rsp->value();
     }
 
-    // TODO(babenko): refactor!
-    switch (state) {
-        case EOperationState::Initializing:
-        case EOperationState::Preparing:
-        case EOperationState::Reviving:
-            printf("%s\n", ~state.ToString());
-            break;
-
-        case EOperationState::Running: {
-            i64 jobsTotal = DeserializeFromYson<i64>(progress, "/jobs/total");
-            i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/jobs/completed");
-            int donePercentage  = (jobsCompleted * 100) / jobsTotal;
-            printf("%s: %3d%% jobs done (%" PRId64 " of %" PRId64 ")\n",
-                ~state.ToString(),
-                donePercentage,
-                jobsCompleted,
-                jobsTotal);
-            break;
-        }
+    if (state == EOperationState::Running) {
+        i64 jobsTotal = DeserializeFromYson<i64>(progress, "/jobs/total");
+        i64 jobsCompleted = DeserializeFromYson<i64>(progress, "/jobs/completed");
+        int donePercentage  = (jobsCompleted * 100) / jobsTotal;
+        printf("%s: %3d%% jobs done (%" PRId64 " of %" PRId64 ")\n",
+            ~state.ToString(),
+            donePercentage,
+            jobsCompleted,
+            jobsTotal);
+    } else {
+        printf("%s\n", ~state.ToString());
     }
 }
 
