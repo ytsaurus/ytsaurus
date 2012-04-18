@@ -378,8 +378,8 @@ void TSession::VerifyInWindow(i32 blockIndex)
 TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 {
     YASSERT(IsInWindow(blockIndex));
-    while (Window.size() <= blockIndex) {
-        Window.push_back();
+    if (Window.size() <= blockIndex) {
+        Window.resize(blockIndex);
     }
 
     return Window[blockIndex];
