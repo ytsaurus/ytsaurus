@@ -17,8 +17,6 @@ namespace NChunkClient {
 struct IBlockCache
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IBlockCache> TPtr;
-
     //! Puts a block into the cache.
     /*!
      *  If a block with the given id is already present, then the request is ignored.

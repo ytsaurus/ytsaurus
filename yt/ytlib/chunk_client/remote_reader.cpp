@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "config.h"
 #include "remote_reader.h"
+#include "async_reader.h"
+#include "block_cache.h"
 #include "holder_channel_cache.h"
 
 #include <ytlib/misc/foreach.h>
@@ -40,16 +42,16 @@ public:
     typedef TIntrusivePtr<TRemoteReader> TPtr;
     typedef TRemoteReaderConfig TConfig;
 
-    typedef TValueOrError< yvector<Stroka> > TGetSeedsResult;
+    typedef TValueOrError< std::vector<Stroka> > TGetSeedsResult;
     typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
     typedef TPromise<TGetSeedsResult> TAsyncGetSeedsPromise;
 
     TRemoteReader(
         TRemoteReaderConfigPtr config,
-        IBlockCache* blockCache,
+        IBlockCachePtr blockCache,
         IChannel* masterChannel,
         const TChunkId& chunkId,
-        const yvector<Stroka>& seedAddresses)
+        const std::vector<Stroka>& seedAddresses)
         : Config(config)
         , BlockCache(blockCache)
         , ChunkId(chunkId)
@@ -111,7 +113,7 @@ private:
     friend class TGetMetaSession;
 
     TRemoteReaderConfigPtr Config;
-    IBlockCache::TPtr BlockCache;
+    IBlockCachePtr BlockCache;
     TChunkId ChunkId;
     NLog::TTaggedLogger Logger;
 
@@ -181,7 +183,7 @@ protected:
     int RetryIndex;
     TRemoteReader::TAsyncGetSeedsResult GetSeedsResult;
     NLog::TTaggedLogger Logger;
-    yvector<Stroka> SeedAddresses;
+    std::vector<Stroka> SeedAddresses;
 
     TSessionBase(TRemoteReader* reader)
         : Reader(reader)
@@ -362,7 +364,7 @@ private:
     Stroka PickNextPeer()
     {
         // When the time comes to fetch from a non-seeding holder, pick a random one.
-        if (PeerIndex >= SeedAddresses.ysize()) {
+        if (PeerIndex >= SeedAddresses.size()) {
             size_t count = PeerAddressList.size() - PeerIndex;
             size_t randomIndex = PeerIndex + RandomNumber(count);
             std::swap(PeerAddressList[PeerIndex], PeerAddressList[randomIndex]);
@@ -370,9 +372,9 @@ private:
         return PeerAddressList[PeerIndex++];
     }
 
-    yvector<int> GetUnfetchedBlockIndexes()
+    std::vector<int> GetUnfetchedBlockIndexes()
     {
-        yvector<int> result;
+        std::vector<int> result;
         result.reserve(BlockIndexes.size());
         FOREACH (int blockIndex, BlockIndexes) {
             if (FetchedBlocks.find(blockIndex) == FetchedBlocks.end()) {
@@ -382,9 +384,9 @@ private:
         return result;
     }
 
-    yvector<int> GetRequestBlockIndexes(const Stroka& address, const yvector<int>& indexesToFetch)
+    std::vector<int> GetRequestBlockIndexes(const Stroka& address, const std::vector<int>& indexesToFetch)
     {
-        yvector<int> result;
+        std::vector<int> result;
         result.reserve(indexesToFetch.size());
 
         auto peerBlocksMapIt = PeerBlocksMap.find(address);
@@ -559,7 +561,7 @@ private:
     {
         LOG_INFO("All chunk blocks are fetched");
 
-        yvector<TSharedRef> blocks;
+        std::vector<TSharedRef> blocks;
         blocks.reserve(BlockIndexes.size());
         FOREACH (int blockIndex, BlockIndexes) {
             auto block = FetchedBlocks[blockIndex];
@@ -650,7 +652,7 @@ private:
             LOG_WARNING("Error getting chunk info from holder\n%s", ~response->GetError().ToString());
 
             ++SeedIndex;
-            if (SeedIndex < SeedAddresses.ysize()) {
+            if (SeedIndex < SeedAddresses.size()) {
                 RequestInfo();
             } else {
                 OnRetryFailed(TError("Unable to get chunk info"));
@@ -689,12 +691,12 @@ TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(const std::v
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncReader::TPtr CreateRemoteReader(
-    TRemoteReaderConfig* config,
-    IBlockCache* blockCache,
+IAsyncReaderPtr CreateRemoteReader(
+    TRemoteReaderConfigPtr config,
+    IBlockCachePtr blockCache,
     NRpc::IChannel* masterChannel,
     const TChunkId& chunkId,
-    const yvector<Stroka>& seedAddresses)
+    const std::vector<Stroka>& seedAddresses)
 {
     YASSERT(config);
     YASSERT(blockCache);

@@ -1,16 +1,15 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 #include "async_reader.h"
-#include "reader_thread.h"
 
-#include 
-#include <ytlib/misc/configurable.h>
-#include <ytlib/misc/async_stream_state.h>
-#include <ytlib/misc/enum.h>
-#include <ytlib/misc/cyclic_buffer.h>
-#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/actions/future.h>
+
+#include <ytlib/misc/async_stream_state.h>
+#include <ytlib/misc/semaphore.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/ref.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -26,9 +25,12 @@ public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;
 
     TSequentialReader(
-        TConfig* config,
-        const yvector<int>& blockIndexes,
-        IAsyncReader* chunkReader);
+        TSequentialReaderConfigPtr config,
+        // ToDo: use move semantics
+        const std::vector<int>& blockIndexes,
+        IAsyncReaderPtr chunkReader,
+        // ToDo: use move semantics
+        const NChunkHolder::NProto::TBlocks& protoBlocks);
 
     bool HasNext() const;
 
@@ -50,34 +52,25 @@ private:
         int firstSequenceIndex,
         IAsyncReader::TReadResult readResult);
 
-    void ShiftWindow();
-    void DoShiftWindow();
-
     void FetchNextGroup();
+    void RequestBlocks(
+        int firstIndex, 
+        const std::vector<int>& blockIndexes,
+        TVoid);
 
     const std::vector<int> BlockIndexSequence;
-    int FirstUnfetchedIndex;
+    const NChunkHolder::NProto::TBlocks ProtoBlocks;
 
-    TConfig::TPtr Config;
-    IAsyncReader::TPtr ChunkReader;
+    TSequentialReaderConfigPtr Config;
+    IAsyncReaderPtr ChunkReader;
 
-    struct TWindowSlot
-    {
-        TWindowSlot()
-            : Promise(NewPromise<TSharedRef>())
-        { }
+    std::vector< TPromise<TSharedRef> > BlockWindow;
 
-        TPromise<TSharedRef> Promise;
-    };
-    typedef TCyclicBuffer<TWindowSlot> TWindow;
-
-    TWindow Window;
-
-    //! Number of free slots in window.
-    int FreeSlots;
+    TAsyncSemaphore AsyncSemaphore;
 
     //! Index in #BlockIndexSequence of next block outputted from #TSequentialChunkReader.
     volatile int NextSequenceIndex;
+    int NextUnfetchedIndex;
 
     TAsyncStreamState State;
 

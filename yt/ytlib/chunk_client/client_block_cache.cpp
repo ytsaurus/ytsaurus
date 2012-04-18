@@ -84,7 +84,7 @@ private:
     }
 };
 
-IBlockCache::TPtr CreateClientBlockCache(TClientBlockCacheConfig* config)
+IBlockCachePtr CreateClientBlockCache(TClientBlockCacheConfig* config)
 {
     YASSERT(config);
     return New<TClientBlockCache>(config);

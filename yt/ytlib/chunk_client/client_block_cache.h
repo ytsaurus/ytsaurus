@@ -11,7 +11,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Creates a simple client-side block cache.
-IBlockCache::TPtr CreateClientBlockCache(TClientBlockCacheConfigPtr config);
+IBlockCachePtr CreateClientBlockCache(TClientBlockCacheConfigPtr config);
 
 ///////////////////////////////////////////////////////////////////////////////
 

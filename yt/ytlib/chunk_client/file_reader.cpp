@@ -162,7 +162,7 @@ const TChunkInfo& TChunkFileReader::GetChunkInfo() const
     return ChunkInfo;
 }
 
-IAsyncReader::TAsyncGetInfoResult
+IAsyncReader::TAsyncGetMetaResult
 TChunkFileReader::AsyncGetChunkMeta(const std::vector<int>& extensionTags)
 {
     return MakeFuture(TGetMetaResult(GetChunkMeta(extensionTags)));

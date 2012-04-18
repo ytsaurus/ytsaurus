@@ -44,7 +44,6 @@ set( HDRS
   ${BASE}/common.h
   ${BASE}/configurable-inl.h
   ${BASE}/configurable.h
-  ${BASE}/cyclic_buffer.h
   ${BASE}/delayed_invoker.h
   ${BASE}/demangle.h
   ${BASE}/enum.h

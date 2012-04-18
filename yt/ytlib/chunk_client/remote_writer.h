@@ -1,6 +1,7 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
+#include "private.h"
 #include "async_writer.h"
 #include <ytlib/chunk_server/chunk_service.pb.h>
 
@@ -25,61 +26,13 @@ class TRemoteWriter
     : public IAsyncWriter
 {
 public:
-    typedef TIntrusivePtr<TRemoteWriter> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        //! Maximum window size (in bytes).
-        int WindowSize;
-        
-        //! Maximum group size (in bytes).
-        int GroupSize;
-        
-        //! RPC requests timeout.
-        /*!
-         *  This timeout is especially useful for PutBlocks calls to ensure that
-         *  uploading is not stalled.
-         */
-        TDuration HolderRpcTimeout;
-
-        //! Maximum allowed period of time without RPC requests to holders.
-        /*!
-         *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
-         */
-        TDuration SessionPingInterval;
-
-        TConfig()
-        {
-            Register("window_size", WindowSize)
-                .Default(4 * 1024 * 1024)
-                .GreaterThan(0);
-            Register("group_size", GroupSize)
-                .Default(1024 * 1024)
-                .GreaterThan(0);
-            Register("holder_rpc_timeout", HolderRpcTimeout)
-                .Default(TDuration::Seconds(30));
-            Register("session_ping_interval", SessionPingInterval)
-                .Default(TDuration::Seconds(10));
-        }
-
-        virtual void DoValidate() const
-        {
-            if (WindowSize < GroupSize) {
-                ythrow yexception() << "\"window_size\" cannot be less than \"group_size\"";
-            }
-        }
-    };
-
     /*!
      * \note Thread affinity: ClientThread.
      */
     TRemoteWriter(
-        TConfig* config, 
+        const TRemoteWriterConfigPtr& config, 
         const TChunkId& chunkId,
-        const yvector<Stroka>& addresses);
+        const std::vector<Stroka>& addresses);
 
     /*!
      * \note Thread affinity: ClientThread.
@@ -121,9 +74,9 @@ private:
     typedef NChunkHolder::TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
-    TConfig::TPtr Config;
+    TRemoteWriterConfigPtr Config;
     TChunkId ChunkId;
-    yvector<Stroka> Addresses;
+    std::vector<Stroka> Addresses;
 
     TAsyncStreamState State;
 
@@ -138,7 +91,7 @@ private:
     TWindow Window;
     TAsyncSemaphore WindowSlots;
 
-    yvector<THolderPtr> Holders;
+    std::vector<THolderPtr> Holders;
 
     //! Number of holders that are still alive.
     int AliveHolderCount;

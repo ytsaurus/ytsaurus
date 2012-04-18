@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "remote_writer.h"
+#include "config.h"
 #include "holder_channel_cache.h"
-#include "writer_thread.h"
 
 #include <ytlib/chunk_holder/extensions.h>
 #include <ytlib/chunk_holder/chunk_holder_service.pb.h>
@@ -83,9 +83,9 @@ public:
 
 private:
     bool IsFlushing_;
-    yvector<bool> IsSent;
+    std::vector<bool> IsSent;
 
-    yvector<TSharedRef> Blocks;
+    std::vector<TSharedRef> Blocks;
     int StartBlockIndex;
 
     int Size;
@@ -160,7 +160,7 @@ int TRemoteWriter::TGroup::GetStartBlockIndex() const
 
 int TRemoteWriter::TGroup::GetEndBlockIndex() const
 {
-    return StartBlockIndex + Blocks.ysize() - 1;
+    return StartBlockIndex + Blocks.size() - 1;
 }
 
 int TRemoteWriter::TGroup::GetSize() const
@@ -175,7 +175,7 @@ bool TRemoteWriter::TGroup::IsWritten() const
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    for (int holderIndex = 0; holderIndex < IsSent.ysize(); ++holderIndex) {
+    for (int holderIndex = 0; holderIndex < IsSent.size(); ++holderIndex) {
         if (writer->Holders[holderIndex]->IsAlive && !IsSent[holderIndex]) {
             return false;
         }
@@ -193,7 +193,7 @@ void TRemoteWriter::TGroup::PutGroup()
     int holderIndex = 0;
     while (!writer->Holders[holderIndex]->IsAlive) {
         ++holderIndex;
-        YASSERT(holderIndex < writer->Holders.ysize());
+        YASSERT(holderIndex < writer->Holders.size());
     }
 
     auto holder = writer->Holders[holderIndex];
@@ -261,7 +261,7 @@ void TRemoteWriter::TGroup::SendGroup(THolderPtr srcHolder)
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    for (int dstHolderIndex = 0; dstHolderIndex < IsSent.ysize(); ++dstHolderIndex) {
+    for (int dstHolderIndex = 0; dstHolderIndex < IsSent.size(); ++dstHolderIndex) {
         auto dstHolder = writer->Holders[dstHolderIndex];
         if (dstHolder->IsAlive && !IsSent[dstHolderIndex]) {
             auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
@@ -296,7 +296,7 @@ TRemoteWriter::TGroup::SendBlocks(
     auto req = srcHolder->Proxy.SendBlocks();
     *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
-    req->set_block_count(Blocks.ysize());
+    req->set_block_count(Blocks.size());
     req->set_address(dstHolder->Address);
     return req->Invoke();
 }
@@ -391,7 +391,7 @@ void TRemoteWriter::TGroup::Process()
 
     THolderPtr holderWithBlocks;
     bool emptyHolderFound = false;
-    for (int holderIndex = 0; holderIndex < IsSent.ysize(); ++holderIndex) {
+    for (int holderIndex = 0; holderIndex < IsSent.size(); ++holderIndex) {
         auto holder = writer->Holders[holderIndex];
         if (holder->IsAlive) {
             if (IsSent[holderIndex]) {
@@ -414,9 +414,9 @@ void TRemoteWriter::TGroup::Process()
 ///////////////////////////////////////////////////////////////////////////////
 
 TRemoteWriter::TRemoteWriter(
-    TRemoteWriter::TConfig* config, 
+    const TRemoteWriterConfigPtr& config, 
     const TChunkId& chunkId,
-    const yvector<Stroka>& addresses)
+    const std::vector<Stroka>& addresses)
     : Config(config)
     , ChunkId(chunkId) 
     , Addresses(addresses)
@@ -424,7 +424,7 @@ TRemoteWriter::TRemoteWriter(
     , IsInitComplete(false)
     , IsCloseRequested(false)
     , WindowSlots(config->WindowSize)
-    , AliveHolderCount(addresses.ysize())
+    , AliveHolderCount(addresses.size())
     , CurrentGroup(New<TGroup>(AliveHolderCount, 0, this))
     , BlockCount(0)
     , StartChunkTiming(0, 1000, 20)
@@ -866,7 +866,7 @@ void TRemoteWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
                 MakeWeak(this),
                 CurrentGroup));
             // Construct a new (empty) group.
-            CurrentGroup = New<TGroup>(Holders.ysize(), BlockCount, this);
+            CurrentGroup = New<TGroup>(Holders.size(), BlockCount, this);
         }
     }
 }
@@ -917,7 +917,7 @@ TAsyncError TRemoteWriter::AsyncClose(
     State.StartOperation();
 
     // XXX(sandello): Do you realize, that lastBlocks and meta are copied back and forth here?
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
+    WindowSlots.AsyncAcquire(sumSize).Subscribe(BIND(
         &TRemoteWriter::DoClose,
         MakeWeak(this),
         lastBlocks).Via(WriterThread->GetInvoker()));

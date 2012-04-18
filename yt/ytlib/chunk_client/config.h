@@ -73,14 +73,14 @@ struct TSequentialReaderConfig
     : public TConfigurable
 {
     //! Prefetch window size (in bytes).
-    i64 PrefetchWindowSize;
+    i64 WindowSize;
 
     //! Maximum amount of data to be transfered via a single RPC request.
     i64 GroupSize;
 
     TSequentialReaderConfig()
     {
-        Register("prefetch_window_size", PrefetchWindowSize)
+        Register("window_size", WindowSize)
             .Default(16 * 1024 * 1024)
             .GreaterThan(0);
         Register("group_size", GroupSize)
@@ -90,8 +90,54 @@ struct TSequentialReaderConfig
 
     virtual void DoValidate() const
     {
-        if (GroupSize > PrefetchWindowSize) {
+        if (GroupSize > WindowSize) {
             ythrow yexception() << "\"group_size\" cannot be larger than \"prefetch_window_size\"";
+        }
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TRemoteWriterConfig
+    : public TConfigurable
+{
+    //! Maximum window size (in bytes).
+    int WindowSize;
+        
+    //! Maximum group size (in bytes).
+    int GroupSize;
+        
+    //! RPC requests timeout.
+    /*!
+        *  This timeout is especially useful for PutBlocks calls to ensure that
+        *  uploading is not stalled.
+        */
+    TDuration HolderRpcTimeout;
+
+    //! Maximum allowed period of time without RPC requests to holders.
+    /*!
+        *  If the writer remains inactive for the given period, it sends #TChunkHolderProxy::PingSession.
+        */
+    TDuration SessionPingInterval;
+
+    TRemoteWriterConfig()
+    {
+        Register("window_size", WindowSize)
+            .Default(4 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("group_size", GroupSize)
+            .Default(1024 * 1024)
+            .GreaterThan(0);
+        Register("holder_rpc_timeout", HolderRpcTimeout)
+            .Default(TDuration::Seconds(30));
+        Register("session_ping_interval", SessionPingInterval)
+            .Default(TDuration::Seconds(10));
+    }
+
+    virtual void DoValidate() const
+    {
+        if (WindowSize < GroupSize) {
+            ythrow yexception() << "\"window_size\" cannot be less than \"group_size\"";
         }
     }
 };

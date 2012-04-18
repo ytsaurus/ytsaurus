@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "sequential_reader.h"
+#include "config.h"
+#include "private.h"
 
 namespace NYT {
 namespace NChunkClient {
@@ -8,51 +10,57 @@ namespace NChunkClient {
 
 static NLog::TLogger& Logger = ChunkClientLogger;
 
+using namespace NChunkHolder::NProto;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 TSequentialReader::TSequentialReader(
-    TConfig* config, 
-    const yvector<int>& blockIndexes, 
-    IAsyncReader* chunkReader)
+    TSequentialReaderConfigPtr config,
+    const std::vector<int>& blockIndexes,
+    IAsyncReaderPtr chunkReader,
+    const TBlocks& protoBlocks)
     : BlockIndexSequence(blockIndexes)
-    , FirstUnfetchedIndex(0)
+    , ProtoBlocks(protoBlocks)
     , Config(config)
     , ChunkReader(chunkReader)
-    , Window(config->PrefetchWindowSize)
-    , FreeSlots(config->PrefetchWindowSize)
+    , AsyncSemaphore(config->WindowSize)
     , NextSequenceIndex(0)
+    , NextUnfetchedIndex(0)
 {
     VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
 
     YASSERT(ChunkReader);
-    YASSERT(blockIndexes.ysize() > 0);
-    YASSERT(Config->GroupSize <= Config->PrefetchWindowSize);
+    YASSERT(blockIndexes.size() > 0);
+    YASSERT(blockIndexes.size() == ProtoBlocks.blocks_size());
 
-    LOG_DEBUG("Creating sequential reader (blockCount: %d)", blockIndexes.ysize());
+    LOG_DEBUG("Creating sequential reader (BlockCount: %d)", 
+        static_cast<int>(blockIndexes.size()));
 
-    int fetchCount = FreeSlots / Config->GroupSize;
-    for (int i = 0; i < fetchCount; ++i) {
-        ReaderThread->GetInvoker()->Invoke(BIND(
-            &TSequentialReader::FetchNextGroup,
-            MakeWeak(this)));
+    for (int i = 0; i < BlockIndexSequence.size(); ++i) {
+        BlockWindow.push_back(NewPromise<TSharedRef>());
     }
+
+    ReaderThread->GetInvoker()->Invoke(BIND(
+        &TSequentialReader::FetchNextGroup,
+        MakeWeak(this)));
 }
 
 bool TSequentialReader::HasNext() const
 {
     // No thread affinity - can be called from 
     // ContinueNextRow of NTableClient::TChunkReader.
-    return NextSequenceIndex < BlockIndexSequence.ysize();
+    return NextSequenceIndex < BlockWindow.size();
 }
 
 TSharedRef TSequentialReader::GetBlock()
 {
     // No thread affinity - can be called from 
     // ContinueNextRow of NTableClient::TChunkReader.
-
     YASSERT(!State.HasRunningOperation());
     YASSERT(NextSequenceIndex > 0);
-    return Window[NextSequenceIndex - 1].Promise.Get();
+    YASSERT(BlockWindow[NextSequenceIndex - 1].IsSet());
+
+    return BlockWindow[NextSequenceIndex - 1].Get();
 }
 
 TAsyncError TSequentialReader::AsyncNextBlock()
@@ -63,22 +71,25 @@ TAsyncError TSequentialReader::AsyncNextBlock()
     YASSERT(HasNext());
     YASSERT(!State.HasRunningOperation());
 
+    if (NextSequenceIndex > 0) {
+        AsyncSemaphore.Release(ProtoBlocks.blocks(
+            BlockIndexSequence[NextSequenceIndex - 1]).size());
+        BlockWindow[NextSequenceIndex - 1].Reset();
+    }
+
     State.StartOperation();
 
     auto this_ = MakeStrong(this);
-    Window[NextSequenceIndex].Promise.Subscribe(
+    BlockWindow[NextSequenceIndex].Subscribe(
         BIND([=] (TSharedRef) {
             this_->State.FinishOperation();
         }));
-
-    if (NextSequenceIndex > 0) {
-        ShiftWindow();
-    }
 
     ++NextSequenceIndex;
 
     return State.GetOperationError();
 }
+
 void TSequentialReader::OnGotBlocks(
     int firstSequenceIndex,
     IAsyncReader::TReadResult readResult)
@@ -95,40 +106,14 @@ void TSequentialReader::OnGotBlocks(
     }
 
     LOG_DEBUG(
-        "Got block group (firtsIndex: %d, blockCount: %d)", 
+        "Got block group (FirtsIndex: %d, BlockCount: %d)", 
         firstSequenceIndex, 
-        readResult.Value().ysize());
+        static_cast<int>(readResult.Value().size()));
 
     int sequenceIndex = firstSequenceIndex;
     FOREACH (auto& block, readResult.Value()) {
-        Window[sequenceIndex].Promise.Set(block);
+        BlockWindow[sequenceIndex].Set(block);
         ++sequenceIndex;
-    }
-}
-
-void TSequentialReader::ShiftWindow()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    ReaderThread->GetInvoker()->Invoke(BIND(
-        &TSequentialReader::DoShiftWindow, 
-        MakeWeak(this)));
-}
-
-void TSequentialReader::DoShiftWindow()
-{
-    VERIFY_THREAD_AFFINITY(ReaderThread);
-
-    LOG_DEBUG("Window shifted");
-
-    Window.Shift();
-    ++FreeSlots;
-    
-    if (FreeSlots >= Config->GroupSize || 
-        // Fetch the last group as soon as we can.
-        BlockIndexSequence.ysize() - FirstUnfetchedIndex <= FreeSlots) 
-    {
-        FetchNextGroup();
     }
 }
 
@@ -136,34 +121,42 @@ void TSequentialReader::FetchNextGroup()
 {
     VERIFY_THREAD_AFFINITY(ReaderThread);
 
-    auto groupBegin = BlockIndexSequence.begin() + FirstUnfetchedIndex;
-    auto groupEnd = BlockIndexSequence.end();
-
-    if (BlockIndexSequence.ysize() - FirstUnfetchedIndex > Config->GroupSize) {
-        groupEnd = groupBegin + Config->GroupSize;
+    // ToDo(psushin): maybe use TSmallVector here?
+    auto firstUnfetched = NextUnfetchedIndex;
+    std::vector<int> blockIndexes;
+    int groupSize = 0;
+    while (groupSize < Config->GroupSize && NextUnfetchedIndex < BlockIndexSequence.size()) {
+        auto blockIndex = BlockIndexSequence[NextUnfetchedIndex];
+        blockIndexes.push_back(blockIndex);
+        groupSize += ProtoBlocks.blocks(blockIndex).size();
+        ++NextUnfetchedIndex;
     }
 
-    if (groupBegin == groupEnd) {
+    if (!groupSize)
         return;
-    }
-
-    yvector<int> groupIndexes(groupBegin, groupEnd);
 
     LOG_DEBUG(
-        "Requesting block group (firstIndex: %d, blockCount: %d)", 
-        FirstUnfetchedIndex, 
-        groupIndexes.ysize());
+        "Requesting block group (FirstIndex: %d, BlockCount: %d, GroupSize: %d)", 
+        firstUnfetched, 
+        static_cast<int>(blockIndexes.size()),
+        groupSize);
 
-    ChunkReader
-        ->AsyncReadBlocks(groupIndexes)
-        .Subscribe(BIND(
-            &TSequentialReader::OnGotBlocks, 
-            MakeWeak(this),
-            FirstUnfetchedIndex)
-        .Via(ReaderThread->GetInvoker()));
+    AsyncSemaphore.AsyncAcquire(groupSize).Subscribe(BIND(
+        &TSequentialReader::RequestBlocks,
+        MakeWeak(this),
+        firstUnfetched,
+        blockIndexes));
+}
 
-    FreeSlots -= groupIndexes.ysize();
-    FirstUnfetchedIndex += groupIndexes.ysize();
+void TSequentialReader::RequestBlocks(
+    int firstIndex, 
+    const std::vector<int>& blockIndexes, 
+    TVoid)
+{
+    ChunkReader->AsyncReadBlocks(blockIndexes).Subscribe(BIND(
+        &TSequentialReader::OnGotBlocks, 
+        MakeWeak(this),
+        firstIndex).Via(ReaderThread->GetInvoker()));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

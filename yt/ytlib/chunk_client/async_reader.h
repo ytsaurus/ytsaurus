@@ -18,8 +18,6 @@ namespace NChunkClient {
 struct IAsyncReader
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IAsyncReader> TPtr;
-
     //! Describes a result of #AsyncReadBlocks.
     typedef TValueOrError< std::vector<TSharedRef> > TReadResult;
     typedef TFuture<TReadResult> TAsyncReadResult;
