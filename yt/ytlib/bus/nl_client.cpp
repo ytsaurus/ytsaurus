@@ -617,7 +617,7 @@ public:
         // NB: This doesn't actually stop NetLiba threads.
         // XXX(babenko): just drop the reference, this should force the requester
         // to send all pending packets.
-        Requester = NULL:
+        Requester = NULL;
 
         // TODO: Consider moving somewhere else.
         StopAllNetLibaThreads();
