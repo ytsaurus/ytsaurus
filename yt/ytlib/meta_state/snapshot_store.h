@@ -25,7 +25,7 @@ public:
     /*!
      *  \param location Root directory where all snapshot files reside.
      */
-    TSnapshotStore(const Stroka& path);
+    TSnapshotStore(TSnapshotStoreConfigPtr config);
 
     //! Prepares the snapshot directory.
     void Start();
@@ -50,7 +50,7 @@ public:
     Stroka GetSnapshotFileName(i32 snapshotId) const;
 
 private:
-    Stroka Path;
+    TSnapshotStoreConfigPtr Config;
     bool Started;
 
     TSpinLock SpinLock;

@@ -73,7 +73,7 @@ TCacheBase<TKey, TValue, THash>::GetAll()
 }
 
 template <class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TFuturePtr
+typename TCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrErrorResult
 TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     while (true) {
@@ -83,26 +83,28 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             if (itemIt != ItemMap.end()) {
                 TItem* item = itemIt->second;
                 Touch(item);
-                return item->AsyncResult;
+                return item->ValueOrError;
             }
 
             auto valueIt = ValueMap.find(key);
             if (valueIt == ValueMap.end()) {
-                return NULL;
+                return TAsyncValuePtrOrErrorResult();
             }
 
             auto value = TRefCounted::DangerousGetPtr(valueIt->second);
             if (value) {
                 auto* item = new TItem();
-                auto asyncResult = item->AsyncResult;
+                // This holds an extra reference to the promise state...
+                auto valueOrError = item->ValueOrError;
                 LruList.PushFront(item);
                 ++Size;
                 ItemMap.insert(MakePair(key, item));
                 guard.Release();
 
+                // ...since the item can be dead at this moment.
                 TrimIfNeeded();
 
-                return asyncResult;
+                return valueOrError;
             }
         }
 
@@ -124,7 +126,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             auto itemIt = ItemMap.find(key);
             if (itemIt != ItemMap.end()) {
                 auto* item = itemIt->second;
-                cookie->AsyncResult = item->AsyncResult;
+                cookie->ValueOrError = item->ValueOrError;
                 return false;
             }
 
@@ -133,7 +135,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
                 auto* item = new TItem();
                 ItemMap.insert(MakePair(key, item));
 
-                cookie->AsyncResult = item->AsyncResult;
+                cookie->ValueOrError = item->ValueOrError;
                 cookie->Active = true;
                 cookie->Cache = this;
 
@@ -148,7 +150,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
                 LruList.PushFront(item);
                 ++Size;
 
-                cookie->AsyncResult = item->AsyncResult;
+                cookie->ValueOrError = item->ValueOrError;
 
                 guard.Release();
 
@@ -182,7 +184,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         YASSERT(it != ItemMap.end());
 
         auto* item = it->second;
-        item->AsyncResult->Set(value);
+        item->ValueOrError.Set(value);
 
         YVERIFY(ValueMap.insert(MakePair(key, ~value)).second);
     
@@ -205,7 +207,7 @@ void TCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError
     YASSERT(it != ItemMap.end());
     
     auto* item = it->second;
-    item->AsyncResult->Set(error);
+    item->ValueOrError.Set(error);
     
     ItemMap.erase(it);
     
@@ -241,10 +243,12 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 
     auto* item = it->second;
 
-    TValuePtrOrError valueOrError;
-    YVERIFY(item->AsyncResult->TryGet(&valueOrError));
-    YASSERT(valueOrError.IsOK());
-    auto value = valueOrError.Value();
+    TNullable<TValuePtrOrError> maybeValueOrError;
+    maybeValueOrError = item->ValueOrError.TryGet();
+
+    YVERIFY(maybeValueOrError);
+    YASSERT(maybeValueOrError->IsOK());
+    auto value = maybeValueOrError->Value();
 
     item->Unlink();
 
@@ -273,6 +277,19 @@ void TCacheBase<TKey, TValue, THash>::Touch(TItem* item)
     }
 }
 
+
+template <class TKey, class TValue, class THash>
+void TCacheBase<TKey, TValue, THash>::OnAdded(TValue* value)
+{
+    UNUSED(value);
+}
+
+template <class TKey, class TValue, class THash>
+void TCacheBase<TKey, TValue, THash>::OnRemoved(TValue* value)
+{
+    UNUSED(value);
+}
+
 template <class TKey, class TValue, class THash>
 i32 TCacheBase<TKey, TValue, THash>::GetSize() const
 {
@@ -291,10 +308,12 @@ void TCacheBase<TKey, TValue, THash>::TrimIfNeeded()
         YASSERT(Size > 0);
         auto* item = LruList.PopBack();
 
-        TValuePtrOrError valueOrError;
-        YVERIFY(item->AsyncResult->TryGet(&valueOrError));
-        YASSERT(valueOrError.IsOK());
-        auto value = valueOrError.Value();
+        auto maybeValueOrError = item->ValueOrError.TryGet();
+
+        YVERIFY(maybeValueOrError);
+        YASSERT(maybeValueOrError->IsOK());
+
+        auto value = maybeValueOrError->Value();
 
         --Size;
         OnRemoved(~value);
@@ -322,6 +341,25 @@ TCacheBase<TKey, TValue, THash>::TInsertCookie::~TInsertCookie()
 }
 
 template <class TKey, class TValue, class THash>
+TKey TCacheBase<TKey, TValue, THash>::TInsertCookie::GetKey() const
+{
+    return Key;
+}
+
+template <class TKey, class TValue, class THash>
+typename TCacheBase<TKey, TValue, THash>::TAsyncValuePtrOrErrorResult
+TCacheBase<TKey, TValue, THash>::TInsertCookie::GetValue() const
+{
+    return ValueOrError;
+}
+
+template <class TKey, class TValue, class THash>
+bool TCacheBase<TKey, TValue, THash>::TInsertCookie::IsActive() const
+{
+    return Active;
+}
+
+template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::TInsertCookie::Cancel(const TError& error)
 {
     if (Active) {
@@ -336,37 +374,6 @@ void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
     YASSERT(Active);
     Cache->EndInsert(value, this);
     Active = false;
-}
-
-template <class TKey, class TValue, class THash>
-typename TCacheBase<TKey, TValue, THash>::TFuturePtr
-TCacheBase<TKey, TValue, THash>::TInsertCookie::GetAsyncResult() const
-{
-    return AsyncResult;
-}
-
-template <class TKey, class TValue, class THash>
-bool TCacheBase<TKey, TValue, THash>::TInsertCookie::IsActive() const
-{
-    return Active;
-}
-
-template <class TKey, class TValue, class THash>
-TKey TCacheBase<TKey, TValue, THash>::TInsertCookie::GetKey() const
-{
-    return Key;
-}
-
-template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::OnAdded(TValue* value)
-{
-    UNUSED(value);
-}
-
-template <class TKey, class TValue, class THash>
-void TCacheBase<TKey, TValue, THash>::OnRemoved(TValue* value)
-{
-    UNUSED(value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

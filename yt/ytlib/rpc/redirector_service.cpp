@@ -106,7 +106,7 @@ TRedirectorService::TRedirectorService(
 void TRedirectorService::OnBeginRequest(IServiceContext* context)
 {
     auto context_= MakeStrong(context);
-    HandleRedirect(context)->Subscribe(BIND([=] (TRedirectResult result)
+    HandleRedirect(context).Subscribe(BIND([=] (TRedirectResult result)
         {
             if (!result.IsOK()) {
                 context_->Reply(TError(

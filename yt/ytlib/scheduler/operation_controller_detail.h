@@ -60,8 +60,8 @@ public:
         TOperation* operation);
 
     virtual void Initialize();
-    virtual TFuture<TVoid>::TPtr Prepare();
-    virtual TFuture<TVoid>::TPtr Revive();
+    virtual TFuture<TVoid> Prepare();
+    virtual TFuture<TVoid> Revive();
 
     virtual void OnJobRunning(TJobPtr job);
     virtual void OnJobCompleted(TJobPtr job);
@@ -188,7 +188,7 @@ protected:
     // Round 1:
     // - Start primary transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr StartPrimaryTransaction(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch StartPrimaryTransaction(TVoid);
 
     TVoid OnPrimaryTransactionStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
@@ -196,7 +196,7 @@ protected:
     // - Start input transaction.
     // - Start output transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr StartSeconaryTransactions(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch StartSeconaryTransactions(TVoid);
 
     TVoid OnSecondaryTransactionsStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
@@ -208,7 +208,7 @@ protected:
     // - Get output tables schemata.
     // - Get output chunk lists.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr RequestInputs(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch RequestInputs(TVoid);
 
     TVoid OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
@@ -235,7 +235,7 @@ protected:
     // - Commit output transaction.
     // - Commit primary transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr CommitOutputs(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch CommitOutputs(TVoid);
 
     TVoid OnOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
@@ -270,12 +270,12 @@ class TAsyncPipeline
 public:
     TAsyncPipeline(
         IInvoker::TPtr invoker,
-        TCallback< TIntrusivePtr < TFuture< TValueOrError<T> > >() > head)
+        TCallback< TFuture< TValueOrError<T> >() > head)
         : Invoker(invoker)
         , Lazy(head)
     { }
 
-    TIntrusivePtr< TFuture< TValueOrError<T> > > Run()
+    TFuture< TValueOrError<T> > Run()
     {
         return Lazy.Run();
     }
@@ -285,13 +285,13 @@ public:
     template <class T2>
     TIntrusivePtr< TAsyncPipeline<T2> > Add(TCallback<T2(T1)> func)
     {
-        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
+        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TFuture< TValueOrError<T2> > {
             if (!x.IsOK()) {
                 return MakeFuture(TValueOrError<T2>(TError(x)));
             }
             try {
-                auto y = func.Run(x.Value());
-                return MakeFuture(TValueOrError<T2>(y));
+                auto&& y = func.Run(x.Value());
+                return MakeFuture(TValueOrError<T2>(ForwardRV<T2>(y)));
             } catch (const std::exception& ex) {
                 return MakeFuture(TValueOrError<T2>(TError(ex.what())));
             }
@@ -303,26 +303,26 @@ public:
 
         auto lazy = Lazy;
         auto newLazy = BIND([=] () {
-            return lazy.Run()->Apply(wrappedFunc);
+            return lazy.Run().Apply(wrappedFunc);
         });
 
         return New< TAsyncPipeline<T2> >(Invoker, newLazy);
     }
 
     template <class T2>
-    TIntrusivePtr< TAsyncPipeline<T2> > Add(TCallback< TIntrusivePtr< TFuture<T2> >(T1) > func)
+    TIntrusivePtr< TAsyncPipeline<T2> > Add(TCallback<TFuture<T2>(T1)> func)
     {
         auto toValueOrError = BIND([] (T2 x) {
             return TValueOrError<T2>(x);
         });
 
-        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
+        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TFuture< TValueOrError<T2> > {
             if (!x.IsOK()) {
                 return MakeFuture(TValueOrError<T2>(TError(x)));
             }
             try {
-                auto y = func.Run(x.Value());
-                return y->Apply(toValueOrError);
+                auto&& y = func.Run(x.Value());
+                return y.Apply(toValueOrError);
             } catch (const std::exception& ex) {
                 return MakeFuture(TValueOrError<T2>(TError(ex.what())));
             }
@@ -334,7 +334,7 @@ public:
 
         auto lazy = Lazy;
         auto newLazy = BIND([=] () {
-            return lazy.Run()->Apply(wrappedFunc);
+            return lazy.Run().Apply(wrappedFunc);
         });
 
         return New< TAsyncPipeline<T2> >(Invoker, newLazy);
@@ -343,7 +343,7 @@ public:
 
 private:
     IInvoker::TPtr Invoker;
-    TCallback< TIntrusivePtr < TFuture< TValueOrError<T> > >() > Lazy;
+    TCallback< TFuture< TValueOrError<T> >() > Lazy;
 
 };
 

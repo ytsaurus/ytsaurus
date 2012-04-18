@@ -63,8 +63,8 @@ public:
     TSharedRef Find(const TBlockId& id)
     {
         auto asyncResult = Lookup(id);
-        if (asyncResult) {
-            auto result = asyncResult->Get();
+        if (!asyncResult.IsNull()) {
+            auto result = asyncResult.Get();
             YASSERT(result.IsOK());
             auto block = result.Value();
 

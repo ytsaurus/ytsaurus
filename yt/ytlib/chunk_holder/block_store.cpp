@@ -67,7 +67,7 @@ public:
                 return block;
             }
 
-            auto result = cookie.GetAsyncResult()->Get();
+            auto result = cookie.GetValue().Get();
             if (!result.IsOK()) {
                 // Looks like a parallel Get request has completed unsuccessfully.
                 continue;
@@ -91,12 +91,12 @@ public:
         }
     }
 
-    TAsyncGetBlockResult::TPtr Get(const TBlockId& blockId)
+    TAsyncGetBlockResult Get(const TBlockId& blockId)
     {
         TSharedPtr<TInsertCookie> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(~cookie)) {
             LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
-            return cookie->GetAsyncResult();
+            return cookie->GetValue();
         }
 
         auto chunk = ChunkRegistry->FindChunk(blockId.ChunkId);
@@ -104,7 +104,7 @@ public:
             cookie->Cancel(TError(
                 TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
                 Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString())));
-            return cookie->GetAsyncResult();
+            return cookie->GetValue();
         }
      
         LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
@@ -117,16 +117,21 @@ public:
             blockId,
             cookie));
         
-        return cookie->GetAsyncResult();
+        return cookie->GetValue();
     }
 
     TCachedBlockPtr Find(const TBlockId& blockId)
     {
         auto asyncResult = Lookup(blockId);
-        TGetBlockResult result;
-        if (asyncResult && asyncResult->TryGet(&result) && result.IsOK()) {
+        if (!asyncResult.IsNull()) {
+            LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
+            return NULL;            
+        }
+
+        TNullable<TGetBlockResult> maybeResult = asyncResult.TryGet();
+        if (maybeResult && maybeResult->IsOK()) {
             LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
-            return result.Value();
+            return maybeResult->Value();
         } else {
             LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
             return NULL;
@@ -237,7 +242,7 @@ TBlockStore::TBlockStore(
 TBlockStore::~TBlockStore()
 { }
 
-TBlockStore::TAsyncGetBlockResult::TPtr TBlockStore::GetBlock(const TBlockId& blockId)
+TBlockStore::TAsyncGetBlockResult TBlockStore::GetBlock(const TBlockId& blockId)
 {
     return StoreImpl->Get(blockId);
 }

@@ -192,12 +192,12 @@ public:
     }
 
     // IBus implementation.
-    virtual TSendResult::TPtr Send(IMessage::TPtr message)
+    virtual TSendResult Send(IMessage::TPtr message)
     {
         auto server = Server.Lock();
         if (!server) {
             LOG_WARNING("Attempt to reply via a detached bus");
-            return NULL;
+            return TSendResult();
         }
 
         RenewLease();
@@ -216,7 +216,7 @@ public:
             ~response,
             dataSize);
 
-        return NULL;
+        return TSendResult();
     }
 
     void EnqueueResponse(TOutcomingResponse* response)
@@ -676,9 +676,9 @@ void TNLBusServer::GetMonitoringInfo(IYsonConsumer* consumer)
                 fluent.Item("response_count").Scalar(statistics.ResponseCount);
                 fluent.Item("response_data_size").Scalar(statistics.ResponseDataSize);
             })
-            //.DoIf(Requester.Get(), [=] (TFluentMap fluent) {
-            //    fluent.Item("debug_info").Scalar(Requester->GetDebugInfo());
-            //})
+            .DoIf(Requester.Get(), [=] (TFluentMap fluent) {
+                fluent.Item("debug_info").Scalar(Requester->GetDebugInfo());
+            })
             .Item("session_count").Scalar(static_cast<i64>(SessionCount))
          .EndMap();
 }

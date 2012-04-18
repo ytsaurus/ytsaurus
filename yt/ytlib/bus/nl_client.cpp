@@ -91,7 +91,7 @@ public:
         Handler->OnMessage(message, this);
     }
 
-    virtual TSendResult::TPtr Send(IMessage::TPtr message);
+    virtual TSendResult Send(IMessage::TPtr message);
     virtual void Terminate();
 
 
@@ -118,11 +118,6 @@ public:
         return PendingRequestIds_;
     }
 
-    TRequestIdSet& PingIds()
-    {
-        return PingIds_;
-    }
-
 private:
     TUdpAddress Address;
     IMessageHandler::TPtr Handler;
@@ -130,7 +125,6 @@ private:
     TSequenceId SequenceId;
     TSessionId SessionId;
     TRequestIdSet PendingRequestIds_;
-    TRequestIdSet PingIds_;
 
 };
 
@@ -150,7 +144,7 @@ class TClientDispatcher
             TSequenceId sequenceId)
             : SessionId(sessionId)
             , Message(message)
-            , Result(New<IBus::TSendResult>())
+            , Promise(NewPromise<IBus::TSendPromise::TValueType>())
             , SequenceId(sequenceId)
         {
             // TODO(babenko): replace with movement ctor
@@ -160,7 +154,7 @@ class TClientDispatcher
         TSessionId SessionId;
         TGuid RequestId;
         IMessage::TPtr Message;
-        IBus::TSendResult::TPtr Result;
+        IBus::TSendPromise Promise;
         TBlob Data;
         TSequenceId SequenceId;
     };
@@ -259,11 +253,6 @@ class TClientDispatcher
         TBlob ackData;
         CreatePacket(sessionId, TPacketHeader::EType::Ack, &ackData);
 
-        FOREACH (const auto& requestId, bus->PingIds()) {
-            Requester->SendResponse(requestId, &ackData);
-        }
-        bus->PingIds().clear();
-
         YVERIFY(BusMap.erase(sessionId) == 1);
     }
 
@@ -336,7 +325,7 @@ class TClientDispatcher
             ~sessionId.ToString(),
             ~requestId.ToString());
 
-        request->Result->Set(ESendResult::Failed);
+        request->Promise.Set(ESendResult::Failed);
 
         YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         RequestMap.erase(requestIt);
@@ -365,10 +354,6 @@ class TClientDispatcher
             return;
 
         switch (header->Type) {
-            case TPacketHeader::EType::Ping:
-                ProcessPing(header, nlRequest);
-                break;
-
             case TPacketHeader::EType::Message:
                 ProcessMessage(header, nlRequest);
                 break;
@@ -401,7 +386,7 @@ class TClientDispatcher
         auto& bus = busIt->second; 
         auto& request = requestIt->second;
 
-        request->Result->Set(ESendResult::OK);
+        request->Promise.Set(ESendResult::OK);
 
         YVERIFY(bus->PendingRequestIds().erase(requestId) == 1);
         RequestMap.erase(requestIt);
@@ -532,31 +517,6 @@ class TClientDispatcher
         }
     }
 
-    void ProcessPing(TPacketHeader* header, TUdpHttpRequest* nlRequest)
-    {
-        TGuid requestId = nlRequest->ReqId;
-        auto busIt = BusMap.find(header->SessionId);
-        if (busIt == BusMap.end()) {
-            LOG_DEBUG("Ping for an obsolete session received (SessionId: %s, RequestId: %s)",
-                ~header->SessionId.ToString(),
-                ~requestId.ToString());
-
-            TBlob data;
-            CreatePacket(header->SessionId, TPacketHeader::EType::Ack, &data);
-            Requester->SendResponse(nlRequest->ReqId, &data);
-
-            return;
-        }
-
-        LOG_DEBUG("Ping received (SessionId: %s, RequestId: %s)",
-            ~header->SessionId.ToString(),
-            ~requestId.ToString());
-
-        // Don't reply to a ping, just register it.
-        auto& bus = busIt->second;
-        bus->PingIds().insert(requestId);
-    }
-
     bool ProcessOutcomingRequests()
     {
         LOG_TRACE("Processing outcoming client NetLiba requests");
@@ -655,7 +615,9 @@ public:
         Thread.Join();
 
         // NB: This doesn't actually stop NetLiba threads.
-        Requester->StopNoWait();
+        // XXX(babenko): just drop the reference, this should force the requester
+        // to send all pending packets.
+        Requester = NULL;
 
         // TODO: Consider moving somewhere else.
         StopAllNetLibaThreads();
@@ -663,7 +625,7 @@ public:
         // NB: cannot use log here
     }
 
-    IBus::TSendResult::TPtr EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)
+    IBus::TSendResult EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)
     {
         auto sequenceId = bus->GenerateSequenceId();
         const auto& sessionId = bus->GetSessionId();
@@ -683,7 +645,7 @@ public:
             sequenceId,
             dataSize);
 
-        return request->Result;
+        return request->Promise;
     }
 
     void EnqueueBusRegister(const TNLBusClient::TBus::TPtr& bus)
@@ -758,7 +720,7 @@ IBus::TPtr TNLBusClient::CreateBus(IMessageHandler* handler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBus::TSendResult::TPtr TNLBusClient::TBus::Send(IMessage::TPtr message)
+IBus::TSendResult TNLBusClient::TBus::Send(IMessage::TPtr message)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     // NB: We may actually need a barrier here but

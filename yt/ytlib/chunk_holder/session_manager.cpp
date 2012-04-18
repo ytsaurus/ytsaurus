@@ -182,7 +182,7 @@ void TSession::EnqueueWrites()
             blockIndex)
         .AsyncVia(GetIOInvoker())
         .Run()
-        ->Subscribe(BIND(
+        .Subscribe(BIND(
             &TSession::OnBlockWritten,
             MakeStrong(this),
             blockIndex)
@@ -218,10 +218,10 @@ void TSession::OnBlockWritten(i32 blockIndex, TVoid)
     auto& slot = GetSlot(blockIndex);
     YASSERT(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
-    slot.IsWritten->Set(TVoid());
+    slot.IsWritten.Set(TVoid());
 }
 
-TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
+TFuture<TVoid> TSession::FlushBlock(i32 blockIndex)
 {
     // TODO: verify monotonicity of blockIndex
 
@@ -239,7 +239,7 @@ TFuture<TVoid>::TPtr TSession::FlushBlock(i32 blockIndex)
     }
 
     // IsWritten is set in ServiceInvoker, hence no need for AsyncVia.
-    return slot.IsWritten->Apply(BIND(
+    return slot.IsWritten.ToFuture().Apply(BIND(
         &TSession::OnBlockFlushed,
         MakeStrong(this),
         blockIndex));
@@ -251,7 +251,7 @@ TVoid TSession::OnBlockFlushed(i32 blockIndex, TVoid)
     return TVoid();
 }
 
-TFuture<TChunkPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
+TFuture<TChunkPtr> TSession::Finish(const TChunkAttributes& attributes)
 {
     CloseLease();
 
@@ -266,20 +266,20 @@ TFuture<TChunkPtr>::TPtr TSession::Finish(const TChunkAttributes& attributes)
         }
     }
 
-    return CloseFile(attributes)->Apply(
-        BIND(&TSession::OnFileClosed, MakeStrong(this))
+    return CloseFile(attributes)
+        .Apply(BIND(&TSession::OnFileClosed, MakeStrong(this))
         .AsyncVia(SessionManager->ServiceInvoker));
 }
 
 void TSession::Cancel(const TError& error)
 {
     CloseLease();
-    DeleteFile(error)->Apply(
-        BIND(&TSession::OnFileDeleted, MakeStrong(this))
+    DeleteFile(error)
+        .Apply(BIND(&TSession::OnFileDeleted, MakeStrong(this))
         .AsyncVia(SessionManager->ServiceInvoker));
 }
 
-TFuture<TVoid>::TPtr TSession::DeleteFile(const TError& error)
+TFuture<TVoid> TSession::DeleteFile(const TError& error)
 {
     return
         BIND(
@@ -306,7 +306,7 @@ TVoid TSession::OnFileDeleted(TVoid)
     return TVoid();
 }
 
-TFuture<TVoid>::TPtr TSession::CloseFile(const TChunkAttributes& attributes)
+TFuture<TVoid> TSession::CloseFile(const TChunkAttributes& attributes)
 {
     return
         BIND(
@@ -378,8 +378,8 @@ void TSession::VerifyInWindow(i32 blockIndex)
 TSession::TSlot& TSession::GetSlot(i32 blockIndex)
 {
     YASSERT(IsInWindow(blockIndex));
-    while (Window.size() <= blockIndex) {
-        Window.push_back();
+    if (Window.size() <= blockIndex) {
+        Window.resize(1 + blockIndex);
     }
 
     return Window[blockIndex];
@@ -457,7 +457,7 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
         ~error.ToString());
 }
 
-TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
+TFuture<TChunkPtr> TSessionManager::FinishSession(
     TSessionPtr session, 
     const TChunkAttributes& attributes)
 {
@@ -465,10 +465,12 @@ TFuture<TChunkPtr>::TPtr TSessionManager::FinishSession(
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
-    return session->Finish(attributes)->Apply(BIND(
-        &TSessionManager::OnSessionFinished,
-        MakeStrong(this),
-        session));
+    return session
+        ->Finish(attributes)
+        .Apply(BIND(
+            &TSessionManager::OnSessionFinished,
+            MakeStrong(this),
+            session));
 }
 
 TChunkPtr TSessionManager::OnSessionFinished(TSessionPtr session, TChunkPtr chunk)

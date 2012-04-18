@@ -5,6 +5,8 @@
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -22,7 +24,7 @@ TIntrusivePtr< TAsyncPipeline<TVoid> > StartAsyncPipeline(IInvoker::TPtr invoker
 {
     return New< TAsyncPipeline<TVoid> >(
         invoker,
-        BIND([=] () -> TIntrusivePtr< TFuture< TValueOrError<TVoid> > > {
+        BIND([=] () -> TFuture< TValueOrError<TVoid> > {
             return MakeFuture(TValueOrError<TVoid>(TVoid()));
     }));
 }
@@ -80,7 +82,7 @@ void TChunkListPool::Allocate(int count)
         batchReq->AddRequest(req);
     }
 
-    batchReq->Invoke()->Subscribe(
+    batchReq->Invoke().Subscribe(
         BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this))
         .Via(ControlInvoker));
 
@@ -144,7 +146,7 @@ void TOperationControllerBase::Initialize()
     LOG_INFO("Operation initialized");
 }
 
-TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
+TFuture<TVoid> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -158,7 +160,7 @@ TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
         ->Run()
-        ->Apply(BIND([=] (TValueOrError<TVoid> result) -> TFuture<TVoid>::TPtr {
+        .Apply(BIND([=] (TValueOrError<TVoid> result) -> TFuture<TVoid> {
             if (result.IsOK()) {
                 if (this_->Active) {
                     this_->Running = true;
@@ -168,12 +170,12 @@ TFuture<TVoid>::TPtr TOperationControllerBase::Prepare()
                 LOG_WARNING("Operation preparation failed\n%s", ~result.ToString());
                 this_->Active = false;
                 this_->Host->OnOperationFailed(this_->Operation, result);
-                return New< TFuture<TVoid> >();
+                return TFuture<TVoid>();
             }
         }));
 }
 
-TFuture<TVoid>::TPtr TOperationControllerBase::Revive()
+TFuture<TVoid> TOperationControllerBase::Revive()
 {
     try {
         Initialize();
@@ -181,7 +183,7 @@ TFuture<TVoid>::TPtr TOperationControllerBase::Revive()
         FailOperation(TError("Operation has failed to initialize\n%s",
             ex.what()));
         // This promise is never fulfilled.
-        return New< TFuture<TVoid> >();
+        return TFuture<TVoid>();
     }
     return Prepare();
 }
@@ -324,7 +326,7 @@ void TOperationControllerBase::FinalizeOperation()
         ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
         ->Run()
-        ->Subscribe(BIND([=] (TValueOrError<TVoid> result) {
+        .Subscribe(BIND([=] (TValueOrError<TVoid> result) {
             Active = false;
             if (result.IsOK()) {
                 LOG_INFO("Operation finalized and completed");
@@ -336,7 +338,7 @@ void TOperationControllerBase::FinalizeOperation()
     }));
 }
 
-TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::CommitOutputs(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -408,7 +410,7 @@ TVoid TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExe
     return TVoid();
 }
 
-TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::StartPrimaryTransaction(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTransaction(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -442,7 +444,7 @@ TVoid TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy
     return TVoid();
 }
 
-TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::StartSeconaryTransactions(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTransactions(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -490,7 +492,7 @@ TVoid TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServicePr
     return TVoid();
 }
 
-TCypressServiceProxy::TInvExecuteBatch::TPtr TOperationControllerBase::RequestInputs(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs(TVoid)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -650,7 +652,8 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
 
     // Fire-and-forget.
     // The subscriber is only needed to log the outcome.
-    batchReq->Invoke()->Subscribe(BIND(&TThis::OnChunkListsReleased, MakeStrong(this)));
+    batchReq->Invoke().Subscribe(
+        BIND(&TThis::OnChunkListsReleased, MakeStrong(this)));
 }
 
 void TOperationControllerBase::OnChunkListsReleased(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
@@ -678,7 +681,7 @@ i64 TOperationControllerBase::GetJobWeightThreshold(i64 pendingJobs, i64 pending
 {
     YASSERT(pendingJobs > 0);
     YASSERT(pendingWeight > 0);
-    return (i64) ceil((double) pendingWeight / pendingJobs);
+    return (i64) std::ceil((double) pendingWeight / pendingJobs);
 }
 
 TJobPtr TOperationControllerBase::CreateJob(

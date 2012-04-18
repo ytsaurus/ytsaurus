@@ -7,6 +7,8 @@
 
 #include <ytlib/ytree/fluent.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -476,7 +478,7 @@ private:
     {
         // Choose job count.
         // TODO(babenko): refactor, generalize, and improve.
-        i64 jobCount = (i64) ceil((double) WeightCounter.GetPending() / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize);
+        i64 jobCount = (i64) std::ceil((double) WeightCounter.GetPending() / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize);
         if (Spec->JobCount) {
             jobCount = Spec->JobCount.Get();
         }

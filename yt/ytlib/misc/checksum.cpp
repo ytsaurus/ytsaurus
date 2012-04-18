@@ -25,7 +25,7 @@ TChecksum GetChecksum(TRef data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksummableInput::TChecksummableInput(TInputStream& input)
+TChecksummableInput::TChecksummableInput(TInputStream* input)
     : Input(input)
     , Checksum(0)
 { }
@@ -37,14 +37,14 @@ TChecksum TChecksummableInput::GetChecksum() const
 
 size_t TChecksummableInput::DoRead(void* buf, size_t len)
 {
-    size_t res = Input.Read(buf, len);
+    size_t res = Input->Read(buf, len);
     Checksum = GetChecksumImpl(buf, res, Checksum);
     return res;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksummableOutput::TChecksummableOutput(TOutputStream& output)
+TChecksummableOutput::TChecksummableOutput(TOutputStream* output)
     : Output(output)
     , Checksum(0)
 { }
@@ -56,18 +56,18 @@ TChecksum TChecksummableOutput::GetChecksum() const
 
 void TChecksummableOutput::DoWrite(const void* buf, size_t len)
 {
-    Output.Write(buf, len);
+    Output->Write(buf, len);
     Checksum = GetChecksumImpl(buf, len, Checksum);
 }
 
 void TChecksummableOutput::DoFlush()
 {
-    Output.Flush();
+    Output->Flush();
 }
 
 void TChecksummableOutput::DoFinish()
 {
-    Output.Finish();
+    Output->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -46,15 +46,6 @@ public:
     TSharedRef GetBlock();
 
 private:
-    struct TWindowSlot
-    {
-        TFuture<TSharedRef>::TPtr AsyncBlock;
-
-        TWindowSlot()
-            : AsyncBlock(New< TFuture<TSharedRef> >())
-        { }
-    };
-
     void OnGotBlocks(
         int firstSequenceIndex,
         IAsyncReader::TReadResult readResult);
@@ -70,7 +61,17 @@ private:
     TConfig::TPtr Config;
     IAsyncReader::TPtr ChunkReader;
 
-    TCyclicBuffer<TWindowSlot> Window;
+    struct TWindowSlot
+    {
+        TWindowSlot()
+            : Promise(NewPromise<TSharedRef>())
+        { }
+
+        TPromise<TSharedRef> Promise;
+    };
+    typedef TCyclicBuffer<TWindowSlot> TWindow;
+
+    TWindow Window;
 
     //! Number of free slots in window.
     int FreeSlots;

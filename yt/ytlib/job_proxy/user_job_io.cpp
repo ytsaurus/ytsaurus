@@ -15,6 +15,9 @@ using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IUserJobIO::~IUserJobIO()
+{ }
+
 TAutoPtr<IUserJobIO> CreateUserJobIO(
     const TJobIOConfigPtr config,
     const NElection::TLeaderLookup::TConfigPtr mastersConfig,

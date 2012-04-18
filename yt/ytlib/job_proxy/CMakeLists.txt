@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/job_proxy )
 set( SRCS
+  ${BASE}/job.cpp
   ${BASE}/job_proxy.cpp
   ${BASE}/map_job_io.cpp
   ${BASE}/ordered_merge_job.cpp
