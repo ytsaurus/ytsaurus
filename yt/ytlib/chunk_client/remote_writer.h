@@ -105,7 +105,7 @@ public:
      */
     Stroka GetDebugInfo();
 
-    const NChunkHolder::NProto::TChunkMeta& GetChunkMeta() const;
+    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetHolders() const;
 
 private:
@@ -151,7 +151,7 @@ private:
     int BlockCount;
 
     //! Returned from holder in Finish.
-    NChunkHolder::NProto::TInfo ChunkInfo;
+    NChunkHolder::NProto::TChunkInfo ChunkInfo;
 
     TMetric StartChunkTiming;
     TMetric PutBlocksTiming;

@@ -4,8 +4,8 @@ set( DIRS
   cell_master
 #  cell_node
 #  cell_scheduler
-  chunk_holder
-#  chunk_client
+#  chunk_holder
+  chunk_client
   chunk_server
   transaction_server
   transaction_client

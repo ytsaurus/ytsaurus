@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "private.h"
 
 #include <ytlib/misc/checksum.h>
 

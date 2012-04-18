@@ -13,16 +13,12 @@
 
 #include <util/generic/yexception.h>
 
-#include <contrib/libs/protobuf/text_format.h>
-
 namespace NYT {
 namespace NChunkClient {
 
 using namespace NRpc;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer;
-
-using namespace google::protobuf;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -737,12 +733,9 @@ void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::
         if (ChunkInfo.meta_checksum() != chunkInfo.meta_checksum() ||
             ChunkInfo.size() != chunkInfo.size()) 
         {
-            Stroka knownInfo, newInfo;
-            TextFormat::PrintToString(ChunkInfo, &knownInfo);
-            TextFormat::PrintToString(chunkInfo, &newInfo);
             LOG_FATAL("Mismatched chunk info reported by holder (KnownInfo: %s, NewInfo: %s, Address: %s)",
-                ~knownInfo,
-                ~newInfo,
+                ~ChunkInfo.DebugString(),
+                ~chunkInfo.DebugString(),
                 ~holder->Address);
         }
     } else {
@@ -918,7 +911,6 @@ TAsyncError TRemoteWriter::AsyncClose(
     }
 
     ChunkMeta.CopyFrom(chunkMeta);
-    *ChunkMeta.mutable_id() = ChunkId.ToProto();
 
     LOG_DEBUG("Requesting writer to close.");
     State.StartOperation();
@@ -949,10 +941,10 @@ Stroka TRemoteWriter::GetDebugInfo()
         ~FlushBlockTiming.GetDebugInfo());
 }
 
-const NChunkHolder::NProto::TChunkMeta& TRemoteWriter::GetChunkMeta() const
+const NChunkHolder::NProto::TChunkInfo& TRemoteWriter::GetChunkInfo() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return ChunkMeta;
+    return ChunkInfo;
 }
 
 const std::vector<Stroka> TRemoteWriter::GetHolders() const

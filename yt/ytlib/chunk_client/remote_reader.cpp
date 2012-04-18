@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "config.h"
 #include "remote_reader.h"
 #include "holder_channel_cache.h"
 
@@ -30,7 +31,7 @@ using namespace NCypress;
 
 class TSessionBase;
 class TReadSession;
-class TGetInfoSession;
+class TGetMetaSession;
 
 class TRemoteReader
     : public IAsyncReader
@@ -40,7 +41,7 @@ public:
     typedef TRemoteReaderConfig TConfig;
 
     TRemoteReader(
-        TRemoteReaderConfig* config,
+        TRemoteReaderConfigPtr config,
         IBlockCache* blockCache,
         IChannel* masterChannel,
         const TChunkId& chunkId,
@@ -65,8 +66,8 @@ public:
         CypressProxy = new TCypressServiceProxy(masterChannel);
     }
 
-    TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
-    TAsyncGetInfoResult::TPtr AsyncGetChunkInfo();
+    TAsyncReadResult::TPtr AsyncReadBlocks(const std::vector<int>& blockIndexes);
+    TAsyncGetMetaResult::TPtr AsyncGetChunkMeta(const std::vector<int>& extensionTags);
 
     typedef TValueOrError< yvector<Stroka> > TGetSeedsResult;
     typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
@@ -104,9 +105,9 @@ public:
 private:
     friend class TSessionBase;
     friend class TReadSession;
-    friend class TGetInfoSession;
+    friend class TGetMetaSession;
 
-    TRemoteReaderConfig::TPtr Config;
+    TRemoteReaderConfigPtr Config;
     IBlockCache::TPtr BlockCache;
     TChunkId ChunkId;
     NLog::TTaggedLogger Logger;
@@ -267,7 +268,7 @@ class TReadSession
 public:
     typedef TIntrusivePtr<TReadSession> TPtr;
 
-    TReadSession(TRemoteReader* reader, const yvector<int>& blockIndexes)
+    TReadSession(TRemoteReader* reader, const std::vector<int>& blockIndexes)
         : TSessionBase(reader)
         , AsyncResult(New<IAsyncReader::TAsyncReadResult>())
         , BlockIndexes(blockIndexes)
@@ -295,7 +296,7 @@ private:
     IAsyncReader::TAsyncReadResult::TPtr AsyncResult;
 
     //! Block indexes to read during the session.
-    yvector<int> BlockIndexes;
+    std::vector<int> BlockIndexes;
 
     //! Blocks that are fetched so far.
     yhash_map<int, TSharedRef> FetchedBlocks;
@@ -309,7 +310,7 @@ private:
     yhash_map<Stroka, TPeerBlocksInfo> PeerBlocksMap;
 
     //! List of candidates to try.
-    yvector<Stroka> PeerAddressList;
+    std::vector<Stroka> PeerAddressList;
 
     //! Current pass index.
     int PassIndex;
@@ -433,7 +434,7 @@ private:
                 return;
             }
 
-            if (PeerIndex >= PeerAddressList.ysize()) {
+            if (PeerIndex >= PeerAddressList.size()) {
                 LOG_INFO("Pass completed (PassIndex: %d)", PassIndex);
                 ++PassIndex;
                 if (PassIndex >= reader->Config->PassCount) {
@@ -509,7 +510,7 @@ private:
         YASSERT(response->Attachments().size() == blockCount);
 
         int receivedBlockCount = 0;
-        int oldPeerCount = PeerAddressList.ysize();
+        int oldPeerCount = PeerAddressList.size();
 
         for (int index = 0; index < static_cast<int>(blockCount); ++index) {
             int blockIndex = request->block_indexes(index);
@@ -545,7 +546,7 @@ private:
 
         LOG_INFO("Finished processing reply (BlocksReceived: %d, PeersAdded: %d)",
             receivedBlockCount,
-            PeerAddressList.ysize() - oldPeerCount);
+            static_cast<int>(PeerAddressList.size()) - oldPeerCount);
     }
 
     virtual void OnSessionSucceeded()
@@ -573,7 +574,7 @@ private:
     }
 };
 
-TRemoteReader::TAsyncReadResult::TPtr TRemoteReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
+TRemoteReader::TAsyncReadResult::TPtr TRemoteReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return New<TReadSession>(this, blockIndexes)->GetAsyncResult();
@@ -581,33 +582,38 @@ TRemoteReader::TAsyncReadResult::TPtr TRemoteReader::AsyncReadBlocks(const yvect
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TGetInfoSession
+class TGetMetaSession
     : public TSessionBase
 {
 public:
-    typedef TIntrusivePtr<TGetInfoSession> TPtr;
+    typedef TIntrusivePtr<TGetMetaSession> TPtr;
 
-    TGetInfoSession(TRemoteReader* reader)
+    TGetMetaSession(
+        TRemoteReader* reader,
+        const std::vector<int>& extensionTags)
         : TSessionBase(reader)
-        , AsyncResult(New<IAsyncReader::TAsyncGetInfoResult>())
+        , AsyncResult(New<IAsyncReader::TAsyncGetMetaResult>())
         , SeedIndex(0)
+        , ExtensionTags(extensionTags)
     {
         Logger.AddTag(Sprintf("GetInfoSession: %p", this));
 
         NewRetry();
     }
 
-    IAsyncReader::TAsyncGetInfoResult::TPtr GetAsyncResult() const
+    IAsyncReader::TAsyncGetMetaResult::TPtr GetAsyncResult() const
     {
         return AsyncResult;
     }
 
 private:
     //! Async result representing the session.
-    IAsyncReader::TAsyncGetInfoResult::TPtr AsyncResult;
+    IAsyncReader::TAsyncGetMetaResult::TPtr AsyncResult;
 
     //! Current index in #SeedAddresses.
     int SeedIndex;
+
+    std::vector<int> ExtensionTags;
 
     void RequestInfo()
     {
@@ -624,15 +630,16 @@ private:
         TChunkHolderServiceProxy proxy(~channel);
         proxy.SetDefaultTimeout(reader->Config->HolderRpcTimeout);
 
-        auto request = proxy.GetChunkInfo();
+        auto request = proxy.GetChunkMeta();
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
-        request->Invoke()->Subscribe(BIND(&TGetInfoSession::OnGotChunkInfo, MakeStrong(this)));
+        ToProto(request->mutable_extension_tags(), ExtensionTags);
+        request->Invoke()->Subscribe(BIND(&TGetMetaSession::OnGotChunkMeta, MakeStrong(this)));
     }
 
-    void OnGotChunkInfo(TChunkHolderServiceProxy::TRspGetChunkInfo::TPtr response)
+    void OnGotChunkMeta(TChunkHolderServiceProxy::TRspGetChunkMeta::TPtr response)
     {
         if (response->IsOK()) {
-            OnSessionSucceeded(response->chunk_info());
+            OnSessionSucceeded(response->chunk_meta());
         } else {
             LOG_WARNING("Error getting chunk info from holder\n%s", ~response->GetError().ToString());
 
@@ -651,10 +658,10 @@ private:
         RequestInfo();
     }
 
-    void OnSessionSucceeded(const TChunkInfo& info)
+    void OnSessionSucceeded(const TChunkMeta& chunkMeta)
     {
         LOG_INFO("Chunk info is obtained");
-        AsyncResult->Set(IAsyncReader::TGetInfoResult(info));
+        AsyncResult->Set(IAsyncReader::TGetMetaResult(chunkMeta));
     }
 
     virtual void OnSessionFailed(const TError& error)
@@ -668,10 +675,10 @@ private:
     }
 };
 
-TRemoteReader::TAsyncGetInfoResult::TPtr TRemoteReader::AsyncGetChunkInfo()
+TRemoteReader::TAsyncGetMetaResult::TPtr TRemoteReader::AsyncGetChunkMeta(const std::vector<int>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return New<TGetInfoSession>(this)->GetAsyncResult();
+    return New<TGetMetaSession>(this, extensionTags)->GetAsyncResult();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

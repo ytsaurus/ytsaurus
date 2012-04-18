@@ -19,7 +19,7 @@ public:
     typedef TIntrusivePtr<TChunkFileWriter> TPtr;
 
     //! Creates a new writer.
-    TChunkFileWriter(const TChunkId& id, const Stroka& fileName);
+    TChunkFileWriter(const Stroka& fileName);
 
     virtual void Open();
 
@@ -27,22 +27,21 @@ public:
 
     virtual TAsyncError AsyncClose(
         const std::vector<TSharedRef>& blocks,
-        const NChunkHolder::NProto::TChunkAttributes& attributes);
-
-    TChunkId GetChunkId() const;
+        const NChunkHolder::NProto::TChunkMeta& chunkMeta);
 
     //! Returns chunk info. The writer must be already closed.
-    NChunkHolder::NProto::TChunkInfo GetChunkInfo() const;
+    const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
+    const NChunkHolder::NProto::TChunkMeta& GetChunkMeta() const;
 
 private:
-    TChunkId Id;
     Stroka FileName;
     bool IsOpen;
     bool IsClosed;
     i64 DataSize;
     THolder<TFile> DataFile;
-    NChunkHolder::NProto::TChunkMeta ChunkMeta;
     NChunkHolder::NProto::TChunkInfo ChunkInfo;
+    NChunkHolder::NProto::TBlocks Blocks;
+    NChunkHolder::NProto::TChunkMeta ChunkMeta;
 
     bool EnsureOpen();
 

@@ -1,14 +1,10 @@
 #pragma once
 
-#include "common.h"
 #include <ytlib/chunk_holder/chunk.pb.h>
 
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/enum.h>
 #include <ytlib/misc/ref.h>
-#include <ytlib/actions/future.h>
 #include <ytlib/misc/error.h>
-#include <ytlib/chunk_server/chunk_ypath_proxy.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -25,8 +21,6 @@ namespace NChunkClient {
 struct IAsyncWriter
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IAsyncWriter> TPtr;
-
     //! Starts a new upload session.
     virtual void Open() = 0;
 
@@ -58,7 +52,7 @@ struct IAsyncWriter
      *  
      * \note Thread affinity: ClientThread.
      */
-    virtual const NChunkHolder::NProto::TChunkMeta& GetChunkMeta() const = 0;
+    virtual const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const = 0;
 
 };
 

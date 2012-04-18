@@ -29,7 +29,7 @@ void TChunkFileReader::Open()
         OpenExisting | RdOnly | Seq);
     InfoSize = chunkMetaFile.GetLength();
     TBufferedFileInput chunkMetaInput(chunkMetaFile);
-        
+
     TChunkMetaHeader metaHeader;
     Read(chunkMetaInput, &metaHeader);
     if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
@@ -58,10 +58,7 @@ void TChunkFileReader::Open()
             ~FileName); 
     }
 
-    *ChunkInfo.mutable_id() = chunkMeta.id();
     ChunkInfo.set_meta_checksum(checksum);
-    ChunkInfo.mutable_blocks()->MergeFrom(chunkMeta.blocks());
-    ChunkInfo.mutable_attributes()->CopyFrom(chunkMeta.attributes());
 
     DataFile.Reset(new TFile(FileName, OpenExisting | RdOnly));
     DataSize = DataFile->GetLength();
@@ -72,14 +69,14 @@ void TChunkFileReader::Open()
 }
 
 TFuture<IAsyncReader::TReadResult>::TPtr
-TChunkFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
+TChunkFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
 {
     YASSERT(Opened);
 
     yvector<TSharedRef> blocks;
-    blocks.reserve(blockIndexes.ysize());
+    blocks.reserve(blockIndexes.size());
 
-    for (int index = 0; index < blockIndexes.ysize(); ++index) {
+    for (int index = 0; index < blockIndexes.size(); ++index) {
         i32 blockIndex = blockIndexes[index];
         blocks.push_back(ReadBlock(blockIndex));
     }
@@ -91,7 +88,8 @@ TSharedRef TChunkFileReader::ReadBlock(int blockIndex)
 {
     YASSERT(Opened);
 
-    i32 blockCount = ChunkInfo.blocks_size();
+    auto blocksExtension = GetProtoExtension<TBlocks>(ChunkMeta.extensions());
+    i32 blockCount = blocksExtension->blocks_size();
 
     if (blockIndex > blockCount || blockIndex < -blockCount) {
         return TSharedRef();
@@ -105,7 +103,7 @@ TSharedRef TChunkFileReader::ReadBlock(int blockIndex)
         return TSharedRef();
     }
 
-    const TBlockInfo& blockInfo = ChunkInfo.blocks(blockIndex);
+    const TBlockInfo& blockInfo = blocksExtension->blocks(blockIndex);
     TBlob data(blockInfo.size());
     i64 offset = blockInfo.offset();
     DataFile->Pread(data.begin(), data.size(), offset); 
@@ -143,19 +141,34 @@ i64 TChunkFileReader::GetFullSize() const
     return InfoSize + DataSize;
 }
 
+TChunkMeta TChunkFileReader::GetChunkMeta(const std::vector<int>& extensionTags) const
+{
+    TChunkMeta meta;
+    meta.set_type(ChunkMeta.type());
+
+    FOREACH(auto tag, extensionTags) {
+        FOREACH(const auto& extension, ChunkMeta.extensions().extensions()) {
+            if (tag == extension.tag()) {
+                *meta.mutable_extensions()->add_extensions() = extension;
+            }
+        }
+    }
+    return meta;
+}
+
 const TChunkInfo& TChunkFileReader::GetChunkInfo() const
 {
     YASSERT(Opened);
     return ChunkInfo;
 }
 
-TFuture<IAsyncReader::TGetInfoResult>::TPtr TChunkFileReader::AsyncGetChunkInfo()
+TFuture<IAsyncReader::TGetMetaResult>::TPtr 
+TChunkFileReader::AsyncGetChunkMeta(const std::vector<int>& extensionTags)
 {
-    return MakeFuture(TGetInfoResult(GetChunkInfo()));
+    return MakeFuture(TGetMetaResult(GetChunkMeta(extensionTags)));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT
-

@@ -34,13 +34,15 @@ public:
     i64 GetFullSize() const;
 
     //! Returns the typed chunk info.
+    NChunkHolder::NProto::TChunkMeta GetChunkMeta(const std::vector<int>& extensionTags) const;
+
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
 
     //! Implements IChunkReader and calls #ReadBlock.
-    virtual TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+    virtual TAsyncReadResult::TPtr AsyncReadBlocks(const std::vector<int>& blockIndexes);
 
-    //! Implements IChunkReader and calls #GetChunkInfo.
-    virtual TAsyncGetInfoResult::TPtr AsyncGetChunkInfo();
+    //! Implements IChunkReader and calls #GetChunkMeta.
+    virtual TAsyncGetMetaResult::TPtr AsyncGetChunkMeta(const std::vector<int>& extensionTags);
 
     //! Synchronously reads a given block from the file.
     /*!
@@ -55,9 +57,9 @@ private:
     i64 InfoSize;
     i64 DataSize;
     NChunkHolder::NProto::TChunkInfo ChunkInfo;
+    NChunkHolder::NProto::TChunkMeta ChunkMeta;
 
 };
-
 
 ///////////////////////////////////////////////////////////////////////////////
 

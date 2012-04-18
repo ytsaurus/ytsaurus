@@ -21,21 +21,21 @@ struct IAsyncReader
     typedef TIntrusivePtr<IAsyncReader> TPtr;
 
     //! Describes a result of #AsyncReadBlocks.
-    typedef TValueOrError< yvector<TSharedRef> > TReadResult;
+    typedef TValueOrError< std::vector<TSharedRef> > TReadResult;
     typedef TFuture<TReadResult> TAsyncReadResult;
 
     //! Describes a result of #AsyncGetChunkInfo.
-    typedef TValueOrError<NChunkHolder::NProto::TChunkInfo> TGetInfoResult;
-    typedef TFuture<TGetInfoResult> TAsyncGetInfoResult;
+    typedef TValueOrError<NChunkHolder::NProto::TChunkMeta> TGetMetaResult;
+    typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
 
     //! Reads (asynchronously) a given set of blocks.
     /*!
      *  Negative indexes indicate that blocks are numbered from the end.
      *  I.e. -1 means the last block.
      */
-    virtual TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes) = 0;
+    virtual TAsyncReadResult::TPtr AsyncReadBlocks(const std::vector<int>& blockIndexes) = 0;
 
-    virtual TAsyncGetInfoResult::TPtr AsyncGetChunkInfo() = 0;
+    virtual TAsyncGetMetaResult::TPtr AsyncGetChunkMeta(const std::vector<int>& extensionTags) = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

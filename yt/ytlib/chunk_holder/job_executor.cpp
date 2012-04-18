@@ -93,7 +93,7 @@ void TJob::Start()
 
             Chunk
                 ->GetInfo()
-                ->Subscribe(BIND([=] (IAsyncReader::TGetInfoResult result) {
+                ->Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
                     if (!result.IsOK()) {
                         LOG_WARNING("Error getting chunk info (ChunkId: %s)\n%s",
                             ~Chunk->GetId().ToString(),

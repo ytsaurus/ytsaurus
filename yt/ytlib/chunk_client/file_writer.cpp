@@ -1,8 +1,11 @@
 #include "stdafx.h"
 #include "file_writer.h"
 
+#include <ytlib/chunk_holder/extensions.h>
+
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/logging/log.h>
 
 namespace NYT {
@@ -16,15 +19,12 @@ static NLog::TLogger& Logger = ChunkClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChunkFileWriter::TChunkFileWriter(const TChunkId& id, const Stroka& fileName)
-    : Id(id)
-    , FileName(fileName)
+TChunkFileWriter::TChunkFileWriter(const Stroka& fileName)
+    : FileName(fileName)
     , IsOpen(false)
     , IsClosed(false)
     , DataSize(0)
-{
-    *ChunkMeta.mutable_id() = id.ToProto();
-}
+{ }
 
 void TChunkFileWriter::Open()
 {
@@ -45,7 +45,7 @@ TAsyncError TChunkFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& bl
 
     try {
         FOREACH (auto& data, blocks) {
-            auto* blockInfo = ChunkMeta.add_blocks();
+            auto* blockInfo = Blocks.add_blocks();
             blockInfo->set_offset(DataFile->GetPosition());
             blockInfo->set_size(static_cast<int>(data.Size()));
             blockInfo->set_checksum(GetChecksum(data));
@@ -65,7 +65,7 @@ TAsyncError TChunkFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& bl
 
 TAsyncError TChunkFileWriter::AsyncClose(
     const std::vector<TSharedRef>& blocks,
-    const TChunkAttributes& attributes)
+    const NChunkHolder::NProto::TChunkMeta& chunkMeta)
 {
     if (!IsOpen)
         return MakeFuture(TError());
@@ -89,7 +89,8 @@ TAsyncError TChunkFileWriter::AsyncClose(
     }
 
     // Write meta.
-    *ChunkMeta.mutable_attributes() = attributes;
+    ChunkMeta.CopyFrom(chunkMeta);
+    SetProtoExtension(ChunkMeta.mutable_extensions(), Blocks);
     
     TBlob metaBlob(ChunkMeta.ByteSize());
     if (!ChunkMeta.SerializeToArray(metaBlob.begin(), metaBlob.ysize())) {
@@ -128,24 +129,22 @@ TAsyncError TChunkFileWriter::AsyncClose(
             ~FileName.Quote()));
     }
 
-    *ChunkInfo.mutable_id() = Id.ToProto();
     ChunkInfo.set_meta_checksum(header.Checksum);
     ChunkInfo.set_size(DataSize + metaBlob.size() + sizeof (TChunkMetaHeader));
-    ChunkInfo.mutable_blocks()->MergeFrom(ChunkMeta.blocks());
-    ChunkInfo.mutable_attributes()->CopyFrom(ChunkMeta.attributes());
 
     return MakeFuture(TError());
 }
 
-TChunkId TChunkFileWriter::GetChunkId() const
-{
-    return Id;
-}
-
-TChunkInfo TChunkFileWriter::GetChunkInfo() const
+const TChunkInfo& TChunkFileWriter::GetChunkInfo() const
 {
     YASSERT(IsClosed);
     return ChunkInfo;
+}
+
+const TChunkMeta& TChunkFileWriter::GetChunkMeta() const
+{
+    YASSERT(IsClosed);
+    return ChunkMeta;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

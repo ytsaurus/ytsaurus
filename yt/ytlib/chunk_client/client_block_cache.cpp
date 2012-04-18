@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "private.h"
+#include "config.h"
 #include "client_block_cache.h"
 
 #include <ytlib/chunk_server/block_id.h>

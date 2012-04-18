@@ -4,6 +4,7 @@
 #include "async_reader.h"
 #include "reader_thread.h"
 
+#include 
 #include <ytlib/misc/configurable.h>
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/enum.h>
@@ -23,35 +24,6 @@ class TSequentialReader
 {
 public:
     typedef TIntrusivePtr<TSequentialReader> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        //! Prefetch window size (in blocks).
-        int PrefetchWindowSize;
-
-        //! Maximum number of blocks to be transfered via a single RPC request.
-        int GroupSize;
-
-        TConfig()
-        {
-            Register("prefetch_window_size", PrefetchWindowSize)
-                .Default(100)
-                .GreaterThan(0);
-            Register("group_size", GroupSize)
-                .Default(10)
-                .GreaterThan(0);
-        }
-
-        virtual void DoValidate() const
-        {
-            if (GroupSize > PrefetchWindowSize) {
-                ythrow yexception() << "\"group_size\" cannot be larger than \"prefetch_window_size\"";
-            }
-        }
-     };
 
     TSequentialReader(
         TConfig* config,
@@ -92,7 +64,7 @@ private:
 
     void FetchNextGroup();
 
-    const yvector<int> BlockIndexSequence;
+    const std::vector<int> BlockIndexSequence;
     int FirstUnfetchedIndex;
 
     TConfig::TPtr Config;

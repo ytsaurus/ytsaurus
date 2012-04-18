@@ -174,7 +174,7 @@ private:
                 SeedAddresses);
 
             LOG_INFO("Getting chunk info from holders");
-            RemoteReader->AsyncGetChunkInfo()->Subscribe(
+            RemoteReader->AsyncGetChunkMeta()->Subscribe(
                 BIND(&TThis::OnGotChunkInfo, MakeStrong(this))
                 .Via(Invoker));
         }
@@ -195,7 +195,7 @@ private:
 
         NLog::TTaggedLogger Logger;
 
-        void OnGotChunkInfo(IAsyncReader::TGetInfoResult result)
+        void OnGotChunkInfo(IAsyncReader::TGetMetaResult result)
         {
             if (!result.IsOK()) {
                 OnError(result);

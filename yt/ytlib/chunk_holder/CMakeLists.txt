@@ -41,10 +41,10 @@ set( HDRS
   ${BASE}/extensions.h
 )
 
-#list(APPEND YT_SOURCE_FILES
-#  ${SRCS}
-#  ${HDRS}
-#)
+list(APPEND YT_SOURCE_FILES
+  ${SRCS}
+  ${HDRS}
+)
 
 protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
-#protoc( ${BASE}/chunk_holder_service.proto YT_SOURCE_FILES )
+protoc( ${BASE}/chunk_holder_service.proto YT_SOURCE_FILES )
