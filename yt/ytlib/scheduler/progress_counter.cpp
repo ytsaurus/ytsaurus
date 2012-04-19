@@ -21,15 +21,11 @@ TProgressCounter::TProgressCounter()
 
 void TProgressCounter::Set(i64 value)
 {
-    YASSERT(Running_ == 0);
-    YASSERT(Completed_ == 0);
-    YASSERT(Pending_ == 0);
-    YASSERT(Failed_ == 0);
     Total_ = value;
     Pending_ = value;
 }
 
-void TProgressCounter::Add(i64 value)
+void TProgressCounter::Increment(i64 value)
 {
     Set(Total_ + value);
 }

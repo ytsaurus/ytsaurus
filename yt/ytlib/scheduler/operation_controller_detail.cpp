@@ -355,6 +355,8 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs(T
         batchReq->AddRequest(req, "attach_chunk_trees");
     }
 
+    CommitCustomOutputs(batchReq);
+
     {
         auto req = TTransactionYPathProxy::Commit(FromObjectId(InputTransaction->GetId()));
         batchReq->AddRequest(req, "commit_input_tx");
@@ -391,6 +393,8 @@ TVoid TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExe
         }
     }
 
+    OnCustomOutputsCommitted(batchRsp);
+
     {
         auto rsp = batchRsp->GetResponse("commit_input_tx");
         CheckResponse(rsp, "Error committing input transaction");
@@ -409,6 +413,16 @@ TVoid TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExe
     LOG_INFO("Outputs committed");
 
     return TVoid();
+}
+
+void TOperationControllerBase::CommitCustomOutputs(TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
+{
+    UNUSED(batchReq);
+}
+
+void TOperationControllerBase::OnCustomOutputsCommitted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+{
+    UNUSED(batchRsp);
 }
 
 TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTransaction(TVoid)
@@ -554,6 +568,8 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs(T
         batchReq->AddRequest(req, "fetch_files");
     }
 
+    RequestCustomInputs(batchReq);
+
     return batchReq->Invoke();
 }
 
@@ -618,9 +634,21 @@ TVoid TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecu
         }
     }
 
+    OnCustomInputsRecieved(batchRsp);
+
     LOG_INFO("Inputs received");
 
     return TVoid();
+}
+
+void TOperationControllerBase::RequestCustomInputs(TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
+{
+    UNUSED(batchReq);
+}
+
+void TOperationControllerBase::OnCustomInputsRecieved(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+{
+    UNUSED(batchRsp);
 }
 
 TVoid TOperationControllerBase::CompletePreparation(TVoid)

@@ -49,7 +49,6 @@ typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
 
 ////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): extract to a proper place
 class TOperationControllerBase
     : public IOperationController
 {
@@ -174,7 +173,7 @@ protected:
 
     // TODO(babenko): YPath and RPC responses currently share no base class.
     template <class TResponse>
-    void CheckResponse(TResponse response, const Stroka& failureMessage) 
+    static void CheckResponse(TResponse response, const Stroka& failureMessage) 
     {
         if (response->IsOK())
             return;
@@ -207,10 +206,15 @@ protected:
     // - Fetch files.
     // - Get output tables schemata.
     // - Get output chunk lists.
+    // - (Custom)
 
     NCypress::TCypressServiceProxy::TInvExecuteBatch RequestInputs(TVoid);
-
     TVoid OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+
+    //! Extensibility point for requesting additional info from master.
+    virtual void RequestCustomInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    //! Extensibility point for handling additional info from master.
+    virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     virtual std::vector<NYTree::TYPath> GetInputTablePaths() = 0;
     virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
@@ -231,14 +235,18 @@ protected:
 
     // Round 1.
     // - Attach chunk trees.
+    // - (Custom)
     // - Commit input transaction.
     // - Commit output transaction.
     // - Commit primary transaction.
 
     NCypress::TCypressServiceProxy::TInvExecuteBatch CommitOutputs(TVoid);
-
     TVoid OnOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
+    //! Extensibility point for additional finalization logic.
+    virtual void CommitCustomOutputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    //! Extensibility point for handling additional finalization outcome.
+    virtual void OnCustomOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Abort is not a pipeline really :)
 

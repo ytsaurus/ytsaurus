@@ -6,6 +6,7 @@
 #include "private.h"
 
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/table_client/value.h>
 
 #include <cmath>
 
@@ -13,7 +14,10 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NCypress;
 using namespace NChunkServer;
+using namespace NTableClient;
+using namespace NTableServer;
 using namespace NScheduler::NProto;
 using namespace NChunkHolder::NProto;
 using namespace NTableClient::NProto;
@@ -47,6 +51,8 @@ protected:
     // Running counters.
     TProgressCounter ChunkCounter;
     TProgressCounter WeightCounter;
+    // XXX(babenko): currently this is only initialized but not updated during operation lifetime.
+    TProgressCounter RowCounter;
 
 
     // The template for starting new jobs.
@@ -63,10 +69,11 @@ protected:
 
         TAutoPtr<IChunkPool> ChunkPool;
 
+        //! The position in |Groups|. 
+        int GroupIndex;
+
         //! The position in |TOutputTable::PartitionIds| where the 
         //! output of this group must be placed.
-        //! -1 indicates that no particular position is preallocated and
-        //! the output must be appended to the end.
         int PartitionIndex;
     };
 
@@ -75,21 +82,29 @@ protected:
     std::vector<TMergeGroupPtr> Groups;
     TMergeGroupPtr CurrentGroup;
 
-    TMergeGroupPtr GetCurrentGroup()
-    {
-        return CurrentGroup;
-    }
-
-    TMergeGroupPtr BeginGroup()
+    //! Start a new group.
+    TMergeGroupPtr BeginGroup(TAutoPtr<IChunkPool> chunkPool)
     {
         YASSERT(!CurrentGroup);
+
+        auto& table = OutputTables[0];
+
         auto group = New<TMergeGroup>();
-        LOG_DEBUG("Created group %d", static_cast<int>(Groups.size()));
+        group->ChunkPool = chunkPool;
+        group->GroupIndex = static_cast<int>(Groups.size());
+        group->PartitionIndex = static_cast<int>(table.PartitionTreeIds.size());
+
+        // Reserve a place for this group among partitions.
+        table.PartitionTreeIds.push_back(NullChunkListId);
+
         Groups.push_back(group);
         CurrentGroup = group;
+
+        LOG_DEBUG("Created group %d", group->GroupIndex);
         return group;
     }
 
+    //! Finish the current group.
     void EndGroup()
     {
         YASSERT(CurrentGroup);
@@ -97,6 +112,14 @@ protected:
             static_cast<int>(Groups.size()) - 1,
             CurrentGroup->ChunkPool->GetTotalWeight());
         CurrentGroup.Reset();
+    }
+
+    //! Finish the current group if the size is large enough.
+    void EndGroupIfLarge()
+    {
+        if (CurrentGroup->ChunkPool->GetTotalWeight() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+            EndGroup();
+        }
     }
 
 
@@ -113,10 +136,34 @@ protected:
         }
     }
 
-    void AddChunkToPool(TMergeGroupPtr group, TPooledChunkPtr chunk)
+    //! Add chunk to the current group's pool.
+    void AddPooledChunk(TPooledChunkPtr chunk)
     {
-        group->ChunkPool->Add(chunk);
-        RegisterPendingChunk(group, chunk);
+        YASSERT(CurrentGroup);
+
+        auto chunkId = TChunkId::FromProto(chunk->InputChunk.slice().chunk_id());
+        RowCounter.Increment(chunk->InputChunk.has_approximate_row_count());
+        WeightCounter.Increment(chunk->InputChunk.approximate_data_size());
+        ChunkCounter.Increment(1);
+        CurrentGroup->ChunkPool->Add(chunk);
+        RegisterPendingChunk(CurrentGroup, chunk);
+
+        LOG_DEBUG("Added pooled chunk %s in partition %d, group %d",
+            ~chunkId.ToString(),
+            CurrentGroup->PartitionIndex,
+            CurrentGroup->GroupIndex);
+    }
+
+    //! Add chunk directly to the output.
+    void AddPassthroughChunk(const TInputChunk& chunk)
+    {
+        auto& table = OutputTables[0];
+        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+        LOG_DEBUG("Added passthrough chunk %s in partition %d",
+            ~chunkId.ToString(),
+            static_cast<int>(table.PartitionTreeIds.size()));
+        // Place the chunk directly to the output table.
+        table.PartitionTreeIds.push_back(chunkId);
     }
 
     IChunkPool::TExtractResultPtr ExtractChunksFromPool(
@@ -252,11 +299,7 @@ protected:
     {
         auto group = jip->Group;
         auto& table = OutputTables[0];
-        if (group->PartitionIndex >= 0) {
-            table.PartitionTreeIds[group->PartitionIndex] = jip->ChunkListId;
-        } else {
-            table.PartitionTreeIds.push_back(jip->ChunkListId);
-        }
+        table.PartitionTreeIds[group->PartitionIndex] = jip->ChunkListId;
 
         ChunkCounter.Completed(jip->ExtractResult->Chunks.size());
         WeightCounter.Completed(jip->ExtractResult->Weight);
@@ -265,7 +308,7 @@ protected:
     virtual void OnJobFailed(TJobInProgressPtr jip)
     {
         LOG_DEBUG("Returned %d chunks back into the pool", static_cast<int>(jip->ExtractResult->Chunks.size()));
-        jip->Group->ChunkPool->PutBack(jip->ExtractResult);
+        PutChunksBackToPool(jip->Group, jip->ExtractResult);
 
         ChunkCounter.Failed(jip->ExtractResult->Chunks.size());
         WeightCounter.Failed(jip->ExtractResult->Weight);
@@ -299,34 +342,30 @@ protected:
             LOG_INFO("Processing inputs");
 
             i64 totalRowCount = 0;
-            i64 mergeRowCount = 0;
             i64 totalDataSize = 0;
-            i64 mergeDataSize = 0;
             i64 totalChunkCount = 0;
-            i64 mergeChunkCount = 0;
 
-            BeginInputChunksProcessing();
+            BeginInputChunks();
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
                 auto fetchRsp = table.FetchResponse;
                 FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
-                    i64 rowCount = chunk.approximate_row_count();
+                    auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     i64 dataSize = chunk.approximate_data_size();
-
-                    totalRowCount += rowCount;
-                    totalDataSize += dataSize;
+                    i64 rowCount = chunk.approximate_row_count();
+                    LOG_DEBUG("Processing chunk %s (DataSize: % " PRId64 ", RowCount: %" PRId64 ")",
+                        ~chunkId.ToString(),
+                        dataSize,
+                        rowCount);
+                    totalRowCount += dataSize;
+                    totalDataSize += rowCount;
                     totalChunkCount += 1;
-
-                    if (ProcessInputChunk(chunk)) {
-                        mergeRowCount += rowCount;
-                        mergeDataSize += dataSize;
-                        mergeChunkCount += 1;
-                    }
+                    ProcessInputChunk(chunk);
                 }
             }
 
-            EndInputChunksProcessing();
+            EndInputChunks();
 
             // Check for empty and trivial inputs.
             if (totalRowCount == 0) {
@@ -335,16 +374,14 @@ protected:
                 return;
             }
 
-            if (mergeChunkCount == 0) {
+            if (ChunkCounter.GetPending() == 0) {
                 LOG_INFO("Trivial merge");
                 FinalizeOperation();
                 return;
             }
 
             // Init counters.
-            ChunkCounter.Set(mergeChunkCount);
-            WeightCounter.Set(mergeDataSize);
-            ChooseJobCount();
+            JobCounter.Set(ComputeJobCount());
 
             // Allocate some initial chunk lists.
             ChunkListPool->Allocate(JobCounter.GetPending() + Config->SpareChunkListCount);
@@ -353,26 +390,28 @@ protected:
 
             LOG_INFO("Inputs processed (TotalRowCount: %" PRId64 ", MergeRowCount: %" PRId64 ", TotalDataSize: %" PRId64 ", MergeDataSize: %" PRId64 ", TotalChunkCount: %" PRId64 ", MergeChunkCount: %" PRId64 ", JobCount: %" PRId64 ")",
                 totalRowCount,
-                mergeRowCount,
+                RowCounter.GetPending(),
                 totalDataSize,
-                mergeDataSize,
+                WeightCounter.GetPending(),
                 totalChunkCount,
-                mergeChunkCount,
+                ChunkCounter.GetPending(),
                 JobCounter.GetPending());
         }
     }
 
 
-    // The following functions return True iff the chunk is pooled.
-    virtual void BeginInputChunksProcessing()
+    //! Called at the beginning of input chunks scan.
+    virtual void BeginInputChunks()
     { }
 
-    virtual bool ProcessInputChunk(const TInputChunk& chunk) = 0;
+    //! Called for each input chunk.
+    virtual void ProcessInputChunk(const TInputChunk& chunk) = 0;
 
-    virtual void EndInputChunksProcessing()
+    //! Called at the end of input chunks scan.
+    virtual void EndInputChunks()
     {
         // Close the last group, if any.
-        if (GetCurrentGroup()) {
+        if (CurrentGroup) {
             EndGroup();
         }
     }
@@ -380,7 +419,7 @@ protected:
 
     // Job count selection.
 
-    virtual i64 ChooseJobCount() = 0;
+    virtual i64 ComputeJobCount() = 0;
 
 
     // Progress reporting.
@@ -402,6 +441,8 @@ protected:
 
 
     // Unsorted helpers.
+
+    //! Increments the counters.
 
     //! Returns True iff the chunk has nontrivial limits.
     //! Such chunks are always pooled.
@@ -457,39 +498,30 @@ public:
     { }
 
 private:
-    virtual bool ProcessInputChunk(const TInputChunk& chunk)
+    virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
         if (!IsLargeCompleteChunk(chunk)) {
             // Chunks not requiring merge go directly to the output chunk list.
-            LOG_DEBUG("Chunk %s is large and complete, using as-is", ~chunkId.ToString());
-            table.PartitionTreeIds.push_back(chunkId);
-            return false;
+            AddPassthroughChunk(chunk);
+            return;
         }
 
         // Create a merge group if not exists.
-        auto group = GetCurrentGroup();
-        if (!group) {
-            group = BeginGroup();
-            group->ChunkPool = CreateUnorderedChunkPool();
+        if (!CurrentGroup) {
+            BeginGroup(CreateUnorderedChunkPool());
         }
 
         // Merge is IO-bound, use data size as weight.
         auto pooledChunk = New<TPooledChunk>(
             chunk,
             chunk.approximate_data_size());
-        AddChunkToPool(group, pooledChunk);
-
-        LOG_DEBUG("Chunk %s is pooled (DataSize: %" PRId64 ")",
-            ~chunkId.ToString(),
-            chunk.approximate_data_size());
-
-        return true;
+        AddPooledChunk(pooledChunk);
     }
 
-    virtual i64 ChooseJobCount()
+    virtual i64 ComputeJobCount()
     {
         // Choose job count.
         // TODO(babenko): refactor, generalize, and improve.
@@ -501,8 +533,6 @@ private:
         YASSERT(jobCount > 0);
         return jobCount;
     }
-
-
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -520,56 +550,254 @@ public:
     { }
 
 private:
-    virtual bool ProcessInputChunk(const TInputChunk& chunk)
+    virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-        auto group = GetCurrentGroup();
         auto& table = OutputTables[0];
 
-        if (IsLargeCompleteChunk(chunk) && !group) {
+        if (IsLargeCompleteChunk(chunk) && !CurrentGroup) {
             // Merge is not required and no current group is active.
             // Copy the chunk directly to the output.
             LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
                 ~chunkId.ToString(),
                 static_cast<int>(table.PartitionTreeIds.size()));
             table.PartitionTreeIds.push_back(chunkId);
-            return false;
+            return;
         }
 
         // Ensure that the current group exists.
-        if (!group) {
-            group = BeginGroup();
-            group->ChunkPool = CreateAtomicChunkPool();
-            group->PartitionIndex = static_cast<int>(table.PartitionTreeIds.size());
-            table.PartitionTreeIds.push_back(NullChunkListId);
+        if (!CurrentGroup) {
+            BeginGroup(CreateAtomicChunkPool());
         }
 
         // Merge is IO-bound, use data size as weight.
         auto pooledChunk = New<TPooledChunk>(
             chunk,
             chunk.approximate_data_size());
-        AddChunkToPool(group, pooledChunk);
+        AddPooledChunk(pooledChunk);
 
-        LOG_DEBUG("Chunk %s is pooled in partition %d (DataSize: %" PRId64 ")",
-            ~chunkId.ToString(),
-            group->PartitionIndex,
-            chunk.approximate_data_size());
-
-        // Finish the group if the size is large enough.
-        if (group->ChunkPool->GetTotalWeight() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
-            EndGroup();
-        }
-
-        return true;
+        EndGroupIfLarge();
     }
 
-    virtual i64 ChooseJobCount()
+    virtual i64 ComputeJobCount()
     {
         // Each group corresponds to a unique job.
         return Groups.size();
     }
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TSortedMergeController
+    : public TMergeControllerBase
+{
+public:
+    TSortedMergeController(
+        TSchedulerConfigPtr config,
+        TMergeOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TMergeControllerBase(config, spec, host, operation)
+    { }
+
+private:
+    // Either the left or the right endpoint of a chunk.
+    struct TKeyEndpoint
+    {
+        // True iff left.
+        bool Left;
+        NTableClient::TKey Key;
+        const TInputChunk* InputChunk;
+    };
+
+    std::vector<TKeyEndpoint> Endpoints;
+
+    virtual void BeginInputChunks()
+    { }
+
+    virtual void ProcessInputChunk(const TInputChunk& chunk)
+    {
+        // Deserialize chunk attributes.
+        TTableChunkAttributes attributes;
+        YVERIFY(DeserializeFromProto(&attributes, TRef::FromString(chunk.chunk_attributes())));
+
+        YASSERT(attributes.sorted());
+
+        // Construct endpoints and place it into the list.
+        TKeyEndpoint leftEndpoint;
+        leftEndpoint.Left = true;
+        leftEndpoint.Key = FromProto<Stroka>(attributes.key_samples(0).key().values());
+        leftEndpoint.InputChunk = &chunk;
+        Endpoints.push_back(leftEndpoint);
+
+        TKeyEndpoint rightEndpoint;
+        rightEndpoint.Left = false;
+        rightEndpoint.Key = FromProto<Stroka>(attributes.key_samples(attributes.key_samples_size() - 1).key().values());
+        rightEndpoint.InputChunk = &chunk;
+        Endpoints.push_back(leftEndpoint);
+    }
+
+    virtual void EndInputChunks()
+    {
+        // Sort earlier collected endpoints to figure out overlapping chunks.
+        // Sort endpoints by keys, in case of a tie left endpoints go first.
+        LOG_DEBUG("Sorting chunks");
+        std::sort(
+            Endpoints.begin(),
+            Endpoints.end(),
+            [] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
+                auto keysResult = CompareKeys(lhs.Key, rhs.Key);
+                if (keysResult != 0) {
+                    return keysResult < 0;
+                }
+                return lhs.Left < rhs.Left;
+            });
+
+        // Compute sets of overlapping chunks.
+        // Combine small groups, if requested so.
+        LOG_DEBUG("Building groups");
+        int depth = 0;
+        std::vector<const TInputChunk*> chunks;
+        FOREACH (const auto& endpoint, Endpoints) {
+            if (endpoint.Left) {
+                ++depth;
+                chunks.push_back(endpoint.InputChunk);
+            } else {
+                --depth;
+                if (depth == 0) {
+                    BuildGroupIfNeeded(chunks);
+                    chunks.clear();
+                }
+            }
+        }
+    }
+
+    void BuildGroupIfNeeded(const std::vector<const TInputChunk*>& chunks)
+    {
+        auto& table = OutputTables[0];
+
+        LOG_DEBUG("Found overlap of %d chunks", static_cast<int>(chunks.size()));
+
+        if (chunks.size() == 1 && IsLargeCompleteChunk(*chunks[0]) && !CurrentGroup) {
+            const auto& chunk = *chunks[0];
+            auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+            // Merge is not required and no current group is active.
+            // Copy the chunk directly to the output.
+            AddPassthroughChunk(chunk);
+            return;
+        }
+
+        // Ensure that the current group exists.
+        if (!CurrentGroup) {
+            // TODO(babenko): use merge pool instead
+            BeginGroup(CreateAtomicChunkPool());
+        }
+
+        FOREACH (auto chunk, chunks) {
+            // Merge is IO-bound, use data size as weight.
+            auto pooledChunk = New<TPooledChunk>(
+                *chunk,
+                chunk->approximate_data_size());
+            AddPooledChunk(pooledChunk);
+        }
+
+        EndGroupIfLarge();
+    }
 
 
+    virtual void RequestCustomInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
+    {
+        // Request "sorted" attribute for input tables.
+        FOREACH (const auto& table, InputTables) {
+            auto req = TYPathProxy::Get(
+                WithTransaction(table.Path, InputTransaction->GetId()) +
+                "/@sorted");
+            batchReq->AddRequest(req, "get_input_sorted");
+        }
+        
+        // Request row counts for output tables.
+        // NB: There's only one output table.
+        FOREACH (const auto& table, OutputTables) {
+            auto req = TYPathProxy::Get(
+                WithTransaction(table.Path, OutputTransaction->GetId()) +
+                "/@row_count");
+            batchReq->AddRequest(req, "get_output_row_count");
+        }
+    }
+
+    virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        {
+            auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_input_sorted");
+            for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
+                ValidateGetSorted(rsps[index], InputTables[index].Path);
+            }
+        }
+        {
+            auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_output_row_count");
+            for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
+                ValidateEmpty(rsps[index], OutputTables[index].Path);
+            }
+        }
+    }
+
+
+    virtual void CommitCustomOutputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
+    {
+        // Mark output tables as sorted.
+        // NB: There's only one output table.
+        FOREACH (const auto& table, OutputTables) {
+            auto req = TTableYPathProxy::SetSorted(WithTransaction(table.Path, OutputTransaction->GetId()));
+            batchReq->AddRequest(req, "set_output_sorted");
+        }
+    }
+
+    virtual void OnCustomOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+    {
+        {
+            auto rsps = batchRsp->GetResponses<TTableYPathProxy::TRspSetSorted>("set_output_sorted");
+            for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
+                ValidateSetSorted(rsps[index], OutputTables[index].Path);
+            }
+        }
+    }
+
+
+    virtual i64 ComputeJobCount()
+    {
+        // TODO(babenko): fixme, for now each group corresponds to a unique job.
+        return Groups.size();
+    }
+
+
+    static void ValidateGetSorted(TYPathProxy::TRspGet::TPtr rsp, const TYPath& path)
+    {
+        CheckResponse(
+            rsp,
+            Sprintf("Error getting \"sorted\" attribute for table %s", path));
+        auto sorted = DeserializeFromYson<bool>(rsp->value());
+        if (!sorted) {
+            ythrow yexception() << Sprintf("Table %s is not sorted", ~path);
+        }
+    }
+
+    static void ValidateEmpty(TYPathProxy::TRspGet::TPtr rsp, const TYPath& path)
+    {
+        CheckResponse(
+            rsp,
+            Sprintf("Error getting row count for table %s", path));
+        auto rowCount = DeserializeFromYson<i64>(rsp->value());
+        if (rowCount != 0) {
+            ythrow yexception() << Sprintf("Table % is not empty", ~path);
+        }
+    }
+
+    static void ValidateSetSorted(TTableYPathProxy::TRspSetSorted::TPtr rsp, const TYPath& path)
+    {
+        CheckResponse(
+            rsp,
+            Sprintf("Error marking table %s as sorted", path));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -591,6 +819,8 @@ IOperationControllerPtr CreateMergeController(
             return New<TUnorderedMergeController>(config, spec, host, operation);
         case EMergeMode::Ordered:
             return New<TOrderedMergeController>(config, spec, host, operation);
+        case EMergeMode::Sorted:
+            return New<TSortedMergeController>(config, spec, host, operation);
         default:
             YUNREACHABLE();
     }
