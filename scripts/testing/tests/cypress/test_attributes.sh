@@ -22,7 +22,7 @@ yt set //root/a/@author not_ignat
 yt get //root/a/@author 
 
 echo 'nested attributes'
-yt set //root/b '<dir = <file = <>-100> #> #> []' 
+yt set //root/b '<dir = <file = <>-100> #> []' 
 yt get //root/b/@
 yt get //root/b/@dir/@
 yt get //root/b/@dir/@file
