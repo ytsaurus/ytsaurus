@@ -136,7 +136,7 @@ protected:
     virtual void OnMyBeginMap();
 
     virtual void OnMyBeginAttributes();
-    virtual void OnMyAttributesItem(const TStringBuf& key);
+    virtual void OnMyKeyedItem(const TStringBuf& key);
     virtual void OnMyEndAttributes();
 
 protected:
@@ -223,7 +223,7 @@ private:
         Map->Clear();
     }
 
-    virtual void OnMyMapItem(const TStringBuf& key)
+    virtual void OnMyKeyedItem(const TStringBuf& key)
     {
         ItemKey = key;
         TreeBuilder->BeginTree();
