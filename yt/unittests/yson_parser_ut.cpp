@@ -76,14 +76,12 @@ TEST_F(TYsonParserTest, StringStartingWithQuote)
     Run();
 }
 
-TEST_F(TYsonParserTest, EntityWithEmptyAttributes)
+TEST_F(TYsonParserTest, Entity)
 {
-    Input = "< >";
+    Input = " # ";
 
     InSequence dummy;
     EXPECT_CALL(Mock, OnEntity());
-    EXPECT_CALL(Mock, OnBeginAttributes());
-    EXPECT_CALL(Mock, OnEndAttributes());
 
     Run();
 }
@@ -119,7 +117,7 @@ TEST_F(TYsonParserTest, BinaryString)
     Run();
 }
 
-TEST_F(TYsonParserTest, EmpryBinaryString)
+TEST_F(TYsonParserTest, EmptyBinaryString)
 {
     Input = Stroka("\x01\x00", 2); // StringMarker + length ( = 0 )
 
@@ -222,43 +220,39 @@ TEST_F(TYsonParserTest, SeveralElementsList)
 
 TEST_F(TYsonParserTest, MapWithAttributes)
 {
-    Input =  "{ path = \"/home/sandello\" ; mode = 0755 } \n";
-    Input += "<acl = { read = [ \"*\" ]; write = [ sandello ] } ;  \n";
-    Input += "  lock_scope = mytables>";
+    Input = "<acl = { read = [ \"*\" ]; write = [ sandello ] } ;  \n";
+    Input += "  lock_scope = mytables> \n";
+    Input +=  "{ path = \"/home/sandello\" ; mode = 0755 }";
 
     InSequence dummy;
-    EXPECT_CALL(Mock, OnBeginMap());
-
-    EXPECT_CALL(Mock, OnKeyedItem("path"));
-        EXPECT_CALL(Mock, OnStringScalar("/home/sandello"));
-
-    EXPECT_CALL(Mock, OnKeyedItem("mode"));
-        EXPECT_CALL(Mock, OnIntegerScalar(755));
-
-    EXPECT_CALL(Mock, OnEndMap());
 
     EXPECT_CALL(Mock, OnBeginAttributes());
-    EXPECT_CALL(Mock, OnKeyedItem("acl"));
+        EXPECT_CALL(Mock, OnKeyedItem("acl"));
         EXPECT_CALL(Mock, OnBeginMap());
+            EXPECT_CALL(Mock, OnKeyedItem("read"));
+            EXPECT_CALL(Mock, OnBeginList());
+                EXPECT_CALL(Mock, OnListItem());
+                EXPECT_CALL(Mock, OnStringScalar("*"));
+            EXPECT_CALL(Mock, OnEndList());
 
-        EXPECT_CALL(Mock, OnKeyedItem("read"));
-        EXPECT_CALL(Mock, OnBeginList());
-        EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnStringScalar("*"));
-        EXPECT_CALL(Mock, OnEndList());
-
-        EXPECT_CALL(Mock, OnKeyedItem("write"));
-        EXPECT_CALL(Mock, OnBeginList());
-        EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnStringScalar("sandello"));
-        EXPECT_CALL(Mock, OnEndList());
-
+            EXPECT_CALL(Mock, OnKeyedItem("write"));
+            EXPECT_CALL(Mock, OnBeginList());
+                EXPECT_CALL(Mock, OnListItem());
+                EXPECT_CALL(Mock, OnStringScalar("sandello"));
+            EXPECT_CALL(Mock, OnEndList());
         EXPECT_CALL(Mock, OnEndMap());
 
-    EXPECT_CALL(Mock, OnKeyedItem("lock_scope"));
+        EXPECT_CALL(Mock, OnKeyedItem("lock_scope"));
         EXPECT_CALL(Mock, OnStringScalar("mytables"));
-
     EXPECT_CALL(Mock, OnEndAttributes());
+
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("path"));
+        EXPECT_CALL(Mock, OnStringScalar("/home/sandello"));
+
+        EXPECT_CALL(Mock, OnKeyedItem("mode"));
+        EXPECT_CALL(Mock, OnIntegerScalar(755));
+    EXPECT_CALL(Mock, OnEndMap());
 
     Run();
 }
@@ -328,7 +322,7 @@ TEST_F(TYsonParserTest, ListFragment)
 
 TEST_F(TYsonParserTest, ListFragmentWithTrailingSemicolon)
 {
-    Input = "{};[];<>;";
+    Input = "{};[];<>#;";
     Mode = EYsonType::ListFragment;
 
     InSequence dummy;
@@ -339,9 +333,9 @@ TEST_F(TYsonParserTest, ListFragmentWithTrailingSemicolon)
     EXPECT_CALL(Mock, OnBeginList());
     EXPECT_CALL(Mock, OnEndList());
     EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnEntity());
     EXPECT_CALL(Mock, OnBeginAttributes());
     EXPECT_CALL(Mock, OnEndAttributes());
+    EXPECT_CALL(Mock, OnEntity());
 
     Run();
 }
@@ -389,7 +383,7 @@ TEST_F(TYsonParserTest, KeyedFragment)
 
 TEST_F(TYsonParserTest, KeyedFragmentWithTrailingSemicolon)
 {
-    Input = "map={};list=[];entity=<>;";
+    Input = "map={};list=[];entity=#;";
     Mode = EYsonType::KeyedFragment;
 
     InSequence dummy;
@@ -401,8 +395,6 @@ TEST_F(TYsonParserTest, KeyedFragmentWithTrailingSemicolon)
     EXPECT_CALL(Mock, OnEndList());
     EXPECT_CALL(Mock, OnKeyedItem("entity"));
     EXPECT_CALL(Mock, OnEntity());
-    EXPECT_CALL(Mock, OnBeginAttributes());
-    EXPECT_CALL(Mock, OnEndAttributes());
 
     Run();
 }
