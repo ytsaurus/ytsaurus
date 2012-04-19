@@ -79,10 +79,10 @@ class TestYSONParser(unittest.TestCase):
         self.assert_parse('{a=1}', {'a': 1})
 
     def test_map(self):
-        self.assert_parse('{a = b; c = d}', {'a': 'b', 'c': 'd'})
+        self.assert_parse('<a = b; c = d> {a = b; c = d}', {'a': 'b', 'c': 'd'})
 
     def test_entity(self):
-        self.assert_parse(' <a = b; c = d>', None)
+        self.assert_parse('#', None)
 
     def test_nested(self):
         self.assert_parse(

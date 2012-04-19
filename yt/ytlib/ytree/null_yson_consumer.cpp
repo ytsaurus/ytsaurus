@@ -10,28 +10,23 @@ namespace NYTree {
 class TNullYsonConsumer
     : public IYsonConsumer
 {
-    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes = false)
+    virtual void OnStringScalar(const TStringBuf& value)
     {
         UNUSED(value);
-        UNUSED(hasAttributes);
     }
 
-    virtual void OnIntegerScalar(i64 value, bool hasAttributes = false)
+    virtual void OnIntegerScalar(i64 value)
     {
         UNUSED(value);
-        UNUSED(hasAttributes);
     }
 
-    virtual void OnDoubleScalar(double value, bool hasAttributes = false)
+    virtual void OnDoubleScalar(double value)
     {
         UNUSED(value);
-        UNUSED(hasAttributes);
     }
     
-    virtual void OnEntity(bool hasAttributes = false)
-    {
-        UNUSED(hasAttributes);
-    }
+    virtual void OnEntity()
+    { }
 
     virtual void OnBeginList()
     { }
@@ -39,34 +34,31 @@ class TNullYsonConsumer
     virtual void OnListItem()
     { }
     
-    virtual void OnEndList(bool hasAttributes = false)
-    {
-        UNUSED(hasAttributes);
-    }
+    virtual void OnEndList()
+    { }
 
     virtual void OnBeginMap()
     { }
     
-    virtual void OnMapItem(const TStringBuf& name)
+    virtual void OnKeyedItem(const TStringBuf& name)
     {
         UNUSED(name);
     }
 
-    virtual void OnEndMap(bool hasAttributes = false)
-    {
-        UNUSED(hasAttributes);
-    }
+    virtual void OnEndMap()
+    { }
 
     virtual void OnBeginAttributes()
     { }
 
-    virtual void OnAttributesItem(const TStringBuf& name)
-    {
-        UNUSED(name);
-    }
-
     virtual void OnEndAttributes()
     { }
+
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type)
+    {
+        UNUSED(yson);
+        UNUSED(type);
+    }
 };
 
 IYsonConsumer* GetNullYsonConsumer()

@@ -10,55 +10,60 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TForwardingYsonConsumer
-    : public virtual IYsonConsumer
+    : public virtual TYsonConsumerBase
 {
 protected:
     TForwardingYsonConsumer();
 
-    void ForwardNode(IYsonConsumer* consumer, const TClosure& onForwardingFinished);
-    void ForwardAttributes(IYsonConsumer* consumer, const TClosure& onForwardingFinished);
+    void ForwardNode(IYsonConsumer* consumer, const TClosure& onForwardingFinished = TClosure());
+    void ForwardFragment(IYsonConsumer* consumer, const TClosure& onForwardingFinished = TClosure());
 
-    virtual void OnMyStringScalar(const TStringBuf& value, bool hasAttributes);
-    virtual void OnMyIntegerScalar(i64 value, bool hasAttributes);
-    virtual void OnMyDoubleScalar(double value, bool hasAttributes);
-    virtual void OnMyEntity(bool hasAttributes);
+    virtual void OnMyStringScalar(const TStringBuf& value);
+    virtual void OnMyIntegerScalar(i64 value);
+    virtual void OnMyDoubleScalar(double value);
+    virtual void OnMyEntity();
 
     virtual void OnMyBeginList();
     virtual void OnMyListItem();
-    virtual void OnMyEndList(bool hasAttributes);
+    virtual void OnMyEndList();
 
     virtual void OnMyBeginMap();
-    virtual void OnMyMapItem(const TStringBuf& name);
-    virtual void OnMyEndMap(bool hasAttributes);
+    virtual void OnMyKeyedItem(const TStringBuf& key);
+    virtual void OnMyEndMap();
 
     virtual void OnMyBeginAttributes();
-    virtual void OnMyAttributesItem(const TStringBuf& name);
     virtual void OnMyEndAttributes();
+
+    virtual void OnMyRaw(const TStringBuf& yson, EYsonType type);
 
 private:
     IYsonConsumer* ForwardingConsumer;
     int ForwardingDepth;
     TClosure OnForwardingFinished;
+    bool ForwardingFragment;
 
-    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes);
-    virtual void OnIntegerScalar(i64 value, bool hasAttributes);
-    virtual void OnDoubleScalar(double value, bool hasAttributes);
-    virtual void OnEntity(bool hasAttributes);
+    virtual void OnStringScalar(const TStringBuf& value);
+    virtual void OnIntegerScalar(i64 value);
+    virtual void OnDoubleScalar(double value);
+    virtual void OnEntity();
 
     virtual void OnBeginList();
     virtual void OnListItem();
-    virtual void OnEndList(bool hasAttributes);
+    virtual void OnEndList();
 
     virtual void OnBeginMap();
-    virtual void OnMapItem(const TStringBuf& name);
-    virtual void OnEndMap(bool hasAttributes);
+    virtual void OnKeyedItem(const TStringBuf& key);
+    virtual void OnEndMap();
 
     virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const TStringBuf& name);
     virtual void OnEndAttributes();
 
-    void DoForward(IYsonConsumer* consumer, const TClosure& onForwardingFinished, int depth);
-    void UpdateDepth(int depthDelta);
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type);
+
+    void StartForwarding(IYsonConsumer* consumer, const TClosure& onForwardingFinished, bool forwardingFragment);
+    bool CheckForwarding(int depthDelta = 0);
+    void UpdateDepth(int depthDelta, bool checkFinish = true);
+    void FinishForwarding();
 
 };
 

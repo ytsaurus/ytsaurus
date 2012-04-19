@@ -15,9 +15,4 @@ message TChannel
     repeated TRange ranges = 2;
 }
 
-message TKey
-{
-    repeated bytes values = 1;
-}
-
 ////////////////////////////////////////////////////////////////////////////////

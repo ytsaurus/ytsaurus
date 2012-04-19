@@ -11,7 +11,7 @@ namespace NTableClient {
 TYsonTableOutput::TYsonTableOutput(ISyncTableWriter* syncWriter)
     : Writer(syncWriter)
     , RowConsumer(new TRowConsumer(syncWriter))
-    , YsonParser(RowConsumer.Get(), NYTree::TYsonParser::EMode::ListFragment)
+    , YsonParser(RowConsumer.Get(), NYTree::EYsonType::ListFragment)
 {
     Writer->Open();
 }

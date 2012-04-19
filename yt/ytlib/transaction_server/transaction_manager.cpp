@@ -402,11 +402,15 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
     objectManager->UnrefObject(transactionId);
 }
 
-void TTransactionManager::RenewLease(const TTransactionId& id)
+void TTransactionManager::RenewLease(const TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto it = LeaseMap.find(id);
+    if (transaction.GetState() != ETransactionState::Active) {
+        ythrow yexception() << "Cannot renew lease for an inactive transaction";
+    }
+
+    auto it = LeaseMap.find(transaction.GetId());
     YASSERT(it != LeaseMap.end());
     TLeaseManager::RenewLease(it->second);
 }

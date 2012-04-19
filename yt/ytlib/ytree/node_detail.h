@@ -4,9 +4,9 @@
 #include "serialize.h"
 #include "ypath_service.h"
 #include "tree_builder.h"
-#include "yson_reader.h"
-#include <ytlib/ytree/ypath.pb.h>
 #include "ypath_detail.h"
+
+#include <ytlib/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {

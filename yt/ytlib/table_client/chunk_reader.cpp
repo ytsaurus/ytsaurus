@@ -189,7 +189,7 @@ private:
 
             if (StartLimit.has_key() || EndLimit.has_key()) {
                 // We expect sorted chunk here.
-                if (!Attributes.is_sorted()) {
+                if (!Attributes.sorted()) {
                     LOG_WARNING("Received key range read request for an unsorted chunk");
                     OnFail(
                         TError("Received key range read request for an unsorted chunk"), 

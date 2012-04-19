@@ -112,12 +112,16 @@ void EscapeC(const char* str, size_t len, TOutputStream& output) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonWriter::TYsonWriter(TOutputStream* stream, EYsonFormat format)
+TYsonWriter::TYsonWriter(
+    TOutputStream* stream,
+    EYsonFormat format,
+    bool formatRaw)
     : Stream(stream)
     , IsFirstItem(true)
     , IsEmptyEntity(false)
     , Indent(0)
     , Format(format)
+    , FormatRaw(formatRaw)
 {
     YASSERT(stream);
 }
@@ -192,15 +196,12 @@ void TYsonWriter::EndCollection(char closeBracket)
     IsFirstItem = false;
 }
 
-void TYsonWriter::OnStringScalar(const TStringBuf& value, bool hasAttributes)
+void TYsonWriter::OnStringScalar(const TStringBuf& value)
 {
     WriteStringScalar(value);
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
-void TYsonWriter::OnIntegerScalar(i64 value, bool hasAttributes)
+void TYsonWriter::OnIntegerScalar(i64 value)
 {
     if (Format == EYsonFormat::Binary) {
         Stream->Write(IntegerMarker);
@@ -208,12 +209,9 @@ void TYsonWriter::OnIntegerScalar(i64 value, bool hasAttributes)
     } else {
         Stream->Write(ToString(value));
     }
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
-void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
+void TYsonWriter::OnDoubleScalar(double value)
 {
     if (Format == EYsonFormat::Binary) {
         Stream->Write(DoubleMarker);
@@ -221,17 +219,11 @@ void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
     } else {
         Stream->Write(ToString(value));
     }
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
-void TYsonWriter::OnEntity(bool hasAttributes)
+void TYsonWriter::OnEntity()
 {
-    if (!hasAttributes) {
-        Stream->Write(BeginAttributesSymbol);
-        Stream->Write(EndAttributesSymbol);
-    }
+    Stream->Write('#');
 }
 
 void TYsonWriter::OnBeginList()
@@ -244,12 +236,9 @@ void TYsonWriter::OnListItem()
     CollectionItem(ItemSeparator);
 }
 
-void TYsonWriter::OnEndList(bool hasAttributes)
+void TYsonWriter::OnEndList()
 {
     EndCollection(EndListSymbol);
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
 void TYsonWriter::OnBeginMap()
@@ -257,17 +246,14 @@ void TYsonWriter::OnBeginMap()
     BeginCollection(BeginMapSymbol);
 }
 
-void TYsonWriter::OnMapItem(const TStringBuf& name)
+void TYsonWriter::OnKeyedItem(const TStringBuf& type)
 {
-    WriteMapItem(name);
+    WriteMapItem(type);
 }
 
-void TYsonWriter::OnEndMap(bool hasAttributes)
+void TYsonWriter::OnEndMap()
 {
     EndCollection(EndMapSymbol);
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
 }
 
 void TYsonWriter::OnBeginAttributes()
@@ -275,25 +261,30 @@ void TYsonWriter::OnBeginAttributes()
     BeginCollection(BeginAttributesSymbol);
 }
 
-void TYsonWriter::OnAttributesItem(const TStringBuf& name)
-{
-    WriteMapItem(name);
-}
-
 void TYsonWriter::OnEndAttributes()
 {
     EndCollection(EndAttributesSymbol);
+    if (Format == EYsonFormat::Pretty) {
+        Stream->Write(' ');
+    }
 }
 
-void TYsonWriter::OnRaw(const TStringBuf& yson)
+void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    Stream->Write(yson);
+    if (FormatRaw) {
+        TYsonConsumerBase::OnRaw(yson, type);
+    } else {
+        Stream->Write(yson);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonFragmentWriter::TYsonFragmentWriter(TOutputStream* stream, EYsonFormat format)
-    : TYsonWriter(stream, format)
+TYsonFragmentWriter::TYsonFragmentWriter(
+    TOutputStream* stream,
+    EYsonFormat format,
+    bool formatRaw)
+    : TYsonWriter(stream, format, formatRaw)
     , NestedCount(0)
 {
     // this is a hack for not making an indent before first tokens (in pretty mode)

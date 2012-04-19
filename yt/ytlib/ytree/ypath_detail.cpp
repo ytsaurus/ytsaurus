@@ -391,7 +391,7 @@ void TSupportsAttributes::GetAttribute(
             systemAttributeProvider->GetSystemAttributes(&systemAttributes);
             FOREACH (const auto& attribute, systemAttributes) {
                 if (attribute.IsPresent) {
-                    writer.OnMapItem(attribute.Key);
+                    writer.OnKeyedItem(attribute.Key);
                     if (attribute.IsOpaque) {
                         writer.OnEntity();
                     } else {
@@ -406,7 +406,7 @@ void TSupportsAttributes::GetAttribute(
             std::vector<Stroka> userAttributeList(userAttributeSet.begin(), userAttributeSet.end());
             std::sort(userAttributeList.begin(), userAttributeList.end());
             FOREACH (const auto& key, userAttributeList) {
-                writer.OnMapItem(key);
+                writer.OnKeyedItem(key);
                 writer.OnRaw(userAttributes->GetYson(key));
             }
         }
@@ -622,30 +622,30 @@ void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
         ~actualType.ToString().Quote());
 }
 
-void TNodeSetterBase::OnMyStringScalar(const TStringBuf& value, bool hasAttributes)
+void TNodeSetterBase::OnMyStringScalar(const TStringBuf& value)
 {
     UNUSED(value);
-    UNUSED(hasAttributes);
+
     ThrowInvalidType(ENodeType::String);
 }
 
-void TNodeSetterBase::OnMyIntegerScalar(i64 value, bool hasAttributes)
+void TNodeSetterBase::OnMyIntegerScalar(i64 value)
 {
     UNUSED(value);
-    UNUSED(hasAttributes);
+
     ThrowInvalidType(ENodeType::Integer);
 }
 
-void TNodeSetterBase::OnMyDoubleScalar(double value, bool hasAttributes)
+void TNodeSetterBase::OnMyDoubleScalar(double value)
 {
     UNUSED(value);
-    UNUSED(hasAttributes);
+
     ThrowInvalidType(ENodeType::Double);
 }
 
-void TNodeSetterBase::OnMyEntity(bool hasAttributes)
+void TNodeSetterBase::OnMyEntity()
 {
-    UNUSED(hasAttributes);
+
     ThrowInvalidType(ENodeType::Entity);
 }
 
@@ -664,7 +664,7 @@ void TNodeSetterBase::OnMyBeginAttributes()
     Node->Attributes().Clear();
 }
 
-void TNodeSetterBase::OnMyAttributesItem(const TStringBuf& key)
+void TNodeSetterBase::OnMyKeyedItem(const TStringBuf& key)
 {
     AttributeKey = key;
     ForwardNode(&AttributeWriter, BIND(&TThis::OnForwardingFinished, this));

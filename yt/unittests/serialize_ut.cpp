@@ -23,9 +23,9 @@ Stroka deleteSpaces(const Stroka& str) {
 
 TEST(TYTreeSerializationTest, All)
 {
-    Stroka someYson = "{\"mode\"=755;\"path\"=\"/home/sandello\"}"
-                      "<\"acl\"={\"read\"=[\"*\"];\"write\"=[\"sandello\"]};"
-                      "\"lock_scope\"=\"mytables\">";
+    Stroka someYson = "<\"acl\"={\"read\"=[\"*\"];\"write\"=[\"sandello\"]};"
+                      "\"lock_scope\"=\"mytables\">"
+                      "{\"mode\"=755;\"path\"=\"/home/sandello\"}";                      ;
     auto root = DeserializeFromYson(someYson);
     auto deserializedYson = SerializeToYson(root.Get(), EYsonFormat::Text);
     EXPECT_EQ(deleteSpaces(someYson), deserializedYson) <<

@@ -29,13 +29,13 @@ TEST_F(TTreeBuilderTest, EmptyMap)
 {
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginMap());
-    EXPECT_CALL(Mock, OnEndMap(false));
+    EXPECT_CALL(Mock, OnEndMap());
 
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
 
     builder->BeginTree();
     builder->OnBeginMap();
-    builder->OnEndMap(false);
+    builder->OnEndMap();
     auto root = builder->EndTree();
 
     VisitTree(~root, &Mock);
@@ -45,29 +45,29 @@ TEST_F(TTreeBuilderTest, NestedMaps)
 {
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginMap());
-    EXPECT_CALL(Mock, OnMapItem("a"));
+    EXPECT_CALL(Mock, OnKeyedItem("a"));
         EXPECT_CALL(Mock, OnBeginMap());
-        EXPECT_CALL(Mock, OnMapItem("b"));
+        EXPECT_CALL(Mock, OnKeyedItem("b"));
             EXPECT_CALL(Mock, OnBeginMap());
-            EXPECT_CALL(Mock, OnMapItem("c"));
-            EXPECT_CALL(Mock, OnIntegerScalar(42, false));
-            EXPECT_CALL(Mock, OnEndMap(false));
-        EXPECT_CALL(Mock, OnEndMap(false));
-    EXPECT_CALL(Mock, OnEndMap(false));
+            EXPECT_CALL(Mock, OnKeyedItem("c"));
+            EXPECT_CALL(Mock, OnIntegerScalar(42));
+            EXPECT_CALL(Mock, OnEndMap());
+        EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_CALL(Mock, OnEndMap());
 
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
 
     builder->BeginTree();
     builder->OnBeginMap();
-    builder->OnMapItem("a");
+    builder->OnKeyedItem("a");
         builder->OnBeginMap();
-        builder->OnMapItem("b");
+        builder->OnKeyedItem("b");
             builder->OnBeginMap();
-            builder->OnMapItem("c");
-            builder->OnIntegerScalar(42, false);
-            builder->OnEndMap(false);
-        builder->OnEndMap(false);
-    builder->OnEndMap(false);
+            builder->OnKeyedItem("c");
+            builder->OnIntegerScalar(42);
+            builder->OnEndMap();
+        builder->OnEndMap();
+    builder->OnEndMap();
     auto root = builder->EndTree();
 
     VisitTree(~root, &Mock);
@@ -76,74 +76,67 @@ TEST_F(TTreeBuilderTest, NestedMaps)
 TEST_F(TTreeBuilderTest, MapWithAttributes)
 {
     InSequence dummy;
-    EXPECT_CALL(Mock, OnBeginMap());
-
-    EXPECT_CALL(Mock, OnMapItem("mode"));
-        EXPECT_CALL(Mock, OnIntegerScalar(755, false));
-
-    EXPECT_CALL(Mock, OnMapItem("path"));
-        EXPECT_CALL(Mock, OnStringScalar("/home/sandello", false));
-
-    EXPECT_CALL(Mock, OnEndMap(true));
 
     EXPECT_CALL(Mock, OnBeginAttributes());
-    EXPECT_CALL(Mock, OnAttributesItem("acl"));
+        EXPECT_CALL(Mock, OnKeyedItem("acl"));
         EXPECT_CALL(Mock, OnBeginMap());
+            EXPECT_CALL(Mock, OnKeyedItem("read"));
+            EXPECT_CALL(Mock, OnBeginList());
+                EXPECT_CALL(Mock, OnListItem());
+                EXPECT_CALL(Mock, OnStringScalar("*"));
+            EXPECT_CALL(Mock, OnEndList());
 
-        EXPECT_CALL(Mock, OnMapItem("read"));
-        EXPECT_CALL(Mock, OnBeginList());
-        EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnStringScalar("*", false));
-        EXPECT_CALL(Mock, OnEndList(false));
+            EXPECT_CALL(Mock, OnKeyedItem("write"));
+            EXPECT_CALL(Mock, OnBeginList());
+                EXPECT_CALL(Mock, OnListItem());
+                EXPECT_CALL(Mock, OnStringScalar("sandello"));
+            EXPECT_CALL(Mock, OnEndList());
+        EXPECT_CALL(Mock, OnEndMap());
 
-        EXPECT_CALL(Mock, OnMapItem("write"));
-        EXPECT_CALL(Mock, OnBeginList());
-        EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnStringScalar("sandello", false));
-        EXPECT_CALL(Mock, OnEndList(false));
-
-        EXPECT_CALL(Mock, OnEndMap(false));
-
-    EXPECT_CALL(Mock, OnAttributesItem("lock_scope"));
-        EXPECT_CALL(Mock, OnStringScalar("mytables", false));
-
+        EXPECT_CALL(Mock, OnKeyedItem("lock_scope"));
+        EXPECT_CALL(Mock, OnStringScalar("mytables"));
     EXPECT_CALL(Mock, OnEndAttributes());
+
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("mode"));
+        EXPECT_CALL(Mock, OnIntegerScalar(755));
+
+        EXPECT_CALL(Mock, OnKeyedItem("path"));
+        EXPECT_CALL(Mock, OnStringScalar("/home/sandello"));
+    EXPECT_CALL(Mock, OnEndMap());
 
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
 
     builder->BeginTree();
-    builder->OnBeginMap();
-
-    builder->OnMapItem("path");
-        builder->OnStringScalar("/home/sandello", false);
-
-    builder->OnMapItem("mode");
-        builder->OnIntegerScalar(755, false);
-
-    builder->OnEndMap(true);
 
     builder->OnBeginAttributes();
-    builder->OnAttributesItem("acl");
+        builder->OnKeyedItem("acl");
         builder->OnBeginMap();
+            builder->OnKeyedItem("read");
+            builder->OnBeginList();
+                builder->OnListItem();
+                builder->OnStringScalar("*");
+            builder->OnEndList();
 
-        builder->OnMapItem("read");
-        builder->OnBeginList();
-        builder->OnListItem();
-        builder->OnStringScalar("*", false);
-        builder->OnEndList(false);
+            builder->OnKeyedItem("write");
+            builder->OnBeginList();
+                builder->OnListItem();
+                builder->OnStringScalar("sandello");
+            builder->OnEndList();
+        builder->OnEndMap();
 
-        builder->OnMapItem("write");
-        builder->OnBeginList();
-        builder->OnListItem();
-        builder->OnStringScalar("sandello", false);
-        builder->OnEndList(false);
-
-        builder->OnEndMap(false);
-
-    builder->OnAttributesItem("lock_scope");
-        builder->OnStringScalar("mytables", false);
-
+        builder->OnKeyedItem("lock_scope");
+        builder->OnStringScalar("mytables");
     builder->OnEndAttributes();
+
+    builder->OnBeginMap();
+        builder->OnKeyedItem("path");
+        builder->OnStringScalar("/home/sandello");
+
+        builder->OnKeyedItem("mode");
+        builder->OnIntegerScalar(755);
+    builder->OnEndMap();
+
     auto root = builder->EndTree();
 
     VisitTree(~root, &Mock);

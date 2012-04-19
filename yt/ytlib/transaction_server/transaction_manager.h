@@ -67,7 +67,7 @@ public:
     TTransaction& Start(TTransaction* parent, TNullable<TDuration> timeout);
     void Commit(TTransaction& transaction);
     void Abort(TTransaction& transaction);
-    void RenewLease(const TTransactionId& id);
+    void RenewLease(const TTransaction& transaction);
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 

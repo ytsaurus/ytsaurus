@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "yson_table_input.h"
 
 #include <ytlib/misc/foreach.h>
@@ -26,10 +26,10 @@ bool TYsonTableInput::ReadRow()
     YsonWriter.OnListItem();
     YsonWriter.OnBeginMap();
     FOREACH (auto& pair, Reader->GetRow()) {
-        YsonWriter.OnMapItem(pair.first);
-        YsonWriter.OnStringScalar(pair.second.ToString(), false);
+        YsonWriter.OnKeyedItem(pair.first);
+        YsonWriter.OnStringScalar(pair.second.ToString());
     }
-    YsonWriter.OnEndMap(false);
+    YsonWriter.OnEndMap();
 
     Reader->NextRow();
     return true;
