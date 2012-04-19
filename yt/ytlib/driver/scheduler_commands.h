@@ -2,8 +2,7 @@
 
 #include "command.h"
 
-#include <ytlib/scheduler/map_controller.h>
-#include <ytlib/scheduler/merge_controller.h>
+#include <ytlib/scheduler/public.h>
 
 namespace NYT {
 namespace NDriver {
@@ -35,7 +34,7 @@ protected:
 struct TMapRequest
     : public TTransactedRequest
 {
-    NScheduler::TMapOperationSpecPtr Spec;
+    NYTree::INodePtr Spec;
 
     TMapRequest()
     {
@@ -61,7 +60,7 @@ private:
 struct TMergeRequest
     : public TTransactedRequest
 {
-    NScheduler::TMergeOperationSpecPtr Spec;
+    NYTree::INodePtr Spec;
 
     TMergeRequest()
     {
