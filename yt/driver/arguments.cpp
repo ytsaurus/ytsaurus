@@ -88,7 +88,7 @@ void TArgsParserBase::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactedArgsParser::TTransactedArgsParser()
-    : TxArg("", "tx", "set transaction id", false, NObjectServer::NullTransactionId, "transaction_id")
+    : TxArg("", "tx", "set transaction id", false, "", "transaction_id")
 {
     CmdLine.add(TxArg);
 }
@@ -96,7 +96,11 @@ TTransactedArgsParser::TTransactedArgsParser()
 void TTransactedArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("transaction_id").Scalar(TxArg.getValue());
+        .DoIf(TxArg.isSet(), [=] (TFluentMap fluent) {
+            TYson txYson = TxArg.getValue();
+            ValidateYson(txYson);
+            fluent.Item("transaction_id").Node(txYson);
+        });
 
     TArgsParserBase::BuildCommand(consumer);
 }

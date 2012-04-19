@@ -65,8 +65,7 @@ public:
     TTransactedArgsParser();
 
 protected:
-    typedef TCLAP::ValueArg<NObjectServer::TTransactionId> TTxArg;
-    TTxArg TxArg;
+    TCLAP::ValueArg<Stroka> TxArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
