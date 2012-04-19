@@ -49,9 +49,6 @@ struct TSetRequest
         Register("path", Path);
         Register("value", Value); //TODO(panin): Think about defaulting this value
     }
-
-    virtual void DoValidate() const
-    { }
 };
 
 typedef TIntrusivePtr<TSetRequest> TSetRequestPtr;
@@ -131,7 +128,6 @@ struct TCreateRequest
     : public TTransactedRequest
 {
     NYTree::TYPath Path;
-    NYTree::INodePtr Stream;
     NObjectServer::EObjectType Type;
 
     TCreateRequest()
