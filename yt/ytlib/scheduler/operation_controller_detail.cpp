@@ -581,7 +581,7 @@ TVoid TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecu
                 if (chunk.holder_addresses_size() == 0) {
                     ythrow yexception() << Sprintf("Chunk %s in input table %s is lost",
                         ~chunkId.ToString(),
-                        table.Path);
+                        ~table.Path);
                 }
             }
         }
