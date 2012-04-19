@@ -45,7 +45,7 @@ TValidatingWriter::TValidatingWriter(
         *Attributes.add_chunk_channels()->mutable_channel() = channel.ToProto();
         ChannelWriters.push_back(New<TChannelWriter>(channel, ColumnIndexes));
     }
-    Attributes.set_is_sorted(false);
+    Attributes.set_sorted(false);
 }
 
 TAsyncError TValidatingWriter::AsyncOpen()

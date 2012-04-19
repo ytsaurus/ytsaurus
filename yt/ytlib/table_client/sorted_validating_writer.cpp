@@ -14,7 +14,7 @@ TSortedValidatingWriter::TSortedValidatingWriter(
     : TValidatingWriter(schema, writer)
 {
     PreviousKey.assign(Schema.KeyColumns().size(), Stroka());
-    Attributes.set_is_sorted(true);
+    Attributes.set_sorted(true);
 }
 
 TAsyncError TSortedValidatingWriter::AsyncEndRow()
