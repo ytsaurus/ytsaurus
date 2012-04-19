@@ -25,20 +25,23 @@ static NProfiling::TProfiler Profiler("/operations/merge");
 
 ////////////////////////////////////////////////////////////////////
 
-class TMergeController
+class TMergeControllerBase
     : public TOperationControllerBase
 {
 public:
-    TMergeController(
+    TMergeControllerBase(
         TSchedulerConfigPtr config,
+        TMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
+        , Spec(spec)
     { }
 
 private:
-    typedef TMergeController TThis;
+    typedef TMergeControllerBase TThis;
 
+protected:
     TMergeOperationSpecPtr Spec;
 
     // Running counters.
@@ -173,14 +176,7 @@ private:
     // Init/finish.
 
     virtual void DoInitialize()
-    {
-        Spec = New<TMergeOperationSpec>();
-        try {
-            Spec->Load(~Operation->GetSpec());
-        } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
-        }
-    }
+    { }
 
     virtual bool HasPendingJobs()
     {
@@ -309,6 +305,8 @@ private:
             i64 totalChunkCount = 0;
             i64 mergeChunkCount = 0;
 
+            BeginInputChunksProcessing();
+
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
                 auto fetchRsp = table.FetchResponse;
@@ -328,10 +326,7 @@ private:
                 }
             }
 
-            // Close the last group, if any.
-            if (GetCurrentGroup()) {
-                EndGroup();
-            }
+            EndInputChunksProcessing();
 
             // Check for empty and trivial inputs.
             if (totalRowCount == 0) {
@@ -369,130 +364,23 @@ private:
 
 
     // The following functions return True iff the chunk is pooled.
-    bool ProcessInputChunk(const TInputChunk& chunk)
+    virtual void BeginInputChunksProcessing()
+    { }
+
+    virtual bool ProcessInputChunk(const TInputChunk& chunk) = 0;
+
+    virtual void EndInputChunksProcessing()
     {
-        switch (Spec->Mode) {
-            case EMergeMode::Unordered:
-                return ProcessInputChunkUnordered(chunk);
-            case EMergeMode::Ordered:
-                return ProcessInputChunkOrdered(chunk);
-                break;
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    bool ProcessInputChunkUnordered(const TInputChunk& chunk)
-    {
-        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-        auto& table = OutputTables[0];
-
-        if (!IsLargeCompleteChunk(chunk)) {
-            // Chunks not requiring merge go directly to the output chunk list.
-            LOG_DEBUG("Chunk %s is large and complete, using as-is", ~chunkId.ToString());
-            table.PartitionTreeIds.push_back(chunkId);
-            return false;
-        }
-
-        // Create a merge group if not exists.
-        auto group = GetCurrentGroup();
-        if (!group) {
-            group = BeginGroup();
-            group->ChunkPool = CreateUnorderedChunkPool();
-        }
-
-        // Merge is IO-bound, use data size as weight.
-        auto pooledChunk = New<TPooledChunk>(
-            chunk,
-            chunk.approximate_data_size());
-        AddChunkToPool(group, pooledChunk);
-        
-        LOG_DEBUG("Chunk %s is pooled (DataSize: %" PRId64 ")",
-            ~chunkId.ToString(),
-            chunk.approximate_data_size());
-
-        return true;
-    }
-
-    bool ProcessInputChunkOrdered(const TInputChunk& chunk)
-    {
-        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-        auto group = GetCurrentGroup();
-        auto& table = OutputTables[0];
-
-        if (IsLargeCompleteChunk(chunk) && !group) {
-            // Merge is not required and no current group is active.
-            // Copy the chunk directly to the output.
-            LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
-                ~chunkId.ToString(),
-                static_cast<int>(table.PartitionTreeIds.size()));
-            table.PartitionTreeIds.push_back(chunkId);
-            return false;
-        }
-
-        // Ensure that the current group exists.
-        if (!group) {
-            group = BeginGroup();
-            group->ChunkPool = CreateAtomicChunkPool();
-            group->PartitionIndex = static_cast<int>(table.PartitionTreeIds.size());
-            table.PartitionTreeIds.push_back(NullChunkListId);
-        }
-        
-        // Merge is IO-bound, use data size as weight.
-        auto pooledChunk = New<TPooledChunk>(
-            chunk,
-            chunk.approximate_data_size());
-        AddChunkToPool(group, pooledChunk);
-
-        LOG_DEBUG("Chunk %s is pooled in partition %d (DataSize: %" PRId64 ")",
-            ~chunkId.ToString(),
-            group->PartitionIndex,
-            chunk.approximate_data_size());
-
-        // Finish the group if the size is large enough.
-        if (group->ChunkPool->GetTotalWeight() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+        // Close the last group, if any.
+        if (GetCurrentGroup()) {
             EndGroup();
         }
-
-        return true;
     }
 
 
     // Job count selection.
 
-    void ChooseJobCount()
-    {
-        switch (Spec->Mode) {
-            case EMergeMode::Unordered:
-                ChooseJobCountUnordered();
-                break;
-            case EMergeMode::Ordered:
-                ChooseJobCountOrdered();
-                break;
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    void ChooseJobCountUnordered()
-    {
-        // Choose job count.
-        // TODO(babenko): refactor, generalize, and improve.
-        i64 jobCount = (i64) std::ceil((double) WeightCounter.GetPending() / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize);
-        if (Spec->JobCount) {
-            jobCount = Spec->JobCount.Get();
-        }
-        jobCount = std::min(jobCount, ChunkCounter.GetPending());
-        YASSERT(jobCount > 0);
-        JobCounter.Set(jobCount);
-    }
-
-    void ChooseJobCountOrdered()
-    {
-        // Each group corresponds to a unique job.
-        i64 jobCount = Groups.size();
-        JobCounter.Set(jobCount);
-    }
+    virtual i64 ChooseJobCount() = 0;
 
 
     // Progress reporting.
@@ -551,14 +439,161 @@ private:
 
         JobSpecTemplate.set_io_config(SerializeToYson(Spec->JobIO));
     }
+
 };
+
+////////////////////////////////////////////////////////////////////
+
+class TUnorderedMergeController
+    : public TMergeControllerBase
+{
+public:
+    TUnorderedMergeController(
+        TSchedulerConfigPtr config,
+        TMergeOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TMergeControllerBase(config, spec, host, operation)
+    { }
+
+private:
+    virtual bool ProcessInputChunk(const TInputChunk& chunk)
+    {
+        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+        auto& table = OutputTables[0];
+
+        if (!IsLargeCompleteChunk(chunk)) {
+            // Chunks not requiring merge go directly to the output chunk list.
+            LOG_DEBUG("Chunk %s is large and complete, using as-is", ~chunkId.ToString());
+            table.PartitionTreeIds.push_back(chunkId);
+            return false;
+        }
+
+        // Create a merge group if not exists.
+        auto group = GetCurrentGroup();
+        if (!group) {
+            group = BeginGroup();
+            group->ChunkPool = CreateUnorderedChunkPool();
+        }
+
+        // Merge is IO-bound, use data size as weight.
+        auto pooledChunk = New<TPooledChunk>(
+            chunk,
+            chunk.approximate_data_size());
+        AddChunkToPool(group, pooledChunk);
+
+        LOG_DEBUG("Chunk %s is pooled (DataSize: %" PRId64 ")",
+            ~chunkId.ToString(),
+            chunk.approximate_data_size());
+
+        return true;
+    }
+
+    virtual i64 ChooseJobCount()
+    {
+        // Choose job count.
+        // TODO(babenko): refactor, generalize, and improve.
+        i64 jobCount = (i64) std::ceil((double) WeightCounter.GetPending() / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize);
+        if (Spec->JobCount) {
+            jobCount = Spec->JobCount.Get();
+        }
+        jobCount = std::min(jobCount, ChunkCounter.GetPending());
+        YASSERT(jobCount > 0);
+        return jobCount;
+    }
+
+
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TOrderedMergeController
+    : public TMergeControllerBase
+{
+public:
+    TOrderedMergeController(
+        TSchedulerConfigPtr config,
+        TMergeOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TMergeControllerBase(config, spec, host, operation)
+    { }
+
+private:
+    virtual bool ProcessInputChunk(const TInputChunk& chunk)
+    {
+        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+        auto group = GetCurrentGroup();
+        auto& table = OutputTables[0];
+
+        if (IsLargeCompleteChunk(chunk) && !group) {
+            // Merge is not required and no current group is active.
+            // Copy the chunk directly to the output.
+            LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
+                ~chunkId.ToString(),
+                static_cast<int>(table.PartitionTreeIds.size()));
+            table.PartitionTreeIds.push_back(chunkId);
+            return false;
+        }
+
+        // Ensure that the current group exists.
+        if (!group) {
+            group = BeginGroup();
+            group->ChunkPool = CreateAtomicChunkPool();
+            group->PartitionIndex = static_cast<int>(table.PartitionTreeIds.size());
+            table.PartitionTreeIds.push_back(NullChunkListId);
+        }
+
+        // Merge is IO-bound, use data size as weight.
+        auto pooledChunk = New<TPooledChunk>(
+            chunk,
+            chunk.approximate_data_size());
+        AddChunkToPool(group, pooledChunk);
+
+        LOG_DEBUG("Chunk %s is pooled in partition %d (DataSize: %" PRId64 ")",
+            ~chunkId.ToString(),
+            group->PartitionIndex,
+            chunk.approximate_data_size());
+
+        // Finish the group if the size is large enough.
+        if (group->ChunkPool->GetTotalWeight() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+            EndGroup();
+        }
+
+        return true;
+    }
+
+    virtual i64 ChooseJobCount()
+    {
+        // Each group corresponds to a unique job.
+        return Groups.size();
+    }
+
+
+};
+
+////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMergeController(
     TSchedulerConfigPtr config,
     IOperationHost* host,
     TOperation* operation)
 {
-    return New<TMergeController>(config, host, operation);
+    auto spec = New<TMergeOperationSpec>();
+    try {
+        spec->Load(~operation->GetSpec());
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+    }
+
+    switch (spec->Mode) {
+        case EMergeMode::Unordered:
+            return New<TUnorderedMergeController>(config, spec, host, operation);
+        case EMergeMode::Ordered:
+            return New<TOrderedMergeController>(config, spec, host, operation);
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////
