@@ -1,10 +1,8 @@
 #pragma once
 
 #include "public.h"
-
-#include <ytlib/chunk_client/remote_reader.h>
-#include <ytlib/chunk_client/remote_writer.h>
-#include <ytlib/chunk_client/sequential_reader.h>
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/config.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -113,13 +111,13 @@ struct TChunkHolderConfig
     TLocationConfigPtr CacheLocation;
 
     //! Remote reader configuration used to download chunks into cache.
-    NChunkClient::TRemoteReaderConfig::TPtr CacheRemoteReader;
+    NChunkClient::TRemoteReaderConfigPtr CacheRemoteReader;
 
     //! Sequential reader configuration used to download chunks into cache.
-    NChunkClient::TSequentialReader::TConfig::TPtr CacheSequentialReader;
+    NChunkClient::TSequentialReaderConfigPtr CacheSequentialReader;
 
     //! Remote writer configuration used to replicate chunks.
-    NChunkClient::TRemoteWriter::TConfig::TPtr ReplicationRemoteWriter;
+    NChunkClient::TRemoteWriterConfigPtr ReplicationRemoteWriter;
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;

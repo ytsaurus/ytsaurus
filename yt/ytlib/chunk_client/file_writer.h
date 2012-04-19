@@ -12,14 +12,14 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a local and synchronous implementation of #IAsynckWriter.
-class TChunkFileWriter
+class TFileWriter
     : public IAsyncWriter
 {
 public:
-    typedef TIntrusivePtr<TChunkFileWriter> TPtr;
+    typedef TIntrusivePtr<TFileWriter> TPtr;
 
     //! Creates a new writer.
-    TChunkFileWriter(const Stroka& fileName);
+    TFileWriter(const Stroka& fileName);
 
     virtual void Open();
 

@@ -5,6 +5,9 @@
 #include "reader_cache.h"
 #include "chunk_holder_service_proxy.h"
 #include "chunk_cache.h"
+#include "chunk_meta_extensions.h"
+
+#include <ytlib/chunk_client/file_reader.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -18,20 +21,25 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunk::TChunk(TLocation* location, const TChunkInfo& info)
-    : Id_(TGuid::FromProto(info.id()))
+TChunk::TChunk(
+    TLocation* location, 
+    const TChunkId& id, 
+    const TChunkMeta& chunkMeta, 
+    const TChunkInfo& chunkInfo)
+    : Id_(id)
     , Location_(location)
-    , Size_(info.size())
-    , HasInfo(true)
-    , Info(info)
+    , Info_(chunkInfo)
+    , HasMeta(true)
+    , Meta(chunkMeta)
 { }
 
 TChunk::TChunk(TLocation* location, const TChunkDescriptor& descriptor)
     : Id_(descriptor.Id)
     , Location_(location)
-    , Size_(descriptor.Size)
-    , HasInfo(false)
-{ }
+    , HasMeta(false)
+{
+    Info_.set_size(descriptor.Size);
+}
 
 TChunk::~TChunk()
 { }
@@ -41,33 +49,70 @@ Stroka TChunk::GetFileName() const
     return Location_->GetChunkFileName(Id_);
 }
 
-TChunk::TAsyncGetInfoResult TChunk::GetInfo()
+TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>& extensionTags)
 {
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (HasInfo) {
-            return MakeFuture(TGetInfoResult(Info));
+        if (HasMeta) {
+            return MakeFuture(TGetMetaResult(
+                ExtractExtensions(Meta, extensionTags)));
         }
     }
 
     auto this_ = MakeStrong(this);
     auto invoker = Location_->GetInvoker();
+    return ReadMeta().Apply(
+        BIND([=] (TError error) -> TGetMetaResult {
+            if (error.IsOK()) {
+                YASSERT(HasMeta);
+                return ExtractExtensions(Meta, extensionTags);
+            } else 
+                return error;
+        }).AsyncVia(invoker));
+}
+
+TChunk::TAsyncGetMetaResult TChunk::GetMeta()
+{
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        if (HasMeta) {
+            return MakeFuture(TGetMetaResult(Meta));
+        }
+    }
+
+    auto this_ = MakeStrong(this);
+    auto invoker = Location_->GetInvoker();
+    return ReadMeta().Apply(
+        BIND([=] (TError error) -> TGetMetaResult {
+            if (error.IsOK()) {
+                YASSERT(HasMeta);
+                return Meta;
+            } else 
+                return error;
+        }).AsyncVia(invoker));
+}
+
+TFuture<TError> TChunk::ReadMeta()
+{
+    auto this_ = MakeStrong(this);
+    auto invoker = Location_->GetInvoker();
     auto readerCache = Location_->GetReaderCache();
     return
-        BIND([=] () -> TGetInfoResult {
+        BIND([=] () -> TError {
             auto result = readerCache->GetReader(this_);
             if (!result.IsOK()) {
                 return TError(result);
             }
 
             auto reader = result.Value();
-            auto info = reader->GetChunkInfo();
 
             TGuard<TSpinLock> guard(SpinLock);
-            Info = info;
-            HasInfo = true;
+            // These are very quick getters.
+            Meta = reader->GetChunkMeta();
+            Info_ = reader->GetChunkInfo();
+            HasMeta = true;
 
-            return info;
+            return TError();
         })
         .AsyncVia(invoker)
         .Run();
@@ -75,8 +120,12 @@ TChunk::TAsyncGetInfoResult TChunk::GetInfo()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoredChunk::TStoredChunk(TLocation* location, const TChunkInfo& info)
-    : TChunk(location, info)
+TStoredChunk::TStoredChunk(
+    TLocation* location,
+    const TChunkId& chunkId,
+    const TChunkMeta& chunkMeta,
+    const TChunkInfo& chunkInfo)
+    : TChunk(location, chunkId, chunkMeta, chunkInfo)
 { }
 
 TStoredChunk::TStoredChunk(TLocation* location, const TChunkDescriptor& descriptor)
@@ -88,8 +137,13 @@ TStoredChunk::~TStoredChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedChunk::TCachedChunk(TLocation* location, const TChunkInfo& info, TChunkCache* chunkCache)
-    : TChunk(location, info)
+TCachedChunk::TCachedChunk(
+    TLocation* location,
+    const TChunkId& chunkId,
+    const TChunkMeta& chunkMeta,
+    const TChunkInfo& chunkInfo,
+    TChunkCache* chunkCache)
+    : TChunk(location, chunkId, chunkMeta, chunkInfo)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
     , ChunkCache(chunkCache)
 { }

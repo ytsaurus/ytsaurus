@@ -9,11 +9,15 @@
 
 #include <ytlib/misc/string.h>
 #include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/async_writer.h>
+
 
 namespace NYT {
 namespace NChunkHolder {
 
-using namespace NYT::NChunkClient;
+using namespace NChunkClient;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +96,7 @@ void TJob::Start()
                 ~Chunk->GetId().ToString());
 
             Chunk
-                ->GetInfo()
+                ->GetMeta()
                 .Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
                     if (!result.IsOK()) {
                         LOG_WARNING("Error getting chunk info (ChunkId: %s)\n%s",
@@ -103,7 +107,7 @@ void TJob::Start()
                         return;
                     }
 
-                    this_->ChunkInfo = result.Value();
+                    this_->ChunkMeta = result.Value();
 
                     this_->Writer = New<TRemoteWriter>(
                         ~this_->Owner->Config->ReplicationRemoteWriter,
@@ -141,11 +145,12 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
         return;
     }
 
-    if (blockIndex >= static_cast<int>(ChunkInfo.blocks_size())) {
+    auto blocksExtension = GetProtoExtension<TBlocks>(ChunkMeta.extensions());
+    if (blockIndex >= static_cast<int>(blocksExtension->blocks_size())) {
         LOG_DEBUG("All blocks are enqueued for replication");
 
         Writer
-            ->AsyncClose(std::vector<TSharedRef>(), ChunkInfo.attributes())
+            ->AsyncClose(std::vector<TSharedRef>(), ChunkMeta)
             .Subscribe(BIND([=] (TError error) {
                 if (error.IsOK()) {
                     LOG_DEBUG("Replication job completed");

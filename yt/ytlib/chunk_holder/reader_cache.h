@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_holder_service_proxy.h"
 
-#include <ytlib/chunk_client/file_reader.h>
+#include <ytlib/chunk_client/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -20,7 +20,7 @@ public:
 
     ~TReaderCache();
 
-    typedef TValueOrError<NChunkClient::TChunkFileReader::TPtr> TGetReaderResult;
+    typedef TValueOrError<NChunkClient::TFileReaderPtr> TGetReaderResult;
     typedef TChunkHolderServiceProxy::EErrorCode EErrorCode;
 
     //! Returns a (cached) chunk reader.

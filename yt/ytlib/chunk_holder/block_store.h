@@ -2,9 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/misc/cache.h>
 #include <ytlib/chunk_server/block_id.h>
-#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/misc/cache.h>
+#include <ytlib/misc/ref.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -79,7 +80,7 @@ public:
     i64 GetPendingReadSize() const;
 
     //! Returns a caching adapter.
-    NChunkClient::IBlockCache::TPtr GetBlockCache();
+    NChunkClient::IBlockCachePtr GetBlockCache();
 
 private:
     class TStoreImpl;

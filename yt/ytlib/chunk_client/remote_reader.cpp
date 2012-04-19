@@ -75,6 +75,7 @@ public:
 
     TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
     TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<int>& extensionTags);
+    TAsyncGetMetaResult AsyncGetChunkMeta();
 
     TAsyncGetSeedsResult AsyncGetSeeds()
     {
@@ -603,10 +604,18 @@ public:
         , Promise(NewPromise<IAsyncReader::TGetMetaResult>())
         , SeedIndex(0)
         , ExtensionTags(extensionTags)
+        , FullMeta(false)
     {
-        Logger.AddTag(Sprintf("GetInfoSession: %p", this));
+        Init();
+    }
 
-        NewRetry();
+    TGetMetaSession(TRemoteReader* reader)
+        : TSessionBase(reader)
+        , Promise(NewPromise<IAsyncReader::TGetMetaResult>())
+        , SeedIndex(0)
+        , FullMeta(true)
+    {
+        Init();
     }
 
     IAsyncReader::TAsyncGetMetaResult GetAsyncResult() const
@@ -622,6 +631,13 @@ private:
     int SeedIndex;
 
     std::vector<int> ExtensionTags;
+    bool FullMeta;
+
+    void Init()
+    {
+        Logger.AddTag(Sprintf("GetInfoSession: %p", this));
+        NewRetry();
+    }
 
     void RequestInfo()
     {
@@ -640,6 +656,7 @@ private:
 
         auto request = proxy.GetChunkMeta();
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
+        request->set_full_meta(FullMeta);
         ToProto(request->mutable_extension_tags(), ExtensionTags);
         request->Invoke().Subscribe(BIND(&TGetMetaSession::OnGotChunkMeta, MakeStrong(this)));
     }
@@ -687,6 +704,12 @@ TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(const std::v
 {
     VERIFY_THREAD_AFFINITY_ANY();
     return New<TGetMetaSession>(this, extensionTags)->GetAsyncResult();
+}
+
+TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    return New<TGetMetaSession>(this)->GetAsyncResult();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -99,6 +99,10 @@ message TReqGetChunkMeta
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated int32 extension_tags = 2;
+
+    // If true, then extension_tags are ignored and 
+    // the whole available meta is returned.
+    optional bool full_meta = 3 [default = false];
 }
 
 message TRspGetChunkMeta

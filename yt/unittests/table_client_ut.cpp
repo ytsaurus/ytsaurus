@@ -100,7 +100,7 @@ public:
 
     IAsyncWriter::TPtr CreateAsyncWriter()
     {
-        auto fileWriter = New<NChunkClient::TChunkFileWriter>(
+        auto fileWriter = New<NChunkClient::TFileWriter>(
             NChunkClient::TChunkId::Create(), FileName);
         fileWriter->Open();
 
@@ -113,7 +113,7 @@ public:
 
     NChunkClient::IAsyncReader::TPtr CreateFileReader()
     {
-        auto reader = New<NChunkClient::TChunkFileReader>(FileName);
+        auto reader = New<NChunkClient::TFileReader>(FileName);
         reader->Open();
         return reader;
     }

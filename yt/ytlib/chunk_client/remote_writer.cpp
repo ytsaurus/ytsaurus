@@ -3,7 +3,7 @@
 #include "config.h"
 #include "holder_channel_cache.h"
 
-#include <ytlib/chunk_holder/extensions.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/chunk_holder/chunk_holder_service.pb.h>
 
 #include <ytlib/misc/serialize.h>

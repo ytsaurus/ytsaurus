@@ -5,6 +5,7 @@
 #include "chunk.h"
 #include "location.h"
 
+#include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/misc/cache.h>
 
 #include <util/folder/dirut.h>
@@ -22,12 +23,12 @@ static NLog::TLogger& Logger = ChunkHolderLogger;
 
 class TReaderCache::TCachedReader
     : public TCacheValueBase<TChunkId, TCachedReader>
-    , public TChunkFileReader
+    , public TFileReader
 {
 public:
     TCachedReader(const TChunkId& chunkId, const Stroka& fileName)
         : TCacheValueBase<TChunkId, TCachedReader>(chunkId)
-        , TChunkFileReader(fileName)
+        , TFileReader(fileName)
     { }
 
 };

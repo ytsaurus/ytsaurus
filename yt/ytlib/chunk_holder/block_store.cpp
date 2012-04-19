@@ -7,12 +7,15 @@
 #include "reader_cache.h"
 #include "location.h"
 
+#include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/chunk_client/file_reader.h>
+#include <ytlib/chunk_client/block_cache.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
+using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,8 +163,9 @@ private:
 
         auto reader = readerResult.Value();
 
-        const auto& chunkInfo = reader->GetChunkInfo();
-        const auto& blockInfo = chunkInfo.blocks(blockId.BlockIndex);
+        const auto& chunkMeta = reader->GetChunkMeta();
+        const auto blocksExtension = GetProtoExtension<TBlocks>(chunkMeta.extensions());
+        const auto& blockInfo = blocksExtension->blocks(blockId.BlockIndex);
         auto blockSize = blockInfo.size();
         
         AtomicAdd(PendingReadSize_, blockSize);
@@ -265,7 +269,7 @@ i64 TBlockStore::GetPendingReadSize() const
     return StoreImpl->GetPendingReadSize();
 }
 
-IBlockCache::TPtr TBlockStore::GetBlockCache()
+IBlockCachePtr TBlockStore::GetBlockCache()
 {
     return ~CacheImpl;
 }

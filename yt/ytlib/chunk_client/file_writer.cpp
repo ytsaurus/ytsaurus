@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "file_writer.h"
 
-#include <ytlib/chunk_holder/extensions.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/serialize.h>
@@ -19,14 +19,14 @@ static NLog::TLogger& Logger = ChunkClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChunkFileWriter::TChunkFileWriter(const Stroka& fileName)
+TFileWriter::TFileWriter(const Stroka& fileName)
     : FileName(fileName)
     , IsOpen(false)
     , IsClosed(false)
     , DataSize(0)
 { }
 
-void TChunkFileWriter::Open()
+void TFileWriter::Open()
 {
     YASSERT(!IsOpen);
     YASSERT(!IsClosed);
@@ -38,7 +38,7 @@ void TChunkFileWriter::Open()
     IsOpen = true;
 }
 
-TAsyncError TChunkFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
+TAsyncError TFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& blocks)
 {
     YASSERT(IsOpen);
     YASSERT(!IsClosed);
@@ -63,7 +63,7 @@ TAsyncError TChunkFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& bl
     return MakeFuture(TError());
 }
 
-TAsyncError TChunkFileWriter::AsyncClose(
+TAsyncError TFileWriter::AsyncClose(
     const std::vector<TSharedRef>& blocks,
     const NChunkHolder::NProto::TChunkMeta& chunkMeta)
 {
@@ -135,13 +135,13 @@ TAsyncError TChunkFileWriter::AsyncClose(
     return MakeFuture(TError());
 }
 
-const TChunkInfo& TChunkFileWriter::GetChunkInfo() const
+const TChunkInfo& TFileWriter::GetChunkInfo() const
 {
     YASSERT(IsClosed);
     return ChunkInfo;
 }
 
-const TChunkMeta& TChunkFileWriter::GetChunkMeta() const
+const TChunkMeta& TFileWriter::GetChunkMeta() const
 {
     YASSERT(IsClosed);
     return ChunkMeta;

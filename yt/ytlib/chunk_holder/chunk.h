@@ -11,7 +11,7 @@ namespace NYT {
 namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
-   
+
 //! Chunk properties that can be obtained by the filesystem scan.
 struct TChunkDescriptor
 {
@@ -28,13 +28,15 @@ class TChunk
     //! Chunk location.
     DEFINE_BYVAL_RO_PROPERTY(TIntrusivePtr<TLocation>, Location);
     //! The physical chunk size (including data and meta).
-    DEFINE_BYVAL_RO_PROPERTY(i64, Size);
+    DEFINE_BYVAL_RO_PROPERTY(NProto::TChunkInfo, Info);
 
 public:
-    //! Constructs a chunk for which its info is already known.
+    //! Constructs a chunk for which its meta is already known.
     TChunk(
         TLocation* location,
-        const NChunkHolder::NProto::TChunkInfo& info);
+        const TChunkId& chunkId,
+        const NProto::TChunkMeta& chunkMeta,
+        const NProto::TChunkInfo& chunkInfo);
 
     //! Constructs a chunk for which no info is loaded.
     TChunk(
@@ -46,19 +48,22 @@ public:
     //! Returns the full path to the chunk data file.
     Stroka GetFileName() const;
 
-    typedef TValueOrError<NChunkHolder::NProto::TChunkInfo> TGetInfoResult;
-    typedef TFuture<TGetInfoResult> TAsyncGetInfoResult;
+    typedef TValueOrError<NProto::TChunkMeta> TGetMetaResult;
+    typedef TFuture<TGetMetaResult> TAsyncGetMetaResult;
 
     //! Returns chunk info.
     /*!
      *  The info is fetched asynchronously and is cached.
      */
-    TAsyncGetInfoResult GetInfo();
+    TAsyncGetMetaResult GetMeta(const std::vector<int>& extensionTags);
+    TAsyncGetMetaResult GetMeta();
 
 private:
+    TFuture<TError> ReadMeta();
+
     mutable TSpinLock SpinLock;
-    mutable volatile bool HasInfo;
-    mutable NChunkHolder::NProto::TChunkInfo Info;
+    mutable volatile bool HasMeta;
+    mutable NProto::TChunkMeta Meta;
 
 };
 
@@ -71,7 +76,9 @@ class TStoredChunk
 public:
     TStoredChunk(
         TLocation* location,
-        const NProto::TChunkInfo& info);
+        const TChunkId& chunkId,
+        const NProto::TChunkMeta& chunkMeta,
+        const NProto::TChunkInfo& chunkInfo);
 
     TStoredChunk(
         TLocation* location,
@@ -92,7 +99,9 @@ class TCachedChunk
 public:
     TCachedChunk(
         TLocation* location,
-        const NProto::TChunkInfo& info,
+        const TChunkId& chunkId,
+        const NProto::TChunkMeta& chunkMeta,
+        const NProto::TChunkInfo& chunkInfo,
         TChunkCache* chunkCache);
 
     TCachedChunk(

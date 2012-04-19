@@ -12,14 +12,12 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a local and synchronous implementation of IAsyncReader.
-class TChunkFileReader
+class TFileReader
     : public IAsyncReader
 {
 public:
-    typedef TIntrusivePtr<TChunkFileReader> TPtr;
-
     //! Creates a new reader.
-    TChunkFileReader(const Stroka& fileName);
+    TFileReader(const Stroka& fileName);
 
     //! Opens the files, reads chunk meta. Must be called before reading blocks.
     void Open();
@@ -33,7 +31,7 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    //! Returns the typed chunk info.
+    const NChunkHolder::NProto::TChunkMeta& GetChunkMeta() const;
     NChunkHolder::NProto::TChunkMeta GetChunkMeta(const std::vector<int>& extensionTags) const;
 
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
@@ -43,6 +41,7 @@ public:
 
     //! Implements IChunkReader and calls #GetChunkMeta.
     virtual TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<int>& extensionTags);
+    virtual TAsyncGetMetaResult AsyncGetChunkMeta();
 
     //! Synchronously reads a given block from the file.
     /*!

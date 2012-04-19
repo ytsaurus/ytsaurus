@@ -49,7 +49,7 @@ TChunkHolderService::TChunkHolderService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlock));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlocks));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkInfo));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
     RegisterMethod(ONE_WAY_RPC_SERVICE_METHOD_DESC(UpdatePeer));
 }
@@ -126,22 +126,19 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
     UNUSED(response);
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
-    auto& attributes = request->attributes();
-    
+    auto& meta = request->chunk_meta();
+
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
     auto session = GetSession(chunkId);
 
     Bootstrap
         ->GetSessionManager()
-        ->FinishSession(~session, attributes)
+        ->FinishSession(~session, meta)
         .Subscribe(BIND([=] (TChunkPtr chunk) {
             auto chunkInfo = session->GetChunkInfo();
-            // Don't report attributes to the writer since it has them already.
-            chunkInfo.clear_attributes();
             *response->mutable_chunk_info() = chunkInfo;
             context->Reply();
-
         }));
 }
 
@@ -340,17 +337,24 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
 {
     auto chunkId = TChunkId::FromProto(request->chunk_id());
+    std::vector<int> extensionTags(
+        request->extension_tags().begin(), 
+        request->extension_tags().end());
 
-    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
+    context->SetRequestInfo("ChunkId: %s, ExtensionTags: %s", 
+        ~chunkId.ToString(),
+        JoinToString(extensionTags));
 
-    GetChunk(chunkId)
-        ->GetInfo()
-        .Subscribe(BIND([=] (TChunk::TGetInfoResult result) {
+    auto asyncChunkMeta = request->full_meta() 
+        ? GetChunk(chunkId)->GetMeta() 
+        : GetChunk(chunkId)->GetMeta(extensionTags);
+
+    asyncChunkMeta.Subscribe(BIND([=] (TChunk::TGetMetaResult result) {
             if (result.IsOK()) {
-                *response->mutable_chunk_info() = result.Value();
+                *response->mutable_chunk_meta() = result.Value();
                 context->Reply();
             } else {
                 context->Reply(result);

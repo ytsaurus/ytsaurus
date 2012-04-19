@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_holder_service_proxy.h"
 
-#include <ytlib/chunk_client/file_writer.h>
+#include <ytlib/chunk_client/public.h>
 #include <ytlib/misc/lease_manager.h>
 #include <ytlib/logging/tagged_logger.h>
 
@@ -61,7 +61,6 @@ private:
 
     typedef TChunkHolderServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
-    typedef NChunkHolder::NProto::TChunkAttributes TChunkAttributes;
 
     DECLARE_ENUM(ESlotState,
         (Empty)
@@ -87,20 +86,20 @@ private:
     TSessionManagerPtr SessionManager;
     TChunkId ChunkId;
     TLocationPtr Location;
-    
+
     TWindow Window;
     i32 WindowStart;
     i32 FirstUnwritten;
     i64 Size;
 
     Stroka FileName;
-    NChunkClient::TChunkFileWriter::TPtr Writer;
+    NChunkClient::TFileWriterPtr Writer;
 
     TLeaseManager::TLease Lease;
 
     NLog::TTaggedLogger Logger;
 
-    TFuture<TChunkPtr> Finish(const TChunkAttributes& attributes);
+    TFuture<TChunkPtr> Finish(const NProto::TChunkMeta& chunkMeta);
     void Cancel(const TError& error);
 
     void SetLease(TLeaseManager::TLease lease);
@@ -120,8 +119,8 @@ private:
     TVoid DoDeleteFile(const TError& error);
     TVoid OnFileDeleted(TVoid);
 
-    TFuture<TVoid> CloseFile(const TChunkAttributes& attributes);
-    TVoid DoCloseFile(const TChunkAttributes& attributes);
+    TFuture<TVoid> CloseFile(const NProto::TChunkMeta& chunkMeta);
+    TVoid DoCloseFile(const NProto::TChunkMeta& chunkMeta);
     TChunkPtr OnFileClosed(TVoid);
 
     void EnqueueWrites();
@@ -158,7 +157,7 @@ public:
      */
     TFuture<TChunkPtr> FinishSession(
         TSessionPtr session,
-        const NChunkHolder::NProto::TChunkAttributes& attributes);
+        const NProto::TChunkMeta& chunkMeta);
 
     //! Cancels an earlier opened upload session.
     /*!

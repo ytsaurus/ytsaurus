@@ -12,4 +12,10 @@ DECLARE_PROTO_EXTENSION(NChunkHolder::NProto::TBlocks, 1)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+NChunkHolder::NProto::TChunkMeta ExtractExtensions(
+    const NChunkHolder::NProto::TChunkMeta& tags,
+    const std::vector<int>& extensionTags);
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

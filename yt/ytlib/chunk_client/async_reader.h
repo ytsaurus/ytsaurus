@@ -35,6 +35,7 @@ struct IAsyncReader
      */
     virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) = 0;
 
+    virtual TAsyncGetMetaResult AsyncGetChunkMeta() = 0;
     virtual TAsyncGetMetaResult AsyncGetChunkMeta(const std::vector<int>& extensionTags) = 0;
 };
 

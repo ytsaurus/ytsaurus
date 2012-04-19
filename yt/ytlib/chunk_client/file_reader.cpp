@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "file_reader.h"
 
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/fs.h>
@@ -12,14 +13,14 @@ using namespace NChunkHolder::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChunkFileReader::TChunkFileReader(const Stroka& fileName)
+TFileReader::TFileReader(const Stroka& fileName)
     : FileName(fileName)
     , Opened(false)
     , InfoSize(-1)
     , DataSize(-1)
 { }
 
-void TChunkFileReader::Open()
+void TFileReader::Open()
 {
     YASSERT(!Opened);
 
@@ -69,7 +70,7 @@ void TChunkFileReader::Open()
 }
 
 TFuture<IAsyncReader::TReadResult>
-TChunkFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
+TFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
 {
     YASSERT(Opened);
 
@@ -84,7 +85,7 @@ TChunkFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
     return MakeFuture(TReadResult(MoveRV(blocks)));
 }
 
-TSharedRef TChunkFileReader::ReadBlock(int blockIndex)
+TSharedRef TFileReader::ReadBlock(int blockIndex)
 {
     YASSERT(Opened);
 
@@ -123,47 +124,49 @@ TSharedRef TChunkFileReader::ReadBlock(int blockIndex)
     return result;
 }
 
-i64 TChunkFileReader::GetMetaSize() const
+i64 TFileReader::GetMetaSize() const
 {
     YASSERT(Opened);
     return InfoSize;
 }
 
-i64 TChunkFileReader::GetDataSize() const
+i64 TFileReader::GetDataSize() const
 {
     YASSERT(Opened);
     return DataSize;
 }
 
-i64 TChunkFileReader::GetFullSize() const
+i64 TFileReader::GetFullSize() const
 {
     YASSERT(Opened);
     return InfoSize + DataSize;
 }
 
-TChunkMeta TChunkFileReader::GetChunkMeta(const std::vector<int>& extensionTags) const
+const NChunkHolder::NProto::TChunkMeta& TFileReader::GetChunkMeta() const
 {
-    TChunkMeta meta;
-    meta.set_type(ChunkMeta.type());
-
-    FOREACH(auto tag, extensionTags) {
-        FOREACH(const auto& extension, ChunkMeta.extensions().extensions()) {
-            if (tag == extension.tag()) {
-                *meta.mutable_extensions()->add_extensions() = extension;
-            }
-        }
-    }
-    return meta;
+    YASSERT(Opened);
+    return ChunkMeta;
 }
 
-const TChunkInfo& TChunkFileReader::GetChunkInfo() const
+IAsyncReader::TAsyncGetMetaResult TFileReader::AsyncGetChunkMeta()
+{
+    return MakeFuture(TGetMetaResult(GetChunkMeta()));
+}
+
+TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>& extensionTags) const
+{
+    YASSERT(Opened);
+    return ExtractExtensions(ChunkMeta, extensionTags);
+}
+
+const TChunkInfo& TFileReader::GetChunkInfo() const
 {
     YASSERT(Opened);
     return ChunkInfo;
 }
 
 IAsyncReader::TAsyncGetMetaResult
-TChunkFileReader::AsyncGetChunkMeta(const std::vector<int>& extensionTags)
+TFileReader::AsyncGetChunkMeta(const std::vector<int>& extensionTags)
 {
     return MakeFuture(TGetMetaResult(GetChunkMeta(extensionTags)));
 }

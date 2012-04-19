@@ -13,6 +13,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/fs.h>
 #include <ytlib/logging/tagged_logger.h>
+#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/file_writer.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
@@ -73,12 +74,12 @@ public:
 
     void Register(TCachedChunkPtr chunk)
     {
-        chunk->GetLocation()->UpdateUsedSpace(chunk->GetSize());
+        chunk->GetLocation()->UpdateUsedSpace(chunk->GetInfo().size());
     }
 
     void Unregister(TCachedChunkPtr chunk)
     {
-        chunk->GetLocation()->UpdateUsedSpace(-chunk->GetSize());
+        chunk->GetLocation()->UpdateUsedSpace(-chunk->GetInfo().size());
     }
 
     void Put(TCachedChunkPtr chunk)
@@ -119,7 +120,7 @@ private:
 
     virtual i64 GetWeight(TCachedChunk* chunk) const
     {
-        return chunk->GetSize();
+        return chunk->GetInfo().size();
     }
 
     virtual void OnAdded(TCachedChunk* value)
@@ -160,7 +161,7 @@ private:
             Stroka fileName = Owner->Location->GetChunkFileName(ChunkId);
             try {
                 NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                FileWriter = New<TChunkFileWriter>(ChunkId, fileName);
+                FileWriter = New<TFileWriter>(fileName);
                 FileWriter->Open();
             } catch (const std::exception& ex) {
                 LOG_FATAL("Error opening cached chunk for writing\n%s", ex.what());
@@ -175,7 +176,7 @@ private:
 
             LOG_INFO("Getting chunk info from holders");
             RemoteReader->AsyncGetChunkMeta().Subscribe(
-                BIND(&TThis::OnGotChunkInfo, MakeStrong(this))
+                BIND(&TThis::OnGotChunkMeta, MakeStrong(this))
                 .Via(Invoker));
         }
 
@@ -186,16 +187,17 @@ private:
         TSharedPtr<TInsertCookie> Cookie;
         IInvoker::TPtr Invoker;
 
-        TChunkFileWriter::TPtr FileWriter;
-        IAsyncReader::TPtr RemoteReader;
-        TSequentialReader::TPtr SequentialReader;
+        TFileWriter::TPtr FileWriter;
+        IAsyncReaderPtr RemoteReader;
+        TSequentialReaderPtr SequentialReader;
+        TChunkMeta ChunkMeta;
         TChunkInfo ChunkInfo;
         int BlockCount;
         int BlockIndex;
 
         NLog::TTaggedLogger Logger;
 
-        void OnGotChunkInfo(IAsyncReader::TGetMetaResult result)
+        void OnGotChunkMeta(IAsyncReader::TGetMetaResult result)
         {
             if (!result.IsOK()) {
                 OnError(result);
@@ -203,10 +205,12 @@ private:
             }
 
             LOG_INFO("Chunk info received from holders");
-            ChunkInfo = result.Value();
+            ChunkMeta = result.Value();
 
             // Download all blocks.
-            BlockCount = static_cast<int>(ChunkInfo.blocks_size());
+
+            auto blocksExtension = GetProtoExtension<TBlocks>(ChunkMeta.extensions());
+            BlockCount = static_cast<int>(blocksExtension->blocks_size());
             yvector<int> blockIndexes;
             blockIndexes.reserve(BlockCount);
             for (int index = 0; index < BlockCount; ++index) {
@@ -216,7 +220,8 @@ private:
             SequentialReader = New<TSequentialReader>(
                 ~Owner->Config->CacheSequentialReader,
                 blockIndexes,
-                ~RemoteReader);
+                ~RemoteReader,
+                blocksExtension);
 
             BlockIndex = 0;
             FetchNextBlock();
@@ -265,12 +270,13 @@ private:
             // NB: This is always done synchronously.
             auto closeResult = FileWriter->AsyncClose(
                 std::vector<TSharedRef>(),
-                ChunkInfo.attributes()).Get();
+                ChunkMeta).Get();
 
             if (!closeResult.IsOK()) {
                 OnError(closeResult);
                 return;
             }
+
             LOG_INFO("Chunk is closed");
 
             OnSuccess();
@@ -281,7 +287,9 @@ private:
             LOG_INFO("Chunk is downloaded into cache");
             auto chunk = New<TCachedChunk>(
                 ~Owner->Location,
-                ChunkInfo,
+                ChunkId,
+                ChunkMeta,
+                FileWriter->GetChunkInfo(),
                 ~Owner->Bootstrap->GetChunkCache());
             Cookie->EndInsert(chunk);
             Owner->Register(~chunk);

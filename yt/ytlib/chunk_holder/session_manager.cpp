@@ -7,6 +7,7 @@
 #include "chunk.h"
 #include "chunk_store.h"
 #include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/chunk_client/file_writer.h>
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/sync.h>
@@ -59,7 +60,7 @@ void TSession::DoOpenFile()
 {
     try {
         NFS::ForcePath(NFS::GetDirectoryName(FileName));
-        Writer = New<TChunkFileWriter>(ChunkId, FileName);
+        Writer = New<TFileWriter>(FileName);
         Writer->Open();
     }
     catch (const std::exception& ex) {
@@ -200,7 +201,7 @@ TVoid TSession::DoWrite(TCachedBlockPtr block, i32 blockIndex)
     try {
         std::vector<TSharedRef> blocks;
         blocks.push_back(block->GetData());
-        Sync(~Writer, &TChunkFileWriter::AsyncWriteBlocks, blocks);
+        Sync(~Writer, &TFileWriter::AsyncWriteBlocks, blocks);
     } catch (const std::exception& ex) {
         LOG_FATAL("Error writing chunk block (BlockIndex: %d)\n%s",
             blockIndex,
@@ -251,7 +252,7 @@ TVoid TSession::OnBlockFlushed(i32 blockIndex, TVoid)
     return TVoid();
 }
 
-TFuture<TChunkPtr> TSession::Finish(const TChunkAttributes& attributes)
+TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
 {
     CloseLease();
 
@@ -266,7 +267,7 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkAttributes& attributes)
         }
     }
 
-    return CloseFile(attributes)
+    return CloseFile(chunkMeta)
         .Apply(BIND(&TSession::OnFileClosed, MakeStrong(this))
         .AsyncVia(SessionManager->ServiceInvoker));
 }
@@ -306,25 +307,25 @@ TVoid TSession::OnFileDeleted(TVoid)
     return TVoid();
 }
 
-TFuture<TVoid> TSession::CloseFile(const TChunkAttributes& attributes)
+TFuture<TVoid> TSession::CloseFile(const TChunkMeta& chunkMeta)
 {
     return
         BIND(
             &TSession::DoCloseFile,
             MakeStrong(this),
-            attributes)
+            chunkMeta)
         .AsyncVia(GetIOInvoker())
         .Run();
 }
 
-TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
+TVoid TSession::DoCloseFile(const TChunkMeta& chunkMeta)
 {
     try {
         Sync(
             ~Writer, 
-            &TChunkFileWriter::AsyncClose, 
+            &TFileWriter::AsyncClose, 
             std::vector<TSharedRef>(), 
-            attributes);
+            chunkMeta);
     } catch (const std::exception& ex) {
         LOG_FATAL("Error closing chunk file\n%s",
             ex.what());
@@ -338,7 +339,11 @@ TVoid TSession::DoCloseFile(const TChunkAttributes& attributes)
 TChunkPtr TSession::OnFileClosed(TVoid)
 {
     ReleaseSpaceOccupiedByBlocks();
-    auto chunk = New<TStoredChunk>(~Location, GetChunkInfo());
+    auto chunk = New<TStoredChunk>(
+        ~Location, 
+        ChunkId, 
+        Writer->GetChunkMeta(), 
+        Writer->GetChunkInfo());
     SessionManager->ChunkStore->RegisterChunk(~chunk);
     return chunk;
 }
@@ -459,14 +464,14 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
 
 TFuture<TChunkPtr> TSessionManager::FinishSession(
     TSessionPtr session, 
-    const TChunkAttributes& attributes)
+    const TChunkMeta& chunkMeta)
 {
     auto chunkId = session->GetChunkId();
 
     YVERIFY(SessionMap.erase(chunkId) == 1);
 
     return session
-        ->Finish(attributes)
+        ->Finish(chunkMeta)
         .Apply(BIND(
             &TSessionManager::OnSessionFinished,
             MakeStrong(this),

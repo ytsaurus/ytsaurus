@@ -2,13 +2,14 @@
 
 #include "public.h"
 
+#include <ytlib/chunk_holder/chunk.pb.h>
+
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/actions/cancelable_context.h>
-#include <ytlib/chunk_client/async_reader.h>
-#include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/cell_node/public.h>
+#include <ytlib/chunk_client/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -53,9 +54,9 @@ private:
     TJobId JobId;
     EJobState State;
     TStoredChunkPtr Chunk;
-    NProto::TChunkInfo ChunkInfo;
+    NProto::TChunkMeta ChunkMeta;
     yvector<Stroka> TargetAddresses;
-    NChunkClient::IAsyncWriter::TPtr Writer;
+    NChunkClient::IAsyncWriterPtr Writer;
     TCancelableContextPtr CancelableContext;
     IInvoker::TPtr CancelableInvoker;
     

@@ -57,7 +57,7 @@ private:
             {
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("size").Scalar(chunk->GetSize())
+                        .Item("size").Scalar(chunk->GetInfo().size())
                         .Item("location").Scalar(chunk->GetLocation()->GetPath())
                     .EndMap();
             }));

@@ -215,7 +215,7 @@ TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
     TChunkAddInfo info;
     *info.mutable_chunk_id() = chunk->GetId().ToProto();
     info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
-    info.set_size(chunk->GetSize());
+    *info.mutable_chunk_info() = chunk->GetInfo();
     return info;
 }
 

@@ -32,6 +32,12 @@ typedef TIntrusivePtr<TRemoteWriterConfig> TRemoteWriterConfigPtr;
 class TRemoteWriter;
 typedef TIntrusivePtr<TRemoteWriter> TRemoteWriterPtr;
 
+class TFileReader;
+typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
+
+class TFileWriter;
+typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

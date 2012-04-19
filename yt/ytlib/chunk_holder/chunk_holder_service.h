@@ -34,7 +34,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, FlushBlock);
     DECLARE_RPC_SERVICE_METHOD(NProto, GetBlocks);
     DECLARE_RPC_SERVICE_METHOD(NProto, PingSession);
-    DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkInfo);
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkMeta);
     DECLARE_RPC_SERVICE_METHOD(NProto, PrecacheChunk);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, UpdatePeer);
 
