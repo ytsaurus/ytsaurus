@@ -35,9 +35,13 @@ TPromise<T> NewPromise();
 template <class T>
 TFuture< typename NMpl::TDecay<T>::TType > MakeFuture(T&& value);
 
+TFuture<void> MakeFuture();
+
 //! Constructs a pre-set promise.
 template <class T>
 TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value);
+
+TPromise<void> MakePromise();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,7 +113,7 @@ public:
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
      */
-    void Subscribe(const TCallback<void(T)>& action);
+    void Subscribe(const TCallback<void(T)>& listener);
 
     //! Attaches a listener.
     /*!
@@ -127,6 +131,12 @@ public:
         TDuration timeout,
         const TCallback<void(T)>& onValue,
         const TClosure& onTimeout);
+
+    //! Chains the asynchronous computation with another synchronous function.
+    TFuture<void> Apply(const TCallback<void(T)>& mutator);
+
+    //! Chains the asynchronous computation with another asynchronous function.
+    TFuture<void> Apply(const TCallback<TFuture<void>(T)>& mutator);
 
     //! Chains the asynchronous computation with another synchronous function.
     template <class R>
@@ -147,12 +157,111 @@ private:
 
     template <class U>
     friend TFuture< typename NMpl::TDecay<U>::TType > MakeFuture(U&& value);
+
     template <class U>
     friend bool operator==(const TFuture<U>& lhs, const TFuture<U>& rhs);
     template <class U>
     friend bool operator!=(const TFuture<U>& lhs, const TFuture<U>& rhs);
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! #TFuture<> specialized for |void| type.
+template <>
+class TFuture<void>
+{
+public:
+    typedef void TValueType;
+
+    //! Empty constructor.
+    TFuture();
+
+    //! Copy constructor.
+    TFuture(const TFuture& other);
+
+    //! Move constructor.
+    TFuture(TFuture&& other);
+
+    //! Checks if the future is associated with a state.
+    bool IsNull() const;
+
+    //! Drops underlying associated state.
+    void Reset();
+
+    //! Swaps underlying associated state.
+    void Swap(TFuture& other);
+
+    //! Copy assignment.
+    TFuture<void>& operator=(const TFuture<void>& other);
+
+    //! Move assignment.
+    TFuture<void>& operator=(TFuture<void>&& other);
+
+    //! Checks if the value is set.
+    bool IsSet() const;
+
+    //! Attaches a listener.
+    /*!
+     *  \param callback A callback to call when the value gets set
+     *  (passing the value as a parameter).
+     *  
+     *  \note
+     *  If the value is set before the call to #Subscribe, then
+     *  #callback gets called synchronously.
+     */
+    void Subscribe(const TClosure& listener);
+
+    //! Attaches a listener.
+    /*!
+     *  \param timeout Asynchronously wait for the specified time before
+     *  dropping the subscription.
+     *  \param onValue A callback to call when the value gets set
+     *  (passing the value as a parameter).
+     *  \param onTimeout A callback to call when the timeout exceeded.
+     *  
+     *  \note
+     *  If the value is set before the call to #Subscribe, then
+     *  #callback gets called synchronously.
+     */
+    void Subscribe(
+        TDuration timeout,
+        const TClosure& onValue,
+        const TClosure& onTimeout);
+
+    //! Chains the asynchronous computation with another synchronous function.
+    TFuture<void> Apply(const TCallback<void()>& mutator);
+
+    //! Chains the asynchronous computation with another asynchronous function.
+    TFuture<void> Apply(const TCallback<TFuture<void>()>& mutator);
+
+    //! Chains the asynchronous computation with another synchronous function.
+    template <class R>
+    TFuture<R> Apply(const TCallback<R()>& mutator);
+
+    //! Chains the asynchronous computation with another asynchronous function.
+    template <class R>
+    TFuture<R> Apply(const TCallback<TFuture<R>()>& mutator);
+
+private:
+    explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state);
+    explicit TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state);
+
+    TIntrusivePtr< NYT::NDetail::TPromiseState<void> > Impl;
+
+private:
+    friend class TPromise<void>;
+
+    friend TFuture<void> MakeFuture();
+
+    template <class U>
+    friend bool operator==(const TFuture<U>& lhs, const TFuture<U>& rhs);
+    template <class U>
+    friend bool operator!=(const TFuture<U>& lhs, const TFuture<U>& rhs);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! #TFuture<> equality operator.
 template <class T>
@@ -161,27 +270,6 @@ bool operator==(const TFuture<T>& lhs, const TFuture<T>& rhs);
 //! #TFuture<> inequality operator.
 template <class T>
 bool operator!=(const TFuture<T>& lhs, const TFuture<T>& rhs);
-
-//! TFuture specialized for |void| type.
-#if 0
-template <>
-class TFuture<void>
-{
-public:
-    bool IsSet() const;
-    
-    void Subscribe(const TCallback<void()>& listener);
-
-private:
-    friend class TPromise<void>;
-    friend TFuture<void> MakeFuture();
-
-    explicit TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& impl);
-
-    TIntrusivePtr< NYT::NDetail::TPromiseState<void> > Impl;
-
-};
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -286,12 +374,114 @@ private:
     friend TPromise<U> NewPromise();
     template <class U>
     friend TPromise< typename NMpl::TDecay<U>::TType > MakePromise(U&& value);
+
     template <class U>
     friend bool operator==(const TPromise<U>& lhs, const TPromise<U>& rhs);
     template <class U>
     friend bool operator!=(const TPromise<U>& lhs, const TPromise<U>& rhs);
 
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! #TPromise<> specialized for |void| type.
+
+//! Encapsulates the value-returning mechanism.
+template <>
+class TPromise<void>
+{
+public:
+    typedef void TValueType;
+
+    //! Empty constructor.
+    //TPromise();
+
+    //! Empty constructor.
+    TPromise(TNull);
+
+    //! Copy constructor.
+    TPromise(const TPromise& other);
+
+    //! Move constructor.
+    TPromise(TPromise&& other);
+
+    //! Checks if the future is associated with a state.
+    bool IsNull() const;
+
+    //! Drops underlying associated state.
+    void Reset();
+
+    //! Swaps underlying associated state.
+    void Swap(TPromise& other);
+
+    //! Copy assignment.
+    TPromise<void>& operator=(const TPromise<void>& other);
+
+    //! Move assignment.
+    TPromise<void>& operator=(TPromise<void>&& other);
+
+    //! Checks if the value is set.
+    bool IsSet() const;
+
+    //! Sets the value.
+    /*!
+     *  Calling this method also invokes all the subscribers.
+     */
+    void Set();
+
+    //! Attaches a listener.
+    /*!
+     *  \param callback A callback to call when the value gets set
+     *  (passing the value as a parameter).
+     *  
+     *  \note
+     *  If the value is set before the call to #Subscribe, then
+     *  #callback gets called synchronously.
+     */
+    void Subscribe(const TClosure& listener);
+
+    //! Attaches a listener.
+    /*!
+     *  \param timeout Asynchronously wait for the specified time before
+     *  dropping the subscription.
+     *  \param onValue A callback to call when the value gets set
+     *  (passing the value as a parameter).
+     *  \param onTimeout A callback to call when the timeout exceeded.
+     *  
+     *  \note
+     *  If the value is set before the call to #Subscribe, then
+     *  #callback gets called synchronously.
+     */
+    void Subscribe(
+        TDuration timeout,
+        const TClosure& onValue,
+        const TClosure& onTimeout);
+
+    TFuture<void> ToFuture() const;
+    operator TFuture<void>() const;
+
+private:
+    explicit TPromise(const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state);
+    explicit TPromise(TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state);
+
+    TIntrusivePtr< NYT::NDetail::TPromiseState<void> > Impl;
+
+private:
+    TPromise();
+    friend class TFuture<void>;
+
+    template <class U>
+    friend TPromise<U> NewPromise();
+    friend TPromise<void> MakePromise();
+
+    template <class U>
+    friend bool operator==(const TPromise<U>& lhs, const TPromise<U>& rhs);
+    template <class U>
+    friend bool operator!=(const TPromise<U>& lhs, const TPromise<U>& rhs);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! #TPromise<> equality operator.
 template <class T>
