@@ -5,8 +5,6 @@
 namespace NYT {
 namespace NTableClient {
 
-using namespace NYT;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TValueConsumer::TValueConsumer(TOutputStream* output)
@@ -23,44 +21,44 @@ void TValueConsumer::OnNewValue(TKey* key, int keyIndex)
     KeyIndex = keyIndex;
 }
 
-void TValueConsumer::OnStringScalar(const TStringBuf& value, bool hasAttributes)
+void TValueConsumer::OnStringScalar(const TStringBuf& value)
 {
     if (NewValue) {
         Key->AddString(KeyIndex, value);
         NewValue = false;
     }
 
-    TYsonWriter::OnStringScalar(value, hasAttributes);
+    TYsonWriter::OnStringScalar(value);
 }
 
-void TValueConsumer::OnIntegerScalar(i64 value, bool hasAttributes)
+void TValueConsumer::OnIntegerScalar(i64 value)
 {
     if (NewValue) {
         Key->AddInteger(KeyIndex, value);
         NewValue = false;
     }
 
-    TYsonWriter::OnIntegerScalar(value, hasAttributes);
+    TYsonWriter::OnIntegerScalar(value);
 }
 
-void TValueConsumer::OnDoubleScalar(double value, bool hasAttributes)
+void TValueConsumer::OnDoubleScalar(double value)
 {
     if (NewValue) {
         Key->AddDouble(KeyIndex, value);
         NewValue = false;
     }
 
-    TYsonWriter::OnDoubleScalar(value, hasAttributes);
+    TYsonWriter::OnDoubleScalar(value);
 }
 
-void TValueConsumer::OnEntity(bool hasAttributes)
+void TValueConsumer::OnEntity()
 {
     if (NewValue) {
         Key->AddComposite(KeyIndex);
         NewValue = false;
     }
 
-    TYsonWriter::OnEntity(hasAttributes);
+    TYsonWriter::OnEntity();
 }
 
 void TValueConsumer::OnBeginList()

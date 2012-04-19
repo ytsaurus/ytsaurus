@@ -20,7 +20,7 @@ set( DIRS
   file_server
   file_client
 #  table_server
-#  table_client
+  table_client
   monitoring
   profiling
 #  driver

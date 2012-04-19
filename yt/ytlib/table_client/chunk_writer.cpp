@@ -4,13 +4,14 @@
 #include "private.h"
 #include "config.h"
 #include "channel_writer.h"
-#include "extensions.h"
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/ytree/lexer.h>
-#include <ytlib/chunk_holder/extensions.h>
+#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/chunk_client/writer_thread.h>
+#include <ytlib/chunk_client/private.h>
 #include <ytlib/misc/serialize.h>
 
 namespace NYT {
@@ -29,10 +30,9 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 TChunkWriter::TChunkWriter(
     const TChunkWriterConfigPtr& config,
-    NChunkClient::IAsyncWriter* chunkWriter,
+    NChunkClient::IAsyncWriterPtr chunkWriter,
     const std::vector<TChannel>& channels,
-    const TNullable<TKeyColumns>& keyColumns,
-    TKey& lastKey)
+    const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
     , Channels(channels)
     , ChunkWriter(chunkWriter)
@@ -42,7 +42,7 @@ TChunkWriter::TChunkWriter(
     , CurrentBlockIndex(0)
     , CurrentSize(0)
     , UncompressedSize(0)
-    , LastKey(lastKey)
+    , LastKey()
 {
     YASSERT(chunkWriter);
     Codec = GetCodec(ECodecId(Config->CodecId));
@@ -218,7 +218,6 @@ TAsyncError TChunkWriter::AsyncClose()
     CurrentSize = SentSize;
 
     NChunkHolder::NProto::TChunkMeta chunkMeta;
-    *chunkMeta.mutable_id() = ChunkWriter->GetChunkId().ToProto();
     chunkMeta.set_type(EChunkType::Table);
 
     ProtoMisc.set_uncompressed_size(UncompressedSize);
@@ -242,11 +241,6 @@ TAsyncError TChunkWriter::AsyncClose()
     }
 
     return ChunkWriter->AsyncClose(MoveRV(completedBlocks), chunkMeta);
-}
-
-TChunkId TChunkWriter::GetChunkId() const
-{
-    return ChunkWriter->GetChunkId();
 }
 
 NProto::TSample TChunkWriter::MakeSample(TRow& row)
@@ -282,11 +276,17 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
     return sample;
 }
 
-NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr 
-TChunkWriter::GetConfirmRequest()
+NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const
 {
     YASSERT(IsClosed);
-    return ChunkWriter->GetConfirmRequest();
+    NChunkHolder::NProto::TChunkMeta meta;
+    meta.set_type(EChunkType::Table);
+    SetProtoExtension(meta.mutable_extensions(), ProtoMisc);
+    if (KeyColumns) {
+        SetProtoExtension(meta.mutable_extensions(), ProtoBoundaryKeys);
+    }
+
+    return meta;
 }
 
 

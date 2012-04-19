@@ -1,7 +1,12 @@
 #include "stdafx.h"
 #include "chunk_sequence_writer.h"
+#include "private.h"
+#include "config.h"
 
-#include <ytlib/chunk_client/writer_thread.h>
+#include "chunk_writer.h"
+
+#include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/chunk_client/private.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 #include <ytlib/object_server/id.h>
@@ -23,36 +28,39 @@ static NLog::TLogger& Logger = TableClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkSequenceWriter::TChunkSequenceWriter(
-    TConfig::TPtr config,
+    TChunkSequenceWriterConfigPtr config,
     NRpc::IChannel::TPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkList,
-    i64 expectedRowCount)
+    const std::vector<TChannel>& channels,
+    const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
     , MasterChannel(masterChannel)
+    , Channels(channels)
+    , KeyColumns(keyColumns)
+    , Progress(0)
+    , CompleteChunkSize(0)
+    , RowCount(0)
     , TransactionId(transactionId)
     , ParentChunkList(parentChunkList)
+    , NextSession(Null)
     , CloseChunksAwaiter(New<TParallelAwaiter>(WriterThread->GetInvoker()))
-    , ExpectedRowCount(expectedRowCount)
-    , CurrentRowCount(0)
-    , CompleteChunkSize(0)
-    , NextChunk(Null)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(config);
     YASSERT(masterChannel);
 
-    // TODO(babenko): use TTaggedLogger here
+    // TODO(babenko): use TTaggedLogger here, tag with parentChunkListId.
 }
 
 TChunkSequenceWriter::~TChunkSequenceWriter()
 { }
 
-void TChunkSequenceWriter::CreateNextChunk()
+void TChunkSequenceWriter::CreateNextSession()
 {
-    YASSERT(NextChunk.IsNull());
+    YASSERT(NextSession.IsNull());
 
-    NextChunk = NewPromise<TChunkWriter::TPtr>();
+    NextSession = NewPromise<TSession>();
 
     LOG_DEBUG("Creating chunk (TransactionId: %s; UploadReplicaCount: %d)",
         ~TransactionId.ToString(),
@@ -65,14 +73,14 @@ void TChunkSequenceWriter::CreateNextChunk()
     reqExt->set_holder_count(Config->UploadReplicaCount);
     cypressProxy.Execute(req)
         .Subscribe(
-            BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
+            BIND(&TChunkSequenceWriter::OnSessionCreated, MakeWeak(this))
         .Via(WriterThread->GetInvoker()));
 }
 
-void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObject::TPtr rsp)
+void TChunkSequenceWriter::OnSessionCreated(TTransactionYPathProxy::TRspCreateObject::TPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(!NextChunk.IsNull());
+    YASSERT(!NextSession.IsNull());
 
     if (!State.IsActive()) {
         return;
@@ -91,92 +99,96 @@ void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObje
         ~JoinToString(addresses),
         ~chunkId.ToString());
 
-    auto remoteWriter = New<TRemoteWriter>(
-        ~Config->RemoteWriter,
+    TSession session;
+    session.RemoteWriter = New<TRemoteWriter>(
+        Config->RemoteWriter,
         chunkId,
         addresses);
-    remoteWriter->Open();
+    session.RemoteWriter->Open();
 
-    auto chunkWriter = New<TChunkWriter>(
-        ~Config->ChunkWriter,
-        ~remoteWriter);
+
+    session.ChunkWriter = New<TChunkWriter>(
+        Config->ChunkWriter,
+        session.RemoteWriter,
+        Channels,
+        KeyColumns);
 
     // Although we call _Async_Open, it returns immediately.
     // See TChunkWriter for details.
-    chunkWriter->AsyncOpen(Attributes);
+    session.ChunkWriter->AsyncOpen();
 
-    NextChunk.Set(chunkWriter);
+    NextSession.Set(session);
 }
 
-TAsyncError TChunkSequenceWriter::AsyncOpen(
-    const NProto::TTableChunkAttributes& attributes)
+void TChunkSequenceWriter::SetProgress(double progress)
+{
+    Progress = progress;
+}
+
+TAsyncError TChunkSequenceWriter::AsyncOpen()
 {
     YASSERT(!State.HasRunningOperation());
 
-    Attributes = attributes;
-    CreateNextChunk();
+    CreateNextSession();
 
     State.StartOperation();
-    NextChunk.Subscribe(BIND(
-        &TChunkSequenceWriter::InitCurrentChunk,
+    NextSession.Subscribe(BIND(
+        &TChunkSequenceWriter::InitCurrentSession,
         MakeWeak(this)));
 
     return State.GetOperationError();
 }
 
-void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
+void TChunkSequenceWriter::InitCurrentSession(TSession nextSession)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    CurrentChunk = nextChunk;
-    NextChunk.Reset();
-    State.FinishOperation();
+    // We swap the last key of the previous chunk to the last key of the new chunk.
+    nextSession.ChunkWriter->LastKey.Swap(
+        CurrentSession.ChunkWriter->GetLastKey());
+    CurrentSession = nextSession;
 
-    CreateNextChunk();
+    NextSession.Reset();
+    CreateNextSession();
+
+    State.FinishOperation();
 }
 
-TAsyncError TChunkSequenceWriter::AsyncEndRow(
-    const TKey& key,
-    const std::vector<TChannelWriter::TPtr>& channels)
+TAsyncError TChunkSequenceWriter::AsyncWriteRow(TRow& row, TKey& key)
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
 
     State.StartOperation();
+    ++RowCount;
 
-    ++CurrentRowCount;
-
-    CurrentChunk->AsyncEndRow(key, channels).Subscribe(BIND(
+    CurrentSession.ChunkWriter->AsyncWriteRow(row, key).Subscribe(BIND(
         &TChunkSequenceWriter::OnRowEnded,
-        MakeWeak(this),
-        channels));
+        MakeWeak(this)));
 
     return State.GetOperationError();
 }
 
-void TChunkSequenceWriter::OnRowEnded(
-    const std::vector<TChannelWriter::TPtr>& channels,
-    TError error)
+void TChunkSequenceWriter::OnRowEnded(TError error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (CurrentChunk->GetCurrentSize() > Config->DesiredChunkSize) {
-        auto expectedInputSize = 
-            (CompleteChunkSize + CurrentChunk->GetCurrentSize())
-            / static_cast<double>(CurrentRowCount) 
-            * (ExpectedRowCount - CurrentRowCount);
+    if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) {
+        auto currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetCurrentSize();
+        auto expectedInputSize = currentDataSize * std::max(.0, 1. - Progress);
 
         if (expectedInputSize > Config->DesiredChunkSize) {
             LOG_DEBUG(
                 "Switching to next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ", ExpectedInputSize %f)",
                 ~TransactionId.ToString(),
-                CurrentChunk->GetCurrentSize(),
+                CurrentSession.ChunkWriter->GetCurrentSize(),
                 expectedInputSize);
 
-            YASSERT(!NextChunk.IsNull());
+            YASSERT(!NextSession.IsNull());
             // We're not waiting for chunk to be closed.
-            FinishCurrentChunk(channels);
-            NextChunk.Subscribe(BIND(
-                &TChunkSequenceWriter::InitCurrentChunk,
+            FinishCurrentChunk();
+            NextSession.Subscribe(BIND(
+                &TChunkSequenceWriter::InitCurrentSession,
                 MakeWeak(this)));
             return;
         }
@@ -185,39 +197,37 @@ void TChunkSequenceWriter::OnRowEnded(
     State.FinishOperation(error);
 }
 
-void TChunkSequenceWriter::FinishCurrentChunk(
-    const std::vector<TChannelWriter::TPtr>& channels)
+void TChunkSequenceWriter::FinishCurrentChunk()
 {
-    if (!CurrentChunk)
+    if (!CurrentSession.IsNull())
         return;
 
-    if (CurrentChunk->GetCurrentSize() > 0) {
+    if (CurrentSession.ChunkWriter->GetCurrentSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
-            ~CurrentChunk->GetChunkId().ToString());
+            ~CurrentSession.RemoteWriter->GetChunkId().ToString());
 
         auto finishResult = NewPromise<TError>();
-        CloseChunksAwaiter->Await(finishResult.ToFuture(),
-            BIND(
-                &TChunkSequenceWriter::OnChunkFinished, 
-                MakeWeak(this),
-                CurrentChunk->GetChunkId()));
+        CloseChunksAwaiter->Await(finishResult.ToFuture(), BIND(
+            &TChunkSequenceWriter::OnChunkFinished, 
+            MakeWeak(this),
+            CurrentSession.RemoteWriter->GetChunkId()));
 
-        CurrentChunk->AsyncClose(channels).Subscribe(BIND(
+        CurrentSession.ChunkWriter->AsyncClose().Subscribe(BIND(
             &TChunkSequenceWriter::OnChunkClosed,
             MakeWeak(this),
-            CurrentChunk,
+            CurrentSession,
             finishResult));
 
     } else {
         LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
-            ~CurrentChunk->GetChunkId().ToString());
+            ~CurrentSession.RemoteWriter->GetChunkId().ToString());
     }
 
-    CurrentChunk.Reset();
+    CurrentSession.Reset();
 }
 
 void TChunkSequenceWriter::OnChunkClosed(
-    TChunkWriter::TPtr currentChunk,
+    TSession currentSession,
     TAsyncErrorPromise finishResult,
     TError error)
 {
@@ -229,20 +239,27 @@ void TChunkSequenceWriter::OnChunkClosed(
     }
 
     LOG_DEBUG("Chunk successfully closed (ChunkId: %s).",
-        ~currentChunk->GetChunkId().ToString());
+        ~currentSession.RemoteWriter->GetChunkId().ToString());
 
     TCypressServiceProxy cypressProxy(MasterChannel);
     auto batchReq = cypressProxy.ExecuteBatch();
-    batchReq->AddRequest(~currentChunk->GetConfirmRequest());
+    {
+        auto req = TChunkYPathProxy::Confirm();
+        *req->mutable_chunk_info() = currentSession.RemoteWriter->GetChunkInfo();
+        ToProto(req->mutable_holder_addresses(), currentSession.RemoteWriter->GetHolders());
+        *req->mutable_chunk_meta() = currentSession.ChunkWriter->GetMasterMeta();
+
+        batchReq->AddRequest(~req);
+    }
     {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkList));
-        *req->add_children_ids() = currentChunk->GetChunkId().ToProto();
+        *req->add_children_ids() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }
     {
         auto req = TTransactionYPathProxy::ReleaseObject(FromObjectId(TransactionId));
-        *req->mutable_object_id() = currentChunk->GetChunkId().ToProto();
+        *req->mutable_object_id() = currentSession.RemoteWriter->GetChunkId().ToProto();
 
         batchReq->AddRequest(~req);
     }
@@ -250,7 +267,7 @@ void TChunkSequenceWriter::OnChunkClosed(
     batchReq->Invoke().Subscribe(BIND(
         &TChunkSequenceWriter::OnChunkRegistered,
         MakeWeak(this),
-        currentChunk->GetChunkId(),
+        currentSession.RemoteWriter->GetChunkId(),
         finishResult));
 }
 
@@ -295,13 +312,13 @@ void TChunkSequenceWriter::OnChunkFinished(
         ~chunkId.ToString());
 }
 
-TAsyncError TChunkSequenceWriter::AsyncClose(
-    const std::vector<TChannelWriter::TPtr>& channels)
+TAsyncError TChunkSequenceWriter::AsyncClose()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
+    YASSERT(!State.HasRunningOperation());
 
     State.StartOperation();
-    FinishCurrentChunk(channels);
+    FinishCurrentChunk();
 
     CloseChunksAwaiter->Complete(BIND(
         &TChunkSequenceWriter::OnClose,
@@ -320,6 +337,23 @@ void TChunkSequenceWriter::OnClose()
         ~TransactionId.ToString());
 
     State.FinishOperation();
+}
+
+TKey& TChunkSequenceWriter::GetLastKey()
+{
+    YASSERT(!State.HasRunningOperation());
+    return CurrentSession.ChunkWriter->GetLastKey();
+}
+
+const TNullable<TKeyColumns>& TChunkSequenceWriter::GetKeyColumns() const
+{
+    return KeyColumns;
+}
+
+i64 TChunkSequenceWriter::GetRowCount()
+{
+    YASSERT(!State.HasRunningOperation());
+    return RowCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

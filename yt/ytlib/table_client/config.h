@@ -1,5 +1,8 @@
-﻿
-#pragma once
+﻿#pragma once
+
+#include "public.h"
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/config.h>
 
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/configurable.h>
@@ -66,9 +69,40 @@ struct TChunkWriterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkSequenceWriterConfig
+struct TChunkSequenceWriterConfig
     : public TConfigurable
 {
+    i64 DesiredChunkSize;
+
+    int TotalReplicaCount;
+    int UploadReplicaCount;
+
+    TChunkWriterConfigPtr ChunkWriter;
+    NChunkClient::TRemoteWriterConfigPtr RemoteWriter;
+
+    TChunkSequenceWriterConfig()
+    {
+        Register("desired_chunk_size", DesiredChunkSize)
+            .GreaterThan(0)
+            .Default(1024 * 1024 * 1024);
+        Register("total_replica_count", TotalReplicaCount)
+            .GreaterThanOrEqual(1)
+            .Default(3);
+        Register("upload_replica_count", UploadReplicaCount)
+            .GreaterThanOrEqual(1)
+            .Default(2);
+        Register("chunk_writer", ChunkWriter)
+            .DefaultNew();
+        Register("remote_writer", RemoteWriter)
+            .DefaultNew();
+    }
+
+    virtual void DoValidate() const
+    {
+        if (TotalReplicaCount < UploadReplicaCount) {
+            ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

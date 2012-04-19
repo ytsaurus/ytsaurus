@@ -59,56 +59,5 @@ TValue TValue::Load(TMemoryInput* input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs)
-{
-    int lhsSize = lhs.values_size();
-    int rhsSize = rhs.values_size();
-    int minSize = std::min(lhsSize, rhsSize);
-    for (int i = 0; i < minSize; ++i) {
-        const auto& lhsValue = lhs.values(i);
-        const auto& rhsValue = rhs.values(i);
-        int result = Stroka::compare(lhsValue, rhsValue);
-        if (result != 0) {
-            return result;
-        }
-    } 
-    return lhsSize - rhsSize;
-}
-
-bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs)
-{
-    return CompareKeys(lhs, rhs) == 0;
-}
-
-bool operator != (const NProto::TKey& lhs, const NProto::TKey& rhs)
-{
-    return CompareKeys(lhs, rhs) != 0;
-}
-
-bool operator <  (const NProto::TKey& lhs, const NProto::TKey& rhs)
-{
-    return CompareKeys(lhs, rhs) < 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-int CompareKeys(const TKey& lhs, const TKey& rhs)
-{
-    int lhsSize = static_cast<int>(lhs.size());
-    int rhsSize = static_cast<int>(rhs.size());
-    int minSize = std::min(lhsSize, rhsSize);
-    for (int i = 0; i < minSize; ++i) {
-        const auto& lhsValue = lhs[i];
-        const auto& rhsValue = rhs[i];
-        int result = Stroka::compare(lhsValue, rhsValue);
-        if (result != 0) {
-            return result;
-        }
-    }
-    return lhsSize - rhsSize;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NTableClient
 } // namespace NYT

@@ -1,17 +1,17 @@
 ﻿#pragma once
-#include "common.h"
+#include "public.h"
 #include "schema.h"
 #include "async_writer.h"
-#include "chunk_writer.h"
 
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
-#include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
+#include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/async_stream_state.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -22,114 +22,99 @@ class TChunkSequenceWriter
     : public IAsyncWriter
 {
 public:
-    typedef TIntrusivePtr<TChunkSequenceWriter> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        i64 DesiredChunkSize;
-
-        int TotalReplicaCount;
-        int UploadReplicaCount;
-
-        TChunkWriter::TConfig::TPtr ChunkWriter;
-        NChunkClient::TRemoteWriter::TConfig::TPtr RemoteWriter;
-
-        TConfig()
-        {
-            Register("desired_chunk_size", DesiredChunkSize)
-                .GreaterThan(0)
-                .Default(1024 * 1024 * 1024);
-            Register("total_replica_count", TotalReplicaCount)
-                .GreaterThanOrEqual(1)
-                .Default(3);
-            Register("upload_replica_count", UploadReplicaCount)
-                .GreaterThanOrEqual(1)
-                .Default(2);
-            Register("chunk_writer", ChunkWriter)
-                .DefaultNew();
-            Register("remote_writer", RemoteWriter)
-                .DefaultNew();
-        }
-
-        virtual void DoValidate() const
-        {
-            if (TotalReplicaCount < UploadReplicaCount) {
-                ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
-            }
-        }
-    };
-
     TChunkSequenceWriter(
-        TConfig::TPtr config,
+        TChunkSequenceWriterConfigPtr config,
         NRpc::IChannel::TPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkServer::TChunkListId& parentChunkList,
-        i64 expectedRowCount = std::numeric_limits<i64>::max());
+        const std::vector<TChannel>& channels,
+        const TNullable<TKeyColumns>& keyColumns);
 
     ~TChunkSequenceWriter();
 
-    TAsyncError AsyncOpen(
-        const NProto::TTableChunkAttributes& attributes);
+    TAsyncError AsyncOpen();
 
-    TAsyncError AsyncEndRow(
-        const TKey& key,
-        const std::vector<TChannelWriter::TPtr>& channels);
+    TAsyncError AsyncWriteRow(TRow& row, TKey& key);
+    TAsyncError AsyncClose();
 
-    TAsyncError AsyncClose(
-        const std::vector<TChannelWriter::TPtr>& channels);
+    void SetProgress(double progress);
+
+    TKey& GetLastKey();
+
+    const TNullable<TKeyColumns>& GetKeyColumns() const;
+
+    //! Current row count.
+    i64 GetRowCount();
 
 private:
-    void CreateNextChunk();
-    void InitCurrentChunk(TChunkWriter::TPtr nextChunk);
-    void OnChunkCreated(
+    // Tools for writing single chunk.
+    struct TSession
+    {
+        TChunkWriterPtr ChunkWriter;
+        NChunkClient::TRemoteWriterPtr RemoteWriter;
+
+        TSession()
+            : ChunkWriter(NULL)
+            , RemoteWriter(NULL)
+        { }
+
+        bool IsNull() const
+        {
+            return bool(ChunkWriter);
+        }
+
+        void Reset()
+        {
+            ChunkWriter.Reset();
+            RemoteWriter.Reset();
+        }
+    };
+
+    void CreateNextSession();
+    void InitCurrentSession(TSession nextSession);
+    void OnSessionCreated(
         NTransactionServer::TTransactionYPathProxy::TRspCreateObject::TPtr rsp);
 
-    void FinishCurrentChunk(
-        const std::vector<TChannelWriter::TPtr>& channels);
+    void FinishCurrentChunk();
 
     void OnChunkClosed(
-        TChunkWriter::TPtr currentChunk,
+        TSession currentSession,
         TAsyncErrorPromise finishResult,
         TError error);
 
     void OnChunkRegistered(
-        NChunkClient::TChunkId chunkId,
+        NChunkServer::TChunkId chunkId,
         TAsyncErrorPromise finishResult,
         NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     void OnChunkFinished(
-        NChunkClient::TChunkId chunkId,
+        NChunkServer::TChunkId chunkId,
         TError error);
 
-    void OnRowEnded(
-        const std::vector<TChannelWriter::TPtr>& channels,
-        TError error);
+    void OnRowEnded(TError error);
 
     void OnClose();
 
-    TConfig::TPtr Config;
+    TChunkSequenceWriterConfigPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
+    const std::vector<TChannel>& Channels;
+    const TNullable<TKeyColumns>& KeyColumns;
 
-    const i64 ExpectedRowCount;
-    i64 CurrentRowCount;
+    volatile double Progress;
 
     //! Total compressed size of data in the completed chunks.
     i64 CompleteChunkSize;
+    i64 RowCount;
 
     const NObjectServer::TTransactionId TransactionId;
     const NChunkServer::TChunkListId ParentChunkList;
 
     TAsyncStreamState State;
 
-    //! Protects #CurrentChunk.
-    TChunkWriter::TPtr CurrentChunk;
-    TPromise<TChunkWriter::TPtr> NextChunk;
+    TSession CurrentSession;
+    TPromise<TSession> NextSession;
 
     TParallelAwaiter::TPtr CloseChunksAwaiter;
-    NProto::TTableChunkAttributes Attributes;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 };

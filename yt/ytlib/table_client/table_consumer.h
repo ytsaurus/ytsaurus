@@ -12,42 +12,6 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-class TValidatingWriter
-{
-public:
-    TValidatingWriter(
-        const TSchema& schema, 
-        IAsyncWriter* writer);
-
-    virtual TAsyncError AsyncOpen();
-    void Write(const TColumn& column, TValue value);
-
-    virtual TAsyncError AsyncEndRow();
-    virtual TAsyncError AsyncClose();
-
-protected:
-    IAsyncWriter::TPtr Writer;
-    const TSchema Schema;
-
-    // Stores mapping from all key columns and channel non-range columns to indexes.
-    yhash_map<TColumn, int> ColumnIndexes;
-
-    // Used to remember set columns in current row.
-    std::vector<bool> IsColumnUsed; // for columns with indexes.
-    yhash_set<TColumn> UsedRangeColumns; // for columns without indexes.
-
-    TKey CurrentKey;
-
-    std::vector<TChannelWriter::TPtr> ChannelWriters;
-    NProto::TTableChunkAttributes Attributes;
-
-    DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
-};
-*/
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTableConsumer
     : public NYTree::TForwardingYsonConsumer
 {
@@ -55,19 +19,20 @@ public:
     TTableConsumer(const ISyncWriterPtr& writer);
 
 private:
-    void OnMyStringScalar(const TStringBuf& value, bool hasAttributes);
-    void OnMyIntegerScalar(i64 value, bool hasAttributes);
-    void OnMyDoubleScalar(double value, bool hasAttributes);
-    void OnMyEntity(bool hasAttributes);
+    void OnMyStringScalar(const TStringBuf& value);
+    void OnMyIntegerScalar(i64 value);
+    void OnMyDoubleScalar(double value);
+    void OnMyEntity();
     void OnMyBeginList();
     void OnMyListItem();
     void OnMyBeginMap();
     void OnMyMapItem(const TStringBuf& name);
-    void OnMyEndMap(bool hasAttributes);
+    void OnMyEndMap();
+
+    // We currently ignore user attributes.
+    // void OnMyBeginAttributes();
 
     void OnValueEnded();
-
-    void CheckNoAttributes(bool hasAttributes);
 
     virtual void OnColumn();
 
@@ -80,7 +45,6 @@ private:
     TStringBuf CurrentColumn;
 
     TKey CurrentKey;
-    TKey PreviousKey;
 
     yhash_set<TStringBuf> UsedColumns;
 

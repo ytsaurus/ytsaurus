@@ -9,7 +9,7 @@
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/chunk_holder/chunk.pb.h>
 
-#include <ytlib/chunk_client/async_writer.h>
+#include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -25,10 +25,9 @@ class  TChunkWriter
 public:
     TChunkWriter(
         const TChunkWriterConfigPtr& config,
-        NChunkClient::IAsyncWriter* chunkWriter,
+        NChunkClient::IAsyncWriterPtr chunkWriter,
         const std::vector<TChannel>& channels,
-        const TNullable<TKeyColumns>& keyColumns,
-        TKey& lastKey);
+        const TNullable<TKeyColumns>& keyColumns);
 
     ~TChunkWriter();
 
@@ -43,12 +42,12 @@ public:
     i64 GetRowCount() const;
 
     i64 GetCurrentSize() const;
-    NChunkServer::TChunkId GetChunkId() const;
-    NChunkServer::TChunkYPathProxy::TReqConfirm::TPtr GetConfirmRequest();
+    NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const;
 
 private:
-    TSharedRef PrepareBlock(int channelIndex);
+    friend class TChunkSequenceWriter;
 
+    TSharedRef PrepareBlock(int channelIndex);
     static NProto::TSample MakeSample(TRow& row);
 
 private:
@@ -57,7 +56,7 @@ private:
 
     ICodec* Codec;
 
-    NChunkClient::IAsyncWriter::TPtr ChunkWriter;
+    NChunkClient::IAsyncWriterPtr ChunkWriter;
 
     //! If not null chunk is expected to be sorted.
     TNullable<TKeyColumns> KeyColumns;

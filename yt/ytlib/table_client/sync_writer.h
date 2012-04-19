@@ -20,13 +20,15 @@ struct ISyncWriter
      *  \param key - is used only if table is sorted, e.g. GetKeyColumns
      *  returns not null.
      */
-    virtual void WriteRow(const TRow& row, const TKey& key) = 0;
+    virtual void WriteRow(TRow& row, TKey& key) = 0;
     virtual void Close() = 0;
 
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
 
     //! Current row count.
     virtual i64 GetRowCount() const = 0;
+
+    virtual TKey& GetLastKey() = 0;
 
 };
 
@@ -39,12 +41,13 @@ public:
     TSyncWriterAdapter(IAsyncWriterPtr writer);
 
     void Open();
-    void WriteRow(const TRow& row, const TKey& key = TKey());
+    void WriteRow(TRow& row, TKey& key = TKey());
     void Close();
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;
 
-    i64 GetRowCount() const ;
+    i64 GetRowCount() const;
+    TKey& GetLastKey();
 
 private:
     IAsyncWriterPtr Writer;

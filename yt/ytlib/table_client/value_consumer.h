@@ -18,10 +18,10 @@ public:
     void OnNewValue(TKey* key, int keyIndex);
 
 private:
-    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes);
-    virtual void OnIntegerScalar(i64 value, bool hasAttributes);
-    virtual void OnDoubleScalar(double value, bool hasAttributes);
-    virtual void OnEntity(bool hasAttributes);
+    virtual void OnStringScalar(const TStringBuf& value);
+    virtual void OnIntegerScalar(i64 value);
+    virtual void OnDoubleScalar(double value);
+    virtual void OnEntity();
     virtual void OnBeginList();
     virtual void OnBeginMap();
 

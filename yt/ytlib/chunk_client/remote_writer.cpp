@@ -960,6 +960,11 @@ const std::vector<Stroka> TRemoteWriter::GetHolders() const
     return addresses;
 }
 
+const TChunkId& TRemoteWriter::GetChunkId() const
+{
+    return ChunkId;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

@@ -60,6 +60,7 @@ public:
 
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
     const std::vector<Stroka> GetHolders() const;
+    const TChunkId& GetChunkId() const;
 
 private:
     //! A group is a bunch of blocks that is sent in a single RPC request.
