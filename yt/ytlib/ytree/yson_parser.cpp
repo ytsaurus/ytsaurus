@@ -224,6 +224,7 @@ private:
                     ythrow yexception() << Sprintf("Unexpected end of list in list fragment (%s)",
                         ~GetPositionInfo());
                 }
+                Consumer->OnEndList();
                 StateStack.pop();
                 OnItemConsumed();
                 break;
@@ -275,6 +276,7 @@ private:
         switch (currentState) {
             case EState::MapBeforeKey:
                 if (tokenType == ETokenType::RightBrace) {
+                    Consumer->OnEndMap();
                     StateStack.pop();
                     OnItemConsumed();
                 } else if (tokenType == ETokenType::String) {
@@ -305,6 +307,7 @@ private:
 
             case EState::MapAfterValue:
                 if (tokenType == ETokenType::RightBrace) {
+                    Consumer->OnEndMap();
                     StateStack.pop();
                     OnItemConsumed();
                 } else if (tokenType == ETokenType::Semicolon) {

@@ -179,7 +179,7 @@ void TForwardingYsonConsumer::OnRaw(const TStringBuf &yson, EYsonType type)
 
 void TForwardingYsonConsumer::OnBeginAttributes()
 {
-    if (!CheckForwarding()) {
+    if (!CheckForwarding(+1)) {
         OnMyBeginAttributes();
     } else {
         ForwardingConsumer->OnBeginAttributes();
@@ -189,7 +189,7 @@ void TForwardingYsonConsumer::OnBeginAttributes()
 
 void TForwardingYsonConsumer::OnEndAttributes()
 {
-    if (!CheckForwarding()) {
+    if (!CheckForwarding(-1)) {
         OnMyEndAttributes();
     } else {
         ForwardingConsumer->OnEndAttributes();

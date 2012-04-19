@@ -19,7 +19,7 @@ class TAttributeConsumer
 {
 public:
     TAttributeConsumer()
-        : Attributes(~CreateEphemeralAttributes())
+        : Attributes(CreateEphemeralAttributes())
         , Output(Value)
         , Writer(&Output)
     { }
