@@ -63,9 +63,8 @@ void TChunkSequenceWriter::CreateNextChunk()
     req->set_type(EObjectType::Chunk);
     auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
     reqExt->set_holder_count(Config->UploadReplicaCount);
-    cypressProxy.Execute(req)
-        .Subscribe(
-            BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
+    cypressProxy.Execute(req).Subscribe(
+        BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
         .Via(WriterThread->GetInvoker()));
 }
 
@@ -130,9 +129,9 @@ void TChunkSequenceWriter::InitCurrentChunk(TChunkWriter::TPtr nextChunk)
 
     CurrentChunk = nextChunk;
     NextChunk.Reset();
-    State.FinishOperation();
-
     CreateNextChunk();
+
+    State.FinishOperation();
 }
 
 TAsyncError TChunkSequenceWriter::AsyncEndRow(
