@@ -32,21 +32,21 @@ public:
     virtual void OnMyKeyedItem(const TStringBuf& key)
     {
         Key = key;
-        ForwardNode(&Writer, BIND([=]
-            {
-                Attributes->SetYson(Key, Value);
-                Key.clear();
-                Value.clear();
-            }));
+        ForwardNode(&Writer, BIND([=] () mutable {
+            Attributes->SetYson(Key, Value);
+            // TODO(babenko): "this" is needed by VC
+            this->Key.clear();
+            this->Value.clear();
+        }));
     }
 
 private:
     THolder<IAttributeDictionary> Attributes;
+    TStringOutput Output;
+    TYsonWriter Writer;
 
     Stroka Key;
     TYson Value;
-    TStringOutput Output;
-    TYsonWriter Writer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
