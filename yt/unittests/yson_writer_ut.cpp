@@ -98,73 +98,64 @@ TEST_F(TYsonWriterTest, OneItemMap)
 TEST_F(TYsonWriterTest, MapWithAttributes)
 {
     InSequence dummy;
-    EXPECT_CALL(Mock, OnBeginMap());
-
-    EXPECT_CALL(Mock, OnKeyedItem("path"));
-        EXPECT_CALL(Mock, OnStringScalar("/home/sandello"));
-
-    EXPECT_CALL(Mock, OnKeyedItem("mode"));
-        EXPECT_CALL(Mock, OnIntegerScalar(755));
-
-    EXPECT_CALL(Mock, OnEndMap());
 
     EXPECT_CALL(Mock, OnBeginAttributes());
     EXPECT_CALL(Mock, OnKeyedItem("acl"));
         EXPECT_CALL(Mock, OnBeginMap());
+            EXPECT_CALL(Mock, OnKeyedItem("read"));
+            EXPECT_CALL(Mock, OnBeginList());
+                EXPECT_CALL(Mock, OnListItem());
+                EXPECT_CALL(Mock, OnStringScalar("*"));
+            EXPECT_CALL(Mock, OnEndList());
 
-        EXPECT_CALL(Mock, OnKeyedItem("read"));
-        EXPECT_CALL(Mock, OnBeginList());
-        EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnStringScalar("*"));
-        EXPECT_CALL(Mock, OnEndList());
-
-        EXPECT_CALL(Mock, OnKeyedItem("write"));
-        EXPECT_CALL(Mock, OnBeginList());
-        EXPECT_CALL(Mock, OnListItem());
-        EXPECT_CALL(Mock, OnStringScalar("sandello"));
-        EXPECT_CALL(Mock, OnEndList());
-
+            EXPECT_CALL(Mock, OnKeyedItem("write"));
+            EXPECT_CALL(Mock, OnBeginList());
+                EXPECT_CALL(Mock, OnListItem());
+                EXPECT_CALL(Mock, OnStringScalar("sandello"));
+            EXPECT_CALL(Mock, OnEndList());
         EXPECT_CALL(Mock, OnEndMap());
 
-    EXPECT_CALL(Mock, OnKeyedItem("lock_scope"));
+        EXPECT_CALL(Mock, OnKeyedItem("lock_scope"));
         EXPECT_CALL(Mock, OnStringScalar("mytables"));
-
     EXPECT_CALL(Mock, OnEndAttributes());
+
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("path"));
+        EXPECT_CALL(Mock, OnStringScalar("/home/sandello"));
+
+        EXPECT_CALL(Mock, OnKeyedItem("mode"));
+        EXPECT_CALL(Mock, OnIntegerScalar(755));
+    EXPECT_CALL(Mock, OnEndMap());
 
     TYsonWriter writer(&Stream, EYsonFormat::Binary);
 
-    writer.OnBeginMap();
-
-    writer.OnKeyedItem("path");
-        writer.OnStringScalar("/home/sandello");
-
-    writer.OnKeyedItem("mode");
-        writer.OnIntegerScalar(755);
-
-    writer.OnEndMap();
-
     writer.OnBeginAttributes();
-    writer.OnKeyedItem("acl");
+        writer.OnKeyedItem("acl");
         writer.OnBeginMap();
+            writer.OnKeyedItem("read");
+            writer.OnBeginList();
+                writer.OnListItem();
+                writer.OnStringScalar("*");
+            writer.OnEndList();
 
-        writer.OnKeyedItem("read");
-        writer.OnBeginList();
-        writer.OnListItem();
-        writer.OnStringScalar("*");
-        writer.OnEndList();
-
-        writer.OnKeyedItem("write");
-        writer.OnBeginList();
-        writer.OnListItem();
-        writer.OnStringScalar("sandello");
-        writer.OnEndList();
-
+            writer.OnKeyedItem("write");
+            writer.OnBeginList();
+                writer.OnListItem();
+                writer.OnStringScalar("sandello");
+            writer.OnEndList();
         writer.OnEndMap();
 
-    writer.OnKeyedItem("lock_scope");
+        writer.OnKeyedItem("lock_scope");
         writer.OnStringScalar("mytables");
-
     writer.OnEndAttributes();
+
+    writer.OnBeginMap();
+        writer.OnKeyedItem("path");
+        writer.OnStringScalar("/home/sandello");
+
+        writer.OnKeyedItem("mode");
+        writer.OnIntegerScalar(755);
+    writer.OnEndMap();
 
     Run();
 }
