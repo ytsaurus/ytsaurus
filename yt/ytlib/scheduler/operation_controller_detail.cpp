@@ -170,7 +170,8 @@ TFuture<TVoid> TOperationControllerBase::Prepare()
                 LOG_WARNING("Operation preparation failed\n%s", ~result.ToString());
                 this_->Active = false;
                 this_->Host->OnOperationFailed(this_->Operation, result);
-                return TFuture<TVoid>();
+                // This promise is never fulfilled.
+                return NewPromise<TVoid>();
             }
         }));
 }
@@ -183,7 +184,7 @@ TFuture<TVoid> TOperationControllerBase::Revive()
         FailOperation(TError("Operation has failed to initialize\n%s",
             ex.what()));
         // This promise is never fulfilled.
-        return TFuture<TVoid>();
+        return NewPromise<TVoid>();
     }
     return Prepare();
 }
@@ -574,6 +575,15 @@ TVoid TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecu
 
             auto& table = InputTables[index];
             table.FetchResponse = fetchInTableRsp;
+
+            FOREACH (const auto& chunk, fetchInTableRsp->chunks()) {
+                auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+                if (chunk.holder_addresses_size() == 0) {
+                    ythrow yexception() << Sprintf("Chunk %s in input table %s is lost",
+                        ~chunkId.ToString(),
+                        ~table.Path);
+                }
+            }
         }
     }
 

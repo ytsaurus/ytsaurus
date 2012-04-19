@@ -614,15 +614,11 @@ public:
         Terminated = true;
         Thread.Join();
 
-        // NB: This doesn't actually stop NetLiba threads.
         // XXX(babenko): just drop the reference, this should force the requester
         // to send all pending packets.
         Requester = NULL;
 
-        // TODO: Consider moving somewhere else.
-        StopAllNetLibaThreads();
-
-        // NB: cannot use log here
+        // NB: Cannot use log here!
     }
 
     IBus::TSendResult EnqueueRequest(TNLBusClient::TBus* bus, IMessage* message)

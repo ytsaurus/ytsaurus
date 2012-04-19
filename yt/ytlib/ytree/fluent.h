@@ -386,7 +386,7 @@ public:
             return *this;
         }
 
-        //TODO(panin): forbid this call for TParent = TNoParentTag
+        // TODO(panin): forbid this call for TParent = TNoParentTag
         TParent EndMap()
         {
             this->Consumer->OnEndMap();

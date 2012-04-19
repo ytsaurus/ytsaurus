@@ -62,8 +62,8 @@ private:
 
         //! The position in |TOutputTable::PartitionIds| where the 
         //! output of this group must be placed.
-        //! -1 indicates that no position was reallocated, so the output
-        //! is just appended to the end.
+        //! -1 indicates that no particular position is preallocated and
+        //! the output must be appended to the end.
         int PartitionIndex;
     };
 
@@ -312,15 +312,15 @@ private:
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
                 auto fetchRsp = table.FetchResponse;
-                FOREACH (auto& inputChunk, *fetchRsp->mutable_chunks()) {
-                    i64 rowCount = inputChunk.approximate_row_count();
-                    i64 dataSize = inputChunk.approximate_data_size();
+                FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
+                    i64 rowCount = chunk.approximate_row_count();
+                    i64 dataSize = chunk.approximate_data_size();
 
                     totalRowCount += rowCount;
                     totalDataSize += dataSize;
                     totalChunkCount += 1;
 
-                    if (ProcessInputChunk(inputChunk)) {
+                    if (ProcessInputChunk(chunk)) {
                         mergeRowCount += rowCount;
                         mergeDataSize += dataSize;
                         mergeChunkCount += 1;
@@ -369,25 +369,25 @@ private:
 
 
     // The following functions return True iff the chunk is pooled.
-    bool ProcessInputChunk(const TInputChunk& inputChunk)
+    bool ProcessInputChunk(const TInputChunk& chunk)
     {
         switch (Spec->Mode) {
             case EMergeMode::Unordered:
-                return ProcessInputChunkUnordered(inputChunk);
+                return ProcessInputChunkUnordered(chunk);
             case EMergeMode::Ordered:
-                return ProcessInputChunkOrdered(inputChunk);
+                return ProcessInputChunkOrdered(chunk);
                 break;
             default:
                 YUNREACHABLE();
         }
     }
 
-    bool ProcessInputChunkUnordered(const TInputChunk& inputChunk)
+    bool ProcessInputChunkUnordered(const TInputChunk& chunk)
     {
-        auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
-        if (!IsLargeCompleteChunk(inputChunk)) {
+        if (!IsLargeCompleteChunk(chunk)) {
             // Chunks not requiring merge go directly to the output chunk list.
             LOG_DEBUG("Chunk %s is large and complete, using as-is", ~chunkId.ToString());
             table.PartitionTreeIds.push_back(chunkId);
@@ -402,25 +402,25 @@ private:
         }
 
         // Merge is IO-bound, use data size as weight.
-        auto chunk = New<TPooledChunk>(
-            inputChunk,
-            inputChunk.approximate_data_size());
-        AddChunkToPool(group, chunk);
+        auto pooledChunk = New<TPooledChunk>(
+            chunk,
+            chunk.approximate_data_size());
+        AddChunkToPool(group, pooledChunk);
         
         LOG_DEBUG("Chunk %s is pooled (DataSize: %" PRId64 ")",
             ~chunkId.ToString(),
-            inputChunk.approximate_data_size());
+            chunk.approximate_data_size());
 
         return true;
     }
 
-    bool ProcessInputChunkOrdered(const TInputChunk& inputChunk)
+    bool ProcessInputChunkOrdered(const TInputChunk& chunk)
     {
-        auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto group = GetCurrentGroup();
         auto& table = OutputTables[0];
 
-        if (IsLargeCompleteChunk(inputChunk) && !group) {
+        if (IsLargeCompleteChunk(chunk) && !group) {
             // Merge is not required and no current group is active.
             // Copy the chunk directly to the output.
             LOG_DEBUG("Chunk %s is large and complete, using as-is in partition %d",
@@ -439,15 +439,15 @@ private:
         }
         
         // Merge is IO-bound, use data size as weight.
-        auto chunk = New<TPooledChunk>(
-            inputChunk,
-            inputChunk.approximate_data_size());
-        AddChunkToPool(group, chunk);
+        auto pooledChunk = New<TPooledChunk>(
+            chunk,
+            chunk.approximate_data_size());
+        AddChunkToPool(group, pooledChunk);
 
         LOG_DEBUG("Chunk %s is pooled in partition %d (DataSize: %" PRId64 ")",
             ~chunkId.ToString(),
             group->PartitionIndex,
-            inputChunk.approximate_data_size());
+            chunk.approximate_data_size());
 
         // Finish the group if the size is large enough.
         if (group->ChunkPool->GetTotalWeight() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {

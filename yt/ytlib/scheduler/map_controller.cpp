@@ -200,26 +200,26 @@ private:
                 }
 
                 auto fetchRsp = table.FetchResponse;
-                FOREACH (auto& inputChunk, *fetchRsp->mutable_chunks()) {
+                FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
                     // Currently fetch never returns row attributes.
-                    YASSERT(!inputChunk.has_row_attributes());
+                    YASSERT(!chunk.has_row_attributes());
 
                     if (rowAttributes) {
-                        inputChunk.set_row_attributes(rowAttributes.Get());
+                        chunk.set_row_attributes(rowAttributes.Get());
                     }
 
-                    i64 rowCount = inputChunk.approximate_row_count();
-                    i64 dataSize = inputChunk.approximate_data_size();
+                    i64 rowCount = chunk.approximate_row_count();
+                    i64 dataSize = chunk.approximate_data_size();
                     // TODO(babenko): make customizable
                     // Plus one is to ensure that weights are positive.
-                    i64 weight = inputChunk.approximate_data_size() + 1;
+                    i64 weight = chunk.approximate_data_size() + 1;
 
                     totalRowCount += rowCount;
                     totalDataSize += dataSize;
                     totalChunkCount += 1;
                     totalWeight += weight;
 
-                    auto pooledChunk = New<TPooledChunk>(inputChunk, weight);
+                    auto pooledChunk = New<TPooledChunk>(chunk, weight);
                     ChunkPool->Add(pooledChunk);
                 }
             }
