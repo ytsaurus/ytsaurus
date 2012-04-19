@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/codec.h>
@@ -28,28 +28,9 @@ class TFileReaderBase
     : public NTransactionClient::TTransactionListener
 {
 public:
-    typedef TIntrusivePtr<TFileReaderBase> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-    
-        NChunkClient::TSequentialReader::TConfig::TPtr SequentialReader;
-        NChunkClient::TRemoteReaderConfig::TPtr RemoteReader;
-
-        TConfig()
-        {
-            Register("sequential_reader", SequentialReader)
-                .DefaultNew();
-            Register("remote_reader", RemoteReader)
-                .DefaultNew();
-        }
-    };
-
     //! Initializes an instance.
     TFileReaderBase(
-        TConfig* config,
+        TFileReaderBaseConfigPtr config,
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache);
 
@@ -66,9 +47,9 @@ public:
     TSharedRef Read();
 
 private:
-    TConfig::TPtr Config;
+    TFileReaderBaseConfigPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
-    NChunkClient::IBlockCache::TPtr BlockCache;
+    NChunkClient::IBlockCachePtr BlockCache;
     NYTree::TYPath Path;
     bool IsOpen;
     i32 BlockCount;
@@ -78,7 +59,7 @@ protected:
     NLog::TTaggedLogger Logger;
 
 private:
-    NChunkClient::TSequentialReader::TPtr SequentialReader;
+    NChunkClient::TSequentialReaderPtr SequentialReader;
     i64 Size;
     ICodec* Codec;
     Stroka FileName;

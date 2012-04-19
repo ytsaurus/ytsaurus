@@ -18,7 +18,7 @@ set( DIRS
   cypress
   orchid
   file_server
-#  file_client
+  file_client
 #  table_server
 #  table_client
   monitoring

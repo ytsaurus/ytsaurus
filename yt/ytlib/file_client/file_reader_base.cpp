@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "file_reader_base.h"
-#include <ytlib/file_client/file_chunk_meta.pb.h>
+#include "private.h"
+#include "config.h"
+
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
@@ -15,12 +18,11 @@ using namespace NTransactionClient;
 using namespace NFileServer;
 using namespace NChunkClient;
 using namespace NTransactionClient;
-using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileReaderBase::TFileReaderBase(
-    TConfig* config,
+    TFileReaderBaseConfigPtr config,
     NRpc::IChannel* masterChannel,
     IBlockCache* blockCache)
     : Config(config)
@@ -50,18 +52,23 @@ void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<
         holderAddresses);
 
     LOG_INFO("Requesting chunk info");
-    auto getInfoResult = remoteReader->AsyncGetChunkInfo().Get();
-    if (!getInfoResult.IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk info\n%s",
-            ~getInfoResult.ToString());
+
+    auto getMetaResult = remoteReader->AsyncGetChunkMeta().Get();
+    if (!getMetaResult.IsOK()) {
+        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk meta\n%s",
+            ~getMetaResult.ToString());
     }
-    auto& chunkInfo = getInfoResult.Value();
-    BlockCount = chunkInfo.blocks_size();
-    Size = chunkInfo.size();
-    auto fileAttributes = chunkInfo.attributes().GetExtension(TFileChunkAttributes::file_attributes);
-    auto codecId = ECodecId(fileAttributes.codec_id());
+
+    auto& chunkMeta = getMetaResult.Value();
+    YASSERT(chunkMeta.type() == NChunkServer::EChunkType::File);
+    auto blocksExtension = GetProtoExtension<NChunkHolder::NProto::TBlocks>(chunkMeta.extensions());
+    BlockCount = blocksExtension->blocks_size();
+
+    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunkMeta.extensions());
+    Size = misc->uncompressed_size();
+    auto codecId = ECodecId(misc->codec_id());
     Codec = GetCodec(codecId);
-    LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ", CodecId: %s)",
+    LOG_INFO("Chunk info received (BlockCount: %d, Size: "PRId64", CodecId: %s)",
         BlockCount,
         Size,
         ~codecId.ToString());
@@ -76,7 +83,8 @@ void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<
     SequentialReader = New<TSequentialReader>(
         ~Config->SequentialReader,
         blockIndexes,
-        ~remoteReader);
+        remoteReader,
+        blocksExtension);
 
     LOG_INFO("File reader opened");
 

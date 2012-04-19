@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "file_writer_base.h"
-#include <ytlib/file_client/file_chunk_meta.pb.h>
+#include "private.h"
+#include "config.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
@@ -8,6 +9,7 @@
 #include <ytlib/file_server/file_ypath_proxy.h>
 #include <ytlib/ytree/serialize.h>
 #include <ytlib/chunk_server/chunk_ypath_proxy.h>
+#include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/transaction_server/transaction_ypath_proxy.h>
 
 namespace NYT {
@@ -18,14 +20,13 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NTransactionServer;
 using namespace NCypress;
-using namespace NFileClient::NProto;
 using namespace NChunkHolder::NProto;
 using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileWriterBase::TFileWriterBase(
-    TConfig::TPtr config,
+    TFileWriterBaseConfigPtr config,
     NRpc::IChannel::TPtr masterChannel)
     : Config(config)
     , MasterChannel(masterChannel)
@@ -148,19 +149,21 @@ void TFileWriterBase::Close()
     FlushBlock();
 
     LOG_INFO("Closing chunk");
+    TChunkMeta meta;
     {
-        // Construct chunk attributes.
-        TChunkAttributes attributes;
-        attributes.set_type(EChunkType::File);
-        auto* fileAttributes = attributes.MutableExtension(TFileChunkAttributes::file_attributes);
-        fileAttributes->set_uncompressed_size(Size);
-        fileAttributes->set_codec_id(Config->CodecId);
+        
+        TMisc misc;
+        misc.set_uncompressed_size(Size);
+        misc.set_codec_id(Config->CodecId);
+        meta.set_type(EChunkType::File);
+        SetProtoExtension(meta.mutable_extensions(), misc);
+
         try {
             Sync(
                 ~Writer, 
                 &TRemoteWriter::AsyncClose, 
                 std::vector<TSharedRef>(), 
-                attributes);
+                meta);
         } catch (const std::exception& ex) {
             LOG_ERROR_AND_THROW(yexception(), "Error closing chunk\n%s", 
                 ex.what());
@@ -171,7 +174,11 @@ void TFileWriterBase::Close()
     LOG_INFO("Confirming chunk");
     {
         TCypressServiceProxy cypressProxy(MasterChannel);
-        auto req = Writer->GetConfirmRequest();
+        auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
+        *req->mutable_chunk_info() = Writer->GetChunkInfo();
+        ToProto(req->mutable_holder_addresses(), Writer->GetHolders());
+        *req->mutable_chunk_meta() = meta;
+
         auto rsp = cypressProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",

@@ -3,8 +3,9 @@
 #include "public.h"
 
 // ToDo: use public.h everywhere.
-#include <ytlib/table_client/chunk_sequence_reader.h>
-#include <ytlib/table_client/chunk_sequence_writer.h>
+#include <ytlib/table_client/public.h>
+#include <ytlib/table_client/config.h>
+
 #include <ytlib/file_client/file_writer_base.h>
 #include <ytlib/election/leader_lookup.h>
 #include <ytlib/ytree/ytree.h>
@@ -20,9 +21,9 @@ struct TJobIOConfig
     : public TConfigurable
 {
     NYTree::EYsonFormat OutputFormat;
-    NTableClient::TChunkSequenceReader::TConfig::TPtr ChunkSequenceReader;
-    NTableClient::TChunkSequenceWriter::TConfig::TPtr ChunkSequenceWriter;
-    NFileClient::TFileWriterBase::TConfig::TPtr ErrorFileWriter;
+    NTableClient::TChunkSequenceReaderConfigPtr ChunkSequenceReader;
+    NTableClient::TChunkSequenceWriterConfigPtr ChunkSequenceWriter;
+    NFileClient::TFileWriterBaseConfigPtr ErrorFileWriter;
 
     TJobIOConfig()
     {

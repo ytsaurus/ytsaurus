@@ -1,8 +1,7 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
 
-#include <ytlib/misc/configurable.h>
 #include <ytlib/misc/codec.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
@@ -26,47 +25,9 @@ class TFileWriterBase
     : public NTransactionClient::TTransactionListener
 {
 public:
-    typedef TIntrusivePtr<TFileWriterBase> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        i64 BlockSize;
-        ECodecId CodecId;
-        int TotalReplicaCount;
-        int UploadReplicaCount;
-        NChunkClient::TRemoteWriter::TConfig::TPtr RemoteWriter;
-
-        TConfig()
-        {
-            Register("block_size", BlockSize)
-                .Default(1024 * 1024)
-                .GreaterThan(0);
-            Register("codec_id", CodecId)
-                .Default(ECodecId::None);
-            Register("total_replica_count", TotalReplicaCount)
-                .Default(3)
-                .GreaterThanOrEqual(1);
-            Register("upload_replica_count", UploadReplicaCount)
-                .Default(2)
-                .GreaterThanOrEqual(1);
-            Register("remote_writer", RemoteWriter)
-                .DefaultNew();
-        }
-
-        virtual void DoValidate()
-        {
-            if (TotalReplicaCount < UploadReplicaCount) {
-                ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
-            }
-        }
-    };
-
     //! Initializes an instance.
     TFileWriterBase(
-        TConfig::TPtr config,
+        TFileWriterBaseConfigPtr config,
         NRpc::IChannel::TPtr masterChannel);
 
     //! Opens the writer.
@@ -92,11 +53,11 @@ protected:
     virtual void DoClose(const NChunkServer::TChunkId& chunkId);
 
 private:
-    TConfig::TPtr Config;
+    TFileWriterBaseConfigPtr Config;
     bool IsOpen;
     i64 Size;
     i32 BlockCount;
-    NChunkClient::TRemoteWriter::TPtr Writer;
+    NChunkClient::TRemoteWriterPtr Writer;
     NChunkServer::TChunkId ChunkId;
     ICodec* Codec;
     TBlob Buffer;

@@ -14,7 +14,7 @@
 #include "holder_authority.h"
 #include "holder_statistics.h"
 
-#include <ytlib/chunk_holder/extensions.h>
+#include <ytlib/chunk_holder/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_server/chunk_manager.pb.h>
 #include <ytlib/chunk_server/chunk_ypath.pb.h>

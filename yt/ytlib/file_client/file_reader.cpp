@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "file_reader.h"
-#include <ytlib/file_client/file_chunk_meta.pb.h>
+#include "config.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
@@ -15,12 +15,11 @@ using namespace NTransactionClient;
 using namespace NFileServer;
 using namespace NChunkClient;
 using namespace NTransactionClient;
-using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileReader::TFileReader(
-    TConfig* config,
+    TFileReaderBaseConfigPtr config,
     NRpc::IChannel* masterChannel,
     ITransaction* transaction,
     IBlockCache* blockCache,

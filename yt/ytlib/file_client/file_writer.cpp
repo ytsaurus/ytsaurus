@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "file_writer.h"
-#include <ytlib/file_client/file_chunk_meta.pb.h>
+#include "config.h"
 
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
@@ -14,7 +14,6 @@ using namespace NCypress;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NFileServer;
-using namespace NProto;
 using namespace NChunkHolder::NProto;
 using namespace NTransactionClient;
 
@@ -23,7 +22,7 @@ using namespace NTransactionClient;
 // TODO(babenko): use totalReplicaCount
 
 TFileWriter::TFileWriter(
-    TConfig::TPtr config,
+    TFileWriterBaseConfigPtr config,
     NRpc::IChannel::TPtr masterChannel,
     ITransaction::TPtr transaction,
     TTransactionManager::TPtr transactionManager,

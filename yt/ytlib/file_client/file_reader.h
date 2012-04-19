@@ -1,6 +1,7 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
+#include "file_reader_base.h"
 
 #include <ytlib/file_client/file_reader_base.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
@@ -19,11 +20,9 @@ class TFileReader
     : public TFileReaderBase
 {
 public:
-    typedef TIntrusivePtr<TFileReader> TPtr;
-
     //! Initializes an instance.
     TFileReader(
-        TConfig* config,
+        TFileReaderBaseConfigPtr config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         NChunkClient::IBlockCache* blockCache,

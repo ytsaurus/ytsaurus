@@ -1,6 +1,7 @@
 #pragma once
 
-#include "common.h"
+#include "public.h"
+#include "file_writer_base.h"
 
 #include <ytlib/file_client/file_writer_base.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
@@ -20,11 +21,9 @@ class TFileWriter
     : public TFileWriterBase
 {
 public:
-    typedef TIntrusivePtr<TFileWriter> TPtr;
-
     //! Initializes an instance.
     TFileWriter(
-        TConfig::TPtr config,
+        TFileWriterBaseConfigPtr config,
         NRpc::IChannel::TPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
         NTransactionClient::TTransactionManager::TPtr transactionManager,
