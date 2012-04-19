@@ -15,25 +15,26 @@ using NJson::TJsonWriter;
 
 TJsonAdapter::TJsonAdapter(TOutputStream* output)
     : JsonWriter(new TJsonWriter(output, false))
-    , WriteAttributes(false)
+    , AttributesOutput(Attributes)
+    , AttributesWriter(&AttributesOutput)
 { }
 
 void TJsonAdapter::OnMyStringScalar(const TStringBuf& value)
 {
-
     JsonWriter->Write(value);
+    Attributes.clear();
 }
 
 void TJsonAdapter::OnMyIntegerScalar(i64 value)
 {
-
     JsonWriter->Write(value);
+    Attributes.clear();
 }
 
 void TJsonAdapter::OnMyDoubleScalar(double value)
 {
-
     JsonWriter->Write(value);
+    Attributes.clear();
 }
 
 void TJsonAdapter::OnMyEntity()
@@ -42,12 +43,14 @@ void TJsonAdapter::OnMyEntity()
     // TODO(roizner): support attributes
     JsonWriter->Write("$type");
     JsonWriter->Write("entity");
+    WriteAttributes();
     JsonWriter->CloseMap();
 }
 
 void TJsonAdapter::OnMyBeginList()
 {
     JsonWriter->OpenArray();
+    Attributes.clear();
 }
 
 void TJsonAdapter::OnMyListItem()
@@ -62,7 +65,7 @@ void TJsonAdapter::OnMyEndList()
 void TJsonAdapter::OnMyBeginMap()
 {
     JsonWriter->OpenMap();
-    // TODO(roizner): support attributes
+    WriteAttributes();
 }
 
 void TJsonAdapter::OnMyKeyedItem(const TStringBuf& name)
@@ -77,24 +80,23 @@ void TJsonAdapter::OnMyEndMap()
 
 void TJsonAdapter::OnMyBeginAttributes()
 {
-    // TODO(roizner): support attributes
-    ForwardFragment(GetNullYsonConsumer(), TClosure());
+    YASSERT(Attributes.Empty());
+    ForwardFragment(&AttributesWriter, TClosure());
 }
 
-//void TJsonAdapter::OnMyAttributesItem(const TStringBuf& name)
-//{
-//	if (WriteAttributes) {
-//		// First attribute
-//		WriteAttributes = false;
-//		JsonWriter->Write("$attributes");
-//		JsonWriter->OpenMap();
-//	}
-//    JsonWriter->Write(name);
-//}
-
 void TJsonAdapter::OnMyEndAttributes()
+{ }
+
+void TJsonAdapter::WriteAttributes()
 {
-    //
+    if (!Attributes.Empty()) {
+        auto attributes = Attributes; // local copy
+        Attributes.clear(); // we must clear Attributes to allow reusing this in OnRaw
+        JsonWriter->Write("$attributes");
+        JsonWriter->OpenMap();
+        this->OnRaw(attributes, EYsonType::KeyedFragment); // it's hack
+        JsonWriter->CloseMap();
+    }
 }
 
 void TJsonAdapter::Flush()

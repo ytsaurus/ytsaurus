@@ -36,12 +36,7 @@ protected:
 
     virtual void OnMyRaw(const TStringBuf& yson, EYsonType type);
 
-private:
-    IYsonConsumer* ForwardingConsumer;
-    int ForwardingDepth;
-    TClosure OnForwardingFinished;
-    bool ForwardingFragment;
-
+    // IYsonConsumer methods
     virtual void OnStringScalar(const TStringBuf& value);
     virtual void OnIntegerScalar(i64 value);
     virtual void OnDoubleScalar(double value);
@@ -59,6 +54,12 @@ private:
     virtual void OnEndAttributes();
 
     virtual void OnRaw(const TStringBuf& yson, EYsonType type);
+
+private:
+    IYsonConsumer* ForwardingConsumer;
+    int ForwardingDepth;
+    TClosure OnForwardingFinished;
+    bool ForwardingFragment;
 
     void StartForwarding(IYsonConsumer* consumer, const TClosure& onForwardingFinished, bool forwardingFragment);
     bool CheckForwarding(int depthDelta = 0);
