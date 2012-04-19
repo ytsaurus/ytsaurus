@@ -788,7 +788,7 @@ private:
             Sprintf("Error getting row count for table %s", ~path));
         auto rowCount = DeserializeFromYson<i64>(rsp->value());
         if (rowCount != 0) {
-            ythrow yexception() << Sprintf("Table %d is not empty", ~path);
+            ythrow yexception() << Sprintf("Table %s is not empty", ~path);
         }
     }
 
