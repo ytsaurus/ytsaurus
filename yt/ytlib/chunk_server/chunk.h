@@ -20,9 +20,7 @@ class TChunk
     DEFINE_BYVAL_RW_PROPERTY(TSharedRef, Attributes);
 
     // This is usually small, e.g. has the length of 3.
-    // typedef TSmallVector<THolderId, 3> TStoredLocations;
-    // TODO(babenko): switch to small vector when it's ready
-    typedef yvector<THolderId> TStoredLocations;
+    typedef TSmallVector<THolderId, 3> TStoredLocations;
     DEFINE_BYREF_RO_PROPERTY(TStoredLocations, StoredLocations);
 
     // This list is usually empty.
