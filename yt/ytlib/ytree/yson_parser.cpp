@@ -102,7 +102,7 @@ public:
                     ConsumeToken(Lexer.GetToken());
                     Lexer.Reset();
                 }
-                OnRangeConsumed(begin, firstUnconsumed);
+                OnRangeConsumed(current, firstUnconsumed);
                 current = firstUnconsumed;
             }
         } catch (const std::exception& ex) {
