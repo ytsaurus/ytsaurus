@@ -3,6 +3,8 @@
 #include "public.h"
 #include "schema.h"
 
+#include <util/stream/mem.h>
+
 namespace NYT {
 namespace NTableClient {
 

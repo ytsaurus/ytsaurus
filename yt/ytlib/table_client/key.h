@@ -22,8 +22,7 @@ DECLARE_ENUM(EKeyType,
 
 class TKeyPart
 {
-
-DECLARE_BYVAL_RO_PROPERTY(EKeyType, Type);
+    DECLARE_BYVAL_RO_PROPERTY(EKeyType, Type);
 
 public:
     //! Created null key part.
@@ -39,7 +38,6 @@ public:
     const TStringBuf& GetString() const;
 
     Stroka ToString() const;
-    //size_t GetSize() const;
 
     NProto::TKeyPart ToProto() const;
     //FromProto();
@@ -56,6 +54,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TKey
+    : public TNonCopyable
 {
 public:
     //! Creates empty key.
@@ -66,19 +65,17 @@ public:
 
     template <class T>
     void AddValue(int index, const T& value);
-
     void AddComposite(int index);
 
-    void Reset();
-    void SetColumnCount(int columnCount);
+    void Reset(int columnCount = -1);
     void Swap(TKey& other);
 
     Stroka ToString() const;
 
     NProto::TKey ToProto() const;
-    // FromProto
+    void FromProto(const NProto::TKey& protoKey);
 
-    bool operator<(const TKey& other) const;
+    static int Compare(const TKey& lhs, const TKey& rhs);
 
 private:
     const int MaxSize;
@@ -88,6 +85,10 @@ private:
     std::vector<TKeyPart> Parts;
     TBlobOutput Buffer;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+int CompareProtoKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

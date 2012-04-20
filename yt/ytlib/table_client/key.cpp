@@ -117,32 +117,28 @@ NProto::TKeyPart TKeyPart::ToProto() const
     return keyPart;
 }
 
-int CompareKeyParts(const TKeyPart& rhs, const TKeyPart& lhs)
+int CompareKeyParts(const TKeyPart& lhs, const TKeyPart& rhs)
 {
     if (rhs.GetType() == lhs.GetType()) {
         switch (rhs.GetType()) {
-        case EKeyType::String: {
-            auto minSize = std::min(lhs.GetString().size(), rhs.GetString().size());
-            auto res = strncmp(lhs.GetString().begin(), rhs.GetString().end(), minSize);
-            return res == 0 ? static_cast<int>(lhs.GetString().size()) - 
-                    static_cast<int>(rhs.GetString().size()) : res;
-        }
+        case EKeyType::String:
+            return lhs.GetString().compare(rhs.GetString());
 
         case EKeyType::Integer:
-            return rhs.GetInteger() - lhs.GetInteger();
+            return lhs.GetInteger() - rhs.GetInteger();
 
         case EKeyType::Double:
-            if (rhs.GetDouble() > lhs.GetDouble())
+            if (lhs.GetDouble() > rhs.GetDouble())
                 return 1;
-            if (rhs.GetDouble() < lhs.GetDouble())
+            if (lhs.GetDouble() < rhs.GetDouble())
                 return -1;
             return 0;
 
         default:
-            return true; // All composites are equal to each other.
+            return 0; // All composites are equal to each other.
         }
     } else 
-        return int(rhs.GetType()) - int(rhs.GetType());
+        return int(lhs.GetType()) - int(rhs.GetType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,8 +151,11 @@ TKey::TKey(int columnCount, int size)
     , Parts(ColumnCount)
 { }
 
-void TKey::Reset()
+void TKey::Reset(int columnCount)
 {
+    if (columnCount >= 0)
+        ColumnCount = columnCount;
+
     CurrentSize = 0;
     Buffer.Clear();
     Parts.clear();
@@ -220,11 +219,6 @@ void TKey::Swap(TKey& other)
     }
 }
 
-void TKey::SetColumnCount(int columnCount)
-{
-    ColumnCount = columnCount;
-}
-
 Stroka TKey::ToString() const
 {
     return JoinToString(Parts);
@@ -239,21 +233,78 @@ NProto::TKey TKey::ToProto() const
     return key;
 }
 
-bool TKey::operator<(const TKey& other) const
+void TKey::FromProto(const NProto::TKey& protoKey)
 {
-    int minSize = std::min(Parts.size(), other.Parts.size());
+    Reset(protoKey.parts_size());
+    for (int i = 0; i < protoKey.parts_size(); ++i) {
+        switch (protoKey.parts(i).type()) {
+        case EKeyType::Composite:
+            AddComposite(i);
+            break;
+
+        case EKeyType::Double:
+            AddValue(i, protoKey.parts(i).double_value());
+            break;
+
+        case EKeyType::Integer:
+            AddValue(i, protoKey.parts(i).int_value());
+            break;
+
+        case EKeyType::String:
+            AddValue(i, protoKey.parts(i).str_value());
+            break;
+
+        //default: leave a null key.
+        }
+    }
+}
+
+int TKey::Compare(const TKey& lhs, const TKey& rhs)
+{
+    int minSize = std::min(lhs.Parts.size(), rhs.Parts.size());
     for (int i = 0; i < minSize; ++i) {
-        int res = CompareKeyParts(Parts[i], other.Parts[i]);
-        if (res < 0)
-            return true;
-        if (res > 0)
-            return false;
+        int res = CompareKeyParts(lhs.Parts[i], rhs.Parts[i]);
+        if (res != 0)
+            return res;
     }
 
-    if (Parts.size() < other.Parts.size())
-        return true;
+    return static_cast<int>(lhs.Parts.size()) - static_cast<int>(rhs.Parts.size());
+}
 
-    return false;
+////////////////////////////////////////////////////////////////////////////////
+
+int CompareProtoParts(const NProto::TKeyPart& lhs, const NProto::TKeyPart& rhs)
+{
+    if (lhs.type() == rhs.type()) {
+        if (lhs.has_double_value()) {
+            if (lhs.double_value() > rhs.double_value())
+                return 1;
+            if (lhs.double_value() < rhs.double_value())
+                return -1;
+            return 0;
+        }
+
+        if (lhs.has_int_value())
+            return lhs.int_value() - rhs.int_value();
+
+        if (lhs.has_str_value())
+            return lhs.str_value().compare(rhs.str_value());
+
+        return 0;
+    } else 
+        return lhs.type() - rhs.type();
+}
+
+int CompareProtoKeys(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    int minSize = std::min(lhs.parts_size(), rhs.parts_size());
+    for (int i = 0; i < minSize; ++i) {
+        int res = CompareProtoParts(lhs.parts(i), rhs.parts(i));
+        if (res != 0)
+            return res;
+    }
+
+    return static_cast<int>(lhs.parts_size()) - static_cast<int>(rhs.parts_size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

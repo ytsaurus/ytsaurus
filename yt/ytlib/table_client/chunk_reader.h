@@ -3,6 +3,7 @@
 #include "public.h"
 #include "schema.h"
 #include "async_reader.h"
+#include "key.h"
 
 #include <ytlib/table_client/table_reader.pb.h>
 
@@ -22,6 +23,8 @@ class TChunkReader
     : public IAsyncReader
 {
 public:
+    struct IValidator;
+
     struct TOptions
     {
         bool ReadKey;
@@ -45,14 +48,14 @@ public:
         const NYTree::TYson& rowAttributes,
         TOptions options = TOptions());
 
-    virtual TAsyncError AsyncOpen();
+    TAsyncError AsyncOpen();
 
-    virtual TAsyncError AsyncNextRow();
-    virtual bool IsValid() const;
+    TAsyncError AsyncNextRow();
+    bool IsValid() const;
 
-    virtual const TRow& GetRow() const;
-    virtual const TKey& GetKey() const;
-    virtual const TStringBuf& GetRowAttributes() const;
+    const TRow& GetRow() const;
+    const TKey& GetKey() const;
+    const NYTree::TYson& GetRowAttributes() const;
 
 private:
     TAsyncError DoNextRow();
@@ -74,6 +77,7 @@ private:
     TChannel Channel;
     TOptions Options;
 
+    NYTree::TYson RowAttributes;
     TRow CurrentRow;
     TKey CurrentKey;
 
@@ -96,15 +100,16 @@ private:
     i64 CurrentRowIndex;
     i64 EndRowIndex;
 
-    struct IValidator;
     THolder<IValidator> EndValidator;
+
+    TAutoPtr<NProto::TKeyColumns> KeyColumns;
 
     /*! 
      *  See DoNextRow for usage.
      */
     const TAsyncErrorPromise SuccessResult;
 
-    std::vector<TChannelReader> ChannelReaders;
+    std::vector<TChannelReaderPtr> ChannelReaders;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
