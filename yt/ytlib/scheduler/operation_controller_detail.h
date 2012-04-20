@@ -59,8 +59,8 @@ public:
         TOperation* operation);
 
     virtual void Initialize();
-    virtual TFuture<TVoid> Prepare();
-    virtual TFuture<TVoid> Revive();
+    virtual TFuture<void> Prepare();
+    virtual TFuture<void> Revive();
 
     virtual void OnJobRunning(TJobPtr job);
     virtual void OnJobCompleted(TJobPtr job);
@@ -187,17 +187,17 @@ protected:
     // Round 1:
     // - Start primary transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch StartPrimaryTransaction(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch StartPrimaryTransaction();
 
-    TVoid OnPrimaryTransactionStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnPrimaryTransactionStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Round 2:
     // - Start input transaction.
     // - Start output transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch StartSeconaryTransactions(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch StartSeconaryTransactions();
 
-    TVoid OnSecondaryTransactionsStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnSecondaryTransactionsStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Round 3:
     // - Fetch input tables.
@@ -208,8 +208,8 @@ protected:
     // - Get output chunk lists.
     // - (Custom)
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch RequestInputs(TVoid);
-    TVoid OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch RequestInputs();
+    void OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
     virtual void RequestCustomInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
@@ -224,7 +224,7 @@ protected:
     // Round 4.
     // - (Custom)
 
-    TVoid CompletePreparation(TVoid);
+    void CompletePreparation();
 
     virtual void DoCompletePreparation() = 0;
 
@@ -240,8 +240,8 @@ protected:
     // - Commit output transaction.
     // - Commit primary transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch CommitOutputs(TVoid);
-    TVoid OnOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch CommitOutputs();
+    void OnOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     //! Extensibility point for additional finalization logic.
     virtual void CommitCustomOutputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
@@ -271,6 +271,104 @@ protected:
 
 // TODO(babenko): move to a proper place
 
+template <class T1, class T2>
+struct TAsyncPipelineHelpers
+{
+    static TFuture< TValueOrError<T2> > Wrapper(TCallback<T2(T1)> func, TValueOrError<T1> x)
+    {
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<T2>(TError(x)));
+        }
+
+        try {
+            auto&& y = func.Run(x.Value());
+            return MakeFuture(TValueOrError<T2>(ForwardRV<T2>(y)));
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<T2>(TError(ex.what())));
+        }
+    }
+};
+
+template <class T1, class T2>
+struct TAsyncPipelineHelpers< T1, TFuture<T2> >
+{
+    static TFuture< TValueOrError<T2> > Wrapper(TCallback<TFuture<T2>(T1)> func, TValueOrError<T1> x)
+    {
+        auto toValueOrError = BIND([] (T2 x) {
+            return TValueOrError<T2>(x);
+        });
+
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<T2>(TError(x)));
+        }
+
+        try {
+            auto&& y = func.Run(x.Value());
+            return y.Apply(toValueOrError);
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<T2>(TError(ex.what())));
+        }
+    }
+};
+
+template <class T1>
+struct TAsyncPipelineHelpers<T1, void>
+{
+    static TFuture< TValueOrError<void> > Wrapper(TCallback<void(T1)> func, TValueOrError<T1> x)
+    {
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<void>(TError(x)));
+        }
+
+        try {
+            func.Run(x.Value());
+            return MakeFuture(TValueOrError<void>());
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<void>(TError(ex.what())));
+        }
+    }
+};
+
+template <>
+struct TAsyncPipelineHelpers<void, void>
+{
+    static TFuture< TValueOrError<void> > Wrapper(TCallback<void(void)> func, TValueOrError<void> x)
+    {
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<void>(TError(x)));
+        }
+
+        try {
+            func.Run();
+            return MakeFuture(TValueOrError<void>());
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<void>(TError(ex.what())));
+        }
+    }
+};
+
+template <class T2>
+struct TAsyncPipelineHelpers< void, TFuture<T2> >
+{
+    static TFuture< TValueOrError<T2> > Wrapper(TCallback<TFuture<T2>()> func, TValueOrError<void> x)
+    {
+        auto toValueOrError = BIND([] (T2 x) {
+            return TValueOrError<T2>(x);
+        });
+
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<T2>(TError(x)));
+        }
+
+        try {
+            auto&& y = func.Run();
+            return y.Apply(toValueOrError);
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<T2>(TError(ex.what())));
+        }
+    }
+};
+
 template <class T>
 class TAsyncPipeline
     : public TRefCounted
@@ -291,19 +389,10 @@ public:
     typedef T T1;
 
     template <class T2>
-    TIntrusivePtr< TAsyncPipeline<T2> > Add(TCallback<T2(T1)> func)
+    TIntrusivePtr< TAsyncPipeline< typename NYT::NDetail::TFutureHelper<T2>::TValueType > >
+    Add(TCallback<T2(T1)> func)
     {
-        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TFuture< TValueOrError<T2> > {
-            if (!x.IsOK()) {
-                return MakeFuture(TValueOrError<T2>(TError(x)));
-            }
-            try {
-                auto&& y = func.Run(x.Value());
-                return MakeFuture(TValueOrError<T2>(ForwardRV<T2>(y)));
-            } catch (const std::exception& ex) {
-                return MakeFuture(TValueOrError<T2>(TError(ex.what())));
-            }
-        });
+        auto wrappedFunc = BIND(&TAsyncPipelineHelpers<T1, T2>::Wrapper, func);
 
         if (Invoker) {
             wrappedFunc = wrappedFunc.AsyncVia(Invoker);
@@ -314,40 +403,8 @@ public:
             return lazy.Run().Apply(wrappedFunc);
         });
 
-        return New< TAsyncPipeline<T2> >(Invoker, newLazy);
+        return New< TAsyncPipeline<typename NYT::NDetail::TFutureHelper<T2>::TValueType> >(Invoker, newLazy);
     }
-
-    template <class T2>
-    TIntrusivePtr< TAsyncPipeline<T2> > Add(TCallback<TFuture<T2>(T1)> func)
-    {
-        auto toValueOrError = BIND([] (T2 x) {
-            return TValueOrError<T2>(x);
-        });
-
-        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TFuture< TValueOrError<T2> > {
-            if (!x.IsOK()) {
-                return MakeFuture(TValueOrError<T2>(TError(x)));
-            }
-            try {
-                auto&& y = func.Run(x.Value());
-                return y.Apply(toValueOrError);
-            } catch (const std::exception& ex) {
-                return MakeFuture(TValueOrError<T2>(TError(ex.what())));
-            }
-        });
-
-        if (Invoker) {
-            wrappedFunc = wrappedFunc.AsyncVia(Invoker);
-        }
-
-        auto lazy = Lazy;
-        auto newLazy = BIND([=] () {
-            return lazy.Run().Apply(wrappedFunc);
-        });
-
-        return New< TAsyncPipeline<T2> >(Invoker, newLazy);
-    }
-
 
 private:
     IInvoker::TPtr Invoker;
@@ -355,7 +412,7 @@ private:
 
 };
 
-TIntrusivePtr< TAsyncPipeline<TVoid> > StartAsyncPipeline(IInvoker::TPtr invoker = NULL);
+TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvoker::TPtr invoker = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 
