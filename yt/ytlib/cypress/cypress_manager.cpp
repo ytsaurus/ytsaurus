@@ -439,36 +439,19 @@ void TCypressManager::ValidateLock(
             ~nodeId.ToString());
     }
     
-    // Check if we already have branched this node within the current or parent transaction.
-    auto currentTransaction = transaction;
-    while (currentTransaction) {
-        const auto* node = FindNode(TVersionedNodeId(nodeId, GetObjectId(currentTransaction)));
-        if (node) {
-            if (!AreConcurrentLocksCompatible(node->GetLockMode(), requestedMode)) {
-                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: the node is already locked in %s mode",
+    // Examine (strictly) downward locks.
+    const auto& lockedNode = NodeMap.Get(nodeId);
+    FOREACH (auto lock, lockedNode.SubtreeLocks()) {
+        if (IsParentTransaction(transaction, lock->GetTransaction())) {
+            if (!AreConcurrentLocksCompatible(requestedMode, lock->GetMode())) {
+                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with an earlier taken %s downward lock at node %s",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
-                    ~FormatEnum(node->GetLockMode()).Quote());
+                    ~FormatEnum(lock->GetMode()).Quote(),
+                    ~lock->GetNodeId().ToString());
             }
-            if (node->GetLockMode() >= requestedMode) {
-                // This node already has a lock that is at least as strong the requested one.
-                if (isMandatory) {
-                    *isMandatory = false;
-                }
-                return;
-            }
-        }
-
-        // Move to the parent transaction.
-        currentTransaction = currentTransaction->GetParent();
-    }
-
-    if (requestedMode != ELockMode::Snapshot) {
-        // Examine existing locks in the subtree.
-        const auto& lockedNode = NodeMap.Get(nodeId);
-        FOREACH (const auto& lock, lockedNode.SubtreeLocks()) {
-            // Check for download conflict.
-            if (!AreCompetingLocksCompatible(lock->GetMode(), requestedMode)) {
+        } else {
+            if (!AreCompetingLocksCompatible(requestedMode, lock->GetMode())) {
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s downward lock at node %s taken by transaction %s",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
@@ -477,25 +460,32 @@ void TCypressManager::ValidateLock(
                     ~lock->GetTransaction()->GetId().ToString());
             }
         }
+    }
 
-        // Check existing locks on the upward path to the root.
-        auto currentNodeId = nodeId;
-        while (currentNodeId != NullObjectId) {
-            const auto& currentNode = NodeMap.Get(currentNodeId);
-            FOREACH (const auto& lock, currentNode.Locks()) {
-                // Check if this is lock was taken by the same transaction,
-                // is at least as strong as the requested one,
+    // Examine (non-strictly) upward locks.
+    auto currentNodeId = nodeId;
+    while (currentNodeId != NullObjectId) {
+        const auto& currentNode = NodeMap.Get(currentNodeId);
+        FOREACH (auto lock, currentNode.Locks()) {
+            if (IsParentTransaction(transaction, lock->GetTransaction())) {
+                if (!AreConcurrentLocksCompatible(lock->GetMode(), requestedMode)) {
+                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with an earlier taken %s upward lock at node %s",
+                        ~FormatEnum(requestedMode).Quote(),
+                        ~nodeId.ToString(),
+                        ~FormatEnum(lock->GetMode()).Quote(),
+                        ~lock->GetNodeId().ToString());
+                }
+                // Check if this is lock is at least as strong as the requested one,
                 // and has a proper recursive behavior.
-                if (lock->GetTransaction() == transaction &&
-                    lock->GetMode() >= requestedMode &&
-                    (IsLockRecursive(lock->GetMode()) || currentNodeId == nodeId))
+                if (lock->GetMode() >= requestedMode &&
+                   (IsLockRecursive(lock->GetMode()) || currentNodeId == nodeId))
                 {
                     if (isMandatory) {
                         *isMandatory = false;
                     }
                     return;
                 }
-                // Check for upward conflict.
+            } else {
                 if (!AreCompetingLocksCompatible(lock->GetMode(), requestedMode)) {
                     ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s upward lock at node %s taken by transaction %s",
                         ~FormatEnum(requestedMode).Quote(),
@@ -505,8 +495,8 @@ void TCypressManager::ValidateLock(
                         ~lock->GetTransaction()->GetId().ToString());
                 }
             }
-            currentNodeId = currentNode.GetParentId();
         }
+        currentNodeId = currentNode.GetParentId();
     }
 
     // If we're outside of a transaction then the lock is not needed.
@@ -524,26 +514,38 @@ void TCypressManager::ValidateLock(
     }
 }
 
-bool TCypressManager::AreCompetingLocksCompatible(ELockMode existingMode, ELockMode requestedMode)
+bool TCypressManager::IsParentTransaction(TTransaction* transaction, TTransaction* parent)
+{
+    auto currentTransaction = transaction;
+    while (currentTransaction) {
+        if (currentTransaction == parent) {
+            return true;
+        }
+        currentTransaction = currentTransaction->GetParent();
+    }
+    return false;
+}
+
+bool TCypressManager::AreCompetingLocksCompatible(ELockMode upwardMode, ELockMode downwardMode)
 {
     // For competing transactions snapshot locks are safe.
-    if (existingMode == ELockMode::Snapshot || requestedMode == ELockMode::Snapshot) {
+    if (upwardMode == ELockMode::Snapshot || downwardMode == ELockMode::Snapshot) {
         return true;
     }
-    // For competing exclusive locks are not compatible with others.
-    if (existingMode == ELockMode::Exclusive || requestedMode == ELockMode::Exclusive) {
+    // For competing transactions exclusive locks are not compatible with any downward lock.
+    if (upwardMode == ELockMode::Exclusive) {
         return false;
     }
     return true;
 }
 
-bool TCypressManager::AreConcurrentLocksCompatible(ELockMode existingMode, ELockMode requestedMode)
+bool TCypressManager::AreConcurrentLocksCompatible(ELockMode upwardMode, ELockMode downwardMode)
 {
     // For concurrent transactions snapshot lock is only compatible with another snapshot lock.
-    if (existingMode == ELockMode::Snapshot && requestedMode != ELockMode::Snapshot) {
+    if (upwardMode == ELockMode::Snapshot && downwardMode != ELockMode::Snapshot) {
         return false;
     }
-    if (requestedMode == ELockMode::Snapshot && existingMode != ELockMode::Snapshot) {
+    if (upwardMode == ELockMode::Snapshot && downwardMode != ELockMode::Snapshot) {
         return false;
     }
     return true;
