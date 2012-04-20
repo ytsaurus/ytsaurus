@@ -457,8 +457,8 @@ private:
                 return;
             } catch (const std::exception& ex) {
                 LOG_WARNING("Registration failed, will retry in %s\n%s",
-                    ex.what(),
-                    ~ToString(Config->StartupRetryPeriod));
+                    ~ToString(Config->StartupRetryPeriod),
+                    ex.what());
                 Sleep(Config->StartupRetryPeriod);
             }
         }

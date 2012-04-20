@@ -323,20 +323,20 @@ void TOperationControllerBase::FinalizeOperation()
     Running = false;
 
     auto this_ = MakeStrong(this);
-    //StartAsyncPipeline(Host->GetBackgroundInvoker())
-    //    ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
-    //    ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
-    //    ->Run()
-    //    .Subscribe(BIND([=] (TValueOrError<void> result) {
-    //        Active = false;
-    //        if (result.IsOK()) {
-    //            LOG_INFO("Operation finalized and completed");
-    //            this_->Host->OnOperationCompleted(this_->Operation);
-    //        } else {
-    //            LOG_WARNING("Operation has failed to finalize\n%s", ~result.ToString());
-    //            this_->Host->OnOperationFailed(this_->Operation, result);
-    //        }
-    //}));
+    StartAsyncPipeline(Host->GetBackgroundInvoker())
+        ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
+        ->Run()
+        .Subscribe(BIND([=] (TValueOrError<void> result) {
+            Active = false;
+            if (result.IsOK()) {
+                LOG_INFO("Operation finalized and completed");
+                this_->Host->OnOperationCompleted(this_->Operation);
+            } else {
+                LOG_WARNING("Operation has failed to finalize\n%s", ~result.ToString());
+                this_->Host->OnOperationFailed(this_->Operation, result);
+            }
+    }));
 }
 
 TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs(void)
