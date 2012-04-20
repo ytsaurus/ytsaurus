@@ -620,9 +620,9 @@ public:
     virtual int GetChildCount() const;
     virtual yvector< TPair<Stroka, NYTree::INodePtr> > GetChildren() const;
     virtual yvector<Stroka> GetKeys() const;
-    virtual NYTree::INodePtr FindChild(const Stroka& key) const;
-    virtual bool AddChild(NYTree::INode* child, const Stroka& key);
-    virtual bool RemoveChild(const Stroka& key);
+    virtual NYTree::INodePtr FindChild(const TStringBuf& key) const;
+    virtual bool AddChild(NYTree::INode* child, const TStringBuf& key);
+    virtual bool RemoveChild(const TStringBuf& key);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
     virtual void RemoveChild(NYTree::INode* child);
     virtual Stroka GetChildKey(const INode* child);
@@ -637,7 +637,7 @@ protected:
     virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
     yhash_map<Stroka, NYTree::INodePtr> DoGetChildren() const;
-    NYTree::INodePtr DoFindChild(const Stroka& key, bool skipCurrentTransaction) const;
+    NYTree::INodePtr DoFindChild(const TStringBuf& key, bool skipCurrentTransaction) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

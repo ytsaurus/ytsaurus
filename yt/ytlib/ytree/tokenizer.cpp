@@ -44,10 +44,16 @@ void TTokenizer::ChopToken(size_t position)
     }
     Lexer.Finish();
 
-    Tokens.push_back(
-        Lexer.GetState() == TLexer::EState::Terminal
-            ? Lexer.GetToken() // TODO(roizner): Fix this once TToken contains TStringBuf instead of Stroka
-            : TToken::EndOfStream);
+    if (Lexer.GetState() == TLexer::EState::Terminal) {
+        auto token = Lexer.GetToken();
+        if (token.GetType() == ETokenType::String) {
+            StringBuffers.push_back(Stroka(token.GetStringValue()));
+            token = TToken(StringBuffers.back());
+        }
+        Tokens.push_back(token);
+    } else {
+        Tokens.push_back(TToken::EndOfStream);
+    }
     Lexer.Reset();
 
     SuffixPositions.push_back(position);

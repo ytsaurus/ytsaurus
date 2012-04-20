@@ -38,7 +38,7 @@ private:
         return Bootstrap->GetCypressManager()->GetNodeCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const Stroka& key) const
+    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TVersionedNodeId::FromString(key);
         auto transaction = Bootstrap->GetTransactionManager()->FindTransaction(id.TransactionId);
@@ -88,7 +88,7 @@ private:
         return Bootstrap->GetCypressManager()->GetLockCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const Stroka& key) const
+    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TLockId::FromString(key);
         auto* lock = Bootstrap->GetCypressManager()->FindLock(id);

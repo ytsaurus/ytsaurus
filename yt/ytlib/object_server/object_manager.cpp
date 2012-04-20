@@ -185,7 +185,7 @@ public:
             index += 2;
             TTransactionId transactionId;
             if (!TObjectId::FromString(transactionToken, &transactionId)) {
-                ythrow yexception() << Sprintf("Error parsing transaction id %s", ~transactionToken.Quote());
+                ythrow yexception() << Sprintf("Error parsing transaction id %s", ~Stroka(transactionToken).Quote());
             }
             if (transactionId != NullTransactionId) {
                 transaction = transactionManager->FindTransaction(transactionId);
@@ -201,7 +201,7 @@ public:
             auto objectToken = tokens[index + 1].GetStringValue();
             ++index;
             if (!TObjectId::FromString(objectToken, &objectId)) {
-                ythrow yexception() << Sprintf("Error parsing object id %s", ~objectToken.Quote());
+                ythrow yexception() << Sprintf("Error parsing object id %s", ~Stroka(objectToken).Quote());
             }
         } else {
             ythrow yexception() << "Invalid YPath syntax";

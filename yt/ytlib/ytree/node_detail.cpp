@@ -117,7 +117,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
         }
     }
 
-    ythrow yexception() << Sprintf("Key %s is not found", ~name.Quote());
+    ythrow yexception() << Sprintf("Key %s is not found", ~Stroka(name).Quote());
 }
 
 void TMapNodeMixin::SetRecursive(

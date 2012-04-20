@@ -42,11 +42,11 @@ struct TGuid
     //! Conversion to Stroka.
     Stroka ToString() const;
 
-    //! Conversion from Stroka, throws an exception if something went wrong.
-    static TGuid FromString(const Stroka& str);
+    //! Conversion from TStringBuf, throws an exception if something went wrong.
+    static TGuid FromString(const TStringBuf& str);
 
-    //! Conversion from Stroka, returns true if everything was ok.
-    static bool FromString(const Stroka &str, TGuid* guid);
+    //! Conversion from TStringBuf, returns true if everything was ok.
+    static bool FromString(const TStringBuf& str, TGuid* guid);
 
     //! Conversion to protobuf type, which we mapped to Stroka
     NProto::TGuid ToProto() const;

@@ -146,7 +146,7 @@ struct TVersionedObjectId
     //! Formats the id to string (for debugging and logging purposes mainly).
     Stroka ToString() const;
 
-    static TVersionedObjectId FromString(const Stroka& str);
+    static TVersionedObjectId FromString(const TStringBuf& str);
 };
 
 //! Compares TVersionedNodeId s for equality.

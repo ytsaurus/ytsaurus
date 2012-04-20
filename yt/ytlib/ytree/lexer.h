@@ -43,16 +43,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//bool IsEmpty(const TStringBuf& data);
-//TToken ChopToken(const TStringBuf& data, Stroka* suffix = NULL);
-//Stroka ChopStringToken(const TStringBuf& data, Stroka* suffix = NULL);
-
-//i64 ChopIntegerToken(const TStringBuf& data, Stroka* suffix);
-//double ChopDoubleToken(const TStringBuf& data, Stroka* suffix);
-//ETokenType ChopSpecialToken(const TStringBuf& data, Stroka* suffix);
-
-////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NYTree
 } // namespace NYT

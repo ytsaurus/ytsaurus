@@ -63,18 +63,16 @@ Stroka TVersionedObjectId::ToString() const
         ~TransactionId.ToString());
 }
 
-TVersionedObjectId TVersionedObjectId::FromString(const Stroka& str)
+TVersionedObjectId TVersionedObjectId::FromString(const TStringBuf& str)
 {
-    auto tokens = splitStroku(str, ":");
-    if (tokens.size() < 1 || 2 < tokens.size()) {
-        ythrow yexception() << Sprintf("Invalid number of tokens in %s", ~str.Quote());
-    }
+    TStringBuf objectToken, transactionToken;
+    str.Split(':', objectToken, transactionToken);
 
-    auto objectId = TObjectId::FromString(tokens[0]);
+    auto objectId = TObjectId::FromString(objectToken);
     auto transactionId =
-        tokens.size() == 2
-        ? TTransactionId::FromString(tokens[1])
-        : NullTransactionId;
+        transactionToken.empty()
+        ? NullTransactionId
+        : TTransactionId::FromString(transactionToken);
     return TVersionedObjectId(objectId, transactionId);
 }
 
