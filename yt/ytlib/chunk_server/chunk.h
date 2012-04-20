@@ -30,9 +30,7 @@ class TChunk
 public:
     static const i64 UnknownSize = -1;
     
-    TChunk(const TChunkId& id);
-
-    ~TChunk();
+    explicit TChunk(const TChunkId& id);
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
