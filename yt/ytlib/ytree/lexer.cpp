@@ -109,7 +109,7 @@ public:
                 BytesRead < 0)
             {
                 // Optimized version for binary string literals.
-                int size = std::min(-BytesRead, end - current);
+                int size = std::min(-BytesRead, static_cast<int>(end - current));
                 StringValue.append(current, current + size);
                 current += size;
                 BytesRead += size;
