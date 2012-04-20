@@ -159,10 +159,10 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
                 tokens[2].CheckType(ETokenType::None);
                 return IYPathService::TResolveResult::Here("/" + path);
             } else {
-                auto index = NormalizeAndCheckIndex(tokens[1].GetIntegerValue());
+                auto index = NormalizeAndCheckIndex(tokens[0].GetIntegerValue());
                 auto child = FindChild(index);
                 YASSERT(child);
-                return IYPathService::TResolveResult::There(~child, TYPath(tokens.GetSuffix(1)));
+                return IYPathService::TResolveResult::There(~child, TYPath(tokens.GetSuffix(0)));
             }
 
         case ETokenType::Caret:
