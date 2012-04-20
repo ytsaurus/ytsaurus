@@ -411,7 +411,7 @@ public:
         typedef typename TAsyncPipelineSignatureCracker<Signature>::ReturnType ReturnType;
         typedef typename TAsyncPipelineSignatureCracker<Signature>::ArgType ArgType;
 
-        auto wrappedFunc = BIND(&TAsyncPipelineHelpers<ReturnType, ArgType>::Wrapper, func);
+        auto wrappedFunc = BIND(&TAsyncPipelineHelpers<ArgType, ReturnType>::Wrapper, func);
 
         if (Invoker) {
             wrappedFunc = wrappedFunc.AsyncVia(Invoker);
