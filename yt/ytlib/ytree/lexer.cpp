@@ -104,9 +104,9 @@ public:
         auto end = data.end();
         auto current = begin;
         while (current != end) {
-            if (State_ == EState::InProgress &&
-                InnerState == EInnerState::InsideBinaryString &&
-                BytesRead < 0)
+            if (BytesRead < 0 &&
+                State_ == EState::InProgress &&
+                InnerState == EInnerState::InsideBinaryString)
             {
                 // Optimized version for binary string literals.
                 int size = std::min(-BytesRead, static_cast<int>(end - current));
@@ -115,10 +115,12 @@ public:
                 BytesRead += size;
             } else {
                 // Fallback.
-                if (!Consume(*current)) {
+                if (Consume(*current)) {
+                    ++current;
+                }
+                if (State_ == EState::Terminal) {
                     break;
                 }
-                ++current;
             }
         }
         return current;

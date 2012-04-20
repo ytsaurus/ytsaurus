@@ -97,7 +97,7 @@ public:
         auto current = begin;
         try {
             while (current != end) {
-                auto firstUnconsumed = Lexer.Consume(TStringBuf(begin, end));
+                auto firstUnconsumed = Lexer.Consume(TStringBuf(current, end));
                 if (Lexer.GetState() == TLexer::EState::Terminal) {
                     ConsumeToken(Lexer.GetToken());
                     Lexer.Reset();
