@@ -466,6 +466,11 @@ bool TLexer::Consume(char ch)
     return Impl->Consume(ch);
 }
 
+const char* TLexer::Consume(const TStringBuf& data)
+{
+    return Impl->Consume(data);
+}
+
 void TLexer::Finish()
 {
     Impl->Finish();
