@@ -16,7 +16,7 @@ using NJson::TJsonWriter;
 TJsonAdapter::TJsonAdapter(TOutputStream* output)
     : JsonWriter(new TJsonWriter(output, false))
     , AttributesOutput(Attributes)
-    , AttributesWriter(&AttributesOutput)
+    , AttributesWriter(&AttributesOutput, EYsonFormat::Binary, EYsonType::KeyedFragment)
 { }
 
 void TJsonAdapter::OnMyStringScalar(const TStringBuf& value)
@@ -40,10 +40,13 @@ void TJsonAdapter::OnMyDoubleScalar(double value)
 void TJsonAdapter::OnMyEntity()
 {
     JsonWriter->OpenMap();
+
     // TODO(roizner): support attributes
     JsonWriter->Write("$type");
     JsonWriter->Write("entity");
+
     WriteAttributes();
+
     JsonWriter->CloseMap();
 }
 
@@ -81,7 +84,7 @@ void TJsonAdapter::OnMyEndMap()
 void TJsonAdapter::OnMyBeginAttributes()
 {
     YASSERT(Attributes.Empty());
-    ForwardFragment(&AttributesWriter, TClosure());
+    ForwardFragment(&AttributesWriter);
 }
 
 void TJsonAdapter::OnMyEndAttributes()

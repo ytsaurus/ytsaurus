@@ -6,15 +6,20 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////
 
 TYsonTableInput::TYsonTableInput(
-    ISyncTableReader* reader, 
-    NYTree::EYsonFormat format,
-    TOutputStream* outputStream)
+    ISyncTableReader::TPtr reader, 
+    TOutputStream* outputStream,
+    EYsonFormat format)
     : Reader(reader)
-    , YsonWriter(outputStream, format)
+    , YsonWriter(outputStream, format, EYsonType::ListFragment)
 {
+    YASSERT(reader);
+    YASSERT(outputStream);
+
     Reader->Open();
 }
 

@@ -168,7 +168,7 @@ void TForwardingYsonConsumer::OnEndMap()
     }
 }
 
-void TForwardingYsonConsumer::OnRaw(const TStringBuf &yson, EYsonType type)
+void TForwardingYsonConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 {
     if (!CheckForwarding()) {
         OnMyRaw(yson, type);

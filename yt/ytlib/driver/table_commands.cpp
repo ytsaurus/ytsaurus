@@ -29,9 +29,9 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
         request->Path);
 
     TYsonTableInput input(
-        ~reader, 
-        Host->GetConfig()->OutputFormat, 
-        stream.Get());
+        reader, 
+        stream.Get(),
+        Host->GetConfig()->OutputFormat);
 
     while (input.ReadRow())
     { }
