@@ -54,12 +54,14 @@ public:
     virtual void OnMyEndAttributes();
 
 private:
-    void WriteAttributes();
-
     THolder<NJson::TJsonWriter> JsonWriter;
     TYson Attributes;
     TStringOutput AttributesOutput;
     TYsonWriter AttributesWriter;
+
+    void FlushAttributes();
+    void DiscardAttributes();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

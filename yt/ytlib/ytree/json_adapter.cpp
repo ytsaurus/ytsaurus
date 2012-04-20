@@ -22,30 +22,29 @@ TJsonAdapter::TJsonAdapter(TOutputStream* output)
 void TJsonAdapter::OnMyStringScalar(const TStringBuf& value)
 {
     JsonWriter->Write(value);
-    Attributes.clear();
+    DiscardAttributes();
 }
 
 void TJsonAdapter::OnMyIntegerScalar(i64 value)
 {
     JsonWriter->Write(value);
-    Attributes.clear();
+    DiscardAttributes();
 }
 
 void TJsonAdapter::OnMyDoubleScalar(double value)
 {
     JsonWriter->Write(value);
-    Attributes.clear();
+    DiscardAttributes();
 }
 
 void TJsonAdapter::OnMyEntity()
 {
     JsonWriter->OpenMap();
 
-    // TODO(roizner): support attributes
     JsonWriter->Write("$type");
     JsonWriter->Write("entity");
 
-    WriteAttributes();
+    FlushAttributes();
 
     JsonWriter->CloseMap();
 }
@@ -53,7 +52,7 @@ void TJsonAdapter::OnMyEntity()
 void TJsonAdapter::OnMyBeginList()
 {
     JsonWriter->OpenArray();
-    Attributes.clear();
+    DiscardAttributes();
 }
 
 void TJsonAdapter::OnMyListItem()
@@ -68,7 +67,7 @@ void TJsonAdapter::OnMyEndList()
 void TJsonAdapter::OnMyBeginMap()
 {
     JsonWriter->OpenMap();
-    WriteAttributes();
+    FlushAttributes();
 }
 
 void TJsonAdapter::OnMyKeyedItem(const TStringBuf& name)
@@ -90,16 +89,23 @@ void TJsonAdapter::OnMyBeginAttributes()
 void TJsonAdapter::OnMyEndAttributes()
 { }
 
-void TJsonAdapter::WriteAttributes()
+void TJsonAdapter::FlushAttributes()
 {
     if (!Attributes.Empty()) {
+        // Swap the attributes into a local variable and copy the stored copy.
         auto attributes = Attributes; // local copy
-        Attributes.clear(); // we must clear Attributes to allow reusing this in OnRaw
+        Attributes.clear();
+
         JsonWriter->Write("$attributes");
         JsonWriter->OpenMap();
-        this->OnRaw(attributes, EYsonType::KeyedFragment); // it's hack
+        OnRaw(attributes, EYsonType::KeyedFragment);
         JsonWriter->CloseMap();
     }
+}
+
+void TJsonAdapter::DiscardAttributes()
+{
+    Attributes.clear();
 }
 
 void TJsonAdapter::Flush()
