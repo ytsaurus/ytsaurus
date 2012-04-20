@@ -201,7 +201,7 @@ private:
                 break;
 
             default:
-                ythrow yexception() << Sprintf("Unexpected lexeme %s of type %s (%s)",
+                ythrow yexception() << Sprintf("Unexpected token %s of type %s (%s)",
                     ~token.ToString().Quote(),
                     ~token.GetType().ToString(),
                     ~GetPositionInfo());
@@ -240,7 +240,7 @@ private:
                         if (tokenType == ETokenType::Semicolon) {
                             StateStack.top() = EState::ListBeforeItem;
                         } else {
-                            ythrow yexception() << Sprintf("Expected ';' or ']', but lexeme %s of type %s found (%s)",
+                            ythrow yexception() << Sprintf("Expected ';' or ']', but token %s of type %s found (%s)",
                                 ~token.ToString().Quote(),
                                 ~tokenType.ToString(),
                                 ~GetPositionInfo());
@@ -283,7 +283,7 @@ private:
                     Consumer->OnKeyedItem(token.GetStringValue());
                     StateStack.top() = EState::MapAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -294,7 +294,7 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::MapBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Expected '=', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -313,7 +313,7 @@ private:
                 } else if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Expected ';' or '}', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected ';' or '}', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -348,7 +348,7 @@ private:
                     Consumer->OnKeyedItem(token.GetStringValue());
                     StateStack.top() = EState::AttributesAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -359,7 +359,7 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::AttributesBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Expected '=', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -374,7 +374,7 @@ private:
                 if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::AttributesBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Expected ';' or '>', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected ';' or '>', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -392,7 +392,7 @@ private:
 
         auto tokenType = token.GetType();
         if (tokenType != ETokenType::None) {
-            ythrow yexception() << Sprintf("Node is already parsed, but unexpected lexeme %s of type %s found (%s)",
+            ythrow yexception() << Sprintf("Node is already parsed, but unexpected token %s of type %s found (%s)",
                 ~token.ToString().Quote(),
                 ~tokenType.ToString(),
                 ~GetPositionInfo());
