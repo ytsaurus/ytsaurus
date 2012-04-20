@@ -357,5 +357,17 @@ void operator-= (TChannel& lhs, const TChannel& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<TChannel> ChannelsFromYson(const NYTree::TYson& yson)
+{
+    std::vector<TChannel> result;
+    auto node = DeserializeFromYson(yson)->AsList();
+    FOREACH (const auto& channelNode, node->GetChildren()) {
+        result.push_back(TChannel::FromNode(~channelNode));
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTableClient
 } // namespace NYT

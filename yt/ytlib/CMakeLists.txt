@@ -19,7 +19,7 @@ set( DIRS
   orchid
   file_server
   file_client
-#  table_server
+  table_server
   table_client
   monitoring
   profiling

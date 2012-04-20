@@ -1,9 +1,6 @@
 ﻿#pragma once
 
-#include "common.h"
-#include "chunk_sequence_writer.h"
-#include "validating_writer.h"
-#include "sorted_validating_writer.h"
+#include "public.h"
 #include "sync_writer.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -12,8 +9,8 @@
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_listener.h>
+#include <ytlib/chunk_server/public.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
-#include <ytlib/table_server/table_ypath_proxy.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -32,63 +29,39 @@ namespace NTableClient {
  */
 class TTableWriter
     : public NTransactionClient::TTransactionListener
-    , public ISyncTableWriter
+    , public ISyncWriter
 {   
 public:
-    typedef TIntrusivePtr<TTableWriter> TPtr;
-
-    struct TConfig 
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TChunkSequenceWriter::TConfig::TPtr ChunkSequenceWriter;
-
-        TConfig()
-        {
-            Register("chunk_sequence_writer", ChunkSequenceWriter)
-                .DefaultNew();
-        }
-    };
-
-    struct TOptions
-    {
-        bool Sorted;
-
-        TOptions()
-            : Sorted(false)
-        { }
-    };
-
     //! Initializes an instance.
     TTableWriter(
-        TConfig::TPtr config,
-        const TOptions& options,
+        TChunkSequenceWriterConfigPtr config,
         NRpc::IChannel::TPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
         NTransactionClient::TTransactionManager::TPtr transactionManager,
-        const NYTree::TYPath& path);
+        const NYTree::TYPath& path,
+        const TNullable<TKeyColumns>& keyColumns);
 
     //! Opens the writer.
     void Open();
 
-    //! Appends a new entry to the current row.
-    void Write(const TColumn& column, TValue value);
-
-    //! Flushes the current row and switches the writer to a new one.
-    void EndRow();
-
-    //! Closes the writer.
+    void WriteRow(TRow& column, TKey& value);
     void Close();
 
+    const TNullable<TKeyColumns>& GetKeyColumns() const;
+
+    //! Current row count.
+    i64 GetRowCount() const;
+
+    TKey& GetLastKey();
+
 private:
-    TConfig::TPtr Config;
-    TOptions Options;
+    TChunkSequenceWriterConfigPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NTransactionClient::TTransactionManager::TPtr TransactionManager;
     NYTree::TYPath Path;
+    TNullable<TKeyColumns> KeyColumns;
 
     bool IsOpen;
     bool IsClosed;
@@ -98,7 +71,7 @@ private:
     NTransactionClient::ITransaction::TPtr UploadTransaction;
     NChunkServer::TChunkListId ChunkListId;
 
-    THolder<TValidatingWriter> Writer;
+    TChunkSequenceWriterPtr Writer;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 

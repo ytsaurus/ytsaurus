@@ -3,6 +3,9 @@
 #include "schema.h"
 #include "async_writer.h"
 
+#include "chunk_writer.h"
+#include <ytlib/chunk_client/remote_writer.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/chunk_server/chunk_service_proxy.h>
@@ -44,7 +47,7 @@ public:
     const TNullable<TKeyColumns>& GetKeyColumns() const;
 
     //! Current row count.
-    i64 GetRowCount();
+    i64 GetRowCount() const;
 
 private:
     // Tools for writing single chunk.

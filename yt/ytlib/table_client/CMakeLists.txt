@@ -53,5 +53,4 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/table_chunk_meta.proto YT_SOURCE_FILES )
-protoc( ${BASE}/schema.proto YT_SOURCE_FILES )
 protoc( ${BASE}/table_reader.proto YT_SOURCE_FILES )

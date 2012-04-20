@@ -1,8 +1,8 @@
 package NYT.NTableClient.NProto;
 
 import "yt/ytlib/table_client/table_chunk_meta.proto";
-import "yt/ytlib/table_client/schema.proto";
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/misc/extensions.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,8 +37,7 @@ message TInputChunk
     // Column filter.
     required TChannel channel = 3;
 
-    // Cypress chunk attributes.
-    optional bytes chunk_attributes = 4;
+    required NYT.NProto.TExtensionSet extensions = 4;
 
     // When this value is given the reader inserts this YSON map as attributes at every row.
     // This enables,  e.g., the client to distinguish between several tables coming through a single input stream.

@@ -3,8 +3,6 @@
 #include "private.h"
 #include "config.h"
 
-#include "chunk_writer.h"
-
 #include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/misc/string.h>
@@ -350,7 +348,7 @@ const TNullable<TKeyColumns>& TChunkSequenceWriter::GetKeyColumns() const
     return KeyColumns;
 }
 
-i64 TChunkSequenceWriter::GetRowCount()
+i64 TChunkSequenceWriter::GetRowCount() const
 {
     YASSERT(!State.HasRunningOperation());
     return RowCount;

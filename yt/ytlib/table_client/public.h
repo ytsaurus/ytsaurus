@@ -24,6 +24,9 @@ typedef TIntrusivePtr<TChunkWriterConfig> TChunkWriterConfigPtr;
 class TChunkWriter;
 typedef TIntrusivePtr<TChunkWriter> TChunkWriterPtr;
 
+struct TChunkSequenceWriter;
+typedef TIntrusivePtr<TChunkSequenceWriter> TChunkSequenceWriterPtr;
+
 class TChannelWriter;
 typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;
 

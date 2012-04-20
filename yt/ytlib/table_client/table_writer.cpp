@@ -1,9 +1,14 @@
 ﻿#include "stdafx.h"
 #include "table_writer.h"
+#include "config.h"
+#include "private.h"
+#include "schema.h"
+#include "chunk_sequence_writer.h"
 
-#include <ytlib/misc/sync.h>
 #include <ytlib/cypress/cypress_ypath_proxy.h>
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+#include <ytlib/table_server/table_ypath_proxy.h>
+#include <ytlib/misc/sync.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -19,14 +24,13 @@ using namespace NChunkServer;
 // TODO(babenko): use totalReplicaCount
 
 TTableWriter::TTableWriter(
-    TConfig::TPtr config,
-    const TOptions& options,
+    TChunkSequenceWriterConfigPtr config,
     NRpc::IChannel::TPtr masterChannel,
-    ITransaction::TPtr transaction,
-    TTransactionManager::TPtr transactionManager,
-    const TYPath& path)
+    NTransactionClient::ITransaction::TPtr transaction,
+    NTransactionClient::TTransactionManager::TPtr transactionManager,
+    const NYTree::TYPath& path,
+    const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
-    , Options(options)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
@@ -36,6 +40,7 @@ TTableWriter::TTableWriter(
     , IsClosed(false)
     , CypressProxy(masterChannel)
     , Logger(TableClientLogger)
+    , KeyColumns(keyColumns)
 {
     YASSERT(config);
     YASSERT(masterChannel);
@@ -66,10 +71,10 @@ void TTableWriter::Open()
 
     LOG_INFO("Requesting table info");
     TChunkListId chunkListId;
-    auto schema = TSchema::CreateDefault();
+    std::vector<TChannel> channels;
     {
         auto batchReq = CypressProxy.ExecuteBatch();
-        if (Options.Sorted) {
+        if (KeyColumns.IsInitialized()) {
             {
                 auto req = TCypressYPathProxy::Lock(WithTransaction(Path, UploadTransaction->GetId()));
                 req->set_mode(ELockMode::Exclusive);
@@ -86,8 +91,8 @@ void TTableWriter::Open()
             batchReq->AddRequest(req, "get_chunk_list_for_update");
         }
         {
-            auto req = TCypressYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@schema");
-            batchReq->AddRequest(req, "get_schema");
+            auto req = TCypressYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@channels");
+            batchReq->AddRequest(req, "get_channels");
         }
 
         auto batchRsp = batchReq->Invoke().Get();
@@ -96,7 +101,7 @@ void TTableWriter::Open()
                 ~batchRsp->GetError().ToString());
         }
 
-        if (Options.Sorted) {
+        if (KeyColumns.IsInitialized()) {
             {
                 auto rsp = batchRsp->GetResponse("lock");
                 if (!rsp->IsOK()) {
@@ -127,33 +132,30 @@ void TTableWriter::Open()
         }
 
         {
-            auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspGet>("get_schema");
-            schema = TSchema::CreateDefault();
+            auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspGet>("get_channels");
             if (rsp->IsOK()) {
                 try {
-                    schema = TSchema::FromYson(rsp->value());
+                    channels = ChannelsFromYson(rsp->value());
                 }
                 catch (const std::exception& ex) {
-                    ythrow yexception() << Sprintf("Error parsing table schema\n%s", ex.what());
+                    ythrow yexception() << Sprintf("Error parsing table channels\n%s", ex.what());
                 }
             }
         }
     }
     LOG_INFO("Table info received (ChunkListId: %s, ChannelCount: %d)",
         ~chunkListId.ToString(),
-        static_cast<int>(schema.GetChannels().size()));
+        static_cast<int>(channels.size()));
 
-    auto asyncWriter = New<TChunkSequenceWriter>(
-        ~Config->ChunkSequenceWriter, 
-        ~MasterChannel,
+    Writer = New<TChunkSequenceWriter>(
+        Config, 
+        MasterChannel,
         UploadTransaction->GetId(),
-        chunkListId);
+        chunkListId,
+        channels,
+        KeyColumns);
 
-    Writer.Reset(Options.Sorted
-        ? new TSortedValidatingWriter(schema, ~asyncWriter)
-        : new TValidatingWriter(schema, ~asyncWriter));
-
-    Sync(~Writer, &TValidatingWriter::AsyncOpen);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncOpen);
 
     if (Transaction) {
         ListenTransaction(~Transaction);
@@ -164,22 +166,13 @@ void TTableWriter::Open()
     LOG_INFO("Table writer opened");
 }
 
-void TTableWriter::Write(const TColumn& column, TValue value)
+void TTableWriter::WriteRow(TRow& row, TKey& key)
 {
     VERIFY_THREAD_AFFINITY(Client);
     YVERIFY(IsOpen);
 
     CheckAborted();
-    Writer->Write(column, value);
-}
-
-void TTableWriter::EndRow()
-{
-    VERIFY_THREAD_AFFINITY(Client);
-    YVERIFY(IsOpen);
-
-    CheckAborted();
-    Sync(~Writer, &TValidatingWriter::AsyncEndRow);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncWriteRow, row, key);
 }
 
 void TTableWriter::Close()
@@ -197,10 +190,10 @@ void TTableWriter::Close()
     LOG_INFO("Closing table writer");
 
     LOG_INFO("Closing chunk writer");
-    Sync(~Writer, &TValidatingWriter::AsyncClose);
+    Sync(~Writer, &TChunkSequenceWriter::AsyncClose);
     LOG_INFO("Chunk writer closed");
 
-    if (Options.Sorted) {
+    if (KeyColumns.IsInitialized()) {
         LOG_INFO("Marking table as sorted");
         auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
         auto rsp = CypressProxy.Execute(req).Get();
@@ -208,6 +201,9 @@ void TTableWriter::Close()
             LOG_ERROR_AND_THROW(yexception(), "Error marking table as sorted\n%s",
                 ~rsp->GetError().ToString());
         }
+
+        // ToDo(psushin): set key columns.
+
         LOG_INFO("Table is marked as sorted");
     }
 
