@@ -509,7 +509,7 @@ private:
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
-        if (!IsLargeCompleteChunk(chunk)) {
+        if (IsLargeCompleteChunk(chunk)) {
             // Chunks not requiring merge go directly to the output chunk list.
             AddPassthroughChunk(chunk);
             return;
