@@ -109,12 +109,21 @@ public:
                 InnerState == EInnerState::InsideBinaryString)
             {
                 // Optimized version for binary string literals.
-                int size = std::min(-BytesRead, static_cast<int>(end - current));
-                StringValue.append(current, current + size);
-                current += size;
-                BytesRead += size;
+                int bytesRemaining = static_cast<int>(end - current);
+                int bytesNeeded = -BytesRead;
+                if (bytesRemaining < bytesNeeded) {
+                    StringValue.append(current, end);
+                    BytesRead += bytesRemaining;
+                    return end;
+                } else {
+                    StringValue.append(current, current + bytesNeeded);
+                    // NB: Setting BytesRead to zero is redundant.
+                    FinishString();
+                    YASSERT(State_ == EState::Terminal);
+                    return current + bytesNeeded;
+                }
             } else {
-                // Fallback.
+                // Fallback to the usual, symbol-by-symbol version.
                 if (Consume(*current)) {
                     ++current;
                 }
