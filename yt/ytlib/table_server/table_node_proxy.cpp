@@ -233,7 +233,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         const auto& attributesBlob = chunk.GetAttributes();
         NChunkHolder::NProto::TChunkAttributes attributes;
         YVERIFY(DeserializeFromProto(&attributes, attributesBlob));
-        auto tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
+        const auto& tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
 
         inputChunk->set_approximate_row_count(tableAttributes.row_count());
         inputChunk->set_approximate_data_size(chunk.GetSize());
