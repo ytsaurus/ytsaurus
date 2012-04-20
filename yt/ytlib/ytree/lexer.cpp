@@ -31,6 +31,7 @@ public:
     TImpl()
     {
         Reset();
+        StringValue.reserve(StringBufferSize);
     }
 
     void Reset()
@@ -50,7 +51,6 @@ public:
         return Token;
     }
     
-    //! Returns true iff the character was read.
     bool Consume(char ch)
     {
         switch (State_) {
@@ -98,6 +98,32 @@ public:
         }
     }
 
+    const char* Consume(const TStringBuf& data)
+    {
+        auto begin = data.begin();
+        auto end = data.end();
+        auto current = begin;
+        while (current != end) {
+            if (State_ == EState::InProgress &&
+                InnerState == EInnerState::InsideBinaryString &&
+                BytesRead < 0)
+            {
+                // Optimized version for binary string literals.
+                int size = std::min(-BytesRead, end - current);
+                StringValue.append(current, current + size);
+                current += size;
+                BytesRead += size;
+            } else {
+                // Fallback.
+                if (!Consume(*current)) {
+                    break;
+                }
+                ++current;
+            }
+        }
+        return current;
+    }
+
     void Finish()
     {
         switch (State_) {
@@ -141,6 +167,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(EState, State)
 
 private:
+    static const int StringBufferSize = 1 << 16;
 
     void ConsumeStart(char ch)
     {

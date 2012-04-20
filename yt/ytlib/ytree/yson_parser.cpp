@@ -39,7 +39,7 @@ class TYsonParser::TImpl
     TLexer Lexer;
     std::stack<EState> StateStack;
 
-    // Diagnostics info
+    // Diagnostic info
     int Offset;
     int Line;
     int Position;
@@ -70,10 +70,10 @@ public:
 
     void Consume(char ch)
     {
-        bool stop = false;
-        while (!stop) {
+        bool consumed = false;
+        while (!consumed) {
             try {
-                stop = Lexer.Consume(ch);
+                consumed = Lexer.Consume(ch);
             } catch (...) {
                 ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
                     ~Stroka(ch).Quote(),
@@ -87,11 +87,29 @@ public:
             }
         }
 
-        ++Offset;
-        ++Position;
-        if (ch == '\n') {
-            ++Line;
-            Position = 1;
+        OnCharConsumed(ch);
+    }
+
+    void Consume(const TStringBuf& data)
+    {
+        auto begin = data.begin();
+        auto end = data.end();
+        auto current = begin;
+        try {
+            while (current != end) {
+                auto firstUnconsumed = Lexer.Consume(TStringBuf(begin, end));
+                if (Lexer.GetState() == TLexer::EState::Terminal) {
+                    ConsumeToken(Lexer.GetToken());
+                    Lexer.Reset();
+                }
+                OnRangeConsumed(begin, firstUnconsumed);
+                current = firstUnconsumed;
+            }
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
+                ~Stroka(*current).Quote(),
+                ~GetPositionInfo(),
+                ex.what());
         }
     }
 
@@ -114,6 +132,28 @@ public:
     }
 
 private:
+    void OnCharConsumed(char ch)
+    {
+        ++Offset;
+        ++Position;
+        if (ch == '\n') {
+            ++Line;
+            Position = 1;
+        }
+    }
+
+    void OnRangeConsumed(const char* begin, const char* end)
+    {
+        for (auto current = begin; current != end; ++current) {
+            ++Position;
+            if (*current == '\n') {
+                ++Line;
+                Position = 1;
+            }
+        }
+        Offset += (end - begin);
+    }
+
     void ConsumeToken(const TToken& token)
     {
         switch (CurrentState()) {
@@ -453,13 +493,17 @@ TYsonParser::TYsonParser(IYsonConsumer *consumer, EYsonType type)
     : Impl(new TImpl(consumer, type))
 { }
 
-
 TYsonParser::~TYsonParser()
 { }
 
 void TYsonParser::Consume(char ch)
 {
     Impl->Consume(ch);
+}
+
+void TYsonParser::Consume(const TStringBuf& data)
+{
+    Impl->Consume(data);
 }
 
 void TYsonParser::Finish()
@@ -469,23 +513,28 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const size_t ParseChunkSize = 1024;
+
 void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 {
     TYsonParser parser(consumer, type);
-    char ch;
-    while (input->ReadChar(ch)) {
-        parser.Consume(ch);
+    char chunk[ParseChunkSize];
+    while (true) {
+        // Read a chunk.
+        size_t bytesRead = input->Read(chunk, ParseChunkSize);
+        if (bytesRead == 0) {
+            break;
+        }
+        // Parse the chunk.
+        parser.Consume(TStringBuf(chunk, chunk + bytesRead));
     }
     parser.Finish();
 }
 
 void ParseYson(const TStringBuf& yson, IYsonConsumer* consumer, EYsonType type)
 {
-    // TODO(roizner): improve
     TYsonParser parser(consumer, type);
-    FOREACH (char ch, yson) {
-        parser.Consume(ch);
-    }
+    parser.Consume(yson);
     parser.Finish();
 }
 
