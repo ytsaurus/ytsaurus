@@ -358,8 +358,8 @@ protected:
                         ~chunkId.ToString(),
                         dataSize,
                         rowCount);
-                    totalRowCount += dataSize;
-                    totalDataSize += rowCount;
+                    totalRowCount += rowCount;
+                    totalDataSize += dataSize;
                     totalChunkCount += 1;
                     ProcessInputChunk(chunk);
                 }
