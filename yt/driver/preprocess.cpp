@@ -2,7 +2,7 @@
 
 #include <ytlib/misc/foreach.h>
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/ytree/tokenizer.h>
 #include <ytlib/ytree/ypath_client.h>
 
 namespace NYT {
@@ -13,12 +13,11 @@ using namespace NYTree;
 
 TYPath PreprocessYPath(const TYPath& path)
 {
-    Stroka suffix;
-    auto token = ChopToken(path, &suffix);
-    if (token.GetType() == ETokenType::Tilde) {
+    TTokenizer tokens(path);
+    if (tokens[0].GetType() == ETokenType::Tilde) {
         auto userName = Stroka(getenv("USERNAME"));
         TYPath userDirectory = Stroka("//home/") + EscapeYPath(userName);
-        return userDirectory + suffix;
+        return userDirectory + tokens.GetSuffix(0);
     }
     return path;
 }

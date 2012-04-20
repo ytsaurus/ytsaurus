@@ -62,7 +62,7 @@ public:
 
     Stroka ToString() const;
 
-    const TToken& CheckType(ETokenType expectedType) const;
+    void CheckType(ETokenType expectedType) const;
 
 private:
     Stroka StringValue;

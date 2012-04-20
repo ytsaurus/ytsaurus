@@ -1,7 +1,7 @@
 #include "arguments.h"
 #include "preprocess.h"
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/ytree/tokenizer.h>
 
 #include <build.h>
 
@@ -55,17 +55,18 @@ TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
 void TArgsParserBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
 {
     FOREACH (auto updateString, ConfigUpdatesArg.getValue()) {
-        TYPath ypath;
+        TStringBuf ypath;
 
-        TToken token;
-        while ((token = ChopToken(updateString, &updateString)).GetType() != ETokenType::Equals) {
-            if (token.GetType() == ETokenType::None) {
+        TTokenizer tokens(updateString);
+        int index = 0;
+        while (tokens[index].GetType() != ETokenType::Equals) {
+            if (tokens[index].IsEmpty()) {
                 ythrow yexception() << "Incorrect option";
             }
-            ypath += token.ToString();
+            ypath = TStringBuf(updateString).Chop(tokens.GetSuffix(index).length());
         }
 
-        SyncYPathSet(service, ypath, updateString);
+        SyncYPathSet(service, TYPath(ypath), TYson(tokens.GetSuffix(index)));
     }
 }
 

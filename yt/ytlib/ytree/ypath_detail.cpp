@@ -377,10 +377,9 @@ void TSupportsAttributes::GetAttribute(
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
     
-    TYPath suffixPath;
-    auto token = ChopToken(path, &suffixPath);
+    TTokenizer tokens(path);
 
-    if (token.GetType() == ETokenType::None) {
+    if (tokens[0].IsEmpty()) {
         TStringStream stream;
         TYsonWriter writer(&stream);
         
@@ -414,20 +413,20 @@ void TSupportsAttributes::GetAttribute(
         writer.OnEndMap();
 
         response->set_value(stream.Str());
-    } else if (token.GetType() == ETokenType::String) {
-        const auto& yson = DoGetAttribute(userAttributes, systemAttributeProvider, token.GetStringValue());
+    } else {
+        const auto& yson =
+            DoGetAttribute(
+                userAttributes,
+                systemAttributeProvider,
+                tokens[0].GetStringValue());
 
-        if (IsEmpty(suffixPath)) {
+        if (tokens[1].IsEmpty()) {
             response->set_value(yson);
         } else {
             auto wholeValue = DeserializeFromYson(yson);
-            auto value = SyncYPathGet(~wholeValue, suffixPath);
+            auto value = SyncYPathGet(~wholeValue, TYPath(tokens.GetSuffix(0)));
             response->set_value(value);
         }
-    } else {
-        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-            ~token.ToString().Quote(),
-            ~token.GetType().ToString());
     }
 
     context->Reply();
@@ -442,24 +441,19 @@ void TSupportsAttributes::ListAttribute(
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
-    TYPath suffixPath;
-    auto token = ChopToken(path, &suffixPath);
-    
+    TTokenizer tokens(path);
+
     std::vector<Stroka> keys;
 
-    if (token.GetType() == ETokenType::None) {
+    if (tokens[0].IsEmpty()) {
         keys = DoListAttributes(userAttributes, systemAttributeProvider);
-    } else if (token.GetType() == ETokenType::String) {
+    } else  {
         auto wholeValue = DeserializeFromYson(
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                token.GetStringValue()));
-        keys = SyncYPathList(~wholeValue, suffixPath);
-    } else {
-        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-            ~token.ToString().Quote(),
-            ~token.GetType().ToString());
+                tokens[0].GetStringValue()));
+        keys = SyncYPathList(~wholeValue, TYPath(tokens.GetSuffix(0)));
     }
 
     std::sort(keys.begin(), keys.end());
@@ -477,10 +471,9 @@ void TSupportsAttributes::SetAttribute(
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
-    TYPath suffixPath;
-    auto token = ChopToken(path, &suffixPath);
+    TTokenizer tokens(path);
 
-    if (token.GetType() == ETokenType::None) {
+    if (tokens[0].IsEmpty()) {
         auto value = DeserializeFromYson(request->value());
         if (value->GetType() != ENodeType::Map) {
             ythrow yexception() << "Map value expected";
@@ -500,15 +493,16 @@ void TSupportsAttributes::SetAttribute(
             auto value = SerializeToYson(~pair.second);
             DoSetAttribute(userAttributes, systemAttributeProvider, key, value);
         }
-    } else if (token.GetType() == ETokenType::String) {
-        if (IsEmpty(suffixPath)) {
-            if (token.GetStringValue().empty()) {
+    } else {
+        auto key = tokens[0].GetStringValue();
+        if (tokens[1].IsEmpty()) {
+            if (key.Empty()) {
                 ythrow yexception() << "Attribute key cannot be empty";
             }
             DoSetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                token.GetStringValue(),
+                key,
                 request->value());
         } else {
             bool isSystem;
@@ -516,21 +510,17 @@ void TSupportsAttributes::SetAttribute(
                 DoGetAttribute(
                     userAttributes,
                     systemAttributeProvider,
-                    token.GetStringValue(),
+                    key,
                     &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathSet(~wholeValue, suffixPath, request->value());
+            SyncYPathSet(~wholeValue, TYPath(tokens.GetSuffix(0)), request->value());
             DoSetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                token.GetStringValue(),
+                key,
                 ~wholeValue,
                 isSystem);
         }
-    } else {
-        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-            ~token.ToString().Quote(),
-            ~token.GetType().ToString());
     }
 
     context->Reply();
@@ -545,41 +535,36 @@ void TSupportsAttributes::RemoveAttribute(
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
     
-    TYPath suffixPath;
-    auto token = ChopToken(path, &suffixPath);
+    TTokenizer tokens(path);
 
-    if (token.GetType() == ETokenType::None) {
+    if (tokens[0].IsEmpty()) {
         auto userKeys = userAttributes->List();
         FOREACH (const auto& key, userKeys) {
             YVERIFY(userAttributes->Remove(key));
         }
-    } else if (token.GetType() == ETokenType::String) {
-        if (IsEmpty(suffixPath)) {
-            auto key = token.GetStringValue();
+    } else {
+        auto key = tokens[0].GetStringValue();
+        if (tokens[1].IsEmpty()) {
             if (!DoRemoveAttribute(userAttributes, systemAttributeProvider, key)) {
                 ythrow yexception() << Sprintf("User attribute %s is not found",
-                    ~token.ToString().Quote());
+                    ~key.Quote());
             }
         } else {
             bool isSystem;
             auto yson = DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                token.GetStringValue(),
+                key,
                 &isSystem);
             auto wholeValue = DeserializeFromYson(yson);
-            SyncYPathRemove(~wholeValue, suffixPath);
+            SyncYPathRemove(~wholeValue, TYPath(tokens.GetSuffix(0)));
             DoSetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                token.GetStringValue(),
+                key,
                 ~wholeValue,
                 isSystem);
         }
-    } else {
-        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-            ~token.ToString().Quote(),
-            ~token.GetType().ToString());
     }
 
     context->Reply();
@@ -769,13 +754,12 @@ public:
     {
         UNUSED(verb);
 
-        TYPath currentPath;
-        auto token = ChopToken(path, &currentPath);
-        if (token.GetType() != ETokenType::Slash) {
+        TTokenizer tokens(path);
+        if (tokens[0].GetType() != ETokenType::Slash) {
             ythrow yexception() << Sprintf("YPath must start with '/'");
         }
 
-        return TResolveResult::There(~UnderlyingService, currentPath);
+        return TResolveResult::There(~UnderlyingService, TYPath(tokens.GetSuffix(0)));
     }
 
     virtual Stroka GetLoggingCategory() const

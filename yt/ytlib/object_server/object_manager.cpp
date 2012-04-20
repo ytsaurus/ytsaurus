@@ -2,7 +2,7 @@
 #include "object_manager.h"
 #include "config.h"
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/ytree/tokenizer.h>
 
 #include <ytlib/cell_master/load_context.h>
 #include <ytlib/transaction_server/transaction_manager.h>
@@ -177,11 +177,12 @@ public:
         auto transactionManager = Bootstrap->GetTransactionManager();
         TObjectId objectId;
 
-        TYPath currentPath;
-        auto token = ChopToken(path, &currentPath);
+        TTokenizer tokens(path);
+        int index = 0;
 
-        if (token.GetType() == ETokenType::Bang) {
-            auto transactionToken = ChopStringToken(currentPath, &currentPath);
+        if (tokens[index].GetType() == ETokenType::Bang) {
+            auto transactionToken = tokens[index + 1].GetStringValue();
+            index += 2;
             TTransactionId transactionId;
             if (!TObjectId::FromString(transactionToken, &transactionId)) {
                 ythrow yexception() << Sprintf("Error parsing transaction id %s", ~transactionToken.Quote());
@@ -192,18 +193,16 @@ public:
                     ythrow yexception() <<  Sprintf("No such transaction %s", ~transactionId.ToString());
                 }
             }
-            token = ChopToken(currentPath, &currentPath);
         }
 
-        if (token.GetType() == ETokenType::Slash) {
+        if (tokens[index].GetType() == ETokenType::Slash) {
             objectId = cypressManager->GetRootNodeId();
-        } else if (token.GetType() == ETokenType::Hash) {
-            auto objectToken = ChopStringToken(currentPath, &currentPath);
+        } else if (tokens[index].GetType() == ETokenType::Hash) {
+            auto objectToken = tokens[index + 1].GetStringValue();
+            ++index;
             if (!TObjectId::FromString(objectToken, &objectId)) {
                 ythrow yexception() << Sprintf("Error parsing object id %s", ~objectToken.Quote());
             }
-            currentPath = currentPath;
-            token = ChopToken(currentPath, &currentPath);
         } else {
             ythrow yexception() << "Invalid YPath syntax";
         }
@@ -213,7 +212,7 @@ public:
             ythrow yexception() << Sprintf("No such object %s", ~objectId.ToString());
         }
 
-        return TResolveResult::There(proxy, currentPath);
+        return TResolveResult::There(proxy, TYPath(tokens.GetSuffix(index)));
     }
 
     virtual void Invoke(IServiceContext* context)

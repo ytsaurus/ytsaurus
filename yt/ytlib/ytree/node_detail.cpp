@@ -7,7 +7,7 @@
 #include "yson_writer.h"
 #include "ypath_client.h"
 #include "serialize.h"
-#include "lexer.h"
+#include "tokenizer.h"
 
 namespace NYT {
 namespace NYTree {
@@ -99,25 +99,25 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
 {
-    TYPath suffixPath;
-    auto token = ChopStringToken(path, &suffixPath);
+    TTokenizer tokens(path);
+    auto name = tokens[0].GetStringValue();
 
-    if (token.empty()) {
+    if (name.Empty()) {
         ythrow yexception() << Sprintf("Child name cannot be empty");
     }
 
-    auto child = FindChild(token);
+    auto child = FindChild(name);
     if (child) {
-        return IYPathService::TResolveResult::There(~child, suffixPath);
+        return IYPathService::TResolveResult::There(~child, TYPath(tokens.GetSuffix(0)));
     }
 
     if (verb == "Set" || verb == "SetNode" || verb == "Create") {
-        if (IsEmpty(suffixPath)) {
+        if (tokens[1].IsEmpty()) {
             return IYPathService::TResolveResult::Here("/" + path);
         }
     }
 
-    ythrow yexception() << Sprintf("Key %s is not found", ~token.Quote());
+    ythrow yexception() << Sprintf("Key %s is not found", ~name.Quote());
 }
 
 void TMapNodeMixin::SetRecursive(
@@ -133,17 +133,9 @@ void TMapNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
 {
-    TYPath suffixPath;
-    auto token = ChopToken(path, &suffixPath);
-
-    if (token.GetType() != ETokenType::String) {
-        ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-            ~token.ToString().Quote(),
-            ~token.GetType().ToString());
-    }
-
-    YASSERT(IsEmpty(suffixPath));
-    const auto& childName = token.GetStringValue();
+    TTokenizer tokens(path);
+    auto childName = tokens[0].GetStringValue();
+    YASSERT(tokens[1].IsEmpty());
     YASSERT(!childName.empty());
     YASSERT(!FindChild(childName));
     AddChild(value, childName);
@@ -155,44 +147,32 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const TYPath& path,
     const Stroka& verb)
 {
-    TYPath suffixPath1, suffixPath2;
-    auto token1 = ChopToken(path, &suffixPath1);
-    auto token2 = ChopToken(suffixPath1, &suffixPath2);
-    if (token1.GetType() == ETokenType::Integer && token2.GetType() == ETokenType::Caret) {
-        std::swap(token1, token2);
-    }
-
-    switch (token1.GetType()) {
+    TTokenizer tokens(path);
+    switch (tokens[0].GetType()) {
         case ETokenType::Plus:
-            if (!token2.IsEmpty()) {
-                ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                    ~token2.ToString().Quote(),
-                    ~token2.GetType().ToString());
-            }
+            tokens[1].CheckType(ETokenType::None);
             return IYPathService::TResolveResult::Here("/" + path);
 
-        case ETokenType::Integer: {
-            YASSERT(token2.GetType() != ETokenType::Caret);
-
-            auto index = NormalizeAndCheckIndex(token1.GetIntegerValue());
-            auto child = FindChild(index);
-            YASSERT(child);
-            return IYPathService::TResolveResult::There(~child, suffixPath1);
-        }
-        case ETokenType::Caret: {
-            NormalizeAndCheckIndex(token2.GetIntegerValue());
-            auto token3 = ChopToken(suffixPath2);
-            if (!token3.IsEmpty()) {
-                ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                    ~token3.ToString().Quote(),
-                    ~token3.GetType().ToString());
+        case ETokenType::Integer:
+            if (tokens[1].GetType() == ETokenType::Caret) {
+                NormalizeAndCheckIndex(tokens[0].GetIntegerValue());
+                tokens[2].CheckType(ETokenType::None);
+                return IYPathService::TResolveResult::Here("/" + path);
+            } else {
+                auto index = NormalizeAndCheckIndex(tokens[1].GetIntegerValue());
+                auto child = FindChild(index);
+                YASSERT(child);
+                return IYPathService::TResolveResult::There(~child, TYPath(tokens.GetSuffix(1)));
             }
+
+        case ETokenType::Caret:
+            NormalizeAndCheckIndex(tokens[1].GetIntegerValue());
+            tokens[2].CheckType(ETokenType::None);
             return IYPathService::TResolveResult::Here("/" + path);
-        }
+
         default:
-            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                ~token1.ToString().Quote(),
-                ~token1.GetType().ToString());
+            ThrowUnexpectedToken(tokens[0]);
+            YUNREACHABLE();
     }
 }
 
@@ -209,27 +189,23 @@ void TListNodeMixin::SetRecursive(
     const TYPath& path,
     INode* value)
 {
-    TYPath suffixPath;
-    auto token1 = ChopToken(path, &suffixPath);
-    auto token2 = ChopToken(suffixPath, &suffixPath);
-
     int beforeIndex = -1;
 
-    switch (token1.GetType()) {
+    TTokenizer tokens(path);
+    switch (tokens[0].GetType()) {
         case ETokenType::Plus:
-            YASSERT(token2.IsEmpty());
+            YASSERT(tokens[1].IsEmpty());
             break;
 
         case ETokenType::Caret:
-            YASSERT(token2.GetType() == ETokenType::Integer);
-            YASSERT(IsEmpty(suffixPath));
-            beforeIndex = NormalizeAndCheckIndex(token2.GetIntegerValue());
+            beforeIndex = NormalizeAndCheckIndex(tokens[1].GetIntegerValue());
+            YASSERT(tokens[2].IsEmpty());
             break;
 
         case ETokenType::Integer:
-            YASSERT(token2.GetType() == ETokenType::Caret);
-            YASSERT(IsEmpty(suffixPath));
-            beforeIndex = NormalizeAndCheckIndex(token1.GetIntegerValue()) + 1;
+            YASSERT(tokens[1].GetType() == ETokenType::Caret);
+            YASSERT(tokens[2].IsEmpty());
+            beforeIndex = NormalizeAndCheckIndex(tokens[0].GetIntegerValue()) + 1;
             if (beforeIndex == GetChildCount()) {
                 beforeIndex = -1;
             }

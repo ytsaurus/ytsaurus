@@ -5,7 +5,7 @@
 #include <ytlib/cypress/cypress_ypath.pb.h>
 
 #include <ytlib/ytree/ytree.h>
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/ytree/tokenizer.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_detail.h>
@@ -565,17 +565,12 @@ protected:
 
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
-        NYTree::TYPath suffixPath;
-        auto token = NYTree::ChopToken(context->GetPath(), &suffixPath);
-        if (token.IsEmpty()) {
+        NYTree::TTokenizer tokens(context->GetPath());
+        if (tokens[0].IsEmpty()) {
             ythrow yexception() << "Node already exists";
         }
 
-        if (token.GetType() != NYTree::ETokenType::Slash) {
-            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                ~token.ToString().Quote(),
-                ~token.GetType().ToString());
-        }
+        tokens[0].CheckType(NYTree::ETokenType::Slash);
 
         auto objectManager = this->Bootstrap->GetObjectManager();
         auto cypressManager = this->Bootstrap->GetCypressManager();
@@ -597,7 +592,7 @@ protected:
 
         proxy->Attributes().MergeFrom(request->Attributes());
 
-        CreateRecursive(suffixPath, ~proxy);
+        CreateRecursive(NYTree::TYPath(tokens.GetSuffix(0)), ~proxy);
 
         *response->mutable_object_id() = nodeId.ToProto();
 
