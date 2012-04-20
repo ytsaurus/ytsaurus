@@ -518,21 +518,21 @@ const size_t ParseChunkSize = 1024;
 void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 {
     TYsonParser parser(consumer, type);
-    char ch;
-    while (input->ReadChar(ch)) {
-        parser.Consume(ch);
-    }
-    //char chunk[ParseChunkSize];
-    //while (true) {
-    //    // Read a chunk.
-    //    size_t bytesRead = input->Read(chunk, ParseChunkSize);
-    //    if (bytesRead == 0) {
-    //        break;
-    //    }
-    //    // Parse the chunk.
-    //    parser.Consume(TStringBuf(chunk, bytesRead));
+    //char ch;
+    //while (input->ReadChar(ch)) {
+    //    parser.Consume(ch);
     //}
-    //parser.Finish();
+    char chunk[ParseChunkSize];
+    while (true) {
+        // Read a chunk.
+        size_t bytesRead = input->Read(chunk, ParseChunkSize);
+        if (bytesRead == 0) {
+            break;
+        }
+        // Parse the chunk.
+        parser.Consume(TStringBuf(chunk, bytesRead));
+    }
+    parser.Finish();
 }
 
 void ParseYson(const TStringBuf& yson, IYsonConsumer* consumer, EYsonType type)
