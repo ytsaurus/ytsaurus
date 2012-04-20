@@ -286,7 +286,7 @@ template <class T1>
 struct TAsyncPipelineSignatureCracker<T1()>
 {
     typedef T1 ReturnType;
-    typedef void ArgumentType;
+    typedef void ArgType;
 };
 
 template <class ArgType, class ReturnType>
