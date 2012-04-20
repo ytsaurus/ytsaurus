@@ -230,20 +230,14 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
                 ~chunkId.ToString());
         }
 
-        const auto& attributesBlob = chunk.GetAttributes();
-        NChunkHolder::NProto::TChunkAttributes attributes;
-        YVERIFY(DeserializeFromProto(&attributes, attributesBlob));
-        auto tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
-
-        inputChunk->set_approximate_row_count(tableAttributes.row_count());
-        inputChunk->set_approximate_data_size(chunk.GetSize());
-
-        if (request->has_fetch_holder_addresses() && request->fetch_holder_addresses()) {
+        if (request->fetch_holder_addresses()) {
             chunkManager->FillHolderAddresses(inputChunk->mutable_holder_addresses(), chunk);
         }
 
-        if (request->has_fetch_chunk_attributes() && request->fetch_chunk_attributes()) {
-            inputChunk->set_chunk_attributes(attributesBlob.Begin(), attributesBlob.Size());
+        if (request->fetch_all_meta_extensions()) {
+            *inputChunk->mutable_extensions() = chunk.ChunkMeta().extensions();
+        } else {
+            //ToDo(psushin): analyse extension tags.
         }
     }
 

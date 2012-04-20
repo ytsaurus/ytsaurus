@@ -6,7 +6,7 @@
 #include "channel_writer.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/ytree/tokenizer.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_holder/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
@@ -55,7 +55,6 @@ TChunkWriter::TChunkWriter(
             ProtoMisc.set_sorted(true);
 
             FOREACH(auto& column, KeyColumns.Get()) {
-                ProtoIndex.add_key_columns(column);
                 auto res = ColumnIndexes.insert(MakePair(column, columnIndex));
                 if (res.Second())
                     ++columnIndex;
@@ -212,7 +211,7 @@ TAsyncError TChunkWriter::AsyncClose()
         if (channel->GetCurrentRowCount()) {
             auto block = PrepareBlock(channelIndex);
             completedBlocks.push_back(block);
-        } 
+        }
     }
 
     CurrentSize = SentSize;
@@ -238,6 +237,10 @@ TAsyncError TChunkWriter::AsyncClose()
 
         SetProtoExtension(chunkMeta.mutable_extensions(), ProtoIndex);
         SetProtoExtension(chunkMeta.mutable_extensions(), ProtoBoundaryKeys);
+
+        NProto::TKeyColumns protoKeyColumns;
+        ToProto(protoKeyColumns.mutable_values(), KeyColumns.Get());
+        SetProtoExtension(chunkMeta.mutable_extensions(), protoKeyColumns);
     }
 
     return ChunkWriter->AsyncClose(MoveRV(completedBlocks), chunkMeta);
@@ -252,7 +255,8 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
         auto* part = sample.add_parts();
         part->set_column(pair.first.begin(), pair.first.size());
 
-        auto token = ChopToken(pair.second);
+        TTokenizer tokenizer(pair.second);
+        auto& token = tokenizer[0];
         switch (token.GetType()) {
         case ETokenType::Integer:
             *(part->mutable_key_part()) = TKeyPart(token.GetIntegerValue()).ToProto();

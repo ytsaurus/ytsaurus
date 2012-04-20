@@ -52,8 +52,12 @@ message TIndexRow
 
 message TIndex 
 {
-    repeated bytes key_columns = 1;
     repeated TIndexRow index_rows = 2;
+}
+
+message TKeyColumns
+{
+    repeated bytes values = 1;
 }
 
 message TBoundaryKeys

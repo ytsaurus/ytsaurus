@@ -1,9 +1,9 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client )
 set( SRCS
-#  ${BASE}/channel_reader.cpp
+  ${BASE}/channel_reader.cpp
   ${BASE}/channel_writer.cpp
-#  ${BASE}/chunk_reader.cpp
+  ${BASE}/chunk_reader.cpp
 #  ${BASE}/chunk_sequence_reader.cpp
   ${BASE}/chunk_sequence_writer.cpp
   ${BASE}/chunk_writer.cpp
@@ -21,12 +21,12 @@ set( SRCS
 #  ${BASE}/yson_table_output.cpp
 )
 set( HDRS
-#  ${BASE}/async_reader.h
+  ${BASE}/async_reader.h
   ${BASE}/config.h
   ${BASE}/async_writer.h
-#  ${BASE}/channel_reader.h
+  ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
-#  ${BASE}/chunk_reader.h
+  ${BASE}/chunk_reader.h
 #  ${BASE}/chunk_sequence_reader.h
   ${BASE}/chunk_sequence_writer.h
   ${BASE}/chunk_writer.h

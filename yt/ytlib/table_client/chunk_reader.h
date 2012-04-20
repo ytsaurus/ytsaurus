@@ -1,35 +1,27 @@
 #pragma once
 
-#include "common.h"
-#include "value.h"
+#include "public.h"
 #include "schema.h"
 #include "async_reader.h"
-#include "channel_reader.h"
 
-#include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_reader.pb.h>
 
-#include <ytlib/chunk_client/async_reader.h>
-#include <ytlib/chunk_client/sequential_reader.h>
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/ytree/public.h>
+#include <ytlib/misc/codec.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/misc/codec.h>
-#include <ytlib/ytree/public.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IValidator;
-
 //! Reads single table chunk row-after-row using given #NChunkClient::IAsyncReader.
 class TChunkReader
     : public IAsyncReader
 {
 public:
-    typedef TIntrusivePtr<TChunkReader> TPtr;
-
     struct TOptions
     {
         bool ReadKey;
@@ -45,25 +37,22 @@ public:
      *  chunk to the end, set it to numerical_limits<int>::max().
      */
     TChunkReader(
-        NChunkClient::TSequentialReader::TConfig* config,
+        NChunkClient::TSequentialReaderConfigPtr config,
         const TChannel& channel,
-        NChunkClient::IAsyncReader* chunkReader,
+        NChunkClient::IAsyncReaderPtr chunkReader,
         const NProto::TReadLimit& startLimit,
         const NProto::TReadLimit& endLimit,
         const NYTree::TYson& rowAttributes,
         TOptions options = TOptions());
 
-    TAsyncError AsyncOpen();
+    virtual TAsyncError AsyncOpen();
 
-    //! Asynchronously switches the reader to the next row.
-    /*!
-     *  This call cannot block.
-     */
-    TAsyncError AsyncNextRow();
+    virtual TAsyncError AsyncNextRow();
+    virtual bool IsValid() const;
 
-    bool IsValid() const;
-    const TRow& GetCurrentRow() const;
-    const TKey& GetCurrentKey() const;
+    virtual const TRow& GetRow() const;
+    virtual const TKey& GetKey() const;
+    virtual const TStringBuf& GetRowAttributes() const;
 
 private:
     TAsyncError DoNextRow();
@@ -79,15 +68,13 @@ private:
     TIntrusivePtr<TInitializer> Initializer;
 
     ICodec* Codec;
-    NChunkClient::TSequentialReader::TPtr SequentialReader;
+    NChunkClient::TSequentialReaderPtr SequentialReader;
 
     TAsyncStreamState State;
     TChannel Channel;
     TOptions Options;
 
     TRow CurrentRow;
-
-    // ToDo(psushin): may be use vector TValue's here.
     TKey CurrentKey;
 
     struct TColumnInfo
@@ -103,12 +90,13 @@ private:
         { }
     };
 
-    yhash_map<TColumn, TColumnInfo> FixedColumns;
-    yhash_set<TColumn> UsedRangeColumns;
+    yhash_map<TStringBuf, TColumnInfo> FixedColumns;
+    yhash_set<TStringBuf> UsedRangeColumns;
 
     i64 CurrentRowIndex;
     i64 EndRowIndex;
 
+    struct IValidator;
     THolder<IValidator> EndValidator;
 
     /*! 

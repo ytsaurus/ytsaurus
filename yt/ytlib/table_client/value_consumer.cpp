@@ -24,7 +24,7 @@ void TValueConsumer::OnNewValue(TKey* key, int keyIndex)
 void TValueConsumer::OnStringScalar(const TStringBuf& value)
 {
     if (NewValue) {
-        Key->AddString(KeyIndex, value);
+        Key->AddValue(KeyIndex, value);
         NewValue = false;
     }
 
@@ -34,7 +34,7 @@ void TValueConsumer::OnStringScalar(const TStringBuf& value)
 void TValueConsumer::OnIntegerScalar(i64 value)
 {
     if (NewValue) {
-        Key->AddInteger(KeyIndex, value);
+        Key->AddValue(KeyIndex, value);
         NewValue = false;
     }
 
@@ -44,7 +44,7 @@ void TValueConsumer::OnIntegerScalar(i64 value)
 void TValueConsumer::OnDoubleScalar(double value)
 {
     if (NewValue) {
-        Key->AddDouble(KeyIndex, value);
+        Key->AddValue(KeyIndex, value);
         NewValue = false;
     }
 

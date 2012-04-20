@@ -1,12 +1,10 @@
 ﻿#pragma once
 
-#include "common.h"
-#include "value.h"
-#include "schema.h"
+#include "public.h"
 
 #include <ytlib/ytree/public.h>
 #include <ytlib/misc/ref_counted.h>
-#include <ytlib/misc/async_stream_state.h>
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -24,15 +22,14 @@ namespace NTableClient {
 struct IAsyncReader
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IAsyncReader> TPtr;
-
     virtual TAsyncError AsyncOpen() = 0;
 
     virtual TAsyncError AsyncNextRow() = 0;
     virtual bool IsValid() const = 0;
 
-    virtual const TRow& GetCurrentRow() const = 0;
-    virtual const TKey& GetCurrentKey() const = 0;
+    virtual const TRow& GetRow() const = 0;
+    virtual const TKey& GetKey() const = 0;
+    virtual const TStringBuf& GetRowAttributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

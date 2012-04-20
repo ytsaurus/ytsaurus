@@ -85,15 +85,15 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
 
         // Parse and validate schema, if any.
-        auto ysonSchema = request->Attributes().FindYson("schema");
-        if (ysonSchema) {
+        auto ysonChannels = request->Attributes().FindYson("channels");
+        if (ysonChannels) {
             try {
-                TSchema::FromYson(ysonSchema.Get());
+                ChannelsFromYson(ysonChannels.Get());
             } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Invalid table schema\n%s", ex.what());
             }
         } else {
-            request->Attributes().SetYson("schema", "{}");
+            request->Attributes().SetYson("channels", "[]");
         }
 
         auto nodeId = objectManager->GenerateId(EObjectType::Table);

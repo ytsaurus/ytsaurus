@@ -44,6 +44,11 @@ TSharedRef TBlobOutput::Flush()
     return TSharedRef(MoveRV(Blob));
 }
 
+void TBlobOutput::Swap(TBlobOutput& other)
+{
+    Blob.swap(other.Blob);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

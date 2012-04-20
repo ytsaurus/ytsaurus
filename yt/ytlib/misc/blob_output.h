@@ -27,6 +27,8 @@ public:
     void Clear();
     TSharedRef Flush();
 
+    void Swap(TBlobOutput& other);
+
 private:
     TBlob Blob;
 };

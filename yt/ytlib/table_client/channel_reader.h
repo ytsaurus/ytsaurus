@@ -1,8 +1,7 @@
 ﻿#pragma once
 
-#include "common.h"
+#include "public.h"
 #include "schema.h"
-#include "value.h"
 
 namespace NYT {
 namespace NTableClient {
@@ -10,6 +9,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChannelReader
+    : public virtual TRefCounted
 {
 public:
     TChannelReader(const TChannel& channel);
@@ -18,21 +18,19 @@ public:
     bool NextRow();
     bool NextColumn();
 
-    TColumn GetColumn() const;
-    TValue GetValue() const;
+    const TStringBuf& GetColumn() const;
+    const TStringBuf& GetValue() const;
 
 private:
-    // TODO(sandello): This was stored as (const T) hence prohibiting 
-    // copy assignment. What is the proper way to constify the Channel?
-    TChannel Channel;
+    const TChannel Channel;
 
     TSharedRef CurrentBlock;
 
     std::vector<TMemoryInput> ColumnBuffers;
 
     int CurrentColumnIndex;
-    TValue CurrentColumn;
-    TValue CurrentValue;
+    TStringBuf CurrentColumn;
+    TStringBuf CurrentValue;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
