@@ -90,7 +90,6 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count)
 
 yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses)
 {
-    // TODO(babenko): speed up
     // TODO: check replication fan-in in case this is a replication job
     yvector<const THolder*> holders;
     holders.reserve(LoadFactorMap.size());
@@ -186,10 +185,9 @@ yvector<THolderId> TChunkPlacement::GetRemovalTargets(const TChunk& chunk, int c
     }
 
     // Sort by loadFactor in descending order.
-    std::sort(
-        candidates.begin(),
-        candidates.end(),
-        [] (const TCandidatePair& lhs, const TCandidatePair& rhs) {
+    std::sort(candidates.begin(), candidates.end(),
+        [] (const TCandidatePair& lhs, const TCandidatePair& rhs)
+        {
             return lhs.second > rhs.second;
         });
 
