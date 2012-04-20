@@ -74,7 +74,7 @@ public:
         while (!consumed) {
             try {
                 consumed = Lexer.Consume(ch);
-            } catch (...) {
+            } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
                     ~Stroka(ch).Quote(),
                     ~GetPositionInfo(),
@@ -530,9 +530,9 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
     //        break;
     //    }
     //    // Parse the chunk.
-    //    parser.Consume(TStringBuf(chunk, chunk + bytesRead));
+    //    parser.Consume(TStringBuf(chunk, bytesRead));
     //}
-    parser.Finish();
+    //parser.Finish();
 }
 
 void ParseYson(const TStringBuf& yson, IYsonConsumer* consumer, EYsonType type)
