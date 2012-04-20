@@ -84,16 +84,21 @@ void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObje
 
     auto chunkId = TChunkId::FromProto(rsp->object_id());
     const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
-    auto addresses = FromProto<Stroka>(rspExt.holder_addresses());
+    auto holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
+
+    if (holderAddresses.size() < Config->UploadReplicaCount) {
+        State.Fail(TError("Not enough holders available"));
+        return;
+    }
 
     LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
-        ~JoinToString(addresses),
+        ~JoinToString(holderAddresses),
         ~chunkId.ToString());
 
     auto remoteWriter = New<TRemoteWriter>(
         ~Config->RemoteWriter,
         chunkId,
-        addresses);
+        holderAddresses);
     remoteWriter->Open();
 
     auto chunkWriter = New<TChunkWriter>(

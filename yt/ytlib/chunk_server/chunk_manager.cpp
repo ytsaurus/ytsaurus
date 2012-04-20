@@ -1443,16 +1443,13 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
 
         int holderCount = requestExt->holder_count();
         auto holderIds = Owner->AllocateUploadTargets(holderCount);
-        if (holderIds.ysize() < holderCount) {
-            ythrow yexception() << "Not enough holders available";
-        }
 
         FOREACH (auto holderId, holderIds) {
             const THolder& holder = Owner->GetHolder(holderId);
             responseExt->add_holder_addresses(holder.GetAddress());
         }
 
-        LOG_INFO("Allocated holders [%s] for chunk %s",
+        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated holders [%s] for chunk %s",
             ~JoinToString(responseExt->holder_addresses()),
             ~chunk.GetId().ToString());
     }
