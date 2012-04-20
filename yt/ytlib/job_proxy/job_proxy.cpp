@@ -79,26 +79,27 @@ void TJobProxy::Start()
         auto jobSpec = GetJobSpec();
 
         switch (jobSpec.type()) {
-        case EJobType::Map:
-            YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
-            Job = new TUserJob(Config, jobSpec);
-            break;
+            case EJobType::Map:
+                YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
+                Job = new TUserJob(Config, jobSpec);
+                break;
 
-        case EJobType::OrderedMerge:
-            Job = new TOrderedMergeJob(
-                Config->JobIO, 
-                Config->Masters, 
-                jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
-            break;
+            case EJobType::OrderedMerge:
+                Job = new TOrderedMergeJob(
+                    Config->JobIO, 
+                    Config->Masters, 
+                    jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+                break;
 
-        case EJobType::SortedMerge:
-            Job = new TSortedMergeJob(
-                Config->JobIO, 
-                Config->Masters, 
-                jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+            case EJobType::SortedMerge:
+                Job = new TSortedMergeJob(
+                    Config->JobIO, 
+                    Config->Masters, 
+                    jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+                break;
 
-        default:
-            YUNREACHABLE();
+            default:
+                YUNREACHABLE();
         }
 
         auto result = Job->Run();
