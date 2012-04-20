@@ -613,7 +613,7 @@ public:
     TMapNodeProxy(
         INodeTypeHandler* typeHandler,
         NCellMaster::TBootstrap* bootstrap,
-        NTransactionServer::TTransaction *transaction,
+        NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId);
 
     virtual void Clear();
