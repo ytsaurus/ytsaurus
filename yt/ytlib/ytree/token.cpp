@@ -22,19 +22,19 @@ bool TToken::IsEmpty() const
 
 const Stroka& TToken::GetStringValue() const
 {
-    YASSERT(Type_ == ETokenType::String);
+    CheckType(ETokenType::String);
     return StringValue;
 }
 
 i64 TToken::GetIntegerValue() const
 {
-    YASSERT(Type_ == ETokenType::Integer);
+    CheckType(ETokenType::Integer);
     return IntegerValue;
 }
 
 double TToken::GetDoubleValue() const
 {
-    YASSERT(Type_ == ETokenType::Double);
+    CheckType(ETokenType::Double);
     return DoubleValue;
 }
 
@@ -52,7 +52,7 @@ Stroka TToken::ToString() const
     }
 }
 
-const TToken& TToken::CheckType(ETokenType expectedType) const
+void TToken::CheckType(ETokenType expectedType) const
 {
     if (Type_ != expectedType) {
         ythrow yexception() << Sprintf("Unexpected token (Token: %s, TokenType: %s, ExpectedType: %s)",
@@ -60,7 +60,6 @@ const TToken& TToken::CheckType(ETokenType expectedType) const
             ~Type_.ToString(),
             ~expectedType.ToString());
     }
-    return *this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

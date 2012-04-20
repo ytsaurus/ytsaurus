@@ -419,7 +419,7 @@ static inline TFluentMap BuildYsonMapFluently(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFluentYsonConsumer
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
     typedef TIntrusivePtr<TFluentYsonConsumer> TPtr;

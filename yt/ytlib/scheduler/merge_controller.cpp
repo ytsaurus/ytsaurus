@@ -774,7 +774,7 @@ private:
     {
         CheckResponse(
             rsp,
-            Sprintf("Error getting \"sorted\" attribute for table %s", path));
+            Sprintf("Error getting \"sorted\" attribute for table %s", ~path));
         auto sorted = DeserializeFromYson<bool>(rsp->value());
         if (!sorted) {
             ythrow yexception() << Sprintf("Table %s is not sorted", ~path);
@@ -785,10 +785,10 @@ private:
     {
         CheckResponse(
             rsp,
-            Sprintf("Error getting row count for table %s", path));
+            Sprintf("Error getting row count for table %s", ~path));
         auto rowCount = DeserializeFromYson<i64>(rsp->value());
         if (rowCount != 0) {
-            ythrow yexception() << Sprintf("Table % is not empty", ~path);
+            ythrow yexception() << Sprintf("Table %s is not empty", ~path);
         }
     }
 
@@ -796,7 +796,7 @@ private:
     {
         CheckResponse(
             rsp,
-            Sprintf("Error marking table %s as sorted", path));
+            Sprintf("Error marking table %s as sorted", ~path));
     }
 };
 

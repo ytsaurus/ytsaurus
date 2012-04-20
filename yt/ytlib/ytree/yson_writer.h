@@ -39,6 +39,7 @@ public:
     TYsonWriter(
         TOutputStream* stream,
         EYsonFormat format = EYsonFormat::Binary,
+        EYsonType type = EYsonType::Node,
         bool formatRaw = false);
 
     // IYsonConsumer overrides.
@@ -58,50 +59,29 @@ public:
     virtual void OnBeginAttributes();
     virtual void OnEndAttributes();
 
-    //! Inserts a portion of raw YSON into the stream.
-    void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
 
 protected:
     TOutputStream* Stream;
-    bool IsFirstItem;
-    bool IsEmptyEntity;
-    int Indent;
     EYsonFormat Format;
+    EYsonType Type;
     bool FormatRaw;
+    
+    int Depth;
+    bool BeforeFirstItem;
 
     static const int IndentSize = 4;
 
     void WriteIndent();
     void WriteStringScalar(const TStringBuf& value);
-    void WriteMapItem(const TStringBuf& name);
 
-    virtual void BeginCollection(char openBracket);
-    virtual void CollectionItem(char separator);
-    virtual void EndCollection(char closeBracket);
+    void BeginCollection(char openBracket);
+    void CollectionItem();
+    void EndCollection(char closeBracket);
 
-};
+    bool IsTopLevelFragmentContext() const;
+    void EndNode();
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TYsonFragmentWriter
-    : public TYsonWriter
-{
-public:
-    //! Initializes an instance.
-    /*!
-     *  \param stream A stream for outputting the YSON data.
-     *  \param format A format used for encoding the data.
-     */
-    TYsonFragmentWriter(
-        TOutputStream* stream,
-        EYsonFormat format = EYsonFormat::Binary,
-        bool formatRaw = false);
-
-    virtual void BeginCollection(char openBracket);
-    virtual void CollectionItem(char separator);
-    virtual void EndCollection(char closeBracket);
-private:
-    int NestedCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,7 +25,7 @@ class TChunkList
     DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
 
 public:
-    TChunkList(const TChunkListId& id);
+    explicit TChunkList(const TChunkListId& id);
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

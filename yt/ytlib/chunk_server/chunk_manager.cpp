@@ -382,17 +382,17 @@ public:
         if (type == EObjectType::Chunk) {
             auto* chunk = FindChunk(id);
             if (!chunk) {
-                ythrow yexception() << Sprintf("No such chunk (ChunkId: %s)", ~id.ToString());
+                ythrow yexception() << Sprintf("No such chunk %s", ~id.ToString());
             }
             return TChunkTreeRef(chunk);
         } else if (type == EObjectType::ChunkList) {
             auto* chunkList = FindChunkList(id);
             if (!chunkList) {
-                ythrow yexception() << Sprintf("No such chunkList (ChunkListId: %s)", ~id.ToString());
+                ythrow yexception() << Sprintf("No such chunkList %s", ~id.ToString());
             }
             return TChunkTreeRef(chunkList);
         } else {
-            ythrow yexception() << Sprintf("Invalid child type (ObjectId: %s)", ~id.ToString());
+            ythrow yexception() << Sprintf("Invalid type of object %s", ~id.ToString());
         }
     }
 
@@ -1424,16 +1424,13 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
 
         int holderCount = requestExt->holder_count();
         auto holderIds = Owner->AllocateUploadTargets(holderCount);
-        if (holderIds.ysize() < holderCount) {
-            ythrow yexception() << "Not enough holders available";
-        }
 
         FOREACH (auto holderId, holderIds) {
             const THolder& holder = Owner->GetHolder(holderId);
             responseExt->add_holder_addresses(holder.GetAddress());
         }
 
-        LOG_INFO("Allocated holders [%s] for chunk %s",
+        LOG_INFO_IF(!Owner->IsRecovery(), "Allocated holders [%s] for chunk %s",
             ~JoinToString(responseExt->holder_addresses()),
             ~chunk.GetId().ToString());
     }
@@ -1549,7 +1546,7 @@ private:
         yvector<TChunkTreeRef> children;
         FOREACH (const auto& childId, childrenIds) {
             if (!objectManager->ObjectExists(childId)) {
-                ythrow yexception() << Sprintf("Child does not exist (ObjectId: %s)", ~childId.ToString());
+                ythrow yexception() << Sprintf("Child %s does not exist", ~childId.ToString());
             }
             auto chunkRef = Owner->GetChunkTree(childId);
             children.push_back(chunkRef);
@@ -1573,7 +1570,7 @@ private:
         yvector<TChunkTreeRef> children;
         FOREACH (const auto& childId, childrenIds) {
             if (!objectManager->ObjectExists(childId)) {
-                ythrow yexception() << Sprintf("Child does not exist (ObjectId: %s)", ~childId.ToString());
+                ythrow yexception() << Sprintf("Child %s does not exist", ~childId.ToString());
             }
             auto chunkRef = Owner->GetChunkTree(childId);
             children.push_back(chunkRef);

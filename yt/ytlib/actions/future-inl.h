@@ -17,6 +17,7 @@ namespace NYT {
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
+// #TPromiseState<>
 
 template <class T>
 class TPromiseState
@@ -65,17 +66,17 @@ public:
         return Value.Get();
     }
 
+    TNullable<T> TryGet() const
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        return Value;
+    }
+
     bool IsSet() const
     {
         // Guard is typically redundant.
         TGuard<TSpinLock> guard(SpinLock);
         return Value.IsInitialized();
-    }
-
-    TNullable<T> TryGet() const
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        return Value;
     }
 
     template <class U>
@@ -106,8 +107,8 @@ public:
         }
     }
 
-    inline void Subscribe(const TListener& listener);
-    inline void Subscribe(
+    void Subscribe(const TListener& listener);
+    void Subscribe(
         TDuration timeout,
         const TListener& onValue,
         const TClosure& onTimeout);
@@ -162,7 +163,8 @@ private:
 };
 
 template <class T>
-void TPromiseState<T>::Subscribe(const typename TPromiseState<T>::TListener& listener)
+inline void TPromiseState<T>::Subscribe(
+    const typename TPromiseState<T>::TListener& listener)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -175,12 +177,16 @@ void TPromiseState<T>::Subscribe(const typename TPromiseState<T>::TListener& lis
 }
 
 template <class T>
-void TPromiseState<T>::Subscribe(TDuration timeout, const TListener& onValue, const TClosure& onTimeout)
+inline void TPromiseState<T>::Subscribe(
+    TDuration timeout,
+    const TListener& onValue,
+    const TClosure& onTimeout)
 {
     New< TPromiseAwaiter<T> >(this, timeout, onValue, onTimeout);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// #TPromiseState<void>
 
 template <>
 class TPromiseState<void>
@@ -231,8 +237,8 @@ public:
         }
     }
 
-    inline void Subscribe(const TListener& listener);
-    inline void Subscribe(
+    void Subscribe(const TListener& listener);
+    void Subscribe(
         TDuration timeout,
         const TListener& onValue,
         const TClosure& onTimeout);
@@ -286,7 +292,8 @@ private:
     }
 };
 
-void TPromiseState<void>::Subscribe(const TPromiseState<void>::TListener& listener)
+inline void TPromiseState<void>::Subscribe(
+    const TPromiseState<void>::TListener& listener)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -298,7 +305,7 @@ void TPromiseState<void>::Subscribe(const TPromiseState<void>::TListener& listen
     }
 }
 
-void TPromiseState<void>::Subscribe(
+inline void TPromiseState<void>::Subscribe(
     TDuration timeout,
     const TListener& onValue,
     const TClosure& onTimeout)
@@ -311,84 +318,85 @@ void TPromiseState<void>::Subscribe(
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
+// #TFuture<>
 
 template <class T>
-TFuture<T>::TFuture()
+inline TFuture<T>::TFuture()
     : Impl(NULL)
 { }
 
 template <class T>
-TFuture<T>::TFuture(const TFuture<T>& other)
+inline TFuture<T>::TFuture(const TFuture<T>& other)
     : Impl(other.Impl)
 { }
 
 template <class T>
-TFuture<T>::TFuture(TFuture<T>&& other)
+inline TFuture<T>::TFuture(TFuture<T>&& other)
     : Impl(MoveRV(other.Impl))
 { }
 
 template <class T>
-bool TFuture<T>::IsNull() const
+inline bool TFuture<T>::IsNull() const
 {
     return Impl.Get() == NULL;
 }
 
 template <class T>
-void TFuture<T>::Reset()
+inline void TFuture<T>::Reset()
 {
     Impl.Reset();
 }
 
 template <class T>
-void TFuture<T>::Swap(TFuture& other)
+inline void TFuture<T>::Swap(TFuture& other)
 {
     Impl.Swap(other.Impl);
 }
 
 template <class T>
-TFuture<T>& TFuture<T>::operator=(const TFuture<T>& other)
+inline TFuture<T>& TFuture<T>::operator=(const TFuture<T>& other)
 {
     TFuture(other).Swap(*this);
     return *this;
 }
 
 template <class T>
-TFuture<T>& TFuture<T>::operator=(TFuture<T>&& other)
+inline TFuture<T>& TFuture<T>::operator=(TFuture<T>&& other)
 {
     TFuture(MoveRV(other)).Swap(*this);
     return *this;
 }
 
 template <class T>
-bool TFuture<T>::IsSet() const
+inline bool TFuture<T>::IsSet() const
 {
     YASSERT(Impl);
     return Impl->IsSet();
 }
 
 template <class T>
-const T& TFuture<T>::Get() const
+inline const T& TFuture<T>::Get() const
 {
     YASSERT(Impl);
     return Impl->Get();
 }
 
 template <class T>
-TNullable<T> TFuture<T>::TryGet() const
+inline TNullable<T> TFuture<T>::TryGet() const
 {
     YASSERT(Impl);
     return Impl->TryGet();
 }
 
 template <class T>
-void TFuture<T>::Subscribe(const TCallback<void(T)>& listener)
+inline void TFuture<T>::Subscribe(const TCallback<void(T)>& listener)
 {
     YASSERT(Impl);
     return Impl->Subscribe(listener);
 }
 
 template <class T>
-void TFuture<T>::Subscribe(
+inline void TFuture<T>::Subscribe(
     TDuration timeout,
     const TCallback<void(T)>& onValue,
     const TClosure& onTimeout)
@@ -398,8 +406,38 @@ void TFuture<T>::Subscribe(
 }
 
 template <class T>
+inline TFuture<void> TFuture<T>::Apply(const TCallback<void(T)>& mutator)
+{
+    auto mutated = NewPromise<void>();
+    // TODO(sandello): Make cref here.
+    Subscribe(BIND([mutated, mutator] (T value) mutable {
+        mutator.Run(value);
+        mutated.Set();
+    }));
+    return mutated;
+}
+
+template <class T>
+inline TFuture<void> TFuture<T>::Apply(const TCallback<TFuture<void>(T)>& mutator)
+{
+    auto mutated = NewPromise<void>();
+
+    // TODO(sandello): Make cref here.
+    auto inner = BIND([mutated] () mutable {
+        mutated.Set();
+    });
+    // TODO(sandello): Make cref here.
+    auto outer = BIND([mutator, inner] (T outerValue) mutable {
+        mutator.Run(outerValue).Subscribe(inner);
+    });
+
+    Subscribe(outer);
+    return mutated;
+}
+
+template <class T>
 template <class R>
-TFuture<R> TFuture<T>::Apply(const TCallback<R(T)>& mutator)
+inline TFuture<R> TFuture<T>::Apply(const TCallback<R(T)>& mutator)
 {
     auto mutated = NewPromise<R>();
     // TODO(sandello): Make cref here.
@@ -411,7 +449,7 @@ TFuture<R> TFuture<T>::Apply(const TCallback<R(T)>& mutator)
 
 template <class T>
 template <class R>
-TFuture<R> TFuture<T>::Apply(const TCallback<TFuture<R>(T)>& mutator)
+inline TFuture<R> TFuture<T>::Apply(const TCallback<TFuture<R>(T)>& mutator)
 {
     auto mutated = NewPromise<R>();
 
@@ -429,155 +467,273 @@ TFuture<R> TFuture<T>::Apply(const TCallback<TFuture<R>(T)>& mutator)
 }
 
 template <class T>
-TFuture<T>::TFuture(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state)
+inline TFuture<T>::TFuture(
+    const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state)
     : Impl(state)
 { }
 
 template <class T>
-TFuture<T>::TFuture(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
+inline TFuture<T>::TFuture(
+    TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
     : Impl(MoveRV(state))
 { }
 
+////////////////////////////////////////////////////////////////////////////////
+// #TFuture<void>
+
+inline TFuture<void>::TFuture()
+    : Impl(NULL)
+{ }
+
+inline TFuture<void>::TFuture(const TFuture<void>& other)
+    : Impl(other.Impl)
+{ }
+
+inline TFuture<void>::TFuture(TFuture<void>&& other)
+    : Impl(MoveRV(other.Impl))
+{ }
+
+inline bool TFuture<void>::IsNull() const
+{
+    return Impl.Get() == NULL;
+}
+
+inline void TFuture<void>::Reset()
+{
+    Impl.Reset();
+}
+
+inline void TFuture<void>::Swap(TFuture& other)
+{
+    Impl.Swap(other.Impl);
+}
+
+inline TFuture<void>& TFuture<void>::operator=(const TFuture<void>& other)
+{
+    TFuture(other).Swap(*this);
+    return *this;
+}
+
+inline TFuture<void>& TFuture<void>::operator=(TFuture<void>&& other)
+{
+    TFuture(MoveRV(other)).Swap(*this);
+    return *this;
+}
+
+inline bool TFuture<void>::IsSet() const
+{
+    YASSERT(Impl);
+    return Impl->IsSet();
+}
+
+inline void TFuture<void>::Subscribe(const TClosure& listener)
+{
+    YASSERT(Impl);
+    return Impl->Subscribe(listener);
+}
+
+inline void TFuture<void>::Subscribe(
+    TDuration timeout,
+    const TClosure& onValue,
+    const TClosure& onTimeout)
+{
+    YASSERT(Impl);
+    return Impl->Subscribe(timeout, onValue, onTimeout);
+}
+
+inline TFuture<void> TFuture<void>::Apply(const TCallback<void()>& mutator)
+{
+    auto mutated = NewPromise<void>();
+    Subscribe(BIND([mutated, mutator] () mutable {
+        mutator.Run();
+        mutated.Set();
+    }));
+    return mutated;
+}
+
+inline TFuture<void> TFuture<void>::Apply(const TCallback<TFuture<void>()>& mutator)
+{
+    auto mutated = NewPromise<void>();
+
+    // TODO(sandello): Make cref here.
+    auto inner = BIND([mutated] () mutable {
+        mutated.Set();
+    });
+    // TODO(sandello): Make cref here.
+    auto outer = BIND([mutator, inner] () mutable {
+        mutator.Run().Subscribe(inner);
+    });
+
+    Subscribe(outer);
+    return mutated;
+}
+
+template <class R>
+inline TFuture<R> TFuture<void>::Apply(const TCallback<R()>& mutator)
+{
+    auto mutated = NewPromise<R>();
+    // TODO(sandello): Make cref here.
+    Subscribe(BIND([mutated, mutator] () mutable {
+        mutated.Set(mutator.Run());
+    }));
+    return mutated;
+}
+
+template <class R>
+inline TFuture<R> TFuture<void>::Apply(const TCallback<TFuture<R>()>& mutator)
+{
+    auto mutated = NewPromise<R>();
+
+    // TODO(sandello): Make cref here.
+    auto inner = BIND([mutated] (R innerValue) mutable {
+        mutated.Set(MoveRV(innerValue));
+    });
+    // TODO(sandello): Make cref here.
+    auto outer = BIND([mutator, inner] () mutable {
+        mutator.Run().Subscribe(inner);
+    });
+
+    Subscribe(outer);
+    return mutated;
+}
+
+inline TFuture<void>::TFuture(
+    const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state)
+    : Impl(state)
+{ }
+
+inline TFuture<void>::TFuture(
+    TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state)
+    : Impl(MoveRV(state))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
-bool operator==(const TFuture<T>& lhs, const TFuture<T>& rhs)
+inline bool operator==(const TFuture<T>& lhs, const TFuture<T>& rhs)
 {
     return lhs.Impl == rhs.Impl;
 }
 
 template <class T>
-bool operator!=(const TFuture<T>& lhs, const TFuture<T>& rhs)
+inline bool operator!=(const TFuture<T>& lhs, const TFuture<T>& rhs)
 {
     return lhs.Impl != rhs.Impl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
-bool TFuture<void>::IsSet() const
-{
-    return Impl->IsSet();
-}
-
-void TFuture<void>::Subscribe(const TListener& listener)
-{
-    Impl->Subscribe(listener);
-}
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T>
-TFuture< typename NMpl::TDecay<T>::TType > MakeFuture(T&& value)
+inline TFuture< typename NMpl::TDecay<T>::TType > MakeFuture(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
     return TFuture<U>(New< NYT::NDetail::TPromiseState<U> >(ForwardRV<T>(value)));
 }
 
-#if 0
-TFuture<void> MakeFuture()
+inline TFuture<void> MakeFuture()
 {
     return TFuture<void>(New< NYT::NDetail::TPromiseState<void> >(true));
 }
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
+// #TPromise<>
 
 template <class T>
-TPromise<T>::TPromise()
-    : Impl(New< NYT::NDetail::TPromiseState<T> >())
+inline TPromise<T>::TPromise()
+    : Impl()
 { }
 
 template <class T>
-TPromise<T>::TPromise(TNull)
+inline TPromise<T>::TPromise(TNull)
     : Impl(NULL)
 { }
 
 template <class T>
-TPromise<T>::TPromise(const TPromise<T>& other)
+inline TPromise<T>::TPromise(const TPromise<T>& other)
     : Impl(other.Impl)
 { }
 
 template <class T>
-TPromise<T>::TPromise(TPromise<T>&& other)
+inline TPromise<T>::TPromise(TPromise<T>&& other)
     : Impl(MoveRV(other.Impl))
 { }
 
 template <class T>
-bool TPromise<T>::IsNull() const
+inline bool TPromise<T>::IsNull() const
 {
     return Impl.Get() == NULL;
 }
 
 template <class T>
-void TPromise<T>::Reset()
+inline void TPromise<T>::Reset()
 {
     Impl.Reset();
 }
 
 template <class T>
-void TPromise<T>::Swap(TPromise& other)
+inline void TPromise<T>::Swap(TPromise& other)
 {
     Impl.Swap(other.Impl);
 }
 
 template <class T>
-TPromise<T>& TPromise<T>::operator=(const TPromise<T>& other)
+inline TPromise<T>& TPromise<T>::operator=(const TPromise<T>& other)
 {
     TPromise(other).Swap(*this);
     return *this;
 }
 
 template <class T>
-TPromise<T>& TPromise<T>::operator=(TPromise<T>&& other)
+inline TPromise<T>& TPromise<T>::operator=(TPromise<T>&& other)
 {
     TPromise(MoveRV(other)).Swap(*this);
     return *this;
 }
 
 template <class T>
-bool TPromise<T>::IsSet() const
+inline bool TPromise<T>::IsSet() const
 {
     YASSERT(Impl);
     return Impl->IsSet();
 }
 
 template <class T>
-void TPromise<T>::Set(const T& value)
+inline void TPromise<T>::Set(const T& value)
 {
     YASSERT(Impl);
     Impl->Set(value);
 }
 
 template <class T>
-void TPromise<T>::Set(T&& value)
+inline void TPromise<T>::Set(T&& value)
 {
     YASSERT(Impl);
     Impl->Set(MoveRV(value));
 }
 
 template <class T>
-const T& TPromise<T>::Get() const
+inline const T& TPromise<T>::Get() const
 {
     YASSERT(Impl);
     return Impl->Get();
 }
 
 template <class T>
-TNullable<T> TPromise<T>::TryGet() const
+inline TNullable<T> TPromise<T>::TryGet() const
 {
     YASSERT(Impl);
     return Impl->TryGet();
 }
 
 template <class T>
-void TPromise<T>::Subscribe(const TCallback<void(T)>& listener)
+inline void TPromise<T>::Subscribe(const TCallback<void(T)>& listener)
 {
     YASSERT(Impl);
     return Impl->Subscribe(listener);
 }
 
 template <class T>
-void TPromise<T>::Subscribe(
+inline void TPromise<T>::Subscribe(
     TDuration timeout,
     const TCallback<void(T)>& onValue,
     const TClosure& onTimeout)
@@ -587,67 +743,154 @@ void TPromise<T>::Subscribe(
 }
 
 template <class T>
-TFuture<T> TPromise<T>::ToFuture() const
+inline TFuture<T> TPromise<T>::ToFuture() const
 {
     return TFuture<T>(Impl);
 }
 
 // XXX(sandello): Kill this method.
 template <class T>
-TPromise<T>::operator TFuture<T>() const
+inline TPromise<T>::operator TFuture<T>() const
 {
     return TFuture<T>(Impl);
 }
 
 template <class T>
-TPromise<T>::TPromise(const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state)
+inline TPromise<T>::TPromise(
+    const TIntrusivePtr< NYT::NDetail::TPromiseState<T> >& state)
     : Impl(state)
 { }
 
 template <class T>
-TPromise<T>::TPromise(TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
+inline TPromise<T>::TPromise(
+    TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
     : Impl(MoveRV(state))
 { }
 
+////////////////////////////////////////////////////////////////////////////////
+// #TPromise<void>
+
+inline TPromise<void>::TPromise()
+    : Impl()
+{ }
+
+inline TPromise<void>::TPromise(TNull)
+    : Impl(NULL)
+{ }
+
+inline TPromise<void>::TPromise(const TPromise<void>& other)
+    : Impl(other.Impl)
+{ }
+
+inline TPromise<void>::TPromise(TPromise<void>&& other)
+    : Impl(MoveRV(other.Impl))
+{ }
+
+inline bool TPromise<void>::IsNull() const
+{
+    return Impl.Get() == NULL;
+}
+
+inline void TPromise<void>::Reset()
+{
+    Impl.Reset();
+}
+
+inline void TPromise<void>::Swap(TPromise& other)
+{
+    Impl.Swap(other.Impl);
+}
+
+inline TPromise<void>& TPromise<void>::operator=(const TPromise<void>& other)
+{
+    TPromise(other).Swap(*this);
+    return *this;
+}
+
+inline TPromise<void>& TPromise<void>::operator=(TPromise<void>&& other)
+{
+    TPromise(MoveRV(other)).Swap(*this);
+    return *this;
+}
+
+inline bool TPromise<void>::IsSet() const
+{
+    YASSERT(Impl);
+    return Impl->IsSet();
+}
+
+inline void TPromise<void>::Set()
+{
+    YASSERT(Impl);
+    Impl->Set();
+}
+
+inline void TPromise<void>::Subscribe(const TClosure& listener)
+{
+    YASSERT(Impl);
+    return Impl->Subscribe(listener);
+}
+
+inline void TPromise<void>::Subscribe(
+    TDuration timeout,
+    const TClosure& onValue,
+    const TClosure& onTimeout)
+{
+    YASSERT(Impl);
+    return Impl->Subscribe(timeout, onValue, onTimeout);
+}
+
+inline TFuture<void> TPromise<void>::ToFuture() const
+{
+    return TFuture<void>(Impl);
+}
+
+// XXX(sandello): Kill this method.
+inline TPromise<void>::operator TFuture<void>() const
+{
+    return TFuture<void>(Impl);
+}
+
+inline TPromise<void>::TPromise(
+    const TIntrusivePtr< NYT::NDetail::TPromiseState<void> >& state)
+    : Impl(state)
+{ }
+
+inline TPromise<void>::TPromise(
+    TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state)
+    : Impl(MoveRV(state))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
-bool operator==(const TPromise<T>& lhs, const TPromise<T>& rhs)
+inline bool operator==(const TPromise<T>& lhs, const TPromise<T>& rhs)
 {
     return lhs.Impl == rhs.Impl;
 }
 
 template <class T>
-bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs)
+inline bool operator!=(const TPromise<T>& lhs, const TPromise<T>& rhs)
 {
     return lhs.Impl != rhs.Impl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
-TPromise<void>::TPromise()
-    : Impl(New< NYT::NDetail::TPromiseState<void> >())
-{ }
-
-void TPromise<void>::Set()
-{
-    Impl->Set();
-}
-
-TPromise<void>::operator TFuture<void>() const
-{
-    return TFuture<void>(Impl);
-}
-#endif
-
 template <class T>
-TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value)
+inline TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
     return TPromise<U>(New< NYT::NDetail::TPromiseState<U> >(ForwardRV<T>(value)));
 }
 
+inline TPromise<void> MakePromise()
+{
+    return TPromise<void>(New< NYT::NDetail::TPromiseState<void> >(true));
+}
+
 template <class T>
-TPromise<T> NewPromise()
+inline TPromise<T> NewPromise()
 {
     return TPromise<T>(New< NYT::NDetail::TPromiseState<T> >());
 }

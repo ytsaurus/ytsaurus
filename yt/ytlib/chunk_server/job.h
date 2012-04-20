@@ -31,7 +31,7 @@ public:
         const yvector<Stroka>& targetAddresses,
         TInstant startTime);
 
-    TJob(const TJobId& jobId);
+    explicit TJob(const TJobId& jobId);
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

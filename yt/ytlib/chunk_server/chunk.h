@@ -20,9 +20,7 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(NChunkHolder::NProto::TChunkInfo, ChunkInfo);
 
     // This is usually small, e.g. has the length of 3.
-    // typedef TSmallVector<THolderId, 3> TStoredLocations;
-    // TODO(babenko): switch to small vector when it's ready
-    typedef yvector<THolderId> TStoredLocations;
+    typedef TSmallVector<THolderId, 3> TStoredLocations;
     DEFINE_BYREF_RO_PROPERTY(TStoredLocations, StoredLocations);
 
     // This list is usually empty.
@@ -32,7 +30,7 @@ class TChunk
 public:
     static const i64 UnknownSize;
 
-    TChunk(const TChunkId& id);
+    explicit TChunk(const TChunkId& id);
 
     ~TChunk();
 

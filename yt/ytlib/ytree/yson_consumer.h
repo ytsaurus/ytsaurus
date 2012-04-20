@@ -81,6 +81,7 @@ struct IYsonConsumer
      */
     virtual void OnBeginAttributes() = 0;
 
+    //! Ends the current attribute list.
     virtual void OnEndAttributes() = 0;
 
     //! Inserts YSON-serialized node or fragment.

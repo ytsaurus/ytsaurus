@@ -230,7 +230,7 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
 {
     TStringStream outputStream;
 
-    TYsonFragmentWriter writer(&outputStream, EYsonFormat::Text);
+    TYsonWriter writer(&outputStream, EYsonFormat::Text, EYsonType::ListFragment);
     writer.OnListItem();
         writer.OnIntegerScalar(200);
     writer.OnListItem();
@@ -249,7 +249,7 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
     Stroka output =
         "200;\n"
         "{\"key\"=42;\"yek\"=24;\"list\"=[]};\n"
-        "\"aaa\"";
+        "\"aaa\";\n";
 
     EXPECT_EQ(outputStream.Str(), output);
 }
@@ -259,7 +259,7 @@ TEST(TYsonFragmentWriterTest, NewLinesInMap)
 {
     TStringStream outputStream;
 
-    TYsonFragmentWriter writer(&outputStream, EYsonFormat::Text);
+    TYsonWriter writer(&outputStream, EYsonFormat::Text, EYsonType::KeyedFragment);
     writer.OnKeyedItem("a");
         writer.OnIntegerScalar(100);
     writer.OnKeyedItem("b");
@@ -280,7 +280,7 @@ TEST(TYsonFragmentWriterTest, NewLinesInMap)
     Stroka output =
         "\"a\"=100;\n"
         "\"b\"=[{\"key\"=42;\"yek\"=24};-1];\n"
-        "\"c\"=\"word\"";
+        "\"c\"=\"word\";\n";
 
     EXPECT_EQ(outputStream.Str(), output);
 }
@@ -289,7 +289,7 @@ TEST(TYsonFragmentWriter, NoFirstIndent)
 {
     TStringStream outputStream;
 
-    TYsonFragmentWriter writer(&outputStream, EYsonFormat::Pretty);
+    TYsonWriter writer(&outputStream, EYsonFormat::Pretty, EYsonType::KeyedFragment);
     writer.OnKeyedItem("a1");
         writer.OnBeginMap();
             writer.OnKeyedItem("key");
@@ -302,7 +302,7 @@ TEST(TYsonFragmentWriter, NoFirstIndent)
         "\"a1\" = {\n"
         "    \"key\" = 42\n"
         "};\n"
-        "\"a2\" = 0";
+        "\"a2\" = 0;\n";
 
     EXPECT_EQ(outputStream.Str(), output);
 }

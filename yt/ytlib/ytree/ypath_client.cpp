@@ -3,7 +3,7 @@
 
 #include "ypath_proxy.h"
 #include "ypath_detail.h"
-#include "lexer.h"
+#include "tokenizer.h"
 
 #include <ytlib/rpc/rpc.pb.h>
 #include <ytlib/misc/serialize.h>
@@ -295,24 +295,15 @@ yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 void ForceYPath(IMapNodePtr root, const TYPath& path)
 {
     INodePtr currentNode = root;
-    auto currentPath = path;
-    while (true) {
-        auto slashToken = ChopToken(currentPath, &currentPath);
-        if (slashToken.IsEmpty()) {
-            break;
-        }
-        // TODO(babenko): extract code
-        if (slashToken.GetType() != ETokenType::Slash) {
-            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                ~slashToken.ToString().Quote(),
-                ~slashToken.GetType().ToString());
-        }
-        
+    TTokenizer tokens(path);
+    for (int i = 0; !tokens[i].IsEmpty(); ++i) {
+        tokens[i].CheckType(ETokenType::Slash);
+
         INodePtr child;
-        auto keyToken = ChopToken(currentPath, &currentPath);
-        switch (keyToken.GetType()) {
+        ++i;
+        switch (tokens[i].GetType()) {
             case ETokenType::String: {
-                auto key = keyToken.GetStringValue();
+                auto key = tokens[i].GetStringValue();
                 child = currentNode->AsMap()->FindChild(key);
                 if (!child) {
                     auto factory = currentNode->CreateFactory();
@@ -323,15 +314,13 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
             }
 
             case ETokenType::Integer: {
-                child = currentNode->AsList()->GetChild(keyToken.GetIntegerValue());
+                child = currentNode->AsList()->GetChild(tokens[i].GetIntegerValue());
                 break;
             }
 
             default:
-                // TODO(babenko): extract code
-                ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                    ~keyToken.ToString().Quote(),
-                    ~keyToken.GetType().ToString());
+                ThrowUnexpectedToken(tokens[i]);
+                YUNREACHABLE();
         }
         currentNode = child;
     }

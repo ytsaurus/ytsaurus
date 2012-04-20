@@ -67,6 +67,9 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         ChunkId = TChunkId::FromProto(rsp->object_id());
         const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
         holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
+        if (holderAddresses.size() < Config->UploadReplicaCount) {
+            ythrow yexception() << "Not enough holders available";
+        }
     }
     LOG_INFO("Chunk created (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),

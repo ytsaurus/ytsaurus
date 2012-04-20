@@ -15,39 +15,44 @@ using NJson::TJsonWriter;
 
 TJsonAdapter::TJsonAdapter(TOutputStream* output)
     : JsonWriter(new TJsonWriter(output, false))
-    , WriteAttributes(false)
+    , AttributesOutput(Attributes)
+    , AttributesWriter(&AttributesOutput, EYsonFormat::Binary, EYsonType::KeyedFragment)
 { }
 
 void TJsonAdapter::OnMyStringScalar(const TStringBuf& value)
 {
-
     JsonWriter->Write(value);
+    DiscardAttributes();
 }
 
 void TJsonAdapter::OnMyIntegerScalar(i64 value)
 {
-
     JsonWriter->Write(value);
+    DiscardAttributes();
 }
 
 void TJsonAdapter::OnMyDoubleScalar(double value)
 {
-
     JsonWriter->Write(value);
+    DiscardAttributes();
 }
 
 void TJsonAdapter::OnMyEntity()
 {
     JsonWriter->OpenMap();
-    // TODO(roizner): support attributes
+
     JsonWriter->Write("$type");
     JsonWriter->Write("entity");
+
+    FlushAttributes();
+
     JsonWriter->CloseMap();
 }
 
 void TJsonAdapter::OnMyBeginList()
 {
     JsonWriter->OpenArray();
+    DiscardAttributes();
 }
 
 void TJsonAdapter::OnMyListItem()
@@ -62,7 +67,7 @@ void TJsonAdapter::OnMyEndList()
 void TJsonAdapter::OnMyBeginMap()
 {
     JsonWriter->OpenMap();
-    // TODO(roizner): support attributes
+    FlushAttributes();
 }
 
 void TJsonAdapter::OnMyKeyedItem(const TStringBuf& name)
@@ -77,24 +82,30 @@ void TJsonAdapter::OnMyEndMap()
 
 void TJsonAdapter::OnMyBeginAttributes()
 {
-    // TODO(roizner): support attributes
-    ForwardFragment(GetNullYsonConsumer(), TClosure());
+    YASSERT(Attributes.Empty());
+    ForwardFragment(&AttributesWriter);
 }
 
-//void TJsonAdapter::OnMyAttributesItem(const TStringBuf& name)
-//{
-//	if (WriteAttributes) {
-//		// First attribute
-//		WriteAttributes = false;
-//		JsonWriter->Write("$attributes");
-//		JsonWriter->OpenMap();
-//	}
-//    JsonWriter->Write(name);
-//}
-
 void TJsonAdapter::OnMyEndAttributes()
+{ }
+
+void TJsonAdapter::FlushAttributes()
 {
-    //
+    if (!Attributes.Empty()) {
+        // Swap the attributes into a local variable and copy the stored copy.
+        auto attributes = Attributes; // local copy
+        Attributes.clear();
+
+        JsonWriter->Write("$attributes");
+        JsonWriter->OpenMap();
+        OnRaw(attributes, EYsonType::KeyedFragment);
+        JsonWriter->CloseMap();
+    }
+}
+
+void TJsonAdapter::DiscardAttributes()
+{
+    Attributes.clear();
 }
 
 void TJsonAdapter::Flush()

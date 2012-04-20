@@ -1,6 +1,7 @@
 #pragma once
 
 #include "forwarding_yson_consumer.h"
+#include "yson_writer.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +55,12 @@ public:
 
 private:
     THolder<NJson::TJsonWriter> JsonWriter;
-    bool WriteAttributes;
+    TYson Attributes;
+    TStringOutput AttributesOutput;
+    TYsonWriter AttributesWriter;
+
+    void FlushAttributes();
+    void DiscardAttributes();
 
 };
 

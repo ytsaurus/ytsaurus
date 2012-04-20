@@ -69,9 +69,8 @@ void TChunkSequenceWriter::CreateNextSession()
     req->set_type(EObjectType::Chunk);
     auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
     reqExt->set_holder_count(Config->UploadReplicaCount);
-    cypressProxy.Execute(req)
-        .Subscribe(
-            BIND(&TChunkSequenceWriter::OnSessionCreated, MakeWeak(this))
+    cypressProxy.Execute(req).Subscribe(
+        BIND(&TChunkSequenceWriter::OnSessionCreated, MakeWeak(this))
         .Via(WriterThread->GetInvoker()));
 }
 
@@ -91,19 +90,23 @@ void TChunkSequenceWriter::OnSessionCreated(TTransactionYPathProxy::TRspCreateOb
 
     auto chunkId = TChunkId::FromProto(rsp->object_id());
     const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
-    auto addresses = FromProto<Stroka>(rspExt.holder_addresses());
+    auto holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
+
+    if (holderAddresses.size() < Config->UploadReplicaCount) {
+        State.Fail(TError("Not enough holders available"));
+        return;
+    }
 
     LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
-        ~JoinToString(addresses),
+        ~JoinToString(holderAddresses),
         ~chunkId.ToString());
 
     TSession session;
     session.RemoteWriter = New<TRemoteWriter>(
         Config->RemoteWriter,
         chunkId,
-        addresses);
+        holderAddresses);
     session.RemoteWriter->Open();
-
 
     session.ChunkWriter = New<TChunkWriter>(
         Config->ChunkWriter,

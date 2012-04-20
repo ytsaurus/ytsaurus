@@ -24,13 +24,13 @@ TLock::TLock(
     , Mode_(mode)
 { }
 
-
 TLock::TLock(const TLockId& id)
     : TObjectWithIdBase(id)
 { }
 
 void TLock::Save(TOutputStream* output) const
 {
+    TObjectWithIdBase::Save(output);
     ::Save(output, NodeId_);
     SaveObjectRef(output, Transaction_);
     ::Save(output, Mode_);
@@ -38,6 +38,7 @@ void TLock::Save(TOutputStream* output) const
 
 void TLock::Load(const TLoadContext& context, TInputStream* input)
 {
+    TObjectWithIdBase::Load(input);
     ::Load(input, NodeId_);
     LoadObjectRef(input, Transaction_, context);
     ::Load(input, Mode_);

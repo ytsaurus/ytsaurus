@@ -6,7 +6,7 @@
 #include "ypath_detail.h"
 #include "ypath_client.h"
 #include "attribute_provider_detail.h"
-#include "lexer.h"
+#include "tokenizer.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -32,20 +32,20 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 {
     UNUSED(verb);
 
-    TYPath suffixPath;
-    auto token = ChopStringToken(path, &suffixPath);
+    TTokenizer tokens(path);
+    auto key = tokens[0].GetStringValue();
 
-    auto service = GetItemService(token);
+    auto service = GetItemService(key);
     if (!service) {
-        ythrow yexception() << Sprintf("Key %s is not found", ~token.Quote());
+        ythrow yexception() << Sprintf("Key %s is not found", ~key.Quote());
     }
 
-    return TResolveResult::There(service, suffixPath);
+    return TResolveResult::There(service, TYPath(tokens.GetSuffix(0)));
 }
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
-    YASSERT(IsEmpty(context->GetPath()));
+    YASSERT(TTokenizer(context->GetPath())[0].IsEmpty());
 
     int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 
@@ -78,7 +78,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
 {
     UNUSED(request);
-    YASSERT(IsEmpty(context->GetPath()));
+    YASSERT(TTokenizer(context->GetPath())[0].IsEmpty());
 
     auto keys = GetKeys();
     NYT::ToProto(response->mutable_keys(), keys);

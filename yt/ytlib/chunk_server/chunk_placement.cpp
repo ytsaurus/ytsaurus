@@ -103,7 +103,9 @@ yvector<THolderId> TChunkPlacement::GetUploadTargets(int count, const yhash_set<
         }
     }
 
-    std::sort(holders.begin(), holders.end(),
+    std::sort(
+        holders.begin(),
+        holders.end(),
         [&] (const THolder* lhs, const THolder* rhs) {
             return GetSessionCount(*lhs) < GetSessionCount(*rhs);
         });
