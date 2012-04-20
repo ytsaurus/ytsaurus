@@ -20,7 +20,7 @@ TOperation::TOperation(
     , TransactionId_(transactionId)
     , Spec_(spec)
     , StartTime_(startTime)
-    , FinishPromise(NewPromise<TVoid>())
+    , FinishedPromise(NewPromise<void>())
 { }
 
 ////////////////////////////////////////////////////////////////////

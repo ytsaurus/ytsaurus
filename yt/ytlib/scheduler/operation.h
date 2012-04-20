@@ -37,15 +37,15 @@ class TOperation
     DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);
 
     //! Gets set when the operation is finished.
-    TFuture<TVoid> GetFinished()
+    TFuture<void> GetFinished()
     {
-        return FinishPromise;
+        return FinishedPromise;
     }
 
     //! Marks the operation as finished.
     void SetFinished()
     {
-        FinishPromise.Set(TVoid());
+        FinishedPromise.Set();
     }
 
 public:
@@ -56,7 +56,7 @@ public:
         NYTree::IMapNodePtr spec,
         TInstant startTime);
 
-    TPromise<TVoid> FinishPromise;
+    TPromise<void> FinishedPromise;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

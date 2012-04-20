@@ -221,7 +221,7 @@ private:
             .Via(GetControlInvoker()));
     }
 
-    void OnOperationPrepared(TOperationPtr operation, TVoid)
+    void OnOperationPrepared(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -256,7 +256,7 @@ private:
             .Via(GetControlInvoker()));
     }
 
-    void OnOperationRevived(TOperationPtr operation, TVoid)
+    void OnOperationRevived(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1128,14 +1128,13 @@ private:
         operation->GetFinished().Subscribe(
             timeout,
             BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, true),
-            BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, false, TVoid()));
+            BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, false));
     }
 
     void OnOperationWaitResult(
         TCtxWaitForOperation::TPtr context,
         TOperationPtr operation,
-        bool finished,
-        TVoid)
+        bool finished)
     {
         context->SetResponseInfo("Finished: %s", ~FormatBool(finished));
         context->Response().set_finished(finished);
