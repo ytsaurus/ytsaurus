@@ -259,19 +259,19 @@ Stroka TGuid::ToString() const
     return buf;
 }
 
-TGuid TGuid::FromString(const Stroka& str)
+TGuid TGuid::FromString(const TStringBuf& str)
 {
     TGuid guid;
     if (!FromString(str, &guid)) { 
-        ythrow yexception() << Sprintf("Error parsing GUID from %s", ~str.Quote());
+        ythrow yexception() << Sprintf("Error parsing GUID from %s", ~Stroka(str).Quote());
     }
     return guid;
 }
 
-bool TGuid::FromString(const Stroka &str, TGuid* guid)
+bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
 {
     if(sscanf(
-        str.c_str(),
+        str.data(),
         "%x-%x-%x-%x",
         &guid->Parts[3],
         &guid->Parts[2],

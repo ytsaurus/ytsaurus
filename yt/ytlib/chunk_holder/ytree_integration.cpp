@@ -45,7 +45,7 @@ private:
         return Collection->GetChunkCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const Stroka& key) const
+    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TChunkId::FromString(key);
         auto chunk = Collection->FindChunk(id);

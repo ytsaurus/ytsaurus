@@ -37,7 +37,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 
     auto service = GetItemService(key);
     if (!service) {
-        ythrow yexception() << Sprintf("Key %s is not found", ~key.Quote());
+        ythrow yexception() << Sprintf("Key %s is not found", ~Stroka(key).Quote());
     }
 
     return TResolveResult::There(service, TYPath(tokens.GetSuffix(0)));

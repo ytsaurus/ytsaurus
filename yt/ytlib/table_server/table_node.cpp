@@ -144,8 +144,12 @@ protected:
 
         // Make the original chunk list a child of the composite one.
         yvector<TChunkTreeRef> children;
-        children.push_back( TChunkTreeRef(originatingNode.GetChunkList()) );
+        auto* originatingChunkList = originatingNode.GetChunkList();
+        children.push_back(TChunkTreeRef(originatingChunkList));
         chunkManager->AttachToChunkList(branchedChunkList, children);
+
+        // Propagate "sorted" attributes.
+        branchedChunkList.SetSorted(originatingChunkList->GetSorted());
     }
 
     // TODO(babenko): this needs much improvement

@@ -39,7 +39,7 @@ class TYsonParser::TImpl
     TLexer Lexer;
     std::stack<EState> StateStack;
 
-    // Diagnostics info
+    // Diagnostic info
     int Offset;
     int Line;
     int Position;
@@ -70,11 +70,11 @@ public:
 
     void Consume(char ch)
     {
-        bool stop = false;
-        while (!stop) {
+        bool consumed = false;
+        while (!consumed) {
             try {
-                stop = Lexer.Consume(ch);
-            } catch (...) {
+                consumed = Lexer.Consume(ch);
+            } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
                     ~Stroka(ch).Quote(),
                     ~GetPositionInfo(),
@@ -87,11 +87,29 @@ public:
             }
         }
 
-        ++Offset;
-        ++Position;
-        if (ch == '\n') {
-            ++Line;
-            Position = 1;
+        OnCharConsumed(ch);
+    }
+
+    void Consume(const TStringBuf& data)
+    {
+        auto begin = data.begin();
+        auto end = data.end();
+        auto current = begin;
+        try {
+            while (current != end) {
+                auto firstUnconsumed = Lexer.Consume(TStringBuf(current, end));
+                if (Lexer.GetState() == TLexer::EState::Terminal) {
+                    ConsumeToken(Lexer.GetToken());
+                    Lexer.Reset();
+                }
+                OnRangeConsumed(current, firstUnconsumed);
+                current = firstUnconsumed;
+            }
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
+                ~Stroka(*current).Quote(),
+                ~GetPositionInfo(),
+                ex.what());
         }
     }
 
@@ -114,6 +132,32 @@ public:
     }
 
 private:
+    void OnCharConsumed(char ch)
+    {
+        ++Offset;
+        ++Position;
+        if (ch == '\n') {
+            ++Line;
+            Position = 1;
+        }
+    }
+
+    void OnRangeConsumed(const char* begin, const char* end)
+    {
+        int position = Position;
+        int line = Line;
+        for (auto current = begin; current != end; ++current) {
+            ++position;
+            if (*current == '\n') {
+                ++line;
+                position = 1;
+            }
+        }
+        Position = position;
+        Line = line;
+        Offset += end - begin;
+    }
+
     void ConsumeToken(const TToken& token)
     {
         switch (CurrentState()) {
@@ -201,7 +245,7 @@ private:
                 break;
 
             default:
-                ythrow yexception() << Sprintf("Unexpected lexeme %s of type %s (%s)",
+                ythrow yexception() << Sprintf("Unexpected token %s of type %s (%s)",
                     ~token.ToString().Quote(),
                     ~token.GetType().ToString(),
                     ~GetPositionInfo());
@@ -240,7 +284,7 @@ private:
                         if (tokenType == ETokenType::Semicolon) {
                             StateStack.top() = EState::ListBeforeItem;
                         } else {
-                            ythrow yexception() << Sprintf("Expected ';' or ']', but lexeme %s of type %s found (%s)",
+                            ythrow yexception() << Sprintf("Expected ';' or ']', but token %s of type %s found (%s)",
                                 ~token.ToString().Quote(),
                                 ~tokenType.ToString(),
                                 ~GetPositionInfo());
@@ -283,7 +327,7 @@ private:
                     Consumer->OnKeyedItem(token.GetStringValue());
                     StateStack.top() = EState::MapAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -294,7 +338,7 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::MapBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Expected '=', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -313,7 +357,7 @@ private:
                 } else if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Expected ';' or '}', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected ';' or '}', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -348,7 +392,7 @@ private:
                     Consumer->OnKeyedItem(token.GetStringValue());
                     StateStack.top() = EState::AttributesAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -359,7 +403,7 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::AttributesBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Expected '=', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -374,7 +418,7 @@ private:
                 if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::AttributesBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Expected ';' or '>', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected ';' or '>', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -392,7 +436,7 @@ private:
 
         auto tokenType = token.GetType();
         if (tokenType != ETokenType::None) {
-            ythrow yexception() << Sprintf("Node is already parsed, but unexpected lexeme %s of type %s found (%s)",
+            ythrow yexception() << Sprintf("Node is already parsed, but unexpected token %s of type %s found (%s)",
                 ~token.ToString().Quote(),
                 ~tokenType.ToString(),
                 ~GetPositionInfo());
@@ -453,13 +497,17 @@ TYsonParser::TYsonParser(IYsonConsumer *consumer, EYsonType type)
     : Impl(new TImpl(consumer, type))
 { }
 
-
 TYsonParser::~TYsonParser()
 { }
 
 void TYsonParser::Consume(char ch)
 {
     Impl->Consume(ch);
+}
+
+void TYsonParser::Consume(const TStringBuf& data)
+{
+    Impl->Consume(data);
 }
 
 void TYsonParser::Finish()
@@ -469,23 +517,32 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const size_t ParseChunkSize = 1024;
+
 void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 {
     TYsonParser parser(consumer, type);
-    char ch;
-    while (input->ReadChar(ch)) {
-        parser.Consume(ch);
+    //char ch;
+    //while (input->ReadChar(ch)) {
+    //    parser.Consume(ch);
+    //}
+    char chunk[ParseChunkSize];
+    while (true) {
+        // Read a chunk.
+        size_t bytesRead = input->Read(chunk, ParseChunkSize);
+        if (bytesRead == 0) {
+            break;
+        }
+        // Parse the chunk.
+        parser.Consume(TStringBuf(chunk, bytesRead));
     }
     parser.Finish();
 }
 
 void ParseYson(const TStringBuf& yson, IYsonConsumer* consumer, EYsonType type)
 {
-    // TODO(roizner): improve
     TYsonParser parser(consumer, type);
-    FOREACH (char ch, yson) {
-        parser.Consume(ch);
-    }
+    parser.Consume(yson);
     parser.Finish();
 }
 

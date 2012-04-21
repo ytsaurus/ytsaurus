@@ -20,13 +20,13 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-TIntrusivePtr< TAsyncPipeline<TVoid> > StartAsyncPipeline(IInvoker::TPtr invoker)
+TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvoker::TPtr invoker)
 {
-    return New< TAsyncPipeline<TVoid> >(
+    return New< TAsyncPipeline<void> >(
         invoker,
-        BIND([=] () -> TFuture< TValueOrError<TVoid> > {
-            return MakeFuture(TValueOrError<TVoid>(TVoid()));
-    }));
+        BIND([=] () {
+            return MakeFuture(TValueOrError<void>());
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -146,7 +146,7 @@ void TOperationControllerBase::Initialize()
     LOG_INFO("Operation initialized");
 }
 
-TFuture<TVoid> TOperationControllerBase::Prepare()
+TFuture<void> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -160,23 +160,23 @@ TFuture<TVoid> TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
         ->Run()
-        .Apply(BIND([=] (TValueOrError<TVoid> result) -> TFuture<TVoid> {
+        .Apply(BIND([=] (TValueOrError<void> result) -> TFuture<void> {
             if (result.IsOK()) {
                 if (this_->Active) {
                     this_->Running = true;
                 }
-                return MakeFuture(TVoid());
+                return MakeFuture();
             } else {
                 LOG_WARNING("Operation preparation failed\n%s", ~result.ToString());
                 this_->Active = false;
                 this_->Host->OnOperationFailed(this_->Operation, result);
                 // This promise is never fulfilled.
-                return NewPromise<TVoid>();
+                return NewPromise<void>();
             }
         }));
 }
 
-TFuture<TVoid> TOperationControllerBase::Revive()
+TFuture<void> TOperationControllerBase::Revive()
 {
     try {
         Initialize();
@@ -184,7 +184,7 @@ TFuture<TVoid> TOperationControllerBase::Revive()
         FailOperation(TError("Operation has failed to initialize\n%s",
             ex.what()));
         // This promise is never fulfilled.
-        return NewPromise<TVoid>();
+        return NewPromise<void>();
     }
     return Prepare();
 }
@@ -327,7 +327,7 @@ void TOperationControllerBase::FinalizeOperation()
         ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
         ->Run()
-        .Subscribe(BIND([=] (TValueOrError<TVoid> result) {
+        .Subscribe(BIND([=] (TValueOrError<void> result) {
             Active = false;
             if (result.IsOK()) {
                 LOG_INFO("Operation finalized and completed");
@@ -339,7 +339,7 @@ void TOperationControllerBase::FinalizeOperation()
     }));
 }
 
-TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs(void)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -380,7 +380,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs(T
     return batchReq->Invoke();
 }
 
-TVoid TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -412,7 +412,7 @@ TVoid TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExe
 
     LOG_INFO("Outputs committed");
 
-    return TVoid();
+    return void();
 }
 
 void TOperationControllerBase::CommitCustomOutputs(TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
@@ -425,7 +425,7 @@ void TOperationControllerBase::OnCustomOutputsCommitted(TCypressServiceProxy::TR
     UNUSED(batchRsp);
 }
 
-TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTransaction(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTransaction(void)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -442,7 +442,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTra
     return batchReq->Invoke();
 }
 
-TVoid TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -456,10 +456,10 @@ TVoid TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy
         PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
     }
 
-    return TVoid();
+    return void();
 }
 
-TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTransactions(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTransactions(void)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -482,7 +482,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTr
     return batchReq->Invoke();
 }
 
-TVoid TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -504,10 +504,10 @@ TVoid TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServicePr
         OutputTransaction = Host->GetTransactionManager()->Attach(id);
     }
 
-    return TVoid();
+    return void();
 }
 
-TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs(TVoid)
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs(void)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -573,7 +573,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs(T
     return batchReq->Invoke();
 }
 
-TVoid TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -638,7 +638,7 @@ TVoid TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecu
 
     LOG_INFO("Inputs received");
 
-    return TVoid();
+    return void();
 }
 
 void TOperationControllerBase::RequestCustomInputs(TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
@@ -651,7 +651,7 @@ void TOperationControllerBase::OnCustomInputsRecieved(TCypressServiceProxy::TRsp
     UNUSED(batchRsp);
 }
 
-TVoid TOperationControllerBase::CompletePreparation(TVoid)
+void TOperationControllerBase::CompletePreparation(void)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
@@ -669,7 +669,7 @@ TVoid TOperationControllerBase::CompletePreparation(TVoid)
         LOG_INFO("Preparation completed");
     }
 
-    return TVoid();
+    return void();
 }
 
 void TOperationControllerBase::ReleaseChunkList(const TChunkListId& id)

@@ -67,6 +67,7 @@ void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<
     auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(chunkMeta.extensions());
     Size = misc->uncompressed_size();
     auto codecId = ECodecId(misc->codec_id());
+
     Codec = GetCodec(codecId);
     LOG_INFO("Chunk info received (BlockCount: %d, Size: "PRId64", CodecId: %s)",
         BlockCount,

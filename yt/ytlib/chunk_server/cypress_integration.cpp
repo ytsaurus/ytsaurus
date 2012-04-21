@@ -91,7 +91,7 @@ private:
         }
     }
 
-    virtual IYPathServicePtr GetItemService(const Stroka& key) const
+    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TChunkId::FromString(key);
 
@@ -167,7 +167,7 @@ private:
         return Bootstrap->GetChunkManager()->GetChunkListCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const Stroka& key) const
+    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TChunkListId::FromString(key);
         return Bootstrap->GetObjectManager()->GetProxy(id, NULL);

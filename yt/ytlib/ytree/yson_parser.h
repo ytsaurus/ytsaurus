@@ -16,6 +16,7 @@ public:
     ~TYsonParser();
 
     void Consume(char ch);
+    void Consume(const TStringBuf& data);
     void Finish();
 
 private:

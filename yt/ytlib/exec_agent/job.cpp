@@ -133,7 +133,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     auto awaiter = New<TParallelAwaiter>(~Slot->GetInvoker());
 
     if (JobSpec.HasExtension(NScheduler::NProto::TUserJobSpec::user_job_spec)) {
-        auto userSpec = JobSpec.GetExtension(NScheduler::NProto::TUserJobSpec::user_job_spec);
+        const auto& userSpec = JobSpec.GetExtension(NScheduler::NProto::TUserJobSpec::user_job_spec);
         FOREACH (const auto& fetchRsp, userSpec.files()) {
             auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
             LOG_INFO("Downloading user file %s (JobId: %s, ChunkId: %s)", 

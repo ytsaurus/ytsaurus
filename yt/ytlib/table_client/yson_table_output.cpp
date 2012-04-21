@@ -21,13 +21,7 @@ TYsonTableOutput::~TYsonTableOutput() throw()
 
 void TYsonTableOutput::DoWrite(const void* buf, size_t len)
 {
-    const char* begin = static_cast<const char*>(buf);
-    const char* end = begin + len;
-
-    while(begin < end) {
-        YsonParser.Consume(*begin);
-        ++begin;
-    }
+    YsonParser.Consume(TStringBuf(static_cast<const char*>(buf), len));
 }
 
 void TYsonTableOutput::DoFinish()

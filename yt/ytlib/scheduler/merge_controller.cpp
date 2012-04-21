@@ -354,12 +354,12 @@ protected:
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     i64 dataSize = chunk.approximate_data_size();
                     i64 rowCount = chunk.approximate_row_count();
-                    LOG_DEBUG("Processing chunk %s (DataSize: % " PRId64 ", RowCount: %" PRId64 ")",
+                    LOG_DEBUG("Processing chunk %s (DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
                         ~chunkId.ToString(),
                         dataSize,
                         rowCount);
-                    totalRowCount += dataSize;
-                    totalDataSize += rowCount;
+                    totalRowCount += rowCount;
+                    totalDataSize += dataSize;
                     totalChunkCount += 1;
                     ProcessInputChunk(chunk);
                 }
@@ -463,9 +463,15 @@ protected:
             return true;
         }
 
-        return
-            chunk.approximate_data_size() < Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize &&
-            Spec->CombineChunks;
+        if (chunk.approximate_data_size() >= Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize) {
+            return true;
+        }
+
+        if (!Spec->CombineChunks) {
+            return true;
+        }
+
+        return false;
     }
 
     void InitJobSpecTemplate()
@@ -503,7 +509,7 @@ private:
         auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
         auto& table = OutputTables[0];
 
-        if (!IsLargeCompleteChunk(chunk)) {
+        if (IsLargeCompleteChunk(chunk)) {
             // Chunks not requiring merge go directly to the output chunk list.
             AddPassthroughChunk(chunk);
             return;
@@ -604,7 +610,6 @@ private:
     // Either the left or the right endpoint of a chunk.
     struct TKeyEndpoint
     {
-        // True iff left.
         bool Left;
         NTableClient::TKey Key;
         const TInputChunk* InputChunk;
@@ -617,31 +622,35 @@ private:
 
     virtual void ProcessInputChunk(const TInputChunk& chunk)
     {
-        // Deserialize chunk attributes.
-        TTableChunkAttributes attributes;
-        YVERIFY(DeserializeFromProto(&attributes, TRef::FromString(chunk.chunk_attributes())));
-
-        YASSERT(attributes.sorted());
+        // Deserialize attributes.
+        TChunkAttributes chunkAttributes;
+        YVERIFY(DeserializeFromProto(&chunkAttributes, TRef::FromString(chunk.chunk_attributes())));
+        const auto& tableAttributes = chunkAttributes.GetExtension(TTableChunkAttributes::table_attributes);
+        YASSERT(tableAttributes.sorted());
 
         // Construct endpoints and place it into the list.
-        TKeyEndpoint leftEndpoint;
-        leftEndpoint.Left = true;
-        leftEndpoint.Key = FromProto<Stroka>(attributes.key_samples(0).key().values());
-        leftEndpoint.InputChunk = &chunk;
-        Endpoints.push_back(leftEndpoint);
-
-        TKeyEndpoint rightEndpoint;
-        rightEndpoint.Left = false;
-        rightEndpoint.Key = FromProto<Stroka>(attributes.key_samples(attributes.key_samples_size() - 1).key().values());
-        rightEndpoint.InputChunk = &chunk;
-        Endpoints.push_back(leftEndpoint);
+        const auto& samples = tableAttributes.key_samples();
+        {
+            TKeyEndpoint endpoint;
+            endpoint.Left = true;
+            endpoint.Key = FromProto<Stroka>(samples.Get(0).key().values());
+            endpoint.InputChunk = &chunk;
+            Endpoints.push_back(endpoint);
+        }
+        {
+            TKeyEndpoint endpoint;
+            endpoint.Left = false;
+            endpoint.Key = FromProto<Stroka>(samples.Get(samples.size() - 1).key().values());
+            endpoint.InputChunk = &chunk;
+            Endpoints.push_back(endpoint);
+        }
     }
 
     virtual void EndInputChunks()
     {
         // Sort earlier collected endpoints to figure out overlapping chunks.
         // Sort endpoints by keys, in case of a tie left endpoints go first.
-        LOG_DEBUG("Sorting chunks");
+        LOG_INFO("Sorting chunks");
         std::sort(
             Endpoints.begin(),
             Endpoints.end(),
@@ -650,12 +659,12 @@ private:
                 if (keysResult != 0) {
                     return keysResult < 0;
                 }
-                return lhs.Left < rhs.Left;
+                return lhs.Left && !rhs.Left;
             });
 
         // Compute sets of overlapping chunks.
         // Combine small groups, if requested so.
-        LOG_DEBUG("Building groups");
+        LOG_INFO("Building groups");
         int depth = 0;
         std::vector<const TInputChunk*> chunks;
         FOREACH (const auto& endpoint, Endpoints) {
