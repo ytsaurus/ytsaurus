@@ -104,9 +104,10 @@ public:
         auto end = data.end();
         auto current = begin;
         while (current != end) {
-            if (BytesRead < 0 &&
+            // NB: Conditions order is optimized for quick rejection.
+            if (InnerState == EInnerState::InsideBinaryString &&
                 State_ == EState::InProgress &&
-                InnerState == EInnerState::InsideBinaryString)
+                BytesRead < 0 )
             {
                 // Optimized version for binary string literals.
                 int bytesRemaining = static_cast<int>(end - current);

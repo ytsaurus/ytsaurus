@@ -144,14 +144,18 @@ private:
 
     void OnRangeConsumed(const char* begin, const char* end)
     {
+        int position = Position;
+        int line = Line;
         for (auto current = begin; current != end; ++current) {
-            ++Position;
+            ++position;
             if (*current == '\n') {
-                ++Line;
-                Position = 1;
+                ++line;
+                position = 1;
             }
         }
-        Offset += (end - begin);
+        Position = position;
+        Line = line;
+        Offset += end - begin;
     }
 
     void ConsumeToken(const TToken& token)
