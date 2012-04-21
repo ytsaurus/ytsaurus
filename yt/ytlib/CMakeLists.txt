@@ -23,7 +23,7 @@ set( DIRS
   table_client
   monitoring
   profiling
-#  driver
+  driver
   object_server
 #  scheduler
 #  exec_agent

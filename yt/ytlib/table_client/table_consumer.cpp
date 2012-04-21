@@ -114,7 +114,7 @@ void TTableConsumer::OnMyEndMap()
     YASSERT(InsideRow);
 
     if (KeyColumns) {
-        if (CurrentKey < Writer->GetLastKey()) {
+        if (TKey::Compare(Writer->GetLastKey(), CurrentKey) > 0) {
             ythrow yexception() << Sprintf("Invalid sorting order (RowIndex: %d, PreviousKey: %s, CurrentKey: %s)", 
                 Writer->GetRowCount(),
                 ~Writer->GetLastKey().ToString(),

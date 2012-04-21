@@ -10,18 +10,18 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSyncReaderAdapter::TSyncReaderAdapter(IAsyncReader* asyncReader)
+TSyncReaderAdapter::TSyncReaderAdapter(IAsyncReaderPtr asyncReader)
     : AsyncReader(asyncReader)
 { }
 
 void TSyncReaderAdapter::Open()
 {
-    Sync(AsyncReader.Get(), &IAsyncReader::AsyncOpen);
+    Sync(~AsyncReader, &IAsyncReader::AsyncOpen);
 }
 
 void TSyncReaderAdapter::NextRow()
 {
-    Sync(AsyncReader.Get(), &IAsyncReader::AsyncNextRow);
+    Sync(~AsyncReader, &IAsyncReader::AsyncNextRow);
 }
 
 bool TSyncReaderAdapter::IsValid() const
@@ -31,12 +31,12 @@ bool TSyncReaderAdapter::IsValid() const
 
 const TRow& TSyncReaderAdapter::GetRow() const
 {
-    return AsyncReader->GetCurrentRow();
+    return AsyncReader->GetRow();
 }
 
-const TKey& TSyncReaderAdapter::GetKey() const
+const NYTree::TYson& TSyncReaderAdapter::GetRowAttributes() const
 {
-    return AsyncReader->GetCurrentKey();
+    return AsyncReader->GetRowAttributes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

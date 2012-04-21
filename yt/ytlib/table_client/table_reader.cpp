@@ -1,6 +1,11 @@
 ﻿#include "stdafx.h"
 #include "table_reader.h"
+#include "config.h"
+#include "chunk_sequence_reader.h"
+#include "private.h"
 
+#include <ytlib/table_server/table_ypath_proxy.h>
+#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/misc/sync.h>
 
 namespace NYT {
@@ -9,16 +14,15 @@ namespace NTableClient {
 using namespace NYTree;
 using namespace NCypress;
 using namespace NTableServer;
-using namespace NChunkServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableReader::TTableReader(
-    TConfig* config,
+    TChunkSequenceReaderConfigPtr config,
     NRpc::IChannel* masterChannel,
     NTransactionClient::ITransaction* transaction,
-    NChunkClient::IBlockCache* blockCache,
-    const TYPath& path)
+    NChunkClient::IBlockCachePtr blockCache,
+    const NYTree::TYPath& path)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
@@ -31,7 +35,7 @@ TTableReader::TTableReader(
 {
     YASSERT(masterChannel);
 
-    Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
+    Logger.AddTag(Sprintf("Path: %s, TransactihonId: %s",
         ~path,
         ~TransactionId.ToString()));
 }
@@ -45,6 +49,8 @@ void TTableReader::Open()
 
     LOG_INFO("Fetching table info");
     auto fetchReq = TTableYPathProxy::Fetch(WithTransaction(Path, TransactionId));
+    fetchReq->set_fetch_holder_addresses(true);
+
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
     if (!fetchRsp->IsOK()) {
         LOG_ERROR_AND_THROW(yexception(), "Error fetching table info\n%s",
@@ -55,9 +61,9 @@ void TTableReader::Open()
         FromProto<NProto::TInputChunk>(fetchRsp->chunks());
 
     Reader = New<TChunkSequenceReader>(
-        ~Config->ChunkSequenceReader,
+        Config,
         ~MasterChannel,
-        ~BlockCache,
+        BlockCache,
         inputChunks);
     Sync(~Reader, &TChunkSequenceReader::AsyncOpen);
 
@@ -95,15 +101,15 @@ const TRow& TTableReader::GetRow() const
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
 
-    return Reader->GetCurrentRow();
+    return Reader->GetRow();
 }
 
-const TKey& TTableReader::GetKey() const
+const NYTree::TYson& TTableReader::GetRowAttributes() const
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
 
-    return Reader->GetCurrentKey();
+    return Reader->GetRowAttributes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

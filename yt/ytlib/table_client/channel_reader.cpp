@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "channel_reader.h"
+#include "value.h"
 
 #include <ytlib/misc/serialize.h>
 
@@ -49,8 +50,8 @@ bool TChannelReader::NextRow()
     while (NextColumn())
     { }
 
-    CurrentColumn = TValue();
-    CurrentValue = TValue();
+    CurrentColumn = TStringBuf();
+    CurrentValue = TStringBuf();
     CurrentColumnIndex = -1;
 
     if (ColumnBuffers.front().Avail() == 0) {
@@ -72,12 +73,13 @@ bool TChannelReader::NextColumn()
             YASSERT(ColumnBuffers.back().Avail() > 0);
             // Processing range column.
             auto& RangeBuffer = ColumnBuffers[CurrentColumnIndex];
-            CurrentColumn = TValue::Load(&RangeBuffer);
-            if (CurrentColumn.IsNull()) {
+            auto value = TValue::Load(&RangeBuffer);
+            if (value.IsNull()) {
                 ++CurrentColumnIndex;
                 return false;
             }
-            CurrentValue = TValue::Load(&RangeBuffer);
+            CurrentColumn = TValue::Load(&RangeBuffer).ToStringBuf();
+            CurrentValue = TValue::Load(&RangeBuffer).ToStringBuf();
             return true;
         } 
 
@@ -86,15 +88,16 @@ bool TChannelReader::NextColumn()
 
         if (CurrentColumnIndex < ColumnBuffersSize - 1) {
             // Processing fixed column.
-            CurrentValue = TValue::Load(&ColumnBuffers[CurrentColumnIndex]);
-            if (!CurrentValue.IsNull()) {
+            auto value = TValue::Load(&ColumnBuffers[CurrentColumnIndex]);
+            if (!value.IsNull()) {
+                CurrentValue = value.ToStringBuf();
                 return true;
             }
         }
     }
 }
 
-TColumn TChannelReader::GetColumn() const
+TStringBuf TChannelReader::GetColumn() const
 {
     YASSERT(CurrentColumnIndex >= 0);
 
@@ -104,11 +107,11 @@ TColumn TChannelReader::GetColumn() const
     if (CurrentColumnIndex < ColumnBuffersSize - 1) {
         return Channel.GetColumns()[CurrentColumnIndex];
     } else {
-        return CurrentColumn.ToString();
+        return CurrentColumn;
     }
 }
 
-TValue TChannelReader::GetValue() const
+TStringBuf TChannelReader::GetValue() const
 {
     YASSERT(CurrentColumnIndex >= 0);
     YASSERT(CurrentColumnIndex <= static_cast<int>(ColumnBuffers.size()));

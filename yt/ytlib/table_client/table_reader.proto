@@ -41,7 +41,7 @@ message TInputChunk
 
     // When this value is given the reader inserts this YSON map as attributes at every row.
     // This enables,  e.g., the client to distinguish between several tables coming through a single input stream.
-    optional bytes row_attributes = 5;
+    optional bytes row_attributes = 5 [default = ""];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

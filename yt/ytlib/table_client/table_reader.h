@@ -1,8 +1,7 @@
 ﻿#pragma once
 
-#include "common.h"
+#include "public.h"
 #include "sync_reader.h"
-#include "chunk_sequence_reader.h"
 
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -12,7 +11,7 @@
 #include <ytlib/cypress/id.h>
 #include <ytlib/cypress/cypress_service_proxy.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
-#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/public.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -32,31 +31,15 @@ namespace NTableClient {
  */
 class TTableReader
     : public NTransactionClient::TTransactionListener
-    , public ISyncTableReader
+    , public ISyncReader
 {
 public:
-    typedef TIntrusivePtr<TTableReader> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        TChunkSequenceReader::TConfig::TPtr ChunkSequenceReader;
-
-        TConfig()
-        {
-            Register("chunk_sequence_reader", ChunkSequenceReader)
-                .DefaultNew();
-        }
-    };
-
     //! Initializes an instance.
     TTableReader(
-        TConfig* config,
+        TChunkSequenceReaderConfigPtr config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
-        NChunkClient::IBlockCache* blockCache,
+        NChunkClient::IBlockCachePtr blockCache,
         const NYTree::TYPath& path);
 
     //! Opens the reader and positions it on the first row
@@ -70,20 +53,20 @@ public:
     bool IsValid() const;
 
     const TRow& GetRow() const;
-    const TKey& GetKey() const;
+    const NYTree::TYson& GetRowAttributes() const;
 
 private:
-    TConfig::TPtr Config;
+    TChunkSequenceReaderConfigPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
-    NChunkClient::IBlockCache::TPtr BlockCache;
+    NChunkClient::IBlockCachePtr BlockCache;
     NYTree::TYPath Path;
     bool IsOpen;
     NCypress::TCypressServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 
-    TChunkSequenceReader::TPtr Reader;
+    TChunkSequenceReaderPtr Reader;
     NCypress::TNodeId NodeId;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);

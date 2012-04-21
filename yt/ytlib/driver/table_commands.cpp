@@ -6,8 +6,11 @@
 
 #include <ytlib/table_client/table_reader.h>
 #include <ytlib/table_client/table_writer.h>
-#include <ytlib/table_client/yson_table_input.h>
-#include <ytlib/table_client/yson_row_consumer.h>
+#include <ytlib/table_client/table_consumer.h>
+#include <ytlib/table_client/table_producer.h>
+
+//#include <ytlib/table_client/yson_table_input.h>
+//#include <ytlib/table_client/yson_row_consumer.h>
 
 namespace NYT {
 namespace NDriver {

@@ -3,6 +3,7 @@
 #include "public.h"
 #include "schema.h"
 
+#include <ytlib/misc/ref.h>
 #include <util/stream/mem.h>
 
 namespace NYT {
@@ -20,8 +21,8 @@ public:
     bool NextRow();
     bool NextColumn();
 
-    const TStringBuf& GetColumn() const;
-    const TStringBuf& GetValue() const;
+    TStringBuf GetColumn() const;
+    TStringBuf GetValue() const;
 
 private:
     const TChannel Channel;

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
-#include "value.h"
+#include "public.h"
+#include <ytlib/ytree/public.h>
 #include <ytlib/misc/ref_counted.h>
 
 namespace NYT {
@@ -8,38 +9,35 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISyncTableReader 
+struct ISyncReader 
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<ISyncTableReader> TPtr;
-
     virtual void Open() = 0;
+
     virtual void NextRow() = 0;
     virtual bool IsValid() const = 0;
+
     virtual const TRow& GetRow() const = 0;
-    virtual const TKey& GetKey() const = 0;
+    virtual const NYTree::TYson& GetRowAttributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IAsyncReader;
-
 class TSyncReaderAdapter 
-    : public ISyncTableReader
+    : public ISyncReader
 {
 public:
-    typedef TIntrusivePtr<TSyncReaderAdapter> TPtr;
-
-    TSyncReaderAdapter(IAsyncReader* asyncReader);
+    TSyncReaderAdapter(IAsyncReaderPtr asyncReader);
 
     void Open();
     void NextRow();
     bool IsValid() const;
+
     const TRow& GetRow() const;
-    const TKey& GetKey() const;
+    const NYTree::TYson& GetRowAttributes() const;
 
 private:
-    TIntrusivePtr<IAsyncReader> AsyncReader;
+    IAsyncReaderPtr AsyncReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

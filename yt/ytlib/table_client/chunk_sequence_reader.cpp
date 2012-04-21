@@ -1,6 +1,12 @@
 ﻿#include "stdafx.h"
 #include "chunk_sequence_reader.h"
+#include "chunk_reader.h"
+#include "config.h"
+#include "schema.h"
 
+#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/misc/protobuf_helpers.h>
 
 #include <limits>
@@ -13,18 +19,16 @@ using namespace NChunkServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkSequenceReader::TChunkSequenceReader(
-    TConfig* config,
+    TChunkSequenceReaderConfigPtr config,
     NRpc::IChannel* masterChannel,
-    NChunkClient::IBlockCache* blockCache,
-    const std::vector<NProto::TInputChunk>& fetchedChunks,
-    TChunkReader::TOptions options)
+    NChunkClient::IBlockCachePtr blockCache,
+    const std::vector<NProto::TInputChunk>& fetchedChunks)
     : Config(config)
     , BlockCache(blockCache)
     , InputChunks(fetchedChunks)
     , MasterChannel(masterChannel)
     , NextChunkIndex(-1)
-    , NextReader(NewPromise<TChunkReader::TPtr>())
-    , Options(options)
+    , NextReader(NewPromise<TChunkReaderPtr>())
 {
     PrepareNextChunk();
 }
@@ -44,20 +48,19 @@ void TChunkSequenceReader::PrepareNextChunk()
     const auto& inputChunk = InputChunks[NextChunkIndex];
     const auto& slice = inputChunk.slice();
     auto remoteReader = CreateRemoteReader(
-        ~Config->RemoteReader,
-        ~BlockCache,
+        Config->RemoteReader,
+        BlockCache,
         ~MasterChannel,
         TChunkId::FromProto(inputChunk.slice().chunk_id()),
         FromProto<Stroka>(inputChunk.holder_addresses()));
 
     auto chunkReader = New<TChunkReader>(
-        ~Config->SequentialReader,
+        Config->SequentialReader,
         TChannel::FromProto(inputChunk.channel()),
-        ~remoteReader,
+        remoteReader,
         slice.start_limit(),
         slice.end_limit(),
-        "", // ToDo(psushin): pass row attributes here.
-        Options);
+        inputChunk.row_attributes()); // ToDo(psushin): pass row attributes here.
 
     chunkReader->AsyncOpen().Subscribe(BIND(
         &TChunkSequenceReader::OnNextReaderOpened,
@@ -66,7 +69,7 @@ void TChunkSequenceReader::PrepareNextChunk()
 }
 
 void TChunkSequenceReader::OnNextReaderOpened(
-    TChunkReader::TPtr reader,
+    TChunkReaderPtr reader,
     TError error)
 {
     YASSERT(!NextReader.IsSet());
@@ -95,11 +98,11 @@ TAsyncError TChunkSequenceReader::AsyncOpen()
     return State.GetOperationError();
 }
 
-void TChunkSequenceReader::SetCurrentChunk(TChunkReader::TPtr nextReader)
+void TChunkSequenceReader::SetCurrentChunk(TChunkReaderPtr nextReader)
 {
     CurrentReader = nextReader;
     if (nextReader) {
-        NextReader = NewPromise<TChunkReader::TPtr>();
+        NextReader = NewPromise<TChunkReaderPtr>();
         PrepareNextChunk();
 
         if (!CurrentReader->IsValid()) {
@@ -140,22 +143,22 @@ bool TChunkSequenceReader::IsValid() const
     return CurrentReader->IsValid();
 }
 
-const TRow& TChunkSequenceReader::GetCurrentRow() const
+const TRow& TChunkSequenceReader::GetRow() const
 {
     YASSERT(!State.HasRunningOperation());
     YASSERT(CurrentReader);
     YASSERT(CurrentReader->IsValid());
 
-    return CurrentReader->GetCurrentRow();
+    return CurrentReader->GetRow();
 }
 
-const TKey& TChunkSequenceReader::GetCurrentKey() const
+const NYTree::TYson& TChunkSequenceReader::GetRowAttributes() const
 {
     YASSERT(!State.HasRunningOperation());
     YASSERT(CurrentReader);
     YASSERT(CurrentReader->IsValid());
 
-    return CurrentReader->GetCurrentKey();
+    return CurrentReader->GetRowAttributes();
 }
 
 TAsyncError TChunkSequenceReader::AsyncNextRow()

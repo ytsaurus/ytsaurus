@@ -1,12 +1,12 @@
 ﻿#pragma once
 
-#include "common.h"
+#include "public.h"
 #include "async_reader.h"
-#include "chunk_reader.h"
 
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/table_client/table_reader.pb.h>
+#include <ytlib/chunk_client/public.h>
 #include <ytlib/transaction_client/transaction.h>
+#include <ytlib/rpc/channel.h>
 #include <ytlib/misc/async_stream_state.h>
 
 namespace NYT {
@@ -18,29 +18,11 @@ class TChunkSequenceReader
     : public IAsyncReader
 {
 public:
-    typedef TIntrusivePtr<TChunkSequenceReader> TPtr;
-
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        NChunkClient::TRemoteReaderConfig::TPtr RemoteReader;
-        NChunkClient::TSequentialReader::TConfig::TPtr SequentialReader;
-
-        TConfig()
-        {
-            Register("remote_reader", RemoteReader).DefaultNew();
-            Register("sequential_reader", SequentialReader).DefaultNew();
-        }
-    };
-
     TChunkSequenceReader(
-        TConfig* config,
+        TChunkSequenceReaderConfigPtr config,
         NRpc::IChannel* masterChannel,
-        NChunkClient::IBlockCache* blockCache,
-        const std::vector<NProto::TInputChunk>& inputChunks,
-        TChunkReader::TOptions options = TChunkReader::TOptions());
+        NChunkClient::IBlockCachePtr blockCache,
+        const std::vector<NProto::TInputChunk>& inputChunks);
 
     TAsyncError AsyncOpen();
 
@@ -48,30 +30,28 @@ public:
 
     bool IsValid() const;
 
-    const TRow& GetCurrentRow() const;
+    const TRow& GetRow() const;
+    const NYTree::TYson& GetRowAttributes() const;
 
-    // ToDo: consider removing from here.
-    const TKey& GetCurrentKey() const;
+    double GetProgress() const;
 
 private:
     void PrepareNextChunk();
-    void OnNextReaderOpened(TChunkReader::TPtr reader, TError error);
-    void SetCurrentChunk(TChunkReader::TPtr nextReader);
+    void OnNextReaderOpened(TChunkReaderPtr reader, TError error);
+    void SetCurrentChunk(TChunkReaderPtr nextReader);
     void OnNextRow(TError error);
 
-    TConfig::TPtr Config;
-    NChunkClient::IBlockCache::TPtr BlockCache;
+    TChunkSequenceReaderConfigPtr Config;
+    NChunkClient::IBlockCachePtr BlockCache;
     std::vector<NProto::TInputChunk> InputChunks;
-
-    TChunkReader::TOptions Options;
 
     NRpc::IChannel::TPtr MasterChannel;
 
     TAsyncStreamState State;
 
     int NextChunkIndex;
-    TPromise<TChunkReader::TPtr> NextReader;
-    TChunkReader::TPtr CurrentReader;
+    TPromise<TChunkReaderPtr> NextReader;
+    TChunkReaderPtr CurrentReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -107,13 +107,18 @@ struct TChunkSequenceWriterConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkSequenceReaderConfig
+struct TChunkSequenceReaderConfig
     : public TConfigurable
 {
+    NChunkClient::TRemoteReaderConfigPtr RemoteReader;
+    NChunkClient::TSequentialReaderConfigPtr SequentialReader;
+
+    TChunkSequenceReaderConfig()
+    {
+        Register("remote_reader", RemoteReader).DefaultNew();
+        Register("sequential_reader", SequentialReader).DefaultNew();
+    }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

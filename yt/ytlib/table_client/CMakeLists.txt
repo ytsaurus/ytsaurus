@@ -4,14 +4,14 @@ set( SRCS
   ${BASE}/channel_reader.cpp
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_reader.cpp
-#  ${BASE}/chunk_sequence_reader.cpp
+  ${BASE}/chunk_sequence_reader.cpp
   ${BASE}/chunk_sequence_writer.cpp
   ${BASE}/chunk_writer.cpp
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
-#  ${BASE}/sync_reader.cpp
+  ${BASE}/sync_reader.cpp
   ${BASE}/sync_writer.cpp
-#  ${BASE}/table_reader.cpp
+  ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
   ${BASE}/table_consumer.cpp
   ${BASE}/value.cpp
@@ -19,7 +19,9 @@ set( SRCS
   ${BASE}/value_consumer.cpp
 #  ${BASE}/yson_table_input.cpp
 #  ${BASE}/yson_table_output.cpp
+  ${BASE}/table_producer.cpp
 )
+
 set( HDRS
   ${BASE}/async_reader.h
   ${BASE}/config.h
@@ -27,16 +29,15 @@ set( HDRS
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
   ${BASE}/chunk_reader.h
-#  ${BASE}/chunk_sequence_reader.h
+  ${BASE}/chunk_sequence_reader.h
   ${BASE}/chunk_sequence_writer.h
   ${BASE}/chunk_writer.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/schema.h
-#  ${BASE}/sorted_validating_writer.h
-#  ${BASE}/sync_reader.h
+  ${BASE}/sync_reader.h
   ${BASE}/sync_writer.h
-#  ${BASE}/table_reader.h
+  ${BASE}/table_reader.h
   ${BASE}/table_writer.h
   ${BASE}/table_consumer.h
   ${BASE}/value.h
@@ -44,6 +45,7 @@ set( HDRS
   ${BASE}/value_consumer.h
 #  ${BASE}/yson_table_input.h
 #  ${BASE}/yson_table_output.h
+  ${BASE}/table_producer.h
   ${BASE}/chunk_meta_extensions.h
 )
 

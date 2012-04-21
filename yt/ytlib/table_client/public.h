@@ -13,6 +13,9 @@ typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 struct ISyncWriter;
 typedef TIntrusivePtr<ISyncWriter> ISyncWriterPtr;
 
+struct ISyncReader;
+typedef TIntrusivePtr<ISyncReader> ISyncReaderPtr;
+
 struct IAsyncReader;
 typedef TIntrusivePtr<IAsyncReader> IAsyncReaderPtr;
 
@@ -27,8 +30,11 @@ typedef TIntrusivePtr<TChunkWriter> TChunkWriterPtr;
 class TChunkReader;
 typedef TIntrusivePtr<TChunkReader> TChunkReaderPtr;
 
-struct TChunkSequenceWriter;
+class TChunkSequenceWriter;
 typedef TIntrusivePtr<TChunkSequenceWriter> TChunkSequenceWriterPtr;
+
+class TChunkSequenceReader;
+typedef TIntrusivePtr<TChunkSequenceReader> TChunkSequenceReaderPtr;
 
 class TChannelWriter;
 typedef TIntrusivePtr<TChannelWriter> TChannelWriterPtr;

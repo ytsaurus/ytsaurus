@@ -28,7 +28,6 @@ struct IAsyncReader
     virtual bool IsValid() const = 0;
 
     virtual const TRow& GetRow() const = 0;
-    virtual const TKey& GetKey() const = 0;
     virtual const NYTree::TYson& GetRowAttributes() const = 0;
 };
 
