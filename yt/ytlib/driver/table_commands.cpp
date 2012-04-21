@@ -9,9 +9,6 @@
 #include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/table_producer.h>
 
-//#include <ytlib/table_client/yson_table_input.h>
-//#include <ytlib/table_client/yson_row_consumer.h>
-
 namespace NYT {
 namespace NDriver {
 
@@ -25,38 +22,34 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
     auto stream = Host->CreateOutputStream();
 
     auto reader = New<TTableReader>(
-        ~Host->GetConfig()->TableReader,
-        ~Host->GetMasterChannel(),
-        ~Host->GetTransaction(request),
-        ~Host->GetBlockCache(),
+        Host->GetConfig()->ChunkSequenceReader,
+        Host->GetMasterChannel(),
+        Host->GetTransaction(request),
+        Host->GetBlockCache(),
         request->Path);
 
-    TYsonTableInput input(
-        reader, 
+    TYsonWriter writer(
         stream.Get(),
-        Host->GetConfig()->OutputFormat);
-
-    while (input.ReadRow())
-    { }
+        Host->GetConfig()->OutputFormat,
+        EYsonType::Node,
+        true);
+    ProduceYson(reader, &writer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {
-    TTableWriter::TOptions options;
-    options.Sorted = request->Sorted;
-
     auto writer = New<TTableWriter>(
-        ~Host->GetConfig()->TableWriter,
-        options,
-        ~Host->GetMasterChannel(),
-        ~Host->GetTransaction(request),
-        ~Host->GetTransactionManager(),
-        request->Path);
+        Host->GetConfig()->ChunkSequenceWriter,
+        Host->GetMasterChannel(),
+        Host->GetTransaction(request),
+        Host->GetTransactionManager(),
+        request->Path,
+        Null);
 
     writer->Open();
-    TRowConsumer consumer(~writer);
+    TTableConsumer consumer(writer);
 
     if (request->Value) {
         auto value = request->Value;

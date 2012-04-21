@@ -22,7 +22,7 @@ class TFileReader
 public:
     //! Initializes an instance.
     TFileReader(
-        TFileReaderBaseConfigPtr config,
+        TFileReaderConfigPtr config,
         NRpc::IChannel* masterChannel,
         NTransactionClient::ITransaction* transaction,
         NChunkClient::IBlockCache* blockCache,

@@ -233,7 +233,7 @@ public:
         return new TOwningBufferedOutput(stream);
     }
 
-    virtual IBlockCache::TPtr GetBlockCache()
+    virtual IBlockCachePtr GetBlockCache()
     {
         return BlockCache;
     }
@@ -267,7 +267,7 @@ private:
     yhash_map<Stroka, ICommand::TPtr> Commands;
     IChannel::TPtr MasterChannel;
     IChannel::TPtr SchedulerChannel;
-    IBlockCache::TPtr BlockCache;
+    IBlockCachePtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
 
     void RegisterCommand(const Stroka& name, ICommand::TPtr command)

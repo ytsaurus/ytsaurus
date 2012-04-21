@@ -23,7 +23,7 @@ class TFileWriter
 public:
     //! Initializes an instance.
     TFileWriter(
-        TFileWriterBaseConfigPtr config,
+        TFileWriterConfigPtr config,
         NRpc::IChannel::TPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
         NTransactionClient::TTransactionManager::TPtr transactionManager,

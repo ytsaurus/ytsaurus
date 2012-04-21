@@ -27,7 +27,7 @@ class TFileWriterBase
 public:
     //! Initializes an instance.
     TFileWriterBase(
-        TFileWriterBaseConfigPtr config,
+        TFileWriterConfigPtr config,
         NRpc::IChannel::TPtr masterChannel);
 
     //! Opens the writer.
@@ -53,7 +53,7 @@ protected:
     virtual void DoClose(const NChunkServer::TChunkId& chunkId);
 
 private:
-    TFileWriterBaseConfigPtr Config;
+    TFileWriterConfigPtr Config;
     bool IsOpen;
     i64 Size;
     i32 BlockCount;

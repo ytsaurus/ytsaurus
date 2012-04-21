@@ -30,7 +30,7 @@ class TFileReaderBase
 public:
     //! Initializes an instance.
     TFileReaderBase(
-        TFileReaderBaseConfigPtr config,
+        TFileReaderConfigPtr config,
         NRpc::IChannel* masterChannel,
         NChunkClient::IBlockCache* blockCache);
 
@@ -47,7 +47,7 @@ public:
     TSharedRef Read();
 
 private:
-    TFileReaderBaseConfigPtr Config;
+    TFileReaderConfigPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
     NChunkClient::IBlockCachePtr BlockCache;
     NYTree::TYPath Path;

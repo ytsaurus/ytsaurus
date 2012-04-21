@@ -22,7 +22,7 @@ using namespace NTransactionClient;
 // TODO(babenko): use totalReplicaCount
 
 TFileWriter::TFileWriter(
-    TFileWriterBaseConfigPtr config,
+    TFileWriterConfigPtr config,
     NRpc::IChannel::TPtr masterChannel,
     ITransaction::TPtr transaction,
     TTransactionManager::TPtr transactionManager,

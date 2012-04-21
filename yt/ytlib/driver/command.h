@@ -11,7 +11,7 @@
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/rpc/channel.h>
-#include <ytlib/chunk_client/block_cache.h>
+#include <ytlib/chunk_client/public.h>
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
@@ -69,7 +69,7 @@ struct ICommandHost
     virtual void ReplySuccess() = 0;
     virtual void ReplySuccess(const NYTree::TYson& yson) = 0;
 
-    virtual NChunkClient::IBlockCache::TPtr GetBlockCache() = 0;
+    virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTransactionClient::TTransactionManager::TPtr GetTransactionManager() = 0;
 
     virtual NObjectServer::TTransactionId GetTransactionId(TTransactedRequestPtr request, bool required = false) = 0;

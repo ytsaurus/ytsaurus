@@ -23,7 +23,7 @@ struct TJobIOConfig
     NYTree::EYsonFormat OutputFormat;
     NTableClient::TChunkSequenceReaderConfigPtr ChunkSequenceReader;
     NTableClient::TChunkSequenceWriterConfigPtr ChunkSequenceWriter;
-    NFileClient::TFileWriterBaseConfigPtr ErrorFileWriter;
+    NFileClient::TFileWriterConfigPtr ErrorFileWriter;
 
     TJobIOConfig()
     {

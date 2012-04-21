@@ -19,7 +19,7 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileReader::TFileReader(
-    TFileReaderBaseConfigPtr config,
+    TFileReaderConfigPtr config,
     NRpc::IChannel* masterChannel,
     ITransaction* transaction,
     IBlockCache* blockCache,

@@ -3,13 +3,14 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/misc/configurable.h>
+#include <ytlib/misc/codec.h>
 
 namespace NYT {
 namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileWriterBaseConfig
+struct TFileWriterConfig
     : public TConfigurable
 {
     i64 BlockSize;
@@ -18,7 +19,7 @@ struct TFileWriterBaseConfig
     int UploadReplicaCount;
     NChunkClient::TRemoteWriterConfigPtr RemoteWriter;
 
-    TFileWriterBaseConfig()
+    TFileWriterConfig()
     {
         Register("block_size", BlockSize)
             .Default(1024 * 1024)
@@ -45,13 +46,13 @@ struct TFileWriterBaseConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileReaderBaseConfig
+struct TFileReaderConfig
     : public TConfigurable
 {
     NChunkClient::TSequentialReaderConfigPtr SequentialReader;
     NChunkClient::TRemoteReaderConfigPtr RemoteReader;
 
-    TFileReaderBaseConfig()
+    TFileReaderConfig()
     {
         Register("sequential_reader", SequentialReader)
             .DefaultNew();

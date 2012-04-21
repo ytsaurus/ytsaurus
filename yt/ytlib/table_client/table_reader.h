@@ -37,8 +37,8 @@ public:
     //! Initializes an instance.
     TTableReader(
         TChunkSequenceReaderConfigPtr config,
-        NRpc::IChannel* masterChannel,
-        NTransactionClient::ITransaction* transaction,
+        NRpc::IChannel::TPtr masterChannel,
+        NTransactionClient::ITransaction::TPtr transaction,
         NChunkClient::IBlockCachePtr blockCache,
         const NYTree::TYPath& path);
 

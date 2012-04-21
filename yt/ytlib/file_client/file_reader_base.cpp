@@ -22,7 +22,7 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileReaderBase::TFileReaderBase(
-    TFileReaderBaseConfigPtr config,
+    TFileReaderConfigPtr config,
     NRpc::IChannel* masterChannel,
     IBlockCache* blockCache)
     : Config(config)
