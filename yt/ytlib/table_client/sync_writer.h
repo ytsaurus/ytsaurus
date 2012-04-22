@@ -41,7 +41,7 @@ public:
     TSyncWriterAdapter(IAsyncWriterPtr writer);
 
     void Open();
-    void WriteRow(TRow& row, TKey& key = TKey());
+    void WriteRow(TRow& row, TKey& key);
     void Close();
 
     const TNullable<TKeyColumns>& GetKeyColumns() const;

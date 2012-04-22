@@ -346,7 +346,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
 
     context->SetRequestInfo("ChunkId: %s, ExtensionTags: %s", 
         ~chunkId.ToString(),
-        JoinToString(extensionTags));
+        ~JoinToString(extensionTags));
 
     auto asyncChunkMeta = request->full_meta() 
         ? GetChunk(chunkId)->GetMeta() 

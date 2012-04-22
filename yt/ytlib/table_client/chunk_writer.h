@@ -42,7 +42,7 @@ public:
     i64 GetRowCount() const;
 
     i64 GetCurrentSize() const;
-    NChunkHolder::NProto::TChunkMeta TChunkWriter::GetMasterMeta() const;
+    NChunkHolder::NProto::TChunkMeta GetMasterMeta() const;
 
 private:
     friend class TChunkSequenceWriter;
