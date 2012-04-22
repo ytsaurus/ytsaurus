@@ -15,21 +15,22 @@ struct ISyncWriter
     : public virtual TRefCounted
 {
     virtual void Open() = 0;
+    virtual void Close() = 0;
 
     /*! 
-     *  \param key - is used only if table is sorted, e.g. GetKeyColumns
+     *  \param key is used only if the table is sorted, e.g. GetKeyColumns
      *  returns not null.
      */
     virtual void WriteRow(TRow& row, TKey& key) = 0;
-    virtual void Close() = 0;
 
+    //! Returns all key columns seen so far.
     virtual const TNullable<TKeyColumns>& GetKeyColumns() const = 0;
 
-    //! Current row count.
+    //! Returns the current row count (starting from 0).
     virtual i64 GetRowCount() const = 0;
 
+    //! Returns the last key written so far.
     virtual TKey& GetLastKey() = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

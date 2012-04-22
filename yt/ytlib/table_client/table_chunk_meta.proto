@@ -17,6 +17,7 @@ message TChannel
 
 message TKeyPart
 {
+    // EKeyPartType
     required int32 type = 1;
     optional bytes str_value = 2;
     optional int64 int_value = 3;
@@ -39,6 +40,8 @@ message TSample
     repeated TSamplePart parts = 1;
 }
 
+// Chunk meta extension.
+// TODO(babenko): Ext
 message TSamples
 {
     repeated TSample items = 1;
@@ -50,16 +53,22 @@ message TIndexRow
     required int64 row_index = 2;
 }
 
+// Chunk meta extension.
+// TODO(babenko): Ext
 message TIndex 
 {
     repeated TIndexRow index_rows = 2;
 }
 
+// Chunk meta extension.
+// TODO(babenko): Ext
 message TKeyColumns
 {
     repeated bytes values = 1;
 }
 
+// Chunk meta extension.
+// TODO(babenko): Ext
 message TBoundaryKeys
 {
     required TKey first = 1;
@@ -78,6 +87,8 @@ message TChunkChannel
     repeated TBlockInfo blocks = 2;
 }
 
+// Chunk meta extension.
+// TODO(babenko): Ext
 message TChannels
 {
     repeated TChunkChannel items = 1;

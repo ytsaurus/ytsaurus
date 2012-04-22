@@ -25,6 +25,7 @@ class TKeyPart
     DEFINE_BYVAL_RO_PROPERTY(EKeyType, Type);
 
 public:
+    // TODO(babenko): create all types with CreateXXX
     //! Creates null key part.
     TKeyPart();
     TKeyPart(const TStringBuf& value);
@@ -43,10 +44,11 @@ public:
     //FromProto();
 
 private:
+    // Keeps the actual value. 
     i64 IntValue;
     double DoubleValue;
 
-    // Point to the internal buffer inside key (TKey::Buffer).
+    // Points to the internal buffer inside key (see |TKey::Buffer|).
     TStringBuf StrValue;
 };
 
@@ -56,11 +58,8 @@ class TKey
     : public TNonCopyable
 {
 public:
-    //! Creates empty key.
-    /* 
-     *  \param size - maximum key size.
-     */
-    TKey(int columnCount = 0, int size = 4096);
+    //! Creates an empty key.
+    TKey(int columnCount = 0, int maxSize = 4096);
 
     template <class T>
     void AddValue(int index, const T& value);
@@ -74,6 +73,7 @@ public:
     NProto::TKey ToProto() const;
     void FromProto(const NProto::TKey& protoKey);
 
+    // TODO(babenko): to free function
     static int Compare(const TKey& lhs, const TKey& rhs);
 
 private:
@@ -87,6 +87,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): -> CompareKeys
 int CompareProtoKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////

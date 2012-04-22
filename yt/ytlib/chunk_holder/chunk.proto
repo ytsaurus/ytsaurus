@@ -12,6 +12,8 @@ message TBlockInfo
     required uint64 checksum = 3;
 }
 
+// Chunk meta extension.
+// TODO(babenko): Ext
 message TBlocks
 {
     repeated TBlockInfo blocks = 1;
@@ -23,6 +25,8 @@ message TChunkInfo
     required uint64 meta_checksum = 2;
 }
 
+// Chunk meta extension.
+// TODO(babenko): Ext
 message TMisc
 {
     optional int64 uncompressed_size = 1 [default = 0];
