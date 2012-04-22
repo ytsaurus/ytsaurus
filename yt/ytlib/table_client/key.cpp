@@ -145,7 +145,7 @@ int CompareKeyParts(const TKeyPart& lhs, const TKeyPart& rhs)
 
 TKey::TKey(int columnCount, int size)
     : MaxSize(size)
-    , ColumnCount(size)
+    , ColumnCount(columnCount)
     , CurrentSize(0)
     , Buffer(size)
     , Parts(ColumnCount)
@@ -160,36 +160,6 @@ void TKey::Reset(int columnCount)
     Buffer.Clear();
     Parts.clear();
     Parts.resize(ColumnCount);
-}
-
-template <class T>
-void TKey::AddValue(int index, const T& value)
-{
-    YASSERT(index < ColumnCount);
-    int size = sizeof(EKeyType) + sizeof(value);
-    if (CurrentSize + size < MaxSize) {
-        Parts[index] = TKeyPart(value);
-        CurrentSize += size;
-    } else 
-        CurrentSize = MaxSize;
-}
-
-template <>
-void TKey::AddValue(int index, const TStringBuf& value)
-{
-    YASSERT(index < ColumnCount);
-    // Strip long key values.
-    int freeSize = MaxSize - CurrentSize;
-    int length = std::min(freeSize - sizeof(EKeyType), value.size());
-
-    if (length > 0) {
-        auto begin = Buffer.Begin() + Buffer.GetSize();
-        Buffer.Write(value.begin(), length);
-
-        Parts[index] = TKeyPart(TStringBuf(begin, length));
-        CurrentSize += length + sizeof(EKeyType);
-    } else 
-        CurrentSize = MaxSize;
 }
 
 void TKey::AddComposite(int index)
@@ -212,11 +182,7 @@ void TKey::Swap(TKey& other)
     Parts.swap(other.Parts);
     Buffer.Swap(other.Buffer);
 
-    {
-        int tmp = CurrentSize;
-        CurrentSize = other.CurrentSize;
-        other.CurrentSize = tmp;
-    }
+    std::swap(CurrentSize,  other.CurrentSize);
 }
 
 Stroka TKey::ToString() const
