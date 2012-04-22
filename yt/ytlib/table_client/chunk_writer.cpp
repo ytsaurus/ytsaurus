@@ -263,6 +263,7 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
             break;
 
         case ETokenType::String:
+            // ToDo(psushin): limit sample size.
             *(part->mutable_key_part()) = TKeyPart(token.GetStringValue()).ToProto();
             break;
 

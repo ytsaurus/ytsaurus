@@ -52,19 +52,19 @@ const TStringBuf& TKeyPart::GetString() const
     return StrValue;
 }
 
-Stroka TKeyPart::ToString() const
+Stroka ToString(const TKeyPart& keyPart)
 {
-    switch (Type_) {
+    switch (keyPart.GetType()) {
     case EKeyType::Null:
         return "[Null]";
     case EKeyType::Composite:
         return "[Composite]";
     case EKeyType::String:
-        return StrValue.ToString();
+        return keyPart.GetString().ToString();
     case EKeyType::Integer:
-        return ::ToString(IntValue);
+        return ::ToString(keyPart.GetInteger());
     case EKeyType::Double:
-        return ::ToString(DoubleValue);
+        return ::ToString(keyPart.GetDouble());
     default:
         YUNREACHABLE();
     }
@@ -197,24 +197,6 @@ NProto::TKey TKey::ToProto() const
         *key.add_parts() = part.ToProto();
     }
     return key;
-}
-
-template <>
-void TKey::AddValue(int index, const TStringBuf& value)
-{
-    YASSERT(index < ColumnCount);
-    // Strip long key values.
-    int freeSize = MaxSize - CurrentSize;
-    int length = std::min(freeSize - sizeof(EKeyType), value.size());
-
-    if (length > 0) {
-        auto begin = Buffer.Begin() + Buffer.GetSize();
-        Buffer.Write(value.begin(), length);
-
-        Parts[index] = TKeyPart(TStringBuf(begin, length));
-        CurrentSize += length + sizeof(EKeyType);
-    } else 
-        CurrentSize = MaxSize;
 }
 
 void TKey::FromProto(const NProto::TKey& protoKey)
