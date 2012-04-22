@@ -100,8 +100,8 @@ private:
 
     TChunkSequenceWriterConfigPtr Config;
     NRpc::IChannel::TPtr MasterChannel;
-    const std::vector<TChannel>& Channels;
-    const TNullable<TKeyColumns>& KeyColumns;
+    const std::vector<TChannel> Channels;
+    const TNullable<TKeyColumns> KeyColumns;
 
     volatile double Progress;
 
