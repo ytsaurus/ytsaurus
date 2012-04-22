@@ -72,9 +72,10 @@ void TTableConsumer::OnMyMapItem(const TStringBuf& name)
     }
 
     if (!UsedColumns.insert(CurrentColumn).second) {
-        ythrow yexception() << Sprintf("Invalid row format, duplicate column name (RowIndex: "PRId64", Column: %s)", 
+        ythrow yexception() << Sprintf(
+            "Invalid row format, duplicate column name (RowIndex: "PRId64", Column: %s)", 
             Writer->GetRowCount(),
-            ~CurrentColumn.ToString());
+            CurrentColumn.ToString().c_str());
     }
 
     ValueOffset = RowBuffer.GetSize();
@@ -115,10 +116,11 @@ void TTableConsumer::OnMyEndMap()
 
     if (KeyColumns) {
         if (TKey::Compare(Writer->GetLastKey(), CurrentKey) > 0) {
-            ythrow yexception() << Sprintf("Invalid sorting order (RowIndex: "PRId64", PreviousKey: %s, CurrentKey: %s)", 
+            ythrow yexception() << Sprintf(
+                "Invalid sorting order (RowIndex: "PRId64", PreviousKey: %s, CurrentKey: %s)", 
                 Writer->GetRowCount(),
                 ~(Writer->GetLastKey().ToString()),
-                ~CurrentKey.ToString());
+                CurrentKey.ToString().c_str());
         }
     }
 

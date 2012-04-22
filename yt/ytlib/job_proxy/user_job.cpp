@@ -4,7 +4,10 @@
 #include "config.h"
 #include "user_job.h"
 #include "user_job_io.h"
+
 #include <ytlib/ytree/yson_writer.h>
+#include <ytlib/table_client/table_producer.h>
+#include <ytlib/table_client/sync_reader.h>
 
 #include <util/folder/dirut.h>
 
@@ -149,9 +152,9 @@ void TUserJob::InitPipes()
             Config->JobIO->OutputFormat != EYsonFormat::Binary);
 
         DataPipes.push_back(New<TInputPipe>(
-            JobIO->CreateTableInput(i, consumer.Get()) ,
+            JobIO->CreateTableInput(i, consumer.Get()),
             buffer,
-            consumer
+            consumer,
             3 * i));
     }
 
