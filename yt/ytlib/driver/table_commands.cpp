@@ -27,6 +27,7 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
         Host->GetTransaction(request),
         Host->GetBlockCache(),
         request->Path);
+    reader->Open();
 
     TYsonWriter writer(
         stream.Get(),
