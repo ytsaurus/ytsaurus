@@ -2,10 +2,12 @@
 
 #include "public.h"
 #include "value_consumer.h"
+#include "key.h"
 
 #include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -34,7 +36,7 @@ private:
 
     void OnValueEnded();
 
-    virtual void OnColumn();
+    void OnColumn();
 
     ISyncWriterPtr Writer;
     TNullable<TKeyColumns> KeyColumns;

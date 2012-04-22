@@ -36,7 +36,7 @@ set( SRCS
   weak_ptr_ut.cpp
   callback_ut.cpp
   bind_ut.cpp
-  table_client_ut.cpp
+#  table_client_ut.cpp
   lexer_ut.cpp
   guid_ut.cpp
   small_vector_ut.cpp

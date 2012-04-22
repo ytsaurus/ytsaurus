@@ -20,7 +20,7 @@ class TChunkSequenceReader
 public:
     TChunkSequenceReader(
         TChunkSequenceReaderConfigPtr config,
-        NRpc::IChannel* masterChannel,
+        NRpc::IChannel::TPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
         const std::vector<NProto::TInputChunk>& inputChunks);
 
@@ -30,7 +30,7 @@ public:
 
     bool IsValid() const;
 
-    const TRow& GetRow() const;
+    TRow& GetRow();
     const NYTree::TYson& GetRowAttributes() const;
 
     double GetProgress() const;

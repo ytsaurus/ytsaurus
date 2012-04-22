@@ -27,7 +27,8 @@ struct IAsyncReader
     virtual TAsyncError AsyncNextRow() = 0;
     virtual bool IsValid() const = 0;
 
-    virtual const TRow& GetRow() const = 0;
+    //! Non-const reference - client can possibly modify internal buffer.
+    virtual TRow& GetRow() = 0;
     virtual const NYTree::TYson& GetRowAttributes() const = 0;
 };
 

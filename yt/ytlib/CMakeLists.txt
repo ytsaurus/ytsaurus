@@ -2,7 +2,7 @@ set( DIRS
   actions
   election
   cell_master
-#  cell_node
+  cell_node
 #  cell_scheduler
   chunk_holder
   chunk_client
@@ -25,9 +25,9 @@ set( DIRS
   profiling
   driver
   object_server
-#  scheduler
-#  exec_agent
-#  job_proxy
+  scheduler
+  exec_agent
+  job_proxy
 )
 
 foreach( _d_ ${DIRS} )

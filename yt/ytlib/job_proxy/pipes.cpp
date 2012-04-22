@@ -2,7 +2,8 @@
 #include "pipes.h"
 
 #include <ytlib/ytree/yson_parser.h>
-#include <ytlib/table_client/yson_row_consumer.h>
+#include <ytlib/table_client/table_producer.h>
+#include <ytlib/table_client/sync_reader.h>
 
 #include <util/system/file.h>
 #include <errno.h>
@@ -227,10 +228,10 @@ void TOutputPipe::Finish()
 ////////////////////////////////////////////////////////////////////
 
 TInputPipe::TInputPipe(
-    TAutoPtr<TYsonTableInput> ysonInput, 
+    TAutoPtr<NTableClient::TTableProducer> tableProducer,
     TAutoPtr<TBlobOutput> buffer, 
     int jobDescriptor)
-    : YsonTableInput(ysonInput)
+    : TableProducer(tableProducer)
     , Buffer(buffer)
     , JobDescriptor(jobDescriptor)
     , Position(0)
@@ -304,7 +305,7 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
         } else {
             Position = 0;
             Buffer->Clear();
-            HasData = YsonTableInput->ReadRow();
+            HasData = TableProducer->ProduceRow();
             if (!HasData) {
                 SafeClose(Pipe.WriteFd);
             }

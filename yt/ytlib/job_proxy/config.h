@@ -6,7 +6,8 @@
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/config.h>
 
-#include <ytlib/file_client/file_writer_base.h>
+#include <ytlib/file_client/public.h>
+#include <ytlib/file_client/config.h>
 #include <ytlib/election/leader_lookup.h>
 #include <ytlib/ytree/ytree.h>
 
@@ -28,7 +29,7 @@ struct TJobIOConfig
     TJobIOConfig()
     {
         Register("output_format", OutputFormat)
-            .Default(NYTree::EYsonFormat::Text);
+            .Default(NYTree::EYsonFormat::Binary);
         Register("chunk_sequence_reader", ChunkSequenceReader)
             .DefaultNew();
         Register("chunk_sequence_writer", ChunkSequenceWriter)

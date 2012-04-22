@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/sorted_merge_job.cpp
   ${BASE}/user_job.cpp
   ${BASE}/user_job_io.cpp
+  ${BASE}/table_output.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -23,6 +24,7 @@ set( HDRS
   ${BASE}/sorted_merge_job.h
   ${BASE}/user_job.h
   ${BASE}/user_job_io.h
+  ${BASE}/table_output.h
 )
 
 list(APPEND YT_SOURCE_FILES

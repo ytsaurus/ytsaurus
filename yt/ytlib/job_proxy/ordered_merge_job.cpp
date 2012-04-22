@@ -4,10 +4,13 @@
 
 #include <ytlib/object_server/id.h>
 #include <ytlib/election/leader_channel.h>
+#include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/sync_reader.h>
+#include <ytlib/table_client/chunk_sequence_writer.h>
+#include <ytlib/table_client/sync_writer.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
-#include <ytlib/table_client/validating_writer.h>
 
 
 namespace NYT {
@@ -33,34 +36,31 @@ TOrderedMergeJob::TOrderedMergeJob(
     auto inputChunks = FromProto<NTableClient::NProto::TInputChunk>(
         mergeJobSpec.input_spec().chunks());
 
-    Reader = New<TSyncReaderAdapter>(~New<TChunkSequenceReader>(
-        ~config->ChunkSequenceReader,
-        ~masterChannel,
-        ~blockCache,
+    Reader = New<TSyncReaderAdapter>(New<TChunkSequenceReader>(
+        config->ChunkSequenceReader,
+        masterChannel,
+        blockCache,
         inputChunks));
     Reader->Open();
 
     // ToDo(psushin): estimate row count for writer.
     auto asyncWriter = New<TChunkSequenceWriter>(
-        ~config->ChunkSequenceWriter,
-        ~masterChannel,
+        config->ChunkSequenceWriter,
+        masterChannel,
         TTransactionId::FromProto(mergeJobSpec.output_transaction_id()),
-        TChunkListId::FromProto(mergeJobSpec.output_spec().chunk_list_id()));
+        TChunkListId::FromProto(mergeJobSpec.output_spec().chunk_list_id()),
+        ChannelsFromYson(mergeJobSpec.output_spec().channels()));
 
-    Writer = New<TSyncValidatingAdaptor>(new TValidatingWriter(
-        TSchema::FromYson(mergeJobSpec.output_spec().schema()), 
-        ~asyncWriter));
+    Writer = New<TSyncWriterAdapter>(asyncWriter);
     Writer->Open();
 }
 
 TJobResult TOrderedMergeJob::Run()
 {
+    // Unsorted write - use dummy key.
+    TKey key;
     while (Reader->IsValid()) {
-        FOREACH (const auto& pair, Reader->GetRow()) {
-            Writer->Write(pair.first, pair.second);
-        }
-        Writer->EndRow();
-        Reader->NextRow();
+        Writer->WriteRow(Reader->GetRow(), key);
     }
 
     Writer->Close();

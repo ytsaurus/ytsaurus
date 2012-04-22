@@ -53,8 +53,8 @@ public:
     TAsyncError AsyncNextRow();
     bool IsValid() const;
 
-    const TRow& GetRow() const;
-    const TKey& GetKey() const;
+    TRow& GetRow();
+    TKey& GetKey();
     const NYTree::TYson& GetRowAttributes() const;
 
 private:

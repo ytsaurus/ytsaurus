@@ -96,7 +96,7 @@ bool TTableReader::IsValid() const
     return Reader->IsValid();
 }
 
-const TRow& TTableReader::GetRow() const
+TRow& TTableReader::GetRow()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);

@@ -1,14 +1,17 @@
 #include "stdafx.h"
 
 #include "map_job_io.h"
+#include "table_output.h"
 #include "config.h"
 
 // ToDo(psushin): use public.h everywhere.
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/chunk_sequence_reader.h>
+#include <ytlib/table_client/chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
-#include <ytlib/table_client/validating_writer.h>
-#include <ytlib/table_client/yson_table_output.h>
+#include <ytlib/table_client/sync_reader.h>
+#include <ytlib/table_client/table_producer.h>
+#include <ytlib/table_client/schema.h>
 
 
 /*
@@ -139,8 +142,8 @@ int TMapJobIO::GetOutputCount() const
     return IoSpec.output_specs_size();
 }
 
-TAutoPtr<NTableClient::TYsonTableInput> 
-TMapJobIO::CreateTableInput(int index, TOutputStream* output) const
+TAutoPtr<NTableClient::TTableProducer> 
+TMapJobIO::CreateTableInput(int index, NYTree::IYsonConsumer* consumer) const
 {
     YASSERT(index < GetInputCount());
 
@@ -155,34 +158,31 @@ TMapJobIO::CreateTableInput(int index, TOutputStream* output) const
         static_cast<int>(chunks.size()));
 
     auto reader = New<TChunkSequenceReader>(
-        ~Config->ChunkSequenceReader,
-        ~MasterChannel,
-        ~blockCache,
+        Config->ChunkSequenceReader,
+        MasterChannel,
+        blockCache,
         chunks);
 
     // ToDo(psushin): extract format from operation spec.
-    return new TYsonTableInput(
-        New<TSyncReaderAdapter>(~reader), 
-        output,
-        Config->OutputFormat);
+    return new TTableProducer(
+        New<TSyncReaderAdapter>(reader), 
+        consumer);
 }
 
 TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
 {
     YASSERT(index < GetOutputCount());
-    const TYson& schema = IoSpec.output_specs(index).schema();
-    YASSERT(!schema.empty());
+    const TYson& channels = IoSpec.output_specs(index).channels();
+    YASSERT(!channels.empty());
 
     auto chunkSequenceWriter = New<TChunkSequenceWriter>(
-        ~Config->ChunkSequenceWriter,
-        ~MasterChannel,
+        Config->ChunkSequenceWriter,
+        MasterChannel,
         TTransactionId::FromProto(IoSpec.output_transaction_id()),
-        TChunkListId::FromProto(IoSpec.output_specs(index).chunk_list_id()));
+        TChunkListId::FromProto(IoSpec.output_specs(index).chunk_list_id()),
+        ChannelsFromYson(channels));
 
-    return new TYsonTableOutput(~New<TSyncValidatingAdaptor>(
-        new TValidatingWriter(
-            TSchema::FromYson(schema), 
-            ~chunkSequenceWriter)));
+    return new TTableOutput(New<TSyncWriterAdapter>(chunkSequenceWriter));
 }
 
 TAutoPtr<TOutputStream> TMapJobIO::CreateErrorOutput() const

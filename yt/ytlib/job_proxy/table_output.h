@@ -1,35 +1,33 @@
 ﻿#pragma once
 
-#include "sync_writer.h"
-
+#include <ytlib/table_client/public.h>
+#include <ytlib/table_client/table_consumer.h>
 #include <ytlib/ytree/yson_parser.h>
 
 #include <util/stream/output.h>
 
 namespace NYT {
-namespace NTableClient {
+namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-class TRowConsumer;
-
-class TYsonTableOutput
+class TTableOutput
     : public TOutputStream
 {
 public:
-    TYsonTableOutput(ISyncTableWriter* syncWriter);
-    ~TYsonTableOutput() throw();
+    TTableOutput(NTableClient::ISyncWriterPtr writer);
+    ~TTableOutput() throw();
 
 private:
     void DoWrite(const void* buf, size_t len);
     void DoFinish();
 
-    TIntrusivePtr<ISyncTableWriter> Writer;
-    TAutoPtr<TRowConsumer> RowConsumer;
+    NTableClient::ISyncWriterPtr Writer;
+    NTableClient::TTableConsumer Consumer;
     NYTree::TYsonParser YsonParser;
 };
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient
+} // namespace NJobProxy
 } // namespace NYT

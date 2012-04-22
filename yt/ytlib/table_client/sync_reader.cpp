@@ -29,7 +29,7 @@ bool TSyncReaderAdapter::IsValid() const
     return AsyncReader->IsValid();
 }
 
-const TRow& TSyncReaderAdapter::GetRow() const
+TRow& TSyncReaderAdapter::GetRow()
 {
     return AsyncReader->GetRow();
 }

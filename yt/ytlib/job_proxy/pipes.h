@@ -1,8 +1,7 @@
 ﻿#pragma once
 
 #include "private.h"
-
-#include <ytlib/table_client/yson_table_input.h>
+#include <ytlib/table_client/public.h>
 #include <ytlib/misc/blob_output.h>
 
 namespace NYT {
@@ -93,14 +92,12 @@ class TInputPipe
     : public IDataPipe
 {
 public:
-    typedef TIntrusivePtr<TInputPipe> TPtr;
-
     /*!
      *  \note Takes ownership of the input stream.
      *  \param jobDescriptor - number of underlying read descriptor in the job process.
      */
     TInputPipe(
-        TAutoPtr<NTableClient::TYsonTableInput> ysonInput, 
+        TAutoPtr<NTableClient::TTableProducer> tableProducer, 
         TAutoPtr<TBlobOutput> buffer, 
         int jobDescriptor);
 
@@ -117,7 +114,7 @@ private:
     TPipe Pipe;
     int JobDescriptor;
 
-    TAutoPtr<NTableClient::TYsonTableInput> YsonTableInput;
+    TAutoPtr<NTableClient::TTableProducer> TableProducer;
     TAutoPtr<TBlobOutput> Buffer;
     int Position;
 

@@ -8,7 +8,7 @@
 #include <ytlib/scheduler/job.pb.h>
 
 // ToDo: replace with public.
-#include <ytlib/table_client/yson_table_input.h>
+#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -27,9 +27,12 @@ public:
     int GetInputCount() const;
     int GetOutputCount() const;
 
-    TAutoPtr<NTableClient::TYsonTableInput> CreateTableInput(
+    void UpdateProgress();
+    double GetProgress() const;
+
+    TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
         int index, 
-        TOutputStream* output) const;
+        NYTree::IYsonConsumer* consumer) const;
     TAutoPtr<TOutputStream> CreateTableOutput(int index) const;
     TAutoPtr<TOutputStream> CreateErrorOutput() const;
 

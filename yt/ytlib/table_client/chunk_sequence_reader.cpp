@@ -20,7 +20,7 @@ using namespace NChunkServer;
 
 TChunkSequenceReader::TChunkSequenceReader(
     TChunkSequenceReaderConfigPtr config,
-    NRpc::IChannel* masterChannel,
+    NRpc::IChannel::TPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     const std::vector<NProto::TInputChunk>& fetchedChunks)
     : Config(config)
@@ -143,7 +143,7 @@ bool TChunkSequenceReader::IsValid() const
     return CurrentReader->IsValid();
 }
 
-const TRow& TChunkSequenceReader::GetRow() const
+TRow& TChunkSequenceReader::GetRow()
 {
     YASSERT(!State.HasRunningOperation());
     YASSERT(CurrentReader);

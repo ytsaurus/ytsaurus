@@ -42,7 +42,7 @@ message TTableOutputSpec
 {
     // The schema that must be used for writing the table.
     // Upon receiving an operation spec, the scheduler requests this schema from the master.
-    required bytes schema = 1;
+    required bytes channels = 1;
     // Chunk list where new chunks must be attached to.
     required NYT.NProto.TGuid chunk_list_id = 2;
 }

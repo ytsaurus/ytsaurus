@@ -3,9 +3,6 @@
 #include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/chunk_client/file_writer.h>
 
-#include <ytlib/table_client/validating_writer.h>
-#include <ytlib/table_client/sorted_validating_writer.h>
-
 #include <ytlib/table_client/chunk_reader.h>
 #include <ytlib/table_client/chunk_writer.h>
 

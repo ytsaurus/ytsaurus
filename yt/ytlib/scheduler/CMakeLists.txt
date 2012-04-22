@@ -36,10 +36,10 @@ set( HDRS
   ${BASE}/scheduler_strategy.h
 )
 
-list(APPEND YT_SOURCE_FILES
-  ${SRCS}
-  ${HDRS}
-)
+#list(APPEND YT_SOURCE_FILES
+#  ${SRCS}
+#  ${HDRS}
+#)
 
 protoc( ${BASE}/job.proto YT_SOURCE_FILES )
 protoc( ${BASE}/scheduler_service.proto YT_SOURCE_FILES )

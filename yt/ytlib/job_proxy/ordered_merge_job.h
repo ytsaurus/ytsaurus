@@ -4,8 +4,7 @@
 #include "job.h"
 
 #include <ytlib/election/leader_lookup.h>
-#include <ytlib/table_client/sync_reader.h>
-#include <ytlib/table_client/sync_writer.h>
+#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -24,8 +23,8 @@ public:
     NScheduler::NProto::TJobResult Run();
 
 private:
-    NTableClient::ISyncTableReader::TPtr Reader;
-    NTableClient::ISyncTableWriter::TPtr Writer;
+    NTableClient::ISyncReaderPtr Reader;
+    NTableClient::ISyncWriterPtr Writer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

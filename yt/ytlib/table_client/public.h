@@ -48,6 +48,9 @@ typedef TIntrusivePtr<TChunkSequenceWriterConfig> TChunkSequenceWriterConfigPtr;
 struct TChunkSequenceReaderConfig;
 typedef TIntrusivePtr<TChunkSequenceReaderConfig> TChunkSequenceReaderConfigPtr;
 
+class TTableProducer;
+class TTableConsumer;
+
 typedef std::vector< std::pair<TStringBuf, TStringBuf> > TRow;
 typedef std::vector<Stroka> TKeyColumns;
 

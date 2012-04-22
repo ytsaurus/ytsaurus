@@ -52,7 +52,7 @@ public:
 
     bool IsValid() const;
 
-    const TRow& GetRow() const;
+    TRow& GetRow();
     const NYTree::TYson& GetRowAttributes() const;
 
 private:

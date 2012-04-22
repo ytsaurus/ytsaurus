@@ -4,10 +4,14 @@
 
 #include <ytlib/object_server/id.h>
 #include <ytlib/election/leader_channel.h>
+#include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_server/public.h>
-#include <ytlib/table_client/sorted_validating_writer.h>
+#include <ytlib/table_client/sync_writer.h>
+#include <ytlib/table_client/chunk_sequence_writer.h>
+#include <ytlib/table_client/chunk_reader.h>
+#include <ytlib/misc/sync.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -22,10 +26,10 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 inline bool CompareReaders(
-    const TSyncReaderAdapter::TPtr& r1, 
-    const TSyncReaderAdapter::TPtr& r2)
+    const TChunkReaderPtr& r1, 
+    const TChunkReaderPtr& r2)
 {
-    return r1->GetKey() > r2->GetKey();
+    return TKey::Compare(r1->GetKey(), r2->GetKey()) > 0;
 }
 
 TSortedMergeJob::TSortedMergeJob(
@@ -43,8 +47,8 @@ TSortedMergeJob::TSortedMergeJob(
         yvector<Stroka> seedAddresses = FromProto<Stroka>(inputChunk.holder_addresses());
 
         auto remoteReader = CreateRemoteReader(
-            ~config->ChunkSequenceReader->RemoteReader,
-            ~blockCache,
+            config->ChunkSequenceReader->RemoteReader,
+            blockCache,
             ~masterChannel,
             TChunkId::FromProto(inputChunk.slice().chunk_id()),
             seedAddresses);
@@ -53,16 +57,17 @@ TSortedMergeJob::TSortedMergeJob(
         options.ReadKey = true;
 
         auto chunkReader = New<TChunkReader>(
-            ~config->ChunkSequenceReader->SequentialReader,
+            config->ChunkSequenceReader->SequentialReader,
             TChannel::CreateUniversal(),
-            ~remoteReader,
+            remoteReader,
             inputChunk.slice().start_limit(),
             inputChunk.slice().end_limit(),
             "", // No row attributes.
             options); 
 
-        ChunkReaders.push_back(New<TSyncReaderAdapter>(~chunkReader));
-        ChunkReaders.back()->Open();
+        ChunkReaders.push_back(chunkReader);
+        Sync(~ChunkReaders.back(), &TChunkReader::AsyncOpen);
+
         if (!ChunkReaders.back()->IsValid()) {
             ChunkReaders.pop_back();
         }
@@ -75,11 +80,10 @@ TSortedMergeJob::TSortedMergeJob(
         ~config->ChunkSequenceWriter,
         ~masterChannel,
         TTransactionId::FromProto(mergeJobSpec.output_transaction_id()),
-        TChunkListId::FromProto(mergeJobSpec.output_spec().chunk_list_id()));
+        TChunkListId::FromProto(mergeJobSpec.output_spec().chunk_list_id()),
+        ChannelsFromYson(mergeJobSpec.output_spec().channels()));
 
-    Writer = New<TSyncValidatingAdaptor>(new TSortedValidatingWriter(
-        TSchema::FromYson(mergeJobSpec.output_spec().schema()), 
-        ~asyncWriter));
+    Writer = New<TSyncWriterAdapter>(asyncWriter);
 
     Writer->Open();
 }
@@ -88,12 +92,9 @@ TJobResult TSortedMergeJob::Run()
 {
     while (!ChunkReaders.empty()) {
         std::pop_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
-        FOREACH (auto& pair, ChunkReaders.back()->GetRow()) {
-            Writer->Write(pair.first, pair.second);
-        }
-        Writer->EndRow();
+        Writer->WriteRow(ChunkReaders.back()->GetRow(), ChunkReaders.back()->GetKey());
 
-        ChunkReaders.back()->NextRow();
+        Sync(~ChunkReaders.back(), &TChunkReader::AsyncNextRow);
         if (ChunkReaders.back()->IsValid()) {
             std::push_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
         } else {

@@ -31,7 +31,7 @@ public:
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkServer::TChunkListId& parentChunkList,
         const std::vector<TChannel>& channels,
-        const TNullable<TKeyColumns>& keyColumns);
+        const TNullable<TKeyColumns>& keyColumns = Null);
 
     ~TChunkSequenceWriter();
 

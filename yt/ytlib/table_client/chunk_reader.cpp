@@ -703,7 +703,7 @@ void TChunkReader::MakeCurrentRow()
     }
 }
 
-const TRow& TChunkReader::GetRow() const
+TRow& TChunkReader::GetRow()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
@@ -712,7 +712,7 @@ const TRow& TChunkReader::GetRow() const
     return CurrentRow;
 }
 
-const TKey& TChunkReader::GetKey() const
+TKey& TChunkReader::GetKey()
 {
     VERIFY_THREAD_AFFINITY(ClientThread);
     YASSERT(!State.HasRunningOperation());
