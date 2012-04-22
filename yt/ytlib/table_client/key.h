@@ -63,34 +63,7 @@ public:
     TKey(int columnCount = 0, int size = 4096);
 
     template <class T>
-    void AddValue(int index, const T& value)
-    {
-        YASSERT(index < ColumnCount);
-        int size = sizeof(EKeyType) + sizeof(value);
-        if (CurrentSize + size < MaxSize) {
-            Parts[index] = TKeyPart(value);
-            CurrentSize += size;
-        } else 
-            CurrentSize = MaxSize;
-    }
-
-    template <>
-    void AddValue(int index, const TStringBuf& value)
-    {
-        YASSERT(index < ColumnCount);
-        // Strip long key values.
-        int freeSize = MaxSize - CurrentSize;
-        int length = std::min(freeSize - sizeof(EKeyType), value.size());
-
-        if (length > 0) {
-            auto begin = Buffer.Begin() + Buffer.GetSize();
-            Buffer.Write(value.begin(), length);
-
-            Parts[index] = TKeyPart(TStringBuf(begin, length));
-            CurrentSize += length + sizeof(EKeyType);
-        } else 
-            CurrentSize = MaxSize;
-    }
+    void AddValue(int index, const T& value);
 
     void AddComposite(int index);
 
@@ -112,6 +85,18 @@ private:
     std::vector<TKeyPart> Parts;
     TBlobOutput Buffer;
 };
+
+template <class T>
+void TKey::AddValue(int index, const T& value)
+{
+    YASSERT(index < ColumnCount);
+    int size = sizeof(EKeyType) + sizeof(value);
+    if (CurrentSize + size < MaxSize) {
+        Parts[index] = TKeyPart(value);
+        CurrentSize += size;
+    } else 
+        CurrentSize = MaxSize;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

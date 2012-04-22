@@ -199,6 +199,24 @@ NProto::TKey TKey::ToProto() const
     return key;
 }
 
+template <>
+void TKey::AddValue(int index, const TStringBuf& value)
+{
+    YASSERT(index < ColumnCount);
+    // Strip long key values.
+    int freeSize = MaxSize - CurrentSize;
+    int length = std::min(freeSize - sizeof(EKeyType), value.size());
+
+    if (length > 0) {
+        auto begin = Buffer.Begin() + Buffer.GetSize();
+        Buffer.Write(value.begin(), length);
+
+        Parts[index] = TKeyPart(TStringBuf(begin, length));
+        CurrentSize += length + sizeof(EKeyType);
+    } else 
+        CurrentSize = MaxSize;
+}
+
 void TKey::FromProto(const NProto::TKey& protoKey)
 {
     Reset(protoKey.parts_size());

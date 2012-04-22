@@ -20,31 +20,31 @@ TTableConsumer::TTableConsumer(const ISyncWriterPtr& writer)
 void TTableConsumer::OnMyStringScalar(const TStringBuf& value)
 {
     YASSERT(!InsideRow);
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: "PRId64")", Writer->GetRowCount());
+    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
 }
 
 void TTableConsumer::OnMyIntegerScalar(i64 value)
 {
     YASSERT(!InsideRow);
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: "PRId64")", Writer->GetRowCount());
+    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
 }
 
 void TTableConsumer::OnMyDoubleScalar(double value)
 {
     YASSERT(!InsideRow);
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: "PRId64")", Writer->GetRowCount());
+    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
 }
 
 void TTableConsumer::OnMyEntity()
 {
     YASSERT(!InsideRow);
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: "PRId64")", Writer->GetRowCount());
+    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
 }
 
 void TTableConsumer::OnMyBeginList()
 {
     YASSERT(!InsideRow);
-    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: "PRId64")", Writer->GetRowCount());
+    ythrow yexception() << Sprintf("Invalid row format, map expected (RowIndex: %"PRId64")", Writer->GetRowCount());
 }
 
 void TTableConsumer::OnMyListItem()
@@ -63,19 +63,17 @@ void TTableConsumer::OnMyMapItem(const TStringBuf& name)
 {
     YASSERT(InsideRow);
 
-    {
-        auto offset = RowBuffer.GetSize();
-        RowBuffer.Write(name);
-        CurrentColumn = TStringBuf(
-            RowBuffer.Begin() + offset,
-            RowBuffer.GetSize() - offset);
-    }
+    auto offset = RowBuffer.GetSize();
+    RowBuffer.Write(name);
+    CurrentColumn = TStringBuf(
+        RowBuffer.Begin() + offset,
+        RowBuffer.GetSize() - offset);
 
     if (!UsedColumns.insert(CurrentColumn).second) {
         ythrow yexception() << Sprintf(
-            "Invalid row format, duplicate column name (RowIndex: "PRId64", Column: %s)", 
+            "Invalid row format, duplicate column name (RowIndex: %"PRId64", Column: %s)", 
             Writer->GetRowCount(),
-            CurrentColumn.ToString().c_str());
+            ~ToString(CurrentColumn));
     }
 
     ValueOffset = RowBuffer.GetSize();
@@ -117,10 +115,10 @@ void TTableConsumer::OnMyEndMap()
     if (KeyColumns) {
         if (TKey::Compare(Writer->GetLastKey(), CurrentKey) > 0) {
             ythrow yexception() << Sprintf(
-                "Invalid sorting order (RowIndex: "PRId64", PreviousKey: %s, CurrentKey: %s)", 
+                "Invalid sorting order (RowIndex: %"PRId64", PreviousKey: %s, CurrentKey: %s)", 
                 Writer->GetRowCount(),
                 ~(Writer->GetLastKey().ToString()),
-                CurrentKey.ToString().c_str());
+                ~CurrentKey.ToString());
         }
     }
 
