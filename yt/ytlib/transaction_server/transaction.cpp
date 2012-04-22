@@ -43,11 +43,6 @@ void TTransaction::Load(const TLoadContext& context, TInputStream* input)
     ::Load(input, CreatedNodeIds_);
 }
 
-TTransactionId NYT::NTransactionServer::TTransaction::GetParentId() const
-{
-    return Parent_ ? Parent_->GetId() : NullTransactionId;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionServer

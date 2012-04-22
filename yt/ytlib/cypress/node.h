@@ -30,6 +30,9 @@ struct ICypressNode
     //! Returns the composite (versioned) id of the node.
     virtual TVersionedObjectId GetId() const = 0;
 
+    //! Replaces transaction id part in the versioned id.
+    virtual void PromoteToTransaction(const NTransactionServer::TTransactionId& transactionId);
+
     //! Gets the lock mode.
     /*!
      *  When a node gets branched a lock is created. This property contains the corresponding lock mode.
@@ -52,11 +55,6 @@ struct ICypressNode
     virtual const yhash_set<TLock*>& Locks() const = 0;
     //! Gets an mutable reference to the node's locks.
     virtual yhash_set<TLock*>& Locks() = 0;
-
-    //! Gets an immutable reference to the node's subtree locks.
-    virtual const yhash_set<TLock*>& SubtreeLocks() const = 0;
-    //! Gets an mutable reference to the node's subtree locks.
-    virtual yhash_set<TLock*>& SubtreeLocks() = 0;
 
     //! Increments the reference counter, returns the incremented value.
     virtual i32 RefObject() = 0;

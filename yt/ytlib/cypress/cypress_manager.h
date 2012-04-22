@@ -151,14 +151,14 @@ private:
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode requestedMode,
-        bool* isMandatory = NULL);
+        bool* isMandatory);
+    void ValidateLock(
+        const TNodeId& nodeId,
+        NTransactionServer::TTransaction* transaction,
+        ELockMode requestedMode);
 
     static bool IsParentTransaction(NTransactionServer::TTransaction* transaction, NTransactionServer::TTransaction* parent);
-    static bool AreCompetingLocksCompatible(ELockMode upwardMode, ELockMode downwardMode);
-    static bool AreConcurrentLocksCompatible(ELockMode upwardMode, ELockMode downwardMode);
 
-    static bool IsLockRecursive(ELockMode mode);
-   
     TLockId AcquireLock(
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,

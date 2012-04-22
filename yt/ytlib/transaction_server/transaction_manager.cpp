@@ -75,14 +75,14 @@ private:
 
         if (name == "parent_id") {
             BuildYsonFluently(consumer)
-                .Scalar(transaction.GetParentId().ToString());
+                .Scalar(GetObjectId(transaction.GetParent()).ToString());
             return true;
         }
 
         if (name == "nested_transaction_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* transaction) {
-                    fluent.Item().Scalar(transaction->GetId().ToString());
+                .DoListFor(transaction.NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
+                    fluent.Item().Scalar(nestedTransaction->GetId().ToString());
                 });
             return true;
         }

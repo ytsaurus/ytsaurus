@@ -154,14 +154,13 @@ protected:
         attributes->push_back("parent_id");
         attributes->push_back("lock_mode");
         attributes->push_back("lock_ids");
-        attributes->push_back("subtree_lock_ids");
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
     {
         const auto& node = GetImpl();
-        // NB: Locks and SubtreeLocks are only valid for originating nodes.
+        // NB: Locks are only valid for originating nodes.
         const auto& origniatingNode = Bootstrap->GetCypressManager()->GetNode(Id);
 
         if (name == "parent_id") {
@@ -179,15 +178,6 @@ protected:
         if (name == "lock_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(origniatingNode.Locks(), [=] (NYTree::TFluentList fluent, TLock* lock)
-                    {
-                        fluent.Item().Scalar(lock->GetId().ToString());
-                    });
-            return true;
-        }
-
-        if (name == "subtree_lock_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(origniatingNode.SubtreeLocks(), [=] (NYTree::TFluentList fluent, TLock* lock)
                     {
                         fluent.Item().Scalar(lock->GetId().ToString());
                     });

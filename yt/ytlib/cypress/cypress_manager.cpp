@@ -432,86 +432,89 @@ void TCypressManager::ValidateLock(
     ELockMode requestedMode,
     bool* isMandatory)
 {
+    YASSERT(requestedMode != ELockMode::None);
+
+    // Check if the node supports this particular mode at all.
     auto handler = GetHandler(TypeFromId(nodeId));
     if (!handler->IsLockModeSupported(requestedMode)) {
-        ythrow yexception() << Sprintf("Cannot take %s lock for node %s: the mode is not supported",
-            ~FormatEnum(requestedMode).Quote(),
-            ~nodeId.ToString());
+        ythrow yexception() << Sprintf("Node %s does not support %s locks",
+            ~nodeId.ToString(),
+            ~FormatEnum(requestedMode).Quote());
     }
-    
-    // Examine (strictly) downward locks.
-    const auto& lockedNode = NodeMap.Get(nodeId);
-    FOREACH (auto lock, lockedNode.SubtreeLocks()) {
-        if (IsParentTransaction(transaction, lock->GetTransaction())) {
-            if (!AreConcurrentLocksCompatible(requestedMode, lock->GetMode())) {
-                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with an earlier taken %s downward lock at node %s",
+
+    // Snapshot locks can only be taken inside a transaction.
+    if (requestedMode == ELockMode::Snapshot && !transaction) {
+        ythrow yexception() << Sprintf("Cannot take %s lock outside of a transaction",
+            ~FormatEnum(requestedMode).Quote());
+    }
+
+    // Examine existing locks.
+    const auto& node = NodeMap.Get(nodeId);
+    FOREACH (auto lock, node.Locks()) {
+        // If the requested mode is Snapshot then no descendant transaction (including |transaction| itself)
+        // may hold a lock other than Snapshot.
+        // Allowing otherwise would cause a trouble when this nested transaction commits.
+        if (requestedMode == ELockMode::Snapshot &&
+            IsParentTransaction(lock->GetTransaction(), transaction) &&
+            lock->GetMode() != ELockMode::Snapshot)
+        {
+            ythrow yexception() << Sprintf("Cannot take %s lock for node % since %s lock is taken by descendant transaction %s",
+                ~FormatEnum(requestedMode).Quote(),
+                ~nodeId.ToString(),
+                ~FormatEnum(lock->GetMode()).Quote(),
+                ~lock->GetTransaction()->GetId().ToString());
+        }
+
+        if (lock->GetTransaction() == transaction) {
+            // Check for locks taken by the same transaction.
+
+            // Same mode -- no lock is needed.
+            if (requestedMode == lock->GetMode()) {
+                *isMandatory = false;
+                return;
+            }
+
+            // Stricter mode -- no lock is need (beware of Snapshot).
+            if (requestedMode != ELockMode::Snapshot && requestedMode < lock->GetMode()) {
+                *isMandatory = false;
+                return;
+            }
+
+            // Snapshot lock is not compatible with any other lock.
+            // NB: requestedMode == lock->GetMode() == ELockMode::Snapshot is already handled.
+            if (lock->GetMode() == ELockMode::Snapshot) {
+                ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is already taken",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
-                    ~FormatEnum(lock->GetMode()).Quote(),
-                    ~lock->GetNodeId().ToString());
+                    ~FormatEnum(node.GetLockMode()).Quote());
             }
         } else {
-            if (!AreCompetingLocksCompatible(requestedMode, lock->GetMode())) {
-                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s downward lock at node %s taken by transaction %s",
+            // Check for locks taken by the other transactions.
+
+            // Exclusive locks cannot be taken simultaneously with other locks (except for Snapshot).
+            if (requestedMode == ELockMode::Exclusive && lock->GetMode() != ELockMode::Snapshot ||
+                requestedMode != ELockMode::Snapshot  && lock->GetMode() == ELockMode::Exclusive)
+            {
+                ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by transaction %s",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
                     ~FormatEnum(lock->GetMode()).Quote(),
-                    ~lock->GetNodeId().ToString(),
                     ~lock->GetTransaction()->GetId().ToString());
             }
         }
     }
 
-    // Examine (non-strictly) upward locks.
-    auto currentNodeId = nodeId;
-    while (currentNodeId != NullObjectId) {
-        const auto& currentNode = NodeMap.Get(currentNodeId);
-        FOREACH (auto lock, currentNode.Locks()) {
-            if (IsParentTransaction(transaction, lock->GetTransaction())) {
-                if (!AreConcurrentLocksCompatible(lock->GetMode(), requestedMode)) {
-                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with an earlier taken %s upward lock at node %s",
-                        ~FormatEnum(requestedMode).Quote(),
-                        ~nodeId.ToString(),
-                        ~FormatEnum(lock->GetMode()).Quote(),
-                        ~lock->GetNodeId().ToString());
-                }
-                // Check if this is lock is at least as strong as the requested one,
-                // and has a proper recursive behavior.
-                if (lock->GetMode() >= requestedMode &&
-                   (IsLockRecursive(lock->GetMode()) || currentNodeId == nodeId))
-                {
-                    if (isMandatory) {
-                        *isMandatory = false;
-                    }
-                    return;
-                }
-            } else {
-                if (!AreCompetingLocksCompatible(lock->GetMode(), requestedMode)) {
-                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s upward lock at node %s taken by transaction %s",
-                        ~FormatEnum(requestedMode).Quote(),
-                        ~nodeId.ToString(),
-                        ~FormatEnum(lock->GetMode()).Quote(),
-                        ~lock->GetNodeId().ToString(),
-                        ~lock->GetTransaction()->GetId().ToString());
-                }
-            }
-        }
-        currentNodeId = currentNode.GetParentId();
-    }
-
     // If we're outside of a transaction then the lock is not needed.
-    if (!transaction) {
-        if (requestedMode == ELockMode::Snapshot) {
-            ythrow yexception() << "Cannot take Snapshot lock outside of a transaction";
-        }
-        if (isMandatory) {
-            *isMandatory = false;
-        }
-    } else {
-        if (isMandatory) {
-            *isMandatory = true;
-        }
-    }
+    *isMandatory = transaction;
+}
+
+void TCypressManager::ValidateLock(
+    const TNodeId& nodeId,
+    TTransaction* transaction,
+    ELockMode requestedMode)
+{
+    bool dummy;
+    ValidateLock(nodeId, transaction, requestedMode, &dummy);
 }
 
 bool TCypressManager::IsParentTransaction(TTransaction* transaction, TTransaction* parent)
@@ -524,38 +527,6 @@ bool TCypressManager::IsParentTransaction(TTransaction* transaction, TTransactio
         currentTransaction = currentTransaction->GetParent();
     }
     return false;
-}
-
-bool TCypressManager::AreCompetingLocksCompatible(ELockMode upwardMode, ELockMode downwardMode)
-{
-    // For competing transactions snapshot locks are safe.
-    if (upwardMode == ELockMode::Snapshot || downwardMode == ELockMode::Snapshot) {
-        return true;
-    }
-    // For competing transactions exclusive locks are not compatible with any downward lock.
-    if (upwardMode == ELockMode::Exclusive) {
-        return false;
-    }
-    return true;
-}
-
-bool TCypressManager::AreConcurrentLocksCompatible(ELockMode upwardMode, ELockMode downwardMode)
-{
-    // For concurrent transactions snapshot lock is only compatible with another snapshot lock.
-    if (upwardMode == ELockMode::Snapshot && downwardMode != ELockMode::Snapshot) {
-        return false;
-    }
-    if (upwardMode == ELockMode::Snapshot && downwardMode != ELockMode::Snapshot) {
-        return false;
-    }
-    return true;
-}
-
-bool TCypressManager::IsLockRecursive(ELockMode mode)
-{
-    return
-        mode == ELockMode::Shared ||
-        mode == ELockMode::Exclusive;
 }
 
 TLockId TCypressManager::AcquireLock(
@@ -584,16 +555,6 @@ TLockId TCypressManager::AcquireLock(
     auto& lockedNode = NodeMap.Get(nodeId);
     YVERIFY(lockedNode.Locks().insert(lock).second);
 
-    // For recursive locks, also assign this lock to every node on the upward path.
-    if (IsLockRecursive(mode)) {
-        auto currentNodeId = lockedNode.GetParentId();
-        while (currentNodeId != NullObjectId) {
-            auto& currentNode = NodeMap.Get(currentNodeId);
-            YVERIFY(currentNode.SubtreeLocks().insert(lock).second);
-            currentNodeId = currentNode.GetParentId();
-        }
-    }
-
     // Snapshot locks always involve branching (unless the node is already branched by another Snapshot lock).
     if (mode == ELockMode::Snapshot) {
         auto& originatingNode = GetVersionedNode(nodeId, transaction);
@@ -613,17 +574,7 @@ void TCypressManager::ReleaseLock(TLock* lock)
     auto& lockedNode = NodeMap.Get(lock->GetNodeId());
     YVERIFY(lockedNode.Locks().erase(lock) == 1);
 
-    // For recursive locks, also remove the lock from the nodes on the upward path.
-    if (IsLockRecursive(lock->GetMode())) {
-        auto currentNodeId = lockedNode.GetParentId();
-        while (currentNodeId != NullObjectId) {
-            auto& node = NodeMap.Get(currentNodeId);
-            YVERIFY(node.SubtreeLocks().erase(lock) == 1);
-            currentNodeId = node.GetParentId();
-        }
-    }
-
-    Bootstrap->GetObjectManager()->UnrefObject(lock->GetId());
+     Bootstrap->GetObjectManager()->UnrefObject(lock->GetId());
 }
 
 TLockId TCypressManager::LockVersionedNode(
@@ -825,16 +776,16 @@ void TCypressManager::MergeBranchedNode(
     TVersionedNodeId branchedId(nodeId, transaction.GetId());
     auto& branchedNode = NodeMap.Get(branchedId);
 
-    // Find the appropriate originating node.
-    ICypressNode* originatingNode;
-    const auto* currentTransaction = &transaction;
-    while (true) {
-        YASSERT(currentTransaction);
-        TVersionedNodeId currentOriginatingId(nodeId, currentTransaction->GetParentId());
-        originatingNode = FindNode(currentOriginatingId);
-        if (originatingNode)
-            break;
-        currentTransaction = currentTransaction->GetParent();
+    // No merge for Snapshot locks.
+    if (branchedNode.GetLockMode() == ELockMode::Snapshot)
+        return;
+
+    auto parentTransactionId = GetObjectId(transaction.GetParent());
+    auto* originatingNode = NodeMap.Find(TVersionedNodeId(nodeId, parentTransactionId));
+    if (originatingNode) {
+
+    } else {
+
     }
 
     GetHandler(branchedNode)->Merge(*originatingNode, branchedNode);
