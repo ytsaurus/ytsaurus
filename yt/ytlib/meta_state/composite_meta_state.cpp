@@ -95,13 +95,13 @@ void TCompositeMetaState::Save(TOutputStream* output)
         saverInfos.push_back(pair.second);
     }
     std::sort(
-        saverInfos.begin(), saverInfos.end(),
-        [] (const TSaverInfo& lhs, const TSaverInfo& rhs)
-            {
-                return lhs.Phase < rhs.Phase ||
-                       lhs.Phase == rhs.Phase &&
-                       lhs.Name < rhs.Name;
-            });
+        saverInfos.begin(),
+        saverInfos.end(),
+        [] (const TSaverInfo& lhs, const TSaverInfo& rhs) {
+            return lhs.Phase < rhs.Phase ||
+                   lhs.Phase == rhs.Phase &&
+                   lhs.Name < rhs.Name;
+        });
 
     FOREACH (const auto& info, saverInfos) {
         ::Save(output, info.Name);

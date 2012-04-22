@@ -572,26 +572,26 @@ public:
         auto& response = context->Response();
 
         switch (result) {
-        case TCommitter::EResult::Committed:
-            response.set_committed(true);
-            context->Reply();
-            break;
+            case TCommitter::EResult::Committed:
+                response.set_committed(true);
+                context->Reply();
+                break;
 
-        case TCommitter::EResult::LateChanges:
-            context->Reply(
-                TProxy::EErrorCode::InvalidVersion,
-                "Changes are late");
-            break;
+            case TCommitter::EResult::LateChanges:
+                context->Reply(
+                    TProxy::EErrorCode::InvalidVersion,
+                    "Changes are late");
+                break;
 
-        case TCommitter::EResult::OutOfOrderChanges:
-            context->Reply(
-                TProxy::EErrorCode::InvalidVersion,
-                "Changes are out of order");
-            Restart();
-            break;
+            case TCommitter::EResult::OutOfOrderChanges:
+                context->Reply(
+                    TProxy::EErrorCode::InvalidVersion,
+                    "Changes are out of order");
+                Restart();
+                break;
 
-        default:
-            YUNREACHABLE();
+            default:
+                YUNREACHABLE();
         }
     }
 
