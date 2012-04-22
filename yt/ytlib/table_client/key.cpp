@@ -9,52 +9,52 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TKeyPart::TKeyPart ()
-    : Type(EKeyType::Null)
+    : Type_(EKeyType::Null)
 { }
 
 TKeyPart::TKeyPart(const TStringBuf& value)
     : StrValue(value)
-    , Type(EKeyType::String)
+    , Type_(EKeyType::String)
 { }
 
 TKeyPart::TKeyPart(i64 value)
     : IntValue(value)
-    , Type(EKeyType::Integer)
+    , Type_(EKeyType::Integer)
 { }
 
 TKeyPart::TKeyPart(double value)
     : DoubleValue(value)
-    , Type(EKeyType::Double)
+    , Type_(EKeyType::Double)
 { }
 
 TKeyPart TKeyPart::CreateComposite()
 {
     TKeyPart keyPart;
-    keyPart.Type = EKeyType::Composite;
+    keyPart.Type_ = EKeyType::Composite;
     return keyPart;
 }
 
 i64 TKeyPart::GetInteger() const
 {
-    YASSERT(Type == EKeyType::Integer);
+    YASSERT(Type_ == EKeyType::Integer);
     return IntValue;
 }
 
 double TKeyPart::GetDouble() const
 {
-    YASSERT(Type == EKeyType::Double);
+    YASSERT(Type_ == EKeyType::Double);
     return DoubleValue;
 }
 
 const TStringBuf& TKeyPart::GetString() const
 {
-    YASSERT(Type == EKeyType::String);
+    YASSERT(Type_ == EKeyType::String);
     return StrValue;
 }
 
 Stroka TKeyPart::ToString() const
 {
-    switch (Type) {
+    switch (Type_) {
     case EKeyType::Null:
         return "[Null]";
     case EKeyType::Composite:
@@ -96,9 +96,9 @@ size_t TKeyPart::GetSize() const
 NProto::TKeyPart TKeyPart::ToProto() const
 {
     NProto::TKeyPart keyPart;
-    keyPart.set_type(Type);
+    keyPart.set_type(Type_);
 
-    switch (Type) {
+    switch (Type_) {
     case EKeyType::String:
         keyPart.set_str_value(StrValue.begin(), StrValue.size());
         break;

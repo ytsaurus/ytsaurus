@@ -36,9 +36,7 @@ class TClientBlockCache
     , public IBlockCache
 {
 public:
-    typedef TClientBlockCacheConfig TConfig;
-
-    TClientBlockCache(TConfig* config)
+    TClientBlockCache(TClientBlockCacheConfigPtr config)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxSize)
     { }
 
@@ -84,7 +82,7 @@ private:
     }
 };
 
-IBlockCachePtr CreateClientBlockCache(TClientBlockCacheConfig* config)
+IBlockCachePtr CreateClientBlockCache(TClientBlockCacheConfigPtr config)
 {
     YASSERT(config);
     return New<TClientBlockCache>(config);

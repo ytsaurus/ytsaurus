@@ -9,6 +9,7 @@
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/misc/sync.h>
+#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -217,6 +218,21 @@ void TTableWriter::Close()
     LOG_INFO("Upload transaction committed");
 
     LOG_INFO("Table writer closed");
+}
+
+const TNullable<TKeyColumns>& TTableWriter::GetKeyColumns() const
+{
+    return Writer->GetKeyColumns();
+}
+
+i64 TTableWriter::GetRowCount() const
+{
+    return Writer->GetRowCount();
+}
+
+TKey& TTableWriter::GetLastKey()
+{
+    return Writer->GetLastKey();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

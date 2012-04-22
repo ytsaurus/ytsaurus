@@ -22,10 +22,10 @@ DECLARE_ENUM(EKeyType,
 
 class TKeyPart
 {
-    DECLARE_BYVAL_RO_PROPERTY(EKeyType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(EKeyType, Type);
 
 public:
-    //! Created null key part.
+    //! Creates null key part.
     TKeyPart();
     TKeyPart(const TStringBuf& value);
     TKeyPart(i64 value);
@@ -48,7 +48,6 @@ private:
 
     // Point to the internal buffer inside key (TKey::Buffer).
     TStringBuf StrValue;
-    EKeyType Type;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

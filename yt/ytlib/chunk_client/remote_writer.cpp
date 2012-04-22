@@ -9,6 +9,7 @@
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <util/generic/yexception.h>
@@ -768,7 +769,6 @@ void TRemoteWriter::OnSessionFinished()
 
     CancelAllPings();
 
-    SetProtoExtension(ChunkMeta.mutable_extensions(), ChunkInfo);
     LOG_DEBUG("Writer closed");
 
     State.FinishOperation();
