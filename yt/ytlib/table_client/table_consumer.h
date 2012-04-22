@@ -28,7 +28,7 @@ private:
     void OnMyBeginList();
     void OnMyListItem();
     void OnMyBeginMap();
-    void OnMyMapItem(const TStringBuf& name);
+    void OnMyKeyedItem(const TStringBuf& name);
     void OnMyEndMap();
 
     // We currently ignore user attributes.

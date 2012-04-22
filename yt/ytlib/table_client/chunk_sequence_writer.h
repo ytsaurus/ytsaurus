@@ -63,7 +63,7 @@ private:
 
         bool IsNull() const
         {
-            return bool(ChunkWriter);
+            return !bool(ChunkWriter);
         }
 
         void Reset()

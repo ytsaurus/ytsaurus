@@ -116,7 +116,9 @@ void TSequentialReader::OnGotBlocks(
         ++sequenceIndex;
     }
 
-    FetchNextGroup();
+    ReaderThread->GetInvoker()->Invoke(BIND(
+        &TSequentialReader::FetchNextGroup,
+        MakeWeak(this)));
 }
 
 void TSequentialReader::FetchNextGroup()

@@ -145,8 +145,10 @@ void TChunkSequenceWriter::InitCurrentSession(TSession nextSession)
     VERIFY_THREAD_AFFINITY_ANY();
 
     // We swap the last key of the previous chunk to the last key of the new chunk.
-    nextSession.ChunkWriter->LastKey.Swap(
-        CurrentSession.ChunkWriter->GetLastKey());
+    if (!CurrentSession.IsNull()) {
+        nextSession.ChunkWriter->LastKey.Swap(
+            CurrentSession.ChunkWriter->GetLastKey());
+    }
     CurrentSession = nextSession;
 
     NextSession.Reset();

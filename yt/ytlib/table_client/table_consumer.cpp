@@ -59,7 +59,7 @@ void TTableConsumer::OnMyBeginMap()
     InsideRow = true;
 }
 
-void TTableConsumer::OnMyMapItem(const TStringBuf& name)
+void TTableConsumer::OnMyKeyedItem(const TStringBuf& name)
 {
     YASSERT(InsideRow);
 
