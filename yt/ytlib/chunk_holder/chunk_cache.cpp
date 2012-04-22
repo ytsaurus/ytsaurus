@@ -7,6 +7,7 @@
 #include "block_store.h"
 #include "config.h"
 #include "bootstrap.h"
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/serialize.h>

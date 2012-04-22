@@ -673,7 +673,9 @@ void TChunkReader::MakeCurrentRow()
                         auto& token = tokenizer[0];
                         switch (token.GetType()) {
                         case ETokenType::Integer:
-                            CurrentKey.AddValue(columnInfo.KeyIndex, token.GetIntegerValue());
+                            CurrentKey.AddValue(
+                                columnInfo.KeyIndex, 
+                                static_cast<i64>(token.GetIntegerValue()));
                             break;
 
                         case ETokenType::String:
@@ -681,7 +683,8 @@ void TChunkReader::MakeCurrentRow()
                             break;
 
                         case ETokenType::Double:
-                            CurrentKey.AddValue(columnInfo.KeyIndex, token.GetDoubleValue());
+                            CurrentKey.AddValue(
+                                columnInfo.KeyIndex, token.GetDoubleValue());
                             break;
 
                         default:
