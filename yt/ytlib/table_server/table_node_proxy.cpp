@@ -223,6 +223,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         slice->mutable_end_limit();
 
         *inputChunk->mutable_channel() = channel.ToProto();
+        // Create extensions anyway, cause they're required.
+        inputChunk->mutable_extensions();
 
         const auto& chunk = chunkManager->GetChunk(chunkId);
         if (!chunk.IsConfirmed()) {

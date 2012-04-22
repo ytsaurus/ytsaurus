@@ -202,7 +202,7 @@ void TChunkSequenceWriter::OnRowEnded(TError error)
 
 void TChunkSequenceWriter::FinishCurrentChunk()
 {
-    if (!CurrentSession.IsNull())
+    if (CurrentSession.IsNull())
         return;
 
     if (CurrentSession.ChunkWriter->GetCurrentSize() > 0) {
@@ -247,7 +247,7 @@ void TChunkSequenceWriter::OnChunkClosed(
     TCypressServiceProxy cypressProxy(MasterChannel);
     auto batchReq = cypressProxy.ExecuteBatch();
     {
-        auto req = TChunkYPathProxy::Confirm();
+        auto req = TChunkYPathProxy::Confirm(FromObjectId(currentSession.RemoteWriter->GetChunkId()));
         *req->mutable_chunk_info() = currentSession.RemoteWriter->GetChunkInfo();
         ToProto(req->mutable_holder_addresses(), currentSession.RemoteWriter->GetHolders());
         *req->mutable_chunk_meta() = currentSession.ChunkWriter->GetMasterMeta();

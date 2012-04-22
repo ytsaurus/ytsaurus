@@ -43,14 +43,13 @@ private:
 
     bool InsideRow;
 
-    size_t ValueOffset;
-    TStringBuf CurrentColumn;
-
     TKey CurrentKey;
 
-    yhash_set<TStringBuf> UsedColumns;
+    //ToDo(psushin): avoid allocations here.
+    yhash_set<Stroka> UsedColumns;
 
     TRow Row;
+    std::vector<size_t> Offsets;
     TBlobOutput RowBuffer;
     TValueConsumer ValueConsumer;
 };

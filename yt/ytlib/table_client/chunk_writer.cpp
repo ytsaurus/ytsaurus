@@ -41,6 +41,7 @@ TChunkWriter::TChunkWriter(
     , IsClosed(false)
     , CurrentBlockIndex(0)
     , CurrentSize(0)
+    , SentSize(0)
     , UncompressedSize(0)
     , LastKey()
 {

@@ -35,7 +35,7 @@ public:
 
     i64 GetInteger() const;
     double GetDouble() const;
-    const TStringBuf& GetString() const;
+    TStringBuf GetString() const;
 
     Stroka ToString() const;
 
@@ -46,8 +46,8 @@ private:
     i64 IntValue;
     double DoubleValue;
 
-    // Point to the internal buffer inside key (TKey::Buffer).
-    TStringBuf StrValue;
+    //ToDo(psushin): avoid allocations here.
+    Stroka StrValue;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

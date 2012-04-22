@@ -39,6 +39,7 @@ TChunk::TChunk(TLocation* location, const TChunkDescriptor& descriptor)
     , HasMeta(false)
 {
     Info_.set_size(descriptor.Size);
+    Info_.clear_meta_checksum();
 }
 
 TChunk::~TChunk()

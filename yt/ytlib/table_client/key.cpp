@@ -46,7 +46,7 @@ double TKeyPart::GetDouble() const
     return DoubleValue;
 }
 
-const TStringBuf& TKeyPart::GetString() const
+TStringBuf TKeyPart::GetString() const
 {
     YASSERT(Type_ == EKeyType::String);
     return StrValue;

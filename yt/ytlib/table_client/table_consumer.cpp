@@ -12,7 +12,6 @@ TTableConsumer::TTableConsumer(const ISyncWriterPtr& writer)
     : Writer(writer)
     , KeyColumns(writer->GetKeyColumns())
     , InsideRow(false)
-    , ValueOffset(0)
     , ValueConsumer(&RowBuffer)
     , CurrentKey(KeyColumns ? KeyColumns->size() : 0)
 { }
@@ -63,25 +62,20 @@ void TTableConsumer::OnMyKeyedItem(const TStringBuf& name)
 {
     YASSERT(InsideRow);
 
-    auto offset = RowBuffer.GetSize();
     RowBuffer.Write(name);
-    CurrentColumn = TStringBuf(
-        RowBuffer.Begin() + offset,
-        RowBuffer.GetSize() - offset);
+    Offsets.push_back(RowBuffer.GetSize());
 
-    if (!UsedColumns.insert(CurrentColumn).second) {
+    if (!UsedColumns.insert(ToString(name)).second) {
         ythrow yexception() << Sprintf(
             "Invalid row format, duplicate column name (RowIndex: %"PRId64", Column: %s)", 
             Writer->GetRowCount(),
-            ~ToString(CurrentColumn));
+            ~ToString(name));
     }
-
-    ValueOffset = RowBuffer.GetSize();
 
     if (KeyColumns.IsInitialized()) {
         int keyIndex = -1;
         for(int i = 0; i < KeyColumns->size(); ++i) {
-            if (CurrentColumn == KeyColumns->at(i)) {
+            if (name == KeyColumns->at(i)) {
                 keyIndex = i;
                 break;
             }
@@ -101,11 +95,7 @@ void TTableConsumer::OnColumn()
 
 void TTableConsumer::OnValueEnded()
 {
-    TStringBuf value(
-        RowBuffer.Begin() + ValueOffset, 
-        RowBuffer.GetSize() - ValueOffset);
-
-    Row.push_back(std::make_pair(CurrentColumn, value));
+    Offsets.push_back(RowBuffer.GetSize());
 }
 
 void TTableConsumer::OnMyEndMap()
@@ -122,13 +112,28 @@ void TTableConsumer::OnMyEndMap()
         }
     }
 
+    int i = 0;
+    auto begin = 0;
+    while (i < Offsets.size()) {
+        auto end = Offsets[i];
+        TStringBuf name(RowBuffer.Begin() + begin, end - begin);
+
+        ++i;
+        begin = end;
+        end = Offsets[i];
+        TStringBuf value(RowBuffer.Begin() + begin, end - begin);
+        Row.push_back(std::make_pair(name, value));
+
+        ++i;
+    }
+
     Writer->WriteRow(Row, CurrentKey);
 
     CurrentKey.Reset();
     UsedColumns.clear();
+    Offsets.clear();
     Row.clear();
     RowBuffer.Clear();
-    ValueOffset = 0;
 
     InsideRow = false;
 }

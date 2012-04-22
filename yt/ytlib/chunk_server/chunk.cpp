@@ -98,8 +98,13 @@ bool TChunk::ValidateChunkInfo(const NChunkHolder::NProto::TChunkInfo& chunkInfo
     if (ChunkInfo_.size() == UnknownSize)
         return true;
 
-    return (ChunkInfo_.size() == chunkInfo.size()) && 
-        (ChunkInfo_.meta_checksum() == chunkInfo.meta_checksum());
+    if (chunkInfo.has_meta_checksum() && ChunkInfo_.has_meta_checksum() &&
+        ChunkInfo_.meta_checksum() != chunkInfo.meta_checksum())
+    {
+        return false;
+    }
+
+    return ChunkInfo_.size() == chunkInfo.size();
 }
 
 const i64 TChunk::UnknownSize = -1;

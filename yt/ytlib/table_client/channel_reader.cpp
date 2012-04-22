@@ -78,7 +78,7 @@ bool TChannelReader::NextColumn()
                 ++CurrentColumnIndex;
                 return false;
             }
-            CurrentColumn = TValue::Load(&RangeBuffer).ToStringBuf();
+            CurrentColumn = value.ToStringBuf();
             CurrentValue = TValue::Load(&RangeBuffer).ToStringBuf();
             return true;
         } 
