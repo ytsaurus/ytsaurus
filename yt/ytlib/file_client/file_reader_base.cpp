@@ -69,7 +69,7 @@ void TFileReaderBase::Open(const NChunkServer::TChunkId& chunkId, const yvector<
     auto codecId = ECodecId(misc->codec_id());
 
     Codec = GetCodec(codecId);
-    LOG_INFO("Chunk info received (BlockCount: %d, Size: "PRId64", CodecId: %s)",
+    LOG_INFO("Chunk info received (BlockCount: %d, Size: %"PRId64", CodecId: %s)",
         BlockCount,
         Size,
         ~codecId.ToString());

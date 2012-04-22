@@ -93,6 +93,10 @@ void TFileWriterBase::Write(TRef data)
 
     CheckAborted();
 
+    LOG_DEBUG("Writing file data (ChunkId: %s, Size: %d)",
+        ~ChunkId.ToString(),
+        static_cast<int>(data.Size()));
+
     if (data.Size() == 0)
         return;
 
@@ -157,6 +161,7 @@ void TFileWriterBase::Close()
         TMisc misc;
         misc.set_uncompressed_size(Size);
         misc.set_codec_id(Config->CodecId);
+
         meta.set_type(EChunkType::File);
         SetProtoExtension(meta.mutable_extensions(), misc);
 
