@@ -115,6 +115,8 @@ void TSequentialReader::OnGotBlocks(
         BlockWindow[sequenceIndex].Set(block);
         ++sequenceIndex;
     }
+
+    FetchNextGroup();
 }
 
 void TSequentialReader::FetchNextGroup()
