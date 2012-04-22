@@ -4,6 +4,7 @@
 #include "config.h"
 #include "user_job.h"
 #include "user_job_io.h"
+#include <ytlib/ytree/yson_writer.h>
 
 #include <util/folder/dirut.h>
 
@@ -29,6 +30,7 @@ namespace NJobProxy {
 static NLog::TLogger& Logger = JobProxyLogger;
 
 using namespace NScheduler::NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,9 +142,16 @@ void TUserJob::InitPipes()
     // Make pipe for each input and each output table.
     for (int i = 0; i < JobIO->GetInputCount(); ++i) {
         TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
+        TAutoPtr<IYsonConsumer> consumer = new TYsonWriter(
+            buffer.Get(), 
+            Config->JobIO->OutputFormat, 
+            EYsonType::ListFragment, 
+            Config->JobIO->OutputFormat != EYsonFormat::Binary);
+
         DataPipes.push_back(New<TInputPipe>(
-            JobIO->CreateTableInput(i, buffer.Get()) ,
+            JobIO->CreateTableInput(i, consumer.Get()) ,
             buffer,
+            consumer
             3 * i));
     }
 

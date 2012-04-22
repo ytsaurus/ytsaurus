@@ -230,9 +230,11 @@ void TOutputPipe::Finish()
 TInputPipe::TInputPipe(
     TAutoPtr<NTableClient::TTableProducer> tableProducer,
     TAutoPtr<TBlobOutput> buffer, 
+    TAutoPtr<NYTree::IYsonConsumer> cosumer,
     int jobDescriptor)
     : TableProducer(tableProducer)
     , Buffer(buffer)
+    , Consumer(Consumer)
     , JobDescriptor(jobDescriptor)
     , Position(0)
     , IsFinished(false)
