@@ -185,6 +185,16 @@ TAutoPtr<TOutputStream> TMapJobIO::CreateTableOutput(int index) const
     return new TTableOutput(New<TSyncWriterAdapter>(chunkSequenceWriter));
 }
 
+void TMapJobIO::UpdateProgress()
+{
+    YUNIMPLEMENTED();
+}
+
+double TMapJobIO::GetProgress() const
+{
+    YUNIMPLEMENTED();
+}
+
 TAutoPtr<TOutputStream> TMapJobIO::CreateErrorOutput() const
 {
     /*

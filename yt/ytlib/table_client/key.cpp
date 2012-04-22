@@ -146,7 +146,6 @@ int CompareKeyParts(const TKeyPart& lhs, const TKeyPart& rhs)
 TKey::TKey(int columnCount, int size)
     : MaxSize(size)
     , ColumnCount(columnCount)
-    , CurrentSize(0)
     , Buffer(size)
     , Parts(ColumnCount)
 { }
@@ -156,7 +155,6 @@ void TKey::Reset(int columnCount)
     if (columnCount >= 0)
         ColumnCount = columnCount;
 
-    CurrentSize = 0;
     Buffer.Clear();
     Parts.clear();
     Parts.resize(ColumnCount);
@@ -166,11 +164,7 @@ void TKey::AddComposite(int index)
 {
     YASSERT(index < ColumnCount);
     int size = sizeof(EKeyType);
-    if (CurrentSize + size < MaxSize) {
-        Parts[index] = TKeyPart::CreateComposite();
-        CurrentSize += size;
-    } else 
-        CurrentSize = MaxSize;
+    Parts[index] = TKeyPart::CreateComposite();
 }
 
 void TKey::Swap(TKey& other)
@@ -181,8 +175,6 @@ void TKey::Swap(TKey& other)
 
     Parts.swap(other.Parts);
     Buffer.Swap(other.Buffer);
-
-    std::swap(CurrentSize,  other.CurrentSize);
 }
 
 Stroka TKey::ToString() const
@@ -192,6 +184,7 @@ Stroka TKey::ToString() const
 
 NProto::TKey TKey::ToProto() const
 {
+    // ToDo: limit total size of all parts written to proto to MaxSize.
     NProto::TKey key;
     FOREACH(const auto& part, Parts) {
         *key.add_parts() = part.ToProto();
@@ -223,6 +216,31 @@ void TKey::FromProto(const NProto::TKey& protoKey)
         //default: leave a null key.
         }
     }
+}
+
+void TKey::AddValue(int index, i64 value)
+{
+    YASSERT(index < ColumnCount);
+    Parts[index] = TKeyPart(value);
+}
+
+void TKey::AddValue(int index, double value)
+{
+    YASSERT(index < ColumnCount);
+    Parts[index] = TKeyPart(value);
+}
+
+void TKey::AddValue(int index, const TStringBuf& value)
+{
+    YASSERT(index < ColumnCount);
+
+    // Strip long values.
+    int length = std::min(MaxSize - sizeof(EKeyType), value.size());
+
+    auto begin = Buffer.Begin() + Buffer.GetSize();
+    Buffer.Write(value.begin(), length);
+
+    Parts[index] = TKeyPart(TStringBuf(begin, length));
 }
 
 int TKey::Compare(const TKey& lhs, const TKey& rhs)

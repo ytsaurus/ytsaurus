@@ -26,6 +26,9 @@ TChunk::TChunk(const TChunkId& id)
     ChunkMeta_.set_type(EChunkType::Unknown);
 }
 
+TChunk::~TChunk()
+{ }
+
 void TChunk::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);

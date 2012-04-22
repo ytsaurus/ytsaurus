@@ -12,8 +12,8 @@
 #include <ytlib/cell_node/bootstrap.h>
 #include <ytlib/cell_node/config.h>
 #include <ytlib/cell_node/bootstrap.h>
-#include <ytlib/cell_scheduler/config.h>
-#include <ytlib/cell_scheduler/bootstrap.h>
+//#include <ytlib/cell_scheduler/config.h>
+//#include <ytlib/cell_scheduler/bootstrap.h>
 #include <ytlib/scheduler/config.h>
 #include <ytlib/job_proxy/config.h>
 #include <ytlib/job_proxy/job_proxy.h>
@@ -107,7 +107,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isScheduler) {
-        ++modeCount;
+        Cout << "Scheduler currently disabled" << Endl;
+        exit(1);
+        //++modeCount;
     }
 
     if (isJobProxy) {
@@ -188,7 +190,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NCellMaster::TBootstrap bootstrap(configFileName, config);
         bootstrap.Run();
     }
-
+    /*
     if (isScheduler) {
         NYT::NThread::SetCurrentThreadName("Bootstrap");
         auto config = New<NCellScheduler::TCellSchedulerConfig>();
@@ -207,7 +209,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         NCellScheduler::TBootstrap bootstrap(configFileName, config);
         bootstrap.Run();
-    }
+    }*/
 
     if (isJobProxy) {
         auto config = New<NJobProxy::TJobProxyConfig>();
