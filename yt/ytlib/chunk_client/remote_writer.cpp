@@ -753,6 +753,7 @@ TRemoteWriter::FinishChunk(THolderPtr holder)
     LOG_DEBUG("Finishing chunk at %s", ~holder->Address);
 
     auto req = holder->Proxy.FinishChunk();
+    req->mutable_chunk_id() = ChunkId.ToProto();
     req->mutable_chunk_meta()->CopyFrom(ChunkMeta);
     return req->Invoke();
 }
