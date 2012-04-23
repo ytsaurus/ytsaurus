@@ -125,7 +125,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
     ValidateHolderId(holderId);
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    const auto& holder = chunkManager->GetHolder(holderId);
+    auto& holder = chunkManager->GetHolder(holderId);
     if (holder.GetState() != EHolderState::Online) {
         context->Reply(TError(
             EErrorCode::InvalidState,

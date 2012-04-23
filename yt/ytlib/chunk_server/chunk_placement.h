@@ -17,39 +17,39 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void OnHolderRegistered(const THolder& holder);
-    void OnHolderUnregistered(const THolder& holder);
-    void OnHolderUpdated(const THolder& holder);
+    void OnHolderRegistered(THolder& holder);
+    void OnHolderUnregistered(THolder& holder);
+    void OnHolderUpdated(THolder& holder);
 
-    void OnSessionHinted(const THolder& holder);
+    void OnSessionHinted(THolder& holder);
 
-    double GetLoadFactor(const THolder& holder) const;
-    double GetFillCoeff(const THolder& holder) const;
+    double GetLoadFactor(THolder& holder) const;
+    double GetFillCoeff(THolder& holder) const;
 
     // TODO(babenko): consider using small vectors here
-    yvector<THolderId> GetUploadTargets(int count);
-    yvector<THolderId> GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses);
-    yvector<THolderId> GetReplicationTargets(const TChunk& chunk, int count);
-    yvector<THolderId> GetRemovalTargets(const TChunk& chunk, int count);
-    THolderId GetReplicationSource(const TChunk& chunk);
-    yvector<TChunkId> GetBalancingChunks(const THolder& holder, int count);
-    THolderId GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
+    yvector<THolder*> GetUploadTargets(int count);
+    yvector<THolder*> GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses);
+    yvector<THolder*> GetReplicationTargets(const TChunk& chunk, int count);
+    yvector<THolder*> GetRemovalTargets(const TChunk& chunk, int count);
+    THolder* GetReplicationSource(const TChunk& chunk);
+    yvector<TChunkId> GetBalancingChunks(THolder& holder, int count);
+    THolder* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
    
 private:
-    typedef ymultimap<double, THolderId> TLoadFactorMap;
-    typedef yhash_map<THolderId, TLoadFactorMap::iterator> TIteratorMap;
+    typedef ymultimap<double, THolder*> TLoadFactorMap;
+    typedef yhash_map<THolder*, TLoadFactorMap::iterator> TIteratorMap;
 
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
     TLoadFactorMap LoadFactorMap;
     TIteratorMap IteratorMap;
-    yhash_map<THolderId, int> HintedSessionsMap;
+    yhash_map<THolder*, int> HintedSessionsMap;
 
-    bool IsFull(const THolder& holder) const;
-    int GetSessionCount(const THolder& holder) const;
-    bool IsValidUploadTarget(const THolder& targetHolder) const;
-    bool IsValidBalancingTarget(const THolder& targetHolder, TChunk *chunk) const;
+    bool IsFull(THolder& holder) const;
+    int GetSessionCount(THolder& holder) const;
+    bool IsValidUploadTarget(THolder& targetHolder) const;
+    bool IsValidBalancingTarget(THolder& targetHolder, TChunk *chunk) const;
 
 };
 

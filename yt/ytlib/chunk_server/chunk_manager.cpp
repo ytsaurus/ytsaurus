@@ -252,16 +252,14 @@ public:
         return it == ReplicationSinkMap.end() ? NULL : &it->second;
     }
 
-    yvector<THolderId> AllocateUploadTargets(int replicaCount)
+    yvector<THolder*> AllocateUploadTargets(int replicaCount)
     {
-        auto holderIds = ChunkPlacement->GetUploadTargets(replicaCount);
-        FOREACH (auto holderId, holderIds) {
-            const auto& holder = GetHolder(holderId);
-            ChunkPlacement->OnSessionHinted(holder);
+        auto holders = ChunkPlacement->GetUploadTargets(replicaCount);
+        FOREACH (auto holder, holders) {
+            ChunkPlacement->OnSessionHinted(*holder);
         }
-        return holderIds;
+        return holders;
     }
-
 
     TChunk& CreateChunk()
     {
@@ -311,7 +309,7 @@ public:
 
 
     void ScheduleJobs(
-        const THolder& holder,
+        THolder& holder,
         const yvector<TJobInfo>& runningJobs,
         yvector<TJobStartInfo>* jobsToStart,
         yvector<TJobStopInfo>* jobsToStop)
@@ -833,7 +831,7 @@ private:
     }
 
 
-    void StartHolderTracking(const THolder& holder, bool recovery)
+    void StartHolderTracking(THolder& holder, bool recovery)
     {
         HolderLeaseTracker->OnHolderRegistered(holder, recovery);
         if (holder.GetState() == EHolderState::Online) {
@@ -847,7 +845,7 @@ private:
         HolderRegistered_.Fire(holder);
     }
 
-    void StopHolderTracking(const THolder& holder)
+    void StopHolderTracking(THolder& holder)
     {
         HolderLeaseTracker->OnHolderUnregistered(holder);
         ChunkPlacement->OnHolderUnregistered(holder);
@@ -1442,11 +1440,10 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
         auto* responseExt = response->MutableExtension(TRspCreateChunk::create_chunk);
 
         int holderCount = requestExt->holder_count();
-        auto holderIds = Owner->AllocateUploadTargets(holderCount);
+        auto holders = Owner->AllocateUploadTargets(holderCount);
 
-        FOREACH (auto holderId, holderIds) {
-            const THolder& holder = Owner->GetHolder(holderId);
-            responseExt->add_holder_addresses(holder.GetAddress());
+        FOREACH (auto holder, holders) {
+            responseExt->add_holder_addresses(holder->GetAddress());
         }
 
         LOG_INFO_IF(!Owner->IsRecovery(), "Allocated holders [%s] for chunk %s",
@@ -1661,7 +1658,7 @@ const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address
     return Impl->FindReplicationSink(address);
 }
 
-yvector<THolderId> TChunkManager::AllocateUploadTargets(int replicaCount)
+yvector<THolder*> TChunkManager::AllocateUploadTargets(int replicaCount)
 {
     return Impl->AllocateUploadTargets(replicaCount);
 }
@@ -1717,7 +1714,7 @@ void TChunkManager::DetachFromChunkList(TChunkList& chunkList, const yvector<TCh
 }
 
 void TChunkManager::ScheduleJobs(
-    const THolder& holder,
+    THolder& holder,
     const yvector<TJobInfo>& runningJobs,
     yvector<TJobStartInfo>* jobsToStart,
     yvector<TJobStopInfo>* jobsToStop)
