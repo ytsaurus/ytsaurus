@@ -70,6 +70,14 @@ void TMetaStatePart::OnStopLeading()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCompositeMetaState::TSaverInfo::TSaverInfo(const Stroka& name, TSaver saver, ESavePhase phase)
+    : Name(name)
+    , Saver(saver)
+    , Phase(phase)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCompositeMetaState::RegisterPart(TMetaStatePartPtr part)
 {
     YASSERT(part);
@@ -82,25 +90,22 @@ void TCompositeMetaState::Save(TOutputStream* output)
     i32 size = Savers.size();
     ::Save(output, size);
     
-    // XXX(sandello): :7
-    typedef TPair<TPair<ESavePhase, Stroka>, TSaver> TElement;
-    yvector<TElement> savers;
+    yvector<TSaverInfo> saverInfos;
     FOREACH (const auto& pair, Savers) {
-        savers.push_back(
-            MakePair(MakePair(pair.second.second, pair.first), pair.second.first));
+        saverInfos.push_back(pair.second);
     }
     std::sort(
-        savers.begin(), savers.end(),
-        [] (const TElement& lhs, const TElement& rhs)
+        saverInfos.begin(), saverInfos.end(),
+        [] (const TSaverInfo& lhs, const TSaverInfo& rhs)
             {
-                return lhs.first.first < rhs.first.first;
+                return lhs.Phase < rhs.Phase ||
+                       lhs.Phase == rhs.Phase &&
+                       lhs.Name < rhs.Name;
             });
 
-    FOREACH (auto pair, savers) {
-        Stroka name = pair.first.second;
-        ::Save(output, name);
-        auto saver = pair.second;
-        saver.Run(output);
+    FOREACH (const auto& info, saverInfos) {
+        ::Save(output, info.Name);
+        info.Saver.Run(output);
     }
 }
 
@@ -160,7 +165,8 @@ void TCompositeMetaState::RegisterSaver(
 {
     YASSERT(!saver.IsNull());
 
-    YVERIFY(Savers.insert(MakePair(name, MakePair(MoveRV(saver), phase))).second);
+    TSaverInfo info(name, MoveRV(saver), phase);
+    YVERIFY(Savers.insert(MakePair(name, info)).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
