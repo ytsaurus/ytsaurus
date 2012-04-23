@@ -6,6 +6,7 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/chunk_server/chunk_tree_ref.h>
+#include <ytlib/cypress/node.h>
 
 // Some forward declarations.
 namespace NYT {
@@ -20,7 +21,7 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Single object serialization.
+// Single object ref serialization.
 
 template <class T>
 void SaveObjectRef(TOutputStream* output, T object)
@@ -37,7 +38,7 @@ void SetObjectRefImpl(
 
 template <class T>
 inline void SetObjectRefImpl(
-    const NObjectServer::TObjectId& id,
+    const typename NObjectServer::TObjectIdTraits<T*>::TId& id,
     T*& object,
     const TLoadContext& context)
 {
@@ -66,14 +67,14 @@ inline void SetObjectRefImpl(
 template <class T>
 void LoadObjectRef(TInputStream* input, T& object, const TLoadContext& context)
 {
-    NObjectServer::TObjectId id;
+    typename NObjectServer::TObjectIdTraits<T>::TId id;
     ::Load(input, id);
     SetObjectRefImpl(id, object, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Object collection serialization.
+// Object ref collection serialization.
 
 struct TObjectRefVectorSerializer
 {

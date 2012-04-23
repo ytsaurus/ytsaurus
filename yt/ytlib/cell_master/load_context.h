@@ -24,6 +24,9 @@ public:
 
     template <class T>
     T* Get(const NObjectServer::TObjectId& id) const;
+
+    template <class T>
+    T* Get(const NObjectServer::TVersionedObjectId& id) const;
 };
 
 template <>
@@ -40,6 +43,9 @@ NChunkServer::TJob* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
 
 template <>
 NCypress::TLock* TLoadContext::Get(const NObjectServer::TObjectId& id) const;
+
+template <>
+NCypress::ICypressNode* TLoadContext::Get(const NObjectServer::TVersionedObjectId& id) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 

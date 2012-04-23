@@ -5,6 +5,7 @@
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/transaction_server/public.h>
+#include <ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NCypress {
@@ -68,3 +69,29 @@ struct ICypressNode
 
 } // namespace NCypress
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TObjectIdTraits and GetObjectId specializations.
+
+namespace NYT {
+namespace NObjectServer {
+
+template <>
+struct TObjectIdTraits<NCypress::ICypressNode*, void>
+{
+    typedef TVersionedObjectId TId;
+};
+
+template <class T>
+TVersionedObjectId GetObjectId(
+    T object,
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, NCypress::ICypressNode*>, void* >::TType = NULL)
+{
+    return object->GetId();
+}
+
+} // namespace NObjectServer
+} // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////

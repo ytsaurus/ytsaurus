@@ -52,6 +52,13 @@ TLock* TLoadContext::Get(const TObjectId& id) const
 {
     return &Bootstrap_->GetCypressManager()->GetLock(id);
 }
+
+template <>
+ICypressNode* TLoadContext::Get(const TVersionedObjectId& id) const
+{
+    return &Bootstrap_->GetCypressManager()->GetNode(id);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCellMaster

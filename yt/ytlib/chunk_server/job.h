@@ -16,7 +16,7 @@ class TJob
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
     // Don't try making it TChunk*.
-    // Removal jobs may refer nonexistent chunks.
+    // Removal jobs may refer to nonexistent chunks.
     DEFINE_BYVAL_RO_PROPERTY(TChunkId, ChunkId);
     DEFINE_BYVAL_RO_PROPERTY(Stroka, RunnerAddress);
     DEFINE_BYREF_RO_PROPERTY(yvector<Stroka>, TargetAddresses);
@@ -42,3 +42,27 @@ public:
 
 } // namespace NChunkServer
 } // namespace NYT
+
+// TObjectIdTraits and GetObjectId specializations.
+
+namespace NYT {
+namespace NObjectServer {
+
+template <>
+struct TObjectIdTraits<NChunkServer::TJob*, void>
+{
+    typedef TObjectId TId;
+};
+
+template <class T>
+TObjectId GetObjectId(
+    T object,
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, NChunkServer::TJob*>, void* >::TType = NULL)
+{
+    return object->GetId();
+}
+
+} // namespace NObjectServer
+} // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////

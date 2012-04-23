@@ -138,7 +138,7 @@ private:
     void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
     void MergeBranchedNode(
         const NTransactionServer::TTransaction& transaction,
-        const TNodeId& nodeId);
+        ICypressNode* branchedNode);
     void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
     void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
 

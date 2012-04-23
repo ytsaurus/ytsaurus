@@ -102,13 +102,28 @@ extern TTransactionId NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Provides means for choosing appropriate object id type from object type.
+template <class T, class = void>
+struct TObjectIdTraits
+{ };
+
+template <class T>
+struct TObjectIdTraits<
+    T,
+    typename NMpl::TEnableIfC< NMpl::TIsConvertible<T, TObjectWithIdBase*>::Value >::TType>
+{
+    typedef TObjectId TId;
+};
+
 //! Returns the id of an object (which may be NULL).
 /*!
  * This function is specialized for other object-like entities,
  * e.g. see #NYT::NChunkServer::TChunkTreeRef.
  */
 template <class T>
-TObjectId GetObjectId(T* object)
+TObjectId GetObjectId(
+    T object,
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, TObjectWithIdBase*>, void* >::TType = NULL)
 {
     return object ? object->GetId() : NullObjectId;
 }
@@ -160,6 +175,8 @@ bool operator <  (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
 
 } // namespace NObjectServer
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_PODTYPE(NYT::NObjectServer::TVersionedObjectId);
 

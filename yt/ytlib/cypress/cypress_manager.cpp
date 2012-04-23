@@ -218,7 +218,7 @@ void TCypressManager::CreateNodeBehavior(const TNodeId& id)
 
     YVERIFY(NodeBehaviors.insert(MakePair(id, behavior)).second);
 
-    LOG_DEBUG("Node behavior created (NodeId: %s)",  ~id.ToString());
+    LOG_DEBUG("Created behavior for node %s",  ~id.ToString());
 }
 
 void TCypressManager::DestroyNodeBehavior(const TNodeId& id)
@@ -230,7 +230,7 @@ void TCypressManager::DestroyNodeBehavior(const TNodeId& id)
     it->second->Destroy();
     NodeBehaviors.erase(it);
 
-    LOG_DEBUG("Node behavior destroyed (NodeId: %s)", ~id.ToString());
+    LOG_DEBUG("Destroyed behavior for node %s", ~id.ToString());
 }
 
 TNodeId TCypressManager::GetRootNodeId()
@@ -368,11 +368,11 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
             if (currentTransaction == transaction) {
                 // Update the lock mode if a higher one was requested (unless this is the null transaction).
                 if (currentTransaction != NULL && currentNode->GetLockMode() < requestedMode) {
-                    LOG_INFO_IF(!IsRecovery(), "Node lock mode upgraded (NodeId: %s, TransactionId: %s, OldMode: %s, NewMode: %s)",
+                    LOG_INFO_IF(!IsRecovery(), "Upgraded node %s lock from %s to %s at transaction %s",
                         ~nodeId.ToString(),
-                        ~GetObjectId(transaction).ToString(),
-                        ~currentNode->GetLockMode().ToString(),
-                        ~requestedMode.ToString());
+                        ~FormatEnum(currentNode->GetLockMode()).Quote(),
+                        ~FormatEnum(requestedMode).Quote(),
+                        ~GetObjectId(transaction).ToString());
                     currentNode->SetLockMode(requestedMode);
                 }
                 return currentNode;
@@ -545,11 +545,11 @@ TLockId TCypressManager::AcquireLock(
     transaction->Locks().push_back(lock);
     objectManager->RefObject(lockId);
 
-    LOG_INFO_IF(!IsRecovery(), "Node locked (LockId: %s, NodeId: %s, TransactionId: %s, Mode: %s)",
-        ~lockId.ToString(),
+    LOG_INFO_IF(!IsRecovery(), "Locked node %s with mode %s at transaction %s (LockId: %s)",
         ~nodeId.ToString(),
+        ~FormatEnum(mode).Quote(),
         ~transaction->GetId().ToString(),
-        ~mode.ToString());
+        ~lockId.ToString());
 
     // Assign the node to the node itself.
     auto& lockedNode = NodeMap.Get(nodeId);
@@ -602,15 +602,15 @@ void TCypressManager::RegisterNode(
 
     // If there's a transaction then append this node's id to the list.
     if (transaction) {
-        transaction->CreatedNodeIds().push_back(nodeId);
+        transaction->CreatedNodes().push_back(node.Get());
     }
 
     NodeMap.Insert(nodeId, node.Release());
 
-    LOG_INFO_IF(!IsRecovery(), "Node registered (Type: %s, NodeId: %s, TransactionId: %s)",
-        ~TypeFromId(nodeId).ToString(),
+    LOG_INFO_IF(!IsRecovery(), "Registered node %s of type %s at transaction %s",
         ~nodeId.ToString(),
-        transaction ? ~transaction->GetId().ToString() : "None");
+        ~TypeFromId(nodeId).ToString(),
+        ~GetObjectId(transaction).ToString());
 
     if (IsLeader()) {
         CreateNodeBehavior(nodeId);
@@ -626,23 +626,22 @@ ICypressNode& TCypressManager::BranchNode(
 
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto nodeId = node.GetId().ObjectId;
+    auto id = node.GetId();
 
     // Create a branched node and initialize its state.
     auto branchedNode = GetHandler(node)->Branch(node, transaction, mode);
     auto* branchedNode_ = branchedNode.Release();
-    NodeMap.Insert(TVersionedNodeId(nodeId, transaction->GetId()), branchedNode_);
+    NodeMap.Insert(TVersionedNodeId(id.ObjectId, transaction->GetId()), branchedNode_);
 
     // Register the branched node with the transaction.
-    transaction->BranchedNodeIds().push_back(nodeId);
+    transaction->BranchedNodes().push_back(&node);
 
     // The branched node holds an implicit reference to its originator.
-    Bootstrap->GetObjectManager()->RefObject(nodeId);
+    Bootstrap->GetObjectManager()->RefObject(id.ObjectId);
     
-    LOG_INFO_IF(!IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
-        ~nodeId.ToString(),
-        ~transaction->GetId().ToString(),
-        ~mode.ToString());
+    LOG_INFO_IF(!IsRecovery(), "Branched node %s with %s mode",
+        ~id.ToString(),
+        ~FormatEnum(mode).Quote());
 
     return *branchedNode_;
 }
@@ -771,8 +770,8 @@ void TCypressManager::ReleaseLocks(const TTransaction& transaction)
 
 void TCypressManager::MergeBranchedNode(
     const TTransaction& transaction,
-    const TNodeId& nodeId)
-{
+    ICypressNode* branchedNode)
+
     TVersionedNodeId branchedId(nodeId, transaction.GetId());
     auto& branchedNode = NodeMap.Get(branchedId);
 
@@ -788,20 +787,20 @@ void TCypressManager::MergeBranchedNode(
 
     }
 
-    GetHandler(branchedNode)->Merge(*originatingNode, branchedNode);
+    GetHandler(*branchedNode)->Merge(*originatingNode, *branchedNode);
 
-    NodeMap.Remove(branchedId);
+    NodeMap.Remove(id);
 
-    LOG_INFO_IF(!IsRecovery(), "Node merged (NodeId: %s, TransactionId: %s)",
-        ~nodeId.ToString(),
-        ~transaction.GetId().ToString());
+    LOG_INFO_IF(!IsRecovery(), "Merged branched node %s", ~id.ToString());
 }
 
 void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
 {
     // Merge all branched nodes and remove them.
-    FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        MergeBranchedNode(transaction, nodeId);
+    FOREACH (auto* branchedNode, transaction.BranchedNodes()) {
+        if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
+            MergeBranchedNode(transaction, branchedNode);
+        }
     }
 }
 
@@ -809,23 +808,19 @@ void TCypressManager::UnrefOriginatingNodes(const TTransaction& transaction)
 {
     // Drop implicit references from branched nodes to their originators.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        objectManager->UnrefObject(nodeId);
+    FOREACH (auto* branchedNode, transaction.BranchedNodes()) {
+        objectManager->UnrefObject(branchedNode->GetId().ObjectId);
     }
 }
 
 void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
 {
-    auto transactionId = transaction.GetId();
-    FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        TVersionedNodeId versionedId(nodeId, transactionId);
-        auto& node = NodeMap.Get(versionedId);
-        GetHandler(node)->Destroy(node);
-        NodeMap.Remove(versionedId);
+    FOREACH (auto* branchedNode, transaction.BranchedNodes()) {
+        auto id = branchedNode->GetId();
+        GetHandler(*branchedNode)->Destroy(*branchedNode);
+        NodeMap.Remove(branchedNode->GetId());
 
-        LOG_INFO_IF(!IsRecovery(), "Branched node removed (NodeId: %s, TransactionId: %s)",
-            ~nodeId.ToString(),
-            ~transactionId.ToString());
+        LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~id.ToString());
     }
 }
 
