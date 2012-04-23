@@ -246,11 +246,11 @@ class TestTableCommands(YTEnvSetup):
         assert_eq( get('//table/@row_count'), '0')
 
         expect_ok( write('//table', '[{b="hello"}]'))
-        assert_eq( read('//table'), '{"b"="hello"}')
+        assert_eq( read('//table'), '{"b"="hello"};')
         assert_eq( get('//table/@row_count'), '1')
 
         expect_ok( write('//table', '[{b="2";a="1"};{x="10";y="20";a="30"}]'))
-        assert_eq( read('//table'), '{"b"="hello"};\n{"a"="1";"b"="2"};\n{"a"="30";"x"="10";"y"="20"}')
+        assert_eq( read('//table'), '{"b"="hello"};\n{"a"="1";"b"="2"};\n{"a"="30";"x"="10";"y"="20"};')
         assert_eq( get('//table/@row_count'), '3')
 
         expect_ok( remove('//table'))
