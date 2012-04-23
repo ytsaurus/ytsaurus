@@ -33,11 +33,20 @@ class TOperation
 
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 
-    //! Gets set when the operation is finished.
-    DEFINE_BYVAL_RO_PROPERTY(TFuture<TVoid>::TPtr, Finished);
-
     //! Operation result, becomes set when the operation finishes.
     DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);
+
+    //! Gets set when the operation is finished.
+    TFuture<void> GetFinished()
+    {
+        return FinishedPromise;
+    }
+
+    //! Marks the operation as finished.
+    void SetFinished()
+    {
+        FinishedPromise.Set();
+    }
 
 public:
     TOperation(
@@ -47,6 +56,7 @@ public:
         NYTree::IMapNodePtr spec,
         TInstant startTime);
 
+    TPromise<void> FinishedPromise;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -120,12 +120,12 @@ void TestReplies(int numRequests, int numParts)
     auto bus = client->CreateBus(~handler);
     auto message = CreateMessage(numParts);
 
-    IBus::TSendResult::TPtr result;
+    IBus::TSendResult result;
     for (int i = 0; i < numRequests; ++i) {
         result = bus->Send(message);
     }
 
-    result->Get();
+    result.Get();
     if(!handler->Event_.WaitT(TDuration::Seconds(2))) {
         EXPECT_IS_TRUE(false); // timeout occured
     }
@@ -141,7 +141,7 @@ TEST(TBusTest, OK)
     auto client = CreateNLBusClient(~New<TNLBusClientConfig>("localhost:2000"));
     auto bus = client->CreateBus(~New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
-    auto result = bus->Send(message)->Get();
+    auto result = bus->Send(message).Get();
     EXPECT_EQ(ESendResult::OK, result);
     server->Stop();
 }
@@ -151,7 +151,7 @@ TEST(TBusTest, Failed)
     auto client = CreateNLBusClient(~New<TNLBusClientConfig>("localhost:2000"));
     auto bus = client->CreateBus(~New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
-    auto result = bus->Send(message)->Get();
+    auto result = bus->Send(message).Get();
     EXPECT_EQ(ESendResult::Failed, result);
 }
 

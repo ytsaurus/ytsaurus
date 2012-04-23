@@ -12,20 +12,22 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////
 
 TProgressCounter::TProgressCounter()
-    : Total_(-1)
-    , Running_(-1)
-    , Completed_(-1)
-    , Pending_(-1)
-    , Failed_(-1)
+    : Total_(0)
+    , Running_(0)
+    , Completed_(0)
+    , Pending_(0)
+    , Failed_(0)
 { }
 
-void TProgressCounter::Init(i64 total)
+void TProgressCounter::Set(i64 value)
 {
-    Total_ = total;
-    Running_ = 0;
-    Completed_ = 0;
-    Pending_ = total;
-    Failed_ = 0;
+    Total_ = value;
+    Pending_ = value;
+}
+
+void TProgressCounter::Increment(i64 value)
+{
+    Set(Total_ + value);
 }
 
 i64 TProgressCounter::GetTotal() const

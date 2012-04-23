@@ -67,13 +67,13 @@ public:
     TTransaction& Start(TTransaction* parent, TNullable<TDuration> timeout);
     void Commit(TTransaction& transaction);
     void Abort(TTransaction& transaction);
-    void RenewLease(const TTransactionId& id);
+    void RenewLease(const TTransaction& transaction);
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
     //! Returns the list of all transaction ids on the path up to the root.
     //! This list includes #transactionId itself and #NullTransactionId.
-    std::vector<TTransaction*> GetTransactionPath(TTransaction *transaction) const;
+    std::vector<TTransaction*> GetTransactionPath(TTransaction* transaction) const;
 
 private:
     typedef TTransactionManager TThis;

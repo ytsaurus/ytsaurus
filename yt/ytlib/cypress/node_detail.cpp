@@ -77,8 +77,8 @@ i32 TCypressNodeBase::GetObjectRefCounter() const
 void TCypressNodeBase::Save(TOutputStream* output) const
 {
     TObjectBase::Save(output);
-    SaveObjects(output, Locks_);
-    SaveObjects(output, SubtreeLocks_);
+    SaveObjectRefs(output, Locks_);
+    SaveObjectRefs(output, SubtreeLocks_);
     ::Save(output, ParentId_);
     ::Save(output, LockMode_);
 }
@@ -87,8 +87,8 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectBase::Load(input);
-    LoadObjects(input, Locks_, context);
-    LoadObjects(input, SubtreeLocks_, context);
+    LoadObjectRefs(input, Locks_, context);
+    LoadObjectRefs(input, SubtreeLocks_, context);
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
 }
@@ -117,7 +117,7 @@ void TMapNode::Load(const TLoadContext& context, TInputStream* input)
     TCypressNodeBase::Load(context, input);
     ::Load(input, ChildCountDelta_);
     LoadMap(input, KeyToChild());
-    FOREACH(const auto& pair, KeyToChild()) {
+    FOREACH (const auto& pair, KeyToChild()) {
         if (pair.second != NullObjectId) {
             ChildToKey().insert(MakePair(pair.second, pair.first));
         }

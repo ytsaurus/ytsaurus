@@ -21,6 +21,7 @@ struct IBus
     typedef TIntrusivePtr<IBus> TPtr;
 
     typedef TFuture<ESendResult> TSendResult;
+    typedef TPromise<ESendResult> TSendPromise;
 
     //! Asynchronously sends a message via the bus.
     /*!
@@ -30,7 +31,7 @@ struct IBus
      * 
      *  \note Thread affinity: any
      */
-    virtual TSendResult::TPtr Send(IMessage::TPtr message) = 0;
+    virtual TSendResult Send(IMessage::TPtr message) = 0;
 
     //! Terminates the bus.
     /*!

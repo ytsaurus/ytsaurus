@@ -20,6 +20,7 @@ DECLARE_ENUM(ETokenType,
     // YSON
     (Semicolon) // ;
     (Equals) // =
+    (Hash) // #
     (LeftBracket) // [
     (RightBracket) // ]
     (LeftBrace) // {
@@ -31,7 +32,6 @@ DECLARE_ENUM(ETokenType,
     (RightParenthesis) // )
     (Slash) // /
     (At) // @
-    (Hash) // #
     (Bang) // !
     (Plus) // +
     (Caret) // ^
@@ -42,30 +42,34 @@ DECLARE_ENUM(ETokenType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLexer;
+ETokenType CharToTokenType(char ch); // returns ETokenType::None for non-special chars
+char TokenTypeToChar(ETokenType type); // YUNREACHABLE for non-special types
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TToken
 {
-    friend class TLexer;
-
 public:
     static const TToken EndOfStream;
 
-    TToken();
+    TToken(ETokenType type = ETokenType::None); // for special types
+    explicit TToken(const TStringBuf& stringValue); // for strings
+    explicit TToken(i64 integerValue); // for integers
+    explicit TToken(double doubleValue); // for doubles
 
     DEFINE_BYVAL_RO_PROPERTY(ETokenType, Type);
 
     bool IsEmpty() const;
-    const Stroka& GetStringValue() const;
+    const TStringBuf& GetStringValue() const;
     i64 GetIntegerValue() const;
     double GetDoubleValue() const;
 
     Stroka ToString() const;
 
-    const TToken& CheckType(ETokenType expectedType) const;
+    void CheckType(ETokenType expectedType) const;
 
 private:
-    Stroka StringValue;
+    TStringBuf StringValue;
     i64 IntegerValue;
     double DoubleValue;
 };

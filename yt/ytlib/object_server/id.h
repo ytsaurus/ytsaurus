@@ -34,7 +34,7 @@ typedef ui16 TCellId;
 //! Describes the runtime type of an object.
 DECLARE_ENUM(EObjectType,
     // Does not represent any actual type.
-    ((Undefined)(0))
+    ((Null)(0))
 
     // The following are unversioned objects.
     // These must be created by sending TTransactionYPathProxy::CreateObject to a transaction.
@@ -102,8 +102,14 @@ extern TTransactionId NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
-TObjectId GetObjectId(T* object) {
+//! Returns the id of an object (which may be NULL).
+/*!
+ * This function is specialized for other object-like entities,
+ * e.g. see #NYT::NChunkServer::TChunkTreeRef.
+ */
+template <class T>
+TObjectId GetObjectId(T* object)
+{
     return object ? object->GetId() : NullObjectId;
 }
 
@@ -140,7 +146,7 @@ struct TVersionedObjectId
     //! Formats the id to string (for debugging and logging purposes mainly).
     Stroka ToString() const;
 
-    static TVersionedObjectId FromString(const Stroka& str);
+    static TVersionedObjectId FromString(const TStringBuf& str);
 };
 
 //! Compares TVersionedNodeId s for equality.

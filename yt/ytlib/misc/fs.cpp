@@ -74,18 +74,12 @@ Stroka GetFileName(const Stroka& path)
 
 Stroka GetDirectoryName(const Stroka& path)
 {
+    auto absPath = CombinePaths(GetCwd(), path);
 #ifdef _win_
     // May be mixed style of filename ('/' and '\')
-    auto fullPath = path;
-    correctpath(fullPath);
-    return fullPath.substr(0, fullPath.find_last_of(LOCSLASH_C));
-#else
-    auto fullPath = path;
-    if (!fullPath.has_prefix(LOCSLASH_S)) {
-        fullPath = GetCwd() + LOCSLASH_C + path;
-    }
-    return fullPath.substr(0, fullPath.find_last_of(LOCSLASH_C));
+    correctpath(absPath);
 #endif
+    return absPath.substr(0, absPath.find_last_of(LOCSLASH_C));
 }
 
 Stroka GetFileExtension(const Stroka& path)

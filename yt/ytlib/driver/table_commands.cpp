@@ -29,9 +29,9 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
         request->Path);
 
     TYsonTableInput input(
-        ~reader, 
-        Host->GetConfig()->OutputFormat, 
-        stream.Get());
+        reader, 
+        stream.Get(),
+        Host->GetConfig()->OutputFormat);
 
     while (input.ReadRow())
     { }
@@ -75,7 +75,7 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
         }
     } else {
         auto stream = Host->CreateInputStream();
-        ParseYson(stream.Get(), &consumer, TYsonParser::EMode::ListFragment);
+        ParseYson(stream.Get(), &consumer, EYsonType::ListFragment);
     }
 
     writer->Close();

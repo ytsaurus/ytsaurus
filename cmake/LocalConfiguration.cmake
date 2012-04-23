@@ -67,20 +67,30 @@ set( CUSTOM_CMAKE_CXX_FLAGS
 # Now configure compiler options for g++.
 if (CMAKE_COMPILER_IS_GNUCXX)
   # These are default (basic) compilation flags.
-  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread" )
-  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread" )
+  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread"
+    CACHE STRING "(Auto-generated) C compiler flags" FORCE)
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread"
+    CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
 
   # These are configuration-specific compilation flags.
   # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
-  set( CMAKE_CXX_FLAGS_DEBUG "-g -O0" )
-  set( CMAKE_CXX_FLAGS_RELEASE "-O2 -flto" )
-  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2" )
-  set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os" )
+  set( CMAKE_CXX_FLAGS_DEBUG "-g -O0"
+    CACHE STRING "" FORCE)
+  set( CMAKE_CXX_FLAGS_RELEASE "-O2 -flto"
+    CACHE STRING "" FORCE)
+  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2"
+    CACHE STRING "" FORCE)
+  set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os"
+    CACHE STRING "" FORCE)
 
-  set( CMAKE_C_FLAGS_DEBUG "-g -O0" )
-  set( CMAKE_C_FLAGS_RELEASE "-O2 -flto" )
-  set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2" )
-  set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os" )
+  set( CMAKE_C_FLAGS_DEBUG "-g -O0"
+    CACHE STRING "" FORCE)
+  set( CMAKE_C_FLAGS_RELEASE "-O2 -flto"
+    CACHE STRING "" FORCE)
+  set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2"
+    CACHE STRING "" FORCE)
+  set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os"
+    CACHE STRING "" FORCE)
 
   set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program" )
   set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "" )
@@ -99,7 +109,6 @@ if (MSVC)
   set( CMAKE_CXX_FLAGS_RELEASE "/O2 /Oi /Oy- /GL" )
   set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Zi /O2 /Oi /Oy- /GL" )
   set( CMAKE_CXX_FLAGS_MINSIZEREL "/O1 /Oi /Oy- /GL" )
-
 
   set( CMAKE_C_FLAGS_DEBUG "/Zi /Od /Oy- /GS" )
   set( CMAKE_C_FLAGS_RELEASE "/O2 /Oi /Oy- /GL" )

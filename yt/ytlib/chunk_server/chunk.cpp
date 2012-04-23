@@ -22,9 +22,6 @@ TChunk::TChunk(const TChunkId& id)
     , Size_(UnknownSize)
 { }
 
-TChunk::~TChunk()
-{ }
-
 void TChunk::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
@@ -61,6 +58,9 @@ void TChunk::RemoveLocation(THolderId holderId, bool cached)
     if (cached) {
         YASSERT(~CachedLocations_);
         YVERIFY(CachedLocations_->erase(holderId) == 1);
+        if (CachedLocations_->empty()) {
+            CachedLocations_.Destroy();
+        }
     } else {
         for (auto it = StoredLocations_.begin(); it != StoredLocations_.end(); ++it) {
             if (*it == holderId) {

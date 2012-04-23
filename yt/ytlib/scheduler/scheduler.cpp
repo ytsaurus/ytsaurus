@@ -82,8 +82,8 @@ public:
 
     void Start()
     {
+        Register();
         InitStrategy();
-        RegisterAtMaster();
         StartRefresh();
         LoadOperations();
     }
@@ -126,7 +126,7 @@ private:
 
     typedef TValueOrError<TOperationPtr> TStartResult;
 
-    TFuture< TStartResult >::TPtr StartOperation(
+    TFuture< TStartResult > StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
         const NYTree::IMapNodePtr spec)
@@ -168,8 +168,9 @@ private:
             MakeStrong(this),
             operation)));
 
-        return CypressProxy.Execute(setReq)->Apply(
-            BIND(
+        return CypressProxy
+            .Execute(setReq)
+            .Apply(BIND(
                 &TImpl::OnOperationNodeCreated,
                 MakeStrong(this),
                 operation)
@@ -214,12 +215,13 @@ private:
 
         // Run async preparation.
         LOG_INFO("Preparing operation %s", ~operation->GetOperationId().ToString());
-        operation ->GetController()->Prepare()->Subscribe(
-            BIND(&TImpl::OnOperationPrepared, MakeStrong(this), operation)
+        operation->GetController()->Prepare()
+            .Subscribe(
+                BIND(&TImpl::OnOperationPrepared, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
-    void OnOperationPrepared(TOperationPtr operation, TVoid)
+    void OnOperationPrepared(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -248,12 +250,13 @@ private:
 
         // Run async revival.
         LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
-        operation ->GetController()->Revive()->Subscribe(
-            BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
+        operation ->GetController()->Revive()
+            .Subscribe(
+                BIND(&TImpl::OnOperationRevived, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
 
-    void OnOperationRevived(TOperationPtr operation, TVoid)
+    void OnOperationRevived(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -445,45 +448,69 @@ private:
     }
 
 
-    void RegisterAtMaster()
+    void Register()
     {
-        // TODO(babenko): Currently we use succeed-or-die strategy. Add retries later.
+        while (true) {
+            try {
+                TryRegister();
+                // Registration was successful, bail out.
+                return;
+            } catch (const std::exception& ex) {
+                LOG_WARNING("Registration failed, will retry in %s\n%s",
+                    ~ToString(Config->StartupRetryPeriod),
+                    ex.what());
+                Sleep(Config->StartupRetryPeriod);
+            }
+        }
+    }
 
+    void TryRegister()
+    {
         // Take a lock to prevent multiple instances of scheduler from running simultaneously.
         // To this aim, create an auxiliary transaction that takes care of this lock.
-        // We never commit or abort this transaction, so it gets aborted (and the lock gets released)
+        // We never commit this transaction, so it gets aborted (and the lock gets released)
         // when the scheduler dies.
+        
         try {
             BootstrapTransaction = Bootstrap->GetTransactionManager()->Start();
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Failed to start bootstrap transaction\n%s", ex.what());
         }
 
-        LOG_INFO("Taking lock");
-        {
-            auto req = TCypressYPathProxy::Lock(WithTransaction(
-                "//sys/scheduler/lock",
-                BootstrapTransaction->GetId()));
-            req->set_mode(ELockMode::Exclusive);
-            auto rsp = CypressProxy.Execute(req)->Get();
-            if (!rsp->IsOK()) {
-                ythrow yexception() << Sprintf("Failed to take scheduler lock, check for another running scheduler instances\n%s",
-                    ~rsp->GetError().ToString());
+        try {
+            LOG_INFO("Taking lock");
+            {
+                auto req = TCypressYPathProxy::Lock(WithTransaction(
+                    "//sys/scheduler/lock",
+                    BootstrapTransaction->GetId()));
+                req->set_mode(ELockMode::Exclusive);
+                auto rsp = CypressProxy.Execute(req).Get();
+                if (!rsp->IsOK()) {
+                    ythrow yexception() << Sprintf("Failed to take scheduler lock, check for another running scheduler instances\n%s",
+                        ~rsp->GetError().ToString());
+                }
             }
-        }
-        LOG_INFO("Lock taken");
+            LOG_INFO("Lock taken");
 
-        LOG_INFO("Publishing scheduler address");
-        {
-            auto req = TYPathProxy::Set("//sys/scheduler/runtime/@address");
-            req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
-            auto rsp = CypressProxy.Execute(req)->Get();
-            if (!rsp->IsOK()) {
-                ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
-                    ~rsp->GetError().ToString());
+            // TODO(babenko): listen to bootstrap transaction to make it is alive
+
+            LOG_INFO("Publishing scheduler address");
+            {
+                auto req = TYPathProxy::Set("//sys/scheduler/runtime/@address");
+                req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
+                auto rsp = CypressProxy.Execute(req).Get();
+                if (!rsp->IsOK()) {
+                    ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
+                        ~rsp->GetError().ToString());
+                }
             }
+            LOG_INFO("Scheduler address published");
+        } catch (...) {
+            // Abort the bootstrap transaction (will need a new one anyway).
+            BootstrapTransaction->Abort();
+            BootstrapTransaction.Reset();
+            throw;
         }
-        LOG_INFO("Scheduler address published");
     }
 
     void LoadOperations()
@@ -492,7 +519,7 @@ private:
         std::vector<TOperationId> operationIds;
         {
             auto req = TYPathProxy::List("//sys/operations");
-            auto rsp = CypressProxy.Execute(req)->Get();
+            auto rsp = CypressProxy.Execute(req).Get();
             if (!rsp->IsOK()) {
                 ythrow yexception() << Sprintf("Failed to get operations list\n%s",
                     ~rsp->GetError().ToString());
@@ -510,7 +537,7 @@ private:
                 auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
                 batchReq->AddRequest(req);
             }
-            auto batchRsp = batchReq->Invoke()->Get();
+            auto batchRsp = batchReq->Invoke().Get();
             if (!batchRsp->IsOK()) {
                 ythrow yexception() << Sprintf("Failed to get operations info\n%s",
                     ~batchRsp->GetError().ToString());
@@ -576,8 +603,10 @@ private:
         }
 
         LOG_INFO("Refreshing %d transactions", batchReq->GetSize());
-        batchReq->Invoke()->Subscribe(
-            BIND(&TImpl::OnTransactionsRefreshed, MakeStrong(this), Passed(MoveRV(transactionIdsList)))
+        batchReq->Invoke().Subscribe(BIND(
+                &TImpl::OnTransactionsRefreshed,
+                MakeStrong(this),
+                Passed(MoveRV(transactionIdsList)))
             .Via(GetControlInvoker()));
     }
 
@@ -648,7 +677,7 @@ private:
         // Get the list of online nodes from the master.
         LOG_INFO("Refreshing exec nodes");
         auto req = TYPathProxy::Get("//sys/holders/@online");
-        CypressProxy.Execute(req)->Subscribe(
+        CypressProxy.Execute(req).Subscribe(
             BIND(&TImpl::OnExecNodesRefreshed, MakeStrong(this))
             .Via(GetControlInvoker()));
     }
@@ -705,7 +734,7 @@ private:
         FOREACH (const auto& pair, Operations) {
             AddOperationUpdateRequests(pair.second, batchReq);
         }
-        batchReq->Invoke()->Subscribe(
+        batchReq->Invoke().Subscribe(
             BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this))
             .Via(GetControlInvoker()));
     }
@@ -744,8 +773,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Just check every response and log the errors.
+        OperationNodesUpdateInvoker->ScheduleNext();
 
+        // Just check every response and log the errors.
         if (!batchRsp->IsOK()) {
             LOG_ERROR("Error updating operations\n%s", ~batchRsp->GetError().ToString());
             return;
@@ -758,8 +788,6 @@ private:
         }
 
         LOG_INFO("Operation nodes updated successfully");
-
-        OperationNodesUpdateInvoker->ScheduleNext();
     }
 
 
@@ -835,7 +863,7 @@ private:
         auto id = operation->GetOperationId();
         LOG_INFO("Removing operation node %s", ~id.ToString());
         auto req = TYPathProxy::Remove(GetOperationPath(id));
-        CypressProxy.Execute(req)->Subscribe(
+        CypressProxy.Execute(req).Subscribe(
             BIND(&TImpl::OnOperationNodeRemoved, MakeStrong(this), operation)
             .Via(GetControlInvoker()));
     }
@@ -866,7 +894,7 @@ private:
         auto batchReq = CypressProxy.ExecuteBatch();
         AddOperationUpdateRequests(operation, batchReq);
 
-        return batchReq->Invoke()->Subscribe(BIND(
+        return batchReq->Invoke().Subscribe(BIND(
             &TThis::OnOperationNodeFinalized,
             MakeStrong(this),
             operation));
@@ -889,9 +917,9 @@ private:
             }
         }
 
-        LOG_INFO("Operation node %s finalized", ~operation->GetOperationId().ToString());
+        LOG_INFO("Operation node %s finalized successfully", ~operation->GetOperationId().ToString());
 
-        operation->GetFinished()->Set(TVoid());
+        operation->SetFinished();
     }
 
 
@@ -984,8 +1012,6 @@ private:
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
-            .WithAttributes().BeginMap()
-            .EndMap()
             .BeginAttributes()
                 .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
                 .Item("transaction_id").Scalar(operation->GetTransactionId())
@@ -994,7 +1020,9 @@ private:
                 .EndMap()
                 .Item("spec").Node(operation->GetSpec())
                 // TODO(babenko): serialize start time
-            .EndAttributes();
+            .EndAttributes()
+            .BeginMap()
+            .EndMap();
     }
 
     TOperationPtr ParseOperationYson(const TOperationId& operationId, const TYson& yson)
@@ -1016,8 +1044,6 @@ private:
     void BuildJobYson(TJobPtr job, IYsonConsumer* consumer)
     {
         BuildYsonFluently(consumer)
-            .WithAttributes().BeginMap()
-            .EndMap()
             .BeginAttributes()
                 .Item("type").Scalar(FormatEnum(EJobType(job->Spec().type())))
                 .Item("state").Scalar(FormatEnum(job->GetState()))
@@ -1028,7 +1054,9 @@ private:
                 //        .Item("message").Scalar(error.GetMessage())
                 //    .EndMap();
                 //})
-            .EndAttributes();
+            .EndAttributes()
+            .BeginMap()
+            .EndMap();
     }
 
     void BuildExecNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
@@ -1065,7 +1093,7 @@ private:
             type,
             transactionId,
             spec)
-        ->Subscribe(BIND([=] (TValueOrError<TOperationPtr> result) {
+        .Subscribe(BIND([=] (TValueOrError<TOperationPtr> result) {
             if (!result.IsOK()) {
                 context->Reply(result);
                 return;
@@ -1097,18 +1125,16 @@ private:
             ~ToString(timeout));
 
         auto operation = GetOperation(operationId);
-        WaitForFuture(
-            operation->GetFinished(),
+        operation->GetFinished().Subscribe(
             timeout,
             BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, true),
-            BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, false, TVoid()));
+            BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, false));
     }
 
     void OnOperationWaitResult(
         TCtxWaitForOperation::TPtr context,
         TOperationPtr operation,
-        bool finished,
-        TVoid)
+        bool finished)
     {
         context->SetResponseInfo("Finished: %s", ~FormatBool(finished));
         context->Response().set_finished(finished);
@@ -1280,6 +1306,9 @@ TScheduler::TScheduler(
     TSchedulerConfigPtr config,
     TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
+{ }
+
+TScheduler::~TScheduler()
 { }
 
 void TScheduler::Start()

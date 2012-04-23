@@ -111,7 +111,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
-    TProxy::TInvPutBlocks::TPtr PutBlocks(THolderPtr holder);
+    TProxy::TInvPutBlocks PutBlocks(THolderPtr holder);
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -126,7 +126,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
-    TProxy::TInvSendBlocks::TPtr SendBlocks(THolderPtr srcHolder, THolderPtr dstHolder);
+    TProxy::TInvSendBlocks SendBlocks(THolderPtr srcHolder, THolderPtr dstHolder);
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -223,7 +223,7 @@ void TRemoteWriter::TGroup::PutGroup()
         MakeWeak(this)));
 }
 
-TRemoteWriter::TProxy::TInvPutBlocks::TPtr
+TRemoteWriter::TProxy::TInvPutBlocks
 TRemoteWriter::TGroup::PutBlocks(THolderPtr holder)
 {
     auto writer = Writer.Lock();
@@ -236,7 +236,7 @@ TRemoteWriter::TGroup::PutBlocks(THolderPtr holder)
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
 
-    LOG_DEBUG("Putting blocks (Blocks: %d-%d, Address: %s)",
+    LOG_DEBUG("Putting blocks %d-%d to %s",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~holder->Address);
@@ -255,7 +255,7 @@ void TRemoteWriter::TGroup::OnPutBlocks(THolderPtr holder, TProxy::TRspPutBlocks
 
     IsSent[holder->Index] = true;
 
-    LOG_DEBUG("Blocks are put (Blocks, %d-%d, Address: %s)",
+    LOG_DEBUG("Blocks %d-%d are put to %s",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~holder->Address);
@@ -286,7 +286,7 @@ void TRemoteWriter::TGroup::SendGroup(THolderPtr srcHolder)
     }
 }
 
-TRemoteWriter::TProxy::TInvSendBlocks::TPtr
+TRemoteWriter::TProxy::TInvSendBlocks
 TRemoteWriter::TGroup::SendBlocks(
     THolderPtr srcHolder, 
     THolderPtr dstHolder)
@@ -296,7 +296,7 @@ TRemoteWriter::TGroup::SendBlocks(
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    LOG_DEBUG("Sending blocks (Blocks: %d-%d, SrcAddress: %s, DstAddress: %s)",
+    LOG_DEBUG("Sending blocks %d-%d from %s to %s",
         StartBlockIndex, 
         GetEndBlockIndex(),
         ~srcHolder->Address,
@@ -541,7 +541,7 @@ void TRemoteWriter::ShiftWindow()
         lastFlushableBlock));
 }
 
-TRemoteWriter::TProxy::TInvFlushBlock::TPtr
+TRemoteWriter::TProxy::TInvFlushBlock
 TRemoteWriter::FlushBlock(THolderPtr holder, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -660,7 +660,8 @@ void TRemoteWriter::CheckResponse(
     }
 }
 
-TRemoteWriter::TProxy::TInvStartChunk::TPtr TRemoteWriter::StartChunk(THolderPtr holder)
+TRemoteWriter::TProxy::TInvStartChunk
+TRemoteWriter::StartChunk(THolderPtr holder)
 {
     LOG_DEBUG("Starting chunk at %s", ~holder->Address);
 
@@ -691,7 +692,7 @@ void TRemoteWriter::OnSessionStarted()
     LOG_DEBUG("Writer is ready");
 
     IsInitComplete = true;
-    FOREACH(auto& group, Window) {
+    FOREACH (auto& group, Window) {
         group->Process();
     }
 
@@ -753,7 +754,7 @@ void TRemoteWriter::OnChunkFinished(THolderPtr holder, TProxy::TRspFinishChunk::
     ChunkInfo = chunkInfo;
 }
 
-TRemoteWriter::TProxy::TInvFinishChunk::TPtr
+TRemoteWriter::TProxy::TInvFinishChunk
 TRemoteWriter::FinishChunk(THolderPtr holder)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -838,13 +839,13 @@ TAsyncError TRemoteWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& block
     YASSERT(!State.IsClosed());
 
     i64 sumSize = 0;
-    FOREACH(auto& block, blocks) {
+    FOREACH (auto& block, blocks) {
         sumSize += block.Size();
     }
 
     State.StartOperation();
 
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
+    WindowSlots.AsyncAcquire(sumSize).Subscribe(BIND(
         &TRemoteWriter::DoWriteBlocks,
         TWeak(this),
         blocks));
@@ -918,7 +919,7 @@ TAsyncError TRemoteWriter::AsyncClose(
     YASSERT(!State.IsClosed());
 
     i64 sumSize = 0;
-    FOREACH(auto& block, lastBlocks) {
+    FOREACH (auto& block, lastBlocks) {
         sumSize += block.Size();
     }
 
@@ -926,11 +927,13 @@ TAsyncError TRemoteWriter::AsyncClose(
     State.StartOperation();
 
     // XXX(sandello): Do you realize, that lastBlocks and attributes are copied back and forth here?
-    WindowSlots.AsyncAcquire(sumSize)->Subscribe(BIND(
-        &TRemoteWriter::DoClose,
-        TWeak(this),
-        lastBlocks,
-        attributes).Via(WriterThread->GetInvoker()));
+    WindowSlots.AsyncAcquire(sumSize)
+        .Subscribe(BIND(
+            &TRemoteWriter::DoClose,
+            TWeak(this),
+            lastBlocks,
+            attributes)
+        .Via(WriterThread->GetInvoker()));
 
     return State.GetOperationError();
 }

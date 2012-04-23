@@ -133,6 +133,9 @@ struct TLeaderCommitterConfig
 struct TChangeLogCacheConfig
     : public TConfigurable
 {
+    //! A path where changelogs are stored.
+    Stroka Path;
+
     //! Disables physical changelog flush.
     /*!
      *  Enabling this option can cause meta state corruption and inconsistency.
@@ -145,6 +148,7 @@ struct TChangeLogCacheConfig
 
     TChangeLogCacheConfig()
     {
+        Register("path", Path);
         Register("disable_flush", DisableFlush)
             .Default(false);
         Register("max_size", MaxSize)
@@ -153,7 +157,23 @@ struct TChangeLogCacheConfig
     }
 };
 
-typedef TIntrusivePtr<TChangeLogCacheConfig> TChangeLogCacheConfigPtr;
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSnapshotStoreConfig
+    : public TConfigurable
+{
+    //! A path where snapshots are stored.
+    Stroka Path;
+    bool EnableCompression;
+
+    TSnapshotStoreConfig()
+    {
+        Register("path", Path);
+        Register("enable_compression", EnableCompression)
+            .Default(true);
+    }
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,12 +181,8 @@ typedef TIntrusivePtr<TChangeLogCacheConfig> TChangeLogCacheConfigPtr;
 struct TPersistentStateManagerConfig
     : public TConfigurable
 {
-    //! A path where changelogs are stored.
-    // TODO(babenko): move to subconfig
-    Stroka LogPath;
-
-    //! A path where snapshots are stored.
-    Stroka SnapshotPath;
+    TChangeLogCacheConfigPtr ChangeLogs;
+    TSnapshotStoreConfigPtr Snapshots;
 
     //! Snapshotting period (measured in number of changes).
     /*!
@@ -203,10 +219,8 @@ struct TPersistentStateManagerConfig
 
     TPersistentStateManagerConfig()
     {
-        Register("log_path", LogPath)
-            .NonEmpty();
-        Register("snapshot_path", SnapshotPath)
-            .NonEmpty();
+        Register("changelogs", ChangeLogs);
+        Register("snapshots", Snapshots);
         Register("max_changes_between_snapshots", MaxChangesBetweenSnapshots)
             .Default(-1)
             .GreaterThanOrEqual(-1);
@@ -216,7 +230,7 @@ struct TPersistentStateManagerConfig
             .DefaultNew();
         Register("election", Election)
             .DefaultNew();
-        Register("change_log_downloader", ChangeLogDownloader)
+        Register("changelog_downloader", ChangeLogDownloader)
             .DefaultNew();
         Register("snapshot_downloader", SnapshotDownloader)
             .DefaultNew();

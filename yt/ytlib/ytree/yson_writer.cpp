@@ -11,7 +11,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
     
-// copied from <util/string/escape.cpp
+// Copied from <util/string/escape.cpp>
 namespace {
 
 static inline char HexDigit(char value) {
@@ -112,21 +112,75 @@ void EscapeC(const char* str, size_t len, TOutputStream& output) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonWriter::TYsonWriter(TOutputStream* stream, EYsonFormat format)
+TYsonWriter::TYsonWriter(
+    TOutputStream* stream,
+    EYsonFormat format,
+    EYsonType type,
+    bool formatRaw)
     : Stream(stream)
-    , IsFirstItem(true)
-    , IsEmptyEntity(false)
-    , Indent(0)
     , Format(format)
+    , Type(type)
+    , FormatRaw(formatRaw)
+    , Depth(0)
+    , BeforeFirstItem(true)
 {
     YASSERT(stream);
 }
 
 void TYsonWriter::WriteIndent()
 {
-    for (int i = 0; i < IndentSize * Indent; ++i) {
+    for (int i = 0; i < IndentSize * Depth; ++i) {
         Stream->Write(' ');
     }
+}
+
+bool TYsonWriter::IsTopLevelFragmentContext() const
+{
+    return Depth == 0 && (Type == EYsonType::ListFragment || Type == EYsonType::KeyedFragment);
+}
+
+void TYsonWriter::EndNode()
+{
+    if (IsTopLevelFragmentContext()) {
+        Stream->Write(ItemSeparator);
+        if (Format == EYsonFormat::Text || Format == EYsonFormat::Pretty) {
+            Stream->Write('\n');
+        }
+    }
+}
+
+void TYsonWriter::BeginCollection(char openBracket)
+{
+    Stream->Write(openBracket);
+    ++Depth;
+    BeforeFirstItem = true;
+}
+
+void TYsonWriter::CollectionItem()
+{
+    if (!IsTopLevelFragmentContext()) {
+        if (!BeforeFirstItem) {
+            Stream->Write(ItemSeparator);
+        }
+
+        if (Format == EYsonFormat::Pretty) {
+            Stream->Write('\n');
+            WriteIndent();
+        }
+    }
+
+    BeforeFirstItem = false;
+}
+
+void TYsonWriter::EndCollection(char closeBracket)
+{
+    --Depth;
+    BeforeFirstItem = false;
+    if (Format == EYsonFormat::Pretty && !BeforeFirstItem) {
+        Stream->Write('\n');
+        WriteIndent();
+    }
+    Stream->Write(closeBracket);
 }
 
 void TYsonWriter::WriteStringScalar(const TStringBuf& value)
@@ -142,65 +196,13 @@ void TYsonWriter::WriteStringScalar(const TStringBuf& value)
     }
 }
 
-void TYsonWriter::WriteMapItem(const TStringBuf& name)
-{
-    CollectionItem(ItemSeparator);
-    WriteStringScalar(name);
-    if (Format == EYsonFormat::Pretty) {
-        Stream->Write(' ');
-    }
-    Stream->Write(KeyValueSeparator);
-    if (Format == EYsonFormat::Pretty) {
-        Stream->Write(' ');
-    }
-    IsFirstItem = false;
-}
-
-void TYsonWriter::BeginCollection(char openBracket)
-{
-    Stream->Write(openBracket);
-    IsFirstItem = true;
-}
-
-void TYsonWriter::CollectionItem(char separator)
-{
-    if (IsFirstItem) {
-        if (Format == EYsonFormat::Pretty) {
-            Stream->Write('\n');
-            ++Indent;
-        }
-    } else {
-        Stream->Write(separator);
-        if (Format == EYsonFormat::Pretty) {
-            Stream->Write('\n');
-        }
-    }
-    if (Format == EYsonFormat::Pretty) {
-        WriteIndent();
-    }
-    IsFirstItem = false;
-}
-
-void TYsonWriter::EndCollection(char closeBracket)
-{
-    if (Format == EYsonFormat::Pretty && !IsFirstItem) {
-        Stream->Write('\n');
-        --Indent;
-        WriteIndent();
-    }
-    Stream->Write(closeBracket);
-    IsFirstItem = false;
-}
-
-void TYsonWriter::OnStringScalar(const TStringBuf& value, bool hasAttributes)
+void TYsonWriter::OnStringScalar(const TStringBuf& value)
 {
     WriteStringScalar(value);
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
+    EndNode();
 }
 
-void TYsonWriter::OnIntegerScalar(i64 value, bool hasAttributes)
+void TYsonWriter::OnIntegerScalar(i64 value)
 {
     if (Format == EYsonFormat::Binary) {
         Stream->Write(IntegerMarker);
@@ -208,12 +210,10 @@ void TYsonWriter::OnIntegerScalar(i64 value, bool hasAttributes)
     } else {
         Stream->Write(ToString(value));
     }
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
+    EndNode();
 }
 
-void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
+void TYsonWriter::OnDoubleScalar(double value)
 {
     if (Format == EYsonFormat::Binary) {
         Stream->Write(DoubleMarker);
@@ -221,17 +221,13 @@ void TYsonWriter::OnDoubleScalar(double value, bool hasAttributes)
     } else {
         Stream->Write(ToString(value));
     }
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
+    EndNode();
 }
 
-void TYsonWriter::OnEntity(bool hasAttributes)
+void TYsonWriter::OnEntity()
 {
-    if (!hasAttributes) {
-        Stream->Write(BeginAttributesSymbol);
-        Stream->Write(EndAttributesSymbol);
-    }
+    Stream->Write('#');
+    EndNode();
 }
 
 void TYsonWriter::OnBeginList()
@@ -241,15 +237,13 @@ void TYsonWriter::OnBeginList()
 
 void TYsonWriter::OnListItem()
 {
-    CollectionItem(ItemSeparator);
+    CollectionItem();
 }
 
-void TYsonWriter::OnEndList(bool hasAttributes)
+void TYsonWriter::OnEndList()
 {
     EndCollection(EndListSymbol);
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
-        Stream->Write(' ');
-    }
+    EndNode();
 }
 
 void TYsonWriter::OnBeginMap()
@@ -257,17 +251,27 @@ void TYsonWriter::OnBeginMap()
     BeginCollection(BeginMapSymbol);
 }
 
-void TYsonWriter::OnMapItem(const TStringBuf& name)
+void TYsonWriter::OnKeyedItem(const TStringBuf& key)
 {
-    WriteMapItem(name);
-}
+    CollectionItem();
 
-void TYsonWriter::OnEndMap(bool hasAttributes)
-{
-    EndCollection(EndMapSymbol);
-    if (Format == EYsonFormat::Pretty && hasAttributes) {
+    WriteStringScalar(key);
+    
+    if (Format == EYsonFormat::Pretty) {
         Stream->Write(' ');
     }
+    Stream->Write(KeyValueSeparator);
+    if (Format == EYsonFormat::Pretty) {
+        Stream->Write(' ');
+    }
+
+    BeforeFirstItem = false;
+}
+
+void TYsonWriter::OnEndMap()
+{
+    EndCollection(EndMapSymbol);
+    EndNode();
 }
 
 void TYsonWriter::OnBeginAttributes()
@@ -275,64 +279,22 @@ void TYsonWriter::OnBeginAttributes()
     BeginCollection(BeginAttributesSymbol);
 }
 
-void TYsonWriter::OnAttributesItem(const TStringBuf& name)
-{
-    WriteMapItem(name);
-}
-
 void TYsonWriter::OnEndAttributes()
 {
     EndCollection(EndAttributesSymbol);
-}
-
-void TYsonWriter::OnRaw(const TStringBuf& yson)
-{
-    Stream->Write(yson);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TYsonFragmentWriter::TYsonFragmentWriter(TOutputStream* stream, EYsonFormat format)
-    : TYsonWriter(stream, format)
-    , NestedCount(0)
-{
-    // this is a hack for not making an indent before first tokens (in pretty mode)
-    Indent = -1;
-}
-
-void TYsonFragmentWriter::BeginCollection(char openBracket)
-{
-    ++NestedCount;
-    TYsonWriter::BeginCollection(openBracket);
-}
-
-void TYsonFragmentWriter::CollectionItem(char separator)
-{
-    if (IsFirstItem) {
-        if (Format == EYsonFormat::Pretty) {
-            if (NestedCount != 0) {
-                Stream->Write('\n');
-            }
-            ++Indent;
-        }
-    } else {
-        Stream->Write(separator);
-        if (Format == EYsonFormat::Pretty ||
-           (Format == EYsonFormat::Text && NestedCount == 0))
-        {
-            Stream->Write('\n');
-        }
-    }
     if (Format == EYsonFormat::Pretty) {
-        WriteIndent();
+        Stream->Write(' ');
     }
-    IsFirstItem = false;
 }
 
-void TYsonFragmentWriter::EndCollection(char closeBracket)
+void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    TYsonWriter::EndCollection(closeBracket);
-    --NestedCount;
+    if (FormatRaw) {
+        TYsonConsumerBase::OnRaw(yson, type);
+    } else {
+        Stream->Write(yson);
+        BeforeFirstItem = false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

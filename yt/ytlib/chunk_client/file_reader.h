@@ -37,10 +37,10 @@ public:
     const NChunkHolder::NProto::TChunkInfo& GetChunkInfo() const;
 
     //! Implements IChunkReader and calls #ReadBlock.
-    virtual TAsyncReadResult::TPtr AsyncReadBlocks(const yvector<int>& blockIndexes);
+    virtual TAsyncReadResult AsyncReadBlocks(const yvector<int>& blockIndexes);
 
     //! Implements IChunkReader and calls #GetChunkInfo.
-    virtual TAsyncGetInfoResult::TPtr AsyncGetChunkInfo();
+    virtual TAsyncGetInfoResult AsyncGetChunkInfo();
 
     //! Synchronously reads a given block from the file.
     /*!

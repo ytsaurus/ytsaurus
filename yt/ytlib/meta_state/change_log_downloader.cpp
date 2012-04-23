@@ -56,8 +56,8 @@ TChangeLogDownloader::EResult TChangeLogDownloader::Download(
 
 TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
 {
-    auto asyncResult = New< TFuture<TPeerId> >();
-    auto awaiter = New<TParallelAwaiter>(&Profiler, "changelog_source_lookup_time");
+    auto promise = NewPromise<TPeerId>();
+    auto awaiter = New<TParallelAwaiter>(&Profiler, "/changelog_source_lookup_time");
 
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         LOG_INFO("Requesting changelog info from peer %d", id);
@@ -73,14 +73,14 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
             BIND(
                 &TChangeLogDownloader::OnResponse,
                 awaiter,
-                asyncResult,
+                promise,
                 id,
                 version));
     }
 
-    awaiter->Complete(BIND(&TChangeLogDownloader::OnComplete, asyncResult));
+    awaiter->Complete(BIND(&TChangeLogDownloader::OnComplete, promise));
 
-    return asyncResult->Get();
+    return promise.Get();
 }
 
 TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
@@ -111,7 +111,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
             downloadedRecordCount,
             downloadedRecordCount + desiredChunkSize - 1);
 
-        auto response = request->Invoke()->Get();
+        auto response = request->Invoke().Get();
 
         if (!response->IsOK()) {
             auto error = response->GetError();
@@ -171,7 +171,7 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
 
 void TChangeLogDownloader::OnResponse(
     TParallelAwaiter::TPtr awaiter,
-    TFuture<TPeerId>::TPtr asyncResult,
+    TPromise<TPeerId> promise,
     TPeerId peerId,
     TMetaVersion version,
     TProxy::TRspGetChangeLogInfo::TPtr response)
@@ -197,16 +197,16 @@ void TChangeLogDownloader::OnResponse(
         peerId,
         recordCount);
 
-    asyncResult->Set(peerId);
+    promise.Set(peerId);
     awaiter->Cancel();
 }
 
 void TChangeLogDownloader::OnComplete(
-    TFuture<TPeerId>::TPtr asyncResult)
+    TPromise<TPeerId> promise)
 {
     LOG_INFO("Unable to find requested records at any peer");
 
-    asyncResult->Set(NElection::InvalidPeerId);
+    promise.Set(NElection::InvalidPeerId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

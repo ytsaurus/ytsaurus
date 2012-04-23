@@ -20,7 +20,7 @@ TEST(TForeachTest, CommonCase)
     }
 
     yvector<int> b;
-    FOREACH(int x, a) {
+    FOREACH (int x, a) {
         b.push_back(x);
     }
 
@@ -35,7 +35,7 @@ TEST(TForeachTest, CommonCaseReference)
     }
 
     yvector<int> b = a;
-    FOREACH(int& x, b) {
+    FOREACH (int& x, b) {
         x += 10;
     }
 
@@ -54,7 +54,7 @@ TEST(TForeachTest, Break)
     }
 
     yvector<int> b;
-    FOREACH(int x, a) {
+    FOREACH (int x, a) {
         if (x > 5) break;
         b.push_back(x);
     }
@@ -77,7 +77,7 @@ TEST(TForeachTest, Continue)
     }
 
     yvector<int> b;
-    FOREACH(int x, a) {
+    FOREACH (int x, a) {
         if (x % 2 == 0) continue;
         b.push_back(x);
     }
@@ -103,9 +103,9 @@ TEST(TForeachTest, NestedLoops)
     }
 
     yvector< yvector<int> > b;
-    FOREACH(auto& v, a) {
+    FOREACH (auto& v, a) {
         b.push_back(yvector<int>());
-        FOREACH(int x, v) {
+        FOREACH (int x, v) {
             b.back().push_back(x);
         }
     }
@@ -126,7 +126,7 @@ TEST(TForeachTest, CollectionGivenByResultOfFunction)
     }
 
     yvector<int> b;
-    FOREACH(int x, GetVector(a)) {
+    FOREACH (int x, GetVector(a)) {
         b.push_back(x);
     }
 
@@ -142,7 +142,7 @@ TEST(TForeachTest, CollectionGivenByReference)
     yvector<int>& referenceToA = a;
 
     yvector<int> b;
-    FOREACH(int x, referenceToA) {
+    FOREACH (int x, referenceToA) {
         b.push_back(x);
     }
 
@@ -158,7 +158,7 @@ TEST(TForeachTest, CollectionGivenByConstReference)
     const yvector<int>& referenceToA = a;
 
     yvector<int> b;
-    FOREACH(int x, referenceToA) {
+    FOREACH (int x, referenceToA) {
         b.push_back(x);
     }
 

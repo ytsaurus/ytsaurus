@@ -124,7 +124,7 @@ public:
         : TClientRequest(channel, path, verb, oneWay)
     { }
 
-    typename TFuture< TIntrusivePtr<TResponse> >::TPtr Invoke()
+    TFuture< TIntrusivePtr<TResponse> > Invoke()
     {
         auto response = NYT::New<TResponse>(GetRequestId());
         auto asyncResult = response->GetAsyncResult();
@@ -254,21 +254,21 @@ public:
 
     TTypedClientResponse(const TRequestId& requestId)
         : TClientResponse(requestId)
-        , AsyncResult(NYT::New< TFuture<TPtr> >())
+        , Promise(NewPromise<TPtr>())
     { }
 
-    typename TFuture<TPtr>::TPtr GetAsyncResult()
+    TFuture<TPtr> GetAsyncResult()
     {
-        return AsyncResult;
+        return Promise;
     }
 
 private:
-    typename TFuture<TPtr>::TPtr AsyncResult;
+    TPromise<TPtr> Promise;
 
     virtual void FireCompleted()
     {
-        AsyncResult->Set(this);
-        AsyncResult.Reset();
+        Promise.Set(this);
+        Promise.Reset();
     }
 
     virtual void DeserializeBody(const TRef& data)
@@ -289,10 +289,10 @@ public:
 
     TOneWayClientResponse(const TRequestId& requestId);
 
-    TFuture<TPtr>::TPtr GetAsyncResult();
+    TFuture<TPtr> GetAsyncResult();
 
 private:
-    TFuture<TPtr>::TPtr AsyncResult;
+    TPromise<TPtr> Promise;
 
     // IClientResponseHandler implementation.
     virtual void OnAcknowledgement();

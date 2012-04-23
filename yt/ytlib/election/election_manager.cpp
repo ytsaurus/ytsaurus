@@ -283,7 +283,7 @@ private:
     {
         LOG_DEBUG("Checking candidates (Round: %p)", this);
 
-        FOREACH(const auto& pair, StatusTable) {
+        FOREACH (const auto& pair, StatusTable) {
             if (CheckForLeader(pair.first, pair.second))
                 return true;
         }
@@ -357,7 +357,7 @@ private:
         const TEpoch& epoch) const
     {
         int count = 0;
-        FOREACH(const auto& pair, StatusTable) {
+        FOREACH (const auto& pair, StatusTable) {
             if (pair.second.VoteId == candidateId &&
                 pair.second.VoteEpoch == epoch)
             {
@@ -401,7 +401,7 @@ private:
     {
         // Choose the best vote.
         TStatus bestCandidate;
-        FOREACH(const auto& pair, StatusTable) {
+        FOREACH (const auto& pair, StatusTable) {
             const TStatus& currentCandidate = pair.second;
             if (StatusTable.find(currentCandidate.VoteId) != StatusTable.end() &&
                 IsBetterCandidate(currentCandidate, bestCandidate))

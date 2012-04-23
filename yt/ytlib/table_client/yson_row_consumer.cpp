@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "yson_row_consumer.h"
 
 namespace NYT {
@@ -12,34 +12,29 @@ TRowConsumer::TRowConsumer(ISyncTableWriter* writer)
     , InsideRow(false)
 { }
 
-void TRowConsumer::OnStringScalar(const TStringBuf& value, bool hasAttributes)
+void TRowConsumer::OnStringScalar(const TStringBuf& value)
 {
-    CheckNoAttributes(hasAttributes);
     CheckInsideRow();
 
     Writer->Write(Column, TValue(value));
 }
 
-void TRowConsumer::OnIntegerScalar(i64 value, bool hasAttributes)
+void TRowConsumer::OnIntegerScalar(i64 value)
 {
-    CheckNoAttributes(hasAttributes);
     CheckInsideRow();
 
     ythrow yexception() << Sprintf("Table value cannot be an integer (RowIndex: %d)", RowIndex);
 }
 
-void TRowConsumer::OnDoubleScalar(double value, bool hasAttributes)
+void TRowConsumer::OnDoubleScalar(double value)
 {
-    CheckNoAttributes(hasAttributes);
     CheckInsideRow();
 
     ythrow yexception() << Sprintf("Table value cannot be a double (RowIndex: %d)", RowIndex);
 }
 
-void TRowConsumer::OnEntity(bool hasAttributes)
+void TRowConsumer::OnEntity()
 {
-    UNUSED(hasAttributes);
-
     ythrow yexception() << Sprintf("Table value cannot be an entity (RowIndex: %d)", RowIndex);
 }
 
@@ -53,9 +48,8 @@ void TRowConsumer::OnListItem()
     // Represents separator between rows, do nothing.
 }
 
-void TRowConsumer::OnEndList(bool hasAttributes)
+void TRowConsumer::OnEndList()
 {
-    UNUSED(hasAttributes);
     YUNREACHABLE();
 }
 
@@ -67,15 +61,14 @@ void TRowConsumer::OnBeginMap()
     InsideRow = true;
 }
 
-void TRowConsumer::OnMapItem(const TStringBuf& name)
+void TRowConsumer::OnKeyedItem(const TStringBuf& name)
 {
     YASSERT(InsideRow);
     Column.assign(name);
 }
 
-void TRowConsumer::OnEndMap(bool hasAttributes)
+void TRowConsumer::OnEndMap()
 {
-    CheckNoAttributes(hasAttributes);
     YASSERT(InsideRow);
     Writer->EndRow();
     InsideRow = false;
@@ -87,22 +80,9 @@ void TRowConsumer::OnBeginAttributes()
     YUNREACHABLE();
 }
 
-void TRowConsumer::OnAttributesItem(const TStringBuf& name)
-{
-    UNUSED(name);
-    YUNREACHABLE();
-}
-
 void TRowConsumer::OnEndAttributes()
 {
     YUNREACHABLE();
-}
-
-void TRowConsumer::CheckNoAttributes(bool hasAttributes)
-{
-    if (hasAttributes) {
-        ythrow yexception() << Sprintf("Table value cannot have attributes (RowIndex: %d)", RowIndex);
-    }
 }
 
 void TRowConsumer::CheckInsideRow()

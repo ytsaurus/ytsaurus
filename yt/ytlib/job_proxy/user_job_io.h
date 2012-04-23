@@ -14,6 +14,8 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IUserJobIO {
+    virtual ~IUserJobIO();
+
     virtual int GetInputCount() const = 0;
     virtual int GetOutputCount() const = 0;
 

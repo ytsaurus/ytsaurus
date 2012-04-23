@@ -8,7 +8,7 @@ changing attributes
 "ignat"
 "not_ignat"
 nested attributes
-{"count"=0;"parent_id"="0-c-12f-3d94359f";"lock_mode"="none";"lock_ids"=[];"subtree_lock_ids"=[];"id"="0-3-130-9d7bb2ee";"type"="list_node";"ref_counter"=1;"dir"=<"file"=-100<>>}
-{"file"=-100<>}
--100<>
+{"count"=0;"parent_id"="0-c-12f-3d94359f";"lock_mode"="none";"lock_ids"=[];"subtree_lock_ids"=[];"id"="0-3-130-9d7bb2ee";"type"="list_node";"ref_counter"=1;"dir"=<"file"=<>-100>#}
+{"file"=<>-100}
+<>-100
 {}

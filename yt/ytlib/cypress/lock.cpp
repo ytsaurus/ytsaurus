@@ -2,6 +2,7 @@
 #include "lock.h"
 
 #include <ytlib/transaction_server/transaction.h>
+#include <ytlib/cell_master/load_context.h>
 
 namespace NYT {
 
@@ -23,22 +24,23 @@ TLock::TLock(
     , Mode_(mode)
 { }
 
-
 TLock::TLock(const TLockId& id)
     : TObjectWithIdBase(id)
 { }
 
 void TLock::Save(TOutputStream* output) const
 {
+    TObjectWithIdBase::Save(output);
     ::Save(output, NodeId_);
-//    ::Save(output, TransactionId_);
+    SaveObjectRef(output, Transaction_);
     ::Save(output, Mode_);
 }
 
 void TLock::Load(const TLoadContext& context, TInputStream* input)
 {
+    TObjectWithIdBase::Load(input);
     ::Load(input, NodeId_);
-//    ::Load(input, TransactionId_);
+    LoadObjectRef(input, Transaction_, context);
     ::Load(input, Mode_);
 }
 

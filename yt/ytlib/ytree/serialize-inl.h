@@ -218,7 +218,7 @@ void Write(const yhash_map<Stroka, T>& parameter, IYsonConsumer* consumer)
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(parameter);
     FOREACH (const auto& pair, sortedItems) {
-        consumer->OnMapItem(pair->first);
+        consumer->OnKeyedItem(pair->first);
         Write(pair->second, consumer);
     }
     consumer->OnEndMap();

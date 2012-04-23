@@ -27,6 +27,13 @@ DECLARE_ENUM(ENodeType,
     // Node is atomic, i.e. has no visible properties (aside from attributes).
     (Entity)
 );
+
+
+DECLARE_ENUM(EYsonType,
+    (Node)
+    (ListFragment)
+    (KeyedFragment)
+);
     
 struct INode;
 typedef TIntrusivePtr<INode> INodePtr;

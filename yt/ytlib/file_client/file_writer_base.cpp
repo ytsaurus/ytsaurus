@@ -58,7 +58,7 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         req->set_type(EObjectType::Chunk);
         auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
         reqExt->set_holder_count(Config->UploadReplicaCount);
-        auto rsp = cypressProxy.Execute(req)->Get();
+        auto rsp = cypressProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
                 ~rsp->GetError().ToString());
@@ -66,6 +66,9 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         ChunkId = TChunkId::FromProto(rsp->object_id());
         const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
         holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
+        if (holderAddresses.size() < Config->UploadReplicaCount) {
+            ythrow yexception() << "Not enough holders available";
+        }
     }
     LOG_INFO("Chunk created (ChunkId: %s, HolderAddresses: [%s])",
         ~ChunkId.ToString(),
@@ -172,7 +175,7 @@ void TFileWriterBase::Close()
     {
         TCypressServiceProxy cypressProxy(MasterChannel);
         auto req = Writer->GetConfirmRequest();
-        auto rsp = cypressProxy.Execute(req)->Get();
+        auto rsp = cypressProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error confirming chunk\n%s",
                 ~rsp->GetError().ToString());

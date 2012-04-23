@@ -31,6 +31,7 @@ public:
     ~TAsyncChangeLog();
 
     typedef TFuture<TVoid> TAppendResult;
+    typedef TPromise<TVoid> TAppendPromise;
 
     //! Enqueues record to be appended to the changelog.
     /*!
@@ -49,7 +50,7 @@ public:
      *
      * \see TChangeLog::Append
      */
-    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data);
+    TAppendResult Append(i32 recordId, const TSharedRef& data);
 
     //! Flushes the changelog.
     //! \see TChangeLog::Flush

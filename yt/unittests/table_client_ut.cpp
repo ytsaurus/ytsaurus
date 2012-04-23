@@ -21,7 +21,7 @@ namespace NTableClient {
 TRow FilterRow(const TRow& row, const TChannel& channel)
 {
     TRow result;
-    FOREACH(auto& pair, row) {
+    FOREACH (auto& pair, row) {
         if (channel.Contains(pair.first))
             result.push_back(pair);
     }
@@ -41,16 +41,16 @@ public:
 
     void Write(TValidatingWriter* writer)
     {
-        EXPECT_IS_TRUE(writer->AsyncOpen()->Get().IsOK());
+        EXPECT_IS_TRUE(writer->AsyncOpen().Get().IsOK());
 
-        FOREACH(auto& row, Rows) {
-            FOREACH(auto& pair, row) {
+        FOREACH (auto& row, Rows) {
+            FOREACH (auto& pair, row) {
                 writer->Write(pair.first, pair.second);
             }
-            EXPECT_IS_TRUE(writer->AsyncEndRow()->Get().IsOK());
+            EXPECT_IS_TRUE(writer->AsyncEndRow().Get().IsOK());
         }
 
-        EXPECT_IS_TRUE(writer->AsyncClose()->Get().IsOK());
+        EXPECT_IS_TRUE(writer->AsyncClose().Get().IsOK());
     }
 
     void Read(
@@ -63,7 +63,7 @@ public:
         startRow = std::min(startRow, rowsSize);
         endRow = std::min(endRow, rowsSize);
 
-        EXPECT_IS_TRUE(chunkReader->AsyncOpen()->Get().IsOK());
+        EXPECT_IS_TRUE(chunkReader->AsyncOpen().Get().IsOK());
 
         for (int i = startRow; i < endRow; ++i) {
             TRow ethalon = FilterRow(Rows[i], channel);
@@ -73,7 +73,7 @@ public:
             std::sort(row.begin(), row.end());
 
             EXPECT_EQ(ethalon, row);
-            EXPECT_IS_TRUE(chunkReader->AsyncNextRow()->Get().IsOK());
+            EXPECT_IS_TRUE(chunkReader->AsyncNextRow().Get().IsOK());
         }
 
         EXPECT_IS_FALSE(chunkReader->IsValid());
@@ -120,13 +120,13 @@ public:
 
     void ReadNone(TChunkReader::TPtr chunkReader)
     {
-        EXPECT_IS_TRUE(chunkReader->AsyncOpen()->Get().IsOK());
+        EXPECT_IS_TRUE(chunkReader->AsyncOpen().Get().IsOK());
         EXPECT_IS_FALSE(chunkReader->IsValid());
     }
 
     void OpenFail(TChunkReader::TPtr chunkReader) 
     {
-        EXPECT_IS_FALSE(chunkReader->AsyncOpen()->Get().IsOK());
+        EXPECT_IS_FALSE(chunkReader->AsyncOpen().Get().IsOK());
     }
 
     Stroka FileName;

@@ -26,6 +26,7 @@ public:
     double GetLoadFactor(const THolder& holder) const;
     double GetFillCoeff(const THolder& holder) const;
 
+    // TODO(babenko): consider using small vectors here
     yvector<THolderId> GetUploadTargets(int count);
     yvector<THolderId> GetUploadTargets(int count, const yhash_set<Stroka>& forbiddenAddresses);
     yvector<THolderId> GetReplicationTargets(const TChunk& chunk, int count);

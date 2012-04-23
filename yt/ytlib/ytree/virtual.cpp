@@ -6,7 +6,7 @@
 #include "ypath_detail.h"
 #include "ypath_client.h"
 #include "attribute_provider_detail.h"
-#include "lexer.h"
+#include "tokenizer.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -14,6 +14,10 @@ namespace NYT {
 namespace NYTree {
 
 using namespace NRpc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const int DefaultMaxSize = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,22 +32,22 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 {
     UNUSED(verb);
 
-    TYPath suffixPath;
-    auto token = ChopStringToken(path, &suffixPath);
+    TTokenizer tokens(path);
+    auto key = tokens[0].GetStringValue();
 
-    auto service = GetItemService(token);
+    auto service = GetItemService(key);
     if (!service) {
-        ythrow yexception() << Sprintf("Key %s is not found", ~token.Quote());
+        ythrow yexception() << Sprintf("Key %s is not found", ~Stroka(key).Quote());
     }
 
-    return TResolveResult::There(service, suffixPath);
+    return TResolveResult::There(service, TYPath(tokens.GetSuffix(0)));
 }
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
-    YASSERT(IsEmpty(context->GetPath()));
+    YASSERT(TTokenizer(context->GetPath())[0].IsEmpty());
 
-    int max_size = request->Attributes().Get<int>("max_size", Max<int>());
+    int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
@@ -52,20 +56,20 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 
     // TODO(MRoizner): use fluent
     BuildYsonFluently(&writer);
-    writer.OnBeginMap();
-    FOREACH (const auto& key, keys) {
-        writer.OnMapItem(key);
-        writer.OnEntity(false);
-    }
 
-    bool incomplete = keys.ysize() != size;
-    writer.OnEndMap(incomplete);
-    if (incomplete) {
+    if (keys.ysize() != size) {
         writer.OnBeginAttributes();
-        writer.OnAttributesItem("incomplete");
+        writer.OnKeyedItem("incomplete");
         writer.OnStringScalar("true");
         writer.OnEndAttributes();
     }
+
+    writer.OnBeginMap();
+    FOREACH (const auto& key, keys) {
+        writer.OnKeyedItem(key);
+        writer.OnEntity();
+    }
+    writer.OnEndMap();
 
     response->set_value(stream.Str());
     context->Reply();
@@ -74,7 +78,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
 {
     UNUSED(request);
-    YASSERT(IsEmpty(context->GetPath()));
+    YASSERT(TTokenizer(context->GetPath())[0].IsEmpty());
 
     auto keys = GetKeys();
     NYT::ToProto(response->mutable_keys(), keys);

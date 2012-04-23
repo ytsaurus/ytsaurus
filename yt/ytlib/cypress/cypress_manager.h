@@ -153,8 +153,9 @@ private:
         ELockMode requestedMode,
         bool* isMandatory = NULL);
 
-    static bool AreCompetingLocksCompatible(ELockMode existingMode, ELockMode requestedMode);
-    static bool AreConcurrentLocksCompatible(ELockMode existingMode, ELockMode requestedMode);
+    static bool IsParentTransaction(NTransactionServer::TTransaction* transaction, NTransactionServer::TTransaction* parent);
+    static bool AreCompetingLocksCompatible(ELockMode upwardMode, ELockMode downwardMode);
+    static bool AreConcurrentLocksCompatible(ELockMode upwardMode, ELockMode downwardMode);
 
     static bool IsLockRecursive(ELockMode mode);
    

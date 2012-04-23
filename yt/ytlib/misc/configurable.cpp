@@ -83,7 +83,7 @@ void TConfigurable::Save(IYsonConsumer* consumer) const
     FOREACH (const auto& pair, sortedItems) {
         const auto& parameter = pair->second;
         if (parameter->IsPresent()) {
-            consumer->OnMapItem(pair->first);
+            consumer->OnKeyedItem(pair->first);
             pair->second->Save(consumer);
         }
     }

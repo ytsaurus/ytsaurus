@@ -97,7 +97,7 @@ class YSONParserBase(object):
             return self._read_binary_string()
         if ch == '"':
             return self._read_quoted_string()
-        if not ch.isalpha() and not ch == '_':
+        if not ch.isalpha() and not ch == '_' and not ch == '%':
             raise YSONParseError(
                 "Expecting string literal but found %s in YSON" % ch,
                 self._get_position_info())
@@ -153,10 +153,11 @@ class YSONParserBase(object):
         result = ""
         while True:
             ch = self._peek_char()
-            if not ch or not ch.isalpha() and ch != '_' and not (ch.isdigit() and result):
+            if ch and (ch.isalpha() or ch.isdigit() or ch in '_%-'):
+                self._read_char()
+                result += ch
+            else:
                 break
-            self._read_char()
-            result += ch
         return result
 
     def _read_numeric(self):
@@ -174,6 +175,8 @@ class YSONParserBase(object):
         return result
 
     def _parse_any(self):
+        if self._has_attributes():
+            attributes = self._parse_attributes()
         self._skip_whitespaces()
         ch = self._peek_char()
         if not ch:
@@ -186,7 +189,7 @@ class YSONParserBase(object):
         elif ch == '{':
             return self._parse_map()
 
-        elif ch == '<':
+        elif ch == '#':
             return self._parse_entity()
 
         elif ch == _STRING_MARKER:
@@ -201,7 +204,7 @@ class YSONParserBase(object):
         elif ch == '+' or ch == '-' or ch.isdigit():
             return self._parse_numeric()
 
-        elif ch == '_' or ch == '"' or ch.isalpha():
+        elif ch == '_' or ch == '"' or ch == '%' or ch.isalpha():
             return self._parse_string()
 
         else:
@@ -223,8 +226,6 @@ class YSONParserBase(object):
                 break
             self._expect_char(';')
         self._expect_char(']')
-        if self._has_attributes():
-            attributes = self._parse_attributes()
         return result
 
     def _parse_map(self):
@@ -252,33 +253,25 @@ class YSONParserBase(object):
                 break
             self._expect_char(';')
         self._expect_char('}')
-        if self._has_attributes():
-            attributes = self._parse_attributes()
         return result
 
     def _parse_entity(self):
-        attributes = self._parse_attributes()
+        self._expect_char('#')
         return None
 
     def _parse_string(self):
         result = self._read_string()
-        if self._has_attributes():
-            attributes = self._parse_attributes()
         return result
 
     def _parse_binary_int64(self):
         self._expect_char(_INT64_MARKER)
         result = self._read_varint()
-        if self._has_attributes():
-            attributes = self._parse_attributes()
         return result
 
     def _parse_binary_double(self):
         self._expect_char(_DOUBLE_MARKER)
         bytes = self._read_binary_chars(struct.calcsize('d'))
         result = struct.unpack('d', bytes)[0]
-        if self._has_attributes():
-            attributes = self._parse_attributes()
         return result
 
     def _parse_numeric(self):
@@ -299,8 +292,6 @@ class YSONParserBase(object):
                 raise YSONParseError(
                     "Failed to parse Double literal %s in YSON" % string,
                     self._get_position_info())
-        if self._has_attributes():
-            attributes = self._parse_attributes()
         return result
 
     def _has_attributes(self):
@@ -340,6 +331,7 @@ class YSONParser(YSONParserBase):
 
     def parse(self):
         result = self._parse_any()
+        self._skip_whitespaces()
         if self._peek_char():
             raise YSONParseError(
                 "Unexpected symbol %s while expecting end-of-stream in YSON" % self._peek_char(),

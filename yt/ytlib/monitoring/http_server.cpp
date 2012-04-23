@@ -65,7 +65,7 @@ private:
         SOCKET Socket;
         Stroka Path;
         i64 StartTime;
-        TFuture<Stroka>::TPtr Future;
+        TFuture<Stroka> Future;
     };
 
 private:
@@ -309,7 +309,7 @@ private:
                 {
                     auto it = impl->AsyncHandlers.find(prefix);
                     if (it != impl->AsyncHandlers.end()) {
-                        Output() << it->second.Run(suffix)->Get();
+                        Output() << it->second.Run(suffix).Get();
                         return true;
                     }
                 }
@@ -396,7 +396,7 @@ Stroka FormatInternalServerErrorResponse(const Stroka& body)
         "HTTP/1.1 500 Internal Server Error\r\n"
         "Connection: close\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: %"PRISZT"\r\n"
+        "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
         body.length(),
@@ -409,7 +409,7 @@ Stroka FormatNotImplementedResponse(const Stroka& body)
         "HTTP/1.1 501 Not Implemented\r\n"
         "Connection: close\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: %"PRISZT"\r\n"
+        "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
         body.length(),
@@ -422,7 +422,7 @@ Stroka FormatBadGatewayResponse(const Stroka& body)
         "HTTP/1.1 502 Bad Gateway\r\n"
         "Connection: close\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: %"PRISZT"\r\n"
+        "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
         body.length(),
@@ -435,7 +435,7 @@ Stroka FormatServiceUnavailableResponse(const Stroka& body)
         "HTTP/1.1 503 Service Unavailable\r\n"
         "Connection: close\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: %"PRISZT"\r\n"
+        "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
         body.length(),
@@ -448,7 +448,7 @@ Stroka FormatGatewayTimeoutResponse(const Stroka& body)
         "HTTP/1.1 504 Gateway Timeout\r\n"
         "Connection: close\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: %"PRISZT"\r\n"
+        "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
         body.length(),
@@ -461,7 +461,7 @@ Stroka FormatBadRequestResponse(const Stroka& body)
         "HTTP/1.1 400 Bad Request\r\n"
         "Connection: close\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: %"PRISZT"\r\n"
+        "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
         body.length(),
@@ -474,7 +474,7 @@ Stroka FormatNotFoundResponse(const Stroka& body)
         "HTTP/1.1 404 Not Found\r\n"
         "Connection: close\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: %"PRISZT"\r\n"
+        "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
         body.length(),
@@ -504,7 +504,7 @@ Stroka FormatOKResponse(const Stroka& body)
         "Cache-Control: no-cache, max-age=0\r\n"
         "Expires: Thu, 01 Jan 1970 00:00:01 GMT\r\n"
         "Content-Type: application/json\r\n"
-        "Content-Length: %"PRISZT"\r\n"
+        "Content-Length: %" PRISZT "\r\n"
         "\r\n"
         "%s",
         body.length(),

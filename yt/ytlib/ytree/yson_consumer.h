@@ -19,29 +19,23 @@ struct IYsonConsumer
     //! The current item is a string scalar (IStringNode).
     /*!
      *  \param value A scalar value.
-     *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
-    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes = false) = 0;
+    virtual void OnStringScalar(const TStringBuf& value) = 0;
 
     //! The current item is an integer scalar (IIntegerNode).
     /*!
      *  \param value A scalar value.
-     *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
-    virtual void OnIntegerScalar(i64 value, bool hasAttributes = false) = 0;
+    virtual void OnIntegerScalar(i64 value) = 0;
 
     //! The current item is an FP scalar (IDoubleNode).
     /*!
      *  \param value A scalar value.
-     *  \param hasAttributes Tells if the scalar is followed by the description of its attributes.
      */
-    virtual void OnDoubleScalar(double value, bool hasAttributes = false) = 0;
+    virtual void OnDoubleScalar(double value) = 0;
     
     //! The current item is an entity (IEntityNode).
-    /*!
-     *  \param hasAttributes Tells if the entity is followed by the description of its attributes.
-     */
-    virtual void OnEntity(bool hasAttributes = false) = 0;
+    virtual void OnEntity() = 0;
 
     //! Starts a list (IListNode).
     /*!
@@ -58,55 +52,52 @@ struct IYsonConsumer
     virtual void OnListItem() = 0;
 
     //! Ends the current list.
-    /*!
-     *  \param hasAttributes Tells if the list is followed by the description of its attributes.
-     */
-    virtual void OnEndList(bool hasAttributes = false) = 0;
+    virtual void OnEndList() = 0;
 
     //! Starts a map (IMapNode).
     /*!
      *  The events describing a map are raised as follows:
      *  - #OnBeginMap
-     *  - For each item: #OnMapItem followed by the description of the item
+     *  - For each item: #OnKeyedItem followed by the description of the item
      *  - #OnEndMap
-     *  
-     *  The map may also have attributes attached to it (see #OnEndMap).
      */
     virtual void OnBeginMap() = 0;
 
-    //! Designates a list item.
+    //! Designates a keyed item (in map or in attributes).
     /*!
      *  \param key Item key in the map.
      */
-    virtual void OnMapItem(const TStringBuf& key) = 0;
+    virtual void OnKeyedItem(const TStringBuf& key) = 0;
 
     //! Ends the current map.
-    /*!
-     *  \param hasAttributes Tells if the map is followed by the description of its attributes.
-     */
-    virtual void OnEndMap(bool hasAttributes = false) = 0;
+    virtual void OnEndMap() = 0;
 
-    //! Starts an attribute map.
+    //! Starts attributes.
     /*!
-     *  This may only be called after #OnStringScalar, #OnIntegerScalar, #OnDoubleScalar, #OnEntity,
-     *  #OnEndList or #OnEndMap with "hasAttirubtes" flag set to True.
-     *  
      *  The events describing attributes are raised as follows:
      *  - #OnBeginAttributes
-     *  - For each attribute: #OnAttributeItem followed by the description of the item
+     *  - For each item: #OnKeyedItem followed by the description of the item
      *  - #OnEndAttributes
-     *  
      */
     virtual void OnBeginAttributes() = 0;
 
-    //! Designates an attribute.
-    /*!
-     *  \param key An attribute key.
-     */
-    virtual void OnAttributesItem(const TStringBuf& key) = 0;
-
-    //! Ends the current attribute map.
+    //! Ends the current attribute list.
     virtual void OnEndAttributes() = 0;
+
+    //! Inserts YSON-serialized node or fragment.
+    /*!
+     *  \param yson Serialized data.
+     *  \param type Type of data.
+     */
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TYsonConsumerBase
+    : public virtual IYsonConsumer
+{
+    virtual void OnRaw(const TStringBuf& ysonNode, EYsonType type);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

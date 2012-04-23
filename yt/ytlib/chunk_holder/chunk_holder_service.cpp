@@ -135,7 +135,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
     Bootstrap
         ->GetSessionManager()
         ->FinishSession(~session, attributes)
-        ->Subscribe(BIND([=] (TChunkPtr chunk) {
+        .Subscribe(BIND([=] (TChunkPtr chunk) {
             auto chunkInfo = session->GetChunkInfo();
             // Don't report attributes to the writer since it has them already.
             chunkInfo.clear_attributes();
@@ -160,7 +160,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
     auto session = GetSession(chunkId);
 
     i32 blockIndex = startBlockIndex;
-    FOREACH(const auto& attachment, request->Attachments()) {
+    FOREACH (const auto& attachment, request->Attachments()) {
         // Make a copy of the attachment to enable separate caching
         // of blocks arriving within a single RPC request.
         auto data = attachment.ToBlob();
@@ -200,18 +200,19 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
         putRequest->Attachments().push_back(block->GetData());
     }
 
-    putRequest->Invoke()->Subscribe(BIND([=] (TProxy::TRspPutBlocks::TPtr putResponse) {
-        if (putResponse->IsOK()) {
-            context->Reply();
-        } else {
-            Stroka message = Sprintf("SendBlocks: Cannot put blocks on the remote chunk holder (Address: %s)\n%s",
-                ~address,
-                ~putResponse->GetError().ToString());
+    putRequest->Invoke().Subscribe(
+        BIND([=] (TProxy::TRspPutBlocks::TPtr putResponse) {
+            if (putResponse->IsOK()) {
+                context->Reply();
+            } else {
+                Stroka message = Sprintf("SendBlocks: Cannot put blocks on the remote chunk holder (Address: %s)\n%s",
+                    ~address,
+                    ~putResponse->GetError().ToString());
 
-            LOG_WARNING("%s", ~message);
-            context->Reply(TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed, message);
-        }
-    }));
+                LOG_WARNING("%s", ~message);
+                context->Reply(TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed, message);
+            }
+        }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
@@ -246,13 +247,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                 FOREACH (const auto& peer, peers) {
                     blockInfo->add_peer_addresses(peer.Address);
                 }
-                LOG_DEBUG("GetBlocks: Peers suggested (BlockIndex: %d, PeerCount: %d)",
-                    blockIndex,
-                    peers.ysize());
+                LOG_DEBUG("GetBlocks: %d peers suggested for block %d",
+                    peers.ysize(),
+                    blockIndex);
             }
         } else {
             // Fetch the actual data (either from cache or from disk).
-            LOG_DEBUG("GetBlocks: Fetching block (BlockIndex: %d)", blockIndex);
+            LOG_DEBUG("GetBlocks: Fetching block %d", blockIndex);
             awaiter->Await(
                 Bootstrap->GetBlockStore()->GetBlock(blockId),
                 BIND([=] (TBlockStore::TGetBlockResult result) {
@@ -321,9 +322,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
 
     auto session = GetSession(chunkId);
 
-    session->FlushBlock(blockIndex)->Subscribe(BIND([=] (TVoid) {
-        context->Reply();
-    }));
+    session
+        ->FlushBlock(blockIndex)
+        .Subscribe(BIND([=] (TVoid) {
+            context->Reply();
+        }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
@@ -343,15 +346,16 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkInfo)
 
     context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
 
-    auto chunk = GetChunk(chunkId);
-    chunk->GetInfo()->Subscribe(BIND([=] (TChunk::TGetInfoResult result) {
-        if (result.IsOK()) {
-            *response->mutable_chunk_info() = result.Value();
-            context->Reply();
-        } else {
-            context->Reply(result);
-        }
-    }));
+    GetChunk(chunkId)
+        ->GetInfo()
+        .Subscribe(BIND([=] (TChunk::TGetInfoResult result) {
+            if (result.IsOK()) {
+                *response->mutable_chunk_info() = result.Value();
+                context->Reply();
+            } else {
+                context->Reply(result);
+            }
+        }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
@@ -363,7 +367,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
     Bootstrap
         ->GetChunkCache()
         ->DownloadChunk(chunkId)
-        ->Subscribe(BIND([=] (TChunkCache::TDownloadResult result) {
+        .Subscribe(BIND([=] (TChunkCache::TDownloadResult result) {
             if (result.IsOK()) {
                 context->Reply();
             } else {

@@ -44,7 +44,7 @@ TAsyncError TChunkFileWriter::AsyncWriteBlocks(const std::vector<TSharedRef>& bl
     YASSERT(!IsClosed);
 
     try {
-        FOREACH(auto& data, blocks) {
+        FOREACH (auto& data, blocks) {
             auto* blockInfo = ChunkMeta.add_blocks();
             blockInfo->set_offset(DataFile->GetPosition());
             blockInfo->set_size(static_cast<int>(data.Size()));
@@ -72,7 +72,7 @@ TAsyncError TChunkFileWriter::AsyncClose(
 
     {
         auto res = AsyncWriteBlocks(MoveRV(blocks));
-        if (!res->Get().IsOK())
+        if (!res.Get().IsOK())
             return res;
     }
 

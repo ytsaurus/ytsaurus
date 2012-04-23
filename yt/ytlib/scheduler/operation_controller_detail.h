@@ -49,7 +49,6 @@ typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
 
 ////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): extract to a proper place
 class TOperationControllerBase
     : public IOperationController
 {
@@ -60,8 +59,8 @@ public:
         TOperation* operation);
 
     virtual void Initialize();
-    virtual TFuture<TVoid>::TPtr Prepare();
-    virtual TFuture<TVoid>::TPtr Revive();
+    virtual TFuture<void> Prepare();
+    virtual TFuture<void> Revive();
 
     virtual void OnJobRunning(TJobPtr job);
     virtual void OnJobCompleted(TJobPtr job);
@@ -125,7 +124,7 @@ protected:
         // Chunk list for appending the output.
         NChunkServer::TChunkListId OutputChunkListId;
         // Chunk trees comprising the output (the order matters!)
-        std::vector<NChunkServer::TChunkTreeId> OutputChildrenIds;
+        std::vector<NChunkServer::TChunkTreeId> PartitionTreeIds;
     };
 
     std::vector<TOutputTable> OutputTables;
@@ -174,7 +173,7 @@ protected:
 
     // TODO(babenko): YPath and RPC responses currently share no base class.
     template <class TResponse>
-    void CheckResponse(TResponse response, const Stroka& failureMessage) 
+    static void CheckResponse(TResponse response, const Stroka& failureMessage) 
     {
         if (response->IsOK())
             return;
@@ -188,17 +187,17 @@ protected:
     // Round 1:
     // - Start primary transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr StartPrimaryTransaction(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch StartPrimaryTransaction();
 
-    TVoid OnPrimaryTransactionStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnPrimaryTransactionStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Round 2:
     // - Start input transaction.
     // - Start output transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr StartSeconaryTransactions(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch StartSeconaryTransactions();
 
-    TVoid OnSecondaryTransactionsStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    void OnSecondaryTransactionsStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Round 3:
     // - Fetch input tables.
@@ -207,10 +206,15 @@ protected:
     // - Fetch files.
     // - Get output tables schemata.
     // - Get output chunk lists.
+    // - (Custom)
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr RequestInputs(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch RequestInputs();
+    void OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
-    TVoid OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+    //! Extensibility point for requesting additional info from master.
+    virtual void RequestCustomInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    //! Extensibility point for handling additional info from master.
+    virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     virtual std::vector<NYTree::TYPath> GetInputTablePaths() = 0;
     virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
@@ -220,7 +224,7 @@ protected:
     // Round 4.
     // - (Custom)
 
-    TVoid CompletePreparation(TVoid);
+    void CompletePreparation();
 
     virtual void DoCompletePreparation() = 0;
 
@@ -231,14 +235,18 @@ protected:
 
     // Round 1.
     // - Attach chunk trees.
+    // - (Custom)
     // - Commit input transaction.
     // - Commit output transaction.
     // - Commit primary transaction.
 
-    NCypress::TCypressServiceProxy::TInvExecuteBatch::TPtr CommitOutputs(TVoid);
+    NCypress::TCypressServiceProxy::TInvExecuteBatch CommitOutputs();
+    void OnOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
-    TVoid OnOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
-
+    //! Extensibility point for additional finalization logic.
+    virtual void CommitCustomOutputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    //! Extensibility point for handling additional finalization outcome.
+    virtual void OnCustomOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Abort is not a pipeline really :)
 
@@ -263,6 +271,122 @@ protected:
 
 // TODO(babenko): move to a proper place
 
+template <class Signature>
+struct TAsyncPipelineSignatureCracker
+{ };
+
+template <class T1, class T2>
+struct TAsyncPipelineSignatureCracker<T1(T2)>
+{
+    typedef T1 ReturnType;
+    typedef T2 ArgType;
+};
+
+template <class T1>
+struct TAsyncPipelineSignatureCracker<T1()>
+{
+    typedef T1 ReturnType;
+    typedef void ArgType;
+};
+
+template <class ArgType, class ReturnType>
+struct TAsyncPipelineHelpers
+{
+    static TFuture< TValueOrError<ReturnType> > Wrapper(TCallback<ReturnType(ArgType)> func, TValueOrError<ArgType> x)
+    {
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<ReturnType>(TError(x)));
+        }
+
+        try {
+            auto&& y = func.Run(x.Value());
+            return MakeFuture(TValueOrError<ReturnType>(ForwardRV<ReturnType>(y)));
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<ReturnType>(TError(ex.what())));
+        }
+    }
+};
+
+template <class ArgType, class ReturnType>
+struct TAsyncPipelineHelpers< ArgType, TFuture<ReturnType> >
+{
+    static TFuture< TValueOrError<ReturnType> > Wrapper(TCallback<TFuture<ReturnType>(ArgType)> func, TValueOrError<ArgType> x)
+    {
+        auto toValueOrError = BIND([] (ReturnType x) {
+            return TValueOrError<ReturnType>(x);
+        });
+
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<ReturnType>(TError(x)));
+        }
+
+        try {
+            auto&& y = func.Run(x.Value());
+            return y.Apply(toValueOrError);
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<ReturnType>(TError(ex.what())));
+        }
+    }
+};
+
+template <class ArgType>
+struct TAsyncPipelineHelpers<ArgType, void>
+{
+    static TFuture< TValueOrError<void> > Wrapper(TCallback<void(ArgType)> func, TValueOrError<ArgType> x)
+    {
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<void>(TError(x)));
+        }
+
+        try {
+            func.Run(x.Value());
+            return MakeFuture(TValueOrError<void>());
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<void>(TError(ex.what())));
+        }
+    }
+};
+
+template <>
+struct TAsyncPipelineHelpers<void, void>
+{
+    static TFuture< TValueOrError<void> > Wrapper(TCallback<void(void)> func, TValueOrError<void> x)
+    {
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<void>(TError(x)));
+        }
+
+        try {
+            func.Run();
+            return MakeFuture(TValueOrError<void>());
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<void>(TError(ex.what())));
+        }
+    }
+};
+
+template <class ReturnType>
+struct TAsyncPipelineHelpers< void, TFuture<ReturnType> >
+{
+    static TFuture< TValueOrError<ReturnType> > Wrapper(TCallback<TFuture<ReturnType>()> func, TValueOrError<void> x)
+    {
+        auto toValueOrError = BIND([] (ReturnType x) {
+            return TValueOrError<ReturnType>(x);
+        });
+
+        if (!x.IsOK()) {
+            return MakeFuture(TValueOrError<ReturnType>(TError(x)));
+        }
+
+        try {
+            auto&& y = func.Run();
+            return y.Apply(toValueOrError);
+        } catch (const std::exception& ex) {
+            return MakeFuture(TValueOrError<ReturnType>(TError(ex.what())));
+        }
+    }
+};
+
 template <class T>
 class TAsyncPipeline
     : public TRefCounted
@@ -270,32 +394,24 @@ class TAsyncPipeline
 public:
     TAsyncPipeline(
         IInvoker::TPtr invoker,
-        TCallback< TIntrusivePtr < TFuture< TValueOrError<T> > >() > head)
+        TCallback< TFuture< TValueOrError<T> >() > head)
         : Invoker(invoker)
         , Lazy(head)
     { }
 
-    TIntrusivePtr< TFuture< TValueOrError<T> > > Run()
+    TFuture< TValueOrError<T> > Run()
     {
         return Lazy.Run();
     }
 
-    typedef T T1;
-
-    template <class T2>
-    TIntrusivePtr< TAsyncPipeline<T2> > Add(TCallback<T2(T1)> func)
+    template <class Signature>
+    TIntrusivePtr< TAsyncPipeline< typename NYT::NDetail::TFutureHelper< typename TAsyncPipelineSignatureCracker<Signature>::ReturnType >::TValueType > >
+    Add(TCallback<Signature> func)
     {
-        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
-            if (!x.IsOK()) {
-                return MakeFuture(TValueOrError<T2>(TError(x)));
-            }
-            try {
-                auto y = func.Run(x.Value());
-                return MakeFuture(TValueOrError<T2>(y));
-            } catch (const std::exception& ex) {
-                return MakeFuture(TValueOrError<T2>(TError(ex.what())));
-            }
-        });
+        typedef typename TAsyncPipelineSignatureCracker<Signature>::ReturnType ReturnType;
+        typedef typename TAsyncPipelineSignatureCracker<Signature>::ArgType ArgType;
+
+        auto wrappedFunc = BIND(&TAsyncPipelineHelpers<ArgType, ReturnType>::Wrapper, func);
 
         if (Invoker) {
             wrappedFunc = wrappedFunc.AsyncVia(Invoker);
@@ -303,51 +419,19 @@ public:
 
         auto lazy = Lazy;
         auto newLazy = BIND([=] () {
-            return lazy.Run()->Apply(wrappedFunc);
+            return lazy.Run().Apply(wrappedFunc);
         });
 
-        return New< TAsyncPipeline<T2> >(Invoker, newLazy);
+        return New< TAsyncPipeline<typename NYT::NDetail::TFutureHelper<ReturnType>::TValueType> >(Invoker, newLazy);
     }
-
-    template <class T2>
-    TIntrusivePtr< TAsyncPipeline<T2> > Add(TCallback< TIntrusivePtr< TFuture<T2> >(T1) > func)
-    {
-        auto toValueOrError = BIND([] (T2 x) {
-            return TValueOrError<T2>(x);
-        });
-
-        auto wrappedFunc = BIND([=] (TValueOrError<T1> x) -> TIntrusivePtr< TFuture< TValueOrError<T2> > > {
-            if (!x.IsOK()) {
-                return MakeFuture(TValueOrError<T2>(TError(x)));
-            }
-            try {
-                auto y = func.Run(x.Value());
-                return y->Apply(toValueOrError);
-            } catch (const std::exception& ex) {
-                return MakeFuture(TValueOrError<T2>(TError(ex.what())));
-            }
-        });
-
-        if (Invoker) {
-            wrappedFunc = wrappedFunc.AsyncVia(Invoker);
-        }
-
-        auto lazy = Lazy;
-        auto newLazy = BIND([=] () {
-            return lazy.Run()->Apply(wrappedFunc);
-        });
-
-        return New< TAsyncPipeline<T2> >(Invoker, newLazy);
-    }
-
 
 private:
     IInvoker::TPtr Invoker;
-    TCallback< TIntrusivePtr < TFuture< TValueOrError<T> > >() > Lazy;
+    TCallback< TFuture< TValueOrError<T> >() > Lazy;
 
 };
 
-TIntrusivePtr< TAsyncPipeline<TVoid> > StartAsyncPipeline(IInvoker::TPtr invoker = NULL);
+TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvoker::TPtr invoker = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 

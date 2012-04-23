@@ -68,7 +68,7 @@ void SaveSet(TOutputStream* output, const TSet& set)
     typedef typename TSet::key_type TKey;
     auto iterators = GetSortedIterators(set);
     ::SaveSize(output, iterators.size());
-    FOREACH(const auto& ptr, iterators) {
+    FOREACH (const auto& ptr, iterators) {
         ::Save(output, *ptr);
     }
 }
@@ -89,10 +89,10 @@ void LoadSet(TInputStream* input, TSet& set)
 template <class TSet>
 void SaveNullableSet(TOutputStream* output, const THolder<TSet>& set)
 {
-    if (!set) {
-        ::SaveSize(output, 0);
-    } else {
+    if (~set) {
         SaveSet(output, *set);
+    } else {
+        ::SaveSize(output, 0);
     }
 }
 
@@ -100,6 +100,7 @@ template <class TSet>
 void LoadNullableSet(TInputStream* input, THolder<TSet>& set)
 {
     typedef typename TSet::key_type TKey;
+
     size_t size = ::LoadSize(input);
     if (size == 0) {
         set.Destroy();
@@ -138,7 +139,7 @@ void SaveMap(TOutputStream* output, const TMap& map)
 {
     auto iterators = GetSortedIterators(map);
     ::SaveSize(output, iterators.size());
-    FOREACH(const auto& it, iterators) {
+    FOREACH (const auto& it, iterators) {
         ::Save(output, it->first);
         ::Save(output, it->second);
     }

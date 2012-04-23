@@ -56,7 +56,7 @@ TOrderedMergeJob::TOrderedMergeJob(
 TJobResult TOrderedMergeJob::Run()
 {
     while (Reader->IsValid()) {
-        FOREACH(const auto& pair, Reader->GetRow()) {
+        FOREACH (const auto& pair, Reader->GetRow()) {
             Writer->Write(pair.first, pair.second);
         }
         Writer->EndRow();

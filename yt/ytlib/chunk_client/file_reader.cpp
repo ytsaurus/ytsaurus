@@ -71,7 +71,7 @@ void TChunkFileReader::Open()
     Opened = true;
 }
 
-TFuture<IAsyncReader::TReadResult>::TPtr
+IAsyncReader::TAsyncReadResult
 TChunkFileReader::AsyncReadBlocks(const yvector<int>& blockIndexes)
 {
     YASSERT(Opened);
@@ -149,7 +149,8 @@ const TChunkInfo& TChunkFileReader::GetChunkInfo() const
     return ChunkInfo;
 }
 
-TFuture<IAsyncReader::TGetInfoResult>::TPtr TChunkFileReader::AsyncGetChunkInfo()
+IAsyncReader::TAsyncGetInfoResult
+TChunkFileReader::AsyncGetChunkInfo()
 {
     return MakeFuture(TGetInfoResult(GetChunkInfo()));
 }

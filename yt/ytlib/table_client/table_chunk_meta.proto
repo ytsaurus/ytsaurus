@@ -3,8 +3,6 @@ package NYT.NTableClient.NProto;
 import "yt/ytlib/chunk_holder/chunk.proto";
 import "yt/ytlib/table_client/schema.proto";
 
-//option optimize_for = SPEED;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TBlockInfo
@@ -17,6 +15,11 @@ message TChunkChannel
 {
     required TChannel channel = 1;
     repeated TBlockInfo blocks = 2;
+}
+
+message TKey
+{
+    repeated bytes values = 1;
 }
 
 message TKeySample
@@ -47,7 +50,7 @@ message TTableChunkAttributes
     repeated bytes key_columns = 5;
     repeated TKeySample key_samples = 6;
 
-    required bool is_sorted = 7;
+    required bool sorted = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

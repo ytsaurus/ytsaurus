@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "yson_table_input.h"
 
 #include <ytlib/misc/foreach.h>
@@ -6,15 +6,20 @@
 namespace NYT {
 namespace NTableClient {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////
 
 TYsonTableInput::TYsonTableInput(
-    ISyncTableReader* reader, 
-    NYTree::EYsonFormat format,
-    TOutputStream* outputStream)
+    ISyncTableReader::TPtr reader, 
+    TOutputStream* outputStream,
+    EYsonFormat format)
     : Reader(reader)
-    , YsonWriter(outputStream, format)
+    , YsonWriter(outputStream, format, EYsonType::ListFragment)
 {
+    YASSERT(reader);
+    YASSERT(outputStream);
+
     Reader->Open();
 }
 
@@ -25,11 +30,11 @@ bool TYsonTableInput::ReadRow()
 
     YsonWriter.OnListItem();
     YsonWriter.OnBeginMap();
-    FOREACH(auto& pair, Reader->GetRow()) {
-        YsonWriter.OnMapItem(pair.first);
-        YsonWriter.OnStringScalar(pair.second.ToString(), false);
+    FOREACH (auto& pair, Reader->GetRow()) {
+        YsonWriter.OnKeyedItem(pair.first);
+        YsonWriter.OnStringScalar(pair.second.ToString());
     }
-    YsonWriter.OnEndMap(false);
+    YsonWriter.OnEndMap();
 
     Reader->NextRow();
     return true;

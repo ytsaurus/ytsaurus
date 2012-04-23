@@ -8,6 +8,8 @@
 #include <ytlib/table_client/schema.h>
 #include <ytlib/job_proxy/config.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -47,7 +49,7 @@ private:
     TProgressCounter ChunkCounter;
     TProgressCounter WeightCounter;
 
-    TUnorderedChunkPool ChunkPool;
+    TAutoPtr<IChunkPool> ChunkPool;
 
     // The template for starting new jobs.
     TJobSpec JobSpecTemplate;
@@ -76,8 +78,7 @@ private:
     struct TJobInProgress
         : public TIntrinsicRefCounted
     {
-        std::vector<TPooledChunkPtr> Chunks;
-        i64 Weight;
+        IChunkPool::TExtractResultPtr ExtractResult;
         std::vector<TChunkListId> ChunkListIds;
     };
 
@@ -95,31 +96,24 @@ private:
         // Allocate chunks for the job.
         auto jip = New<TJobInProgress>();
         i64 weightThreshold = GetJobWeightThreshold(JobCounter.GetPending(), WeightCounter.GetPending());
-        i64 extractedWeight;
-        int localCount;
-        int remoteCount;
-        ChunkPool.Extract(
+        jip->ExtractResult = ChunkPool->Extract(
             node->GetAddress(),
             weightThreshold,
-            false,
-            &jip->Chunks,
-            &jip->Weight,
-            &localCount,
-            &remoteCount);
-        YASSERT(!jip->Chunks.empty());
+            std::numeric_limits<int>::max(),
+            false);
+        YASSERT(jip->ExtractResult);
 
-        LOG_DEBUG("Extracted %d chunks for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ", LocalCount: %d, RemoteCount: %d)",
-            static_cast<int>(jip->Chunks.size()),
+        LOG_DEBUG("Extracted %d chunks, %d local for node %s (ExtractedWeight: %" PRId64 ", WeightThreshold: %" PRId64 ")",
+            static_cast<int>(jip->ExtractResult->Chunks.size()),
+            jip->ExtractResult->LocalCount,
             ~node->GetAddress(),
-            jip->Weight,
-            weightThreshold,
-            localCount,
-            remoteCount);
+            jip->ExtractResult->Weight,
+            weightThreshold);
 
         // Make a copy of the generic spec and customize it.
         auto jobSpec = JobSpecTemplate;
         auto* mapJobSpec = jobSpec.MutableExtension(TMapJobSpec::map_job_spec);
-        FOREACH (const auto& chunk, jip->Chunks) {
+        FOREACH (const auto& chunk, jip->ExtractResult->Chunks) {
             *mapJobSpec->mutable_input_spec()->add_chunks() = chunk->InputChunk;
         }
         FOREACH (auto& outputSpec, *mapJobSpec->mutable_output_specs()) {
@@ -129,8 +123,8 @@ private:
         }
 
         // Update running counters.
-        ChunkCounter.Start(jip->Chunks.size());
-        WeightCounter.Start(jip->Weight);
+        ChunkCounter.Start(jip->ExtractResult->Chunks.size());
+        WeightCounter.Start(jip->ExtractResult->Weight);
 
         return CreateJob(
             Operation,
@@ -144,20 +138,21 @@ private:
     {
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto chunkListId = jip->ChunkListIds[index];
-            OutputTables[index].OutputChildrenIds.push_back(chunkListId);
+            OutputTables[index].PartitionTreeIds.push_back(chunkListId);
         }
 
-        ChunkCounter.Completed(jip->Chunks.size());
-        WeightCounter.Completed(jip->Weight);
+        ChunkCounter.Completed(jip->ExtractResult->Chunks.size());
+        WeightCounter.Completed(jip->ExtractResult->Weight);
     }
 
     void OnJobFailed(TJobInProgressPtr jip)
     {
-        LOG_DEBUG("%d chunks are back in the pool", static_cast<int>(jip->Chunks.size()));
-        ChunkPool.Put(jip->Chunks);
+        ChunkCounter.Failed(jip->ExtractResult->Chunks.size());
+        WeightCounter.Failed(jip->ExtractResult->Weight);
 
-        ChunkCounter.Failed(jip->Chunks.size());
-        WeightCounter.Failed(jip->Weight);
+        LOG_DEBUG("Returned %d chunks into the pool",
+            static_cast<int>(jip->ExtractResult->Chunks.size()));
+        ChunkPool->PutBack(jip->ExtractResult);
 
         ReleaseChunkLists(jip->ChunkListIds);
     }
@@ -191,40 +186,41 @@ private:
             i64 totalWeight = 0;
             i64 totalChunkCount = 0;
 
+            ChunkPool = CreateUnorderedChunkPool();
+
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
 
                 TNullable<TYson> rowAttributes;
                 if (InputTables.size() > 1) {
-                    // TODO(babenko): think of a proper name
                     rowAttributes = BuildYsonFluently()
                         .BeginMap()
-                        .Item("table_index").Scalar(tableIndex)
+                            .Item("table_index").Scalar(tableIndex)
                         .EndMap();
                 }
 
                 auto fetchRsp = table.FetchResponse;
-                FOREACH (auto& inputChunk, *fetchRsp->mutable_chunks()) {
+                FOREACH (auto& chunk, *fetchRsp->mutable_chunks()) {
                     // Currently fetch never returns row attributes.
-                    YASSERT(!inputChunk.has_row_attributes());
+                    YASSERT(!chunk.has_row_attributes());
 
                     if (rowAttributes) {
-                        inputChunk.set_row_attributes(rowAttributes.Get());
+                        chunk.set_row_attributes(rowAttributes.Get());
                     }
 
-                    i64 rowCount = inputChunk.approximate_row_count();
-                    i64 dataSize = inputChunk.approximate_data_size();
+                    i64 rowCount = chunk.approximate_row_count();
+                    i64 dataSize = chunk.approximate_data_size();
                     // TODO(babenko): make customizable
                     // Plus one is to ensure that weights are positive.
-                    i64 weight = inputChunk.approximate_data_size() + 1;
+                    i64 weight = chunk.approximate_data_size() + 1;
 
                     totalRowCount += rowCount;
                     totalDataSize += dataSize;
                     totalChunkCount += 1;
                     totalWeight += weight;
 
-                    auto pooledChunk = New<TPooledChunk>(inputChunk, weight);
-                    ChunkPool.Put(pooledChunk);
+                    auto pooledChunk = New<TPooledChunk>(chunk, weight);
+                    ChunkPool->Add(pooledChunk);
                 }
             }
 
@@ -235,23 +231,13 @@ private:
                 return;
             }
 
-            // Choose job count.
-            // TODO(babenko): refactor, generalize, and improve.
-            i64 jobCount = ExecNodeCount * 8;
-            if (Spec->JobCount) {
-                jobCount = Spec->JobCount.Get();
-            }
-            jobCount = std::min(jobCount, static_cast<i64>(totalChunkCount));
-            YASSERT(totalWeight > 0);
-            YASSERT(jobCount > 0);
-
-            // Init running counters.
-            JobCounter.Init(jobCount);
-            ChunkCounter.Init(totalChunkCount);
-            WeightCounter.Init(totalWeight);
+            // Init counters.
+            ChunkCounter.Set(totalChunkCount);
+            WeightCounter.Set(totalWeight);
+            ChooseJobCount();
 
             // Allocate some initial chunk lists.
-            ChunkListPool->Allocate(OutputTables.size() * jobCount + Config->SpareChunkListCount);
+            ChunkListPool->Allocate(OutputTables.size() * JobCounter.GetPending() + Config->SpareChunkListCount);
 
             InitJobSpecTemplate();
 
@@ -260,10 +246,23 @@ private:
                 totalDataSize,
                 totalWeight,
                 totalChunkCount,
-                jobCount);
+                JobCounter.GetPending());
         }
     }
 
+    void ChooseJobCount()
+    {
+        // Choose job count.
+        // TODO(babenko): refactor, generalize, and improve.
+        // TODO(babenko): this currently assumes that weight is just size
+        i64 jobCount = (i64) std::ceil((double) WeightCounter.GetPending() / Spec->JobIO->ChunkSequenceWriter->DesiredChunkSize);
+        if (Spec->JobCount) {
+            jobCount = Spec->JobCount.Get();
+        }
+        jobCount = std::min(jobCount, ChunkCounter.GetPending());
+        YASSERT(jobCount > 0);
+        JobCounter.Set(jobCount);
+    }
 
     // Progress reporting.
 

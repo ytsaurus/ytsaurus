@@ -36,13 +36,13 @@ EObjectType TTableNode::GetObjectType() const
 void TTableNode::Save(TOutputStream* output) const
 {
     TCypressNodeBase::Save(output);
-    SaveObject(output, ChunkList_);
+    SaveObjectRef(output, ChunkList_);
 }
 
 void TTableNode::Load(const TLoadContext& context, TInputStream* input)
 {
     TCypressNodeBase::Load(context, input);
-    LoadObject(input, ChunkList_, context);
+    LoadObjectRef(input, ChunkList_, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,8 +144,12 @@ protected:
 
         // Make the original chunk list a child of the composite one.
         yvector<TChunkTreeRef> children;
-        children.push_back( TChunkTreeRef(originatingNode.GetChunkList()) );
+        auto* originatingChunkList = originatingNode.GetChunkList();
+        children.push_back(TChunkTreeRef(originatingChunkList));
         chunkManager->AttachToChunkList(branchedChunkList, children);
+
+        // Propagate "sorted" attributes.
+        branchedChunkList.SetSorted(originatingChunkList->GetSorted());
     }
 
     // TODO(babenko): this needs much improvement

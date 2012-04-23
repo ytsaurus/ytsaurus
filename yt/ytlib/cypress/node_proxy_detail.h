@@ -5,7 +5,7 @@
 #include <ytlib/cypress/cypress_ypath.pb.h>
 
 #include <ytlib/ytree/ytree.h>
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/ytree/tokenizer.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_detail.h>
@@ -249,12 +249,12 @@ protected:
 
     const TImpl& GetTypedImpl() const
     {
-        return dynamic_cast<const TImpl&>(GetImpl(NodeId));
+        return static_cast<const TImpl&>(GetImpl(NodeId));
     }
 
     TImpl& GetTypedImplForUpdate(ELockMode requestedMode = ELockMode::Exclusive)
     {
-        return dynamic_cast<TImpl&>(GetImplForUpdate(NodeId, requestedMode));
+        return static_cast<TImpl&>(GetImplForUpdate(NodeId, requestedMode));
     }
 
 
@@ -565,17 +565,12 @@ protected:
 
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
-        NYTree::TYPath suffixPath;
-        auto token = NYTree::ChopToken(context->GetPath(), &suffixPath);
-        if (token.IsEmpty()) {
+        NYTree::TTokenizer tokens(context->GetPath());
+        if (tokens[0].IsEmpty()) {
             ythrow yexception() << "Node already exists";
         }
 
-        if (token.GetType() != NYTree::ETokenType::Slash) {
-            ythrow yexception() << Sprintf("Unexpected token %s of type %s",
-                ~token.ToString().Quote(),
-                ~token.GetType().ToString());
-        }
+        tokens[0].CheckType(NYTree::ETokenType::Slash);
 
         auto objectManager = this->Bootstrap->GetObjectManager();
         auto cypressManager = this->Bootstrap->GetCypressManager();
@@ -597,7 +592,7 @@ protected:
 
         proxy->Attributes().MergeFrom(request->Attributes());
 
-        CreateRecursive(suffixPath, ~proxy);
+        CreateRecursive(NYTree::TYPath(tokens.GetSuffix(0)), ~proxy);
 
         *response->mutable_object_id() = nodeId.ToProto();
 
@@ -618,16 +613,16 @@ public:
     TMapNodeProxy(
         INodeTypeHandler* typeHandler,
         NCellMaster::TBootstrap* bootstrap,
-        NTransactionServer::TTransaction *transaction,
+        NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId);
 
     virtual void Clear();
     virtual int GetChildCount() const;
     virtual yvector< TPair<Stroka, NYTree::INodePtr> > GetChildren() const;
     virtual yvector<Stroka> GetKeys() const;
-    virtual NYTree::INodePtr FindChild(const Stroka& key) const;
-    virtual bool AddChild(NYTree::INode* child, const Stroka& key);
-    virtual bool RemoveChild(const Stroka& key);
+    virtual NYTree::INodePtr FindChild(const TStringBuf& key) const;
+    virtual bool AddChild(NYTree::INode* child, const TStringBuf& key);
+    virtual bool RemoveChild(const TStringBuf& key);
     virtual void ReplaceChild(NYTree::INode* oldChild, NYTree::INode* newChild);
     virtual void RemoveChild(NYTree::INode* child);
     virtual Stroka GetChildKey(const INode* child);
@@ -642,7 +637,7 @@ protected:
     virtual void SetNodeRecursive(const NYTree::TYPath& path, TReqSetNode* request, TRspSetNode* response, TCtxSetNode* context);
 
     yhash_map<Stroka, NYTree::INodePtr> DoGetChildren() const;
-    NYTree::INodePtr DoFindChild(const Stroka& key, bool skipCurrentTransaction) const;
+    NYTree::INodePtr DoFindChild(const TStringBuf& key, bool skipCurrentTransaction) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

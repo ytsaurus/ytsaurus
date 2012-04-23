@@ -29,6 +29,7 @@ private:
     TLexer Lexer;
     std::vector<TToken> Tokens;
     std::vector<size_t> SuffixPositions;
+    std::vector<Stroka> StringBuffers; // for String tokens
 };
 
 ////////////////////////////////////////////////////////////////////////////////

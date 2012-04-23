@@ -185,7 +185,7 @@ struct IMapNode
      *  \param key A key.
      *  \return A child with the given key or NULL if the index is not valid.
      */
-    virtual INodePtr FindChild(const Stroka& key) const = 0;
+    virtual INodePtr FindChild(const TStringBuf& key) const = 0;
 
     //! Adds a new child with a given key.
     /*!
@@ -196,14 +196,14 @@ struct IMapNode
      *  \note
      *  #child must be a root.
      */
-    virtual bool AddChild(INode* child, const Stroka& key) = 0;
+    virtual bool AddChild(INode* child, const TStringBuf& key) = 0;
 
     //! Removes a child by its key.
     /*!
      *  \param key A key.
      *  \return True iff there was a child with the given key.
      */
-    virtual bool RemoveChild(const Stroka& key) = 0;
+    virtual bool RemoveChild(const TStringBuf& key) = 0;
 
     //! Similar to #FindChild but fails if no child is found.
     INodePtr GetChild(const Stroka& key) const

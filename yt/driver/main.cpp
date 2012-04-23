@@ -11,8 +11,6 @@
 #include <ytlib/rpc/rpc_manager.h>
 
 #include <ytlib/ytree/serialize.h>
-#include <ytlib/ytree/yson_reader.h>
-
 #include <ytlib/ytree/yson_parser.h>
 
 #include <ytlib/exec_agent/config.h>
@@ -185,15 +183,23 @@ public:
                 PrintAllCommands();
                 ythrow yexception() << "Not enough arguments";
             }
+            
             Stroka commandName = Stroka(argv[1]);
 
             if (commandName == "--help") {
                 PrintAllCommands();
-                exit(0);
+                return 0;
             }
+
             if (commandName == "--version") {
                 PrintVersion();
-                exit(0);
+                return 0;
+            }
+
+            if (commandName == "--config-template") {
+                TYsonWriter writer(&Cout, EYsonFormat::Pretty);
+                New<TConfig>()->Save(&writer);
+                return 0;
             }
 
             auto argsParser = GetArgsParser(commandName);
@@ -209,7 +215,6 @@ public:
             Stroka configFromEnv = Stroka(getenv("YT_CONFIG"));
             Stroka userConfig = NFS::CombinePaths(GetHomePath(), UserConfigFileName);
             Stroka systemConfig = NFS::CombinePaths(SystemConfigPath, SystemConfigFileName);
-
 
             auto configName = configFromCmd;
             if (configName.empty()) {

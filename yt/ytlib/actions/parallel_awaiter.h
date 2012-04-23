@@ -27,11 +27,11 @@ public:
 
     template <class T>
     void Await(
-        TIntrusivePtr< TFuture<T> > result,
+        TFuture<T> result,
         TCallback<void(T)> onResult = TCallback<void(T)>());
     template <class T>
     void Await(
-        TIntrusivePtr< TFuture<T> > result,
+        TFuture<T> result,
         const NYTree::TYPath& timerPathSuffix,
         TCallback<void(T)> onResult = TCallback<void(T)>());
 

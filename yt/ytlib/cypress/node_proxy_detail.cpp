@@ -138,12 +138,12 @@ yvector<Stroka> TMapNodeProxy::GetKeys() const
     return result;
 }
 
-INodePtr TMapNodeProxy::FindChild(const Stroka& key) const
+INodePtr TMapNodeProxy::FindChild(const TStringBuf& key) const
 {
     return DoFindChild(key, false);
 }
 
-bool TMapNodeProxy::AddChild(INode* child, const Stroka& key)
+bool TMapNodeProxy::AddChild(INode* child, const TStringBuf& key)
 {
     YASSERT(!key.empty());
 
@@ -167,11 +167,11 @@ bool TMapNodeProxy::AddChild(INode* child, const Stroka& key)
     return true;
 }
 
-bool TMapNodeProxy::RemoveChild(const Stroka& key)
+bool TMapNodeProxy::RemoveChild(const TStringBuf& key)
 {
     auto& impl = GetTypedImplForUpdate();
 
-    auto it = impl.KeyToChild().find(key);
+    auto it = impl.KeyToChild().find(Stroka(key));
     if (it != impl.KeyToChild().end()) {
         // NB: don't use const auto& here, it becomes invalid!
         auto childId = it->second;
@@ -294,17 +294,18 @@ yhash_map<Stroka, INodePtr> TMapNodeProxy::DoGetChildren() const
     return result;
 }
 
-INodePtr TMapNodeProxy::DoFindChild(const Stroka& key, bool skipCurrentTransaction) const
+INodePtr TMapNodeProxy::DoFindChild(const TStringBuf& key, bool skipCurrentTransaction) const
 {
     auto transactions = Bootstrap->GetTransactionManager()->GetTransactionPath(Transaction);
     auto cypressManager = Bootstrap->GetCypressManager();
+    Stroka keyString(key);
     FOREACH (const auto& transaction, transactions) {
         if (skipCurrentTransaction && transaction == Transaction) {
             continue;
         }
         const auto& node = cypressManager->GetVersionedNode(NodeId, transaction);
         const auto& map = static_cast<const TMapNode&>(node).KeyToChild();
-        auto it = map.find(key);
+        auto it = map.find(keyString);
         if (it != map.end()) {
             if (it->second == NullObjectId) {
                 break;
@@ -379,7 +380,7 @@ void TListNodeProxy::Clear()
 {
     auto& impl = GetTypedImplForUpdate();
 
-    FOREACH(auto& nodeId, impl.IndexToChild()) {
+    FOREACH (auto& nodeId, impl.IndexToChild()) {
         auto& childImpl = GetImplForUpdate(nodeId);
         DetachChild(childImpl);
     }

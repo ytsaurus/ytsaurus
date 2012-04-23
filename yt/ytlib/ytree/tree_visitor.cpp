@@ -34,10 +34,11 @@ private:
     bool VisitAttributes_;
 
     void VisitAny(INodePtr node);
-    void VisitScalar(INodePtr node, bool hasAttributes);
-    void VisitEntity(INodePtr node, bool hasAttributes);
-    void VisitList(IListNodePtr node, bool hasAttributes);
-    void VisitMap(IMapNodePtr node, bool hasAttributes);
+    void VisitAttributes(INodePtr node);
+    void VisitScalar(INodePtr node);
+    void VisitEntity(INodePtr node);
+    void VisitList(IListNodePtr node);
+    void VisitMap(IMapNodePtr node);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,41 +55,42 @@ void TTreeVisitor::Visit(INodePtr root)
 
 void TTreeVisitor::VisitAny(INodePtr node)
 {
-    yhash_set<Stroka> attributeKeySet;
     if (VisitAttributes_) {
-        attributeKeySet = node->Attributes().List();
+        VisitAttributes(node);
     }
-    bool hasAttributes = !attributeKeySet.empty();
 
     switch (node->GetType()) {
         case ENodeType::String:
         case ENodeType::Integer:
         case ENodeType::Double:
-            VisitScalar(node, hasAttributes);
+            VisitScalar(node);
             break;
 
         case ENodeType::Entity:
-            VisitEntity(node, hasAttributes);
+            VisitEntity(node);
             break;
 
         case ENodeType::List:
-            VisitList(node->AsList(), hasAttributes);
+            VisitList(node->AsList());
             break;
 
         case ENodeType::Map:
-            VisitMap(node->AsMap(), hasAttributes);
+            VisitMap(node->AsMap());
             break;
 
         default:
             YUNREACHABLE();
     }
+}
 
-    if (hasAttributes) {
+void TTreeVisitor::VisitAttributes(INodePtr node) {
+    yhash_set<Stroka> attributeKeySet = node->Attributes().List();
+    if (!attributeKeySet.empty()) {
         std::vector<Stroka> attributeKeyList(attributeKeySet.begin(), attributeKeySet.end());
         std::sort(attributeKeyList.begin(), attributeKeyList.end());
         Consumer->OnBeginAttributes();
         FOREACH (const auto& key, attributeKeyList) {
-            Consumer->OnAttributesItem(key);
+            Consumer->OnKeyedItem(key);
             auto value = node->Attributes().GetYson(key);
             ProducerFromYson(value).Run(Consumer);
         }
@@ -96,19 +98,19 @@ void TTreeVisitor::VisitAny(INodePtr node)
     }
 }
 
-void TTreeVisitor::VisitScalar(INodePtr node, bool hasAttributes)
+void TTreeVisitor::VisitScalar(INodePtr node)
 {
     switch (node->GetType()) {
         case ENodeType::String:
-            Consumer->OnStringScalar(node->GetValue<Stroka>(), hasAttributes);
+            Consumer->OnStringScalar(node->GetValue<Stroka>());
             break;
 
         case ENodeType::Integer:
-            Consumer->OnIntegerScalar(node->GetValue<i64>(), hasAttributes);
+            Consumer->OnIntegerScalar(node->GetValue<i64>());
             break;
 
         case ENodeType::Double:
-            Consumer->OnDoubleScalar(node->GetValue<double>(), hasAttributes);
+            Consumer->OnDoubleScalar(node->GetValue<double>());
             break;
 
         default:
@@ -116,13 +118,13 @@ void TTreeVisitor::VisitScalar(INodePtr node, bool hasAttributes)
     }
 }
 
-void TTreeVisitor::VisitEntity(INodePtr node, bool hasAttributes)
+void TTreeVisitor::VisitEntity(INodePtr node)
 {
     UNUSED(node);
-    Consumer->OnEntity(hasAttributes);
+    Consumer->OnEntity();
 }
 
-void TTreeVisitor::VisitList(IListNodePtr node, bool hasAttributes)
+void TTreeVisitor::VisitList(IListNodePtr node)
 {
     Consumer->OnBeginList();
     for (int i = 0; i < node->GetChildCount(); ++i) {
@@ -130,19 +132,19 @@ void TTreeVisitor::VisitList(IListNodePtr node, bool hasAttributes)
         Consumer->OnListItem();
         VisitAny(child);
     }
-    Consumer->OnEndList(hasAttributes);
+    Consumer->OnEndList();
 }
 
-void TTreeVisitor::VisitMap(IMapNodePtr node, bool hasAttributes)
+void TTreeVisitor::VisitMap(IMapNodePtr node)
 {
     Consumer->OnBeginMap();
     auto children = node->GetChildren();
     std::sort(children.begin(), children.end());
-    FOREACH(const auto& pair, children) {
-        Consumer->OnMapItem(pair.first);
+    FOREACH (const auto& pair, children) {
+        Consumer->OnKeyedItem(pair.first);
         VisitAny(pair.second);
     }
-    Consumer->OnEndMap(hasAttributes);
+    Consumer->OnEndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

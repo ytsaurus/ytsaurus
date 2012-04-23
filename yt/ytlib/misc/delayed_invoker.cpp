@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "common.h"
 #include "delayed_invoker.h"
+#include "thread.h"
 
 #include <ytlib/logging/log.h>
 #include <ytlib/actions/action_queue.h>
@@ -103,6 +104,7 @@ private:
 
     void ThreadMain()
     {
+        NThread::SetCurrentThreadName("DelayedInvoker");
         while (!Finished) {
             auto now = TInstant::Now();
             LOG_TRACE("Iteration started at %s", ~ToString(now));

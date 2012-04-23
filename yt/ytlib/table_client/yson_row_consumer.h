@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "sync_writer.h"
 
@@ -10,26 +10,24 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRowConsumer
-    : public NYTree::IYsonConsumer
+    : public NYTree::TYsonConsumerBase
 {
 public:
     TRowConsumer(ISyncTableWriter* writer);
 
 private:
-    virtual void OnStringScalar(const TStringBuf& value, bool hasAttributes);
-    virtual void OnIntegerScalar(i64 value, bool hasAttributes);
-    virtual void OnDoubleScalar(double value, bool hasAttributes);
-    virtual void OnEntity(bool hasAttributes);
+    virtual void OnStringScalar(const TStringBuf& value);
+    virtual void OnIntegerScalar(i64 value);
+    virtual void OnDoubleScalar(double value);
+    virtual void OnEntity();
     virtual void OnBeginList();
     virtual void OnListItem();
-    virtual void OnEndList(bool hasAttributes);
+    virtual void OnEndList();
     virtual void OnBeginMap();
-    virtual void OnMapItem(const TStringBuf& name);
-    virtual void OnEndMap(bool hasAttributes);
+    virtual void OnKeyedItem(const TStringBuf& name);
+    virtual void OnEndMap();
     virtual void OnBeginAttributes();
-    virtual void OnAttributesItem(const TStringBuf& name);
     virtual void OnEndAttributes();
-    void CheckNoAttributes(bool hasAttributes);
     void CheckInsideRow();
 
     ISyncTableWriter* Writer;

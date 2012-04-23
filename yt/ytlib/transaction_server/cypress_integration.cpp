@@ -39,7 +39,7 @@ private:
         return Bootstrap->GetTransactionManager()->GetTransactionCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const Stroka& key) const
+    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TTransactionId::FromString(key);
         return Bootstrap->GetObjectManager()->FindProxy(id);

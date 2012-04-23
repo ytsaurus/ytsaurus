@@ -78,7 +78,9 @@ int ReadVarUInt64(TInputStream* input, ui64* value)
         if (7 * count > 8 * sizeof(ui64) ) {
             ythrow yexception() << Sprintf("The data is too long to read ui64");
         }
-        input->Read(&byte, 1);
+        if (input->Read(&byte, 1) != 1) {
+            ythrow yexception() << Sprintf("The data is short to read ui64");
+        }
         result |= (static_cast<ui64> (byte & 0x7F)) << (7 * count);
         ++count;
     } while (byte & 0x80);

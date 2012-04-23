@@ -12,7 +12,7 @@ namespace NScheduler {
 struct TPooledChunk
     : public TIntrinsicRefCounted
 {
-    TPooledChunk(NTableClient::NProto::TInputChunk& inputChunk, i64 weight)
+    TPooledChunk(const NTableClient::NProto::TInputChunk& inputChunk, i64 weight)
         : InputChunk(inputChunk)
         , Weight(weight)
     { }
@@ -25,49 +25,69 @@ typedef TIntrusivePtr<TPooledChunk> TPooledChunkPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnorderedChunkPool
+struct IChunkPool
 {
-public:
-    void Put(TPooledChunkPtr chunk);
-    void Put(const std::vector<TPooledChunkPtr>& chunks);
+    virtual ~IChunkPool()
+    { }
 
-    void Extract(
+    virtual void Add(TPooledChunkPtr chunk) = 0;
+
+    struct TExtractResult
+        : public TIntrinsicRefCounted
+    {
+        TExtractResult()
+            : Weight(0)
+            , LocalCount(0)
+            , RemoteCount(0)
+        { }
+
+
+        void AddLocal(TPooledChunkPtr chunk)
+        {
+            Chunks.push_back(chunk);
+            Weight += chunk->Weight;
+            ++LocalCount;
+        }
+
+        void AddRemote(TPooledChunkPtr chunk)
+        {
+            Chunks.push_back(chunk);
+            Weight += chunk->Weight;
+            ++RemoteCount;
+        }
+
+        std::vector<TPooledChunkPtr> Chunks;
+        i64 Weight;
+        int LocalCount;
+        int RemoteCount;
+
+    };
+
+    typedef TIntrusivePtr<TExtractResult> TExtractResultPtr;
+
+    virtual TExtractResultPtr Extract(
         const Stroka& address,
         i64 weightThreshold,
-        bool needLocal,
-        std::vector<TPooledChunkPtr>* extractedChunks,
-        i64* extractedWeight,
-        int* localCount,
-        int* remoteCount);
+        int maxCount,
+        bool needLocal) = 0;
 
-private:
-    yhash_map<Stroka, yhash_set<TPooledChunkPtr> > AddressToChunks;
-    yhash_set<TPooledChunkPtr> Chunks;
+    virtual void PutBack(TExtractResultPtr result) = 0;
 
-    void Extract(TPooledChunkPtr chunk);
-
+    virtual i64 GetTotalWeight() const = 0;
+    virtual bool HasPendingChunks() const = 0;
+    virtual bool HasPendingLocalChunksFor(const Stroka& address) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
 
-class TMergeChunkPool
-{
-public:
-    void Put(TPooledChunkPtr chunk);
-    void Put(const std::vector<TPooledChunkPtr>& chunks);
+//! Unordered chunk pool may return an arbitrary subset of pooled chunks.
+TAutoPtr<IChunkPool> CreateUnorderedChunkPool();
 
-    void Extract(
-        const Stroka& address,
-        int maxCount,
-        bool needLocal,
-        std::vector<TPooledChunkPtr>* extractedChunks,
-        i64* extractedWeight,
-        int* localCount,
-        int* remoteCount);
+//! Atomic chunk pool always returns all chunks in the order of their insertion.
+TAutoPtr<IChunkPool> CreateAtomicChunkPool();
 
-private:
-
-};
+// TODO(babenko): doc
+TAutoPtr<IChunkPool> CreateMergeChunkPool();
 
 ////////////////////////////////////////////////////////////////////
 

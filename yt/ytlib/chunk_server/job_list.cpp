@@ -17,12 +17,12 @@ TJobList::TJobList(const TChunkId& chunkId)
 
 void TJobList::Save(TOutputStream* output) const
 {
-    SaveObjects(output, Jobs_);
+    SaveObjectRefs(output, Jobs_);
 }
 
 void TJobList::Load(const TLoadContext& context, TInputStream* input)
 {
-    LoadObjects(input, Jobs_, context);
+    LoadObjectRefs(input, Jobs_, context);
 }
 
 void TJobList::AddJob(TJob* job)

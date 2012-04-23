@@ -46,7 +46,8 @@ public:
     };
 };
 
-typedef TFuture<TError>::TPtr TAsyncError;
+typedef TFuture<TError> TAsyncError;
+typedef TPromise<TError> TAsyncErrorPromise;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +88,29 @@ public:
         , Value_(other.Value())
     { }
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+class TValueOrError<void>
+    : public TError
+{
+public:
+    TValueOrError()
+    { }
+
+    TValueOrError(const TValueOrError<void>& other)
+        : TError(other)
+    { }
+
+    TValueOrError(const TError& other)
+        : TError(other)
+    { }
+
+    TValueOrError(int code, const Stroka& message)
+        : TError(code, message)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

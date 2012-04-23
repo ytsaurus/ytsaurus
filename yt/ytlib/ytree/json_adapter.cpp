@@ -15,98 +15,97 @@ using NJson::TJsonWriter;
 
 TJsonAdapter::TJsonAdapter(TOutputStream* output)
     : JsonWriter(new TJsonWriter(output, false))
-    , WriteAttributes(false)
+    , AttributesOutput(Attributes)
+    , AttributesWriter(&AttributesOutput, EYsonFormat::Binary, EYsonType::KeyedFragment)
 { }
 
-void TJsonAdapter::OnMyStringScalar(const TStringBuf& value, bool hasAttributes)
+void TJsonAdapter::OnMyStringScalar(const TStringBuf& value)
 {
-    UNUSED(hasAttributes);
     JsonWriter->Write(value);
+    DiscardAttributes();
 }
 
-void TJsonAdapter::OnMyIntegerScalar(i64 value, bool hasAttributes)
+void TJsonAdapter::OnMyIntegerScalar(i64 value)
 {
-    UNUSED(hasAttributes);
     JsonWriter->Write(value);
+    DiscardAttributes();
 }
 
-void TJsonAdapter::OnMyDoubleScalar(double value, bool hasAttributes)
+void TJsonAdapter::OnMyDoubleScalar(double value)
 {
-    UNUSED(hasAttributes);
     JsonWriter->Write(value);
+    DiscardAttributes();
 }
 
-void TJsonAdapter::OnMyEntity(bool hasAttributes)
+void TJsonAdapter::OnMyEntity()
 {
     JsonWriter->OpenMap();
+
     JsonWriter->Write("$type");
     JsonWriter->Write("entity");
-    if (hasAttributes) {
-        WriteAttributes = true;
-    } else {
-        JsonWriter->CloseMap();
-    }
+
+    FlushAttributes();
+
+    JsonWriter->CloseMap();
 }
 
 void TJsonAdapter::OnMyBeginList()
 {
     JsonWriter->OpenArray();
+    DiscardAttributes();
 }
 
 void TJsonAdapter::OnMyListItem()
 { }
 
-void TJsonAdapter::OnMyEndList(bool hasAttributes)
+void TJsonAdapter::OnMyEndList()
 {
-    UNUSED(hasAttributes);
+
     JsonWriter->CloseArray();
 }
 
 void TJsonAdapter::OnMyBeginMap()
 {
     JsonWriter->OpenMap();
+    FlushAttributes();
 }
 
-void TJsonAdapter::OnMyMapItem(const TStringBuf& name)
+void TJsonAdapter::OnMyKeyedItem(const TStringBuf& name)
 {
     JsonWriter->Write(name);
 }
 
-void TJsonAdapter::OnMyEndMap(bool hasAttributes)
+void TJsonAdapter::OnMyEndMap()
 {
-    if (hasAttributes) {
-        WriteAttributes = true;
-    } else {
-        JsonWriter->CloseMap();
-    }
+    JsonWriter->CloseMap();
 }
 
 void TJsonAdapter::OnMyBeginAttributes()
 {
-    if (!WriteAttributes) {
-        ForwardAttributes(GetNullYsonConsumer(), TClosure());
-    }
-}
-
-void TJsonAdapter::OnMyAttributesItem(const TStringBuf& name)
-{
-	if (WriteAttributes) {
-		// First attribute
-		WriteAttributes = false;
-		JsonWriter->Write("$attributes");
-		JsonWriter->OpenMap();
-	}
-    JsonWriter->Write(name);
+    YASSERT(Attributes.Empty());
+    ForwardFragment(&AttributesWriter);
 }
 
 void TJsonAdapter::OnMyEndAttributes()
+{ }
+
+void TJsonAdapter::FlushAttributes()
 {
-	if (!WriteAttributes) {
-		// Has at least one attribute
-		JsonWriter->CloseMap();
-	}
-	WriteAttributes = false;
-    JsonWriter->CloseMap();
+    if (!Attributes.Empty()) {
+        // Swap the attributes into a local variable and copy the stored copy.
+        auto attributes = Attributes; // local copy
+        Attributes.clear();
+
+        JsonWriter->Write("$attributes");
+        JsonWriter->OpenMap();
+        OnRaw(attributes, EYsonType::KeyedFragment);
+        JsonWriter->CloseMap();
+    }
+}
+
+void TJsonAdapter::DiscardAttributes()
+{
+    Attributes.clear();
 }
 
 void TJsonAdapter::Flush()

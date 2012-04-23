@@ -15,16 +15,16 @@ class TYsonTableInput
 {
 public:
     TYsonTableInput(
-        ISyncTableReader* reader,
-        NYTree::EYsonFormat format,
-        TOutputStream* outputStream);
+        ISyncTableReader::TPtr reader,
+        TOutputStream* outputStream,
+        NYTree::EYsonFormat format);
 
     bool ReadRow();
 
 private:
+    ISyncTableReader::TPtr Reader;
+    NYTree::TYsonWriter YsonWriter;
 
-    TIntrusivePtr<ISyncTableReader> Reader;
-    NYTree::TYsonFragmentWriter YsonWriter;
 };
 
 ////////////////////////////////////////////////////////////////////

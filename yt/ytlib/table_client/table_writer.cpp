@@ -90,7 +90,7 @@ void TTableWriter::Open()
             batchReq->AddRequest(req, "get_schema");
         }
 
-        auto batchRsp = batchReq->Invoke()->Get();
+        auto batchRsp = batchReq->Invoke().Get();
         if (!batchRsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error requesting table info\n%s",
                 ~batchRsp->GetError().ToString());
@@ -203,7 +203,7 @@ void TTableWriter::Close()
     if (Options.Sorted) {
         LOG_INFO("Marking table as sorted");
         auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
-        auto rsp = CypressProxy.Execute(req)->Get();
+        auto rsp = CypressProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error marking table as sorted\n%s",
                 ~rsp->GetError().ToString());

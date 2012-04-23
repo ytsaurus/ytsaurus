@@ -113,7 +113,7 @@ public:
     /*!
      * \note Thread affinity: StateThread
      */
-    TAsyncChangeLog::TAppendResult::TPtr LogChange(
+    TAsyncChangeLog::TAppendResult LogChange(
         const TMetaVersion& version,
         const TSharedRef& changeData);
     

@@ -38,7 +38,7 @@ void TJobProxy::SendHeartbeat()
     auto req = Proxy.OnProgress();
     *req->mutable_job_id() = JobId.ToProto();
 
-    auto rsp = req->Invoke()->Get();
+    auto rsp = req->Invoke().Get();
 
     if (!rsp->IsOK()) {
         // NB: user process is not killed here.
@@ -56,7 +56,7 @@ TJobSpec TJobProxy::GetJobSpec()
     auto req = Proxy.GetJobSpec();
     *req->mutable_job_id() = JobId.ToProto();
 
-    auto rsp = req->Invoke()->Get();
+    auto rsp = req->Invoke().Get();
 
     if (!rsp->IsOK()) {
         ythrow yexception() << Sprintf("Failed to get job spec (JobId: %s, Error: %s)",
@@ -79,26 +79,27 @@ void TJobProxy::Start()
         auto jobSpec = GetJobSpec();
 
         switch (jobSpec.type()) {
-        case EJobType::Map:
-            YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
-            Job = new TUserJob(Config, jobSpec);
-            break;
+            case EJobType::Map:
+                YASSERT(jobSpec.HasExtension(TUserJobSpec::user_job_spec));
+                Job = new TUserJob(Config, jobSpec);
+                break;
 
-        case EJobType::OrderedMerge:
-            Job = new TOrderedMergeJob(
-                Config->JobIO, 
-                Config->Masters, 
-                jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
-            break;
+            case EJobType::OrderedMerge:
+                Job = new TOrderedMergeJob(
+                    Config->JobIO, 
+                    Config->Masters, 
+                    jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+                break;
 
-        case EJobType::SortedMerge:
-            Job = new TSortedMergeJob(
-                Config->JobIO, 
-                Config->Masters, 
-                jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+            case EJobType::SortedMerge:
+                Job = new TSortedMergeJob(
+                    Config->JobIO, 
+                    Config->Masters, 
+                    jobSpec.GetExtension(TMergeJobSpec::merge_job_spec));
+                break;
 
-        default:
-            YUNREACHABLE();
+            default:
+                YUNREACHABLE();
         }
 
         auto result = Job->Run();
@@ -126,7 +127,7 @@ void TJobProxy::ReportResult(
     *(req->mutable_result()) = result;
     *(req->mutable_job_id()) = JobId.ToProto();
 
-    auto rsp = req->Invoke()->Get();
+    auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
         LOG_ERROR("Failed to report result for job %s", ~JobId.ToString());
         exit(123);

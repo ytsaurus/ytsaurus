@@ -1,7 +1,7 @@
 #include "arguments.h"
 #include "preprocess.h"
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/ytree/tokenizer.h>
 
 #include <build.h>
 
@@ -55,17 +55,18 @@ TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
 void TArgsParserBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
 {
     FOREACH (auto updateString, ConfigUpdatesArg.getValue()) {
-        TYPath ypath;
+        TStringBuf ypath;
 
-        TToken token;
-        while ((token = ChopToken(updateString, &updateString)).GetType() != ETokenType::Equals) {
-            if (token.GetType() == ETokenType::None) {
+        TTokenizer tokens(updateString);
+        int index = 0;
+        while (tokens[index].GetType() != ETokenType::Equals) {
+            if (tokens[index].IsEmpty()) {
                 ythrow yexception() << "Incorrect option";
             }
-            ypath += token.ToString();
+            ypath = TStringBuf(updateString).Chop(tokens.GetSuffix(index).length());
         }
 
-        SyncYPathSet(service, ypath, updateString);
+        SyncYPathSet(service, TYPath(ypath), TYson(tokens.GetSuffix(index)));
     }
 }
 
@@ -76,7 +77,7 @@ void TArgsParserBase::BuildOptions(IYsonConsumer* consumer)
         NYTree::TYson yson = Stroka("{") + Stroka(opts) + "}";
         auto items = NYTree::DeserializeFromYson(yson)->AsMap();
         FOREACH (const auto& pair, items->GetChildren()) {
-            consumer->OnMapItem(pair.first);
+            consumer->OnKeyedItem(pair.first);
             VisitTree(pair.second, consumer, true);
         }
     }
@@ -88,7 +89,7 @@ void TArgsParserBase::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactedArgsParser::TTransactedArgsParser()
-    : TxArg("", "tx", "set transaction id", false, NObjectServer::NullTransactionId, "transaction_id")
+    : TxArg("", "tx", "set transaction id", false, "", "transaction_id")
 {
     CmdLine.add(TxArg);
 }
@@ -96,7 +97,11 @@ TTransactedArgsParser::TTransactedArgsParser()
 void TTransactedArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("transaction_id").Scalar(TxArg.getValue());
+        .DoIf(TxArg.isSet(), [=] (TFluentMap fluent) {
+            TYson txYson = TxArg.getValue();
+            ValidateYson(txYson);
+            fluent.Item("transaction_id").Node(txYson);
+        });
 
     TArgsParserBase::BuildCommand(consumer);
 }
@@ -187,7 +192,7 @@ void TListArgsParser::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateArgsParser::TCreateArgsParser()
-    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Undefined, "object type")
+    : TypeArg("type", "type of node", true, NObjectServer::EObjectType::Null, "object type")
     , PathArg("path", "path for a new object in Cypress", true, "", "ypath")
 {
     CmdLine.add(TypeArg);

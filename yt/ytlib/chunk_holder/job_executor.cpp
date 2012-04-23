@@ -93,7 +93,7 @@ void TJob::Start()
 
             Chunk
                 ->GetInfo()
-                ->Subscribe(BIND([=] (IAsyncReader::TGetInfoResult result) {
+                .Subscribe(BIND([=] (IAsyncReader::TGetInfoResult result) {
                     if (!result.IsOK()) {
                         LOG_WARNING("Error getting chunk info (ChunkId: %s)\n%s",
                             ~Chunk->GetId().ToString(),
@@ -146,7 +146,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 
         Writer
             ->AsyncClose(std::vector<TSharedRef>(), ChunkInfo.attributes())
-            ->Subscribe(BIND([=] (TError error) {
+            .Subscribe(BIND([=] (TError error) {
                 if (error.IsOK()) {
                     LOG_DEBUG("Replication job completed");
 
@@ -165,13 +165,12 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 
     TBlockId blockId(Chunk->GetId(), blockIndex);
 
-    LOG_DEBUG("Retrieving block for replication (BlockIndex: %d)",
-        blockIndex);
+    LOG_DEBUG("Retrieving block for replication (BlockIndex: %d)", blockIndex);
 
     Owner
         ->BlockStore
         ->GetBlock(blockId)
-        ->Subscribe(
+        .Subscribe(
             BIND([=] (TBlockStore::TGetBlockResult result) {
                 if (!result.IsOK()) {
                     LOG_WARNING("Error getting block for replication (BlockIndex: %d)\n%s",
@@ -184,8 +183,9 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
 
                 std::vector<TSharedRef> blocks;
                 blocks.push_back(result.Value()->GetData());
-                this_->Writer->AsyncWriteBlocks(MoveRV(blocks))->Subscribe(
-                    BIND(
+                this_->Writer
+                    ->AsyncWriteBlocks(MoveRV(blocks))
+                    .Subscribe(BIND(
                         &TJob::ReplicateBlock,
                         this_,
                         blockIndex + 1)
@@ -249,7 +249,7 @@ TJobPtr TJobExecutor::FindJob(const TJobId& jobId)
 yvector<TJobPtr> TJobExecutor::GetAllJobs()
 {
     yvector<TJobPtr> result;
-    FOREACH(const auto& pair, Jobs) {
+    FOREACH (const auto& pair, Jobs) {
         result.push_back(pair.second);
     }
     return result;
@@ -257,7 +257,7 @@ yvector<TJobPtr> TJobExecutor::GetAllJobs()
 
 void TJobExecutor::StopAllJobs()
 {
-    FOREACH(auto& pair, Jobs) {
+    FOREACH (auto& pair, Jobs) {
         pair.second->Stop();
     }
     Jobs.clear();

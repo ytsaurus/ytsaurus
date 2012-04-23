@@ -14,14 +14,14 @@ TSortedValidatingWriter::TSortedValidatingWriter(
     : TValidatingWriter(schema, writer)
 {
     PreviousKey.assign(Schema.KeyColumns().size(), Stroka());
-    Attributes.set_is_sorted(true);
+    Attributes.set_sorted(true);
 }
 
 TAsyncError TSortedValidatingWriter::AsyncEndRow()
 {
     if (PreviousKey > CurrentKey) {
         ythrow yexception() << Sprintf(
-            "Invalid sorting. Current key %s is greater than previous %s.",
+            "Invalid sorting. Current key %s is less than previous %s.",
             ~JoinToString(CurrentKey),
             ~JoinToString(PreviousKey));
     }

@@ -33,58 +33,56 @@ public:
         : UseCount(0)
         , ChangeLog(changeLog)
         , FlushedRecordCount(changeLog->GetRecordCount())
-        , Result(New<TAppendResult>())
+        , Promise(NewPromise<TAppendPromise::TValueType>())
     { }
 
-    TAppendResult::TPtr Append(i32 recordId, const TSharedRef& data)
+    TAppendResult Append(i32 recordId, const TSharedRef& data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock);
 
         if (recordId != DoGetRecordCount()) {
-            LOG_FATAL("Unexpected record id in changelog: expected %d, got %d (ChangeLogId: %d)",
+            LOG_FATAL("Unexpected record id in changelog %d: expected %d, got %d",
+                ChangeLog->GetId(),
                 DoGetRecordCount(),
-                recordId,
-                ChangeLog->GetId());
+                recordId);
         }
 
         AppendQueue.push_back(data);
-        Profiler.Enqueue("/changelog_queue_size", AppendQueue.size());
 
-        return Result;
+        YASSERT(!Promise.IsNull());
+        return Promise;
     }
 
     void Flush()
     {
         VERIFY_THREAD_AFFINITY(Flush);
 
-        TAppendResult::TPtr result;
+        TAppendPromise promise(Null);
 
-        PROFILE_TIMING ("/changelog_flush_append_time") {
+        {
             TGuard<TSpinLock> guard(SpinLock);
 
             YASSERT(FlushQueue.empty());
-
-            // In addition to making this code run a tiny bit faster,
-            // this check also prevents from calling TChangeLog::Append for an already finalized changelog 
-            // (its queue may still be present in the map).
-            if (AppendQueue.empty()) {
-                return;
-            }
-
             FlushQueue.swap(AppendQueue);
 
-            result = Result;
-            Result = New<TAppendResult>();
+            YASSERT(!Promise.IsNull());
+            promise = Promise;
+            Promise = NewPromise<TAppendPromise::TValueType>();
         }
 
-        PROFILE_TIMING ("/changelog_flush_io_time") {
-            ChangeLog->Append(FlushedRecordCount, FlushQueue);
-            ChangeLog->Flush();
+        // In addition to making this code run a tiny bit faster,
+        // this check also prevents us from calling TChangeLog::Append for an already finalized changelog 
+        // (its queue may still be present in the map).
+        if (!FlushQueue.empty()) {
+            PROFILE_TIMING ("/changelog_flush_io_time") {
+                ChangeLog->Append(FlushedRecordCount, FlushQueue);
+                ChangeLog->Flush();
+            }
         }
 
-        result->Set(TVoid());
+        promise.Set(TVoid());
 
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -93,24 +91,24 @@ public:
         }
     }
 
-    void WaitFlush()
+    void WaitUntilFlushed()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         PROFILE_TIMING ("/changelog_flush_wait_time") {
-            TAppendResult::TPtr result;
+            TAppendPromise promise(Null);
             {
                 TGuard<TSpinLock> guard(SpinLock);
                 if (FlushQueue.empty() && AppendQueue.empty()) {
                     return;
                 }
-                result = Result;
+                promise = Promise;
             }
-            result->Get();
+            promise.Get();
         }
     }
 
-    int GetRecordCount()
+    i32 GetRecordCount()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -118,12 +116,26 @@ public:
         return DoGetRecordCount();
     }
 
-    bool IsEmpty()
+    bool TrySweep()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock);
-        return AppendQueue.ysize() == 0 && FlushQueue.ysize() == 0;
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+
+            if (!AppendQueue.empty() || !FlushQueue.empty()) {
+                return false;
+            }
+
+            if (UseCount != 0) {
+                return false;
+            }
+        }
+
+        Promise.Set(TVoid());
+        Promise.Reset();
+
+        return true;
     }
 
     // Can return less records than recordCount
@@ -135,8 +147,8 @@ public:
 
         PROFILE_TIMING ("/changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
-            flushedRecordCount = FlushedRecordCount;            
-            
+            flushedRecordCount = FlushedRecordCount; 
+
             CopyRecords(
                 FlushedRecordCount,
                 FlushQueue,
@@ -174,7 +186,7 @@ public:
     }
 
 private:
-    int DoGetRecordCount() const
+    i32 DoGetRecordCount() const
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
         return FlushedRecordCount + FlushQueue.ysize() + AppendQueue.ysize();
@@ -206,7 +218,7 @@ private:
     i32 FlushedRecordCount;
     yvector<TSharedRef> AppendQueue;
     yvector<TSharedRef> FlushQueue;
-    TAppendResult::TPtr Result;
+    TAppendPromise Promise;
 
     DECLARE_THREAD_AFFINITY_SLOT(Flush);
 };
@@ -238,12 +250,12 @@ public:
         Shutdown();
     }
 
-    TAppendResult::TPtr Append(
+    TAppendResult Append(
         const TChangeLogPtr& changeLog,
         i32 recordId,
         const TSharedRef& data)
     {
-        LOG_TRACE("Async changelog record is enqueued (Version: %s)",
+        LOG_TRACE("Async changelog record is enqueued at version %s",
             ~TMetaVersion(changeLog->GetId(), recordId).ToString());
 
         auto queue = GetQueueAndLock(changeLog);
@@ -284,10 +296,9 @@ public:
 
     void Flush(const TChangeLogPtr& changeLog)
     {
-        auto queue = FindQueueAndLock(changeLog);
+        auto queue = FindQueue(changeLog);
         if (queue) {
-            queue->WaitFlush();
-            AtomicDecrement(queue->UseCount);
+            queue->WaitUntilFlushed();
         }
 
         PROFILE_TIMING ("/changelog_flush_io_time") {
@@ -300,7 +311,7 @@ public:
         auto queue = FindQueueAndLock(changeLog);
         if (queue) {
             auto result = queue->GetRecordCount();
-            AtomicDecrement(queue->UseCount);
+            UnlockQueue(queue);
             return result;
         } else {
             return changeLog->GetRecordCount();
@@ -315,7 +326,7 @@ public:
             changeLog->Finalize();
         }
 
-        LOG_DEBUG("Async changelog finalized (ChangeLogId: %d)", changeLog->GetId());
+        LOG_DEBUG("Async changelog %d is finalized", changeLog->GetId());
     }
 
     void Truncate(const TChangeLogPtr& changeLog, i32 atRecordId)
@@ -337,15 +348,22 @@ public:
     }
 
 private:
+    TChangeLogQueuePtr FindQueue(const TChangeLogPtr& changeLog) const
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        auto it = ChangeLogQueues.find(changeLog);
+        return it == ChangeLogQueues.end() ? NULL : it->second;
+    }
+
     TChangeLogQueuePtr FindQueueAndLock(const TChangeLogPtr& changeLog) const
     {
         TGuard<TSpinLock> guard(SpinLock);
         auto it = ChangeLogQueues.find(changeLog);
-        if (it == ChangeLogQueues.end())
+        if (it == ChangeLogQueues.end()) {
             return NULL;
-
+        }
         auto& queue = it->second;
-        ++queue->UseCount;
+        AtomicIncrement(queue->UseCount);
         return queue;
     }
 
@@ -362,7 +380,7 @@ private:
             YVERIFY(ChangeLogQueues.insert(MakePair(changeLog, queue)).second);
         }
 
-        ++queue->UseCount;
+        AtomicIncrement(queue->UseCount);
         return queue;
     }
 
@@ -374,39 +392,31 @@ private:
     void FlushQueues()
     {
         // Take a snapshot.
-        yvector<TChangeLogQueuePtr> queues;
+        std::vector<TChangeLogQueuePtr> queues;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            
-            if (ChangeLogQueues.empty()) {
-                // Hash map from arcadia/util does not support iteration over
-                // the empty map with iterators. It crashes with a dump assertion
-                // deeply within implementation details.
-                return;
-            }
-
-            FOREACH(const auto& it, ChangeLogQueues) {
+            FOREACH (const auto& it, ChangeLogQueues) {
                 queues.push_back(it.second);
             }
         }
 
         // Flush the queues.
-        FOREACH(auto& queue, queues) {
+        FOREACH (auto& queue, queues) {
             queue->Flush();
         }
     }
 
-    // Returns if there are any unswept queues left in the map.
+    // Returns True if there is any unswept queue left in the map.
     bool CleanQueues()
     {
         TGuard<TSpinLock> guard(SpinLock);
         
-        TChangeLogQueueMap::iterator it, jt;
-        for (it = ChangeLogQueues.begin(); it != ChangeLogQueues.end(); /**/) {
-            jt = it++;
+        auto it = ChangeLogQueues.begin();
+        while (it != ChangeLogQueues.end()) {
+            auto jt = it++;
             auto queue = jt->second;
-            if (queue->UseCount == 0 && queue->IsEmpty()) {
-                LOG_DEBUG("Async changelog queue was swept (ChangeLogId: %d)", jt->first->GetId());
+            if (queue->TrySweep()) {
+                LOG_DEBUG("Async changelog queue %d was swept", jt->first->GetId());
                 ChangeLogQueues.erase(jt);
             }
         }
@@ -414,7 +424,7 @@ private:
         return !ChangeLogQueues.empty();
     }
 
-    // Returns True if there are any queues in the map.
+    // Returns True if there is any unswept queue left in the map.
     bool FlushAndClean()
     {
         FlushQueues();
@@ -447,13 +457,13 @@ private:
         }
     }
 
-    typedef yhash_map<TChangeLogPtr, TChangeLogQueuePtr> TChangeLogQueueMap;
-
-    TChangeLogQueueMap ChangeLogQueues;
     TSpinLock SpinLock;
+    yhash_map<TChangeLogPtr, TChangeLogQueuePtr> ChangeLogQueues;
+
     TThread Thread;
     Event WakeupEvent;
     volatile bool Finished;
+
     NProfiling::TRateCounter RecordCounter;
     NProfiling::TRateCounter SizeCounter;
 
@@ -470,7 +480,7 @@ TAsyncChangeLog::TAsyncChangeLog(const TChangeLogPtr& changeLog)
 TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
-TAsyncChangeLog::TAppendResult::TPtr TAsyncChangeLog::Append(
+TAsyncChangeLog::TAppendResult TAsyncChangeLog::Append(
     i32 recordId,
     const TSharedRef& data)
 {

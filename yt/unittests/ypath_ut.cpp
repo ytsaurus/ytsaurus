@@ -6,7 +6,7 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/tree_visitor.h>
 
-#include <ytlib/ytree/yson_reader.h>
+#include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/ephemeral.h>
 
@@ -33,9 +33,7 @@ public:
     {
         TStringStream outputStream;
         TYsonWriter writer(&outputStream, EYsonFormat::Text);
-        TStringInput input(data);
-        TYsonReader reader(&writer, &input);
-        reader.Read();
+        ParseYson(data, &writer);
         return outputStream.Str();
     }
 
@@ -204,11 +202,11 @@ TEST_F(TYPathTest, LsOnUnsupportedNodes)
 
 TEST_F(TYPathTest, Attributes)
 {
-    Set("/root", "{nodes=[\"1\"; \"2\"]} <attr=100;mode=\"rw\">");
+    Set("/root", "<attr=100;mode=\"rw\"> {nodes=[\"1\"; \"2\"]}");
     Check("/root/@", "{\"attr\"=100;\"mode\"=\"rw\"}");
     Check("/root/@attr", "100");
 
-    Set("/root/value", "500<>");
+    Set("/root/value", "<>500");
     Check("/root/value", "500");
 
     Remove("/root/@");
@@ -218,16 +216,16 @@ TEST_F(TYPathTest, Attributes)
     Remove("/root/value");
     Check("", "{\"root\"={}}");
 
-    Set("/root/\"2\"", "<author=\"ignat\">");
-    Check("", "{\"root\"={\"2\"=<>}}");
+    Set("/root/\"2\"", "<author=\"ignat\"> #");
+    Check("", "{\"root\"={\"2\"=#}}");
     Check("/root/\"2\"/@", "{\"author\"=\"ignat\"}");
     Check("/root/\"2\"/@author", "\"ignat\"");
 
     // note: empty attributes are shown when nested
-    Set("/root/\"3\"", "<dir=<file=-100<>>>");
-    Check("/root/\"3\"/@", "{\"dir\"=<\"file\"=-100<>>}");
-    Check("/root/\"3\"/@dir/@", "{\"file\"=-100<>}");
-    Check("/root/\"3\"/@dir/@file", "-100<>");
+    Set("/root/\"3\"", "<dir=<file=<>-100>#>#");
+    Check("/root/\"3\"/@", "{\"dir\"=<\"file\"=<>-100>#}");
+    Check("/root/\"3\"/@dir/@", "{\"file\"=<>-100}");
+    Check("/root/\"3\"/@dir/@file", "<>-100");
     Check("/root/\"3\"/@dir/@file/@", "{}");
 }
 

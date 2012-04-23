@@ -20,37 +20,42 @@ public:
     TLexer();
     ~TLexer();
 
-    //! Returns true iff the character was consumed.
+    //! Consumes a single symbol.
     /*!
-     * Throws yexception if the character is unexpected.
-     * If the character is not unexpected but was not consumed (like ';' or ']' 
-     * in "[12; 34]"), the method returns false and the lexer comes to terminal
-     * state. In this case, user should reset the lexer and call the method
-     * with the same character once more to proceed.
+     *  Throws an exception if the symbol is unexpected.
+     *  
+     *  \param ch A symbol to consume.
+     *  
+     *  \return 
+     *  If the symbol is not unexpected but was not consumed (like ';' or ']' 
+     *  in "[12; 34]"), the method returns False and the lexer moves to a terminal
+     *  state. In this case the client must call #Reset and then #Consume again
+     *  with the same symbol once more to proceed.
      */
     bool Consume(char ch);
+
+    //! Similar to the other overload but consumes symbols in a batch.
+    /*!
+     *  \param data A range to consume.
+     *  \returns the pointer to the first unconsumed symbol.
+     */
+    const char* Consume(const TStringBuf& data);
+
+    //! Indicates the end-of-stream.
     void Finish();
+
     void Reset();
     
+    //! Returns the current public state.
     EState GetState() const;
 
-    //! Returns parsed token when in terminal state.
+    //! Can only be called in a terminal state. Returns the just-parsed token.
     const TToken& GetToken() const;
     
 private:
     class TImpl;
     THolder<TImpl> Impl;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsEmpty(const TStringBuf& data);
-TToken ChopToken(const TStringBuf& data, Stroka* suffix = NULL);
-Stroka ChopStringToken(const TStringBuf& data, Stroka* suffix = NULL);
-
-i64 ChopIntegerToken(const TStringBuf& data, Stroka* suffix);
-double ChopDoubleToken(const TStringBuf& data, Stroka* suffix);
-ETokenType ChopSpecialToken(const TStringBuf& data, Stroka* suffix);
 
 ////////////////////////////////////////////////////////////////////////////////
             

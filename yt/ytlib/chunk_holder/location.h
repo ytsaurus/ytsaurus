@@ -26,6 +26,7 @@ public:
         TLocationConfigPtr config,
         TReaderCachePtr readerCache,
         const Stroka& threadName);
+
     ~TLocation();
 
     //! Returns the type.

@@ -1,6 +1,5 @@
 package NYT.NTableServer.NProto;
 
-import "yt/ytlib/table_client/schema.proto";
 import "yt/ytlib/table_client/table_reader.proto";
 import "yt/ytlib/misc/guid.proto";
 

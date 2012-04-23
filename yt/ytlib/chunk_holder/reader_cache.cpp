@@ -65,7 +65,7 @@ public:
             }
         }
 
-        return cookie.GetAsyncResult()->Get();
+        return cookie.GetValue().Get();
     }
 
     void Evict(TChunkPtr chunk)

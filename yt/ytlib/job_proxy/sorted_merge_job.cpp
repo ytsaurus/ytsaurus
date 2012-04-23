@@ -25,7 +25,7 @@ inline bool CompareReaders(
     const TSyncReaderAdapter::TPtr& r1, 
     const TSyncReaderAdapter::TPtr& r2)
 {
-    return r1->GetKey() < r2->GetKey();
+    return r1->GetKey() > r2->GetKey();
 }
 
 TSortedMergeJob::TSortedMergeJob(
@@ -88,7 +88,7 @@ TJobResult TSortedMergeJob::Run()
 {
     while (!ChunkReaders.empty()) {
         std::pop_heap(ChunkReaders.begin(), ChunkReaders.end(), CompareReaders);
-        FOREACH(auto& pair, ChunkReaders.back()->GetRow()) {
+        FOREACH (auto& pair, ChunkReaders.back()->GetRow()) {
             Writer->Write(pair.first, pair.second);
         }
         Writer->EndRow();

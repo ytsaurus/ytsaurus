@@ -152,13 +152,13 @@ public:
         return result;
     }
 
-    virtual INodePtr FindChild(const Stroka& key) const
+    virtual INodePtr FindChild(const TStringBuf& key) const
     {
-        auto it = KeyToChild.find(key);
+        auto it = KeyToChild.find(Stroka(key));
         return it == KeyToChild.end() ? NULL : it->second;
     }
 
-    virtual bool AddChild(INode* child, const Stroka& key)
+    virtual bool AddChild(INode* child, const TStringBuf& key)
     {
         YASSERT(!key.empty());
         YASSERT(child);
@@ -172,9 +172,9 @@ public:
         }
     }
 
-    virtual bool RemoveChild(const Stroka& key)
+    virtual bool RemoveChild(const TStringBuf& key)
     {
-        auto it = KeyToChild.find(key);
+        auto it = KeyToChild.find(Stroka(key));
         if (it == KeyToChild.end())
             return false;
 

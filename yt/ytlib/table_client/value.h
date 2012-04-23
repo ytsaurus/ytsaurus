@@ -49,10 +49,21 @@ bool operator>=(const TValue& lhs, const TValue& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs);
+
+bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator != (const NProto::TKey& lhs, const NProto::TKey& rhs);
+bool operator <  (const NProto::TKey& lhs, const NProto::TKey& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 typedef std::vector<Stroka> TKey;
 
-typedef Stroka TColumn;
+int CompareKeys(const TKey& lhs, const TKey& rhs);
 
+////////////////////////////////////////////////////////////////////////////////
+
+typedef Stroka TColumn;
 typedef std::vector< std::pair<TColumn, TValue> > TRow;
 
 ////////////////////////////////////////////////////////////////////////////////

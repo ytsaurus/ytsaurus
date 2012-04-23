@@ -20,12 +20,12 @@ class TLock
     DEFINE_BYVAL_RO_PROPERTY(ELockMode, Mode);
 
 public:
-    TLock(const TLockId& id);
+    explicit TLock(const TLockId& id);
     
     TLock(
         const TLockId& id,
         const TNodeId& nodeId,
-        NTransactionServer::TTransaction *transaction,
+        NTransactionServer::TTransaction* transaction,
         ELockMode mode);
 
     void Save(TOutputStream* output) const;

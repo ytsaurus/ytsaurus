@@ -5,6 +5,8 @@
 #include "token.h"
 #include "lexer.h"
 
+#include <ytlib/misc/foreach.h>
+
 #include <stack>
 
 namespace NYT {
@@ -17,57 +19,47 @@ class TYsonParser::TImpl
     DECLARE_ENUM(EState,
         // ^ stands for current position
         (Start)                 // ^ (special value for empty stack)
-        (StringEnd)             // "..." ^
-        (IntegerEnd)              // 123...9 ^
-        (DoubleEnd)             // 0.123...9 ^
         (ListBeforeItem)        // [...; ^
         (ListAfterItem)         // [... ^
-        (ListEnd)               // [...] ^
         (MapBeforeKey)          // {...; ^
         (MapAfterKey)           // {...; "..." ^
         (MapBeforeValue)        // {...; "..." = ^
         (MapAfterValue)         // {...; "..." = ... ^
-        (MapEnd)                // {...} ^
         (AttributesBeforeKey)   // <...; ^
         (AttributesAfterKey)    // <...; "..." ^
         (AttributesBeforeValue) // <...; "..." = ^
         (AttributesAfterValue)  // <...; "..." = ... ^
+        (AfterAttributes)       // <...> ^
         (Parsed)                // ...<...> ^
     );
 
     IYsonConsumer* Consumer;
-    EMode Mode;
+    EYsonType Type;
 
     TLexer Lexer;
     std::stack<EState> StateStack;
 
-    Stroka CachedStringValue;
-    i64 CachedIntegerValue;
-    double CachedDoubleValue;
-
-    // Diagnostics info
+    // Diagnostic info
     int Offset;
     int Line;
     int Position;
     int Fragment;
 
 public:
-    TImpl(IYsonConsumer* consumer, EMode mode)
+    TImpl(IYsonConsumer* consumer, EYsonType type)
         : Consumer(consumer)
-        , Mode(mode)
-        , CachedIntegerValue(0)
-        , CachedDoubleValue(0.0)
+        , Type(type)
         , Offset(0)
         , Line(1)
         , Position(1)
         , Fragment(0)
     {
-        switch (mode) {
-            case EMode::ListFragment:
+        switch (type) {
+            case EYsonType::ListFragment:
                 StateStack.push(EState::ListBeforeItem);
                 break;
 
-            case EMode::MapFragment:
+            case EYsonType::KeyedFragment:
                 StateStack.push(EState::MapBeforeKey);
                 break;
 
@@ -78,11 +70,11 @@ public:
 
     void Consume(char ch)
     {
-        bool stop = false;
-        while (!stop) {
+        bool consumed = false;
+        while (!consumed) {
             try {
-                stop = Lexer.Consume(ch);
-            } catch (...) {
+                consumed = Lexer.Consume(ch);
+            } catch (const std::exception& ex) {
                 ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
                     ~Stroka(ch).Quote(),
                     ~GetPositionInfo(),
@@ -95,11 +87,29 @@ public:
             }
         }
 
-        ++Offset;
-        ++Position;
-        if (ch == '\n') {
-            ++Line;
-            Position = 1;
+        OnCharConsumed(ch);
+    }
+
+    void Consume(const TStringBuf& data)
+    {
+        auto begin = data.begin();
+        auto end = data.end();
+        auto current = begin;
+        try {
+            while (current != end) {
+                auto firstUnconsumed = Lexer.Consume(TStringBuf(current, end));
+                if (Lexer.GetState() == TLexer::EState::Terminal) {
+                    ConsumeToken(Lexer.GetToken());
+                    Lexer.Reset();
+                }
+                OnRangeConsumed(current, firstUnconsumed);
+                current = firstUnconsumed;
+            }
+        } catch (const std::exception& ex) {
+            ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
+                ~Stroka(*current).Quote(),
+                ~GetPositionInfo(),
+                ex.what());
         }
     }
 
@@ -119,81 +129,99 @@ public:
                 ~CurrentState().ToString(),
                 ~GetPositionInfo());
         }
-
-        YASSERT(CachedStringValue.empty());
-        YASSERT(CachedIntegerValue == 0);
-        YASSERT(CachedDoubleValue == 0.0);
     }
 
 private:
-    void ConsumeToken(const TToken& token)
+    void OnCharConsumed(char ch)
     {
-        bool consumed = false;
-        while (!consumed) {
-            switch (CurrentState()) {
-                case EState::Start:
-                    ConsumeAny(token);
-                    consumed = true;
-                    break;
-
-                case EState::StringEnd:
-                case EState::IntegerEnd:
-                case EState::DoubleEnd:
-                case EState::ListEnd:
-                case EState::MapEnd:
-                    consumed = ConsumeEnd(token);
-                    break;
-
-                case EState::ListBeforeItem:
-                case EState::ListAfterItem:
-                    consumed = ConsumeList(token);
-                    break;
-
-                case EState::MapBeforeKey:
-                case EState::MapAfterKey:
-                case EState::MapBeforeValue:
-                case EState::MapAfterValue:
-                    consumed = ConsumeMap(token);
-                    break;
-
-                case EState::AttributesBeforeKey:
-                case EState::AttributesAfterKey:
-                case EState::AttributesBeforeValue:
-                case EState::AttributesAfterValue:
-                    ConsumeAttributes(token);
-                    consumed = true;
-                    break;
-
-                case EState::Parsed:
-                    ConsumeParsed(token);
-                    consumed = true;
-                    break;
-
-                default:
-                    YUNREACHABLE();
-            }
+        ++Offset;
+        ++Position;
+        if (ch == '\n') {
+            ++Line;
+            Position = 1;
         }
     }
 
-    void ConsumeAny(const TToken& token)
+    void OnRangeConsumed(const char* begin, const char* end)
+    {
+        int position = Position;
+        int line = Line;
+        for (auto current = begin; current != end; ++current) {
+            ++position;
+            if (*current == '\n') {
+                ++line;
+                position = 1;
+            }
+        }
+        Position = position;
+        Line = line;
+        Offset += end - begin;
+    }
+
+    void ConsumeToken(const TToken& token)
+    {
+        switch (CurrentState()) {
+            case EState::Start:
+                ConsumeAny(token, true);
+                break;
+
+            case EState::ListBeforeItem:
+            case EState::ListAfterItem:
+                ConsumeList(token);
+                break;
+
+            case EState::MapBeforeKey:
+            case EState::MapAfterKey:
+            case EState::MapBeforeValue:
+            case EState::MapAfterValue:
+                ConsumeMap(token);
+                break;
+
+            case EState::AttributesBeforeKey:
+            case EState::AttributesAfterKey:
+            case EState::AttributesBeforeValue:
+            case EState::AttributesAfterValue:
+                ConsumeAttributes(token);
+                break;
+
+            case EState::AfterAttributes:
+                StateStack.pop();
+                ConsumeAny(token, false);
+                break;
+
+            case EState::Parsed:
+                ConsumeParsed(token);
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void ConsumeAny(const TToken& token, bool allowAttributes)
     {
         switch (token.GetType()) {        
             case ETokenType::None:
                 break;
 
             case ETokenType::String:
-                CachedStringValue = token.GetStringValue();
-                StateStack.push(EState::StringEnd);
+                Consumer->OnStringScalar(token.GetStringValue());
+                OnItemConsumed();
                 break;
 
             case ETokenType::Integer:
-                CachedIntegerValue = token.GetIntegerValue();
-                StateStack.push(EState::IntegerEnd);
+                Consumer->OnIntegerScalar(token.GetIntegerValue());
+                OnItemConsumed();
                 break;
 
             case ETokenType::Double:
-                CachedDoubleValue = token.GetDoubleValue();
-                StateStack.push(EState::DoubleEnd);
+                Consumer->OnDoubleScalar(token.GetDoubleValue());
+                OnItemConsumed();
+                break;
+
+            case ETokenType::Hash:
+                Consumer->OnEntity();
+                OnItemConsumed();
                 break;
 
             case ETokenType::LeftBracket:
@@ -207,78 +235,78 @@ private:
                 break;
 
             case ETokenType::LeftAngle:
-                Consumer->OnEntity(true);
-                Consumer->OnBeginAttributes();
-                StateStack.push(EState::AttributesBeforeKey);
+                if (allowAttributes) {
+                    Consumer->OnBeginAttributes();
+                    StateStack.push(EState::AttributesBeforeKey);
+                } else {
+                    ythrow yexception() << Sprintf("Repeating attributes (%s)",
+                        ~GetPositionInfo());
+                }
                 break;
 
             default:
-                ythrow yexception() << Sprintf("Unexpected lexeme %s of type %s (%s)",
+                ythrow yexception() << Sprintf("Unexpected token %s of type %s (%s)",
                     ~token.ToString().Quote(),
                     ~token.GetType().ToString(),
                     ~GetPositionInfo());
         }
     }
 
-    bool ConsumeList(const TToken& token)
+    void ConsumeList(const TToken& token)
     {
+        bool inFragment = Type == EYsonType::ListFragment && StateStack.size() == 1;
         auto tokenType = token.GetType();
-
-        if (Mode == EMode::ListFragment && StateStack.size() == 1) {
-            if (tokenType == ETokenType::None) {
-                StateStack.top() = EState::Parsed;
-                return false;
-            } else if (tokenType == ETokenType::RightBracket) {
-                ythrow yexception() << Sprintf("Unexpected end of list in list fragment (%s)",
-                    ~GetPositionInfo());
-            }
-        }
-
-        if (tokenType == ETokenType::None) {
-            return true;
-        }
-
-        switch (CurrentState()) {
-            case EState::ListBeforeItem:
-                if (tokenType == ETokenType::RightBracket) {
-                    StateStack.top() = EState::ListEnd;
-                } else {
-                    Consumer->OnListItem();
-                    ConsumeAny(token);
+        switch (tokenType) {
+            case ETokenType::None:
+                if (inFragment) {
+                    StateStack.top() = EState::Parsed;
                 }
                 break;
 
-            case EState::ListAfterItem:
-                if (tokenType == ETokenType::RightBracket) {
-                    StateStack.top() = EState::ListEnd;
-                } else if (tokenType == ETokenType::Semicolon) {
-                    StateStack.top() = EState::ListBeforeItem;
-                } else {
-                    ythrow yexception() << Sprintf("Expected ';' or ']', but lexeme %s of type %s found (%s)",
-                        ~token.ToString().Quote(),
-                        ~tokenType.ToString(),
+            case ETokenType::RightBracket:
+                if (inFragment) {
+                    ythrow yexception() << Sprintf("Unexpected end of list in list fragment (%s)",
                         ~GetPositionInfo());
                 }
+                Consumer->OnEndList();
+                StateStack.pop();
+                OnItemConsumed();
                 break;
 
             default:
-                YUNREACHABLE();
-        }
+                switch (CurrentState()) {
+                    case EState::ListBeforeItem:
+                        Consumer->OnListItem();
+                        ConsumeAny(token, true);
+                        break;
 
-        return true;
+                    case EState::ListAfterItem:
+                        if (tokenType == ETokenType::Semicolon) {
+                            StateStack.top() = EState::ListBeforeItem;
+                        } else {
+                            ythrow yexception() << Sprintf("Expected ';' or ']', but token %s of type %s found (%s)",
+                                ~token.ToString().Quote(),
+                                ~tokenType.ToString(),
+                                ~GetPositionInfo());
+                        }
+                        break;
+
+                    default:
+                        YUNREACHABLE();
+                }
+        }
     }
 
-    bool ConsumeMap(const TToken& token)
+    void ConsumeMap(const TToken& token)
     {
         auto tokenType = token.GetType();
         auto currentState = CurrentState();
 
-        if (Mode == EMode::MapFragment && StateStack.size() == 1 &&
+        if (Type == EYsonType::KeyedFragment && StateStack.size() == 1 &&
             (currentState == EState::MapBeforeKey || currentState == EState::MapAfterValue))
         {
             if (tokenType == ETokenType::None) {
                 StateStack.top() = EState::Parsed;
-                return false;
             } else if (tokenType == ETokenType::RightBrace) {
                 ythrow yexception() << Sprintf("Unexpected end of map in map fragment (%s)",
                     ~GetPositionInfo());
@@ -286,18 +314,20 @@ private:
         }
 
         if (tokenType == ETokenType::None) {
-            return true;
+            return;
         }
 
         switch (currentState) {
             case EState::MapBeforeKey:
                 if (tokenType == ETokenType::RightBrace) {
-                    StateStack.top() = EState::MapEnd;
+                    Consumer->OnEndMap();
+                    StateStack.pop();
+                    OnItemConsumed();
                 } else if (tokenType == ETokenType::String) {
-                    Consumer->OnMapItem(token.GetStringValue());
+                    Consumer->OnKeyedItem(token.GetStringValue());
                     StateStack.top() = EState::MapAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -308,7 +338,7 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::MapBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Expected '=', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -316,16 +346,18 @@ private:
                 break;
 
             case EState::MapBeforeValue:
-                ConsumeAny(token);
+                ConsumeAny(token, true);
                 break;
 
             case EState::MapAfterValue:
                 if (tokenType == ETokenType::RightBrace) {
-                    StateStack.top() = EState::MapEnd;
+                    Consumer->OnEndMap();
+                    StateStack.pop();
+                    OnItemConsumed();
                 } else if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::MapBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Expected ';' or '}', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected ';' or '}', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -335,8 +367,6 @@ private:
             default:
                 YUNREACHABLE();
         }
-
-        return true;
     }
 
     void ConsumeAttributes(const TToken& token)
@@ -352,17 +382,17 @@ private:
             (currentState == EState::AttributesBeforeKey || currentState == EState::AttributesAfterValue))
         {
             Consumer->OnEndAttributes();
-            OnItemConsumed();
+            StateStack.top() = EState::AfterAttributes;
             return;
         }
 
         switch (currentState) {
             case EState::AttributesBeforeKey:
                 if (tokenType == ETokenType::String) {
-                    Consumer->OnAttributesItem(token.GetStringValue());
+                    Consumer->OnKeyedItem(token.GetStringValue());
                     StateStack.top() = EState::AttributesAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Expected string literal, but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -373,7 +403,7 @@ private:
                 if (tokenType == ETokenType::Equals) {
                     StateStack.top() = EState::AttributesBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Expected '=', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -381,14 +411,14 @@ private:
                 break;
 
             case EState::AttributesBeforeValue:
-                ConsumeAny(token);
+                ConsumeAny(token, true);
                 break;
 
             case EState::AttributesAfterValue:
                 if (tokenType == ETokenType::Semicolon) {
                     StateStack.top() = EState::AttributesBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Expected ';' or '>', but lexeme %s of type %s found (%s)",
+                    ythrow yexception() << Sprintf("Expected ';' or '>', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -406,57 +436,15 @@ private:
 
         auto tokenType = token.GetType();
         if (tokenType != ETokenType::None) {
-            ythrow yexception() << Sprintf("Node is already parsed, but unexpected lexeme %s of type %s found (%s)",
+            ythrow yexception() << Sprintf("Node is already parsed, but unexpected token %s of type %s found (%s)",
                 ~token.ToString().Quote(),
                 ~tokenType.ToString(),
                 ~GetPositionInfo());
         }
     }
 
-    bool ConsumeEnd(const TToken& token)
-    {
-        bool attributes = token.GetType() == ETokenType::LeftAngle;
-        switch (CurrentState()) {
-            case EState::StringEnd:
-                Consumer->OnStringScalar(CachedStringValue, attributes);
-                CachedStringValue = Stroka();
-                break;
-
-            case EState::IntegerEnd:
-                Consumer->OnIntegerScalar(CachedIntegerValue, attributes);
-                CachedIntegerValue = 0;
-                break;
-
-            case EState::DoubleEnd:
-                Consumer->OnDoubleScalar(CachedDoubleValue, attributes);
-                CachedDoubleValue = 0.0;
-                break;
-
-            case EState::ListEnd:
-                Consumer->OnEndList(attributes);
-                break;
-
-            case EState::MapEnd:
-                Consumer->OnEndMap(attributes);
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-
-        if (attributes) {
-            Consumer->OnBeginAttributes();
-            StateStack.top() = EState::AttributesBeforeKey;
-            return true;
-        } else {
-            OnItemConsumed();
-            return false;
-        }
-    }
-
     void OnItemConsumed()
     {
-        StateStack.pop();
         switch (CurrentState()) {
             case EState::Start:
                 StateStack.push(EState::Parsed);
@@ -488,7 +476,7 @@ private:
 
     Stroka GetPositionInfo() const
     {
-        if (Mode == EMode::Node) {
+        if (Type == EYsonType::Node) {
             return Sprintf("Offset: %d, Line: %d, Position: %d",
                 Offset,
                 Line,
@@ -505,10 +493,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonParser::TYsonParser(IYsonConsumer *consumer, EMode mode)
-    : Impl(new TImpl(consumer, mode))
+TYsonParser::TYsonParser(IYsonConsumer *consumer, EYsonType type)
+    : Impl(new TImpl(consumer, type))
 { }
-
 
 TYsonParser::~TYsonParser()
 { }
@@ -518,6 +505,11 @@ void TYsonParser::Consume(char ch)
     Impl->Consume(ch);
 }
 
+void TYsonParser::Consume(const TStringBuf& data)
+{
+    Impl->Consume(data);
+}
+
 void TYsonParser::Finish()
 {
     Impl->Finish();
@@ -525,20 +517,33 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYson(TInputStream* input, IYsonConsumer* consumer, TYsonParser::EMode mode)
+const size_t ParseChunkSize = 1024;
+
+void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 {
-    TYsonParser parser(consumer, mode);
-    char ch;
-    while (input->ReadChar(ch)) {
-        parser.Consume(ch);
+    TYsonParser parser(consumer, type);
+    //char ch;
+    //while (input->ReadChar(ch)) {
+    //    parser.Consume(ch);
+    //}
+    char chunk[ParseChunkSize];
+    while (true) {
+        // Read a chunk.
+        size_t bytesRead = input->Read(chunk, ParseChunkSize);
+        if (bytesRead == 0) {
+            break;
+        }
+        // Parse the chunk.
+        parser.Consume(TStringBuf(chunk, bytesRead));
     }
     parser.Finish();
 }
 
-void ParseYson(const TYson& yson, IYsonConsumer* consumer, TYsonParser::EMode mode)
+void ParseYson(const TStringBuf& yson, IYsonConsumer* consumer, EYsonType type)
 {
-    TStringInput input(yson);
-    ParseYson(&input, consumer, mode);
+    TYsonParser parser(consumer, type);
+    parser.Consume(yson);
+    parser.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

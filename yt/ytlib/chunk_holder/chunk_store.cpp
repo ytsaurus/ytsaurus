@@ -127,7 +127,7 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
 {
     TChunks result;
     result.reserve(ChunkMap.ysize());
-    FOREACH(const auto& pair, ChunkMap) {
+    FOREACH (const auto& pair, ChunkMap) {
         result.push_back(pair.second);
     }
     return result;
