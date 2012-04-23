@@ -161,7 +161,7 @@ class TestLockCommands(YTEnvSetup):
         expect_error( lock('/', mode = 'None', tx = tx_id))
 
         # attributes do not have @lock_mode
-        expect_ok( set('//value', '42<attr=some>', tx = tx_id))
+        expect_ok( set('//value', '<attr=some> 42', tx = tx_id))
         expect_error( lock('//value/@attr/@lock_mode', tx = tx_id))
        
         expect_ok( abort_transaction(tx = tx_id))
@@ -169,7 +169,7 @@ class TestLockCommands(YTEnvSetup):
     def test_display_locks(self):
         tx_id = start_transaction()
         
-        expect_ok( set('//map', '{list = [1; 2; 3] <attr=some>}', tx = tx_id))
+        expect_ok( set('//map', '{list = <attr=some> [1; 2; 3]}', tx = tx_id))
 
         # check that lock is set on nested nodes
         assert_eq( get('//map/@lock_mode',        tx = tx_id), '"exclusive"')
