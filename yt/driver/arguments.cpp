@@ -421,7 +421,7 @@ void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
 ////////////////////////////////////////////////////////////////////////////////
 
 TAbortOpArgsParser::TAbortOpArgsParser()
-    : OpArg("operation_id", "id of an operation that must be aborted", false, "", "id")
+    : OpArg("operation_id", "id of an operation that must be aborted", true, "", "id")
 {
     CmdLine.add(OpArg);
 }
