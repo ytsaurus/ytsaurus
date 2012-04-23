@@ -132,9 +132,9 @@ public:
             config->TransactionManager,
             MasterChannel);
 
-        RegisterCommand("start", New<TStartTransactionCommand>(this));
-        RegisterCommand("commit", New<TCommitTransactionCommand>(this));
-        RegisterCommand("abort", New<TAbortTransactionCommand>(this));
+        RegisterCommand("start_tx", New<TStartTransactionCommand>(this));
+        RegisterCommand("commit_tx", New<TCommitTransactionCommand>(this));
+        RegisterCommand("abort_tx", New<TAbortTransactionCommand>(this));
 
         RegisterCommand("get", New<TGetCommand>(this));
         RegisterCommand("set", New<TSetCommand>(this));
@@ -151,6 +151,7 @@ public:
 
         RegisterCommand("map", New<TMapCommand>(this));
         RegisterCommand("merge", New<TMergeCommand>(this));
+        RegisterCommand("abort_op", New<TAbortOperationCommand>(this));
     }
 
     TError Execute(INodePtr command)

@@ -83,6 +83,15 @@ void TSchedulerCommandBase::WaitForOperation(const TOperationId& operationId)
     } 
 }
 
+void TSchedulerCommandBase::AbortOperation(const NScheduler::TOperationId& operationId)
+{
+    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
+    auto abortOpReq = proxy.AbortOperation();
+    *abortOpReq->mutable_operation_id() = operationId.ToProto();
+    abortOpReq->Invoke().Get();
+}
+
+
 // TODO(babenko): refactor
 static NYTree::TYPath GetOperationPath(const TOperationId& id)
 {
@@ -208,6 +217,19 @@ void TMergeCommand::DoExecute(TMergeRequestPtr request)
         request,
         EOperationType::Merge,
         SerializeToYson(request->Spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAbortOperationCommand::TAbortOperationCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+    , TSchedulerCommandBase(host)
+{ }
+
+void TAbortOperationCommand::DoExecute(TAbortOperationRequestPtr request)
+{
+    AbortOperation(request->OperationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

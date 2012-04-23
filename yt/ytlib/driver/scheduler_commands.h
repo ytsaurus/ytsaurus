@@ -23,6 +23,7 @@ protected:
         const NYTree::TYson& spec);
 
     void WaitForOperation(const NScheduler::TOperationId& operationId);
+    void AbortOperation(const NScheduler::TOperationId& operationId);
 
     void DumpOperationProgress(const NScheduler::TOperationId& operationId);
     void DumpOperationResult(const NScheduler::TOperationId& operationId);
@@ -79,6 +80,32 @@ public:
 
 private:
     virtual void DoExecute(TMergeRequestPtr request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAbortOperationRequest
+    : public TConfigurable
+{
+    NScheduler::TOperationId OperationId;
+
+    TAbortOperationRequest()
+    {
+        Register("operation_id", OperationId);
+    }
+};
+
+typedef TIntrusivePtr<TAbortOperationRequest> TAbortOperationRequestPtr;
+
+class TAbortOperationCommand
+    : public TSchedulerCommandBase
+    , public TTypedCommandBase<TAbortOperationRequest>
+{
+public:
+    explicit TAbortOperationCommand(ICommandHost* commandHost);
+
+private:
+    virtual void DoExecute(TAbortOperationRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

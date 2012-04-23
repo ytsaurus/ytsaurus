@@ -171,6 +171,7 @@ public:
 
         RegisterParser("map", New<TMapArgsParser>());
         RegisterParser("merge", New<TMergeArgsParser>());
+        RegisterParser("abort_op", New<TAbortOpArgsParser>());
     }
 
     int Main(int argc, const char* argv[])

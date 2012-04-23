@@ -301,4 +301,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAbortOpArgsParser
+    : public TArgsParserBase
+{
+public:
+    TAbortOpArgsParser();
+
+private:
+    TUnlabeledStringArg OpArg;
+
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

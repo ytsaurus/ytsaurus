@@ -242,7 +242,7 @@ TStartTxArgsParser::TStartTxArgsParser()
 void TStartTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("start");
+        .Item("do").Scalar("start_tx");
 
     TArgsParserBase::BuildCommand(consumer);
     BuildOptions(consumer);
@@ -253,7 +253,7 @@ void TStartTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 void TCommitTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("commit");
+        .Item("do").Scalar("commit_tx");
 
     TTransactedArgsParser::BuildCommand(consumer);
 }
@@ -263,7 +263,7 @@ void TCommitTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 void TAbortTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("abort");
+        .Item("do").Scalar("abort_tx");
 
     TTransactedArgsParser::BuildCommand(consumer);
 }
@@ -416,6 +416,24 @@ void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
         .EndMap();
 
     TTransactedArgsParser::BuildCommand(consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAbortOpArgsParser::TAbortOpArgsParser()
+    : OpArg("operation_id", "id of an operation that must be aborted", false, "", "id")
+{
+    CmdLine.add(OpArg);
+}
+
+void TAbortOpArgsParser::BuildCommand(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("do").Scalar("abort_op")
+        .Item("operation_id").Scalar(OpArg.getValue())
+        .EndMap();
+
+    TArgsParserBase::BuildCommand(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
