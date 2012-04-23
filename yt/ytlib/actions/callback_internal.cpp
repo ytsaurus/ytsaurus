@@ -24,7 +24,7 @@ void TCallbackBase::Reset()
     UntypedInvoke = NULL;
 }
 
-void* TCallbackBase::Handle() const
+void* TCallbackBase::GetHandle() const
 {
     return (void*)((size_t)(void*)BindState.Get() ^ (size_t)(void*)UntypedInvoke);
 }

@@ -52,7 +52,7 @@ public:
     void Reset();
 
     //! Returns a magical handle.
-    void* Handle() const;
+    void* GetHandle() const;
 
 protected:
     //! Swaps the state and the invoke function with other callback (without typechecking!).

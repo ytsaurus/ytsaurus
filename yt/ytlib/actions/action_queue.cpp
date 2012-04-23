@@ -41,7 +41,7 @@ TQueueInvoker::TQueueInvoker(
 void TQueueInvoker::Invoke(const TClosure& action)
 {
     if (!Owner) {
-        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", action.Handle());
+        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", action.GetHandle());
         return;
     }
 
@@ -53,7 +53,7 @@ void TQueueInvoker::Invoke(const TClosure& action)
     item.Action = action;
     Queue.Enqueue(item);
 
-    LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", action.Handle());
+    LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", action.GetHandle());
 
     Owner->Signal();
 }
@@ -78,9 +78,9 @@ bool TQueueInvoker::DequeueAndExecute()
     Profiler.Aggregate(QueueSizeCounter, size);
 
     auto action = item.Action;
-    LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", action.Handle());
+    LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", action.GetHandle());
     action.Run();
-    LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", action.Handle());
+    LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", action.GetHandle());
 
     auto endExecInstant = GetCpuInstant();
     Profiler.Aggregate(ExecTimeCounter, CpuDurationToValue(endExecInstant - startExecInstant));
