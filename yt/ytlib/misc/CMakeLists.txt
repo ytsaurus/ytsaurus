@@ -100,14 +100,8 @@ list(APPEND YT_SOURCE_FILES
 
 protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
 
-add_custom_command(
-    OUTPUT  ${BASE}/preprocessor-gen.h
-    COMMAND ${PYTHON_EXECUTABLE} ${BASE}/preprocessor-gen.py > ${BASE}/preprocessor-gen.h
-    DEPENDS ${BASE}/preprocessor-gen.py
-    COMMENT "Regenerating preprocessor-gen.h..."
-)
-
 PUMP( ${BASE}/new.h.pump YT_SOURCE_FILES )
+PUMP( ${BASE}/preprocessor-gen.h.pump YT_SOURCE_FILES )
 
 protoc( ${BASE}/error.proto YT_SOURCE_FILES )
 protoc( ${BASE}/extensions.proto YT_SOURCE_FILES )
