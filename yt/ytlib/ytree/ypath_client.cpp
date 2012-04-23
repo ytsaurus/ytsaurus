@@ -101,8 +101,33 @@ TYPath ComputeResolvedYPath(
 
 TYPath EscapeYPath(const Stroka& value)
 {
-    // TODO(babenko,roizner): don't escape safe ids
-    return SerializeToYson(value, EYsonFormat::Text);
+    bool isIdentifer = false;
+
+    // Checking if we can leave the value as is (i.e. value is an identifier)
+    if (!value.empty() && value[0] != '-' && !isdigit(value[0])) {
+        isIdentifer = true;
+        FOREACH (char ch, value) {
+            if (!isIdentifer)
+                break;
+            switch (ch) {
+                case '_':
+                case '-':
+                case '%':
+                    break;
+                default:
+                    if (!isalpha(ch) && !isdigit(ch)) {
+                        isIdentifer = false;
+                    }
+                    break;
+            }
+        }
+    }
+
+    if (isIdentifer) {
+        return value;
+    } else {
+        return SerializeToYson(value, EYsonFormat::Text);
+    }
 }
 
 TYPath EscapeYPath(i64 value)
