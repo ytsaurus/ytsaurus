@@ -95,7 +95,7 @@ void TSchedulerCommandBase::AbortOperation(const NScheduler::TOperationId& opera
 // TODO(babenko): refactor
 static NYTree::TYPath GetOperationPath(const TOperationId& id)
 {
-    return "//sys/operations/" + EscapeYPath(id.ToString());
+    return "//sys/operations/" + EscapeYPathToken(id.ToString());
 }
 
 // TODO(babenko): refactor

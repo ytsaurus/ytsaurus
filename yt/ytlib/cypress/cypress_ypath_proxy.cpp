@@ -10,7 +10,7 @@ using namespace NYTree;
 
 TYPath FromObjectId(const TObjectId& id)
 {
-    return Stroka('#') + EscapeYPath(id.ToString());
+    return Stroka('#') + EscapeYPathToken(id.ToString());
 }
 
 TYPath WithTransaction(const TYPath& path, const TTransactionId& id)
@@ -18,7 +18,7 @@ TYPath WithTransaction(const TYPath& path, const TTransactionId& id)
     return
         id == NullTransactionId
         ? path
-        : Stroka('!') + EscapeYPath(id.ToString()) + path;
+        : Stroka('!') + EscapeYPathToken(id.ToString()) + path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,8 +19,8 @@
 // Avoid circular references.
 namespace NYT {
 namespace NYTree {
-    TYPath EscapeYPath(const Stroka& value);
-    TYPath EscapeYPath(i64 value);
+    TYPath EscapeYPathToken(const Stroka& value);
+    TYPath EscapeYPathToken(i64 value);
 }
 }
 
@@ -80,7 +80,7 @@ struct TLoadHelper<yvector<T>, void>
             TLoadHelper<T>::Load(
                 parameter[i],
                 ~listNode->GetChild(i),
-                path + "/" + NYTree::EscapeYPath(i));
+                path + "/" + NYTree::EscapeYPathToken(i));
         }
     }
 };
@@ -98,7 +98,7 @@ struct TLoadHelper<yhash_set<T>, void>
             TLoadHelper<T>::Load(
                 value,
                 ~listNode->GetChild(i),
-                path + "/" +  NYTree::EscapeYPath(i));
+                path + "/" +  NYTree::EscapeYPathToken(i));
             parameter.insert(MoveRV(value));
         }
     }
@@ -152,7 +152,7 @@ inline void ValidateSubconfigs(
     for (int i = 0; i < parameter->ysize(); ++i) {
         ValidateSubconfigs(
             &(*parameter)[i],
-            path + "/" + NYTree::EscapeYPath(i));
+            path + "/" + NYTree::EscapeYPathToken(i));
     }
 }
 
@@ -165,7 +165,7 @@ inline void ValidateSubconfigs(
     FOREACH (const auto& pair, *parameter) {
         ValidateSubconfigs(
             &pair.second,
-            path + "/" + NYTree::EscapeYPath(pair.first));
+            path + "/" + NYTree::EscapeYPathToken(pair.first));
     }
 }
 

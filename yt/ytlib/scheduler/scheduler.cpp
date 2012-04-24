@@ -793,7 +793,7 @@ private:
 
     static NYTree::TYPath GetOperationPath(const TOperationId& id)
     {
-        return "//sys/operations/" + EscapeYPath(id.ToString());
+        return "//sys/operations/" + EscapeYPathToken(id.ToString());
     }
 
     IOperationControllerPtr CreateController(TOperation* operation)

@@ -28,7 +28,7 @@ TQueueInvoker::TQueueInvoker(
     bool enableLogging)
     : Owner(owner)
     , EnableLogging(enableLogging)
-    , Profiler("/action_queues/" + EscapeYPath(name))
+    , Profiler("/action_queues/" + EscapeYPathToken(name))
     , EnqueueCounter("/enqueue_rate")
     , DequeueCounter("/dequeue_rate")
     , QueueSize(0)

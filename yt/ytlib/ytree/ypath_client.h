@@ -119,8 +119,8 @@ TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
 
-TYPath EscapeYPath(const Stroka& value);
-TYPath EscapeYPath(i64 value);
+TYPath EscapeYPathToken(const Stroka& value);
+TYPath EscapeYPathToken(i64 value);
 
 void ResolveYPath(
     IYPathServicePtr rootService,

@@ -115,7 +115,7 @@ private:
                 "{}");
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
-                auto addressPath = "/" + EscapeYPath(address);
+                auto addressPath = "/" + EscapeYPathToken(address);
                 SyncYPathSet(
                     service,
                     WithTransaction("//sys/masters" + addressPath, transactionId),

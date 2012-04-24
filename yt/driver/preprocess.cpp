@@ -16,7 +16,7 @@ TYPath PreprocessYPath(const TYPath& path)
     TTokenizer tokens(path);
     if (tokens[0].GetType() == ETokenType::Tilde) {
         auto userName = Stroka(getenv("USERNAME"));
-        TYPath userDirectory = Stroka("//home/") + EscapeYPath(userName);
+        TYPath userDirectory = Stroka("//home/") + EscapeYPathToken(userName);
         return userDirectory + tokens.GetSuffix(0);
     }
     return path;

@@ -99,7 +99,7 @@ TYPath ComputeResolvedYPath(
         : wholePath.substr(0, resolvedLength);
 }
 
-TYPath EscapeYPath(const Stroka& value)
+TYPath EscapeYPathToken(const Stroka& value)
 {
     bool isIdentifer = false;
 
@@ -130,7 +130,7 @@ TYPath EscapeYPath(const Stroka& value)
     }
 }
 
-TYPath EscapeYPath(i64 value)
+TYPath EscapeYPathToken(i64 value)
 {
     return SerializeToYson(value, EYsonFormat::Text);
 }

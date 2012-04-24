@@ -40,7 +40,7 @@ TLeaderLookup::TAsyncResult TLeaderLookup::GetLeader()
         auto request = proxy.GetStatus();
         awaiter->Await(
             request->Invoke(),
-            EscapeYPath(address),
+            EscapeYPathToken(address),
             BIND(
                 &TLeaderLookup::OnResponse,
                 MakeStrong(this),

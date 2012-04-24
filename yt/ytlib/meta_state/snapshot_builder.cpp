@@ -116,7 +116,7 @@ private:
                 : BIND(&TSession::OnChangeLogRotated, MakeStrong(this), id);
             Awaiter->Await(
                 request->Invoke(),
-                EscapeYPath(Owner->CellManager->GetPeerAddress(id)),
+                EscapeYPathToken(Owner->CellManager->GetPeerAddress(id)),
                 responseHandler);
         }
 
