@@ -45,7 +45,6 @@ inline void SetObjectRefImpl(
     object = id == NObjectServer::NullObjectId ? NULL : context.Get<T>(id);
 }
 
-template <>
 inline void SetObjectRefImpl(
     const NObjectServer::TObjectId& id,
     NChunkServer::TChunkTreeRef& object,
