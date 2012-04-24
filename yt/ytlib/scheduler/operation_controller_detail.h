@@ -431,7 +431,14 @@ private:
 
 };
 
-TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvoker::TPtr invoker = NULL);
+inline TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvoker::TPtr invoker)
+{
+    return New< TAsyncPipeline<void> >(
+        invoker,
+        BIND([=] () {
+            return MakeFuture(TValueOrError<void>());
+    }));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

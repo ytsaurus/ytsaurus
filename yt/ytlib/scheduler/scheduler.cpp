@@ -142,9 +142,9 @@ private:
             spec,
             TInstant::Now());
 
-        LOG_INFO("Starting operation %s (Type: %s, TransactionId: %s)",
+        LOG_INFO("Starting %s operation %s (TransactionId: %s)",
+            ~FormatEnum(type).Quote(),
             ~operationId.ToString(),
-            ~type.ToString(),
             ~transactionId.ToString());
 
         try {
@@ -590,7 +590,11 @@ private:
         // Collect all transactions that are used by currently running operations.
         yhash_set<TTransactionId> transactionIds;
         FOREACH (const auto& pair, Operations) {
-            transactionIds.insert(pair.second->GetTransactionId());
+            auto operation = pair.second;
+            auto transactionId = operation->GetTransactionId();
+            if (transactionId != NullTransactionId) {
+                transactionIds.insert(transactionId);
+            }
         }
 
         // Invoke GetId verbs for these transactions to see if they are alive.
@@ -1074,7 +1078,10 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
         auto type = EOperationType(request->type());
-        auto transactionId = TTransactionId::FromProto(request->transaction_id());
+        auto transactionId =
+            request->has_transaction_id()
+            ? TTransactionId::FromProto(request->transaction_id())
+            : NullTransactionId;
 
         IMapNodePtr spec;
         try {

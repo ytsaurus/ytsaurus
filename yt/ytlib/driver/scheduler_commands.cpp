@@ -31,7 +31,7 @@ void TSchedulerCommandBase::StartOperation(
     EOperationType type,
     const NYTree::TYson& spec)
 {
-    auto transaction = Host->GetTransaction(request, true);
+    auto transaction = Host->GetTransaction(request);
 
     TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
 
@@ -39,7 +39,7 @@ void TSchedulerCommandBase::StartOperation(
     {
         auto startOpReq = proxy.StartOperation();
         startOpReq->set_type(type);
-        *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
+        *startOpReq->mutable_transaction_id() = (transaction ? transaction->GetId() : NullTransactionId).ToProto();
         startOpReq->set_spec(spec);
 
         auto startOpRsp = startOpReq->Invoke().Get();
@@ -90,7 +90,6 @@ void TSchedulerCommandBase::AbortOperation(const NScheduler::TOperationId& opera
     *abortOpReq->mutable_operation_id() = operationId.ToProto();
     abortOpReq->Invoke().Get();
 }
-
 
 // TODO(babenko): refactor
 static NYTree::TYPath GetOperationPath(const TOperationId& id)

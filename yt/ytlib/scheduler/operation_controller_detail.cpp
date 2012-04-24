@@ -20,17 +20,6 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvoker::TPtr invoker)
-{
-    return New< TAsyncPipeline<void> >(
-        invoker,
-        BIND([=] () {
-            return MakeFuture(TValueOrError<void>());
-        }));
-}
-
-////////////////////////////////////////////////////////////////////
-
 TChunkListPool::TChunkListPool(
     NRpc::IChannel::TPtr masterChannel,
     IInvoker::TPtr controlInvoker,
@@ -434,7 +423,10 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTra
     auto batchReq = CypressProxy.ExecuteBatch();
 
     {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(Operation->GetTransactionId()));
+        auto req = TTransactionYPathProxy::CreateObject(
+            Operation->GetTransactionId() == NullTransactionId
+            ? RootTransactionPath
+            : FromObjectId(Operation->GetTransactionId()));
         req->set_type(EObjectType::Transaction);
         batchReq->AddRequest(req, "start_primary_tx");
     }
