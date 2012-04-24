@@ -153,9 +153,7 @@ protected:
     {
         attributes->push_back("parent_id");
         attributes->push_back("lock_ids");
-        if (Transaction) {
-            attributes->push_back("lock_mode");
-        }
+        attributes->push_back(TAttributeInfo("lock_mode", Transaction));
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
