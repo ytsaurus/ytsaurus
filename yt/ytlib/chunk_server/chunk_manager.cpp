@@ -60,7 +60,6 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("ChunkServer");
-static NProfiling::TProfiler Profiler("/chunk_server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,6 +135,7 @@ public:
         , Config(config)
         , Bootstrap(bootstrap)
         , ChunkReplicaCount(0)
+        , Profiler("/chunk_server")
         , AddChunkCounter("/add_chunk_rate")
         , RemoveChunkCounter("/remove_chunk_rate")
         , AddChunkReplicaCounter("/add_chunk_replica_rate")
@@ -405,6 +405,8 @@ private:
     TBootstrap* Bootstrap;
     
     i32 ChunkReplicaCount;
+
+    NProfiling::TProfiler Profiler;
     NProfiling::TRateCounter AddChunkCounter;
     NProfiling::TRateCounter RemoveChunkCounter;
     NProfiling::TRateCounter AddChunkReplicaCounter;
@@ -428,7 +430,6 @@ private:
     TMetaStateMap<TJobId, TJob> JobMap;
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
-
 
     TChunkTreeStatistics GetChunkTreeStatistics(const TChunk& chunk)
     {
@@ -801,6 +802,16 @@ private:
         ReplicationSinkMap.clear();
     }
 
+
+    virtual void OnStartRecovery()
+    {
+        Profiler.SetEnabled(false);
+    }
+
+    virtual void OnStopRecovery()
+    {
+        Profiler.SetEnabled(true);
+    }
 
     virtual void OnLeaderRecoveryComplete()
     {
