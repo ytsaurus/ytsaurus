@@ -4,6 +4,7 @@
 #include <ytlib/table_server/table_ypath.pb.h>
 
 #include <ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/cell_master/public.h>

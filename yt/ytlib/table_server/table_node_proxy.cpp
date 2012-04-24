@@ -6,6 +6,7 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/yson_parser.h>
+#include <ytlib/ytree/tokenizer.h>
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -161,32 +162,68 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
 void TTableNodeProxy::ParseYPath(
     const TYPath& path,
-    NTableClient::TChannel* channel)
+    TChannel* channel)
 {
-    // Set defaults.
-    *channel = TChannel::CreateUniversal();
-    
-    // A simple shortcut.
-    if (path.empty()) {
-        return;
+    TTokenizer tokens(path);
+    int index = 0;
+
+    if (tokens[index].GetType() == ETokenType::LeftBrace) {
+        *channel = TChannel::CreateEmpty();
+        ++index;
+        while (tokens[index].GetType() != ETokenType::RightBrace) {
+            TColumn begin;
+            bool isRange = false;
+            switch (tokens[index].GetType()) {
+                case ETokenType::String:
+                    begin.assign(tokens[index].GetStringValue());
+                    ++index;
+                    if (tokens[index].GetType() == ETokenType::Colon) {
+                        isRange = true;
+                        ++index;
+                    }
+                    break;
+                case ETokenType::Colon:
+                    isRange = true;
+                    ++index;
+                    break;
+                default:
+                    ThrowUnexpectedToken(tokens[index]);
+                    YUNREACHABLE();
+            }
+            if (isRange) {
+                switch (tokens[index].GetType()) {
+                    case ETokenType::String: {
+                        TColumn end(tokens[index].GetStringValue());
+                        channel->AddRange(begin, end);
+                        ++index;
+                        break;
+                    }
+                    case ETokenType::Comma:
+                        channel->AddRange(TRange(begin));
+                        break;
+                    default:
+                        ThrowUnexpectedToken(tokens[index]);
+                        YUNREACHABLE();
+                }
+            } else {
+                channel->AddColumn(begin);
+            }
+            switch (tokens[index].GetType()) {
+                case ETokenType::Comma:
+                    ++index;
+                    break;
+                case ETokenType::RightBrace:
+                    break;
+                default:
+                    ThrowUnexpectedToken(tokens[index]);
+                    YUNREACHABLE();
+            }
+        }
+    } else {
+        *channel = TChannel::CreateUniversal();
     }
 
-    auto currentPath = path;
-        
-    // Parse channel.
-    auto channelBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-    channelBuilder->BeginTree();
-    channelBuilder->OnBeginList();
-    ParseYson(currentPath, ~channelBuilder, EYsonType::ListFragment);
-    channelBuilder->OnEndList();
-    auto node = channelBuilder->EndTree()->AsList();
-    if (node->GetChildCount() > 0) {
-        YASSERT(node->GetChildCount() == 1);
-        *channel = TChannel::FromNode(~node->GetChild(0));
-    }
-
-    // TODO(babenko): parse range.
-    // TODO(babenko): check for trailing garbage.
+    tokens[index].CheckType(ETokenType::None);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
