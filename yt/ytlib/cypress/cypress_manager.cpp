@@ -47,7 +47,7 @@ public:
         return EObjectType::Lock;
     }
 
-    virtual IObjectProxy::TPtr TCypressManager::TLockTypeHandler::GetProxy(
+    virtual IObjectProxy::TPtr GetProxy(
         const TObjectId& id,
         TTransaction* transaction);
 
@@ -534,7 +534,7 @@ void TCypressManager::ValidateLock(
             IsParentTransaction(lock->GetTransaction(), transaction) &&
             lock->GetMode() != ELockMode::Snapshot)
         {
-            ythrow yexception() << Sprintf("Cannot take %s lock for node % since %s lock is taken by descendant transaction %s",
+            ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
                 ~FormatEnum(requestedMode).Quote(),
                 ~nodeId.ToString(),
                 ~FormatEnum(lock->GetMode()).Quote(),
