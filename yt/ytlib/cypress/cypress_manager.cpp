@@ -37,15 +37,92 @@ class TCypressManager::TLockTypeHandler
     : public TObjectTypeHandlerBase<TLock>
 {
 public:
-    explicit TLockTypeHandler(TCypressManager* owner)
+    explicit TLockTypeHandler(TCypressManagerPtr owner)
         : TObjectTypeHandlerBase(owner->Bootstrap, &owner->LockMap)
+        , Owner(owner)
     { }
 
     virtual EObjectType GetType()
     {
         return EObjectType::Lock;
     }
+
+    virtual IObjectProxy::TPtr TCypressManager::TLockTypeHandler::GetProxy(
+        const TObjectId& id,
+        TTransaction* transaction);
+
+private:
+    TCypressManagerPtr Owner;
+
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressManager::TLockProxy
+    : public NObjectServer::TUnversionedObjectProxyBase<TLock>
+{
+public:
+    TLockProxy(TCypressManagerPtr owner, const TLockId& id)
+        : TBase(owner->Bootstrap, id, &owner->LockMap)
+        , TYPathServiceBase(NCypress::Logger.GetCategory())
+        , Owner(owner)
+    { }
+
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    {
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
+        return TBase::IsWriteRequest(context);
+    }
+
+private:
+    typedef TUnversionedObjectProxyBase<TLock> TBase;
+
+    TCypressManagerPtr Owner;
+
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+    {
+        const auto& chunk = GetTypedImpl();
+        attributes->push_back("mode");
+        attributes->push_back("node_id");
+        attributes->push_back("transaction_id");
+        TBase::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+    {
+        const auto& lock = GetTypedImpl();
+
+        if (name == "mode") {
+            BuildYsonFluently(consumer)
+                .Scalar(FormatEnum(lock.GetMode()));
+            return true;
+        }
+
+        if (name == "node_id") {
+            BuildYsonFluently(consumer)
+                .Scalar(lock.GetNodeId().ToString());
+            return true;
+        }
+
+        if (name == "transaction_id") {
+            BuildYsonFluently(consumer)
+                .Scalar(lock.GetTransaction()->GetId().ToString());
+            return true;
+        }
+
+        return TBase::GetSystemAttribute(name, consumer);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IObjectProxy::TPtr TCypressManager::TLockTypeHandler::GetProxy(
+    const TObjectId& id,
+    NTransactionServer::TTransaction* transaction)
+{
+    UNUSED(transaction);
+    return New<TLockProxy>(Owner, id);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

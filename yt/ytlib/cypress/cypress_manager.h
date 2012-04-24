@@ -94,6 +94,7 @@ public:
 
 private:
     class TLockTypeHandler;
+    class TLockProxy;
     class TNodeTypeHandler;
     class TYPathProcessor;
     class TRootProxy;

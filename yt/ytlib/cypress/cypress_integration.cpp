@@ -91,22 +91,7 @@ private:
     virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
     {
         auto id = TLockId::FromString(key);
-        auto* lock = Bootstrap->GetCypressManager()->FindLock(id);
-        if (!lock) {
-            return NULL;
-        }
-
-        return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer)
-            {
-                auto transaction = lock->GetTransaction();
-                auto transactionId = transaction ? transaction->GetId() : NullTransactionId;
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Item("node_id").Scalar(lock->GetNodeId().ToString())
-                        .Item("transaction_id").Scalar(transactionId.ToString())
-                        .Item("mode").Scalar(lock->GetMode().ToString())
-                    .EndMap();
-            }));
+        return Bootstrap->GetObjectManager()->FindProxy(id);
     }
 };
 
