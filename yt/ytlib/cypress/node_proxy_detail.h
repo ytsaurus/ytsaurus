@@ -224,6 +224,11 @@ protected:
         UNUSED(request);
         UNUSED(response);
 
+        NYTree::TTokenizer tokens(context->GetPath());
+        if (tokens[0].IsEmpty()) {
+            ythrow yexception() << "Node already exists";
+        }
+
         context->Reply(NRpc::EErrorCode::NoSuchVerb, "Verb is not supported");
     }
 
