@@ -59,7 +59,7 @@ struct TLocationConfig
     virtual void DoValidate() const
     {
         if (HighWatermark > LowWatermark) {
-            ythrow yexception() << "\"high_watermark\" cannot be more than \"low_watermark\"";
+            ythrow yexception() << "\"high_watermark\" cannot greater than \"low_watermark\"";
         }
     }
 };
