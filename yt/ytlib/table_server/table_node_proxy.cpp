@@ -46,11 +46,11 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
     TBase::DoInvoke(context);
 }
 
-IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TTableNodeProxy::Resolve(const TYPath& path, const Stroka& verb)
 {
     // Resolve to self to handle channels and ranges.
     if (verb == "Fetch") {
-        return TResolveResult::Here("/" + path);
+        return TResolveResult::Here(path);
     }
     return TBase::ResolveRecursive(path, verb);
 }
@@ -219,6 +219,7 @@ void TTableNodeProxy::ParseYPath(
                     YUNREACHABLE();
             }
         }
+        ++index;
     } else {
         *channel = TChannel::CreateUniversal();
     }

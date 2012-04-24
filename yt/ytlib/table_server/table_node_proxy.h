@@ -26,6 +26,7 @@ public:
         NTransactionServer::TTransaction* transaction,
         const NCypress::TNodeId& nodeId);
 
+    virtual TResolveResult Resolve(const NYTree::TYPath& path, const Stroka& verb);
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
 private:
@@ -35,8 +36,6 @@ private:
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
-
-    TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
 
     void TraverseChunkTree(
         yvector<NChunkServer::TChunkId>* chunkIds,
