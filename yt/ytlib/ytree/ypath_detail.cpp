@@ -167,16 +167,13 @@ namespace {
 TYson DoGetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
-    const TStringBuf& key,
+    const Stroka& key,
     bool* isSystem = NULL)
 {
-    // TODO(roizner): get rid of it
-    Stroka keyData(key);
-
     if (systemAttributeProvider) {
         TStringStream stream;
         TYsonWriter writer(&stream);
-        if (systemAttributeProvider->GetSystemAttribute(keyData, &writer)) {
+        if (systemAttributeProvider->GetSystemAttribute(key, &writer)) {
             if (isSystem) {
                 *isSystem = true;
             }
@@ -192,22 +189,19 @@ TYson DoGetAttribute(
         *isSystem = false;
     }
 
-    return userAttributes->GetYson(keyData);
+    return userAttributes->GetYson(key);
 }
 
 TNullable<TYson> DoFindAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
-    const TStringBuf& key,
+    const Stroka& key,
     bool* isSystem = NULL)
 {
-    // TODO(roizner): get rid of it
-    Stroka keyData(key);
-
     if (systemAttributeProvider) {
         TStringStream stream;
         TYsonWriter writer(&stream);
-        if (systemAttributeProvider->GetSystemAttribute(keyData, &writer)) {
+        if (systemAttributeProvider->GetSystemAttribute(key, &writer)) {
             if (isSystem) {
                 *isSystem = true;
             }
@@ -223,43 +217,37 @@ TNullable<TYson> DoFindAttribute(
         *isSystem = false;
     }
 
-    return userAttributes->FindYson(keyData);
+    return userAttributes->FindYson(key);
 }
 
 void DoSetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
-    const TStringBuf& key,
+    const Stroka& key,
     INode* value,
     bool isSystem)
 {
-    // TODO(roizner): get rid of it
-    Stroka keyData(key);
-
     if (isSystem) {
         YASSERT(systemAttributeProvider);
-        if (!systemAttributeProvider->SetSystemAttribute(keyData, ProducerFromNode(value))) {
-            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~keyData.Quote());
+        if (!systemAttributeProvider->SetSystemAttribute(key, ProducerFromNode(value))) {
+            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
         }
     } else {
         if (!userAttributes) {
             ythrow yexception() << "User attributes are not supported";
         }
-        userAttributes->SetYson(keyData, SerializeToYson(value));
+        userAttributes->SetYson(key, SerializeToYson(value));
     }
 }
 
 void DoSetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
-    const TStringBuf& key,
+    const Stroka& key,
     const TYson& value)
 {
-    // TODO(roizner): get rid of it
-    Stroka keyData(key);
-
     if (systemAttributeProvider) {
-        if (systemAttributeProvider->SetSystemAttribute(keyData, ProducerFromYson(value))) {
+        if (systemAttributeProvider->SetSystemAttribute(key, ProducerFromYson(value))) {
             return;
         }
 
@@ -269,7 +257,7 @@ void DoSetAttribute(
                 
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.Key == key) {
-                ythrow yexception() << Sprintf("System attribute %s cannot be set", ~keyData.Quote());
+                ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
             }
         }
     }
@@ -278,7 +266,7 @@ void DoSetAttribute(
         ythrow yexception() << "User attributes are not supported";
     }
 
-    userAttributes->SetYson(keyData, value);
+    userAttributes->SetYson(key, value);
 }
 
 std::vector<Stroka> DoListAttributes(
@@ -308,11 +296,8 @@ std::vector<Stroka> DoListAttributes(
 bool DoRemoveAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
-    const TStringBuf& key)
+    const Stroka& key)
 {
-    // TODO(roizner): get rid of it
-    Stroka keyData(key);
-
     // System attributes do not support removal.
     UNUSED(systemAttributeProvider);
 
@@ -320,7 +305,7 @@ bool DoRemoveAttribute(
         ythrow yexception() << "User attributes are not supported";
     }
 
-    return userAttributes->Remove(keyData);
+    return userAttributes->Remove(key);
 }
 
 } // namespace <anonymous>
@@ -429,11 +414,11 @@ void TSupportsAttributes::GetAttribute(
 
         response->set_value(stream.Str());
     } else {
-        const auto& yson =
+        auto yson =
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                tokens[0].GetStringValue());
+                Stroka(tokens[0].GetStringValue()));
 
         if (tokens[1].IsEmpty()) {
             response->set_value(yson);
@@ -467,7 +452,7 @@ void TSupportsAttributes::ListAttribute(
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                tokens[0].GetStringValue()));
+                Stroka(tokens[0].GetStringValue())));
         keys = SyncYPathList(~wholeValue, TYPath(tokens.GetSuffix(0)));
     }
 
@@ -509,7 +494,7 @@ void TSupportsAttributes::SetAttribute(
             DoSetAttribute(userAttributes, systemAttributeProvider, key, value);
         }
     } else {
-        auto key = tokens[0].GetStringValue();
+        auto key = Stroka(tokens[0].GetStringValue());
         if (tokens[1].IsEmpty()) {
             if (key.Empty()) {
                 ythrow yexception() << "Attribute key cannot be empty";
@@ -558,7 +543,7 @@ void TSupportsAttributes::RemoveAttribute(
             YVERIFY(userAttributes->Remove(key));
         }
     } else {
-        auto key = tokens[0].GetStringValue();
+        auto key = Stroka(tokens[0].GetStringValue());
         if (tokens[1].IsEmpty()) {
             if (!DoRemoveAttribute(userAttributes, systemAttributeProvider, key)) {
                 ythrow yexception() << Sprintf("User attribute %s is not found",
