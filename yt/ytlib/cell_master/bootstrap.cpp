@@ -154,11 +154,14 @@ void TBootstrap::Run()
         ~MetaState,
         ~rpcServer);
 
-    ObjectManager = New<TObjectManager>(~Config->Objects, this);
-
     TransactionManager = New<TTransactionManager>(~Config->Transactions, this);
 
+    ObjectManager = New<TObjectManager>(~Config->Objects, this);
+
     CypressManager = New<TCypressManager>(this);
+
+    // TODO(babenko): refactor
+    TransactionManager->Init();
 
     auto cypressService = New<TCypressService>(this);
     rpcServer->RegisterService(~cypressService);

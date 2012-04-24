@@ -33,7 +33,7 @@ public:
     typedef TCypressManager TThis;
     typedef TIntrusivePtr<TThis> TPtr;
 
-    TCypressManager(NCellMaster::TBootstrap* bootstrap);
+    explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
 
     void RegisterHandler(INodeTypeHandler::TPtr handler);
     INodeTypeHandler::TPtr FindHandler(EObjectType type);
@@ -135,12 +135,13 @@ private:
     void OnTransactionAborted(NTransactionServer::TTransaction& transaction);
 
     void ReleaseLocks(const NTransactionServer::TTransaction& transaction);
-    void MergeBranchedNodes(const NTransactionServer::TTransaction& transaction);
+    void MergeBranchedNodes(NTransactionServer::TTransaction& transaction);
     void MergeBranchedNode(
-        const NTransactionServer::TTransaction& transaction,
+        NTransactionServer::TTransaction& transaction,
         ICypressNode* branchedNode);
     void RemoveBranchedNodes(const NTransactionServer::TTransaction& transaction);
-    void UnrefOriginatingNodes(const NTransactionServer::TTransaction& transaction);
+    void PromoteCreatedNodes(NTransactionServer::TTransaction& transaction);
+    void ReleaseCreatedNodes(NTransactionServer::TTransaction& transaction);
 
     INodeTypeHandler::TPtr GetHandler(const ICypressNode& node);
 
@@ -163,8 +164,7 @@ private:
         const TNodeId& nodeId,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);
-
-    void ReleaseLock(TLock *lock);
+    void ReleaseLock(TLock* lock);
 
    ICypressNode& BranchNode(
        ICypressNode& node,

@@ -253,9 +253,16 @@ TObjectManager::TObjectManager(
     YASSERT(config);
     YASSERT(bootstrap);
 
-    TLoadContext context(bootstrap);
+    auto transactionManager = bootstrap->GetTransactionManager();
+    transactionManager->SubscribeTransactionCommitted(BIND(
+        &TThis::OnTransactionCommitted,
+        MakeStrong(this)));
+    transactionManager->SubscribeTransactionAborted(BIND(
+        &TThis::OnTransactionAborted,
+        MakeStrong(this)));
 
     auto metaState = bootstrap->GetMetaState();
+    TLoadContext context(bootstrap);
     metaState->RegisterLoader(
         "ObjectManager.Keys.1",
         BIND(&TObjectManager::LoadKeys, MakeStrong(this)));
@@ -617,6 +624,37 @@ TVoid TObjectManager::ReplayVerb(const TMsgExecuteVerb& message)
     proxy->Invoke(~context);
 
     return TVoid();
+}
+
+void TObjectManager::OnTransactionCommitted(TTransaction& transaction)
+{
+    if (transaction.GetParent()) {
+        PromoteCreatedObjects(transaction);
+    } else {
+        ReleaseCreatedObjects(transaction);
+    }
+}
+
+void TObjectManager::OnTransactionAborted(TTransaction& transaction)
+{
+    ReleaseCreatedObjects(transaction);
+}
+
+void TObjectManager::PromoteCreatedObjects(TTransaction& transaction)
+{
+    auto parentTransaction = transaction.GetParent();
+    auto objectManager = Bootstrap->GetObjectManager();
+    FOREACH (const auto& objectId, transaction.CreatedObjectIds()) {
+        YVERIFY(parentTransaction->CreatedObjectIds().insert(objectId).second);
+    }
+}
+
+void TObjectManager::ReleaseCreatedObjects(TTransaction& transaction)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    FOREACH (const auto& objectId, transaction.CreatedObjectIds()) {
+        objectManager->UnrefObject(objectId);
+    }
 }
 
 DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)

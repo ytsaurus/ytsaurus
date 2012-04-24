@@ -57,9 +57,10 @@ TVersionedNodeId TCypressNodeBase::GetId() const
     return Id;
 }
 
-void TCypressNodeBase::PromoteToTransaction(const NTransactionServer::TTransactionId& transactionId)
+void TCypressNodeBase::PromoteToTransaction(const TTransaction* transaction)
 {
-    Id.TransactionId = transactionId;
+    YASSERT(transaction);
+    Id.TransactionId = transaction->GetId();
 }
 
 i32 TCypressNodeBase::RefObject()

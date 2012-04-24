@@ -42,15 +42,13 @@ ICypressNodeProxy::TPtr TNodeFactory::DoCreate(EObjectType type)
 
     auto handler = cypressManager->GetHandler(type);
     
-    TAutoPtr<ICypressNode> node(handler->Create(nodeId));
+    auto node = handler->Create(nodeId);
     cypressManager->RegisterNode(Transaction, node);
     
     objectManager->RefObject(nodeId);
     CreatedNodeIds.push_back(nodeId);
     
-    return cypressManager->GetVersionedNodeProxy(
-        nodeId,
-        Transaction);
+    return cypressManager->GetVersionedNodeProxy(nodeId, Transaction);
 }
 
 IStringNodePtr TNodeFactory::CreateString()

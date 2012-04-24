@@ -32,7 +32,7 @@ struct ICypressNode
     virtual TVersionedObjectId GetId() const = 0;
 
     //! Replaces transaction id part in the versioned id.
-    virtual void PromoteToTransaction(const NTransactionServer::TTransactionId& transactionId);
+    virtual void PromoteToTransaction(const NTransactionServer::TTransaction* transaction) = 0;
 
     //! Gets the lock mode.
     /*!

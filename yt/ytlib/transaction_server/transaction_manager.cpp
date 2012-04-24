@@ -265,10 +265,11 @@ TTransactionManager::TTransactionManager(
 {
     YASSERT(config);
     YASSERT(bootstrap);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetStateInvoker(), StateThread);
 
-    TLoadContext context(bootstrap);
+    TLoadContext context(Bootstrap);
 
-    auto metaState = bootstrap->GetMetaState();
+    auto metaState = Bootstrap->GetMetaState();
     metaState->RegisterLoader(
         "TransactionManager.Keys.1",
         BIND(&TTransactionManager::LoadKeys, MakeStrong(this)));
@@ -285,11 +286,12 @@ TTransactionManager::TTransactionManager(
         ESavePhase::Values);
 
     metaState->RegisterPart(this);
+}
 
-    auto objectManager = bootstrap->GetObjectManager();
+void TTransactionManager::Init()
+{
+    auto objectManager = Bootstrap->GetObjectManager();
     objectManager->RegisterHandler(~New<TTransactionTypeHandler>(this));
-
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetStateInvoker(), StateThread);
 }
 
 TTransaction& TTransactionManager::Start(TTransaction* parent, TNullable<TDuration> timeout)
@@ -319,9 +321,9 @@ TTransaction& TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
 
     TransactionStarted_.Fire(*transaction);
 
-    LOG_INFO_IF(!IsRecovery(), "Transaction started (TransactionId: %s, ParentId: %s)",
+    LOG_INFO_IF(!IsRecovery(), "Started transaction %s (ParentId: %s)",
         ~id.ToString(),
-        parent ? ~parent->GetId().ToString() : "None");
+        ~GetObjectId(parent).ToString());
 
     return *transaction;
 }
@@ -350,7 +352,7 @@ void TTransactionManager::Commit(TTransaction& transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_IF(!IsRecovery(), "Transaction committed (TransactionId: %s)", ~id.ToString());
+    LOG_INFO_IF(!IsRecovery(), "Committed transaction %s", ~id.ToString());
 }
 
 void TTransactionManager::Abort(TTransaction& transaction)
@@ -380,7 +382,7 @@ void TTransactionManager::Abort(TTransaction& transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_IF(!IsRecovery(), "Transaction aborted (TransactionId: %s)", ~id.ToString());
+    LOG_INFO_IF(!IsRecovery(), "Aborted transaction %s", ~id.ToString());
 }
 
 void TTransactionManager::FinishTransaction(TTransaction& transaction)
@@ -392,10 +394,6 @@ void TTransactionManager::FinishTransaction(TTransaction& transaction)
     if (parent) {
         YVERIFY(parent->NestedTransactions().erase(&transaction) == 1);
         objectManager->UnrefObject(transactionId);
-    }
-
-    FOREACH (const auto& createdId, transaction.CreatedObjectIds()) {
-        objectManager->UnrefObject(createdId);
     }
 
     // Kill the fake reference.
@@ -499,7 +497,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     if (!proxy)
         return;
 
-    LOG_INFO("Transaction expired (TransactionId: %s)", ~id.ToString());
+    LOG_INFO("Transaction %s has expired", ~id.ToString());
 
     auto req = TTransactionYPathProxy::Abort();
     ExecuteVerb(~proxy, ~req);
