@@ -82,7 +82,7 @@ public:
 
     virtual IObjectProxy::TPtr GetProxy(
         const TObjectId& id,
-        NTransactionServer::TTransaction* transaction);
+        TTransaction* transaction);
 
 private:
     TImpl* Owner;
@@ -111,7 +111,7 @@ public:
 
     virtual IObjectProxy::TPtr GetProxy(
         const TObjectId& id,
-        NTransactionServer::TTransaction* transaction);
+        TTransaction* transaction);
 
 private:
     TImpl* Owner;
@@ -1271,7 +1271,7 @@ private:
         TBase::GetSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
     {
         const auto& chunk = GetTypedImpl();
 
@@ -1420,7 +1420,7 @@ TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
 
 IObjectProxy::TPtr TChunkManager::TChunkTypeHandler::GetProxy(
     const TObjectId& id,
-    NTransactionServer::TTransaction* transaction)
+    TTransaction* transaction)
 {
     UNUSED(transaction);
     return New<TChunkProxy>(Owner, id);
@@ -1494,7 +1494,7 @@ private:
         TBase::GetSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
     {
         const auto& chunkList = GetTypedImpl();
 
@@ -1608,7 +1608,7 @@ TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
 
 IObjectProxy::TPtr TChunkManager::TChunkListTypeHandler::GetProxy(
     const TObjectId& id,
-    NTransactionServer::TTransaction* transaction)
+    TTransaction* transaction)
 {
     UNUSED(transaction);
     return New<TChunkListProxy>(Owner, id);
