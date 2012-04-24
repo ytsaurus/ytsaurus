@@ -45,9 +45,9 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(!IsOpen);
 
-    LOG_INFO("Opening file writer (UploadReplicaCount: %d, TotalReplicaCount: %d)",
-        Config->UploadReplicaCount,
-        Config->TotalReplicaCount);
+    LOG_INFO("Opening file writer (ReplicationFactor: %d, UploadReplicationFactor: %d)",
+        Config->ReplicationFactor,
+        Config->UploadReplicationFactor);
 
 
     LOG_INFO("Creating chunk");
@@ -57,7 +57,8 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(uploadTransactionId));
         req->set_type(EObjectType::Chunk);
         auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
-        reqExt->set_holder_count(Config->UploadReplicaCount);
+        reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
+        reqExt->set_replication_factor(Config->ReplicationFactor);
         auto rsp = cypressProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             LOG_ERROR_AND_THROW(yexception(), "Error creating file chunk\n%s",
@@ -66,7 +67,7 @@ void TFileWriterBase::Open(NObjectServer::TTransactionId uploadTransactionId)
         ChunkId = TChunkId::FromProto(rsp->object_id());
         const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
         holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
-        if (holderAddresses.size() < Config->UploadReplicaCount) {
+        if (holderAddresses.size() < Config->UploadReplicationFactor) {
             ythrow yexception() << "Not enough holders available";
         }
     }

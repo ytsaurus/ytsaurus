@@ -19,12 +19,14 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 TChunk::TChunk(const TChunkId& id)
     : TObjectWithIdBase(id)
+    , ReplicationFactor_(1)
     , Size_(UnknownSize)
 { }
 
 void TChunk::Save(TOutputStream* output) const
 {
     TObjectWithIdBase::Save(output);
+    ::Save(output, ReplicationFactor_);
     ::Save(output, Size_);
     ::Save(output, Attributes_);
     ::Save(output, StoredLocations_);
@@ -35,6 +37,7 @@ void TChunk::Load(const TLoadContext& context, TInputStream* input)
 {
     UNUSED(context);
     TObjectWithIdBase::Load(input);
+    ::Load(input, ReplicationFactor_);
     ::Load(input, Size_);
     ::Load(input, Attributes_);
     ::Load(input, StoredLocations_);

@@ -218,27 +218,27 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
         return EScheduleFlags::Purged;
     }
 
-    int desiredCount;
+    int replicationFactor;
     int storedCount;
     int cachedCount;
     int plusCount;
     int minusCount;
     GetReplicaStatistics(
         *chunk,
-        &desiredCount,
+        &replicationFactor,
         &storedCount,
         &cachedCount,
         &plusCount,
         &minusCount);
 
-    int requestedCount = desiredCount - (storedCount + plusCount);
-    if (requestedCount <= 0) {
+    int replicasNeeded = replicationFactor - (storedCount + plusCount);
+    if (replicasNeeded <= 0) {
         LOG_TRACE("Chunk %s we're about to replicate has enough replicas",
             ~chunkId.ToString());
         return EScheduleFlags::Purged;
     }
 
-    auto targets = ChunkPlacement->GetReplicationTargets(*chunk, requestedCount);
+    auto targets = ChunkPlacement->GetReplicationTargets(*chunk, replicasNeeded);
     if (targets.empty()) {
         LOG_TRACE("No suitable target holders for replication of chunk %s",
             ~chunkId.ToString());
@@ -267,7 +267,7 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
         ~JoinToString(targetAddresses));
 
     return
-        targetAddresses.ysize() == requestedCount
+        targetAddresses.ysize() == replicasNeeded
         // TODO: flagged enums
         ? (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled)
         : (EScheduleFlags) EScheduleFlags::Scheduled;
@@ -429,13 +429,13 @@ void TJobScheduler::ScheduleNewJobs(
 
 void TJobScheduler::GetReplicaStatistics(
     const TChunk& chunk,
-    int* desiredCount,
+    int* replicationFactor,
     int* storedCount,
     int* cachedCount,
     int* plusCount,
     int* minusCount)
 {
-    *desiredCount = GetDesiredReplicaCount(chunk);
+    *replicationFactor = GetReplicationFactor(chunk);
     *storedCount = static_cast<int>(chunk.StoredLocations().size());
     *cachedCount = !~chunk.CachedLocations() ? 0 : static_cast<int>(chunk.CachedLocations()->size());
     *plusCount = 0;
@@ -478,23 +478,21 @@ void TJobScheduler::GetReplicaStatistics(
     }
 }
 
-int TJobScheduler::GetDesiredReplicaCount(const TChunk& chunk)
+int TJobScheduler::GetReplicationFactor(const TChunk& chunk)
 {
-    // TODO(babenko): make configurable
-    UNUSED(chunk);
-    return 3;
+    return chunk.GetReplicationFactor();
 }
 
 void TJobScheduler::Refresh(const TChunk& chunk)
 {
-    int desiredCount;
+    int replicationFactor;
     int storedCount;
     int cachedCount;
     int plusCount;
     int minusCount;
     GetReplicaStatistics(
         chunk,
-        &desiredCount,
+        &replicationFactor,
         &storedCount,
         &cachedCount,
         &plusCount,
@@ -524,9 +522,9 @@ void TJobScheduler::Refresh(const TChunk& chunk)
 
         LOG_TRACE("Chunk %s is lost: %d replicas needed but only %s exist",
             ~chunk.GetId().ToString(),
-            desiredCount,
+            replicationFactor,
             ~replicaCountStr);
-    } else if (storedCount - minusCount > desiredCount) {
+    } else if (storedCount - minusCount > replicationFactor) {
         OverreplicatedChunkIds_.insert(chunkId);
 
         // NB: Never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
@@ -534,11 +532,11 @@ void TJobScheduler::Refresh(const TChunk& chunk)
             LOG_WARNING("Chunk %s is over-replicated: %s replicas exist but only %d needed, waiting for pending replications to complete",
                 ~chunk.GetId().ToString(),
                 ~replicaCountStr,
-                desiredCount);
+                replicationFactor);
             return;
         }
 
-        auto holders = ChunkPlacement->GetRemovalTargets(chunk, storedCount - minusCount - desiredCount);
+        auto holders = ChunkPlacement->GetRemovalTargets(chunk, storedCount - minusCount - replicationFactor);
         FOREACH (auto holder, holders) {
             auto& holderInfo = GetHolderInfo(holder->GetId());
             holderInfo.ChunksToRemove.insert(chunk.GetId());
@@ -552,9 +550,9 @@ void TJobScheduler::Refresh(const TChunk& chunk)
         LOG_DEBUG("Chunk %s is over-replicated: %s replicas exist but only %d needed, removal is scheduled on [%s]",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
-            desiredCount,
+            replicationFactor,
             ~JoinToString(holderAddresses));
-    } else if (storedCount + plusCount < desiredCount) {
+    } else if (storedCount + plusCount < replicationFactor) {
         UnderreplicatedChunkIds_.insert(chunkId);
 
         // NB: Never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
@@ -562,7 +560,7 @@ void TJobScheduler::Refresh(const TChunk& chunk)
             LOG_WARNING("Chunk %s is under-replicated: %s replicas exist but %d needed, waiting for pending removals to complete",
                 ~chunk.GetId().ToString(),
                 ~replicaCountStr,
-                desiredCount);
+                replicationFactor);
             return;
         }
 
@@ -574,13 +572,13 @@ void TJobScheduler::Refresh(const TChunk& chunk)
         LOG_DEBUG("Chunk %s is under-replicated: %s replicas exist but %d needed, replication is scheduled on %s",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
-            desiredCount,
+            replicationFactor,
             ~holder->GetAddress());
     } else {
         LOG_TRACE("Chunk %s is OK: %s replicas exist and %d needed",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
-            desiredCount);
+            replicationFactor);
     }
  }
 

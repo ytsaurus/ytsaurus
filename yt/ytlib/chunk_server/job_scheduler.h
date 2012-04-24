@@ -114,7 +114,7 @@ private:
         yvector<NProto::TJobStartInfo>* jobsToStart);
 
     void Refresh(const TChunk& chunk);
-    int GetDesiredReplicaCount(const TChunk& chunk);
+    int GetReplicationFactor(const TChunk& chunk);
     void GetReplicaStatistics(
         const TChunk& chunk,
         int* desiredCount,

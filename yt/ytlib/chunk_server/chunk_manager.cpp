@@ -1277,6 +1277,7 @@ private:
         attributes->push_back("confirmed");
         attributes->push_back("cached_locations");
         attributes->push_back("stored_locations");
+        attributes->push_back("replication_factor");
         attributes->push_back(TAttributeInfo("size", chunk.IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk.IsConfirmed()));
         TBase::GetSystemAttributes(attributes);
@@ -1295,11 +1296,10 @@ private:
         if (name == "cached_locations") {
             if (~chunk.CachedLocations()) {
                 BuildYsonFluently(consumer)
-                    .DoListFor(*chunk.CachedLocations(), [=] (TFluentList fluent, THolderId holderId)
-                        {
-                            const auto& holder = Owner->GetHolder(holderId);
-                            fluent.Item().Scalar(holder.GetAddress());
-                        });
+                    .DoListFor(*chunk.CachedLocations(), [=] (TFluentList fluent, THolderId holderId) {
+                        const auto& holder = Owner->GetHolder(holderId);
+                        fluent.Item().Scalar(holder.GetAddress());
+                    });
             } else {
                 BuildYsonFluently(consumer)
                     .BeginList()
@@ -1310,11 +1310,16 @@ private:
 
         if (name == "stored_locations") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunk.StoredLocations(), [=] (TFluentList fluent, THolderId holderId)
-                    {
-                        const auto& holder = Owner->GetHolder(holderId);
-                        fluent.Item().Scalar(holder.GetAddress());
-                    });
+                .DoListFor(chunk.StoredLocations(), [=] (TFluentList fluent, THolderId holderId) {
+                    const auto& holder = Owner->GetHolder(holderId);
+                    fluent.Item().Scalar(holder.GetAddress());
+                });
+            return true;
+        }
+
+        if (name == "replication_factor") {
+            BuildYsonFluently(consumer)
+                .Scalar(chunk.GetReplicationFactor());
             return true;
         }
 
@@ -1450,9 +1455,10 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
         const auto* requestExt = &request->GetExtension(TReqCreateChunk::create_chunk);
         auto* responseExt = response->MutableExtension(TRspCreateChunk::create_chunk);
 
-        int holderCount = requestExt->holder_count();
-        auto holders = Owner->AllocateUploadTargets(holderCount);
+        chunk.SetReplicationFactor(requestExt->replication_factor());
 
+        int holderCount = requestExt->upload_replication_factor();
+        auto holders = Owner->AllocateUploadTargets(holderCount);
         FOREACH (auto holder, holders) {
             responseExt->add_holder_addresses(holder->GetAddress());
         }

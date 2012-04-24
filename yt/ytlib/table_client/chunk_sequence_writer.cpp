@@ -54,15 +54,17 @@ void TChunkSequenceWriter::CreateNextChunk()
 
     NextChunk = NewPromise<TChunkWriter::TPtr>();
 
-    LOG_DEBUG("Creating chunk (TransactionId: %s; UploadReplicaCount: %d)",
+    LOG_DEBUG("Creating chunk (ReplicationFactor: %d, UploadReplicationFactor: %d)",
         ~TransactionId.ToString(),
-        Config->UploadReplicaCount);
+        Config->ReplicationFactor,
+        Config->UploadReplicationFactor);
 
     TCypressServiceProxy cypressProxy(MasterChannel);
     auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
     req->set_type(EObjectType::Chunk);
     auto* reqExt = req->MutableExtension(TReqCreateChunk::create_chunk);
-    reqExt->set_holder_count(Config->UploadReplicaCount);
+    reqExt->set_replication_factor(Config->ReplicationFactor);
+    reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
     cypressProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriter::OnChunkCreated, MakeWeak(this))
         .Via(WriterThread->GetInvoker()));
@@ -86,12 +88,12 @@ void TChunkSequenceWriter::OnChunkCreated(TTransactionYPathProxy::TRspCreateObje
     const auto& rspExt = rsp->GetExtension(TRspCreateChunk::create_chunk);
     auto holderAddresses = FromProto<Stroka>(rspExt.holder_addresses());
 
-    if (holderAddresses.size() < Config->UploadReplicaCount) {
+    if (holderAddresses.size() < Config->UploadReplicationFactor) {
         State.Fail(TError("Not enough holders available"));
         return;
     }
 
-    LOG_DEBUG("Chunk created (Addresses: [%s]; ChunkId: %s)",
+    LOG_DEBUG("Chunk created (Addresses: [%s], ChunkId: %s)",
         ~JoinToString(holderAddresses),
         ~chunkId.ToString());
 
@@ -171,7 +173,7 @@ void TChunkSequenceWriter::OnRowEnded(
 
         if (expectedInputSize > Config->DesiredChunkSize) {
             LOG_DEBUG(
-                "Switching to next chunk (TransactioId: %s; CurrentChunkSize: %" PRId64 ", ExpectedInputSize %f)",
+                "Switching to next chunk (TransactionId: %s, CurrentChunkSize: %" PRId64 ", ExpectedInputSize: %lf)",
                 ~TransactionId.ToString(),
                 CurrentChunk->GetCurrentSize(),
                 expectedInputSize);
@@ -232,7 +234,7 @@ void TChunkSequenceWriter::OnChunkClosed(
         return;
     }
 
-    LOG_DEBUG("Chunk successfully closed (ChunkId: %s).",
+    LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
         ~currentChunk->GetChunkId().ToString());
 
     TCypressServiceProxy cypressProxy(MasterChannel);
@@ -270,7 +272,7 @@ void TChunkSequenceWriter::OnChunkRegistered(
         return;
     }
 
-    LOG_DEBUG("Batch chunk registration request succeeded (ChunkId: %s).",
+    LOG_DEBUG("Chunk registered successfully (ChunkId: %s)",
         ~chunkId.ToString());
 
     for (int i = 0; i < batchRsp->GetSize(); ++i) {
@@ -295,7 +297,7 @@ void TChunkSequenceWriter::OnChunkFinished(
         return;
     }
 
-    LOG_DEBUG("Chunk successfully closed and registered (ChunkId: %s).",
+    LOG_DEBUG("Chunk successfully closed and registered (ChunkId: %s)",
         ~chunkId.ToString());
 }
 

@@ -30,10 +30,8 @@ public:
         typedef TIntrusivePtr<TConfig> TPtr;
 
         i64 DesiredChunkSize;
-
-        int TotalReplicaCount;
-        int UploadReplicaCount;
-
+        int ReplicationFactor;
+        int UploadReplicationFactor;
         TChunkWriter::TConfig::TPtr ChunkWriter;
         NChunkClient::TRemoteWriter::TConfig::TPtr RemoteWriter;
 
@@ -42,12 +40,12 @@ public:
             Register("desired_chunk_size", DesiredChunkSize)
                 .GreaterThan(0)
                 .Default(1024 * 1024 * 1024);
-            Register("total_replica_count", TotalReplicaCount)
-                .GreaterThanOrEqual(1)
-                .Default(3);
-            Register("upload_replica_count", UploadReplicaCount)
-                .GreaterThanOrEqual(1)
-                .Default(2);
+            Register("replication_factor", ReplicationFactor)
+                .Default(3)
+                .GreaterThanOrEqual(1);
+            Register("upload_replication_factor", UploadReplicationFactor)
+                .Default(2)
+                .GreaterThanOrEqual(1);
             Register("chunk_writer", ChunkWriter)
                 .DefaultNew();
             Register("remote_writer", RemoteWriter)
@@ -56,8 +54,8 @@ public:
 
         virtual void DoValidate() const
         {
-            if (TotalReplicaCount < UploadReplicaCount) {
-                ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
+            if (ReplicationFactor < UploadReplicationFactor) {
+                ythrow yexception() << "\"replication_factor\" cannot be less than \"upload_replication_factor\"";
             }
         }
     };

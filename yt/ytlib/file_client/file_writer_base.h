@@ -35,8 +35,8 @@ public:
 
         i64 BlockSize;
         ECodecId CodecId;
-        int TotalReplicaCount;
-        int UploadReplicaCount;
+        int ReplicationFactor;
+        int UploadReplicationFactor;
         NChunkClient::TRemoteWriter::TConfig::TPtr RemoteWriter;
 
         TConfig()
@@ -46,10 +46,10 @@ public:
                 .GreaterThan(0);
             Register("codec_id", CodecId)
                 .Default(ECodecId::None);
-            Register("total_replica_count", TotalReplicaCount)
+            Register("replication_factor", ReplicationFactor)
                 .Default(3)
                 .GreaterThanOrEqual(1);
-            Register("upload_replica_count", UploadReplicaCount)
+            Register("upload_replication_factor", UploadReplicationFactor)
                 .Default(2)
                 .GreaterThanOrEqual(1);
             Register("remote_writer", RemoteWriter)
@@ -58,8 +58,8 @@ public:
 
         virtual void DoValidate()
         {
-            if (TotalReplicaCount < UploadReplicaCount) {
-                ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
+            if (ReplicationFactor < UploadReplicationFactor) {
+                ythrow yexception() << "\"replication_factor\" cannot be less than \"upload_replication_factor\"";
             }
         }
     };

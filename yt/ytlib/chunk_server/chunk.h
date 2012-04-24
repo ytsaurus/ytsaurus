@@ -16,6 +16,7 @@ namespace NChunkServer {
 class TChunk
     : public NObjectServer::TObjectWithIdBase
 {
+    DEFINE_BYVAL_RW_PROPERTY(i32, ReplicationFactor);
     DEFINE_BYVAL_RW_PROPERTY(i64, Size);
     DEFINE_BYVAL_RW_PROPERTY(TSharedRef, Attributes);
 
