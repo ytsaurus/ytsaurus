@@ -152,8 +152,10 @@ protected:
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
     {
         attributes->push_back("parent_id");
-        attributes->push_back("lock_mode");
         attributes->push_back("lock_ids");
+        if (Transaction) {
+            attributes->push_back("lock_mode");
+        }
         NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
     }
 
@@ -169,19 +171,19 @@ protected:
             return true;
         }
 
-        if (name == "lock_mode") {
-            BuildYsonFluently(consumer)
-                .Scalar(FormatEnum(node.GetLockMode()));
-            return true;
-        }
-
         if (name == "lock_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(origniatingNode.Locks(), [=] (NYTree::TFluentList fluent, TLock* lock)
-                    {
-                        fluent.Item().Scalar(lock->GetId().ToString());
-                    });
-            return true;
+                .DoListFor(origniatingNode.Locks(), [=] (NYTree::TFluentList fluent, TLock* lock) {
+                    fluent.Item().Scalar(lock->GetId().ToString());
+                });
+        }
+
+        if (Transaction) {
+            if (name == "lock_mode") {
+                BuildYsonFluently(consumer)
+                    .Scalar(FormatEnum(node.GetLockMode()));
+                return true;
+            }
         }
 
         return NObjectServer::TObjectProxyBase::GetSystemAttribute(name, consumer);
