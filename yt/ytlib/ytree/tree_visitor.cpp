@@ -83,7 +83,8 @@ void TTreeVisitor::VisitAny(INodePtr node)
     }
 }
 
-void TTreeVisitor::VisitAttributes(INodePtr node) {
+void TTreeVisitor::VisitAttributes(INodePtr node)
+{
     yhash_set<Stroka> attributeKeySet = node->Attributes().List();
     if (!attributeKeySet.empty()) {
         std::vector<Stroka> attributeKeyList(attributeKeySet.begin(), attributeKeySet.end());
