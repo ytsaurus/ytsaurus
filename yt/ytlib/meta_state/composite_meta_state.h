@@ -33,6 +33,13 @@ protected:
     virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();
 
+    virtual void OnStartFollowing();
+    virtual void OnFollowerRecoveryComplete();
+    virtual void OnStopFollowing();
+
+    virtual void OnStartRecovery();
+    virtual void OnStopRecovery();
+
 private:
     friend class TCompositeMetaState;
     typedef TMetaStatePart TThis;

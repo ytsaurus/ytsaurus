@@ -30,11 +30,33 @@ TMetaStatePart::TMetaStatePart(
     metaStateManager->SubscribeStartLeading(BIND(
         &TThis::OnStartLeading,
         MakeWeak(this)));
+    metaStateManager->SubscribeStartLeading(BIND(
+        &TThis::OnStartRecovery,
+        MakeWeak(this)));
     metaStateManager->SubscribeLeaderRecoveryComplete(BIND(
         &TThis::OnLeaderRecoveryComplete,
         MakeWeak(this)));
+    metaStateManager->UnsubscribeLeaderRecoveryComplete(BIND(
+        &TThis::OnStopRecovery,
+        MakeWeak(this)));
     metaStateManager->SubscribeStopLeading(BIND(
         &TThis::OnStopLeading,
+        MakeWeak(this)));
+
+    metaStateManager->SubscribeStartFollowing(BIND(
+        &TThis::OnStartFollowing,
+        MakeWeak(this)));
+    metaStateManager->SubscribeStartFollowing(BIND(
+        &TThis::OnStartRecovery,
+        MakeWeak(this)));
+    metaStateManager->SubscribeFollowerRecoveryComplete(BIND(
+        &TThis::OnFollowerRecoveryComplete,
+        MakeWeak(this)));
+    metaStateManager->UnsubscribeFollowerRecoveryComplete(BIND(
+        &TThis::OnStopRecovery,
+        MakeWeak(this)));
+    metaStateManager->SubscribeStopFollowing(BIND(
+        &TThis::OnStopFollowing,
         MakeWeak(this)));
 }
 
@@ -68,9 +90,27 @@ void TMetaStatePart::OnLeaderRecoveryComplete()
 void TMetaStatePart::OnStopLeading()
 { }
 
+void TMetaStatePart::OnStartFollowing()
+{ }
+
+void TMetaStatePart::OnFollowerRecoveryComplete()
+{ }
+
+void TMetaStatePart::OnStopFollowing()
+{ }
+
+void TMetaStatePart::OnStartRecovery()
+{ }
+
+void TMetaStatePart::OnStopRecovery()
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeMetaState::TSaverInfo::TSaverInfo(const Stroka& name, TSaver saver, ESavePhase phase)
+TCompositeMetaState::TSaverInfo::TSaverInfo(
+    const Stroka& name,
+    TSaver saver,
+    ESavePhase phase)
     : Name(name)
     , Saver(saver)
     , Phase(phase)
@@ -119,8 +159,7 @@ void TCompositeMetaState::Load(TInputStream* input)
         ::Load(input, name);
         auto it = Loaders.find(name);
         if (it == Loaders.end()) {
-            LOG_FATAL("No appropriate loader is registered (PartName: %s)",
-                ~name);
+            LOG_FATAL("No appropriate loader is registered for part %s", ~name.Quote());
         }
         auto loader = it->second;
         loader.Run(input);
