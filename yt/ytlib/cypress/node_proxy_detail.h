@@ -174,6 +174,7 @@ protected:
                 .DoListFor(origniatingNode.Locks(), [=] (NYTree::TFluentList fluent, TLock* lock) {
                     fluent.Item().Scalar(lock->GetId().ToString());
                 });
+            return true;
         }
 
         if (Transaction) {
