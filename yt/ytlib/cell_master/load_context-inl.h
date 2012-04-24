@@ -31,12 +31,6 @@ void SaveObjectRef(TOutputStream* output, T object)
 }
 
 template <class T>
-void SetObjectRefImpl(
-    const NObjectServer::TObjectId& id,
-    T& object,
-    const TLoadContext& context);
-
-template <class T>
 inline void SetObjectRefImpl(
     const typename NObjectServer::TObjectIdTraits<T*>::TId& id,
     T*& object,
