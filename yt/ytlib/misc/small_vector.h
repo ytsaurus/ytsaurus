@@ -44,16 +44,12 @@ protected:
     // long double LD;
     long long L;
     void *P;
-    // (yt): we got rid of FirstEl
   } FirstEl;
   // Space after 'FirstEl' is clobbered, do not add any instance vars after it.
 
 protected:
   SmallVectorBase(size_t Size)
-    : BeginX(&CapacityX + 1), EndX(BeginX), CapacityX((char*)BeginX+Size)
-  {
-      assert (BeginX == &FirstEl);
-  }
+    : BeginX(&CapacityX + 1), EndX(BeginX), CapacityX((char*)BeginX+Size) {}
 
   /// isSmall - Return true if this is a smallvector which has not had dynamic
   /// memory allocated for it.
