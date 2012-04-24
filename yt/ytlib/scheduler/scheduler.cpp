@@ -1016,10 +1016,9 @@ private:
                 .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
                 .Item("transaction_id").Scalar(operation->GetTransactionId())
                 .Item("state").Scalar(FormatEnum(operation->GetState()))
-                .Item("progress").BeginMap()
-                .EndMap()
+                .Item("start_time").Scalar(operation->GetStartTime())
+                .Item("progress").BeginMap().EndMap()
                 .Item("spec").Node(operation->GetSpec())
-                // TODO(babenko): serialize start time
             .EndAttributes()
             .BeginMap()
             .EndMap();
@@ -1037,8 +1036,7 @@ private:
             attributes->Get<EOperationType>("operation_type"),
             attributes->Get<TTransactionId>("transaction_id"),
             attributes->Get<INode>("spec")->AsMap(),
-            // TODO(babenko): parse start time
-            TInstant::Now());
+            attributes->Get<TInstant>("start_time"));
     }
 
     void BuildJobYson(TJobPtr job, IYsonConsumer* consumer)
