@@ -496,7 +496,7 @@ private:
 
             LOG_INFO("Publishing scheduler address");
             {
-                auto req = TYPathProxy::Set("//sys/scheduler/runtime/@address");
+                auto req = TYPathProxy::Set("//sys/scheduler/@address");
                 req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
                 auto rsp = CypressProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {

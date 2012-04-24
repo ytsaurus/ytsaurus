@@ -101,11 +101,6 @@ private:
 
             SyncYPathSet(
                 service,
-                WithTransaction("//sys/scheduler/runtime", transactionId),
-                "{}");
-
-            SyncYPathSet(
-                service,
                 WithTransaction("//sys/operations", transactionId),
                 "{}");
 

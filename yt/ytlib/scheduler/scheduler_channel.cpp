@@ -37,7 +37,7 @@ IChannel::TPtr CreateSchedulerChannel(
         defaultTimeout,
         BIND([=] () -> TFuture< TValueOrError<IChannel::TPtr> > {
             TCypressServiceProxy proxy(masterChannel);
-            auto req = TYPathProxy::Get("//sys/scheduler/runtime/@address");
+            auto req = TYPathProxy::Get("//sys/scheduler/@address");
             return proxy.Execute(req).Apply(BIND(&OnSchedulerAddressFound));
         }));
 
