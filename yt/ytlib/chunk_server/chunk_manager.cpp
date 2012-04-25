@@ -283,20 +283,10 @@ public:
     {
         auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (const auto& childRef, children) {
-            chunkList.Children().push_back(childRef);
-            i64 rowCount = chunkList.RowCountSums().empty() ? 0 : chunkList.RowCountSums().back();
-            switch (childRef.GetType()) {
-                case EObjectType::ChunkList:
-                    rowCount += childRef.AsChunkList()->Statistics().RowCount;
-                    break;
-                case EObjectType::Chunk:
-                    rowCount += childRef.AsChunk()->GetStatistics().RowCount;
-                    break;
-                default:
-                    YUNREACHABLE();
+            if (!chunkList.Children().empty()) {
+                chunkList.RowCountSums().push_back(chunkList.Statistics().RowCount);
             }
-            chunkList.RowCountSums().push_back(rowCount);
-
+            chunkList.Children().push_back(childRef);
             SetChunkTreeParent(chunkList, childRef);
             objectManager->RefObject(childRef.GetId());
         }

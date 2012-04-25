@@ -25,6 +25,7 @@ using namespace NCellMaster;
 using namespace NTransactionServer;
 
 using NTableClient::NProto::TReadLimit;
+using NTableServer::NProto::TRspFetch;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,6 +82,69 @@ void TTableNodeProxy::TraverseChunkTree(
             default:
                 YUNREACHABLE();
         }
+    }
+}
+
+void TTableNodeProxy::TraverseChunkTree(
+    const TChunkList* chunkList,
+    i64 lowerBound,
+    i64 upperBound,
+    NProto::TRspFetch* response)
+{
+    if (upperBound <= 0 || lowerBound >= chunkList->Statistics().RowCount) {
+        return;
+    }
+
+    int index;
+    if (lowerBound == 0) {
+        index = 0;
+    } else {
+        auto it = std::upper_bound(
+            chunkList->RowCountSums().begin(),
+            chunkList->RowCountSums().end(),
+            lowerBound);
+        index = it - chunkList->RowCountSums().begin();
+    }
+
+    YASSERT(index < chunkList->Children().size());
+    i64 firstRowIndex = index == 0 ? 0 : chunkList->RowCountSums()[index - 1];
+
+    while (index < chunkList->Children().size() &&
+           firstRowIndex < upperBound)
+    {
+        auto child = chunkList->Children()[index];
+        switch (child.GetType()) {
+            case EObjectType::Chunk: {
+                auto* inputChunk = response->add_chunks();
+                auto* slice = inputChunk->mutable_slice();
+                *slice->mutable_chunk_id() = child.GetId().ToProto();
+                i64 rowCount = child.AsChunk()->GetStatistics().RowCount;
+                if (lowerBound > firstRowIndex) {
+                    YASSERT(lowerBound - firstRowIndex < rowCount);
+                    slice->mutable_start_limit()->set_row_index(lowerBound - firstRowIndex);
+                } else {
+                    slice->mutable_start_limit();
+                }
+                if (upperBound < firstRowIndex + rowCount) {
+                    slice->mutable_end_limit()->set_row_index(upperBound - firstRowIndex);
+                } else {
+                    slice->mutable_end_limit();
+                }
+                firstRowIndex += rowCount;
+                break;
+            }
+            case EObjectType::ChunkList:
+                TraverseChunkTree(
+                    child.AsChunkList(),
+                    lowerBound - firstRowIndex,
+                    upperBound - firstRowIndex,
+                    response);
+                firstRowIndex += child.AsChunkList()->Statistics().RowCount;
+                break;
+            default:
+                YUNREACHABLE();
+        }
+        ++index;
     }
 }
 
@@ -309,24 +373,26 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
     const auto& impl = GetTypedImpl();
 
-    yvector<TChunkId> chunkIds;
-    TraverseChunkTree(&chunkIds, impl.GetChunkList());
-
     auto channel = TChannel::CreateEmpty();
-    TReadLimit lowerBound, upperBound;
-    ParseYPath(context->GetPath(), &channel, &lowerBound, &upperBound);
+    TReadLimit lowerLimit, upperLimit;
+    ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
+
+    if (lowerLimit.has_key() || upperLimit.has_key()) {
+        ythrow yexception() << Sprintf("Row key limits are not supported yet");
+    }
+
+    auto* chunkList = impl.GetChunkList();
+    i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
+    i64 upperBound = upperLimit.has_row_index() ? upperLimit.row_index() : chunkList->Statistics().RowCount;
+    TraverseChunkTree(chunkList, lowerBound, upperBound, response);
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& chunkId, chunkIds) {
-        auto* inputChunk = response->add_chunks();
-        auto* slice = inputChunk->mutable_slice();
-
-        *slice->mutable_chunk_id() = chunkId.ToProto();
-        slice->mutable_start_limit();
-        slice->mutable_end_limit();
+    for (int i = 0; i < response->chunks_size(); ++i) {
+        auto* inputChunk = response->mutable_chunks(i);
 
         *inputChunk->mutable_channel() = channel.ToProto();
 
+        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         const auto& chunk = chunkManager->GetChunk(chunkId);
         if (!chunk.IsConfirmed()) {
             ythrow yexception() << Sprintf("Attempt to fetch a table containing an unconfirmed chunk %s",
@@ -350,7 +416,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }
     }
 
-    context->SetResponseInfo("ChunkCount: %d", static_cast<int>(chunkIds.size()));
+    context->SetResponseInfo("ChunkCount: %d", response->chunks_size());
 
     context->Reply();
 }
