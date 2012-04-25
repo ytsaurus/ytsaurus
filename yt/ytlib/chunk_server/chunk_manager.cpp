@@ -292,6 +292,8 @@ public:
                 case EObjectType::Chunk:
                     rowCount += childRef.AsChunk()->GetStatistics().RowCount;
                     break;
+                default:
+                    YUNREACHABLE();
             }
             chunkList.RowCountSums().push_back(rowCount);
 
