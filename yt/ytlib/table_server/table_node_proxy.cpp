@@ -24,6 +24,8 @@ using namespace NTableClient;
 using namespace NCellMaster;
 using namespace NTransactionServer;
 
+using NTableClient::NProto::TReadLimit;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNodeProxy::TTableNodeProxy(
@@ -160,70 +162,132 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
     return TBase::GetSystemAttribute(name, consumer);
 }
 
-void TTableNodeProxy::ParseYPath(
-    const TYPath& path,
-    TChannel* channel)
-{
-    TTokenizer tokens(path);
-    int index = 0;
-
-    if (tokens[index].GetType() == ETokenType::LeftBrace) {
-        *channel = TChannel::CreateEmpty();
-        ++index;
-        while (tokens[index].GetType() != ETokenType::RightBrace) {
-            TColumn begin;
-            bool isRange = false;
-            switch (tokens[index].GetType()) {
-                case ETokenType::String:
-                    begin.assign(tokens[index].GetStringValue());
-                    ++index;
-                    if (tokens[index].GetType() == ETokenType::Colon) {
+namespace {
+    void ParseChannel(TTokenizer& tokens, int& index, TChannel* channel)
+    {
+        if (tokens[index].GetType() == ETokenType::LeftBrace) {
+            *channel = TChannel::CreateEmpty();
+            ++index;
+            while (tokens[index].GetType() != ETokenType::RightBrace) {
+                TColumn begin;
+                bool isRange = false;
+                switch (tokens[index].GetType()) {
+                    case ETokenType::String:
+                        begin.assign(tokens[index].GetStringValue());
+                        ++index;
+                        if (tokens[index].GetType() == ETokenType::Colon) {
+                            isRange = true;
+                            ++index;
+                        }
+                        break;
+                    case ETokenType::Colon:
                         isRange = true;
                         ++index;
-                    }
-                    break;
-                case ETokenType::Colon:
-                    isRange = true;
-                    ++index;
-                    break;
-                default:
-                    ThrowUnexpectedToken(tokens[index]);
-                    YUNREACHABLE();
-            }
-            if (isRange) {
-                switch (tokens[index].GetType()) {
-                    case ETokenType::String: {
-                        TColumn end(tokens[index].GetStringValue());
-                        channel->AddRange(begin, end);
-                        ++index;
-                        break;
-                    }
-                    case ETokenType::Comma:
-                        channel->AddRange(TRange(begin));
                         break;
                     default:
                         ThrowUnexpectedToken(tokens[index]);
                         YUNREACHABLE();
                 }
-            } else {
-                channel->AddColumn(begin);
+                if (isRange) {
+                    switch (tokens[index].GetType()) {
+                        case ETokenType::String: {
+                            TColumn end(tokens[index].GetStringValue());
+                            channel->AddRange(begin, end);
+                            ++index;
+                            break;
+                        }
+                        case ETokenType::Comma:
+                            channel->AddRange(TRange(begin));
+                            break;
+                        default:
+                            ThrowUnexpectedToken(tokens[index]);
+                            YUNREACHABLE();
+                    }
+                } else {
+                    channel->AddColumn(begin);
+                }
+                switch (tokens[index].GetType()) {
+                    case ETokenType::Comma:
+                        ++index;
+                        break;
+                    case ETokenType::RightBrace:
+                        break;
+                    default:
+                        ThrowUnexpectedToken(tokens[index]);
+                        YUNREACHABLE();
+                }
             }
+            ++index;
+        } else {
+            *channel = TChannel::CreateUniversal();
+        }
+    }
+
+    void ParseRowBounds(
+        TTokenizer& tokens,
+        int& index,
+        TReadLimit* lowerBound,
+        TReadLimit* upperBound)
+    {
+        *lowerBound = TReadLimit();
+        *upperBound = TReadLimit();
+        if (tokens[index].GetType() == ETokenType::LeftBracket) {
+            ++index;
             switch (tokens[index].GetType()) {
-                case ETokenType::Comma:
+                case ETokenType::Colon:
+                    break;
+                case ETokenType::String:
+                    lowerBound->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
                     ++index;
                     break;
-                case ETokenType::RightBrace:
+                case ETokenType::Hash:
+                    ++index;
+                    lowerBound->set_row_index(tokens[index].GetIntegerValue());
+                    ++index;
                     break;
                 default:
+                    // TODO(roizner): support key tuples and integer keys
                     ThrowUnexpectedToken(tokens[index]);
                     YUNREACHABLE();
             }
-        }
-        ++index;
-    } else {
-        *channel = TChannel::CreateUniversal();
-    }
 
+            tokens[index].CheckType(ETokenType::Colon);
+            ++index;
+
+            switch (tokens[index].GetType()) {
+                case ETokenType::RightBracket:
+                    break;
+                case ETokenType::String:
+                    upperBound->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
+                    ++index;
+                    break;
+                case ETokenType::Hash:
+                    ++index;
+                    upperBound->set_row_index(tokens[index].GetIntegerValue());
+                    ++index;
+                    break;
+                default:
+                    // TODO(roizner): support key tuples and integer keys
+                    ThrowUnexpectedToken(tokens[index]);
+                    YUNREACHABLE();
+            }
+
+            tokens[index].CheckType(ETokenType::RightBracket);
+            ++index;
+        }
+    }
+}
+
+void TTableNodeProxy::ParseYPath(
+    const TYPath& path,
+    TChannel* channel,
+    TReadLimit* lowerBound,
+    TReadLimit* upperBound)
+{
+    TTokenizer tokens(path);
+    int index = 0;
+    ParseChannel(tokens, index, channel);
+    ParseRowBounds(tokens, index, lowerBound, upperBound);
     tokens[index].CheckType(ETokenType::None);
 }
 
@@ -249,7 +313,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     TraverseChunkTree(&chunkIds, impl.GetChunkList());
 
     auto channel = TChannel::CreateEmpty();
-    ParseYPath(context->GetPath(), &channel);
+    TReadLimit lowerBound, upperBound;
+    ParseYPath(context->GetPath(), &channel, &lowerBound, &upperBound);
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& chunkId, chunkIds) {

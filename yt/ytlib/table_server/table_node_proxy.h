@@ -43,7 +43,9 @@ private:
 
     void ParseYPath(
         const NYTree::TYPath& path,
-        NTableClient::TChannel* channel);
+        NTableClient::TChannel* channel,
+        NTableClient::NProto::TReadLimit* lowerBound,
+        NTableClient::NProto::TReadLimit* upperBound);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListForUpdate);
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);
