@@ -55,7 +55,7 @@ IYPathService::TResolveResult TTableNodeProxy::Resolve(const TYPath& path, const
     if (verb == "Fetch") {
         return TResolveResult::Here(path);
     }
-    return TBase::ResolveRecursive(path, verb);
+    return TBase::Resolve(path, verb);
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
