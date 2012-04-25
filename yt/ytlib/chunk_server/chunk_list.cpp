@@ -24,6 +24,7 @@ void TChunkList::Save(TOutputStream* output) const
     SaveObjectRefs(output, Parents_);
     ::Save(output, Statistics_);
     ::Save(output, Sorted_);
+    ::Save(output, RowCountSums_);
 }
 
 void TChunkList::Load(const TLoadContext& context, TInputStream* input)
@@ -34,6 +35,7 @@ void TChunkList::Load(const TLoadContext& context, TInputStream* input)
     LoadObjectRefs(input, Parents_, context);
     ::Load(input, Statistics_);
     ::Load(input, Sorted_);
+    ::Load(input, RowCountSums_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

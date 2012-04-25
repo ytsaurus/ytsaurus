@@ -6,7 +6,10 @@
 #include <ytlib/misc/small_vector.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/object_server/object_detail.h>
+
 #include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/file_client/file_chunk_meta.pb.h>
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -32,6 +35,8 @@ public:
     static const i64 UnknownSize = -1;
     
     explicit TChunk(const TChunkId& id);
+
+    TChunkTreeStatistics GetStatistics() const;
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

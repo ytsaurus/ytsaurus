@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "chunk.h"
+
 #include "common.h"
+#include "chunk_tree_statistics.h"
 
 #include <ytlib/cell_master/load_context.h>
 
@@ -22,6 +24,36 @@ TChunk::TChunk(const TChunkId& id)
     , ReplicationFactor_(1)
     , Size_(UnknownSize)
 { }
+
+TChunkTreeStatistics TChunk::GetStatistics() const
+{
+    TChunkTreeStatistics result;
+
+    YASSERT(GetSize() != TChunk::UnknownSize);
+    result.CompressedSize = GetSize();
+    result.ChunkCount = 1;
+
+    auto attributes = DeserializeAttributes();
+    switch (attributes.type()) {
+        case EChunkType::File: {
+            const auto& fileAttributes = attributes.GetExtension(NFileClient::NProto::TFileChunkAttributes::file_attributes);
+            result.UncompressedSize = fileAttributes.uncompressed_size();
+            break;
+        }
+
+        case EChunkType::Table: {
+            const auto& tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
+            result.RowCount = tableAttributes.row_count();
+            result.UncompressedSize = tableAttributes.uncompressed_size();
+            break;
+        }
+
+        default:
+            YUNREACHABLE();
+    }
+
+    return result;
+}
 
 void TChunk::Save(TOutputStream* output) const
 {

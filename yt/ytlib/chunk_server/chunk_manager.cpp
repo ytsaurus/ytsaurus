@@ -284,6 +284,17 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (const auto& childRef, children) {
             chunkList.Children().push_back(childRef);
+            i64 rowCount = chunkList.RowCountSums().empty() ? 0 : chunkList.RowCountSums().back();
+            switch (childRef.GetType()) {
+                case EObjectType::ChunkList:
+                    rowCount += childRef.AsChunkList()->Statistics().RowCount;
+                    break;
+                case EObjectType::Chunk:
+                    rowCount += childRef.AsChunk()->GetStatistics().RowCount;
+                    break;
+            }
+            chunkList.RowCountSums().push_back(rowCount);
+
             SetChunkTreeParent(chunkList, childRef);
             objectManager->RefObject(childRef.GetId());
         }
@@ -431,43 +442,13 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
-    TChunkTreeStatistics GetChunkTreeStatistics(const TChunk& chunk)
-    {
-        TChunkTreeStatistics result;
-
-        YASSERT(chunk.GetSize() != TChunk::UnknownSize);
-        result.CompressedSize = chunk.GetSize();
-        result.ChunkCount = 1;
-
-        auto attributes = chunk.DeserializeAttributes();
-        switch (attributes.type()) {
-            case EChunkType::File: {
-                const auto& fileAttributes = attributes.GetExtension(NFileClient::NProto::TFileChunkAttributes::file_attributes);
-                result.UncompressedSize = fileAttributes.uncompressed_size();
-                break;
-            }
-
-            case EChunkType::Table: {
-                const auto& tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
-                result.RowCount = tableAttributes.row_count();
-                result.UncompressedSize = tableAttributes.uncompressed_size();
-                break;
-            }
-
-            default:
-                YUNREACHABLE();
-        }
-
-        return result;
-    }
-
     void UpdateStatistics(TChunkList& chunkList, const TChunkTreeRef& childRef, bool negate)
     {
         // Compute delta.
         TChunkTreeStatistics delta;
         switch (childRef.GetType()) {
             case EObjectType::Chunk:
-                delta = GetChunkTreeStatistics(*childRef.AsChunk());
+                delta = childRef.AsChunk()->GetStatistics();
                 break;
             case EObjectType::ChunkList:
                 delta = childRef.AsChunkList()->Statistics();
@@ -1563,7 +1544,7 @@ private:
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
         DISPATCH_YPATH_SERVICE_METHOD(Attach);
-        DISPATCH_YPATH_SERVICE_METHOD(Detach);
+        //DISPATCH_YPATH_SERVICE_METHOD(Detach);
         TBase::DoInvoke(context);
     }
 
@@ -1591,29 +1572,29 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, Detach)
-    {
-        UNUSED(response);
+//    DECLARE_RPC_SERVICE_METHOD(NProto, Detach)
+//    {
+//        UNUSED(response);
 
-        auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
+//        auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
 
-        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
+//        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
 
-        auto objectManager = Bootstrap->GetObjectManager();
-        yvector<TChunkTreeRef> children;
-        FOREACH (const auto& childId, childrenIds) {
-            if (!objectManager->ObjectExists(childId)) {
-                ythrow yexception() << Sprintf("Child %s does not exist", ~childId.ToString());
-            }
-            auto chunkRef = Owner->GetChunkTree(childId);
-            children.push_back(chunkRef);
-        }
+//        auto objectManager = Bootstrap->GetObjectManager();
+//        yvector<TChunkTreeRef> children;
+//        FOREACH (const auto& childId, childrenIds) {
+//            if (!objectManager->ObjectExists(childId)) {
+//                ythrow yexception() << Sprintf("Child %s does not exist", ~childId.ToString());
+//            }
+//            auto chunkRef = Owner->GetChunkTree(childId);
+//            children.push_back(chunkRef);
+//        }
 
-        auto& chunkList = GetTypedImpl();
-        Owner->DetachFromChunkList(chunkList, children);
+//        auto& chunkList = GetTypedImpl();
+//        Owner->DetachFromChunkList(chunkList, children);
 
-        context->Reply();
-    }
+//        context->Reply();
+//    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
