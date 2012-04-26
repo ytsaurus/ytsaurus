@@ -44,7 +44,7 @@ private:
     void TraverseChunkTree(
         const NChunkServer::TChunkList* chunkList,
         i64 lowerBound,
-        i64 upperBound,
+        TNullable<i64> upperBound,
         NProto::TRspFetch* response);
 
     void ParseYPath(

@@ -88,10 +88,10 @@ void TTableNodeProxy::TraverseChunkTree(
 void TTableNodeProxy::TraverseChunkTree(
     const TChunkList* chunkList,
     i64 lowerBound,
-    i64 upperBound,
+    TNullable<i64> upperBound,
     NProto::TRspFetch* response)
 {
-    if (upperBound <= 0 || lowerBound >= chunkList->Statistics().RowCount) {
+    if (upperBound && *upperBound <= 0 || lowerBound >= chunkList->Statistics().RowCount) {
         return;
     }
 
@@ -110,7 +110,7 @@ void TTableNodeProxy::TraverseChunkTree(
     i64 firstRowIndex = index == 0 ? 0 : chunkList->RowCountSums()[index - 1];
 
     while (index < chunkList->Children().size() &&
-           firstRowIndex < upperBound)
+           (!upperBound || firstRowIndex < *upperBound))
     {
         auto child = chunkList->Children()[index];
         switch (child.GetType()) {
@@ -125,10 +125,9 @@ void TTableNodeProxy::TraverseChunkTree(
                 } else {
                     slice->mutable_start_limit();
                 }
-                if (upperBound < firstRowIndex + rowCount) {
-                    slice->mutable_end_limit()->set_row_index(upperBound - firstRowIndex);
-                } else {
-                    slice->mutable_end_limit();
+                auto* endLimit = slice->mutable_end_limit(); // Creates
+                if (upperBound && *upperBound < firstRowIndex + rowCount) {
+                    endLimit->set_row_index(*upperBound - firstRowIndex);
                 }
                 firstRowIndex += rowCount;
                 break;
@@ -137,7 +136,7 @@ void TTableNodeProxy::TraverseChunkTree(
                 TraverseChunkTree(
                     child.AsChunkList(),
                     lowerBound - firstRowIndex,
-                    upperBound - firstRowIndex,
+                    upperBound ? MakeNullable(*upperBound - firstRowIndex) : Null,
                     response);
                 firstRowIndex += child.AsChunkList()->Statistics().RowCount;
                 break;
@@ -383,7 +382,9 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 
     auto* chunkList = impl.GetChunkList();
     i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
-    i64 upperBound = upperLimit.has_row_index() ? upperLimit.row_index() : chunkList->Statistics().RowCount;
+    TNullable<i64> upperBound = upperLimit.has_row_index()
+        ? MakeNullable(upperLimit.row_index())
+        : Null;
     TraverseChunkTree(chunkList, lowerBound, upperBound, response);
 
     auto chunkManager = Bootstrap->GetChunkManager();
