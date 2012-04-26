@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/errortrace.cpp
   ${BASE}/fs.cpp
   ${BASE}/guid.cpp
+  ${BASE}/high_resolution_clock.cpp
   ${BASE}/home.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/linux.cpp
@@ -54,6 +55,7 @@ set( HDRS
   ${BASE}/fs.h
   ${BASE}/guid.h
   ${BASE}/hash.h
+  ${BASE}/high_resolution_clock.h
   ${BASE}/home.h
   ${BASE}/id_generator.h
   ${BASE}/intrusive_ptr.h
