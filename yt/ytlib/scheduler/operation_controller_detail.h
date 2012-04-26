@@ -3,7 +3,7 @@
 #include "public.h"
 #include "operation_controller.h"
 #include "progress_counter.h"
-#include "chunk_list_pool.h"
+#include "private.h"
 
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/thread_affinity.h>

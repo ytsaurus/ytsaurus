@@ -4,6 +4,7 @@
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
 #include "private.h"
+#include "chunk_list_pool.h"
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/table_client/value.h>

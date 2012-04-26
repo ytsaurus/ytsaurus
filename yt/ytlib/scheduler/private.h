@@ -15,6 +15,9 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
+class TChunkListPool;
+typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
+
 extern NLog::TLogger SchedulerLogger;
 extern NLog::TLogger OperationsLogger;
 extern NProfiling::TProfiler SchedulerProfiler;

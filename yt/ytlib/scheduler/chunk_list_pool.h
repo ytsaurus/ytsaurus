@@ -41,8 +41,6 @@ private:
     void OnChunkListsCreated(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 };
 
-typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NScheduler

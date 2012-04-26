@@ -3,6 +3,7 @@
 #include "private.h"
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
+#include "chunk_list_pool.h"
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/table_client/schema.h>

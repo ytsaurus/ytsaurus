@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "operation_controller_detail.h"
 #include "private.h"
+#include "chunk_list_pool.h"
 
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
