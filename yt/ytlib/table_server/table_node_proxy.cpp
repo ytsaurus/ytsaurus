@@ -323,8 +323,8 @@ namespace {
     void ParseChannel(TTokenizer& tokens, int& index, TChannel* channel)
     {
         if (tokens[index].GetType() == ETokenType::LeftBrace) {
-            *channel = TChannel::CreateEmpty();
             ++index;
+            *channel = TChannel::CreateEmpty();
             while (tokens[index].GetType() != ETokenType::RightBrace) {
                 TColumn begin;
                 bool isRange = false;
@@ -380,57 +380,65 @@ namespace {
         }
     }
 
-    void ParseRowBounds(
+    void ParseRowLimit(
         TTokenizer& tokens,
         int& index,
-        TReadLimit* lowerBound,
-        TReadLimit* upperBound)
+        ETokenType separator,
+        TReadLimit* limit)
     {
-        *lowerBound = TReadLimit();
-        *upperBound = TReadLimit();
+        ++index;
+        switch (tokens[index].GetType()) {
+            case ETokenType::String:
+                limit->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
+                ++index;
+                break;
+            case ETokenType::Hash:
+                ++index;
+                limit->set_row_index(tokens[index].GetIntegerValue());
+                ++index;
+                break;
+            case ETokenType::LeftParenthesis:
+                ++index;
+                limit->mutable_key();
+                while (tokens[index].GetType() != ETokenType::RightParenthesis) {
+                    limit->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
+                    ++index;
+                    switch (tokens[index].GetType()) {
+                        case ETokenType::Comma:
+                            ++index;
+                            break;
+                        case ETokenType::ETokenType::RightParenthesis:
+                            break;
+                        default:
+                            ThrowUnexpectedToken(tokens[index]);
+                            YUNREACHABLE();
+                    }
+                }
+                ++index;
+                break;
+            default:
+                if (tokens[index].GetType() != separator) {
+                    ThrowUnexpectedToken(tokens[index]);
+                }
+                break;
+        }
+
+        tokens[index].CheckType(separator);
+        ++index;
+    }
+
+    void ParseRowLimits(
+        TTokenizer& tokens,
+        int& index,
+        TReadLimit* lowerLimit,
+        TReadLimit* upperLimit)
+    {
+        *lowerLimit = TReadLimit();
+        *upperLimit = TReadLimit();
         if (tokens[index].GetType() == ETokenType::LeftBracket) {
             ++index;
-            switch (tokens[index].GetType()) {
-                case ETokenType::Colon:
-                    break;
-                case ETokenType::String:
-                    lowerBound->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
-                    ++index;
-                    break;
-                case ETokenType::Hash:
-                    ++index;
-                    lowerBound->set_row_index(tokens[index].GetIntegerValue());
-                    ++index;
-                    break;
-                default:
-                    // TODO(roizner): support key tuples and integer keys
-                    ThrowUnexpectedToken(tokens[index]);
-                    YUNREACHABLE();
-            }
-
-            tokens[index].CheckType(ETokenType::Colon);
-            ++index;
-
-            switch (tokens[index].GetType()) {
-                case ETokenType::RightBracket:
-                    break;
-                case ETokenType::String:
-                    upperBound->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
-                    ++index;
-                    break;
-                case ETokenType::Hash:
-                    ++index;
-                    upperBound->set_row_index(tokens[index].GetIntegerValue());
-                    ++index;
-                    break;
-                default:
-                    // TODO(roizner): support key tuples and integer keys
-                    ThrowUnexpectedToken(tokens[index]);
-                    YUNREACHABLE();
-            }
-
-            tokens[index].CheckType(ETokenType::RightBracket);
-            ++index;
+            ParseRowLimit(tokens, index, ETokenType::Colon, lowerLimit);
+            ParseRowLimit(tokens, index, ETokenType::RightBracket, upperLimit);
         }
     }
 }
@@ -444,7 +452,7 @@ void TTableNodeProxy::ParseYPath(
     TTokenizer tokens(path);
     int index = 0;
     ParseChannel(tokens, index, channel);
-    ParseRowBounds(tokens, index, lowerBound, upperBound);
+    ParseRowLimits(tokens, index, lowerBound, upperBound);
     tokens[index].CheckType(ETokenType::None);
 }
 
