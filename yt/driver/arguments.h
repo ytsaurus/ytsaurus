@@ -308,7 +308,7 @@ public:
     TAbortOpArgsParser();
 
 private:
-    TUnlabeledStringArg OpArg;
+    TCLAP::ValueArg<Stroka> OpArg;
 
     virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
 };
