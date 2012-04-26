@@ -224,6 +224,26 @@ TEST_F(TYsonWriterTest, SerializeToYson)
     EXPECT_EQ(outputStream.Str(), output);
 }
 
+TEST_F(TYsonWriterTest, NoNewLinesInEmptyMap)
+{
+    TStringStream outputStream;
+    TYsonWriter writer(&outputStream, EYsonFormat::Pretty);
+    writer.OnBeginMap();
+    writer.OnEndMap();
+
+    EXPECT_EQ(outputStream.Str(), "{}");
+}
+
+TEST_F(TYsonWriterTest, NoNewLinesInEmptyList)
+{
+    TStringStream outputStream;
+    TYsonWriter writer(&outputStream, EYsonFormat::Pretty);
+    writer.OnBeginList();
+    writer.OnEndList();
+
+    EXPECT_EQ(outputStream.Str(), "[]");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TYsonFragmentWriterTest, NewLinesInList)
@@ -306,7 +326,6 @@ TEST(TYsonFragmentWriter, NoFirstIndent)
 
     EXPECT_EQ(outputStream.Str(), output);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
