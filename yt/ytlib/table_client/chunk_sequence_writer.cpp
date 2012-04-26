@@ -54,7 +54,7 @@ void TChunkSequenceWriter::CreateNextChunk()
 
     NextChunk = NewPromise<TChunkWriter::TPtr>();
 
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %d, UploadReplicationFactor: %d)",
+    LOG_DEBUG("Creating chunk (TransactionId: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
         ~TransactionId.ToString(),
         Config->ReplicationFactor,
         Config->UploadReplicationFactor);
