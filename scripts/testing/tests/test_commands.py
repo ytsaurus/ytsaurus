@@ -179,7 +179,6 @@ class TestLockCommands(YTEnvSetup):
         abort_transaction(tx = tx_id)
 
 
-    @pytest.mark.xfail(run = False, reason = 'file cannot be created')
     def test_shared_locks(self):
 
         types_to_check = """
@@ -204,12 +203,21 @@ class TestLockCommands(YTEnvSetup):
         orchid
         """.split()
 
-        # shared locks are available only on tables (as well as creation of different types)
+        # check creation of different types and shared locks on them
         for object_type in types_to_check:
-            print object_type
             tx_id = start_transaction()
-            expect_ok( create(object_type, '//some', tx = tx_id))
-            expect_error( lock('//some', mode = 'shared', tx = tx_id))
+            if object_type != "file":
+                expect_ok( create(object_type, '//some', tx = tx_id))
+            else:
+                #file can't be created via create
+                expect_error( create(object_type, '//some', tx = tx_id))
+            
+            if object_type != "table":
+                expect_error( lock('//some', mode = 'shared', tx = tx_id))
+            else:
+                # shared locks are available only on tables 
+                expect_ok( lock('//some', mode = 'shared', tx = tx_id))
+
             expect_ok( abort_transaction(tx = tx_id))
 
 
