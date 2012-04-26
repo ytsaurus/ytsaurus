@@ -172,6 +172,23 @@ namespace {
         }
     }
 
+    NTableClient::NProto::TKey GetMaxKey(const TChunkTreeRef& ref)
+    {
+        switch (ref.GetType()) {
+            case EObjectType::Chunk: {
+                auto attributes = ref.AsChunk()->DeserializeAttributes();
+                const auto& tableAttributes = attributes.GetExtension(
+                    NTableClient::NProto::TTableChunkAttributes::table_attributes);
+                return tableAttributes.key_samples(tableAttributes.key_samples_size() - 1).key();
+            }
+            case EObjectType::ChunkList:
+                YASSERT(!ref.AsChunkList()->Children().empty());
+                return GetMaxKey(ref.AsChunkList()->Children().back());
+            default:
+                YUNREACHABLE();
+        }
+    }
+
     bool LessComparer(const TChunkTreeRef& ref, const NTableClient::NProto::TKey& key)
     {
         return GetMinKey(ref) < key;
@@ -204,6 +221,10 @@ void TTableNodeProxy::TraverseChunkTree(
     while (it != chunkList->Children().end()) {
         const auto& child = *it;
         auto minKey = GetMinKey(child);
+        auto maxKey = GetMaxKey(child);
+        if (lowerBound > maxKey) {
+            continue; // possible for the first chunk tree considered
+        }
         if (upperBound && minKey >= *upperBound) {
             break;
         }
@@ -220,7 +241,7 @@ void TTableNodeProxy::TraverseChunkTree(
                 }
 
                 slice->mutable_end_limit();
-                if (upperBound) { // TODO(roizner): consider stricter condition
+                if (upperBound && *upperBound <= maxKey) {
                     slice->mutable_end_limit()->CopyFrom(*upperBound);
                 }
 
