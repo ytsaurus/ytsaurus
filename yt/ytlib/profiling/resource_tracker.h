@@ -13,7 +13,7 @@ class TResourceTracker
     : public TRefCounted
 {
 public:
-    TResourceTracker(IInvoker::TPtr invoker);
+    explicit TResourceTracker(IInvoker::TPtr invoker);
 
     void EnqueueUsage();
 

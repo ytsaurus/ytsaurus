@@ -30,7 +30,6 @@ TResourceTracker::TResourceTracker(IInvoker::TPtr invoker)
         UpdateInterval);
 }
 
-
 void TResourceTracker::Start()
 {
     PeriodicInvoker->Start();
