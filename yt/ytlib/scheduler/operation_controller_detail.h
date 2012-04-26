@@ -3,6 +3,7 @@
 #include "public.h"
 #include "operation_controller.h"
 #include "progress_counter.h"
+#include "chunk_list_pool.h"
 
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -12,40 +13,6 @@
 
 namespace NYT {
 namespace NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): extract to a proper place
-class TChunkListPool
-    : public TRefCounted
-{
-public:
-    TChunkListPool(
-        NRpc::IChannel::TPtr masterChannel,
-        IInvoker::TPtr controlInvoker,
-        TOperationPtr operation,
-        const TTransactionId& transactionId);
-
-    int GetSize() const;
-
-    NChunkServer::TChunkListId Extract();
-
-    void Allocate(int count);
-
-private:
-    NRpc::IChannel::TPtr MasterChannel;
-    IInvoker::TPtr ControlInvoker;
-    TOperationPtr Operation;
-    TTransactionId TransactionId;
-
-    NLog::TTaggedLogger Logger;
-    bool RequestInProgress;
-    std::vector<NChunkServer::TChunkListId> Ids;
-
-    void OnChunkListsCreated(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
-};
-
-typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
 
 ////////////////////////////////////////////////////////////////////
 
