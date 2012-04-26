@@ -183,6 +183,21 @@ bool operator <  (const NProto::TKey& lhs, const NProto::TKey& rhs)
     return CompareKeys(lhs, rhs) < 0;
 }
 
+bool operator >  (const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareKeys(lhs, rhs) > 0;
+}
+
+bool operator <= (const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareKeys(lhs, rhs) <= 0;
+}
+
+bool operator >= (const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareKeys(lhs, rhs) >= 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int CompareKeys(const TKey& lhs, const TKey& rhs)

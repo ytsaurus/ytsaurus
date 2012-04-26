@@ -47,6 +47,12 @@ private:
         TNullable<i64> upperBound,
         NProto::TRspFetch* response);
 
+    void TraverseChunkTree(
+        const NChunkServer::TChunkList* chunkList,
+        const NTableClient::NProto::TKey& lowerBound,
+        const NTableClient::NProto::TKey* upperBound,
+        NProto::TRspFetch* response);
+
     void ParseYPath(
         const NYTree::TYPath& path,
         NTableClient::TChannel* channel,

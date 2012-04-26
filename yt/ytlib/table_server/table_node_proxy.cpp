@@ -25,6 +25,7 @@ using namespace NCellMaster;
 using namespace NTransactionServer;
 
 using NTableClient::NProto::TReadLimit;
+using NTableClient::NProto::TKey;
 using NTableServer::NProto::TRspFetch;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +92,9 @@ void TTableNodeProxy::TraverseChunkTree(
     TNullable<i64> upperBound,
     NProto::TRspFetch* response)
 {
-    if (upperBound && *upperBound <= 0 || lowerBound >= chunkList->Statistics().RowCount) {
+    if (lowerBound >= chunkList->Statistics().RowCount ||
+        upperBound && (*upperBound <= 0 || *upperBound <= lowerBound))
+    {
         return;
     }
 
@@ -109,26 +112,30 @@ void TTableNodeProxy::TraverseChunkTree(
     YASSERT(index < chunkList->Children().size());
     i64 firstRowIndex = index == 0 ? 0 : chunkList->RowCountSums()[index - 1];
 
-    while (index < chunkList->Children().size() &&
-           (!upperBound || firstRowIndex < *upperBound))
-    {
-        auto child = chunkList->Children()[index];
+    while (index < chunkList->Children().size()) {
+        if (upperBound && firstRowIndex >= *upperBound) {
+            break;
+        }
+        const auto& child = chunkList->Children()[index];
         switch (child.GetType()) {
             case EObjectType::Chunk: {
+                i64 rowCount = child.AsChunk()->GetStatistics().RowCount;
+
                 auto* inputChunk = response->add_chunks();
                 auto* slice = inputChunk->mutable_slice();
                 *slice->mutable_chunk_id() = child.GetId().ToProto();
-                i64 rowCount = child.AsChunk()->GetStatistics().RowCount;
+
+                slice->mutable_start_limit();
                 if (lowerBound > firstRowIndex) {
                     YASSERT(lowerBound - firstRowIndex < rowCount);
                     slice->mutable_start_limit()->set_row_index(lowerBound - firstRowIndex);
-                } else {
-                    slice->mutable_start_limit();
                 }
-                auto* endLimit = slice->mutable_end_limit(); // Creates
+
+                slice->mutable_end_limit();
                 if (upperBound && *upperBound < firstRowIndex + rowCount) {
-                    endLimit->set_row_index(*upperBound - firstRowIndex);
+                    slice->mutable_end_limit()->set_row_index(*upperBound - firstRowIndex);
                 }
+
                 firstRowIndex += rowCount;
                 break;
             }
@@ -144,6 +151,93 @@ void TTableNodeProxy::TraverseChunkTree(
                 YUNREACHABLE();
         }
         ++index;
+    }
+}
+
+namespace {
+    NTableClient::NProto::TKey GetMinKey(const TChunkTreeRef& ref)
+    {
+        switch (ref.GetType()) {
+            case EObjectType::Chunk: {
+                auto attributes = ref.AsChunk()->DeserializeAttributes();
+                const auto& tableAttributes = attributes.GetExtension(
+                    NTableClient::NProto::TTableChunkAttributes::table_attributes);
+                return tableAttributes.key_samples(0).key();
+            }
+            case EObjectType::ChunkList:
+                YASSERT(!ref.AsChunkList()->Children().empty());
+                return GetMinKey(ref.AsChunkList()->Children()[0]);
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    bool LessComparer(const TChunkTreeRef& ref, const NTableClient::NProto::TKey& key)
+    {
+        return GetMinKey(ref) < key;
+    }
+}
+
+void TTableNodeProxy::TraverseChunkTree(
+    const TChunkList* chunkList,
+    const NTableClient::NProto::TKey& lowerBound,
+    const NTableClient::NProto::TKey* upperBound,
+    NProto::TRspFetch* response)
+{
+    if (chunkList->Children().empty()) {
+        return;
+    }
+
+    if (upperBound && *upperBound <= lowerBound) {
+        return;
+    }
+
+    auto it = std::lower_bound(
+        chunkList->Children().begin(),
+        chunkList->Children().end(),
+        lowerBound,
+        LessComparer);
+    if (it != chunkList->Children().begin()) {
+        --it;
+    }
+
+    while (it != chunkList->Children().end()) {
+        const auto& child = *it;
+        auto minKey = GetMinKey(child);
+        if (upperBound && minKey >= *upperBound) {
+            break;
+        }
+
+        switch (child.GetType()) {
+            case EObjectType::Chunk: {
+                auto* inputChunk = response->add_chunks();
+                auto* slice = inputChunk->mutable_slice();
+                *slice->mutable_chunk_id() = child.GetId().ToProto();
+
+                slice->mutable_start_limit();
+                if (lowerBound > minKey) {
+                    slice->mutable_start_limit()->CopyFrom(lowerBound);
+                }
+
+                slice->mutable_end_limit();
+                if (upperBound) { // TODO(roizner): consider stricter condition
+                    slice->mutable_end_limit()->CopyFrom(*upperBound);
+                }
+
+                break;
+            }
+            case EObjectType::ChunkList:
+                TraverseChunkTree(
+                    child.AsChunkList(),
+                    lowerBound,
+                    upperBound,
+                    response);
+                break;
+            default:
+                YUNREACHABLE();
+        }
+
+        ++it;
     }
 }
 
@@ -375,17 +469,22 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     auto channel = TChannel::CreateEmpty();
     TReadLimit lowerLimit, upperLimit;
     ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
+    auto* chunkList = impl.GetChunkList();
 
     if (lowerLimit.has_key() || upperLimit.has_key()) {
-        ythrow yexception() << Sprintf("Row key limits are not supported yet");
+        if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
+            ythrow yexception() << Sprintf("Row limits must have the same type");
+        }
+        const auto& lowerBound = lowerLimit.key();
+        const auto* upperBound = upperLimit.has_key() ? &upperLimit.key() : NULL;
+        TraverseChunkTree(chunkList, lowerBound, upperBound, response);
+    } else {
+        i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
+        TNullable<i64> upperBound = upperLimit.has_row_index()
+            ? MakeNullable(upperLimit.row_index())
+            : Null;
+        TraverseChunkTree(chunkList, lowerBound, upperBound, response);
     }
-
-    auto* chunkList = impl.GetChunkList();
-    i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
-    TNullable<i64> upperBound = upperLimit.has_row_index()
-        ? MakeNullable(upperLimit.row_index())
-        : Null;
-    TraverseChunkTree(chunkList, lowerBound, upperBound, response);
 
     auto chunkManager = Bootstrap->GetChunkManager();
     for (int i = 0; i < response->chunks_size(); ++i) {
