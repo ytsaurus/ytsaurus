@@ -155,44 +155,81 @@ void TTableNodeProxy::TraverseChunkTree(
 }
 
 namespace {
-    NTableClient::NProto::TKey GetMinKey(const TChunkTreeRef& ref)
-    {
-        switch (ref.GetType()) {
-            case EObjectType::Chunk: {
-                auto attributes = ref.AsChunk()->DeserializeAttributes();
-                const auto& tableAttributes = attributes.GetExtension(
-                    NTableClient::NProto::TTableChunkAttributes::table_attributes);
-                return tableAttributes.key_samples(0).key();
-            }
-            case EObjectType::ChunkList:
-                YASSERT(!ref.AsChunkList()->Children().empty());
-                return GetMinKey(ref.AsChunkList()->Children()[0]);
-            default:
-                YUNREACHABLE();
+NTableClient::NProto::TKey GetMinKey(const TChunkTreeRef& ref)
+{
+    switch (ref.GetType()) {
+        case EObjectType::Chunk: {
+            auto attributes = ref.AsChunk()->DeserializeAttributes();
+            const auto& tableAttributes = attributes.GetExtension(
+                NTableClient::NProto::TTableChunkAttributes::table_attributes);
+            return tableAttributes.key_samples(0).key();
+        }
+        case EObjectType::ChunkList:
+            YASSERT(!ref.AsChunkList()->Children().empty());
+            return GetMinKey(ref.AsChunkList()->Children()[0]);
+        default:
+            YUNREACHABLE();
+    }
+}
+
+NTableClient::NProto::TKey GetMaxKey(const TChunkTreeRef& ref)
+{
+    switch (ref.GetType()) {
+        case EObjectType::Chunk: {
+            auto attributes = ref.AsChunk()->DeserializeAttributes();
+            const auto& tableAttributes = attributes.GetExtension(
+                NTableClient::NProto::TTableChunkAttributes::table_attributes);
+            return tableAttributes.key_samples(tableAttributes.key_samples_size() - 1).key();
+        }
+        case EObjectType::ChunkList:
+            YASSERT(!ref.AsChunkList()->Children().empty());
+            return GetMaxKey(ref.AsChunkList()->Children().back());
+        default:
+            YUNREACHABLE();
+    }
+}
+
+bool LessComparer(const TChunkTreeRef& ref, const NTableClient::NProto::TKey& key)
+{
+    return GetMinKey(ref) < key;
+}
+
+bool IsEmpty(TChunkTreeRef ref)
+{
+    switch (ref.GetType()) {
+        case EObjectType::Chunk:
+            return false;
+        case EObjectType::ChunkList:
+            return ref.AsChunkList()->Children().empty();
+        default:
+            YUNREACHABLE();
+    }
+}
+
+// Adopted from http://www.cplusplus.com/reference/algorithm/lower_bound/
+template <class ForwardIterator>
+ForwardIterator LowerBound(ForwardIterator first, ForwardIterator last, const TKey& value)
+{
+    ForwardIterator it;
+    iterator_traits<ForwardIterator>::difference_type count, step;
+    count = std::distance(first, last);
+    while (count > 0) {
+        it = first;
+        step = count / 2;
+        std::advance(it, step);
+        while (it != last && IsEmpty(*it)) {
+            ++it;
+        }
+        if (it != last && LessComparer(*it, value)) {
+            count -= std::distance(first, it) + 1;
+            first = ++it;
+        } else {
+            count = step;
         }
     }
+    return first;
+}
 
-    NTableClient::NProto::TKey GetMaxKey(const TChunkTreeRef& ref)
-    {
-        switch (ref.GetType()) {
-            case EObjectType::Chunk: {
-                auto attributes = ref.AsChunk()->DeserializeAttributes();
-                const auto& tableAttributes = attributes.GetExtension(
-                    NTableClient::NProto::TTableChunkAttributes::table_attributes);
-                return tableAttributes.key_samples(tableAttributes.key_samples_size() - 1).key();
-            }
-            case EObjectType::ChunkList:
-                YASSERT(!ref.AsChunkList()->Children().empty());
-                return GetMaxKey(ref.AsChunkList()->Children().back());
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    bool LessComparer(const TChunkTreeRef& ref, const NTableClient::NProto::TKey& key)
-    {
-        return GetMinKey(ref) < key;
-    }
 }
 
 void TTableNodeProxy::TraverseChunkTree(
@@ -209,20 +246,22 @@ void TTableNodeProxy::TraverseChunkTree(
         return;
     }
 
-    auto it = std::lower_bound(
+    auto it = LowerBound(
         chunkList->Children().begin(),
         chunkList->Children().end(),
-        lowerBound,
-        LessComparer);
+        lowerBound);
     if (it != chunkList->Children().begin()) {
         --it;
     }
 
-    while (it != chunkList->Children().end()) {
+    for (; it != chunkList->Children().end(); ++it) {
         const auto& child = *it;
+        if (IsEmpty(child)) {
+            continue;
+        }
         auto minKey = GetMinKey(child);
         auto maxKey = GetMaxKey(child);
-        if (lowerBound > maxKey) {
+        if (lowerBound > maxKey) {          
             continue; // possible for the first chunk tree considered
         }
         if (upperBound && minKey >= *upperBound) {
@@ -237,12 +276,12 @@ void TTableNodeProxy::TraverseChunkTree(
 
                 slice->mutable_start_limit();
                 if (lowerBound > minKey) {
-                    slice->mutable_start_limit()->CopyFrom(lowerBound);
+                    *slice->mutable_start_limit()->mutable_key() = lowerBound;
                 }
 
                 slice->mutable_end_limit();
                 if (upperBound && *upperBound <= maxKey) {
-                    slice->mutable_end_limit()->CopyFrom(*upperBound);
+                    *slice->mutable_end_limit()->mutable_key() = *upperBound;
                 }
 
                 break;
@@ -257,8 +296,6 @@ void TTableNodeProxy::TraverseChunkTree(
             default:
                 YUNREACHABLE();
         }
-
-        ++it;
     }
 }
 
@@ -341,54 +378,94 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 }
 
 namespace {
-    void ParseChannel(TTokenizer& tokens, int& index, TChannel* channel)
-    {
-        if (tokens[index].GetType() == ETokenType::LeftBrace) {
-            ++index;
-            *channel = TChannel::CreateEmpty();
-            while (tokens[index].GetType() != ETokenType::RightBrace) {
-                TColumn begin;
-                bool isRange = false;
-                switch (tokens[index].GetType()) {
-                    case ETokenType::String:
-                        begin.assign(tokens[index].GetStringValue());
-                        ++index;
-                        if (tokens[index].GetType() == ETokenType::Colon) {
-                            isRange = true;
-                            ++index;
-                        }
-                        break;
-                    case ETokenType::Colon:
+
+void ParseChannel(TTokenizer& tokens, int& index, TChannel* channel)
+{
+    if (tokens[index].GetType() == ETokenType::LeftBrace) {
+        ++index;
+        *channel = TChannel::CreateEmpty();
+        while (tokens[index].GetType() != ETokenType::RightBrace) {
+            TColumn begin;
+            bool isRange = false;
+            switch (tokens[index].GetType()) {
+                case ETokenType::String:
+                    begin.assign(tokens[index].GetStringValue());
+                    ++index;
+                    if (tokens[index].GetType() == ETokenType::Colon) {
                         isRange = true;
                         ++index;
+                    }
+                    break;
+                case ETokenType::Colon:
+                    isRange = true;
+                    ++index;
+                    break;
+                default:
+                    ThrowUnexpectedToken(tokens[index]);
+                    YUNREACHABLE();
+            }
+            if (isRange) {
+                switch (tokens[index].GetType()) {
+                    case ETokenType::String: {
+                        TColumn end(tokens[index].GetStringValue());
+                        channel->AddRange(begin, end);
+                        ++index;
+                        break;
+                    }
+                    case ETokenType::Comma:
+                        channel->AddRange(TRange(begin));
                         break;
                     default:
                         ThrowUnexpectedToken(tokens[index]);
                         YUNREACHABLE();
                 }
-                if (isRange) {
-                    switch (tokens[index].GetType()) {
-                        case ETokenType::String: {
-                            TColumn end(tokens[index].GetStringValue());
-                            channel->AddRange(begin, end);
-                            ++index;
-                            break;
-                        }
-                        case ETokenType::Comma:
-                            channel->AddRange(TRange(begin));
-                            break;
-                        default:
-                            ThrowUnexpectedToken(tokens[index]);
-                            YUNREACHABLE();
-                    }
-                } else {
-                    channel->AddColumn(begin);
-                }
+            } else {
+                channel->AddColumn(begin);
+            }
+            switch (tokens[index].GetType()) {
+                case ETokenType::Comma:
+                    ++index;
+                    break;
+                case ETokenType::RightBrace:
+                    break;
+                default:
+                    ThrowUnexpectedToken(tokens[index]);
+                    YUNREACHABLE();
+            }
+        }
+        ++index;
+    } else {
+        *channel = TChannel::CreateUniversal();
+    }
+}
+
+void ParseRowLimit(
+    TTokenizer& tokens,
+    int& index,
+    ETokenType separator,
+    TReadLimit* limit)
+{
+    switch (tokens[index].GetType()) {
+        case ETokenType::String:
+            limit->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
+            ++index;
+            break;
+        case ETokenType::Hash:
+            ++index;
+            limit->set_row_index(tokens[index].GetIntegerValue());
+            ++index;
+            break;
+        case ETokenType::LeftParenthesis:
+            ++index;
+            limit->mutable_key();
+            while (tokens[index].GetType() != ETokenType::RightParenthesis) {
+                limit->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
+                ++index;
                 switch (tokens[index].GetType()) {
                     case ETokenType::Comma:
                         ++index;
                         break;
-                    case ETokenType::RightBrace:
+                    case ETokenType::RightParenthesis:
                         break;
                     default:
                         ThrowUnexpectedToken(tokens[index]);
@@ -396,73 +473,34 @@ namespace {
                 }
             }
             ++index;
-        } else {
-            *channel = TChannel::CreateUniversal();
-        }
+            break;
+        default:
+            if (tokens[index].GetType() != separator) {
+                ThrowUnexpectedToken(tokens[index]);
+            }
+            break;
     }
 
-    void ParseRowLimit(
-        TTokenizer& tokens,
-        int& index,
-        ETokenType separator,
-        TReadLimit* limit)
-    {
-        ++index;
-        switch (tokens[index].GetType()) {
-            case ETokenType::String:
-                limit->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
-                ++index;
-                break;
-            case ETokenType::Hash:
-                ++index;
-                limit->set_row_index(tokens[index].GetIntegerValue());
-                ++index;
-                break;
-            case ETokenType::LeftParenthesis:
-                ++index;
-                limit->mutable_key();
-                while (tokens[index].GetType() != ETokenType::RightParenthesis) {
-                    limit->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
-                    ++index;
-                    switch (tokens[index].GetType()) {
-                        case ETokenType::Comma:
-                            ++index;
-                            break;
-                        case ETokenType::ETokenType::RightParenthesis:
-                            break;
-                        default:
-                            ThrowUnexpectedToken(tokens[index]);
-                            YUNREACHABLE();
-                    }
-                }
-                ++index;
-                break;
-            default:
-                if (tokens[index].GetType() != separator) {
-                    ThrowUnexpectedToken(tokens[index]);
-                }
-                break;
-        }
+    tokens[index].CheckType(separator);
+    ++index;
+}
 
-        tokens[index].CheckType(separator);
+void ParseRowLimits(
+    TTokenizer& tokens,
+    int& index,
+    TReadLimit* lowerLimit,
+    TReadLimit* upperLimit)
+{
+    *lowerLimit = TReadLimit();
+    *upperLimit = TReadLimit();
+    if (tokens[index].GetType() == ETokenType::LeftBracket) {
         ++index;
-    }
-
-    void ParseRowLimits(
-        TTokenizer& tokens,
-        int& index,
-        TReadLimit* lowerLimit,
-        TReadLimit* upperLimit)
-    {
-        *lowerLimit = TReadLimit();
-        *upperLimit = TReadLimit();
-        if (tokens[index].GetType() == ETokenType::LeftBracket) {
-            ++index;
-            ParseRowLimit(tokens, index, ETokenType::Colon, lowerLimit);
-            ParseRowLimit(tokens, index, ETokenType::RightBracket, upperLimit);
-        }
+        ParseRowLimit(tokens, index, ETokenType::Colon, lowerLimit);
+        ParseRowLimit(tokens, index, ETokenType::RightBracket, upperLimit);
     }
 }
+
+} // namespace <anonymous>
 
 void TTableNodeProxy::ParseYPath(
     const TYPath& path,
@@ -504,12 +542,15 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
             ythrow yexception() << Sprintf("Row limits must have the same type");
         }
+        if (!chunkList->GetSorted()) {
+            ythrow yexception() << Sprintf("Table is not sorted");
+        }
         const auto& lowerBound = lowerLimit.key();
         const auto* upperBound = upperLimit.has_key() ? &upperLimit.key() : NULL;
         TraverseChunkTree(chunkList, lowerBound, upperBound, response);
     } else {
         i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
-        TNullable<i64> upperBound = upperLimit.has_row_index()
+        auto upperBound = upperLimit.has_row_index()
             ? MakeNullable(upperLimit.row_index())
             : Null;
         TraverseChunkTree(chunkList, lowerBound, upperBound, response);
