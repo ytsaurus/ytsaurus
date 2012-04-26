@@ -99,6 +99,11 @@ private:
                 WithTransaction("//sys/scheduler/lock", transactionId),
                 "{}");
 
+            SyncYPathCreate(
+                service,
+                WithTransaction("//sys/scheduler/orchid", transactionId),
+                EObjectType::Orchid);
+
             SyncYPathSet(
                 service,
                 WithTransaction("//sys/operations", transactionId),
