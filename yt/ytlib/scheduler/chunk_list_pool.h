@@ -17,7 +17,7 @@ class TChunkListPool
 {
 public:
     TChunkListPool(
-        NRpc::IChannel::TPtr masterChannel,
+        NRpc::IChannelPtr masterChannel,
         IInvoker::TPtr controlInvoker,
         TOperationPtr operation,
         const TTransactionId& transactionId);
@@ -29,7 +29,7 @@ public:
     void Allocate(int count);
 
 private:
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     IInvoker::TPtr ControlInvoker;
     TOperationPtr Operation;
     TTransactionId TransactionId;

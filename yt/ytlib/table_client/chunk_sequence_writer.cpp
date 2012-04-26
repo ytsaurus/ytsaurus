@@ -24,7 +24,7 @@ static NLog::TLogger& Logger = TableClientLogger;
 
 TChunkSequenceWriter::TChunkSequenceWriter(
     TConfig::TPtr config,
-    NRpc::IChannel::TPtr masterChannel,
+    NRpc::IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkList,
     i64 expectedRowCount)

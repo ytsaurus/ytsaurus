@@ -67,7 +67,7 @@ public:
     //! Initializes an instance.
     TFileWriterBase(
         TConfig::TPtr config,
-        NRpc::IChannel::TPtr masterChannel);
+        NRpc::IChannelPtr masterChannel);
 
     //! Opens the writer.
     void Open(NObjectServer::TTransactionId);
@@ -86,7 +86,7 @@ public:
     void Close();
 
 protected:
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     NLog::TTaggedLogger Logger;
 
     virtual void DoClose(const NChunkServer::TChunkId& chunkId);

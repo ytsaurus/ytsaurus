@@ -62,7 +62,7 @@ public:
 
     TChunkSequenceWriter(
         TConfig::TPtr config,
-        NRpc::IChannel::TPtr masterChannel,
+        NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkServer::TChunkListId& parentChunkList,
         i64 expectedRowCount = std::numeric_limits<i64>::max());
@@ -109,7 +109,7 @@ private:
     void OnClose();
 
     TConfig::TPtr Config;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
 
     const i64 ExpectedRowCount;
     i64 CurrentRowCount;

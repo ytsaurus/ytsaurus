@@ -15,7 +15,7 @@ using namespace NChunkServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkListPool::TChunkListPool(
-    NRpc::IChannel::TPtr masterChannel,
+    NRpc::IChannelPtr masterChannel,
     IInvoker::TPtr controlInvoker,
     TOperationPtr operation,
     const TTransactionId& transactionId)

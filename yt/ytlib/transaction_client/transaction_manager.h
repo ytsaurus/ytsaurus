@@ -47,7 +47,7 @@ public:
      */
     TTransactionManager(
         TConfig::TPtr config,
-        NRpc::IChannel::TPtr channel);
+        NRpc::IChannelPtr channel);
 
     //! Starts a new transaction.
     /*!
@@ -78,7 +78,7 @@ private:
         NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp);
 
     TConfig::TPtr Config;
-    NRpc::IChannel::TPtr Channel;
+    NRpc::IChannelPtr Channel;
     NCypress::TCypressServiceProxy CypressProxy;
 
     TSpinLock SpinLock;

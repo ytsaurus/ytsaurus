@@ -25,7 +25,7 @@ class TTransactionManager::TTransaction
 {
 public:
     TTransaction(
-        NRpc::IChannel::TPtr cellChannel,
+        NRpc::IChannelPtr cellChannel,
         const TTransactionId& parentId,
         TTransactionManager::TPtr owner)
         : Owner(owner)
@@ -38,7 +38,7 @@ public:
     }
 
     TTransaction(
-        NRpc::IChannel::TPtr cellChannel,
+        NRpc::IChannelPtr cellChannel,
         TTransactionManager::TPtr owner,
         const TTransactionId& id)
         : Owner(owner)
@@ -267,7 +267,7 @@ private:
 
 TTransactionManager::TTransactionManager(
     TConfig::TPtr config, 
-    NRpc::IChannel::TPtr channel)
+    NRpc::IChannelPtr channel)
     : Config(config)
     , Channel(channel)
     , CypressProxy(channel)

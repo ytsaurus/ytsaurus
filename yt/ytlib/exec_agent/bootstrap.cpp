@@ -69,12 +69,12 @@ IInvoker::TPtr TBootstrap::GetControlInvoker() const
     return NodeBootstrap->GetControlInvoker();
 }
 
-IChannel::TPtr TBootstrap::GetMasterChannel() const
+IChannelPtr TBootstrap::GetMasterChannel() const
 {
     return NodeBootstrap->GetMasterChannel();
 }
 
-IChannel::TPtr TBootstrap::GetSchedulerChannel() const
+IChannelPtr TBootstrap::GetSchedulerChannel() const
 {
     return NodeBootstrap->GetSchedulerChannel();
 }

@@ -25,7 +25,7 @@ public:
     //! Initializes an instance.
     TFileWriter(
         TConfig::TPtr config,
-        NRpc::IChannel::TPtr masterChannel,
+        NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
         NTransactionClient::TTransactionManager::TPtr transactionManager,
         const NYTree::TYPath& path);

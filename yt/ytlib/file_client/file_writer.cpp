@@ -24,7 +24,7 @@ using namespace NTransactionClient;
 
 TFileWriter::TFileWriter(
     TConfig::TPtr config,
-    NRpc::IChannel::TPtr masterChannel,
+    NRpc::IChannelPtr masterChannel,
     ITransaction::TPtr transaction,
     TTransactionManager::TPtr transactionManager,
     const TYPath& path)

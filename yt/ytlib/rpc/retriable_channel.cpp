@@ -21,7 +21,7 @@ static NLog::TLogger& Logger = RpcLogger;
 class TRetriableChannel
     : public IChannel
 {
-    DEFINE_BYVAL_RO_PROPERTY(IChannel::TPtr, UnderlyingChannel);
+    DEFINE_BYVAL_RO_PROPERTY(IChannelPtr, UnderlyingChannel);
     DEFINE_BYVAL_RO_PROPERTY(TRetryConfig::TPtr, Config);
 
 public:
@@ -42,7 +42,7 @@ public:
 
 };
 
-IChannel::TPtr CreateRetriableChannel(
+IChannelPtr CreateRetriableChannel(
     TRetryConfig* config,
     IChannel* underlyingChannel)
 {

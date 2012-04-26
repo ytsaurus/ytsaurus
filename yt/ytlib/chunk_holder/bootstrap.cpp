@@ -21,6 +21,8 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/virtual.h>
 
+#include <ytlib/rpc/server.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -150,7 +152,7 @@ TReaderCachePtr TBootstrap::GetReaderCache() const
     return ReaderCache;
 }
 
-IChannel::TPtr TBootstrap::GetMasterChannel() const
+IChannelPtr TBootstrap::GetMasterChannel() const
 {
     return NodeBootstrap->GetMasterChannel();
 }

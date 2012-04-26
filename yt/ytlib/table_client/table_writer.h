@@ -64,7 +64,7 @@ public:
     TTableWriter(
         TConfig::TPtr config,
         const TOptions& options,
-        NRpc::IChannel::TPtr masterChannel,
+        NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransaction::TPtr transaction,
         NTransactionClient::TTransactionManager::TPtr transactionManager,
         const NYTree::TYPath& path);
@@ -84,7 +84,7 @@ public:
 private:
     TConfig::TPtr Config;
     TOptions Options;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NTransactionClient::TTransactionManager::TPtr TransactionManager;

@@ -110,7 +110,7 @@ protected:
 
 private:
     TFileWriterBase::TPtr FileWriter;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     TTransactionId TransactionId;
     TObjectId ChunkListId;
 };

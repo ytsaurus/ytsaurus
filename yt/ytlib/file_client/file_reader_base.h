@@ -67,7 +67,7 @@ public:
 
 private:
     TConfig::TPtr Config;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     NChunkClient::IBlockCache::TPtr BlockCache;
     NYTree::TYPath Path;
     bool IsOpen;

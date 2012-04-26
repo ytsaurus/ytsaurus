@@ -37,7 +37,7 @@ private:
     TJobIOConfigPtr Config;
 
     NScheduler::NProto::TMapJobSpec IoSpec;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
 };
 
 ////////////////////////////////////////////////////////////////////

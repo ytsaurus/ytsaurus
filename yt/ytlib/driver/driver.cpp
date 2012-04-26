@@ -170,12 +170,12 @@ public:
         return ~Config;
     }
 
-    IChannel::TPtr GetMasterChannel() const
+    IChannelPtr GetMasterChannel() const
     {
         return MasterChannel;
     }
 
-    IChannel::TPtr GetSchedulerChannel() const
+    IChannelPtr GetSchedulerChannel() const
     {
         return SchedulerChannel;
     }
@@ -266,8 +266,8 @@ private:
     IDriverStreamProvider* StreamProvider;
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
-    IChannel::TPtr MasterChannel;
-    IChannel::TPtr SchedulerChannel;
+    IChannelPtr MasterChannel;
+    IChannelPtr SchedulerChannel;
     IBlockCache::TPtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
 

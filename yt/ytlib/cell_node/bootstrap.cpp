@@ -8,6 +8,9 @@
 
 #include <ytlib/bus/nl_server.h>
 
+#include <ytlib/rpc/channel.h>
+#include <ytlib/rpc/server.h>
+
 #include <ytlib/election/leader_channel.h>
 
 #include <ytlib/orchid/orchid_service.h>
@@ -156,17 +159,17 @@ IBusServer::TPtr TBootstrap::GetBusServer() const
     return BusServer;
 }
 
-IServer::TPtr TBootstrap::GetRpcServer() const
+IServerPtr TBootstrap::GetRpcServer() const
 {
     return RpcServer;
 }
 
-IChannel::TPtr TBootstrap::GetMasterChannel() const
+IChannelPtr TBootstrap::GetMasterChannel() const
 {
     return MasterChannel;
 }
 
-IChannel::TPtr TBootstrap::GetSchedulerChannel() const
+IChannelPtr TBootstrap::GetSchedulerChannel() const
 {
     return SchedulerChannel;
 }

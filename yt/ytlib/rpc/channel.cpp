@@ -253,7 +253,7 @@ private:
 
 };          
 
-IChannel::TPtr CreateBusChannel(
+IChannelPtr CreateBusChannel(
     IBusClient* client,
     TNullable<TDuration> defaultTimeout)
 {
@@ -262,7 +262,7 @@ IChannel::TPtr CreateBusChannel(
     return New<TChannel>(client, defaultTimeout);
 }
 
-IChannel::TPtr CreateBusChannel(
+IChannelPtr CreateBusChannel(
     const Stroka& address,
     TNullable<TDuration> defaultTimeout)
 {

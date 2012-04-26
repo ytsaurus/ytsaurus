@@ -828,7 +828,7 @@ private:
     
 
     // IOperationHost methods
-    virtual NRpc::IChannel::TPtr GetMasterChannel()
+    virtual NRpc::IChannelPtr GetMasterChannel()
     {
         return Bootstrap->GetMasterChannel();
     }

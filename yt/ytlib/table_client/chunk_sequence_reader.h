@@ -65,7 +65,7 @@ private:
 
     TChunkReader::TOptions Options;
 
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
 
     TAsyncStreamState State;
 

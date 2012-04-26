@@ -19,7 +19,7 @@ public:
         return "SchedulerService";
     }
 
-    TSchedulerServiceProxy(NRpc::IChannel::TPtr channel)
+    TSchedulerServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(~channel, GetServiceName())
     { }
 

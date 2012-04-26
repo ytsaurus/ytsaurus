@@ -74,7 +74,7 @@ public:
 
 private:
     TConfig::TPtr Config;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::IBlockCache::TPtr BlockCache;

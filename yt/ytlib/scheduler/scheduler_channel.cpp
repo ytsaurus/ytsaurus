@@ -17,7 +17,7 @@ using namespace NYTree;
 
 namespace {
 
-TValueOrError<IChannel::TPtr> OnSchedulerAddressFound(TYPathProxy::TRspGet::TPtr rsp)
+TValueOrError<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGet::TPtr rsp)
 {
     if (!rsp->IsOK()) {
         return rsp->GetError();
@@ -29,13 +29,13 @@ TValueOrError<IChannel::TPtr> OnSchedulerAddressFound(TYPathProxy::TRspGet::TPtr
 
 } // namespace <anonymous>
 
-IChannel::TPtr CreateSchedulerChannel(
+IChannelPtr CreateSchedulerChannel(
     TNullable<TDuration> defaultTimeout,
-    IChannel::TPtr masterChannel)
+    IChannelPtr masterChannel)
 {
     return CreateRoamingChannel(
         defaultTimeout,
-        BIND([=] () -> TFuture< TValueOrError<IChannel::TPtr> > {
+        BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
             TCypressServiceProxy proxy(masterChannel);
             auto req = TYPathProxy::Get("//sys/scheduler/@address");
             return proxy.Execute(req).Apply(BIND(&OnSchedulerAddressFound));

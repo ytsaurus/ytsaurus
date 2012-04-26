@@ -26,7 +26,7 @@ using namespace NChunkServer::NProto;
 
 TFileWriterBase::TFileWriterBase(
     TConfig::TPtr config,
-    NRpc::IChannel::TPtr masterChannel)
+    NRpc::IChannelPtr masterChannel)
     : Config(config)
     , MasterChannel(masterChannel)
     , IsOpen(false)
