@@ -211,7 +211,7 @@ template <class ForwardIterator>
 ForwardIterator LowerBound(ForwardIterator first, ForwardIterator last, const TKey& value)
 {
     ForwardIterator it;
-    iterator_traits<ForwardIterator>::difference_type count, step;
+    typename std::iterator_traits<ForwardIterator>::difference_type count, step;
     count = std::distance(first, last);
     while (count > 0) {
         it = first;
