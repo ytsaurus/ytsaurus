@@ -152,7 +152,9 @@ public:
     void Start()
     {
         TActionQueueBase::Start();
+#ifdef __unix__
         ResourceTracker->Start();
+#endif
     }
     
     void Shutdown()
