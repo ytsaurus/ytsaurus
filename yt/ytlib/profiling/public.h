@@ -10,6 +10,8 @@ namespace NProfiling {
 class TProfiler;
 class TProfilingManager;
 
+class TResourceTracker;
+
 struct TTimer;
 struct TQueuedSample;
 

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "profiling_manager.h"
+#include "resource_tracker.h"
 #include "timing.h"
 
 #include <ytlib/misc/id_generator.h>
@@ -11,6 +12,7 @@
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/logging/log.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 namespace NYT {
 namespace NProfiling  {
@@ -137,7 +139,9 @@ public:
         , Root(GetEphemeralNodeFactory()->CreateMap())
         , EnqueueCounter("/enqueue_rate")
         , DequeueCounter("/dequeue_rate")
-    { }
+    {
+        ResourceTracker = New<TResourceTracker>(GetInvoker());
+    }
 
     ~TImpl()
     {
@@ -148,6 +152,7 @@ public:
     void Start()
     {
         TActionQueueBase::Start();
+        ResourceTracker->Start();
     }
     
     void Shutdown()
@@ -187,6 +192,8 @@ private:
     TLockFreeQueue<TQueuedSample> SampleQueue;
     yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
     TIdGenerator<i64> IdGenerator;
+
+    TIntrusivePtr<TResourceTracker> ResourceTracker;
 
     static const TDuration MaxKeepInterval;
 
@@ -258,7 +265,6 @@ private:
         bucket->AddSample(storedSample);
         bucket->TrimSamples(MaxKeepInterval);
     }
-
 };
 
 // TODO(babenko): make configurable
