@@ -4,6 +4,7 @@
 
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/actions/async_pipeline.h>
 
 #include <cmath>
 
