@@ -220,7 +220,7 @@ class TestLockCommands(YTEnvSetup):
 
             expect_ok( abort_transaction(tx = tx_id))
 
-
+    @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
 
         expect_ok( set('//a', '{}'))
