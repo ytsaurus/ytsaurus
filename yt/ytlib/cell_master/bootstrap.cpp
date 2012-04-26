@@ -200,6 +200,7 @@ void TBootstrap::Run()
         ~orchidRoot,
         "/config",
         ~CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
+    SyncYPathSet(~orchidRoot, "/@service_name", "master");
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         ~orchidRoot,

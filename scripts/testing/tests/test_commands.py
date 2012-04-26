@@ -267,6 +267,7 @@ class TestTableCommands(YTEnvSetup):
         expect_ok( remove('//table'))
 
 
+#TODO(panin): tests of scheduler
 class TestOrchid(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_HOLDERS = 5
@@ -278,7 +279,11 @@ class TestOrchid(YTEnvSetup):
 
         q = '"'
         for master in masters:
-            path = '//sys/masters/'  + q + master + q + '/orchid/value'
+            path_to_orchid = '//sys/masters/'  + q + master + q + '/orchid'
+            path = path_to_orchid + '/value'
+
+            assert_eq( get(path_to_orchid + '/@service_name'), '"master"')
+
             some_map = '{"a"=1;"b"=2}'
 
             expect_ok( set(path, some_map))
@@ -296,7 +301,11 @@ class TestOrchid(YTEnvSetup):
 
         q = '"'
         for holder in holders:
-            path = '//sys/holders/'  + q + holder + q + '/orchid/value'
+            path_to_orchid = '//sys/holders/'  + q + holder + q + '/orchid'
+            path = path_to_orchid + '/value'
+
+            assert_eq( get(path_to_orchid + '/@service_name'), '"node"')
+
             some_map = '{"a"=1;"b"=2}'
 
             expect_ok( set(path, some_map))

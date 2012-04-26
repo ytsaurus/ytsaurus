@@ -90,6 +90,7 @@ void TBootstrap::Init()
         ~NodeBootstrap->GetOrchidRoot(),
         "/cached_chunks",
         ~NYTree::CreateVirtualNode(~CreateCachedChunkMapService(~ChunkCache)));
+    SyncYPathSet(~NodeBootstrap->GetOrchidRoot(), "/@service_name", "node");
 
     MasterConnector->Start();
 }

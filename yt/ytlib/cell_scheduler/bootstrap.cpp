@@ -110,6 +110,7 @@ void TBootstrap::Run()
         ~orchidRoot,
         "/scheduler",
         ~NYTree::CreateVirtualNode(Scheduler->CreateOrchidProducer()));
+    SyncYPathSet(~orchidRoot, "/@service_name", "scheduler");
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
