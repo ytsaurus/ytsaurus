@@ -6,23 +6,25 @@ if (WIN32)
   set( LTYPE STATIC )
 endif()
 
-set( BASE ${CMAKE_SOURCE_DIR}/contrib/libs )
+set( BASE ${CMAKE_SOURCE_DIR}/contrib/z-lz-lzo )
 
 add_library( ytext-fastlz ${LTYPE}
-  ${BASE}/fastlz/fastlz.c
+  ${BASE}/fastlz.c
 )
 
 add_library( ytext-lz4 ${LTYPE}
-  ${BASE}/lz4/lz4.c
+  ${BASE}/lz4.c
 )
 
 add_library( ytext-minilzo ${LTYPE}
-  ${BASE}/minilzo/minilzo.c
+  ${BASE}/minilzo.c
 )
 
 add_library( ytext-quicklz ${LTYPE}
-  ${BASE}/quicklz/quicklz.c
+  ${BASE}/quicklz.c
 )
+
+set ( BASE ${CMAKE_SOURCE_DIR}/contrib/libs )
 
 add_library( ytext-snappy ${LTYPE}
   ${BASE}/snappy/snappy.cc
@@ -73,7 +75,7 @@ set_target_properties( ytext-minilzo PROPERTIES
 )
 
 set_target_properties( ytext-quicklz PROPERTIES
-  VERSION   1.5.0
+  VERSION   1.5.1
   SOVERSION 1.5
 )
 
@@ -101,3 +103,4 @@ install(
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
 )
+
