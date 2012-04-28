@@ -159,9 +159,9 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 
         case ETokenType::Integer: {
             int index = tokenizer.Current().GetIntegerValue();
+            index = NormalizeAndCheckIndex(index);
             tokenizer.ParseNext();
             if (tokenizer.GetCurrentType() == ETokenType::Caret) {
-                NormalizeAndCheckIndex(index);
                 tokenizer.ParseNext();
                 tokenizer.Current().CheckType(ETokenType::EndOfStream);
                 return IYPathService::TResolveResult::Here("/" + path);
