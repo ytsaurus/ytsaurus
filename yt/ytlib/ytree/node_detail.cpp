@@ -150,13 +150,13 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     TTokenizer tokens(path);
     switch (tokens[0].GetType()) {
         case ETokenType::Plus:
-            tokens[1].CheckType(ETokenType::None);
+            tokens[1].CheckType(ETokenType::EndOfStream);
             return IYPathService::TResolveResult::Here("/" + path);
 
         case ETokenType::Integer:
             if (tokens[1].GetType() == ETokenType::Caret) {
                 NormalizeAndCheckIndex(tokens[0].GetIntegerValue());
-                tokens[2].CheckType(ETokenType::None);
+                tokens[2].CheckType(ETokenType::EndOfStream);
                 return IYPathService::TResolveResult::Here("/" + path);
             } else {
                 auto index = NormalizeAndCheckIndex(tokens[0].GetIntegerValue());
@@ -167,7 +167,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 
         case ETokenType::Caret:
             NormalizeAndCheckIndex(tokens[1].GetIntegerValue());
-            tokens[2].CheckType(ETokenType::None);
+            tokens[2].CheckType(ETokenType::EndOfStream);
             return IYPathService::TResolveResult::Here("/" + path);
 
         default:

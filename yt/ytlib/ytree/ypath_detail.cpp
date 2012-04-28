@@ -29,7 +29,7 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, con
 {
     TTokenizer tokens(path);
     switch (tokens[0].GetType()) {
-        case ETokenType::None:
+        case ETokenType::EndOfStream:
             return ResolveSelf(TYPath(tokens.GetSuffix(0)), verb);
 
         case ETokenType::Slash:
@@ -107,7 +107,7 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContext* context) const
     { \
         TTokenizer tokens(context->GetPath()); \
         switch (tokens[0].GetType()) { \
-            case ETokenType::None: \
+            case ETokenType::EndOfStream: \
                 verb##Self(request, response, ~context); \
                 break; \
             \

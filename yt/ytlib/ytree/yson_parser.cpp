@@ -179,7 +179,7 @@ private:
     void ConsumeAny(const TToken& token, bool allowAttributes)
     {
         switch (token.GetType()) {        
-            case ETokenType::None:
+            case ETokenType::EndOfStream:
                 break;
 
             case ETokenType::String:
@@ -235,7 +235,7 @@ private:
         bool inFragment = Type == EYsonType::ListFragment && StateStack.size() == 1;
         auto tokenType = token.GetType();
         switch (tokenType) {
-            case ETokenType::None:
+            case ETokenType::EndOfStream:
                 if (inFragment) {
                     StateStack.top() = EState::Parsed;
                 }
@@ -283,7 +283,7 @@ private:
         if (Type == EYsonType::KeyedFragment && StateStack.size() == 1 &&
             (currentState == EState::MapBeforeKey || currentState == EState::MapAfterValue))
         {
-            if (tokenType == ETokenType::None) {
+            if (tokenType == ETokenType::EndOfStream) {
                 StateStack.top() = EState::Parsed;
             } else if (tokenType == ETokenType::RightBrace) {
                 ythrow yexception() << Sprintf("Unexpected end of map in map fragment (%s)",
@@ -291,7 +291,7 @@ private:
             }
         }
 
-        if (tokenType == ETokenType::None) {
+        if (tokenType == ETokenType::EndOfStream) {
             return;
         }
 
@@ -352,7 +352,7 @@ private:
         auto tokenType = token.GetType();
         auto currentState = CurrentState();
 
-        if (tokenType == ETokenType::None) {
+        if (tokenType == ETokenType::EndOfStream) {
             return;
         }
 
@@ -413,7 +413,7 @@ private:
         YASSERT(StateStack.top() == EState::Parsed);
 
         auto tokenType = token.GetType();
-        if (tokenType != ETokenType::None) {
+        if (tokenType != ETokenType::EndOfStream) {
             ythrow yexception() << Sprintf("Node is already parsed, but unexpected token %s of type %s found (%s)",
                 ~token.ToString().Quote(),
                 ~tokenType.ToString(),

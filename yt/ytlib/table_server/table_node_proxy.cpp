@@ -512,7 +512,7 @@ void TTableNodeProxy::ParseYPath(
     int index = 0;
     ParseChannel(tokens, index, channel);
     ParseRowLimits(tokens, index, lowerBound, upperBound);
-    tokens[index].CheckType(ETokenType::None);
+    tokens[index].CheckType(ETokenType::EndOfStream);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)

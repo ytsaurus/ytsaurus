@@ -181,7 +181,7 @@ private:
 
             default: {
                 auto specialTokenType = CharToTokenType(ch);
-                if (specialTokenType != ETokenType::None) {
+                if (specialTokenType != ETokenType::EndOfStream) {
                     ProduceToken(specialTokenType);
                     return current;
                 } else if (isdigit(ch) || ch == '-') { // case of '+' is handled in AfterPlus state
