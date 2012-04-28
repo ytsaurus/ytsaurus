@@ -22,6 +22,8 @@ message TReqFetch
 {
     optional bool fetch_holder_addresses = 1;
     optional bool fetch_chunk_attributes = 2;
+
+    required bool negate = 3 [default = false];
 }
 
 message TRspFetch
