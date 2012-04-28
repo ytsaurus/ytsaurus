@@ -38,7 +38,10 @@ add_library( ytext-zlib ${LTYPE}
   ${BASE}/zlib/compress.c
   ${BASE}/zlib/crc32.c
   ${BASE}/zlib/deflate.c
-  ${BASE}/zlib/gzio.c
+  ${BASE}/zlib/gzclose.c
+  ${BASE}/zlib/gzlib.c
+  ${BASE}/zlib/gzread.c
+  ${BASE}/zlib/gzwrite.c
   ${BASE}/zlib/infback.c
   ${BASE}/zlib/inffast.c
   ${BASE}/zlib/inflate.c
@@ -51,6 +54,8 @@ add_library( ytext-zlib ${LTYPE}
 include_directories(
   ${CMAKE_SOURCE_DIR}
 )
+
+target_link_libraries( ytext-snappy ytext-arcadia-util )
 
 if (YT_BUILD_WITH_STLPORT)
   target_link_libraries( ytext-snappy stlport )
