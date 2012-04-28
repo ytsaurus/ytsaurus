@@ -101,7 +101,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
-    auto name = tokenizer.Current().GetStringValue();
+    Stroka name(tokenizer.Current().GetStringValue());
 
     if (name.Empty()) {
         ythrow yexception() << Sprintf("Child name cannot be empty");
@@ -136,7 +136,7 @@ void TMapNodeMixin::SetRecursive(
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
-    auto childName = tokenizer.Current().GetStringValue();
+    Stroka childName(tokenizer.Current().GetStringValue());
     YASSERT(!tokenizer.ParseNext());
     YASSERT(!childName.empty());
     YASSERT(!FindChild(childName));

@@ -182,7 +182,7 @@ public:
 
         if (tokenizer.GetCurrentType() == ETokenType::Bang) {
             tokenizer.ParseNext();
-            auto transactionToken = tokenizer.Current().GetStringValue();
+            Stroka transactionToken(tokenizer.Current().GetStringValue());
             tokenizer.ParseNext();
             TTransactionId transactionId;
             if (!TObjectId::FromString(transactionToken, &transactionId)) {
@@ -200,7 +200,7 @@ public:
             objectId = cypressManager->GetRootNodeId();
         } else if (tokenizer.GetCurrentType() == ETokenType::Hash) {
             tokenizer.ParseNext();
-            auto objectToken = tokenizer.Current().GetStringValue();
+            Stroka objectToken(tokenizer.Current().GetStringValue());
             if (!TObjectId::FromString(objectToken, &objectId)) {
                 ythrow yexception() << Sprintf("Error parsing object id %s", ~Stroka(objectToken).Quote());
             }

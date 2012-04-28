@@ -328,7 +328,7 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
         tokenizer.ParseNext();
         switch (tokenizer.GetCurrentType()) {
             case ETokenType::String: {
-                auto key = tokenizer.Current().GetStringValue();
+                Stroka key(tokenizer.Current().GetStringValue());
                 child = currentNode->AsMap()->FindChild(key);
                 if (!child) {
                     auto factory = currentNode->CreateFactory();
