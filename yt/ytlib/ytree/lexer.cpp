@@ -51,42 +51,39 @@ public:
         return Token;
     }
     
-    bool Consume(char ch)
+    size_t Read(const TStringBuf& input)
     {
+        auto begin = input.begin();
+        auto end = input.end();
         switch (State_) {
             case EState::None:
-                ConsumeStart(ch);
-                return true;
+                return ReadStart(begin, end) - begin;
 
             case EState::InProgress:
                 switch (InnerState) {
                     case EInnerState::InsideUnquotedString:
-                        return ConsumeUnquotedString(ch);
+                        return ReadUnquotedString(begin, end) - begin;
 
                     case EInnerState::InsideQuotedString:
-                        ConsumeQuotedString(ch);
-                        return true;
+                        return ReadQuotedString(begin, end) - begin;
 
                     case EInnerState::InsideBinaryString:
-                        ConsumeBinaryString(ch);
-                        return true;
+                        return ReadBinaryString(begin, end) - begin;
 
                     case EInnerState::InsideNumeric:
-                        return ConsumeNumeric(ch);
+                        return ReadNumeric(begin, end) - begin;
 
                     case EInnerState::InsideDouble:
-                        return ConsumeDouble(ch);
+                        return ReadDouble(begin, end) - begin;
 
                     case EInnerState::InsideBinaryInteger:
-                        ConsumeBinaryInteger(ch);
-                        return true;
+                        return ReadBinaryInteger(begin, end) - begin;
 
                     case EInnerState::InsideBinaryDouble:
-                        ConsumeBinaryDouble(ch);
-                        return true;
+                        return ReadBinaryDouble(begin, end) - begin;
 
                     case EInnerState::AfterPlus:
-                    	return ConsumePlus(ch);
+                        return ReadAfterPlus(begin, end) - begin;
 
                     default:
                         YUNREACHABLE();
@@ -96,44 +93,6 @@ public:
                 // Should not consume chars in terminal states
                 YUNREACHABLE();
         }
-    }
-
-    size_t Consume(const TStringBuf& data)
-    {
-        const auto begin = data.begin();
-        const auto end = data.end();
-        auto current = begin;
-        while (current != end) {
-            // NB: Conditions order is optimized for quick rejection.
-            if (InnerState == EInnerState::InsideBinaryString &&
-                State_ == EState::InProgress &&
-                BytesRead < 0 )
-            {
-                // Optimized version for binary string literals.
-                int bytesRemaining = static_cast<int>(end - current);
-                int bytesNeeded = -BytesRead;
-                if (bytesRemaining < bytesNeeded) {
-                    StringValue.append(current, end);
-                    current = end;
-                    BytesRead += bytesRemaining;
-                } else {
-                    StringValue.append(current, current + bytesNeeded);
-                    current += bytesNeeded;
-                    // NB: Setting BytesRead to zero is redundant.
-                    FinishString();
-                    YASSERT(State_ == EState::Terminal);
-                }
-            } else {
-                // Fallback to the usual, symbol-by-symbol version.
-                if (Consume(*current)) {
-                    ++current;
-                }
-                if (State_ == EState::Terminal) {
-                    break;
-                }
-            }
-        }
-        return current - begin;
     }
 
     void Finish()
@@ -181,127 +140,140 @@ public:
 private:
     static const int StringBufferSize = 1 << 16;
 
-    void ConsumeStart(char ch)
+    const char* ReadStart(const char* begin, const char* end)
     {
-        if (isspace(ch))
-            return;
-
+        const char* current = begin;
+        while (current != end && isspace(*current))
+            ++current;
+        if (current == end)
+            return current;
+        char ch = *current;
+        ++current;
         switch (ch) {
             case '"':
                 SetInProgressState(EInnerState::InsideQuotedString);
                 YASSERT(StringValue.empty());
                 YASSERT(BytesRead == 0);
-                break;
+                return ReadQuotedString(current, end);
 
             case '\x01':
                 SetInProgressState(EInnerState::InsideBinaryString);
                 YASSERT(StringValue.empty());
                 YASSERT(BytesRead == 0);
-                break;
+                return ReadBinaryString(current, end);
 
             case '\x02':
                 SetInProgressState(EInnerState::InsideBinaryInteger);
                 YASSERT(IntegerValue == 0);
                 YASSERT(BytesRead == 0);
-                break;
+                return ReadBinaryInteger(current, end);
 
             case '\x03':
                 SetInProgressState(EInnerState::InsideBinaryDouble);
                 YASSERT(DoubleValue == 0.0);
                 YASSERT(BytesRead == 0);
                 BytesRead = -static_cast<int>(sizeof(double));
-                break;
+                return ReadBinaryDouble(current, end);
 
             case '+':
                 SetInProgressState(EInnerState::AfterPlus);
-                break;
-
+                return ReadAfterPlus(current, end);
 
             default: {
                 auto specialTokenType = CharToTokenType(ch);
                 if (specialTokenType != ETokenType::None) {
                     ProduceToken(specialTokenType);
+                    return current;
                 } else if (isdigit(ch) || ch == '-') { // case of '+' is handled in AfterPlus state
                     StringValue.append(ch);
                     SetInProgressState(EInnerState::InsideNumeric);
+                    return ReadNumeric(current, end);
                 } else if (isalpha(ch) || ch == '_' || ch == '%') {
                     StringValue.append(ch);
                     SetInProgressState(EInnerState::InsideUnquotedString);
+                    return ReadUnquotedString(current, end);
                 } else {
                     ythrow yexception() << Sprintf("Unexpected character %s",
                         ~Stroka(ch).Quote());
                 }
-                break;
             }
         }
     }
 
-    bool ConsumeUnquotedString(char ch)
+    const char* ReadUnquotedString(const char* begin, const char* end)
     {
-        if (isalpha(ch) || isdigit(ch) || ch == '_' || ch == '-' || ch == '%') {
-            StringValue.append(ch);
-            return true;
-        } else {
-            FinishString();
-            return false;
-        }
-    }
-
-    void ConsumeQuotedString(char ch)
-    {
-        bool finish = false;
-        if (ch != '"') {
-            StringValue.append(ch);
-        } else {
-            // We must count the number of '\' at the end of StringValue
-            // to check if it's not \"
-            int slashCount = 0;
-            int length = StringValue.length();
-            while (slashCount < length && StringValue[length - 1 - slashCount] == '\\')
-                ++slashCount;
-            if (slashCount % 2 == 0) {
-                finish = true;
-            } else {
+        for (auto current = begin; current != end; ++current) {
+            char ch = *current;
+            if (isalpha(ch) || isdigit(ch) || ch == '_' || ch == '-' || ch == '%') {
                 StringValue.append(ch);
+            } else {
+                FinishString();
+                return current;
             }
         }
-
-        if (finish) {
-            StringValue = UnescapeC(StringValue); // ! Creating new Stroka here!
-            FinishString();
-        } else {
-            ++BytesRead;
-        }
+        return end;
     }
 
-    void ConsumeBinaryInteger(char ch) {
-        ui8 byte = static_cast<ui8>(ch);
-
-        if (7 * BytesRead > 8 * sizeof(ui64) ) {
-            ythrow yexception() << Sprintf("The data is too long to read binary Integer");
-        }
-
-        ui64 ui64Value = static_cast<ui64>(IntegerValue);
-        ui64Value |= (static_cast<ui64> (byte & 0x7F)) << (7 * BytesRead);
-        ++BytesRead;
-
-        if ((byte & 0x80) == 0) {
-            IntegerValue = ZigZagDecode64(static_cast<ui64>(ui64Value));
-            ProduceToken(ETokenType::Integer);
-            BytesRead = 0;
-        } else {
-            IntegerValue = static_cast<i64>(ui64Value);
-        }
-    }
-
-    void ConsumeBinaryString(char ch)
+    const char* ReadQuotedString(const char* begin, const char* end)
     {
-        if (BytesRead < 0) {
-            StringValue.append(ch);
-            ++BytesRead;
-        } else { // We are reading length
-            ConsumeBinaryInteger(ch);
+        for (auto current = begin; current != end; ++current) {
+            bool finish = false;
+            char ch = *current;
+            if (ch != '"') {
+                StringValue.append(ch);
+            } else {
+                // We must count the number of '\' at the end of StringValue
+                // to check if it's not \"
+                int slashCount = 0;
+                int length = StringValue.length();
+                while (slashCount < length && StringValue[length - 1 - slashCount] == '\\')
+                    ++slashCount;
+                if (slashCount % 2 == 0) {
+                    finish = true;
+                } else {
+                    StringValue.append(ch);
+                }
+            }
 
+            if (finish) {
+                StringValue = UnescapeC(StringValue); // ! Creating new Stroka here!
+                FinishString();
+                return ++current;
+            } else {
+                ++BytesRead;
+            }
+        }
+        return end;
+    }
+
+    const char* ReadBinaryInteger(const char* begin, const char* end) {
+        ui64 ui64Value = static_cast<ui64>(IntegerValue);
+        for (auto current = begin; current != end; ++current) {
+            ui8 byte = static_cast<ui8>(*current);
+
+            if (7 * BytesRead > 8 * sizeof(ui64) ) {
+                ythrow yexception() << Sprintf("The data is too long to read binary Integer");
+            }
+
+            ui64Value |= (static_cast<ui64> (byte & 0x7F)) << (7 * BytesRead);
+            ++BytesRead;
+
+            if ((byte & 0x80) == 0) {
+                IntegerValue = ZigZagDecode64(static_cast<ui64>(ui64Value));
+                ProduceToken(ETokenType::Integer);
+                BytesRead = 0;
+                return ++current;
+            }
+        }
+        IntegerValue = static_cast<i64>(ui64Value);
+        return end;
+    }
+
+    const char* ReadBinaryString(const char* begin, const char* end)
+    {
+        // Reading length
+        if (BytesRead >= 0) {
+            begin = ReadBinaryInteger(begin, end);
             if (State_ == EState::Terminal) {
                 i64 length = IntegerValue;
                 if (length < 0) {
@@ -312,78 +284,106 @@ private:
                 SetInProgressState(EInnerState::InsideBinaryString);
                 BytesRead = -length;
             } else {
-                YASSERT(BytesRead > 0); // So we won't FinishString
+                YASSERT(begin == end);
+                return begin;
+            }
+        }
+
+        if (begin != end) {
+            YASSERT(BytesRead <= 0);
+            if (end - begin > -BytesRead) {
+                end = begin - BytesRead;
+            }
+            if (begin != end) {
+                StringValue.append(begin, end);
+                BytesRead += end - begin;
             }
         }
 
         if (BytesRead == 0) {
             FinishString();
         }
+
+        return end;
     }
 
-    bool ConsumeNumeric(char ch)
+    const char* ReadNumeric(const char* begin, const char* end)
     {
-        if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
-            StringValue.append(ch);
-            return true;
-        } else if (ch == '.' || ch == 'e' || ch == 'E') {
-            StringValue.append(ch);
-            InnerState = EInnerState::InsideDouble;
-            return true;
-        } else if (isalpha(ch)) {
-            ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %s, Token: %s)",
-                ~Stroka(ch).Quote(),
-                ~StringValue);
-        } else {
-            FinishNumeric();
-            return false;
+        for (auto current = begin; current != end; ++current) {
+            char ch = *current;
+            if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
+                StringValue.append(ch);
+            } else if (ch == '.' || ch == 'e' || ch == 'E') {
+                StringValue.append(ch);
+                InnerState = EInnerState::InsideDouble;
+                return ReadDouble(++current, end);
+            } else if (isalpha(ch)) {
+                ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %s, Token: %s)",
+                    ~Stroka(ch).Quote(),
+                    ~StringValue);
+            } else {
+                FinishNumeric();
+                return current;
+            }
         }
+        return end;
     }
 
-    bool ConsumeDouble(char ch)
+    const char* ReadDouble(const char* begin, const char* end)
     {
-        if (isdigit(ch) ||
-            ch == '+' || ch == '-' ||
-            ch == '.' ||
-            ch == 'e' || ch == 'E')
-        {
-            StringValue.append(ch);
-            return true;
-        } else if (isalpha(ch)) {
-            ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %s, Token: %s)",
-                ~Stroka(ch).Quote(),
-                ~StringValue);
-        } else {
-            FinishDouble();
-            return false;
+        for (auto current = begin; current != end; ++current) {
+            char ch = *current;
+            if (isdigit(ch) ||
+                ch == '+' || ch == '-' ||
+                ch == '.' ||
+                ch == 'e' || ch == 'E')
+            {
+                StringValue.append(ch);
+            } else if (isalpha(ch)) {
+                ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %s, Token: %s)",
+                    ~Stroka(ch).Quote(),
+                    ~StringValue);
+            } else {
+                FinishDouble();
+                return current;
+            }
         }
+        return end;
     }
 
-    void ConsumeBinaryDouble(char ch)
+    const char* ReadBinaryDouble(const char* begin, const char* end)
     {
-        ui8 byte = static_cast<ui8>(ch);
+        YASSERT(BytesRead <= 0);
+        if (end - begin > -BytesRead) {
+            end = begin - BytesRead;
+        }
 
-        *(reinterpret_cast<ui64*>(&DoubleValue)) |=
-            static_cast<ui64>(byte) << (8 * (8 + BytesRead));
-        ++BytesRead;
+        if (begin != end) {
+            std::copy(begin, end, reinterpret_cast<char*>(&DoubleValue) + (8 + BytesRead));
+            BytesRead += end - begin;
+        }
 
         if (BytesRead == 0) {
             ProduceToken(ETokenType::Double);
         }
+
+        return end;
     }
 
-    bool ConsumePlus(char ch)
+    const char* ReadAfterPlus(const char* begin, const char* end)
     {
-    	if (!isdigit(ch)) {
+        if (begin == end)
+            return begin;
+
+        if (!isdigit(*begin)) {
             ProduceToken(ETokenType::Plus);
-    		return false;
+            return begin;
     	}
 
     	Reset();
         StringValue.append('+');
-        StringValue.append(ch);
-    	SetInProgressState(EInnerState::InsideNumeric);
-    	return true;
+        SetInProgressState(EInnerState::InsideNumeric);
+        return ReadNumeric(begin, end);
     }
 
     void FinishString()
@@ -473,14 +473,9 @@ TLexer::TLexer()
 TLexer::~TLexer()
 { }
 
-//bool TLexer::Consume(char ch)
-//{
-//    return Impl->Consume(ch);
-//}
-
-size_t TLexer::Consume(const TStringBuf& data)
+size_t TLexer::Read(const TStringBuf& data)
 {
-    return Impl->Consume(data);
+    return Impl->Read(data);
 }
 
 void TLexer::Finish()

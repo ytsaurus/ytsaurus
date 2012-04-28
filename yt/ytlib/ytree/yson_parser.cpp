@@ -68,36 +68,14 @@ public:
         }
     }
 
-//    void Consume(char ch)
-//    {
-//        bool consumed = false;
-//        while (!consumed) {
-//            try {
-//                consumed = Lexer.Consume(ch);
-//            } catch (const std::exception& ex) {
-//                ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
-//                    ~Stroka(ch).Quote(),
-//                    ~GetPositionInfo(),
-//                    ~CurrentExceptionMessage());
-//            }
-
-//            if (Lexer.GetState() == TLexer::EState::Terminal) {
-//                ConsumeToken(Lexer.GetToken());
-//                Lexer.Reset();
-//            }
-//        }
-
-//        OnCharConsumed(ch);
-//    }
-
-    void Consume(const TStringBuf& data)
+    void Read(const TStringBuf& data)
     {
         auto begin = data.begin();
         auto end = data.end();
         auto current = begin;
         try {
             while (current != end) {
-                auto consumed = Lexer.Consume(TStringBuf(current, end));
+                auto consumed = Lexer.Read(TStringBuf(current, end));
                 if (Lexer.GetState() == TLexer::EState::Terminal) {
                     ConsumeToken(Lexer.GetToken());
                     Lexer.Reset();
@@ -500,14 +478,9 @@ TYsonParser::TYsonParser(IYsonConsumer *consumer, EYsonType type)
 TYsonParser::~TYsonParser()
 { }
 
-//void TYsonParser::Consume(char ch)
-//{
-//    Impl->Consume(ch);
-//}
-
-void TYsonParser::Consume(const TStringBuf& data)
+void TYsonParser::Read(const TStringBuf& data)
 {
-    Impl->Consume(data);
+    Impl->Read(data);
 }
 
 void TYsonParser::Finish()
@@ -530,7 +503,7 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
             break;
         }
         // Parse the chunk.
-        parser.Consume(TStringBuf(chunk, bytesRead));
+        parser.Read(TStringBuf(chunk, bytesRead));
     }
     parser.Finish();
 }
@@ -538,7 +511,7 @@ void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 void ParseYson(const TStringBuf& yson, IYsonConsumer* consumer, EYsonType type)
 {
     TYsonParser parser(consumer, type);
-    parser.Consume(yson);
+    parser.Read(yson);
     parser.Finish();
 }
 

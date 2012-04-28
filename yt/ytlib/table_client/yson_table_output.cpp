@@ -21,7 +21,7 @@ TYsonTableOutput::~TYsonTableOutput() throw()
 
 void TYsonTableOutput::DoWrite(const void* buf, size_t len)
 {
-    YsonParser.Consume(TStringBuf(static_cast<const char*>(buf), len));
+    YsonParser.Read(TStringBuf(static_cast<const char*>(buf), len));
 }
 
 void TYsonTableOutput::DoFinish()

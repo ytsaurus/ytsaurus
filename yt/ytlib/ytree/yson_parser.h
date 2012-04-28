@@ -15,8 +15,7 @@ public:
     TYsonParser(IYsonConsumer* consumer, EYsonType type = EYsonType::Node);
     ~TYsonParser();
 
-    //void Consume(char ch);
-    void Consume(const TStringBuf& data);
+    void Read(const TStringBuf& data);
     void Finish();
 
 private:

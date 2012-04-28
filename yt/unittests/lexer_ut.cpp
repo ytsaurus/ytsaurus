@@ -35,7 +35,7 @@ public:
         size_t expected = expectedConsumed == -1
             ? input.size()
             : static_cast<size_t>(expectedConsumed);
-        EXPECT_EQ(expected, Lexer->Consume(input));
+        EXPECT_EQ(expected, Lexer->Read(input));
     }
 
     void CheckState(EState state)
@@ -87,7 +87,7 @@ public:
         size_t length = input.length();
         YASSERT(length > 0);
         TestConsume(input.Head(length - 1));
-        EXPECT_THROW(Lexer->Consume(input.Tail(length - 1)), yexception);
+        EXPECT_THROW(Lexer->Read(input.Tail(length - 1)), yexception);
         Reset();
     }
 };

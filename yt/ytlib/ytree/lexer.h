@@ -32,14 +32,18 @@ public:
      *  state. In this case the client must call #Reset and then #Consume again
      *  with the same symbol once more to proceed.
      */
-    //bool Consume(char ch);
 
-    //! Similar to the other overload but consumes symbols in a batch.
+    //! Reads data range
     /*!
+     * Throws an exception if meets an unexpected character.
+     *
      *  \param data A range to consume.
-     *  \returns the pointer to the first unconsumed symbol.
+     *  \returns Number of consumed characters. If that number is less than
+     *  the length of the data range the lexer turns to the terminal state.
+     *  In this case the client should call #Reset and then #Read
+     *  the remaining suffix to proceed.
      */
-    size_t Consume(const TStringBuf& data);
+    size_t Read(const TStringBuf& data);
 
     //! Indicates the end-of-stream.
     void Finish();
