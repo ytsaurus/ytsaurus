@@ -223,8 +223,8 @@ protected:
         UNUSED(request);
         UNUSED(response);
 
-        NYTree::TTokenizer tokens(context->GetPath());
-        if (tokens[0].IsEmpty()) {
+        NYTree::TTokenizer tokenizer(context->GetPath());
+        if (!tokenizer.ParseNext()) {
             ythrow yexception() << "Node already exists";
         }
 
@@ -561,12 +561,12 @@ protected:
 
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
-        NYTree::TTokenizer tokens(context->GetPath());
-        if (tokens[0].IsEmpty()) {
+        NYTree::TTokenizer tokenizer(context->GetPath());
+        if (tokenizer.ParseNext()) {
             ythrow yexception() << "Node already exists";
         }
 
-        tokens[0].CheckType(NYTree::ETokenType::Slash);
+        tokenizer.Current().CheckType(NYTree::ETokenType::Slash);
 
         auto objectManager = this->Bootstrap->GetObjectManager();
         auto cypressManager = this->Bootstrap->GetCypressManager();
@@ -588,7 +588,7 @@ protected:
 
         proxy->Attributes().MergeFrom(request->Attributes());
 
-        CreateRecursive(NYTree::TYPath(tokens.GetSuffix(0)), ~proxy);
+        CreateRecursive(NYTree::TYPath(tokenizer.GetCurrentSuffix()), ~proxy);
 
         *response->mutable_object_id() = nodeId.ToProto();
 

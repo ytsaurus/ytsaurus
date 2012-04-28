@@ -32,20 +32,21 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
 {
     UNUSED(verb);
 
-    TTokenizer tokens(path);
-    auto key = tokens[0].GetStringValue();
+    TTokenizer tokenizer(path);
+    tokenizer.ParseNext();
+    auto key = tokenizer.Current().GetStringValue();
 
     auto service = GetItemService(key);
     if (!service) {
         ythrow yexception() << Sprintf("Key %s is not found", ~Stroka(key).Quote());
     }
 
-    return TResolveResult::There(service, TYPath(tokens.GetSuffix(0)));
+    return TResolveResult::There(service, TYPath(tokenizer.GetCurrentSuffix()));
 }
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
-    YASSERT(TTokenizer(context->GetPath())[0].IsEmpty());
+    YASSERT(!TTokenizer(context->GetPath()).ParseNext());
 
     int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 
@@ -78,7 +79,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
 {
     UNUSED(request);
-    YASSERT(TTokenizer(context->GetPath())[0].IsEmpty());
+    YASSERT(!TTokenizer(context->GetPath()).ParseNext());
 
     auto keys = GetKeys();
     NYT::ToProto(response->mutable_keys(), keys);

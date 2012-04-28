@@ -13,11 +13,12 @@ using namespace NYTree;
 
 TYPath PreprocessYPath(const TYPath& path)
 {
-    TTokenizer tokens(path);
-    if (tokens[0].GetType() == ETokenType::Tilde) {
+    TTokenizer tokenizer(path);
+    tokenizer.ParseNext();
+    if (tokenizer.GetCurrentType() == ETokenType::Tilde) {
         auto userName = Stroka(getenv("USERNAME"));
         TYPath userDirectory = Stroka("//home/") + EscapeYPathToken(userName);
-        return userDirectory + tokens.GetSuffix(0);
+        return userDirectory + tokenizer.GetCurrentSuffix();
     }
     return path;
 }

@@ -320,15 +320,15 @@ yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 void ForceYPath(IMapNodePtr root, const TYPath& path)
 {
     INodePtr currentNode = root;
-    TTokenizer tokens(path);
-    for (int i = 0; !tokens[i].IsEmpty(); ++i) {
-        tokens[i].CheckType(ETokenType::Slash);
+    TTokenizer tokenizer(path);
+    while (tokenizer.ParseNext()) {
+        tokenizer.Current().CheckType(ETokenType::Slash);
 
         INodePtr child;
-        ++i;
-        switch (tokens[i].GetType()) {
+        tokenizer.ParseNext();
+        switch (tokenizer.GetCurrentType()) {
             case ETokenType::String: {
-                auto key = tokens[i].GetStringValue();
+                auto key = tokenizer.Current().GetStringValue();
                 child = currentNode->AsMap()->FindChild(key);
                 if (!child) {
                     auto factory = currentNode->CreateFactory();
@@ -339,12 +339,12 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
             }
 
             case ETokenType::Integer: {
-                child = currentNode->AsList()->GetChild(tokens[i].GetIntegerValue());
+                child = currentNode->AsList()->GetChild(tokenizer.Current().GetIntegerValue());
                 break;
             }
 
             default:
-                ThrowUnexpectedToken(tokens[i]);
+                ThrowUnexpectedToken(tokenizer.Current());
                 YUNREACHABLE();
         }
         currentNode = child;

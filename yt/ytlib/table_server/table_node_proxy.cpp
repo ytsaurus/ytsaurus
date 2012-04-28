@@ -379,124 +379,122 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
 
 namespace {
 
-void ParseChannel(TTokenizer& tokens, int& index, TChannel* channel)
+void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
 {
-    if (tokens[index].GetType() == ETokenType::LeftBrace) {
-        ++index;
+    if (tokenizer.GetCurrentType() == ETokenType::LeftBrace) {
+        tokenizer.ParseNext();
         *channel = TChannel::CreateEmpty();
-        while (tokens[index].GetType() != ETokenType::RightBrace) {
+        while (tokenizer.GetCurrentType() != ETokenType::RightBrace) {
             TColumn begin;
             bool isRange = false;
-            switch (tokens[index].GetType()) {
+            switch (tokenizer.GetCurrentType()) {
                 case ETokenType::String:
-                    begin.assign(tokens[index].GetStringValue());
-                    ++index;
-                    if (tokens[index].GetType() == ETokenType::Colon) {
+                    begin.assign(tokenizer.Current().GetStringValue());
+                    tokenizer.ParseNext();
+                    if (tokenizer.GetCurrentType() == ETokenType::Colon) {
                         isRange = true;
-                        ++index;
+                        tokenizer.ParseNext();
                     }
                     break;
                 case ETokenType::Colon:
                     isRange = true;
-                    ++index;
+                    tokenizer.ParseNext();
                     break;
                 default:
-                    ThrowUnexpectedToken(tokens[index]);
+                    ThrowUnexpectedToken(tokenizer.Current());
                     YUNREACHABLE();
             }
             if (isRange) {
-                switch (tokens[index].GetType()) {
+                switch (tokenizer.GetCurrentType()) {
                     case ETokenType::String: {
-                        TColumn end(tokens[index].GetStringValue());
+                        TColumn end(tokenizer.Current().GetStringValue());
                         channel->AddRange(begin, end);
-                        ++index;
+                        tokenizer.ParseNext();
                         break;
                     }
                     case ETokenType::Comma:
                         channel->AddRange(TRange(begin));
                         break;
                     default:
-                        ThrowUnexpectedToken(tokens[index]);
+                        ThrowUnexpectedToken(tokenizer.Current());
                         YUNREACHABLE();
                 }
             } else {
                 channel->AddColumn(begin);
             }
-            switch (tokens[index].GetType()) {
+            switch (tokenizer.GetCurrentType()) {
                 case ETokenType::Comma:
-                    ++index;
+                    tokenizer.ParseNext();
                     break;
                 case ETokenType::RightBrace:
                     break;
                 default:
-                    ThrowUnexpectedToken(tokens[index]);
+                    ThrowUnexpectedToken(tokenizer.Current());
                     YUNREACHABLE();
             }
         }
-        ++index;
+        tokenizer.ParseNext();
     } else {
         *channel = TChannel::CreateUniversal();
     }
 }
 
 void ParseRowLimit(
-    TTokenizer& tokens,
-    int& index,
+    TTokenizer& tokenizer,
     ETokenType separator,
     TReadLimit* limit)
 {
-    switch (tokens[index].GetType()) {
+    switch (tokenizer.GetCurrentType()) {
         case ETokenType::String:
-            limit->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
-            ++index;
+            limit->mutable_key()->add_values(Stroka(tokenizer.Current().GetStringValue()));
+            tokenizer.ParseNext();
             break;
         case ETokenType::Hash:
-            ++index;
-            limit->set_row_index(tokens[index].GetIntegerValue());
-            ++index;
+            tokenizer.ParseNext();
+            limit->set_row_index(tokenizer.Current().GetIntegerValue());
+            tokenizer.ParseNext();
             break;
         case ETokenType::LeftParenthesis:
-            ++index;
+            tokenizer.ParseNext();
             limit->mutable_key();
-            while (tokens[index].GetType() != ETokenType::RightParenthesis) {
-                limit->mutable_key()->add_values(Stroka(tokens[index].GetStringValue()));
-                ++index;
-                switch (tokens[index].GetType()) {
+            while (tokenizer.GetCurrentType() != ETokenType::RightParenthesis) {
+                limit->mutable_key()->add_values(Stroka(tokenizer.Current().GetStringValue()));
+                tokenizer.ParseNext();
+                switch (tokenizer.GetCurrentType()) {
                     case ETokenType::Comma:
-                        ++index;
+                        tokenizer.ParseNext();
                         break;
                     case ETokenType::RightParenthesis:
                         break;
                     default:
-                        ThrowUnexpectedToken(tokens[index]);
+                        ThrowUnexpectedToken(tokenizer.Current());
                         YUNREACHABLE();
                 }
             }
-            ++index;
+            tokenizer.ParseNext();
             break;
         default:
-            if (tokens[index].GetType() != separator) {
-                ThrowUnexpectedToken(tokens[index]);
+            if (tokenizer.GetCurrentType() != separator) {
+                ThrowUnexpectedToken(tokenizer.Current());
             }
             break;
     }
 
-    tokens[index].CheckType(separator);
-    ++index;
+    tokenizer.Current().CheckType(separator);
+    tokenizer.ParseNext();
 }
 
 void ParseRowLimits(
-    TTokenizer& tokens,
-    int& index,
+    TTokenizer& tokenizer,
     TReadLimit* lowerLimit,
     TReadLimit* upperLimit)
 {
     *lowerLimit = TReadLimit();
     *upperLimit = TReadLimit();
-    if (tokens[index].GetType() == ETokenType::LeftBracket) {
-        ++index;
-        ParseRowLimit(tokens, index, ETokenType::Colon, lowerLimit);
-        ParseRowLimit(tokens, index, ETokenType::RightBracket, upperLimit);
+    if (tokenizer.GetCurrentType() == ETokenType::LeftBracket) {
+        tokenizer.ParseNext();
+        ParseRowLimit(tokenizer, ETokenType::Colon, lowerLimit);
+        ParseRowLimit(tokenizer, ETokenType::RightBracket, upperLimit);
     }
 }
 
@@ -508,11 +506,10 @@ void TTableNodeProxy::ParseYPath(
     TReadLimit* lowerBound,
     TReadLimit* upperBound)
 {
-    TTokenizer tokens(path);
-    int index = 0;
-    ParseChannel(tokens, index, channel);
-    ParseRowLimits(tokens, index, lowerBound, upperBound);
-    tokens[index].CheckType(ETokenType::EndOfStream);
+    TTokenizer tokenizer(path);
+    ParseChannel(tokenizer, channel);
+    ParseRowLimits(tokenizer, lowerBound, upperBound);
+    tokenizer.Current().CheckType(ETokenType::EndOfStream);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)

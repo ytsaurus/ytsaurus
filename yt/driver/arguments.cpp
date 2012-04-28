@@ -57,16 +57,19 @@ void TArgsParserBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
     FOREACH (auto updateString, ConfigUpdatesArg.getValue()) {
         TStringBuf ypath;
 
-        TTokenizer tokens(updateString);
-        int index = 0;
-        while (tokens[index].GetType() != ETokenType::Equals) {
-            if (tokens[index].IsEmpty()) {
+        TTokenizer tokenizer(updateString);
+        tokenizer.ParseNext();
+        while (true) {
+            if (!tokenizer.ParseNext()) {
                 ythrow yexception() << "Incorrect option";
             }
-            ypath = TStringBuf(updateString).Chop(tokens.GetSuffix(index).length());
+            if (tokenizer.GetCurrentType() == ETokenType::Equals) {
+                break;
+            }
+            ypath = TStringBuf(updateString).Chop(tokenizer.GetCurrentSuffix().length());
         }
 
-        SyncYPathSet(service, TYPath(ypath), TYson(tokens.GetSuffix(index)));
+        SyncYPathSet(service, TYPath(ypath), TYson(tokenizer.GetCurrentSuffix()));
     }
 }
 

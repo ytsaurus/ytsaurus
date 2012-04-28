@@ -177,12 +177,13 @@ public:
         auto transactionManager = Bootstrap->GetTransactionManager();
         TObjectId objectId;
 
-        TTokenizer tokens(path);
-        int index = 0;
+        TTokenizer tokenizer(path);
+        tokenizer.ParseNext();
 
-        if (tokens[index].GetType() == ETokenType::Bang) {
-            auto transactionToken = tokens[index + 1].GetStringValue();
-            index += 2;
+        if (tokenizer.GetCurrentType() == ETokenType::Bang) {
+            tokenizer.ParseNext();
+            auto transactionToken = tokenizer.Current().GetStringValue();
+            tokenizer.ParseNext();
             TTransactionId transactionId;
             if (!TObjectId::FromString(transactionToken, &transactionId)) {
                 ythrow yexception() << Sprintf("Error parsing transaction id %s", ~Stroka(transactionToken).Quote());
@@ -195,11 +196,11 @@ public:
             }
         }
 
-        if (tokens[index].GetType() == ETokenType::Slash) {
+        if (tokenizer.GetCurrentType() == ETokenType::Slash) {
             objectId = cypressManager->GetRootNodeId();
-        } else if (tokens[index].GetType() == ETokenType::Hash) {
-            auto objectToken = tokens[index + 1].GetStringValue();
-            ++index;
+        } else if (tokenizer.GetCurrentType() == ETokenType::Hash) {
+            tokenizer.ParseNext();
+            auto objectToken = tokenizer.Current().GetStringValue();
             if (!TObjectId::FromString(objectToken, &objectId)) {
                 ythrow yexception() << Sprintf("Error parsing object id %s", ~Stroka(objectToken).Quote());
             }
@@ -212,7 +213,7 @@ public:
             ythrow yexception() << Sprintf("No such object %s", ~objectId.ToString());
         }
 
-        return TResolveResult::There(proxy, TYPath(tokens.GetSuffix(index)));
+        return TResolveResult::There(proxy, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
     virtual void Invoke(IServiceContext* context)
