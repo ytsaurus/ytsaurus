@@ -473,10 +473,10 @@ TLexer::TLexer()
 TLexer::~TLexer()
 { }
 
-bool TLexer::Consume(char ch)
-{
-    return Impl->Consume(ch);
-}
+//bool TLexer::Consume(char ch)
+//{
+//    return Impl->Consume(ch);
+//}
 
 size_t TLexer::Consume(const TStringBuf& data)
 {

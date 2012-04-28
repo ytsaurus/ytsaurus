@@ -37,11 +37,7 @@ void TTokenizer::ChopTo(size_t index)
 
 void TTokenizer::ChopToken(size_t position)
 {
-    while (Lexer.GetState() != TLexer::EState::Terminal && position <  Input.length()) {
-        if (Lexer.Consume(Input[position])) {
-            ++position;
-        }
-    }
+    position += Lexer.Consume(Input.SubStr(position));
     Lexer.Finish();
 
     if (Lexer.GetState() == TLexer::EState::Terminal) {

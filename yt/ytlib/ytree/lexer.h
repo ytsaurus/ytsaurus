@@ -32,7 +32,7 @@ public:
      *  state. In this case the client must call #Reset and then #Consume again
      *  with the same symbol once more to proceed.
      */
-    bool Consume(char ch);
+    //bool Consume(char ch);
 
     //! Similar to the other overload but consumes symbols in a batch.
     /*!

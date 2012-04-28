@@ -68,27 +68,27 @@ public:
         }
     }
 
-    void Consume(char ch)
-    {
-        bool consumed = false;
-        while (!consumed) {
-            try {
-                consumed = Lexer.Consume(ch);
-            } catch (const std::exception& ex) {
-                ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
-                    ~Stroka(ch).Quote(),
-                    ~GetPositionInfo(),
-                    ~CurrentExceptionMessage());
-            }
+//    void Consume(char ch)
+//    {
+//        bool consumed = false;
+//        while (!consumed) {
+//            try {
+//                consumed = Lexer.Consume(ch);
+//            } catch (const std::exception& ex) {
+//                ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
+//                    ~Stroka(ch).Quote(),
+//                    ~GetPositionInfo(),
+//                    ~CurrentExceptionMessage());
+//            }
 
-            if (Lexer.GetState() == TLexer::EState::Terminal) {
-                ConsumeToken(Lexer.GetToken());
-                Lexer.Reset();
-            }
-        }
+//            if (Lexer.GetState() == TLexer::EState::Terminal) {
+//                ConsumeToken(Lexer.GetToken());
+//                Lexer.Reset();
+//            }
+//        }
 
-        OnCharConsumed(ch);
-    }
+//        OnCharConsumed(ch);
+//    }
 
     void Consume(const TStringBuf& data)
     {
@@ -500,10 +500,10 @@ TYsonParser::TYsonParser(IYsonConsumer *consumer, EYsonType type)
 TYsonParser::~TYsonParser()
 { }
 
-void TYsonParser::Consume(char ch)
-{
-    Impl->Consume(ch);
-}
+//void TYsonParser::Consume(char ch)
+//{
+//    Impl->Consume(ch);
+//}
 
 void TYsonParser::Consume(const TStringBuf& data)
 {
