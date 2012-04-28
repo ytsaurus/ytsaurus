@@ -12,6 +12,11 @@ IOperationControllerPtr CreateMergeController(
     IOperationHost* host,
     TOperation* operation);
 
+IOperationControllerPtr CreateEraseController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

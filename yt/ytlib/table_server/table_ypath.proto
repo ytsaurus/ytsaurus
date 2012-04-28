@@ -23,6 +23,8 @@ message TReqFetch
     optional bool fetch_holder_addresses = 1;
     optional bool fetch_chunk_attributes = 2;
 
+    // Indicates if the negated (i.e. not matching the filters) part
+    // of the row set must be returned.
     required bool negate = 3 [default = false];
 }
 

@@ -836,6 +836,21 @@ IOperationControllerPtr CreateMergeController(
     }
 }
 
+IOperationControllerPtr CreateEraseController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto spec = New<TEraseOperationSpec>();
+    try {
+        spec->Load(~operation->GetSpec());
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+    }
+
+    YUNREACHABLE();
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
