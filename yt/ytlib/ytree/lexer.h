@@ -39,7 +39,7 @@ public:
      *  \param data A range to consume.
      *  \returns the pointer to the first unconsumed symbol.
      */
-    const char* Consume(const TStringBuf& data);
+    size_t Consume(const TStringBuf& data);
 
     //! Indicates the end-of-stream.
     void Finish();

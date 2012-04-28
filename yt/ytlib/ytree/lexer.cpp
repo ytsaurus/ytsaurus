@@ -98,10 +98,10 @@ public:
         }
     }
 
-    const char* Consume(const TStringBuf& data)
+    size_t Consume(const TStringBuf& data)
     {
-        auto begin = data.begin();
-        auto end = data.end();
+        const auto begin = data.begin();
+        const auto end = data.end();
         auto current = begin;
         while (current != end) {
             // NB: Conditions order is optimized for quick rejection.
@@ -114,14 +114,14 @@ public:
                 int bytesNeeded = -BytesRead;
                 if (bytesRemaining < bytesNeeded) {
                     StringValue.append(current, end);
+                    current = end;
                     BytesRead += bytesRemaining;
-                    return end;
                 } else {
                     StringValue.append(current, current + bytesNeeded);
+                    current += bytesNeeded;
                     // NB: Setting BytesRead to zero is redundant.
                     FinishString();
                     YASSERT(State_ == EState::Terminal);
-                    return current + bytesNeeded;
                 }
             } else {
                 // Fallback to the usual, symbol-by-symbol version.
@@ -133,7 +133,7 @@ public:
                 }
             }
         }
-        return current;
+        return current - begin;
     }
 
     void Finish()
@@ -478,7 +478,7 @@ bool TLexer::Consume(char ch)
     return Impl->Consume(ch);
 }
 
-const char* TLexer::Consume(const TStringBuf& data)
+size_t TLexer::Consume(const TStringBuf& data)
 {
     return Impl->Consume(data);
 }

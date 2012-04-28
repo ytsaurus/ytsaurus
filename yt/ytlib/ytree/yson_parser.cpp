@@ -97,13 +97,13 @@ public:
         auto current = begin;
         try {
             while (current != end) {
-                auto firstUnconsumed = Lexer.Consume(TStringBuf(current, end));
+                auto consumed = Lexer.Consume(TStringBuf(current, end));
                 if (Lexer.GetState() == TLexer::EState::Terminal) {
                     ConsumeToken(Lexer.GetToken());
                     Lexer.Reset();
                 }
-                OnRangeConsumed(current, firstUnconsumed);
-                current = firstUnconsumed;
+                OnRangeConsumed(current, current + consumed);
+                current += consumed;
             }
         } catch (const std::exception& ex) {
             ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
@@ -522,10 +522,6 @@ const size_t ParseChunkSize = 1024;
 void ParseYson(TInputStream* input, IYsonConsumer* consumer, EYsonType type)
 {
     TYsonParser parser(consumer, type);
-    //char ch;
-    //while (input->ReadChar(ch)) {
-    //    parser.Consume(ch);
-    //}
     char chunk[ParseChunkSize];
     while (true) {
         // Read a chunk.
