@@ -281,42 +281,45 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
     template <class T> \
     TParameter<T>& TParameter<T>::method \
     { \
-        return CheckThat(BIND([=] (const T& parameter) \
-            { \
+        return CheckThat(BIND([=] (const T& parameter) { \
+            TNullable<TValueType> nullableParameter(parameter); \
+            if (nullableParameter) { \
+                const TValueType& actual = nullableParameter.Get(); \
                 if (!(condition)) { \
                     ythrow (ex); \
                 } \
-            })); \
+            } \
+        })); \
     }
 
 DEFINE_VALIDATOR(
-    GreaterThan(T value),
-    parameter > value,
-    yexception() << "Validation failure: expected >" << value << ", found " << parameter)
+    GreaterThan(TValueType expected),
+    actual > expected,
+    yexception() << "Validation failure: expected >" << expected << ", found " << actual)
 
 DEFINE_VALIDATOR(
-    GreaterThanOrEqual(T value),
-    parameter >= value,
-    yexception() << "Validation failure: expected >=" << value << ", found " << parameter)
+    GreaterThanOrEqual(TValueType expected),
+    actual >= expected,
+    yexception() << "Validation failure: expected >=" << expected << ", found " << actual)
 
 DEFINE_VALIDATOR(
-    LessThan(T value),
-    parameter < value,
-    yexception() << "Validation failure: expected <" << value << ", found " << parameter)
+    LessThan(TValueType expected),
+    actual < expected,
+    yexception() << "Validation failure: expected <" << expected << ", found " << actual)
 
 DEFINE_VALIDATOR(
-    LessThanOrEqual(T value),
-    parameter <= value,
-    yexception() << "Validation failure: expected <=" << value << ", found " << parameter)
+    LessThanOrEqual(TValueType expected),
+    actual <= expected,
+    yexception() << "Validation failure: expected <=" << expected << ", found " << actual)
 
 DEFINE_VALIDATOR(
-    InRange(T lowerBound, T upperBound),
-    lowerBound <= parameter && parameter <= upperBound,
-    yexception() << "Validation failure: expected in range ["<< lowerBound << ", " << upperBound << "], found " << parameter)
+    InRange(TValueType lowerBound, TValueType upperBound),
+    lowerBound <= actual && actual <= upperBound,
+    yexception() << "Validation failure: expected in range ["<< lowerBound << ", " << upperBound << "], found " << actual)
 
 DEFINE_VALIDATOR(
     NonEmpty(),
-    parameter.size() > 0,
+    actual.size() > 0,
     yexception() << "Validation failure: expected non-empty")
 
 #undef DEFINE_VALIDATOR

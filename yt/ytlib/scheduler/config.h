@@ -63,9 +63,9 @@ struct TOperationSpecBase
     TOperationSpecBase()
     {
         SetKeepOptions(true);
-        // TODO(babenko): validate > 0
         Register("job_count", JobCount)
-            .Default();
+            .Default()
+            .GreaterThan(0);
         Register("job_io", JobIO)
             .DefaultNew();
     }
