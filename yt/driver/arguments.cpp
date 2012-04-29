@@ -55,19 +55,14 @@ TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
 void TArgsParserBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
 {
     FOREACH (auto updateString, ConfigUpdatesArg.getValue()) {
-        TStringBuf ypath;
-
         TTokenizer tokenizer(updateString);
-        while (true) {
+        tokenizer.ParseNext();
+        while (tokenizer.GetCurrentType() != ETokenType::Equals) {
             if (!tokenizer.ParseNext()) {
                 ythrow yexception() << "Incorrect option";
             }
-            if (tokenizer.GetCurrentType() == ETokenType::Equals) {
-                break;
-            }
-            ypath = TStringBuf(updateString).Chop(tokenizer.GetCurrentSuffix().length());
         }
-
+        TStringBuf ypath = TStringBuf(updateString).Chop(tokenizer.GetCurrentInput().length());
         SyncYPathSet(service, TYPath(ypath), TYson(tokenizer.GetCurrentSuffix()));
     }
 }
