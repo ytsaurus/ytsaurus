@@ -545,7 +545,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }
         const auto& lowerBound = lowerLimit.key();
         const auto* upperBound = upperLimit.has_key() ? &upperLimit.key() : NULL;
-        //if (!upperBound || *upperBound > lowerBound) {
+        if (!upperBound || *upperBound > lowerBound) {
             if (request->has_negate() && request->negate()) {
                 TraverseChunkTree(chunkList, NTableClient::NProto::TKey(), &lowerBound, response);
                 if (upperBound) {
@@ -554,13 +554,13 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
             } else {
                 TraverseChunkTree(chunkList, lowerBound, upperBound, response);
             }
-        //}
+        }
     } else {
         i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
         auto upperBound = upperLimit.has_row_index()
             ? MakeNullable(upperLimit.row_index())
             : Null;
-        //if (!upperBound || *upperBound > lowerBound) {
+        if (!upperBound || *upperBound > lowerBound) {
             if (request->has_negate() && request->negate()) {
                 TraverseChunkTree(chunkList, 0, lowerBound, response);
                 if (upperBound) {
@@ -569,7 +569,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
             } else {
                 TraverseChunkTree(chunkList, lowerBound, upperBound, response);
             }
-        //}
+        }
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
