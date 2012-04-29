@@ -562,7 +562,7 @@ protected:
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
         NYTree::TTokenizer tokenizer(context->GetPath());
-        if (tokenizer.ParseNext()) {
+        if (!tokenizer.ParseNext()) {
             ythrow yexception() << "Node already exists";
         }
 
