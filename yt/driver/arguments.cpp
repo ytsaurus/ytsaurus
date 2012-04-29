@@ -58,7 +58,6 @@ void TArgsParserBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
         TStringBuf ypath;
 
         TTokenizer tokenizer(updateString);
-        tokenizer.ParseNext();
         while (true) {
             if (!tokenizer.ParseNext()) {
                 ythrow yexception() << "Incorrect option";
