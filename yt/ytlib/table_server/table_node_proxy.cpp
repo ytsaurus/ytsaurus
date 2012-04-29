@@ -507,6 +507,7 @@ void TTableNodeProxy::ParseYPath(
     TReadLimit* upperBound)
 {
     TTokenizer tokenizer(path);
+    tokenizer.ParseNext();
     ParseChannel(tokenizer, channel);
     ParseRowLimits(tokenizer, lowerBound, upperBound);
     tokenizer.Current().CheckType(ETokenType::EndOfStream);
