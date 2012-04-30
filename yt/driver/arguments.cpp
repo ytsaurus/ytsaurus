@@ -439,7 +439,7 @@ void TEraseArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto output = PreprocessYPath(OutArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("merge")
+        .Item("do").Scalar("erase")
         .Item("spec").BeginMap()
             .Item("input_table_path").Scalar(input)
             .Item("output_table_path").Scalar(output)
