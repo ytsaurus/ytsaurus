@@ -562,15 +562,12 @@ protected:
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
         NYTree::TTokenizer tokenizer(context->GetPath());
-        if (tokenizer.ParseNext()) {
+        if (!tokenizer.ParseNext()) {
             ythrow yexception() << "Node already exists";
         }
-
         tokenizer.Current().CheckType(NYTree::ETokenType::Slash);
 
-        auto objectManager = this->Bootstrap->GetObjectManager();
         auto cypressManager = this->Bootstrap->GetCypressManager();
-        auto transactionManager = this->Bootstrap->GetTransactionManager();
 
         auto handler = cypressManager->FindHandler(type);
         if (!handler) {
