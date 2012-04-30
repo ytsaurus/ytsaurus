@@ -48,8 +48,8 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-NLog::TLogger& Logger = SchedulerLogger;
-NProfiling::TProfiler& Profiler = SchedulerProfiler;
+static NLog::TLogger& Logger = SchedulerLogger;
+static NProfiling::TProfiler& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -492,8 +492,6 @@ private:
             }
             LOG_INFO("Lock taken");
 
-            // TODO(babenko): listen to bootstrap transaction to make it is alive
-
             LOG_INFO("Publishing scheduler address");
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@address");
@@ -506,17 +504,17 @@ private:
             }
             LOG_INFO("Scheduler address published");
 
-            LOG_INFO("Registering at orchid");
-            {
-                auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_address");
-                req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
-                auto rsp = CypressProxy.Execute(req).Get();
-                if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to register at orchid\n%s",
-                        ~rsp->GetError().ToString());
-                }
-            }
-            LOG_INFO("Registered at orchid");
+            //LOG_INFO("Registering at orchid");
+            //{
+            //    auto req = TYPathProxy::Set("//sys/scheduler/orchid/@remote_address");
+            //    req->set_value(SerializeToYson(Bootstrap->GetPeerAddress()));
+            //    auto rsp = CypressProxy.Execute(req).Get();
+            //    if (!rsp->IsOK()) {
+            //        ythrow yexception() << Sprintf("Failed to register at orchid\n%s",
+            //            ~rsp->GetError().ToString());
+            //    }
+            //}
+            //LOG_INFO("Registered at orchid");
         } catch (...) {
             // Abort the bootstrap transaction (will need a new one anyway).
             BootstrapTransaction->Abort();
@@ -817,10 +815,10 @@ private:
         switch (operation->GetType()) {
             case EOperationType::Map:
                 return CreateMapController(Config, this, operation);
-                break;
             case EOperationType::Merge:
                 return CreateMergeController(Config, this, operation);
-                break;
+            case EOperationType::Erase:
+                return CreateEraseController(Config, this, operation);
             default:
                 YUNREACHABLE();
         }

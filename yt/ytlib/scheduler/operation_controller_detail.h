@@ -54,15 +54,14 @@ protected:
 
     // Remains True as long as the operation is not failed, completed, or aborted.
     bool Active;
+
     // Remains True as long as the operation can schedule new jobs.
     bool Running;
 
     // Fixed during init time, used to compute job count.
     int ExecNodeCount;
 
-    // Running counters.
     TProgressCounter JobCounter;
-
     TChunkListPoolPtr ChunkListPool;
 
     // The primary transaction for the whole operation (nested inside operation's transaction).
@@ -77,8 +76,15 @@ protected:
     // Input tables.
     struct TInputTable
     {
+        TInputTable()
+            : NegateFetch(false)
+            , Sorted(false)
+        { }
+
         NYTree::TYPath Path;
         NTableServer::TTableYPathProxy::TRspFetch::TPtr FetchResponse;
+        bool NegateFetch;
+        bool Sorted;
     };
 
     std::vector<TInputTable> InputTables;
@@ -86,11 +92,18 @@ protected:
     // Output tables.
     struct TOutputTable
     {
+        TOutputTable()
+            : InitialRowCount(0)
+            , SetSorted(false)
+        { }
+
+        i64 InitialRowCount;
+        bool SetSorted;
         NYTree::TYPath Path;
         NYTree::TYson Schema;
         // Chunk list for appending the output.
         NChunkServer::TChunkListId OutputChunkListId;
-        // Chunk trees comprising the output (the order matters!)
+        // Chunk trees comprising the output (the order matters).
         std::vector<NChunkServer::TChunkTreeId> PartitionTreeIds;
     };
 
@@ -105,6 +118,7 @@ protected:
 
     std::vector<TFile> Files;
 
+    // Job handlers.
     struct TJobHandlers
         : public TIntrinsicRefCounted
     {
@@ -116,10 +130,13 @@ protected:
 
     yhash_map<TJobPtr, TJobHandlersPtr> JobHandlers;
 
+    // The set of all input chunks. Used in #OnChunkFailed.
+    yhash_set<NChunkServer::TChunkId> InputChunkIds;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
 
-    virtual void DoInitialize() = 0;
+    virtual void CustomInitialize();
     virtual bool HasPendingJobs() = 0;
     virtual void LogProgress() = 0;
     virtual void DoGetProgress(NYTree::IYsonConsumer* consumer) = 0;
@@ -179,7 +196,8 @@ protected:
     void OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
-    virtual void RequestCustomInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    virtual void CustomRequestInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+
     //! Extensibility point for handling additional info from master.
     virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
@@ -193,7 +211,7 @@ protected:
 
     void CompletePreparation();
 
-    virtual void DoCompletePreparation() = 0;
+    virtual void CustomCompletePreparation() = 0;
 
 
     // Here comes the completion pipeline.
@@ -212,8 +230,24 @@ protected:
 
     //! Extensibility point for additional finalization logic.
     virtual void CommitCustomOutputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+
     //! Extensibility point for handling additional finalization outcome.
     virtual void OnCustomOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+
+    //! Called when a job is unable to read a chunk.
+    void OnChunkFailed(const NChunkServer::TChunkId& chunkId);
+
+    //! Called when a job is unable to read a chunk that is not a part of the input.
+    /*!
+     *  The default implementation calls |YUNREACHABLE|.
+     */
+    virtual void OnIntermediateChunkFailed(const NChunkServer::TChunkId& chunkId);
+
+    //! Called when a job is unable to read an input chunk.
+    /*!
+     *  The operation fails immediately.
+     */
+    void OnInputChunkFailed(const NChunkServer::TChunkId& chunkId);
 
     // Abort is not a pipeline really :)
 
@@ -226,7 +260,10 @@ protected:
 
 
     // Unsorted helpers.
-    bool CheckChunkListsPoolSize(int count);
+    void CheckInputTablesSorted();
+    void CheckOutputTablesEmpty();
+    void SetOutputTablesSorted();
+    bool CheckChunkListsPoolSize(int minSize);
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
     void OnChunkListsReleased(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
