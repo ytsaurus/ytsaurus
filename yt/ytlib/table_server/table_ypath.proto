@@ -25,7 +25,7 @@ message TReqFetch
 
     // Indicates if the negated (i.e. not matching the filters) part
     // of the row set must be returned.
-    required bool negate = 3 [default = false];
+    optional bool negate = 3 [default = false];
 }
 
 message TRspFetch
@@ -35,8 +35,8 @@ message TRspFetch
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Raises Sets "Sorted" flag for the root chunk list of the table.
-// No checks are done, it's caller's responsibility to ensure proper row order.
+// Raises "sorted" flag for the root chunk list of the table.
+// No checks are performed, it's caller's responsibility to ensure proper row order.
 message TReqSetSorted
 { }
 
