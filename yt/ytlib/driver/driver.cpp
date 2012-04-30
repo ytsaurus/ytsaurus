@@ -151,6 +151,7 @@ public:
 
         RegisterCommand("map", New<TMapCommand>(this));
         RegisterCommand("merge", New<TMergeCommand>(this));
+        RegisterCommand("erase", New<TEraseCommand>(this));
         RegisterCommand("abort_op", New<TAbortOperationCommand>(this));
     }
 
