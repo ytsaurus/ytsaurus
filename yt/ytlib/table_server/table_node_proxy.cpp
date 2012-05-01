@@ -26,7 +26,6 @@ using namespace NTransactionServer;
 
 using NTableClient::NProto::TReadLimit;
 using NTableClient::NProto::TKey;
-using NTableServer::NProto::TRspFetch;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,11 +51,13 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
 
 IYPathService::TResolveResult TTableNodeProxy::Resolve(const TYPath& path, const Stroka& verb)
 {
-    // Resolve to self to handle channels and ranges.
-    if (verb == "Fetch") {
+    // |Fetch| and |GetId| can actually handle path suffix while others can't.
+    // NB: |GetId| "handles" suffixes by ignoring them
+    // (provided |allow_nonempty_path_suffix| is True).
+    if (verb == "GetId" || verb == "Fetch") {
         return TResolveResult::Here(path);
     }
-    return TBase::Resolve(path, verb);
+    return TCypressNodeProxyBase::Resolve(path, verb);
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
@@ -155,7 +156,8 @@ void TTableNodeProxy::TraverseChunkTree(
 }
 
 namespace {
-NTableClient::NProto::TKey GetMinKey(const TChunkTreeRef& ref)
+
+TKey GetMinKey(const TChunkTreeRef& ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk: {
@@ -172,7 +174,7 @@ NTableClient::NProto::TKey GetMinKey(const TChunkTreeRef& ref)
     }
 }
 
-NTableClient::NProto::TKey GetMaxKey(const TChunkTreeRef& ref)
+TKey GetMaxKey(const TChunkTreeRef& ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk: {
@@ -189,7 +191,7 @@ NTableClient::NProto::TKey GetMaxKey(const TChunkTreeRef& ref)
     }
 }
 
-bool LessComparer(const TChunkTreeRef& ref, const NTableClient::NProto::TKey& key)
+bool LessComparer(const TChunkTreeRef& ref, const TKey& key)
 {
     return GetMinKey(ref) < key;
 }
@@ -230,12 +232,12 @@ ForwardIterator LowerBound(ForwardIterator first, ForwardIterator last, const TK
     return first;
 }
 
-}
+} // namespace
 
 void TTableNodeProxy::TraverseChunkTree(
     const TChunkList* chunkList,
-    const NTableClient::NProto::TKey& lowerBound,
-    const NTableClient::NProto::TKey* upperBound,
+    const TKey& lowerBound,
+    const TKey* upperBound,
     NProto::TRspFetch* response)
 {
     if (chunkList->Children().empty()) {
@@ -546,8 +548,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         const auto& lowerBound = lowerLimit.key();
         const auto* upperBound = upperLimit.has_key() ? &upperLimit.key() : NULL;
         if (!upperBound || *upperBound > lowerBound) {
-            if (request->has_negate() && request->negate()) {
-                TraverseChunkTree(chunkList, NTableClient::NProto::TKey(), &lowerBound, response);
+            if (request->negate()) {
+                TraverseChunkTree(chunkList, TKey(), &lowerBound, response);
                 if (upperBound) {
                     TraverseChunkTree(chunkList, *upperBound, NULL, response);
                 }
@@ -557,11 +559,9 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }
     } else {
         i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
-        auto upperBound = upperLimit.has_row_index()
-            ? MakeNullable(upperLimit.row_index())
-            : Null;
+        auto upperBound = upperLimit.has_row_index() ? MakeNullable(upperLimit.row_index()) : Null;
         if (!upperBound || *upperBound > lowerBound) {
-            if (request->has_negate() && request->negate()) {
+            if (request->negate()) {
                 TraverseChunkTree(chunkList, 0, lowerBound, response);
                 if (upperBound) {
                     TraverseChunkTree(chunkList, *upperBound, Null, response);
