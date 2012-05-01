@@ -64,9 +64,10 @@ class TCypressManager::TLockProxy
 public:
     TLockProxy(TCypressManagerPtr owner, const TLockId& id)
         : TBase(owner->Bootstrap, id, &owner->LockMap)
-        , TYPathServiceBase(NCypress::Logger.GetCategory())
         , Owner(owner)
-    { }
+    {
+        Logger = NCypress::Logger;
+    }
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
@@ -509,6 +510,7 @@ void TCypressManager::ValidateLock(
     bool* isMandatory)
 {
     YASSERT(requestedMode != ELockMode::None);
+    YASSERT(isMandatory);
 
     // Check if the node supports this particular mode at all.
     auto handler = GetHandler(TypeFromId(nodeId));
@@ -562,7 +564,7 @@ void TCypressManager::ValidateLock(
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is already taken",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
-                    ~FormatEnum(node.GetLockMode()).Quote());
+                    ~FormatEnum(lock->GetMode()).Quote());
             }
         } else {
             // Check for locks taken by the other transactions.

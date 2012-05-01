@@ -21,10 +21,6 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPathServiceBase::TYPathServiceBase(const Stroka& loggingCategory)
-    : Logger(loggingCategory)
-{ }
-
 IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, const Stroka& verb)
 {
     TTokenizer tokenizer(path);

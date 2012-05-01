@@ -45,8 +45,9 @@ public:
     typedef std::pair<TSamplesIterator, TSamplesIterator> TSamplesRange;
 
     TBucket()
-        : TYPathServiceBase(NProfiling::Logger.GetCategory())
-    { }
+    {
+        Logger = NProfiling::Logger;
+    }
 
     //! Adds a new sample to the bucket inserting in at an appropriate position.
     void AddSample(const TStoredSample& sample)

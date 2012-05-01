@@ -6,6 +6,7 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/tokenizer.h>
 #include <ytlib/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -94,7 +95,15 @@ const IAttributeDictionary& TObjectProxyBase::Attributes() const
 
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
-    UNUSED(request);
+    context->SetRequestInfo("AllowNonemptyPathSuffix: ",
+        ~FormatBool(request->allow_nonempty_path_suffix()));
+
+    if (!request->allow_nonempty_path_suffix()) {
+        TTokenizer tokenizer(context->GetPath());
+        if (tokenizer.ParseNext()) {
+            ythrow yexception() << Sprintf("Unexpected path suffix %s", ~context->GetPath());
+        }
+    }
 
     *response->mutable_object_id() = Id.ToProto();
     context->Reply();

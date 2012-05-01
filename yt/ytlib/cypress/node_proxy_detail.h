@@ -66,7 +66,6 @@ public:
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
         : NObjectServer::TObjectProxyBase(bootstrap, nodeId)
-        , NYTree::TYPathServiceBase("Cypress")
         , TypeHandler(typeHandler)
         , Bootstrap(bootstrap)
         , Transaction(transaction)
@@ -74,6 +73,8 @@ public:
     {
         YASSERT(typeHandler);
         YASSERT(bootstrap);
+
+        Logger = NLog::TLogger("Cypress");
     }
 
     NYTree::INodeFactoryPtr CreateFactory() const
@@ -191,6 +192,7 @@ protected:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
+        DISPATCH_YPATH_SERVICE_METHOD(GetId);
         DISPATCH_YPATH_SERVICE_METHOD(Lock);
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         TNodeBase::DoInvoke(context);
@@ -565,12 +567,9 @@ protected:
         if (!tokenizer.ParseNext()) {
             ythrow yexception() << "Node already exists";
         }
-
         tokenizer.Current().CheckType(NYTree::ETokenType::Slash);
 
-        auto objectManager = this->Bootstrap->GetObjectManager();
         auto cypressManager = this->Bootstrap->GetCypressManager();
-        auto transactionManager = this->Bootstrap->GetTransactionManager();
 
         auto handler = cypressManager->FindHandler(type);
         if (!handler) {

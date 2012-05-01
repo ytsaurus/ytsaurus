@@ -5,7 +5,9 @@ import "yt/ytlib/misc/guid.proto";
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetId
-{ }
+{
+    optional bool allow_nonempty_path_suffix = 1 [default = false];
+}
 
 message TRspGetId
 {

@@ -193,7 +193,7 @@ TMapCommand::TMapCommand(ICommandHost* host)
     , TSchedulerCommandBase(host)
 { }
 
-void TMapCommand::DoExecute(TMapRequestPtr request)
+void TMapCommand::DoExecute(TSchedulerRequestPtr request)
 {
     StartOperation(
         request,
@@ -210,11 +210,27 @@ TMergeCommand::TMergeCommand(ICommandHost* host)
     , TSchedulerCommandBase(host)
 { }
 
-void TMergeCommand::DoExecute(TMergeRequestPtr request)
+void TMergeCommand::DoExecute(TSchedulerRequestPtr request)
 {
     StartOperation(
         request,
         EOperationType::Merge,
+        SerializeToYson(request->Spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEraseCommand::TEraseCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+    , TSchedulerCommandBase(host)
+{ }
+
+void TEraseCommand::DoExecute(TSchedulerRequestPtr request)
+{
+    StartOperation(
+        request,
+        EOperationType::Erase,
         SerializeToYson(request->Spec));
 }
 

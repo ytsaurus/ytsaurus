@@ -120,5 +120,23 @@ struct TMergeOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TEraseOperationSpec
+    : public TOperationSpecBase
+{
+    NYTree::TYPath InputTablePath;
+    NYTree::TYPath OutputTablePath;
+    bool CombineChunks;
+
+    TEraseOperationSpec()
+    {
+        Register("input_table_path", InputTablePath);
+        Register("output_table_path", OutputTablePath);
+        Register("combine_chunks", CombineChunks)
+            .Default(false);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT

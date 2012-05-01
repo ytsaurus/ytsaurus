@@ -417,6 +417,35 @@ void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEraseArgsParser::TEraseArgsParser()
+    : InArg("", "in", "input table", false, "", "ypath")
+    , OutArg("", "out", "output table", false, "", "ypath")
+    , CombineArg("", "combine", "combine small output chunks into larger ones")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(CombineArg);
+}
+
+void TEraseArgsParser::BuildCommand(IYsonConsumer* consumer)
+{
+    auto input = PreprocessYPath(InArg.getValue());
+    auto output = PreprocessYPath(OutArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("do").Scalar("erase")
+        .Item("spec").BeginMap()
+            .Item("input_table_path").Scalar(input)
+            .Item("output_table_path").Scalar(output)
+            .Item("combine_chunks").Scalar(CombineArg.getValue())
+            .Do(BIND(&TEraseArgsParser::BuildOptions, Unretained(this)))
+        .EndMap();
+
+    TTransactedArgsParser::BuildCommand(consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAbortOpArgsParser::TAbortOpArgsParser()
     : OpArg("", "op", "id of an operation that must be aborted", true, "", "operation_id")
 {
@@ -427,8 +456,7 @@ void TAbortOpArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("abort_op")
-        .Item("operation_id").Scalar(OpArg.getValue())
-        .EndMap();
+        .Item("operation_id").Scalar(OpArg.getValue());
 
     TArgsParserBase::BuildCommand(consumer);
 }

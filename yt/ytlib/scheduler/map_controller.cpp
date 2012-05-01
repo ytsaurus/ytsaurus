@@ -33,17 +33,18 @@ class TMapController
 public:
     TMapController(
         TSchedulerConfigPtr config,
+        TMapOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : Config(config)
-        , TOperationControllerBase(config, host, operation)
+        : TOperationControllerBase(config, host, operation)
+        , Config(config)
+        , Spec(spec)
     { }
 
 private:
     typedef TMapController TThis;
 
     TSchedulerConfigPtr Config;
-
     TMapOperationSpecPtr Spec;
 
     // Running counters.
@@ -56,16 +57,6 @@ private:
     TJobSpec JobSpecTemplate;
 
     // Init/finish.
-
-    virtual void DoInitialize()
-    {
-        Spec = New<TMapOperationSpec>();
-        try {
-            Spec->Load(~Operation->GetSpec());
-        } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
-        }
-    }
 
     virtual bool HasPendingJobs()
     {
@@ -176,7 +167,7 @@ private:
         return Spec->FilePaths;
     }
 
-    virtual void DoCompletePreparation()
+    virtual void CustomCompletePreparation()
     {
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
@@ -314,7 +305,14 @@ IOperationControllerPtr CreateMapController(
     IOperationHost* host,
     TOperation* operation)
 {
-    return New<TMapController>(config, host, operation);
+    auto spec = New<TMapOperationSpec>();
+    try {
+        spec->Load(~operation->GetSpec());
+    } catch (const std::exception& ex) {
+        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+    }
+
+    return New<TMapController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

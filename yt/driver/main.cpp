@@ -171,6 +171,7 @@ public:
 
         RegisterParser("map", New<TMapArgsParser>());
         RegisterParser("merge", New<TMergeArgsParser>());
+        RegisterParser("erase", New<TEraseArgsParser>());
         RegisterParser("abort_op", New<TAbortOpArgsParser>());
     }
 
