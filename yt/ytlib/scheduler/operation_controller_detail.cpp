@@ -4,6 +4,7 @@
 #include "chunk_list_pool.h"
 
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
+#include <ytlib/object_server/object_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/actions/async_pipeline.h>
 
@@ -17,6 +18,7 @@ using namespace NTransactionServer;
 using namespace NFileServer;
 using namespace NTableServer;
 using namespace NChunkServer;
+using namespace NObjectServer;
 using namespace NYTree;
 using namespace NTableClient::NProto;
 
@@ -88,6 +90,8 @@ TFuture<void> TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
         ->Add(BIND(&TThis::StartSeconaryTransactions, MakeStrong(this)))
         ->Add(BIND(&TThis::OnSecondaryTransactionsStarted, MakeStrong(this)))
+        ->Add(BIND(&TThis::GetObjectIds, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnObjectIdsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
@@ -310,6 +314,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
     auto batchReq = CypressProxy.ExecuteBatch();
 
     FOREACH (const auto& table, OutputTables) {
+        auto ypath = FromObjectId(table.ObjectId);
         {
             auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
             FOREACH (const auto& childId, table.PartitionTreeIds) {
@@ -318,7 +323,7 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
             batchReq->AddRequest(req, "attach_out");
         }
         if (table.SetSorted) {
-            auto req = TTableYPathProxy::SetSorted(WithTransaction(table.Path, OutputTransaction->GetId()));
+            auto req = TTableYPathProxy::SetSorted(WithTransaction(ypath, OutputTransaction->GetId()));
             batchReq->AddRequest(req, "set_out_sorted");
         }
     }
@@ -379,8 +384,6 @@ void TOperationControllerBase::OnOutputsCommitted(TCypressServiceProxy::TRspExec
     }
 
     LOG_INFO("Outputs committed");
-
-    return void();
 }
 
 void TOperationControllerBase::CommitCustomOutputs(TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
@@ -426,8 +429,6 @@ void TOperationControllerBase::OnPrimaryTransactionStarted(TCypressServiceProxy:
         LOG_INFO("Primary transaction is %s", ~id.ToString());
         PrimaryTransaction = Host->GetTransactionManager()->Attach(id);
     }
-
-    return void();
 }
 
 TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTransactions()
@@ -474,8 +475,66 @@ void TOperationControllerBase::OnSecondaryTransactionsStarted(TCypressServicePro
         LOG_INFO("Output transaction is %s", ~id.ToString());
         OutputTransaction = Host->GetTransactionManager()->Attach(id);
     }
+}
 
-    return void();
+TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    LOG_INFO("Getting object ids");
+
+    auto batchReq = CypressProxy.ExecuteBatch();
+
+    FOREACH (const auto& table, InputTables) {
+        auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path, InputTransaction->GetId()));
+        req->set_allow_nonempty_path_suffix(true);
+        batchReq->AddRequest(req, "get_in_id");
+    }
+
+    FOREACH (const auto& table, OutputTables) {
+        auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path, InputTransaction->GetId()));
+        // TODO(babenko): should we allow nonempty path suffixes for output tables as well?
+        batchReq->AddRequest(req, "get_out_id");
+    }
+
+    return batchReq->Invoke();
+}
+
+void TOperationControllerBase::OnObjectIdsReceived(TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    CheckResponse(batchRsp, "Error getting object ids");
+
+    {
+        auto getInIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetId>("get_in_id");
+        for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
+            auto& table = InputTables[index];
+            {
+                auto rsp = getInIdRsps[index];
+                CheckResponse(
+                    rsp,
+                    Sprintf("Error getting id for input table %s", ~table.Path));
+                table.ObjectId = TObjectId::FromProto(rsp->object_id());
+            }
+        }
+    }
+
+    {
+        auto getOutIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetId>("get_out_id");
+        for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
+            auto& table = OutputTables[index];
+            {
+                auto rsp = getOutIdRsps[index];
+                CheckResponse(
+                    rsp,
+                    Sprintf("Error getting id for output table %s", ~table.Path));
+                table.ObjectId = TObjectId::FromProto(rsp->object_id());
+            }
+        }
+    }
+
+    LOG_INFO("Object ids received");
 }
 
 TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
@@ -487,12 +546,14 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
     auto batchReq = CypressProxy.ExecuteBatch();
 
     FOREACH (const auto& table, InputTables) {
+        auto ypath = FromObjectId(table.ObjectId);
         {
-            auto req = TCypressYPathProxy::Lock(WithTransaction(table.Path, InputTransaction->GetId()));
+            auto req = TCypressYPathProxy::Lock(WithTransaction(ypath, InputTransaction->GetId()));
             req->set_mode(ELockMode::Snapshot);
             batchReq->AddRequest(req, "lock_in");
         }
         {
+            // NB: Use table.Path not ypath here, otherwise path suffix is ignored.
             auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path, PrimaryTransaction->GetId()));
             req->set_fetch_holder_addresses(true);
             req->set_fetch_chunk_attributes(true);
@@ -500,34 +561,36 @@ TCypressServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "fetch_in");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(table.Path, PrimaryTransaction->GetId()) + "/@sorted");
+            auto req = TYPathProxy::Get(WithTransaction(ypath, PrimaryTransaction->GetId()) + "/@sorted");
             batchReq->AddRequest(req, "get_in_sorted");
         }
     }
 
     FOREACH (const auto& table, OutputTables) {
+        auto ypath = FromObjectId(table.ObjectId);
         {
-            auto req = TCypressYPathProxy::Lock(WithTransaction(table.Path, OutputTransaction->GetId()));
+            auto req = TCypressYPathProxy::Lock(WithTransaction(ypath, OutputTransaction->GetId()));
             req->set_mode(ELockMode::Shared);
             batchReq->AddRequest(req, "lock_out");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(table.Path, Operation->GetTransactionId()) + "/@schema");
-            batchReq->AddRequest(req, "get_out_schemata");
+            auto req = TYPathProxy::Get(WithTransaction(ypath, Operation->GetTransactionId()) + "/@schema");
+            batchReq->AddRequest(req, "get_out_schema");
         }
         {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(table.Path, OutputTransaction->GetId()));
-            batchReq->AddRequest(req, "get_chunk_lists");
+            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(ypath, OutputTransaction->GetId()));
+            batchReq->AddRequest(req, "get_out_chunk_list");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(table.Path, OutputTransaction->GetId()) + "/@row_count");
+            auto req = TYPathProxy::Get(WithTransaction(ypath, OutputTransaction->GetId()) + "/@row_count");
             batchReq->AddRequest(req, "get_out_row_count");
         }
     }
 
     FOREACH (const auto& file, Files) {
+        auto ypath = file.Path;
         {
-            auto req = TFileYPathProxy::Fetch(WithTransaction(file.Path, Operation->GetTransactionId()));
+            auto req = TFileYPathProxy::Fetch(WithTransaction(ypath, Operation->GetTransactionId()));
             batchReq->AddRequest(req, "fetch_files");
         }
     }
@@ -583,8 +646,8 @@ void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecut
 
     {
         auto lockOutRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_out");
-        auto getChunkListsRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_chunk_lists");
-        auto getOutSchemataRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_schemata");
+        auto getOutChunkListRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_chunk_list");
+        auto getOutSchemaRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_schema");
         auto getOutRowCount = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_row_count");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto& table = OutputTables[index];
@@ -592,17 +655,17 @@ void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecut
                 auto rsp = lockOutRsps[index];
                 CheckResponse(
                     rsp,
-                    Sprintf("Error fetching input table %s", ~table.Path));
+                    Sprintf("Error locking output table %s", ~table.Path));
             }
             {
-                auto rsp = getChunkListsRsps[index];
+                auto rsp = getOutChunkListRsps[index];
                 CheckResponse(
                     rsp,
                     Sprintf("Error getting output chunk list for table %s", ~table.Path));
                 table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
             }
             {
-                auto rsp = getOutSchemataRsps[index];
+                auto rsp = getOutSchemaRsps[index];
                 CheckResponse(
                     rsp,
                     Sprintf("Error getting schema for output table %s", ~table.Path));
@@ -633,8 +696,6 @@ void TOperationControllerBase::OnInputsReceived(TCypressServiceProxy::TRspExecut
     OnCustomInputsRecieved(batchRsp);
 
     LOG_INFO("Inputs received");
-
-    return void();
 }
 
 void TOperationControllerBase::CustomRequestInputs(TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq)
@@ -664,8 +725,6 @@ void TOperationControllerBase::CompletePreparation()
     if (Active) {
         LOG_INFO("Preparation completed");
     }
-
-    return void();
 }
 
 void TOperationControllerBase::ReleaseChunkList(const TChunkListId& id)
