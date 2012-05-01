@@ -19,6 +19,12 @@ TLogger::TLogger(const Stroka& category)
     , LogManager(NULL)
 { }
 
+TLogger::TLogger(const TLogger& other)
+    : Category(other.Category)
+    , ConfigVersion(-1)
+    , LogManager(NULL)
+{ }
+
 Stroka TLogger::GetCategory() const
 {
     return Category;
