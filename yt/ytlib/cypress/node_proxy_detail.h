@@ -191,6 +191,7 @@ protected:
 
     virtual void DoInvoke(NRpc::IServiceContext* context)
     {
+        DISPATCH_YPATH_SERVICE_METHOD(GetId);
         DISPATCH_YPATH_SERVICE_METHOD(Lock);
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         TNodeBase::DoInvoke(context);
