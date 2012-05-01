@@ -21,7 +21,7 @@ TValueOrError<IChannelPtr> OnLeaderFound(TLeaderLookup::TResult result)
     return CreateBusChannel(result.Address);
 }
 
-} // namespace <anonymous>
+} // namespace
 
 IChannelPtr CreateLeaderChannel(TLeaderLookup::TConfigPtr config)
 {

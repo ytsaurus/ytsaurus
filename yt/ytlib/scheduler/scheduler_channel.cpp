@@ -27,7 +27,7 @@ TValueOrError<IChannelPtr> OnSchedulerAddressFound(TYPathProxy::TRspGet::TPtr rs
     return CreateBusChannel(address);
 }
 
-} // namespace <anonymous>
+} // namespace
 
 IChannelPtr CreateSchedulerChannel(
     TNullable<TDuration> defaultTimeout,

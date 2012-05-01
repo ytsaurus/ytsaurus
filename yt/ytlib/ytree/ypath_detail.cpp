@@ -308,7 +308,7 @@ bool DoRemoveAttribute(
     return userAttributes->Remove(key);
 }
 
-} // namespace <anonymous>
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

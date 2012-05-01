@@ -91,7 +91,7 @@ TFuture<Stroka> HandleRequest(IYPathServicePtr service, Stroka url)
     }
 }
 
-} // namespace <anonymous>
+} // namespace
 
 TServer::TAsyncHandler GetYPathHttpHandler(IYPathServicePtr service)
 {

@@ -30,7 +30,7 @@ inline T* CookieToAddress(intptr_t cookie)
     return reinterpret_cast<T*>(cookie & ~TypeMask);
 }
 
-} // namespace <anonymous>
+} // namespace
 
 TChunkTreeRef::TChunkTreeRef()
     : Cookie(NullType)

@@ -98,7 +98,7 @@ namespace {
         BIND(&TMyObject::B, object).AsyncVia(invoker2).Run().Get();
     }
 #undef PROLOGUE
-} // namespace <anonymous>
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

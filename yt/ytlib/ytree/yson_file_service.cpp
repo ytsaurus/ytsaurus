@@ -200,7 +200,7 @@ private:
     }
 };
 
-} // namespace <anonymous>
+} // namespace
 
 class TYsonFileService
     : public IYPathService

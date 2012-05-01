@@ -363,7 +363,7 @@ private:
 
 };
 
-} // namespace <anonymous>
+} // namespace
 
 TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 {

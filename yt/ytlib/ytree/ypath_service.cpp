@@ -54,7 +54,7 @@ private:
     }
 };
 
-} // namespace <anonymous>
+} // namespace
 
 IYPathServicePtr IYPathService::Via(IInvoker::TPtr invoker)
 {
@@ -88,7 +88,7 @@ private:
     }
 };
 
-} // namespace <anonymous>
+} // namespace
 
 IYPathServicePtr IYPathService::FromProducer(TYPathServiceProducer producer)
 {

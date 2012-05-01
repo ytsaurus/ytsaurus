@@ -500,7 +500,7 @@ void ParseRowLimits(
     }
 }
 
-} // namespace <anonymous>
+} // namespace
 
 void TTableNodeProxy::ParseYPath(
     const TYPath& path,
