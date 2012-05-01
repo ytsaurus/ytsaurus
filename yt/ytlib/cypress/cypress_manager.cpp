@@ -509,6 +509,7 @@ void TCypressManager::ValidateLock(
     bool* isMandatory)
 {
     YASSERT(requestedMode != ELockMode::None);
+    YASSERT(isMandatory);
 
     // Check if the node supports this particular mode at all.
     auto handler = GetHandler(TypeFromId(nodeId));
@@ -562,7 +563,7 @@ void TCypressManager::ValidateLock(
                 ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is already taken",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
-                    ~FormatEnum(node.GetLockMode()).Quote());
+                    ~FormatEnum(lock->GetMode()).Quote());
             }
         } else {
             // Check for locks taken by the other transactions.
