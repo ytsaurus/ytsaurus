@@ -66,7 +66,6 @@ public:
         NTransactionServer::TTransaction* transaction,
         const TNodeId& nodeId)
         : NObjectServer::TObjectProxyBase(bootstrap, nodeId)
-        , NYTree::TYPathServiceBase("Cypress")
         , TypeHandler(typeHandler)
         , Bootstrap(bootstrap)
         , Transaction(transaction)
@@ -74,6 +73,8 @@ public:
     {
         YASSERT(typeHandler);
         YASSERT(bootstrap);
+
+        Logger = NLog::TLogger("Cypress");
     }
 
     NYTree::INodeFactoryPtr CreateFactory() const

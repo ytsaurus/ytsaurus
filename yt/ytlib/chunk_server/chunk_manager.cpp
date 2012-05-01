@@ -1229,9 +1229,10 @@ class TChunkManager::TChunkProxy
 public:
     TChunkProxy(TImpl* owner, const TChunkId& id)
         : TBase(owner->Bootstrap, id, &owner->ChunkMap)
-        , TYPathServiceBase(ChunkServerLogger.GetCategory())
         , Owner(owner)
-    { }
+    {
+        Logger = ChunkServerLogger;
+    }
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
@@ -1457,9 +1458,10 @@ class TChunkManager::TChunkListProxy
 public:
     TChunkListProxy(TImpl* owner, const TChunkListId& id)
         : TBase(owner->Bootstrap, id, &owner->ChunkListMap)
-        , TYPathServiceBase(ChunkServerLogger.GetCategory())
         , Owner(owner)
-    { }
+    {
+        Logger = ChunkServerLogger;
+    }
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {

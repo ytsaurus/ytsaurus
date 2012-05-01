@@ -36,9 +36,10 @@ class TTransactionManager::TTransactionProxy
 public:
     TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
         : TBase(owner->Bootstrap, id, &owner->TransactionMap)
-        , TYPathServiceBase(NTransactionServer::Logger.GetCategory())
         , Owner(owner)
-    { }
+    {
+        Logger = NTransactionServer::Logger;
+    }
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {

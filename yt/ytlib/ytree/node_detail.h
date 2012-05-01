@@ -71,7 +71,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(roizner): Add TSupports Get,GetNode,Set,SetNode,Remove,Create
+// TODO(roizner): Add TSupports(Get,GetNode,Set,SetNode,Remove,Create)
 
 class TMapNodeMixin
     : public virtual IMapNode

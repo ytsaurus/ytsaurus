@@ -64,9 +64,10 @@ class TCypressManager::TLockProxy
 public:
     TLockProxy(TCypressManagerPtr owner, const TLockId& id)
         : TBase(owner->Bootstrap, id, &owner->LockMap)
-        , TYPathServiceBase(NCypress::Logger.GetCategory())
         , Owner(owner)
-    { }
+    {
+        Logger = NCypress::Logger;
+    }
 
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
     {
