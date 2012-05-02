@@ -23,12 +23,9 @@ namespace NDriver {
 struct TRequestBase
     : public TConfigurable
 {
-    Stroka Do;
-
     TRequestBase()
     {
         SetKeepOptions(true);
-        Register("do", Do);
     }
 };
 

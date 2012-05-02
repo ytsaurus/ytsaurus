@@ -112,11 +112,11 @@ public:
         RegisterCommand("abort_op", New<TAbortOperationCommand>(this));
     }
 
-    TError Execute(INodePtr command)
+    TError Execute(const Stroka& commandName, INodePtr command)
     {
         Error = TError();
         try {
-            DoExecute(command);
+            DoExecute(commandName, command);
         } catch (const std::exception& ex) {
             ReplyError(TError(ex.what()));
         }
@@ -232,7 +232,7 @@ private:
         YVERIFY(Commands.insert(MakePair(name, command)).second);
     }
 
-    void DoExecute(INodePtr requestNode)
+    void DoExecute(const Stroka& commandName, INodePtr requestNode)
     {
         auto request = New<TRequestBase>();
         try {
@@ -242,7 +242,6 @@ private:
             ythrow yexception() << Sprintf("Error parsing command from node\n%s", ex.what());
         }
 
-        auto commandName = request->Do;
         auto commandIt = Commands.find(commandName);
         if (commandIt == Commands.end()) {
             ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());

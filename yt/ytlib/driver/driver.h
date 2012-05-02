@@ -37,7 +37,7 @@ struct IDriverHost
 struct IDriver
     : public TRefCounted
 {
-    virtual TError Execute(NYTree::INodePtr command) = 0;
+    virtual TError Execute(const Stroka& commandName, NYTree::INodePtr command) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

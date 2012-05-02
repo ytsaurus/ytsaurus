@@ -209,7 +209,7 @@ public:
             Driver = CreateDriver(~config, &DriverHost);
 
             auto command = argsParser->GetCommand();
-            RunCommand(command);
+            RunCommand(commandName, command);
         } catch (const std::exception& ex) {
             Cerr << "Error occured: " << ex.what() << Endl;
             ExitCode = 1;
@@ -259,9 +259,9 @@ private:
         return parserIt->second;
     }
 
-    void RunCommand(INodePtr command)
+    void RunCommand(const Stroka& commandName, INodePtr command)
     {
-        auto error = Driver->Execute(command);
+        auto error = Driver->Execute(commandName, command);
         if (!error.IsOK()) {
             ExitCode = 1;
         }
