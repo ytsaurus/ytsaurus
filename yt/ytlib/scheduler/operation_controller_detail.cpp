@@ -6,7 +6,6 @@
 #include <ytlib/chunk_server/chunk_list_ypath_proxy.h>
 #include <ytlib/object_server/object_ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/actions/async_pipeline.h>
 
 #include <cmath>
 
@@ -85,7 +84,7 @@ TFuture<void> TOperationControllerBase::Prepare()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto this_ = MakeStrong(this);
-    return StartAsyncPipeline(Host->GetBackgroundInvoker())
+    auto pipeline = StartAsyncPipeline(Host->GetBackgroundInvoker())
         ->Add(BIND(&TThis::StartPrimaryTransaction, MakeStrong(this)))
         ->Add(BIND(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
         ->Add(BIND(&TThis::StartSeconaryTransactions, MakeStrong(this)))
@@ -94,7 +93,10 @@ TFuture<void> TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnObjectIdsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
-        ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)))
+        ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)));
+     pipeline = CustomizePreparationPipeline(pipeline);
+     return pipeline
+        ->Add(BIND(&TThis::OnPreparationCompleted, MakeStrong(this)))
         ->Run()
         .Apply(BIND([=] (TValueOrError<void> result) -> TFuture<void> {
             if (result.IsOK()) {
@@ -719,12 +721,19 @@ void TOperationControllerBase::CompletePreparation()
         Host->GetControlInvoker(),
         Operation,
         PrimaryTransaction->GetId());
+}
 
-    CustomCompletePreparation();
+void TOperationControllerBase::OnPreparationCompleted()
+{
+    if (!Active)
+        return;
 
-    if (Active) {
-        LOG_INFO("Preparation completed");
-    }
+    LOG_INFO("Preparation completed");
+}
+
+TAsyncPipeline<void>::TPtr TOperationControllerBase::CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
+{
+    return pipeline;
 }
 
 void TOperationControllerBase::ReleaseChunkList(const TChunkListId& id)

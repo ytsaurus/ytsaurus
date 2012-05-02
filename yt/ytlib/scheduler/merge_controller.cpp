@@ -334,7 +334,12 @@ protected:
         return std::vector<TYPath>();
     }
 
-    virtual void CustomCompletePreparation()
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
+    {
+        return pipeline->Add(BIND(&TThis::ProcessInputs, MakeStrong(this)));
+    }
+
+    void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");

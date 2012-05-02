@@ -7,6 +7,7 @@
 
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/actions/async_pipeline.h>
 #include <ytlib/chunk_server/public.h>
 #include <ytlib/table_server/table_ypath_proxy.h>
 #include <ytlib/file_server/file_ypath_proxy.h>
@@ -209,13 +210,15 @@ protected:
     //! Extensibility point for handling additional info from master.
     virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
-    // Round 5.
+
+    // Round 4.
     // - (Custom)
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline);
 
+    // Round 5.
+    // - Init chunk list pool.
     void CompletePreparation();
-
-    virtual void CustomCompletePreparation() = 0;
-
+    void OnPreparationCompleted();
 
     // Here comes the completion pipeline.
 
