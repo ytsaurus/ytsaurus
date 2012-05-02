@@ -30,6 +30,7 @@ struct IDriver
     : public TRefCounted
 {
     virtual TError Execute(const Stroka& commandName, NYTree::INodePtr command) = 0;
+    virtual TCommandDescriptor GetDescriptor(const Stroka& commandName) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

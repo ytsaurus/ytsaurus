@@ -13,6 +13,8 @@ typedef TIntrusivePtr<IDriver> IDriverPtr;
 struct TDriverConfig;
 typedef TIntrusivePtr<TDriverConfig> TDriverConfigPtr;
 
+struct TCommandDescriptor;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NDriver

@@ -123,6 +123,15 @@ public:
         return Error;
     }
 
+    TCommandDescriptor GetDescriptor(const Stroka& commandName)
+    {
+        auto commandIt = Commands.find(commandName);
+        if (commandIt == Commands.end()) {
+            ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
+        }
+        return commandIt->second->GetDescriptor();
+    }
+
     virtual TDriverConfigPtr GetConfig() const
     {
         return ~Config;
