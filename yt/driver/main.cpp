@@ -52,18 +52,29 @@ class TDriverHost
 public:
     virtual TInputStream* GetInputStream()
     {
-        return &StdInStream();
+        return &InputStream;
     }
 
     virtual TOutputStream* GetOutputStream()
     {
-        return &StdOutStream();
+        return &OutputStream;
     }
 
     virtual TOutputStream* GetErrorStream()
     {
-        return &StdErrStream();
+        return &ErrorStream;
     }
+
+    TDriverHost()
+        : InputStream(&StdInStream())
+        , OutputStream(&StdOutStream())
+        , ErrorStream(&StdErrStream())
+    { }
+
+private:
+    TBufferedInput InputStream;
+    TBufferedOutput OutputStream;
+    TBufferedOutput ErrorStream;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -195,7 +206,7 @@ public:
                 config->OutputFormat = outputFormatFromCmd.Get();
             }
 
-            Driver = CreateDriver(~config, &StreamProvider);
+            Driver = CreateDriver(~config, &DriverHost);
 
             auto command = argsParser->GetCommand();
             RunCommand(command);
@@ -230,7 +241,7 @@ public:
 private:
     int ExitCode;
 
-    TDriverHost StreamProvider;
+    TDriverHost DriverHost;
     IDriverPtr Driver;
 
     yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;

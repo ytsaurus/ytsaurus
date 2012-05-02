@@ -20,7 +20,7 @@ using namespace NTableClient;
 
 void TReadCommand::DoExecute(TReadRequestPtr request)
 {
-    auto stream = Host->CreateOutputStream();
+    auto stream = Host->GetOutputStream();
 
     auto reader = New<TTableReader>(
         ~Host->GetConfig()->TableReader,
@@ -31,7 +31,7 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
 
     TYsonTableInput input(
         reader, 
-        stream.Get(),
+        stream,
         Host->GetConfig()->OutputFormat);
 
     while (input.ReadRow())
@@ -75,8 +75,8 @@ void TWriteCommand::DoExecute(TWriteRequestPtr request)
                 YUNREACHABLE();
         }
     } else {
-        auto stream = Host->CreateInputStream();
-        ParseYson(stream.Get(), &consumer, EYsonType::ListFragment);
+        auto stream = Host->GetInputStream();
+        ParseYson(stream, &consumer, EYsonType::ListFragment);
     }
 
     writer->Close();

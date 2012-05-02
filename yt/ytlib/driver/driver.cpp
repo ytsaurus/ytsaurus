@@ -43,7 +43,7 @@ class TOutputStreamConsumer
     : public TForwardingYsonConsumer
 {
 public:
-    TOutputStreamConsumer(TAutoPtr<TOutputStream> output, EYsonFormat format)
+    TOutputStreamConsumer(TOutputStream* output, EYsonFormat format)
         : Output(output)
         , BufferedOutput(~Output)
         , Writer(&BufferedOutput, format)
@@ -58,50 +58,6 @@ private:
     TBufferedOutput BufferedOutput;
     TYsonWriter Writer;
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TOwningBufferedInput
-    : public TInputStream
-{
-public:
-    TOwningBufferedInput(TAutoPtr<TInputStream> slave)
-        : Slave(slave)
-        , Buffered(~Slave)
-    { }
-
-private:
-    // NB: The order is important.
-    TAutoPtr<TInputStream> Slave;
-    TBufferedInput Buffered;
-
-    virtual size_t DoRead(void* buf, size_t len)
-    {
-        return Buffered.Read(buf, len);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TOwningBufferedOutput
-    : public TOutputStream
-{
-public:
-    TOwningBufferedOutput(TAutoPtr<TOutputStream> slave)
-        : Slave(slave)
-        , Buffered(~Slave)
-    { }
-
-private:
-    // NB: The order is important.
-    TAutoPtr<TOutputStream> Slave;
-    TBufferedOutput Buffered;
-
-    virtual void DoWrite(const void* buf, size_t len)
-    {
-        Buffered.Write(buf, len);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,28 +168,26 @@ public:
 
     virtual TYsonProducer CreateInputProducer()
     {
-        auto stream = CreateInputStream();
+        auto stream = GetInputStream();
         return BIND([=] (IYsonConsumer* consumer) {
-            ParseYson(~stream, consumer);
+            ParseYson(stream, consumer);
         });
     }
 
-    virtual TAutoPtr<TInputStream> CreateInputStream()
+    virtual TInputStream* GetInputStream()
     {
-        auto stream = DriverHost->GetInputStream();
-        return new TOwningBufferedInput(stream);
+        return DriverHost->GetInputStream();
     }
 
     virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer()
     {
-        auto stream = CreateOutputStream();
+        auto stream = GetOutputStream();
         return new TOutputStreamConsumer(stream, Config->OutputFormat);
     }
 
-    virtual TAutoPtr<TOutputStream> CreateOutputStream()
+    virtual TOutputStream* GetOutputStream()
     {
-        auto stream = DriverHost->GetOutputStream();
-        return new TOwningBufferedOutput(stream);
+        return DriverHost->GetOutputStream();
     }
 
     virtual IBlockCache::TPtr GetBlockCache()

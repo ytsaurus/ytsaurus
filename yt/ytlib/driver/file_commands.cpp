@@ -26,7 +26,7 @@ void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 
     // TODO(babenko): use FileName and Executable values
 
-    auto output = Host->CreateOutputStream();
+    auto output = Host->GetOutputStream();
 
     while (true) {
         auto block = reader->Read();
@@ -51,7 +51,7 @@ void TUploadCommand::DoExecute(TUploadRequestPtr request)
         request->Path);
     writer->Open();
 
-    auto input = Host->CreateInputStream();
+    auto input = Host->GetInputStream();
     
     TBlob buffer(config->BlockSize);
     while (true) {

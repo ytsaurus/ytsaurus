@@ -60,10 +60,10 @@ struct ICommandHost
     virtual NRpc::IChannelPtr GetSchedulerChannel() const = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
-    virtual TAutoPtr<TInputStream> CreateInputStream() = 0;
+    virtual TInputStream* GetInputStream() = 0;
 
     virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer() = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream() = 0;
+    virtual TOutputStream* GetOutputStream() = 0;
 
     virtual void ReplyError(const TError& error) = 0;
     virtual void ReplySuccess() = 0;
