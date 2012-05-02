@@ -112,11 +112,11 @@ public:
         RegisterCommand("abort_op", New<TAbortOperationCommand>(this));
     }
 
-    TError Execute(const Stroka& commandName, INodePtr command)
+    TError Execute(const Stroka& commandName, INodePtr requestNode)
     {
         Error = TError();
         try {
-            DoExecute(commandName, command);
+            DoExecute(commandName, requestNode);
         } catch (const std::exception& ex) {
             ReplyError(TError(ex.what()));
         }
