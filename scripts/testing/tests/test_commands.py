@@ -6,7 +6,6 @@ from yt_env_util import *
 import yson_parser
 import yson
 
-
 def expect_error(result):
     stdout, stderr, exitcode = result
     assert exitcode != 0
@@ -29,8 +28,8 @@ def create(object_type, path, **kw): return command('create', object_type, path,
 def read(path, **kw): return command('read', path, **kw)
 def write(path, value, **kw): return command('write', path, value, **kw)
 
-def start_transaction():
-    raw_tx = expect_ok(command('start_tx'))
+def start_transaction(**kw):
+    raw_tx = expect_ok(command('start_tx', **kw))
     tx_id = raw_tx.replace('"', '').strip('\n')
     return tx_id
 
@@ -140,6 +139,18 @@ class TestTxCommands(YTEnvSetup):
         expect_ok( set('//value', '100500', tx = tx_id))
         abort_transaction(tx = tx_id)
         assert_eq( get('//value'), '100')
+
+    def test_timeout(self):
+        import time
+        tx_id = start_transaction(opts = 'timeout=4000')
+
+        # check that transaction is still alive after 2 seconds
+        time.sleep(2)
+        assert get_transactions() == {tx_id: None}
+
+        # check that transaction is expired after 4 seconds
+        time.sleep(2)
+        assert get_transactions() == {}
 
 class TestLockCommands(YTEnvSetup):
     NUM_MASTERS = 1
