@@ -8,6 +8,9 @@ template <class Signature>
 struct TAsyncPipelineSignatureCracker;
 
 template <class T>
+struct TValueOrErrorHelpers;
+
+template <class T>
 class TAsyncPipeline
     : public TRefCounted
 {
@@ -21,7 +24,15 @@ public:
     TFuture< TValueOrError<T> > Run();
 
     template <class Signature>
-    TIntrusivePtr< TAsyncPipeline< typename NYT::NDetail::TFutureHelper< typename TAsyncPipelineSignatureCracker<Signature>::ReturnType >::TValueType > >
+    TIntrusivePtr<
+        TAsyncPipeline<
+            typename TValueOrErrorHelpers<
+                typename NYT::NDetail::TFutureHelper<
+                    typename TAsyncPipelineSignatureCracker<Signature>::ReturnType
+                >::TValueType
+            >::TValueType
+        >
+    >
     Add(TCallback<Signature> func);
 
 private:
