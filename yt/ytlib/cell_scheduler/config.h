@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/election/leader_lookup.h>
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/config.h>
 
 namespace NYT {
 namespace NCellScheduler {
@@ -20,7 +20,7 @@ struct TCellSchedulerConfig
     int MonitoringPort;
 
     NElection::TLeaderLookup::TConfigPtr Masters;
-    NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
+    NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NScheduler::TSchedulerConfigPtr Scheduler;
 
     TCellSchedulerConfig()
