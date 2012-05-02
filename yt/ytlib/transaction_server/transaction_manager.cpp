@@ -256,7 +256,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
-    TConfig* config,
+    TTransactionManagerConfigPtr config,
     TBootstrap* bootstrap)
     : TMetaStatePart(
         ~bootstrap->GetMetaStateManager(),

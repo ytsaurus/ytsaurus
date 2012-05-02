@@ -116,7 +116,6 @@ void TGetArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("get")
         .Item("path").Scalar(path);
 
     TTransactedArgsParser::BuildCommand(consumer);
@@ -138,7 +137,6 @@ void TSetArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("set")
         .Item("path").Scalar(path)
         .Item("value").Node(ValueArg.getValue());
 
@@ -159,7 +157,6 @@ void TRemoveArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("remove")
         .Item("path").Scalar(path);
 
     TTransactedArgsParser::BuildCommand(consumer);
@@ -179,7 +176,6 @@ void TListArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("list")
         .Item("path").Scalar(path);
  
     TTransactedArgsParser::BuildCommand(consumer);
@@ -201,7 +197,6 @@ void TCreateArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("create")
         .Item("path").Scalar(path)
         .Item("type").Scalar(TypeArg.getValue().ToString());
 
@@ -224,7 +219,6 @@ void TLockArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("lock")
         .Item("path").Scalar(path)
         .Item("mode").Scalar(ModeArg.getValue().ToString());
 
@@ -238,9 +232,6 @@ TStartTxArgsParser::TStartTxArgsParser()
 
 void TStartTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
-    BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("start_tx");
-
     TArgsParserBase::BuildCommand(consumer);
     BuildOptions(consumer);
 }
@@ -249,9 +240,6 @@ void TStartTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 
 void TCommitTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
-    BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("commit_tx");
-
     TTransactedArgsParser::BuildCommand(consumer);
 }
 
@@ -259,9 +247,6 @@ void TCommitTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 
 void TAbortTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
-    BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("abort_tx");
-
     TTransactedArgsParser::BuildCommand(consumer);
 }
 
@@ -325,7 +310,6 @@ void TUploadArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("upload")
         .Item("path").Scalar(path);
 
     TTransactedArgsParser::BuildCommand(consumer);
@@ -344,7 +328,6 @@ void TDownloadArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("download")
         .Item("path").Scalar(path);
 
     TTransactedArgsParser::BuildCommand(consumer);
@@ -371,7 +354,6 @@ void TMapArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto files = PreprocessYPaths(FilesArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("map")
         .Item("spec").BeginMap()
             .Item("mapper").Scalar(MapperArg.getValue())
             .Item("input_table_paths").List(input)
@@ -403,7 +385,6 @@ void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto output = PreprocessYPath(OutArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("merge")
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(input)
             .Item("output_table_path").Scalar(output)
@@ -433,7 +414,6 @@ void TEraseArgsParser::BuildCommand(IYsonConsumer* consumer)
     auto output = PreprocessYPath(OutArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("erase")
         .Item("spec").BeginMap()
             .Item("input_table_path").Scalar(input)
             .Item("output_table_path").Scalar(output)
@@ -455,7 +435,6 @@ TAbortOpArgsParser::TAbortOpArgsParser()
 void TAbortOpArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("abort_op")
         .Item("operation_id").Scalar(OpArg.getValue());
 
     TArgsParserBase::BuildCommand(consumer);

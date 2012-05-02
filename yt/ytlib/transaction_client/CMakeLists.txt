@@ -8,6 +8,8 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/common.h
+  ${BASE}/config.h
+  ${BASE}/public.h
   ${BASE}/transaction.h
   ${BASE}/transaction_listener.h
   ${BASE}/transaction_manager.h

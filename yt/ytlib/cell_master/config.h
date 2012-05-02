@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/meta_state/config.h>
-#include <ytlib/transaction_server/transaction_manager.h>
+#include <ytlib/transaction_server/config.h>
 #include <ytlib/chunk_server/config.h>
 #include <ytlib/object_server/config.h>
 
@@ -19,7 +19,7 @@ struct TCellMasterConfig
     //! Meta state configuration.
     NMetaState::TPersistentStateManagerConfigPtr MetaState;
 
-    NTransactionServer::TTransactionManager::TConfig::TPtr Transactions;
+    NTransactionServer::TTransactionManagerConfigPtr Transactions;
 
     NChunkServer::TChunkManagerConfigPtr Chunks;
 

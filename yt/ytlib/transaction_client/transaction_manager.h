@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "public.h"
 #include "transaction.h"
 
 #include <ytlib/misc/configurable.h>
@@ -25,28 +26,13 @@ class TTransactionManager
 public:
     typedef TIntrusivePtr<TTransactionManager> TPtr;
 
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        //! An internal between successive transaction pings.
-        TDuration PingPeriod;
-
-        TConfig()
-        {
-            Register("ping_period", PingPeriod)
-                .Default(TDuration::Seconds(5));
-        }
-    };
-
     //! Initializes an instance.
     /*!
      * \param config A configuration.
      * \param channel A channel used for communicating with masters.
      */
     TTransactionManager(
-        TConfig::TPtr config,
+        TTransactionManagerConfigPtr config,
         NRpc::IChannelPtr channel);
 
     //! Starts a new transaction.
@@ -77,7 +63,7 @@ private:
         const TTransactionId& id,
         NTransactionServer::TTransactionYPathProxy::TRspRenewLease::TPtr rsp);
 
-    TConfig::TPtr Config;
+    TTransactionManagerConfigPtr Config;
     NRpc::IChannelPtr Channel;
     NCypress::TCypressServiceProxy CypressProxy;
 

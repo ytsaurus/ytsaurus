@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "driver.h"
+#include "public.h"
 
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/configurable.h>
@@ -23,12 +23,9 @@ namespace NDriver {
 struct TRequestBase
     : public TConfigurable
 {
-    Stroka Do;
-
     TRequestBase()
     {
         SetKeepOptions(true);
-        Register("do", Do);
     }
 };
 
@@ -55,15 +52,15 @@ struct ICommandHost
     virtual ~ICommandHost()
     { }
 
-    virtual TDriver::TConfig::TPtr GetConfig() const = 0;
+    virtual TDriverConfigPtr GetConfig() const = 0;
     virtual NRpc::IChannelPtr GetMasterChannel() const = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() const = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
-    virtual TAutoPtr<TInputStream> CreateInputStream() = 0;
+    virtual TInputStream* GetInputStream() = 0;
 
     virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer() = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream() = 0;
+    virtual TOutputStream* GetOutputStream() = 0;
 
     virtual void ReplyError(const TError& error) = 0;
     virtual void ReplySuccess() = 0;
@@ -79,12 +76,33 @@ struct ICommandHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EDataType,
+    (Null)
+    (Binary)
+    (Node)
+    (Table)
+);
+
+struct TCommandDescriptor
+{
+    EDataType InputType;
+    EDataType OutputType;
+
+    TCommandDescriptor(EDataType inputType, EDataType outputType)
+        : InputType(inputType)
+        , OutputType(outputType)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ICommand
     : public virtual TRefCounted
 {
     typedef TIntrusivePtr<ICommand> TPtr;
 
     virtual void Execute(NYTree::INodePtr request) = 0;
+    virtual TCommandDescriptor GetDescriptor() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

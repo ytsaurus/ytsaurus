@@ -22,6 +22,8 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TStartRequestPtr request);
 };
@@ -43,6 +45,8 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TCommitRequestPtr request);
 };
@@ -63,6 +67,8 @@ public:
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
+
+    virtual TCommandDescriptor GetDescriptor();
 
 private:
     virtual void DoExecute(TAbortTransactionRequestPtr request);
