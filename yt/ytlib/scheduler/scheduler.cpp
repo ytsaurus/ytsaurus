@@ -561,11 +561,16 @@ private:
                 }
 
                 auto operation = ParseOperationYson(operationIds[index], rsp->value());
-                operation->SetController(CreateController(operation.Get()));
-                Bootstrap->GetControlInvoker()->Invoke(BIND(
-                    &TThis::ReviveOperation,
-                    MakeStrong(this),
-                    operation));
+                if (operation->GetState() != EOperationState::Completed &&
+                    operation->GetState() != EOperationState::Aborted &&
+                    operation->GetState() != EOperationState::Failed)
+                {
+                    operation->SetController(CreateController(operation.Get()));
+                    Bootstrap->GetControlInvoker()->Invoke(BIND(
+                        &TThis::ReviveOperation,
+                        MakeStrong(this),
+                        operation));
+                }
             }
         }
         LOG_INFO("Operations loaded successfully")
@@ -1050,7 +1055,8 @@ private:
             attributes->Get<EOperationType>("operation_type"),
             attributes->Get<TTransactionId>("transaction_id"),
             attributes->Get<INode>("spec")->AsMap(),
-            attributes->Get<TInstant>("start_time"));
+            attributes->Get<TInstant>("start_time"),
+            attributes->Get<EOperationState>("state"));
     }
 
     void BuildJobYson(TJobPtr job, IYsonConsumer* consumer)

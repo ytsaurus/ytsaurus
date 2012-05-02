@@ -54,7 +54,8 @@ public:
         EOperationType type,
         const TTransactionId& transactionId,
         NYTree::IMapNodePtr spec,
-        TInstant startTime);
+        TInstant startTime,
+        EOperationState state = EOperationState::Initializing);
 
     TPromise<void> FinishedPromise;
 };
