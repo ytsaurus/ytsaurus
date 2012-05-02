@@ -37,16 +37,10 @@ class TOperation
     DEFINE_BYREF_RW_PROPERTY(NProto::TOperationResult, Result);
 
     //! Gets set when the operation is finished.
-    TFuture<void> GetFinished()
-    {
-        return FinishedPromise;
-    }
+    TFuture<void> GetFinished();
 
     //! Marks the operation as finished.
-    void SetFinished()
-    {
-        FinishedPromise.Set();
-    }
+    void SetFinished();
 
 public:
     TOperation(
