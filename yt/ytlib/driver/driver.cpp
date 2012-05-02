@@ -153,7 +153,7 @@ public:
         YASSERT(Error.IsOK());
         Error = error;
         auto output = DriverHost->GetErrorStream();
-        TYsonWriter writer(output, Config->OutputFormat);
+        TYsonWriter writer(~output, Config->OutputFormat);
         BuildYsonFluently(&writer)
             .BeginMap()
                 .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent) {
@@ -185,7 +185,7 @@ public:
 
     virtual TInputStream* GetInputStream()
     {
-        return DriverHost->GetInputStream();
+        return ~DriverHost->GetInputStream();
     }
 
     virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer()
@@ -196,7 +196,7 @@ public:
 
     virtual TOutputStream* GetOutputStream()
     {
-        return DriverHost->GetOutputStream();
+        return ~DriverHost->GetOutputStream();
     }
 
     virtual IBlockCache::TPtr GetBlockCache()

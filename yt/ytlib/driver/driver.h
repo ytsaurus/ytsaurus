@@ -19,9 +19,9 @@ struct IDriverHost
     virtual ~IDriverHost()
     { }
 
-    virtual TInputStream*  GetInputStream() = 0;
-    virtual TOutputStream* GetOutputStream() = 0;
-    virtual TOutputStream* GetErrorStream() = 0;
+    virtual TSharedPtr<TInputStream>  GetInputStream() = 0;
+    virtual TSharedPtr<TOutputStream> GetOutputStream() = 0;
+    virtual TSharedPtr<TOutputStream> GetErrorStream() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -50,17 +50,17 @@ class TDriverHost
     : public IDriverHost
 {
 public:
-    virtual TInputStream* GetInputStream()
+    virtual TSharedPtr<TInputStream> GetInputStream()
     {
         return &InputStream;
     }
 
-    virtual TOutputStream* GetOutputStream()
+    virtual TSharedPtr<TOutputStream> GetOutputStream()
     {
         return &OutputStream;
     }
 
-    virtual TOutputStream* GetErrorStream()
+    virtual TSharedPtr<TOutputStream> GetErrorStream()
     {
         return &ErrorStream;
     }
