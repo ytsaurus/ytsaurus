@@ -52,29 +52,29 @@ class TDriverHost
 public:
     virtual TSharedPtr<TInputStream> GetInputStream()
     {
-        return &InputStream;
+        return InputStream;
     }
 
     virtual TSharedPtr<TOutputStream> GetOutputStream()
     {
-        return &OutputStream;
+        return OutputStream;
     }
 
     virtual TSharedPtr<TOutputStream> GetErrorStream()
     {
-        return &ErrorStream;
+        return ErrorStream;
     }
 
     TDriverHost()
-        : InputStream(&StdInStream())
-        , OutputStream(&StdOutStream())
-        , ErrorStream(&StdErrStream())
+        : InputStream(new TBufferedInput(&StdInStream()))
+        , OutputStream(new TBufferedOutput(&StdOutStream()))
+        , ErrorStream(new TBufferedOutput(&StdErrStream()))
     { }
 
 private:
-    TBufferedInput InputStream;
-    TBufferedOutput OutputStream;
-    TBufferedOutput ErrorStream;
+    TSharedPtr<TInputStream> InputStream;
+    TSharedPtr<TOutputStream> OutputStream;
+    TSharedPtr<TOutputStream> ErrorStream;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

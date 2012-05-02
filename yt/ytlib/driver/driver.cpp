@@ -44,20 +44,15 @@ class TOutputStreamConsumer
 {
 public:
     TOutputStreamConsumer(TOutputStream* output, EYsonFormat format)
-        : Output(output)
-        , BufferedOutput(~Output)
-        , Writer(&BufferedOutput, format)
+        : Writer(output, format)
     {
         ForwardNode(&Writer, BIND([=] () {
-            BufferedOutput.Write('\n');
+            output->Write('\n');
         }));
     }
 
 private:
-    TAutoPtr<TOutputStream> Output;
-    TBufferedOutput BufferedOutput;
     TYsonWriter Writer;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
