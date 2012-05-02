@@ -33,7 +33,7 @@ public:
         ((OutOfSpace)(10))
     );
 
-    TChunkHolderServiceProxy(NRpc::IChannel* channel)
+    TChunkHolderServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 
