@@ -12,6 +12,8 @@ class TAsyncPipeline
     : public TRefCounted
 {
 public:
+    typedef TIntrusivePtr<TAsyncPipeline> TPtr;
+
     TAsyncPipeline(
         IInvoker::TPtr invoker,
         TCallback< TFuture< TValueOrError<T> >() > head);
