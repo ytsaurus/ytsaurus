@@ -44,93 +44,25 @@ static const char* SystemConfigFileName = "ytdriver.conf";
 
 static const char* SystemConfigPath = "/etc/";
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
-class TSystemInput
-    : public TInputStream
+class TDriverHost
+    : public IDriverHost
 {
 public:
-    TSystemInput(int handle)
-        : Handle(handle)
-    { }
-
-private:
-    int Handle;
-
-    virtual size_t DoRead(void* buf, size_t len)
+    virtual TInputStream* GetInputStream()
     {
-        int result;
-        do {
-            result = read(Handle, buf, len);
-        } while (result < 0 && errno == EINTR);
-        
-
-        if (result < 0) {
-            ythrow yexception() << Sprintf("Error reading from stream (Handle: %d, Error: %d)",
-                Handle,
-                errno);
-        }
-
-        return result;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSystemOutput
-    : public TOutputStream
-{
-public:
-    TSystemOutput(int handle)
-        : Handle(handle)
-    { }
-
-private:
-    int Handle;
-
-    virtual void DoWrite(const void* buf, size_t len)
-    {
-        size_t totalWritten = 0;
-        while (totalWritten < len) {
-            int result;
-            do {
-                result = write(Handle, static_cast<const char*>(buf) + totalWritten, len - totalWritten);
-            } while (result < 0 && errno == EINTR);
-
-            if (result == 0) {
-                ythrow yexception() << Sprintf("Error writing to stream (Handle: %d, Error: nothing written)",
-                    Handle);
-            }
-            if (result < 0 ) {
-                ythrow yexception() << Sprintf("Error writing to stream (Handle: %d, Error: %d)",
-                    Handle,
-                    errno);
-            }
-            
-            totalWritten += result;
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TStreamProvider
-    : public IDriverStreamProvider
-{
-public:
-    virtual TAutoPtr<TInputStream> CreateInputStream()
-    {
-        return new TSystemInput(0);
+        return &StdInStream();
     }
 
-    virtual TAutoPtr<TOutputStream> CreateOutputStream()
+    virtual TOutputStream* GetOutputStream()
     {
-        return new TSystemOutput(1);
+        return &StdOutStream();
     }
 
-    virtual TAutoPtr<TOutputStream> CreateErrorStream()
+    virtual TOutputStream* GetErrorStream()
     {
-        return new TSystemOutput(2);
+        return &StdErrStream();
     }
 };
 
@@ -298,7 +230,7 @@ public:
 private:
     int ExitCode;
 
-    TStreamProvider StreamProvider;
+    TDriverHost StreamProvider;
     IDriverPtr Driver;
 
     yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;

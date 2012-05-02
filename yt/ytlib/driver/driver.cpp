@@ -113,9 +113,9 @@ class TDriver
 public:
     TDriver(
         TDriverConfigPtr config,
-        IDriverStreamProvider* streamProvider)
+        IDriverHost* streamProvider)
         : Config(config)
-        , StreamProvider(streamProvider)
+        , DriverHost(streamProvider)
     {
         YASSERT(config);
         YASSERT(streamProvider);
@@ -187,8 +187,8 @@ public:
         YASSERT(!error.IsOK());
         YASSERT(Error.IsOK());
         Error = error;
-        auto output = StreamProvider->CreateErrorStream();
-        TYsonWriter writer(~output, Config->OutputFormat);
+        auto output = DriverHost->GetErrorStream();
+        TYsonWriter writer(output, Config->OutputFormat);
         BuildYsonFluently(&writer)
             .BeginMap()
                 .DoIf(error.GetCode() != TError::Fail, [=] (TFluentMap fluent) {
@@ -220,7 +220,7 @@ public:
 
     virtual TAutoPtr<TInputStream> CreateInputStream()
     {
-        auto stream = StreamProvider->CreateInputStream();
+        auto stream = DriverHost->GetInputStream();
         return new TOwningBufferedInput(stream);
     }
 
@@ -232,7 +232,7 @@ public:
 
     virtual TAutoPtr<TOutputStream> CreateOutputStream()
     {
-        auto stream = StreamProvider->CreateOutputStream();
+        auto stream = DriverHost->GetOutputStream();
         return new TOwningBufferedOutput(stream);
     }
 
@@ -265,7 +265,7 @@ public:
 
 private:
     TDriverConfigPtr Config;
-    IDriverStreamProvider* StreamProvider;
+    IDriverHost* DriverHost;
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
     IChannelPtr MasterChannel;
@@ -302,9 +302,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverStreamProvider* streamProvider)
+IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverHost* driverHost)
 {
-    return new TDriver(config, streamProvider);
+    return new TDriver(config, driverHost);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

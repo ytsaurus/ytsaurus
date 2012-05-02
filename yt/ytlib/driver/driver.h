@@ -22,14 +22,14 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IDriverStreamProvider
+struct IDriverHost
 {
-    virtual ~IDriverStreamProvider()
+    virtual ~IDriverHost()
     { }
 
-    virtual TAutoPtr<TInputStream>  CreateInputStream() = 0;
-    virtual TAutoPtr<TOutputStream> CreateOutputStream() = 0;
-    virtual TAutoPtr<TOutputStream> CreateErrorStream() = 0;
+    virtual TInputStream*  GetInputStream() = 0;
+    virtual TOutputStream* GetOutputStream() = 0;
+    virtual TOutputStream* GetErrorStream() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +42,7 @@ struct IDriver
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverStreamProvider* streamProvider);
+IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverHost* driverHost);
 
 ////////////////////////////////////////////////////////////////////////////////
 
