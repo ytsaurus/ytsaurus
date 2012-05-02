@@ -232,6 +232,27 @@ void TMergeCommand::DoExecute(TSchedulerRequestPtr request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSortCommand::TSortCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+    , TSchedulerCommandBase(host)
+{ }
+
+TCommandDescriptor TSortCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
+
+void TSortCommand::DoExecute(TSchedulerRequestPtr request)
+{
+    StartOperation(
+        request,
+        EOperationType::Sort,
+        SerializeToYson(request->Spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEraseCommand::TEraseCommand(ICommandHost* host)
     : TTypedCommandBase(host)
     , TUntypedCommandBase(host)

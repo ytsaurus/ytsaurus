@@ -398,6 +398,28 @@ void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSortArgsParser::TSortArgsParser()
+    : InArg("", "in", "input tables", false, "ypath")
+    , OutArg("", "out", "output table", false, "", "ypath")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+}
+
+void TSortArgsParser::BuildCommand(IYsonConsumer* consumer)
+{
+    auto input = PreprocessYPaths(InArg.getValue());
+    auto output = PreprocessYPath(OutArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("spec").BeginMap()
+            .Item("input_table_paths").List(input)
+            .Item("output_table_path").Scalar(output)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEraseArgsParser::TEraseArgsParser()
     : InArg("", "in", "input table", false, "", "ypath")
     , OutArg("", "out", "output table", false, "", "ypath")

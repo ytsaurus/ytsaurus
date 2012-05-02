@@ -301,6 +301,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSortArgsParser
+    : public TTransactedArgsParser
+{
+public:
+    TSortArgsParser();
+
+private:
+    TCLAP::MultiArg<Stroka> InArg;
+    TCLAP::ValueArg<Stroka> OutArg;
+
+    virtual void BuildCommand(NYTree::IYsonConsumer* consumer);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEraseArgsParser
     : public TTransactedArgsParser
 {

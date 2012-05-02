@@ -77,6 +77,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSortCommand
+    : public TSchedulerCommandBase
+    , public TTypedCommandBase<TSchedulerRequest>
+{
+public:
+    explicit TSortCommand(ICommandHost* commandHost);
+
+    virtual TCommandDescriptor GetDescriptor();
+
+private:
+    virtual void DoExecute(TSchedulerRequestPtr request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEraseCommand
     : public TSchedulerCommandBase
     , public TTypedCommandBase<TSchedulerRequest>
