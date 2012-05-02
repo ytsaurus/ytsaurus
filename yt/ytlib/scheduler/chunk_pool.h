@@ -42,20 +42,18 @@ struct IChunkPool
         { }
 
 
-        void AddLocal(TPooledChunkPtr chunk)
+        void Add(TPooledChunkPtr chunk, bool local)
         {
             Chunks.push_back(chunk);
             Weight += chunk->Weight;
-            ++LocalCount;
+            if (local) {
+                ++LocalCount;
+            } else {
+                ++RemoteCount;
+            }
         }
 
-        void AddRemote(TPooledChunkPtr chunk)
-        {
-            Chunks.push_back(chunk);
-            Weight += chunk->Weight;
-            ++RemoteCount;
-        }
-
+        
         std::vector<TPooledChunkPtr> Chunks;
         i64 Weight;
         int LocalCount;
@@ -83,10 +81,10 @@ struct IChunkPool
 //! Unordered chunk pool may return an arbitrary subset of pooled chunks.
 TAutoPtr<IChunkPool> CreateUnorderedChunkPool();
 
-//! Atomic chunk pool always returns all chunks in the order of their insertion.
+//! Atomic chunk pool always returns all pooled chunks in the order of their insertion.
 TAutoPtr<IChunkPool> CreateAtomicChunkPool();
 
-// TODO(babenko): doc
+//! Merge chunk pool tries to ensure that the weights of returned chunks are close.
 TAutoPtr<IChunkPool> CreateMergeChunkPool();
 
 ////////////////////////////////////////////////////////////////////
