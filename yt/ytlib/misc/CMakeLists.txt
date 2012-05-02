@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/async_stream_state.cpp
   ${BASE}/backtrace.cpp
   ${BASE}/blob_output.cpp
+  ${BASE}/blob_range.cpp
   ${BASE}/checksum.cpp
   ${BASE}/codec.cpp
   ${BASE}/configurable.cpp
@@ -38,6 +39,7 @@ set( HDRS
   ${BASE}/async_stream_state.h
   ${BASE}/backtrace.h
   ${BASE}/blob_output.h
+  ${BASE}/blob_range.h
   ${BASE}/cache-inl.h
   ${BASE}/cache.h
   ${BASE}/checksum.h

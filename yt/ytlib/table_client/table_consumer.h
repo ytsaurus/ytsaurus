@@ -7,6 +7,7 @@
 #include <ytlib/chunk_holder/chunk.pb.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 #include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/blob_range.h>
 #include <ytlib/misc/nullable.h>
 
 namespace NYT {
@@ -46,9 +47,8 @@ private:
     TKey CurrentKey;
 
     //ToDo(psushin): avoid allocations here.
-    yhash_set<Stroka> UsedColumns;
+    yhash_set<TBlobRange> UsedColumns;
 
-    TRow Row;
     std::vector<size_t> Offsets;
     TBlobOutput RowBuffer;
     TValueConsumer ValueConsumer;

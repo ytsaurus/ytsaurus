@@ -62,10 +62,13 @@ void TTableConsumer::OnMyKeyedItem(const TStringBuf& name)
 {
     YASSERT(InsideRow);
 
+    auto offset = RowBuffer.GetSize();
+
     RowBuffer.Write(name);
     Offsets.push_back(RowBuffer.GetSize());
 
-    if (!UsedColumns.insert(ToString(name)).second) {
+    TBlobRange column(RowBuffer.GetBlob(), offset, name.size());
+    if (!UsedColumns.insert(column).second) {
         ythrow yexception() << Sprintf(
             "Invalid row format, duplicate column name (RowIndex: %"PRId64", Column: %s)", 
             Writer->GetRowCount(),
@@ -112,6 +115,8 @@ void TTableConsumer::OnMyEndMap()
         }
     }
 
+    TRow row;
+
     int i = 0;
     auto begin = 0;
     while (i < Offsets.size()) {
@@ -122,17 +127,16 @@ void TTableConsumer::OnMyEndMap()
         begin = end;
         end = Offsets[i];
         TStringBuf value(RowBuffer.Begin() + begin, end - begin);
-        Row.push_back(std::make_pair(name, value));
+        row.push_back(std::make_pair(name, value));
 
         ++i;
     }
 
-    Writer->WriteRow(Row, CurrentKey);
+    Writer->WriteRow(row, CurrentKey);
 
     CurrentKey.Reset();
     UsedColumns.clear();
     Offsets.clear();
-    Row.clear();
     RowBuffer.Clear();
 
     InsideRow = false;
