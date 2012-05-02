@@ -32,6 +32,8 @@ public:
         , TUntypedCommandBase(host)
    { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TGetRequestPtr request);
 };
@@ -62,6 +64,8 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TSetRequestPtr request);
 };
@@ -90,6 +94,8 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TRemoveRequestPtr request);
 };
@@ -117,6 +123,8 @@ public:
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
+
+    virtual TCommandDescriptor GetDescriptor();
 
 private:
     virtual void DoExecute(TListRequestPtr request);
@@ -148,6 +156,8 @@ public:
         , TUntypedCommandBase(host)
    { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TCreateRequestPtr request);
 };
@@ -178,6 +188,8 @@ public:
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
+
+    virtual TCommandDescriptor GetDescriptor();
 
 private:
     virtual void DoExecute(TLockRequestPtr request);

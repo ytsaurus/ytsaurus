@@ -29,6 +29,8 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TDownloadRequestPtr request);
 };
@@ -56,6 +58,8 @@ public:
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
+
+    virtual TCommandDescriptor GetDescriptor();
 
 private:
     virtual void DoExecute(TUploadRequestPtr request);

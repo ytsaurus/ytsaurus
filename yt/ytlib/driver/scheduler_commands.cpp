@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "scheduler_commands.h"
 #include "config.h"
+#include "driver.h"
 
 #include <ytlib/misc/configurable.h>
 
@@ -194,6 +195,11 @@ TMapCommand::TMapCommand(ICommandHost* host)
     , TSchedulerCommandBase(host)
 { }
 
+TCommandDescriptor TMapCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
+
 void TMapCommand::DoExecute(TSchedulerRequestPtr request)
 {
     StartOperation(
@@ -211,6 +217,11 @@ TMergeCommand::TMergeCommand(ICommandHost* host)
     , TSchedulerCommandBase(host)
 { }
 
+TCommandDescriptor TMergeCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
+
 void TMergeCommand::DoExecute(TSchedulerRequestPtr request)
 {
     StartOperation(
@@ -227,6 +238,11 @@ TEraseCommand::TEraseCommand(ICommandHost* host)
     , TSchedulerCommandBase(host)
 { }
 
+TCommandDescriptor TEraseCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Node);
+}
+
 void TEraseCommand::DoExecute(TSchedulerRequestPtr request)
 {
     StartOperation(
@@ -242,6 +258,11 @@ TAbortOperationCommand::TAbortOperationCommand(ICommandHost* host)
     , TUntypedCommandBase(host)
     , TSchedulerCommandBase(host)
 { }
+
+TCommandDescriptor TAbortOperationCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Null);
+}
 
 void TAbortOperationCommand::DoExecute(TAbortOperationRequestPtr request)
 {

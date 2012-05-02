@@ -32,6 +32,8 @@ public:
         , TUntypedCommandBase(host)
     { }
 
+    virtual TCommandDescriptor GetDescriptor();
+
 private:
     virtual void DoExecute(TReadRequestPtr request);
 };
@@ -76,6 +78,8 @@ public:
         : TTypedCommandBase(host)
         , TUntypedCommandBase(host)
     { }
+
+    virtual TCommandDescriptor GetDescriptor();
 
 private:
     virtual void DoExecute(TWriteRequestPtr request);

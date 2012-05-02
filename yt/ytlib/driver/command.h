@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "driver.h"
+#include "public.h"
 
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/configurable.h>
@@ -76,12 +76,33 @@ struct ICommandHost
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EDataType,
+    (Null)
+    (Binary)
+    (Node)
+    (Table)
+);
+
+struct TCommandDescriptor
+{
+    EDataType InputType;
+    EDataType OutputType;
+
+    TCommandDescriptor(EDataType inputType, EDataType outputType)
+        : InputType(inputType)
+        , OutputType(outputType)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ICommand
     : public virtual TRefCounted
 {
     typedef TIntrusivePtr<ICommand> TPtr;
 
     virtual void Execute(NYTree::INodePtr request) = 0;
+    virtual TCommandDescriptor GetDescriptor() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

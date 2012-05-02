@@ -18,6 +18,11 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCommandDescriptor TReadCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Table);
+}
+
 void TReadCommand::DoExecute(TReadRequestPtr request)
 {
     auto stream = Host->GetOutputStream();
@@ -39,6 +44,11 @@ void TReadCommand::DoExecute(TReadRequestPtr request)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor TWriteCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Table, EDataType::Null);
+}
 
 void TWriteCommand::DoExecute(TWriteRequestPtr request)
 {

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "file_commands.h"
 #include "config.h"
+#include "driver.h"
 
 #include <ytlib/file_client/file_reader.h>
 #include <ytlib/file_client/file_writer.h>
@@ -11,6 +12,12 @@ namespace NDriver {
 using namespace NFileClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+TCommandDescriptor TDownloadCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Null, EDataType::Binary);
+}
 
 void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 {
@@ -38,6 +45,11 @@ void TDownloadCommand::DoExecute(TDownloadRequestPtr request)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor TUploadCommand::GetDescriptor()
+{
+    return TCommandDescriptor(EDataType::Binary, EDataType::Null);
+}
 
 void TUploadCommand::DoExecute(TUploadRequestPtr request)
 {
