@@ -69,12 +69,12 @@ class TDriver
 public:
     TDriver(
         TDriverConfigPtr config,
-        IDriverHost* streamProvider)
+        IDriverHost* driverHost)
         : Config(config)
-        , DriverHost(streamProvider)
+        , DriverHost(driverHost)
     {
         YASSERT(config);
-        YASSERT(streamProvider);
+        YASSERT(driverHost);
 
         MasterChannel = CreateLeaderChannel(config->Masters);
 
@@ -258,7 +258,7 @@ private:
 
 IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverHost* driverHost)
 {
-    return new TDriver(config, driverHost);
+    return New<TDriver>(config, driverHost);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
