@@ -47,6 +47,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkInfo);
     DEFINE_RPC_PROXY_METHOD(NProto, PrecacheChunk);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, UpdatePeer);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetTableSamples);
 
 };
 

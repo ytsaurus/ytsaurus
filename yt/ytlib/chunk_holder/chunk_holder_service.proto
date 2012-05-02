@@ -1,8 +1,9 @@
 package NYT.NChunkHolder.NProto;
 
-import "yt/ytlib/chunk_holder/chunk.proto";
 import "yt/ytlib/misc/guid.proto";
-
+import "yt/ytlib/misc/error.proto";
+import "yt/ytlib/chunk_holder/chunk.proto";
+import "yt/ytlib/table_client/table_chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,6 +131,24 @@ message TReqUpdatePeer
     repeated TBlockId block_ids = 1;
     required string peer_address = 2;
     required uint64 peer_expiration_time = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetTableSamples
+{
+    repeated NYT.NProto.TGuid chunk_ids = 1;
+}
+
+message TRspGetTableSamples
+{
+    message TChunkSamples
+    {
+        optional NYT.NProto.TError error = 1;
+        repeated NYT.NTableClient.NProto.TKeySample samples = 2;
+    }
+
+    repeated TChunkSamples samples = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
