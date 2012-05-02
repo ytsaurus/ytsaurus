@@ -12,8 +12,10 @@ TKeyPart::TKeyPart ()
     : Type_(EKeyType::Null)
 { }
 
-TKeyPart::TKeyPart(const TStringBuf& value)
-    : StrValue(value)
+TKeyPart::TKeyPart(size_t offset, int length, const TBlob* buffer)
+    : StrOffset(offset)
+    , StrLength(length)
+    , Buffer(buffer)
     , Type_(EKeyType::String)
 { }
 
@@ -49,7 +51,7 @@ double TKeyPart::GetDouble() const
 TStringBuf TKeyPart::GetString() const
 {
     YASSERT(Type_ == EKeyType::String);
-    return StrValue;
+    return TStringBuf(Buffer->begin() + StrOffset, StrLength);
 }
 
 Stroka ToString(const TKeyPart& keyPart)
@@ -70,37 +72,14 @@ Stroka ToString(const TKeyPart& keyPart)
     }
 }
 
-/*
-size_t TKeyPart::GetSize() const
-{
-    switch (Type) {
-    case EKeyType::Null:
-    case EKeyType::Composite:
-        return sizeof(Type);
-
-    case EKeyType::String:
-        return sizeof(Type) + StrValue.Length();
-
-    case EKeyType::Integer:
-        return sizeof(Type) + sizeof(IntValue);
-
-    case EKeyType::Double:
-        return sizeof(Type) + sizeof(DoubleValue);
-
-    default:
-        YUNREACHABLE();
-    }
-}
-*/
-
-NProto::TKeyPart TKeyPart::ToProto() const
+NProto::TKeyPart TKeyPart::ToProto(int maxSize) const
 {
     NProto::TKeyPart keyPart;
     keyPart.set_type(Type_);
 
     switch (Type_) {
     case EKeyType::String:
-        keyPart.set_str_value(StrValue.begin(), StrValue.size());
+        keyPart.set_str_value(Buffer->begin() + StrOffset, std::min(maxSize, StrLength));
         break;
 
     case EKeyType::Integer:
@@ -146,7 +125,7 @@ int CompareKeyParts(const TKeyPart& lhs, const TKeyPart& rhs)
 TKey::TKey(int columnCount, int size)
     : MaxSize(size)
     , ColumnCount(columnCount)
-    , Buffer(size)
+    , Buffer(new TBlobOutput(size))
     , Parts(ColumnCount)
 { }
 
@@ -155,7 +134,7 @@ void TKey::Reset(int columnCount)
     if (columnCount >= 0)
         ColumnCount = columnCount;
 
-    Buffer.Clear();
+    Buffer->Clear();
     Parts.clear();
     Parts.resize(ColumnCount);
 }
@@ -174,7 +153,7 @@ void TKey::Swap(TKey& other)
     YASSERT(ColumnCount == other.ColumnCount);
 
     Parts.swap(other.Parts);
-    Buffer.Swap(other.Buffer);
+    std::swap(Buffer, other.Buffer);
 }
 
 Stroka TKey::ToString() const
@@ -184,10 +163,14 @@ Stroka TKey::ToString() const
 
 NProto::TKey TKey::ToProto() const
 {
-    // ToDo: limit total size of all parts written to proto to MaxSize.
     NProto::TKey key;
     FOREACH(const auto& part, Parts) {
-        *key.add_parts() = part.ToProto();
+        int currentSize = key.ByteSize();
+        if (currentSize < MaxSize) {
+            *key.add_parts() = part.ToProto(MaxSize - currentSize);
+        } else {
+            *key.add_parts() = TKeyPart().ToProto();
+        }
     }
     return key;
 }
@@ -237,10 +220,10 @@ void TKey::AddValue(int index, const TStringBuf& value)
     // Strip long values.
     int length = std::min(MaxSize - sizeof(EKeyType), value.size());
 
-    auto begin = Buffer.Begin() + Buffer.GetSize();
-    Buffer.Write(value.begin(), length);
+    auto offset = Buffer->GetSize();
+    Buffer->Write(value.begin(), length);
 
-    Parts[index] = TKeyPart(TStringBuf(begin, length));
+    Parts[index] = TKeyPart(offset, length, Buffer->GetBlob());
 }
 
 int TKey::Compare(const TKey& lhs, const TKey& rhs)

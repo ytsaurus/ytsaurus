@@ -266,10 +266,14 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
             *(part->mutable_key_part()) = TKeyPart(token.GetIntegerValue()).ToProto();
             break;
 
-        case ETokenType::String:
-            // ToDo(psushin): limit sample size.
-            *(part->mutable_key_part()) = TKeyPart(token.GetStringValue()).ToProto();
+        case ETokenType::String: {
+            auto *keyPart = part->mutable_key_part();
+            keyPart->set_type(EKeyType::String);
+            keyPart->set_str_value(
+                token.GetStringValue().begin(), 
+                std::min(token.GetStringValue().size(), static_cast<size_t>(Config->MaxSampleSize)));
             break;
+        }
 
         case ETokenType::Double:
             *(part->mutable_key_part()) = TKeyPart(token.GetDoubleValue()).ToProto();

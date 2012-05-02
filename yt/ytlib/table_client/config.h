@@ -44,6 +44,8 @@ struct TChunkWriterConfig
     //! Size of samples should not exceed given percent of the total data size.
     double SampleRate;
 
+    int MaxSampleSize;
+
     //! Size of index should not exceed given percent of the total data size.
     double IndexRate;
 
@@ -59,6 +61,9 @@ struct TChunkWriterConfig
             .GreaterThan(0)
             .LessThan(0.1)
             .Default(0.01);
+        Register("max_sample_size", MaxSampleSize)
+            .GreaterThan(0)
+            .Default(1024);
         Register("index_rate", IndexRate)
             .GreaterThan(0)
             .LessThan(0.1)

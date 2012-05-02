@@ -49,6 +49,11 @@ void TBlobOutput::Swap(TBlobOutput& other)
     Blob.swap(other.Blob);
 }
 
+const TBlob* TBlobOutput::GetBlob() const
+{
+    return &Blob;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

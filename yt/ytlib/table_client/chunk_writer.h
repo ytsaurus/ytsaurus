@@ -48,7 +48,7 @@ private:
     friend class TChunkSequenceWriter;
 
     TSharedRef PrepareBlock(int channelIndex);
-    static NProto::TSample MakeSample(TRow& row);
+    NProto::TSample MakeSample(TRow& row);
 
 private:
     TChunkWriterConfigPtr Config;

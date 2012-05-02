@@ -20,6 +20,8 @@ DECLARE_ENUM(EKeyType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TKey;
+
 class TKeyPart
 {
     DEFINE_BYVAL_RO_PROPERTY(EKeyType, Type);
@@ -27,7 +29,7 @@ class TKeyPart
 public:
     //! Creates null key part.
     TKeyPart();
-    TKeyPart(const TStringBuf& value);
+    TKeyPart(size_t offset, int length, const TBlob* buffer);
     TKeyPart(i64 value);
     TKeyPart(double value);
 
@@ -39,15 +41,18 @@ public:
 
     Stroka ToString() const;
 
-    NProto::TKeyPart ToProto() const;
+    // Makes protobuf representation. Strips string part length to maxSize if exceeds.
+    NProto::TKeyPart ToProto(int maxSize = 0) const;
     //FromProto();
 
 private:
     i64 IntValue;
     double DoubleValue;
 
-    //ToDo(psushin): avoid allocations here.
-    Stroka StrValue;
+    // Offset in the internal buffer of TKey.
+    size_t StrOffset;
+    int StrLength;
+    const TBlob* Buffer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,11 +84,13 @@ public:
     static int Compare(const TKey& lhs, const TKey& rhs);
 
 private:
+    friend class TKey;
+
     const int MaxSize;
     int ColumnCount;
 
     std::vector<TKeyPart> Parts;
-    TBlobOutput Buffer;
+    TAutoPtr<TBlobOutput> Buffer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
