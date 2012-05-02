@@ -44,6 +44,12 @@ void TLock::Load(const TLoadContext& context, TInputStream* input)
     ::Load(input, Mode_);
 }
 
+void TLock::PromoteToTransaction(TTransaction* transaction)
+{
+    YASSERT(transaction);
+    Transaction_ = transaction;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypress

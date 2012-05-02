@@ -56,8 +56,8 @@ struct ICommandHost
     { }
 
     virtual TDriver::TConfig::TPtr GetConfig() const = 0;
-    virtual NRpc::IChannel::TPtr GetMasterChannel() const = 0;
-    virtual NRpc::IChannel::TPtr GetSchedulerChannel() const = 0;
+    virtual NRpc::IChannelPtr GetMasterChannel() const = 0;
+    virtual NRpc::IChannelPtr GetSchedulerChannel() const = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
     virtual TAutoPtr<TInputStream> CreateInputStream() = 0;

@@ -132,9 +132,9 @@ public:
             config->TransactionManager,
             MasterChannel);
 
-        RegisterCommand("start", New<TStartTransactionCommand>(this));
-        RegisterCommand("commit", New<TCommitTransactionCommand>(this));
-        RegisterCommand("abort", New<TAbortTransactionCommand>(this));
+        RegisterCommand("start_tx", New<TStartTransactionCommand>(this));
+        RegisterCommand("commit_tx", New<TCommitTransactionCommand>(this));
+        RegisterCommand("abort_tx", New<TAbortTransactionCommand>(this));
 
         RegisterCommand("get", New<TGetCommand>(this));
         RegisterCommand("set", New<TSetCommand>(this));
@@ -151,6 +151,8 @@ public:
 
         RegisterCommand("map", New<TMapCommand>(this));
         RegisterCommand("merge", New<TMergeCommand>(this));
+        RegisterCommand("erase", New<TEraseCommand>(this));
+        RegisterCommand("abort_op", New<TAbortOperationCommand>(this));
     }
 
     TError Execute(INodePtr command)
@@ -169,12 +171,12 @@ public:
         return ~Config;
     }
 
-    IChannel::TPtr GetMasterChannel() const
+    IChannelPtr GetMasterChannel() const
     {
         return MasterChannel;
     }
 
-    IChannel::TPtr GetSchedulerChannel() const
+    IChannelPtr GetSchedulerChannel() const
     {
         return SchedulerChannel;
     }
@@ -265,8 +267,8 @@ private:
     IDriverStreamProvider* StreamProvider;
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
-    IChannel::TPtr MasterChannel;
-    IChannel::TPtr SchedulerChannel;
+    IChannelPtr MasterChannel;
+    IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
 

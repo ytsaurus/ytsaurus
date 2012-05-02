@@ -12,7 +12,7 @@ TChannelCache::TChannelCache()
     : IsTerminated(false)
 { }
 
-IChannel::TPtr TChannelCache::GetChannel(const Stroka& address)
+IChannelPtr TChannelCache::GetChannel(const Stroka& address)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

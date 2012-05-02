@@ -33,6 +33,13 @@ protected:
     virtual void OnLeaderRecoveryComplete();
     virtual void OnStopLeading();
 
+    virtual void OnStartFollowing();
+    virtual void OnFollowerRecoveryComplete();
+    virtual void OnStopFollowing();
+
+    virtual void OnStartRecovery();
+    virtual void OnStopRecovery();
+
 private:
     friend class TCompositeMetaState;
     typedef TMetaStatePart TThis;
@@ -67,13 +74,22 @@ public:
 private:
     friend class TMetaStatePart;
 
+    struct TSaverInfo
+    {
+        Stroka Name;
+        TSaver Saver;
+        ESavePhase Phase;
+
+        TSaverInfo(const Stroka& name, TSaver saver, ESavePhase phase);
+    };
+
     typedef yhash_map< Stroka, TCallback<void(const TRef&)> > TMethodMap;
     TMethodMap Methods;
 
     yvector<TMetaStatePartPtr> Parts;
 
     typedef yhash_map< Stroka, TLoader > TLoaderMap;
-    typedef yhash_map< Stroka, TPair<TSaver, ESavePhase> > TSaverMap;
+    typedef yhash_map< Stroka, TSaverInfo> TSaverMap;
 
     TLoaderMap Loaders;
     TSaverMap Savers;

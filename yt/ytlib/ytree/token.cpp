@@ -30,7 +30,7 @@ ETokenType CharToTokenType(char ch)
         case ':': return ETokenType::Colon;
         case ',': return ETokenType::Comma;
         case '~': return ETokenType::Tilde;
-        default:  return ETokenType::None;
+        default:  return ETokenType::EndOfStream;
     }
 }
 
@@ -100,7 +100,7 @@ TToken::TToken(double doubleValue)
 
 bool TToken::IsEmpty() const
 {
-    return Type_ == ETokenType::None;
+    return Type_ == ETokenType::EndOfStream;
 }
 
 const TStringBuf& TToken::GetStringValue() const
@@ -124,7 +124,7 @@ double TToken::GetDoubleValue() const
 Stroka TToken::ToString() const
 {
     switch (Type_) {
-        case ETokenType::None:
+        case ETokenType::EndOfStream:
             return Stroka();
 
         case ETokenType::String:

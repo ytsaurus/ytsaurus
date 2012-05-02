@@ -12,7 +12,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCypressServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
-    IChannel::TPtr channel,
+    IChannelPtr channel,
     const Stroka& path,
     const Stroka& verb)
     : TClientRequest(channel, path, verb, false)

@@ -48,7 +48,7 @@ public:
 
 private:
     TFileReaderConfigPtr Config;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     NChunkClient::IBlockCachePtr BlockCache;
     NYTree::TYPath Path;
     bool IsOpen;

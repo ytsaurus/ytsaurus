@@ -5,6 +5,7 @@
 
 #include <ytlib/cell_master/public.h>
 #include <ytlib/transaction_server/public.h>
+#include <ytlib/object_server/id.h>
 
 namespace NYT {
 namespace NCypress {
@@ -30,6 +31,9 @@ struct ICypressNode
     //! Returns the composite (versioned) id of the node.
     virtual TVersionedObjectId GetId() const = 0;
 
+    //! Replaces transaction id part in the versioned id.
+    virtual void PromoteToTransaction(const NTransactionServer::TTransaction* transaction) = 0;
+
     //! Gets the lock mode.
     /*!
      *  When a node gets branched a lock is created. This property contains the corresponding lock mode.
@@ -53,11 +57,6 @@ struct ICypressNode
     //! Gets an mutable reference to the node's locks.
     virtual yhash_set<TLock*>& Locks() = 0;
 
-    //! Gets an immutable reference to the node's subtree locks.
-    virtual const yhash_set<TLock*>& SubtreeLocks() const = 0;
-    //! Gets an mutable reference to the node's subtree locks.
-    virtual yhash_set<TLock*>& SubtreeLocks() = 0;
-
     //! Increments the reference counter, returns the incremented value.
     virtual i32 RefObject() = 0;
     //! Decrements the reference counter, returns the decremented value.
@@ -70,3 +69,29 @@ struct ICypressNode
 
 } // namespace NCypress
 } // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TObjectIdTraits and GetObjectId specializations.
+
+namespace NYT {
+namespace NObjectServer {
+
+template <>
+struct TObjectIdTraits<NCypress::ICypressNode*, void>
+{
+    typedef TVersionedObjectId TId;
+};
+
+template <class T>
+TVersionedObjectId GetObjectId(
+    T object,
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, NCypress::ICypressNode*>, void* >::TType = NULL)
+{
+    return object->GetId();
+}
+
+} // namespace NObjectServer
+} // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////

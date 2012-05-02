@@ -104,7 +104,7 @@ public:
 private:
     friend class TResponseHandlerWrapper;
 
-    TFuture< TValueOrError<IChannel::TPtr> > GetChannel()
+    TFuture< TValueOrError<IChannelPtr> > GetChannel()
     {
         TGuard<TSpinLock> guard(SpinLock);
         
@@ -112,7 +112,7 @@ private:
             return ChannelPromise;
         }
 
-        auto promisedChannel = ChannelPromise = NewPromise< TValueOrError<IChannel::TPtr> >();
+        auto promisedChannel = ChannelPromise = NewPromise< TValueOrError<IChannelPtr> >();
         guard.Release();
 
         Producer.Run().Subscribe(BIND(
@@ -123,8 +123,8 @@ private:
     }
 
     void OnEndpointDiscovered(
-        TPromise< TValueOrError<IChannel::TPtr> > channelPromise,
-        TValueOrError<IChannel::TPtr> result)
+        TPromise< TValueOrError<IChannelPtr> > channelPromise,
+        TValueOrError<IChannelPtr> result)
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (ChannelPromise == channelPromise) {
@@ -139,7 +139,7 @@ private:
         IClientRequest::TPtr request,
         IClientResponseHandler::TPtr responseHandler,
         TNullable<TDuration> timeout,
-        TValueOrError<IChannel::TPtr> result)
+        TValueOrError<IChannelPtr> result)
     {
         if (!result.IsOK()) {
             responseHandler->OnError(result);
@@ -152,7 +152,7 @@ private:
         }
     }
 
-    void OnChannelFailed(IChannel::TPtr failedChannel)
+    void OnChannelFailed(IChannelPtr failedChannel)
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -171,11 +171,11 @@ private:
     TChannelProducer Producer;
 
     TSpinLock SpinLock;
-    TPromise< TValueOrError<IChannel::TPtr> > ChannelPromise;
+    TPromise< TValueOrError<IChannelPtr> > ChannelPromise;
 
 };
 
-IChannel::TPtr CreateRoamingChannel(
+IChannelPtr CreateRoamingChannel(
     TNullable<TDuration> defaultTimeout,
     TChannelProducer producer)
 {

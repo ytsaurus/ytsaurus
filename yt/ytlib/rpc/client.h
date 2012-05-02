@@ -40,11 +40,11 @@ protected:
      */
     typedef NRpc::EErrorCode EErrorCode;
 
-    TProxyBase(IChannel::TPtr channel, const Stroka& serviceName);
+    TProxyBase(IChannelPtr channel, const Stroka& serviceName);
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
 
-    IChannel::TPtr Channel;
+    IChannelPtr Channel;
     Stroka ServiceName;
 };          
 
@@ -87,14 +87,14 @@ public:
     virtual const NYTree::IAttributeDictionary& Attributes() const;
 
 protected:
-    IChannel::TPtr Channel;
+    IChannelPtr Channel;
     Stroka Path;
     Stroka Verb;
     TRequestId RequestId;
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(
-        IChannel::TPtr channel,
+        IChannelPtr channel,
         const Stroka& path,
         const Stroka& verb,
         bool oneWay);
@@ -117,7 +117,7 @@ public:
     typedef TIntrusivePtr<TTypedClientRequest> TPtr;
 
     TTypedClientRequest(
-        IChannel::TPtr channel,
+        IChannelPtr channel,
         const Stroka& path,
         const Stroka& verb,
         bool oneWay)

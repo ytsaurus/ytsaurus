@@ -1,0 +1,19 @@
+#pragma once
+
+#include "common.h"
+
+namespace NYT {
+namespace NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class IServer;
+typedef TIntrusivePtr<IServer> IServerPtr;
+
+class IChannel;
+typedef TIntrusivePtr<IChannel> IChannelPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+            
+} // namespace NRpc
+} // namespace NYT

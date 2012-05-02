@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/errortrace.cpp
   ${BASE}/fs.cpp
   ${BASE}/guid.cpp
+  ${BASE}/high_resolution_clock.cpp
   ${BASE}/home.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/linux.cpp
@@ -53,6 +54,7 @@ set( HDRS
   ${BASE}/fs.h
   ${BASE}/guid.h
   ${BASE}/hash.h
+  ${BASE}/high_resolution_clock.h
   ${BASE}/home.h
   ${BASE}/id_generator.h
   ${BASE}/intrusive_ptr.h
@@ -99,14 +101,8 @@ list(APPEND YT_SOURCE_FILES
 
 protoc( ${BASE}/guid.proto YT_SOURCE_FILES )
 
-add_custom_command(
-    OUTPUT  ${BASE}/preprocessor-gen.h
-    COMMAND ${PYTHON_EXECUTABLE} ${BASE}/preprocessor-gen.py > ${BASE}/preprocessor-gen.h
-    DEPENDS ${BASE}/preprocessor-gen.py
-    COMMENT "Regenerating preprocessor-gen.h..."
-)
-
 PUMP( ${BASE}/new.h.pump YT_SOURCE_FILES )
+PUMP( ${BASE}/preprocessor-gen.h.pump YT_SOURCE_FILES )
 
 protoc( ${BASE}/error.proto YT_SOURCE_FILES )
 protoc( ${BASE}/extensions.proto YT_SOURCE_FILES )

@@ -19,7 +19,7 @@ namespace {
 typedef TSnappyCompress TCompressedOutput;
 typedef TSnappyDecompress TDecompressedInput;
 
-} // namespace <anonymous>
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

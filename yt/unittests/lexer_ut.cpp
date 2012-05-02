@@ -30,9 +30,12 @@ public:
         Lexer.Reset(new TLexer());
     }
 
-    void TestConsume(char ch, bool expectedConsumed = true)
+    void TestConsume(const TStringBuf& input, int expectedConsumed = -1)
     {
-        EXPECT_EQ(expectedConsumed, Lexer->Consume(ch));
+        size_t expected = expectedConsumed == -1
+            ? input.size()
+            : static_cast<size_t>(expectedConsumed);
+        EXPECT_EQ(expected, Lexer->Read(input));
     }
 
     void CheckState(EState state)
@@ -40,17 +43,15 @@ public:
         EXPECT_EQ(state, Lexer->GetState());
     }
 
-    const TToken& GetToken(const Stroka& input)
+    const TToken& GetToken(const TStringBuf& input)
     {
-        FOREACH (char ch, input) {
-            TestConsume(ch);
-        }
+        TestConsume(input);
         Lexer->Finish();
         CheckState(EState::Terminal);
         return Lexer->GetToken();
     }
 
-    void TestToken(const Stroka& input, ETokenType expectedType, const Stroka& expectedValue)
+    void TestToken(const TStringBuf& input, ETokenType expectedType, const Stroka& expectedValue)
     {
         auto& token = GetToken(input);
         EXPECT_EQ(expectedType, token.GetType());
@@ -58,7 +59,7 @@ public:
         Reset();
     }
 
-    void TestDouble(const Stroka& input, double expectedValue)
+    void TestDouble(const TStringBuf& input, double expectedValue)
     {
         auto& token = GetToken(input);
         EXPECT_EQ(ETokenType::Double, token.GetType());
@@ -66,7 +67,7 @@ public:
         Reset();
     }
 
-    void TestSpecialValue(const Stroka& input, ETokenType expectedType)
+    void TestSpecialValue(const TStringBuf& input, ETokenType expectedType)
     {
         auto& token = GetToken(input);
         EXPECT_EQ(expectedType, token.GetType());
@@ -74,22 +75,19 @@ public:
         Reset();
     }
 
-    void TestIncorrectFinish(const Stroka& input)
+    void TestIncorrectFinish(const TStringBuf& input)
     {
-        FOREACH (char ch, input) {
-            TestConsume(ch);
-        }
+        TestConsume(input);
         EXPECT_THROW(Lexer->Finish(), yexception);
         Reset();
     }
 
-    void TestIncorrectInput(const Stroka& input)
+    void TestIncorrectInput(const TStringBuf& input)
     {
-        int length = input.length();
-        for (int i = 0; i < length - 1; ++i) {
-            TestConsume(input[i]);
-        }
-        EXPECT_THROW(Lexer->Consume(input.back()), yexception);
+        size_t length = input.length();
+        YASSERT(length > 0);
+        TestConsume(input.Head(length - 1));
+        EXPECT_THROW(Lexer->Read(input.Tail(length - 1)), yexception);
         Reset();
     }
 };
@@ -99,39 +97,39 @@ public:
 TEST_F(TLexerTest, States)
 {
     CheckState(EState::None);
-    TestConsume(' ');
+    TestConsume(" ");
     CheckState(EState::None);
-    TestConsume(' ');
+    TestConsume(" ");
     CheckState(EState::None);
-    TestConsume('1');
+    TestConsume("1");
     CheckState(EState::InProgress);
-    TestConsume('2');
+    TestConsume("2");
     CheckState(EState::InProgress);
-    TestConsume(' ', false);
+    TestConsume(" ", 0);
     CheckState(EState::Terminal);
     
     Lexer->Reset();
 
     CheckState(EState::None);
-    TestConsume(' ');
+    TestConsume(" ");
     CheckState(EState::None);
-    TestConsume('1');
+    TestConsume("1");
     CheckState(EState::InProgress);
-    TestConsume(';', false);
+    TestConsume(";", 0);
     CheckState(EState::Terminal);
 
     Lexer->Reset();
 
     CheckState(EState::None);
-    TestConsume(';');
+    TestConsume(";");
     CheckState(EState::Terminal);
     
     Lexer->Reset();
 
     CheckState(EState::None);
-    TestConsume('1');
+    TestConsume("1");
     CheckState(EState::InProgress);
-    TestConsume('2');
+    TestConsume("2");
     CheckState(EState::InProgress);
     Lexer->Finish();
     CheckState(EState::Terminal);
@@ -139,11 +137,11 @@ TEST_F(TLexerTest, States)
     Lexer->Reset();
     
     CheckState(EState::None);
-    TestConsume('\t');
+    TestConsume("\t");
     CheckState(EState::None);
-    TestConsume('\r');
+    TestConsume("\r");
     CheckState(EState::None);
-    TestConsume('\n');
+    TestConsume("\n");
     CheckState(EState::None);
     Lexer->Finish();
     CheckState(EState::None);

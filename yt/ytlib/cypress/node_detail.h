@@ -188,7 +188,6 @@ class TCypressNodeBase
 {
     // This also overrides appropriate methods from ICypressNode.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TLock*>, Locks);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TLock*>, SubtreeLocks);
 
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
@@ -199,6 +198,7 @@ public:
 
     virtual EObjectType GetObjectType() const;
     virtual TVersionedNodeId GetId() const;
+    virtual void PromoteToTransaction(const NTransactionServer::TTransaction* transaction);
 
     virtual i32 RefObject();
     virtual i32 UnrefObject();

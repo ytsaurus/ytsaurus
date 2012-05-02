@@ -387,5 +387,5 @@ TEST_F(TWeakPtrTest, AcquisionOfSlowlyDyingObject)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace <anonymous>
+} // namespace
 } // namespace NYT

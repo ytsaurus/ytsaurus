@@ -99,13 +99,38 @@ TYPath ComputeResolvedYPath(
         : wholePath.substr(0, resolvedLength);
 }
 
-TYPath EscapeYPath(const Stroka& value)
+TYPath EscapeYPathToken(const Stroka& value)
 {
-    // TODO(babenko,roizner): don't escape safe ids
-    return SerializeToYson(value, EYsonFormat::Text);
+    bool isIdentifer = false;
+
+    // Checking if we can leave the value as is (i.e. value is an identifier)
+    if (!value.empty() && value[0] != '-' && !isdigit(value[0])) {
+        isIdentifer = true;
+        FOREACH (char ch, value) {
+            if (!isIdentifer)
+                break;
+            switch (ch) {
+                case '_':
+                case '-':
+                case '%':
+                    break;
+                default:
+                    if (!isalpha(ch) && !isdigit(ch)) {
+                        isIdentifer = false;
+                    }
+                    break;
+            }
+        }
+    }
+
+    if (isIdentifer) {
+        return value;
+    } else {
+        return SerializeToYson(value, EYsonFormat::Text);
+    }
 }
 
-TYPath EscapeYPath(i64 value)
+TYPath EscapeYPathToken(i64 value)
 {
     return SerializeToYson(value, EYsonFormat::Text);
 }
@@ -295,15 +320,15 @@ yvector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 void ForceYPath(IMapNodePtr root, const TYPath& path)
 {
     INodePtr currentNode = root;
-    TTokenizer tokens(path);
-    for (int i = 0; !tokens[i].IsEmpty(); ++i) {
-        tokens[i].CheckType(ETokenType::Slash);
+    TTokenizer tokenizer(path);
+    while (tokenizer.ParseNext()) {
+        tokenizer.Current().CheckType(ETokenType::Slash);
 
         INodePtr child;
-        ++i;
-        switch (tokens[i].GetType()) {
+        tokenizer.ParseNext();
+        switch (tokenizer.GetCurrentType()) {
             case ETokenType::String: {
-                auto key = tokens[i].GetStringValue();
+                Stroka key(tokenizer.Current().GetStringValue());
                 child = currentNode->AsMap()->FindChild(key);
                 if (!child) {
                     auto factory = currentNode->CreateFactory();
@@ -314,12 +339,12 @@ void ForceYPath(IMapNodePtr root, const TYPath& path)
             }
 
             case ETokenType::Integer: {
-                child = currentNode->AsList()->GetChild(tokens[i].GetIntegerValue());
+                child = currentNode->AsList()->GetChild(tokenizer.Current().GetIntegerValue());
                 break;
             }
 
             default:
-                ThrowUnexpectedToken(tokens[i]);
+                ThrowUnexpectedToken(tokenizer.Current());
                 YUNREACHABLE();
         }
         currentNode = child;

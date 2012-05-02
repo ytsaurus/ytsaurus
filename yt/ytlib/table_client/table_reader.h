@@ -57,7 +57,7 @@ public:
 
 private:
     TChunkSequenceReaderConfigPtr Config;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     NTransactionClient::ITransaction::TPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::IBlockCachePtr BlockCache;

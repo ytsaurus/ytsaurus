@@ -4,6 +4,7 @@
 #include <ytlib/table_server/table_ypath.pb.h>
 
 #include <ytlib/ytree/ypath_service.h>
+#include <ytlib/ytree/public.h>
 #include <ytlib/cypress/node_proxy_detail.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/cell_master/public.h>
@@ -25,6 +26,7 @@ public:
         NTransactionServer::TTransaction* transaction,
         const NCypress::TNodeId& nodeId);
 
+    virtual TResolveResult Resolve(const NYTree::TYPath& path, const Stroka& verb);
     virtual bool IsWriteRequest(NRpc::IServiceContext* context) const;
 
 private:
@@ -35,15 +37,27 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContext* context);
 
-    TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb);
-
     void TraverseChunkTree(
         yvector<NChunkServer::TChunkId>* chunkIds,
-        const NChunkServer::TChunkList *chunkTreeRef);
+        const NChunkServer::TChunkList* chunkList);
+
+    void TraverseChunkTree(
+        const NChunkServer::TChunkList* chunkList,
+        i64 lowerBound,
+        TNullable<i64> upperBound,
+        NProto::TRspFetch* response);
+
+    void TraverseChunkTree(
+        const NChunkServer::TChunkList* chunkList,
+        const NTableClient::NProto::TKey& lowerBound,
+        const NTableClient::NProto::TKey* upperBound,
+        NProto::TRspFetch* response);
 
     void ParseYPath(
         const NYTree::TYPath& path,
-        NTableClient::TChannel* channel);
+        NTableClient::TChannel* channel,
+        NTableClient::NProto::TReadLimit* lowerBound,
+        NTableClient::NProto::TReadLimit* upperBound);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetChunkListForUpdate);
     DECLARE_RPC_SERVICE_METHOD(NProto, Fetch);

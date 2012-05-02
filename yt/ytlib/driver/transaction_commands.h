@@ -53,7 +53,7 @@ struct TAbortTransactionRequest
     : public TTransactedRequest
 { };
 
-typedef TIntrusivePtr<TAbortTransactionRequest> TAbortRequestPtr;
+typedef TIntrusivePtr<TAbortTransactionRequest> TAbortTransactionRequestPtr;
 
 class TAbortTransactionCommand
     : public TTypedCommandBase<TAbortTransactionRequest>
@@ -65,7 +65,7 @@ public:
     { }
 
 private:
-    virtual void DoExecute(TAbortRequestPtr request);
+    virtual void DoExecute(TAbortTransactionRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

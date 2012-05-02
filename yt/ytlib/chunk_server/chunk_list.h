@@ -17,6 +17,7 @@ class TChunkList
     : public NObjectServer::TObjectWithIdBase
 {
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTreeRef>, Children);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RowCountSums);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
     // This is a pessimistic estimate.

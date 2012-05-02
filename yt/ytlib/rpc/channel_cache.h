@@ -20,7 +20,7 @@ public:
     TChannelCache();
 
     //! Constructs new or gets an earlier created channel for a given address.
-    IChannel::TPtr GetChannel(const Stroka& address);
+    IChannelPtr GetChannel(const Stroka& address);
 
     //! Shuts down all channels.
     /*!
@@ -30,7 +30,7 @@ public:
     void Shutdown();
 
 private:
-    typedef yhash_map<Stroka, IChannel::TPtr> TChannelMap;
+    typedef yhash_map<Stroka, IChannelPtr> TChannelMap;
 
     bool IsTerminated;
     TChannelMap ChannelMap;

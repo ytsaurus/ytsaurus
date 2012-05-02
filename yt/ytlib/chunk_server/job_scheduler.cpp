@@ -49,7 +49,7 @@ TJobScheduler::TJobScheduler(
 }
 
 void TJobScheduler::ScheduleJobs(
-    const THolder& holder,
+    THolder& holder,
     const yvector<TJobInfo>& runningJobs,
     yvector<TJobStartInfo>* jobsToStart,
     yvector<TJobStopInfo>* jobsToStop)
@@ -199,7 +199,7 @@ bool TJobScheduler::IsRefreshScheduled(const TChunkId& chunkId)
 }
 
 TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
-    const THolder& sourceHolder,
+    THolder& sourceHolder,
     const TChunkId& chunkId,
     yvector<TJobStartInfo>* jobsToStart)
 {
@@ -218,27 +218,27 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
         return EScheduleFlags::Purged;
     }
 
-    int desiredCount;
+    int replicationFactor;
     int storedCount;
     int cachedCount;
     int plusCount;
     int minusCount;
     GetReplicaStatistics(
         *chunk,
-        &desiredCount,
+        &replicationFactor,
         &storedCount,
         &cachedCount,
         &plusCount,
         &minusCount);
 
-    int requestedCount = desiredCount - (storedCount + plusCount);
-    if (requestedCount <= 0) {
+    int replicasNeeded = replicationFactor - (storedCount + plusCount);
+    if (replicasNeeded <= 0) {
         LOG_TRACE("Chunk %s we're about to replicate has enough replicas",
             ~chunkId.ToString());
         return EScheduleFlags::Purged;
     }
 
-    auto targets = ChunkPlacement->GetReplicationTargets(*chunk, requestedCount);
+    auto targets = ChunkPlacement->GetReplicationTargets(*chunk, replicasNeeded);
     if (targets.empty()) {
         LOG_TRACE("No suitable target holders for replication of chunk %s",
             ~chunkId.ToString());
@@ -246,10 +246,9 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
     }
 
     yvector<Stroka> targetAddresses;
-    FOREACH (auto holderId, targets) {
-        const auto& holder = chunkManager->GetHolder(holderId);
-        targetAddresses.push_back(holder.GetAddress());
-        ChunkPlacement->OnSessionHinted(holder);
+    FOREACH (auto holder, targets) {
+        targetAddresses.push_back(holder->GetAddress());
+        ChunkPlacement->OnSessionHinted(*holder);
     }
 
     auto jobId = TJobId::Create();
@@ -268,14 +267,14 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleReplicationJob(
         ~JoinToString(targetAddresses));
 
     return
-        targetAddresses.ysize() == requestedCount
+        targetAddresses.ysize() == replicasNeeded
         // TODO: flagged enums
         ? (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled)
         : (EScheduleFlags) EScheduleFlags::Scheduled;
 }
 
 TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
-    const THolder& sourceHolder,
+    THolder& sourceHolder,
     const TChunkId& chunkId,
     yvector<TJobStartInfo>* jobsToStart)
 {
@@ -291,22 +290,21 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
     double maxFillCoeff =
         ChunkPlacement->GetFillCoeff(sourceHolder) -
         Config->Jobs->MinBalancingFillCoeffDiff;
-    auto targetHolderId = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
-    if (targetHolderId == InvalidHolderId) {
+    auto targetHolder = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
+    if (targetHolder == NULL) {
         LOG_DEBUG("No suitable target holders for balancing of chunk %s",
             ~chunkId.ToString());
         return EScheduleFlags::None;
     }
 
-    const auto& targetHolder = chunkManager->GetHolder(targetHolderId);
-    ChunkPlacement->OnSessionHinted(targetHolder);
+    ChunkPlacement->OnSessionHinted(*targetHolder);
     
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
     *startInfo.mutable_job_id() = jobId.ToProto();
     startInfo.set_type(EJobType::Replicate);
     *startInfo.mutable_chunk_id() = chunkId.ToProto();
-    startInfo.add_target_addresses(targetHolder.GetAddress());
+    startInfo.add_target_addresses(targetHolder->GetAddress());
     startInfo.set_start_time(TInstant::Now().GetValue());
     jobsToStart->push_back(startInfo);
 
@@ -314,14 +312,14 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleBalancingJob(
         ~jobId.ToString(),
         ~sourceHolder.GetAddress(),
         ~chunkId.ToString(),
-        ~targetHolder.GetAddress());
+        ~targetHolder->GetAddress());
 
     // TODO: flagged enums
     return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
 TJobScheduler::EScheduleFlags TJobScheduler::ScheduleRemovalJob(
-    const THolder& holder,
+    THolder& holder,
     const TChunkId& chunkId,
     yvector<TJobStartInfo>* jobsToStart)
 {
@@ -353,7 +351,7 @@ TJobScheduler::EScheduleFlags TJobScheduler::ScheduleRemovalJob(
 }
 
 void TJobScheduler::ScheduleNewJobs(
-    const THolder& holder,
+    THolder& holder,
     int maxReplicationJobsToStart,
     int maxRemovalJobsToStart,
     yvector<TJobStartInfo>* jobsToStart)
@@ -431,13 +429,13 @@ void TJobScheduler::ScheduleNewJobs(
 
 void TJobScheduler::GetReplicaStatistics(
     const TChunk& chunk,
-    int* desiredCount,
+    int* replicationFactor,
     int* storedCount,
     int* cachedCount,
     int* plusCount,
     int* minusCount)
 {
-    *desiredCount = GetDesiredReplicaCount(chunk);
+    *replicationFactor = GetReplicationFactor(chunk);
     *storedCount = static_cast<int>(chunk.StoredLocations().size());
     *cachedCount = !~chunk.CachedLocations() ? 0 : static_cast<int>(chunk.CachedLocations()->size());
     *plusCount = 0;
@@ -480,23 +478,21 @@ void TJobScheduler::GetReplicaStatistics(
     }
 }
 
-int TJobScheduler::GetDesiredReplicaCount(const TChunk& chunk)
+int TJobScheduler::GetReplicationFactor(const TChunk& chunk)
 {
-    // TODO(babenko): make configurable
-    UNUSED(chunk);
-    return 3;
+    return chunk.GetReplicationFactor();
 }
 
 void TJobScheduler::Refresh(const TChunk& chunk)
 {
-    int desiredCount;
+    int replicationFactor;
     int storedCount;
     int cachedCount;
     int plusCount;
     int minusCount;
     GetReplicaStatistics(
         chunk,
-        &desiredCount,
+        &replicationFactor,
         &storedCount,
         &cachedCount,
         &plusCount,
@@ -526,9 +522,9 @@ void TJobScheduler::Refresh(const TChunk& chunk)
 
         LOG_TRACE("Chunk %s is lost: %d replicas needed but only %s exist",
             ~chunk.GetId().ToString(),
-            desiredCount,
+            replicationFactor,
             ~replicaCountStr);
-    } else if (storedCount - minusCount > desiredCount) {
+    } else if (storedCount - minusCount > replicationFactor) {
         OverreplicatedChunkIds_.insert(chunkId);
 
         // NB: Never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
@@ -536,28 +532,27 @@ void TJobScheduler::Refresh(const TChunk& chunk)
             LOG_WARNING("Chunk %s is over-replicated: %s replicas exist but only %d needed, waiting for pending replications to complete",
                 ~chunk.GetId().ToString(),
                 ~replicaCountStr,
-                desiredCount);
+                replicationFactor);
             return;
         }
 
-        auto holderIds = ChunkPlacement->GetRemovalTargets(chunk, storedCount - minusCount - desiredCount);
-        FOREACH (auto holderId, holderIds) {
-            auto& holderInfo = GetHolderInfo(holderId);
+        auto holders = ChunkPlacement->GetRemovalTargets(chunk, storedCount - minusCount - replicationFactor);
+        FOREACH (auto holder, holders) {
+            auto& holderInfo = GetHolderInfo(holder->GetId());
             holderInfo.ChunksToRemove.insert(chunk.GetId());
         }
 
         yvector<Stroka> holderAddresses;
-        FOREACH (auto holderId, holderIds) {
-            const auto& holder = chunkManager->GetHolder(holderId);
-            holderAddresses.push_back(holder.GetAddress());
+        FOREACH (auto holder, holders) {
+            holderAddresses.push_back(holder->GetAddress());
         }
 
         LOG_DEBUG("Chunk %s is over-replicated: %s replicas exist but only %d needed, removal is scheduled on [%s]",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
-            desiredCount,
+            replicationFactor,
             ~JoinToString(holderAddresses));
-    } else if (storedCount + plusCount < desiredCount) {
+    } else if (storedCount + plusCount < replicationFactor) {
         UnderreplicatedChunkIds_.insert(chunkId);
 
         // NB: Never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
@@ -565,26 +560,25 @@ void TJobScheduler::Refresh(const TChunk& chunk)
             LOG_WARNING("Chunk %s is under-replicated: %s replicas exist but %d needed, waiting for pending removals to complete",
                 ~chunk.GetId().ToString(),
                 ~replicaCountStr,
-                desiredCount);
+                replicationFactor);
             return;
         }
 
-        auto holderId = ChunkPlacement->GetReplicationSource(chunk);
-        auto& holderInfo = GetHolderInfo(holderId);
-        const auto& holder = chunkManager->GetHolder(holderId);
+        auto holder = ChunkPlacement->GetReplicationSource(chunk);
+        auto& holderInfo = GetHolderInfo(holder->GetId());
 
         holderInfo.ChunksToReplicate.insert(chunk.GetId());
 
         LOG_DEBUG("Chunk %s is under-replicated: %s replicas exist but %d needed, replication is scheduled on %s",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
-            desiredCount,
-            ~holder.GetAddress());
+            replicationFactor,
+            ~holder->GetAddress());
     } else {
         LOG_TRACE("Chunk %s is OK: %s replicas exist and %d needed",
             ~chunk.GetId().ToString(),
             ~replicaCountStr,
-            desiredCount);
+            replicationFactor);
     }
  }
 

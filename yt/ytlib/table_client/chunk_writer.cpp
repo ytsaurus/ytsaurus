@@ -17,7 +17,6 @@
 namespace NYT {
 namespace NTableClient {
 
-using namespace std;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NYTree;

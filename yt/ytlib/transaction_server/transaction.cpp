@@ -27,8 +27,8 @@ void TTransaction::Save(TOutputStream* output) const
     SaveObjectRef(output, Parent_);
     SaveSet(output, CreatedObjectIds_);
     SaveObjectRefs(output, Locks_);
-    ::Save(output, BranchedNodeIds_);
-    ::Save(output, CreatedNodeIds_);
+    SaveObjectRefs(output, BranchedNodes_);
+    SaveObjectRefs(output, CreatedNodes_);
 }
 
 void TTransaction::Load(const TLoadContext& context, TInputStream* input)
@@ -39,13 +39,8 @@ void TTransaction::Load(const TLoadContext& context, TInputStream* input)
     LoadObjectRef(input, Parent_, context);
     LoadSet(input, CreatedObjectIds_);
     LoadObjectRefs(input, Locks_, context);
-    ::Load(input, BranchedNodeIds_);
-    ::Load(input, CreatedNodeIds_);
-}
-
-TTransactionId NYT::NTransactionServer::TTransaction::GetParentId() const
-{
-    return Parent_ ? Parent_->GetId() : NullTransactionId;
+    LoadObjectRefs(input, BranchedNodes_, context);
+    LoadObjectRefs(input, CreatedNodes_, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,6 +35,8 @@ DECLARE_ENUM(EYsonType,
     (KeyedFragment)
 );
     
+class TTokenizer;
+
 struct INode;
 typedef TIntrusivePtr<INode> INodePtr;
 

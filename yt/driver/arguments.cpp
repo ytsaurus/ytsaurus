@@ -55,18 +55,15 @@ TArgsParserBase::TFormat TArgsParserBase::GetOutputFormat()
 void TArgsParserBase::ApplyConfigUpdates(NYTree::IYPathServicePtr service)
 {
     FOREACH (auto updateString, ConfigUpdatesArg.getValue()) {
-        TStringBuf ypath;
-
-        TTokenizer tokens(updateString);
-        int index = 0;
-        while (tokens[index].GetType() != ETokenType::Equals) {
-            if (tokens[index].IsEmpty()) {
+        TTokenizer tokenizer(updateString);
+        tokenizer.ParseNext();
+        while (tokenizer.GetCurrentType() != ETokenType::Equals) {
+            if (!tokenizer.ParseNext()) {
                 ythrow yexception() << "Incorrect option";
             }
-            ypath = TStringBuf(updateString).Chop(tokens.GetSuffix(index).length());
         }
-
-        SyncYPathSet(service, TYPath(ypath), TYson(tokens.GetSuffix(index)));
+        TStringBuf ypath = TStringBuf(updateString).Chop(tokenizer.GetCurrentInput().length());
+        SyncYPathSet(service, TYPath(ypath), TYson(tokenizer.GetCurrentSuffix()));
     }
 }
 
@@ -242,7 +239,7 @@ TStartTxArgsParser::TStartTxArgsParser()
 void TStartTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("start");
+        .Item("do").Scalar("start_tx");
 
     TArgsParserBase::BuildCommand(consumer);
     BuildOptions(consumer);
@@ -253,7 +250,7 @@ void TStartTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 void TCommitTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("commit");
+        .Item("do").Scalar("commit_tx");
 
     TTransactedArgsParser::BuildCommand(consumer);
 }
@@ -263,7 +260,7 @@ void TCommitTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 void TAbortTxArgsParser::BuildCommand(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("abort");
+        .Item("do").Scalar("abort_tx");
 
     TTransactedArgsParser::BuildCommand(consumer);
 }
@@ -416,6 +413,52 @@ void TMergeArgsParser::BuildCommand(IYsonConsumer* consumer)
         .EndMap();
 
     TTransactedArgsParser::BuildCommand(consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEraseArgsParser::TEraseArgsParser()
+    : InArg("", "in", "input table", false, "", "ypath")
+    , OutArg("", "out", "output table", false, "", "ypath")
+    , CombineArg("", "combine", "combine small output chunks into larger ones")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(CombineArg);
+}
+
+void TEraseArgsParser::BuildCommand(IYsonConsumer* consumer)
+{
+    auto input = PreprocessYPath(InArg.getValue());
+    auto output = PreprocessYPath(OutArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("do").Scalar("erase")
+        .Item("spec").BeginMap()
+            .Item("input_table_path").Scalar(input)
+            .Item("output_table_path").Scalar(output)
+            .Item("combine_chunks").Scalar(CombineArg.getValue())
+            .Do(BIND(&TEraseArgsParser::BuildOptions, Unretained(this)))
+        .EndMap();
+
+    TTransactedArgsParser::BuildCommand(consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAbortOpArgsParser::TAbortOpArgsParser()
+    : OpArg("", "op", "id of an operation that must be aborted", true, "", "operation_id")
+{
+    CmdLine.add(OpArg);
+}
+
+void TAbortOpArgsParser::BuildCommand(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("do").Scalar("abort_op")
+        .Item("operation_id").Scalar(OpArg.getValue());
+
+    TArgsParserBase::BuildCommand(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

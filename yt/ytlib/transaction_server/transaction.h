@@ -27,15 +27,13 @@ class TTransaction
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
 
-    TTransactionId GetParentId() const;
-
     // Object Manager stuff
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectId>, CreatedObjectIds);
 
     // Cypress stuff
     DEFINE_BYREF_RW_PROPERTY(std::vector<NCypress::TLock*>, Locks);
-    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, BranchedNodeIds);
-    DEFINE_BYREF_RW_PROPERTY(yvector<NCypress::TNodeId>, CreatedNodeIds);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NCypress::ICypressNode*>, BranchedNodes);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NCypress::ICypressNode*>, CreatedNodes);
 
 public:
     TTransaction(const TTransactionId& id);

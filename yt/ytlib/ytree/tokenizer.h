@@ -8,28 +8,23 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTokenizer {
+class TTokenizer
+{
 public:
-    TTokenizer(const TStringBuf& input);
+    // TODO(roizner): document
 
-    const TToken& operator[](size_t index);
-    TStringBuf GetSuffix(size_t index);
+    explicit TTokenizer(const TStringBuf& input);
 
-    /*
-     * Consider implementing the following methods if needed:
-     * int GetChoppedTokenCount() const;
-     * bool Finished() const;
-     */
+    bool ParseNext();
+    const TToken& Current() const;
+    ETokenType GetCurrentType() const;
+    TStringBuf GetCurrentSuffix() const;
+    const TStringBuf& GetCurrentInput() const;
 
 private:
-    void ChopTo(size_t index);
-    void ChopToken(size_t position);
-
     TStringBuf Input;
     TLexer Lexer;
-    std::vector<TToken> Tokens;
-    std::vector<size_t> SuffixPositions;
-    std::vector<Stroka> StringBuffers; // for String tokens
+    size_t Parsed;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

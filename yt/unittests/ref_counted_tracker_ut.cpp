@@ -33,7 +33,7 @@ namespace {
             return TRefCountedTracker::Get()->GetCreatedObjects(&typeid(TSimpleObject));
         }
     };
-} // namespace <anonymous>
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

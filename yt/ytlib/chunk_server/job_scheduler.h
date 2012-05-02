@@ -40,7 +40,7 @@ public:
     void ScheduleChunkRemoval(const THolder& holder, const TChunkId& chunkId);
 
     void ScheduleJobs(
-        const THolder& holder,
+        THolder& holder,
         const yvector<NProto::TJobInfo>& runningJobs,
         yvector<NProto::TJobStartInfo>* jobsToStart,
         yvector<NProto::TJobStopInfo>* jobsToStop);
@@ -96,25 +96,25 @@ private:
     );
 
     EScheduleFlags ScheduleReplicationJob(
-        const THolder& sourceHolder,
+        THolder& sourceHolder,
         const TChunkId& chunkId,
         yvector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
-        const THolder& sourceHolder,
+        THolder& sourceHolder,
         const TChunkId& chunkId,
         yvector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
-        const THolder& holder,
+        THolder& holder,
         const TChunkId& chunkId,
         yvector<NProto::TJobStartInfo>* jobsToStart);
     void ScheduleNewJobs(
-        const THolder& holder,
+        THolder& holder,
         int maxReplicationJobsToStart,
         int maxRemovalJobsToStart,
         yvector<NProto::TJobStartInfo>* jobsToStart);
 
     void Refresh(const TChunk& chunk);
-    int GetDesiredReplicaCount(const TChunk& chunk);
+    int GetReplicationFactor(const TChunk& chunk);
     void GetReplicaStatistics(
         const TChunk& chunk,
         int* desiredCount,

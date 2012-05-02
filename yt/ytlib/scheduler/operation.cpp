@@ -14,9 +14,11 @@ TOperation::TOperation(
     EOperationType type,
     const TTransactionId& transactionId,
     NYTree::IMapNodePtr spec,
-    TInstant startTime)
+    TInstant startTime,
+    EOperationState state)
     : OperationId_(operationId)
     , Type_(type)
+    , State_(state)
     , TransactionId_(transactionId)
     , Spec_(spec)
     , StartTime_(startTime)

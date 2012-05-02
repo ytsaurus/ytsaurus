@@ -9,6 +9,21 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchedulerRequest
+    : public TTransactedRequest
+{
+    NYTree::INodePtr Spec;
+
+    TSchedulerRequest()
+    {
+        Register("spec", Spec);
+    }
+};
+
+typedef TIntrusivePtr<TSchedulerRequest> TSchedulerRequestPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerCommandBase
     : public virtual TUntypedCommandBase
 {
@@ -23,6 +38,7 @@ protected:
         const NYTree::TYson& spec);
 
     void WaitForOperation(const NScheduler::TOperationId& operationId);
+    void AbortOperation(const NScheduler::TOperationId& operationId);
 
     void DumpOperationProgress(const NScheduler::TOperationId& operationId);
     void DumpOperationResult(const NScheduler::TOperationId& operationId);
@@ -31,54 +47,67 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMapRequest
-    : public TTransactedRequest
-{
-    NYTree::INodePtr Spec;
-
-    TMapRequest()
-    {
-        Register("spec", Spec);
-    }
-};
-
-typedef TIntrusivePtr<TMapRequest> TMapRequestPtr;
-
 class TMapCommand
     : public TSchedulerCommandBase
-    , public TTypedCommandBase<TMapRequest>
+    , public TTypedCommandBase<TSchedulerRequest>
 {
 public:
     explicit TMapCommand(ICommandHost* commandHost);
 
 private:
-    virtual void DoExecute(TMapRequestPtr request);
+    virtual void DoExecute(TSchedulerRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMergeRequest
-    : public TTransactedRequest
-{
-    NYTree::INodePtr Spec;
-
-    TMergeRequest()
-    {
-        Register("spec", Spec);
-    }
-};
-
-typedef TIntrusivePtr<TMergeRequest> TMergeRequestPtr;
-
 class TMergeCommand
     : public TSchedulerCommandBase
-    , public TTypedCommandBase<TMergeRequest>
+    , public TTypedCommandBase<TSchedulerRequest>
 {
 public:
     explicit TMergeCommand(ICommandHost* commandHost);
 
 private:
-    virtual void DoExecute(TMergeRequestPtr request);
+    virtual void DoExecute(TSchedulerRequestPtr request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TEraseCommand
+    : public TSchedulerCommandBase
+    , public TTypedCommandBase<TSchedulerRequest>
+{
+public:
+    explicit TEraseCommand(ICommandHost* commandHost);
+
+private:
+    virtual void DoExecute(TSchedulerRequestPtr request);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAbortOperationRequest
+    : public TConfigurable
+{
+    NScheduler::TOperationId OperationId;
+
+    TAbortOperationRequest()
+    {
+        Register("operation_id", OperationId);
+    }
+};
+
+typedef TIntrusivePtr<TAbortOperationRequest> TAbortOperationRequestPtr;
+
+class TAbortOperationCommand
+    : public TSchedulerCommandBase
+    , public TTypedCommandBase<TAbortOperationRequest>
+{
+public:
+    explicit TAbortOperationCommand(ICommandHost* commandHost);
+
+private:
+    virtual void DoExecute(TAbortOperationRequestPtr request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

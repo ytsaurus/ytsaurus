@@ -3,6 +3,7 @@
 #include "public.h"
 #include "operation_controller.h"
 #include "progress_counter.h"
+#include "private.h"
 
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -12,40 +13,6 @@
 
 namespace NYT {
 namespace NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): extract to a proper place
-class TChunkListPool
-    : public TRefCounted
-{
-public:
-    TChunkListPool(
-        NRpc::IChannel::TPtr masterChannel,
-        IInvoker::TPtr controlInvoker,
-        TOperationPtr operation,
-        const TTransactionId& transactionId);
-
-    int GetSize() const;
-
-    NChunkServer::TChunkListId Extract();
-
-    void Allocate(int count);
-
-private:
-    NRpc::IChannel::TPtr MasterChannel;
-    IInvoker::TPtr ControlInvoker;
-    TOperationPtr Operation;
-    TTransactionId TransactionId;
-
-    NLog::TTaggedLogger Logger;
-    bool RequestInProgress;
-    std::vector<NChunkServer::TChunkListId> Ids;
-
-    void OnChunkListsCreated(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
-};
-
-typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -87,15 +54,14 @@ protected:
 
     // Remains True as long as the operation is not failed, completed, or aborted.
     bool Active;
+
     // Remains True as long as the operation can schedule new jobs.
     bool Running;
 
     // Fixed during init time, used to compute job count.
     int ExecNodeCount;
 
-    // Running counters.
     TProgressCounter JobCounter;
-
     TChunkListPoolPtr ChunkListPool;
 
     // The primary transaction for the whole operation (nested inside operation's transaction).
@@ -107,23 +73,43 @@ protected:
     // These tables are locked with Shared mode.
     NTransactionClient::ITransaction::TPtr OutputTransaction;
 
-    // Input tables.
-    struct TInputTable
+    struct TTableBase
     {
         NYTree::TYPath Path;
+        NObjectServer::TObjectId ObjectId;
+    };
+
+    // Input tables.
+    struct TInputTable
+        : TTableBase
+    {
+        TInputTable()
+            : NegateFetch(false)
+            , Sorted(false)
+        { }
+
         NTableServer::TTableYPathProxy::TRspFetch::TPtr FetchResponse;
+        bool NegateFetch;
+        bool Sorted;
     };
 
     std::vector<TInputTable> InputTables;
 
     // Output tables.
     struct TOutputTable
+        : TTableBase
     {
-        NYTree::TYPath Path;
+        TOutputTable()
+            : InitialRowCount(0)
+            , SetSorted(false)
+        { }
+
+        i64 InitialRowCount;
+        bool SetSorted;
         NYTree::TYson Schema;
         // Chunk list for appending the output.
         NChunkServer::TChunkListId OutputChunkListId;
-        // Chunk trees comprising the output (the order matters!)
+        // Chunk trees comprising the output (the order matters).
         std::vector<NChunkServer::TChunkTreeId> PartitionTreeIds;
     };
 
@@ -138,6 +124,7 @@ protected:
 
     std::vector<TFile> Files;
 
+    // Job handlers.
     struct TJobHandlers
         : public TIntrinsicRefCounted
     {
@@ -149,13 +136,11 @@ protected:
 
     yhash_map<TJobPtr, TJobHandlersPtr> JobHandlers;
 
+    // The set of all input chunks. Used in #OnChunkFailed.
+    yhash_set<NChunkServer::TChunkId> InputChunkIds;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
-
-    virtual void DoInitialize() = 0;
-    virtual bool HasPendingJobs() = 0;
-    virtual void LogProgress() = 0;
-    virtual void DoGetProgress(NYTree::IYsonConsumer* consumer) = 0;
 
     // Jobs handlers management.
     TJobPtr CreateJob(
@@ -200,6 +185,13 @@ protected:
     void OnSecondaryTransactionsStarted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     // Round 3:
+    // - Get input table ids
+    // - Get output table ids
+    NCypress::TCypressServiceProxy::TInvExecuteBatch GetObjectIds();
+
+    void OnObjectIdsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
+
+    // Round 4:
     // - Fetch input tables.
     // - Lock input tables.
     // - Lock output tables.
@@ -212,21 +204,17 @@ protected:
     void OnInputsReceived(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
-    virtual void RequestCustomInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+    virtual void CustomRequestInputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+
     //! Extensibility point for handling additional info from master.
     virtual void OnCustomInputsRecieved(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
-    virtual std::vector<NYTree::TYPath> GetInputTablePaths() = 0;
-    virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
-    virtual std::vector<NYTree::TYPath> GetFilePaths() = 0;
-
-
-    // Round 4.
+    // Round 5.
     // - (Custom)
 
     void CompletePreparation();
 
-    virtual void DoCompletePreparation() = 0;
+    virtual void CustomCompletePreparation() = 0;
 
 
     // Here comes the completion pipeline.
@@ -245,9 +233,39 @@ protected:
 
     //! Extensibility point for additional finalization logic.
     virtual void CommitCustomOutputs(NCypress::TCypressServiceProxy::TReqExecuteBatch::TPtr batchReq);
+
     //! Extensibility point for handling additional finalization outcome.
     virtual void OnCustomOutputsCommitted(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
 
+
+    virtual void CustomInitialize();
+    virtual bool HasPendingJobs() = 0;
+    virtual void LogProgress() = 0;
+    virtual void DoGetProgress(NYTree::IYsonConsumer* consumer) = 0;
+
+    //! Called to extract input table paths from the spec.
+    virtual std::vector<NYTree::TYPath> GetInputTablePaths() = 0;
+    //! Called to extract output table paths from the spec.
+    virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
+    //! Called to extract file paths from the spec.
+    virtual std::vector<NYTree::TYPath> GetFilePaths() = 0;
+
+    //! Called when a job is unable to read a chunk.
+    void OnChunkFailed(const NChunkServer::TChunkId& chunkId);
+
+    //! Called when a job is unable to read a chunk that is not a part of the input.
+    /*!
+     *  The default implementation calls |YUNREACHABLE|.
+     */
+    virtual void OnIntermediateChunkFailed(const NChunkServer::TChunkId& chunkId);
+
+    //! Called when a job is unable to read an input chunk.
+    /*!
+     *  The operation fails immediately.
+     */
+    void OnInputChunkFailed(const NChunkServer::TChunkId& chunkId);
+
+    
     // Abort is not a pipeline really :)
 
     virtual void AbortOperation();
@@ -259,179 +277,16 @@ protected:
 
 
     // Unsorted helpers.
-    bool CheckChunkListsPoolSize(int count);
+    void CheckInputTablesSorted();
+    void CheckOutputTablesEmpty();
+    void SetOutputTablesSorted();
+    bool CheckChunkListsPoolSize(int minSize);
     void ReleaseChunkList(const NChunkServer::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkServer::TChunkListId>& ids);
     void OnChunkListsReleased(NCypress::TCypressServiceProxy::TRspExecuteBatch::TPtr batchRsp);
     static i64 GetJobWeightThreshold(i64 pendingJobs, i64 pendingWeight);
 
 };
-
-////////////////////////////////////////////////////////////////////
-
-// TODO(babenko): move to a proper place
-
-template <class Signature>
-struct TAsyncPipelineSignatureCracker
-{ };
-
-template <class T1, class T2>
-struct TAsyncPipelineSignatureCracker<T1(T2)>
-{
-    typedef T1 ReturnType;
-    typedef T2 ArgType;
-};
-
-template <class T1>
-struct TAsyncPipelineSignatureCracker<T1()>
-{
-    typedef T1 ReturnType;
-    typedef void ArgType;
-};
-
-template <class ArgType, class ReturnType>
-struct TAsyncPipelineHelpers
-{
-    static TFuture< TValueOrError<ReturnType> > Wrapper(TCallback<ReturnType(ArgType)> func, TValueOrError<ArgType> x)
-    {
-        if (!x.IsOK()) {
-            return MakeFuture(TValueOrError<ReturnType>(TError(x)));
-        }
-
-        try {
-            auto&& y = func.Run(x.Value());
-            return MakeFuture(TValueOrError<ReturnType>(ForwardRV<ReturnType>(y)));
-        } catch (const std::exception& ex) {
-            return MakeFuture(TValueOrError<ReturnType>(TError(ex.what())));
-        }
-    }
-};
-
-template <class ArgType, class ReturnType>
-struct TAsyncPipelineHelpers< ArgType, TFuture<ReturnType> >
-{
-    static TFuture< TValueOrError<ReturnType> > Wrapper(TCallback<TFuture<ReturnType>(ArgType)> func, TValueOrError<ArgType> x)
-    {
-        auto toValueOrError = BIND([] (ReturnType x) {
-            return TValueOrError<ReturnType>(x);
-        });
-
-        if (!x.IsOK()) {
-            return MakeFuture(TValueOrError<ReturnType>(TError(x)));
-        }
-
-        try {
-            auto&& y = func.Run(x.Value());
-            return y.Apply(toValueOrError);
-        } catch (const std::exception& ex) {
-            return MakeFuture(TValueOrError<ReturnType>(TError(ex.what())));
-        }
-    }
-};
-
-template <class ArgType>
-struct TAsyncPipelineHelpers<ArgType, void>
-{
-    static TFuture< TValueOrError<void> > Wrapper(TCallback<void(ArgType)> func, TValueOrError<ArgType> x)
-    {
-        if (!x.IsOK()) {
-            return MakeFuture(TValueOrError<void>(TError(x)));
-        }
-
-        try {
-            func.Run(x.Value());
-            return MakeFuture(TValueOrError<void>());
-        } catch (const std::exception& ex) {
-            return MakeFuture(TValueOrError<void>(TError(ex.what())));
-        }
-    }
-};
-
-template <>
-struct TAsyncPipelineHelpers<void, void>
-{
-    static TFuture< TValueOrError<void> > Wrapper(TCallback<void(void)> func, TValueOrError<void> x)
-    {
-        if (!x.IsOK()) {
-            return MakeFuture(TValueOrError<void>(TError(x)));
-        }
-
-        try {
-            func.Run();
-            return MakeFuture(TValueOrError<void>());
-        } catch (const std::exception& ex) {
-            return MakeFuture(TValueOrError<void>(TError(ex.what())));
-        }
-    }
-};
-
-template <class ReturnType>
-struct TAsyncPipelineHelpers< void, TFuture<ReturnType> >
-{
-    static TFuture< TValueOrError<ReturnType> > Wrapper(TCallback<TFuture<ReturnType>()> func, TValueOrError<void> x)
-    {
-        auto toValueOrError = BIND([] (ReturnType x) {
-            return TValueOrError<ReturnType>(x);
-        });
-
-        if (!x.IsOK()) {
-            return MakeFuture(TValueOrError<ReturnType>(TError(x)));
-        }
-
-        try {
-            auto&& y = func.Run();
-            return y.Apply(toValueOrError);
-        } catch (const std::exception& ex) {
-            return MakeFuture(TValueOrError<ReturnType>(TError(ex.what())));
-        }
-    }
-};
-
-template <class T>
-class TAsyncPipeline
-    : public TRefCounted
-{
-public:
-    TAsyncPipeline(
-        IInvoker::TPtr invoker,
-        TCallback< TFuture< TValueOrError<T> >() > head)
-        : Invoker(invoker)
-        , Lazy(head)
-    { }
-
-    TFuture< TValueOrError<T> > Run()
-    {
-        return Lazy.Run();
-    }
-
-    template <class Signature>
-    TIntrusivePtr< TAsyncPipeline< typename NYT::NDetail::TFutureHelper< typename TAsyncPipelineSignatureCracker<Signature>::ReturnType >::TValueType > >
-    Add(TCallback<Signature> func)
-    {
-        typedef typename TAsyncPipelineSignatureCracker<Signature>::ReturnType ReturnType;
-        typedef typename TAsyncPipelineSignatureCracker<Signature>::ArgType ArgType;
-
-        auto wrappedFunc = BIND(&TAsyncPipelineHelpers<ArgType, ReturnType>::Wrapper, func);
-
-        if (Invoker) {
-            wrappedFunc = wrappedFunc.AsyncVia(Invoker);
-        }
-
-        auto lazy = Lazy;
-        auto newLazy = BIND([=] () {
-            return lazy.Run().Apply(wrappedFunc);
-        });
-
-        return New< TAsyncPipeline<typename NYT::NDetail::TFutureHelper<ReturnType>::TValueType> >(Invoker, newLazy);
-    }
-
-private:
-    IInvoker::TPtr Invoker;
-    TCallback< TFuture< TValueOrError<T> >() > Lazy;
-
-};
-
-TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvoker::TPtr invoker = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 

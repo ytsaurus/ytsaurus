@@ -12,10 +12,10 @@ namespace NLog {
 class TLogManager;
 
 class TLogger
-    : private TNonCopyable
 {
 public:
-    explicit TLogger(const Stroka& category);
+    explicit TLogger(const Stroka& category = "");
+    TLogger(const TLogger& other);
 
     Stroka GetCategory() const;
     bool IsEnabled(ELogLevel level) const;

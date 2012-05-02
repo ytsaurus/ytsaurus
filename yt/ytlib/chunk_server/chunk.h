@@ -6,7 +6,10 @@
 #include <ytlib/misc/small_vector.h>
 #include <ytlib/cell_master/public.h>
 #include <ytlib/object_server/object_detail.h>
+
 #include <ytlib/chunk_holder/chunk.pb.h>
+#include <ytlib/file_client/file_chunk_meta.pb.h>
+#include <ytlib/table_client/table_chunk_meta.pb.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -18,6 +21,7 @@ class TChunk
 {
     DEFINE_BYREF_RW_PROPERTY(NChunkHolder::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkHolder::NProto::TChunkInfo, ChunkInfo);
+    DEFINE_BYVAL_RW_PROPERTY(i32, ReplicationFactor);
 
     // This is usually small, e.g. has the length of 3.
     typedef TSmallVector<THolderId, 3> TStoredLocations;
@@ -33,6 +37,7 @@ public:
     explicit TChunk(const TChunkId& id);
 
     ~TChunk();
+    TChunkTreeStatistics GetStatistics() const;
 
     void Save(TOutputStream* output) const;
     void Load(const NCellMaster::TLoadContext& context, TInputStream* input);

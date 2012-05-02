@@ -6,6 +6,7 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/yson_parser.h>
+#include <ytlib/ytree/tokenizer.h>
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
@@ -22,6 +23,9 @@ using namespace NObjectServer;
 using namespace NTableClient;
 using namespace NCellMaster;
 using namespace NTransactionServer;
+
+using NTableClient::NProto::TReadLimit;
+using NTableClient::NProto::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,13 +49,15 @@ void TTableNodeProxy::DoInvoke(IServiceContext* context)
     TBase::DoInvoke(context);
 }
 
-IYPathService::TResolveResult TTableNodeProxy::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TTableNodeProxy::Resolve(const TYPath& path, const Stroka& verb)
 {
-    // Resolve to self to handle channels and ranges.
-    if (verb == "Fetch") {
-        return TResolveResult::Here("/" + path);
+    // |Fetch| and |GetId| can actually handle path suffix while others can't.
+    // NB: |GetId| "handles" suffixes by ignoring them
+    // (provided |allow_nonempty_path_suffix| is True).
+    if (verb == "GetId" || verb == "Fetch") {
+        return TResolveResult::Here(path);
     }
-    return TBase::ResolveRecursive(path, verb);
+    return TCypressNodeProxyBase::Resolve(path, verb);
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContext* context) const
@@ -75,6 +81,220 @@ void TTableNodeProxy::TraverseChunkTree(
                 TraverseChunkTree(chunkIds, child.AsChunkList());
                 break;
             }
+            default:
+                YUNREACHABLE();
+        }
+    }
+}
+
+void TTableNodeProxy::TraverseChunkTree(
+    const TChunkList* chunkList,
+    i64 lowerBound,
+    TNullable<i64> upperBound,
+    NProto::TRspFetch* response)
+{
+    if (lowerBound >= chunkList->Statistics().RowCount ||
+        upperBound && (*upperBound <= 0 || *upperBound <= lowerBound))
+    {
+        return;
+    }
+
+    int index;
+    if (lowerBound == 0) {
+        index = 0;
+    } else {
+        auto it = std::upper_bound(
+            chunkList->RowCountSums().begin(),
+            chunkList->RowCountSums().end(),
+            lowerBound);
+        index = it - chunkList->RowCountSums().begin();
+    }
+
+    YASSERT(index < chunkList->Children().size());
+    i64 firstRowIndex = index == 0 ? 0 : chunkList->RowCountSums()[index - 1];
+
+    while (index < chunkList->Children().size()) {
+        if (upperBound && firstRowIndex >= *upperBound) {
+            break;
+        }
+        const auto& child = chunkList->Children()[index];
+        switch (child.GetType()) {
+            case EObjectType::Chunk: {
+                i64 rowCount = child.AsChunk()->GetStatistics().RowCount;
+
+                auto* inputChunk = response->add_chunks();
+                auto* slice = inputChunk->mutable_slice();
+                *slice->mutable_chunk_id() = child.GetId().ToProto();
+
+                slice->mutable_start_limit();
+                if (lowerBound > firstRowIndex) {
+                    YASSERT(lowerBound - firstRowIndex < rowCount);
+                    slice->mutable_start_limit()->set_row_index(lowerBound - firstRowIndex);
+                }
+
+                slice->mutable_end_limit();
+                if (upperBound && *upperBound < firstRowIndex + rowCount) {
+                    slice->mutable_end_limit()->set_row_index(*upperBound - firstRowIndex);
+                }
+
+                firstRowIndex += rowCount;
+                break;
+            }
+            case EObjectType::ChunkList:
+                TraverseChunkTree(
+                    child.AsChunkList(),
+                    lowerBound - firstRowIndex,
+                    upperBound ? MakeNullable(*upperBound - firstRowIndex) : Null,
+                    response);
+                firstRowIndex += child.AsChunkList()->Statistics().RowCount;
+                break;
+            default:
+                YUNREACHABLE();
+        }
+        ++index;
+    }
+}
+
+namespace {
+
+TKey GetMinKey(const TChunkTreeRef& ref)
+{
+    switch (ref.GetType()) {
+        case EObjectType::Chunk: {
+            auto attributes = ref.AsChunk()->DeserializeAttributes();
+            const auto& tableAttributes = attributes.GetExtension(
+                NTableClient::NProto::TTableChunkAttributes::table_attributes);
+            return tableAttributes.key_samples(0).key();
+        }
+        case EObjectType::ChunkList:
+            YASSERT(!ref.AsChunkList()->Children().empty());
+            return GetMinKey(ref.AsChunkList()->Children()[0]);
+        default:
+            YUNREACHABLE();
+    }
+}
+
+TKey GetMaxKey(const TChunkTreeRef& ref)
+{
+    switch (ref.GetType()) {
+        case EObjectType::Chunk: {
+            auto attributes = ref.AsChunk()->DeserializeAttributes();
+            const auto& tableAttributes = attributes.GetExtension(
+                NTableClient::NProto::TTableChunkAttributes::table_attributes);
+            return tableAttributes.key_samples(tableAttributes.key_samples_size() - 1).key();
+        }
+        case EObjectType::ChunkList:
+            YASSERT(!ref.AsChunkList()->Children().empty());
+            return GetMaxKey(ref.AsChunkList()->Children().back());
+        default:
+            YUNREACHABLE();
+    }
+}
+
+bool LessComparer(const TChunkTreeRef& ref, const TKey& key)
+{
+    return GetMinKey(ref) < key;
+}
+
+bool IsEmpty(TChunkTreeRef ref)
+{
+    switch (ref.GetType()) {
+        case EObjectType::Chunk:
+            return false;
+        case EObjectType::ChunkList:
+            return ref.AsChunkList()->Children().empty();
+        default:
+            YUNREACHABLE();
+    }
+}
+
+// Adopted from http://www.cplusplus.com/reference/algorithm/lower_bound/
+template <class ForwardIterator>
+ForwardIterator LowerBound(ForwardIterator first, ForwardIterator last, const TKey& value)
+{
+    ForwardIterator it;
+    typename std::iterator_traits<ForwardIterator>::difference_type count, step;
+    count = std::distance(first, last);
+    while (count > 0) {
+        it = first;
+        step = count / 2;
+        std::advance(it, step);
+        while (it != last && IsEmpty(*it)) {
+            ++it;
+        }
+        if (it != last && LessComparer(*it, value)) {
+            count -= std::distance(first, it) + 1;
+            first = ++it;
+        } else {
+            count = step;
+        }
+    }
+    return first;
+}
+
+} // namespace
+
+void TTableNodeProxy::TraverseChunkTree(
+    const TChunkList* chunkList,
+    const TKey& lowerBound,
+    const TKey* upperBound,
+    NProto::TRspFetch* response)
+{
+    if (chunkList->Children().empty()) {
+        return;
+    }
+
+    if (upperBound && *upperBound <= lowerBound) {
+        return;
+    }
+
+    auto it = LowerBound(
+        chunkList->Children().begin(),
+        chunkList->Children().end(),
+        lowerBound);
+    if (it != chunkList->Children().begin()) {
+        --it;
+    }
+
+    for (; it != chunkList->Children().end(); ++it) {
+        const auto& child = *it;
+        if (IsEmpty(child)) {
+            continue;
+        }
+        auto minKey = GetMinKey(child);
+        auto maxKey = GetMaxKey(child);
+        if (lowerBound > maxKey) {          
+            continue; // possible for the first chunk tree considered
+        }
+        if (upperBound && minKey >= *upperBound) {
+            break;
+        }
+
+        switch (child.GetType()) {
+            case EObjectType::Chunk: {
+                auto* inputChunk = response->add_chunks();
+                auto* slice = inputChunk->mutable_slice();
+                *slice->mutable_chunk_id() = child.GetId().ToProto();
+
+                slice->mutable_start_limit();
+                if (lowerBound > minKey) {
+                    *slice->mutable_start_limit()->mutable_key() = lowerBound;
+                }
+
+                slice->mutable_end_limit();
+                if (upperBound && *upperBound <= maxKey) {
+                    *slice->mutable_end_limit()->mutable_key() = *upperBound;
+                }
+
+                break;
+            }
+            case EObjectType::ChunkList:
+                TraverseChunkTree(
+                    child.AsChunkList(),
+                    lowerBound,
+                    upperBound,
+                    response);
+                break;
             default:
                 YUNREACHABLE();
         }
@@ -159,34 +379,140 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
     return TBase::GetSystemAttribute(name, consumer);
 }
 
+namespace {
+
+void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
+{
+    if (tokenizer.GetCurrentType() == ETokenType::LeftBrace) {
+        tokenizer.ParseNext();
+        *channel = TChannel::CreateEmpty();
+        while (tokenizer.GetCurrentType() != ETokenType::RightBrace) {
+            TColumn begin;
+            bool isRange = false;
+            switch (tokenizer.GetCurrentType()) {
+                case ETokenType::String:
+                    begin.assign(tokenizer.Current().GetStringValue());
+                    tokenizer.ParseNext();
+                    if (tokenizer.GetCurrentType() == ETokenType::Colon) {
+                        isRange = true;
+                        tokenizer.ParseNext();
+                    }
+                    break;
+                case ETokenType::Colon:
+                    isRange = true;
+                    tokenizer.ParseNext();
+                    break;
+                default:
+                    ThrowUnexpectedToken(tokenizer.Current());
+                    YUNREACHABLE();
+            }
+            if (isRange) {
+                switch (tokenizer.GetCurrentType()) {
+                    case ETokenType::String: {
+                        TColumn end(tokenizer.Current().GetStringValue());
+                        channel->AddRange(begin, end);
+                        tokenizer.ParseNext();
+                        break;
+                    }
+                    case ETokenType::Comma:
+                        channel->AddRange(TRange(begin));
+                        break;
+                    default:
+                        ThrowUnexpectedToken(tokenizer.Current());
+                        YUNREACHABLE();
+                }
+            } else {
+                channel->AddColumn(begin);
+            }
+            switch (tokenizer.GetCurrentType()) {
+                case ETokenType::Comma:
+                    tokenizer.ParseNext();
+                    break;
+                case ETokenType::RightBrace:
+                    break;
+                default:
+                    ThrowUnexpectedToken(tokenizer.Current());
+                    YUNREACHABLE();
+            }
+        }
+        tokenizer.ParseNext();
+    } else {
+        *channel = TChannel::CreateUniversal();
+    }
+}
+
+void ParseRowLimit(
+    TTokenizer& tokenizer,
+    ETokenType separator,
+    TReadLimit* limit)
+{
+    switch (tokenizer.GetCurrentType()) {
+        case ETokenType::String:
+            limit->mutable_key()->add_values(Stroka(tokenizer.Current().GetStringValue()));
+            tokenizer.ParseNext();
+            break;
+        case ETokenType::Hash:
+            tokenizer.ParseNext();
+            limit->set_row_index(tokenizer.Current().GetIntegerValue());
+            tokenizer.ParseNext();
+            break;
+        case ETokenType::LeftParenthesis:
+            tokenizer.ParseNext();
+            limit->mutable_key();
+            while (tokenizer.GetCurrentType() != ETokenType::RightParenthesis) {
+                limit->mutable_key()->add_values(Stroka(tokenizer.Current().GetStringValue()));
+                tokenizer.ParseNext();
+                switch (tokenizer.GetCurrentType()) {
+                    case ETokenType::Comma:
+                        tokenizer.ParseNext();
+                        break;
+                    case ETokenType::RightParenthesis:
+                        break;
+                    default:
+                        ThrowUnexpectedToken(tokenizer.Current());
+                        YUNREACHABLE();
+                }
+            }
+            tokenizer.ParseNext();
+            break;
+        default:
+            if (tokenizer.GetCurrentType() != separator) {
+                ThrowUnexpectedToken(tokenizer.Current());
+            }
+            break;
+    }
+
+    tokenizer.Current().CheckType(separator);
+    tokenizer.ParseNext();
+}
+
+void ParseRowLimits(
+    TTokenizer& tokenizer,
+    TReadLimit* lowerLimit,
+    TReadLimit* upperLimit)
+{
+    *lowerLimit = TReadLimit();
+    *upperLimit = TReadLimit();
+    if (tokenizer.GetCurrentType() == ETokenType::LeftBracket) {
+        tokenizer.ParseNext();
+        ParseRowLimit(tokenizer, ETokenType::Colon, lowerLimit);
+        ParseRowLimit(tokenizer, ETokenType::RightBracket, upperLimit);
+    }
+}
+
+} // namespace
+
 void TTableNodeProxy::ParseYPath(
     const TYPath& path,
-    NTableClient::TChannel* channel)
+    TChannel* channel,
+    TReadLimit* lowerBound,
+    TReadLimit* upperBound)
 {
-    // Set defaults.
-    *channel = TChannel::CreateUniversal();
-    
-    // A simple shortcut.
-    if (path.empty()) {
-        return;
-    }
-
-    auto currentPath = path;
-        
-    // Parse channel.
-    auto channelBuilder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-    channelBuilder->BeginTree();
-    channelBuilder->OnBeginList();
-    ParseYson(currentPath, ~channelBuilder, EYsonType::ListFragment);
-    channelBuilder->OnEndList();
-    auto node = channelBuilder->EndTree()->AsList();
-    if (node->GetChildCount() > 0) {
-        YASSERT(node->GetChildCount() == 1);
-        *channel = TChannel::FromNode(~node->GetChild(0));
-    }
-
-    // TODO(babenko): parse range.
-    // TODO(babenko): check for trailing garbage.
+    TTokenizer tokenizer(path);
+    tokenizer.ParseNext();
+    ParseChannel(tokenizer, channel);
+    ParseRowLimits(tokenizer, lowerBound, upperBound);
+    tokenizer.Current().CheckType(ETokenType::EndOfStream);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
@@ -207,25 +533,54 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
     const auto& impl = GetTypedImpl();
 
-    yvector<TChunkId> chunkIds;
-    TraverseChunkTree(&chunkIds, impl.GetChunkList());
-
     auto channel = TChannel::CreateEmpty();
-    ParseYPath(context->GetPath(), &channel);
+    TReadLimit lowerLimit, upperLimit;
+    ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
+    auto* chunkList = impl.GetChunkList();
+
+    if (lowerLimit.has_key() || upperLimit.has_key()) {
+        if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
+            ythrow yexception() << Sprintf("Row limits must have the same type");
+        }
+        if (!chunkList->GetSorted()) {
+            ythrow yexception() << Sprintf("Table is not sorted");
+        }
+        const auto& lowerBound = lowerLimit.key();
+        const auto* upperBound = upperLimit.has_key() ? &upperLimit.key() : NULL;
+        if (!upperBound || *upperBound > lowerBound) {
+            if (request->negate()) {
+                TraverseChunkTree(chunkList, TKey(), &lowerBound, response);
+                if (upperBound) {
+                    TraverseChunkTree(chunkList, *upperBound, NULL, response);
+                }
+            } else {
+                TraverseChunkTree(chunkList, lowerBound, upperBound, response);
+            }
+        }
+    } else {
+        i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
+        auto upperBound = upperLimit.has_row_index() ? MakeNullable(upperLimit.row_index()) : Null;
+        if (!upperBound || *upperBound > lowerBound) {
+            if (request->negate()) {
+                TraverseChunkTree(chunkList, 0, lowerBound, response);
+                if (upperBound) {
+                    TraverseChunkTree(chunkList, *upperBound, Null, response);
+                }
+            } else {
+                TraverseChunkTree(chunkList, lowerBound, upperBound, response);
+            }
+        }
+    }
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& chunkId, chunkIds) {
-        auto* inputChunk = response->add_chunks();
-        auto* slice = inputChunk->mutable_slice();
-
-        *slice->mutable_chunk_id() = chunkId.ToProto();
-        slice->mutable_start_limit();
-        slice->mutable_end_limit();
+    for (int i = 0; i < response->chunks_size(); ++i) {
+        auto* inputChunk = response->mutable_chunks(i);
 
         *inputChunk->mutable_channel() = channel.ToProto();
         // Create extensions anyway, cause they're required.
         inputChunk->mutable_extensions();
 
+        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         const auto& chunk = chunkManager->GetChunk(chunkId);
         if (!chunk.IsConfirmed()) {
             ythrow yexception() << Sprintf("Attempt to fetch a table containing an unconfirmed chunk %s",
@@ -243,7 +598,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         }
     }
 
-    context->SetResponseInfo("ChunkCount: %d", static_cast<int>(chunkIds.size()));
+    context->SetResponseInfo("ChunkCount: %d", response->chunks_size());
 
     context->Reply();
 }

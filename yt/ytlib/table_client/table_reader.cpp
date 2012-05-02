@@ -19,7 +19,7 @@ using namespace NTableServer;
 
 TTableReader::TTableReader(
     TChunkSequenceReaderConfigPtr config,
-    NRpc::IChannel::TPtr masterChannel,
+    NRpc::IChannelPtr masterChannel,
     NTransactionClient::ITransaction::TPtr transaction,
     NChunkClient::IBlockCachePtr blockCache,
     const NYTree::TYPath& path)

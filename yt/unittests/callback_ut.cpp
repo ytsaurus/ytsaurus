@@ -20,7 +20,7 @@ struct TFakeInvoker
     { }
 };
 
-} // namespace <anonymous>
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,7 +165,7 @@ TEST_F(TCallbackTest, Reset)
     EXPECT_IS_TRUE(FirstCallback.Equals(NullCallback));
 }
 
-} // namespace <anonymous>
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

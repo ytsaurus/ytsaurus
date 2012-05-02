@@ -37,15 +37,93 @@ class TCypressManager::TLockTypeHandler
     : public TObjectTypeHandlerBase<TLock>
 {
 public:
-    explicit TLockTypeHandler(TCypressManager* owner)
+    explicit TLockTypeHandler(TCypressManagerPtr owner)
         : TObjectTypeHandlerBase(owner->Bootstrap, &owner->LockMap)
+        , Owner(owner)
     { }
 
     virtual EObjectType GetType()
     {
         return EObjectType::Lock;
     }
+
+    virtual IObjectProxy::TPtr GetProxy(
+        const TObjectId& id,
+        TTransaction* transaction);
+
+private:
+    TCypressManagerPtr Owner;
+
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressManager::TLockProxy
+    : public NObjectServer::TUnversionedObjectProxyBase<TLock>
+{
+public:
+    TLockProxy(TCypressManagerPtr owner, const TLockId& id)
+        : TBase(owner->Bootstrap, id, &owner->LockMap)
+        , Owner(owner)
+    {
+        Logger = NCypress::Logger;
+    }
+
+    virtual bool IsWriteRequest(NRpc::IServiceContext* context) const
+    {
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
+        return TBase::IsWriteRequest(context);
+    }
+
+private:
+    typedef TUnversionedObjectProxyBase<TLock> TBase;
+
+    TCypressManagerPtr Owner;
+
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+    {
+        const auto& chunk = GetTypedImpl();
+        attributes->push_back("mode");
+        attributes->push_back("node_id");
+        attributes->push_back("transaction_id");
+        TBase::GetSystemAttributes(attributes);
+    }
+
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+    {
+        const auto& lock = GetTypedImpl();
+
+        if (name == "mode") {
+            BuildYsonFluently(consumer)
+                .Scalar(FormatEnum(lock.GetMode()));
+            return true;
+        }
+
+        if (name == "node_id") {
+            BuildYsonFluently(consumer)
+                .Scalar(lock.GetNodeId().ToString());
+            return true;
+        }
+
+        if (name == "transaction_id") {
+            BuildYsonFluently(consumer)
+                .Scalar(lock.GetTransaction()->GetId().ToString());
+            return true;
+        }
+
+        return TBase::GetSystemAttribute(name, consumer);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IObjectProxy::TPtr TCypressManager::TLockTypeHandler::GetProxy(
+    const TObjectId& id,
+    NTransactionServer::TTransaction* transaction)
+{
+    UNUSED(transaction);
+    return New<TLockProxy>(Owner, id);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,9 +225,8 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     RegisterHandler(~New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(~New<TListNodeTypeHandler>(Bootstrap));
 
-    TLoadContext context(bootstrap);
-
     auto metaState = bootstrap->GetMetaState();
+    TLoadContext context(bootstrap);
     metaState->RegisterLoader(
         "Cypress.Keys.1",
         BIND(&TCypressManager::LoadKeys, MakeStrong(this)));
@@ -218,7 +295,7 @@ void TCypressManager::CreateNodeBehavior(const TNodeId& id)
 
     YVERIFY(NodeBehaviors.insert(MakePair(id, behavior)).second);
 
-    LOG_DEBUG("Node behavior created (NodeId: %s)",  ~id.ToString());
+    LOG_DEBUG("Created behavior for node %s",  ~id.ToString());
 }
 
 void TCypressManager::DestroyNodeBehavior(const TNodeId& id)
@@ -230,7 +307,7 @@ void TCypressManager::DestroyNodeBehavior(const TNodeId& id)
     it->second->Destroy();
     NodeBehaviors.erase(it);
 
-    LOG_DEBUG("Node behavior destroyed (NodeId: %s)", ~id.ToString());
+    LOG_DEBUG("Destroyed behavior for node %s", ~id.ToString());
 }
 
 TNodeId TCypressManager::GetRootNodeId()
@@ -286,7 +363,7 @@ private:
 
 };
 
-} // namespace <anonymous>
+} // namespace
 
 TYPathServiceProducer TCypressManager::GetRootServiceProducer()
 {
@@ -368,11 +445,11 @@ ICypressNode* TCypressManager::FindVersionedNodeForUpdate(
             if (currentTransaction == transaction) {
                 // Update the lock mode if a higher one was requested (unless this is the null transaction).
                 if (currentTransaction != NULL && currentNode->GetLockMode() < requestedMode) {
-                    LOG_INFO_IF(!IsRecovery(), "Node lock mode upgraded (NodeId: %s, TransactionId: %s, OldMode: %s, NewMode: %s)",
+                    LOG_INFO_IF(!IsRecovery(), "Upgraded node %s lock from %s to %s at transaction %s",
                         ~nodeId.ToString(),
-                        ~GetObjectId(transaction).ToString(),
-                        ~currentNode->GetLockMode().ToString(),
-                        ~requestedMode.ToString());
+                        ~FormatEnum(currentNode->GetLockMode()).Quote(),
+                        ~FormatEnum(requestedMode).Quote(),
+                        ~GetObjectId(transaction).ToString());
                     currentNode->SetLockMode(requestedMode);
                 }
                 return currentNode;
@@ -432,86 +509,90 @@ void TCypressManager::ValidateLock(
     ELockMode requestedMode,
     bool* isMandatory)
 {
+    YASSERT(requestedMode != ELockMode::None);
+    YASSERT(isMandatory);
+
+    // Check if the node supports this particular mode at all.
     auto handler = GetHandler(TypeFromId(nodeId));
     if (!handler->IsLockModeSupported(requestedMode)) {
-        ythrow yexception() << Sprintf("Cannot take %s lock for node %s: the mode is not supported",
-            ~FormatEnum(requestedMode).Quote(),
-            ~nodeId.ToString());
+        ythrow yexception() << Sprintf("Node %s does not support %s locks",
+            ~nodeId.ToString(),
+            ~FormatEnum(requestedMode).Quote());
     }
-    
-    // Examine (strictly) downward locks.
-    const auto& lockedNode = NodeMap.Get(nodeId);
-    FOREACH (auto lock, lockedNode.SubtreeLocks()) {
-        if (IsParentTransaction(transaction, lock->GetTransaction())) {
-            if (!AreConcurrentLocksCompatible(requestedMode, lock->GetMode())) {
-                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with an earlier taken %s downward lock at node %s",
+
+    // Snapshot locks can only be taken inside a transaction.
+    if (requestedMode == ELockMode::Snapshot && !transaction) {
+        ythrow yexception() << Sprintf("Cannot take %s lock outside of a transaction",
+            ~FormatEnum(requestedMode).Quote());
+    }
+
+    // Examine existing locks.
+    const auto& node = NodeMap.Get(nodeId);
+    FOREACH (auto* lock, node.Locks()) {
+        // If the requested mode is Snapshot then no descendant transaction (including |transaction| itself)
+        // may hold a lock other than Snapshot.
+        // Allowing otherwise would cause a trouble when this nested transaction commits.
+        if (requestedMode == ELockMode::Snapshot &&
+            IsParentTransaction(lock->GetTransaction(), transaction) &&
+            lock->GetMode() != ELockMode::Snapshot)
+        {
+            ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
+                ~FormatEnum(requestedMode).Quote(),
+                ~nodeId.ToString(),
+                ~FormatEnum(lock->GetMode()).Quote(),
+                ~lock->GetTransaction()->GetId().ToString());
+        }
+
+        if (lock->GetTransaction() == transaction) {
+            // Check for locks taken by the same transaction.
+
+            // Same mode -- no lock is needed.
+            if (requestedMode == lock->GetMode()) {
+                *isMandatory = false;
+                return;
+            }
+
+            // Stricter mode -- no lock is need (beware of Snapshot).
+            if (requestedMode != ELockMode::Snapshot && requestedMode < lock->GetMode()) {
+                *isMandatory = false;
+                return;
+            }
+
+            // Snapshot lock is not compatible with any other lock.
+            // NB: requestedMode == lock->GetMode() == ELockMode::Snapshot is already handled.
+            if (lock->GetMode() == ELockMode::Snapshot) {
+                ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is already taken",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
-                    ~FormatEnum(lock->GetMode()).Quote(),
-                    ~lock->GetNodeId().ToString());
+                    ~FormatEnum(lock->GetMode()).Quote());
             }
         } else {
-            if (!AreCompetingLocksCompatible(requestedMode, lock->GetMode())) {
-                ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s downward lock at node %s taken by transaction %s",
+            // Check for locks taken by the other transactions.
+
+            // Exclusive locks cannot be taken simultaneously with other locks (except for Snapshot).
+            if (requestedMode == ELockMode::Exclusive && lock->GetMode() != ELockMode::Snapshot ||
+                requestedMode != ELockMode::Snapshot  && lock->GetMode() == ELockMode::Exclusive)
+            {
+                ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by transaction %s",
                     ~FormatEnum(requestedMode).Quote(),
                     ~nodeId.ToString(),
                     ~FormatEnum(lock->GetMode()).Quote(),
-                    ~lock->GetNodeId().ToString(),
                     ~lock->GetTransaction()->GetId().ToString());
             }
         }
     }
 
-    // Examine (non-strictly) upward locks.
-    auto currentNodeId = nodeId;
-    while (currentNodeId != NullObjectId) {
-        const auto& currentNode = NodeMap.Get(currentNodeId);
-        FOREACH (auto lock, currentNode.Locks()) {
-            if (IsParentTransaction(transaction, lock->GetTransaction())) {
-                if (!AreConcurrentLocksCompatible(lock->GetMode(), requestedMode)) {
-                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with an earlier taken %s upward lock at node %s",
-                        ~FormatEnum(requestedMode).Quote(),
-                        ~nodeId.ToString(),
-                        ~FormatEnum(lock->GetMode()).Quote(),
-                        ~lock->GetNodeId().ToString());
-                }
-                // Check if this is lock is at least as strong as the requested one,
-                // and has a proper recursive behavior.
-                if (lock->GetMode() >= requestedMode &&
-                   (IsLockRecursive(lock->GetMode()) || currentNodeId == nodeId))
-                {
-                    if (isMandatory) {
-                        *isMandatory = false;
-                    }
-                    return;
-                }
-            } else {
-                if (!AreCompetingLocksCompatible(lock->GetMode(), requestedMode)) {
-                    ythrow yexception() << Sprintf("Cannot take %s lock for node %s: conflict with %s upward lock at node %s taken by transaction %s",
-                        ~FormatEnum(requestedMode).Quote(),
-                        ~nodeId.ToString(),
-                        ~FormatEnum(lock->GetMode()).Quote(),
-                        ~lock->GetNodeId().ToString(),
-                        ~lock->GetTransaction()->GetId().ToString());
-                }
-            }
-        }
-        currentNodeId = currentNode.GetParentId();
-    }
-
     // If we're outside of a transaction then the lock is not needed.
-    if (!transaction) {
-        if (requestedMode == ELockMode::Snapshot) {
-            ythrow yexception() << "Cannot take Snapshot lock outside of a transaction";
-        }
-        if (isMandatory) {
-            *isMandatory = false;
-        }
-    } else {
-        if (isMandatory) {
-            *isMandatory = true;
-        }
-    }
+    *isMandatory = transaction;
+}
+
+void TCypressManager::ValidateLock(
+    const TNodeId& nodeId,
+    TTransaction* transaction,
+    ELockMode requestedMode)
+{
+    bool dummy;
+    ValidateLock(nodeId, transaction, requestedMode, &dummy);
 }
 
 bool TCypressManager::IsParentTransaction(TTransaction* transaction, TTransaction* parent)
@@ -526,38 +607,6 @@ bool TCypressManager::IsParentTransaction(TTransaction* transaction, TTransactio
     return false;
 }
 
-bool TCypressManager::AreCompetingLocksCompatible(ELockMode upwardMode, ELockMode downwardMode)
-{
-    // For competing transactions snapshot locks are safe.
-    if (upwardMode == ELockMode::Snapshot || downwardMode == ELockMode::Snapshot) {
-        return true;
-    }
-    // For competing transactions exclusive locks are not compatible with any downward lock.
-    if (upwardMode == ELockMode::Exclusive) {
-        return false;
-    }
-    return true;
-}
-
-bool TCypressManager::AreConcurrentLocksCompatible(ELockMode upwardMode, ELockMode downwardMode)
-{
-    // For concurrent transactions snapshot lock is only compatible with another snapshot lock.
-    if (upwardMode == ELockMode::Snapshot && downwardMode != ELockMode::Snapshot) {
-        return false;
-    }
-    if (upwardMode == ELockMode::Snapshot && downwardMode != ELockMode::Snapshot) {
-        return false;
-    }
-    return true;
-}
-
-bool TCypressManager::IsLockRecursive(ELockMode mode)
-{
-    return
-        mode == ELockMode::Shared ||
-        mode == ELockMode::Exclusive;
-}
-
 TLockId TCypressManager::AcquireLock(
     const TNodeId& nodeId,
     TTransaction* transaction,
@@ -567,32 +616,22 @@ TLockId TCypressManager::AcquireLock(
 
     // Create a lock and register it within the transaction.
     auto objectManager = Bootstrap->GetObjectManager();
-    auto lockId = objectManager ->GenerateId(EObjectType::Lock);
+    auto lockId = objectManager->GenerateId(EObjectType::Lock);
     auto* lock = new TLock(lockId, nodeId, transaction, mode);
     LockMap.Insert(lockId, lock);
 
     transaction->Locks().push_back(lock);
     objectManager->RefObject(lockId);
 
-    LOG_INFO_IF(!IsRecovery(), "Node locked (LockId: %s, NodeId: %s, TransactionId: %s, Mode: %s)",
-        ~lockId.ToString(),
+    LOG_INFO_IF(!IsRecovery(), "Locked node %s with mode %s at transaction %s (LockId: %s)",
         ~nodeId.ToString(),
+        ~FormatEnum(mode).Quote(),
         ~transaction->GetId().ToString(),
-        ~mode.ToString());
+        ~lockId.ToString());
 
     // Assign the node to the node itself.
     auto& lockedNode = NodeMap.Get(nodeId);
     YVERIFY(lockedNode.Locks().insert(lock).second);
-
-    // For recursive locks, also assign this lock to every node on the upward path.
-    if (IsLockRecursive(mode)) {
-        auto currentNodeId = lockedNode.GetParentId();
-        while (currentNodeId != NullObjectId) {
-            auto& currentNode = NodeMap.Get(currentNodeId);
-            YVERIFY(currentNode.SubtreeLocks().insert(lock).second);
-            currentNodeId = currentNode.GetParentId();
-        }
-    }
 
     // Snapshot locks always involve branching (unless the node is already branched by another Snapshot lock).
     if (mode == ELockMode::Snapshot) {
@@ -612,16 +651,6 @@ void TCypressManager::ReleaseLock(TLock* lock)
     // Remove the lock from the node itself.
     auto& lockedNode = NodeMap.Get(lock->GetNodeId());
     YVERIFY(lockedNode.Locks().erase(lock) == 1);
-
-    // For recursive locks, also remove the lock from the nodes on the upward path.
-    if (IsLockRecursive(lock->GetMode())) {
-        auto currentNodeId = lockedNode.GetParentId();
-        while (currentNodeId != NullObjectId) {
-            auto& node = NodeMap.Get(currentNodeId);
-            YVERIFY(node.SubtreeLocks().erase(lock) == 1);
-            currentNodeId = node.GetParentId();
-        }
-    }
 
     Bootstrap->GetObjectManager()->UnrefObject(lock->GetId());
 }
@@ -649,17 +678,18 @@ void TCypressManager::RegisterNode(
     auto nodeId = node->GetId().ObjectId;
     YASSERT(node->GetId().TransactionId == NullTransactionId);
 
-    // If there's a transaction then append this node's id to the list.
-    if (transaction) {
-        transaction->CreatedNodeIds().push_back(nodeId);
-    }
-
+    auto node_ = node.Get();
     NodeMap.Insert(nodeId, node.Release());
 
-    LOG_INFO_IF(!IsRecovery(), "Node registered (Type: %s, NodeId: %s, TransactionId: %s)",
-        ~TypeFromId(nodeId).ToString(),
+    if (transaction) {
+        transaction->CreatedNodes().push_back(node_);
+        Bootstrap->GetObjectManager()->RefObject(nodeId);
+    }
+
+    LOG_INFO_IF(!IsRecovery(), "Registered node %s of type %s at transaction %s",
         ~nodeId.ToString(),
-        transaction ? ~transaction->GetId().ToString() : "None");
+        ~TypeFromId(nodeId).ToString(),
+        ~GetObjectId(transaction).ToString());
 
     if (IsLeader()) {
         CreateNodeBehavior(nodeId);
@@ -675,23 +705,22 @@ ICypressNode& TCypressManager::BranchNode(
 
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto nodeId = node.GetId().ObjectId;
+    auto id = node.GetId();
 
     // Create a branched node and initialize its state.
     auto branchedNode = GetHandler(node)->Branch(node, transaction, mode);
     auto* branchedNode_ = branchedNode.Release();
-    NodeMap.Insert(TVersionedNodeId(nodeId, transaction->GetId()), branchedNode_);
+    NodeMap.Insert(TVersionedNodeId(id.ObjectId, transaction->GetId()), branchedNode_);
 
     // Register the branched node with the transaction.
-    transaction->BranchedNodeIds().push_back(nodeId);
+    transaction->BranchedNodes().push_back(branchedNode_);
 
     // The branched node holds an implicit reference to its originator.
-    Bootstrap->GetObjectManager()->RefObject(nodeId);
+    Bootstrap->GetObjectManager()->RefObject(id.ObjectId);
     
-    LOG_INFO_IF(!IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
-        ~nodeId.ToString(),
-        ~transaction->GetId().ToString(),
-        ~mode.ToString());
+    LOG_INFO_IF(!IsRecovery(), "Branched node %s with %s mode",
+        ~id.ToString(),
+        ~FormatEnum(mode).Quote());
 
     return *branchedNode_;
 }
@@ -794,87 +823,127 @@ void TCypressManager::OnTransactionCommitted(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ReleaseLocks(transaction);
     MergeBranchedNodes(transaction);
-    UnrefOriginatingNodes(transaction);
+    if (transaction.GetParent()) {
+        PromoteCreatedNodes(transaction);
+    } else {
+        ReleaseLocks(transaction);
+        ReleaseCreatedNodes(transaction);
+    }
 }
 
 void TCypressManager::OnTransactionAborted(TTransaction& transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ReleaseLocks(transaction);
     RemoveBranchedNodes(transaction);
-    UnrefOriginatingNodes(transaction);
+    ReleaseLocks(transaction);
+    ReleaseCreatedNodes(transaction);
 }
 
 void TCypressManager::ReleaseLocks(const TTransaction& transaction)
 {
-    auto transactionId = transaction.GetId();
-
-    // Iterate over all locks created by the transaction.
-    FOREACH (const auto& lockId, transaction.Locks()) {
-        ReleaseLock(lockId);
+    FOREACH (auto* lock, transaction.Locks()) {
+        ReleaseLock(lock);
     }
 }
 
 void TCypressManager::MergeBranchedNode(
-    const TTransaction& transaction,
-    const TNodeId& nodeId)
+    TTransaction& transaction,
+    ICypressNode* branchedNode)
 {
-    TVersionedNodeId branchedId(nodeId, transaction.GetId());
-    auto& branchedNode = NodeMap.Get(branchedId);
+    // No merge for Snapshot locks.
+    YASSERT(branchedNode->GetLockMode() != ELockMode::Snapshot);
 
-    // Find the appropriate originating node.
-    ICypressNode* originatingNode;
-    const auto* currentTransaction = &transaction;
-    while (true) {
-        YASSERT(currentTransaction);
-        TVersionedNodeId currentOriginatingId(nodeId, currentTransaction->GetParentId());
-        originatingNode = FindNode(currentOriginatingId);
-        if (originatingNode)
-            break;
-        currentTransaction = currentTransaction->GetParent();
+    auto parentTransaction = transaction.GetParent();
+    auto branchedId = branchedNode->GetId();
+    auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
+    auto* originatingNode = NodeMap.Find(originatingId);
+    if (originatingNode) {
+        // Run merge and remove the branched copy.
+        GetHandler(*branchedNode)->Merge(*originatingNode, *branchedNode);
+        NodeMap.Remove(branchedId);
+
+        // Upgrade lock mode if needed.
+        if (parentTransaction && originatingNode->GetLockMode() < branchedNode->GetLockMode()) {
+            YASSERT(originatingNode->GetLockMode() != ELockMode::Snapshot);
+            YASSERT(branchedNode->GetLockMode() != ELockMode::Snapshot);
+            originatingNode->SetLockMode(branchedNode->GetLockMode());
+            LOG_INFO_IF(!IsRecovery(), "Upgraded lock mode of node %s to %s",
+                ~originatingId.ToString(),
+                ~FormatEnum(originatingNode->GetLockMode()).Quote());
+        }
+
+        // Drop the implicit reference to the originator.
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->UnrefObject(originatingId.ObjectId);
+
+        LOG_INFO_IF(!IsRecovery(), "Merged branched node %s", ~branchedId.ToString());
+    } else {
+        // Promote branched node to the parent transaction.
+        YASSERT(parentTransaction);
+        originatingNode = branchedNode;
+        NodeMap.Release(branchedId);
+        NodeMap.Insert(originatingId, originatingNode);
+        parentTransaction->BranchedNodes().push_back(branchedNode);
+        branchedNode->PromoteToTransaction(parentTransaction);
+
+        LOG_DEBUG_IF(!IsRecovery(), "Promoted branched node %s to transaction %s",
+            ~branchedId.ToString(),
+            ~parentTransaction->GetId().ToString());
     }
 
-    GetHandler(branchedNode)->Merge(*originatingNode, branchedNode);
-
-    NodeMap.Remove(branchedId);
-
-    LOG_INFO_IF(!IsRecovery(), "Node merged (NodeId: %s, TransactionId: %s)",
-        ~nodeId.ToString(),
-        ~transaction.GetId().ToString());
-}
-
-void TCypressManager::MergeBranchedNodes(const TTransaction& transaction)
-{
-    // Merge all branched nodes and remove them.
-    FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        MergeBranchedNode(transaction, nodeId);
+    // Promote locks if needed.
+    if (parentTransaction) {
+        FOREACH (auto* lock, transaction.Locks()) {
+            lock->PromoteToTransaction(parentTransaction);
+            parentTransaction->Locks().push_back(lock);
+            YVERIFY(originatingNode->Locks().insert(lock).second);
+            LOG_DEBUG_IF(!IsRecovery(), "Promoted lock %s to transaction %s",
+                ~lock->GetId().ToString(),
+                ~parentTransaction->GetId().ToString());
+        }
     }
 }
 
-void TCypressManager::UnrefOriginatingNodes(const TTransaction& transaction)
+void TCypressManager::MergeBranchedNodes(TTransaction& transaction)
 {
-    // Drop implicit references from branched nodes to their originators.
+    FOREACH (auto* node, transaction.BranchedNodes()) {
+        if (node->GetLockMode() != ELockMode::Snapshot) {
+            MergeBranchedNode(transaction, node);
+        }
+    }
+}
+
+void TCypressManager::PromoteCreatedNodes(NTransactionServer::TTransaction& transaction)
+{
+    auto parentTransaction = transaction.GetParent();
+    FOREACH (auto* node, transaction.CreatedNodes()) {
+        parentTransaction->CreatedNodes().push_back(node);
+    }
+}
+
+void TCypressManager::ReleaseCreatedNodes(NTransactionServer::TTransaction& transaction)
+{
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        objectManager->UnrefObject(nodeId);
+    FOREACH (auto* node, transaction.CreatedNodes()) {
+        objectManager->UnrefObject(node->GetId().ObjectId);
     }
 }
 
 void TCypressManager::RemoveBranchedNodes(const TTransaction& transaction)
 {
-    auto transactionId = transaction.GetId();
-    FOREACH (const auto& nodeId, transaction.BranchedNodeIds()) {
-        TVersionedNodeId versionedId(nodeId, transactionId);
-        auto& node = NodeMap.Get(versionedId);
-        GetHandler(node)->Destroy(node);
-        NodeMap.Remove(versionedId);
+    auto objectManager = Bootstrap->GetObjectManager();
+    FOREACH (auto* branchedNode, transaction.BranchedNodes()) {
+        // Remove the node.
+        auto id = branchedNode->GetId();
+        GetHandler(*branchedNode)->Destroy(*branchedNode);
+        NodeMap.Remove(branchedNode->GetId());
 
-        LOG_INFO_IF(!IsRecovery(), "Branched node removed (NodeId: %s, TransactionId: %s)",
-            ~nodeId.ToString(),
-            ~transactionId.ToString());
+        // Drop the implicit reference to the originator.
+        objectManager->UnrefObject(id.ObjectId);
+
+        LOG_INFO_IF(!IsRecovery(), "Removed branched node %s", ~id.ToString());
     }
 }
 

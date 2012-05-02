@@ -296,7 +296,7 @@ class YTEnv:
         write_config(self.driver_config, config_path)
         os.environ['YT_CONFIG'] = config_path
 
-    def _wait_for(self, condition, max_wait_time=10, sleep_quantum=0.5, name=""):
+    def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
         current_wait_time = 0
         print 'Waiting for {0}'.format(name), 
         while current_wait_time < max_wait_time:

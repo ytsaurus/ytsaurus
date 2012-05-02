@@ -145,7 +145,7 @@ void RemoveFile(const Stroka& fileName)
     }
 }
 
-} // namespace <anonymous>
+} // namespace
 
 yvector<TChunkDescriptor> TLocation::Scan()
 {

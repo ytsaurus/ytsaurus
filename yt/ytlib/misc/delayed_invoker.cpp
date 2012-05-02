@@ -47,7 +47,7 @@ public:
         cookie->Iterator = Entries.insert(MakePair(cookie->Deadline, cookie));
 
         LOG_TRACE("Submitted delayed action (Action: %p, Cookie: %p, Deadline: %s, Count: %d)",
-            action.Handle(),
+            action.GetHandle(),
             ~cookie,
             ~cookie->Deadline.ToString(),
             static_cast<int>(Entries.size()));

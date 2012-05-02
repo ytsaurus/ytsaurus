@@ -33,6 +33,14 @@ TEST(TYTreeSerializationTest, All)
         "After: " << deserializedYson;
 }
 
+TEST(TCustomTypeSerializationTest, TInstant)
+{
+    TInstant value = TInstant::MilliSeconds(100500);
+    auto yson = SerializeToYson(value);
+    auto deserializedValue = DeserializeFromYson<TInstant>(yson);
+    EXPECT_EQ(value, deserializedValue);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

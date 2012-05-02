@@ -20,7 +20,7 @@ using namespace NChunkServer;
 
 TChunkSequenceReader::TChunkSequenceReader(
     TChunkSequenceReaderConfigPtr config,
-    NRpc::IChannel::TPtr masterChannel,
+    NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
     const std::vector<NProto::TInputChunk>& fetchedChunks)
     : Config(config)

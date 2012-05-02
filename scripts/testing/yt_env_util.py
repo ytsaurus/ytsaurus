@@ -7,6 +7,9 @@ YT = "yt"
 def command(name, *args, **kw):
     all_args = [name] + list(args)
     for k, v in kw.items():
+        # dirty hack for --tx
+        if k == 'tx':
+            v = '"%s"' % v
         all_args.extend(['--' + k, v])
     print all_args
 

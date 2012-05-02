@@ -2,8 +2,7 @@
 #include "timing.h"
 
 #include <ytlib/logging/log.h>
-
-#include <quality/Misc/HPTimer.h>
+#include <ytlib/misc/high_resolution_clock.h>
 
 namespace NYT {
 namespace NProfiling  {
@@ -76,13 +75,13 @@ TDuration CpuDurationToDuration(TCpuDuration duration)
     // TDuration is unsigned and thus does not support negative values.
     YASSERT(duration >= 0);
     // TODO(babenko): get rid of this dependency on NHPTimer
-    return TDuration::Seconds((double) duration / NHPTimer::GetClockRate());
+    return TDuration::Seconds((double) duration / NClock::GetClockRate());
 }
 
 TCpuDuration DurationToCpuDuration(TDuration duration)
 {
     // TODO(babenko): get rid of this dependency on NHPTimer
-    return (double) duration.MicroSeconds() * NHPTimer::GetClockRate() / 1000000;
+    return (double) duration.MicroSeconds() * NClock::GetClockRate() / 1000000;
 }
 
 TInstant CpuInstantToInstant(TCpuInstant instant)

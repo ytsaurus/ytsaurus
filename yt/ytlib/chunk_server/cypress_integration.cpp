@@ -381,13 +381,13 @@ private:
             // TODO(babenko): check for errors and retry
 
             {
-                auto req = TCypressYPathProxy::Create("/" + EscapeYPath(address));
+                auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address));
                 req->set_type(EObjectType::Holder);
                 ExecuteVerb(~service, ~req);
             }
 
             {
-                auto req = TCypressYPathProxy::Create("/" + EscapeYPath(address) + "/orchid");
+                auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address) + "/orchid");
                 req->set_type(EObjectType::Orchid);
                 req->Attributes().Set("remote_address", address);
                 ExecuteVerb(~service, ~req);

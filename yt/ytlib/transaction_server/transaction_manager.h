@@ -62,6 +62,8 @@ public:
         TConfig* config,
         NCellMaster::TBootstrap* bootstrap);
 
+    void Init();
+
     NObjectServer::IObjectProxy::TPtr GetRootTransactionProxy();
 
     TTransaction& Start(TTransaction* parent, TNullable<TDuration> timeout);

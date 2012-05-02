@@ -57,6 +57,12 @@ TVersionedNodeId TCypressNodeBase::GetId() const
     return Id;
 }
 
+void TCypressNodeBase::PromoteToTransaction(const TTransaction* transaction)
+{
+    YASSERT(transaction);
+    Id.TransactionId = transaction->GetId();
+}
+
 i32 TCypressNodeBase::RefObject()
 {
     YASSERT(!Id.IsBranched());
@@ -78,7 +84,6 @@ void TCypressNodeBase::Save(TOutputStream* output) const
 {
     TObjectBase::Save(output);
     SaveObjectRefs(output, Locks_);
-    SaveObjectRefs(output, SubtreeLocks_);
     ::Save(output, ParentId_);
     ::Save(output, LockMode_);
 }
@@ -88,7 +93,6 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
     UNUSED(context);
     TObjectBase::Load(input);
     LoadObjectRefs(input, Locks_, context);
-    LoadObjectRefs(input, SubtreeLocks_, context);
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
 }

@@ -110,6 +110,7 @@ void TBootstrap::Run()
         ~orchidRoot,
         "/scheduler",
         ~NYTree::CreateVirtualNode(Scheduler->CreateOrchidProducer()));
+    SyncYPathSet(~orchidRoot, "/@service_name", "scheduler");
 
     auto orchidService = New<TOrchidService>(
         ~orchidRoot,
@@ -139,7 +140,7 @@ TCellSchedulerConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-IChannel::TPtr TBootstrap::GetMasterChannel() const
+IChannelPtr TBootstrap::GetMasterChannel() const
 {
     return MasterChannel;
 }

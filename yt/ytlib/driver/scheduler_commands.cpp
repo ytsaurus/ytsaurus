@@ -31,7 +31,7 @@ void TSchedulerCommandBase::StartOperation(
     EOperationType type,
     const NYTree::TYson& spec)
 {
-    auto transaction = Host->GetTransaction(request, true);
+    auto transaction = Host->GetTransaction(request);
 
     TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
 
@@ -39,7 +39,7 @@ void TSchedulerCommandBase::StartOperation(
     {
         auto startOpReq = proxy.StartOperation();
         startOpReq->set_type(type);
-        *startOpReq->mutable_transaction_id() = transaction->GetId().ToProto();
+        *startOpReq->mutable_transaction_id() = (transaction ? transaction->GetId() : NullTransactionId).ToProto();
         startOpReq->set_spec(spec);
 
         auto startOpRsp = startOpReq->Invoke().Get();
@@ -83,10 +83,18 @@ void TSchedulerCommandBase::WaitForOperation(const TOperationId& operationId)
     } 
 }
 
+void TSchedulerCommandBase::AbortOperation(const NScheduler::TOperationId& operationId)
+{
+    TSchedulerServiceProxy proxy(Host->GetSchedulerChannel());
+    auto abortOpReq = proxy.AbortOperation();
+    *abortOpReq->mutable_operation_id() = operationId.ToProto();
+    abortOpReq->Invoke().Get();
+}
+
 // TODO(babenko): refactor
 static NYTree::TYPath GetOperationPath(const TOperationId& id)
 {
-    return "//sys/operations/" + EscapeYPath(id.ToString());
+    return "//sys/operations/" + EscapeYPathToken(id.ToString());
 }
 
 // TODO(babenko): refactor
@@ -185,7 +193,7 @@ TMapCommand::TMapCommand(ICommandHost* host)
     , TSchedulerCommandBase(host)
 { }
 
-void TMapCommand::DoExecute(TMapRequestPtr request)
+void TMapCommand::DoExecute(TSchedulerRequestPtr request)
 {
     StartOperation(
         request,
@@ -202,12 +210,41 @@ TMergeCommand::TMergeCommand(ICommandHost* host)
     , TSchedulerCommandBase(host)
 { }
 
-void TMergeCommand::DoExecute(TMergeRequestPtr request)
+void TMergeCommand::DoExecute(TSchedulerRequestPtr request)
 {
     StartOperation(
         request,
         EOperationType::Merge,
         SerializeToYson(request->Spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEraseCommand::TEraseCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+    , TSchedulerCommandBase(host)
+{ }
+
+void TEraseCommand::DoExecute(TSchedulerRequestPtr request)
+{
+    StartOperation(
+        request,
+        EOperationType::Erase,
+        SerializeToYson(request->Spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAbortOperationCommand::TAbortOperationCommand(ICommandHost* host)
+    : TTypedCommandBase(host)
+    , TUntypedCommandBase(host)
+    , TSchedulerCommandBase(host)
+{ }
+
+void TAbortOperationCommand::DoExecute(TAbortOperationRequestPtr request)
+{
+    AbortOperation(request->OperationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
