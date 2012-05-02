@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "table_commands.h"
+#include "config.h"
 
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/tree_visitor.h>

@@ -7,6 +7,7 @@
 #include <ytlib/misc/delayed_invoker.h>
 
 #include <ytlib/driver/driver.h>
+#include <ytlib/driver/config.h>
 
 #include <ytlib/rpc/rpc_manager.h>
 
@@ -139,7 +140,7 @@ class TDriverProgram
 {
 public:
     struct TConfig
-        : public TDriver::TConfig
+        : public TDriverConfig
     {
         INodePtr Logging;
 
@@ -262,7 +263,7 @@ public:
                 config->OutputFormat = outputFormatFromCmd.Get();
             }
 
-            Driver = new TDriver(~config, &StreamProvider);
+            Driver = CreateDriver(~config, &StreamProvider);
 
             auto command = argsParser->GetCommand();
             RunCommand(command);
@@ -298,7 +299,7 @@ private:
     int ExitCode;
 
     TStreamProvider StreamProvider;
-    TAutoPtr<TDriver> Driver;
+    IDriverPtr Driver;
 
     yhash_map<Stroka, TArgsParserBase::TPtr> ArgsParsers;
 

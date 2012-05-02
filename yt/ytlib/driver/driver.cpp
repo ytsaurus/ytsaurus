@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "driver.h"
+#include "config.h"
 #include "command.h"
 #include "transaction_commands.h"
 #include "cypress_commands.h"
@@ -105,13 +106,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDriver::TImpl
-    : private TNonCopyable
+class TDriver
+    : public IDriver
     , public ICommandHost
 {
 public:
-    TImpl(
-        TConfig::TPtr config,
+    TDriver(
+        TDriverConfigPtr config,
         IDriverStreamProvider* streamProvider)
         : Config(config)
         , StreamProvider(streamProvider)
@@ -166,7 +167,7 @@ public:
         return Error;
     }
 
-    virtual TConfig::TPtr GetConfig() const
+    virtual TDriverConfigPtr GetConfig() const
     {
         return ~Config;
     }
@@ -263,7 +264,7 @@ public:
     }
 
 private:
-    TConfig::TPtr Config;
+    TDriverConfigPtr Config;
     IDriverStreamProvider* StreamProvider;
     TError Error;
     yhash_map<Stroka, ICommand::TPtr> Commands;
@@ -301,18 +302,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDriver::TDriver(
-    TConfig::TPtr config,
-    IDriverStreamProvider* streamProvider)
-    : Impl(new TImpl(config, streamProvider))
-{ }
-
-TDriver::~TDriver()
-{ }
-
-TError TDriver::Execute(INodePtr command)
+IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverStreamProvider* streamProvider)
 {
-    return Impl->Execute(command);
+    return new TDriver(config, streamProvider);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "public.h"
 
 #include <ytlib/misc/configurable.h>
 #include <ytlib/misc/error.h>
@@ -33,59 +34,15 @@ struct IDriverStreamProvider
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDriver
+struct IDriver
+    : public TRefCounted
 {
-public:
-    struct TConfig
-        : public TConfigurable
-    {
-        typedef TIntrusivePtr<TConfig> TPtr;
-
-        NYTree::EYsonFormat OutputFormat;
-        TDuration OperationWaitTimeout;
-        NElection::TLeaderLookup::TConfigPtr Masters;
-        NTransactionClient::TTransactionManager::TConfig::TPtr TransactionManager;
-        NFileClient::TFileReader::TConfig::TPtr FileReader;
-        NFileClient::TFileWriter::TConfig::TPtr FileWriter;
-        NTableClient::TTableReader::TConfig::TPtr TableReader;
-        NTableClient::TTableWriter::TConfig::TPtr TableWriter;
-        NChunkClient::TClientBlockCacheConfig::TPtr BlockCache;
-
-        TConfig()
-        {
-            Register("output_format", OutputFormat)
-                .Default(NYTree::EYsonFormat::Text);
-            Register("operation_wait_timeout", OperationWaitTimeout)
-                .Default(TDuration::Seconds(3));
-            Register("masters", Masters);
-            Register("transaction_manager", TransactionManager)
-                .DefaultNew();
-            Register("file_reader", FileReader)
-                .DefaultNew();
-            Register("file_writer", FileWriter)
-                .DefaultNew();
-            Register("table_reader", TableReader)
-                .DefaultNew();
-            Register("table_writer", TableWriter)
-                .DefaultNew();
-            Register("block_cache", BlockCache)
-                .DefaultNew();
-        }
-    };
-
-    TDriver(
-        TConfig::TPtr config,
-        IDriverStreamProvider* streamProvider);
-    ~TDriver();
-
-    TError Execute(NYTree::INodePtr command);
-
-private:
-    class TImpl;
-
-    THolder<TImpl> Impl;
-
+    virtual TError Execute(NYTree::INodePtr command) = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+IDriverPtr CreateDriver(TDriverConfigPtr config, IDriverStreamProvider* streamProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

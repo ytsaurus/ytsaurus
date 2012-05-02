@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "file_commands.h"
+#include "config.h"
 
 #include <ytlib/file_client/file_reader.h>
 #include <ytlib/file_client/file_writer.h>

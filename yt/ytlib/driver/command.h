@@ -55,7 +55,7 @@ struct ICommandHost
     virtual ~ICommandHost()
     { }
 
-    virtual TDriver::TConfig::TPtr GetConfig() const = 0;
+    virtual TDriverConfigPtr GetConfig() const = 0;
     virtual NRpc::IChannelPtr GetMasterChannel() const = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() const = 0;
 

@@ -13,9 +13,11 @@ set( SRCS
 set( HDRS
   ${BASE}/command.h
   ${BASE}/common.h
+  ${BASE}/config.h
   ${BASE}/cypress_commands.h
   ${BASE}/driver.h
   ${BASE}/file_commands.h
+  ${BASE}/public.h
   ${BASE}/scheduler_commands.h
   ${BASE}/table_commands.h
   ${BASE}/transaction_commands.h

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "scheduler_commands.h"
+#include "config.h"
 
 #include <ytlib/misc/configurable.h>
 
