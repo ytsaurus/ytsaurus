@@ -10,7 +10,8 @@
 #include <ytlib/chunk_server/chunk.h>
 #include <ytlib/chunk_server/chunk_list.h>
 #include <ytlib/cell_master/bootstrap.h>
-#include <ytlib/table_client/schema.h>
+//#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/key.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -157,14 +158,13 @@ void TTableNodeProxy::TraverseChunkTree(
 
 namespace {
 
-TKey GetMinKey(const TChunkTreeRef& ref)
+NTableClient::NProto::TKey GetMinKey(const TChunkTreeRef& ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk: {
-            auto attributes = ref.AsChunk()->DeserializeAttributes();
-            const auto& tableAttributes = attributes.GetExtension(
-                NTableClient::NProto::TTableChunkAttributes::table_attributes);
-            return tableAttributes.key_samples(0).key();
+            auto boundaryKeys = GetProtoExtension<NTableClient::NProto::TBoundaryKeys>(
+                ref.AsChunk()->ChunkMeta().extensions());
+            return boundaryKeys->first();
         }
         case EObjectType::ChunkList:
             YASSERT(!ref.AsChunkList()->Children().empty());
@@ -174,14 +174,13 @@ TKey GetMinKey(const TChunkTreeRef& ref)
     }
 }
 
-TKey GetMaxKey(const TChunkTreeRef& ref)
+NTableClient::NProto::TKey GetMaxKey(const TChunkTreeRef& ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk: {
-            auto attributes = ref.AsChunk()->DeserializeAttributes();
-            const auto& tableAttributes = attributes.GetExtension(
-                NTableClient::NProto::TTableChunkAttributes::table_attributes);
-            return tableAttributes.key_samples(tableAttributes.key_samples_size() - 1).key();
+            auto boundaryKeys = GetProtoExtension<NTableClient::NProto::TBoundaryKeys>(
+                ref.AsChunk()->ChunkMeta().extensions());
+            return boundaryKeys->last();
         }
         case EObjectType::ChunkList:
             YASSERT(!ref.AsChunkList()->Children().empty());
@@ -191,9 +190,9 @@ TKey GetMaxKey(const TChunkTreeRef& ref)
     }
 }
 
-bool LessComparer(const TChunkTreeRef& ref, const TKey& key)
+bool LessComparer(const TChunkTreeRef& ref, const NTableClient::NProto::TKey& key)
 {
-    return GetMinKey(ref) < key;
+    return CompareProtoKeys(GetMinKey(ref), key) < 0;
 }
 
 bool IsEmpty(TChunkTreeRef ref)
@@ -236,8 +235,8 @@ ForwardIterator LowerBound(ForwardIterator first, ForwardIterator last, const TK
 
 void TTableNodeProxy::TraverseChunkTree(
     const TChunkList* chunkList,
-    const TKey& lowerBound,
-    const TKey* upperBound,
+    const NTableClient::NProto::TKey& lowerBound,
+    const NTableClient::NProto::TKey* upperBound,
     NProto::TRspFetch* response)
 {
     if (chunkList->Children().empty()) {
@@ -263,7 +262,7 @@ void TTableNodeProxy::TraverseChunkTree(
         }
         auto minKey = GetMinKey(child);
         auto maxKey = GetMaxKey(child);
-        if (lowerBound > maxKey) {          
+        if (lowerBound > maxKey) {
             continue; // possible for the first chunk tree considered
         }
         if (upperBound && minKey >= *upperBound) {
@@ -387,7 +386,7 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
         tokenizer.ParseNext();
         *channel = TChannel::CreateEmpty();
         while (tokenizer.GetCurrentType() != ETokenType::RightBrace) {
-            TColumn begin;
+            Stroka begin;
             bool isRange = false;
             switch (tokenizer.GetCurrentType()) {
                 case ETokenType::String:
@@ -409,7 +408,7 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
             if (isRange) {
                 switch (tokenizer.GetCurrentType()) {
                     case ETokenType::String: {
-                        TColumn end(tokenizer.Current().GetStringValue());
+                        Stroka end(tokenizer.Current().GetStringValue());
                         channel->AddRange(begin, end);
                         tokenizer.ParseNext();
                         break;
@@ -446,21 +445,33 @@ void ParseRowLimit(
     ETokenType separator,
     TReadLimit* limit)
 {
+    if (tokenizer.GetCurrentType() == separator) {
+        tokenizer.ParseNext();
+        return;
+    }
+
     switch (tokenizer.GetCurrentType()) {
-        case ETokenType::String:
-            limit->mutable_key()->add_values(Stroka(tokenizer.Current().GetStringValue()));
-            tokenizer.ParseNext();
+        //ToDo(psushin): make other yson types possible.
+        case ETokenType::String: {
+            auto *keyPart = limit->mutable_key()->add_parts();
+            auto value = tokenizer.Current().GetStringValue();
+            keyPart->set_str_value(value.begin(), value.size());
+            keyPart->set_type(EKeyType::String);
             break;
+        }
         case ETokenType::Hash:
             tokenizer.ParseNext();
             limit->set_row_index(tokenizer.Current().GetIntegerValue());
-            tokenizer.ParseNext();
             break;
         case ETokenType::LeftParenthesis:
             tokenizer.ParseNext();
             limit->mutable_key();
             while (tokenizer.GetCurrentType() != ETokenType::RightParenthesis) {
-                limit->mutable_key()->add_values(Stroka(tokenizer.Current().GetStringValue()));
+                auto *keyPart = limit->mutable_key()->add_parts();
+                auto value = tokenizer.Current().GetStringValue();
+                keyPart->set_str_value(value.begin(), value.size());
+                keyPart->set_type(EKeyType::String);
+
                 tokenizer.ParseNext();
                 switch (tokenizer.GetCurrentType()) {
                     case ETokenType::Comma:
@@ -473,15 +484,13 @@ void ParseRowLimit(
                         YUNREACHABLE();
                 }
             }
-            tokenizer.ParseNext();
             break;
         default:
-            if (tokenizer.GetCurrentType() != separator) {
-                ThrowUnexpectedToken(tokenizer.Current());
-            }
+            ThrowUnexpectedToken(tokenizer.Current());
             break;
     }
 
+    tokenizer.ParseNext();
     tokenizer.Current().CheckType(separator);
     tokenizer.ParseNext();
 }

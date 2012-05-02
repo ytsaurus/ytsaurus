@@ -98,15 +98,10 @@ private:
 
     void OnClose();
 
-<<<<<<< HEAD
     TChunkSequenceWriterConfigPtr Config;
-    NRpc::IChannel::TPtr MasterChannel;
+    NRpc::IChannelPtr MasterChannel;
     const std::vector<TChannel> Channels;
     const TNullable<TKeyColumns> KeyColumns;
-=======
-    TConfig::TPtr Config;
-    NRpc::IChannelPtr MasterChannel;
->>>>>>> origin/master
 
     volatile double Progress;
 

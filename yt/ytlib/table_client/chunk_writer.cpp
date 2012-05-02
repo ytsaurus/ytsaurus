@@ -250,13 +250,17 @@ NProto::TSample TChunkWriter::MakeSample(TRow& row)
 {
     std::sort(row.begin(), row.end());
 
+    TLexer lexer;
+
     NProto::TSample sample;
     FOREACH(const auto& pair, row) {
         auto* part = sample.add_parts();
         part->set_column(pair.first.begin(), pair.first.size());
 
-        TTokenizer tokenizer(pair.second);
-        auto& token = tokenizer[0];
+        lexer.Reset();
+        YVERIFY(lexer.Read(pair.second));
+        YASSERT(lexer.GetState() == TLexer::EState::Terminal);
+        auto& token = lexer.GetToken();
         switch (token.GetType()) {
         case ETokenType::Integer:
             *(part->mutable_key_part()) = TKeyPart(token.GetIntegerValue()).ToProto();

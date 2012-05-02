@@ -35,28 +35,13 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 {
     TChunkTreeStatistics result;
 
-    YASSERT(GetSize() != TChunk::UnknownSize);
-    result.CompressedSize = GetSize();
+    YASSERT(ChunkInfo().size() != TChunk::UnknownSize);
+    result.CompressedSize = ChunkInfo().size();
     result.ChunkCount = 1;
 
-    auto attributes = DeserializeAttributes();
-    switch (attributes.type()) {
-        case EChunkType::File: {
-            const auto& fileAttributes = attributes.GetExtension(NFileClient::NProto::TFileChunkAttributes::file_attributes);
-            result.UncompressedSize = fileAttributes.uncompressed_size();
-            break;
-        }
-
-        case EChunkType::Table: {
-            const auto& tableAttributes = attributes.GetExtension(NTableClient::NProto::TTableChunkAttributes::table_attributes);
-            result.RowCount = tableAttributes.row_count();
-            result.UncompressedSize = tableAttributes.uncompressed_size();
-            break;
-        }
-
-        default:
-            YUNREACHABLE();
-    }
+    auto misc = GetProtoExtension<NChunkHolder::NProto::TMisc>(ChunkMeta().extensions());
+    result.UncompressedSize = misc->uncompressed_size();
+    result.RowCount = misc->row_count();
 
     return result;
 }

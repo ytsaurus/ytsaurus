@@ -74,8 +74,8 @@ struct TChunkSequenceWriterConfig
 {
     i64 DesiredChunkSize;
 
-    int TotalReplicaCount;
-    int UploadReplicaCount;
+    int ReplicationFactor;
+    int UploadReplicationFactor;
 
     TChunkWriterConfigPtr ChunkWriter;
     NChunkClient::TRemoteWriterConfigPtr RemoteWriter;
@@ -85,10 +85,10 @@ struct TChunkSequenceWriterConfig
         Register("desired_chunk_size", DesiredChunkSize)
             .GreaterThan(0)
             .Default(1024 * 1024 * 1024);
-        Register("total_replica_count", TotalReplicaCount)
+        Register("replication_factor", ReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(3);
-        Register("upload_replica_count", UploadReplicaCount)
+        Register("upload_replication_factor", UploadReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(2);
         Register("chunk_writer", ChunkWriter)
@@ -99,7 +99,7 @@ struct TChunkSequenceWriterConfig
 
     virtual void DoValidate() const
     {
-        if (TotalReplicaCount < UploadReplicaCount) {
+        if (ReplicationFactor < UploadReplicationFactor) {
             ythrow yexception() << "\"total_replica_count\" cannot be less than \"upload_replica_count\"";
         }
     }

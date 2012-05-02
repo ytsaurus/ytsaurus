@@ -658,6 +658,8 @@ TAsyncError TChunkReader::ContinueNextRow(
 
 void TChunkReader::MakeCurrentRow()
 {
+    TLexer lexer;
+
     FOREACH (auto& channel, ChannelReaders) {
         while (channel->NextColumn()) {
             auto column = channel->GetColumn();
@@ -669,8 +671,11 @@ void TChunkReader::MakeCurrentRow()
 
                     if (columnInfo.KeyIndex >= 0) {
                         // Use first token to create key part.
-                        TTokenizer tokenizer(channel->GetValue());
-                        auto& token = tokenizer[0];
+                        lexer.Reset();
+                        YVERIFY(lexer.Read(channel->GetValue()) > 0);
+                        YASSERT(lexer.GetState() == TLexer::EState::Terminal);
+
+                        auto& token = lexer.GetToken();
                         switch (token.GetType()) {
                         case ETokenType::Integer:
                             CurrentKey.AddValue(

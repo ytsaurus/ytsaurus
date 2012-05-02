@@ -291,6 +291,31 @@ int CompareProtoKeys(const NProto::TKey& lhs, const NProto::TKey& rhs)
     return static_cast<int>(lhs.parts_size()) - static_cast<int>(rhs.parts_size());
 }
 
+bool operator>(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) > 0;
+}
+
+bool operator>=(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) >= 0;
+}
+
+bool operator<(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) < 0;
+}
+
+bool operator<=(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) <= 0;
+}
+
+bool operator==(const NProto::TKey& lhs, const NProto::TKey& rhs)
+{
+    return CompareProtoKeys(lhs, rhs) == 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

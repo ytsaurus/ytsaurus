@@ -8,7 +8,6 @@
 #include <ytlib/object_server/object_detail.h>
 
 #include <ytlib/chunk_holder/chunk.pb.h>
-#include <ytlib/file_client/file_chunk_meta.pb.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
 namespace NYT {
