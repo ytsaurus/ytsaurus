@@ -848,6 +848,11 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
         .EndMap();
 }
 
+std::vector<TYPath> TOperationControllerBase::GetFilePaths()
+{
+    return std::vector<TYPath>();
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

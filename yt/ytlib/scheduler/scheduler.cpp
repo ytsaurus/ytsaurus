@@ -7,6 +7,7 @@
 #include "operation_controller.h"
 #include "map_controller.h"
 #include "merge_controller.h"
+#include "sort_controller.h"
 #include "scheduler_proxy.h"
 
 #include <ytlib/misc/thread_affinity.h>
@@ -824,6 +825,8 @@ private:
                 return CreateMergeController(Config, this, operation);
             case EOperationType::Erase:
                 return CreateEraseController(Config, this, operation);
+            case EOperationType::Sort:
+                return CreateSortController(Config, this, operation);
             default:
                 YUNREACHABLE();
         }

@@ -138,5 +138,20 @@ struct TEraseOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSortOperationSpec
+    : public TOperationSpecBase
+{
+    yvector<NYTree::TYPath> InputTablePaths;
+    NYTree::TYPath OutputTablePath;
+
+    TSortOperationSpec()
+    {
+        Register("input_table_paths", InputTablePaths);
+        Register("output_table_path", OutputTablePath);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT

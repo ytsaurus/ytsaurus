@@ -248,7 +248,7 @@ protected:
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYTree::TYPath> GetOutputTablePaths() = 0;
     //! Called to extract file paths from the spec.
-    virtual std::vector<NYTree::TYPath> GetFilePaths() = 0;
+    virtual std::vector<NYTree::TYPath> GetFilePaths();
 
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkServer::TChunkId& chunkId);
