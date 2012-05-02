@@ -4,6 +4,7 @@
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
+#include "samples_fetcher.h"
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/table_client/schema.h>
@@ -166,7 +167,57 @@ private:
         return result;
     }
 
-    virtual void CustomCompletePreparation()
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
+    {
+        return pipeline
+            ->Add(BIND(&TThis::FetchSamples, MakeStrong(this)))
+            ->Add(BIND(&TThis::ProcessInputs, MakeStrong(this)));
+    }
+
+    TFuture< TValueOrError<void> > FetchSamples()
+    {
+        auto samplesFetcher = New<TSamplesFetcher>(
+            Config,
+            Host->GetBackgroundInvoker(),
+            Operation->GetOperationId());
+
+        // Compute statistics and prepare the fetcher.
+        i64 totalRowCount = 0;
+        i64 totalDataSize = 0;
+        i64 totalChunkCount = 0;
+
+        for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
+            const auto& table = InputTables[tableIndex];
+
+            auto fetchRsp = table.FetchResponse;
+            FOREACH (const auto& chunk, *fetchRsp->mutable_chunks()) {
+                i64 rowCount = chunk.approximate_row_count();
+                i64 dataSize = chunk.approximate_data_size();
+
+                totalRowCount += rowCount;
+                totalDataSize += dataSize;
+                totalChunkCount += 1;
+
+                samplesFetcher->AddChunk(chunk);
+            }
+        }
+
+        // Check for empty inputs.
+        if (totalRowCount == 0) {
+            LOG_INFO("Empty input");
+            FinalizeOperation();
+            return MakeFuture(TValueOrError<void>());
+        }
+
+        LOG_INFO("Inputs processed (TotalRowCount: %" PRId64 ", TotalDataSize: %" PRId64 ", TotalChunkCount: %" PRId64 ")",
+            totalRowCount,
+            totalDataSize,
+            totalChunkCount);
+
+        return samplesFetcher->Run();
+    }
+
+    void ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
             //LOG_INFO("Processing inputs");
