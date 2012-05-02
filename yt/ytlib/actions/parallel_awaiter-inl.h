@@ -157,12 +157,12 @@ inline void TParallelAwaiter::Cancel()
     Terminate();
 }
 
-int TParallelAwaiter::GetRequestCount() const
+inline int TParallelAwaiter::GetRequestCount() const
 {
     return RequestCount;
 }
 
-int TParallelAwaiter::GetResponseCount() const
+inline int TParallelAwaiter::GetResponseCount() const
 {
     return ResponseCount;
 }
