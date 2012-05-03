@@ -16,7 +16,7 @@
 
 #include <ytlib/election/leader_channel.h>
 
-#include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/block_cache.h>
 
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/scheduler_channel.h>
@@ -140,7 +140,7 @@ private:
     yhash_map<Stroka, ICommand::TPtr> Commands;
     IChannelPtr MasterChannel;
     IChannelPtr SchedulerChannel;
-    IBlockCache::TPtr BlockCache;
+    IBlockCachePtr BlockCache;
     TTransactionManager::TPtr TransactionManager;
 
     virtual TDriverConfigPtr GetConfig() const
